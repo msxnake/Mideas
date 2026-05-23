@@ -128,7 +128,7 @@ function resolveScreen4Palette(analysis: ProjectAnalysis): Screen4PaletteSlot[] 
   }
 
 
-  const tileScreenPalette = (analysis.msx2Screens || []).find(screen => screen.palette?.length === 16)?.palette;
+  const tileScreenPalette = collectReferencedTileScreens(analysis).find(screen => screen.palette?.length === 16)?.palette;
   if (tileScreenPalette?.length === 16) {
     return tileScreenPalette.map(slot => ({ ...slot }));
   }
@@ -586,6 +586,113 @@ function maxPersistentMsx2ScreenCount(): number {
   return count;
 }
 
+function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd: number): Record<string, unknown> {
+  const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
+  const screenCount = Math.max(1, tileScreens.length);
+  const effectRuntimeSize = screenCount * layerSize;
+  const effectRuntimeBase = MSX2_EFFECT_RUNTIME_BASE;
+  const effectRuntimeEnd = effectRuntimeBase + effectRuntimeSize;
+  const effectScratchBase = Math.max(0xC200, (effectRuntimeEnd + 0x0f) & 0xfff0);
+  const enemyRuntimeBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const usedBytes = Math.max(0, runtimeRamEnd - MSX2_RUNTIME_RAM_START);
+  const usableBytes = Math.max(0, MSX2_RUNTIME_RAM_LIMIT - MSX2_RUNTIME_RAM_START);
+  const freeBytes = Math.max(0, MSX2_RUNTIME_RAM_LIMIT - runtimeRamEnd);
+  const warningThresholdBytes = Math.floor(usableBytes * 0.85);
+  const maxPersistentScreens = maxPersistentMsx2ScreenCount();
+  const sections = [
+    {
+      id: 'runtime.globals_player_input',
+      start: formatHexWord(MSX2_RUNTIME_RAM_START),
+      end: formatHexWord(MSX2_SNAKE_BODY_BASE),
+      bytes: Math.max(0, MSX2_SNAKE_BODY_BASE - MSX2_RUNTIME_RAM_START),
+      mutable: true,
+      reason: 'Fixed hot runtime state for player/input/global counters.',
+    },
+    {
+      id: 'runtime.snake_body_cache',
+      start: formatHexWord(MSX2_SNAKE_BODY_BASE),
+      end: formatHexWord(MSX2_EFFECT_RUNTIME_BASE),
+      bytes: Math.max(0, MSX2_EFFECT_RUNTIME_BASE - MSX2_SNAKE_BODY_BASE),
+      mutable: true,
+      reason: 'Fixed-size cache reserved only for snake-char body state.',
+    },
+    {
+      id: 'runtime.persistent_effect_layers',
+      start: formatHexWord(effectRuntimeBase),
+      end: formatHexWord(effectRuntimeEnd),
+      bytes: effectRuntimeSize,
+      mutable: true,
+      count: screenCount,
+      bytesPerScreen: layerSize,
+      reason: 'One mutable effects layer per reachable SCREEN 4 room.',
+    },
+    {
+      id: 'runtime.effects_scratch',
+      start: formatHexWord(effectScratchBase),
+      end: formatHexWord(effectScratchBase + layerSize),
+      bytes: layerSize,
+      mutable: true,
+      reason: 'Temporary effect layer buffer for screens without persistent slot or loaders.',
+    },
+    {
+      id: 'runtime.enemy_pool',
+      start: formatHexWord(enemyRuntimeBase),
+      end: formatHexWord(enemyRuntimeBase + MSX2_ENEMY_RUNTIME_BYTES),
+      bytes: MSX2_ENEMY_RUNTIME_BYTES,
+      mutable: true,
+      slots: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
+      reason: 'Active enemy/hazard runtime arrays; ROM keeps enemy templates.',
+    },
+  ];
+  const recommendations: Array<Record<string, unknown>> = [];
+  if (runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT) {
+    recommendations.push({
+      severity: 'error',
+      target: 'runtimeRam',
+      reason: `Estimated runtime RAM ends at ${formatHexWord(runtimeRamEnd)}, past ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}.`,
+      action: 'Reduce persistent per-screen RAM, lower runtime entity pools, or move cold state back to ROM-backed data.',
+    });
+  } else if (usedBytes >= warningThresholdBytes) {
+    recommendations.push({
+      severity: 'warning',
+      target: 'runtimeRam',
+      reason: `Estimated runtime RAM uses ${usedBytes}/${usableBytes} bytes.`,
+      action: 'Audit mutable RAM sections before adding more gameplay features.',
+    });
+  } else {
+    recommendations.push({
+      severity: 'ok',
+      target: 'runtimeRam',
+      reason: 'Estimated runtime RAM fits below warning threshold.',
+      action: 'No RAM recovery needed for this project slice.',
+    });
+  }
+  if (tileScreens.length > maxPersistentScreens) {
+    recommendations.push({
+      severity: 'plan_b',
+      target: 'runtime.persistent_effect_layers',
+      reason: `Reachable screens (${tileScreens.length}) exceed persistent effect capacity (${maxPersistentScreens}).`,
+      action: 'Use a small effects cache instead of one persistent mutable layer per room.',
+    });
+  }
+  return {
+    scope: 'msx2_screen4_ram_budget',
+    start: formatHexWord(MSX2_RUNTIME_RAM_START),
+    end: formatHexWord(runtimeRamEnd),
+    limit: formatHexWord(MSX2_RUNTIME_RAM_LIMIT),
+    usableBytes,
+    usedBytes,
+    freeBytes,
+    warningThresholdBytes,
+    maxPersistentScreens,
+    reachableScreens: tileScreens.length,
+    status: runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT ? 'error' : usedBytes >= warningThresholdBytes ? 'warning' : 'ok',
+    sections,
+    recommendations,
+    note: 'RAM budget reports mutable runtime state only. ROM and VRAM storage are reported separately.',
+  };
+}
+
 function buildPaletteBytes(slots: Screen4PaletteSlot[]): number[] {
   const bytes: number[] = [];
   for (let i = 0; i < 16; i++) {
@@ -622,6 +729,31 @@ function getEntityRenderSpriteId(entity: any): string {
   ).trim();
 }
 
+function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string | undefined): Msx2Sprite | undefined {
+  if (!spriteAssetId) return undefined;
+  return analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
+}
+
+function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> {
+  const spriteIds = new Set<string>();
+  for (const screen of collectReferencedTileScreens(analysis)) {
+    for (const entity of screen.layers?.entities || []) {
+      const spriteAssetId = getEntityRenderSpriteId(entity);
+      if (spriteAssetId) spriteIds.add(spriteAssetId);
+    }
+  }
+  return spriteIds;
+}
+
+function getFirstReferencedMsx2Sprite(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+  const referencedIds = collectReferencedMsx2SpriteIds(analysis);
+  for (const spriteId of referencedIds) {
+    const sprite = resolveMsx2SpriteById(analysis, spriteId);
+    if (sprite) return sprite;
+  }
+  return analysis.msx2Sprites?.[0];
+}
+
 function normalizeEntityMovementMode(entity: any): string {
   return String(
     entity?.components?.msx2_movement?.mode
@@ -646,10 +778,10 @@ function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefi
     || screen?.layers?.entities?.[0];
   const spriteAssetId = getEntityRenderSpriteId(entity);
   if (spriteAssetId) {
-    const sprite = analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
+    const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
     if (sprite) return sprite;
   }
-  return analysis.msx2Sprites?.[0];
+  return getFirstReferencedMsx2Sprite(analysis);
 }
 
 function getEnemyHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
@@ -660,7 +792,7 @@ function getEnemyHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | u
   );
   const spriteAssetId = getEntityRenderSpriteId(entity);
   if (!spriteAssetId) return undefined;
-  return analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
+  return resolveMsx2SpriteById(analysis, spriteAssetId);
 }
 
 function getPongBallHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
@@ -671,7 +803,7 @@ function getPongBallHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite 
   );
   const spriteAssetId = getEntityRenderSpriteId(entity);
   if (!spriteAssetId) return undefined;
-  return analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
+  return resolveMsx2SpriteById(analysis, spriteAssetId);
 }
 
 function getHardwareSpriteSettings(sprite: Msx2Sprite): { x: number; y: number; color: number; patternIndex: number } {
@@ -820,7 +952,7 @@ function usesShooterHorizontalMovement(analysis: ProjectAnalysis): boolean {
 }
 
 function usesMsx2Screen4BackgroundScroll(analysis: ProjectAnalysis): boolean {
-  return (analysis.msx2Screens || []).some(screen =>
+  return collectReferencedTileScreens(analysis).some(screen =>
     Boolean((screen?.runtime as any)?.scrollMode)
     || Boolean((screen?.runtime as any)?.scroll)
     || Boolean(screen?.layers?.entities?.some(entity => Boolean(entity?.components?.msx2_scroll)))
@@ -1184,7 +1316,7 @@ function getSnakeCharRuntimeSettings(analysis: ProjectAnalysis): {
 }
 
 function usesSnakeGrowth(analysis: ProjectAnalysis): boolean {
-  return (analysis.msx2Screens || []).some(screen => {
+  return collectReferencedTileScreens(analysis).some(screen => {
     const runtime = (screen?.runtime || {}) as Record<string, any>;
     const snakeGrowth = runtime.snakeGrowth;
     return snakeGrowth && snakeGrowth.enabled !== false;
@@ -1192,7 +1324,7 @@ function usesSnakeGrowth(analysis: ProjectAnalysis): boolean {
 }
 
 function getSnakeGrowthBodyTileBytes(analysis: ProjectAnalysis): number[] {
-  const screen = (analysis.msx2Screens || []).find(candidate => {
+  const screen = collectReferencedTileScreens(analysis).find(candidate => {
     const runtime = (candidate?.runtime || {}) as Record<string, any>;
     return runtime.snakeGrowth && runtime.snakeGrowth.enabled !== false;
   }) || getPrimaryRuntimeTileScreen(analysis);
@@ -1691,6 +1823,7 @@ function buildHardwareSpriteRuntimeAsm(
   const mazeMovement = usesMazeMovement(analysis);
   const shooterHorizontal = usesShooterHorizontalMovement(analysis);
   const paddleHorizontal = usesPaddleHorizontalMovement(analysis);
+  const stageBannerEnabled = shooterHorizontal;
   const hideHud = isRuntimeHudHidden(analysis);
   const playerBulletSlotCount = getPlayerBulletSlotCount(analysis);
   const secondPlayerBullet = playerBulletSlotCount > 1;
@@ -3411,21 +3544,7 @@ draw_msx2_air_hud:
     ret
 `;
 
-  return `${statusHudAsm}
-draw_msx2_game_over_banner:
-    ; Final-state feedback: red backdrop. Normal screen reload restores black.
-    ; Clobbers BC.
-    ld bc, #0607
-    call WRTVDP
-    ret
-
-draw_msx2_level_complete_banner:
-    ; Final-state feedback: green backdrop. Normal screen reload restores black.
-    ; Clobbers BC.
-    ld bc, #0307
-    call WRTVDP
-    ret
-
+  const stageBannerAsm = stageBannerEnabled ? `
 load_msx2_stage_font:
     ; Loads the tiny STAGE 1/2 font into unused SCREEN 4 char slots. Clobbers AF/BC/DE/HL.
     ld hl, msx2_stage_font_patterns
@@ -3493,7 +3612,29 @@ wait_msx2_stage_banner:
     call wait_frame_busy
     djnz .stage_wait_loop
     ret
+` : `
+draw_msx2_stage_banner:
+wait_msx2_stage_banner:
+    ; Stage banners are omitted when the active MSX2 slice has no shooter wave flow.
+    ret
+`;
 
+  return `${statusHudAsm}
+draw_msx2_game_over_banner:
+    ; Final-state feedback: red backdrop. Normal screen reload restores black.
+    ; Clobbers BC.
+    ld bc, #0607
+    call WRTVDP
+    ret
+
+draw_msx2_level_complete_banner:
+    ; Final-state feedback: green backdrop. Normal screen reload restores black.
+    ; Clobbers BC.
+    ld bc, #0307
+    call WRTVDP
+    ret
+
+${stageBannerAsm}
 reset_msx2_status_border:
     ; Clear final-state border feedback after restart/continue. Clobbers BC.
     ld bc, #0007
@@ -5197,6 +5338,272 @@ function addIncludedAsset(
   });
 }
 
+function estimateSerializedByteSize(value: unknown): number {
+  try {
+    return JSON.stringify(value || {}).length;
+  } catch (_error) {
+    return 0;
+  }
+}
+
+function getStorageDecisionForReadonlyData(rawBytes: number, accessPattern: string): string {
+  if (accessPattern === 'load_to_vram') {
+    return rawBytes > 512 ? 'ROM_ZX0_CANDIDATE_TO_VRAM' : 'ROM_RAW_TO_VRAM';
+  }
+  if (accessPattern === 'runtime_read') return 'ROM_RAW';
+  if (accessPattern === 'manifest_read' || accessPattern === 'stream_or_runtime_read') return 'ROM_RAW';
+  if (rawBytes < 64) return 'ROM_RAW';
+  if (rawBytes <= 512) return 'ROM_RAW_UNLESS_ZX0_SAVES_25_PERCENT';
+  return 'ROM_ZX0_CANDIDATE';
+}
+
+function estimateMsx2ScreenStoragePolicy(screen: Msx2Screen4TileScreen): Record<string, unknown> {
+  const screenData = buildScreen4ScreenData(screen);
+  const patternBytes = screenData.patternBanks.reduce((sum, bytes) => sum + bytes.length, 0);
+  const colorBytes = screenData.colorBanks.reduce((sum, bytes) => sum + bytes.length, 0);
+  const nameBytes = screenData.names.length;
+  const collisionBytes = buildTileScreenLayerBytes(screen, 'collision').length;
+  const effectsBytes = buildTileScreenLayerBytes(screen, 'effects').length;
+  const behaviorBytes = buildTileScreenLayerBytes(screen, 'behavior').length;
+  const spawnBytes = (screen.layers?.entities?.length || 0) * 8;
+  const graphicsBytes = nameBytes + patternBytes + colorBytes;
+  const runtimeReadBytes = collisionBytes + effectsBytes + behaviorBytes + spawnBytes;
+  const rawBytes = graphicsBytes + runtimeReadBytes;
+  return {
+    rawBytes,
+    storedBytesEstimate: rawBytes,
+    accessPattern: 'mixed_load_to_vram_and_runtime_read',
+    mutable: false,
+    decision: graphicsBytes > 512 ? 'MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW' : 'MIXED_ROM_RAW_TO_VRAM_AND_ROM_RAW',
+    reason: 'Reachable SCREEN 4 room: graphics are loaded to VRAM; layers/spawns stay as ROM/runtime data.',
+    parts: [
+      {
+        name: 'nameTable',
+        rawBytes: nameBytes,
+        accessPattern: 'load_to_vram',
+        decision: getStorageDecisionForReadonlyData(nameBytes, 'load_to_vram'),
+      },
+      {
+        name: 'patterns',
+        rawBytes: patternBytes,
+        accessPattern: 'load_to_vram',
+        decision: getStorageDecisionForReadonlyData(patternBytes, 'load_to_vram'),
+      },
+      {
+        name: 'colors',
+        rawBytes: colorBytes,
+        accessPattern: 'load_to_vram',
+        decision: getStorageDecisionForReadonlyData(colorBytes, 'load_to_vram'),
+      },
+      {
+        name: 'runtimeLayersAndSpawns',
+        rawBytes: runtimeReadBytes,
+        accessPattern: 'runtime_read',
+        decision: 'ROM_RAW',
+      },
+    ],
+  };
+}
+
+function estimateMsx2SpriteStoragePolicy(analysis: ProjectAnalysis, sprite: Msx2Sprite): Record<string, unknown> {
+  const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
+  const color = Math.max(1, Math.min(15, settings.color));
+  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
+  const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, Math.max(1, layers.length));
+  const horizontalFacing = getHorizontalFacingDirection(sprite);
+  const mirrorPatternVariantCount = horizontalFacing ? 2 : 1;
+  const patternBytes = Math.max(1, layers.length) * Math.max(1, animationFrameCount) * mirrorPatternVariantCount * 32;
+  const colorBytes = Math.max(1, layers.length) * 16;
+  const rawBytes = patternBytes + colorBytes;
+  return {
+    rawBytes,
+    storedBytesEstimate: rawBytes,
+    accessPattern: 'load_to_vram',
+    mutable: false,
+    decision: getStorageDecisionForReadonlyData(rawBytes, 'load_to_vram'),
+    reason: 'Referenced MSX2 hardware sprite source; sprite patterns/colors are loaded to VRAM/SAT data.',
+    parts: [
+      { name: 'patterns', rawBytes: patternBytes, accessPattern: 'load_to_vram', decision: getStorageDecisionForReadonlyData(patternBytes, 'load_to_vram') },
+      { name: 'lineColors', rawBytes: colorBytes, accessPattern: 'load_to_vram', decision: 'ROM_RAW_TO_VRAM' },
+    ],
+  };
+}
+
+function buildMsx2AssetStoragePolicy(
+  analysis: ProjectAnalysis,
+  includedAssets: any[],
+  tileScreens: Msx2Screen4TileScreen[]
+): any[] {
+  const screenById = new Map(tileScreens.map(screen => [screen.id, screen]));
+  const assetByKey = new Map<string, any>();
+  for (const asset of (((analysis as any).assets || []) as any[])) {
+    assetByKey.set(assetKey(asset?.type, getAssetIdFromData(asset)), asset);
+  }
+  return includedAssets.map(entry => {
+    let policy: Record<string, unknown>;
+    if (entry.type === 'msx2screen' && screenById.has(entry.id)) {
+      policy = estimateMsx2ScreenStoragePolicy(screenById.get(entry.id)!);
+    } else if (entry.type === 'msx2sprite') {
+      const sprite = resolveMsx2SpriteById(analysis, entry.id);
+      policy = sprite
+        ? estimateMsx2SpriteStoragePolicy(analysis, sprite)
+        : { rawBytes: 0, storedBytesEstimate: 0, accessPattern: 'load_to_vram', mutable: false, decision: 'ROM_RAW_TO_VRAM', reason: 'Referenced sprite asset was not resolved for byte estimation.' };
+    } else if (entry.type === 'msx2screen_tile') {
+      policy = {
+        rawBytes: 64,
+        storedBytesEstimate: 64,
+        accessPattern: 'compiled_into_owner_screen',
+        mutable: false,
+        decision: 'INHERIT_OWNER_SCREEN_POLICY',
+        reason: 'Tile bytes are emitted as part of the reachable SCREEN 4 room graphics.',
+      };
+    } else {
+      const asset = assetByKey.get(assetKey(entry.type, entry.id));
+      const rawBytes = estimateSerializedByteSize(asset?.data ?? asset);
+      const accessPattern = entry.type === 'track' ? 'stream_or_runtime_read' : 'manifest_read';
+      policy = {
+        rawBytes,
+        storedBytesEstimate: rawBytes,
+        accessPattern,
+        mutable: false,
+        decision: getStorageDecisionForReadonlyData(rawBytes, accessPattern),
+        reason: 'Included by the active MSX2 project slice; precise backend packing remains allocator-owned.',
+      };
+    }
+    return {
+      type: entry.type,
+      id: entry.id,
+      name: entry.name,
+      ownerScreenId: entry.ownerScreenId,
+      ...policy,
+    };
+  }).sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`));
+}
+
+function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, unknown> {
+  const bankSizeBytes = 8192;
+  const warningThresholdBytes = Math.floor(bankSizeBytes * 0.9);
+  const packages = assetStoragePolicy
+    .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
+    .map(policy => {
+      const usedBytes = Number(policy.storedBytesEstimate) || 0;
+      const canSplit = policy.type === 'msx2screen' || policy.type === 'msx2sprite';
+      return {
+        id: `${policy.type}.${policy.id}`,
+        type: policy.type,
+        sourceId: policy.id,
+        recommendedBankClass: policy.type === 'msx2screen'
+          ? 'world.screen'
+          : policy.type === 'msx2sprite'
+            ? 'world.graphics.sprite'
+            : 'world.manifest',
+        usedBytes,
+        freeBytesIfAlone: Math.max(0, bankSizeBytes - usedBytes),
+        warning: usedBytes >= warningThresholdBytes,
+        overBudgetBytes: Math.max(0, usedBytes - bankSizeBytes),
+        canSplit,
+      };
+    });
+  const totalPayloadBytes = packages.reduce((sum, entry) => sum + entry.usedBytes, 0);
+  const packedBanks: Array<{
+    bankIndex: number;
+    usedBytes: number;
+    freeBytes: number;
+    warning: boolean;
+    overBudgetBytes: number;
+    packages: Array<{ id: string; usedBytes: number; recommendedBankClass: string }>;
+  }> = [];
+  const sortedPackages = [...packages]
+    .filter(entry => entry.overBudgetBytes === 0)
+    .sort((left, right) => {
+      if (right.usedBytes !== left.usedBytes) return right.usedBytes - left.usedBytes;
+      return left.id.localeCompare(right.id);
+    });
+  for (const entry of sortedPackages) {
+    let targetBank = packedBanks.find(bank => bank.freeBytes >= entry.usedBytes);
+    if (!targetBank) {
+      targetBank = {
+        bankIndex: packedBanks.length,
+        usedBytes: 0,
+        freeBytes: bankSizeBytes,
+        warning: false,
+        overBudgetBytes: 0,
+        packages: [],
+      };
+      packedBanks.push(targetBank);
+    }
+    targetBank.packages.push({
+      id: entry.id,
+      usedBytes: entry.usedBytes,
+      recommendedBankClass: entry.recommendedBankClass,
+    });
+    targetBank.usedBytes += entry.usedBytes;
+    targetBank.freeBytes = Math.max(0, bankSizeBytes - targetBank.usedBytes);
+    targetBank.warning = targetBank.usedBytes >= warningThresholdBytes;
+    targetBank.overBudgetBytes = Math.max(0, targetBank.usedBytes - bankSizeBytes);
+  }
+  const overBudgetPackages = packages.filter(entry => entry.overBudgetBytes > 0);
+  const warningPackages = packages.filter(entry => entry.warning);
+  const warningPackedBanks = packedBanks.filter(bank => bank.warning);
+  const recoveryRecommendations: Array<Record<string, unknown>> = [];
+  for (const entry of overBudgetPackages) {
+    recoveryRecommendations.push({
+      severity: 'error',
+      target: entry.id,
+      reason: `Package exceeds one 8 KB bank by ${entry.overBudgetBytes} bytes.`,
+      action: entry.canSplit
+        ? 'Split this logical package into independently loadable chunks or move cold data to an additional world bank.'
+        : 'Reduce this unsplittable manifest/code package or move optional data behind a different bank boundary.',
+    });
+    if (entry.type === 'msx2screen' || entry.type === 'msx2sprite') {
+      recoveryRecommendations.push({
+        severity: 'plan_b',
+        target: entry.id,
+        reason: 'Large graphics/screen payload may be compressible.',
+        action: 'Try ZX0 only for load-to-VRAM graphics/name/color data; keep runtime lookup layers raw.',
+      });
+    }
+  }
+  for (const bank of warningPackedBanks) {
+    recoveryRecommendations.push({
+      severity: 'warning',
+      target: `estimatedBank${bank.bankIndex}`,
+      reason: `Estimated packed bank uses ${bank.usedBytes}/${bankSizeBytes} bytes.`,
+      action: 'Repack by final post-compression sizes, then move cold read-only data to another world data bank if still above threshold.',
+    });
+  }
+  if (packedBanks.length > Math.max(1, Math.ceil(totalPayloadBytes / bankSizeBytes))) {
+    recoveryRecommendations.push({
+      severity: 'info',
+      target: 'first-fit-decreasing',
+      reason: 'Estimated packing uses more banks than the theoretical minimum.',
+      action: 'Allocator should retry first-fit-decreasing after ZX0 decisions and may group smaller manifest packages together.',
+    });
+  }
+  if (recoveryRecommendations.length === 0) {
+    recoveryRecommendations.push({
+      severity: 'ok',
+      target: 'logicalBankBudget',
+      reason: 'All estimated packages fit below warning threshold.',
+      action: 'No recovery needed before the final allocator pass.',
+    });
+  }
+  return {
+    bankSizeBytes,
+    warningThresholdBytes,
+    totalPayloadBytes,
+    estimatedMinimumBanks: Math.max(1, Math.ceil(totalPayloadBytes / bankSizeBytes)),
+    estimatedPackedBankCount: packedBanks.length,
+    estimatedPackedBanks: packedBanks,
+    overBudgetPackages,
+    warningPackages,
+    warningPackedBanks,
+    recoveryRecommendations,
+    packages,
+    note: 'Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression.',
+  };
+}
+
 function buildMsx2ProjectSliceJson(
   projectName: string,
   analysis: ProjectAnalysis,
@@ -5313,22 +5720,35 @@ function buildMsx2ProjectSliceJson(
         : 'Not used by native MSX2 SCREEN 4 backend',
     }));
 
-  const includedRuntimeModules = [
-    'runtime.msx2.boot',
-    'runtime.msx2.screen4.vdp',
-    'runtime.msx2.input',
-    'runtime.msx2.screen_loader',
-    'runtime.msx2.layers.collision',
-    'runtime.msx2.layers.effects',
-    'runtime.msx2.layers.behavior',
-    hasHardwareSprite(analysis) ? 'runtime.msx2.hardware_sprites' : undefined,
-    usesShooterHorizontalMovement(analysis) ? 'runtime.msx2.projectiles' : undefined,
-    usesSnakeCharMovement(analysis) ? 'runtime.msx2.snake_char' : undefined,
-    usesMsx2Screen4BackgroundScroll(analysis) ? 'runtime.msx2.scroll.vertical' : undefined,
-    useKonamiDataBank ? 'runtime.msx2.mapper.konami8k' : undefined,
-  ].filter(Boolean);
-
   const runtimeRamBytes = Math.max(0, runtimeRamEnd - MSX2_RUNTIME_RAM_START);
+  const runtimeModuleCandidates = [
+    { id: 'runtime.msx2.boot', enabled: true, reason: 'Required by every native MSX2 SCREEN 4 build' },
+    { id: 'runtime.msx2.screen4.vdp', enabled: true, reason: 'Required by every native MSX2 SCREEN 4 build' },
+    { id: 'runtime.msx2.input', enabled: true, reason: 'Required by current MSX2 gameplay loop' },
+    { id: 'runtime.msx2.screen_loader', enabled: true, reason: 'Required to load reachable native MSX2 screens' },
+    { id: 'runtime.msx2.layers.collision', enabled: true, reason: 'Collision layer pointers are part of the current runtime contract' },
+    { id: 'runtime.msx2.layers.effects', enabled: true, reason: 'Effects layer runtime buffers are part of the current runtime contract' },
+    { id: 'runtime.msx2.layers.behavior', enabled: true, reason: 'Behavior layer pointers are part of the current runtime contract' },
+    { id: 'runtime.msx2.hardware_sprites', enabled: hasHardwareSprite(analysis), reason: 'Enabled only when a reachable MSX2 sprite source exists' },
+    { id: 'runtime.msx2.projectiles', enabled: usesShooterHorizontalMovement(analysis), reason: 'Enabled only by shooter-horizontal movement' },
+    { id: 'runtime.msx2.stage_banner', enabled: hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis), reason: 'Enabled only by shooter wave flow' },
+    { id: 'runtime.msx2.scroll.vertical', enabled: usesMsx2Screen4BackgroundScroll(analysis), reason: 'Enabled only when reachable screens request scroll' },
+    { id: 'runtime.msx2.snake_char', enabled: usesSnakeCharMovement(analysis), reason: 'Enabled only by snake-char movement' },
+    { id: 'runtime.msx2.mapper.konami8k', enabled: useKonamiDataBank, reason: 'Enabled by Konami MegaROM data-bank mode' },
+  ];
+  const includedRuntimeModules = runtimeModuleCandidates
+    .filter(module => module.enabled)
+    .map(module => module.id);
+  const excludedRuntimeModules = runtimeModuleCandidates
+    .filter(module => !module.enabled)
+    .map(module => ({ id: module.id, reason: module.reason }));
+  const includedAssetList = Array.from(included.values()).sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`));
+  const assetStoragePolicy = buildMsx2AssetStoragePolicy(analysis, includedAssetList, tileScreens);
+  const logicalBankBudget = buildMsx2LogicalBankBudget(assetStoragePolicy);
+  const ramBudget = buildMsx2RamBudget(tileScreens, runtimeRamEnd);
+  const romPayloadBytesEstimate = assetStoragePolicy
+    .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
+    .reduce((sum, policy) => sum + (Number(policy.storedBytesEstimate) || 0), 0);
   const artifact = {
     scope: 'msx2_screen4_project_slice',
     projectName,
@@ -5342,9 +5762,13 @@ function buildMsx2ProjectSliceJson(
       worldIds: Array.from(worldIds).sort(),
       screenIds: Array.from(screenIds).sort(),
     },
-    includedAssets: Array.from(included.values()).sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`)),
+    includedAssets: includedAssetList,
     excludedAssets,
     includedRuntimeModules,
+    excludedRuntimeModules,
+    assetStoragePolicy,
+    logicalBankBudget,
+    ramBudget,
     includedComponents: Array.from(componentIds).sort(),
     includedMovementProfiles: Array.from(movementModes).sort(),
     includedAttackProfiles: Array.from(attackProfiles).sort(),
@@ -5357,13 +5781,17 @@ function buildMsx2ProjectSliceJson(
       freeBytes: Math.max(0, MSX2_RUNTIME_RAM_LIMIT - runtimeRamEnd),
       persistentEffectBytes: Math.max(1, tileScreens.length) * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT,
       enemyRuntimeBytes: MSX2_ENEMY_RUNTIME_BYTES,
+      ramBudgetStatus: ramBudget.status,
     },
     estimatedRomNeeds: {
       reachableMsx2ScreenCount: tileScreens.length,
       reachableMsx2SpriteCount: spriteIds.size,
       reachableWorldCount: worldIds.size,
       usesKonamiDataBank: useKonamiDataBank,
-      note: 'First slice only reports reachability; bank placement remains in the MSX2 MegaROM allocator roadmap.',
+      romPayloadBytesEstimate,
+      estimated8kBanksForPayload: Math.max(1, Math.ceil(romPayloadBytesEstimate / 8192)),
+      warningThresholdBytesPerBank: Math.floor(8192 * 0.9),
+      note: 'Slice reports reachability and storage policy estimates; final bank placement remains allocator-owned.',
     },
   };
 
@@ -6410,10 +6838,25 @@ update_msx2_air_timer:
     ? buildScreen4BackgroundScrollAsm(tileScreenLoadLabels, useKonamiDataBank)
     : '';
   const snakeCharMovement = usesSnakeCharMovement(analysis);
+  const stageBannerEnabled = hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis);
   const snakeCharRuntimeAsm = buildSnakeCharRuntimeAsm(analysis);
+  const projectSliceJson = buildMsx2ProjectSliceJson(projectName, analysis, config, tileScreens, runtimeRamEnd, useKonamiDataBank);
+  const projectSliceData = JSON.parse(projectSliceJson);
   const projectSliceArtifact = renderNamedArtifactAsCommentBlock(
     'project_slice.json',
-    buildMsx2ProjectSliceJson(projectName, analysis, config, tileScreens, runtimeRamEnd, useKonamiDataBank)
+    projectSliceJson
+  );
+  const assetStoragePolicyArtifact = renderNamedArtifactAsCommentBlock(
+    'asset_storage_policy.json',
+    JSON.stringify(projectSliceData.assetStoragePolicy, null, 2) + '\n'
+  );
+  const logicalBankBudgetArtifact = renderNamedArtifactAsCommentBlock(
+    'logical_bank_budget.json',
+    JSON.stringify(projectSliceData.logicalBankBudget, null, 2) + '\n'
+  );
+  const ramBudgetArtifact = renderNamedArtifactAsCommentBlock(
+    'ram_budget.json',
+    JSON.stringify(projectSliceData.ramBudget, null, 2) + '\n'
   );
   const loadRuntimeLayerPointers = (label: string, screenIndex?: number): string => {
     const runtimeLabels = runtimeLayerLabels.get(label);
@@ -6462,6 +6905,12 @@ ${loadEffectsPointer}`;
 ; ==================================================================
 
 ${projectSliceArtifact}
+
+${assetStoragePolicyArtifact}
+
+${logicalBankBudgetArtifact}
+
+${ramBudgetArtifact}
 
 CHGMOD  EQU #005F
 DISSCR  EQU #0041
@@ -6879,7 +7328,7 @@ ${formatBytes('msx2_screen_enemy_score', enemyScoreBytes.length ? enemyScoreByte
 ${formatBytes('screen4_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 collision layer, 16x12 cells')}
 ${formatBytes('screen4_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 effects layer, 16x12 cells')}
 ${formatBytes('screen4_empty_behavior_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 behavior layer, 16x12 cells')}
-${formatBytes('msx2_stage_font_patterns', [
+${stageBannerEnabled ? formatBytes('msx2_stage_font_patterns', [
   0x3E,0x60,0x60,0x3C,0x06,0x06,0x7C,0x00,
   0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00,
   0x18,0x24,0x42,0x7E,0x42,0x42,0x42,0x00,
@@ -6887,7 +7336,7 @@ ${formatBytes('msx2_stage_font_patterns', [
   0x7E,0x40,0x40,0x7C,0x40,0x40,0x7E,0x00,
   0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00,
   0x3C,0x42,0x02,0x0C,0x30,0x40,0x7E,0x00,
-], 'Tiny centered STAGE banner font patterns: S,T,A,G,E,1,2')}
+], 'Tiny centered STAGE banner font patterns: S,T,A,G,E,1,2') : ''}
 ${useKonamiDataBank ? '' : hardwareSpriteDataAsm}
 ${tileScreenRuntimeBlocks.join('\n')}
 ${useKonamiDataBank ? `    ds #C000 - $, #FF

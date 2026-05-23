@@ -19,6 +19,7 @@ from build_msx2screen_layers_smoke import (
     repo_root_from_script,
     run_command,
     validate_asm,
+    validate_project_slice_artifact,
     validate_runtime_ram_layout,
     validate_rom,
 )
@@ -135,6 +136,7 @@ def main() -> None:
     ], cwd=project_root, timeout=180)
     validate_asm(asm_output, args.rom_mode, args.target_format)
     validate_rom(rom_output, args.rom_mode)
+    validate_project_slice_artifact(asm_output, expect_stage_banner=False, require_preflight_summary=True)
     symbols = read_symbol_addresses(sym_output)
     validate_runtime_ram_layout(symbols)
 

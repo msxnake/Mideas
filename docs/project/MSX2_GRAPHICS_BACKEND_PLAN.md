@@ -71,6 +71,88 @@ Out of scope for this slice:
    - SCREEN 7: 512x212, 16 colors.
    - SCREEN 8: 256x212, 256-color direct-color mode.
 
+## Vampire Killer-Inspired MSX2 Direction
+
+The Vampire Killer OpenMSX research in
+`research/vampire_killer_openmsx/report.md` gives a concrete target style for
+Mideas MSX2. The useful lesson is not to copy game code, but to copy the
+architecture:
+
+- author with tiles/cells in Mideas;
+- export/load as SCREEN 4 bitmap resources;
+- use V9938 commands to compose the visible page;
+- keep hardware sprites for moving actors.
+
+This should be treated as an MSX2 backend direction only. It must not change
+the SCREEN 2 tilebank backend. Screen Editor implementation planning lives in
+`docs/project/MSX2_SCREEN_EDITOR_VAMPIRE_KILLER_PLAN.md`.
+
+### SCREEN 4 composer target
+
+The current backend emits SCREEN 4 pattern/color/name resources. The next
+composer layer should allow a Vampire Killer-style full-room load:
+
+1. clear the visible page;
+2. stage a bitmap block/font/icon atlas in VRAM;
+3. copy repeated `8x8` background cells into the visible page;
+4. copy selected `16x16` props, doors, and icons;
+5. redraw HUD static sections;
+6. reinitialize the hardware sprite SAT.
+
+OpenMSX traces showed background composition dominated by `8x8` copies with
+some `16x16` copies and no direct `32x32` screen-copy primitive. Mideas can
+still analyze `blocks2x2`/`blocks4x4` at export time, but the runtime primitive
+should remain `8x8`/`16x16` V9938 copies.
+
+### SCREEN 4 HUD target
+
+The MSX2 HUD path should be procedural:
+
+- text: 8x8 glyph copies from an offscreen font atlas;
+- icons: 16x16 copies from an offscreen icon atlas;
+- energy bars: V9938 fill and line commands, not static tile art;
+- variable updates: redraw only the changed numeric glyphs or bar fill region.
+
+This maps directly onto existing Mideas HUD element types such as
+`EnergyBar`, `BossEnergyBar`, `NumericField`, `Score`, `Lives`, and
+`ItemDisplay`. The first useful implementation target is an MSX2 HUD renderer
+that emits:
+
+- `msx2_vdp_copy_rect`;
+- `msx2_vdp_fill_rect`;
+- `msx2_vdp_line_h`;
+- `msx2_vdp_line_v`;
+- `msx2_draw_glyph_8x8`;
+- `msx2_draw_icon_16x16`;
+- `msx2_draw_energy_bar`.
+
+### Hardware sprite target
+
+MSX2 actors should stay separate from bitmap room/HUD composition. The current
+hardware sprite path already handles V9938 sprite patterns, colors, SAT data,
+animation, and mirroring. The next useful expansion is actor composition:
+
+- 16x16 single sprite;
+- 16x32 actor from two vertically stacked sprites;
+- optional two-plane overlay for richer color;
+- per-frame SAT/color-table updates driven by entity/player state.
+
+Vampire Killer's player uses four hardware sprites for a normal frame: two
+vertical 16x16 cells times two overlaid color planes. That is a good reference
+shape for a future `msx2sprite` composition option.
+
+### First practical milestone
+
+The best small milestone is the procedural SCREEN 4 HUD renderer. It is
+isolated, visible in OpenMSX screenshots, and uses data Mideas already stores.
+It should compile with Glass and include an OpenMSX smoke with:
+
+- score or stage text from a glyph atlas;
+- one 16x16 icon;
+- one player energy bar;
+- one boss/enemy energy bar;
+- a runtime variable update that changes a bar width.
+
 ## Constraints
 
 - SCREEN 2 tilebanks and three-bank pattern/color table logic stay in the MSX1 backend.

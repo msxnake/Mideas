@@ -202,6 +202,14 @@ def parse_args() -> argparse.Namespace:
             "than this many free bytes in any resident window; 0 disables the gate."
         ),
     )
+    parser.add_argument(
+        "--strict-msx2-megarom-preflight-warnings",
+        action="store_true",
+        help=(
+            "Fail MSX2 SCREEN 4 MegaROM builds before Glass when the generated "
+            "ROM/RAM preflight contains warning or plan_b recommendations."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -344,6 +352,220 @@ def write_generated_artifacts(asm_path: Path) -> Path | None:
         output_path.write_text(content, encoding="utf-8")
 
     return artifact_dir
+
+
+def validate_msx2_screen4_megarom_preflight_budget(
+    artifact_dir: Path | None,
+    strict_warnings: bool = False,
+) -> None:
+    if artifact_dir is None:
+        return
+    project_slice_path = artifact_dir / "project_slice.json"
+    if not project_slice_path.exists():
+        return
+
+    project_slice = json.loads(project_slice_path.read_text(encoding="utf-8"))
+    if project_slice.get("scope") != "msx2_screen4_project_slice":
+        return
+    preflight_summary_path = artifact_dir / "preflight_summary.json"
+    if preflight_summary_path.exists():
+        preflight_summary_path.unlink()
+
+    storage_policy = project_slice.get("assetStoragePolicy")
+    if not isinstance(storage_policy, list) or not storage_policy:
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no assetStoragePolicy")
+    storage_policy_path = artifact_dir / "asset_storage_policy.json"
+    if not storage_policy_path.exists():
+        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {storage_policy_path}")
+    storage_policy_artifact = json.loads(storage_policy_path.read_text(encoding="utf-8"))
+    if storage_policy_artifact != storage_policy:
+        raise RuntimeError("MSX2 MegaROM preflight failed: asset_storage_policy.json differs from project_slice.json")
+
+    logical_budget = project_slice.get("logicalBankBudget")
+    if not isinstance(logical_budget, dict) or not logical_budget:
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no logicalBankBudget")
+    budget_path = artifact_dir / "logical_bank_budget.json"
+    if not budget_path.exists():
+        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {budget_path}")
+    budget_artifact = json.loads(budget_path.read_text(encoding="utf-8"))
+    if budget_artifact != logical_budget:
+        raise RuntimeError("MSX2 MegaROM preflight failed: logical_bank_budget.json differs from project_slice.json")
+
+    ram_budget = project_slice.get("ramBudget")
+    if not isinstance(ram_budget, dict) or not ram_budget:
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no ramBudget")
+    ram_budget_path = artifact_dir / "ram_budget.json"
+    if not ram_budget_path.exists():
+        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {ram_budget_path}")
+    ram_budget_artifact = json.loads(ram_budget_path.read_text(encoding="utf-8"))
+    if ram_budget_artifact != ram_budget:
+        raise RuntimeError("MSX2 MegaROM preflight failed: ram_budget.json differs from project_slice.json")
+    if ram_budget.get("scope") != "msx2_screen4_ram_budget":
+        raise RuntimeError("MSX2 MegaROM preflight failed: ramBudget has invalid scope")
+    if ram_budget.get("status") == "error":
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed before Glass: "
+            f"runtime RAM exceeds limit: {ram_budget}"
+        )
+    if ram_budget.get("start") != "#C000":
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            f"runtime RAM start must be #C000, got {ram_budget.get('start')}"
+        )
+    if ram_budget.get("limit") != "#F300":
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            f"runtime RAM limit must be #F300, got {ram_budget.get('limit')}"
+        )
+    if int(ram_budget.get("usedBytes") or 0) <= 0:
+        raise RuntimeError("MSX2 MegaROM preflight failed: runtime RAM usedBytes must be positive")
+    if int(ram_budget.get("freeBytes") or -1) < 0:
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed before Glass: "
+            f"runtime RAM freeBytes is negative: {ram_budget.get('freeBytes')}"
+        )
+    ram_sections = ram_budget.get("sections")
+    if not isinstance(ram_sections, list) or not ram_sections:
+        raise RuntimeError("MSX2 MegaROM preflight failed: ramBudget has no runtime sections")
+    ram_section_ids = {section.get("id") for section in ram_sections if isinstance(section, dict)}
+    required_ram_sections = {"runtime.persistent_effect_layers", "runtime.effects_scratch", "runtime.enemy_pool"}
+    missing_ram_sections = sorted(required_ram_sections - ram_section_ids)
+    if missing_ram_sections:
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            f"ramBudget is missing required sections: {', '.join(missing_ram_sections)}"
+        )
+    ram_recommendations = ram_budget.get("recommendations")
+    if not isinstance(ram_recommendations, list) or not ram_recommendations:
+        raise RuntimeError("MSX2 MegaROM preflight failed: ramBudget has no recommendations")
+    error_ram_recommendations = [
+        item for item in ram_recommendations
+        if isinstance(item, dict) and item.get("severity") == "error"
+    ]
+    if error_ram_recommendations:
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed before Glass: "
+            f"runtime RAM recommendations include errors: {error_ram_recommendations}"
+        )
+
+    bank_size = int(logical_budget.get("bankSizeBytes") or 0)
+    if bank_size != 8192:
+        raise RuntimeError(f"MSX2 MegaROM preflight failed: expected 8192-byte logical banks, got {bank_size}")
+    over_budget_packages = logical_budget.get("overBudgetPackages")
+    if not isinstance(over_budget_packages, list):
+        raise RuntimeError("MSX2 MegaROM preflight failed: logicalBankBudget has no overBudgetPackages list")
+    if over_budget_packages:
+        details = ", ".join(
+            str(item.get("id") or item.get("sourceId") or item)
+            for item in over_budget_packages
+            if isinstance(item, dict)
+        )
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed before Glass: "
+            f"logical packages exceed one 8KB bank: {details}"
+        )
+
+    for bank in logical_budget.get("estimatedPackedBanks") or []:
+        if int(bank.get("overBudgetBytes") or 0) > 0:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed before Glass: "
+                f"estimated packed bank exceeds one 8KB bank: {bank}"
+            )
+
+    packages = logical_budget.get("packages") or []
+    packed_banks = logical_budget.get("estimatedPackedBanks") or []
+    total_payload = int(logical_budget.get("totalPayloadBytes") or 0)
+    estimated_count = int(logical_budget.get("estimatedPackedBankCount") or 0)
+    largest_package = max(
+        (item for item in packages if isinstance(item, dict)),
+        key=lambda item: int(item.get("usedBytes") or 0),
+        default=None,
+    )
+    largest_label = "none"
+    if largest_package:
+        largest_label = f"{largest_package.get('id', 'unknown')}={int(largest_package.get('usedBytes') or 0)} bytes"
+    print(
+        "MSX2 MegaROM preflight: "
+        f"payload={total_payload} bytes, "
+        f"estimatedBanks={estimated_count}, "
+        f"packages={len(packages)}, "
+        f"largest={largest_label}"
+    )
+
+    warnings = [
+        item for item in (logical_budget.get("recoveryRecommendations") or [])
+        if isinstance(item, dict) and item.get("severity") in {"warning", "plan_b"}
+    ]
+    if warnings:
+        print(f"MSX2 MegaROM preflight warning: {len(warnings)} budget recommendation(s) need allocator attention")
+    warning_banks = [
+        bank for bank in packed_banks
+        if isinstance(bank, dict) and bool(bank.get("warning"))
+    ]
+    if warning_banks:
+        bank_summaries = ", ".join(
+            f"bank{int(bank.get('bankIndex') or 0)}={int(bank.get('usedBytes') or 0)}/{bank_size}"
+            for bank in warning_banks
+        )
+        print(f"MSX2 MegaROM preflight warning banks: {bank_summaries}")
+
+    print(
+        "MSX2 RAM preflight: "
+        f"used={int(ram_budget.get('usedBytes') or 0)} bytes, "
+        f"free={int(ram_budget.get('freeBytes') or 0)} bytes, "
+        f"limit={ram_budget.get('limit', 'unknown')}, "
+        f"status={ram_budget.get('status', 'unknown')}"
+    )
+    ram_warnings = [
+        item for item in ram_recommendations
+        if isinstance(item, dict) and item.get("severity") in {"warning", "plan_b"}
+    ]
+    if ram_warnings:
+        print(f"MSX2 RAM preflight warning: {len(ram_warnings)} recommendation(s) need attention")
+    if strict_warnings and (warnings or warning_banks or ram_warnings):
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed before Glass: "
+            "strict warning gate rejected "
+            f"romWarnings={len(warnings)}, warningBanks={len(warning_banks)}, ramWarnings={len(ram_warnings)}"
+        )
+
+    preflight_summary = {
+        "scope": "msx2_screen4_megarom_preflight_summary",
+        "status": "ok",
+        "artifactDir": str(artifact_dir),
+        "requiredArtifacts": [
+            "project_slice.json",
+            "asset_storage_policy.json",
+            "logical_bank_budget.json",
+            "ram_budget.json",
+        ],
+        "rom": {
+            "bankSizeBytes": bank_size,
+            "payloadBytes": total_payload,
+            "estimatedPackedBankCount": estimated_count,
+            "packageCount": len(packages),
+            "largestPackage": largest_package,
+            "warningCount": len(warnings),
+            "warningBankCount": len(warning_banks),
+        },
+        "ram": {
+            "start": ram_budget.get("start"),
+            "limit": ram_budget.get("limit"),
+            "usedBytes": int(ram_budget.get("usedBytes") or 0),
+            "freeBytes": int(ram_budget.get("freeBytes") or 0),
+            "status": ram_budget.get("status", "unknown"),
+            "sectionCount": len(ram_sections),
+            "warningCount": len(ram_warnings),
+        },
+        "planB": {
+            "romRecommendations": logical_budget.get("recoveryRecommendations") or [],
+            "ramRecommendations": ram_recommendations,
+        },
+    }
+    preflight_summary_path.write_text(
+        json.dumps(preflight_summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _next_power_of_two(value: int) -> int:
@@ -3950,6 +4172,10 @@ def main() -> int:
         enabled=not args.skip_zx0_preprocess,
     )
     artifact_dir = write_generated_artifacts(zx0_asm)
+    validate_msx2_screen4_megarom_preflight_budget(
+        artifact_dir,
+        strict_warnings=args.strict_msx2_megarom_preflight_warnings,
+    )
 
     asm_to_compile = maybe_run_post_asm_optimizer(
         project_root=project_root,

@@ -1,0 +1,14 @@
+KD SPACE1
+KU SPACE1
+KD SPACE2
+KU SPACE2
+KD RIGHT
+KU RIGHT
+DUMP sprite_candidate_0F000.bin physical VRAM:0F000 len=512
+DUMP sprite_candidate_0F200.bin physical VRAM:0F200 len=512
+DUMP sprite_candidate_0F400.bin physical VRAM:0F400 len=512
+DUMP sprite_candidate_0F600.bin physical VRAM:0F600 len=512
+DUMP sprite_candidate_0F800.bin physical VRAM:0F800 len=512
+DUMP sprite_candidate_0FA00.bin physical VRAM:0FA00 len=512
+DUMP sprite_candidate_0FC00.bin physical VRAM:0FC00 len=512
+DUMP sprite_candidate_0FE00.bin physical VRAM:0FE00 len=512

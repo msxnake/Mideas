@@ -1,0 +1,4 @@
+OK debug set_watchpoint write_mem {0x0000 0x1fff} {[debug read "physical VRAM" 0] >= 0} {debug cont} -> wp#1
+ERR debug set_watchpoint write {physical VRAM 0x0000 0x1fff} {} {debug cont} -> Invalid type: write
+ERR debug set_watchpoint write_mem {"physical VRAM" 0x0000 0x1fff} {} {debug cont} -> expected integer but got ""physical VRAM" 0x0000 0x1fff"
+ERR debug set_watchpoint write_mem {VRAM 0x0000 0x1fff} {} {debug cont} -> expected integer but got "VRAM 0x0000 0x1fff"

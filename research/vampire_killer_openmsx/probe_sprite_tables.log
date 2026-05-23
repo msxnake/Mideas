@@ -1,0 +1,183 @@
+RUN sprite table dump
+KD row=8 mask=1 SPACE1
+KU row=8 mask=1 SPACE1
+KD row=8 mask=1 SPACE2
+KU row=8 mask=1 SPACE2
+SPRITES_START PC=40C3 SP=F0F0 AF=0044 BC=0008 DE=01D9 HL=4028 IX=4075 IY=0120
+SHOT sprites_22_start.png
+VDPREG R00=06 R01=62 R02=1F R03=80 R04=00 R05=EF R06=1F R07=00 R08=08 R09=80 R10=00 R11=01 R12=00 R13=00 R14=03 R15=00 R16=0E R17=2F R18=00 R19=00 R20=00 R21=00 R22=00 R23=00 R24=00 R25=00 R26=00 R27=00 R28=00 R29=00 R30=00 R31=00
+SAT phys7600 physical VRAM:07600
+SAT_phys7600_00 y=00 x=00 pat=00 col=00
+SAT_phys7600_01 y=00 x=00 pat=00 col=00
+SAT_phys7600_02 y=00 x=00 pat=00 col=00
+SAT_phys7600_03 y=00 x=00 pat=00 col=00
+SAT_phys7600_04 y=00 x=00 pat=00 col=00
+SAT_phys7600_05 y=00 x=00 pat=00 col=00
+SAT_phys7600_06 y=00 x=00 pat=00 col=00
+SAT_phys7600_07 y=00 x=00 pat=00 col=00
+SAT_phys7600_08 y=00 x=00 pat=00 col=00
+SAT_phys7600_09 y=00 x=00 pat=00 col=00
+SAT_phys7600_10 y=00 x=00 pat=00 col=00
+SAT_phys7600_11 y=00 x=00 pat=00 col=00
+SAT_phys7600_12 y=00 x=00 pat=00 col=00
+SAT_phys7600_13 y=00 x=00 pat=00 col=00
+SAT_phys7600_14 y=00 x=00 pat=00 col=00
+SAT_phys7600_15 y=00 x=00 pat=00 col=00
+SAT_phys7600_16 y=00 x=00 pat=00 col=00
+SAT_phys7600_17 y=00 x=00 pat=00 col=00
+SAT_phys7600_18 y=00 x=00 pat=00 col=00
+SAT_phys7600_19 y=00 x=00 pat=00 col=00
+SAT_phys7600_20 y=00 x=00 pat=00 col=00
+SAT_phys7600_21 y=00 x=00 pat=00 col=00
+SAT_phys7600_22 y=00 x=00 pat=00 col=00
+SAT_phys7600_23 y=00 x=00 pat=00 col=00
+SAT_phys7600_24 y=00 x=00 pat=00 col=00
+SAT_phys7600_25 y=00 x=00 pat=00 col=00
+SAT_phys7600_26 y=00 x=00 pat=00 col=00
+SAT_phys7600_27 y=00 x=00 pat=00 col=00
+SAT_phys7600_28 y=00 x=00 pat=00 col=00
+SAT_phys7600_29 y=00 x=00 pat=00 col=00
+SAT_phys7600_30 y=00 x=00 pat=00 col=00
+SAT_phys7600_31 y=00 x=00 pat=00 col=00
+SAT physF600 physical VRAM:0F600
+SAT_physF600_00 y=E0 x=77 pat=08 col=00
+SAT_physF600_01 y=E0 x=77 pat=0C col=00
+SAT_physF600_02 y=E0 x=00 pat=00 col=00
+SAT_physF600_03 y=E0 x=00 pat=00 col=00
+SAT_physF600_04 y=E0 x=00 pat=00 col=00
+SAT_physF600_05 y=E0 x=00 pat=00 col=00
+SAT_physF600_06 y=E0 x=A9 pat=44 col=00
+SAT_physF600_07 y=E0 x=A9 pat=54 col=00
+SAT_physF600_08 y=90 x=08 pat=08 col=00
+SAT_physF600_09 y=90 x=08 pat=0C col=00
+SAT_physF600_10 y=E0 x=C7 pat=4C col=00
+SAT_physF600_11 y=E0 x=C7 pat=5C col=00
+SAT_physF600_12 y=E0 x=00 pat=00 col=00
+SAT_physF600_13 y=E0 x=00 pat=00 col=00
+SAT_physF600_14 y=E0 x=77 pat=00 col=00
+SAT_physF600_15 y=E0 x=77 pat=04 col=00
+SAT_physF600_16 y=E0 x=00 pat=00 col=00
+SAT_physF600_17 y=E0 x=00 pat=00 col=00
+SAT_physF600_18 y=E0 x=00 pat=00 col=00
+SAT_physF600_19 y=E0 x=00 pat=00 col=00
+SAT_physF600_20 y=E0 x=99 pat=40 col=00
+SAT_physF600_21 y=E0 x=99 pat=50 col=00
+SAT_physF600_22 y=A0 x=08 pat=00 col=00
+SAT_physF600_23 y=A0 x=08 pat=04 col=00
+SAT_physF600_24 y=E0 x=B8 pat=48 col=00
+SAT_physF600_25 y=E0 x=B8 pat=58 col=00
+SAT_physF600_26 y=E0 x=00 pat=00 col=00
+SAT_physF600_27 y=E0 x=00 pat=00 col=00
+SAT_physF600_28 y=E0 x=60 pat=60 col=00
+SAT_physF600_29 y=E0 x=50 pat=60 col=00
+SAT_physF600_30 y=E0 x=00 pat=00 col=00
+SAT_physF600_31 y=E0 x=00 pat=00 col=00
+SAT vram7600 VRAM:07600
+SAT_vram7600_00 y=00 x=00 pat=00 col=00
+SAT_vram7600_01 y=00 x=00 pat=00 col=00
+SAT_vram7600_02 y=00 x=00 pat=00 col=00
+SAT_vram7600_03 y=00 x=00 pat=00 col=00
+SAT_vram7600_04 y=00 x=00 pat=00 col=00
+SAT_vram7600_05 y=00 x=00 pat=00 col=00
+SAT_vram7600_06 y=00 x=00 pat=00 col=00
+SAT_vram7600_07 y=00 x=00 pat=00 col=00
+SAT_vram7600_08 y=00 x=00 pat=00 col=00
+SAT_vram7600_09 y=00 x=00 pat=00 col=00
+SAT_vram7600_10 y=00 x=00 pat=00 col=00
+SAT_vram7600_11 y=00 x=00 pat=00 col=00
+SAT_vram7600_12 y=00 x=00 pat=00 col=00
+SAT_vram7600_13 y=00 x=00 pat=00 col=00
+SAT_vram7600_14 y=00 x=00 pat=00 col=00
+SAT_vram7600_15 y=00 x=00 pat=00 col=00
+SAT_vram7600_16 y=00 x=00 pat=00 col=00
+SAT_vram7600_17 y=00 x=00 pat=00 col=00
+SAT_vram7600_18 y=00 x=00 pat=00 col=00
+SAT_vram7600_19 y=00 x=00 pat=00 col=00
+SAT_vram7600_20 y=00 x=00 pat=00 col=00
+SAT_vram7600_21 y=00 x=00 pat=00 col=00
+SAT_vram7600_22 y=00 x=00 pat=00 col=00
+SAT_vram7600_23 y=00 x=00 pat=00 col=00
+SAT_vram7600_24 y=00 x=00 pat=00 col=00
+SAT_vram7600_25 y=00 x=00 pat=00 col=00
+SAT_vram7600_26 y=00 x=00 pat=00 col=00
+SAT_vram7600_27 y=00 x=00 pat=00 col=00
+SAT_vram7600_28 y=00 x=00 pat=00 col=00
+SAT_vram7600_29 y=00 x=00 pat=00 col=00
+SAT_vram7600_30 y=00 x=00 pat=00 col=00
+SAT_vram7600_31 y=00 x=00 pat=00 col=00
+DUMP sprites_22_sat_f600.bin physical VRAM:0F600 len=512
+DUMP sprites_22_spt_f800.bin physical VRAM:0F800 len=2048
+DUMP sprites_22_phys7600.bin physical VRAM:07600 len=512
+DUMP sprites_22_phys7800.bin physical VRAM:07800 len=2048
+KD row=8 mask=128 RIGHT
+KU row=8 mask=128 RIGHT
+SPRITES_AFTER_RIGHT PC=1A50 SP=F0D8 AF=FF80 BC=0003 DE=FBED HL=2803 IX=FBE2 IY=C460
+SHOT sprites_24_after_right.png
+SAT phys7600_r physical VRAM:07600
+SAT_phys7600_r_00 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_01 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_02 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_03 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_04 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_05 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_06 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_07 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_08 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_09 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_10 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_11 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_12 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_13 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_14 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_15 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_16 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_17 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_18 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_19 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_20 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_21 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_22 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_23 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_24 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_25 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_26 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_27 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_28 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_29 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_30 y=00 x=00 pat=00 col=00
+SAT_phys7600_r_31 y=00 x=00 pat=00 col=00
+SAT physF600_r physical VRAM:0F600
+SAT_physF600_r_00 y=E0 x=99 pat=40 col=00
+SAT_physF600_r_01 y=E0 x=99 pat=50 col=00
+SAT_physF600_r_02 y=A0 x=74 pat=00 col=00
+SAT_physF600_r_03 y=A0 x=74 pat=04 col=00
+SAT_physF600_r_04 y=E0 x=B8 pat=48 col=00
+SAT_physF600_r_05 y=E0 x=B8 pat=58 col=00
+SAT_physF600_r_06 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_07 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_08 y=E0 x=60 pat=60 col=00
+SAT_physF600_r_09 y=E0 x=50 pat=60 col=00
+SAT_physF600_r_10 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_11 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_12 y=E0 x=77 pat=08 col=00
+SAT_physF600_r_13 y=E0 x=77 pat=0C col=00
+SAT_physF600_r_14 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_15 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_16 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_17 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_18 y=E0 x=A9 pat=44 col=00
+SAT_physF600_r_19 y=E0 x=A9 pat=54 col=00
+SAT_physF600_r_20 y=90 x=74 pat=08 col=00
+SAT_physF600_r_21 y=90 x=74 pat=0C col=00
+SAT_physF600_r_22 y=E0 x=C7 pat=4C col=00
+SAT_physF600_r_23 y=E0 x=C7 pat=5C col=00
+SAT_physF600_r_24 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_25 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_26 y=E0 x=77 pat=00 col=00
+SAT_physF600_r_27 y=E0 x=77 pat=04 col=00
+SAT_physF600_r_28 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_29 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_30 y=E0 x=00 pat=00 col=00
+SAT_physF600_r_31 y=E0 x=00 pat=00 col=00
+DUMP sprites_24_sat_f600.bin physical VRAM:0F600 len=512
+DUMP sprites_24_phys7600.bin physical VRAM:07600 len=512

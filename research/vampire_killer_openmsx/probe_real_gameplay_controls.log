@@ -1,0 +1,39 @@
+RUN real gameplay controls
+KD row=8 mask=1 SPACE1
+KU row=8 mask=1 SPACE1
+KD row=8 mask=1 SPACE2
+KU row=8 mask=1 SPACE2
+REAL_START PC=40C3 SP=F0F0 AF=0044 BC=0008 DE=01D9 HL=4028 IX=4075 IY=0120
+SHOT realctl_22_start.png
+DUMP realctl_22_ram_c000_cfff.bin memory:C000 len=4096
+DUMP realctl_22_vram_top.bin physical VRAM:0000 len=8192
+KD row=8 mask=128 RIGHT
+KU row=8 mask=128 RIGHT
+AFTER_RIGHT PC=1A59 SP=F0D8 AF=0044 BC=0005 DE=FBEB HL=27FB IX=FBE0 IY=C460
+SHOT realctl_24_after_right.png
+KD row=8 mask=32 UP
+KU row=8 mask=32 UP
+AFTER_UP PC=64F9 SP=F0D0 AF=0054 BC=060A DE=0080 HL=C880 IX=DB00 IY=C460
+SHOT realctl_25_after_up.png
+KD row=8 mask=1 SPACE
+KU row=8 mask=1 SPACE
+AFTER_SPACE PC=8A93 SP=F0B2 AF=0011 BC=0008 DE=019C HL=8A64 IX=C01C IY=C460
+SHOT realctl_26_after_space.png
+KD row=4 mask=4 M
+KU row=4 mask=4 M
+AFTER_M PC=80D4 SP=F0D0 AF=0054 BC=0204 DE=0010 HL=1014 IX=C4D0 IY=C460
+SHOT realctl_27_after_m.png
+KD row=4 mask=8 N
+KU row=4 mask=8 N
+AFTER_N PC=789E SP=F0CE AF=A2A1 BC=0200 DE=D600 HL=7A1E IX=C460 IY=0120
+SHOT realctl_28_after_n.png
+KD row=5 mask=128 Z
+KU row=5 mask=128 Z
+AFTER_Z PC=7940 SP=F0D0 AF=0054 BC=0627 DE=C425 HL=D47A IX=C460 IY=0120
+SHOT realctl_29_after_z.png
+KD row=5 mask=32 X
+KU row=5 mask=32 X
+AFTER_X PC=7924 SP=F0D0 AF=4254 BC=2E27 DE=C425 HL=D452 IX=C460 IY=0120
+SHOT realctl_31_after_x.png
+DUMP realctl_31_ram_c000_cfff.bin memory:C000 len=4096
+DUMP realctl_31_vram_top.bin physical VRAM:0000 len=8192

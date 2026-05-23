@@ -975,6 +975,20 @@ Acceptance criteria:
 - The UI can show a "not included in ROM" list so authors understand what was
   excluded by the pre-compiler.
 
+Current MSX2 SCREEN 4 implementation emits `project_slice.json` during ASM
+generation. The slice is the current pre-compilation contract and includes:
+
+- reachable assets and excluded assets,
+- included and excluded runtime modules,
+- `assetStoragePolicy`,
+- `logicalBankBudget`,
+- `ramBudget`.
+
+The current rule is conservative: a runtime helper is emitted only when the
+analysis proves the project needs it. For example, the MSX2 stage-banner helper
+is included for shooter-wave builds and excluded for non-shooter builds, so a
+platformer variation does not pay bytes for unused arcade HUD behavior.
+
 ### Phase MSX2-4: Budgeted bank allocator
 
 The allocator must be the first line of defense against bank overflow.
@@ -1000,6 +1014,23 @@ Acceptance criteria:
   example `world0.entities`, `world0.graphics.sprites`, or
   `runtime.projectiles.core`.
 - Glass should no longer be the first tool that discovers an 8 KB overflow.
+
+Current MSX2 SCREEN 4 implementation emits `logical_bank_budget.json` and embeds
+the same object in `project_slice.json`. The CLI preflight reads this before
+Glass and fails early when:
+
+- a logical package is larger than one 8 KB Konami window,
+- an estimated packed bank crosses 8192 bytes,
+- the external budget artifact does not match the embedded project slice,
+- the generated budget omits required bank fields.
+
+For a passing build, the CLI prints the payload size, estimated packed bank
+count, package count, and largest contributor.
+
+The CLI also supports `--strict-msx2-megarom-preflight-warnings`. Normal builds
+keep warnings as diagnostics; strict builds treat ROM/RAM warnings and `plan_b`
+recommendations as pre-Glass failures. This is intended for CI or release
+exports where a nearly full bank should be handled before producing a ROM.
 
 ### Phase MSX2-4.5: Overflow recovery plan
 
@@ -1042,6 +1073,10 @@ Acceptance criteria:
   code to special bank, remove unused defaults, compress screen data, or split a
   tilemap payload.
 
+Current MSX2 SCREEN 4 budget artifacts already include recovery
+recommendations. Passing builds may still carry warning or `plan_b`
+recommendations so the IDE can show pressure before it becomes fatal.
+
 
 ### Phase MSX2-5: RAM map and live-instance model
 
@@ -1070,12 +1105,17 @@ RAM contains only live state:
 
 Acceptance criteria:
 
-- MSX2 builds emit a `ram_report.json` or equivalent section in
+- MSX2 builds emit a `ram_budget.json` or equivalent section in
   `segment_budget.json`.
 - The report includes entity pool, projectile pool, sprite shadow, effects
   buffers, event queue, temporary buffers, stack reservation, and free RAM.
 - Generation fails before Glass/OpenMSX if the planned runtime RAM crosses the
   safe limit.
+
+Current MSX2 SCREEN 4 implementation emits `ram_budget.json` and embeds it in
+`project_slice.json`. The base safe runtime window is `#C000-#F300`; the
+preflight rejects builds with negative free RAM, invalid RAM scope, missing
+required runtime sections, or RAM recommendations marked as errors.
 
 ### Phase MSX2-6: Data-driven entities before custom code
 
@@ -1138,6 +1178,20 @@ Acceptance criteria:
   - one multi-screen platformer-style game,
   - one shooter/arcade game with projectiles,
   - one stress fixture designed to nearly fill a world data bank.
+
+Current CLI gate:
+
+1. ASM generation emits comment artifacts.
+2. The build extracts `project_slice.json`, `asset_storage_policy.json`,
+   `logical_bank_budget.json`, and `ram_budget.json`.
+3. MSX2 SCREEN 4 preflight validates those artifacts before the post-ASM pass
+   and before Glass.
+4. Passing preflight writes `preflight_summary.json` with compact ROM, RAM, and
+   Plan B data for CLI/IDE consumption.
+
+Regression coverage currently checks the preflight directly and through the
+MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor
+maps, and Galaxian-style shooter builds.
 
 ### Phase MSX2-7.5: Post-compilation optimization loop
 

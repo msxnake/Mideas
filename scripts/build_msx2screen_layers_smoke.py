@@ -432,6 +432,169 @@ def validate_rom(rom_output: Path, rom_mode: str = "simple32k") -> None:
         raise RuntimeError(f"MegaROM output should exceed 32KB for the SCREEN 4 Konami path, got {size}")
 
 
+def validate_project_slice_artifact(
+    asm_output: Path,
+    expect_stage_banner: bool | None = None,
+    require_preflight_summary: bool = False,
+) -> None:
+    generated_dir = asm_output.with_name(f"{asm_output.stem}_generated")
+    compressed_generated_dir = asm_output.with_name(f"{asm_output.stem}_compressed_generated")
+    if compressed_generated_dir.exists():
+        generated_dir = compressed_generated_dir
+    artifact_path = generated_dir / "project_slice.json"
+    if not artifact_path.exists():
+        raise RuntimeError(f"Generated project_slice.json was not created: {artifact_path}")
+
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    if artifact.get("scope") != "msx2_screen4_project_slice":
+        raise RuntimeError(f"Unexpected project_slice scope: {artifact.get('scope')!r}")
+    included_modules = artifact.get("includedRuntimeModules")
+    excluded_modules = artifact.get("excludedRuntimeModules")
+    if not isinstance(included_modules, list) or not included_modules:
+        raise RuntimeError("project_slice.json must list includedRuntimeModules")
+    if not isinstance(excluded_modules, list):
+        raise RuntimeError("project_slice.json must list excludedRuntimeModules")
+    if expect_stage_banner is True and "runtime.msx2.stage_banner" not in included_modules:
+        raise RuntimeError("project_slice.json should include runtime.msx2.stage_banner for shooter wave builds")
+    if expect_stage_banner is False and not any(item.get("id") == "runtime.msx2.stage_banner" for item in excluded_modules if isinstance(item, dict)):
+        raise RuntimeError("project_slice.json should exclude runtime.msx2.stage_banner for non-shooter builds")
+
+    storage_policy = artifact.get("assetStoragePolicy")
+    if not isinstance(storage_policy, list) or not storage_policy:
+        raise RuntimeError("project_slice.json must include a non-empty assetStoragePolicy")
+    screen_policies = [item for item in storage_policy if item.get("type") == "msx2screen"]
+    if not screen_policies:
+        raise RuntimeError("project_slice.json assetStoragePolicy must include reachable msx2screen entries")
+    for policy in screen_policies:
+        if int(policy.get("rawBytes") or 0) <= 0:
+            raise RuntimeError(f"msx2screen storage policy has invalid rawBytes: {policy}")
+        parts = policy.get("parts")
+        if not isinstance(parts, list) or len(parts) < 4:
+            raise RuntimeError(f"msx2screen storage policy must describe screen parts: {policy.get('id')}")
+        decisions = {part.get("decision") for part in parts if isinstance(part, dict)}
+        if "ROM_RAW" not in decisions:
+            raise RuntimeError(f"msx2screen storage policy must keep runtime layers/spawns raw: {policy.get('id')}")
+
+    storage_policy_path = generated_dir / "asset_storage_policy.json"
+    if not storage_policy_path.exists():
+        raise RuntimeError(f"Generated asset_storage_policy.json was not created: {storage_policy_path}")
+    storage_policy_artifact = json.loads(storage_policy_path.read_text(encoding="utf-8"))
+    if storage_policy_artifact != storage_policy:
+        raise RuntimeError("asset_storage_policy.json does not match project_slice assetStoragePolicy")
+
+    estimated_rom = artifact.get("estimatedRomNeeds") or {}
+    if int(estimated_rom.get("romPayloadBytesEstimate") or 0) <= 0:
+        raise RuntimeError("project_slice.json must include a positive romPayloadBytesEstimate")
+    if int(estimated_rom.get("estimated8kBanksForPayload") or 0) <= 0:
+        raise RuntimeError("project_slice.json must include a positive estimated8kBanksForPayload")
+    logical_bank_budget = artifact.get("logicalBankBudget") or {}
+    if int(logical_bank_budget.get("bankSizeBytes") or 0) != 8192:
+        raise RuntimeError("project_slice.json logicalBankBudget must use 8192-byte Konami banks")
+    if int(logical_bank_budget.get("warningThresholdBytes") or 0) <= 0:
+        raise RuntimeError("project_slice.json logicalBankBudget must include a warning threshold")
+    if int(logical_bank_budget.get("totalPayloadBytes") or 0) <= 0:
+        raise RuntimeError("project_slice.json logicalBankBudget must include a positive totalPayloadBytes")
+    if not isinstance(logical_bank_budget.get("packages"), list) or not logical_bank_budget.get("packages"):
+        raise RuntimeError("project_slice.json logicalBankBudget must include package estimates")
+    over_budget_packages = logical_bank_budget.get("overBudgetPackages")
+    if not isinstance(over_budget_packages, list):
+        raise RuntimeError("project_slice.json logicalBankBudget must include overBudgetPackages")
+    if over_budget_packages:
+        details = ", ".join(str(item.get("id") or item.get("sourceId")) for item in over_budget_packages if isinstance(item, dict))
+        raise RuntimeError(f"MSX2 preflight budget failed before Glass: logical packages exceed 8KB banks: {details}")
+    packed_banks = logical_bank_budget.get("estimatedPackedBanks")
+    if not isinstance(packed_banks, list) or not packed_banks:
+        raise RuntimeError("project_slice.json logicalBankBudget must include estimatedPackedBanks")
+    if int(logical_bank_budget.get("estimatedPackedBankCount") or 0) != len(packed_banks):
+        raise RuntimeError("project_slice.json estimatedPackedBankCount must match estimatedPackedBanks length")
+    for bank in packed_banks:
+        used = int(bank.get("usedBytes") or 0)
+        free = int(bank.get("freeBytes") or 0)
+        if used <= 0 or used + free != 8192:
+            raise RuntimeError(f"Estimated packed bank has invalid used/free bytes: {bank}")
+        if int(bank.get("overBudgetBytes") or 0) > 0:
+            raise RuntimeError(f"MSX2 preflight budget failed before Glass: estimated packed bank exceeds 8KB: {bank}")
+        if not isinstance(bank.get("packages"), list) or not bank.get("packages"):
+            raise RuntimeError(f"Estimated packed bank has no package list: {bank}")
+    recommendations = logical_bank_budget.get("recoveryRecommendations")
+    if not isinstance(recommendations, list) or not recommendations:
+        raise RuntimeError("project_slice.json logicalBankBudget must include recoveryRecommendations")
+    for recommendation in recommendations:
+        if not all(recommendation.get(key) for key in ("severity", "target", "reason", "action")):
+            raise RuntimeError(f"Invalid recovery recommendation entry: {recommendation}")
+        if recommendation.get("severity") == "error":
+            raise RuntimeError(f"MSX2 preflight budget error: {recommendation}")
+
+    budget_path = generated_dir / "logical_bank_budget.json"
+    if not budget_path.exists():
+        raise RuntimeError(f"Generated logical_bank_budget.json was not created: {budget_path}")
+    budget_artifact = json.loads(budget_path.read_text(encoding="utf-8"))
+    if budget_artifact != logical_bank_budget:
+        raise RuntimeError("logical_bank_budget.json does not exactly match project_slice logicalBankBudget")
+    if budget_artifact.get("bankSizeBytes") != logical_bank_budget.get("bankSizeBytes"):
+        raise RuntimeError("logical_bank_budget.json does not match project_slice logicalBankBudget bank size")
+    if budget_artifact.get("totalPayloadBytes") != logical_bank_budget.get("totalPayloadBytes"):
+        raise RuntimeError("logical_bank_budget.json does not match project_slice logicalBankBudget payload size")
+    if not isinstance(budget_artifact.get("packages"), list) or not budget_artifact.get("packages"):
+        raise RuntimeError("logical_bank_budget.json must include package estimates")
+    if budget_artifact.get("estimatedPackedBankCount") != logical_bank_budget.get("estimatedPackedBankCount"):
+        raise RuntimeError("logical_bank_budget.json does not match project_slice packed bank count")
+    if budget_artifact.get("recoveryRecommendations") != logical_bank_budget.get("recoveryRecommendations"):
+        raise RuntimeError("logical_bank_budget.json does not match project_slice recovery recommendations")
+
+    ram_budget = artifact.get("ramBudget") or {}
+    if ram_budget.get("scope") != "msx2_screen4_ram_budget":
+        raise RuntimeError("project_slice.json must include ramBudget with msx2_screen4_ram_budget scope")
+    if ram_budget.get("start") != "#C000":
+        raise RuntimeError(f"ramBudget must start at C000: {ram_budget.get('start')}")
+    if ram_budget.get("limit") != "#F300":
+        raise RuntimeError(f"ramBudget must use F300 runtime RAM limit: {ram_budget.get('limit')}")
+    if int(ram_budget.get("usedBytes") or 0) <= 0:
+        raise RuntimeError("ramBudget must include positive usedBytes")
+    if int(ram_budget.get("freeBytes") or -1) < 0:
+        raise RuntimeError("ramBudget freeBytes must not be negative")
+    if ram_budget.get("status") == "error":
+        raise RuntimeError(f"MSX2 RAM budget exceeds runtime limit: {ram_budget}")
+    ram_sections = ram_budget.get("sections")
+    if not isinstance(ram_sections, list) or not ram_sections:
+        raise RuntimeError("ramBudget must include runtime RAM sections")
+    section_ids = {section.get("id") for section in ram_sections if isinstance(section, dict)}
+    for required_section in ("runtime.persistent_effect_layers", "runtime.effects_scratch", "runtime.enemy_pool"):
+        if required_section not in section_ids:
+            raise RuntimeError(f"ramBudget missing required section: {required_section}")
+    ram_recommendations = ram_budget.get("recommendations")
+    if not isinstance(ram_recommendations, list) or not ram_recommendations:
+        raise RuntimeError("ramBudget must include recommendations")
+    if any(item.get("severity") == "error" for item in ram_recommendations if isinstance(item, dict)):
+        raise RuntimeError(f"ramBudget reports error recommendations: {ram_recommendations}")
+
+    ram_budget_path = generated_dir / "ram_budget.json"
+    if not ram_budget_path.exists():
+        raise RuntimeError(f"Generated ram_budget.json was not created: {ram_budget_path}")
+    ram_budget_artifact = json.loads(ram_budget_path.read_text(encoding="utf-8"))
+    if ram_budget_artifact != ram_budget:
+        raise RuntimeError("ram_budget.json does not exactly match project_slice ramBudget")
+    preflight_summary_path = generated_dir / "preflight_summary.json"
+    if require_preflight_summary and not preflight_summary_path.exists():
+        raise RuntimeError(f"Generated preflight_summary.json was not created: {preflight_summary_path}")
+    if preflight_summary_path.exists():
+        preflight_summary = json.loads(preflight_summary_path.read_text(encoding="utf-8"))
+        if preflight_summary.get("scope") != "msx2_screen4_megarom_preflight_summary":
+            raise RuntimeError("preflight_summary.json has an unexpected scope")
+        if preflight_summary.get("status") != "ok":
+            raise RuntimeError(f"preflight_summary.json did not report ok status: {preflight_summary.get('status')!r}")
+        if int((preflight_summary.get("rom") or {}).get("bankSizeBytes") or 0) != 8192:
+            raise RuntimeError("preflight_summary.json must report 8192-byte Konami banks")
+        if int((preflight_summary.get("rom") or {}).get("payloadBytes") or 0) != int(logical_bank_budget.get("totalPayloadBytes") or 0):
+            raise RuntimeError("preflight_summary.json ROM payload does not match logical_bank_budget.json")
+        if int((preflight_summary.get("ram") or {}).get("usedBytes") or 0) != int(ram_budget.get("usedBytes") or 0):
+            raise RuntimeError("preflight_summary.json RAM usage does not match ram_budget.json")
+        if not isinstance((preflight_summary.get("planB") or {}).get("romRecommendations"), list):
+            raise RuntimeError("preflight_summary.json must include ROM Plan B recommendations")
+        if not isinstance((preflight_summary.get("planB") or {}).get("ramRecommendations"), list):
+            raise RuntimeError("preflight_summary.json must include RAM Plan B recommendations")
+
+
 def validate_editor_contract(project_root: Path) -> None:
     contract_script = project_root / "scripts" / "check_msx2_entity_editor_contract.mjs"
     if not contract_script.exists():
@@ -1393,6 +1556,7 @@ def main() -> None:
 
     validate_asm(asm_output, args.rom_mode, args.target_format)
     validate_rom(rom_output, args.rom_mode)
+    validate_project_slice_artifact(asm_output, expect_stage_banner=False, require_preflight_summary=True)
     symbols = read_symbol_addresses(sym_output)
     validate_runtime_ram_layout(symbols)
 

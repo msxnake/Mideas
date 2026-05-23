@@ -1,0 +1,21 @@
+ERR help press -> Unknown command: press
+ERR help release -> Unknown command: release
+OK help keymatrixdown -> keymatrixdown <row> <bitmask>  press a key in the keyboard matrix
+
+OK help plug -> Plugs a plug into a connector
+ plug [connector] [plug]
+ERR help joystick -> Unknown command: joystick
+OK help set -> Set or query the value of a openMSX setting or Tcl variable
+  set <setting>          shows current value
+  set <setting> <value>  set a new value
+Use 'help set <setting>' to get more info on a specific
+openMSX setting.
+
+OK help type -> The type command is currently implemented by type_via_keyboard. (This can
+be changed with the default_type_proc setting.) Here is the help of that
+command:
+Type a string in the emulated MSX.
+Use -release to make sure the keys are always released before typing new ones (necessary for some game input routines, but in general, this means typing is twice as slow).
+Use -freq to tweak how fast typing goes and how long the keys will be pressed (and released in case -release was used). Keys will be typed at the given frequency and will remain pressed/released for 1/freq seconds
+Use -cancel to cancel a (long) in-progress type command.
+ERR help osd_menu -> Unknown command: osd_menu

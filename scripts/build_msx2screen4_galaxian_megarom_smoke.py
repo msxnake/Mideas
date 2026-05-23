@@ -10,6 +10,7 @@ from build_msx2screen_layers_smoke import (
     read_probe_values,
     repo_root_from_script,
     run_command,
+    validate_project_slice_artifact,
 )
 
 
@@ -132,6 +133,7 @@ def main() -> None:
 
     validate_asm(asm_output)
     validate_rom(rom_output)
+    validate_project_slice_artifact(asm_output, expect_stage_banner=True, require_preflight_summary=True)
 
     if not args.skip_openmsx:
         capture_cmd = [
