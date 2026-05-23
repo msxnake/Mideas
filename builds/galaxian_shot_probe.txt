@@ -1,0 +1,7 @@
+score=00
+enemy0_y=20
+enemy1_y=20
+enemy2_y=20
+bullet_active=00
+bullet_y=00
+level=00

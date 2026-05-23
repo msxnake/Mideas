@@ -45,11 +45,14 @@ const checks = [
       msx2Catalog.includes("runtime: 'MSX2'"),
   ],
   [
-    'Defaults expose MSX2 components only through explicit MSX2 target',
+    'Defaults expose MSX2 components and entity templates only through explicit MSX2 target',
     defaults.includes('DEFAULT_MSX2_COMPONENT_DEFINITIONS') &&
       defaults.includes('MSX2_COMPONENT_REPERTOIRE.map') &&
+      defaults.includes('DEFAULT_MSX2_ENTITY_TEMPLATES') &&
+      defaults.includes('MSX2_ENTITY_REPERTOIRE.map') &&
+      defaults.includes('buildMsx2EntityComponents(preset, 0, 0)') &&
       defaults.includes("target: 'MSX2'") &&
-      !/DEFAULT_ENTITY_TEMPLATES[\s\S]*?target:\s*['"]MSX2['"]/.test(defaults),
+      defaults.includes('...DEFAULT_MSX2_ENTITY_TEMPLATES'),
   ],
   [
     'MSX2 runtime reads native component bags',
@@ -70,7 +73,64 @@ const checks = [
       'msx2_score',
       'msx2_timer',
       'msx2_platform',
+      'msx2_paddle',
+      'msx2_ball',
+      'msx2_brick',
+      'msx2_char_render',
+      'msx2_snake',
+      'msx2_snake_segment',
     ].every(token => msx2Catalog.includes(token)),
+  ],
+  [
+    'MSX2 native entity repertoire includes target simple-game families',
+    [
+      'player_maze',
+      'player',
+      'galaxian_player',
+      'galaxian_alien_formation',
+      'pong_paddle',
+      'pong_ball',
+      'arkanoid_brick',
+      'snake_head',
+      'snake_segment',
+      'snake_food',
+    ].every(token => msx2Catalog.includes(`id: '${token}'`)),
+  ],
+  [
+    'MSX2 SCREEN 4 backend owns Snake char runtime without legacy ECS',
+    msx2Generator.includes('usesSnakeCharMovement') &&
+      msx2Generator.includes('buildSnakeCharRuntimeAsm') &&
+      msx2Generator.includes('msx2_snake_head_x EQU #C030') &&
+      msx2Generator.includes('MSX2_SNAKE_BODY_BASE = 0xC040') &&
+      msx2Generator.includes('MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2)') &&
+      msx2Generator.includes('call update_msx2_snake_char'),
+  ],
+  [
+    'MSX2 SCREEN 4 backend owns paddleHorizontal without shooter bullets',
+    msx2Generator.includes('function usesPaddleHorizontalMovement') &&
+      msx2Generator.includes("mode === 'paddlehorizontal'") &&
+      msx2Generator.includes('update_hardware_sprite_input_paddle_horizontal') &&
+      msx2Generator.includes("${paddleHorizontal ? '    jp update_hardware_sprite_input_paddle_horizontal\\n' : ''}") &&
+      msx2Generator.includes("${shooterHorizontal ? '    call update_msx2_player_bullet\\n    call update_msx2_enemy_bullet\\n' : ''}"),
+  ],
+  [
+    'MSX2 SCREEN 4 backend owns ballBounce hazard movement',
+    msx2EntityRuntime.includes('MSX2_ENEMY_MOVEMENT_BALL_BOUNCE') &&
+      msx2EntityRuntime.includes("movement === 'ballbounce'") &&
+      msx2Generator.includes('MSX2_ENEMY_MOVEMENT_BALL_BOUNCE') &&
+      msx2Generator.includes('signedRuntimeByte(enemies[index]?.dx)') &&
+      msx2Generator.includes('function getPaddleCollisionSettings') &&
+      msx2Generator.includes('ball_check_paddle') &&
+      msx2Generator.includes('ball_miss_paddle') &&
+      msx2Generator.includes('call msx2_apply_damage_respawn'),
+  ],
+  [
+    'MSX2 SCREEN 4 backend maps brick entities to mutable effects',
+    msx2Generator.includes("layerName === 'effects'") &&
+      msx2Generator.includes('entity?.components?.msx2_brick') &&
+      msx2Generator.includes('clear_msx2_effect_visual_at_pixel') &&
+      msx2Generator.includes('ball_break_brick') &&
+      msx2Generator.includes('call draw_msx2_collectible_hud'),
   ],
 ];
 

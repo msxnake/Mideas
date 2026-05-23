@@ -1,0 +1,10 @@
+x=70
+y=A0
+dx=00
+bullet_active=01
+bullet_y=10
+cooldown=00
+score=00
+screen=00
+lives=03
+game_over=00

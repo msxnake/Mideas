@@ -256,6 +256,8 @@ export interface Msx2Sprite {
   currentFrameIndex: number;
   animationSpeedMs?: number;
   loops?: boolean;
+  /** Authored side/orientation. Mideas can mirror horizontal sprites from this base direction. */
+  facingDirection?: FacingDirection;
   hitbox?: {
     width: number;
     height: number;
@@ -496,7 +498,7 @@ export interface ComponentPropertyDefinition {
   /** The name of the property. */
   name: string;
   /** The data type of the property. */
-  type: 'byte' | 'word' | 'boolean' | 'string' | 'color' | 'sprite_ref' | 'sound_ref' | 'behavior_script_ref' | 'entity_template_ref' | 'statemachine_ref' | 'tile_ref' | 'dialogue_ref';
+  type: 'byte' | 'word' | 'boolean' | 'string' | 'color' | 'sprite_ref' | 'msx2sprite_ref' | 'sound_ref' | 'behavior_script_ref' | 'entity_template_ref' | 'statemachine_ref' | 'tile_ref' | 'dialogue_ref';
   /** The default value for the property. */
   defaultValue?: any;
   /** A description of the property. */

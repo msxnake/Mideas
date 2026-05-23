@@ -1,0 +1,2 @@
+player_x=70
+player_y=A0

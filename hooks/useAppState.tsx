@@ -16,6 +16,20 @@ import {
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getVariedColorsForChar } from '../utils/colorUtils';
 import { msxFontJsonString } from '../data/msxFontData';
+import {
+  filterComponentDefinitionsForProject,
+  filterEntityTemplatesForProject,
+} from '../utils/projectTarget';
+
+const DEFAULT_PROJECT_COMPONENT_DEFINITIONS = filterComponentDefinitionsForProject(
+  DEFAULT_COMPONENT_DEFINITIONS,
+  DEFAULT_SCREEN_MODE
+);
+
+const DEFAULT_PROJECT_ENTITY_TEMPLATES = filterEntityTemplatesForProject(
+  DEFAULT_ENTITY_TEMPLATES,
+  DEFAULT_SCREEN_MODE
+);
 
 export const useAppState = () => {
   // Editor state
@@ -36,8 +50,8 @@ export const useAppState = () => {
   const [currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer] = useState<ScreenEditorLayerName>('background');
 
   // Entity & Component state
-  const [componentDefinitions, setComponentDefinitionsState] = useState<ComponentDefinition[]>(DEFAULT_COMPONENT_DEFINITIONS);
-  const [entityTemplates, setEntityTemplatesState] = useState<EntityTemplate[]>(DEFAULT_ENTITY_TEMPLATES);
+  const [componentDefinitions, setComponentDefinitionsState] = useState<ComponentDefinition[]>(DEFAULT_PROJECT_COMPONENT_DEFINITIONS);
+  const [entityTemplates, setEntityTemplatesState] = useState<EntityTemplate[]>(DEFAULT_PROJECT_ENTITY_TEMPLATES);
   const [mainMenuConfig, setMainMenuConfigState] = useState<MainMenuConfig>(DEFAULT_MAIN_MENU_CONFIG);
   const [presentationScreen, setPresentationScreenState] = useState<PresentationScreenConfig>(DEFAULT_PRESENTATION_SCREEN_CONFIG);
   const [currentEntityTypeToPlace, setCurrentEntityTypeToPlace] = useState<EntityTemplate | null>(null);

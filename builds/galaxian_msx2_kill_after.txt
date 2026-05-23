@@ -1,0 +1,4 @@
+score_lo=FA
+score_hi=00
+enemy_y1=D8
+bullet_active=00

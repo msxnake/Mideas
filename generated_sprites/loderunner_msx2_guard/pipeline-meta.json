@@ -1,0 +1,175 @@
+{
+  "target": "npc",
+  "mode": "walk",
+  "prompt": "MSX2 SCREEN 4 Lode Runner style guard, red jacket, gray helmet, solid magenta background, 2x2 walk sheet.",
+  "role": "guard",
+  "input": "C:\\Users\\salam\\.codex\\generated_images\\019e50c7-9d60-7ba3-8da7-c656de1e2a04\\ig_0b3c949bb1dd2cc5016a109bbd28a88191b1c7850241d96b30.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 140,
+  "rows": 2,
+  "cols": 2,
+  "cell_size": 128,
+  "fit_scale": 0.85,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "feet",
+  "shared_scale": true,
+  "component_mode": "largest",
+  "component_padding": 4,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "guard-1",
+    "guard-2",
+    "guard-3",
+    "guard-4"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        627,
+        627
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 61758,
+      "selected_component_bbox": [
+        200,
+        118,
+        421,
+        500
+      ],
+      "crop_bbox": [
+        196,
+        114,
+        425,
+        504
+      ],
+      "edge_touch": false,
+      "output_size": [
+        63,
+        108
+      ],
+      "paste_position": [
+        32,
+        11
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        627,
+        0,
+        1254,
+        627
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 61786,
+      "selected_component_bbox": [
+        188,
+        128,
+        429,
+        500
+      ],
+      "crop_bbox": [
+        184,
+        124,
+        433,
+        504
+      ],
+      "edge_touch": false,
+      "output_size": [
+        69,
+        106
+      ],
+      "paste_position": [
+        29,
+        13
+      ]
+    },
+    {
+      "grid": [
+        1,
+        0
+      ],
+      "source_box": [
+        0,
+        627,
+        627,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 60592,
+      "selected_component_bbox": [
+        200,
+        119,
+        410,
+        500
+      ],
+      "crop_bbox": [
+        196,
+        115,
+        414,
+        504
+      ],
+      "edge_touch": false,
+      "output_size": [
+        60,
+        108
+      ],
+      "paste_position": [
+        34,
+        11
+      ]
+    },
+    {
+      "grid": [
+        1,
+        1
+      ],
+      "source_box": [
+        627,
+        627,
+        1254,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 61771,
+      "selected_component_bbox": [
+        181,
+        129,
+        420,
+        500
+      ],
+      "crop_bbox": [
+        177,
+        125,
+        424,
+        504
+      ],
+      "edge_touch": false,
+      "output_size": [
+        68,
+        105
+      ],
+      "paste_position": [
+        30,
+        14
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

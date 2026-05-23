@@ -1,0 +1,7 @@
+player_x=96
+shield10=00
+score=33
+bullet_active=02
+bullet_y=00
+lives=06
+game_over=63

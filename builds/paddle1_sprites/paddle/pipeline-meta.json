@@ -1,0 +1,64 @@
+{
+  "target": "asset",
+  "mode": "single",
+  "prompt": "MSX2 multicolor arcade paddle sprite, white/cyan/blue/red end caps, solid #FF00FF background.",
+  "role": "",
+  "input": "builds\\paddle1_sprites\\paddle\\raw-paddle.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "rows": 1,
+  "cols": 1,
+  "cell_size": 128,
+  "fit_scale": 0.85,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "center",
+  "shared_scale": false,
+  "component_mode": "largest",
+  "component_padding": 3,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "paddle-1"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        1536,
+        1024
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 137311,
+      "selected_component_bbox": [
+        383,
+        413,
+        1145,
+        599
+      ],
+      "crop_bbox": [
+        380,
+        410,
+        1148,
+        602
+      ],
+      "edge_touch": false,
+      "output_size": [
+        108,
+        27
+      ],
+      "paste_position": [
+        10,
+        50
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

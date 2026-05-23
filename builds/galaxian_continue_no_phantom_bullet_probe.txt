@@ -1,0 +1,6 @@
+level=00
+lives=03
+game_over=00
+score=64
+bullet_active=00
+e10y=40

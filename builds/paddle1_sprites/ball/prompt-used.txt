@@ -1,0 +1,1 @@
+MSX2 multicolor 8x8 bouncing ball sprite, white/cyan/blue, solid #FF00FF background.

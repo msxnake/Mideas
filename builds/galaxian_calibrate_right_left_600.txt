@@ -1,0 +1,3 @@
+player_x=86
+lives=03
+game_over=00

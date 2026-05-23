@@ -702,6 +702,35 @@ Completed:
   `patoantic248`, and `joc60`.
 Remaining:
 
+- MSX2 SCREEN4 now has a first Konami MegaROM path for native `msx2screen`
+  projects. It follows Konami without SCC fixed-bank0 rules: `#4000-#5FFF`
+  stays fixed on segment 0, `#6000/#8000/#A000` are explicitly initialized
+  through mapper helper routines, and a cold data bank is mapped at
+  `#6000-#7FFF` only while uploading palette, hardware sprite, and SCREEN4
+  graphics data to VRAM.
+- MSX2 smoke scripts default to `megarom/konami`, pass `-romtype konami` to
+  OpenMSX, and validate the generated ROM visually. The current conveyor smoke
+  confirms boot, input probes, gameplay state, and player rendering under the
+  MSX2 MegaROM path.
+- Native MSX2 SCREEN4 smoke fixtures and outputs now use the
+  `test/msx2-screen4` tree. The old SCREEN5 fixture generator name is retained
+  only for compatibility, while active layer/conveyor smokes call the SCREEN4
+  alias and keep generated fixture JSONs out of Git status.
+- `json/galaxian_msx2_mideas.json` is the primary MSX2 SCREEN4 game fixture for
+  this pipeline. It compiles as Konami MegaROM, boots in OpenMSX with
+  `-romtype konami`, and renders the Galaxian playfield/player with the expected
+  runtime probes (`screen=0`, `lives=3`, `gameover=0`).
+- The MSX2 SCREEN4 Konami path now has the same hard mapper-write rule as the
+  MSX1 pipeline: generated ASM is rejected if `ld (#6000),a`,
+  `ld (#8000),a`, `ld (#A000),a`, or `ld (MAPPER_REG_Px),a` appears outside
+  `mapper_set_bank_p1/p2/p3/p4`. This is enforced in both the CLI builder and
+  the server compile path.
+- MSX2 `ascii8`/`ascii16` are intentionally rejected for now. They still need a
+  true mapper-window layout and allocator policy instead of the current Konami
+  fixed-bank0 compatibility slice.
+- Legacy `msx2bitmap` projects are not part of this slice; the supported path is
+  the native MSX2 SCREEN4 backend generated from `msx2screen` projects.
+
 - ASCII16 still needs a label-level component placement/call policy. Large
   projects split components.asm across multiple 16 KB runtime segments, so
   GameFlow and entity-bank calls cannot assume component routines are resident
@@ -788,3 +817,387 @@ Acceptance criteria:
 - Pass matrix for Konami + ASCII8 projects and the strict ASCII16 gameplay
   smoke project set.
 - No blank-screen/hang on bank-switch transitions.
+
+## MSX2 MegaROM Stability Roadmap
+
+This is the roadmap for the native MSX2 generator. Its goal is to avoid the
+current MSX1 failure mode where a gameplay variation compiles until one emitted
+bank crosses the 8 KB mapper limit and Glass fails late with a hard overflow.
+
+The MSX2 path must be planned as a budgeted MegaROM build from the start:
+
+- The fixed core is small and generic.
+- World/gameplay content is packaged into explicit bank packs.
+- ROM is the main storage area.
+- RAM is only runtime state, small caches, and temporary buffers.
+- Every bank has a budget report before Glass is invoked.
+
+### Phase MSX2-1: Define the fixed runtime contract
+
+Keep the resident MSX2 runtime limited to generic systems:
+
+- MSX2/VDP init, palette and SCREEN 4 setup.
+- Mapper init and centralized bank setters.
+- Input, scheduler, IRQ/VBlank pacing.
+- Player core.
+- Entity pool and hardware sprite writer.
+- Generic collision/effects/behavior readers.
+- Generic movement verbs: patrol, gravity/platform, maze direction, projectile.
+- Generic animation runner.
+- Event queue.
+- Resource loader: ROM raw, ROM ZX0, ROM-to-VRAM, ROM-to-RAM when justified.
+
+Do not hardcode concrete enemies, per-game attack routines, or per-world
+graphics in the resident core. A snake, bat, archer, Galaxian wave, or Lode
+Runner guard is world data plus optional world code, not a new resident engine
+section by default.
+
+Acceptance criteria:
+
+- `segment_budget.json` separates resident core modules from world/content
+  modules.
+- Resident banks have a warning threshold, not only a hard 8192-byte failure.
+- Any new MSX2 runtime helper must declare whether it is resident, far code, or
+  world-specific.
+
+### Phase MSX2-2: Introduce World Bank Packs
+
+Each MSX2 game/world should compile to a `World Bank Pack` instead of letting
+all content compete for the same generated ASM banks.
+
+Recommended logical pack:
+
+- `world manifest`: bank ids, entry screen, palette, music, table pointers.
+- `world graphics`: SCREEN 4 patterns, colors, name data, sprite patterns.
+- `world screens`: tilemaps, collision, effects, behavior, spawn tables.
+- `world entities`: enemy type table, movement profiles, attack profiles.
+- `world animations`: animation sets and frame tables.
+- `world special code`: bosses or unique behavior modules, only when data is
+  not enough.
+
+Small worlds can collapse these into fewer physical banks, but the generator
+must keep the logical categories in the manifest and reports. The allocator can
+then pack them, split them, or leave them raw with a documented reason.
+
+Acceptance criteria:
+
+- A generated `world_manifest.json` or equivalent artifact lists every world
+  package, logical section, physical bank, window address, stored size, raw
+  size, and placement reason.
+- The ASM has stable labels for each package section so Glass symbols can
+  verify real assembled size.
+- A world can grow by adding a new data bank without moving unrelated resident
+  code.
+
+### Phase MSX2-3: Asset policy before packing
+
+Every generated MSX2 asset must receive a storage decision before ASM emission:
+
+- `RAM`: mutable runtime state or very hot small cache.
+- `ROM_RAW`: read-only data that is small, poorly compressible, or accessed
+  directly while its bank is visible.
+- `ROM_ZX0`: read-only compressed data loaded occasionally.
+- `ROM_ZX0_TO_VRAM`: graphics data decompressed or staged into VRAM.
+- `ROM_RAW_TO_VRAM`: graphics data where compression is not worth the cost.
+
+Initial policy:
+
+- Data below 64 bytes stays raw unless there is a strong reason.
+- Data from 64 to 512 bytes is compressed only when saving at least 25%.
+- Data above 512 bytes is tested for compression.
+- If compression saves less than 15%, keep raw.
+- Data read every frame must either be RAM-resident or live in a stable visible
+  runtime data bank.
+- Graphics should prefer ROM-to-VRAM paths instead of ROM-to-RAM-to-VRAM unless
+  staging is required for speed or decoder limits.
+
+Acceptance criteria:
+
+- `project_usage.json` or a new `asset_storage_policy.json` records
+  `sizeRaw`, `sizeStored`, compression gain, access pattern, mutability, and
+  final decision for each asset.
+- The build fails before Glass if an asset marked as direct runtime data is
+  placed in a bank that will not be visible during gameplay.
+- The build warns when tiny tables are compressed for negligible savings.
+
+### Phase MSX2-3.5: Project pre-compilation slice
+
+Before allocating banks, Mideas must calculate the exact project slice required
+by the current game. This pre-compilation step is not ASM generation yet; it is
+the dependency graph that decides what exists in the ROM at all.
+
+The pre-compiler starts from the project's active entry points:
+
+- selected target platform and screen backend,
+- active GameFlow graph,
+- referenced worlds,
+- referenced screens,
+- referenced `msx2screen` layers,
+- referenced sprites and animation sets,
+- referenced entity templates,
+- referenced state machines,
+- referenced music/SFX,
+- referenced HUD/menu/text assets,
+- referenced custom behavior modules.
+
+Then it produces a closed dependency set:
+
+- include only assets reachable from those entry points,
+- include only component/runtime modules required by those assets,
+- include only state-machine opcodes/actions that are used,
+- include only movement/attack/projectile engines that are referenced,
+- include only screens and world links reachable from the active GameFlow,
+- exclude editor-only assets, unused templates, unused components, unused
+  default data, and inactive worlds.
+
+This is mandatory because unused data is not harmless in an 8 KB banked ROM.
+Every unused table, default enemy, animation, or state-machine helper increases
+bank pressure and can turn a valid game variation into a bank overflow.
+
+Pre-compilation output should be a concrete artifact, for example
+`project_slice.json`:
+
+- `includedAssets`,
+- `excludedAssets`,
+- `includedRuntimeModules`,
+- `includedComponents`,
+- `includedStateMachineOpcodes`,
+- `includedWorldPackages`,
+- `estimatedRamNeeds`,
+- `estimatedRomNeeds`,
+- `reason` for every inclusion.
+
+Acceptance criteria:
+
+- A project can explain why each emitted asset or runtime module is present.
+- Unused default MSX2 entities/components are not emitted into the ROM.
+- Adding an unused asset in the editor does not change the compiled ROM budget.
+- The UI can show a "not included in ROM" list so authors understand what was
+  excluded by the pre-compiler.
+
+### Phase MSX2-4: Budgeted bank allocator
+
+The allocator must be the first line of defense against bank overflow.
+
+Rules:
+
+- Use final stored size, after compression decisions, as allocator input.
+- Reserve fixed resident banks first.
+- Place world data into explicit 8 KB Konami zones.
+- Keep `#A000-#BFFF` as the normal data/loading window for Konami.
+- Place far code only at explicit call boundaries.
+- Never split a routine or data record arbitrarily just to satisfy 8 KB.
+- Allow new physical banks to be appended when a world grows.
+- Fail with an actionable allocator error before Glass if a single unsplittable
+  unit cannot fit in one 8 KB zone.
+
+Acceptance criteria:
+
+- The allocator reports `usedBytes`, `freeBytes`, `warningBytes`, and
+  `overBudgetBytes` per bank before ASM generation.
+- Default warning threshold is 90% of a bank; default hard limit is 8192 bytes.
+- Overflow diagnostics name the logical package and largest contributors, for
+  example `world0.entities`, `world0.graphics.sprites`, or
+  `runtime.projectiles.core`.
+- Glass should no longer be the first tool that discovers an 8 KB overflow.
+
+### Phase MSX2-4.5: Overflow recovery plan
+
+When the allocator finds that a bank or unsplittable unit cannot fit, Mideas
+should not immediately give up. It should run a deterministic recovery plan and
+report which attempts were made.
+
+Plan B order:
+
+1. Repack same class of data with first-fit-decreasing by final stored size.
+2. Split logical world packages across additional physical data banks when the
+   records are independently addressable.
+3. Move cold read-only data from resident/core banks into world data banks.
+4. Try ZX0 only on large data categories where compression is allowed:
+   graphics patterns, color tables, tilemaps/name data, large collision/effects
+   maps, large text blocks, large screen data.
+5. Keep tiny tables, hot frame data, and direct runtime lookup tables raw unless
+   compression gives a meaningful win and does not add per-frame decode cost.
+6. Move rare behavior to a world special-code bank behind a far-call boundary.
+7. Split a large screen/graphics payload into independently loadable chunks
+   only when the loader can address those chunks explicitly.
+8. As a last resort, fail with an actionable report listing the largest
+   contributors and suggested authoring changes.
+
+The recovery plan must not:
+
+- push read-only templates into RAM just to solve ROM pressure,
+- decompress whole worlds into RAM,
+- split arbitrary code in the middle of routines,
+- create hidden bank switches inside hot per-frame loops,
+- compress data that must be randomly accessed every frame unless it is decoded
+  into a deliberately small hot cache.
+
+Acceptance criteria:
+
+- Overflow failures report the attempted Plan B steps.
+- Reports distinguish "can add another bank" from "single unit too large for
+  one 8 KB mapper window".
+- The allocator can recommend concrete fixes: split world graphics, move boss
+  code to special bank, remove unused defaults, compress screen data, or split a
+  tilemap payload.
+
+
+### Phase MSX2-5: RAM map and live-instance model
+
+The base MSX2 target should still assume only `#C000-#FFFF` is comfortable game
+RAM in cartridge mode.
+
+ROM contains templates and read-only tables:
+
+- Enemy type definitions.
+- Spawn tables.
+- Animation definitions.
+- Movement and attack profiles.
+- State machine bytecode.
+- Collision and behavior maps when immutable.
+
+RAM contains only live state:
+
+- Active entities.
+- Position, velocity, direction.
+- HP, timers, flags.
+- Current animation frame and frame timer.
+- State machine current state and small local variables.
+- Event queue.
+- Sprite shadow/SAT staging.
+- Small hot caches and scratch buffers.
+
+Acceptance criteria:
+
+- MSX2 builds emit a `ram_report.json` or equivalent section in
+  `segment_budget.json`.
+- The report includes entity pool, projectile pool, sprite shadow, effects
+  buffers, event queue, temporary buffers, stack reservation, and free RAM.
+- Generation fails before Glass/OpenMSX if the planned runtime RAM crosses the
+  safe limit.
+
+### Phase MSX2-6: Data-driven entities before custom code
+
+The default MSX2 enemy model should be:
+
+- Entity template in ROM.
+- Spawn row in ROM.
+- Live instance in RAM.
+- Generic component runner in the core.
+
+Concrete enemies should be assembled from:
+
+- component mask,
+- sprite set id,
+- animation set id,
+- movement profile id,
+- attack profile id,
+- state machine id,
+- hp, damage, flags.
+
+World-specific code is allowed only for behavior that cannot be expressed by
+generic movement, attack, animation, projectile, or state-machine data.
+
+Promotion rule:
+
+- Appears in one world: keep as world data or world special code.
+- Appears in several projects: candidate for optional component.
+- Appears broadly: promote into the default MSX2 core component library.
+
+Acceptance criteria:
+
+- Simple enemies do not create new resident update routines.
+- Spawn loads copy only live fields to RAM, not full templates.
+- Optional world special code has its own bank budget and far-call contract.
+
+### Phase MSX2-7: Compile pipeline gates
+
+The MSX2 MegaROM pipeline should run these gates in order:
+
+1. Project analysis and world-package extraction.
+2. Project pre-compilation slice: decide exactly what this game needs.
+3. Asset storage policy decisions.
+4. RAM budget report.
+5. Bank allocation dry run.
+6. Overflow recovery plan if needed.
+7. ASM generation.
+8. Glass compile.
+9. Artifact validation against `.sym`.
+10. Post-compilation optimization.
+11. OpenMSX smoke when requested.
+
+Acceptance criteria:
+
+- UI and CLI both show the same mapper decision, RAM budget, bank budget, and
+  largest contributors.
+- A build can fail with `Bank budget overflow before ASM` and point to concrete
+  assets instead of producing a late Glass bank-size failure.
+- Regression fixtures include at least:
+  - one small MSX2 SCREEN4 game,
+  - one multi-screen platformer-style game,
+  - one shooter/arcade game with projectiles,
+  - one stress fixture designed to nearly fill a world data bank.
+
+### Phase MSX2-7.5: Post-compilation optimization loop
+
+After Glass and symbol validation pass, Mideas should run a post-compilation
+review pass against the exact ASM and artifacts that produced the ROM.
+
+The post pass can optimize:
+
+- dead emitted blocks,
+- unreachable screen loaders,
+- unused state-machine opcodes/actions,
+- unused component helpers,
+- duplicated small tables,
+- repeated data that can become shared catalog data,
+- bank placement slack,
+- large contributors that could be moved from resident to far/world banks.
+
+The loop must be conservative:
+
+1. Apply one class of optimization.
+2. Regenerate artifacts.
+3. Re-run Glass.
+4. Re-run bank/RAM validators.
+5. Re-run targeted smoke when behavior could change.
+6. Stop when no safe improvement remains or a configured pass limit is reached.
+
+If a post pass fails validation, Mideas must discard that optimization attempt
+and keep the last known-good build.
+
+Acceptance criteria:
+
+- The final ROM is always tied to a passing artifact set.
+- Post optimization never mutates the source project.
+- Reports show bytes saved, banks affected, and any optimization rejected by
+  validation.
+
+### Phase MSX2-8: IDE feedback
+
+The editor should expose budget pressure while the user is authoring, not only
+at export time.
+
+Recommended UI signals:
+
+- Current ROM mode and mapper.
+- Estimated resident core usage.
+- World package usage by category.
+- RAM usage summary.
+- Largest assets in the current world.
+- Warnings when a variation adds code/data to a nearly full bank.
+- Suggested fix: move to world data bank, compress, split world pack, promote
+  to far code, or reduce RAM residency.
+
+Acceptance criteria:
+
+- The user can see why adding a feature threatens a bank.
+- The report distinguishes resident-core pressure from content/world pressure.
+- Suggested fixes are generated from the allocator facts, not generic advice.
+
+### Non-negotiable invariant
+
+For MSX2 MegaROM generation, Mideas must not rely on Glass bank overflow as the
+normal feedback loop. The generator must know the bank plan, RAM plan, storage
+policy, and world-package layout before emitting ASM.

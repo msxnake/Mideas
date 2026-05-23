@@ -1,0 +1,4 @@
+screen=00
+score=64
+lives=03
+game_over=00

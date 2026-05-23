@@ -1,0 +1,5 @@
+player_x=70
+player_y=A0
+dx=01
+collision_lo=A7
+collision_hi=A1

@@ -14,6 +14,9 @@ const componentEditor = read('components', 'editors', 'ComponentDefinitionEditor
 const templateEditor = read('components', 'editors', 'EntityTemplateEditor.tsx');
 const asmTemplate = read('utils', 'asmTemplateGenerator.ts');
 const defaults = read('data', 'defaults.ts');
+const useAppState = read('hooks', 'useAppState.tsx');
+const projectHandlers = read('handlers', 'useProjectHandlers.tsx');
+const projectCleanup = read('utils', 'projectCleanup.ts');
 const msx2Parts = read('components', 'msx2_screen5_editor', 'Msx2Screen5EditorParts.tsx');
 const msx2Catalog = read('components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
 const msx2ScreenEditor = read('components', 'editors', 'Msx2Screen5TileScreenEditor.tsx');
@@ -41,10 +44,47 @@ const checks = [
       componentEditor.includes('target: projectTarget'),
   ],
   [
+    'component imports are normalized and filtered to the active target',
+    componentEditor.includes('target: definition.target || projectTarget') &&
+      componentEditor.includes('isComponentDefinitionEnabledForProject(definition, currentScreenMode)'),
+  ],
+  [
     'MSX1 template editor keeps legacy defaults in SCREEN 2 mode',
     templateEditor.includes('DEFAULT_ENTITY_TEMPLATES.filter(template =>') &&
       templateEditor.includes('isEntityTemplateEnabledForProject(template, currentScreenMode)') &&
       templateEditor.includes('target: projectTarget'),
+  ],
+  [
+    'template and Player Kit imports are normalized and filtered to the active target',
+    templateEditor.includes('target: template.target || projectTarget') &&
+      templateEditor.includes('isEntityTemplateEnabledForProject(template, currentScreenMode)') &&
+      templateEditor.includes('componentDefinitionsToImport') &&
+      templateEditor.includes('templatesToImport') &&
+      templateEditor.includes('isComponentDefinitionEnabledForProject(definition, currentScreenMode)'),
+  ],
+  [
+    'initial app state filters defaults by default screen mode',
+    useAppState.includes('DEFAULT_PROJECT_COMPONENT_DEFINITIONS') &&
+      useAppState.includes('filterComponentDefinitionsForProject(') &&
+      useAppState.includes('DEFAULT_PROJECT_ENTITY_TEMPLATES') &&
+      useAppState.includes('filterEntityTemplatesForProject(') &&
+      useAppState.includes('DEFAULT_SCREEN_MODE'),
+  ],
+  [
+    'new project and project load filter default catalogs by selected screen mode',
+    projectHandlers.includes('filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode)') &&
+      projectHandlers.includes('filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode)') &&
+      projectHandlers.includes('filterComponentDefinitionsForProject(migratedComponentDefinitions, loadedMode)') &&
+      projectHandlers.includes('filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode)') &&
+      projectHandlers.includes('isEntityTemplateEnabledForProject(template, loadedMode)'),
+  ],
+  [
+    'project save cleanup filters opposite-target definitions before serialization',
+    projectHandlers.includes('currentScreenMode,') &&
+      projectCleanup.includes('currentScreenMode?: string') &&
+      projectCleanup.includes('isEntityTemplateEnabledForProject(template, currentScreenMode)') &&
+      projectCleanup.includes('isComponentDefinitionEnabledForProject(compDef, currentScreenMode)') &&
+      projectCleanup.includes('templatesRemoved: entityTemplates.length - cleanedEntityTemplates.length'),
   ],
   [
     'ASM template generator reinjects missing MSX1 defaults for MSX1 projects',
@@ -61,18 +101,21 @@ const checks = [
       defaults.includes("target: 'MSX2'"),
   ],
   [
-    'legacy default entity templates remain unretargeted',
+    'legacy default entity templates remain unretargeted while MSX2 defaults are targeted',
     defaults.includes('export const DEFAULT_ENTITY_TEMPLATES') &&
       defaults.includes('tpl_player') &&
-      !/DEFAULT_ENTITY_TEMPLATES[\s\S]*?target:\s*['"]MSX2['"]/.test(defaults),
+      defaults.includes('DEFAULT_MSX2_ENTITY_TEMPLATES') &&
+      defaults.includes('MSX2_ENTITY_REPERTOIRE.map') &&
+      defaults.includes("target: 'MSX2'") &&
+      defaults.includes('...DEFAULT_MSX2_ENTITY_TEMPLATES'),
   ],
   [
-    'MSX2 native entity repertoire stays outside MSX1 templates/components',
+    'MSX2 native entity repertoire is surfaced only through target-filtered defaults and native editor',
     msx2Parts.includes('MSX2_ENTITY_REPERTOIRE') &&
       msx2Catalog.includes('MSX2_ENTITY_REPERTOIRE') &&
       msx2Catalog.includes("runtime: 'MSX2'") &&
       msx2ScreenEditor.includes('MSX2_ENTITY_REPERTOIRE') &&
-      !templateEditor.includes('MSX2_ENTITY_REPERTOIRE') &&
+      defaults.includes('MSX2_ENTITY_REPERTOIRE') &&
       !componentEditor.includes('MSX2_ENTITY_REPERTOIRE'),
   ],
 ];

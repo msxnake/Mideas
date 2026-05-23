@@ -28,20 +28,58 @@ mapper_runtime_init:
     call mapper_set_bank_p2
     ld a, 3
     call mapper_set_bank_p3
+    ret
+mapper_set_bank_p1:
+    ld (MAPPER_REG_P1), a
+    ret
+mapper_set_bank_p2:
+    ld (MAPPER_REG_P2), a
+    ret
+mapper_set_bank_p3:
+    ld (MAPPER_REG_P3), a
+    ret
+mapper_push_p3:
+    ret
+mapper_pop_p3:
+    ret
+mapper_call_hl_auto:
+    jp (hl)
+dzx0_standard:
+    ret
+resource_find_by_id:
+    ret
+resource_load_to_ram_by_id:
+    ret
+resource_load_to_vram_by_id:
+    ret
+resource_copy_from_bank_to_ram:
+    ret
+resource_decompress_from_bank_to_ram:
+    ret
+resource_dzx0_to_vram:
+    ret
+interrupt_dispatcher:
+    ret
 
-RESOURCE_TABLE_ENTRY_SIZE EQU 5
+RESOURCE_TABLE_ENTRY_SIZE EQU 8
 RESOURCE_TABLE_COUNT EQU 2
 resource_table:
     db 4
     dw #A000
     dw 32
+    dw 32
+    db 0
     db 5
     dw #BFFF
     dw 1
+    dw 1
+    db 0
 
 ; DATA BANKS
 ; Accessed through mapper P3 using
 ; (label & #1FFF) | #A000.
+bank1_marker:
+    org #6000
 """
 
 
@@ -73,6 +111,15 @@ def expect_artifact_failure(builder, artifact_dir: Path, expected: str) -> None:
     raise AssertionError(f"Expected artifact validation failure containing {expected!r}")
 
 
+def bank_metadata_checksum(parts: list[object]) -> str:
+    checksum = 0x811C9DC5
+    text = "|".join("" if part is None else str(part) for part in parts)
+    for char in text:
+        checksum ^= ord(char)
+        checksum = (checksum * 0x01000193) & 0xFFFFFFFF
+    return f"fnv1a32:{checksum:08X}"
+
+
 def write_valid_artifacts(
     artifact_dir: Path,
     address: int = 0xA000,
@@ -83,6 +130,24 @@ def write_valid_artifacts(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     offset = address - 0xA000
     origin = 0x4000 + (bank_number * 8192)
+    physical = 0x4000 + (bank_number * 8192) + offset
+    free = 8192 - size
+    metadata_parts = [bank_number, size, 0, "TEST_RESOURCE", offset, size, size, 0]
+    verification = {
+        "algorithm": "fnv1a32-resource-metadata",
+        "resourceCount": resource_count,
+        "storedBytes": size,
+        "metadataChecksum": bank_metadata_checksum(metadata_parts),
+    }
+    resource_common = {
+        "id": 0,
+        "label": "TEST_RESOURCE",
+        "size": size,
+        "storedSize": size,
+        "uncompressedSize": size,
+        "flags": 0,
+        "type": "SPRITE_PATTERNS",
+    }
     manifest = {
         "version": 1,
         "mapper": {
@@ -96,6 +161,7 @@ def write_valid_artifacts(
             "resourceCount": resource_count,
             "zoneCount": 1,
             "overflowCount": 0,
+            "dataStartAddress": 0xA000,
         },
         "banks": [
             {
@@ -103,15 +169,15 @@ def write_valid_artifacts(
                 "orgAddress": origin,
                 "endAddress": origin + 8192,
                 "usedBytes": size,
-                "freeBytes": 8192 - size,
+                "freeBytes": free,
+                "verification": verification,
                 "resources": [
                     {
-                        "id": 0,
-                        "label": "TEST_RESOURCE",
+                        **resource_common,
                         "windowAddress": address,
                         "zoneOffset": offset,
-                        "physicalAddress": 0x4000 + (bank_number * 8192) + offset,
-                        "size": size,
+                        "physicalAddress": physical,
+                        "placementReason": "test fixture",
                     }
                 ],
             }
@@ -133,25 +199,75 @@ def write_valid_artifacts(
                 "origin": origin,
                 "end": origin + 8192,
                 "usedBytes": size,
-                "freeBytes": 8192 - size,
+                "freeBytes": free,
+                "verification": verification,
                 "resources": [
                     {
-                        "id": 0,
-                        "label": "TEST_RESOURCE",
+                        **resource_common,
                         "address": address,
                         "offset": offset,
-                        "size": size,
                     }
                 ],
             }
         ],
         "overflow": [],
     }
+    manifest_v2 = {
+        "schema": "mideas.manifest/2",
+        "build_id": "mideas-v2:12345678",
+        "cartridge": {
+            "mapper": "KONAMI8K",
+            "bank_size": 8192,
+            "data_window": {
+                "page": "p3",
+                "base": "#A000",
+                "mask": "#1FFF",
+                "bank_divisor": "#2000",
+            },
+        },
+        "layout": {
+            "file_offset_rule": "file_offset = rom_bank_index * bank_size + bank_offset",
+            "data_start_address": 0xA000,
+        },
+        "groups": [{"name": "boot", "fixed_bank": 0}],
+        "resources": [
+            {
+                "id": 0,
+                "symbol": "TEST_RESOURCE",
+                "compress": "none",
+                "lifetime": "persistent",
+                "runtime_target": "VRAM",
+                "size": {"stored": size, "uncompressed": size},
+                "flags": 0,
+                "placement": {
+                    "bank_offset": offset,
+                    "rom_bank_index": bank_number,
+                    "window": "#A000",
+                    "window_address": address,
+                    "physical_address": physical,
+                    "file_offset": bank_number * 8192 + offset,
+                    "bank_index": bank_number,
+                },
+            }
+        ],
+        "verification": {
+            "algorithm": "fnv1a32-resource-metadata",
+            "banks": [],
+            "expected_ram_dumps": [],
+        },
+    }
+    scene = {
+        "index": 0,
+        "id": "scene0",
+        "name": "Scene 0",
+        "resourceIds": [0],
+    }
     project_usage = {
         "version": 1,
         "scope": "konami8k_megarom_data",
         "counts": {
             "bankedResources": resource_count,
+            "screens": 0,
         },
         "features": {
             "sprites": True,
@@ -171,12 +287,91 @@ def write_valid_artifacts(
                 "bank": bank_number,
                 "windowAddress": address,
                 "size": size,
+                "storedSize": size,
+                "uncompressedSize": size,
+                "flags": 0,
+            }
+        ],
+        "scenes": [scene],
+    }
+    load_plan = {
+        "version": 1,
+        "scope": "konami8k_scene_load_plan",
+        "mapper": {
+            "format": "konami",
+            "segmentSize": 8192,
+            "dataWindowPage": "p3",
+            "windowBase": "#A000",
+            "windowMask": "#1FFF",
+            "bankDivisor": "#2000",
+        },
+        "scenes": [
+            {
+                "index": 0,
+                "id": "scene0",
+                "name": "Scene 0",
+                "resourceCount": 1,
+                "totalStoredBytes": size,
+                "totalRawBytes": size,
+                "banks": [
+                    {
+                        "bank": bank_number,
+                        "resourceIds": [0],
+                        "storedBytes": size,
+                        "rawBytes": size,
+                    }
+                ],
             }
         ],
     }
+    bank_optimizer = {
+        "version": 1,
+        "scope": "konami8k_bank_optimizer",
+        "currentPlacement": {
+            "resourceCount": resource_count,
+            "bankCount": 1,
+            "totalStoredBytes": size,
+        },
+        "proposedPlacement": {
+            "resourceCount": resource_count,
+            "bankCount": 1,
+            "totalStoredBytes": size,
+            "banks": [
+                {
+                    "bank": bank_number,
+                    "usedBytes": size,
+                    "freeBytes": free,
+                    "resourceIds": [0],
+                }
+            ],
+            "sceneBankPlan": [{"sceneId": "scene0", "banks": [bank_number]}],
+        },
+        "sceneClusters": [scene],
+    }
+    tilebank_integrity = {
+        "version": 1,
+        "scope": "konami8k_tilebank_integrity",
+        "summary": {
+            "screens": 0,
+            "tileBanks": 0,
+            "checkedScreens": 0,
+            "issueScreens": 0,
+            "issueCells": 0,
+            "issueTiles": 0,
+            "missingAssetCells": 0,
+            "missingAssetTiles": 0,
+            "unassignedCells": 0,
+            "unassignedTiles": 0,
+        },
+        "screens": [],
+    }
     (artifact_dir / "packing_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (artifact_dir / "manifest_v2.json").write_text(json.dumps(manifest_v2), encoding="utf-8")
     (artifact_dir / "banks.json").write_text(json.dumps(banks), encoding="utf-8")
     (artifact_dir / "project_usage.json").write_text(json.dumps(project_usage), encoding="utf-8")
+    (artifact_dir / "load_plan.json").write_text(json.dumps(load_plan), encoding="utf-8")
+    (artifact_dir / "bank_optimizer.json").write_text(json.dumps(bank_optimizer), encoding="utf-8")
+    (artifact_dir / "tilebank_integrity.json").write_text(json.dumps(tilebank_integrity), encoding="utf-8")
     (artifact_dir / "unused_report.txt").write_text(
         "MIDEAS UNUSED MODULE REPORT\nScope: konami8k_megarom_resident_modules\n",
         encoding="utf-8",
@@ -187,12 +382,32 @@ def write_valid_artifacts(
                 "version": 1,
                 "scope": "konami8k_segment_budget",
                 "segmentSize": 8192,
+                "mapper": {
+                    "format": "konami",
+                    "dataWindowPage": "p3",
+                    "windowBase": "#A000",
+                    "windowMask": "#1FFF",
+                    "bankDivisor": "#2000",
+                },
                 "codeBanks": [
                     {
                         "bank": 1,
                         "role": "resident_code",
+                        "page": 1,
+                        "orgAddress": 0x6000,
+                        "endAddress": 0x8000,
                         "usedBytes": 1024,
                         "freeBytes": 7168,
+                        "estimatedUsedBytes": 1024,
+                        "estimatedFreeBytes": 7168,
+                        "placementReason": "resident test fixture",
+                        "modules": [
+                            {
+                                "name": "test_runtime",
+                                "estimatedBytes": 1024,
+                                "placementReason": "resident test fixture",
+                            }
+                        ],
                     }
                 ],
                 "dataBanks": [
@@ -202,10 +417,11 @@ def write_valid_artifacts(
                         "orgAddress": origin,
                         "endAddress": origin + 8192,
                         "usedBytes": size,
-                        "freeBytes": 8192 - size,
+                        "freeBytes": free,
                         "resources": 1,
                     }
                 ],
+                "bossDataBanks": [],
             }
         ),
         encoding="utf-8",
@@ -229,12 +445,12 @@ def main() -> int:
         rom, asm = write_case(tmpdir, bad_resource)
         expect_failure(builder, rom, asm, "resource_table addresses must be in A000h-BFFFh")
 
-        crossing_resource = VALID_ASM.replace("dw #BFFF\n    dw 1", "dw #BFFE\n    dw 2", 1)
+        crossing_resource = VALID_ASM.replace("dw #BFFF\n    dw 1\n    dw 1", "dw #BFFE\n    dw 2\n    dw 2", 1)
         rom, asm = write_case(tmpdir, crossing_resource)
         result = builder.validate_konami8k_megarom(rom, asm)
         assert result["resource_count"] == 2
 
-        crossing_resource = VALID_ASM.replace("dw #BFFF\n    dw 1", "dw #BFFE\n    dw 3", 1)
+        crossing_resource = VALID_ASM.replace("dw #BFFF\n    dw 1\n    dw 1", "dw #BFFE\n    dw 3\n    dw 3", 1)
         rom, asm = write_case(tmpdir, crossing_resource)
         expect_failure(builder, rom, asm, "resource_table entries must not cross the A000h-BFFFh data window")
 
@@ -258,11 +474,11 @@ def main() -> int:
         rom, asm = write_case(tmpdir, duplicate_resource_table)
         expect_failure(builder, rom, asm, "expected exactly one resource_table")
 
-        bad_entry_size = VALID_ASM.replace("RESOURCE_TABLE_ENTRY_SIZE EQU 5", "RESOURCE_TABLE_ENTRY_SIZE EQU 8")
+        bad_entry_size = VALID_ASM.replace("RESOURCE_TABLE_ENTRY_SIZE EQU 8", "RESOURCE_TABLE_ENTRY_SIZE EQU 5")
         rom, asm = write_case(tmpdir, bad_entry_size)
-        expect_failure(builder, rom, asm, "RESOURCE_TABLE_ENTRY_SIZE must be 5")
+        expect_failure(builder, rom, asm, "RESOURCE_TABLE_ENTRY_SIZE must be 8")
 
-        missing_entry_size = VALID_ASM.replace("RESOURCE_TABLE_ENTRY_SIZE EQU 5\n", "")
+        missing_entry_size = VALID_ASM.replace("RESOURCE_TABLE_ENTRY_SIZE EQU 8\n", "")
         rom, asm = write_case(tmpdir, missing_entry_size)
         expect_failure(builder, rom, asm, "missing RESOURCE_TABLE_ENTRY_SIZE")
 
@@ -392,7 +608,7 @@ read_runtime_behavior:
         expect_artifact_failure(
             builder,
             bad_manifest_offset_dir,
-            "packing_manifest.json windowAddress does not match zoneOffset",
+            "Manifest v2 validation failed: bank_offset differs from packing_manifest.json",
         )
 
         bad_manifest_physical_dir = tmpdir / "bad_manifest_physical_artifacts"
@@ -404,7 +620,7 @@ read_runtime_behavior:
         expect_artifact_failure(
             builder,
             bad_manifest_physical_dir,
-            "packing_manifest.json physicalAddress does not match bank and zoneOffset",
+            "Manifest v2 validation failed: placement physical_address differs from packing_manifest.json",
         )
 
         bad_manifest_size_dir = tmpdir / "bad_manifest_size_artifacts"
@@ -412,7 +628,14 @@ read_runtime_behavior:
         manifest_path = bad_manifest_size_dir / "packing_manifest.json"
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest_data["banks"][0]["resources"][0]["size"] = 0
+        manifest_data["banks"][0]["resources"][0]["storedSize"] = 0
+        manifest_data["banks"][0]["resources"][0]["uncompressedSize"] = 0
         manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+        manifest_v2_path = bad_manifest_size_dir / "manifest_v2.json"
+        manifest_v2_data = json.loads(manifest_v2_path.read_text(encoding="utf-8"))
+        manifest_v2_data["resources"][0]["size"]["stored"] = 0
+        manifest_v2_data["resources"][0]["size"]["uncompressed"] = 0
+        manifest_v2_path.write_text(json.dumps(manifest_v2_data), encoding="utf-8")
         expect_artifact_failure(
             builder,
             bad_manifest_size_dir,
@@ -432,6 +655,8 @@ read_runtime_behavior:
         banks_path = bad_banks_size_dir / "banks.json"
         banks_data = json.loads(banks_path.read_text(encoding="utf-8"))
         banks_data["banks"][0]["resources"][0]["size"] = 0
+        banks_data["banks"][0]["resources"][0]["storedSize"] = 0
+        banks_data["banks"][0]["resources"][0]["uncompressedSize"] = 0
         banks_path.write_text(json.dumps(banks_data), encoding="utf-8")
         expect_artifact_failure(builder, bad_banks_size_dir, "banks.json resource size must be greater than zero")
 
@@ -540,7 +765,7 @@ read_runtime_behavior:
             artifact_data = json.loads(artifact_path.read_text(encoding="utf-8"))
             artifact_data["banks"][0]["resources"][0]["id"] = 2
             artifact_path.write_text(json.dumps(artifact_data), encoding="utf-8")
-        expect_artifact_failure(builder, bad_resource_id_dir, "resource ids must be contiguous from 0")
+        expect_artifact_failure(builder, bad_resource_id_dir, "Manifest v2 validation failed: resource id missing from source artifacts")
 
         bad_zone_count_dir = tmpdir / "bad_zone_count_artifacts"
         write_valid_artifacts(bad_zone_count_dir)

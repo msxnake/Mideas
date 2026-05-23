@@ -7,7 +7,12 @@ import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
 import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
 import { resolveBestPortraitTileBankAssetId } from '../utils/portraitPackageUtils';
-import { isAssetTypeEnabledForProject } from '../utils/projectTarget';
+import {
+  filterComponentDefinitionsForProject,
+  filterEntityTemplatesForProject,
+  isAssetTypeEnabledForProject,
+  isEntityTemplateEnabledForProject,
+} from '../utils/projectTarget';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -417,11 +422,12 @@ export const useProjectHandlers = ({
         setSelectedAssetId(null);
         setCurrentProjectName(projectNameFromModal);
         setCurrentEditor(EditorType.None);
-        applyScreenModeDefaults(selectedMode || DEFAULT_SCREEN_MODE);
+        const newProjectScreenMode = selectedMode || DEFAULT_SCREEN_MODE;
+        applyScreenModeDefaults(newProjectScreenMode);
         setTileBanksState([]);
         trySetLocalStorageItem('tileBanksConfig', JSON.stringify([]));
-        setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
-        setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
+        setComponentDefinitionsState(filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode));
+        setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode));
         setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
         setPresentationScreenState(DEFAULT_PRESENTATION_SCREEN_CONFIG);
         clearAllHistory();
@@ -499,6 +505,7 @@ export const useProjectHandlers = ({
       assets,
       componentDefinitions,
       entityTemplates,
+      currentScreenMode,
     });
 
     // Log cleanup stats
@@ -792,9 +799,9 @@ export const useProjectHandlers = ({
         }
       }
 
-      setComponentDefinitionsState(migratedComponentDefinitions);
+      setComponentDefinitionsState(filterComponentDefinitionsForProject(migratedComponentDefinitions, loadedMode));
 
-      let templatesForSanitization: EntityTemplate[] = DEFAULT_ENTITY_TEMPLATES;
+      let templatesForSanitization: EntityTemplate[] = filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode);
       if (projectData.entityTemplates) {
         const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
           const cleanedComponents = template.components.map(comp => {
@@ -818,12 +825,12 @@ export const useProjectHandlers = ({
           });
 
           return { ...template, components: cleanedComponents };
-        });
+        }).filter((template: EntityTemplate) => isEntityTemplateEnabledForProject(template, loadedMode));
 
         setEntityTemplatesState(cleanedEntityTemplates);
         templatesForSanitization = cleanedEntityTemplates;
       } else {
-        setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
+        setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode));
       }
 
       if (loadedAssets.length > 0) {

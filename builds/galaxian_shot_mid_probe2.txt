@@ -1,0 +1,13 @@
+score=64
+player_x=80
+bullet_active=00
+bullet_x=86
+bullet_y=4A
+enemy0_x=40
+enemy1_x=60
+enemy2_x=80
+enemy3_x=A0
+enemy0_y=20
+enemy1_y=20
+enemy2_y=20
+enemy3_y=20

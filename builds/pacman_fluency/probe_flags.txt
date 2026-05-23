@@ -1,0 +1,4 @@
+game_over=01
+level_complete=00
+collectible_count=00
+runtime_frame=00

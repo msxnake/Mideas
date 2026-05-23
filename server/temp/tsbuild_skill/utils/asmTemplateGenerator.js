@@ -11,6 +11,7 @@ exports.createDynamicStateMachineTemplate = createDynamicStateMachineTemplate;
 exports.generateProjectSpecificASM = generateProjectSpecificASM;
 const globalVariablesUtils_1 = require("./globalVariablesUtils");
 const defaults_1 = require("../data/defaults");
+const projectTarget_1 = require("./projectTarget");
 /**
  * Analyze project assets to extract useful information
  */
@@ -71,6 +72,11 @@ function analyzeProject(projectName, assets) {
     const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
     const presentationScreen = presentationScreenAsset?.data;
     const bosses = assets.filter(a => a.type === 'boss').map(a => a.data);
+    const inferredScreenMode = msx2Screens.length > 0 || msx2Sprites.length > 0 || msx2Bitmaps.length > 0
+        ? 'SCREEN 4 (Graphics II)'
+        : 'SCREEN 2 (Graphics I)';
+    components = components.filter(component => (0, projectTarget_1.isComponentDefinitionEnabledForProject)(component, inferredScreenMode));
+    templates = templates.filter(template => (0, projectTarget_1.isEntityTemplateEnabledForProject)(template, inferredScreenMode));
     // CRITICAL: Extract entities from screenmaps
     // Deduplicate entities across possible storage formats
     // (layers.entities and legacy screen.entities) to avoid ghost duplicates.
@@ -118,7 +124,8 @@ function analyzeProject(projectName, assets) {
         .map(entity => String(entity?.entityTemplateId || '').trim())
         .filter(Boolean));
     const templateIdsPresent = new Set(templates.map(template => template.id));
-    const missingDefaultTemplates = defaults_1.DEFAULT_ENTITY_TEMPLATES.filter(template => templateIdsInUse.has(template.id) && !templateIdsPresent.has(template.id));
+    const missingDefaultTemplates = defaults_1.DEFAULT_ENTITY_TEMPLATES.filter(template => (0, projectTarget_1.isEntityTemplateEnabledForProject)(template, inferredScreenMode) &&
+        templateIdsInUse.has(template.id) && !templateIdsPresent.has(template.id));
     if (missingDefaultTemplates.length > 0) {
         templates = [...templates, ...missingDefaultTemplates];
     }
@@ -134,7 +141,8 @@ function analyzeProject(projectName, assets) {
         Object.keys(entity?.componentOverrides || {}).forEach(componentId => componentIdsInUse.add(componentId));
     });
     const componentIdsPresent = new Set(components.map(component => component.id));
-    const missingDefaultComponents = defaults_1.DEFAULT_COMPONENT_DEFINITIONS.filter(component => componentIdsInUse.has(component.id) && !componentIdsPresent.has(component.id));
+    const missingDefaultComponents = defaults_1.DEFAULT_COMPONENT_DEFINITIONS.filter(component => (0, projectTarget_1.isComponentDefinitionEnabledForProject)(component, inferredScreenMode) &&
+        componentIdsInUse.has(component.id) && !componentIdsPresent.has(component.id));
     if (missingDefaultComponents.length > 0) {
         components = [...components, ...missingDefaultComponents];
     }
@@ -144,15 +152,16 @@ function analyzeProject(projectName, assets) {
     // Detect various features
     const hasEntities = entities.length > 0;
     const hasECS = components.length > 0 || hasEntities;
-    const hasMultipleScreens = screenMaps.length > 1;
+    const hasMultipleScreens = (screenMaps.length + msx2Screens.length) > 1;
     const hasSprites = sprites.length > 0;
     const hasTiles = tiles.length > 0;
-    const hasScreens = screenMaps.length > 0;
+    const hasScreens = screenMaps.length > 0 || msx2Screens.length > 0;
     const hasComponents = components.length > 0;
     const hasGameFlowBool = !!gameFlow;
     const hasFonts = assets.some(a => a.type === 'font');
     const hasAnimations = sprites.some(s => s.frames.length > 1);
-    const hasCollisions = screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null)));
+    const hasCollisions = screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null))) ||
+        msx2Screens.some(s => (s.layers?.collision || s.collisionMap || []).some(row => row.some(cell => Number(cell) > 0)));
     const hasMenuSystem = templates.some(t => t.name.toLowerCase().includes('menu'));
     // Detect custom states from component names and templates
     const customStates = [];

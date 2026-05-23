@@ -2754,7 +2754,8 @@ function rewriteResidentCallSites(
 function generateResidentCallWrappers(
     farModuleKeys: Set<string>,
     availableLabels: Set<string>,
-    targetFormat: UnifiedMapperFormat
+    targetFormat: UnifiedMapperFormat,
+    includeBossWrappers: boolean = true
 ): string {
     const resolveResidentTarget = (label: string, moduleKey: string): string => {
         const target = farCallLabel(label, farModuleKeys, moduleKey);
@@ -2823,6 +2824,67 @@ ${buildFarIrqLockLeave()}${buildFarIrqRestoreGuard(`.${wrapperLabel}_done`, true
     const executeAllStateMachinesCall = resolveResidentTarget('execute_all_state_machines', 'components');
     const smExecuteActionsCall = resolveResidentTarget('SM_ExecuteActions', 'statemachine');
     const smUpdateSoundCall = resolveResidentTarget('SM_UpdateSound', 'statemachine');
+    const bossWrappersAsm = includeBossWrappers ? `
+; @mideas:block id=runtime.boss.resident.init kind=routine owner=bosses preserve=true roots=call_init_boss_system_resident
+call_init_boss_system_resident:
+    jp ${initBossCall}
+; @mideas:endblock id=runtime.boss.resident.init
+
+; @mideas:block id=runtime.boss.resident.init_screen kind=routine owner=bosses preserve=true roots=call_init_screen_boss_from_current_screen_resident
+call_init_screen_boss_from_current_screen_resident:
+    jp ${initScreenBossCall}
+; @mideas:endblock id=runtime.boss.resident.init_screen
+
+; @mideas:block id=runtime.boss.resident.update kind=routine owner=bosses preserve=true roots=call_update_boss_system_resident
+call_update_boss_system_resident:
+    jp ${updateBossCall}
+; @mideas:endblock id=runtime.boss.resident.update
+
+; @mideas:block id=runtime.boss.resident.update_projectile kind=routine owner=bosses preserve=true roots=call_update_boss_projectile_runtime_resident
+call_update_boss_projectile_runtime_resident:
+    jp ${updateBossProjectileCall}
+; @mideas:endblock id=runtime.boss.resident.update_projectile
+
+; @mideas:block id=runtime.boss.resident.draw_attack kind=routine owner=bosses preserve=true roots=call_draw_boss_attack_resident
+call_draw_boss_attack_resident:
+    jp ${drawBossAttackCall}
+; @mideas:endblock id=runtime.boss.resident.draw_attack
+
+; @mideas:block id=runtime.boss.resident.draw_meteor kind=routine owner=bosses preserve=true roots=call_draw_boss_meteor_attack_resident
+call_draw_boss_meteor_attack_resident:
+    jp ${drawBossMeteorCall}
+; @mideas:endblock id=runtime.boss.resident.draw_meteor
+
+; @mideas:block id=runtime.boss.resident.draw_bomb kind=routine owner=bosses preserve=true roots=call_draw_boss_bomb_attack_resident
+call_draw_boss_bomb_attack_resident:
+    jp ${drawBossBombCall}
+; @mideas:endblock id=runtime.boss.resident.draw_bomb
+
+; @mideas:block id=runtime.boss.resident.draw_boomerang kind=routine owner=bosses preserve=true roots=call_draw_boss_boomerang_attack_resident
+call_draw_boss_boomerang_attack_resident:
+    jp ${drawBossBoomerangCall}
+; @mideas:endblock id=runtime.boss.resident.draw_boomerang
+
+; @mideas:block id=runtime.boss.resident.draw_rock kind=routine owner=bosses preserve=true roots=call_draw_boss_rock_attack_resident
+call_draw_boss_rock_attack_resident:
+    jp ${drawBossRockCall}
+; @mideas:endblock id=runtime.boss.resident.draw_rock
+
+; @mideas:block id=runtime.boss.resident.draw_laser kind=routine owner=bosses preserve=true roots=call_draw_boss_laser_attack_resident
+call_draw_boss_laser_attack_resident:
+    jp ${drawBossLaserCall}
+; @mideas:endblock id=runtime.boss.resident.draw_laser
+
+; @mideas:block id=runtime.boss.resident.draw_sine_wave kind=routine owner=bosses preserve=true roots=call_draw_boss_sine_wave_attack_resident
+call_draw_boss_sine_wave_attack_resident:
+    jp ${drawBossSineWaveCall}
+; @mideas:endblock id=runtime.boss.resident.draw_sine_wave
+
+; @mideas:block id=runtime.boss.resident.draw_homing_missile kind=routine owner=bosses preserve=true roots=call_draw_boss_homing_missile_attack_resident
+call_draw_boss_homing_missile_attack_resident:
+    jp ${drawBossHomingMissileCall}
+; @mideas:endblock id=runtime.boss.resident.draw_homing_missile
+` : '';
 
     return `; ==================================================================
 ; RESIDENT CALL WRAPPERS — bank 0 stable entrypoints
@@ -3053,65 +3115,7 @@ call_update_animated_tiles_resident:
 call_update_animated_tiles_vram_resident:
     jp ${updateAnimatedTilesVramCall}
 
-; @mideas:block id=runtime.boss.resident.init kind=routine owner=bosses preserve=true roots=call_init_boss_system_resident
-call_init_boss_system_resident:
-    jp ${initBossCall}
-; @mideas:endblock id=runtime.boss.resident.init
-
-; @mideas:block id=runtime.boss.resident.init_screen kind=routine owner=bosses preserve=true roots=call_init_screen_boss_from_current_screen_resident
-call_init_screen_boss_from_current_screen_resident:
-    jp ${initScreenBossCall}
-; @mideas:endblock id=runtime.boss.resident.init_screen
-
-; @mideas:block id=runtime.boss.resident.update kind=routine owner=bosses preserve=true roots=call_update_boss_system_resident
-call_update_boss_system_resident:
-    jp ${updateBossCall}
-; @mideas:endblock id=runtime.boss.resident.update
-
-; @mideas:block id=runtime.boss.resident.update_projectile kind=routine owner=bosses preserve=true roots=call_update_boss_projectile_runtime_resident
-call_update_boss_projectile_runtime_resident:
-    jp ${updateBossProjectileCall}
-; @mideas:endblock id=runtime.boss.resident.update_projectile
-
-; @mideas:block id=runtime.boss.resident.draw_attack kind=routine owner=bosses preserve=true roots=call_draw_boss_attack_resident
-call_draw_boss_attack_resident:
-    jp ${drawBossAttackCall}
-; @mideas:endblock id=runtime.boss.resident.draw_attack
-
-; @mideas:block id=runtime.boss.resident.draw_meteor kind=routine owner=bosses preserve=true roots=call_draw_boss_meteor_attack_resident
-call_draw_boss_meteor_attack_resident:
-    jp ${drawBossMeteorCall}
-; @mideas:endblock id=runtime.boss.resident.draw_meteor
-
-; @mideas:block id=runtime.boss.resident.draw_bomb kind=routine owner=bosses preserve=true roots=call_draw_boss_bomb_attack_resident
-call_draw_boss_bomb_attack_resident:
-    jp ${drawBossBombCall}
-; @mideas:endblock id=runtime.boss.resident.draw_bomb
-
-; @mideas:block id=runtime.boss.resident.draw_boomerang kind=routine owner=bosses preserve=true roots=call_draw_boss_boomerang_attack_resident
-call_draw_boss_boomerang_attack_resident:
-    jp ${drawBossBoomerangCall}
-; @mideas:endblock id=runtime.boss.resident.draw_boomerang
-
-; @mideas:block id=runtime.boss.resident.draw_rock kind=routine owner=bosses preserve=true roots=call_draw_boss_rock_attack_resident
-call_draw_boss_rock_attack_resident:
-    jp ${drawBossRockCall}
-; @mideas:endblock id=runtime.boss.resident.draw_rock
-
-; @mideas:block id=runtime.boss.resident.draw_laser kind=routine owner=bosses preserve=true roots=call_draw_boss_laser_attack_resident
-call_draw_boss_laser_attack_resident:
-    jp ${drawBossLaserCall}
-; @mideas:endblock id=runtime.boss.resident.draw_laser
-
-; @mideas:block id=runtime.boss.resident.draw_sine_wave kind=routine owner=bosses preserve=true roots=call_draw_boss_sine_wave_attack_resident
-call_draw_boss_sine_wave_attack_resident:
-    jp ${drawBossSineWaveCall}
-; @mideas:endblock id=runtime.boss.resident.draw_sine_wave
-
-; @mideas:block id=runtime.boss.resident.draw_homing_missile kind=routine owner=bosses preserve=true roots=call_draw_boss_homing_missile_attack_resident
-call_draw_boss_homing_missile_attack_resident:
-    jp ${drawBossHomingMissileCall}
-; @mideas:endblock id=runtime.boss.resident.draw_homing_missile
+${bossWrappersAsm}
 
 call_load_colors_to_vram_resident:
     jp ${loadColorsToVramCall}
@@ -3509,7 +3513,10 @@ function generateMegaromUnifiedFile(
     // blocks drift across zone boundaries. Code placement is still an
     // implementation step, not the final 16KB-stable policy.
 
-    const bossRuntimeModules = splitBossAttackRuntimeModule(files['bosses.asm']);
+    const hasBossRuntime = projectHasBossRuntime(analysis);
+    const bossRuntimeModules = hasBossRuntime
+        ? splitBossAttackRuntimeModule(files['bosses.asm'])
+        : { core: '', attacks: '' };
     const screenRuntimeModules = splitScreenLoaderRuntimeModule(files['screens.asm']);
     const componentsRuntimeModules = splitComponentsResidentTailModule(
         files['components.asm'],
@@ -3525,7 +3532,7 @@ function generateMegaromUnifiedFile(
         ...(componentsRuntimeModules.autoControl.trim().length > 0 ? [{ key: 'components_autocontrol', content: componentsRuntimeModules.autoControl, estimatedBytes: estimateAsmBytesLocal(componentsRuntimeModules.autoControl) }] : []),
         { key: 'sprites', content: files['sprites.asm'], estimatedBytes: estimateAsmBytesLocal(files['sprites.asm']) },
         { key: 'animtiles', content: files['animtiles.asm'], estimatedBytes: estimateAsmBytesLocal(files['animtiles.asm']) },
-        { key: 'bosses', content: bossRuntimeModules.core, estimatedBytes: estimateAsmBytesLocal(bossRuntimeModules.core) },
+        ...(hasBossRuntime ? [{ key: 'bosses', content: bossRuntimeModules.core, estimatedBytes: estimateAsmBytesLocal(bossRuntimeModules.core) }] : []),
         ...(bossRuntimeModules.attacks.trim().length > 0 ? [{ key: 'boss_attacks', content: bossRuntimeModules.attacks, estimatedBytes: estimateAsmBytesLocal(bossRuntimeModules.attacks) }] : []),
         { key: 'scroll', content: files['scroll.asm'], estimatedBytes: estimateAsmBytesLocal(files['scroll.asm']) },
         { key: 'patterns_code', content: files['patterns.asm'], estimatedBytes: estimateAsmBytesLocal(files['patterns.asm']) },
@@ -3617,7 +3624,9 @@ function generateMegaromUnifiedFile(
         config.targetFormat,
         farCodeBanks
     );
-    const emittedBossRuntimeModules = splitBossAttackRuntimeModule(emittedFiles['bosses.asm']);
+    const emittedBossRuntimeModules = hasBossRuntime
+        ? splitBossAttackRuntimeModule(emittedFiles['bosses.asm'])
+        : { core: '', attacks: '' };
     const emittedScreenRuntimeModules = splitScreenLoaderRuntimeModule(emittedFiles['screens.asm']);
     const emittedComponentsRuntimeModules = splitComponentsResidentTailModule(
         emittedFiles['components.asm'],
@@ -3702,7 +3711,8 @@ ${generateComponentTriggerHelpers()}
     const residentCallWrappers = generateResidentCallWrappers(
         farModuleKeySet,
         availableWrapperTargets,
-        config.targetFormat
+        config.targetFormat,
+        hasBossRuntime
     );
 
     // Determine whether init_entities and init_font_system are in far banks
@@ -3712,7 +3722,7 @@ ${generateComponentTriggerHelpers()}
     const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeySet, 'colors_code');
     const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeySet, 'animtiles');
     const initBossCall = farCallLabel('init_boss_system', farModuleKeySet, 'bosses');
-    const initBossRuntimeAsm = projectHasBossRuntime(analysis)
+    const initBossRuntimeAsm = hasBossRuntime
         ? `    ; Initialize boss runtime
     call ${initBossCall}
 `

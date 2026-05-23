@@ -1,0 +1,13 @@
+score=33
+player_x=00
+bullet_active=02
+bullet_x=00
+bullet_y=00
+enemy0_x=00
+enemy1_x=00
+enemy2_x=00
+enemy3_x=00
+enemy0_y=00
+enemy1_y=00
+enemy2_y=00
+enemy3_y=00

@@ -1,0 +1,6 @@
+player_x=70
+player_y=A0
+dx=01
+game_over=01
+air=00
+frame=00

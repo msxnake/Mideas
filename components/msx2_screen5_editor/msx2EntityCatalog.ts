@@ -24,8 +24,17 @@ export type Msx2ComponentId =
   | 'msx2_projectile'
   | 'msx2_formation'
   | 'msx2_attack_pattern'
+  | 'msx2_attack_wave'
   | 'msx2_wave'
-  | 'msx2_lives';
+  | 'msx2_lives'
+  | 'control_2_players'
+  | 'msx2_paddle'
+  | 'msx2_ball'
+  | 'msx2_brick'
+  | 'msx2_char_render'
+  | 'msx2_snake'
+  | 'msx2_snake_segment'
+  | 'msx2_scroll';
 
 export interface Msx2ComponentDefinition {
   id: Msx2ComponentId;
@@ -45,7 +54,13 @@ export type Msx2RuntimeEngine =
   | 'hazard'
   | 'collectible'
   | 'door'
-  | 'checkpoint';
+  | 'checkpoint'
+  | 'control_2_players'
+  | 'paddleHorizontal'
+  | 'ballBounce'
+  | 'brick'
+  | 'snakeChar'
+  | 'snakeFood';
 
 export interface Msx2EntityCreatePreset {
   id: string;
@@ -61,14 +76,14 @@ export interface Msx2EntityCreatePreset {
 export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   {
     id: 'msx2_transform',
-    label: 'Transform',
-    description: 'Native MSX2 tile and pixel placement for SCREEN 4 entities.',
+    label: 'Position',
+    description: 'Native MSX2 tile and pixel position for SCREEN 4 entities.',
     defaults: { tileX: 0, tileY: 0, pixelX: 0, pixelY: 0, spawnX: 0, spawnY: 0 },
   },
   {
     id: 'msx2_hardware_sprite',
-    label: 'Hardware Sprite',
-    description: 'MSX2 hardware sprite binding and animation frame state.',
+    label: 'Render',
+    description: 'MSX2 hardware sprite render binding and animation frame state.',
     defaults: { msx2SpriteAssetId: '', frame: 0, paletteSlot: 5, visible: true },
   },
   {
@@ -81,7 +96,7 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     id: 'msx2_movement',
     label: 'Movement',
     description: 'Native MSX2 movement mode and patrol bounds.',
-    defaults: { mode: 'static', speed: 2, direction: 1, minX: 0, maxX: 0, minY: 0, maxY: 0 },
+    defaults: { mode: 'static', speed: 2, direction: 1, minX: 0, maxX: 0, minY: 0, maxY: 0, boundsUnit: 'tile' },
   },
   {
     id: 'msx2_collision',
@@ -195,7 +210,13 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     id: 'msx2_attack_pattern',
     label: 'Attack Pattern',
     description: 'Attack selection metadata for enemies leaving formation.',
-    defaults: { pattern: 'dive', trigger: 'timer', triggerFrames: 120, returnToFormation: true, fireDuringDive: false },
+    defaults: { pattern: 'circle', trigger: 'wave', triggerFrames: 120, returnToFormation: true, fireDuringDive: false },
+  },
+  {
+    id: 'msx2_attack_wave',
+    label: 'Attack Wave',
+    description: 'Galaxian-style timed attack waves: how often a random group leaves formation and how many attackers launch.',
+    defaults: { enabled: true, intervalFrames: 180, minAttackers: 1, maxAttackers: 3, randomSeed: 73 },
   },
   {
     id: 'msx2_wave',
@@ -208,6 +229,68 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     label: 'Lives',
     description: 'Arcade life counter payload for players and wave controllers.',
     defaults: { lives: 3, maxLives: 3, extraLifeAt: 10000, gameOverAction: 'restart' },
+  },
+  {
+    id: 'control_2_players',
+    label: '2P Controls',
+    description: 'Two-player Pong controls: player 1 uses cursor keys and player 2 uses joystick 1.',
+    defaults: { player1Input: 'cursors', player2Input: 'joystick1', axis: 'vertical', speed: 3, ballSpeed: 2 },
+  },
+  {
+    id: 'msx2_paddle',
+    label: 'Paddle',
+    description: 'Horizontal bat/paddle control for Pong and brick-breaker MSX2 runtimes.',
+    defaults: { width: 32, height: 8, speed: 4, minX: 0, maxX: 224, sticky: false, serveBall: true },
+  },
+  {
+    id: 'msx2_ball',
+    label: 'Ball',
+    description: 'Ball velocity, bounce, and serve metadata for Pong and brick-breaker MSX2 runtimes.',
+    defaults: { speedX: 2, speedY: -2, minSpeed: 1, maxSpeed: 4, bounceAngle: 3, launchOnFire: true, resetOnMiss: true },
+  },
+  {
+    id: 'msx2_brick',
+    label: 'Brick',
+    description: 'Breakable block metadata for Arkanoid-style MSX2 screens.',
+    defaults: { hitPoints: 1, points: 10, breakable: true, powerUpId: '', clearTileId: '', groupId: 'main' },
+  },
+  {
+    id: 'msx2_char_render',
+    label: 'Char Render',
+    description: 'SCREEN 4 name-table character/tile render binding for low-cost MSX2 actors.',
+    defaults: { tileId: '', charCode: 0, paletteSlot: 7, clearTileId: '', useHardwareSprite: false },
+  },
+  {
+    id: 'msx2_snake',
+    label: 'Snake',
+    description: 'Grid-based snake head state for SCREEN 4 char/tile runtimes.',
+    defaults: { direction: 'right', nextDirection: 'right', speedFrames: 8, growBy: 1, wrapEdges: false, startLength: 3 },
+  },
+  {
+    id: 'msx2_snake_segment',
+    label: 'Snake Segment',
+    description: 'Snake body segment metadata for ordered char/tile trail updates.',
+    defaults: { segmentIndex: 0, followsHead: true, eraseTail: true, solidBody: true },
+  },
+  {
+    id: 'msx2_scroll',
+    label: 'Scroll',
+    description: 'Conditional MSX2 scroll contract: vertical can use V9938 R#23, horizontal must be tile, software, VDP-copy, R#18 adjustment, or hybrid and pass visual/performance checks.',
+    defaults: {
+      scrollDirection: 'vertical',
+      scrollMode: 'hardware',
+      screenMode: 'SCREEN4',
+      scrollSpeedX: 0,
+      scrollSpeedY: 1,
+      cameraX: 0,
+      cameraY: 0,
+      tileSize: 16,
+      vramPage: 0,
+      bufferMode: 'streaming',
+      maskBorders: true,
+      updateBudget: 32,
+      spriteScrollCompensation: true,
+    },
   },
 ];
 
@@ -223,6 +306,10 @@ export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
   { value: 'static', label: 'Static' },
   { value: 'maze', label: 'Maze Player' },
   { value: 'shooterHorizontal', label: 'Shooter Horizontal' },
+  { value: 'paddleHorizontal', label: 'Paddle Horizontal' },
+  { value: 'ballBounce', label: 'Ball Bounce' },
+  { value: 'snakeChar', label: 'Snake Char Grid' },
+  { value: 'control_2_players', label: '2P Pong Controls' },
   { value: 'patrolX', label: 'Patrol X' },
   { value: 'patrolY', label: 'Patrol Y' },
   { value: 'ghostMaze', label: 'Ghost Maze' },
@@ -434,7 +521,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_health: {},
       msx2_damage: {},
       msx2_formation: {},
-      msx2_attack_pattern: {},
+      msx2_attack_pattern: { pattern: 'circle', trigger: 'wave', triggerFrames: 120, returnToFormation: true, fireDuringDive: false },
       msx2_score: { points: 100, variableId: 'score', addOnCollect: false },
     },
     params: { runtime: 'MSX2', engine: 'patrolX', movement: 'patrolX', direction: 1, speed: 2 },
@@ -464,10 +551,130 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     components: {
       msx2_transform: {},
       msx2_wave: { waveId: 1, enemyCount: 12 },
+      msx2_attack_wave: { enabled: true, intervalFrames: 180, minAttackers: 1, maxAttackers: 3, randomSeed: 73 },
       msx2_timer: { initialValue: 255, tickRateFrames: 1, onZero: 'nextAttack', hud: false },
       msx2_score: { points: 0, variableId: 'score', addOnCollect: false },
     },
     params: { runtime: 'MSX2', engine: 'checkpoint', waveController: true },
+  },
+  {
+    id: 'pong_paddle',
+    label: 'MSX2 Pong Paddle',
+    kind: 'player',
+    runtime: 'MSX2',
+    engine: 'paddleHorizontal',
+    description: 'Horizontal player paddle for Pong and brick-breaker MSX2 screens.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: { paletteSlot: 15 },
+      msx2_player_control: { controlMode: 'paddleHorizontal', movementMode: 'paddleHorizontal', jump: false, gravity: false, air: 0, disableAirTimer: true },
+      msx2_movement: { mode: 'paddleHorizontal', speed: 4, minX: 0, maxX: 224 },
+      msx2_paddle: {},
+      msx2_collision: { hitboxW: 32, hitboxH: 8, offsetX: 0, offsetY: 4, solid: true },
+      msx2_lives: { lives: 3, maxLives: 3, gameOverAction: 'restart' },
+    },
+    params: { runtime: 'MSX2', engine: 'paddleHorizontal', controlMode: 'paddleHorizontal', movement: 'paddleHorizontal', movementMode: 'paddleHorizontal', speed: 4, initialAir: 0, disableAirTimer: true },
+  },
+  {
+    id: 'pong_2p_left_paddle',
+    label: 'MSX2 Pong 2P Left Paddle',
+    kind: 'player',
+    runtime: 'MSX2',
+    engine: 'control_2_players',
+    description: 'Left Pong paddle controlled by MSX cursor keys for the SCREEN 4 two-player runtime.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: { paletteSlot: 15 },
+      msx2_player_control: { controlMode: 'control_2_players', movementMode: 'control_2_players', jump: false, gravity: false, air: 0, disableAirTimer: true },
+      control_2_players: {},
+      msx2_movement: { mode: 'control_2_players', speed: 3, minY: 1, maxY: 10 },
+      msx2_paddle: { width: 8, height: 24, speed: 3, minX: 16, maxX: 16, sticky: false, serveBall: false },
+      msx2_collision: { hitboxW: 8, hitboxH: 24, offsetX: 4, offsetY: 0, solid: true },
+      msx2_lives: { lives: 9, maxLives: 9, gameOverAction: 'restart' },
+    },
+    params: { runtime: 'MSX2', engine: 'control_2_players', controlMode: 'control_2_players', movement: 'control_2_players', movementMode: 'control_2_players', speed: 3, initialAir: 0, disableAirTimer: true },
+  },
+  {
+    id: 'pong_ball',
+    label: 'MSX2 Pong Ball',
+    kind: 'hazard',
+    runtime: 'MSX2',
+    engine: 'ballBounce',
+    description: 'Bouncing ball payload for Pong and Arkanoid-style MSX2 screens.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: { paletteSlot: 15 },
+      msx2_ball: {},
+      msx2_movement: { mode: 'ballBounce', speed: 2, direction: 1, minX: 8, maxX: 232, minY: 16, maxY: 176, boundsUnit: 'px' },
+      msx2_collision: { hitboxW: 8, hitboxH: 8, offsetX: 4, offsetY: 4, damage: 1 },
+      msx2_damage: { amount: 1, mode: 'contact', cooldownFrames: 0 },
+    },
+    params: { runtime: 'MSX2', engine: 'ballBounce', movement: 'ballBounce', speed: 2, speedX: 2, speedY: -2, minX: 8, maxX: 232, minY: 16, maxY: 176, boundsUnit: 'px' },
+  },
+  {
+    id: 'arkanoid_brick',
+    label: 'MSX2 Arkanoid Brick',
+    kind: 'collectible',
+    runtime: 'MSX2',
+    engine: 'brick',
+    description: 'Breakable brick/block entity for Arkanoid-style MSX2 screens.',
+    components: {
+      msx2_transform: {},
+      msx2_brick: {},
+      msx2_score: { points: 10, variableId: 'score', addOnCollect: false },
+      msx2_collision: { hitboxW: 16, hitboxH: 8, offsetX: 0, offsetY: 4, solid: true },
+    },
+    params: { runtime: 'MSX2', engine: 'brick', brick: true, points: 10 },
+  },
+  {
+    id: 'snake_head',
+    label: 'MSX2 Snake Head',
+    kind: 'player',
+    runtime: 'MSX2',
+    engine: 'snakeChar',
+    description: 'Grid-based Snake player head rendered through SCREEN 4 chars/tiles.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 10, useHardwareSprite: false },
+      msx2_player_control: { controlMode: 'snakeChar', movementMode: 'snakeChar', jump: false, gravity: false, air: 0, disableAirTimer: true },
+      msx2_movement: { mode: 'snakeChar', speed: 8, direction: 1, minX: 0, maxX: 15, minY: 0, maxY: 11 },
+      msx2_snake: {},
+      msx2_collision: { hitboxW: 16, hitboxH: 16, solid: false },
+      msx2_score: { points: 0, variableId: 'score', addOnCollect: false },
+      msx2_lives: { lives: 1, maxLives: 1, gameOverAction: 'restart' },
+    },
+    params: { runtime: 'MSX2', engine: 'snakeChar', controlMode: 'snakeChar', movement: 'snakeChar', movementMode: 'snakeChar', speedFrames: 8, initialAir: 0, disableAirTimer: true },
+  },
+  {
+    id: 'snake_segment',
+    label: 'MSX2 Snake Segment',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'snakeChar',
+    description: 'Snake body segment rendered as a SCREEN 4 char/tile and ordered by segment index.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 7, useHardwareSprite: false },
+      msx2_snake_segment: {},
+      msx2_collision: { hitboxW: 16, hitboxH: 16, solid: true, damage: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'snakeChar', snakeSegment: true, segmentIndex: 0 },
+  },
+  {
+    id: 'snake_food',
+    label: 'MSX2 Snake Food',
+    kind: 'collectible',
+    runtime: 'MSX2',
+    engine: 'snakeFood',
+    description: 'Snake food rendered as a SCREEN 4 char/tile collectible.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 8, useHardwareSprite: false },
+      msx2_collectible: { value: 1, requiredForExit: false, eraseTile: true, persistent: false },
+      msx2_score: { points: 10, variableId: 'score', addOnCollect: true },
+      msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 1, preserveAfterCollect: false },
+    },
+    params: { runtime: 'MSX2', engine: 'snakeFood', food: true, points: 10 },
   },
 ];
 

@@ -1,0 +1,4 @@
+p1_y=A0
+p2_y=50
+ball_x=82
+ball_y=9E

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gold Runner</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #111827;
+      color: #e5e7eb;
+      font-family: Consolas, Monaco, monospace;
+    }
+    body {
+      display: grid;
+      place-items: center;
+    }
+    main {
+      display: grid;
+      gap: 10px;
+    }
+    canvas {
+      image-rendering: pixelated;
+      background: #1d2b53;
+      border: 2px solid #8a8a8a;
+      width: min(96vw, 1024px);
+      aspect-ratio: 4 / 3;
+    }
+    .bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 14px;
+      color: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="bar">
+      <span>Gold Runner</span>
+      <span>Arrows move/climb, Z dig left, X dig right, R reset</span>
+    </div>
+    <canvas id="game" width="512" height="384"></canvas>
+    <div class="bar">
+      <span id="status">Gold 0/8</span>
+      <span>Avoid guards. Collect all gold, then reach the exit.</span>
+    </div>
+  </main>
+  <script>
+    const TILE = 16;
+    const MAP_W = 32;
+    const MAP_H = 24;
+    const SOURCE = [
+      "################################",
+      "#..........H...............E...#",
+      "#..G.......H....G..............#",
+      "#......BBBBBBBBBBBBBB..........#",
+      "#..........H...................#",
+      "#..........H.......RRRRRRR.....#",
+      "#.....G....H.............H.....#",
+      "#..BBBBBBBBBBBBB.........H.....#",
+      "#..................G.....H.....#",
+      "#.....RRRRRRR........BBBBBBBB..#",
+      "#.....H....................H...#",
+      "#.....H....G...............H...#",
+      "#..BBBBBBBBBBB.....BBBBBBBBB...#",
+      "#..................H...........#",
+      "#...........RRRRRRRH....G......#",
+      "#..G...............H...........#",
+      "#......BBBBBBBBBBBBBBBB........#",
+      "#.................T............#",
+      "#....H.........................#",
+      "#....H....G...............H....#",
+      "#BBBBBBBBBBBB....BBBBBBBBBHBBBB#",
+      "#.................H............#",
+      "#P................H.......G....#",
+      "################################"
+    ];
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
+    const keys = new Set();
+    const holes = [];
+    let map, player, guards, goldTotal, goldLeft, state;
+
+    function reset() {
+      map = SOURCE.map(row => row.split(""));
+      player = { x: 1 * TILE, y: 22 * TILE - TILE, vx: 0, vy: 0, alive: true };
+      guards = [
+        { x: 20 * TILE, y: 8 * TILE - TILE, vx: 1, vy: 0 },
+        { x: 24 * TILE, y: 19 * TILE - TILE, vx: -1, vy: 0 }
+      ];
+      holes.length = 0;
+      goldTotal = SOURCE.join("").split("G").length - 1;
+      goldLeft = goldTotal;
+      state = "play";
+    }
+
+    function tileAt(tx, ty) {
+      if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return "#";
+      return map[ty][tx];
+    }
+    function setTile(tx, ty, v) {
+      if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H) map[ty][tx] = v;
+    }
+    function solidAt(tx, ty) {
+      const t = tileAt(tx, ty);
+      return t === "#" || t === "B";
+    }
+    function overlapsTile(entity, char) {
+      const left = Math.floor((entity.x + 3) / TILE);
+      const right = Math.floor((entity.x + TILE - 4) / TILE);
+      const top = Math.floor((entity.y + 3) / TILE);
+      const bottom = Math.floor((entity.y + TILE - 1) / TILE);
+      for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+        if (tileAt(x, y) === char) return true;
+      }
+      return false;
+    }
+    function blocked(entity, nx, ny) {
+      const left = Math.floor((nx + 2) / TILE);
+      const right = Math.floor((nx + TILE - 3) / TILE);
+      const top = Math.floor((ny + 2) / TILE);
+      const bottom = Math.floor((ny + TILE - 1) / TILE);
+      for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+        if (solidAt(x, y)) return true;
+      }
+      return false;
+    }
+    function onGround(entity) {
+      return blocked(entity, entity.x, entity.y + 1);
+    }
+    function canClimb(entity) {
+      return overlapsTile(entity, "H") || (goldLeft === 0 && overlapsTile(entity, "E"));
+    }
+    function onRope(entity) {
+      return overlapsTile(entity, "R");
+    }
+    function moveEntity(entity, ax, ay, speed) {
+      let nx = entity.x + ax * speed;
+      if (!blocked(entity, nx, entity.y)) entity.x = nx;
+      let ny = entity.y + ay * speed;
+      if (!blocked(entity, entity.x, ny)) entity.y = ny;
+      else entity.vy = 0;
+    }
+    function dig(dir) {
+      const tx = Math.floor((player.x + TILE / 2) / TILE) + dir;
+      const ty = Math.floor((player.y + TILE) / TILE) + 1;
+      if (tileAt(tx, ty) === "B" || tileAt(tx, ty) === "T") {
+        setTile(tx, ty, ".");
+        holes.push({ x: tx, y: ty, frames: 260 });
+      }
+    }
+    function updatePlayer() {
+      if (!player.alive) return;
+      const left = keys.has("ArrowLeft");
+      const right = keys.has("ArrowRight");
+      const up = keys.has("ArrowUp");
+      const down = keys.has("ArrowDown");
+      if (keys.has("KeyZ")) dig(-1);
+      if (keys.has("KeyX")) dig(1);
+      let ax = (right ? 1 : 0) - (left ? 1 : 0);
+      let ay = 0;
+      if (canClimb(player)) {
+        ay = (down ? 1 : 0) - (up ? 1 : 0);
+        player.vy = 0;
+      } else if (onRope(player) && !down) {
+        player.vy = 0;
+      } else {
+        player.vy = Math.min(player.vy + 0.28, 4);
+        ay = player.vy > 0 ? 1 : -1;
+      }
+      moveEntity(player, ax, 0, 2);
+      if (canClimb(player)) moveEntity(player, 0, ay, 2);
+      else if (!onGround(player) && !onRope(player)) moveEntity(player, 0, ay, Math.abs(player.vy));
+      collectGold();
+      if (goldLeft === 0 && overlapsTile(player, "E")) state = "win";
+    }
+    function collectGold() {
+      const tx = Math.floor((player.x + TILE / 2) / TILE);
+      const ty = Math.floor((player.y + TILE / 2) / TILE);
+      if (tileAt(tx, ty) === "G") {
+        setTile(tx, ty, ".");
+        goldLeft -= 1;
+      }
+    }
+    function updateGuards() {
+      for (const g of guards) {
+        const dx = player.x - g.x;
+        const seesPlayer = Math.abs(dx) < 112 && Math.abs(player.y - g.y) < 24;
+        const dir = seesPlayer ? Math.sign(dx) || g.vx : g.vx;
+        if (!blocked(g, g.x + dir, g.y)) g.x += dir;
+        else g.vx *= -1;
+        if (!onGround(g) && !canClimb(g)) moveEntity(g, 0, 1, 2);
+        if (Math.abs(g.x - player.x) < 12 && Math.abs(g.y - player.y) < 12) state = "dead";
+      }
+    }
+    function updateHoles() {
+      for (let i = holes.length - 1; i >= 0; i--) {
+        holes[i].frames -= 1;
+        if (holes[i].frames <= 0) {
+          setTile(holes[i].x, holes[i].y, "B");
+          holes.splice(i, 1);
+        }
+      }
+    }
+    function drawTile(ch, x, y) {
+      const px = x * TILE, py = y * TILE;
+      if (ch === "#") {
+        ctx.fillStyle = "#8a8a8a"; ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(px + 2, py + 2, 3, 3);
+      } else if (ch === "B") {
+        ctx.fillStyle = "#d4524d"; ctx.fillRect(px, py, TILE, TILE);
+        ctx.strokeStyle = "#8f563b"; ctx.strokeRect(px, py, TILE, TILE);
+        ctx.beginPath(); ctx.moveTo(px, py + 8); ctx.lineTo(px + TILE, py + 8); ctx.stroke();
+      } else if (ch === "H" || (ch === "E" && goldLeft === 0)) {
+        ctx.strokeStyle = ch === "E" ? "#3cb371" : "#e6d16e";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(px + 3, py); ctx.lineTo(px + 3, py + TILE);
+        ctx.moveTo(px + 13, py); ctx.lineTo(px + 13, py + TILE);
+        ctx.moveTo(px + 3, py + 5); ctx.lineTo(px + 13, py + 5);
+        ctx.moveTo(px + 3, py + 11); ctx.lineTo(px + 13, py + 11);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      } else if (ch === "R") {
+        ctx.strokeStyle = "#c2b280"; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(px, py + 4); ctx.lineTo(px + TILE, py + 4); ctx.stroke();
+        ctx.lineWidth = 1;
+      } else if (ch === "G") {
+        ctx.fillStyle = "#e6d16e";
+        ctx.beginPath(); ctx.arc(px + 8, py + 8, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(px + 6, py + 4, 3, 2);
+      } else if (ch === "T") {
+        ctx.fillStyle = "#8f563b"; ctx.fillRect(px, py + 7, TILE, 3);
+      } else if (ch === "E") {
+        ctx.fillStyle = "#3cb371"; ctx.fillRect(px + 4, py + 4, 8, 8);
+      }
+    }
+    function drawActor(entity, color, face) {
+      ctx.fillStyle = color;
+      ctx.fillRect(entity.x + 4, entity.y + 2, 8, 6);
+      ctx.fillRect(entity.x + 3, entity.y + 8, 10, 7);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(entity.x + (face < 0 ? 4 : 10), entity.y + 4, 2, 2);
+      ctx.fillStyle = color;
+      ctx.fillRect(entity.x + 1, entity.y + 10, 3, 6);
+      ctx.fillRect(entity.x + 12, entity.y + 10, 3, 6);
+    }
+    function render() {
+      ctx.fillStyle = "#1d2b53";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) drawTile(map[y][x], x, y);
+      for (const g of guards) drawActor(g, "#ff7978", g.vx);
+      drawActor(player, "#5d76cb", keys.has("ArrowLeft") ? -1 : 1);
+      ctx.fillStyle = "rgba(0,0,0,.85)";
+      ctx.fillRect(0, 0, canvas.width, 22);
+      ctx.fillStyle = "#fff";
+      ctx.font = "14px Consolas";
+      ctx.fillText(`GOLD ${goldTotal - goldLeft}/${goldTotal}   ${state === "win" ? "EXIT!" : "LIVES 3"}`, 8, 16);
+      if (state !== "play") {
+        ctx.fillStyle = "rgba(0,0,0,.72)";
+        ctx.fillRect(76, 140, 360, 72);
+        ctx.fillStyle = state === "win" ? "#3cb371" : "#ff7978";
+        ctx.font = "24px Consolas";
+        ctx.fillText(state === "win" ? "STAGE CLEAR" : "CAUGHT", 176, 174);
+        ctx.fillStyle = "#fff";
+        ctx.font = "14px Consolas";
+        ctx.fillText("Press R to restart", 188, 196);
+      }
+      statusEl.textContent = `Gold ${goldTotal - goldLeft}/${goldTotal}`;
+    }
+    function frame() {
+      if (state === "play") {
+        updatePlayer();
+        updateGuards();
+        updateHoles();
+      }
+      render();
+      requestAnimationFrame(frame);
+    }
+    addEventListener("keydown", e => {
+      keys.add(e.code);
+      if (e.code === "KeyR") reset();
+    });
+    addEventListener("keyup", e => keys.delete(e.code));
+    reset();
+    frame();
+  </script>
+</body>
+</html>

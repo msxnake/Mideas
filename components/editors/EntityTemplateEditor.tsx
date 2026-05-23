@@ -213,7 +213,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
 
   const handleAddComponentToTemplate = (componentDefId: string) => {
     if (editingTemplate && !editingTemplate.components?.find(c => c.definitionId === componentDefId)) {
-      const componentDef = componentDefinitions.find(cd => cd.id === componentDefId);
+      const componentDef = activeComponentDefinitions.find(cd => cd.id === componentDefId);
       if (!componentDef) return;
 
       // Solo guardar defaultValues vacío - los valores reales vienen de la definición del componente
@@ -331,7 +331,12 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                      );
             };
 
-            const validTemplates = importData.data.filter(isValidEntityTemplate);
+            const validTemplates = importData.data
+              .filter(isValidEntityTemplate)
+              .map((template: EntityTemplate) => ({ ...template, target: template.target || projectTarget }))
+              .filter((template: EntityTemplate) =>
+                isEntityTemplateEnabledForProject(template, currentScreenMode)
+              );
             
             if (validTemplates.length === 0) {
               alert('No valid entity templates found in the file.');
@@ -395,11 +400,17 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
             componentDefinitions,
             allAssets
           );
+          const componentDefinitionsToImport = remapped.componentDefinitionsToImport
+            .map(definition => ({ ...definition, target: definition.target || projectTarget }))
+            .filter(definition => isComponentDefinitionEnabledForProject(definition, currentScreenMode));
+          const templatesToImport = remapped.templatesToImport
+            .map(template => ({ ...template, target: template.target || projectTarget }))
+            .filter(template => isEntityTemplateEnabledForProject(template, currentScreenMode));
 
-          if (remapped.componentDefinitionsToImport.length > 0) {
+          if (componentDefinitionsToImport.length > 0) {
             onUpdateComponentDefinitions?.([
               ...componentDefinitions,
-              ...remapped.componentDefinitionsToImport,
+              ...componentDefinitionsToImport,
             ]);
           }
 
@@ -409,11 +420,13 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
 
           onUpdateEntityTemplates([
             ...entityTemplates,
-            ...remapped.templatesToImport,
+            ...templatesToImport,
           ]);
-          setSelectedTemplateId(remapped.rootTemplateId);
+          if (templatesToImport.some(template => template.id === remapped.rootTemplateId)) {
+            setSelectedTemplateId(remapped.rootTemplateId);
+          }
           setStatusBarMessage?.(
-            `Imported Player Kit with ${remapped.templatesToImport.length} template(s), ${remapped.assetsToCreate.length} asset(s).`
+            `Imported Player Kit with ${templatesToImport.length} template(s), ${remapped.assetsToCreate.length} asset(s).`
           );
         } catch (error) {
           console.error('Error importing Player Kit:', error);
@@ -448,6 +461,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   ) => {
     const assetTypeMap: Record<string, ProjectAsset['type']> = {
         'sprite_ref': 'sprite',
+        'msx2sprite_ref': 'msx2sprite',
         'sound_ref': 'sound',
         'behavior_script_ref': 'behavior',
         'entity_template_ref': 'entitytemplate',

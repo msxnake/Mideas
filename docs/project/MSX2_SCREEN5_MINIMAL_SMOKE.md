@@ -283,6 +283,12 @@ Current `effects` layer runtime semantics for MSX2 tile screens:
 - `2`: exit; when `msx2_collectible_count` meets the active screen's `msx2_screen_required_collectibles` entry, sets `msx2_exit_reached_flag`, `msx2_level_complete_flag`, and `msx2_level_continue_lock`, draws `draw_msx2_level_complete_banner`, and enters `msx2_level_complete_idle`; otherwise sets `msx2_exit_blocked_flag`.
 - `3`: collectible; increments `msx2_collectible_count`, clears the active effect cell in the RAM copy so the same collectible cannot be counted again, and calls `clear_msx2_collectible_visual` to blank the matching 16x16 SCREEN 5 tile. The smoke fixture contains two collectible cells and sets `runtime.requiredCollectibles = 2` on both MSX2 rooms, so exit gating is tested with both a partial and a complete collection route.
 
+For shooter-horizontal SCREEN 4 games, player and enemy projectiles can also clear `effects=3` cells as destructible shield tiles. The projectile is deactivated after the effect cell is cleared, and the visual tile is blanked through the existing `clear_msx2_effect_visual_at_pixel` path.
+
+Shooter-horizontal SCREEN 4 level-complete continue advances to the next referenced native screen/sector by `msx2_current_screen_index`, wrapping to the first sector after the final one. This allows arcade waves to be authored as multiple `msx2screen` sectors in the same WorldMap while reusing the same player/projectile runtime.
+
+During shooter-horizontal SCREEN 4 wave transitions, the runtime loads a tiny 8x8 font into reserved high character slots and draws a centered `STAGE 1`/`STAGE 2` banner in the name table for about one second before gameplay resumes. The main loop frame wait uses `HALT` instead of a busy delay, so gameplay is paced by VBlank; on 60 Hz MSX/MSX2 targets this is a 60 fps cadence.
+
 Each native `msx2screen.runtime` can define `requiredCollectibles` and `initialAir`. The generator emits one byte per referenced MSX2 screen as `msx2_screen_required_collectibles` and `msx2_screen_initial_air`. `msx2_compare_collectibles_required` gates exits against the active screen requirement, and `msx2_load_current_screen_air` loads the active screen air byte whenever the first room, restart, continue, or WorldMap screen-transition path resets the timer. If a screen omits `requiredCollectibles`, the backend falls back to counting `effects=3` cells on that screen. If it omits `initialAir`, the backend falls back to `255`. `msx2_required_collectibles EQU n` remains as the maximum requirement for the current ROM slice and is used by the tiny HUD pip renderer.
 
 At level start/restart/continue, `init_msx2_effect_buffers` copies every referenced native `msx2screen` 16x14 `effects` layer from ROM into `msx2_effects_runtime_buffers` at `#C020`. Screen loads only repoint `msx2_current_effects_ptr` to the active screen slice and re-erase visuals for collectibles already cleared in that slice. Collision remains ROM-backed. This preserves collected items across WorldMap room transitions without writing into cartridge ROM data, while full restarts restore the ROM-authored effect layers.
@@ -295,10 +301,11 @@ Current `behavior` layer runtime semantics for MSX2 tile screens:
 - `1`: ladder; `UP` and upward diagonals climb when the player center is on the ladder cell, while `DOWN` and downward diagonals climb down when the lower center is on the ladder. Ladder motion clears jump frames and bypasses gravity for that frame. If the diagonal input is not on a ladder, it falls back to the normal horizontal movement path.
 - `2`: conveyor right; while grounded, the tile under the player's lower center pushes one pixel right per frame when the right-side collision probe is empty.
 - `3`: conveyor left; while grounded, the tile under the player's lower center pushes one pixel left per frame when the left-side collision probe is empty.
+- `4`: rope; when the player center is on a rope cell, gravity is suppressed and horizontal movement stays suspended on the rope while still using normal side collision probes.
 
 Behavior remains ROM-backed through `msx2_current_behavior_ptr`, separate from collision and effects. This is the intended MSX2 path for reusable mechanics like ladders or conveyors without redrawing duplicate screens.
 
-The MSX2 Screen editor now exposes these runtime layers directly: `Collision`, `Effects`, `Behavior`, and `Entities`. `Effects` paints the current semantic code (`1` hazard, `2` exit, `3` collectible), while `Behavior` paints the current mechanic code (`1` ladder, `2` conveyor right, `3` conveyor left). Right-click clears a cell. This keeps authoring aligned with the exported ROM data instead of requiring hand-edits in project JSON.
+The MSX2 Screen editor now exposes these runtime layers directly: `Collision`, `Effects`, `Behavior`, and `Entities`. `Effects` paints the current semantic code (`1` hazard, `2` exit, `3` collectible), while `Behavior` paints the current mechanic code (`1` ladder, `2` conveyor right, `3` conveyor left, `4` rope). Right-click clears a cell. This keeps authoring aligned with the exported ROM data instead of requiring hand-edits in project JSON.
 
 `Entities` mode supports selecting or creating an entity by cell, editing its kind, tile position, and movement mode, and deleting it explicitly. `patrolX` and `patrolY` expose the same `minX`, `maxX`, `minY`, `maxY`, and `direction` params consumed by the MSX2 runtime enemy tables. `ghostMaze` exposes `initialDirection` and `speed` for Pac-Man-style maze enemies.
 
@@ -326,7 +333,19 @@ Maze/Pac-Man input is latched separately from the current movement direction. Pr
 
 MSX2 SCREEN 5 hardware sprites have their own frame runtime and do not reuse MSX1 sprite component code. The generator emits every authored `msx2sprite` frame as V9938 16x16 pattern groups, keeps `msx2_player_sprite_frame` for requested maze direction, and advances animation through `msx2_player_anim_counter` / `msx2_player_anim_frame` by changing the SAT pattern index.
 
+For side-view MSX2 sprites, `msx2sprite.facingDirection = "right"` or `"left"` marks the authored base direction. The SCREEN 4 generator emits mirrored pattern groups automatically. The player SAT writer selects the base or mirror pattern from `msx2_player_sprite_dx`, and normal enemy/hazard SAT slots do the same from each `msx2_enemy_runtime_dx` entry, so authors only draw one horizontal direction in the MSX2 sprite UI.
+
 MSX2 projects keep the legacy MSX1 ECS offline. Component definitions and entity templates now carry an optional `target`; omitted legacy data is treated as `MSX1`, new definitions created inside an MSX2 project are tagged `MSX2`, and the MSX2 UI/generator filters out MSX1 defaults instead of inheriting them.
+
+`MSX2 Scroll` is an allowed default component, but it is conditional rather than a blanket hardware promise. On standard MSX2, vertical scrolling may use the V9938 vertical scroll register `R#23`. Horizontal scrolling must be declared as tile, software, VDP-copy, `R#18` adjustment, or hybrid work, and is only acceptable when it passes performance, screenshot, and visual artifact checks. The component exposes `scrollDirection`, `scrollMode`, `screenMode`, `scrollSpeedX`, `scrollSpeedY`, `cameraX`, `cameraY`, `tileSize`, `vramPage`, `bufferMode`, `maskBorders`, `updateBudget`, and `spriteScrollCompensation` so agents can rectify parameters in the UI instead of burying them in generator code.
+
+Dedicated SCREEN 4 vertical-scroll smoke:
+
+```powershell
+npm run smoke:msx2-scroll
+```
+
+This builds `test\msx2-screen4\out\msx2screen4-scroll-demo.rom`, writes a two-screen SCREEN 4 black starfield with low-color planets, updates V9938 `R#23` once per frame for fine vertical motion, streams tile rows through the name table as the camera crosses character rows, and runs in reverse loop mode by wrapping virtual row `0` back to row `47`. It probes `MSX2_SCROLL_FINE` at `#C100` and `MSX2_SCROLL_TOP_ROW` at `#C102`, then captures `test\msx2-screen4\out\msx2screen4-scroll-demo.png` in OpenMSX. The reference prop sheet generated with `generate2dsprite` is kept under `generated_sprites\msx2_scroll_space\`. Use `-- --skip-openmsx` for a compile-only run.
 
 WorldMap transitions in maze/Pac-Man mode resume through the maze sprite update path instead of the platformer vertical update path. This prevents a room transition from applying jump/gravity logic to a four-direction maze player.
 

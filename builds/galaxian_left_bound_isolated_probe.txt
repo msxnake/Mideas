@@ -1,0 +1,6 @@
+player_x=01
+player_y=A0
+lives=03
+game_over=00
+level=00
+enemy_bullet_active=00

@@ -1,0 +1,8 @@
+score_lo=33
+score_hi=33
+enemy_y0=00
+enemy_y1=00
+enemy_y2=00
+enemy_y3=00
+player_x=00
+bullet_active=02

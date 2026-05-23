@@ -1,11 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBackgroundColorHex = exports.isScreen5Mode = exports.isScreen2Mode = void 0;
+exports.getBackgroundColorHex = exports.isScreen5Mode = exports.isScreen4Mode = exports.isScreen2Mode = void 0;
 exports.getScreenModeMetrics = getScreenModeMetrics;
 const constants_1 = require("../constants");
 const DEFAULT_EDITOR_BASE_TILE_DIM_OTHER = 16;
 const SCREEN_2_LABEL = 'SCREEN 2 (Graphics I)';
-const SCREEN_5_LABEL = 'SCREEN 5 (Graphics III)';
+const SCREEN_4_LABEL = 'SCREEN 4 (Graphics II)';
+const LEGACY_SCREEN_5_LABEL = 'SCREEN 5 (Graphics III)';
 const BASE_TILE_SIZE = 8;
 const DEFAULT_METRICS = {
     pixelWidth: constants_1.DEFAULT_SCREEN_WIDTH_TILES * DEFAULT_EDITOR_BASE_TILE_DIM_OTHER,
@@ -22,12 +23,19 @@ const SCREEN_MODE_CONFIG = {
         heightTiles: constants_1.DEFAULT_SCREEN_HEIGHT_TILES,
         baseTileSize: constants_1.EDITOR_BASE_TILE_DIM_S2,
     },
-    [SCREEN_5_LABEL]: {
+    [SCREEN_4_LABEL]: {
         pixelWidth: 256,
-        pixelHeight: 212,
+        pixelHeight: 192,
         widthTiles: 32,
-        heightTiles: 27,
-        baseTileSize: constants_1.EDITOR_BASE_TILE_DIM_S2,
+        heightTiles: 24,
+        baseTileSize: BASE_TILE_SIZE,
+    },
+    [LEGACY_SCREEN_5_LABEL]: {
+        pixelWidth: 256,
+        pixelHeight: 192,
+        widthTiles: 32,
+        heightTiles: 24,
+        baseTileSize: BASE_TILE_SIZE,
     },
     'SCREEN 0 (Text 40)': {
         pixelWidth: 240,
@@ -44,13 +52,6 @@ const SCREEN_MODE_CONFIG = {
         baseTileSize: BASE_TILE_SIZE,
     },
     'SCREEN 3 (Multicolor)': {
-        pixelWidth: 256,
-        pixelHeight: 192,
-        widthTiles: 32,
-        heightTiles: 24,
-        baseTileSize: BASE_TILE_SIZE,
-    },
-    'SCREEN 4 (Graphics II)': {
         pixelWidth: 256,
         pixelHeight: 192,
         widthTiles: 32,
@@ -91,7 +92,9 @@ function getScreenModeMetrics(mode) {
 }
 const isScreen2Mode = (screenMode) => screenMode === SCREEN_2_LABEL;
 exports.isScreen2Mode = isScreen2Mode;
-const isScreen5Mode = (screenMode) => screenMode === SCREEN_5_LABEL;
+const isScreen4Mode = (screenMode) => screenMode === SCREEN_4_LABEL;
+exports.isScreen4Mode = isScreen4Mode;
+const isScreen5Mode = (screenMode) => screenMode === LEGACY_SCREEN_5_LABEL;
 exports.isScreen5Mode = isScreen5Mode;
 const getPaletteForMode = (screenMode) => (0, exports.isScreen2Mode)(screenMode) ? constants_1.MSX1_PALETTE : constants_1.MSX_SCREEN5_PALETTE;
 const getBackgroundColorHex = (colorIndex, screenMode) => {

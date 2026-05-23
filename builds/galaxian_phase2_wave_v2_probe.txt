@@ -1,0 +1,7 @@
+screen=01
+level_complete=00
+continue_lock=00
+enemy0_x=25
+enemy0_y=2A
+lives=03
+game_over=00

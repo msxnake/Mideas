@@ -1,0 +1,7 @@
+screen=00
+x=70
+y=A0
+lives=03
+game_over=00
+restart_lock=00
+bullet_active=01

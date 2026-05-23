@@ -1,0 +1,3 @@
+screen=03
+lives=06
+game_over=63

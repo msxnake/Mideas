@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "test" / "msx2-screen5" / "out"
+OUT = ROOT / "test" / "msx2-screen4" / "out"
 REPORT = OUT / "msx2-visual-report.html"
 SUMMARY = OUT / "msx2-visual-report.json"
 

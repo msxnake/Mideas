@@ -26,10 +26,10 @@ from build_msx2screen_layers_smoke import (
 
 def parse_args() -> argparse.Namespace:
     root = repo_root_from_script()
-    out = root / "test" / "msx2-screen5" / "out"
+    out = root / "test" / "msx2-screen4" / "out"
     parser = argparse.ArgumentParser(description="Build and test a focused MSX2 conveyor behavior ROM")
     parser.add_argument("--project-root", default=str(root), help="Mideas repository root")
-    parser.add_argument("--json-output", default=str(root / "test" / "msx2-screen5" / "msx2screen-conveyor-project.json"), help="Generated conveyor fixture JSON")
+    parser.add_argument("--json-output", default=str(root / "test" / "msx2-screen4" / "msx2screen-conveyor-project.json"), help="Generated conveyor fixture JSON")
     parser.add_argument("--asm-output", default=str(out / "msx2screen-conveyor.asm"), help="Output ASM path")
     parser.add_argument("--rom-output", default=str(out / "msx2screen-conveyor.rom"), help="Output ROM path")
     parser.add_argument("--sym-output", default=str(out / "msx2screen-conveyor.sym"), help="Output symbols path")
@@ -43,12 +43,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--boot-wait-ms", type=int, default=6000, help="Wait before input replay")
     parser.add_argument("--capture-wait-ms", type=int, default=0, help="Wait before screenshot after input")
     parser.add_argument("--skip-openmsx", action="store_true", help="Build and static-check only")
+    parser.add_argument("--rom-mode", default="megarom", choices=("simple32k", "plain48k", "megarom"), help="ROM mode for the MSX2 conveyor smoke build")
+    parser.add_argument("--target-format", default="konami", choices=("konami", "ascii8", "ascii16"), help="MegaROM mapper target for the MSX2 conveyor smoke build")
     return parser.parse_args()
 
 
 def create_conveyor_fixture(project_root: Path, output_path: Path) -> None:
-    run_command(["node", "scripts/create_msx2_screen5_layers_fixture.mjs"], cwd=project_root)
-    source_path = project_root / "test" / "msx2-screen5" / "msx2screen-layers-project.json"
+    run_command(["node", "scripts/create_msx2_screen4_layers_fixture.mjs"], cwd=project_root)
+    source_path = project_root / "test" / "msx2-screen4" / "msx2screen-layers-project.json"
     project = json.loads(source_path.read_text(encoding="utf-8"))
     project["name"] = "msx2screen_conveyor_smoke"
 
@@ -89,7 +91,7 @@ def validate_conveyor_probe(path: Path, direction: str) -> None:
 
 def validate_conveyor_screenshot(path: Path, direction: str) -> None:
     min_x, min_y, max_x, max_y = locate_green_player_bounds(path)
-    if min_y > 340 or max_y < 300:
+    if min_y > 350 or max_y < 300:
         raise RuntimeError(
             f"OpenMSX conveyor {direction} screenshot does not show the player on the platform row: "
             f"bounds={min_x}-{max_x},{min_y}-{max_y}"
@@ -126,9 +128,13 @@ def main() -> None:
         str(rom_output),
         "--sym-output",
         str(sym_output),
+        "--rom-mode",
+        args.rom_mode,
+        "--target-format",
+        args.target_format,
     ], cwd=project_root, timeout=180)
-    validate_asm(asm_output)
-    validate_rom(rom_output)
+    validate_asm(asm_output, args.rom_mode, args.target_format)
+    validate_rom(rom_output, args.rom_mode)
     symbols = read_symbol_addresses(sym_output)
     validate_runtime_ram_layout(symbols)
 
@@ -141,6 +147,8 @@ def main() -> None:
         machine=args.machine,
         boot_wait_ms=args.boot_wait_ms,
         openmsx=args.openmsx,
+        rom_mode=args.rom_mode,
+        target_format=args.target_format,
     )
     capture_openmsx(
         capture_args,

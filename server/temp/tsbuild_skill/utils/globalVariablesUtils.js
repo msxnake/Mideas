@@ -140,6 +140,21 @@ function getUsedGlobalVariables(assets) {
             }
         });
     });
+    const msx2Screens = assets.filter(a => a.type === 'msx2screen');
+    msx2Screens.forEach(screen => {
+        const entities = screen.data?.layers?.entities || [];
+        entities.forEach((entity) => {
+            const components = entity?.components || {};
+            Object.values(components).forEach((component) => {
+                if (typeof component?.behaviorCode === 'string')
+                    codeSnippets.push(component.behaviorCode);
+                if (typeof component?.customCode === 'string')
+                    codeSnippets.push(component.customCode);
+                if (typeof component?.script === 'string')
+                    codeSnippets.push(component.script);
+            });
+        });
+    });
     // 2. Extract code from StateMachine nodes AND variable references from IfThenElse and Globals nodes
     const gameFlowAsset = assets.find(a => a.type === 'gameflow');
     const ifThenElseVariableNames = new Set();
@@ -242,6 +257,15 @@ function getUsedGlobalVariables(assets) {
             addHudVariableName(element?.details?.bindingVariable);
             addHudPlaceholderVariableNames(element?.text);
             addHudPlaceholderVariableNames(element?.name);
+        });
+    });
+    msx2Screens.forEach(screen => {
+        const entities = screen.data?.layers?.entities || [];
+        entities.forEach((entity) => {
+            Object.values(entity?.components || {}).forEach((component) => {
+                addTileCollectorVariableName(component?.targetVariable);
+                addTileCollectorVariableName(component?.flagVariable);
+            });
         });
     });
     const templates = assets.filter(a => a.type === 'entitytemplate');

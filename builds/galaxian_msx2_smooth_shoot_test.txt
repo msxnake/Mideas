@@ -1,0 +1,5 @@
+score_lo=C8
+score_hi=00
+enemy_y1=22
+bullet_active=00
+frame_counter=00

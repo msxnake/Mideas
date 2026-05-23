@@ -1,0 +1,5 @@
+enemy0_y=20
+enemy0_x=40
+enemy0_mode=03
+enemy_bullet_active=01
+enemy_bullet_y=4E

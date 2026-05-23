@@ -1,0 +1,4 @@
+x=CA
+y=A0
+screen=00
+game_over=00

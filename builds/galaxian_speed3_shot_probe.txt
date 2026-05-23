@@ -1,0 +1,7 @@
+score=64
+bullet_active=00
+bullet_x=85
+bullet_y=4A
+e10y=D0
+lives=03
+game_over=00

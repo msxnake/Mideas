@@ -1,0 +1,8 @@
+player_x=A4
+score=00
+bullet_active=00
+bullet_x=AA
+bullet_y=02
+e10y=40
+lives=03
+game_over=00

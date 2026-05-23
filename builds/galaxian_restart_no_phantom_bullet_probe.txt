@@ -1,0 +1,7 @@
+lives=03
+game_over=00
+score=00
+bullet_active=00
+bullet_x=76
+bullet_y=02
+e10y=40

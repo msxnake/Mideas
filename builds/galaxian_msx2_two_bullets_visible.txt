@@ -1,0 +1,5 @@
+score_lo=64
+bullet0_active=00
+bullet1_active=01
+bullet0_y=46
+bullet1_y=70

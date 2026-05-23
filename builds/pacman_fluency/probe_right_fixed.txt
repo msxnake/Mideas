@@ -1,0 +1,6 @@
+player_x=E0
+player_y=A0
+dx=01
+game_over=00
+air=00
+frame=00

@@ -1,0 +1,5 @@
+screen=01
+level_complete=00
+enemy0_x=20
+lives=03
+game_over=00

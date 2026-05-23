@@ -1,0 +1,9 @@
+player_x=40
+player_y=90
+game_over=00
+lives=03
+air=FD
+enemy0_x=A9
+enemy0_y=70
+enemy0_dx=FF
+enemy0_mode=00

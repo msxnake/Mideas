@@ -1,0 +1,4 @@
+player_x=D8
+player_y=A0
+game_over=00
+air=00

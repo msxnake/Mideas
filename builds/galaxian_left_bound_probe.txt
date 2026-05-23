@@ -1,0 +1,5 @@
+player_x=5B
+player_y=A0
+bullet_active=00
+lives=01
+game_over=00

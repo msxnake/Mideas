@@ -1,0 +1,7 @@
+player_x=40
+player_y=7A
+game_over=00
+lives=03
+air=FE
+jump_frames=00
+on_ground=00

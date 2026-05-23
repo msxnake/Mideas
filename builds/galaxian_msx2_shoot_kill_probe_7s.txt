@@ -1,0 +1,8 @@
+score_lo=64
+score_hi=00
+enemy_y0=94
+enemy_y1=6C
+enemy_y2=44
+enemy_y3=20
+player_x=7B
+bullet_active=00

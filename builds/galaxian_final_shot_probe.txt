@@ -1,0 +1,7 @@
+score=64
+player_x=80
+bullet_active=00
+bullet_x=86
+bullet_y=4A
+e10y=D0
+enemy_bullet_active=01

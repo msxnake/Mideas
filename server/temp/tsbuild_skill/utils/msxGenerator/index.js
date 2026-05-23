@@ -36,7 +36,7 @@ const animatedTilesGenerator_1 = require("./generators/animatedTilesGenerator");
 const bossesGenerator_1 = require("./generators/bossesGenerator");
 const page0Generator_1 = require("./generators/page0Generator");
 const mapperWindowUtils_1 = require("./generators/mapperWindowUtils");
-const msx2Screen5Generator_1 = require("./generators/msx2/msx2Screen5Generator");
+const msx2Screen4Generator_1 = require("./generators/msx2/msx2Screen4Generator");
 const executionPlan_1 = require("./planning/executionPlan");
 const executionValidators_1 = require("./planning/executionValidators");
 function resolveExecutionMode(config) {
@@ -75,15 +75,17 @@ function buildRuntimeTrackIndexByAssetId(tracks) {
     }, {});
 }
 function resolveGraphicsBackend(config) {
-    if (config.targetGraphicsBackend === 'msx2-screen5-tile16') {
-        return 'msx2-screen5-bitmap';
+    if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
+        console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
+        return 'msx2-screen4-pattern';
     }
     if (config.targetGraphicsBackend) {
         return config.targetGraphicsBackend;
     }
-    return config.screenMode === 'SCREEN 5 (Graphics III)'
-        ? 'msx2-screen5-bitmap'
-        : 'screen2-tilebank';
+    if (config.screenMode === 'SCREEN 4 (Graphics II)' || config.screenMode === 'SCREEN 5 (Graphics III)') {
+        return 'msx2-screen4-pattern';
+    }
+    return 'screen2-tilebank';
 }
 /**
  * Convert ProjectSummary to ProjectAnalysis format
@@ -91,7 +93,34 @@ function resolveGraphicsBackend(config) {
 function convertSummaryToAnalysis(summary) {
     // This function was extracted from the original msxModularGenerator.ts (lines 143-289)
     // It converts the summary format to the analysis format used by generators
-    const tracks = (summary.assets.tracks || [])
+    const summaryAssets = summary.assets;
+    const unwrapSummaryAsset = (asset) => {
+        if (asset && typeof asset === 'object' && asset.data && typeof asset.data === 'object') {
+            return {
+                ...asset.data,
+                id: asset.data.id || asset.id,
+                name: asset.data.name || asset.name,
+            };
+        }
+        return asset;
+    };
+    const unwrapSummaryAssets = (items) => (Array.isArray(items) ? items : []).map(item => unwrapSummaryAsset(item));
+    const sprites = unwrapSummaryAssets(summaryAssets.sprites);
+    const msx2Sprites = unwrapSummaryAssets(summaryAssets.msx2Sprites || summaryAssets.msx2sprites);
+    const msx2Bitmaps = unwrapSummaryAssets(summaryAssets.msx2Bitmaps || summaryAssets.msx2bitmaps);
+    const msx2Screens = unwrapSummaryAssets(summaryAssets.msx2Screens || summaryAssets.msx2screens || summaryAssets.msx2Screen5Screens);
+    const tiles = unwrapSummaryAssets(summaryAssets.tiles);
+    const tileBanks = unwrapSummaryAssets(summaryAssets.tileBanks || summaryAssets.tilebanks);
+    const screenMaps = unwrapSummaryAssets(summaryAssets.screens || summaryAssets.screenMaps);
+    const entities = unwrapSummaryAssets(summaryAssets.entities);
+    const components = unwrapSummaryAssets(summaryAssets.components);
+    const templates = unwrapSummaryAssets(summaryAssets.templates || summaryAssets.entityTemplates);
+    const fonts = unwrapSummaryAssets(summaryAssets.fonts);
+    const stateMachines = unwrapSummaryAssets(summaryAssets.stateMachines || summaryAssets.statemachines);
+    const worldmaps = unwrapSummaryAssets(summaryAssets.worldMaps || summaryAssets.worldmaps);
+    const bosses = unwrapSummaryAssets(summaryAssets.bosses);
+    const globalVariables = unwrapSummaryAssets(summaryAssets.globalVariables || summaryAssets.globalvariables);
+    const tracks = (summaryAssets.tracks || [])
         .filter((track) => (track?.soundChip || 'PSG') === 'PSG')
         .map((track) => ({
         ...track,
@@ -102,39 +131,41 @@ function convertSummaryToAnalysis(summary) {
     // serialized PSG tracker tracks.
     const trackIndexByAssetId = buildRuntimeTrackIndexByAssetId(summary.assets.tracks || []);
     const analysis = {
-        hasSprites: summary.assets.sprites.length > 0,
-        hasTiles: summary.assets.tiles.length > 0,
-        hasScreens: summary.assets.screens.length > 0,
-        hasEntities: summary.assets.entities.length > 0,
-        hasComponents: summary.assets.entities.some(e => e.components && Object.keys(e.components).length > 0),
+        hasSprites: sprites.length > 0,
+        hasTiles: tiles.length > 0,
+        hasScreens: screenMaps.length > 0,
+        hasEntities: entities.length > 0,
+        hasComponents: components.length > 0 || entities.some((e) => e.components && Object.keys(e.components).length > 0),
         hasGameFlow: !!summary.execution.mainGameFlow,
-        hasMenus: summary.assets.menus.length > 0,
-        hasFonts: summary.assets.fonts.length > 0,
-        hasECS: summary.assets.entities.length > 0, // Simplified check
-        hasMultipleScreens: summary.assets.screens.length > 1,
-        hasAnimations: summary.assets.sprites.some(s => s.frames && s.frames.length > 1),
+        hasMenus: (summaryAssets.menus || []).length > 0,
+        hasFonts: fonts.length > 0,
+        hasECS: entities.length > 0 || components.length > 0,
+        hasMultipleScreens: screenMaps.length > 1 || msx2Screens.length > 1,
+        hasAnimations: sprites.some((s) => s.frames && s.frames.length > 1),
         hasCollisions: true, // Default to true for summary
-        hasMenuSystem: summary.assets.menus.length > 0,
-        components: [],
-        templates: [], // Added missing property
-        entities: summary.assets.entities,
-        sprites: summary.assets.sprites,
-        msx2Sprites: [],
-        msx2Bitmaps: [],
-        msx2Screens: [],
+        hasMenuSystem: (summaryAssets.menus || []).length > 0,
+        components: components,
+        templates: templates,
+        entities: entities,
+        sprites: sprites,
+        msx2Sprites: msx2Sprites,
+        msx2Bitmaps: msx2Bitmaps,
+        msx2Screens: msx2Screens,
         sounds: [],
         tracks: tracks,
         trackIndexByAssetId,
-        tiles: summary.assets.tiles,
-        tileBanks: [],
-        screens: summary.assets.screens, // Added alias
-        screenMaps: summary.assets.screens, // Added missing property
-        bosses: summary.assets.bosses || [],
+        tiles: tiles,
+        tileBanks: tileBanks,
+        screens: screenMaps,
+        screenMaps: screenMaps,
+        bosses: bosses,
         gameFlow: summary.execution.mainGameFlow,
         projectName: summary.projectInfo.name,
         customStates: [], // Added missing property
-        stateMachines: [], // Added missing property
-        globalVariables: []
+        stateMachines: stateMachines,
+        worldmaps,
+        fonts,
+        globalVariables
     };
     return analysis;
 }
@@ -158,13 +189,10 @@ function generateModularASM(projectName, assets, config = {}) {
     }
     console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
     const targetGraphicsBackend = resolveGraphicsBackend(config);
-    if (targetGraphicsBackend === 'msx2-screen5-bitmap') {
-        if (config.screenMode !== 'SCREEN 5 (Graphics III)') {
-            throw new Error(`MSX2 bitmap backend currently supports only SCREEN 5 (Graphics III), received: ${config.screenMode || 'unknown'}`);
-        }
+    if (targetGraphicsBackend === 'msx2-screen4-pattern') {
         const analysis = (0, asmTemplateGenerator_1.analyzeProject)(projectName, assets);
-        return (0, msx2Screen5Generator_1.generateMsx2Screen5Files)(projectName, analysis, {
-            screenMode: config.screenMode,
+        return (0, msx2Screen4Generator_1.generateMsx2Screen4Files)(projectName, analysis, {
+            screenMode: 'SCREEN 4 (Graphics II)',
             romMode: config.romMode || 'simple32k',
             targetFormat: config.targetFormat || 'konami',
         });
@@ -311,6 +339,19 @@ function generateModularASMFromSummary(summary, config = {}) {
     catch (error) {
         console.error('❌ Error converting summary:', error);
         throw error;
+    }
+    const summaryGraphicsConfig = {
+        ...config,
+        screenMode: config.screenMode || summary.screenMode || summary.currentScreenMode,
+        targetGraphicsBackend: config.targetGraphicsBackend || summary.targetGraphicsBackend,
+    };
+    const summaryGraphicsBackend = resolveGraphicsBackend(summaryGraphicsConfig);
+    if (summaryGraphicsBackend === 'msx2-screen4-pattern') {
+        return (0, msx2Screen4Generator_1.generateMsx2Screen4Files)(summary.projectInfo.name, analysis, {
+            screenMode: 'SCREEN 4 (Graphics II)',
+            romMode: summaryGraphicsConfig.romMode || 'simple32k',
+            targetFormat: summaryGraphicsConfig.targetFormat || 'konami',
+        });
     }
     const interruptDrivenComponents = config.interruptDrivenComponents ?? true;
     const hardwareMode = config.hardwareMode || 'hybrid'; // Default to hybrid mode

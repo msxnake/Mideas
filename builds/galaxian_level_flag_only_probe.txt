@@ -1,0 +1,5 @@
+screen=00
+level_complete=00
+continue_lock=00
+lives=03
+game_over=00

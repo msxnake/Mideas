@@ -213,7 +213,14 @@ function extractUsedScreensFromWorldMap(worldMap: any, assets: ProjectAsset[], u
 function extractSpritesFromMsx2Screen(screen: any, assets: ProjectAsset[], usedAssets: any, warnings: string[]): void {
   const entities = screen?.layers?.entities || [];
   entities.forEach((entity: any) => {
-    addSpriteAsset(entity?.spriteAssetId, assets, usedAssets, warnings, `MSX2 screen "${screen?.name || screen?.id}" entity "${entity?.name || entity?.id}"`);
+    const context = `MSX2 screen "${screen?.name || screen?.id}" entity "${entity?.name || entity?.id}"`;
+    const spriteIds = [
+      entity?.spriteAssetId,
+      entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId,
+      entity?.components?.msx2_render?.msx2SpriteAssetId,
+      entity?.components?.msx2_render?.spriteAssetId,
+    ];
+    spriteIds.forEach(spriteId => addMsx2SpriteOrLegacySpriteAsset(spriteId, assets, usedAssets, warnings, context));
   });
 }
 
@@ -454,6 +461,24 @@ function addSpriteAsset(spriteId: string | null | undefined, assets: ProjectAsse
   console.log(`Sprite added from ${context}: "${spriteAsset.name}" (${spriteData.frames} frames, ${spriteData.msxSize})`);
 }
 
+function addMsx2SpriteOrLegacySpriteAsset(spriteId: string | null | undefined, assets: ProjectAsset[], usedAssets: any, warnings: string[], context: string): void {
+  if (!spriteId) return;
+
+  if (usedAssets.msx2Sprites?.some((s: any) => s.id === spriteId)) return;
+  const msx2SpriteAsset = getAsset(assets, 'msx2sprite', spriteId);
+  if (msx2SpriteAsset) {
+    usedAssets.msx2Sprites.push({
+      id: msx2SpriteAsset.id,
+      name: msx2SpriteAsset.name,
+      data: msx2SpriteAsset.data,
+    });
+    console.log(`MSX2 sprite added from ${context}: "${msx2SpriteAsset.name}"`);
+    return;
+  }
+
+  addSpriteAsset(spriteId, assets, usedAssets, warnings, context);
+}
+
 function extractBosses(assets: ProjectAsset[], usedAssets: any, warnings: string[]): void {
   assets
     .filter(asset => asset.type === 'boss')
@@ -557,6 +582,7 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
     worldMaps: [],
     screens: [],
     msx2Screens: [],
+    msx2Sprites: [],
     tiles: [],
     sprites: [],
     entities: [],

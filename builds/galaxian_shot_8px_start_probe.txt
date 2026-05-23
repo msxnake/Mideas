@@ -1,0 +1,6 @@
+bullet_active=01
+bullet_x=76
+bullet_y=68
+cooldown=0C
+lives=03
+game_over=00

@@ -765,6 +765,45 @@ function parseSourceRomConfig(sourceCode) {
   };
 }
 
+function sourceHasMsx2Screen4KonamiFixedBank0Compat(sourceCode) {
+  const text = String(sourceCode || '');
+  return (
+    /^\s*;\s*Mideas MSX2 SCREEN 4 tile backend\s*$/im.test(text) &&
+    /^\s*;\s*ROM Mode:\s*megarom\s*$/im.test(text) &&
+    /^\s*;\s*Mapper Target:\s*konami\s*$/im.test(text) &&
+    /^\s*init_konami8k_fixed_bank0_banks:\s*$/im.test(text)
+  );
+}
+
+function findScatteredMapperRegisterWrites(sourceCode) {
+  const activeLines = String(sourceCode || '')
+    .split(/\r?\n/)
+    .map((line) => line.split(';')[0]);
+  const allowedLabels = new Set([
+    'mapper_set_bank_p1',
+    'mapper_set_bank_p2',
+    'mapper_set_bank_p3',
+    'mapper_set_bank_p4'
+  ]);
+  const mapperWritePattern = /\bld\s+\(\s*(?:MAPPER_REG_P[1-4]|#(?:6000|8000|A000))\s*\)\s*,\s*a\b/i;
+  const findings = [];
+  let currentLabel = '';
+  activeLines.forEach((line, index) => {
+    const labelMatch = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*):\s*$/);
+    if (labelMatch) {
+      currentLabel = labelMatch[1];
+      return;
+    }
+    if (allowedLabels.has(currentLabel)) return;
+    const stripped = line.trim();
+    if (!stripped) return;
+    if (mapperWritePattern.test(stripped)) {
+      findings.push(`line ${index + 1}: ${stripped}`);
+    }
+  });
+  return findings;
+}
+
 function sourceConfigHasMapperWritesEnabled(sourceConfig) {
   if (!sourceConfig) return false;
   if (sourceConfig.romMode === 'megarom') return true;
@@ -3017,6 +3056,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const hasPresentationNameData = /^\s*PRESENTATION_SCREEN_NAMETBL:\s*$/im.test(sourceCode);
   const hasPresentationPatternData = /^\s*PRESENTATION_SCREEN_PATTERNS_B[0-2]:\s*$/im.test(sourceCode);
   const hasPresentationColorData = /^\s*PRESENTATION_SCREEN_COLORS_B[0-2]:\s*$/im.test(sourceCode);
+  const hasScreen4NameData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_NAMES:\s*$/im.test(sourceCode);
+  const hasScreen4EffectsData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_EFFECTS:\s*$/im.test(sourceCode);
+  const hasScreen4PatternData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_PATTERNS:\s*$/im.test(sourceCode);
+  const hasScreen4ColorData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_COLORS:\s*$/im.test(sourceCode);
   const hasTilePatternData = /^\s*tile_pattern_[a-z0-9_]+:\s*$/im.test(sourceCode);
   const hasTileColorData = /^\s*tile_color_[a-z0-9_]+:\s*$/im.test(sourceCode);
   const hasFontPatternData = /^\s*FONT_PATTERN_DATA:\s*$/im.test(sourceCode);
@@ -3031,6 +3074,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     !hasPresentationNameData &&
     !hasPresentationPatternData &&
     !hasPresentationColorData &&
+    !hasScreen4NameData &&
+    !hasScreen4EffectsData &&
+    !hasScreen4PatternData &&
+    !hasScreen4ColorData &&
     !hasTilePatternData &&
     !hasTileColorData &&
     !hasFontPatternData &&
@@ -3081,6 +3128,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const presentationColorBlocks = (presentationScreen && compressPresentationColors)
     ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_COLORS_B[0-2]):\s*$/)
     : [];
+  const screen4NameBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_NAMES):\s*$/);
+  const screen4EffectsBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_EFFECTS):\s*$/);
+  const screen4PatternBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_PATTERNS):\s*$/);
+  const screen4ColorBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_COLORS):\s*$/);
   const tilePatternBlocks = collectAsmDataBlocks(lines, /^\s*(tile_pattern_[a-z0-9_]+):\s*$/i);
   const tileColorBlocks = collectAsmDataBlocks(lines, /^\s*(tile_color_[a-z0-9_]+):\s*$/i);
   const fontPatternBlocks = collectAsmDataBlocks(lines, /^\s*(FONT_PATTERN_DATA):\s*$/i);
@@ -3092,10 +3143,14 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     blockCatalogBlocks.length === 0 &&
     blockMapBlocks.length === 0 &&
     presentationNameBlocks.length === 0 &&
+    screen4NameBlocks.length === 0 &&
     effectsBlocks.length === 0 &&
+    screen4EffectsBlocks.length === 0 &&
     behaviorBlocks.length === 0 &&
     presentationPatternBlocks.length === 0 &&
     presentationColorBlocks.length === 0 &&
+    screen4PatternBlocks.length === 0 &&
+    screen4ColorBlocks.length === 0 &&
     tilePatternBlocks.length === 0 &&
     tileColorBlocks.length === 0 &&
     fontPatternBlocks.length === 0 &&
@@ -3105,14 +3160,15 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     return { code: sourceCode, info };
   }
 
-  const allLayoutBlocks = [...layoutBlocks, ...presentationNameBlocks];
+  const allLayoutBlocks = [...layoutBlocks, ...presentationNameBlocks, ...screen4NameBlocks];
   const allScreenBlockMapBlocks = [...blockCatalogBlocks, ...blockMapBlocks];
-  const allTilePatternBlocks = [...tilePatternBlocks, ...presentationPatternBlocks];
-  const allTileColorBlocks = [...tileColorBlocks, ...presentationColorBlocks];
+  const allEffectsBlocks = [...effectsBlocks, ...screen4EffectsBlocks];
+  const allTilePatternBlocks = [...tilePatternBlocks, ...presentationPatternBlocks, ...screen4PatternBlocks];
+  const allTileColorBlocks = [...tileColorBlocks, ...presentationColorBlocks, ...screen4ColorBlocks];
 
   info.candidateScreens = allLayoutBlocks.length;
   info.candidateScreenBlockMaps = allScreenBlockMapBlocks.length;
-  info.candidateEffects = effectsBlocks.length;
+  info.candidateEffects = allEffectsBlocks.length;
   info.candidateBehaviorMaps = behaviorBlocks.length;
   info.candidateTilePatterns = allTilePatternBlocks.length;
   info.candidateTileColors = allTileColorBlocks.length;
@@ -3123,7 +3179,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const enabledProgressGroups = [
     screens ? { phase: 'screens', label: 'Compress screen layouts', count: allLayoutBlocks.length } : null,
     screenBlockMaps ? { phase: 'screenBlockMaps', label: 'Compress screen block maps', count: allScreenBlockMapBlocks.length } : null,
-    effects ? { phase: 'effects', label: 'Compress effects layouts', count: effectsBlocks.length } : null,
+    effects ? { phase: 'effects', label: 'Compress effects layouts', count: allEffectsBlocks.length } : null,
     behaviorMaps ? { phase: 'behaviorMaps', label: 'Compress behavior maps', count: behaviorBlocks.length } : null,
     tilePatterns ? { phase: 'tilePatterns', label: 'Compress tile patterns', count: allTilePatternBlocks.length } : null,
     tileColors ? { phase: 'tileColors', label: 'Compress tile colors', count: allTileColorBlocks.length } : null,
@@ -3257,7 +3313,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     await processBlocks(blockCatalogBlocks, 'screen_block_catalog', 'Compress screen block catalogs', 'screenBlockMaps');
     await processBlocks(blockMapBlocks, 'screen_block_map', 'Compress screen block maps', 'screenBlockMaps');
   }
-  if (effects)      await processBlocks(effectsBlocks, 'effects', 'Compress effects layouts', 'effects');
+  if (effects)      await processBlocks(allEffectsBlocks, 'effects', 'Compress effects layouts', 'effects');
   if (behaviorMaps) await processBlocks(behaviorBlocks, 'behavior', 'Compress behavior maps', 'behaviorMaps');
   if (tilePatterns) await processBlocks(allTilePatternBlocks, 'tile_pattern', 'Compress tile patterns', 'tilePatterns');
   if (tileColors)   await processBlocks(allTileColorBlocks, 'tile_color', 'Compress tile colors', 'tileColors');
@@ -3382,6 +3438,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   const patched = [];
   let inLoadScreen = false;
+  let inLoadScreen4 = false;
+  let inInitMsx2EffectBuffers = false;
   let inLoadPattern = false;
   let inLoadColor = false;
   let layoutDecompressedInCurrentFunction = false;
@@ -3398,6 +3456,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let presentationCopyUsesRamBuffer = false;
   let fontBlobInitInjected = false;
   let skipPage0CopyToRamAfterZx0 = false;
+  let skipMsx2EffectRawCopyAfterZx0 = false;
 
   for (const line of rebuilt) {
     if (skipPage0CopyToRamAfterZx0) {
@@ -3409,6 +3468,17 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
         continue;
       }
       skipPage0CopyToRamAfterZx0 = false;
+    }
+
+    if (skipMsx2EffectRawCopyAfterZx0) {
+      if (/^\s*ld\s+(?:de|bc)\s*,/i.test(line)) {
+        continue;
+      }
+      if (/^\s*ldir\s*(?:;.*)?$/i.test(line)) {
+        skipMsx2EffectRawCopyAfterZx0 = false;
+        continue;
+      }
+      skipMsx2EffectRawCopyAfterZx0 = false;
     }
 
     if (selectedSpritePatternGroups.length > 0 && /^\s*load_sprite_patterns(?:_[a-z0-9_]+)?:\s*$/i.test(line)) {
@@ -3452,6 +3522,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
     if (/^\s*show_presentation_screen:\s*$/i.test(line)) {
       inLoadScreen = false;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = false;
       inLoadSpritePatterns = false;
@@ -3467,6 +3539,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     if (/^\s*[A-Za-z_][A-Za-z0-9_]*:\s*$/.test(line)) {
       if (!/^\s*Action_ChangeSprite:\s*$/i.test(line)) {
         inActionChangeSprite = false;
+      }
+      if (!/^\s*init_msx2_effect_buffers:\s*$/i.test(line)) {
+        inInitMsx2EffectBuffers = false;
       }
       inSubmenuPrepareCursor = false;
     }
@@ -3520,6 +3595,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
     if (/^\s*load_screen_[a-z0-9_]+:\s*$/i.test(line)) {
       inLoadScreen = true;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = false;
       inLoadSpritePatterns = false;
@@ -3536,8 +3613,44 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
+    if (/^\s*load_[A-Z0-9_]+_screen4:\s*$/i.test(line)) {
+      inLoadScreen = false;
+      inLoadScreen4 = true;
+      inInitMsx2EffectBuffers = false;
+      inLoadPattern = false;
+      inLoadColor = false;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
+      layoutDecompressedInCurrentFunction = false;
+      blockCatalogDecompressedInCurrentFunction = false;
+      blockMapDecompressedInCurrentFunction = false;
+      behaviorDecompressedInCurrentFunction = false;
+      patternDecompressedInCurrentFunction = false;
+      colorDecompressedInCurrentFunction = false;
+      patched.push(line);
+      continue;
+    }
+
+    if (/^\s*init_msx2_effect_buffers:\s*$/i.test(line)) {
+      inLoadScreen = false;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = true;
+      inLoadPattern = false;
+      inLoadColor = false;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
+      patched.push(line);
+      continue;
+    }
+
     if (/^\s*load_pattern_[a-z0-9_]+:\s*$/i.test(line)) {
       inLoadScreen = false;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = false;
       inLoadPattern = true;
       inLoadColor = false;
       inLoadSpritePatterns = false;
@@ -3556,6 +3669,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
     if (/^\s*load_color_[a-z0-9_]+:\s*$/i.test(line)) {
       inLoadScreen = false;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = true;
       inLoadSpritePatterns = false;
@@ -3599,6 +3714,21 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
           patched.push(`    ld hl, ${screenBufferSymbol}${offset}`);
           continue;
         }
+    }
+
+    const hlScreen4NameMatch = matchAsmLabelLoad(line, 'hl', '[A-Z0-9_]+_NAMES');
+    if (inLoadScreen4 && hlScreen4NameMatch) {
+      const layoutLabel = hlScreen4NameMatch.label.toUpperCase();
+      if (compressedLayoutLabels.has(layoutLabel)) {
+        patched.push('    ; Decompress ZX0 screen4 name table into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlScreen4NameMatch.label}`);
+        patched.push(`    ld de, ${screenBufferSymbol}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push(`    ld hl, ${screenBufferSymbol}`);
+        continue;
+      }
     }
 
     const hlBehaviorMatch = matchAsmLabelLoad(line, 'hl', 'BEHAVIOR_[A-Z0-9_]+_\\d+_DATA');
@@ -3701,6 +3831,51 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
+    const hlScreen4EffectsMatch = matchAsmLabelLoad(line, 'hl', '[A-Z0-9_]+_EFFECTS');
+    if (inInitMsx2EffectBuffers && hlScreen4EffectsMatch) {
+      const effectsLabel = hlScreen4EffectsMatch.label.toUpperCase();
+      if (compressedEffectsLabels.has(effectsLabel)) {
+        patched.push('    ; Decompress ZX0 screen4 effects directly into the runtime buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlScreen4EffectsMatch.label}`);
+        patched.push('    ld de, #C080');
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        skipMsx2EffectRawCopyAfterZx0 = true;
+        continue;
+      }
+    }
+
+    const hlScreen4PatternMatch = matchAsmLabelLoad(line, 'hl', '[A-Z0-9_]+_BANK_[0-2]_PATTERNS');
+    if (inLoadScreen4 && hlScreen4PatternMatch) {
+      const patternLabel = hlScreen4PatternMatch.label.toUpperCase();
+      if (compressedTilePatternLabels.has(patternLabel)) {
+        patched.push('    ; Decompress ZX0 screen4 pattern bank into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlScreen4PatternMatch.label}`);
+        patched.push(`    ld de, ${tilePatternBufferSymbol}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push(`    ld hl, ${tilePatternBufferSymbol}`);
+        continue;
+      }
+    }
+
+    const hlScreen4ColorMatch = matchAsmLabelLoad(line, 'hl', '[A-Z0-9_]+_BANK_[0-2]_COLORS');
+    if (inLoadScreen4 && hlScreen4ColorMatch) {
+      const colorLabel = hlScreen4ColorMatch.label.toUpperCase();
+      if (compressedTileColorLabels.has(colorLabel)) {
+        patched.push('    ; Decompress ZX0 screen4 color bank into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlScreen4ColorMatch.label}`);
+        patched.push(`    ld de, ${tileColorBufferSymbol}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push(`    ld hl, ${tileColorBufferSymbol}`);
+        continue;
+      }
+    }
+
     const hlTilePatternMatch = matchAsmLabelLoad(line, 'hl', '(?:tile_pattern_[a-z0-9_]+|tilebank_pattern_data_\\d+)');
     if (inLoadPattern && hlTilePatternMatch) {
       const patternLabel = hlTilePatternMatch.label.toUpperCase();
@@ -3797,8 +3972,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
-    if ((inLoadScreen || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite || inShowPresentationScreen) && /^\s*ret\s*$/i.test(line)) {
+    if ((inLoadScreen || inLoadScreen4 || inInitMsx2EffectBuffers || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite || inShowPresentationScreen) && /^\s*ret\s*$/i.test(line)) {
       inLoadScreen = false;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = false;
       inLoadSpritePatterns = false;
@@ -3984,16 +4161,18 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   // Detect megarom: ZX0 blobs + helpers must land in banks 0-3 (before ds #C000 - $)
-  const isMegarom = /^\s*;\s*ROM Mode:\s*megarom\b/im.test(finalCode);
-  // For megarom and plain48k: inject code before ds #C000 - $ to stay in addressable window
-  const injectBeforePad = isMegarom || /^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b/im.test(finalCode);
+  const isMegarom = /^\s*;\s*ROM mode(?:\s+requested)?\s*:\s*megarom\b/im.test(finalCode);
+  const isSimple32k = /^\s*;\s*ROM mode(?:\s+requested)?\s*:\s*simple32k\b/im.test(finalCode);
+  // Inject generated code before the fixed-size padding reservation so it stays
+  // inside the assembled ROM image instead of being appended past the pad.
+  const injectBeforePad = isMegarom || isSimple32k || /^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b/im.test(finalCode);
 
   function injectCodeBeforeEnd(block) {
     if (injectBeforePad) {
-      const padMatch = finalCode.match(/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im);
+      const padMatch = finalCode.match(/^\s*ds\s+#(?:8000|C000)\s*-\s*[$][^\n]*/im);
       if (padMatch) {
         // Re-use the existing pad line so comments are preserved
-        finalCode = finalCode.replace(/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im, `${block}\n${padMatch[0]}`);
+        finalCode = finalCode.replace(/^\s*ds\s+#(?:8000|C000)\s*-\s*[$][^\n]*/im, `${block}\n${padMatch[0]}`);
         return;
       }
     }
@@ -4547,6 +4726,28 @@ app.post('/compile', async (req, res) => {
         const minFlashcartBanks = MIN_FLASHCART_ROM_BYTES / KB_8;
         const sourceRomConfig = parseSourceRomConfig(codeToCompile);
         const linear48kCapable = sourceHasLinear48kLayout(codeToCompile) || sourceRomConfig?.romMode === 'plain48k';
+        const screen4KonamiFixedBank0Compat = sourceHasMsx2Screen4KonamiFixedBank0Compat(codeToCompile);
+        if (screen4KonamiFixedBank0Compat) {
+          const scatteredMapperWrites = findScatteredMapperRegisterWrites(codeToCompile);
+          if (scatteredMapperWrites.length > 0) {
+            return res.status(422).json({
+              error: 'MSX2 Konami8K validation failed',
+              details: 'Mapper register writes must stay inside mapper_set_bank_p1/p2/p3.',
+              findings: scatteredMapperWrites.slice(0, 12),
+              requestedRomConfig: {
+                romMode: normalizedRomMode,
+                targetFormat: normalizedTargetFormat,
+                autoMegaROM: normalizedAutoMegaROM
+              },
+              resolvedRomConfig: {
+                mode: 'megarom_invalid',
+                mapper: normalizedTargetFormat,
+                mapperActive: true,
+                reason: 'MSX2 SCREEN 4 Konami fixed-bank0 source has scattered mapper register writes.'
+              }
+            });
+          }
+        }
         const isPowerOfTwo = (value) => value > 0 && (value & (value - 1)) === 0;
         const powerOfTwoBankCount = isPowerOfTwo(aligned8KBBanks)
           ? aligned8KBBanks
@@ -4646,7 +4847,9 @@ app.post('/compile', async (req, res) => {
         let mapperResolutionReason = 'ROM fits in 32KB simple layout.';
         if (normalizedRomMode === 'megarom') {
           resolvedRomMode = 'megarom';
-          mapperResolutionReason = 'Forced megarom by request.';
+          mapperResolutionReason = screen4KonamiFixedBank0Compat
+            ? 'Forced megarom by request. MSX2 SCREEN 4 currently uses Konami 8K fixed-bank0 compatibility.'
+            : 'Forced megarom by request.';
         } else if (normalizedRomMode === 'plain48k') {
           if (exceedsPlain48RomLimit) {
             resolvedRomMode = 'megarom_required';
@@ -4712,7 +4915,8 @@ app.post('/compile', async (req, res) => {
           mapperActive,
           mapperResolutionReason,
           sourceRomConfig,
-          sourceConfigMismatchWarning
+          sourceConfigMismatchWarning,
+          screen4KonamiFixedBank0Compat
         });
 
         // Check if symbol file was generated
@@ -4801,7 +5005,8 @@ app.post('/compile', async (req, res) => {
             targetFormat: resolvedTargetFormat,
             mapperTargetFormat: normalizedTargetFormat,
             mapperActive: mapperActive,
-            reason: mapperResolutionReason
+            reason: mapperResolutionReason,
+            msx2Screen4KonamiFixedBank0Compat: screen4KonamiFixedBank0Compat
           },
           romModeConflictWarning: romModeConflictWarning,
           romSizeInfo: {
@@ -4816,6 +5021,7 @@ app.post('/compile', async (req, res) => {
             targetHardwareSize: targetSize,
             targetHardwareBanks: targetSize / KB_8,
             hardwareSafePaddingApplied: targetSize !== aligned8KBSize,
+            msx2Screen4KonamiFixedBank0Compat: screen4KonamiFixedBank0Compat,
             sizeIn8KB: paddedData.length / KB_8,
             sizeMod8192: sizeMod8192,
             banks8KB: banks8KB,

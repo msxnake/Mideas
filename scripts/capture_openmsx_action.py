@@ -20,6 +20,7 @@ MSX_KEY_MATRIX = {
     "DOWN": ("8", "0x40"),
     "RIGHT": ("8", "0x80"),
 }
+DEFAULT_MACHINE = "C-BIOS_MSX2"
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", default=".", help="Project root for relative ROM resolution")
     parser.add_argument("--output", help="Optional explicit PNG output path")
     parser.add_argument("--openmsx", help="Path to openmsx executable")
-    parser.add_argument("--machine", help="Optional OpenMSX machine id")
+    parser.add_argument("--machine", default=DEFAULT_MACHINE, help="Optional OpenMSX machine id")
     parser.add_argument("--romtype", help="Optional OpenMSX ROM type, e.g. konami")
     parser.add_argument("--boot-wait-ms", type=int, default=4000, help="Wait before first input")
     parser.add_argument("--hold-ms", type=int, default=120, help="Tap duration for simple key presses")
@@ -63,6 +64,12 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         help="Memory probe as label:address, for example collectible:0xC00E. May be repeated.",
+    )
+    parser.add_argument(
+        "--poke",
+        action="append",
+        default=[],
+        help="Memory poke as address:value applied after boot wait and before input, for example 0xC00E:0x01. May be repeated.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print the resolved command and TCL script")
     return parser.parse_args()
@@ -178,6 +185,25 @@ def parse_probes(raw_probes: list[str]) -> list[tuple[str, int]]:
     return probes
 
 
+def parse_pokes(raw_pokes: list[str]) -> list[tuple[int, int]]:
+    pokes: list[tuple[int, int]] = []
+    for raw_poke in raw_pokes:
+        if ":" not in raw_poke:
+            raise ValueError(f"Poke must use address:value format: {raw_poke}")
+        raw_addr, raw_value = raw_poke.split(":", 1)
+        try:
+            address = int(raw_addr.strip(), 0)
+            value = int(raw_value.strip(), 0)
+        except ValueError as exc:
+            raise ValueError(f"Invalid poke in {raw_poke}") from exc
+        if address < 0 or address > 0xFFFF:
+            raise ValueError(f"Poke address out of range in {raw_poke}")
+        if value < 0 or value > 0xFF:
+            raise ValueError(f"Poke value out of byte range in {raw_poke}")
+        pokes.append((address, value))
+    return pokes
+
+
 def auto_close_timeout_ms(
     actions: list[tuple[str, str, int]],
     boot_wait_ms: int,
@@ -199,6 +225,7 @@ def build_tcl(
     output_path: Path,
     probe_output_path: Path | None,
     probes: list[tuple[str, int]],
+    pokes: list[tuple[int, int]],
     actions: list[tuple[str, str, int]],
     boot_wait_ms: int,
     gap_ms: int,
@@ -228,6 +255,12 @@ def build_tcl(
         )
 
     current_ms = boot_wait_ms
+    if pokes:
+        lines.append(f"after time {openmsx_seconds(current_ms)} {{")
+        for address, value in pokes:
+            lines.append(f"    debug write memory 0x{address:04X} 0x{value:02X}")
+        lines.append("}")
+
     for action_type, key, value in actions:
         if action_type == "wait":
             current_ms += value
@@ -338,6 +371,7 @@ def main() -> int:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         actions = parse_sequence(args.sequence, args.hold_ms)
         probes = parse_probes(args.probe)
+        pokes = parse_pokes(args.poke)
         probe_output_path = Path(args.probe_output).expanduser().resolve() if args.probe_output else None
         if probes and not probe_output_path:
             raise ValueError("--probe-output is required when --probe is used")
@@ -348,6 +382,7 @@ def main() -> int:
             output_path=output_path,
             probe_output_path=probe_output_path,
             probes=probes,
+            pokes=pokes,
             actions=actions,
             boot_wait_ms=args.boot_wait_ms,
             gap_ms=args.gap_ms,

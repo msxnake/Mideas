@@ -1,0 +1,4 @@
+score=64
+e10y=D0
+lives=03
+game_over=00

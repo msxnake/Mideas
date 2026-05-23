@@ -1,0 +1,8 @@
+lives=01
+game_over=00
+player_x=70
+player_y=A0
+enemy_bullet_active=00
+enemy_bullet_x=22
+enemy_bullet_y=CC
+damage_cooldown=00

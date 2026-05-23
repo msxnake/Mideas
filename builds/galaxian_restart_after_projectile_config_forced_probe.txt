@@ -1,0 +1,6 @@
+lives=03
+game_over=00
+score=00
+bullet_active=00
+cooldown=00
+e10y=40

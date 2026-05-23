@@ -1,0 +1,1 @@
+MSX2 SCREEN 4 Lode Runner style hero, blue suit, yellow hard-hat, solid magenta background, 2x2 walk sheet.

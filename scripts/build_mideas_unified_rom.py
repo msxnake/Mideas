@@ -58,9 +58,9 @@ def parse_args() -> argparse.Namespace:
         help="Skip TypeScript compilation and reuse existing generated JS",
     )
     parser.add_argument(
-        "--strict-tsc",
+        "--allow-tsc-errors",
         action="store_true",
-        help="Fail if tsc returns non-zero",
+        help="Continue even if tsc reports diagnostics. By default, generator TypeScript must compile cleanly.",
     )
     parser.add_argument(
         "--rom-mode",
@@ -361,7 +361,8 @@ def pad_rom_to_valid_size(rom_path: Path, rom_mode: str, target_format: str) -> 
     if rom_mode == "megarom":
         segment_size = 16384 if target_format == "ascii16" else 8192
         segment_count = (original_size + segment_size - 1) // segment_size
-        padded_segment_count = _next_power_of_two(segment_count)
+        minimum_segments = 4 if target_format == "ascii16" else 8
+        padded_segment_count = max(_next_power_of_two(segment_count), minimum_segments)
         padded_size = padded_segment_count * segment_size
     else:
         kb8 = 8192
@@ -1059,6 +1060,64 @@ def validate_konami8k_megarom(rom_path: Path, asm_path: Path) -> dict[str, int |
         "resource_max_address": max(resource_addresses) if resource_addresses else 0,
         "header_ok": True,
         "paper_invariants_ok": True,
+    }
+
+
+def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: Path) -> dict[str, int | bool]:
+    rom_data = rom_path.read_bytes()
+    if len(rom_data) == 0:
+        raise RuntimeError(f"MSX2 Konami8K validation failed: ROM is empty: {rom_path}")
+    if len(rom_data) % 8192 != 0:
+        raise RuntimeError(
+            f"MSX2 Konami8K validation failed: ROM size must be a multiple of 8192 bytes, got {len(rom_data)}"
+        )
+    if len(rom_data) <= 32768:
+        raise RuntimeError(
+            f"MSX2 Konami8K validation failed: MegaROM output should exceed 32KB, got {len(rom_data)}"
+        )
+    if rom_data[:2] != b"AB":
+        raise RuntimeError("MSX2 Konami8K validation failed: missing AB cartridge header at ROM offset 0000h")
+
+    asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
+    required_markers = [
+        "Mideas MSX2 SCREEN 4 tile backend",
+        "; ROM Mode: megarom",
+        "; Mapper Target: konami",
+        "MSX2 MegaROM Path: Konami 8K fixed-bank0 compatibility",
+        "init_konami8k_fixed_bank0_banks:",
+        "mapper_set_bank_p1:",
+        "mapper_set_bank_p2:",
+        "mapper_set_bank_p3:",
+        "MSX2_SCREEN4_DATA_BANK_ROM_START:",
+    ]
+    missing = [marker for marker in required_markers if marker not in asm_text]
+    if missing:
+        raise RuntimeError(
+            "MSX2 Konami8K validation failed: missing fixed-bank0 markers: " + ", ".join(missing)
+        )
+
+    required_boot_patterns = [
+        (r"ld\s+a,\s*1\s*\n\s*call\s+mapper_set_bank_p1", "6000h window initialized to bank 1"),
+        (r"ld\s+a,\s*2\s*\n\s*call\s+mapper_set_bank_p2", "8000h window initialized to bank 2"),
+        (r"ld\s+a,\s*3\s*\n\s*call\s+mapper_set_bank_p3", "A000h window initialized to bank 3"),
+    ]
+    for pattern, description in required_boot_patterns:
+        if not re.search(pattern, asm_text, flags=re.IGNORECASE):
+            raise RuntimeError(f"MSX2 Konami8K validation failed: missing boot mapper init for {description}")
+
+    scattered_mapper_writes = _find_scattered_mapper_register_writes(asm_text)
+    if scattered_mapper_writes:
+        preview = "; ".join(scattered_mapper_writes[:8])
+        raise RuntimeError(
+            "MSX2 Konami8K validation failed: mapper register writes must stay inside "
+            f"mapper_set_bank_p1/p2/p3; found {preview}"
+        )
+
+    return {
+        "segment_count": len(rom_data) // 8192,
+        "size_bytes": len(rom_data),
+        "header_ok": True,
+        "scattered_mapper_writes": 0,
     }
 
 
@@ -2931,7 +2990,7 @@ def validate_konami8k_generated_artifacts(
     }
 
 
-def compile_generator(project_root: Path, ts_build_dir: Path, strict_tsc: bool) -> Path:
+def compile_generator(project_root: Path, ts_build_dir: Path, allow_tsc_errors: bool) -> Path:
     generator_ts = project_root / "utils" / "msxGenerator" / "index.ts"
     if not generator_ts.exists():
         raise FileNotFoundError(f"Missing generator source: {generator_ts}")
@@ -2959,8 +3018,8 @@ def compile_generator(project_root: Path, ts_build_dir: Path, strict_tsc: bool) 
     result = run_command(tsc_cmd, cwd=project_root, allow_failure=True)
     compiled_index = ts_build_dir / "utils" / "msxGenerator" / "index.js"
 
-    if strict_tsc and result.returncode != 0:
-        raise RuntimeError("TypeScript compilation failed in strict mode.")
+    if result.returncode != 0 and not allow_tsc_errors:
+        raise RuntimeError("TypeScript compilation failed. Pass --allow-tsc-errors to emit anyway.")
     if not compiled_index.exists():
         raise RuntimeError("TypeScript compilation did not produce utils/msxGenerator/index.js")
 
@@ -3864,7 +3923,7 @@ def main() -> int:
             )
             return 2
     else:
-        compiled_index = compile_generator(project_root, ts_build_dir, args.strict_tsc)
+        compiled_index = compile_generator(project_root, ts_build_dir, args.allow_tsc_errors)
 
     try:
         glass_jar = resolve_glass(args.glass, project_root)
@@ -3914,9 +3973,17 @@ def main() -> int:
     )
 
     original_size, padded_size = pad_rom_to_valid_size(rom_output, args.rom_mode, args.target_format)
+    asm_compiled_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore")
+    screen4_konami_fixed_bank0_compat = (
+        args.rom_mode == "megarom"
+        and args.target_format == "konami"
+        and "Mideas MSX2 SCREEN 4 tile backend" in asm_compiled_text
+        and "init_konami8k_fixed_bank0_banks:" in asm_compiled_text
+    )
     megarom_mapper_artifact_validation = None
     ascii16_runtime_layout = None
-    if args.rom_mode == "megarom":
+    msx2_screen4_konami_validation = None
+    if args.rom_mode == "megarom" and not screen4_konami_fixed_bank0_compat:
         megarom_mapper_artifact_validation = validate_megarom_mapper_artifact_metadata(
             artifact_dir,
             args.target_format,
@@ -3933,7 +4000,9 @@ def main() -> int:
             annotate_ascii16_runtime_layout_artifact(artifact_dir, ascii16_runtime_layout)
     konami8k_validation = None
     konami8k_artifact_validation = None
-    if args.rom_mode == "megarom" and args.target_format == "konami":
+    if screen4_konami_fixed_bank0_compat:
+        msx2_screen4_konami_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, asm_to_compile)
+    elif args.rom_mode == "megarom" and args.target_format == "konami":
         konami8k_validation = validate_konami8k_megarom(rom_output, asm_to_compile)
         konami8k_artifact_validation = validate_konami8k_generated_artifacts(
             artifact_dir,
@@ -3963,6 +4032,18 @@ def main() -> int:
     if asm_to_compile != zx0_asm:
         print(f"Optimized ASM: {asm_to_compile}")
     print(f"ROM: {rom_output} (original={original_size} bytes, padded={padded_size} bytes)")
+    if screen4_konami_fixed_bank0_compat:
+        validation_suffix = (
+            f"; segments={msx2_screen4_konami_validation['segment_count']}, "
+            f"mapperWrites=scattered:{msx2_screen4_konami_validation['scattered_mapper_writes']}"
+            if msx2_screen4_konami_validation
+            else ""
+        )
+        print(
+            "Konami8K validation: SCREEN 4 fixed-bank0 compatibility path; "
+            "ROM has MegaROM-sized 8KB banks and boot initializes 6000h=1 8000h=2 A000h=3"
+            f"{validation_suffix}"
+        )
     if konami8k_validation:
         resource_count = konami8k_validation["resource_count"]
         resource_range = (

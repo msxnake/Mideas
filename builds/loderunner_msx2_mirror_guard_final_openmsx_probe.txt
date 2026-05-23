@@ -1,0 +1,6 @@
+player_x=10
+player_y=A0
+player_dx=01
+enemy0_dx=FF
+enemy1_dx=FF
+lives=03

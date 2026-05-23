@@ -1,0 +1,5 @@
+player_x=05
+player_y=A0
+game_over=00
+lives=03
+air=FD

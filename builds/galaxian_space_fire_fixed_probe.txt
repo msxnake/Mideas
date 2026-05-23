@@ -1,0 +1,8 @@
+screen=00
+bullet_active=01
+bullet_x=76
+bullet_y=1C
+cooldown=00
+score=00
+lives=03
+game_over=00

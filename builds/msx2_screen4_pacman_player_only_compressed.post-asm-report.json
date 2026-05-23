@@ -1,0 +1,831 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\builds\\msx2_screen4_pacman_player_only_compressed.asm",
+  "metrics": {
+    "original_line_count": 15764,
+    "output_line_count": 15764,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "selected_rules": [
+      "dead-blocks",
+      "unused-screen-loaders",
+      "inactive-feature-runtime",
+      "unused-boss-attack-runtime",
+      "unused-component-runtime",
+      "state-machine-dispatch-handlers"
+    ],
+    "by_rule": {},
+    "inactive_feature_runtime": {
+      "total_findings": 0,
+      "by_feature": {}
+    },
+    "block_inventory": {
+      "count": 0,
+      "preserved": 0,
+      "removable": 0,
+      "dead_block_candidates": 0,
+      "total_lines": 0,
+      "total_source_bytes": 0,
+      "dead_candidate_lines": 0,
+      "dead_candidate_source_bytes": 0,
+      "by_kind": {},
+      "by_owner": {},
+      "by_status": {},
+      "largest_blocks": [],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 159,
+      "unannotated_count": 159,
+      "by_category": {
+        "boot_or_init": {
+          "count": 3,
+          "line_count": 151,
+          "source_bytes": 3740,
+          "unannotated_count": 3,
+          "unannotated_line_count": 151,
+          "unannotated_source_bytes": 3740
+        },
+        "data": {
+          "count": 54,
+          "line_count": 391,
+          "source_bytes": 21981,
+          "unannotated_count": 54,
+          "unannotated_line_count": 391,
+          "unannotated_source_bytes": 21981
+        },
+        "runtime_code": {
+          "count": 97,
+          "line_count": 15111,
+          "source_bytes": 270608,
+          "unannotated_count": 97,
+          "unannotated_line_count": 15111,
+          "unannotated_source_bytes": 270608
+        },
+        "unknown": {
+          "count": 5,
+          "line_count": 8,
+          "source_bytes": 296,
+          "unannotated_count": 5,
+          "unannotated_line_count": 8,
+          "unannotated_source_bytes": 296
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "msx2_player_bullet_1_check_enemy_collision",
+          "line_count": 1674,
+          "source_bytes": 27352,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_player_bullet_check_enemy_collision",
+          "line_count": 1674,
+          "source_bytes": 27278,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_state",
+          "line_count": 956,
+          "source_bytes": 14924,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_bullet",
+          "line_count": 844,
+          "source_bytes": 14003,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_11",
+          "line_count": 629,
+          "source_bytes": 11359,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_10",
+          "line_count": 627,
+          "source_bytes": 11357,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_9",
+          "line_count": 627,
+          "source_bytes": 11192,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_8",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_7",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_6",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_5",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_4",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_3",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_2",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_1",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "write_hardware_sprite_attrs",
+          "line_count": 504,
+          "source_bytes": 10799,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_0",
+          "line_count": 516,
+          "source_bytes": 9644,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_check_enemy_wave_complete",
+          "line_count": 438,
+          "source_bytes": 7099,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_NAMES",
+          "line_count": 51,
+          "source_bytes": 3519,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "msx2_reset_enemy_runtime_for_current_screen",
+          "line_count": 166,
+          "source_bytes": 2576,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "init_hardware_sprites",
+          "line_count": 91,
+          "source_bytes": 2521,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "update_msx2_effect_state",
+          "line_count": 71,
+          "source_bytes": 1492,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_player_bullet_slot_1",
+          "line_count": 68,
+          "source_bytes": 1475,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "load_MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_screen4",
+          "line_count": 50,
+          "source_bytes": 1400,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_restart_game",
+          "line_count": 41,
+          "source_bytes": 1331,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_continue_after_level_complete",
+          "line_count": 39,
+          "source_bytes": 1313,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_hardware_sprite_vertical",
+          "line_count": 52,
+          "source_bytes": 1267,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_respawn_current_screen",
+          "line_count": 41,
+          "source_bytes": 1100,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_2_PATTERNS",
+          "line_count": 17,
+          "source_bytes": 1081,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_1_PATTERNS",
+          "line_count": 17,
+          "source_bytes": 1081,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "msx2_player_bullet_1_check_enemy_collision",
+          "line_count": 1674,
+          "source_bytes": 27352,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_player_bullet_check_enemy_collision",
+          "line_count": 1674,
+          "source_bytes": 27278,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_state",
+          "line_count": 956,
+          "source_bytes": 14924,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_bullet",
+          "line_count": 844,
+          "source_bytes": 14003,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_11",
+          "line_count": 629,
+          "source_bytes": 11359,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_10",
+          "line_count": 627,
+          "source_bytes": 11357,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_9",
+          "line_count": 627,
+          "source_bytes": 11192,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_8",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_7",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_6",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_5",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_4",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_3",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_2",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_1",
+          "line_count": 627,
+          "source_bytes": 11191,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "write_hardware_sprite_attrs",
+          "line_count": 504,
+          "source_bytes": 10799,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_enemy_position_slot_0",
+          "line_count": 516,
+          "source_bytes": 9644,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_check_enemy_wave_complete",
+          "line_count": 438,
+          "source_bytes": 7099,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_NAMES",
+          "line_count": 51,
+          "source_bytes": 3519,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "msx2_reset_enemy_runtime_for_current_screen",
+          "line_count": 166,
+          "source_bytes": 2576,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "init_hardware_sprites",
+          "line_count": 91,
+          "source_bytes": 2521,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "update_msx2_effect_state",
+          "line_count": 71,
+          "source_bytes": 1492,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_msx2_player_bullet_slot_1",
+          "line_count": 68,
+          "source_bytes": 1475,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "load_MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_screen4",
+          "line_count": 50,
+          "source_bytes": 1400,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_restart_game",
+          "line_count": 41,
+          "source_bytes": 1331,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_continue_after_level_complete",
+          "line_count": 39,
+          "source_bytes": 1313,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_hardware_sprite_vertical",
+          "line_count": 52,
+          "source_bytes": 1267,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "msx2_respawn_current_screen",
+          "line_count": 41,
+          "source_bytes": 1100,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_2_PATTERNS",
+          "line_count": 17,
+          "source_bytes": 1081,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_1_PATTERNS",
+          "line_count": 17,
+          "source_bytes": 1081,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "boot_or_init": [
+          {
+            "name": "init_hardware_sprites",
+            "line_count": 91,
+            "source_bytes": 2521,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_rom",
+            "line_count": 51,
+            "source_bytes": 968,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_msx2_effect_buffers",
+            "line_count": 9,
+            "source_bytes": 251,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ],
+        "data": [
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_NAMES",
+            "line_count": 51,
+            "source_bytes": 3519,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_2_PATTERNS",
+            "line_count": 17,
+            "source_bytes": 1081,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_1_PATTERNS",
+            "line_count": 17,
+            "source_bytes": 1081,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_1_COLORS",
+            "line_count": 17,
+            "source_bytes": 1081,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_2_COLORS",
+            "line_count": 18,
+            "source_bytes": 1042,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_0_PATTERNS",
+            "line_count": 15,
+            "source_bytes": 971,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BANK_0_COLORS",
+            "line_count": 15,
+            "source_bytes": 971,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_BEHAVIOR",
+            "line_count": 15,
+            "source_bytes": 966,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_COLLISION",
+            "line_count": 15,
+            "source_bytes": 961,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "MSX2_SCREEN_4_PAC_MAN_PLAYER_ONLY_EFFECTS",
+            "line_count": 15,
+            "source_bytes": 960,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          }
+        ],
+        "runtime_code": [
+          {
+            "name": "msx2_player_bullet_1_check_enemy_collision",
+            "line_count": 1674,
+            "source_bytes": 27352,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "msx2_player_bullet_check_enemy_collision",
+            "line_count": 1674,
+            "source_bytes": 27278,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_state",
+            "line_count": 956,
+            "source_bytes": 14924,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_bullet",
+            "line_count": 844,
+            "source_bytes": 14003,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_position_slot_11",
+            "line_count": 629,
+            "source_bytes": 11359,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_position_slot_10",
+            "line_count": 627,
+            "source_bytes": 11357,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_position_slot_9",
+            "line_count": 627,
+            "source_bytes": 11192,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_position_slot_8",
+            "line_count": 627,
+            "source_bytes": 11191,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_position_slot_7",
+            "line_count": 627,
+            "source_bytes": 11191,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_msx2_enemy_position_slot_6",
+            "line_count": 627,
+            "source_bytes": 11191,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          }
+        ],
+        "unknown": [
+          {
+            "name": "msx2_hw_sprite_colors_end",
+            "line_count": 3,
+            "source_bytes": 162,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "msx2_hw_sprite_colors",
+            "line_count": 2,
+            "source_bytes": 65,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "draw_msx2_collectible_hud",
+            "line_count": 1,
+            "source_bytes": 27,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "draw_msx2_score_hud",
+            "line_count": 1,
+            "source_bytes": 21,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "draw_msx2_lives_hud",
+            "line_count": 1,
+            "source_bytes": 21,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [
+      {
+        "pass": 1,
+        "findings": 0,
+        "patchable": 0,
+        "removed_lines": 0,
+        "removed_source_bytes": 0,
+        "removed_labels": [],
+        "input_line_count": 15764,
+        "output_line_count": 15764
+      }
+    ],
+    "optimization_summary": {
+      "passes_run": 1,
+      "removed_lines": 0,
+      "removed_source_bytes": 0,
+      "removed_labels": []
+    },
+    "removed_labels": [],
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-kzjwc0un\\msx2_screen4_pacman_player_only_compressed.optimized.rom",
+        "size_bytes": 32768,
+        "sha256": "bd649b996ebc010f2164d008e6cc070222896eb503f6ae025e1fce2a718fc742"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-kzjwc0un\\msx2_screen4_pacman_player_only_compressed.original.rom",
+        "size_bytes": 32768,
+        "sha256": "bd649b996ebc010f2164d008e6cc070222896eb503f6ae025e1fce2a718fc742"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "blocks": [],
+  "block_analysis": [],
+  "block_errors": [],
+  "findings": [],
+  "applied_patches": 0
+}

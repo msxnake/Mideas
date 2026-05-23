@@ -1,0 +1,10 @@
+score_lo=FA
+score_hi=00
+enemy_y0=20
+enemy_y1=D8
+enemy_y2=20
+enemy_y3=A6
+enemy_y4=30
+enemy_y5=30
+player_x=70
+bullet_active=00

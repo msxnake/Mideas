@@ -4,6 +4,7 @@ export const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 12;
 export const MSX2_ENEMY_MOVEMENT_PATROL = 0;
 export const MSX2_ENEMY_MOVEMENT_GHOST_MAZE = 2;
 export const MSX2_ENEMY_MOVEMENT_DIVE = 3;
+export const MSX2_ENEMY_MOVEMENT_BALL_BOUNCE = 4;
 
 export interface Msx2EnemyHazardRuntimeSlot {
   x: number;
@@ -28,6 +29,26 @@ const clampHardwareSpriteY = (value: number): number =>
 const clampHardwareSpriteX = (value: number): number =>
   Math.max(0, Math.min(255, value));
 
+const movementBoundsUsePixels = (entity: any): boolean =>
+  String(entity?.components?.msx2_movement?.boundsUnit ?? entity?.params?.boundsUnit ?? '')
+    .replace(/[\s_-]+/g, '')
+    .toLowerCase() === 'px';
+
+const getMovementBoundPixel = (
+  entity: any,
+  key: 'minX' | 'maxX' | 'minY' | 'maxY',
+  tileFallback: number,
+  tileMax: number,
+  pixelClamp: (value: number) => number
+): number => {
+  const rawValue = getComponentValue(entity, 'msx2_movement', key, getEntityParamNumber(entity.params, key, tileFallback));
+  const numeric = Number(rawValue);
+  if (movementBoundsUsePixels(entity) && Number.isFinite(numeric)) {
+    return pixelClamp(Math.floor(numeric));
+  }
+  return pixelClamp(clampTileCoordinate(rawValue, tileMax) * 16);
+};
+
 const getEntityParamNumber = (
   params: Record<string, any> | undefined,
   key: string,
@@ -48,6 +69,11 @@ const normalizeMovementMode = (value: unknown): string => String(value || '')
   .replace(/[\s_-]+/g, '')
   .toLowerCase();
 
+const signedByte = (value: number): number => {
+  const clamped = Math.max(-15, Math.min(15, Math.floor(value) || 0));
+  return clamped < 0 ? 0x100 + clamped : clamped;
+};
+
 export function getMsx2EnemyHazardRuntimeSlots(
   screen: Msx2Screen4TileScreen | undefined
 ): Msx2EnemyHazardRuntimeSlot[] {
@@ -62,6 +88,7 @@ export function getMsx2EnemyHazardRuntimeSlots(
       );
       const hasPatrolX = movement === 'patrolx' || movement === 'horizontal';
       const hasPatrolY = movement === 'patroly' || movement === 'vertical';
+      const hasBallBounce = movement === 'ballbounce' || movement === 'ball' || movement === 'pongball' || movement === 'arkanoidball';
       const hasGhostMaze = movement === 'ghostmaze'
         || movement === 'mazeghost'
         || movement === 'ghost'
@@ -72,12 +99,20 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const hasDiveAttack = attackPattern === 'dive'
         || attackPattern === 'diving'
         || attackPattern === 'galaxian-dive'
-        || attackPattern === 'galaxiandive';
-      const minXTile = hasPatrolX ? clampTileCoordinate(getComponentValue(entity, 'msx2_movement', 'minX', getEntityParamNumber(entity.params, 'minX', xTile)), 15) : xTile;
-      const maxXTile = hasPatrolX ? clampTileCoordinate(getComponentValue(entity, 'msx2_movement', 'maxX', getEntityParamNumber(entity.params, 'maxX', xTile)), 15) : xTile;
-      const minYTile = hasPatrolY ? clampTileCoordinate(getComponentValue(entity, 'msx2_movement', 'minY', getEntityParamNumber(entity.params, 'minY', yTile)), 11) : yTile;
-      const maxYTile = hasPatrolY ? clampTileCoordinate(getComponentValue(entity, 'msx2_movement', 'maxY', getEntityParamNumber(entity.params, 'maxY', yTile)), 11) : yTile;
+        || attackPattern === 'galaxiandive'
+        || attackPattern === 'circle'
+        || attackPattern === 'zigzag'
+        || attackPattern === 'diagonal';
+      const minX = hasPatrolX || hasBallBounce ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
+      const maxX = hasPatrolX || hasBallBounce ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
+      const minY = hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
+      const maxY = hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'maxY', 11, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
       const direction = Number(getComponentValue(entity, 'msx2_movement', 'direction', getEntityParamNumber(entity.params, 'direction', 1))) < 0 ? -1 : 1;
+      const ballSpeed = Math.max(1, Math.min(6, Math.floor(Number(
+        getComponentValue(entity, 'msx2_movement', 'speed', entity.params?.speed ?? 2)
+      ) || 2)));
+      const ballSpeedX = Math.max(-6, Math.min(6, Math.floor(Number(entity.params?.speedX ?? ballSpeed) || ballSpeed))) || ballSpeed;
+      const ballSpeedY = Math.max(-6, Math.min(6, Math.floor(Number(entity.params?.speedY ?? -ballSpeed) || -ballSpeed))) || -ballSpeed;
       const initialDirection = String(
         getComponentValue(entity, 'msx2_ai', 'initialDirection', entity.params?.initialDirection || entity.params?.startDirection || '')
       ).toLowerCase();
@@ -97,13 +132,13 @@ export function getMsx2EnemyHazardRuntimeSlots(
       return {
         x: clampHardwareSpriteX(xTile * 16),
         y: clampHardwareSpriteY(yTile * 16),
-        minX: clampHardwareSpriteX(Math.min(minXTile, maxXTile) * 16),
-        maxX: clampHardwareSpriteX(Math.max(minXTile, maxXTile) * 16),
-        minY: clampHardwareSpriteY(Math.min(minYTile, maxYTile) * 16),
-        maxY: clampHardwareSpriteY(Math.max(minYTile, maxYTile) * 16),
-        dx: hasGhostMaze ? ghostDx : hasPatrolX ? direction : 0,
-        dy: hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
-        mode: hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : MSX2_ENEMY_MOVEMENT_PATROL,
+        minX: Math.min(minX, maxX),
+        maxX: Math.max(minX, maxX),
+        minY: Math.min(minY, maxY),
+        maxY: Math.max(minY, maxY),
+        dx: hasBallBounce ? signedByte(ballSpeedX) : hasGhostMaze ? ghostDx : hasPatrolX ? direction : 0,
+        dy: hasBallBounce ? signedByte(ballSpeedY) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
+        mode: hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : MSX2_ENEMY_MOVEMENT_PATROL,
         speed,
         score,
       };

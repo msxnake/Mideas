@@ -1,0 +1,7 @@
+bullet_active=02
+bullet_x=00
+bullet_y=00
+cooldown=04
+lives=06
+game_over=63
+level=73

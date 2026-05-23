@@ -25,7 +25,7 @@ function generateInterruptFile(analysis, config = {}, executionPlan) {
     code += generateInitInterruptSystem(config.hardPlayerTickEnabled ?? false);
     code += generateStopInterruptSystem();
     code += generateInterruptDispatcher();
-    code += generateTaskManagementFunctions();
+    code += generateTaskManagementFunctions(config.hardPlayerTickEnabled ?? false);
     code += generateInitDefaultTasksFromPlan(executionPlan, config.romMode);
     // Default tasks
     if (executionPlan?.mode === 'interruptTaskManager') {
@@ -303,51 +303,29 @@ interrupt_dispatcher:
 /**
  * Generate task management functions
  */
-function generateTaskManagementFunctions() {
-    return `; ==================================================================
-; TASK MANAGEMENT FUNCTIONS
+function generateHardPlayerTickRoutine(hardPlayerTickEnabled) {
+    if (!hardPlayerTickEnabled) {
+        return `; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
 ; ==================================================================
-
-; ==================================================================
-; NOTE: wait_vblank function removed - use HALT directly in game loop
-; HALT is more efficient (no call/ret overhead)
-; ==================================================================
-
-; ==================================================================
-; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
-; ==================================================================
-; @mideas:block id=runtime.interrupt.vblank_flag kind=routine owner=interrupt roots=update_vblank_flag
+; @mideas:block id=runtime.interrupt.hard_player_tick kind=routine owner=interrupt roots=run_hard_player_tick
 ${(0, registerContract_1.buildRegisterContractComment)({
-        purpose: 'Read VDP status register and latch VBlank state in RAM flag.',
-        inputs: ['None'],
-        outputs: ['vblank_flag = 0/1'],
-        clobbers: ['AF (internally saved/restored)'],
-        preserved: ['AF, BC, DE, HL'],
-        usage: ['A = VDP status read and boolean conversion'],
-    })}
-; Updates vblank_flag only if we're actually in VBlank
-; Called from interrupt_dispatcher
-; Inputs: None
-; Outputs: None
-; Modifies: AF
-; ==================================================================
-update_vblank_flag:
-    push af
-    in a, (#99)                 ; Read VDP status register
-    bit 7, a                    ; Are we in VBlank?
-    jr z, .not_in_vblank
-    ld a, 1
-    ld (vblank_flag), a
-    jr .uvf_done
-.not_in_vblank:
-    xor a
-    ld (vblank_flag), a
-.uvf_done:
-    pop af
+            purpose: 'Disabled hard Player VBlank hook stub.',
+            inputs: ['None'],
+            outputs: ['None'],
+            clobbers: ['None'],
+            preserved: ['AF', 'BC', 'DE', 'HL', 'IX', 'IY'],
+            notes: [
+                'Generated when interruptConfig.enableHardPlayerTick is false or unsupported for the project runtime.',
+                'Keeps the dispatcher call target valid without requiring legacy Player runtime symbols.',
+            ],
+        })}
+run_hard_player_tick:
     ret
-; @mideas:endblock id=runtime.interrupt.vblank_flag
-
-; ==================================================================
+; @mideas:endblock id=runtime.interrupt.hard_player_tick
+`;
+    }
+    return `; ==================================================================
 ; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
 ; ==================================================================
 ; @mideas:block id=runtime.interrupt.hard_player_tick kind=routine owner=interrupt roots=run_hard_player_tick
@@ -410,6 +388,56 @@ run_hard_player_tick:
     pop af
     ret
 ; @mideas:endblock id=runtime.interrupt.hard_player_tick
+`;
+}
+function generateTaskManagementFunctions(hardPlayerTickEnabled) {
+    return `; ==================================================================
+; TASK MANAGEMENT FUNCTIONS
+; ==================================================================
+
+; ==================================================================
+; NOTE: wait_vblank function removed - use HALT directly in game loop
+; HALT is more efficient (no call/ret overhead)
+; ==================================================================
+
+; ==================================================================
+; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
+; ==================================================================
+; @mideas:block id=runtime.interrupt.vblank_flag kind=routine owner=interrupt roots=update_vblank_flag
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Read VDP status register and latch VBlank state in RAM flag.',
+        inputs: ['None'],
+        outputs: ['vblank_flag = 0/1'],
+        clobbers: ['AF (internally saved/restored)'],
+        preserved: ['AF, BC, DE, HL'],
+        usage: ['A = VDP status read and boolean conversion'],
+    })}
+; Updates vblank_flag only if we're actually in VBlank
+; Called from interrupt_dispatcher
+; Inputs: None
+; Outputs: None
+; Modifies: AF
+; ==================================================================
+update_vblank_flag:
+    push af
+    in a, (#99)                 ; Read VDP status register
+    bit 7, a                    ; Are we in VBlank?
+    jr z, .not_in_vblank
+    ld a, 1
+    ld (vblank_flag), a
+    jr .uvf_done
+.not_in_vblank:
+    xor a
+    ld (vblank_flag), a
+.uvf_done:
+    pop af
+    ret
+; @mideas:endblock id=runtime.interrupt.vblank_flag
+
+; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
+; ==================================================================
+${generateHardPlayerTickRoutine(hardPlayerTickEnabled)}
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system

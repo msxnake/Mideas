@@ -22,7 +22,7 @@ interface ComponentDefinitionEditorProps {
 
 const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
   'byte', 'word', 'boolean', 'string', 'color', 
-  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref', 'statemachine_ref', 'tile_ref', 'dialogue_ref'
+  'sprite_ref', 'msx2sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref', 'statemachine_ref', 'tile_ref', 'dialogue_ref'
 ];
 
 /**
@@ -229,7 +229,10 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
             };
 
             const validDefinitions = importData.data.filter(isValidComponentDef)
-              .map((definition: ComponentDefinition) => ({ ...definition, target: definition.target || projectTarget }));
+              .map((definition: ComponentDefinition) => ({ ...definition, target: definition.target || projectTarget }))
+              .filter((definition: ComponentDefinition) =>
+                isComponentDefinitionEnabledForProject(definition, currentScreenMode)
+              );
             
             if (validDefinitions.length === 0) {
               alert('No valid component definitions found in the file.');

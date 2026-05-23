@@ -310,7 +310,7 @@ console.log(`Summary codegen check passed: chars=${asm.length}, files=${Object.k
     run_command(["node", "-e", node_script, str(compiled_index), str(project_json)], cwd=project_root, timeout=120)
 
 
-def validate_asm(asm_output: Path) -> None:
+def validate_asm(asm_output: Path, rom_mode: str = "simple32k", target_format: str = "konami") -> None:
     asm = asm_output.read_text(encoding="utf-8", errors="replace")
     required = [
         "Mideas MSX2 SCREEN 4 tile backend",
@@ -399,14 +399,37 @@ def validate_asm(asm_output: Path) -> None:
     missing = [needle for needle in required if needle not in asm]
     if missing:
         raise RuntimeError("Generated ASM is missing expected MSX2 layer signals: " + ", ".join(missing))
+    if rom_mode == "megarom":
+        megarom_required = [
+            "; ROM Mode: megarom",
+            f"; Mapper Target: {target_format}",
+            "MSX2 MegaROM Path: Konami 8K fixed-bank0 compatibility",
+            "MSX2_SCREEN4_DATA_BANK EQU 4",
+            "init_konami8k_fixed_bank0_banks:",
+            "mapper_set_bank_p1:",
+            "mapper_set_bank_p2:",
+            "mapper_set_bank_p3:",
+            "msx2_screen4_data_bank_enter:",
+            "msx2_screen4_data_bank_leave:",
+            "MSX2_SCREEN4_DATA_BANK_ROM_START:",
+            "org #8000",
+        ]
+        missing_megarom = [needle for needle in megarom_required if needle not in asm]
+        if missing_megarom:
+            raise RuntimeError("Generated ASM is missing expected MSX2 Konami MegaROM signals: " + ", ".join(missing_megarom))
 
 
-def validate_rom(rom_output: Path) -> None:
+def validate_rom(rom_output: Path, rom_mode: str = "simple32k") -> None:
     if not rom_output.exists():
         raise RuntimeError(f"ROM was not created: {rom_output}")
     size = rom_output.stat().st_size
     if size == 0 or size % 8192 != 0:
         raise RuntimeError(f"ROM size must be a non-zero multiple of 8KB, got {size}")
+    header = rom_output.read_bytes()[:2]
+    if header != b"AB":
+        raise RuntimeError(f"ROM header must start with AB, got {header!r}")
+    if rom_mode == "megarom" and size <= 32768:
+        raise RuntimeError(f"MegaROM output should exceed 32KB for the SCREEN 4 Konami path, got {size}")
 
 
 def validate_editor_contract(project_root: Path) -> None:
@@ -1209,6 +1232,8 @@ def capture_openmsx(
             capture_cmd.extend(["--probe", f"{label}:0x{address:04X}"])
     if args.openmsx:
         capture_cmd.extend(["--openmsx", args.openmsx])
+    if getattr(args, "rom_mode", "") == "megarom":
+        capture_cmd.extend(["--romtype", getattr(args, "target_format", "konami")])
     run_command(capture_cmd, cwd=project_root, timeout=120)
     if not screenshot_output.exists():
         raise RuntimeError(f"OpenMSX screenshot was not created: {screenshot_output}")
@@ -1216,10 +1241,10 @@ def capture_openmsx(
 
 def parse_args() -> argparse.Namespace:
     root = repo_root_from_script()
-    out = root / "test" / "msx2-screen5" / "out"
+    out = root / "test" / "msx2-screen4" / "out"
     parser = argparse.ArgumentParser(description="Build and optionally capture the native msx2screen layer smoke ROM.")
     parser.add_argument("--project-root", default=str(root), help="Mideas repository root")
-    parser.add_argument("--json", default=str(root / "test" / "msx2-screen5" / "msx2screen-layers-project.json"), help="Fixture JSON path")
+    parser.add_argument("--json", default=str(root / "test" / "msx2-screen4" / "msx2screen-layers-project.json"), help="Fixture JSON path")
     parser.add_argument("--asm-output", default=str(out / "msx2screen-layers.asm"), help="Output ASM path")
     parser.add_argument("--rom-output", default=str(out / "msx2screen-layers.rom"), help="Output ROM path")
     parser.add_argument("--sym-output", default=str(out / "msx2screen-layers.sym"), help="Output symbols path")
@@ -1284,6 +1309,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-editor-contract", action="store_true", help="Do not run the MSX2 editor authoring contract check")
     parser.add_argument("--skip-openmsx", action="store_true", help="Build and static-check only")
     parser.add_argument("--skip-image-check", action="store_true", help="Do not inspect screenshot pixels after OpenMSX capture")
+    parser.add_argument("--rom-mode", default="megarom", choices=("simple32k", "plain48k", "megarom"), help="ROM mode for the MSX2 smoke build")
+    parser.add_argument("--target-format", default="konami", choices=("konami", "ascii8", "ascii16"), help="MegaROM mapper target for the MSX2 smoke build")
     return parser.parse_args()
 
 
@@ -1331,7 +1358,7 @@ def main() -> None:
     if not args.skip_editor_contract:
         validate_editor_contract(project_root)
 
-    fixture_result = run_command(["node", "scripts/create_msx2_screen5_layers_fixture.mjs"], cwd=project_root, allow_failure=True)
+    fixture_result = run_command(["node", "scripts/create_msx2_screen4_layers_fixture.mjs"], cwd=project_root, allow_failure=True)
     if fixture_result.returncode != 0:
         if not project_json.exists():
             raise RuntimeError(f"Fixture generation failed and no existing fixture is available: {project_json}")
@@ -1355,13 +1382,17 @@ def main() -> None:
         str(asm_output),
         "--rom-output",
         str(rom_output),
+        "--rom-mode",
+        args.rom_mode,
+        "--target-format",
+        args.target_format,
     ]
     if sym_output:
         build_cmd.extend(["--sym-output", str(sym_output)])
     run_command(build_cmd, cwd=project_root, timeout=180)
 
-    validate_asm(asm_output)
-    validate_rom(rom_output)
+    validate_asm(asm_output, args.rom_mode, args.target_format)
+    validate_rom(rom_output, args.rom_mode)
     symbols = read_symbol_addresses(sym_output)
     validate_runtime_ram_layout(symbols)
 

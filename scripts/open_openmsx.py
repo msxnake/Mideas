@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_50HZ_MACHINE = "C-BIOS_MSX1_EU"
+DEFAULT_MACHINE = "C-BIOS_MSX2"
 
 
 def parse_args() -> argparse.Namespace:
@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rom", required=True, help="Path to .rom file")
     parser.add_argument("--project-root", help="Project root for relative path resolution")
     parser.add_argument("--openmsx", help="Path to openmsx executable")
-    parser.add_argument("--machine", default=DEFAULT_50HZ_MACHINE, help="Optional OpenMSX machine id")
+    parser.add_argument("--machine", default=DEFAULT_MACHINE, help="Optional OpenMSX machine id")
     parser.add_argument("--romtype", help="Optional explicit OpenMSX ROM type, for example konami")
     parser.add_argument("--script", help="Optional TCL script to run at startup")
     parser.add_argument("--fullscreen", action="store_true", help="Start in fullscreen mode")

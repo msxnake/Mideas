@@ -1,0 +1,5262 @@
+{
+  "projectName": "Gold Runner - Lode Runner Style Clone",
+  "projectVersion": "0.1.0",
+  "projectDescription": "Single-screen Lode Runner style Mideas clone: collect gold, climb ladders, use ropes, dig bricks and avoid guards.",
+  "currentScreenMode": "SCREEN 2 (Graphics I)",
+  "selectedAssetId": "gameflow_gold_runner_main",
+  "currentEditor": "GameFlow",
+  "assets": [
+    {
+      "id": "tile_empty",
+      "name": "Empty",
+      "type": "tile",
+      "data": {
+        "id": "tile_empty",
+        "name": "Empty",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "empty"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_brick",
+      "name": "Diggable Brick",
+      "type": "tile",
+      "data": {
+        "id": "tile_brick",
+        "name": "Diggable Brick",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B"
+          ],
+          [
+            "#D4524D",
+            "#D4524D",
+            "#D4524D",
+            "#FF7978",
+            "#8F563B",
+            "#D4524D",
+            "#D4524D",
+            "#D4524D"
+          ],
+          [
+            "#D4524D",
+            "#D4524D",
+            "#FF7978",
+            "#D4524D",
+            "#8F563B",
+            "#D4524D",
+            "#FF7978",
+            "#D4524D"
+          ],
+          [
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B"
+          ],
+          [
+            "#D4524D",
+            "#FF7978",
+            "#D4524D",
+            "#D4524D",
+            "#8F563B",
+            "#D4524D",
+            "#D4524D",
+            "#FF7978"
+          ],
+          [
+            "#D4524D",
+            "#D4524D",
+            "#D4524D",
+            "#FF7978",
+            "#8F563B",
+            "#FF7978",
+            "#D4524D",
+            "#D4524D"
+          ],
+          [
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B",
+            "#8F563B"
+          ],
+          [
+            "#D4524D",
+            "#D4524D",
+            "#FF7978",
+            "#D4524D",
+            "#8F563B",
+            "#D4524D",
+            "#D4524D",
+            "#D4524D"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#8F563B",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#D4524D",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#D4524D",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8F563B",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#D4524D",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#D4524D",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8F563B",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#D4524D",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 17,
+          "familyId": 1,
+          "instanceId": 1,
+          "isSolid": true,
+          "isBreakable": true,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "brick"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_concrete",
+      "name": "Concrete Wall",
+      "type": "tile",
+      "data": {
+        "id": "tile_concrete",
+        "name": "Concrete Wall",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A"
+          ],
+          [
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A"
+          ],
+          [
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF"
+          ],
+          [
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A"
+          ],
+          [
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A"
+          ],
+          [
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A"
+          ],
+          [
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#FFFFFF"
+          ],
+          [
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A",
+            "#8A8A8A"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8A8A8A",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 16,
+          "familyId": 1,
+          "instanceId": 0,
+          "isSolid": true,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "concrete"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_ladder",
+      "name": "Ladder",
+      "type": "tile",
+      "data": {
+        "id": "tile_ladder",
+        "name": "Ladder",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E"
+          ],
+          [
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 7,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": true,
+          "interactionType": "ladder",
+          "interactionValue": 1,
+          "interactionTarget": "Climb"
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "ladder"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_rope",
+      "name": "Hand Rope",
+      "type": "tile",
+      "data": {
+        "id": "tile_rope",
+        "name": "Hand Rope",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#C2B280",
+            "#C2B280",
+            "#C2B280",
+            "#C2B280",
+            "#C2B280",
+            "#C2B280",
+            "#C2B280",
+            "#C2B280"
+          ],
+          [
+            "#000000",
+            "#C2B280",
+            "#000000",
+            "#C2B280",
+            "#000000",
+            "#C2B280",
+            "#000000",
+            "#C2B280"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#C2B280",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#C2B280",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 8,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": "Traverse"
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "rope"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_gold",
+      "name": "Gold Nugget",
+      "type": "tile",
+      "data": {
+        "id": "tile_gold",
+        "name": "Gold Nugget",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E",
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#E6D16E",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#E6D16E",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#E6D16E",
+            "#FFFFFF",
+            "#E6D16E",
+            "#E6D16E",
+            "#FFFFFF",
+            "#E6D16E",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#E6D16E",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#E6D16E",
+            "#E6D16E",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#E6D16E",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 2,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": true,
+          "interactionType": "collect_item",
+          "interactionValue": 1,
+          "interactionTarget": "Gold"
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "gold"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_exit",
+      "name": "Exit Ladder",
+      "type": "tile",
+      "data": {
+        "id": "tile_exit",
+        "name": "Exit Ladder",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FFFFFF",
+            "#3CB371",
+            "#3CB371",
+            "#3CB371",
+            "#3CB371",
+            "#FFFFFF",
+            "#000000"
+          ],
+          [
+            "#FFFFFF",
+            "#3CB371",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#3CB371",
+            "#FFFFFF"
+          ],
+          [
+            "#FFFFFF",
+            "#3CB371",
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#000000",
+            "#3CB371",
+            "#FFFFFF"
+          ],
+          [
+            "#FFFFFF",
+            "#3CB371",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#3CB371",
+            "#FFFFFF"
+          ],
+          [
+            "#000000",
+            "#FFFFFF",
+            "#3CB371",
+            "#3CB371",
+            "#3CB371",
+            "#3CB371",
+            "#FFFFFF",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 3,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": true,
+          "interactionType": "lever_toggle",
+          "interactionValue": 1,
+          "interactionTarget": "ExitOpen"
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "exit"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "tile_trap",
+      "name": "False Brick Trap",
+      "type": "tile",
+      "data": {
+        "id": "tile_trap",
+        "name": "False Brick Trap",
+        "width": 8,
+        "height": 8,
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#8F563B",
+            "#C2B280",
+            "#8F563B",
+            "#C2B280",
+            "#8F563B",
+            "#C2B280",
+            "#8F563B",
+            "#C2B280"
+          ],
+          [
+            "#C2B280",
+            "#8F563B",
+            "#C2B280",
+            "#8F563B",
+            "#C2B280",
+            "#8F563B",
+            "#C2B280",
+            "#8F563B"
+          ],
+          [
+            "#000000",
+            "#8F563B",
+            "#000000",
+            "#C2B280",
+            "#000000",
+            "#8F563B",
+            "#000000",
+            "#C2B280"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ],
+        "lineAttributes": [
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8F563B",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#C2B280",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#8F563B",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          },
+          {
+            "fg": "#FFFFFF",
+            "bg": "#000000"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 18,
+          "familyId": 0,
+          "instanceId": 1,
+          "isSolid": false,
+          "isBreakable": true,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "tags": [
+          "gold-runner",
+          "loderunner-style",
+          "trap"
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-pixel-pattern",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22"
+        }
+      }
+    },
+    {
+      "id": "sprite_runner",
+      "name": "Runner Player Sprite",
+      "type": "sprite",
+      "data": {
+        "id": "sprite_runner",
+        "name": "Runner Player Sprite",
+        "size": {
+          "width": 16,
+          "height": 16
+        },
+        "spritePalette": [
+          "#000000",
+          "#FFFFFF",
+          "#E6D16E",
+          "#5D76CB"
+        ],
+        "backgroundColor": "#000000",
+        "frames": [
+          {
+            "id": "sprite_runner_idle_0",
+            "data": [
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#E6D16E",
+                "#000000",
+                "#FFFFFF",
+                "#E6D16E",
+                "#E6D16E",
+                "#FFFFFF",
+                "#000000",
+                "#E6D16E",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#E6D16E",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#FFFFFF",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#FFFFFF",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#5D76CB",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#5D76CB",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#5D76CB",
+                "#5D76CB",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ]
+            ],
+            "duration": 10
+          }
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "name": "idle",
+            "frameIds": [
+              "sprite_runner_idle_0"
+            ],
+            "loop": true
+          }
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-sprite",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22",
+          "purpose": "Runner Player Sprite"
+        }
+      }
+    },
+    {
+      "id": "sprite_guard",
+      "name": "Guard Sprite",
+      "type": "sprite",
+      "data": {
+        "id": "sprite_guard",
+        "name": "Guard Sprite",
+        "size": {
+          "width": 16,
+          "height": 16
+        },
+        "spritePalette": [
+          "#000000",
+          "#FFFFFF",
+          "#E6D16E",
+          "#5D76CB"
+        ],
+        "backgroundColor": "#000000",
+        "frames": [
+          {
+            "id": "sprite_guard_idle_0",
+            "data": [
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#FF7978",
+                "#FFFFFF",
+                "#000000",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#000000",
+                "#FFFFFF",
+                "#FF7978",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#FF7978",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#FF7978",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#FF7978",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#8A8A8A",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#8A8A8A",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#8A8A8A",
+                "#8A8A8A",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ],
+              [
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000",
+                "#000000"
+              ]
+            ],
+            "duration": 10
+          }
+        ],
+        "animations": [
+          {
+            "id": "idle",
+            "name": "idle",
+            "frameIds": [
+              "sprite_guard_idle_0"
+            ],
+            "loop": true
+          }
+        ],
+        "generationTrace": {
+          "source": "scripted-msx-sprite",
+          "script": "scripts/create_gold_runner_loderunner_clone.py",
+          "date": "2026-05-22",
+          "purpose": "Guard Sprite"
+        }
+      }
+    },
+    {
+      "id": "comp_ladder_climb",
+      "name": "Ladder Climb",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_ladder_climb",
+        "name": "Ladder Climb",
+        "description": "Allows climbing passable ladder tiles using up/down input.",
+        "properties": [
+          {
+            "name": "climbSpeed",
+            "type": "byte",
+            "defaultValue": "1",
+            "description": "Pixels per frame while climbing."
+          },
+          {
+            "name": "ladderTileIds",
+            "type": "string",
+            "defaultValue": "tile_ladder,tile_exit",
+            "description": "Tiles treated as ladders."
+          }
+        ]
+      }
+    },
+    {
+      "id": "comp_rope_traverse",
+      "name": "Rope Traverse",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_rope_traverse",
+        "name": "Rope Traverse",
+        "description": "Allows horizontal traversal while hanging from rope tiles.",
+        "properties": [
+          {
+            "name": "ropeTileIds",
+            "type": "string",
+            "defaultValue": "tile_rope",
+            "description": "Tiles treated as ropes."
+          },
+          {
+            "name": "hangSpeed",
+            "type": "byte",
+            "defaultValue": "1",
+            "description": "Pixels per frame while hanging."
+          }
+        ]
+      }
+    },
+    {
+      "id": "comp_dig_brick",
+      "name": "Dig Brick",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_dig_brick",
+        "name": "Dig Brick",
+        "description": "Breaks a diggable brick to the lower-left or lower-right, then respawns it.",
+        "properties": [
+          {
+            "name": "digLeftKey",
+            "type": "string",
+            "defaultValue": "CTRL",
+            "description": "Input for digging left."
+          },
+          {
+            "name": "digRightKey",
+            "type": "string",
+            "defaultValue": "SPC",
+            "description": "Input for digging right."
+          },
+          {
+            "name": "respawnFrames",
+            "type": "word",
+            "defaultValue": "240",
+            "description": "Frames before a dug brick returns."
+          },
+          {
+            "name": "diggableTileIds",
+            "type": "string",
+            "defaultValue": "tile_brick,tile_trap",
+            "description": "Tiles that can be removed by digging."
+          }
+        ]
+      }
+    },
+    {
+      "id": "comp_gold_goal",
+      "name": "Gold Goal",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_gold_goal",
+        "name": "Gold Goal",
+        "description": "Tracks gold collection and opens the exit when the target is reached.",
+        "properties": [
+          {
+            "name": "targetVariable",
+            "type": "string",
+            "defaultValue": "Gold",
+            "description": "Global variable incremented by collecting gold."
+          },
+          {
+            "name": "targetCount",
+            "type": "byte",
+            "defaultValue": "8",
+            "description": "Gold pieces required to complete the level."
+          },
+          {
+            "name": "exitVariable",
+            "type": "string",
+            "defaultValue": "ExitOpen",
+            "description": "Boolean global set when enough gold is collected."
+          }
+        ]
+      }
+    },
+    {
+      "id": "comp_guard_ai",
+      "name": "Guard AI",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_guard_ai",
+        "name": "Guard AI",
+        "description": "Simple patrol/chase guard for Lode Runner style pressure.",
+        "properties": [
+          {
+            "name": "mode",
+            "type": "string",
+            "defaultValue": "patrol_then_chase",
+            "description": "Guard behavior mode."
+          },
+          {
+            "name": "speed",
+            "type": "byte",
+            "defaultValue": "1",
+            "description": "Pixels per frame."
+          },
+          {
+            "name": "chaseRange",
+            "type": "word",
+            "defaultValue": "96",
+            "description": "Range in pixels for detecting player."
+          }
+        ]
+      }
+    },
+    {
+      "id": "tpl_gold_runner_player",
+      "name": "Gold Runner Player",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_gold_runner_player",
+        "name": "Gold Runner Player",
+        "icon": "P",
+        "isPlayer": true,
+        "components": [
+          {
+            "definitionId": "comp_pos",
+            "defaultValues": {
+              "x": 16,
+              "y": 176
+            }
+          },
+          {
+            "definitionId": "comp_render",
+            "defaultValues": {
+              "spriteAssetId": "sprite_runner",
+              "isVisible": true,
+              "layer": 1
+            }
+          },
+          {
+            "definitionId": "comp_physics",
+            "defaultValues": {
+              "velocityX": 0,
+              "velocityY": 0,
+              "friction": 32,
+              "mass": 1
+            }
+          },
+          {
+            "definitionId": "comp_collision",
+            "defaultValues": {
+              "hitboxWidth": 12,
+              "hitboxHeight": 15,
+              "offsetX": 2,
+              "offsetY": 1,
+              "collisionLayer": 1,
+              "collidesWith": 14
+            }
+          },
+          {
+            "definitionId": "comp_wall_collision",
+            "defaultValues": {
+              "hitboxWidth": 12,
+              "hitboxHeight": 15,
+              "offsetX": 2,
+              "offsetY": 1,
+              "tileSize": 8,
+              "stopOnCollision": true
+            }
+          },
+          {
+            "definitionId": "comp_player_input",
+            "defaultValues": {
+              "controllerId": 0,
+              "inputEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_cursors",
+            "defaultValues": {
+              "isEnabled": true,
+              "speed": 2,
+              "allowUp": true,
+              "allowDown": true,
+              "allowLeft": true,
+              "allowRight": true
+            }
+          },
+          {
+            "definitionId": "comp_ladder_climb",
+            "defaultValues": {
+              "climbSpeed": 1,
+              "ladderTileIds": "tile_ladder,tile_exit"
+            }
+          },
+          {
+            "definitionId": "comp_rope_traverse",
+            "defaultValues": {
+              "ropeTileIds": "tile_rope",
+              "hangSpeed": 1
+            }
+          },
+          {
+            "definitionId": "comp_dig_brick",
+            "defaultValues": {
+              "digLeftKey": "CTRL",
+              "digRightKey": "SPC",
+              "respawnFrames": 240,
+              "diggableTileIds": "tile_brick,tile_trap"
+            }
+          },
+          {
+            "definitionId": "comp_tile_collector",
+            "defaultValues": {
+              "collectionRadius": 8,
+              "collectibleTileIds": "tile_gold",
+              "replacementTileId": "tile_empty",
+              "targetVariable": "Gold",
+              "incrementAmount": 1,
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_gold_goal",
+            "defaultValues": {
+              "targetVariable": "Gold",
+              "targetCount": 8,
+              "exitVariable": "ExitOpen"
+            }
+          },
+          {
+            "definitionId": "comp_statemachine",
+            "defaultValues": {
+              "stateMachineAssetId": "statemachine_gold_runner_rules",
+              "currentStateId": "Idle",
+              "isEnabled": true
+            }
+          }
+        ],
+        "description": "Playable runner. Collects all gold, digs bricks, climbs ladders and uses ropes."
+      }
+    },
+    {
+      "id": "tpl_gold_runner_guard",
+      "name": "Gold Runner Guard",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_gold_runner_guard",
+        "name": "Gold Runner Guard",
+        "icon": "G",
+        "isPlayer": false,
+        "components": [
+          {
+            "definitionId": "comp_pos",
+            "defaultValues": {
+              "x": 160,
+              "y": 64
+            }
+          },
+          {
+            "definitionId": "comp_render",
+            "defaultValues": {
+              "spriteAssetId": "sprite_guard",
+              "isVisible": true,
+              "layer": 1
+            }
+          },
+          {
+            "definitionId": "comp_physics",
+            "defaultValues": {
+              "velocityX": 0,
+              "velocityY": 0,
+              "friction": 0,
+              "mass": 1
+            }
+          },
+          {
+            "definitionId": "comp_collision",
+            "defaultValues": {
+              "hitboxWidth": 12,
+              "hitboxHeight": 15,
+              "offsetX": 2,
+              "offsetY": 1,
+              "collisionLayer": 2,
+              "collidesWith": 1
+            }
+          },
+          {
+            "definitionId": "comp_wall_collision",
+            "defaultValues": {
+              "hitboxWidth": 12,
+              "hitboxHeight": 15,
+              "offsetX": 2,
+              "offsetY": 1,
+              "tileSize": 8,
+              "stopOnCollision": true
+            }
+          },
+          {
+            "definitionId": "comp_guard_ai",
+            "defaultValues": {
+              "mode": "patrol_then_chase",
+              "speed": 1,
+              "chaseRange": 96
+            }
+          }
+        ],
+        "description": "Patrol guard that pressures the player across platforms."
+      }
+    },
+    {
+      "id": "screen_gold_runner_level_1",
+      "name": "Level 1 - Gold Runner",
+      "type": "screenmap",
+      "data": {
+        "id": "screen_gold_runner_level_1",
+        "name": "Level 1 - Gold Runner",
+        "width": 32,
+        "height": 24,
+        "screenKind": "playable",
+        "screenEngine": "player",
+        "layers": {
+          "background": {
+            "tiles": [
+              {
+                "x": 0,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 2,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 4,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 5,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 8,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 9,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 10,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 12,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 13,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 14,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 15,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 16,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 17,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 19,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 20,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 21,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 22,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 23,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 24,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 25,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 26,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 27,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 28,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 29,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 30,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 1,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 1,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 27,
+                "y": 1,
+                "tileId": "tile_exit"
+              },
+              {
+                "x": 31,
+                "y": 1,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 2,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 2,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 11,
+                "y": 2,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 16,
+                "y": 2,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 31,
+                "y": 2,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 3,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 14,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 15,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 16,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 17,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 18,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 3,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 4,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 4,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 4,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 5,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 5,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 19,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 20,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 21,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 22,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 23,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 24,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 25,
+                "y": 5,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 31,
+                "y": 5,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 6,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 6,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 11,
+                "y": 6,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 25,
+                "y": 6,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 6,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 7,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 4,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 5,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 6,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 7,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 14,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 15,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 7,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 7,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 8,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 19,
+                "y": 8,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 25,
+                "y": 8,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 8,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 9,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 7,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 8,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 9,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 10,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 11,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 12,
+                "y": 9,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 21,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 23,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 24,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 26,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 27,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 28,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 9,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 10,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 10,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 27,
+                "y": 10,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 10,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 11,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 11,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 11,
+                "y": 11,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 27,
+                "y": 11,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 11,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 12,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 4,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 5,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 6,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 7,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 21,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 23,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 24,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 26,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 27,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 12,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 13,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 19,
+                "y": 13,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 13,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 14,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 12,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 13,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 14,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 15,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 16,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 17,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 18,
+                "y": 14,
+                "tileId": "tile_rope"
+              },
+              {
+                "x": 19,
+                "y": 14,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 24,
+                "y": 14,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 31,
+                "y": 14,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 15,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 15,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 19,
+                "y": 15,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 15,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 16,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 14,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 15,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 16,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 17,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 18,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 21,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 16,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 17,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 17,
+                "tileId": "tile_trap"
+              },
+              {
+                "x": 31,
+                "y": 17,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 18,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 5,
+                "y": 18,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 18,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 19,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 5,
+                "y": 19,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 10,
+                "y": 19,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 26,
+                "y": 19,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 19,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 20,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 1,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 2,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 3,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 4,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 5,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 6,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 7,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 17,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 18,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 21,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 23,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 24,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 26,
+                "y": 20,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 27,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 28,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 29,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 30,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 20,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 21,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 21,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 31,
+                "y": 21,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 22,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 22,
+                "tileId": "tile_ladder"
+              },
+              {
+                "x": 26,
+                "y": 22,
+                "tileId": "tile_gold"
+              },
+              {
+                "x": 31,
+                "y": 22,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 1,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 2,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 4,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 5,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 8,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 9,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 10,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 12,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 13,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 14,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 15,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 16,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 17,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 19,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 20,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 21,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 22,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 23,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 24,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 25,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 26,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 27,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 28,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 29,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 30,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 23,
+                "tileId": "tile_concrete"
+              }
+            ]
+          },
+          "collision": {
+            "tiles": [
+              {
+                "x": 0,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 2,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 4,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 5,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 8,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 9,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 10,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 12,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 13,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 14,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 15,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 16,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 17,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 19,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 20,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 21,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 22,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 23,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 24,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 25,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 26,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 27,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 28,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 29,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 30,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 0,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 1,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 1,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 2,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 2,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 3,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 14,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 15,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 16,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 17,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 18,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 3,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 3,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 4,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 4,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 5,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 5,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 6,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 6,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 7,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 4,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 5,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 6,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 7,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 14,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 15,
+                "y": 7,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 7,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 8,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 8,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 9,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 21,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 23,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 24,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 26,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 27,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 28,
+                "y": 9,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 9,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 10,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 10,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 11,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 11,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 12,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 4,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 5,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 6,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 7,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 21,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 23,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 24,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 26,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 27,
+                "y": 12,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 12,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 13,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 13,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 14,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 14,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 15,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 15,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 16,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 13,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 14,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 15,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 16,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 17,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 18,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 21,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 16,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 16,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 17,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 17,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 18,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 18,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 19,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 19,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 20,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 1,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 2,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 3,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 4,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 5,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 6,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 7,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 8,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 9,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 10,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 11,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 12,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 17,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 18,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 19,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 20,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 21,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 22,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 23,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 24,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 25,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 27,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 28,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 29,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 30,
+                "y": 20,
+                "tileId": "tile_brick"
+              },
+              {
+                "x": 31,
+                "y": 20,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 21,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 21,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 22,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 22,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 0,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 1,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 2,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 3,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 4,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 5,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 6,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 7,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 8,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 9,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 10,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 11,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 12,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 13,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 14,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 15,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 16,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 17,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 18,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 19,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 20,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 21,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 22,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 23,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 24,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 25,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 26,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 27,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 28,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 29,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 30,
+                "y": 23,
+                "tileId": "tile_concrete"
+              },
+              {
+                "x": 31,
+                "y": 23,
+                "tileId": "tile_concrete"
+              }
+            ]
+          },
+          "effects": {
+            "tiles": []
+          },
+          "entities": [
+            {
+              "id": "ent_player_start",
+              "entityTemplateId": "tpl_gold_runner_player",
+              "name": "Player Start",
+              "position": {
+                "x": 1,
+                "y": 22
+              },
+              "componentOverrides": {
+                "comp_pos": {
+                  "x": 16,
+                  "y": 176
+                }
+              }
+            },
+            {
+              "id": "ent_guard_mid",
+              "entityTemplateId": "tpl_gold_runner_guard",
+              "name": "Guard Mid",
+              "position": {
+                "x": 20,
+                "y": 8
+              },
+              "componentOverrides": {
+                "comp_pos": {
+                  "x": 160,
+                  "y": 64
+                }
+              }
+            },
+            {
+              "id": "ent_guard_low",
+              "entityTemplateId": "tpl_gold_runner_guard",
+              "name": "Guard Low",
+              "position": {
+                "x": 24,
+                "y": 19
+              },
+              "componentOverrides": {
+                "comp_pos": {
+                  "x": 192,
+                  "y": 152
+                }
+              }
+            }
+          ]
+        },
+        "tileBankAssetId": "tilebank_gold_runner",
+        "activeAreaX": 0,
+        "activeAreaY": 0,
+        "activeAreaWidth": 32,
+        "activeAreaHeight": 24,
+        "backgroundColor": 1,
+        "borderColor": 1,
+        "behaviorConfig": {
+          "source": "backgroundChars"
+        },
+        "hudConfiguration": {
+          "enabled": true,
+          "elements": [
+            {
+              "id": "hud_gold",
+              "type": "text",
+              "x": 1,
+              "y": 0,
+              "text": "GOLD"
+            },
+            {
+              "id": "hud_lives",
+              "type": "text",
+              "x": 12,
+              "y": 0,
+              "text": "LIVES"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "world_gold_runner",
+      "name": "Gold Runner World",
+      "type": "worldmap",
+      "data": {
+        "id": "world_gold_runner",
+        "name": "Gold Runner World",
+        "nodes": [
+          {
+            "id": "wmnode_gold_runner_start",
+            "screenAssetId": "screen_gold_runner_level_1",
+            "name": "Level 1",
+            "position": {
+              "x": 260,
+              "y": 100
+            }
+          }
+        ],
+        "connections": [],
+        "panOffset": {
+          "x": 0,
+          "y": 0
+        },
+        "zoomLevel": 1,
+        "gridSize": 20,
+        "startScreenNodeId": "wmnode_gold_runner_start"
+      }
+    },
+    {
+      "id": "gameflow_gold_runner_main",
+      "name": "Main",
+      "type": "gameflow",
+      "data": {
+        "id": "gameflow_gold_runner_main",
+        "name": "Main",
+        "nodes": [
+          {
+            "id": "gf_start",
+            "type": "Start",
+            "position": {
+              "x": 40,
+              "y": 120
+            },
+            "initializeGlobals": {
+              "enabled": true,
+              "globalVariablesAssetId": "globals_gold_runner",
+              "variables": [
+                {
+                  "variableName": "Gold",
+                  "value": 0
+                },
+                {
+                  "variableName": "Lives",
+                  "value": 3
+                },
+                {
+                  "variableName": "ExitOpen",
+                  "value": false
+                }
+              ]
+            }
+          },
+          {
+            "id": "gf_cls",
+            "type": "Transition",
+            "position": {
+              "x": 240,
+              "y": 120
+            },
+            "effect": "cls",
+            "duration": 150
+          },
+          {
+            "id": "gf_world",
+            "type": "WorldLink",
+            "position": {
+              "x": 460,
+              "y": 120
+            },
+            "worldAssetId": "world_gold_runner"
+          },
+          {
+            "id": "gf_win",
+            "type": "End",
+            "position": {
+              "x": 700,
+              "y": 80
+            },
+            "endType": "Victory",
+            "message": "All gold collected. Escape complete."
+          }
+        ],
+        "connections": [
+          {
+            "id": "gf_conn_start_cls",
+            "from": {
+              "nodeId": "gf_start"
+            },
+            "to": {
+              "nodeId": "gf_cls"
+            }
+          },
+          {
+            "id": "gf_conn_cls_world",
+            "from": {
+              "nodeId": "gf_cls"
+            },
+            "to": {
+              "nodeId": "gf_world"
+            }
+          }
+        ],
+        "startNodeId": "gf_start",
+        "panOffset": {
+          "x": 0,
+          "y": 0
+        },
+        "zoomLevel": 1
+      }
+    },
+    {
+      "id": "statemachine_gold_runner_rules",
+      "name": "Gold Runner Rules",
+      "type": "statemachine",
+      "data": {
+        "id": "statemachine_gold_runner_rules",
+        "name": "Gold Runner Rules",
+        "initialStateId": "state_idle",
+        "states": [
+          {
+            "id": "state_idle",
+            "name": "Idle",
+            "position": {
+              "x": 40,
+              "y": 120
+            }
+          },
+          {
+            "id": "state_walk",
+            "name": "Walking",
+            "position": {
+              "x": 220,
+              "y": 80
+            }
+          },
+          {
+            "id": "state_climb",
+            "name": "Climbing",
+            "position": {
+              "x": 220,
+              "y": 180
+            }
+          },
+          {
+            "id": "state_dig",
+            "name": "Interacting",
+            "position": {
+              "x": 420,
+              "y": 80
+            }
+          },
+          {
+            "id": "state_take",
+            "name": "Take",
+            "position": {
+              "x": 420,
+              "y": 180
+            }
+          }
+        ],
+        "events": [],
+        "transitions": [
+          {
+            "id": "tr_idle_walk",
+            "fromStateId": "state_idle",
+            "toStateId": "state_walk",
+            "conditions": {
+              "type": "OR",
+              "conditions": [
+                {
+                  "type": "KEY_PRESSED",
+                  "params": {
+                    "key": "left"
+                  }
+                },
+                {
+                  "type": "KEY_PRESSED",
+                  "params": {
+                    "key": "right"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "tr_idle_climb",
+            "fromStateId": "state_idle",
+            "toStateId": "state_climb",
+            "conditions": {
+              "type": "AND",
+              "conditions": [
+                {
+                  "type": "KEY_PRESSED",
+                  "params": {
+                    "key": "up"
+                  }
+                },
+                {
+                  "type": "VARIABLE_COMPARE",
+                  "params": {
+                    "variableName": "OnLadder",
+                    "operator": "==",
+                    "compareValue": 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "tr_walk_dig",
+            "fromStateId": "state_walk",
+            "toStateId": "state_dig",
+            "conditions": {
+              "type": "OR",
+              "conditions": [
+                {
+                  "type": "KEY_PRESSED",
+                  "params": {
+                    "key": "space"
+                  }
+                },
+                {
+                  "type": "KEY_PRESSED",
+                  "params": {
+                    "key": "ctrl"
+                  }
+                }
+              ]
+            },
+            "actions": [
+              {
+                "type": "BREAK_TILE",
+                "params": {
+                  "direction": "down-left",
+                  "replacementTileId": "tile_empty"
+                }
+              },
+              {
+                "type": "WAIT",
+                "params": {
+                  "frames": 20
+                }
+              }
+            ]
+          },
+          {
+            "id": "tr_any_take",
+            "fromStateId": "state_walk",
+            "toStateId": "state_take",
+            "conditions": {
+              "type": "HAS_COLLISION",
+              "params": {
+                "collisionType": "item"
+              }
+            },
+            "actions": [
+              {
+                "type": "INCREMENT_VARIABLE",
+                "params": {
+                  "variableName": "Gold",
+                  "amount": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "tr_take_idle",
+            "fromStateId": "state_take",
+            "toStateId": "state_idle",
+            "conditions": {
+              "type": "TIME_OUT",
+              "params": {
+                "frames": 1
+              }
+            }
+          },
+          {
+            "id": "tr_dig_idle",
+            "fromStateId": "state_dig",
+            "toStateId": "state_idle",
+            "conditions": {
+              "type": "TIME_OUT",
+              "params": {
+                "frames": 20
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "globals_gold_runner",
+      "name": "Gold Runner Globals",
+      "type": "globalvariables",
+      "data": {
+        "customVariables": [
+          {
+            "id": "var_gold",
+            "name": "Gold",
+            "type": "byte",
+            "initialValue": 0,
+            "description": "Collected gold count."
+          },
+          {
+            "id": "var_lives",
+            "name": "Lives",
+            "type": "byte",
+            "initialValue": 3,
+            "description": "Player lives."
+          },
+          {
+            "id": "var_exit",
+            "name": "ExitOpen",
+            "type": "boolean",
+            "initialValue": false,
+            "description": "Exit ladder available after all gold is collected."
+          },
+          {
+            "id": "var_on_ladder",
+            "name": "OnLadder",
+            "type": "boolean",
+            "initialValue": false,
+            "description": "Runtime helper set when player overlaps ladder."
+          }
+        ]
+      }
+    },
+    {
+      "id": "tilebank_gold_runner",
+      "name": "Gold Runner TileBank",
+      "type": "tilebank",
+      "data": {
+        "id": "tilebank_gold_runner",
+        "name": "Gold Runner TileBank",
+        "banks": [
+          {
+            "id": "bank_0",
+            "name": "Bank 0 - Gameplay",
+            "enabled": true,
+            "vramPatternStart": 0,
+            "vramColorStart": 8192,
+            "screenZone": {
+              "x": 0,
+              "y": 0,
+              "width": 32,
+              "height": 8
+            },
+            "charsetRangeStart": 0,
+            "charsetRangeEnd": 255,
+            "defaultFgColorIndex": 15,
+            "defaultBgColorIndex": 1,
+            "isLocked": false,
+            "assignedTiles": {
+              "tile_empty": {
+                "charCode": 32
+              },
+              "tile_brick": {
+                "charCode": 33
+              },
+              "tile_concrete": {
+                "charCode": 34
+              },
+              "tile_ladder": {
+                "charCode": 35
+              },
+              "tile_rope": {
+                "charCode": 36
+              },
+              "tile_gold": {
+                "charCode": 37
+              },
+              "tile_exit": {
+                "charCode": 38
+              },
+              "tile_trap": {
+                "charCode": 39
+              }
+            }
+          },
+          {
+            "id": "bank_1",
+            "name": "Bank 1 - Gameplay",
+            "enabled": true,
+            "vramPatternStart": 2048,
+            "vramColorStart": 10240,
+            "screenZone": {
+              "x": 0,
+              "y": 8,
+              "width": 32,
+              "height": 8
+            },
+            "charsetRangeStart": 0,
+            "charsetRangeEnd": 255,
+            "defaultFgColorIndex": 15,
+            "defaultBgColorIndex": 1,
+            "isLocked": false,
+            "assignedTiles": {
+              "tile_empty": {
+                "charCode": 32
+              },
+              "tile_brick": {
+                "charCode": 33
+              },
+              "tile_concrete": {
+                "charCode": 34
+              },
+              "tile_ladder": {
+                "charCode": 35
+              },
+              "tile_rope": {
+                "charCode": 36
+              },
+              "tile_gold": {
+                "charCode": 37
+              },
+              "tile_exit": {
+                "charCode": 38
+              },
+              "tile_trap": {
+                "charCode": 39
+              }
+            }
+          },
+          {
+            "id": "bank_2",
+            "name": "Bank 2 - Gameplay",
+            "enabled": true,
+            "vramPatternStart": 4096,
+            "vramColorStart": 12288,
+            "screenZone": {
+              "x": 0,
+              "y": 16,
+              "width": 32,
+              "height": 8
+            },
+            "charsetRangeStart": 0,
+            "charsetRangeEnd": 255,
+            "defaultFgColorIndex": 15,
+            "defaultBgColorIndex": 1,
+            "isLocked": false,
+            "assignedTiles": {
+              "tile_empty": {
+                "charCode": 32
+              },
+              "tile_brick": {
+                "charCode": 33
+              },
+              "tile_concrete": {
+                "charCode": 34
+              },
+              "tile_ladder": {
+                "charCode": 35
+              },
+              "tile_rope": {
+                "charCode": 36
+              },
+              "tile_gold": {
+                "charCode": 37
+              },
+              "tile_exit": {
+                "charCode": 38
+              },
+              "tile_trap": {
+                "charCode": 39
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tileBanks": [
+    {
+      "id": "tilebank_gold_runner",
+      "name": "Gold Runner TileBank",
+      "banks": [
+        {
+          "id": "bank_0",
+          "name": "Bank 0 - Gameplay",
+          "enabled": true,
+          "vramPatternStart": 0,
+          "vramColorStart": 8192,
+          "screenZone": {
+            "x": 0,
+            "y": 0,
+            "width": 32,
+            "height": 8
+          },
+          "charsetRangeStart": 0,
+          "charsetRangeEnd": 255,
+          "defaultFgColorIndex": 15,
+          "defaultBgColorIndex": 1,
+          "isLocked": false,
+          "assignedTiles": {
+            "tile_empty": {
+              "charCode": 32
+            },
+            "tile_brick": {
+              "charCode": 33
+            },
+            "tile_concrete": {
+              "charCode": 34
+            },
+            "tile_ladder": {
+              "charCode": 35
+            },
+            "tile_rope": {
+              "charCode": 36
+            },
+            "tile_gold": {
+              "charCode": 37
+            },
+            "tile_exit": {
+              "charCode": 38
+            },
+            "tile_trap": {
+              "charCode": 39
+            }
+          }
+        },
+        {
+          "id": "bank_1",
+          "name": "Bank 1 - Gameplay",
+          "enabled": true,
+          "vramPatternStart": 2048,
+          "vramColorStart": 10240,
+          "screenZone": {
+            "x": 0,
+            "y": 8,
+            "width": 32,
+            "height": 8
+          },
+          "charsetRangeStart": 0,
+          "charsetRangeEnd": 255,
+          "defaultFgColorIndex": 15,
+          "defaultBgColorIndex": 1,
+          "isLocked": false,
+          "assignedTiles": {
+            "tile_empty": {
+              "charCode": 32
+            },
+            "tile_brick": {
+              "charCode": 33
+            },
+            "tile_concrete": {
+              "charCode": 34
+            },
+            "tile_ladder": {
+              "charCode": 35
+            },
+            "tile_rope": {
+              "charCode": 36
+            },
+            "tile_gold": {
+              "charCode": 37
+            },
+            "tile_exit": {
+              "charCode": 38
+            },
+            "tile_trap": {
+              "charCode": 39
+            }
+          }
+        },
+        {
+          "id": "bank_2",
+          "name": "Bank 2 - Gameplay",
+          "enabled": true,
+          "vramPatternStart": 4096,
+          "vramColorStart": 12288,
+          "screenZone": {
+            "x": 0,
+            "y": 16,
+            "width": 32,
+            "height": 8
+          },
+          "charsetRangeStart": 0,
+          "charsetRangeEnd": 255,
+          "defaultFgColorIndex": 15,
+          "defaultBgColorIndex": 1,
+          "isLocked": false,
+          "assignedTiles": {
+            "tile_empty": {
+              "charCode": 32
+            },
+            "tile_brick": {
+              "charCode": 33
+            },
+            "tile_concrete": {
+              "charCode": 34
+            },
+            "tile_ladder": {
+              "charCode": 35
+            },
+            "tile_rope": {
+              "charCode": 36
+            },
+            "tile_gold": {
+              "charCode": 37
+            },
+            "tile_exit": {
+              "charCode": 38
+            },
+            "tile_trap": {
+              "charCode": 39
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "gameContract": {
+    "playerEntityTemplateId": "tpl_gold_runner_player",
+    "initialScreenAssetId": "screen_gold_runner_level_1",
+    "worldAssetId": "world_gold_runner",
+    "gameFlowAssetId": "gameflow_gold_runner_main",
+    "stateMachineAssetId": "statemachine_gold_runner_rules",
+    "acceptance": [
+      "collect_all_gold",
+      "avoid_guards",
+      "dig_bricks",
+      "escape_by_exit_ladder"
+    ]
+  }
+}

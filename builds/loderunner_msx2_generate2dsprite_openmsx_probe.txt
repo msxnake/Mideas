@@ -1,0 +1,3 @@
+player_x=10
+player_y=A0
+lives=03

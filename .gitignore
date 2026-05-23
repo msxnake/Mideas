@@ -8,6 +8,9 @@ __pycache__/
 # Generated Mideas/OpenMSX smoke outputs
 server/temp/
 test/msx2-screen5/out/
+test/msx2-screen4/out/
+test/msx2-screen4/msx2screen-layers-project.json
+test/msx2-screen4/msx2screen-conveyor-project.json
 
 # Local visual evidence created during agent/browser sessions
 .agent/*.png

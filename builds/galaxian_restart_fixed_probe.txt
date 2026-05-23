@@ -1,0 +1,8 @@
+lives=03
+game_over=00
+restart_lock=00
+score=00
+player_x=70
+player_y=A0
+e0y=20
+e10y=40

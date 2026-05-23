@@ -1,0 +1,6 @@
+x=70
+y=A0
+screen=01
+level_complete=00
+lives=03
+game_over=00

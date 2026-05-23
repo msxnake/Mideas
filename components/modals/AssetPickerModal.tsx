@@ -114,7 +114,9 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
     
     const assetTypeName = assetTypeToPick === 'screenBackground'
         ? 'Screen Background'
-        : assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
+        : assetTypeToPick === 'msx2sprite'
+            ? 'MSX2 Sprite'
+            : assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
 
     return (
         <div
@@ -149,7 +151,7 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
                                             : 'bg-msx-bgcolor hover:bg-msx-border text-msx-textprimary'}`
                                     }
                                 >
-                                    {asset.type === 'sprite' ? (
+                                    {asset.type === 'sprite' || asset.type === 'msx2sprite' ? (
                                         <div className="w-8 h-8 mr-2 flex-shrink-0">
                                             <SpritePreview sprite={asset.data as Sprite} />
                                         </div>

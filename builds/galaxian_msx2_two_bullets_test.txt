@@ -1,0 +1,7 @@
+score_lo=C8
+score_hi=00
+bullet0_active=00
+bullet1_active=00
+bullet0_y=46
+bullet1_y=3A
+enemy_y1=20

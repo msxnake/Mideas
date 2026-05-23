@@ -1,0 +1,1 @@
+MSX2 multicolor arcade paddle sprite, white/cyan/blue/red end caps, solid #FF00FF background.

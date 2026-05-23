@@ -1,0 +1,8 @@
+lives=00
+game_over=01
+restart_lock=00
+player_x=70
+player_y=A0
+enemy_bullet_active=00
+enemy_bullet_x=00
+enemy_bullet_y=00

@@ -4,11 +4,16 @@
  */
 
 import { ProjectAsset, ComponentDefinition, EntityTemplate, ScreenMap } from '../types';
+import {
+  isComponentDefinitionEnabledForProject,
+  isEntityTemplateEnabledForProject,
+} from './projectTarget';
 
 interface ProjectData {
   assets: ProjectAsset[];
   componentDefinitions: ComponentDefinition[];
   entityTemplates: EntityTemplate[];
+  currentScreenMode?: string;
 }
 
 /**
@@ -90,24 +95,28 @@ export function cleanUnusedDefinitions(projectData: ProjectData): {
     templatesRemoved: number;
   };
 } {
-  const { assets, componentDefinitions, entityTemplates } = projectData;
+  const { assets, componentDefinitions, entityTemplates, currentScreenMode } = projectData;
 
-  // CRITICAL FIX: Do NOT clean entityTemplates
-  // Keep ALL entity templates, even if unused
-  // This prevents losing custom entities that haven't been placed yet
-  const cleanedEntityTemplates = entityTemplates;
+  const targetEntityTemplates = currentScreenMode
+    ? entityTemplates.filter(template => isEntityTemplateEnabledForProject(template, currentScreenMode))
+    : entityTemplates;
+
+  // Keep every template that belongs to the active target, even if unused.
+  // This preserves custom entities while still keeping MSX2-only defaults out of MSX1 saves.
+  const cleanedEntityTemplates = targetEntityTemplates;
 
   // Step 2: Find used component definitions (from ALL entity templates)
   const usedComponentIds = getUsedComponentIds(cleanedEntityTemplates);
 
   // Filter component definitions to keep only used ones
   const cleanedComponentDefinitions = componentDefinitions.filter(compDef =>
-    usedComponentIds.has(compDef.id)
+    usedComponentIds.has(compDef.id) &&
+    (!currentScreenMode || isComponentDefinitionEnabledForProject(compDef, currentScreenMode))
   );
 
   const stats = {
     componentsRemoved: componentDefinitions.length - cleanedComponentDefinitions.length,
-    templatesRemoved: 0,  // Always 0 now - we keep all templates
+    templatesRemoved: entityTemplates.length - cleanedEntityTemplates.length,
   };
 
   return {

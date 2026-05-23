@@ -1,0 +1,175 @@
+{
+  "target": "player",
+  "mode": "walk",
+  "prompt": "MSX2 SCREEN 4 Lode Runner style hero, blue suit, yellow hard-hat, solid magenta background, 2x2 walk sheet.",
+  "role": "",
+  "input": "C:\\Users\\salam\\.codex\\generated_images\\019e50c7-9d60-7ba3-8da7-c656de1e2a04\\ig_0b3c949bb1dd2cc5016a109b647f6881919a675b6913d2bde5.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 140,
+  "rows": 2,
+  "cols": 2,
+  "cell_size": 128,
+  "fit_scale": 0.85,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "feet",
+  "shared_scale": true,
+  "component_mode": "largest",
+  "component_padding": 4,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "runner-1",
+    "runner-2",
+    "runner-3",
+    "runner-4"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        627,
+        627
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 50984,
+      "selected_component_bbox": [
+        219,
+        136,
+        409,
+        505
+      ],
+      "crop_bbox": [
+        215,
+        132,
+        413,
+        509
+      ],
+      "edge_touch": false,
+      "output_size": [
+        57,
+        108
+      ],
+      "paste_position": [
+        35,
+        11
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        627,
+        0,
+        1254,
+        627
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 53705,
+      "selected_component_bbox": [
+        175,
+        136,
+        403,
+        505
+      ],
+      "crop_bbox": [
+        171,
+        132,
+        407,
+        509
+      ],
+      "edge_touch": false,
+      "output_size": [
+        68,
+        108
+      ],
+      "paste_position": [
+        30,
+        11
+      ]
+    },
+    {
+      "grid": [
+        1,
+        0
+      ],
+      "source_box": [
+        0,
+        627,
+        627,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 50892,
+      "selected_component_bbox": [
+        219,
+        116,
+        409,
+        484
+      ],
+      "crop_bbox": [
+        215,
+        112,
+        413,
+        488
+      ],
+      "edge_touch": false,
+      "output_size": [
+        57,
+        108
+      ],
+      "paste_position": [
+        35,
+        11
+      ]
+    },
+    {
+      "grid": [
+        1,
+        1
+      ],
+      "source_box": [
+        627,
+        627,
+        1254,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 53876,
+      "selected_component_bbox": [
+        197,
+        116,
+        425,
+        484
+      ],
+      "crop_bbox": [
+        193,
+        112,
+        429,
+        488
+      ],
+      "edge_touch": false,
+      "output_size": [
+        68,
+        108
+      ],
+      "paste_position": [
+        30,
+        11
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

@@ -1,0 +1,3 @@
+player_x=EF
+lives=03
+game_over=00

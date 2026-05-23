@@ -49,7 +49,20 @@ function generateColorsFile(analysis, romMode = 'simple32k', dataInBank4 = false
 ; File: colors.asm
 ; ==================================================================
 
-; No tiles detected in project - file generated as placeholder
+; No SCREEN 2 tiles detected in project. Keep the public loader labels
+; available because GameFlow transition code may call them from MSX2-only
+; projects while restoring shared VRAM state.
+load_color_bank0:
+    ret
+
+load_color_bank1:
+    ret
+
+load_color_bank2:
+    ret
+
+load_colors_to_vram:
+    ret
 `;
     }
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);

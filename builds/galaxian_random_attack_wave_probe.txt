@@ -1,0 +1,12 @@
+screen=00
+game_over=00
+attack_timer=9C
+attack_cursor=00
+enemy0_y=97
+enemy1_y=20
+enemy2_y=20
+enemy3_y=20
+tick0=0F
+tick1=FF
+tick2=FF
+tick3=FF

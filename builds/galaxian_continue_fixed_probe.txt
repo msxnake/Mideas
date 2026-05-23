@@ -1,0 +1,7 @@
+level=00
+continue_lock=00
+score=64
+lives=03
+game_over=00
+e0y=20
+e10y=40

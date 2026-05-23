@@ -1,5 +1,9 @@
 import { ComponentDefinition, ComponentPropertyDefinition, EntityTemplate } from '../types';
-import { MSX2_COMPONENT_REPERTOIRE } from '../components/msx2_screen5_editor/msx2EntityCatalog';
+import {
+  buildMsx2EntityComponents,
+  MSX2_COMPONENT_REPERTOIRE,
+  MSX2_ENTITY_REPERTOIRE,
+} from '../components/msx2_screen5_editor/msx2EntityCatalog';
 
 export const DEFAULT_MAP_ASM_CONTENT = `
  include "asm/init.asm"
@@ -7,7 +11,9 @@ export const DEFAULT_MAP_ASM_CONTENT = `
 
 export const DEFAULT_CONSTANTS_ASM_CONTENT = ``;
 
-const inferMsx2DefaultPropertyType = (value: any): ComponentPropertyDefinition['type'] => {
+const inferMsx2DefaultPropertyType = (name: string, value: any): ComponentPropertyDefinition['type'] => {
+  if (name === 'msx2SpriteAssetId') return 'msx2sprite_ref';
+  if (name === 'cameraX' || name === 'cameraY') return 'word';
   if (typeof value === 'boolean') return 'boolean';
   if (typeof value === 'number') return Number.isInteger(value) && value >= 0 && value <= 255 ? 'byte' : 'word';
   return 'string';
@@ -20,10 +26,34 @@ const DEFAULT_MSX2_COMPONENT_DEFINITIONS: ComponentDefinition[] = MSX2_COMPONENT
   description: component.description,
   properties: Object.entries(component.defaults).map(([name, defaultValue]) => ({
     name,
-    type: inferMsx2DefaultPropertyType(defaultValue),
+    type: inferMsx2DefaultPropertyType(name, defaultValue),
     defaultValue,
     description: `${component.label} ${name}.`,
   })),
+}));
+
+const inferMsx2EntityTemplateIcon = (kind: string): string => {
+  switch (kind) {
+    case 'player': return 'P';
+    case 'enemy': return 'E';
+    case 'hazard': return '!';
+    case 'collectible': return '*';
+    case 'door': return 'D';
+    default: return 'M';
+  }
+};
+
+const DEFAULT_MSX2_ENTITY_TEMPLATES: EntityTemplate[] = MSX2_ENTITY_REPERTOIRE.map(preset => ({
+  id: `tpl_msx2_${preset.id}`,
+  name: preset.label,
+  target: 'MSX2',
+  icon: inferMsx2EntityTemplateIcon(preset.kind),
+  isPlayer: preset.kind === 'player',
+  components: Object.entries(buildMsx2EntityComponents(preset, 0, 0)).map(([definitionId, defaultValues]) => ({
+    definitionId,
+    defaultValues,
+  })),
+  description: preset.description,
 }));
 
 export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
@@ -853,4 +883,5 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     ],
     description: "A movable box that acts as a solid platform. Can be picked up and carried with action key (Z)."
   },
+  ...DEFAULT_MSX2_ENTITY_TEMPLATES,
 ];

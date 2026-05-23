@@ -164,9 +164,9 @@ ${files['mapper.asm']}
 
 ${files['interrupt.asm']}
 
-${analysis.tiles && analysis.tiles.length > 0 ? files['patterns.asm'] : '; [patterns.asm skipped - no tiles]\n'}
+${files['patterns.asm']}
 
-${analysis.tiles && analysis.tiles.length > 0 ? files['colors.asm'] : '; [colors.asm skipped - no tiles]\n'}
+${files['colors.asm']}
 
 ${files['sprites.asm']}
 

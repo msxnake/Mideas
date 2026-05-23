@@ -374,6 +374,7 @@ export const useAssetHandlers = ({
           backgroundColor: msx2Background,
           frames: [{ id: `frame_${Date.now()}`, data: msx2SpriteData }],
           currentFrameIndex: 0,
+          facingDirection: 'right',
           hardware: { x: 72, y: 102, color: 5, patternIndex: 0, useOrColor: true }
         } as Msx2Sprite;
         newEditorType = EditorType.Msx2Sprite;

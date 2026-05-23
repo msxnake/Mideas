@@ -51,6 +51,20 @@ export const isEntityTemplateEnabledForProject = (
   currentScreenMode: string
 ): boolean => isTargetEnabledForProject(getEntityTemplateTarget(template), currentScreenMode);
 
+export const filterComponentDefinitionsForProject = (
+  components: ComponentDefinition[],
+  currentScreenMode: string
+): ComponentDefinition[] => components.filter(component =>
+  isComponentDefinitionEnabledForProject(component, currentScreenMode)
+);
+
+export const filterEntityTemplatesForProject = (
+  templates: EntityTemplate[],
+  currentScreenMode: string
+): EntityTemplate[] => templates.filter(template =>
+  isEntityTemplateEnabledForProject(template, currentScreenMode)
+);
+
 export const isAssetTypeEnabledForProject = (
   assetType: ProjectAsset['type'],
   currentScreenMode: string

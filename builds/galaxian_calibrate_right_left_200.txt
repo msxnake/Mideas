@@ -1,0 +1,3 @@
+player_x=CB
+lives=03
+game_over=00

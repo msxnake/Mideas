@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outJson = path.join(root, 'test', 'msx2-screen5', 'msx2screen-layers-project.json');
+const fixtureDir = process.env.MIDEAS_MSX2_SCREEN_FIXTURE_DIR || 'msx2-screen5';
+const outJson = path.join(root, 'test', fixtureDir, 'msx2screen-layers-project.json');
 
 const palette = [
   { slotIndex: 0, masterIndex: -1, hex: 'rgba(0,0,0,0)' },

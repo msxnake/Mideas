@@ -1,0 +1,4 @@
+screen=00
+game_over=00
+bullet_active=01
+bullet_y=50

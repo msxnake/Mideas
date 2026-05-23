@@ -1,0 +1,6 @@
+player_x=00
+player_y=00
+game_over=63
+lives=06
+dead=55
+air=72

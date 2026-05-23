@@ -8,7 +8,7 @@ const types_1 = require("./types");
 /** The current version of the application. */
 exports.APP_VERSION = "0.267";
 /**
- * The 16-color palette for MSX SCREEN 5.
+ * The 16-color MSX2 palette used by SCREEN 4 assets and legacy SCREEN 5 data.
  * Used for sprite colors and general UI.
  */
 exports.MSX_SCREEN5_PALETTE = [
@@ -51,10 +51,10 @@ exports.MSX1_PALETTE = [
     { name: 'Gray', hex: '#CCCCCC', index: 14 },
     { name: 'White', hex: '#FFFFFF', index: 15 },
 ];
-/** Intensity levels available for each RGB component on MSX2 SCREEN 5. */
+/** Intensity levels available for each RGB component on MSX2 V9938 palette entries. */
 exports.MSX2_COLOR_LEVELS = [0x00, 0x24, 0x49, 0x6D, 0x92, 0xB6, 0xDB, 0xFF];
 const toHex = (value) => value.toString(16).padStart(2, '0').toUpperCase();
-/** Complete 512-color master palette for SCREEN 5 (MSX2). */
+/** Complete 512-color master palette for MSX2 V9938 palette entries. */
 exports.MSX_SCREEN5_MASTER_PALETTE = (() => {
     const palette = [];
     for (let r = 0; r < exports.MSX2_COLOR_LEVELS.length; r++) {
@@ -132,8 +132,8 @@ exports.DEFAULT_SCREEN_HEIGHT_TILES = 24;
 exports.EDITOR_BASE_TILE_DIM_S2 = 8;
 /** The character code used to represent an empty tile cell in exported data. */
 exports.EMPTY_CELL_CHAR_CODE = 255;
-/** A list of available MSX screen modes. */
-exports.SCREEN_MODES = ["SCREEN 0 (Text 40)", "SCREEN 1 (Text 32)", "SCREEN 2 (Graphics I)", "SCREEN 3 (Multicolor)", "SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)", "SCREEN 6 (Graphics IV)", "SCREEN 7 (Graphics V)", "SCREEN 8 (Graphics VI)"];
+/** A list of available MSX screen modes for new/editable projects. SCREEN 5 is accepted only when loading legacy projects. */
+exports.SCREEN_MODES = ["SCREEN 0 (Text 40)", "SCREEN 1 (Text 32)", "SCREEN 2 (Graphics I)", "SCREEN 3 (Multicolor)", "SCREEN 4 (Graphics II)", "SCREEN 6 (Graphics IV)", "SCREEN 7 (Graphics V)", "SCREEN 8 (Graphics VI)"];
 /** The default screen mode for a new project. */
 exports.DEFAULT_SCREEN_MODE = "SCREEN 2 (Graphics I)";
 /** A list of Z80 assembly mnemonics for syntax highlighting. */
