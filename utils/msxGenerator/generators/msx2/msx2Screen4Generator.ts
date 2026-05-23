@@ -34,6 +34,9 @@ const SCREEN4_SPRCOL_VRAM = '#1C00';
 const SCREEN4_SPRATR_VRAM = '#1E00';
 const SCREEN4_COLOR_VRAM = '#2000';
 const SCREEN4_SPRPAT_VRAM = '#3800';
+const MSX2_HUD_FONT_BASE_CHAR = 0xC0;
+const MSX2_HUD_FONT_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
+const MSX2_ZX_FONT_ASCII_FIRST = 0x20;
 const MSX2_TILE_SCREEN_WIDTH = 16;
 const MSX2_TILE_SCREEN_HEIGHT = 12;
 const MSX2_PLAYER_BULLET_HARDWARE_SLOTS = 2;
@@ -70,6 +73,48 @@ const MSX2_ENEMY_BULLET_PATTERN = [
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+const MSX2_HUD_FONT_GLYPHS: Record<string, number[]> = {
+  ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+  '0': [0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C, 0x00],
+  '1': [0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00],
+  '2': [0x3C, 0x66, 0x06, 0x1C, 0x30, 0x60, 0x7E, 0x00],
+  '3': [0x3C, 0x66, 0x06, 0x1C, 0x06, 0x66, 0x3C, 0x00],
+  '4': [0x0C, 0x1C, 0x3C, 0x6C, 0x7E, 0x0C, 0x0C, 0x00],
+  '5': [0x7E, 0x60, 0x7C, 0x06, 0x06, 0x66, 0x3C, 0x00],
+  '6': [0x1C, 0x30, 0x60, 0x7C, 0x66, 0x66, 0x3C, 0x00],
+  '7': [0x7E, 0x06, 0x0C, 0x18, 0x30, 0x30, 0x30, 0x00],
+  '8': [0x3C, 0x66, 0x66, 0x3C, 0x66, 0x66, 0x3C, 0x00],
+  '9': [0x3C, 0x66, 0x66, 0x3E, 0x06, 0x0C, 0x38, 0x00],
+  A: [0x18, 0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x00],
+  B: [0x7C, 0x66, 0x66, 0x7C, 0x66, 0x66, 0x7C, 0x00],
+  C: [0x3C, 0x66, 0x60, 0x60, 0x60, 0x66, 0x3C, 0x00],
+  D: [0x78, 0x6C, 0x66, 0x66, 0x66, 0x6C, 0x78, 0x00],
+  E: [0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x7E, 0x00],
+  F: [0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x60, 0x00],
+  G: [0x3C, 0x66, 0x60, 0x6E, 0x66, 0x66, 0x3C, 0x00],
+  H: [0x66, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00],
+  I: [0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00],
+  J: [0x1E, 0x0C, 0x0C, 0x0C, 0x0C, 0x6C, 0x38, 0x00],
+  K: [0x66, 0x6C, 0x78, 0x70, 0x78, 0x6C, 0x66, 0x00],
+  L: [0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00],
+  M: [0x63, 0x77, 0x7F, 0x6B, 0x63, 0x63, 0x63, 0x00],
+  N: [0x66, 0x76, 0x7E, 0x7E, 0x6E, 0x66, 0x66, 0x00],
+  O: [0x3C, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00],
+  P: [0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60, 0x60, 0x00],
+  Q: [0x3C, 0x66, 0x66, 0x66, 0x6A, 0x6C, 0x36, 0x00],
+  R: [0x7C, 0x66, 0x66, 0x7C, 0x78, 0x6C, 0x66, 0x00],
+  S: [0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0x00],
+  T: [0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00],
+  U: [0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00],
+  V: [0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x18, 0x00],
+  W: [0x63, 0x63, 0x63, 0x6B, 0x7F, 0x77, 0x63, 0x00],
+  X: [0x66, 0x66, 0x3C, 0x18, 0x3C, 0x66, 0x66, 0x00],
+  Y: [0x66, 0x66, 0x66, 0x3C, 0x18, 0x18, 0x18, 0x00],
+  Z: [0x7E, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x7E, 0x00],
+  ':': [0x00, 0x18, 0x18, 0x00, 0x00, 0x18, 0x18, 0x00],
+  '-': [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00],
+  '/': [0x06, 0x0C, 0x0C, 0x18, 0x30, 0x30, 0x60, 0x00],
+};
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
     .replace(/[^a-zA-Z0-9_]/g, '_')
@@ -551,6 +596,7 @@ function buildTileScreenLoadRoutine(
   screenIndex: number | undefined,
   loadRuntimeLayerPointers: (label: string, screenIndex?: number) => string,
   afterPatternLoad = '',
+  afterNameLoad = '',
   useKonamiDataBank = false
 ): string {
   const data = buildScreen4ScreenData(screen);
@@ -590,7 +636,7 @@ ${afterPatternLoad}
     ld bc, SCREEN4_NAME_SIZE
     call LDIRVM
 ${leaveDataBank}
-${loadRuntimeLayerPointers(label, screenIndex)}    call apply_${label}_collected_visuals
+${afterNameLoad}${loadRuntimeLayerPointers(label, screenIndex)}    call apply_${label}_collected_visuals
     ret
 `;
 }
@@ -801,6 +847,102 @@ function formatWords(label: string, words: number[], comment?: string): string {
     return [clamped & 0xff, (clamped >> 8) & 0xff];
   });
   return formatBytes(label, bytes, comment);
+}
+
+function getMsx2HudFontAsset(analysis: ProjectAnalysis): any | undefined {
+  const assets = (analysis as any).assets as Array<{ type?: string; data?: unknown }> | undefined;
+  return assets?.find(asset => asset?.type === 'msx2hudfont')?.data;
+}
+
+function getMsx2HudFontCharacters(analysis: ProjectAnalysis): string {
+  const asset = getMsx2HudFontAsset(analysis);
+  const characters = String(asset?.characters || '');
+  return characters.length ? characters.slice(0, 96) : MSX2_HUD_FONT_CHARS;
+}
+
+function getMsx2HudFontBaseChar(analysis: ProjectAnalysis): number {
+  const asset = getMsx2HudFontAsset(analysis);
+  const baseChar = Math.trunc(Number(asset?.baseChar ?? MSX2_HUD_FONT_BASE_CHAR));
+  return Math.max(0, Math.min(255, Number.isFinite(baseChar) ? baseChar : MSX2_HUD_FONT_BASE_CHAR));
+}
+
+function isMsx2HudFontContiguousAscii(analysis: ProjectAnalysis): boolean {
+  const characters = getMsx2HudFontCharacters(analysis);
+  return characters.length > 0 && Array.from(characters).every((char, index) =>
+    char.charCodeAt(0) === MSX2_ZX_FONT_ASCII_FIRST + index
+  );
+}
+
+function buildMsx2HudFontPatternBytes(analysis: ProjectAnalysis): number[] {
+  const asset = getMsx2HudFontAsset(analysis);
+  const characters = getMsx2HudFontCharacters(analysis);
+  return Array.from(characters).flatMap(char => {
+    const pattern = asset?.patterns?.[char] || MSX2_HUD_FONT_GLYPHS[char] || MSX2_HUD_FONT_GLYPHS[' '];
+    return Array.from({ length: 8 }, (_unused, index) => Math.max(0, Math.min(255, Number(pattern[index]) || 0)));
+  });
+}
+
+function buildMsx2HudFontColorBytes(analysis: ProjectAnalysis): number[] {
+  const asset = getMsx2HudFontAsset(analysis);
+  const colorByte = Math.max(0, Math.min(255, Number(asset?.colorByte ?? 0xF1) || 0xF1));
+  return Array.from({ length: getMsx2HudFontCharacters(analysis).length * 8 }, () => colorByte);
+}
+
+function normalizeMsx2HudText(value: string, maxLength = 31, allowedCharacters = MSX2_HUD_FONT_CHARS): string {
+  const allowed = new Set(Array.from(allowedCharacters));
+  return Array.from(String(value || '').toUpperCase())
+    .map(char => allowed.has(char) ? char : ' ')
+    .join('')
+    .slice(0, Math.max(0, maxLength));
+}
+
+function getMsx2HudCounterText(widget: any): string {
+  const maxValue = Number(widget?.maxValue);
+  const initialValue = Number(widget?.initialValue);
+  const maxDigits = Number.isFinite(maxValue) ? Math.max(1, Math.min(6, String(Math.max(0, Math.floor(maxValue))).length)) : 3;
+  const value = Number.isFinite(initialValue) ? Math.max(0, Math.floor(initialValue)) : 0;
+  return String(value).padStart(maxDigits, '0').slice(-maxDigits);
+}
+
+function getMsx2HudWidgetText(widget: any, allowedCharacters = MSX2_HUD_FONT_CHARS): string {
+  const kind = String(widget?.kind || '').trim();
+  if (kind === 'text') return normalizeMsx2HudText(String(widget?.text || widget?.name || ''), Math.max(1, Math.ceil((Number(widget?.width) || 64) / 8)), allowedCharacters);
+  if (kind === 'counter') return normalizeMsx2HudText(getMsx2HudCounterText(widget), 31, allowedCharacters);
+  return '';
+}
+
+function buildMsx2HudTextRoutines(label: string, screen: Msx2Screen4TileScreen | undefined, analysis: ProjectAnalysis): string {
+  const allowedCharacters = getMsx2HudFontCharacters(analysis);
+  const widgets = getTileScreenHudWidgets(screen).filter(widget => ['text', 'counter'].includes(String(widget?.kind || '').trim()));
+  const drawable = widgets
+    .map((widget, index) => {
+      const text = getMsx2HudWidgetText(widget, allowedCharacters);
+      if (!text) return null;
+      const column = Math.max(0, Math.min(31, Math.floor((Number(widget?.x) || 0) / 8)));
+      const row = Math.max(0, Math.min(23, Math.floor((Number(widget?.y) || 0) / 8)));
+      const maxChars = Math.max(1, Math.min(32 - column, Math.ceil((Number(widget?.width) || (text.length * 8)) / 8)));
+      return {
+        index,
+        text: text.slice(0, maxChars),
+        vram: 0x1800 + (row * SCREEN4_CHAR_COLUMNS) + column,
+      };
+    })
+    .filter((entry): entry is { index: number; text: string; vram: number } => Boolean(entry));
+
+  const body = drawable.length
+    ? drawable.map(entry => `    ld hl, #${entry.vram.toString(16).toUpperCase().padStart(4, '0')}
+    ld de, ${label}_HUD_TEXT_${entry.index}
+    call draw_msx2_hud_string`).join('\n')
+    : '    ret';
+  const strings = drawable.map(entry =>
+    formatBytes(`${label}_HUD_TEXT_${entry.index}`, [...Array.from(entry.text).map(char => char.charCodeAt(0) & 0xff), 0], `${screen?.name || label} HUD text "${entry.text}"`)
+  ).join('');
+
+  return `draw_${label}_hud_text:
+${body}
+    ret
+
+${strings}`;
 }
 
 function getEntityRenderSpriteId(entity: any): string {
@@ -3620,6 +3762,64 @@ control_2_players_ball_collect_item:
     ret
 ` : '';
 
+  const hudFontBaseChar = getMsx2HudFontBaseChar(analysis);
+  const hudFontPatternVram = hudFontBaseChar * 8;
+  const hudFontColorVram = 0x2000 + (hudFontBaseChar * 8);
+  const hudFontUsesContiguousAscii = isMsx2HudFontContiguousAscii(analysis);
+  const hudAsciiMapperAsm = hudFontUsesContiguousAscii ? `msx2_hud_ascii_to_char:
+    ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
+    ; ZX-style imports store the first glyph at ASCII #20, so map by subtracting #20.
+    cp #20
+    jp c, .fallback
+    cp #80
+    jp nc, .fallback
+    sub #20
+    add a, MSX2_HUD_FONT_BASE_CHAR
+    ret
+.fallback:
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ret
+` : `msx2_hud_ascii_to_char:
+    ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
+    cp #20
+    jp z, .space
+    cp #30
+    jp c, .punct
+    cp #3A
+    jp c, .digit
+    cp #41
+    jp c, .punct
+    cp #5B
+    jp c, .upper
+.punct:
+    cp #3A
+    jp z, .colon
+    cp #2D
+    jp z, .dash
+    cp #2F
+    jp z, .slash
+.space:
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ret
+.digit:
+    sub #30
+    add a, MSX2_HUD_FONT_BASE_CHAR + 1
+    ret
+.upper:
+    sub #41
+    add a, MSX2_HUD_FONT_BASE_CHAR + 11
+    ret
+.colon:
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 37
+    ret
+.dash:
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 38
+    ret
+.slash:
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 39
+    ret
+`;
+
   const statusHudAsm = `draw_msx2_lives_hud:
 draw_msx2_score_hud:
 draw_msx2_collectible_hud:
@@ -3627,6 +3827,46 @@ draw_msx2_air_hud:
     ; Native SCREEN 4 HUD authoring is exported as metadata for now.
     ; Runtime drawing is intentionally data-driven work, not hardcoded bars.
     ret
+
+load_msx2_hud_font:
+    ; Loads the generic MSX2 SCREEN 4 HUD font into reserved high char slots. Clobbers AF/BC/DE/HL.
+    ld hl, msx2_hud_font_patterns
+    ld de, ${formatHexWord(hudFontPatternVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call LDIRVM
+    ld hl, msx2_hud_font_patterns
+    ld de, ${formatHexWord(0x0800 + hudFontPatternVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call LDIRVM
+    ld hl, msx2_hud_font_patterns
+    ld de, ${formatHexWord(0x1000 + hudFontPatternVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call LDIRVM
+    ld hl, msx2_hud_font_colors
+    ld de, ${formatHexWord(hudFontColorVram)}
+    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
+    call LDIRVM
+    ld hl, msx2_hud_font_colors
+    ld de, ${formatHexWord(0x0800 + hudFontColorVram)}
+    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
+    call LDIRVM
+    ld hl, msx2_hud_font_colors
+    ld de, ${formatHexWord(0x1000 + hudFontColorVram)}
+    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
+    jp LDIRVM
+
+draw_msx2_hud_string:
+    ; DE=zero-terminated ASCII, HL=SCREEN 4 name-table VRAM destination. Clobbers AF/B/DE/HL.
+    ld a, (de)
+    or a
+    ret z
+    inc de
+    call msx2_hud_ascii_to_char
+    call write_vram_byte_ext
+    inc hl
+    jp draw_msx2_hud_string
+
+${hudAsciiMapperAsm}
 `;
 
   const stageBannerAsm = stageBannerEnabled ? `
@@ -7263,7 +7503,18 @@ ${loadEffectsPointer}`;
   };
   const tileScreenAfterPatternLoad = snakeCharMovement ? '    call msx2_snake_load_runtime_chars\n' : '';
   const tileScreenLoadRoutines = tileScreens.map((screen, index) =>
-    buildTileScreenLoadRoutine(tileScreenLoadLabels[index], screen, index, loadRuntimeLayerPointers, tileScreenAfterPatternLoad, useKonamiDataBank)
+    buildTileScreenLoadRoutine(
+      tileScreenLoadLabels[index],
+      screen,
+      index,
+      loadRuntimeLayerPointers,
+      tileScreenAfterPatternLoad,
+      `    call load_msx2_hud_font\n    call draw_${tileScreenLoadLabels[index]}_hud_text\n`,
+      useKonamiDataBank
+    )
+  );
+  const tileScreenHudTextRoutines = tileScreens.map((screen, index) =>
+    buildMsx2HudTextRoutines(tileScreenLoadLabels[index], screen, analysis)
   );
   const loadCurrentTileScreenDispatcher = buildLoadCurrentTileScreenDispatcher(tileScreenLoadLabels);
   const tileScreenCollectedVisualRoutines = tileScreens.map((screen, index) =>
@@ -7397,6 +7648,7 @@ msx2_runtime_ram_end EQU ${formatHexWord(runtimeRamEnd)}
 msx2_runtime_ram_limit EQU ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}
 msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
 msx2_required_collectibles EQU ${requiredCollectibles}
+MSX2_HUD_FONT_BASE_CHAR EQU #${getMsx2HudFontBaseChar(analysis).toString(16).toUpperCase().padStart(2, '0')}
 
     org #4000
 
@@ -7681,7 +7933,7 @@ ${useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : ''}
 
 ${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase)}
 ${loadCurrentTileScreenDispatcher}
-${[...tileScreenLoadRoutines, ...tileScreenCollectedVisualRoutines].join('\n')}
+${[...tileScreenLoadRoutines, ...tileScreenCollectedVisualRoutines, ...tileScreenHudTextRoutines].join('\n')}
 ${useKonamiDataBank ? '' : formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}
@@ -7707,6 +7959,10 @@ ${formatBytes('msx2_screen_hud_widget_text_pool', hudWidgetTextPool, 'Zero-termi
 ${formatWords('msx2_screen_hud_widget_variable_name_offset', hudWidgetVariableNameOffsetByWidget.length ? hudWidgetVariableNameOffsetByWidget : [0], 'Per-widget byte offsets into msx2_screen_hud_widget_variable_name_pool')}
 ${formatBytes('msx2_screen_hud_widget_variable_length', hudWidgetVariableNameLengthByWidget.length ? hudWidgetVariableNameLengthByWidget : [0], 'Per-widget variable name lengths for custom HUD bindings')}
 ${formatBytes('msx2_screen_hud_widget_variable_name_pool', hudWidgetVariableNamePool, 'Zero-terminated ASCII variable names for custom HUD bindings; offset 0 is empty')}
+${formatBytes('msx2_hud_font_patterns', buildMsx2HudFontPatternBytes(analysis), 'MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash')}
+msx2_hud_font_patterns_end:
+${formatBytes('msx2_hud_font_colors', buildMsx2HudFontColorBytes(analysis), 'MSX2 SCREEN 4 HUD font colors: foreground 15 over background 1')}
+msx2_hud_font_colors_end:
 ${formatBytes('msx2_screen_attack_interval', attackWaveSettingsByScreen.map(settings => settings.intervalFrames), 'Per-msx2screen Galaxian Attack Wave interval in frames')}
 ${formatBytes('msx2_screen_attack_min', attackWaveSettingsByScreen.map(settings => settings.minAttackers), 'Per-msx2screen Galaxian Attack Wave minimum attackers')}
 ${formatBytes('msx2_screen_attack_max', attackWaveSettingsByScreen.map(settings => settings.maxAttackers), 'Per-msx2screen Galaxian Attack Wave maximum attackers')}
@@ -7786,8 +8042,8 @@ export function generateMsx2Screen4Files(
     'sprites.asm': hasHardwareSprite(analysis)
       ? '; MSX2 SCREEN 4 hardware sprite MVP is emitted inline in unitedFiles.asm.\n'
       : '; Sprites are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
-    'font.asm': '; Font is out of scope for the first MSX2 SCREEN 4 backend slice.\n',
-    'hud.asm': '; MSX2 SCREEN 4 lives and collectible HUD are emitted inline in unitedFiles.asm.\n',
+    'font.asm': '; MSX2 SCREEN 4 HUD font patterns and loader are emitted inline in unitedFiles.asm.\n',
+    'hud.asm': '; MSX2 SCREEN 4 HUD metadata, font text, lives, and collectible helpers are emitted inline in unitedFiles.asm.\n',
     'menus.asm': '; Menus are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
     'sound.asm': '; Sound is out of scope for the first MSX2 SCREEN 4 backend slice.\n',
     'scroll.asm': '; Scroll is out of scope for the first MSX2 SCREEN 4 backend slice.\n',

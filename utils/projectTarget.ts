@@ -17,6 +17,8 @@ const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'msx2sprite',
   'msx2bitmap',
   'msx2screen',
+  'msx2bitmaproom',
+  'msx2hudfont',
 ]);
 
 export const getProjectTargetFromScreenMode = (screenMode: string): ProjectTarget => (

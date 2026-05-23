@@ -23,6 +23,7 @@ import {
 import { generateSpriteBinaryData } from '../utils/spriteUtils';
 import { generateTilePatternBytes } from '../utils/tileUtils';
 import { CodeIcon, SaveIcon, CompilerIcon } from '../icons/MsxIcons';
+import { buildMsx2BudgetFeedbackFromAsm, summarizeMsx2BudgetPressure } from '../../utils/msx2BudgetFeedback';
 
 interface CodeExportModalProps {
   isOpen: boolean;
@@ -240,6 +241,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [exportType, setExportType] = useState<ExportType>('asm_all_in_one');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
   const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [generatedMsx2BudgetFeedback, setGeneratedMsx2BudgetFeedback] = useState<any | null>(null);
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -292,6 +294,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     });
 
   const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+  const updateGeneratedCode = (code: string) => {
+    setGeneratedCode(code);
+    setGeneratedMsx2BudgetFeedback(buildMsx2BudgetFeedbackFromAsm(code));
+  };
 
   const buildBackendFetchError = (action: string, error: unknown) => {
     const details = error instanceof Error ? error.message : String(error);
@@ -382,7 +389,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const handleFileTabChange = (index: number) => {
     setActiveFileIndex(index);
     if (generatedFiles[index]) {
-      setGeneratedCode(generatedFiles[index].content);
+      updateGeneratedCode(generatedFiles[index].content);
     }
   };
 
@@ -559,7 +566,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           romSizeInfo: result.romSizeInfo,
           suggestedRomConfig: result.suggestedRomConfig,
           negativeDsOverflowBytes: result.negativeDsOverflowBytes,
-          plain48kPage0Info: result.plain48kPage0Info
+          plain48kPage0Info: result.plain48kPage0Info,
+          msx2BudgetFeedback: result.msx2BudgetFeedback,
+          msx2BudgetResolution: result.msx2BudgetResolution,
+          screenCompressionInfo: result.screenCompressionInfo,
+          compressedAsmFileInfo: result.compressedAsmFileInfo
         };
       }
 
@@ -1118,14 +1129,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           break;
       }
 
-      setGeneratedCode(code);
+      updateGeneratedCode(code);
       setGeneratedFiles(files);
       setActiveFileIndex(nextActiveFileIndex);
       setLastGeneratedRomConfig(generatedRomConfig);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorCode = `; Error generating code: ${errorMessage}`;
-      setGeneratedCode(errorCode);
+      updateGeneratedCode(errorCode);
       setGeneratedFiles([{ name: 'error.asm', content: errorCode }]);
       setActiveFileIndex(0);
       setLastGeneratedRomConfig(null);
@@ -1232,7 +1243,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       const romConfig = romConfigOverride || buildCurrentRomConfig();
       const bundle = await generateMapperReadyBundle(currentProjectName || 'MSX_Game', romConfig);
 
-      setGeneratedCode(bundle.mainCode);
+      updateGeneratedCode(bundle.mainCode);
       setGeneratedFiles(bundle.files);
       setActiveFileIndex(bundle.activeIndex);
       setLastGeneratedRomConfig(bundle.romConfig);
@@ -1287,7 +1298,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           startTransition(() => {
             setGeneratedFiles(nextFiles);
             setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
-            setGeneratedCode(compressedContent);
+            updateGeneratedCode(compressedContent);
           });
         } else if (compressionResult.success) {
           compressionSummary = `Compression: ${compressionResult.message || 'skipped (no net gain)'}`;
@@ -1327,7 +1338,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           executionMode: bundle.romConfig.executionMode
         };
         const cleanBundle = await generateMapperReadyBundle(bundle.projectName, cleanRomConfig);
-        setGeneratedCode(cleanBundle.mainCode);
+        updateGeneratedCode(cleanBundle.mainCode);
         setGeneratedFiles(cleanBundle.files);
         setActiveFileIndex(cleanBundle.activeIndex);
         setLastGeneratedRomConfig(cleanBundle.romConfig);
@@ -1457,7 +1468,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       startTransition(() => {
         setGeneratedFiles(merged.nextFiles);
         setActiveFileIndex(merged.compressedIndex);
-        setGeneratedCode(merged.compressedContent);
+        updateGeneratedCode(merged.compressedContent);
       });
 
       const info = result.compressionInfo || {};
@@ -1509,7 +1520,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         startTransition(() => {
           setGeneratedFiles(merged.nextFiles);
           setActiveFileIndex(merged.compressedIndex);
-          setGeneratedCode(merged.compressedContent);
+          updateGeneratedCode(merged.compressedContent);
         });
       } finally {
         setIsCompressingAsm(false);
@@ -1577,7 +1588,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const currentRomConfig = buildCurrentRomConfig();
   const hasRomConfigDrift = isRomConfigDifferent(lastGeneratedRomConfig, currentRomConfig);
-  const msx2BudgetFeedback = (compilationResult as any)?.msx2BudgetFeedback;
+  const msx2BudgetFeedback = (compilationResult as any)?.msx2BudgetFeedback || generatedMsx2BudgetFeedback;
+  const msx2BudgetFeedbackSource = (compilationResult as any)?.msx2BudgetFeedback ? 'build' : generatedMsx2BudgetFeedback ? 'generated ASM' : null;
+  const msx2BudgetResolution = (compilationResult as any)?.msx2BudgetResolution;
+  const msx2BudgetResolutionAttempts = Array.isArray(msx2BudgetResolution?.attempts)
+    ? msx2BudgetResolution.attempts
+    : [];
   const msx2BudgetStatus = String(msx2BudgetFeedback?.status || 'ok');
   const msx2BudgetStatusClass = msx2BudgetStatus === 'error'
     ? 'border-red-500 bg-red-950 bg-opacity-40 text-red-100'
@@ -1589,6 +1605,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     : msx2BudgetStatus === 'warning'
       ? 'text-yellow-200'
       : 'text-green-200';
+  const msx2BudgetPressureSummary = summarizeMsx2BudgetPressure(msx2BudgetFeedback);
 
   if (!isOpen) return null;
 
@@ -2020,6 +2037,61 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </div>
                 )}
 
+                {!compilationResult && msx2BudgetFeedback && (
+                  <div className={`p-2 rounded text-xs border ${msx2BudgetStatusClass}`}>
+                    <div className="font-semibold text-msx-highlight mb-1">
+                      MSX2 MegaROM budget preview
+                    </div>
+                    <div>
+                      Source: <strong>{msx2BudgetFeedbackSource}</strong>
+                      {', '}pressure=<strong className={msx2BudgetBadgeClass}>{msx2BudgetStatus}</strong>
+                    </div>
+                    <div>
+                      Payload: <strong>{msx2BudgetFeedback.rom?.payloadBytes ?? 0}</strong> bytes,
+                      {' '}RAM free: <strong>{msx2BudgetFeedback.ram?.freeBytes ?? 0}</strong> bytes
+                    </div>
+                    <div className="mt-1">
+                      Core/resident: <strong>{msx2BudgetPressureSummary.residentCoreBytes}</strong> bytes,
+                      {' '}world/content: <strong>{msx2BudgetPressureSummary.worldContentBytes}</strong> bytes
+                    </div>
+                    {Array.isArray(msx2BudgetFeedback.worldPackages) && msx2BudgetFeedback.worldPackages.length > 0 && (
+                      <div className="mt-1">
+                        Worlds: {msx2BudgetFeedback.worldPackages
+                          .slice(0, 2)
+                          .map((item: any) => `${item.worldId ?? item.id} ${item.estimatedBytes ?? item.usedBytes ?? 0}b`)
+                          .join(', ')}
+                      </div>
+                    )}
+                    {Array.isArray(msx2BudgetFeedback.largestAssets) && msx2BudgetFeedback.largestAssets.length > 0 && (
+                      <div className="mt-1">
+                        Largest: {msx2BudgetFeedback.largestAssets
+                          .slice(0, 2)
+                          .map((item: any) => `${item.id} ${item.usedBytes}b`)
+                          .join(', ')}
+                      </div>
+                    )}
+                    {Array.isArray(msx2BudgetFeedback.warnings?.warningPackedBanks) &&
+                      msx2BudgetFeedback.warnings.warningPackedBanks.length > 0 && (
+                        <div className="mt-1 text-yellow-200">
+                          Warning banks: {msx2BudgetFeedback.warnings.warningPackedBanks
+                            .slice(0, 3)
+                            .map((item: any) => `${item.bankId ?? item.id ?? '?'} ${item.usedBytes ?? item.bytes ?? 0}b`)
+                            .join(', ')}
+                        </div>
+                      )}
+                    {Array.isArray(msx2BudgetFeedback.suggestedFixes) && msx2BudgetFeedback.suggestedFixes.length > 0 && (
+                      <div className="mt-2 text-yellow-200">
+                        Suggested fixes:
+                        {msx2BudgetFeedback.suggestedFixes.slice(0, 3).map((fix: any, index: number) => (
+                          <div key={`${fix.target || 'fix'}_${index}`} className="font-mono text-[11px] text-yellow-100">
+                            {fix.target ? `${fix.target}: ` : ''}{fix.action || fix.reason || 'Review budget'}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {postAsmAnalysisResult && (
                   <div className={`p-2 rounded text-xs border text-msx-textsecondary ${
                     postAsmAnalysisResult.success
@@ -2289,7 +2361,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           setAsmCompressionResult(autoCompressedBundle.compressionResult);
                         }
 
-                        setGeneratedCode(finalBundle.mainCode);
+                        updateGeneratedCode(finalBundle.mainCode);
                         setGeneratedFiles(finalBundle.files);
                         setActiveFileIndex(finalBundle.activeIndex);
                         setLastGeneratedRomConfig(finalBundle.romConfig);
@@ -2415,6 +2487,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <div className="text-sm text-msx-highlight font-semibold">
                         MSX2 MegaROM budget
                       </div>
+                      {msx2BudgetFeedbackSource && (
+                        <div className="mt-1 text-msx-textsecondary">
+                          Source: <strong>{msx2BudgetFeedbackSource}</strong>
+                        </div>
+                      )}
                       <div className="mt-2 grid grid-cols-2 gap-2 text-msx-textsecondary">
                         <div>
                           ROM: <strong>{msx2BudgetFeedback.project?.romMode}</strong>
@@ -2429,7 +2506,22 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         <div>
                           RAM free: <strong>{msx2BudgetFeedback.ram?.freeBytes ?? 0}</strong> bytes
                         </div>
+                        <div>
+                          Core/resident: <strong>{msx2BudgetPressureSummary.residentCoreBytes}</strong> bytes
+                        </div>
+                        <div>
+                          World/content: <strong>{msx2BudgetPressureSummary.worldContentBytes}</strong> bytes
+                        </div>
                       </div>
+                      {Array.isArray(msx2BudgetFeedback.worldPackages) &&
+                        msx2BudgetFeedback.worldPackages.length > 0 && (
+                          <div className="mt-2 text-msx-textsecondary">
+                            Worlds: {msx2BudgetFeedback.worldPackages
+                              .slice(0, 3)
+                              .map((item: any) => `${item.worldId ?? item.id} ${item.estimatedBytes ?? item.usedBytes ?? 0}b`)
+                              .join(', ')}
+                          </div>
+                        )}
                       {Array.isArray(msx2BudgetFeedback.rom?.bankClassSummary) &&
                         msx2BudgetFeedback.rom.bankClassSummary.length > 0 && (
                           <div className="mt-2 text-msx-textsecondary">
@@ -2447,12 +2539,42 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                               .join(', ')}
                           </div>
                         )}
+                      {Array.isArray(msx2BudgetFeedback.warnings?.warningPackedBanks) &&
+                        msx2BudgetFeedback.warnings.warningPackedBanks.length > 0 && (
+                          <div className="mt-2 text-yellow-200">
+                            Warning banks: {msx2BudgetFeedback.warnings.warningPackedBanks
+                              .slice(0, 4)
+                              .map((item: any) => `${item.bankId ?? item.id ?? '?'} ${item.usedBytes ?? item.bytes ?? 0}b`)
+                              .join(', ')}
+                          </div>
+                        )}
                       {Array.isArray(msx2BudgetFeedback.suggestedFixes) &&
                         msx2BudgetFeedback.suggestedFixes.length > 0 && (
                           <div className="mt-2 text-yellow-200">
-                            Suggested: {msx2BudgetFeedback.suggestedFixes[0].action}
+                            Suggested fixes:
+                            {msx2BudgetFeedback.suggestedFixes.slice(0, 4).map((fix: any, index: number) => (
+                              <div key={`${fix.target || 'fix'}_${index}`} className="font-mono text-[11px] text-yellow-100">
+                                {fix.target ? `${fix.target}: ` : ''}{fix.action || fix.reason || 'Review budget'}
+                              </div>
+                            ))}
                           </div>
                         )}
+                      {msx2BudgetResolution && (
+                        <div className="mt-3 border-t border-msx-border pt-2 text-msx-textsecondary">
+                          <div>
+                            Resolution: <strong className={msx2BudgetResolution.status === 'resolved' ? 'text-green-200' : 'text-yellow-200'}>
+                              {msx2BudgetResolution.status ?? 'unknown'}
+                            </strong>
+                            {' '}({msx2BudgetResolutionAttempts.length} attempt{msx2BudgetResolutionAttempts.length === 1 ? '' : 's'})
+                          </div>
+                          {msx2BudgetResolutionAttempts.slice(-3).map((attempt: any, index: number) => (
+                            <div key={`${attempt.action || 'budget'}_${index}`} className="mt-1 font-mono text-[11px] text-msx-textprimary">
+                              #{attempt.attempt ?? index}: {attempt.action ?? 'unknown'} {'->'} {attempt.status ?? 'unknown'}
+                              {attempt.reason ? ` (${attempt.reason})` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2762,7 +2884,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
               <div className="flex-1 p-3 overflow-y-auto">
                 <textarea
                   value={generatedCode}
-                  onChange={(e) => setGeneratedCode(e.target.value)}
+                  onChange={(e) => updateGeneratedCode(e.target.value)}
                   className="w-full text-xs font-mono bg-msx-bgcolor border border-msx-border rounded p-2 text-msx-textprimary resize-none"
                   placeholder="Generated Z80 assembly code will appear here..."
                   style={{

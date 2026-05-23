@@ -608,6 +608,12 @@ const App: React.FC = () => {
           case 'msx2screen':
             setCurrentEditor(EditorType.Msx2Screen);
             break;
+          case 'msx2bitmaproom':
+            setCurrentEditor(EditorType.Msx2BitmapRoom);
+            break;
+          case 'msx2hudfont':
+            setCurrentEditor(EditorType.Msx2HudFont);
+            break;
           case 'screenmap':
             setCurrentEditor(EditorType.Screen);
             break;

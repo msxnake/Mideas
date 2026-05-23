@@ -14,6 +14,8 @@ const appUiPath = join(repoRoot, 'components', 'AppUI.tsx');
 const componentEditorPath = join(repoRoot, 'components', 'editors', 'ComponentDefinitionEditor.tsx');
 const templateEditorPath = join(repoRoot, 'components', 'editors', 'EntityTemplateEditor.tsx');
 const msx2SpriteEditorPath = join(repoRoot, 'components', 'editors', 'Msx2SpriteEditor.tsx');
+const msx2HudFontEditorPath = join(repoRoot, 'components', 'editors', 'Msx2HudFontEditor.tsx');
+const msx2BitmapRoomEditorPath = join(repoRoot, 'components', 'editors', 'Msx2Screen4BitmapRoomEditor.tsx');
 const panelPath = join(repoRoot, 'components', 'common', 'Panel.tsx');
 const defaultsPath = join(repoRoot, 'data', 'defaults.ts');
 const projectTargetPath = join(repoRoot, 'utils', 'projectTarget.ts');
@@ -30,6 +32,7 @@ const propertiesPanelPath = join(repoRoot, 'components', 'tools', 'PropertiesPan
 const serverPath = join(repoRoot, 'server', 'server.js');
 const summaryExtractorPath = join(repoRoot, 'utils', 'summaryExtractor.ts');
 const globalVariablesUtilsPath = join(repoRoot, 'utils', 'globalVariablesUtils.ts');
+const msx2BudgetFeedbackPath = join(repoRoot, 'utils', 'msx2BudgetFeedback.ts');
 const loderunnerCreatorPath = join(repoRoot, 'scripts', 'create_msx2_loderunner_clone.mjs');
 const msx2AtlasPreviewPath = join(repoRoot, 'components', 'screen_editor', 'MSX2AtlasPreviewPanel.tsx');
 const msx2ExportContractPath = join(repoRoot, 'components', 'screen_editor', 'MSX2ExportContractPanel.tsx');
@@ -47,6 +50,8 @@ const source = [
   readFileSync(componentEditorPath, 'utf8'),
   readFileSync(templateEditorPath, 'utf8'),
   readFileSync(msx2SpriteEditorPath, 'utf8'),
+  readFileSync(msx2HudFontEditorPath, 'utf8'),
+  readFileSync(msx2BitmapRoomEditorPath, 'utf8'),
   readFileSync(panelPath, 'utf8'),
   readFileSync(defaultsPath, 'utf8'),
   readFileSync(projectTargetPath, 'utf8'),
@@ -63,6 +68,7 @@ const source = [
   readFileSync(serverPath, 'utf8'),
   readFileSync(summaryExtractorPath, 'utf8'),
   readFileSync(globalVariablesUtilsPath, 'utf8'),
+  readFileSync(msx2BudgetFeedbackPath, 'utf8'),
 ].join('\n');
 
 const generatorSource = readFileSync(generatorPath, 'utf8');
@@ -76,6 +82,8 @@ const worldMapEditorSource = readFileSync(worldMapEditorPath, 'utf8');
 const worldViewEditorSource = readFileSync(worldViewEditorPath, 'utf8');
 const useAssetHandlersSource = readFileSync(useAssetHandlersPath, 'utf8');
 const msx2SpriteEditorSource = readFileSync(msx2SpriteEditorPath, 'utf8');
+const msx2HudFontEditorSource = readFileSync(msx2HudFontEditorPath, 'utf8');
+const msx2BitmapRoomEditorSource = readFileSync(msx2BitmapRoomEditorPath, 'utf8');
 const toolbarSource = readFileSync(toolbarPath, 'utf8');
 const codeExportModalSource = readFileSync(codeExportModalPath, 'utf8');
 const fileExplorerSource = readFileSync(fileExplorerPath, 'utf8');
@@ -83,6 +91,7 @@ const propertiesPanelSource = readFileSync(propertiesPanelPath, 'utf8');
 const serverSource = readFileSync(serverPath, 'utf8');
 const summaryExtractorSource = readFileSync(summaryExtractorPath, 'utf8');
 const globalVariablesUtilsSource = readFileSync(globalVariablesUtilsPath, 'utf8');
+const msx2BudgetFeedbackSource = readFileSync(msx2BudgetFeedbackPath, 'utf8');
 const loderunnerCreatorSource = readFileSync(loderunnerCreatorPath, 'utf8');
 const hardwareSpriteInit = generatorSource.match(/function buildHardwareSpriteInitAsm[\s\S]*?return `init_hardware_sprites:[\s\S]*?copy_to_vram_ext[\s\S]*?copy_to_vram_ext[\s\S]*?copy_to_vram_ext[\s\S]*?ld a, \$\{x\}/)?.[0] || '';
 const hardwareSpritePatternBuilder = generatorSource.match(/function buildHardwareSpritePatternForLayer[\s\S]*?return bytes;\n}/)?.[0] || '';
@@ -107,6 +116,13 @@ const checks = [
   ['WorldMap creates SCREEN 4 native rooms', worldMapEditorSource.includes("vdpMode: 'SCREEN4'") && worldMapEditorSource.includes('isMsx2Screen4Mode') && worldMapEditorSource.includes('isMsx2Screen4TileScreen(screen)')],
   ['WorldView accepts SCREEN 4 native rooms', worldViewEditorSource.includes('isMsx2Screen4Mode') && worldViewEditorSource.includes("vdpMode === 'SCREEN4'")],
   ['MSX2 sprite creator uses MSX2 Sprites label', toolbarSource.includes('>MSX2 Sprites</DropdownItem>') && fileExplorerSource.includes('msx2sprite: "MSX2 Sprites"')],
+  ['MSX2 SCREEN 4 Bitmap Room is exposed as a separate asset', toolbarSource.includes("onNewAsset('msx2bitmaproom')") && toolbarSource.includes('>MSX2 SCREEN 4 Bitmap Room</DropdownItem>') && fileExplorerSource.includes('msx2bitmaproom: "MSX2 SCREEN 4 Bitmap Rooms"') && fileExplorerSource.includes('msx2bitmaproom: EditorType.Msx2BitmapRoom') && appUiSource.includes('Msx2Screen4BitmapRoomEditor')],
+  ['MSX2 SCREEN 4 Bitmap Room editor is atlas command based', msx2BitmapRoomEditorSource.includes("op: 'copy'") && msx2BitmapRoomEditorSource.includes("op: 'fill'") && msx2BitmapRoomEditorSource.includes("op: 'lineH'") && msx2BitmapRoomEditorSource.includes('Import Atlas PNG') && msx2BitmapRoomEditorSource.includes('renderComposition')],
+  ['MSX2 HUD Font asset is exposed separately from MSX1 font', toolbarSource.includes("onNewAsset('msx2hudfont')") && toolbarSource.includes('>MSX2 HUD Font</DropdownItem>') && fileExplorerSource.includes('msx2hudfont: "MSX2 HUD Fonts"') && fileExplorerSource.includes('msx2hudfont: EditorType.Msx2HudFont')],
+  ['MSX2 HUD Font editor persists edits through asset update', appUiSource.includes('<Msx2HudFontEditor') && appUiSource.includes('onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}') && appUiSource.includes('dataOutputFormat={dataOutputFormat}')],
+  ['MSX2 HUD Font editor imports rasterized TTF fonts', msx2HudFontEditorSource.includes('new FontFace') && msx2HudFontEditorSource.includes('Import TTF') && msx2HudFontEditorSource.includes('rasterizeGlyph')],
+  ['MSX2 HUD Font editor imports ZX 8x8 binary fonts from ASCII space', msx2HudFontEditorSource.includes('Import ZX .ch8') && msx2HudFontEditorSource.includes('ZX_ASCII_FIRST = 0x20') && msx2HudFontEditorSource.includes('bytes.length % 8') && msx2HudFontEditorSource.includes('baseChar: ZX_ASCII_FIRST')],
+  ['SCREEN 4 HUD font runtime supports ZX ASCII offset mapping', generatorSource.includes('isMsx2HudFontContiguousAscii') && generatorSource.includes('sub #20') && generatorSource.includes('add a, MSX2_HUD_FONT_BASE_CHAR') && generatorSource.includes('getMsx2HudFontBaseChar(analysis)')],
   ['SCREEN 4 palette assets are accepted by generator', generatorSource.includes("paletteAsset?.mode === 'SCREEN4'") && generatorSource.includes("paletteAsset?.mode === 'SCREEN5'")],
   ['MSX2 entity kind options exclude generic custom entities', source.includes('MSX2_ENTITY_KIND_OPTIONS') && !source.includes('<option value="custom">Custom</option>')],
   ['MSX2 entity components expose Position and Render labels', source.includes("label: 'Position'") && source.includes("label: 'Render'") && source.includes("name === 'msx2SpriteAssetId'")],
@@ -188,6 +204,7 @@ const checks = [
   ['SCREEN 4 export contract maps HUD widgets to primitives', source.includes('v9938_fill_line_rect') && source.includes('glyph_atlas_copy_8x8') && source.includes('icon_atlas_copy_16x16') && source.includes('recordOffsetBytes') && source.includes('auxiliaryTables') && source.includes('runtimeRenderer')],
   ['SCREEN 4 generator exports HUD widget record offsets', generatorSource.includes('msx2_screen_hud_widget_record_size EQU 12') && generatorSource.includes('msx2_screen_hud_widget_offset') && generatorSource.includes('formatWords')],
   ['SCREEN 4 generator exports HUD widget auxiliary metadata', generatorSource.includes('msx2_screen_hud_widget_icon_tile') && generatorSource.includes('msx2_screen_hud_widget_text_offset') && generatorSource.includes('msx2_screen_hud_widget_text_pool') && generatorSource.includes('msx2_screen_hud_widget_variable_name_offset') && generatorSource.includes('msx2_screen_hud_widget_variable_name_pool') && generatorSource.includes('appendHudStringPoolEntry')],
+  ['SCREEN 4 generator emits MSX2-owned HUD font runtime', generatorSource.includes('MSX2_HUD_FONT_BASE_CHAR') && generatorSource.includes('load_msx2_hud_font') && generatorSource.includes('draw_msx2_hud_string') && generatorSource.includes('msx2_hud_font_patterns') && generatorSource.includes('MSX2 SCREEN 4 HUD font patterns and loader are emitted inline')],
   ['SCREEN 4 editor exposes composition overlay modes', source.includes('Msx2Screen4CompositionOverlay') && source.includes('aria-label="MSX2 composition overlay"') && source.includes("compositionOverlay === 'copy8x8'") && source.includes("compositionOverlay === 'hudBands'") && source.includes("compositionOverlay === 'reuse2x2'") && source.includes("compositionOverlay === 'reuse4x4'") && source.includes("compositionOverlay === 'props16x16'")],
   ['extended VRAM writers reset VDP control latch', (extendedVramWriters.match(/in a, \(VDP_CTRL_PORT\)/g) || []).length >= 6],
   ['effect runtime does not flash debug border colors', effectStateRoutine.length > 0 && !effectStateRoutine.includes('call WRTVDP') && !effectStateRoutine.includes('.write_border')],
@@ -227,9 +244,14 @@ const checks = [
   ['compile endpoint returns MSX2 budget feedback from embedded artifacts', serverSource.includes('function buildMsx2IdeBudgetFeedbackFromAsm') && serverSource.includes("project_slice.json") && serverSource.includes("logical_bank_budget.json") && serverSource.includes('responseData.msx2BudgetFeedback') && serverSource.includes('msx2BudgetFeedback: msx2BudgetFeedback') && serverSource.includes('msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile)')],
   ['MSX2 budget feedback keeps IDE-facing shape stable', serverSource.includes("scope: 'msx2_screen4_ide_budget_feedback'") && serverSource.includes("status = 'warning'") && serverSource.includes("status = 'error'") && serverSource.includes('bankClassSummary: Array.isArray(logicalBudget.bankClassSummary)') && serverSource.includes('worldPackages: Array.isArray(projectSlice.worldPackageSummary)') && serverSource.includes('largestAssets') && serverSource.includes('suggestedFixes')],
   ['compile endpoint gates MSX2 budget errors before Glass and records resolution attempts', serverSource.includes("error: 'MSX2 MegaROM preflight budget failed'") && serverSource.includes("action: 'server_compile_budget_gate'") && serverSource.includes("action: 'enable_zx0_preprocess'") && serverSource.includes('responseData.msx2BudgetResolution')],
-  ['ROM build result displays MSX2 MegaROM budget feedback', codeExportModalSource.includes('MSX2 MegaROM budget') && codeExportModalSource.includes('msx2BudgetFeedback.rom?.payloadBytes') && codeExportModalSource.includes('msx2BudgetFeedback.rom.bankClassSummary') && codeExportModalSource.includes('msx2BudgetFeedback.largestAssets') && codeExportModalSource.includes('msx2BudgetFeedback.suggestedFixes[0].action')],
+  ['ROM build result displays MSX2 MegaROM budget feedback', codeExportModalSource.includes('MSX2 MegaROM budget') && codeExportModalSource.includes('msx2BudgetFeedback.rom?.payloadBytes') && codeExportModalSource.includes('msx2BudgetFeedback.rom.bankClassSummary') && codeExportModalSource.includes('msx2BudgetFeedback.largestAssets') && codeExportModalSource.includes('Suggested fixes:')],
+  ['MSX2 budget feedback exposes warning banks and actionable fix targets', codeExportModalSource.includes('Warning banks:') && codeExportModalSource.includes('msx2BudgetFeedback.warnings?.warningPackedBanks') && codeExportModalSource.includes('fix.target') && codeExportModalSource.includes("fix.action || fix.reason || 'Review budget'")],
+  ['ROM export modal previews MSX2 budget directly from generated ASM', codeExportModalSource.includes("from '../../utils/msx2BudgetFeedback'") && codeExportModalSource.includes('generatedMsx2BudgetFeedback') && codeExportModalSource.includes('MSX2 MegaROM budget preview') && codeExportModalSource.includes('updateGeneratedCode') && msx2BudgetFeedbackSource.includes('export const buildMsx2BudgetFeedbackFromAsm')],
+  ['MSX2 budget preview parser is centralized outside the export modal', !codeExportModalSource.includes('const extractMideasArtifactCommentBlock') && !codeExportModalSource.includes('const parseMideasJsonArtifact') && msx2BudgetFeedbackSource.includes('MIDEAS_ARTIFACT') && msx2BudgetFeedbackSource.includes("scope: 'msx2_screen4_ide_budget_feedback'")],
+  ['MSX2 budget feedback distinguishes resident core from world content pressure', codeExportModalSource.includes('summarizeMsx2BudgetPressure') && codeExportModalSource.includes('Core/resident:') && codeExportModalSource.includes('World/content:') && codeExportModalSource.includes('msx2BudgetFeedback.worldPackages') && msx2BudgetFeedbackSource.includes('residentCoreBytes') && msx2BudgetFeedbackSource.includes('worldContentBytes')],
+  ['ROM build result keeps MSX2 budget feedback on failed compile responses', codeExportModalSource.includes('msx2BudgetFeedback: result.msx2BudgetFeedback') && codeExportModalSource.includes('msx2BudgetResolution: result.msx2BudgetResolution') && codeExportModalSource.includes('screenCompressionInfo: result.screenCompressionInfo')],
   ['ROM build result highlights MSX2 budget warning and error status', codeExportModalSource.includes('msx2BudgetStatusClass') && codeExportModalSource.includes("msx2BudgetStatus === 'error'") && codeExportModalSource.includes("msx2BudgetStatus === 'warning'") && codeExportModalSource.includes('border-red-500') && codeExportModalSource.includes('border-yellow-500') && codeExportModalSource.includes('msx2BudgetBadgeClass')],
-  ['ROM build summary reports MSX2 budget resolution attempts', codeExportModalSource.includes('MSX2 budget resolution:') && codeExportModalSource.includes('MSX2 budget action:') && codeExportModalSource.includes('compileResult?.msx2BudgetResolution')],
+  ['ROM build summary reports MSX2 budget resolution attempts', codeExportModalSource.includes('MSX2 budget resolution:') && codeExportModalSource.includes('MSX2 budget action:') && codeExportModalSource.includes('compileResult?.msx2BudgetResolution') && codeExportModalSource.includes('msx2BudgetResolutionAttempts.slice(-3)')],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

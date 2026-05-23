@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { 
-  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
+  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, 
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
@@ -24,6 +24,8 @@ import { SpriteEditor } from './editors/SpriteEditor';
 import { Msx2SpriteEditor } from './editors/Msx2SpriteEditor';
 import { Msx2BitmapEditor } from './editors/Msx2BitmapEditor';
 import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
+import { Msx2Screen4BitmapRoomEditor } from './editors/Msx2Screen4BitmapRoomEditor';
+import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
 import { ScreenEditor } from './editors/ScreenEditor';
 import { CodeEditor } from './editors/CodeEditor';
 import { WorldMapEditor } from './editors/WorldMapEditor';
@@ -374,7 +376,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [selectedPaletteAssetId, setSelectedPaletteAssetId] = useState<string>('');
 
   useEffect(() => {
-    if (props.currentEditor !== EditorType.Tile && props.currentEditor !== EditorType.Msx2Sprite && props.currentEditor !== EditorType.Msx2Bitmap && props.currentEditor !== EditorType.Msx2Screen) {
+    if (props.currentEditor !== EditorType.Tile && props.currentEditor !== EditorType.Msx2Sprite && props.currentEditor !== EditorType.Msx2Bitmap && props.currentEditor !== EditorType.Msx2Screen && props.currentEditor !== EditorType.Msx2BitmapRoom) {
       setSelectedPaletteAssetId('');
     }
   }, [props.currentEditor, selectedAssetId]);
@@ -411,7 +413,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         />
       );
     }
-    const paletteEditors = [EditorType.Tile, EditorType.Sprite, EditorType.Msx2Sprite, EditorType.Msx2Bitmap, EditorType.Msx2Screen, EditorType.Screen, EditorType.Font, EditorType.Boss];
+    const paletteEditors = [EditorType.Tile, EditorType.Sprite, EditorType.Msx2Sprite, EditorType.Msx2Bitmap, EditorType.Msx2Screen, EditorType.Msx2BitmapRoom, EditorType.Screen, EditorType.Font, EditorType.Boss];
     if (paletteEditors.includes(currentEditor) || (currentEditor === EditorType.None && selectedAssetId === null) ) {
       if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
         return null;
@@ -660,6 +662,14 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} selectedColor={selectedColor} allAssets={assets} />)}
+          {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && ( <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
+          {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
+            <Msx2HudFontEditor
+              font={activeAsset.data as Msx2HudFontAsset}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              dataOutputFormat={dataOutputFormat}
+            />
+          )}
           {currentEditor === EditorType.Boss && activeAsset?.type === 'boss' && ( <BossEditor boss={activeAsset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onUpdateTileBank={handleUpdateBossTileBank} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} zoom={bossEditorZoom} setZoom={setBossEditorZoom} copiedBossPhase={copiedBossPhase} setCopiedBossPhase={setCopiedBossPhase} /> )}
           {currentEditor === EditorType.Screen && activeAsset?.type === 'screenmap' && ( <ScreenEditor screenMap={activeAsset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { if (data.layers?.entities === undefined && (activeAsset.data as ScreenMap).layers.entities) { (data as Partial<ScreenMap>).layers = { ... (activeAsset.data as ScreenMap).layers, ...data.layers, entities: (activeAsset.data as ScreenMap).layers.entities };} if(data.effectZones === undefined && (activeAsset.data as ScreenMap).effectZones) { (data as Partial<ScreenMap>).effectZones = (activeAsset.data as ScreenMap).effectZones;} handleUpdateAsset(activeAsset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} onActiveLayerChange={setCurrentScreenEditorActiveLayer} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates.filter(template => isEntityTemplateEnabledForProject(template, currentScreenMode))} onShowMapFile={handleShowMapFile} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} zoom={screenEditorZoom} setZoom={setScreenEditorZoom} showSectorLines={showSectorLines} onToggleSectorLines={() => setShowSectorLines(v => !v)} catalogStamp={selectedScreenCatalogBlock} onClearCatalogStamp={() => setSelectedScreenCatalogBlock(null)} />)}
           {currentEditor === EditorType.Code && activeAsset?.type === 'code' && ( <div className="flex flex-grow h-full overflow-hidden"> <div className="flex-grow h-full"> <CodeEditor code={activeAsset.data as string} onUpdate={(code) => handleUpdateAsset(activeAsset.id, code)} language="z80" assetName={activeAsset.name} snippetToInsert={snippetToInsert} /> </div> {snippetsEnabled && ( <SnippetsPanel snippets={userSnippets.filter(s => !Z80_BEHAVIOR_SNIPPETS.find(bs => bs.name === s.name))} onSnippetSelect={handleSnippetSelected} isEnabled={true} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet}/>)}</div>)}

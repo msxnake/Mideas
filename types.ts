@@ -293,6 +293,47 @@ export interface Msx2Bitmap {
   notes?: string;
 }
 
+export type Msx2BitmapRoomCommand =
+  | { id: string; op: 'copy'; atlasEntryId: string; dx: number; dy: number; w?: number; h?: number }
+  | { id: string; op: 'fill'; x: number; y: number; w: number; h: number; color: number }
+  | { id: string; op: 'lineH'; x: number; y: number; length: number; color: number }
+  | { id: string; op: 'lineV'; x: number; y: number; length: number; color: number };
+
+export interface Msx2BitmapRoomAtlasEntry {
+  id: string;
+  name: string;
+  sx: number;
+  sy: number;
+  w: number;
+  h: number;
+}
+
+export interface Msx2Screen4BitmapRoom {
+  id: string;
+  name: string;
+  target: 'MSX2';
+  vdpMode: 'SCREEN4_BITMAP_ROOM';
+  width: 256;
+  height: 192 | 212;
+  palette: Screen5PaletteSlot[];
+  atlas: {
+    width: number;
+    height: number;
+    offscreenBaseY: number;
+    pixels: number[][];
+    entries: Msx2BitmapRoomAtlasEntry[];
+  };
+  composition: {
+    source: 'authored' | 'generated-from-cells';
+    commands: Msx2BitmapRoomCommand[];
+  };
+  collision: number[][];
+  effects: number[][];
+  behavior: number[][];
+  entities: Msx2Screen4EntityInstance[];
+  notes?: string;
+}
+
 export interface Msx2Screen4Tile {
   id: string;
   name: string;
@@ -2114,6 +2155,8 @@ export enum EditorType {
   Msx2Sprite = "Msx2Sprite",
   Msx2Bitmap = "Msx2Bitmap",
   Msx2Screen = "Msx2Screen",
+  Msx2BitmapRoom = "Msx2BitmapRoom",
+  Msx2HudFont = "Msx2HudFont",
   PngMsxChars = "PngMsxChars",
 }
 
@@ -2126,9 +2169,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2hudfont' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2HudFontAsset | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
@@ -2146,6 +2189,23 @@ export interface MSXFontAsset {
   fontData: MSXFont;
   /** The color attributes for SCREEN 2 mode. */
   fontColorAttributes: MSXFontColorAttributes;
+}
+
+export interface Msx2HudFontAsset {
+  /** Fixed target for this asset family. */
+  target: 'MSX2';
+  /** VDP pattern mode used by the native MSX2 room backend. */
+  vdpMode: 'SCREEN4';
+  /** First SCREEN 4 character code reserved for the HUD font. */
+  baseChar: number;
+  /** Supported characters in asset order. */
+  characters: string;
+  /** One 8-byte 1bpp pattern per supported character. */
+  patterns: Record<string, number[]>;
+  /** SCREEN 4 color byte per glyph row: fg nibble << 4 | bg nibble. */
+  colorByte: number;
+  /** Optional note for authors. */
+  notes?: string;
 }
 
 /**

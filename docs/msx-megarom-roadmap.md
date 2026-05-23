@@ -1254,7 +1254,9 @@ Current CLI gate:
     `msx2BudgetResolution`. If compression was disabled, it first tries one
     safe ZX0 preprocess pass and only continues to Glass when that clears the
     budget error. The export modal reports the resolver status and final action
-    in the compile summary.
+    in the compile summary. Failed compile responses preserve the same
+    `msx2BudgetFeedback` payload, so the user sees the concrete bank/RAM cause
+    and the attempted resolver steps even when no ROM is produced.
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor
@@ -1323,6 +1325,21 @@ Current artifact:
   and validated by the smoke fixtures. It is intentionally derived from
   `project_slice.json`, `logical_bank_budget.json`, and `ram_budget.json`, so
   the editor and CLI do not drift into separate budget logic.
+- The export modal now also parses the embedded preflight artifacts directly
+  from generated `unitedFiles.asm` and shows an `MSX2 MegaROM budget preview`
+  before Glass runs. Failed build responses keep the same budget payload, so
+  the authoring preview, build failure, and successful ROM summary all describe
+  the same allocator facts. The frontend parser and compact feedback builder
+  now live in `utils/msx2BudgetFeedback.ts`, keeping the export modal focused
+  on presentation instead of duplicating artifact parsing logic inline. The
+  preview also separates `Core/resident` pressure from `World/content`
+  pressure and lists the largest world packages, so users can tell whether a
+  variation is threatening the fixed runtime area or a world bank pack. It now
+  surfaces near-full warning banks and several targeted suggested fixes instead
+  of reducing the allocator's Plan B output to a single line.
+- `npm run test:msx2-budget-feedback` compiles the shared frontend helper and
+  runs it against synthetic embedded ASM artifacts. This gives the IDE preview
+  parser a functional regression test beyond static contract checks.
 
 ### Non-negotiable invariant
 
