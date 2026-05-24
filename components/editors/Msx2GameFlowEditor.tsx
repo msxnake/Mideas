@@ -5,7 +5,9 @@ import type {
   Msx2GameFlowGlobalsNode,
   Msx2GameFlowIfThenElseNode,
   Msx2GameFlowNode,
+  Msx2GameFlowPurpose,
   Msx2GameFlowScreen5PresentationNode,
+  Msx2GameFlowSubMenuNode,
   Msx2GameFlowTextNode,
   Msx2Screen5PresentationConfig,
   ProjectAsset,
@@ -34,6 +36,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
   if (node.type === 'Waypoint') return 'Waypoint';
   if (node.type === 'Restart') return 'Restart ROM';
   if (node.type === 'Globals') return node.title || `${node.variables?.length || 0} global set`;
+  if (node.type === 'SubMenu') return node.title || 'SubMenu';
   if (node.type === 'Text') return node.title || 'Text';
   if (node.type === 'IfThenElse') return `${node.variableName || 'var'} ${node.operator || '=='} ${node.compareValue || '0'}`;
   if (node.type === 'Transition') return node.effect === 'fade_to_black' ? 'Fade to Black' : 'CLS';
@@ -45,6 +48,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Start') return 'hsl(185, 62%, 32%)';
   if (node.type === 'Globals') return 'hsl(265, 42%, 36%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
+  if (node.type === 'SubMenu') return 'hsl(215, 52%, 34%)';
   if (node.type === 'Text') return 'hsl(188, 46%, 34%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'IfThenElse') return 'hsl(28, 58%, 36%)';
@@ -132,12 +136,17 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const nodes = gameFlowGraph.nodes || [];
   const connections = gameFlowGraph.connections || [];
+  const flowPurpose = gameFlowGraph.purpose || 'screen5-presentation';
+  const isScreen5PresentationFlow = flowPurpose === 'screen5-presentation';
   const selectedNode = nodes.find(node => node.id === selectedNodeId) || null;
   const selectedPresentationNode = selectedNode?.type === 'Screen5Presentation'
     ? selectedNode as Msx2GameFlowScreen5PresentationNode
     : null;
   const selectedGlobalsNode = selectedNode?.type === 'Globals'
     ? selectedNode as Msx2GameFlowGlobalsNode
+    : null;
+  const selectedSubMenuNode = selectedNode?.type === 'SubMenu'
+    ? selectedNode as Msx2GameFlowSubMenuNode
     : null;
   const selectedTextNode = selectedNode?.type === 'Text'
     ? selectedNode as Msx2GameFlowTextNode
@@ -154,6 +163,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   );
   const globalVariablesAssets = useMemo(
     () => allAssets.filter(asset => asset.type === 'globalvariables'),
+    [allAssets]
+  );
+  const screen4Assets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2screen'),
     [allAssets]
   );
   const selectedGlobalsAssetVariables = useMemo(() => {
@@ -195,6 +208,31 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   }, [allAssets, connections, gameFlowGraph.startNodeId, nodes]);
   const flowIssues = useMemo(() => {
     const issues: string[] = [];
+    if (!isScreen5PresentationFlow) {
+      if (nodes.some(node => node.type === 'Screen5Presentation')) {
+        issues.push('SCREEN 4 runtime flows should not include SCREEN 5 Presentation nodes.');
+      }
+      for (const node of nodes) {
+        if (node.type === 'SubMenu') {
+          if (!node.title?.trim()) issues.push('SubMenu node must include a title.');
+          if (!Array.isArray(node.options) || node.options.length === 0) {
+            issues.push('SubMenu node must include at least one option.');
+          }
+          for (const option of node.options || []) {
+            if (!option.text?.trim()) issues.push('SubMenu options must include text.');
+            if (!connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === option.id)) {
+              issues.push(`SubMenu option "${option.text || option.id}" needs an outgoing connection.`);
+            }
+          }
+        } else if (node.type !== 'Start' && node.type !== 'Waypoint' && node.type !== 'Globals' && node.type !== 'Transition' && node.type !== 'Restart' && node.type !== 'End') {
+          issues.push(`${node.type} is not supported by the SCREEN 4 runtime purpose yet.`);
+        }
+      }
+      if (!nodes.some(node => node.type === 'SubMenu')) {
+        issues.push('SCREEN 4 runtime GameFlow is ready for SubMenu nodes.');
+      }
+      return Array.from(new Set(issues));
+    }
     const nodeIds = new Set(nodes.map(node => node.id));
     const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
     const firstScreen5 = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
@@ -316,7 +354,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
 
     return Array.from(new Set(issues));
-  }, [connections, gameFlowGraph.startNodeId, nodes, presentationAssets]);
+  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets]);
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
@@ -331,7 +369,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
+  const updateFlowPurpose = (purpose: Msx2GameFlowPurpose) => {
+    onUpdate({ purpose });
+  };
+
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -364,6 +406,18 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               message: 'PRESS KEY TO CONTINUE',
               waitForKey: true,
               waitFrames: 0,
+            }
+        : type === 'SubMenu'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              title: 'Main Menu',
+              options: [
+                { id: `option_start_${Date.now()}`, text: 'START' },
+                { id: `option_options_${Date.now()}`, text: 'OPTIONS' },
+              ],
+              backgroundScreenAssetId: screen4Assets[0]?.id,
             }
         : type === 'Screen5Presentation'
         ? {
@@ -421,8 +475,42 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         makeConnection(transitionNodeId, endNodeId),
       ],
       startNodeId: startNode.id,
+      purpose: 'screen5-presentation',
     });
     setSelectedNodeId(presentationNodeId);
+  };
+
+  const applyScreen4RuntimeTemplate = () => {
+    const startNode = nodes.find(node => node.type === 'Start') || nodes[0];
+    if (!startNode) return;
+    const subMenuNodeId = `msx2_gf_screen4_submenu_${Date.now()}`;
+    const endNodeId = `msx2_gf_screen4_end_${Date.now()}`;
+    const startOptionId = `option_start_${Date.now()}`;
+    const subMenuNode: Msx2GameFlowNode = {
+      id: subMenuNodeId,
+      type: 'SubMenu',
+      position: { x: startNode.position.x + 230, y: startNode.position.y },
+      title: 'Main Menu',
+      options: [
+        { id: startOptionId, text: 'START' },
+      ],
+      backgroundScreenAssetId: screen4Assets[0]?.id,
+    };
+    const endNode: Msx2GameFlowNode = {
+      id: endNodeId,
+      type: 'End',
+      position: { x: startNode.position.x + 460, y: startNode.position.y },
+    };
+    onUpdate({
+      purpose: 'screen4-runtime',
+      nodes: [startNode, subMenuNode, endNode],
+      connections: [
+        makeConnection(startNode.id, subMenuNodeId),
+        makeConnection(subMenuNodeId, endNodeId, startOptionId),
+      ],
+      startNodeId: startNode.id,
+    });
+    setSelectedNodeId(subMenuNodeId);
   };
 
   const selectPreviewNode = () => {
@@ -550,6 +638,47 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedSubMenu = (updates: Partial<Msx2GameFlowSubMenuNode>) => {
+    if (!selectedSubMenuNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedSubMenuNode.id && node.type === 'SubMenu'
+        ? { ...node, ...updates }
+        : node
+    ));
+  };
+
+  const addSubMenuOption = () => {
+    if (!selectedSubMenuNode) return;
+    const optionId = `option_${Date.now()}`;
+    updateSelectedSubMenu({
+      options: [
+        ...(selectedSubMenuNode.options || []),
+        { id: optionId, text: `OPTION ${(selectedSubMenuNode.options || []).length + 1}` },
+      ].slice(0, 6),
+    });
+  };
+
+  const updateSubMenuOption = (id: string, text: string) => {
+    if (!selectedSubMenuNode) return;
+    updateSelectedSubMenu({
+      options: (selectedSubMenuNode.options || []).map(option => (
+        option.id === id ? { ...option, text } : option
+      )),
+    });
+  };
+
+  const deleteSubMenuOption = (id: string) => {
+    if (!selectedSubMenuNode) return;
+    onUpdate({
+      nodes: nodes.map(node =>
+        node.id === selectedSubMenuNode.id && node.type === 'SubMenu'
+          ? { ...node, options: (node.options || []).filter(option => option.id !== id) }
+          : node
+      ),
+      connections: connections.filter(connection => !(connection.from.nodeId === selectedSubMenuNode.id && connection.from.sourceId === id)),
+    });
+  };
+
   const selectedOutgoingConnection = selectedNode
     ? connections.find(connection => connection.from.nodeId === selectedNode.id)
     : undefined;
@@ -559,12 +688,27 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedElseConnection = selectedIfThenElseNode
     ? connections.find(connection => connection.from.nodeId === selectedIfThenElseNode.id && connection.from.sourceId === 'else')
     : undefined;
+  const selectedSubMenuOptionConnections = selectedSubMenuNode
+    ? new Map((selectedSubMenuNode.options || []).map(option => [
+        option.id,
+        connections.find(connection => connection.from.nodeId === selectedSubMenuNode.id && connection.from.sourceId === option.id),
+      ]))
+    : new Map<string, Msx2GameFlowConnection | undefined>();
 
-  const connectSelectedNodeTo = (toNodeId: string, sourceId?: 'then' | 'else') => {
+  const connectSelectedNodeTo = (toNodeId: string, sourceId?: string) => {
     if (!selectedNode || selectedNode.type === 'End' || selectedNode.type === 'Restart' || selectedNode.id === toNodeId) return;
     const targetNode = nodes.find(node => node.id === toNodeId);
     if (!targetNode) return;
     if (selectedNode.type === 'IfThenElse' && sourceId) {
+      onUpdate({
+        connections: [
+          ...connections.filter(connection => !(connection.from.nodeId === selectedNode.id && connection.from.sourceId === sourceId)),
+          makeConnection(selectedNode.id, targetNode.id, sourceId),
+        ],
+      });
+      return;
+    }
+    if (selectedNode.type === 'SubMenu' && sourceId) {
       onUpdate({
         connections: [
           ...connections.filter(connection => !(connection.from.nodeId === selectedNode.id && connection.from.sourceId === sourceId)),
@@ -611,11 +755,30 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   return (
     <Panel title="MSX2 Game Flow" className="flex-grow flex flex-col">
       <div className="flex flex-wrap items-center gap-2 p-2 border-b border-msx-border bg-msx-panelbg">
-        <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
+        <div className="flex items-center gap-1 mr-2">
+          <Button
+            onClick={() => updateFlowPurpose('screen5-presentation')}
+            size="sm"
+            variant={isScreen5PresentationFlow ? 'primary' : 'ghost'}
+          >
+            SCREEN 5 Presentation
+          </Button>
+          <Button
+            onClick={() => updateFlowPurpose('screen4-runtime')}
+            size="sm"
+            variant={!isScreen5PresentationFlow ? 'primary' : 'ghost'}
+          >
+            SCREEN 4 Runtime
+          </Button>
+        </div>
+        <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5PresentationFlow}>
           Add SCREEN 5
         </Button>
         <Button onClick={() => addNode('Globals')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Globals
+        </Button>
+        <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+          Add SubMenu
         </Button>
         <Button onClick={() => addNode('Text')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Text
@@ -639,7 +802,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           Auto Layout
         </Button>
         <Button onClick={applyIntroTemplate} size="sm" variant="secondary">
-          Intro Template
+          SCREEN 5 Intro
+        </Button>
+        <Button onClick={applyScreen4RuntimeTemplate} size="sm" variant="secondary">
+          SCREEN 4 Runtime
         </Button>
         <Button onClick={selectPreviewNode} size="sm" variant="ghost">
           Preview
@@ -717,8 +883,13 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 </ol>
               </div>
             )}
+            <p className="text-xs text-msx-textsecondary">
+              Purpose: {isScreen5PresentationFlow ? 'SCREEN 5 presentation/export' : 'SCREEN 4 menu/game runtime'}
+            </p>
             {flowIssues.length === 0 ? (
-              <p className="text-xs text-green-300">Export path ready for SCREEN 5.</p>
+              <p className="text-xs text-green-300">
+                {isScreen5PresentationFlow ? 'Export path ready for SCREEN 5.' : 'SCREEN 4 runtime scaffold is clean.'}
+              </p>
             ) : (
               <ul className="space-y-1 text-xs text-yellow-200">
                 {flowIssues.map(issue => (
@@ -843,6 +1014,54 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
                 />
               </label>
+            </div>
+          )}
+
+          {selectedSubMenuNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">SubMenu</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedSubMenuNode.title}
+                  onChange={event => updateSelectedSubMenu({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                SCREEN 4 background
+                <select
+                  value={selectedSubMenuNode.backgroundScreenAssetId || ''}
+                  onChange={event => updateSelectedSubMenu({ backgroundScreenAssetId: event.target.value || undefined })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  disabled={screen4Assets.length === 0}
+                >
+                  <option value="">Fallback first SCREEN 4 room</option>
+                  {screen4Assets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              <Button onClick={addSubMenuOption} size="sm" variant="secondary" className="w-full" disabled={(selectedSubMenuNode.options || []).length >= 6}>
+                Add Option
+              </Button>
+              {(selectedSubMenuNode.options || []).map(option => (
+                <div key={option.id} className="grid grid-cols-[1fr_auto] gap-1 items-center">
+                  <input
+                    type="text"
+                    value={option.text}
+                    onChange={event => updateSubMenuOption(option.id, event.target.value)}
+                    className="min-w-0 bg-msx-panelbg border border-msx-border rounded p-1 text-xs"
+                  />
+                  <Button onClick={() => deleteSubMenuOption(option.id)} size="sm" variant="ghost">
+                    Del
+                  </Button>
+                </div>
+              ))}
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 4 export currently loads the background and waits for a key; option selection/branching is the next runtime slice.
+              </p>
             </div>
           )}
 
@@ -1027,6 +1246,38 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                     className="w-full"
                   >
                     Clear Branches
+                  </Button>
+                </>
+              ) : selectedSubMenuNode ? (
+                <>
+                  {(selectedSubMenuNode.options || []).map(option => {
+                    const connection = selectedSubMenuOptionConnections.get(option.id);
+                    return (
+                      <label key={option.id} className="block text-xs">
+                        {option.text || option.id}
+                        <select
+                          value={connection?.to.nodeId || ''}
+                          onChange={event => {
+                            if (event.target.value) connectSelectedNodeTo(event.target.value, option.id);
+                          }}
+                          className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                        >
+                          <option value="">None</option>
+                          {nodes.filter(node => node.id !== selectedNode.id).map(node => (
+                            <option key={node.id} value={node.id}>{node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                  <Button
+                    onClick={clearSelectedOutgoingConnection}
+                    size="sm"
+                    variant="ghost"
+                    disabled={!connections.some(connection => connection.from.nodeId === selectedSubMenuNode.id)}
+                    className="w-full"
+                  >
+                    Clear Options
                   </Button>
                 </>
               ) : (

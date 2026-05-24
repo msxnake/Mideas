@@ -5558,6 +5558,15 @@ function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, node
   return connection?.to?.nodeId || connection?.toNodeId;
 }
 
+function getScreen4RuntimeGameFlow(analysis: ProjectAnalysis): any {
+  const msx2Flow = ((analysis as any).msx2GameFlows || []).find((flow: any) => flow?.purpose === 'screen4-runtime');
+  return msx2Flow || analysis.gameFlow;
+}
+
+function getFlowBackgroundScreenAssetId(node: any): string | undefined {
+  return node?.appearance?.backgroundScreenAssetId || node?.backgroundScreenAssetId;
+}
+
 function resolveScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): ScreenMap | undefined {
   if (!assetId) return undefined;
   const assets = (analysis as any).assets as Array<{ id?: string; type?: string; data?: unknown }> | undefined;
@@ -5591,19 +5600,20 @@ function getGameFlowWorldAssetId(node: any): string | undefined {
 }
 
 function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
+  const graph = getScreen4RuntimeGameFlow(analysis);
   const screens = new Map<string, ScreenMap>();
   const addScreen = (screen: ScreenMap | undefined) => {
     if (!screen) return;
     screens.set(screen.id || screen.name || `screen_${screens.size}`, screen);
   };
 
-  for (const node of analysis.gameFlow?.nodes || []) {
+  for (const node of graph?.nodes || []) {
     if (node.type === 'Text') {
-      addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+      addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'SubMenu') {
-      addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+      addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'Restart') {
-      addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+      addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     }
   }
 
@@ -5611,15 +5621,16 @@ function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
 }
 
 function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen4TileScreen[] {
+  const graph = getScreen4RuntimeGameFlow(analysis);
   const screens = new Map<string, Msx2Screen4TileScreen>();
   const addScreen = (screen: Msx2Screen4TileScreen | undefined) => {
     if (!screen) return;
     screens.set(screen.id || screen.name || `msx2_screen_${screens.size}`, screen);
   };
 
-  for (const node of analysis.gameFlow?.nodes || []) {
+  for (const node of graph?.nodes || []) {
     if (node.type === 'Text' || node.type === 'SubMenu' || node.type === 'Restart') {
-      addScreen(resolveTileScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+      addScreen(resolveTileScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'WorldLink') {
       const worldAssetId = getGameFlowWorldAssetId(node);
       const world = resolveWorldByAssetId(analysis, worldAssetId);
@@ -6278,6 +6289,7 @@ function buildMsx2ProjectSliceJson(
   useKonamiDataBank: boolean
 ): string {
   const assets = ((analysis as any).assets || []) as any[];
+  const screen4RuntimeFlow = getScreen4RuntimeGameFlow(analysis);
   const included = new Map<string, any>();
   const worldIds = new Set<string>();
   const spriteIds = new Set<string>();
@@ -6294,13 +6306,13 @@ function buildMsx2ProjectSliceJson(
     if (asset) addIncludedAsset(included, asset, reason, extra);
   };
 
-  for (const node of analysis.gameFlow?.nodes || []) {
+  for (const node of screen4RuntimeFlow?.nodes || []) {
     if (node.type === 'WorldLink') {
       const worldAssetId = getGameFlowWorldAssetId(node);
       if (worldAssetId) worldIds.add(worldAssetId);
       includeByTypeAndId('worldmap', worldAssetId, `GameFlow WorldLink node ${node.id}`);
     } else if (node.type === 'Text' || node.type === 'SubMenu' || node.type === 'Restart') {
-      includeByTypeAndId('msx2screen', node.appearance?.backgroundScreenAssetId, `GameFlow ${node.type} background`);
+      includeByTypeAndId('msx2screen', getFlowBackgroundScreenAssetId(node), `GameFlow ${node.type} background`);
     } else if (node.type === 'Music') {
       includeByTypeAndId('track', node.trackAssetId, `GameFlow Music node ${node.id}`);
     } else if (node.type === 'Globals') {
@@ -6310,8 +6322,11 @@ function buildMsx2ProjectSliceJson(
     }
   }
 
-  const gameFlowAsset = assets.find(asset => asset?.type === 'gameflow' && asset.data === analysis.gameFlow);
-  if (gameFlowAsset) addIncludedAsset(included, gameFlowAsset, 'Active MSX2 GameFlow entry point');
+  const gameFlowAssetType = screen4RuntimeFlow === analysis.gameFlow ? 'gameflow' : 'msx2gameflow';
+  const gameFlowAsset = assets.find(asset => asset?.type === gameFlowAssetType && asset.data === screen4RuntimeFlow);
+  if (gameFlowAsset) {
+    addIncludedAsset(included, gameFlowAsset, gameFlowAssetType === 'msx2gameflow' ? 'Active MSX2 SCREEN 4 GameFlow entry point' : 'Active MSX2 GameFlow entry point');
+  }
   const paletteAsset = assets.find(asset =>
     asset?.type === 'palette'
     && (asset.data?.mode === 'SCREEN4' || asset.data?.mode === 'SCREEN5')
@@ -6456,8 +6471,8 @@ function buildMsx2ProjectSliceJson(
     romMode: useKonamiDataBank ? 'megarom' : config.romMode,
     mapper: config.targetFormat,
     entryPoints: {
-      gameFlowId: analysis.gameFlow?.id || null,
-      gameFlowName: analysis.gameFlow?.name || null,
+      gameFlowId: screen4RuntimeFlow?.id || null,
+      gameFlowName: screen4RuntimeFlow?.name || null,
       worldIds: Array.from(worldIds).sort(),
       screenIds: Array.from(screenIds).sort(),
     },
@@ -7222,7 +7237,7 @@ function buildMsx2GameFlowProgram(
   tileScreenLabels: Map<string, string>,
   tileScreenIndexByLabel: Map<string, number>
 ): string {
-  const graph = analysis.gameFlow;
+  const graph = getScreen4RuntimeGameFlow(analysis);
   const fallbackLabel = tileScreenLabels.values().next().value || screenLabels.values().next().value;
   const refreshHardwareSprites = hasHardwareSprite(analysis);
   const refreshSnakeChars = usesSnakeCharMovement(analysis);
@@ -7239,7 +7254,7 @@ function buildMsx2GameFlowProgram(
   const unsupported = new Set<string>();
   const visited = new Set<string>();
   let terminated = false;
-  let current: GameFlowNode | undefined = startNodeId ? nodeById.get(startNodeId) : undefined;
+  let current: any = startNodeId ? nodeById.get(startNodeId) : undefined;
 
   while (current && !visited.has(current.id)) {
     visited.add(current.id);
@@ -7251,13 +7266,13 @@ function buildMsx2GameFlowProgram(
       case 'Music':
         break;
       case 'Text': {
-        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, current.appearance?.backgroundScreenAssetId) || fallbackLabel;
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
         break;
       }
       case 'SubMenu': {
-        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, current.appearance?.backgroundScreenAssetId) || fallbackLabel;
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
         break;
@@ -7331,7 +7346,8 @@ function buildMsx2WorldTransitionAsm(
     transitions.set(fromIndex, entry);
   };
 
-  for (const node of analysis.gameFlow?.nodes || []) {
+  const graph = getScreen4RuntimeGameFlow(analysis);
+  for (const node of graph?.nodes || []) {
     if (node.type !== 'WorldLink') continue;
     const world = resolveWorldByAssetId(analysis, getGameFlowWorldAssetId(node));
     if (!world?.nodes?.length) continue;

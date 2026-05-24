@@ -250,7 +250,8 @@ function resolveNextExportStep(
 function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentationFlow {
   const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>);
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]);
-  const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
+  const screen5Flows = flows.filter(candidate => candidate?.purpose !== 'screen4-runtime');
+  const flow = screen5Flows.find(candidate => candidate?.name === 'Main MSX2') || screen5Flows[0];
   const node = resolveMsx2GameFlowPresentationNode(flow);
   const requestedPresentationAssetId = node?.presentationAssetId;
   const presentation = requestedPresentationAssetId

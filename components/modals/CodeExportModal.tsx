@@ -93,7 +93,8 @@ const hasMsx2PresentationAsset = (assets: ProjectAsset[]): boolean =>
 const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const presentations = assets.filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
   const flows = assets.filter(asset => asset.type === 'msx2gameflow');
-  const flow = flows.find(asset => asset.name === 'Main MSX2') || flows[0];
+  const screen5Flows = flows.filter(asset => (asset.data as any)?.purpose !== 'screen4-runtime');
+  const flow = screen5Flows.find(asset => asset.name === 'Main MSX2') || screen5Flows[0];
   const flowData = flow?.data as any;
   const nodes = Array.isArray(flowData?.nodes) ? flowData.nodes : [];
   const connections = Array.isArray(flowData?.connections) ? flowData.connections : [];

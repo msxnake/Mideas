@@ -20,11 +20,13 @@ const asmTemplate = read('utils/asmTemplateGenerator.ts');
 const globalVariablesUtils = read('utils/globalVariablesUtils.ts');
 const generatorIndex = read('utils/msxGenerator/index.ts');
 const screen5PresentationGenerator = read('utils/msxGenerator/generators/msx2/msx2Screen5PresentationGenerator.ts');
+const screen4Generator = read('utils/msxGenerator/generators/msx2/msx2Screen4Generator.ts');
 const gameflowCase = assetHandlers.match(/case 'gameflow':[\s\S]*?break;/)?.[0] || '';
 const msx2GameflowCase = assetHandlers.match(/case 'msx2gameflow':[\s\S]*?break;/)?.[0] || '';
 
 addCheck('types declare Msx2GameFlowGraph', /interface\s+Msx2GameFlowGraph/.test(types));
 addCheck('types declare Msx2GameFlowNode union', /type\s+Msx2GameFlowNode\s*=/.test(types));
+addCheck('types declare MSX2 GameFlow purpose split', types.includes("export type Msx2GameFlowPurpose = 'screen5-presentation' | 'screen4-runtime'") && types.includes('purpose?: Msx2GameFlowPurpose'));
 addCheck('EditorType includes Msx2GameFlow', /Msx2GameFlow\s*=\s*"Msx2GameFlow"/.test(types));
 addCheck('ProjectAsset type includes msx2gameflow', /type:\s*[^;]*'msx2gameflow'/.test(types));
 addCheck('ProjectAsset data includes Msx2GameFlowGraph', /data\?:[^;]*Msx2GameFlowGraph/.test(types));
@@ -37,6 +39,7 @@ addCheck('MSX1 gameflow handler still opens MSX1 editor', gameflowCase.includes(
 addCheck('MSX2 gameflow handler does not use MSX1 GameFlowGraph cast', !/\bas\s+GameFlowGraph\b/.test(msx2GameflowCase));
 addCheck('MSX2 gameflow handler opens only MSX2 editor', msx2GameflowCase.includes('EditorType.Msx2GameFlow') && !msx2GameflowCase.includes('EditorType.GameFlow'));
 addCheck('MSX2 gameflow default includes SCREEN 5 node', msx2GameflowCase.includes("type: 'Screen5Presentation'"));
+addCheck('MSX2 gameflow default marks SCREEN 5 presentation purpose', msx2GameflowCase.includes("purpose: 'screen5-presentation'"));
 addCheck('MSX2 gameflow default includes terminal fade transition', msx2GameflowCase.includes("type: 'Transition'") && msx2GameflowCase.includes("effect: 'fade_to_black'") && msx2GameflowCase.includes('durationFrames: 30'));
 addCheck('MSX2 gameflow default includes End node', msx2GameflowCase.includes("type: 'End'"));
 addCheck('MSX2 gameflow default creates presentation-transition-end connections', (msx2GameflowCase.match(/from:\s*\{\s*nodeId:/g) || []).length >= 3 && msx2GameflowCase.includes('msx2_gfc_screen5_transition') && msx2GameflowCase.includes('msx2_gfc_transition_end'));
@@ -57,7 +60,9 @@ addCheck(
 addCheck('MSX2 GameFlow editor exposes explicit outgoing connection controls', editor.includes('connectSelectedNodeTo') && editor.includes('Clear Connection') && editor.includes('Next node'));
 addCheck('MSX2 GameFlow editor exposes SCREEN 5 runtime wait controls', editor.includes('updateSelectedPresentationRuntime') && editor.includes('GameFlow runtime override') && editor.includes('Wait for key') && editor.includes('Wait frames') && editor.includes('waitForKey') && editor.includes('waitFrames') && editor.includes('disabled={selectedPresentationNode.waitForKey !== false}'));
 addCheck('MSX2 GameFlow editor exposes transition duration controls', editor.includes('updateSelectedTransitionDuration') && editor.includes('Duration frames') && editor.includes('durationFrames') && editor.includes('Math.max(0, Math.min(255'));
-addCheck('MSX2 GameFlow editor exposes low-risk control nodes', editor.includes("addNode('Waypoint')") && editor.includes("addNode('Restart')") && editor.includes("addNode('Globals')") && editor.includes("addNode('Text')") && editor.includes("addNode('IfThenElse')") && editor.includes("sourceId === 'then'") && editor.includes("sourceId === 'else'") && editor.includes('getNextExportNode') && editor.includes('nodes do not have outgoing connections'));
+addCheck('MSX2 GameFlow editor exposes SCREEN 4/SCREEN 5 purpose split', editor.includes("flowPurpose = gameFlowGraph.purpose || 'screen5-presentation'") && editor.includes("updateFlowPurpose('screen4-runtime')") && editor.includes('applyScreen4RuntimeTemplate') && editor.includes('SCREEN 4 runtime GameFlow'));
+addCheck('MSX2 GameFlow editor exposes SCREEN 4 SubMenu scaffold', editor.includes("addNode('SubMenu')") && editor.includes('selectedSubMenuNode') && editor.includes('backgroundScreenAssetId') && editor.includes('selectedSubMenuOptionConnections') && editor.includes('Clear Options') && editor.includes('makeConnection(subMenuNodeId, endNodeId, startOptionId)'));
+addCheck('MSX2 GameFlow editor exposes low-risk control nodes', editor.includes("addNode('Waypoint')") && editor.includes("addNode('Restart')") && editor.includes("addNode('Globals')") && editor.includes("addNode('SubMenu')") && editor.includes("addNode('Text')") && editor.includes("addNode('IfThenElse')") && editor.includes("sourceId === 'then'") && editor.includes("sourceId === 'else'") && editor.includes('getNextExportNode') && editor.includes('nodes do not have outgoing connections'));
 addCheck('MSX2 GameFlow intro template includes terminal transition', editor.includes('applyIntroTemplate') && editor.includes("type: 'Transition'") && editor.includes("effect: 'fade_to_black'") && editor.includes('durationFrames: 30'));
 addCheck('MSX2 GameFlow editor validates exportable SCREEN 5 flow shape', editor.includes('flowIssues') && editor.includes('Flow status') && editor.includes('Export path:') && editor.includes('flowPath.map((item, index)') && editor.includes("presentationNode?.type !== 'Screen5Presentation'") && editor.includes('Start should reach a SCREEN 5 Presentation node through optional Waypoint/Globals nodes') && editor.includes('Missing SCREEN 5 Presentation node') && editor.includes('SCREEN 5 node has no valid presentation asset') && editor.includes('SCREEN 5 node should continue to Text, Transition, Restart, or End') && editor.includes('SCREEN 5 node can only continue to Text, IfThenElse, Transition, Restart, or End') && editor.includes('Text node must include a message') && editor.includes('Text node should continue to Transition, Restart, or End') && editor.includes('IfThenElse must select a global variable') && editor.includes('IfThenElse must have THEN and ELSE branches') && editor.includes('branch can only continue to Text, Transition, Restart, or End') && editor.includes("afterTransition?.type !== 'End'") && editor.includes("afterTransition?.type !== 'Restart'") && editor.includes('Terminal Transition should continue to Restart or End') && editor.includes('Export path contains a cycle') && editor.includes('flowHasAnyCycle') && editor.includes('Flow contains a cycle') && editor.includes('Flow contains a connection to a missing node') && editor.includes('Orphaned node') && editor.includes('nodes do not support outgoing connections') && editor.includes('has more than one outgoing connection'));
 addCheck('MSX2 GameFlow preview does not hide broken presentation references with fallback assets', editor.includes('return selectedAssetId ? selectedAsset : presentationAssets[0]') && editor.includes("clearRect(0, 0, canvas.width, canvas.height)"));
@@ -75,7 +80,7 @@ addCheck(
 );
 addCheck(
   'MSX2 GameFlowNodeType is separate and includes SCREEN 5 control nodes',
-  types.includes("export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';")
+  types.includes("export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';")
 );
 addCheck(
   'MSX1 GameFlowNode union does not include MSX2 nodes',
@@ -83,7 +88,7 @@ addCheck(
 );
 addCheck(
   'MSX2 GameFlowNode union does not include MSX1 nodes',
-  !/export type Msx2GameFlowNode[\s\S]*(SubMenu|WorldLink|TextScroll|PresentationScreen)/.test(types.split('// --- End Game Flow Types ---')[0].split('// --- MSX2 Game Flow Types ---')[1] || '')
+  !/export type Msx2GameFlowNode[\s\S]*(WorldLink|TextScroll|PresentationScreen|Controls|Music|Group)/.test(types.split('// --- End Game Flow Types ---')[0].split('// --- MSX2 Game Flow Types ---')[1] || '')
 );
 const findMainGameFlowBlock = summaryExtractor.match(/function findMainGameFlow[\s\S]*?function extractUsedWorldMaps/)?.[0] || '';
 addCheck('summary extractor still selects only MSX1 gameflow for mainGameFlow', /asset\.type === 'gameflow'/.test(findMainGameFlowBlock) && !findMainGameFlowBlock.includes("asset.type === 'msx2gameflow'"));
@@ -93,6 +98,9 @@ addCheck('ASM analysis carries MSX2 gameflow assets separately', asmTemplate.inc
 addCheck('global variable usage scanner includes MSX2 gameflow Globals nodes', globalVariablesUtils.includes("a.type === 'gameflow' || a.type === 'msx2gameflow'") && globalVariablesUtils.includes('varAssignment.variableName || varAssignment.name'));
 addCheck('summary conversion carries MSX2 gameflow separately', generatorIndex.includes('msx2GameFlows') && generatorIndex.includes('summaryAssets.msx2GameFlows'));
 addCheck('SCREEN 5 generator resolves MSX2 gameflow presentation node', screen5PresentationGenerator.includes('resolveMsx2GameFlowPresentationNode') && screen5PresentationGenerator.includes('getNextExportNode') && screen5PresentationGenerator.includes("nextNode?.type === 'Screen5Presentation'"));
+addCheck('SCREEN 5 generator ignores SCREEN 4 runtime GameFlows', screen5PresentationGenerator.includes("candidate?.purpose !== 'screen4-runtime'"));
+addCheck('SCREEN 4 generator selects MSX2 screen4 runtime GameFlow', screen4Generator.includes('getScreen4RuntimeGameFlow') && screen4Generator.includes("flow?.purpose === 'screen4-runtime'") && screen4Generator.includes("asset?.type === gameFlowAssetType") && screen4Generator.includes("'msx2gameflow'"));
+addCheck('SCREEN 4 generator reads MSX2 SubMenu background ids', screen4Generator.includes('getFlowBackgroundScreenAssetId') && screen4Generator.includes('node?.backgroundScreenAssetId') && screen4Generator.includes('getFlowBackgroundScreenAssetId(current)'));
 addCheck('SCREEN 5 generator selects presentation by msx2gameflow asset id', screen5PresentationGenerator.includes('requestedPresentationAssetId') && screen5PresentationGenerator.includes('presentationAssetId'));
 addCheck('SCREEN 5 generator fails on missing msx2gameflow presentation asset', screen5PresentationGenerator.includes('references missing msx2presentation asset') && screen5PresentationGenerator.includes('throw new Error'));
 addCheck('SCREEN 5 generator rejects invalid MSX2 gameflow shape', screen5PresentationGenerator.includes('must reach Screen5Presentation from Start through optional Waypoint nodes') && screen5PresentationGenerator.includes('must continue to End, Restart, or terminal Transition') && screen5PresentationGenerator.includes('must select a global variable') && screen5PresentationGenerator.includes('nodeAfterTransition') && screen5PresentationGenerator.includes('must continue to End or Restart'));

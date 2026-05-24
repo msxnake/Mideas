@@ -2183,7 +2183,7 @@ export interface GameFlowGraph {
 
 // --- MSX2 Game Flow Types ---
 
-export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';
+export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';
 
 export interface Msx2GameFlowNode_Base {
   id: string;
@@ -2208,6 +2208,18 @@ export interface Msx2GameFlowTextNode extends Msx2GameFlowNode_Base {
   message: string;
   waitForKey?: boolean;
   waitFrames?: number;
+}
+
+export interface Msx2GameFlowSubMenuOption {
+  id: string;
+  text: string;
+}
+
+export interface Msx2GameFlowSubMenuNode extends Msx2GameFlowNode_Base {
+  type: 'SubMenu';
+  title: string;
+  options: Msx2GameFlowSubMenuOption[];
+  backgroundScreenAssetId?: string;
 }
 
 export interface Msx2GameFlowGlobalsNode extends Msx2GameFlowNode_Base {
@@ -2252,6 +2264,7 @@ export type Msx2GameFlowNode =
   | Msx2GameFlowStartNode
   | Msx2GameFlowGlobalsNode
   | Msx2GameFlowScreen5PresentationNode
+  | Msx2GameFlowSubMenuNode
   | Msx2GameFlowTextNode
   | Msx2GameFlowWaypointNode
   | Msx2GameFlowIfThenElseNode
@@ -2266,10 +2279,13 @@ export interface Msx2GameFlowConnection {
   waypoints?: Point[];
 }
 
+export type Msx2GameFlowPurpose = 'screen5-presentation' | 'screen4-runtime';
+
 export interface Msx2GameFlowGraph {
   id: string;
   name: string;
   target: 'MSX2';
+  purpose?: Msx2GameFlowPurpose;
   nodes: Msx2GameFlowNode[];
   connections: Msx2GameFlowConnection[];
   startNodeId: string;

@@ -548,6 +548,7 @@ export const useAssetHandlers = ({
           id,
           name: defaultName,
           target: 'MSX2',
+          purpose: 'screen5-presentation',
           nodes: [
             { id: msx2StartNodeId, type: 'Start', position: { x: 70, y: 110 } },
             {
