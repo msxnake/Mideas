@@ -985,6 +985,55 @@ ${optionDraws || '    ; No submenu options to draw'}
 ${rows.join('')}`;
 }
 
+function wrapMsx2Screen4Text(value: unknown, maxChars = 24, maxLines = 5): string[] {
+  const words = String(value ?? '').replace(/\r/g, '').split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxChars) {
+      current = next;
+      continue;
+    }
+    if (current) lines.push(current);
+    current = word.length > maxChars ? word.slice(0, maxChars) : word;
+    if (lines.length >= maxLines) break;
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  return lines.slice(0, maxLines);
+}
+
+function buildMsx2TextNodeData(label: string, node: any, analysis: ProjectAnalysis): string {
+  const allowedCharacters = getMsx2HudFontCharacters(analysis);
+  const title = normalizeMsx2HudText(String(node?.title || 'TEXT'), 22, allowedCharacters);
+  const messageLines = wrapMsx2Screen4Text(node?.message || '', 24, 5)
+    .map(line => normalizeMsx2HudText(line, 24, allowedCharacters));
+  const prompt = node?.waitForKey === false ? '' : normalizeMsx2HudText('PRESS KEY', 12, allowedCharacters);
+  const rows = [title, ...messageLines, ...(prompt ? [prompt] : [])].map((text, index) =>
+    formatBytes(`${label}_TEXT_${index}`, [...Array.from(text).map(char => String(char).charCodeAt(0) & 0xff), 0], `MSX2 SCREEN 4 Text node text "${text}"`)
+  );
+  const messageDraws = messageLines.map((_line, index) => {
+    const vram = 0x1984 + (index * SCREEN4_CHAR_COLUMNS);
+    return `    ld hl, #${vram.toString(16).toUpperCase().padStart(4, '0')}
+    ld de, ${label}_TEXT_${index + 1}
+    call draw_msx2_hud_string`;
+  }).join('\n');
+  const promptDraw = prompt
+    ? `    ld hl, #1AEE
+    ld de, ${label}_TEXT_${messageLines.length + 1}
+    call draw_msx2_hud_string`
+    : '';
+  return `draw_${label}:
+    ld hl, #1945
+    ld de, ${label}_TEXT_0
+    call draw_msx2_hud_string
+${messageDraws || '    ; No message lines to draw'}
+${promptDraw}
+    ret
+
+${rows.join('')}`;
+}
+
 function getEntityRenderSpriteId(entity: any): string {
   return String(
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
@@ -7582,7 +7631,21 @@ function buildMsx2GameFlowProgram(
       case 'Text': {
         const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
-        lines.push('    call wait_key');
+        const dataLabel = `${labelForNodeId(current.id)}_TEXT`;
+        dataBlocks.push(buildMsx2TextNodeData(dataLabel, current, analysis));
+        lines.push('    call load_msx2_hud_font');
+        lines.push(`    call draw_${dataLabel}`);
+        if (current.waitForKey === false) {
+          const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
+          if (frames > 0) {
+            lines.push(`    ld b, ${formatHexByte(frames)}`);
+            lines.push(`.${dataLabel}_wait_frames:`);
+            lines.push('    halt');
+            lines.push(`    djnz .${dataLabel}_wait_frames`);
+          }
+        } else {
+          lines.push('    call wait_key');
+        }
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       }
