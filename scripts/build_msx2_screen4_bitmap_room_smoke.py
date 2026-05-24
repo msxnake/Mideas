@@ -7,6 +7,7 @@ as real SCREEN 4 pattern, name and color tables.
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -73,7 +74,7 @@ def build_atlas_pixels(width: int = 64, height: int = 32) -> list[list[int]]:
     for y in range(16):
         for x in range(16):
             if x in (0, 15) or y in (0, 15):
-                pixels[y][x] = 15
+                pixels[y][x] = 4
             elif (x + y) % 2 == 0:
                 pixels[y][x] = 4
             else:
@@ -137,6 +138,101 @@ def build_project() -> dict[str, object]:
     }
 
 
+def render_smoke_bitmap_room(project: dict[str, object]) -> list[list[int]]:
+    room = project["assets"][0]["data"]
+    width = int(room["width"])
+    height = int(room["height"])
+    pixels = [[0 for _x in range(width)] for _y in range(height)]
+    atlas = room["atlas"]
+    atlas_pixels = atlas["pixels"]
+    entries = {entry["id"]: entry for entry in atlas["entries"]}
+
+    for command in room["composition"]["commands"]:
+        op = command["op"]
+        if op == "fill":
+            color = int(command.get("color", 0))
+            x0 = int(command.get("x", 0))
+            y0 = int(command.get("y", 0))
+            w = int(command.get("w", 0))
+            h = int(command.get("h", 0))
+            for y in range(max(0, y0), min(height, y0 + h)):
+                for x in range(max(0, x0), min(width, x0 + w)):
+                    pixels[y][x] = color
+        elif op == "lineH":
+            color = int(command.get("color", 0))
+            y = int(command.get("y", 0))
+            if 0 <= y < height:
+                x0 = int(command.get("x", 0))
+                length = int(command.get("length", 0))
+                for x in range(max(0, x0), min(width, x0 + length)):
+                    pixels[y][x] = color
+        elif op == "copy":
+            entry = entries[command["atlasEntryId"]]
+            sx = int(entry["sx"])
+            sy = int(entry["sy"])
+            w = int(command.get("w", entry["w"]))
+            h = int(command.get("h", entry["h"]))
+            dx = int(command.get("dx", 0))
+            dy = int(command.get("dy", 0))
+            for y in range(h):
+                ty = dy + y
+                ay = sy + y
+                if not (0 <= ty < height and 0 <= ay < len(atlas_pixels)):
+                    continue
+                for x in range(w):
+                    tx = dx + x
+                    ax = sx + x
+                    if 0 <= tx < width and 0 <= ax < len(atlas_pixels[ay]):
+                        pixels[ty][tx] = int(atlas_pixels[ay][ax])
+        else:
+            raise RuntimeError(f"Unsupported smoke composition command: {op}")
+
+    return pixels
+
+
+def validate_screen4_color_rows(pixels: list[list[int]]) -> None:
+    for y, row in enumerate(pixels):
+        for x in range(0, len(row), 8):
+            colors = sorted(set(row[x:x + 8]))
+            if len(colors) > 2:
+                raise RuntimeError(
+                    f"SCREEN 4 Bitmap Room smoke fixture exceeds 2 colors at y={y}, x={x}: {colors}"
+                )
+
+
+def extract_db_bytes(asm_text: str, label: str) -> list[int]:
+    match = re.search(rf"^{re.escape(label)}:\s*$", asm_text, flags=re.MULTILINE)
+    if not match:
+        raise RuntimeError(f"Generated ASM is missing label: {label}")
+    bytes_out: list[int] = []
+    for line in asm_text[match.end():].splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not stripped.upper().startswith("DB "):
+            break
+        for token in stripped[3:].split(","):
+            value = token.strip()
+            if value.startswith("#"):
+                bytes_out.append(int(value[1:], 16))
+            else:
+                bytes_out.append(int(value, 10))
+    return bytes_out
+
+
+def validate_generated_asm_tables(asm_text: str) -> None:
+    expected_lengths = {
+        "screen4_bitmap_palette_data": 32,
+        "screen4_pattern_data": 6144,
+        "screen4_name_data": 768,
+        "screen4_color_data": 6144,
+    }
+    for label, expected_length in expected_lengths.items():
+        actual_length = len(extract_db_bytes(asm_text, label))
+        if actual_length != expected_length:
+            raise RuntimeError(f"{label} has {actual_length} bytes; expected {expected_length}")
+
+
 def main() -> int:
     args = parse_args()
     project_root = Path(args.project_root).resolve()
@@ -145,8 +241,11 @@ def main() -> int:
     rom_output = Path(args.rom_output).resolve()
     screenshot_output = Path(args.screenshot_output).resolve()
 
+    project = build_project()
+    validate_screen4_color_rows(render_smoke_bitmap_room(project))
+
     json_output.parent.mkdir(parents=True, exist_ok=True)
-    json_output.write_text(json.dumps(build_project(), indent=2) + "\n", encoding="utf-8")
+    json_output.write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
     print(f"Project JSON written: {json_output}")
 
     run_command([
@@ -167,6 +266,7 @@ def main() -> int:
     for marker in ("screen4_pattern_data", "screen4_name_data", "screen4_color_data", "Mideas MSX2 SCREEN 4 pattern-bitmap room backend"):
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing marker: {marker}")
+    validate_generated_asm_tables(asm_text)
 
     if not args.skip_openmsx:
         run_command([
