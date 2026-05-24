@@ -207,20 +207,70 @@ def write_invalid_strict_shape_fixture(source: Path, destination: Path) -> Path:
     return destination
 
 
-def assert_strict_shape_rejection(source: Path, out_dir: Path, args: argparse.Namespace, project_root: Path) -> None:
-    invalid_fixture = write_invalid_strict_shape_fixture(
-        source,
-        out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape_fixture.json",
-    )
-    asm_output = out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape.asm"
-    rom_output = out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape.rom"
-    sym_output = out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape.sym"
+def write_invalid_terminal_transition_fixture(source: Path, destination: Path) -> Path:
+    data = json.loads(source.read_text(encoding="utf-8"))
+    presentation_asset = next((asset for asset in data.get("assets", []) if asset.get("type") == "msx2presentation"), None)
+    if presentation_asset is None:
+        raise RuntimeError(f"Cannot create invalid terminal Transition fixture without an msx2presentation asset: {source}")
+
+    flow_id = "msx2_terminal_transition_rejection_flow"
+    start_id = f"{flow_id}_start"
+    screen5_id = f"{flow_id}_screen5"
+    transition_id = f"{flow_id}_transition_without_end"
+    assets = [asset for asset in data.get("assets", []) if asset.get("type") != "msx2gameflow"]
+    assets.append({
+        "id": flow_id,
+        "name": "Invalid Terminal Transition MSX2",
+        "type": "msx2gameflow",
+        "data": {
+            "id": flow_id,
+            "name": "Invalid Terminal Transition MSX2",
+            "target": "MSX2",
+            "nodes": [
+                {"id": start_id, "type": "Start", "position": {"x": 70, "y": 110}},
+                {
+                    "id": screen5_id,
+                    "type": "Screen5Presentation",
+                    "position": {"x": 300, "y": 110},
+                    "presentationAssetId": presentation_asset.get("id"),
+                    "waitForKey": True,
+                    "waitFrames": 0,
+                },
+                {"id": transition_id, "type": "Transition", "position": {"x": 530, "y": 110}, "effect": "fade_to_black", "durationFrames": 30},
+            ],
+            "connections": [
+                {"id": f"{flow_id}_conn_start_screen5", "from": {"nodeId": start_id}, "to": {"nodeId": screen5_id}},
+                {"id": f"{flow_id}_conn_screen5_transition", "from": {"nodeId": screen5_id}, "to": {"nodeId": transition_id}},
+            ],
+            "startNodeId": start_id,
+            "panOffset": {"x": 0, "y": 0},
+            "zoomLevel": 1,
+        },
+    })
+    data["assets"] = assets
+    data["selectedAssetId"] = flow_id
+    data["currentEditor"] = "Msx2GameFlow"
+    destination.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return destination
+
+
+def assert_build_rejects_fixture(
+    fixture: Path,
+    out_dir: Path,
+    args: argparse.Namespace,
+    project_root: Path,
+    suffix: str,
+    expected_error: str,
+) -> None:
+    asm_output = out_dir / f"{Path(args.project_name).stem}_{suffix}.asm"
+    rom_output = out_dir / f"{Path(args.project_name).stem}_{suffix}.rom"
+    sym_output = out_dir / f"{Path(args.project_name).stem}_{suffix}.sym"
     cmd = [
         sys.executable,
         "scripts/build_mideas_unified_rom.py",
-        "--json", str(invalid_fixture),
+        "--json", str(fixture),
         "--project-root", str(project_root),
-        "--project-name", f"{args.project_name}_invalid_strict_shape",
+        "--project-name", f"{args.project_name}_{suffix}",
         "--asm-output", str(asm_output),
         "--rom-output", str(rom_output),
         "--sym-output", str(sym_output),
@@ -235,10 +285,36 @@ def assert_strict_shape_rejection(source: Path, out_dir: Path, args: argparse.Na
         completed.stderr.decode("utf-8", errors="replace"),
     ])
     if completed.returncode == 0:
-        raise RuntimeError("Invalid MSX2 GameFlow strict-shape fixture compiled successfully; expected rejection")
-    expected = "MSX2 GameFlow must start with Start -> Screen5Presentation"
-    if expected not in output:
-        raise RuntimeError(f"Invalid MSX2 GameFlow rejection did not include expected error: {expected}")
+        raise RuntimeError(f"Invalid MSX2 GameFlow fixture compiled successfully; expected rejection: {fixture}")
+    if expected_error not in output:
+        raise RuntimeError(f"Invalid MSX2 GameFlow rejection did not include expected error: {expected_error}")
+
+
+def assert_strict_shape_rejection(source: Path, out_dir: Path, args: argparse.Namespace, project_root: Path) -> None:
+    invalid_fixture = write_invalid_strict_shape_fixture(
+        source,
+        out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape_fixture.json",
+    )
+    assert_build_rejects_fixture(
+        invalid_fixture,
+        out_dir,
+        args,
+        project_root,
+        "invalid_strict_shape",
+        "MSX2 GameFlow must start with Start -> Screen5Presentation",
+    )
+    invalid_terminal_fixture = write_invalid_terminal_transition_fixture(
+        source,
+        out_dir / f"{Path(args.project_name).stem}_invalid_terminal_transition_fixture.json",
+    )
+    assert_build_rejects_fixture(
+        invalid_terminal_fixture,
+        out_dir,
+        args,
+        project_root,
+        "invalid_terminal_transition",
+        "MSX2 GameFlow terminal Transition node",
+    )
     print("Strict shape rejection OK")
 
 

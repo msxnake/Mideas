@@ -41,10 +41,11 @@ const asmPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentatio
 const fixture = readJson('test', 'msx2-screen5-presentation', 'presentation_screen5_project.json');
 const bitmap = readFileSync(bitmapPath);
 const asm = readFileSync(asmPath, 'utf8');
-const fromPngFixturePath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_project.json');
-const fromPngBitmapPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_bitmap.bin');
-const fromPngPreviewPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_preview.png');
-const fromPngZx0AsmPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_compressed.asm');
+const fromPngSmokeDir = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'smoke_gameflow');
+const fromPngFixturePath = join(fromPngSmokeDir, 'presentacion_naves_galaxian_rtype_screen5_project.json');
+const fromPngBitmapPath = join(fromPngSmokeDir, 'presentacion_naves_galaxian_rtype_screen5_bitmap.bin');
+const fromPngPreviewPath = join(fromPngSmokeDir, 'presentacion_naves_galaxian_rtype_screen5_preview.png');
+const fromPngZx0AsmPath = join(fromPngSmokeDir, 'presentacion_naves_galaxian_rtype_screen5_compressed.asm');
 const fromPngFixture = existsSync(fromPngFixturePath) ? JSON.parse(readFileSync(fromPngFixturePath, 'utf8')) : null;
 const fromPngBitmap = existsSync(fromPngBitmapPath) ? readFileSync(fromPngBitmapPath) : null;
 const fromPngPreview = existsSync(fromPngPreviewPath) ? readFileSync(fromPngPreviewPath) : null;
@@ -132,6 +133,15 @@ function validateFromPngFixture() {
   if (!fromPngFixture) return;
 
   const assets = (fromPngFixture.assets || []).filter(asset => asset.type === 'msx2presentation');
+  const gameflows = (fromPngFixture.assets || []).filter(asset => asset.type === 'msx2gameflow');
+  const flow = gameflows[0]?.data || {};
+  const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
+  const connections = Array.isArray(flow.connections) ? flow.connections : [];
+  const screen5Node = nodes.find(node => node.type === 'Screen5Presentation');
+  const terminalTransition = nodes.find(node => node.type === 'Transition' && node.effect === 'fade_to_black' && node.durationFrames === 30);
+  const endNode = nodes.find(node => node.type === 'End');
+  const screen5ToTransition = connections.find(connection => connection?.from?.nodeId === screen5Node?.id && connection?.to?.nodeId === terminalTransition?.id);
+  const transitionToEnd = connections.find(connection => connection?.from?.nodeId === terminalTransition?.id && connection?.to?.nodeId === endNode?.id);
   const asset = assets[0];
   const data = asset?.data || {};
   const expectedBytes = 256 * 192 / 2;
@@ -140,7 +150,11 @@ function validateFromPngFixture() {
   const previewDimensions = readPngDimensions(fromPngPreview);
 
   check('from_png fixture has exactly one msx2presentation asset', assets.length === 1);
+  check('from_png smoke fixture has one MSX2 GameFlow', gameflows.length === 1);
+  check('from_png smoke fixture opens in MSX2 GameFlow editor', fromPngFixture.currentEditor === 'Msx2GameFlow' && fromPngFixture.selectedAssetId === gameflows[0]?.id);
   check('from_png fixture selects the SCREEN 5 presentation backend', fromPngFixture.targetGraphicsBackend === 'msx2-screen5-presentation' && fromPngFixture.screenMode === 'SCREEN 5 (Graphics III)');
+  check('from_png smoke fixture uses terminal fade transition', Boolean(terminalTransition));
+  check('from_png smoke fixture wires Screen5Presentation through terminal Transition', Boolean(screen5Node && terminalTransition && endNode && screen5ToTransition && transitionToEnd));
   check('from_png asset records real PNG import metadata', data.sourceFileName?.endsWith('.png') && data.sourceImageWidth === 1672 && data.sourceImageHeight === 941 && data.width === 256 && data.height === 192 && data.fitMode === 'cover');
   check('from_png fixture keeps auto palette mode', data.paletteMode === undefined || data.paletteMode === 'auto');
   check('from_png fixture keeps characteristic auto palette slots', data.palette?.[1]?.hex === '#000024' && data.palette?.[6]?.hex === '#926DB6' && data.palette?.[8]?.hex === '#FFFFFF');
@@ -210,7 +224,7 @@ check('CLI build runs ZX0 preprocessing before compile by default', buildScript.
 check('CLI smoke inspects the post-ZX0 ASM emitted by build_mideas_unified_rom.py', smokeScript.includes('assert_screen5_zx0_contract') && smokeScript.includes('_compressed.asm'));
 check('CLI smoke accepts custom fixtures and output paths', smokeScript.includes('--fixture') && smokeScript.includes('--out-dir') && smokeScript.includes('--project-name') && smokeScript.includes('--screenshot-output'));
 check('CLI smoke validates fixture and OpenMSX screenshot content', smokeScript.includes('assert_fixture_contract(fixture)') && smokeScript.includes('assert_openmsx_capture(screenshot_output)') && smokeScript.includes('unique_colors') && smokeScript.includes('non_black'));
-check('CLI smoke validates MSX2 GameFlow markers when fixture has one', smokeScript.includes('get_msx2_gameflow_contract(fixture)') && smokeScript.includes('assert_msx2_gameflow_asm_contract') && smokeScript.includes('MSX2_GAMEFLOW_PRESENTATION_ASSET_ID') && smokeScript.includes('must start with Start -> Screen5Presentation') && smokeScript.includes('terminal Transition node must continue to End') && smokeScript.includes('--assert-strict-shape-rejection') && smokeScript.includes('Start -> Transition -> Screen5Presentation'));
+check('CLI smoke validates MSX2 GameFlow markers when fixture has one', smokeScript.includes('get_msx2_gameflow_contract(fixture)') && smokeScript.includes('assert_msx2_gameflow_asm_contract') && smokeScript.includes('MSX2_GAMEFLOW_PRESENTATION_ASSET_ID') && smokeScript.includes('must start with Start -> Screen5Presentation') && smokeScript.includes('terminal Transition node must continue to End') && smokeScript.includes('--assert-strict-shape-rejection') && smokeScript.includes('Start -> Transition -> Screen5Presentation') && smokeScript.includes('write_invalid_terminal_transition_fixture') && smokeScript.includes('invalid_terminal_transition'));
 check('CLI smoke validates MSX2 GameFlow wait-frame runtime override', smokeScript.includes('"wait_for_key": screen5_node.get("waitForKey")') && smokeScript.includes('"wait_frames": screen5_node.get("waitFrames")') && smokeScript.includes('Generated ASM is missing MSX2 GameFlow wait-frame override code') && smokeScript.includes('Generated ASM still waits for CHGET'));
 check('CLI smoke validates MSX2 GameFlow terminal transition runtime', smokeScript.includes('"transition_id": transition_node.get("id")') && smokeScript.includes('MSX2_GAMEFLOW_NEXT_TRANSITION') && smokeScript.includes('msx2_gameflow_run_transition') && smokeScript.includes('screen5_black_palette_data') && smokeScript.includes('--inject-terminal-transition') && smokeScript.includes('clear_screen5_visible_vram'));
 check('presentation generator emits SCREEN 5 palette and bitmap chunk labels', presentationGenerator.includes('screen5_presentation_palette_data') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}'));
