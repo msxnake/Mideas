@@ -100,6 +100,11 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const nodesById = new Map(nodes.map((node: any) => [node.id, node]));
   const visited = new Set<string>();
   let currentId = flowData?.startNodeId || nodes.find((node: any) => node.type === 'Start')?.id;
+  const startNode = currentId ? nodesById.get(currentId) as any : nodes.find((node: any) => node.type === 'Start');
+  const startNextConnection = startNode
+    ? connections.find((connection: any) => connection?.from?.nodeId === startNode.id)
+    : null;
+  const startNextNode = startNextConnection?.to?.nodeId ? nodesById.get(startNextConnection.to.nodeId) as any : null;
   let screen5Node: any = null;
 
   while (currentId && !visited.has(currentId)) {
@@ -122,14 +127,36 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const presentation = presentationAssetId
     ? presentations.find(asset => asset.id === presentationAssetId)
     : presentations[0];
+  const missingPresentation = Boolean(screen5Node && !presentation);
+  const nextAfterScreen5 = screen5Node
+    ? connections.find((connection: any) => connection?.from?.nodeId === screen5Node.id)
+    : null;
+  const terminalNode = nextAfterScreen5?.to?.nodeId ? nodesById.get(nextAfterScreen5.to.nodeId) as any : null;
+  const nextAfterTransition = terminalNode?.type === 'Transition'
+    ? connections.find((connection: any) => connection?.from?.nodeId === terminalNode.id)
+    : null;
+  const nodeAfterTransition = nextAfterTransition?.to?.nodeId ? nodesById.get(nextAfterTransition.to.nodeId) as any : null;
+  const hasValidTerminalPath = Boolean(
+    screen5Node &&
+    startNextNode?.id === screen5Node.id &&
+    (
+      terminalNode?.type === 'End' ||
+      (terminalNode?.type === 'Transition' && nodeAfterTransition?.type === 'End')
+    )
+  );
 
   return {
     hasScreen5Presentation: presentations.length > 0,
+    hasMsx2GameFlow: Boolean(flow),
     flowName: flow?.name || null,
+    hasScreen5Node: Boolean(screen5Node),
     screen5NodeId: screen5Node?.id || null,
     presentationAssetId: presentationAssetId || presentation?.id || null,
     presentationName: presentation?.name || null,
-    missingPresentation: Boolean(presentationAssetId && !presentation),
+    missingPresentation,
+    transitionEffect: terminalNode?.type === 'Transition' ? terminalNode.effect || 'cls' : null,
+    transitionDurationFrames: terminalNode?.type === 'Transition' ? Math.max(0, Math.min(255, Math.trunc(Number(terminalNode.durationFrames) || 0))) : null,
+    invalidFlowShape: Boolean(flow && (!screen5Node || startNextNode?.type !== 'Screen5Presentation' || !hasValidTerminalPath || missingPresentation)),
   };
 };
 
@@ -1850,13 +1877,23 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
                   Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, size=<strong>{romSizeKB ? `${romSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
                   {msx2Screen5ExportInfo.hasScreen5Presentation && (
-                    <div className="mt-1">
-                      SCREEN 5 export: GameFlow=<strong>{msx2Screen5ExportInfo.flowName || 'auto'}</strong>, presentation=<strong>{msx2Screen5ExportInfo.presentationName || 'missing'}</strong>
-                    </div>
+                    <>
+                      <div className="mt-1">
+                        SCREEN 5 export: GameFlow=<strong>{msx2Screen5ExportInfo.flowName || 'auto'}</strong>, presentation=<strong>{msx2Screen5ExportInfo.presentationName || 'missing'}</strong>
+                      </div>
+                      <div className="mt-1">
+                        Terminal transition=<strong>{msx2Screen5ExportInfo.transitionEffect ? `${msx2Screen5ExportInfo.transitionEffect} (${msx2Screen5ExportInfo.transitionDurationFrames} frames)` : 'none'}</strong>
+                      </div>
+                    </>
                   )}
                   {msx2Screen5ExportInfo.missingPresentation && (
                     <div className="mt-1 text-red-300">
                       Warning: selected MSX2 GameFlow node references a missing SCREEN 5 presentation asset.
+                    </div>
+                  )}
+                  {msx2Screen5ExportInfo.invalidFlowShape && (
+                    <div className="mt-1 text-yellow-300">
+                      Warning: MSX2 SCREEN 5 export needs a reachable Screen5Presentation node and supports Start -&gt; Screen5Presentation -&gt; optional terminal Transition -&gt; End.
                     </div>
                   )}
                   <div className="mt-1">

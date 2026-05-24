@@ -41,28 +41,32 @@ interface ResolvedPresentationFlow {
 function resolveMsx2GameFlowPresentationNode(flow: Msx2GameFlowGraph | undefined): Msx2GameFlowScreen5PresentationNode | undefined {
   if (!flow || !Array.isArray(flow.nodes)) return undefined;
   const nodesById = new Map(flow.nodes.map(node => [node.id, node]));
-  const visited = new Set<string>();
-  let currentId = flow.startNodeId || flow.nodes.find(node => node.type === 'Start')?.id;
-
-  while (currentId && !visited.has(currentId)) {
-    visited.add(currentId);
-    const node = nodesById.get(currentId);
-    if (!node) break;
-    if (node.type === 'Screen5Presentation') {
-      return node as Msx2GameFlowScreen5PresentationNode;
-    }
-    const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
-    currentId = nextConnection?.to.nodeId;
-  }
-
-  return flow.nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
+  const startId = flow.startNodeId || flow.nodes.find(node => node.type === 'Start')?.id;
+  const startNode = startId ? nodesById.get(startId) : undefined;
+  const nextConnection = startNode
+    ? (flow.connections || []).find(connection => connection.from.nodeId === startNode.id)
+    : undefined;
+  const nextNode = nextConnection ? nodesById.get(nextConnection.to.nodeId) : undefined;
+  return nextNode?.type === 'Screen5Presentation' ? nextNode as Msx2GameFlowScreen5PresentationNode : undefined;
 }
 
 function resolveNextTransition(flow: Msx2GameFlowGraph | undefined, node: Msx2GameFlowScreen5PresentationNode | undefined): Msx2GameFlowTransitionNode | undefined {
   if (!flow || !node || !Array.isArray(flow.nodes)) return undefined;
   const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
   const nextNode = nextConnection ? flow.nodes.find(candidate => candidate.id === nextConnection.to.nodeId) : undefined;
-  return nextNode?.type === 'Transition' ? nextNode as Msx2GameFlowTransitionNode : undefined;
+  if (!nextNode) {
+    throw new Error(`MSX2 GameFlow Screen5Presentation node "${node.id}" must continue to End or terminal Transition.`);
+  }
+  if (nextNode.type === 'End') return undefined;
+  if (nextNode.type !== 'Transition') {
+    throw new Error(`MSX2 GameFlow Screen5Presentation node "${node.id}" cannot continue to "${nextNode.type}" in the SCREEN 5 backend.`);
+  }
+  const transitionNextConnection = (flow.connections || []).find(connection => connection.from.nodeId === nextNode.id);
+  const nodeAfterTransition = transitionNextConnection ? flow.nodes.find(candidate => candidate.id === transitionNextConnection.to.nodeId) : undefined;
+  if (nodeAfterTransition?.type !== 'End') {
+    throw new Error(`MSX2 GameFlow terminal Transition node "${nextNode.id}" must continue to End.`);
+  }
+  return nextNode as Msx2GameFlowTransitionNode;
 }
 
 function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentationFlow {
@@ -74,6 +78,10 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
   const presentation = requestedPresentationAssetId
     ? presentations.find(item => (item as any).id === requestedPresentationAssetId)
     : undefined;
+
+  if (flow && !node) {
+    throw new Error('MSX2 GameFlow must start with Start -> Screen5Presentation for the SCREEN 5 backend.');
+  }
 
   if (requestedPresentationAssetId && !presentation) {
     throw new Error(
