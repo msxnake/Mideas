@@ -56,7 +56,6 @@ import {
 import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 import { getAllGlobalVariables } from '../../utils/globalVariablesUtils';
 import { AutoEventToken, parseAutoEventString } from '../../utils/autoEventString';
-import { log } from 'console';
 
 
 const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefined
@@ -2172,8 +2171,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const wantsItemType = condition.params?.itemType;
 
                         // Debug logging mejorado
-                        console.log(`[Collision Debug] Item collided: ${other.template.name} (ID: ${other.template.id})`);
-                        console.log(`[Collision Debug] State machine condition params:`, { itemType: wantsItemType || '(any)' });
 
                         // Filtrar por itemType (propiedad de comp_collectible o cualquier component con itemType)
                         if (wantsItemType) {
@@ -2190,13 +2187,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             const normalizedWantedType = normalizeValue(wantsItemType);
                             const normalizedActualType = normalizeValue(otherItemType);
                             if (normalizedActualType !== normalizedWantedType) {
-                                console.debug(`Item type mismatch: wanted "${normalizedWantedType}", got "${normalizedActualType}" (from template: ${other.template.name})`);
                                 return false;
                             }
-                            console.debug(`Item type match: "${normalizedWantedType}"`);
                         }
 
-                        console.log(`[Collision Debug] All conditions met for item: ${other.template.name}`);
                         return true;
                     }
 
@@ -2722,9 +2716,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
                             const currentValue = Number.isNaN(curr) ? 0 : curr;
                             const newValue = currentValue + incrementAmount;
-                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
-                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (INCREMENT_VARIABLE)`); } catch { }
-                            }
                             return {
                                 ...prev,
                                 [resolvedVarName]: newValue
@@ -2749,9 +2740,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
                             const currentValue = Number.isNaN(curr) ? 0 : curr;
                             const newValue = currentValue - decrementAmount;
-                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
-                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch { }
-                            }
                             return {
                                 ...prev,
                                 [resolvedVarName]: newValue
@@ -3243,7 +3231,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             });
 
-            console.log(`[PLAY_SOUND] Playing sound: ${soundAsset.name}`);
         }
     }
     break;
@@ -3335,7 +3322,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 playNextRow(); // Play first row immediately
             });
 
-            console.log(`[PLAY_MUSIC] Playing track: ${trackAsset.name}`);
         }
     }
     break;
@@ -3345,7 +3331,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     if (musicSynthesizerRef.current) {
         musicSynthesizerRef.current.stopAllNotes();
         musicIsMutedRef.current = true;
-        console.log(`[MUTE_MUSIC] Music muted`);
     }
     break;
 }
@@ -3360,7 +3345,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         musicSynthesizerRef.current = null;
         currentMusicTrackIdRef.current = null;
         musicIsMutedRef.current = false;
-        console.log(`[STOP_MUSIC] Music stopped`);
     }
     break;
 }
