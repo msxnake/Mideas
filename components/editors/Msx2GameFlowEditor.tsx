@@ -165,6 +165,21 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedPresentationRuntime = (updates: Partial<Pick<Msx2GameFlowScreen5PresentationNode, 'waitForKey' | 'waitFrames'>>) => {
+    if (!selectedPresentationNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedPresentationNode.id && node.type === 'Screen5Presentation'
+        ? {
+            ...node,
+            ...updates,
+            waitFrames: updates.waitFrames !== undefined
+              ? Math.max(0, Math.min(255, Math.trunc(updates.waitFrames) || 0))
+              : node.waitFrames,
+          }
+        : node
+    ));
+  };
+
   const updateSelectedTransition = (effect: 'cls' | 'fade_to_black') => {
     if (selectedNode?.type !== 'Transition') return;
     updateNodes(nodes.map(node =>
@@ -308,6 +323,27 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 {previewLabel}
               </p>
               <canvas ref={previewCanvasRef} className="w-full border border-msx-border bg-black" style={{ imageRendering: 'pixelated' }} />
+              <h3 className="text-sm font-semibold">GameFlow runtime override</h3>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedPresentationNode.waitForKey !== false}
+                  onChange={event => updateSelectedPresentationRuntime({ waitForKey: event.target.checked })}
+                />
+                Wait for key
+              </label>
+              <label className="block text-xs">
+                Wait frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedPresentationNode.waitFrames || 0}
+                  onChange={event => updateSelectedPresentationRuntime({ waitFrames: Number(event.target.value) })}
+                  disabled={selectedPresentationNode.waitForKey !== false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
+                />
+              </label>
             </div>
           )}
 

@@ -155,6 +155,8 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
         "start_node_id": start_node_id or "none",
         "screen5_node_id": screen5_node.get("id") or "none",
         "presentation_asset_id": presentation_asset_id,
+        "wait_for_key": screen5_node.get("waitForKey"),
+        "wait_frames": screen5_node.get("waitFrames"),
     }
 
 
@@ -175,6 +177,15 @@ def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | Non
     for needle in required:
         if needle not in text:
             raise RuntimeError(f"Generated ASM is missing MSX2 GameFlow contract marker: {needle}")
+
+    if contract.get("wait_for_key") is False:
+        wait_frames = int(contract.get("wait_frames") or 0)
+        expected = f"    ld b, #{wait_frames:02X}"
+        for needle in [expected, ".frame_wait:", "    halt", "    djnz .frame_wait"]:
+            if needle not in text:
+                raise RuntimeError(f"Generated ASM is missing MSX2 GameFlow wait-frame override code: {needle}")
+        if "    call CHGET" in text:
+            raise RuntimeError("Generated ASM still waits for CHGET even though the GameFlow node disabled waitForKey")
 
 
 def assert_openmsx_capture(path: Path) -> None:

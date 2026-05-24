@@ -53,6 +53,7 @@ addCheck(
   !/assetTypeToPick=\{\[['"]presentationscreen['"],\s*['"]msx2presentation['"]\]\}/.test(editor)
 );
 addCheck('MSX2 GameFlow editor exposes explicit outgoing connection controls', editor.includes('connectSelectedNodeTo') && editor.includes('Clear Connection') && editor.includes('Next node'));
+addCheck('MSX2 GameFlow editor exposes SCREEN 5 runtime wait controls', editor.includes('updateSelectedPresentationRuntime') && editor.includes('GameFlow runtime override') && editor.includes('Wait for key') && editor.includes('Wait frames') && editor.includes('waitForKey') && editor.includes('waitFrames') && editor.includes('disabled={selectedPresentationNode.waitForKey !== false}'));
 addCheck(
   'MSX1 GameFlow presentation picker remains MSX1-only',
   gameFlowEditor.includes("assetType: 'presentationscreen'") && !gameFlowEditor.includes("['presentationscreen', 'msx2presentation']")
