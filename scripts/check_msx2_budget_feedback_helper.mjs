@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import vm from 'node:vm';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
@@ -32,6 +32,39 @@ const {
   summarizeMsx2BudgetPressure,
 } = await import(pathToFileURL(helperModulePath).href);
 
+const serverSource = readFileSync(join(repoRoot, 'server', 'server.js'), 'utf8');
+const serverFeedbackStart = serverSource.indexOf('function extractMideasArtifactCommentBlock');
+const serverFeedbackEnd = serverSource.indexOf('function isResourceTableRamZx0Candidate');
+if (serverFeedbackStart < 0 || serverFeedbackEnd < serverFeedbackStart) {
+  throw new Error('Could not locate server MSX2 budget feedback helper block');
+}
+const serverContext = {};
+vm.runInNewContext(
+  `${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
+this.buildMsx2IdeBudgetFeedbackFromAsm = buildMsx2IdeBudgetFeedbackFromAsm;`,
+  serverContext
+);
+const buildServerMsx2BudgetFeedbackFromAsm = serverContext.buildMsx2IdeBudgetFeedbackFromAsm;
+if (typeof buildServerMsx2BudgetFeedbackFromAsm !== 'function') {
+  throw new Error('Server MSX2 budget feedback helper was not evaluable');
+}
+
+const serverResidentFailureStart = serverSource.indexOf('function getNegativeDsOverflowBytes');
+const serverResidentFailureEnd = serverSource.indexOf('function parsePlain48kPage0Diagnostics');
+if (serverResidentFailureStart < 0 || serverResidentFailureEnd < serverResidentFailureStart) {
+  throw new Error('Could not locate server MSX2 resident overflow helper block');
+}
+const serverResidentFailureContext = {};
+vm.runInNewContext(
+  `${serverSource.slice(serverResidentFailureStart, serverResidentFailureEnd)}
+this.buildMsx2ResidentOverflowFailure = buildMsx2ResidentOverflowFailure;`,
+  serverResidentFailureContext
+);
+const buildServerMsx2ResidentOverflowFailure = serverResidentFailureContext.buildMsx2ResidentOverflowFailure;
+if (typeof buildServerMsx2ResidentOverflowFailure !== 'function') {
+  throw new Error('Server MSX2 resident overflow helper was not evaluable');
+}
+
 const artifactBlock = (fileName, payload) => {
   const body = JSON.stringify(payload, null, 2)
     .split('\n')
@@ -51,6 +84,34 @@ const asm = [
     mapper: 'konami',
     worldPackageSummary: [
       { worldId: 'world_forest', estimatedBytes: 4096 },
+    ],
+    includedRuntimeModules: [
+      'runtime.msx2.boot',
+      'runtime.msx2.mapper.konami8k',
+    ],
+    includedRuntimeModuleDetails: [
+      {
+        id: 'runtime.msx2.boot',
+        placement: 'resident',
+        reason: 'Required by every native MSX2 SCREEN 4 build',
+      },
+      {
+        id: 'runtime.msx2.mapper.konami8k',
+        placement: 'resident',
+        reason: 'Enabled by Konami MegaROM data-bank mode',
+      },
+    ],
+    excludedRuntimeModules: [
+      {
+        id: 'runtime.msx2.world_special_code',
+        placement: 'world_specific',
+        reason: 'No world-specific behavior is referenced',
+      },
+      {
+        id: 'runtime.msx2.optional_far_code',
+        placement: 'far_code',
+        reason: 'No optional far-code runtime is referenced',
+      },
     ],
   }),
   artifactBlock('logical_bank_budget.json', {
@@ -73,6 +134,12 @@ const asm = [
     ],
     overBudgetPackages: [],
     recoveryRecommendations: [
+      {
+        severity: 'info',
+        target: 'world.graphics',
+        reason: 'Recorded for parity with server response',
+        action: 'No action needed',
+      },
       {
         severity: 'warning',
         target: 'world.screen',
@@ -113,11 +180,23 @@ if (feedback.status !== 'warning') {
 if (feedback.rom.payloadBytes !== 7600 || feedback.ram.freeBytes !== 12000) {
   throw new Error(`Unexpected ROM/RAM summary: ${JSON.stringify(feedback)}`);
 }
+if (feedback.rom.usedPercentOfSingleBank !== 92.77) {
+  throw new Error(`Unexpected single-bank percentage: ${JSON.stringify(feedback.rom)}`);
+}
 if ((feedback.largestAssets || [])[0]?.id !== 'world.screen.forest_00') {
   throw new Error(`Largest asset was not sorted first: ${JSON.stringify(feedback.largestAssets)}`);
 }
-if ((feedback.suggestedFixes || []).length < 2) {
+if ((feedback.suggestedFixes || []).length < 3) {
   throw new Error(`Expected recommendation and recovery plan fixes: ${JSON.stringify(feedback.suggestedFixes)}`);
+}
+if ((feedback.suggestedFixes || [])[0]?.severity !== 'info') {
+  throw new Error(`Expected informational recovery recommendation to stay visible: ${JSON.stringify(feedback.suggestedFixes)}`);
+}
+if (feedback.runtimeModules?.includedCount !== 2 || feedback.runtimeModules?.residentCount !== 2) {
+  throw new Error(`Expected runtime module placement summary: ${JSON.stringify(feedback.runtimeModules)}`);
+}
+if ((feedback.runtimeModules?.excluded || [])[0]?.placement !== 'world_specific') {
+  throw new Error(`Expected excluded runtime module placement to stay visible: ${JSON.stringify(feedback.runtimeModules)}`);
 }
 
 const pressure = summarizeMsx2BudgetPressure(feedback);
@@ -132,6 +211,46 @@ const noFeedback = buildMsx2BudgetFeedbackFromAsm('; no artifacts');
 if (noFeedback !== null) {
   throw new Error('Expected null feedback for ASM without artifacts');
 }
+const serverFeedback = buildServerMsx2BudgetFeedbackFromAsm(asm);
+if (JSON.stringify(feedback) !== JSON.stringify(serverFeedback)) {
+  throw new Error(`Frontend/server MSX2 budget feedback mismatch:\nfrontend=${JSON.stringify(feedback, null, 2)}\nserver=${JSON.stringify(serverFeedback, null, 2)}`);
+}
+if (buildServerMsx2BudgetFeedbackFromAsm('; no artifacts') !== null) {
+  throw new Error('Expected null server feedback for ASM without artifacts');
+}
 
-writeFileSync(join(outDir, 'result.json'), JSON.stringify({ feedback, pressure }, null, 2) + '\n', 'utf8');
+const residentOverflowAsm = [
+  '; Mideas MSX2 SCREEN 4 tile backend',
+  '    org #4000',
+  '; MSX2 SCREEN 4 cold data bank.',
+  '    ds #C000 - $, #FF',
+].join('\n');
+const residentFailure = buildServerMsx2ResidentOverflowFailure(
+  residentOverflowAsm,
+  'Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -213',
+  'server/temp/synthetic_msx2.asm'
+);
+if (!residentFailure) {
+  throw new Error('Expected server MSX2 resident overflow failure for synthetic Glass error');
+}
+if (residentFailure.scope !== 'msx2_screen4_megarom_compile_failure') {
+  throw new Error(`Unexpected resident failure scope: ${JSON.stringify(residentFailure)}`);
+}
+if (residentFailure.overflowBytes !== 213) {
+  throw new Error(`Unexpected resident overflow bytes: ${JSON.stringify(residentFailure)}`);
+}
+if ((residentFailure.pipelineGates || [])[0]?.status !== 'failed') {
+  throw new Error(`Expected failed glass_compile gate: ${JSON.stringify(residentFailure.pipelineGates)}`);
+}
+if (!residentFailure.planB?.primary?.includes('Move cold read-only tables')) {
+  throw new Error(`Expected Plan B guidance in resident failure: ${JSON.stringify(residentFailure.planB)}`);
+}
+if (buildServerMsx2ResidentOverflowFailure('; plain asm', 'Negative initial size: -12', 'plain.asm') !== null) {
+  throw new Error('Expected null resident failure for non-MSX2 source');
+}
+if (buildServerMsx2ResidentOverflowFailure(residentOverflowAsm, 'all good', 'server/temp/synthetic_msx2.asm') !== null) {
+  throw new Error('Expected null resident failure without Glass negative DS error');
+}
+
+writeFileSync(join(outDir, 'result.json'), JSON.stringify({ feedback, pressure, residentFailure }, null, 2) + '\n', 'utf8');
 console.log('MSX2 budget feedback helper checks passed.');

@@ -861,6 +861,38 @@ function getNegativeDsOverflowBytes(text) {
   return Math.abs(parsed);
 }
 
+function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile) {
+  const overflowBytes = getNegativeDsOverflowBytes(fullErrorText);
+  if (overflowBytes === null) return null;
+  const text = String(sourceCode || '');
+  if (
+    !text.includes('Mideas MSX2 SCREEN 4 tile backend') ||
+    !text.includes('MSX2 SCREEN 4 cold data bank') ||
+    !/ds\s+#C000\s*-\s*\$/i.test(text)
+  ) {
+    return null;
+  }
+  return {
+    scope: 'msx2_screen4_megarom_compile_failure',
+    status: 'error',
+    reason: `Resident SCREEN 4 code/data crossed #C000 by ${overflowBytes} bytes before the cold data bank.`,
+    sourceFile,
+    overflowBytes,
+    pipelineGates: [
+      {
+        id: 'glass_compile',
+        status: 'failed',
+        evidence: [sourceFile].filter(Boolean)
+      }
+    ],
+    planB: {
+      primary: 'Move cold read-only tables to world/data banks or special-code banks.',
+      secondary: 'Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.',
+      avoid: 'Do not solve resident ROM pressure by copying whole worlds into RAM.'
+    }
+  };
+}
+
 function parsePlain48kPage0Diagnostics(sourceCode) {
   const text = String(sourceCode || '');
   if (!/^\s*;\s*ROM Mode:\s*plain48k\s*$/im.test(text)) {
@@ -1466,6 +1498,21 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
   if ((Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length) || (ramBudget.status && ramBudget.status !== 'ok')) {
     status = 'error';
   }
+  const includedRuntimeModules = Array.isArray(projectSlice.includedRuntimeModuleDetails)
+    ? projectSlice.includedRuntimeModuleDetails
+    : (Array.isArray(projectSlice.includedRuntimeModules) ? projectSlice.includedRuntimeModules.map((id) => ({ id })) : []);
+  const excludedRuntimeModules = Array.isArray(projectSlice.excludedRuntimeModules) ? projectSlice.excludedRuntimeModules : [];
+  const runtimeModuleDetails = Array.isArray(projectSlice.runtimeModuleDetails)
+    ? projectSlice.runtimeModuleDetails
+    : [
+      ...includedRuntimeModules.map((item) => ({ ...item, included: true })),
+      ...excludedRuntimeModules.map((item) => ({ ...item, included: false }))
+    ];
+  const includedRuntimeModuleDetails = includedRuntimeModules.map((item) => ({
+    id: item?.id ?? item,
+    placement: item?.placement || 'unknown',
+    reason: item?.reason
+  }));
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
     status,
@@ -1494,6 +1541,15 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       status: ramBudget.status || 'unknown',
       warningCount: ramWarnings.length,
       sections: Array.isArray(ramBudget.sections) ? ramBudget.sections : []
+    },
+    runtimeModules: {
+      included: includedRuntimeModuleDetails,
+      excluded: excludedRuntimeModules,
+      all: runtimeModuleDetails,
+      includedCount: includedRuntimeModuleDetails.length,
+      residentCount: includedRuntimeModuleDetails.filter((item) => item.placement === 'resident').length,
+      farCodeCount: includedRuntimeModuleDetails.filter((item) => item.placement === 'far_code').length,
+      worldSpecificCount: includedRuntimeModuleDetails.filter((item) => item.placement === 'world_specific').length
     },
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets,
@@ -4686,6 +4742,7 @@ app.post('/compile', async (req, res) => {
           const negativeDsOverflowBytes = getNegativeDsOverflowBytes(fullErrorText);
           const plain48kPage0Info = parsePlain48kPage0Diagnostics(codeToCompile);
           const msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile);
+          const msx2CompileFailure = buildMsx2ResidentOverflowFailure(codeToCompile, fullErrorText, tempFilePath);
           const canSuggestPlain48k =
             normalizedRomMode === 'simple32k' &&
             (negativeDsOverflowBytes === null || negativeDsOverflowBytes <= (PLAIN48_ROM_LIMIT_BYTES - SIMPLE_ROM_LIMIT_BYTES));
@@ -4721,11 +4778,21 @@ app.post('/compile', async (req, res) => {
             sourceRomConfig: sourceRomConfig,
             msx2BudgetFeedback: msx2BudgetFeedback,
             msx2BudgetResolution: msx2BudgetResolution,
+            msx2CompileFailure: msx2CompileFailure,
             screenCompressionInfo: screenCompressionInfo,
             compressedAsmFileInfo: compressedAsmFileInfo
           };
 
-          if (capacityOverflow) {
+          if (msx2CompileFailure) {
+            errorResponse.error = 'MSX2 MegaROM resident bank overflow';
+            errorResponse.details = [
+              msx2CompileFailure.reason,
+              msx2CompileFailure.planB.primary,
+              msx2CompileFailure.planB.secondary
+            ].join(' ');
+          }
+
+          if (capacityOverflow && !msx2CompileFailure) {
             errorResponse.error = normalizedRomMode === 'megarom'
               ? 'MegaROM build failed'
               : 'ROM does not fit in selected ROM mode';

@@ -505,6 +505,23 @@ def validate_project_slice_artifact(
         raise RuntimeError("project_slice.json must list includedRuntimeModules")
     if not isinstance(excluded_modules, list):
         raise RuntimeError("project_slice.json must list excludedRuntimeModules")
+    included_module_details = artifact.get("includedRuntimeModuleDetails")
+    if not isinstance(included_module_details, list) or not included_module_details:
+        raise RuntimeError("project_slice.json must list includedRuntimeModuleDetails")
+    included_detail_ids = {item.get("id") for item in included_module_details if isinstance(item, dict)}
+    if set(included_modules) != included_detail_ids:
+        raise RuntimeError("includedRuntimeModuleDetails must match includedRuntimeModules")
+    allowed_runtime_placements = {"resident", "far_code", "world_specific"}
+    for module in included_module_details:
+        if not isinstance(module, dict) or not module.get("id") or not module.get("reason"):
+            raise RuntimeError(f"Invalid included runtime module detail: {module}")
+        if module.get("placement") not in allowed_runtime_placements:
+            raise RuntimeError(f"Included runtime module must declare resident/far_code/world_specific placement: {module}")
+    for module in excluded_modules:
+        if not isinstance(module, dict) or not module.get("id") or not module.get("reason"):
+            raise RuntimeError(f"Invalid excluded runtime module detail: {module}")
+        if module.get("placement") not in allowed_runtime_placements:
+            raise RuntimeError(f"Excluded runtime module must declare resident/far_code/world_specific placement: {module}")
     if expect_stage_banner is True and "runtime.msx2.stage_banner" not in included_modules:
         raise RuntimeError("project_slice.json should include runtime.msx2.stage_banner for shooter wave builds")
     if expect_stage_banner is False and not any(item.get("id") == "runtime.msx2.stage_banner" for item in excluded_modules if isinstance(item, dict)):

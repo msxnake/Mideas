@@ -569,6 +569,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           plain48kPage0Info: result.plain48kPage0Info,
           msx2BudgetFeedback: result.msx2BudgetFeedback,
           msx2BudgetResolution: result.msx2BudgetResolution,
+          msx2CompileFailure: result.msx2CompileFailure,
           screenCompressionInfo: result.screenCompressionInfo,
           compressedAsmFileInfo: result.compressedAsmFileInfo
         };
@@ -1606,6 +1607,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       ? 'text-yellow-200'
       : 'text-green-200';
   const msx2BudgetPressureSummary = summarizeMsx2BudgetPressure(msx2BudgetFeedback);
+  const msx2CompileFailure = (compilationResult as any)?.msx2CompileFailure;
+  const msx2CompileFailurePlanB = msx2CompileFailure?.planB;
 
   if (!isOpen) return null;
 
@@ -2054,6 +2057,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       Core/resident: <strong>{msx2BudgetPressureSummary.residentCoreBytes}</strong> bytes,
                       {' '}world/content: <strong>{msx2BudgetPressureSummary.worldContentBytes}</strong> bytes
                     </div>
+                    {msx2BudgetFeedback.runtimeModules && (
+                      <div className="mt-1">
+                        Runtime modules: <strong>{msx2BudgetFeedback.runtimeModules.includedCount ?? 0}</strong>
+                        {' '}included ({msx2BudgetFeedback.runtimeModules.residentCount ?? 0} resident,
+                        {' '}{msx2BudgetFeedback.runtimeModules.farCodeCount ?? 0} far,
+                        {' '}{msx2BudgetFeedback.runtimeModules.worldSpecificCount ?? 0} world)
+                      </div>
+                    )}
                     {Array.isArray(msx2BudgetFeedback.worldPackages) && msx2BudgetFeedback.worldPackages.length > 0 && (
                       <div className="mt-1">
                         Worlds: {msx2BudgetFeedback.worldPackages
@@ -2512,6 +2523,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         <div>
                           World/content: <strong>{msx2BudgetPressureSummary.worldContentBytes}</strong> bytes
                         </div>
+                        {msx2BudgetFeedback.runtimeModules && (
+                          <div className="col-span-2">
+                            Runtime modules: <strong>{msx2BudgetFeedback.runtimeModules.includedCount ?? 0}</strong>
+                            {' '}included ({msx2BudgetFeedback.runtimeModules.residentCount ?? 0} resident,
+                            {' '}{msx2BudgetFeedback.runtimeModules.farCodeCount ?? 0} far,
+                            {' '}{msx2BudgetFeedback.runtimeModules.worldSpecificCount ?? 0} world)
+                          </div>
+                        )}
                       </div>
                       {Array.isArray(msx2BudgetFeedback.worldPackages) &&
                         msx2BudgetFeedback.worldPackages.length > 0 && (
@@ -2647,6 +2666,29 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           ? (compilationResult as any).plain48kPage0Info.skippedGroups.map((group: any) => `${group.label} (${group.sizeBytes} bytes)`).join(', ')
                           : 'none'}
                       </div>
+                    </div>
+                  )}
+
+                  {msx2CompileFailure && (
+                    <div className="mt-3 p-3 bg-red-950 bg-opacity-40 rounded border border-red-600">
+                      <div className="text-sm text-red-100 font-semibold">
+                        MSX2 resident bank overflow
+                      </div>
+                      <div className="mt-1 text-xs text-red-100">
+                        {msx2CompileFailure.reason || 'Resident SCREEN 4 code/data crossed the fixed bank limit before the cold data bank.'}
+                      </div>
+                      {typeof msx2CompileFailure.overflowBytes === 'number' && (
+                        <div className="mt-1 text-xs text-msx-textsecondary">
+                          Overflow: <strong>{msx2CompileFailure.overflowBytes}</strong> bytes before `#C000`.
+                        </div>
+                      )}
+                      {msx2CompileFailurePlanB && (
+                        <div className="mt-2 text-xs text-msx-textsecondary space-y-1">
+                          <div>Plan B: {msx2CompileFailurePlanB.primary}</div>
+                          <div>{msx2CompileFailurePlanB.secondary}</div>
+                          <div className="text-yellow-200">{msx2CompileFailurePlanB.avoid}</div>
+                        </div>
+                      )}
                     </div>
                   )}
 

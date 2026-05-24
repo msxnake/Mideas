@@ -827,6 +827,67 @@ def write_msx2_build_summary(
     )
 
 
+def write_msx2_compile_failure_summary(
+    artifact_dir: Path | None,
+    asm_to_compile: Path,
+    rom_output: Path,
+    sym_output: Path | None,
+    reason: str,
+) -> Path | None:
+    if artifact_dir is None:
+        return None
+    preflight_summary_path = artifact_dir / "preflight_summary.json"
+    preflight_summary = None
+    if preflight_summary_path.exists():
+        maybe_summary = read_preflight_json_artifact(preflight_summary_path, "preflight_summary.json")
+        if isinstance(maybe_summary, dict):
+            preflight_summary = maybe_summary
+
+    pipeline_gates = []
+    for gate in (preflight_summary or {}).get("pipelineGates") or default_msx2_pipeline_gates():
+        if not isinstance(gate, dict):
+            continue
+        updated_gate = dict(gate)
+        gate_id = updated_gate.get("id")
+        if gate_id == "glass_compile":
+            updated_gate["status"] = "failed"
+            updated_gate["evidence"] = [str(asm_to_compile)]
+        pipeline_gates.append(updated_gate)
+
+    asm_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore") if asm_to_compile.exists() else ""
+    failure_summary = {
+        "scope": "msx2_screen4_megarom_compile_failure",
+        "status": "error",
+        "reason": reason,
+        "artifactDir": str(artifact_dir),
+        "pipelineGates": pipeline_gates,
+        "asm": {
+            "path": str(asm_to_compile),
+            "bytes": len(asm_text.encode("utf-8")),
+            "checksum": _bank_metadata_checksum(["asm", asm_text]) if asm_text else None,
+        },
+        "rom": {
+            "path": str(rom_output),
+            "exists": rom_output.exists(),
+        },
+        "sym": {
+            "path": str(sym_output) if sym_output else None,
+            "exists": bool(sym_output and sym_output.exists()),
+        },
+        "planB": {
+            "primary": "Move cold read-only tables to world/data banks or special-code banks.",
+            "secondary": "Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.",
+            "avoid": "Do not solve resident ROM pressure by copying whole worlds into RAM.",
+        },
+    }
+    failure_path = artifact_dir / "msx2_compile_failure.json"
+    failure_path.write_text(
+        json.dumps(failure_summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return failure_path
+
+
 def write_msx2_ide_budget_feedback(
     artifact_dir: Path,
     project_slice: dict,
@@ -884,6 +945,19 @@ def write_msx2_ide_budget_feedback(
         pressure_status = "warning"
     if logical_budget.get("overBudgetPackages") or ram_budget.get("status") not in {"ok", None}:
         pressure_status = "error"
+    included_runtime_modules = project_slice.get("includedRuntimeModuleDetails")
+    if not isinstance(included_runtime_modules, list):
+        included_runtime_modules = [
+            {"id": module_id, "placement": "unknown"}
+            for module_id in (project_slice.get("includedRuntimeModules") or [])
+        ]
+    excluded_runtime_modules = project_slice.get("excludedRuntimeModules") or []
+    runtime_module_details = project_slice.get("runtimeModuleDetails")
+    if not isinstance(runtime_module_details, list):
+        runtime_module_details = (
+            [{**module, "included": True} for module in included_runtime_modules if isinstance(module, dict)]
+            + [{**module, "included": False} for module in excluded_runtime_modules if isinstance(module, dict)]
+        )
     feedback = {
         "scope": "msx2_screen4_ide_budget_feedback",
         "status": pressure_status,
@@ -912,6 +986,15 @@ def write_msx2_ide_budget_feedback(
             "status": ram_budget.get("status", "unknown"),
             "warningCount": len(ram_warnings),
             "sections": ram_budget.get("sections") or [],
+        },
+        "runtimeModules": {
+            "included": included_runtime_modules,
+            "excluded": excluded_runtime_modules,
+            "all": runtime_module_details,
+            "includedCount": len(included_runtime_modules),
+            "residentCount": sum(1 for item in included_runtime_modules if isinstance(item, dict) and item.get("placement") == "resident"),
+            "farCodeCount": sum(1 for item in included_runtime_modules if isinstance(item, dict) and item.get("placement") == "far_code"),
+            "worldSpecificCount": sum(1 for item in included_runtime_modules if isinstance(item, dict) and item.get("placement") == "world_specific"),
         },
         "worldPackages": world_package_summary,
         "largestAssets": [
@@ -966,6 +1049,34 @@ def validate_msx2_screen4_megarom_preflight_budget(
     failure_summary_path = artifact_dir / "msx2_preflight_failure.json"
     if failure_summary_path.exists():
         failure_summary_path.unlink()
+
+    included_runtime_modules = project_slice.get("includedRuntimeModules")
+    included_runtime_module_details = project_slice.get("includedRuntimeModuleDetails")
+    excluded_runtime_modules = project_slice.get("excludedRuntimeModules")
+    allowed_runtime_placements = {"resident", "far_code", "world_specific"}
+    if not isinstance(included_runtime_modules, list) or not included_runtime_modules:
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no includedRuntimeModules")
+    if not isinstance(included_runtime_module_details, list) or not included_runtime_module_details:
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no includedRuntimeModuleDetails")
+    detail_ids = {item.get("id") for item in included_runtime_module_details if isinstance(item, dict)}
+    if set(included_runtime_modules) != detail_ids:
+        raise RuntimeError("MSX2 MegaROM preflight failed: includedRuntimeModuleDetails do not match includedRuntimeModules")
+    for module in included_runtime_module_details:
+        if not isinstance(module, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid runtime module detail: {module}")
+        if not module.get("id") or not module.get("reason"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: runtime module detail lacks id/reason: {module}")
+        if module.get("placement") not in allowed_runtime_placements:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: runtime module has invalid placement: {module}")
+    if not isinstance(excluded_runtime_modules, list):
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no excludedRuntimeModules")
+    for module in excluded_runtime_modules:
+        if not isinstance(module, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid excluded runtime module: {module}")
+        if not module.get("id") or not module.get("reason"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: excluded runtime module lacks id/reason: {module}")
+        if module.get("placement") not in allowed_runtime_placements:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: excluded runtime module has invalid placement: {module}")
 
     storage_policy = project_slice.get("assetStoragePolicy")
     if not isinstance(storage_policy, list) or not storage_policy:
@@ -4166,7 +4277,44 @@ def compile_with_glass(
     cmd.extend([str(asm_output), str(rom_output)])
     if sym_output:
         cmd.append(str(sym_output))
-    run_command(cmd, cwd=project_root)
+    completed = run_command(cmd, cwd=project_root, allow_failure=True)
+    if completed.returncode == 0:
+        return
+    stdout_text = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
+    stderr_text = completed.stderr.decode("utf-8", errors="replace") if completed.stderr else ""
+    diagnostic = describe_glass_compile_failure(stdout_text, stderr_text, asm_output)
+    if diagnostic:
+        raise RuntimeError(diagnostic)
+    raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(cmd)}")
+
+
+def describe_glass_compile_failure(stdout_text: str, stderr_text: str, asm_output: Path | None = None) -> str | None:
+    combined = f"{stdout_text}\n{stderr_text}"
+    negative_match = re.search(r"Negative initial size:\s*(-?\d+)", combined, flags=re.IGNORECASE)
+    if not negative_match:
+        return None
+
+    asm_text = ""
+    if asm_output and asm_output.exists():
+        try:
+            asm_text = asm_output.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            asm_text = ""
+
+    if "MSX2 SCREEN 4 cold data bank" in asm_text and re.search(r"ds\s+#C000\s*-\s*\$", asm_text, flags=re.IGNORECASE):
+        return (
+            "MSX2 MegaROM resident bank overflow before ROM output: "
+            f"Glass reported a negative #C000 padding ({negative_match.group(1)} bytes). "
+            "The fixed/resident SCREEN 4 code and hot runtime tables crossed #C000 before the cold data bank. "
+            "Move cold read-only tables to a world/data bank, remove unused resident fallback data, "
+            "or replace repeated resident tables with VRAM fill/streaming before compiling again."
+        )
+
+    return (
+        "MegaROM bank padding overflow before ROM output: "
+        f"Glass reported a negative DS padding ({negative_match.group(1)} bytes). "
+        "A generated bank crossed its mapper window limit; split the bank payload or move cold data to another bank."
+    )
 
 
 def maybe_run_zx0_preprocess(
@@ -4952,13 +5100,28 @@ def main() -> int:
     )
     ensure_sprite_copy_helper(asm_to_compile)
 
-    compile_with_glass(
-        glass_jar=glass_jar,
-        asm_output=asm_to_compile,
-        rom_output=rom_output,
-        sym_output=sym_output,
-        project_root=project_root,
-    )
+    try:
+        compile_with_glass(
+            glass_jar=glass_jar,
+            asm_output=asm_to_compile,
+            rom_output=rom_output,
+            sym_output=sym_output,
+            project_root=project_root,
+        )
+    except RuntimeError as exc:
+        if (
+            args.rom_mode == "megarom"
+            and args.target_format == "konami"
+            and "MSX2 SCREEN 4" in asm_to_compile.read_text(encoding="utf-8", errors="ignore")
+        ):
+            write_msx2_compile_failure_summary(
+                artifact_dir=artifact_dir,
+                asm_to_compile=asm_to_compile,
+                rom_output=rom_output,
+                sym_output=sym_output,
+                reason=str(exc),
+            )
+        raise
 
     original_size, padded_size = pad_rom_to_valid_size(rom_output, args.rom_mode, args.target_format)
     asm_compiled_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore")

@@ -960,6 +960,7 @@ Pre-compilation output should be a concrete artifact, for example
 - `includedAssets`,
 - `excludedAssets`,
 - `includedRuntimeModules`,
+- `includedRuntimeModuleDetails`,
 - `includedComponents`,
 - `includedStateMachineOpcodes`,
 - `includedWorldPackages`,
@@ -979,7 +980,8 @@ Current MSX2 SCREEN 4 implementation emits `project_slice.json` during ASM
 generation. The slice is the current pre-compilation contract and includes:
 
 - reachable assets and excluded assets,
-- included and excluded runtime modules,
+- included and excluded runtime modules, with reason and placement
+  (`resident`, `far_code`, or `world_specific`),
 - `ownerWorldIds` on world-owned screens, tiles, and sprites,
 - `worldPackageSummary`,
 - `assetStoragePolicy`,
@@ -990,6 +992,11 @@ The current rule is conservative: a runtime helper is emitted only when the
 analysis proves the project needs it. For example, the MSX2 stage-banner helper
 is included for shooter-wave builds and excluded for non-shooter builds, so a
 platformer variation does not pay bytes for unused arcade HUD behavior.
+The same slice now keeps `includedRuntimeModules` as a compact compatibility
+list and adds `includedRuntimeModuleDetails` for the preflight/IDE path. Each
+entry carries the inclusion reason and placement, so future helpers must declare
+whether they are resident core, far code, or world-specific instead of silently
+growing the fixed runtime.
 
 `worldPackageSummary` is the bridge toward real World Packages. It groups the
 currently reachable owner-world assets, counts reachable screens, reports
@@ -1257,6 +1264,16 @@ Current CLI gate:
     in the compile summary. Failed compile responses preserve the same
     `msx2BudgetFeedback` payload, so the user sees the concrete bank/RAM cause
     and the attempted resolver steps even when no ROM is produced.
+11. Glass `Negative initial size` failures are now translated into Mideas
+    diagnostics. For MSX2 SCREEN 4 Konami builds, a negative `ds #C000 - $`
+    padding is reported as `MSX2 MegaROM resident bank overflow`, not as a raw
+    Java exception. The CLI writes `msx2_compile_failure.json` with the failed
+    `glass_compile` pipeline gate, ASM checksum, ROM/SYM targets, and Plan B:
+    move cold read-only tables to world/data banks, remove unused resident
+    fallbacks, or replace repeated resident tables with VRAM fill/streaming.
+    The `/compile` server returns the same failure shape as
+    `msx2CompileFailure`, and the export modal shows the resident-overflow
+    reason plus Plan B directly beside the Glass logs.
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor
@@ -1325,6 +1342,8 @@ Current artifact:
   and validated by the smoke fixtures. It is intentionally derived from
   `project_slice.json`, `logical_bank_budget.json`, and `ram_budget.json`, so
   the editor and CLI do not drift into separate budget logic.
+  The IDE-facing feedback now also carries a compact `runtimeModules` summary
+  with included/excluded modules and resident/far/world-specific counts.
 - The export modal now also parses the embedded preflight artifacts directly
   from generated `unitedFiles.asm` and shows an `MSX2 MegaROM budget preview`
   before Glass runs. Failed build responses keep the same budget payload, so
@@ -1337,9 +1356,17 @@ Current artifact:
   variation is threatening the fixed runtime area or a world bank pack. It now
   surfaces near-full warning banks and several targeted suggested fixes instead
   of reducing the allocator's Plan B output to a single line.
+  It also reports how many runtime modules the current slice includes and how
+  many are resident, far-code, or world-specific.
 - `npm run test:msx2-budget-feedback` compiles the shared frontend helper and
   runs it against synthetic embedded ASM artifacts. This gives the IDE preview
-  parser a functional regression test beyond static contract checks.
+  parser a functional regression test beyond static contract checks. It also
+  compares the frontend parser output against the server-side feedback builder
+  so build responses and authoring previews do not drift.
+- The export modal now preserves `msx2CompileFailure` from failed `/compile`
+  responses. Resident overflow is shown as its own MSX2 failure class with a
+  concrete byte count and Plan B, instead of forcing the user to infer the
+  cause from Glass stderr.
 
 ### Non-negotiable invariant
 

@@ -3842,18 +3842,18 @@ load_msx2_hud_font:
     ld de, ${formatHexWord(0x1000 + hudFontPatternVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call LDIRVM
-    ld hl, msx2_hud_font_colors
-    ld de, ${formatHexWord(hudFontColorVram)}
-    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
-    call LDIRVM
-    ld hl, msx2_hud_font_colors
-    ld de, ${formatHexWord(0x0800 + hudFontColorVram)}
-    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
-    call LDIRVM
-    ld hl, msx2_hud_font_colors
-    ld de, ${formatHexWord(0x1000 + hudFontColorVram)}
-    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
-    jp LDIRVM
+    ld a, #F1
+    ld hl, ${formatHexWord(hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    ld a, #F1
+    ld hl, ${formatHexWord(0x0800 + hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    ld a, #F1
+    ld hl, ${formatHexWord(0x1000 + hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    jp FILVRM
 
 draw_msx2_hud_string:
     ; DE=zero-terminated ASCII, HL=SCREEN 4 name-table VRAM destination. Clobbers AF/B/DE/HL.
@@ -6277,26 +6277,36 @@ function buildMsx2ProjectSliceJson(
 
   const runtimeRamBytes = Math.max(0, runtimeRamEnd - MSX2_RUNTIME_RAM_START);
   const runtimeModuleCandidates = [
-    { id: 'runtime.msx2.boot', enabled: true, reason: 'Required by every native MSX2 SCREEN 4 build' },
-    { id: 'runtime.msx2.screen4.vdp', enabled: true, reason: 'Required by every native MSX2 SCREEN 4 build' },
-    { id: 'runtime.msx2.input', enabled: true, reason: 'Required by current MSX2 gameplay loop' },
-    { id: 'runtime.msx2.screen_loader', enabled: true, reason: 'Required to load reachable native MSX2 screens' },
-    { id: 'runtime.msx2.layers.collision', enabled: true, reason: 'Collision layer pointers are part of the current runtime contract' },
-    { id: 'runtime.msx2.layers.effects', enabled: true, reason: 'Effects layer runtime buffers are part of the current runtime contract' },
-    { id: 'runtime.msx2.layers.behavior', enabled: true, reason: 'Behavior layer pointers are part of the current runtime contract' },
-    { id: 'runtime.msx2.hardware_sprites', enabled: hasHardwareSprite(analysis), reason: 'Enabled only when a reachable MSX2 sprite source exists' },
-    { id: 'runtime.msx2.projectiles', enabled: usesShooterHorizontalMovement(analysis), reason: 'Enabled only by shooter-horizontal movement' },
-    { id: 'runtime.msx2.stage_banner', enabled: hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis), reason: 'Enabled only by shooter wave flow' },
-    { id: 'runtime.msx2.scroll.vertical', enabled: usesMsx2Screen4BackgroundScroll(analysis), reason: 'Enabled only when reachable screens request scroll' },
-    { id: 'runtime.msx2.snake_char', enabled: usesSnakeCharMovement(analysis), reason: 'Enabled only by snake-char movement' },
-    { id: 'runtime.msx2.mapper.konami8k', enabled: useKonamiDataBank, reason: 'Enabled by Konami MegaROM data-bank mode' },
+    { id: 'runtime.msx2.boot', enabled: true, placement: 'resident', reason: 'Required by every native MSX2 SCREEN 4 build' },
+    { id: 'runtime.msx2.screen4.vdp', enabled: true, placement: 'resident', reason: 'Required by every native MSX2 SCREEN 4 build' },
+    { id: 'runtime.msx2.input', enabled: true, placement: 'resident', reason: 'Required by current MSX2 gameplay loop' },
+    { id: 'runtime.msx2.screen_loader', enabled: true, placement: 'resident', reason: 'Required to load reachable native MSX2 screens' },
+    { id: 'runtime.msx2.layers.collision', enabled: true, placement: 'resident', reason: 'Collision layer pointers are part of the current runtime contract' },
+    { id: 'runtime.msx2.layers.effects', enabled: true, placement: 'resident', reason: 'Effects layer runtime buffers are part of the current runtime contract' },
+    { id: 'runtime.msx2.layers.behavior', enabled: true, placement: 'resident', reason: 'Behavior layer pointers are part of the current runtime contract' },
+    { id: 'runtime.msx2.hardware_sprites', enabled: hasHardwareSprite(analysis), placement: 'resident', reason: 'Enabled only when a reachable MSX2 sprite source exists' },
+    { id: 'runtime.msx2.projectiles', enabled: usesShooterHorizontalMovement(analysis), placement: 'resident', reason: 'Enabled only by shooter-horizontal movement' },
+    { id: 'runtime.msx2.stage_banner', enabled: hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis), placement: 'resident', reason: 'Enabled only by shooter wave flow' },
+    { id: 'runtime.msx2.scroll.vertical', enabled: usesMsx2Screen4BackgroundScroll(analysis), placement: 'resident', reason: 'Enabled only when reachable screens request scroll' },
+    { id: 'runtime.msx2.snake_char', enabled: usesSnakeCharMovement(analysis), placement: 'resident', reason: 'Enabled only by snake-char movement' },
+    { id: 'runtime.msx2.mapper.konami8k', enabled: useKonamiDataBank, placement: 'resident', reason: 'Enabled by Konami MegaROM data-bank mode' },
   ];
+  const runtimeModuleDetails = runtimeModuleCandidates
+    .map(module => ({
+      id: module.id,
+      included: Boolean(module.enabled),
+      placement: module.placement,
+      reason: module.reason,
+    }));
+  const includedRuntimeModuleDetails = runtimeModuleDetails
+    .filter(module => module.included)
+    .map(({ included: _included, ...module }) => module);
   const includedRuntimeModules = runtimeModuleCandidates
     .filter(module => module.enabled)
     .map(module => module.id);
-  const excludedRuntimeModules = runtimeModuleCandidates
-    .filter(module => !module.enabled)
-    .map(module => ({ id: module.id, reason: module.reason }));
+  const excludedRuntimeModules = runtimeModuleDetails
+    .filter(module => !module.included)
+    .map(({ included: _included, ...module }) => module);
   const includedAssetList = Array.from(included.values()).sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`));
   const assetStoragePolicy = buildMsx2AssetStoragePolicy(analysis, includedAssetList, tileScreens);
   const logicalBankBudget = buildMsx2LogicalBankBudget(assetStoragePolicy);
@@ -6321,7 +6331,9 @@ function buildMsx2ProjectSliceJson(
     includedAssets: includedAssetList,
     excludedAssets,
     includedRuntimeModules,
+    includedRuntimeModuleDetails,
     excludedRuntimeModules,
+    runtimeModuleDetails,
     worldPackageSummary,
     assetStoragePolicy,
     logicalBankBudget,
@@ -7306,6 +7318,13 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x14 bytes`),
     ].join('\n');
   });
+  const emptyRuntimeLayerBlocks = tileScreens.length === 0
+    ? [
+      formatBytes('screen4_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 collision layer, 16x12 cells'),
+      formatBytes('screen4_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 effects layer, 16x12 cells'),
+      formatBytes('screen4_empty_behavior_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 behavior layer, 16x12 cells'),
+    ].join('\n')
+    : '';
   const firstScreenLabel = tileScreenLoadLabels[0];
   const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels, tileScreenLabels, tileScreenIndexByLabel);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis, useKonamiDataBank);
@@ -7961,8 +7980,6 @@ ${formatBytes('msx2_screen_hud_widget_variable_length', hudWidgetVariableNameLen
 ${formatBytes('msx2_screen_hud_widget_variable_name_pool', hudWidgetVariableNamePool, 'Zero-terminated ASCII variable names for custom HUD bindings; offset 0 is empty')}
 ${formatBytes('msx2_hud_font_patterns', buildMsx2HudFontPatternBytes(analysis), 'MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash')}
 msx2_hud_font_patterns_end:
-${formatBytes('msx2_hud_font_colors', buildMsx2HudFontColorBytes(analysis), 'MSX2 SCREEN 4 HUD font colors: foreground 15 over background 1')}
-msx2_hud_font_colors_end:
 ${formatBytes('msx2_screen_attack_interval', attackWaveSettingsByScreen.map(settings => settings.intervalFrames), 'Per-msx2screen Galaxian Attack Wave interval in frames')}
 ${formatBytes('msx2_screen_attack_min', attackWaveSettingsByScreen.map(settings => settings.minAttackers), 'Per-msx2screen Galaxian Attack Wave minimum attackers')}
 ${formatBytes('msx2_screen_attack_max', attackWaveSettingsByScreen.map(settings => settings.maxAttackers), 'Per-msx2screen Galaxian Attack Wave maximum attackers')}
@@ -7979,9 +7996,7 @@ ${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array
 ${formatBytes('msx2_screen_enemy_mode', enemyModeBytes.length ? enemyModeBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard movement component mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_speed', enemySpeedBytes.length ? enemySpeedBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(2), `Per-msx2screen enemy/hazard movement component frame delay, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_score', enemyScoreBytes.length ? enemyScoreBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(1), `Per-msx2screen enemy/hazard score value, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
-${formatBytes('screen4_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 collision layer, 16x12 cells')}
-${formatBytes('screen4_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 effects layer, 16x12 cells')}
-${formatBytes('screen4_empty_behavior_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 behavior layer, 16x12 cells')}
+${emptyRuntimeLayerBlocks}
 ${stageBannerEnabled ? formatBytes('msx2_stage_font_patterns', [
   0x3E,0x60,0x60,0x3C,0x06,0x06,0x7C,0x00,
   0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00,

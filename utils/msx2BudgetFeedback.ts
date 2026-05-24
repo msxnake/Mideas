@@ -13,6 +13,7 @@ export interface Msx2BudgetFeedback {
     payloadBytes: number;
     estimatedPackedBankCount: number;
     warningThresholdBytes: number;
+    usedPercentOfSingleBank: number;
     warningBankCount: number;
     warningRecommendationCount: number;
     bankClassSummary: any[];
@@ -25,6 +26,15 @@ export interface Msx2BudgetFeedback {
     status: string;
     warningCount: number;
     sections: any[];
+  };
+  runtimeModules?: {
+    included: any[];
+    excluded: any[];
+    all: any[];
+    includedCount: number;
+    residentCount: number;
+    farCodeCount: number;
+    worldSpecificCount: number;
   };
   worldPackages: any[];
   largestAssets: Array<{
@@ -128,12 +138,15 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
   const romRecommendations = Array.isArray(logicalBudget.recoveryRecommendations)
     ? logicalBudget.recoveryRecommendations.filter((item: any) => item && ['warning', 'plan_b'].includes(item.severity))
     : [];
+  const allRomRecommendations = Array.isArray(logicalBudget.recoveryRecommendations)
+    ? logicalBudget.recoveryRecommendations.filter((item: any) => item)
+    : [];
   const warningPackedBanks = Array.isArray(logicalBudget.warningPackedBanks) ? logicalBudget.warningPackedBanks : [];
   const ramRecommendations = Array.isArray(ramBudget.recommendations)
     ? ramBudget.recommendations.filter((item: any) => item && ['warning', 'plan_b'].includes(item.severity))
     : [];
   const suggestedFixes = [
-    ...romRecommendations.map((item: any) => ({
+    ...allRomRecommendations.map((item: any) => ({
       severity: item.severity || 'info',
       target: item.target,
       reason: item.reason,
@@ -159,6 +172,21 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
   if ((Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length) || (ramBudget.status && ramBudget.status !== 'ok')) {
     status = 'error';
   }
+  const includedRuntimeModules = Array.isArray(projectSlice.includedRuntimeModuleDetails)
+    ? projectSlice.includedRuntimeModuleDetails
+    : (Array.isArray(projectSlice.includedRuntimeModules) ? projectSlice.includedRuntimeModules.map((id: any) => ({ id })) : []);
+  const excludedRuntimeModules = Array.isArray(projectSlice.excludedRuntimeModules) ? projectSlice.excludedRuntimeModules : [];
+  const runtimeModuleDetails = Array.isArray(projectSlice.runtimeModuleDetails)
+    ? projectSlice.runtimeModuleDetails
+    : [
+      ...includedRuntimeModules.map((item: any) => ({ ...item, included: true })),
+      ...excludedRuntimeModules.map((item: any) => ({ ...item, included: false }))
+    ];
+  const includedRuntimeModuleDetails = includedRuntimeModules.map((item: any) => ({
+    id: item?.id ?? item,
+    placement: item?.placement || 'unknown',
+    reason: item?.reason,
+  }));
 
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
@@ -175,6 +203,9 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       payloadBytes: Number(logicalBudget.totalPayloadBytes || 0),
       estimatedPackedBankCount: Number(logicalBudget.estimatedPackedBankCount || 0),
       warningThresholdBytes: Number(logicalBudget.warningThresholdBytes || 0),
+      usedPercentOfSingleBank: Number(logicalBudget.bankSizeBytes || 8192)
+        ? Math.round((Number(logicalBudget.totalPayloadBytes || 0) / Number(logicalBudget.bankSizeBytes || 8192)) * 10000) / 100
+        : 0,
       warningBankCount: warningPackedBanks.length,
       warningRecommendationCount: romRecommendations.length,
       bankClassSummary: Array.isArray(logicalBudget.bankClassSummary) ? logicalBudget.bankClassSummary : []
@@ -187,6 +218,15 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       status: ramBudget.status || 'unknown',
       warningCount: ramRecommendations.length,
       sections: Array.isArray(ramBudget.sections) ? ramBudget.sections : []
+    },
+    runtimeModules: {
+      included: includedRuntimeModuleDetails,
+      excluded: excludedRuntimeModules,
+      all: runtimeModuleDetails,
+      includedCount: includedRuntimeModuleDetails.length,
+      residentCount: includedRuntimeModuleDetails.filter((item: any) => item.placement === 'resident').length,
+      farCodeCount: includedRuntimeModuleDetails.filter((item: any) => item.placement === 'far_code').length,
+      worldSpecificCount: includedRuntimeModuleDetails.filter((item: any) => item.placement === 'world_specific').length
     },
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets: [...packages]

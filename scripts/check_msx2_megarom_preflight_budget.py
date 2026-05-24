@@ -14,9 +14,11 @@ sys.dont_write_bytecode = True
 
 from build_mideas_unified_rom import (
     build_preflight_artifact_summaries,
+    describe_glass_compile_failure,
     validate_msx2_preflight_with_safe_resolution,
     validate_msx2_screen4_megarom_preflight_budget,
     write_msx2_build_summary,
+    write_msx2_compile_failure_summary,
 )
 
 
@@ -76,6 +78,31 @@ def write_artifacts(
     project_slice = {
         "scope": "msx2_screen4_project_slice",
         "entryPoints": {"worldIds": [item["worldId"] for item in world_package_summary]},
+        "includedRuntimeModules": ["runtime.msx2.boot", "runtime.msx2.screen4.vdp"],
+        "includedRuntimeModuleDetails": [
+            {
+                "id": "runtime.msx2.boot",
+                "placement": "resident",
+                "reason": "Required by every native MSX2 SCREEN 4 build",
+            },
+            {
+                "id": "runtime.msx2.screen4.vdp",
+                "placement": "resident",
+                "reason": "Required by every native MSX2 SCREEN 4 build",
+            },
+        ],
+        "excludedRuntimeModules": [
+            {
+                "id": "runtime.msx2.world_special_code",
+                "placement": "world_specific",
+                "reason": "No world-specific behavior module is referenced by this fixture",
+            },
+            {
+                "id": "runtime.msx2.optional_far_code",
+                "placement": "far_code",
+                "reason": "No optional far-code runtime is referenced by this fixture",
+            },
+        ],
         "worldPackageSummary": world_package_summary,
         "assetStoragePolicy": storage_policy,
         "logicalBankBudget": logical_budget,
@@ -550,6 +577,42 @@ def main() -> None:
         }]
         write_artifacts(world_mismatch_dir, make_budget(4096), storage_policy, world_package_summary=bad_world_summary)
         expect_failure(world_mismatch_dir, "worldPackageSummary estimatedBytes")
+
+        overflow_asm = root / "resident_overflow.asm"
+        overflow_asm.write_text(
+            "\n".join([
+                "    org #4000",
+                "; MSX2 SCREEN 4 cold data bank.",
+                "    ds #C000 - $, #FF",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        diagnostic = describe_glass_compile_failure("", "Negative initial size: -213", overflow_asm)
+        if not diagnostic or "MSX2 MegaROM resident bank overflow" not in diagnostic or "#C000 padding" not in diagnostic:
+            raise AssertionError(f"Unexpected Glass resident overflow diagnostic: {diagnostic}")
+        generic_diagnostic = describe_glass_compile_failure("", "Negative initial size: -12", root / "missing.asm")
+        if not generic_diagnostic or "MegaROM bank padding overflow" not in generic_diagnostic:
+            raise AssertionError(f"Unexpected generic Glass overflow diagnostic: {generic_diagnostic}")
+        compile_failure_dir = root / "compile_failure_generated"
+        write_artifacts(compile_failure_dir, make_budget(4096), storage_policy)
+        validate_msx2_screen4_megarom_preflight_budget(compile_failure_dir)
+        compile_failure_path = write_msx2_compile_failure_summary(
+            compile_failure_dir,
+            overflow_asm,
+            root / "failed.rom",
+            root / "failed.sym",
+            diagnostic,
+        )
+        if compile_failure_path is None or not compile_failure_path.exists():
+            raise AssertionError("Expected msx2_compile_failure.json to be written")
+        compile_failure = json.loads(compile_failure_path.read_text(encoding="utf-8"))
+        if compile_failure.get("scope") != "msx2_screen4_megarom_compile_failure":
+            raise AssertionError(f"Unexpected compile failure scope: {compile_failure}")
+        glass_gate = next((gate for gate in compile_failure.get("pipelineGates", []) if gate.get("id") == "glass_compile"), None)
+        if not glass_gate or glass_gate.get("status") != "failed":
+            raise AssertionError(f"Compile failure did not mark glass_compile failed: {compile_failure}")
+        if "Move cold read-only tables" not in (compile_failure.get("planB") or {}).get("primary", ""):
+            raise AssertionError(f"Compile failure did not include Plan B guidance: {compile_failure}")
 
     print("MSX2 MegaROM preflight budget checks passed.")
 
