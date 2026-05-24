@@ -2210,6 +2210,66 @@ ${hudAsciiMapperAsm}
 `;
 }
 
+function buildMsx2GameFlowTransitionHelpersAsm(needed: boolean): string {
+  if (!needed) return '';
+  return `
+clear_screen4_names:
+    ; Clears SCREEN 4 name table with the HUD blank char. Clobbers AF/BC/DE/HL.
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ld hl, SCREEN4_NAME_VRAM
+    ld bc, SCREEN4_NAME_SIZE
+    call FILVRM
+    ret
+
+clear_screen4_name_cell_blank:
+    ; HL=SCREEN 4 name-table cell. Clobbers AF/BC/DE/HL.
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    jp WRTVRM
+
+clear_screen4_name_row:
+    ; HL=start cell in SCREEN 4 name-table row. Clobbers AF/BC/DE/HL.
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ld bc, 32
+    jp FILVRM
+
+clear_screen4_name_rect:
+    ; HL=top-left SCREEN 4 name-table cell, B=height, C=width. Clobbers AF/BC/DE/HL.
+    ld a, b
+    or a
+    ret z
+    ld a, c
+    or a
+    ret z
+.rect_loop:
+    push bc
+    push hl
+    ld b, 0
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call FILVRM
+    pop hl
+    ld de, 32
+    add hl, de
+    pop bc
+    djnz .rect_loop
+    ret
+
+clear_screen4_name_column:
+    ; HL=top cell in SCREEN 4 name-table column. Clobbers AF/BC/DE/HL.
+    ld b, 24
+.column_loop:
+    push bc
+    push hl
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    pop hl
+    ld de, 32
+    add hl, de
+    pop bc
+    djnz .column_loop
+    ret
+`;
+}
+
 function buildHardwareSpriteRuntimeAsm(
   analysis: ProjectAnalysis,
   requiredCollectibles: number,
@@ -4040,7 +4100,6 @@ wait_msx2_stage_banner:
     ; Stage banners are omitted when the active MSX2 slice has no shooter wave flow.
     ret
 `;
-
   return `${statusHudAsm}
 draw_msx2_game_over_banner:
     ; Final-state feedback: red backdrop. Normal screen reload restores black.
@@ -7567,15 +7626,17 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
     lines.push('    call clear_screen4_name_row');
   };
   const writeBlankBlock = (row: number, column: number, height: number, width: number) => {
-    for (let y = 0; y < height; y++) {
-      const targetRow = row + y;
-      if (targetRow < 0 || targetRow >= 24) continue;
-      for (let x = 0; x < width; x++) {
-        const targetColumn = column + x;
-        if (targetColumn < 0 || targetColumn >= 32) continue;
-        writeBlankCell(targetRow, targetColumn);
-      }
-    }
+    const top = Math.max(0, row);
+    const left = Math.max(0, column);
+    const bottom = Math.min(24, row + height);
+    const right = Math.min(32, column + width);
+    const clippedHeight = bottom - top;
+    const clippedWidth = right - left;
+    if (clippedHeight <= 0 || clippedWidth <= 0) return;
+    lines.push(`    ld hl, ${nameAddr((top * 32) + left)}`);
+    lines.push(`    ld b, ${clippedHeight}`);
+    lines.push(`    ld c, ${clippedWidth}`);
+    lines.push('    call clear_screen4_name_rect');
   };
 
   switch (effect) {
@@ -7899,7 +7960,7 @@ function buildMsx2GameFlowProgram(
         if (transitionLines.length > 0) {
           lines.push(...transitionLines);
         } else {
-          unsupported.add(`Transition:${current.effect}`);
+          throw new Error(`MSX2 SCREEN 4 GameFlow transition "${current.effect || ''}" is not supported.`);
         }
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
@@ -8214,6 +8275,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(255, enemies[index]?.score ?? 1)))
   );
   const worldTransitionAsm = buildMsx2WorldTransitionAsm(analysis, tileScreens, tileScreenLoadLabels);
+  const screen4GameFlow = getScreen4RuntimeGameFlow(analysis);
+  const includeGameFlowTransitionHelpers = Boolean(screen4GameFlow?.nodes?.some((node: any) => node?.type === 'Transition'));
+  const gameFlowTransitionHelperAsm = buildMsx2GameFlowTransitionHelpersAsm(includeGameFlowTransitionHelpers);
   const firstScreenIndex = tileScreenIndexByLabel.get(firstScreenLabel);
   const firstScreenIndexInit = firstScreenIndex === undefined
     ? ''
@@ -8697,36 +8761,7 @@ draw_msx2_submenu_cursor:
     ld a, MSX2_HUD_FONT_BASE_CHAR + 38
     jp WRTVRM
 
-clear_screen4_names:
-    ; Clears SCREEN 4 name table with the HUD blank char. Clobbers AF/BC/DE/HL.
-    ld a, MSX2_HUD_FONT_BASE_CHAR
-    ld hl, SCREEN4_NAME_VRAM
-    ld bc, SCREEN4_NAME_SIZE
-    call FILVRM
-    ret
-
-clear_screen4_name_cell_blank:
-    ; HL=SCREEN 4 name-table cell. Clobbers AF/BC/DE/HL.
-    ld a, MSX2_HUD_FONT_BASE_CHAR
-    jp WRTVRM
-
-clear_screen4_name_row:
-    ; HL=start cell in SCREEN 4 name-table row. Clobbers AF/BC/DE/HL.
-    ld a, MSX2_HUD_FONT_BASE_CHAR
-    ld bc, 32
-    jp FILVRM
-
-clear_screen4_name_column:
-    ; HL=top cell in SCREEN 4 name-table column. Clobbers AF/BC/DE/HL.
-    ld b, 24
-    ld de, 32
-.column_loop:
-    ld a, MSX2_HUD_FONT_BASE_CHAR
-    call WRTVRM
-    add hl, de
-    djnz .column_loop
-    ret
-
+${gameFlowTransitionHelperAsm}
 clear_screen4_name_cell_16:
     ; HL=top-left SCREEN 4 name-table cell for a 16x16 block. Clobbers AF/BC/HL.
     xor a

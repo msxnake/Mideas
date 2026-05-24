@@ -52,6 +52,10 @@ const MSX2_SCREEN5_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effe
   MSX2_SCREEN5_TRANSITION_OPTIONS.map(option => option.value)
 );
 
+const MSX2_SCREEN4_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effect']>(
+  MSX2_SCREEN4_TRANSITION_OPTIONS.map(option => option.value)
+);
+
 interface Msx2GameFlowEditorProps {
   gameFlowGraph: Msx2GameFlowGraph;
   onUpdate: (data: Partial<Msx2GameFlowGraph>) => void;
@@ -282,6 +286,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           const hasElse = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'else');
           if (!node.variableName?.trim()) issues.push('IfThenElse must select a global variable.');
           if (!hasThen || !hasElse) issues.push('IfThenElse needs both THEN and ELSE outgoing connections.');
+        } else if (node.type === 'Transition') {
+          if (!MSX2_SCREEN4_TRANSITION_EFFECTS.has(node.effect)) {
+            issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 4 runtime.`);
+          }
         } else if (node.type !== 'Start' && node.type !== 'Waypoint' && node.type !== 'Globals' && node.type !== 'Transition' && node.type !== 'Restart' && node.type !== 'End') {
           issues.push(`${node.type} is not supported by the SCREEN 4 runtime purpose yet.`);
         }
