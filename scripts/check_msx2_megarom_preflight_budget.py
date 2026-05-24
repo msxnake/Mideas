@@ -75,6 +75,63 @@ def write_artifacts(
             stored_bytes = int(policy.get("storedBytesEstimate") or 0)
             world_package_summary[0]["estimatedBytes"] += stored_bytes
             world_package_summary[0]["bankClassBytes"].append({"id": "world.screen", "usedBytes": stored_bytes})
+    physical_bank_by_package = {}
+    for bank in logical_budget.get("estimatedPackedBanks") or []:
+        for package in bank.get("packages") or []:
+            physical_bank_by_package[package.get("id")] = bank.get("bankIndex", 0)
+    manifest_worlds = []
+    for world_summary in world_package_summary:
+        world_id = world_summary["worldId"]
+        packages = []
+        for policy in storage_policy:
+            if policy.get("decision") == "INHERIT_OWNER_SCREEN_POLICY":
+                continue
+            if world_id not in (policy.get("ownerWorldIds") or []):
+                continue
+            package_id = f"{policy.get('type')}.{policy.get('id')}"
+            packages.append({
+                "packageId": package_id,
+                "type": policy.get("type"),
+                "sourceId": policy.get("id"),
+                "logicalSection": "world screens",
+                "recommendedBankClass": "world.screen",
+                "physicalBankIndex": physical_bank_by_package.get(package_id),
+                "windowAddress": "#A000",
+                "bankSizeBytes": 8192,
+                "rawBytes": int(policy.get("rawBytes") or 0),
+                "storedBytes": int(policy.get("storedBytesEstimate") or 0),
+                "decision": policy.get("decision", "ROM_RAW"),
+                "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass.",
+            })
+        manifest_worlds.append({
+            "worldId": world_id,
+            "estimatedBytes": int(world_summary.get("estimatedBytes") or 0),
+            "estimated8kBanks": int(world_summary.get("estimated8kBanks") or 1),
+            "packages": packages,
+        })
+    world_bank_manifest = {
+        "scope": "msx2_screen4_world_bank_manifest",
+        "mapper": "konami",
+        "bankSizeBytes": 8192,
+        "dataWindowAddress": "#A000",
+        "estimatedPhysicalBanks": [
+            {
+                "bankIndex": int(bank.get("bankIndex") or 0),
+                "windowAddress": "#A000",
+                "bankSizeBytes": 8192,
+                "warningThresholdBytes": int(bank.get("warningThresholdBytes") or 7372),
+                "usedBytes": int(bank.get("usedBytes") or 0),
+                "freeBytes": int(bank.get("freeBytes") or 0),
+                "usedPercent": float(bank.get("usedPercent") or 0),
+                "warning": bool(bank.get("warning")),
+                "overBudgetBytes": int(bank.get("overBudgetBytes") or 0),
+                "status": bank.get("status") or ("error" if int(bank.get("overBudgetBytes") or 0) > 0 else "warning" if bank.get("warning") else "ok"),
+                "packages": bank.get("packages") or [],
+            }
+            for bank in logical_budget.get("estimatedPackedBanks") or []
+        ],
+        "worlds": manifest_worlds,
+    }
     project_slice = {
         "scope": "msx2_screen4_project_slice",
         "entryPoints": {"worldIds": [item["worldId"] for item in world_package_summary]},
@@ -104,6 +161,7 @@ def write_artifacts(
             },
         ],
         "worldPackageSummary": world_package_summary,
+        "worldBankManifest": world_bank_manifest,
         "assetStoragePolicy": storage_policy,
         "logicalBankBudget": logical_budget,
         "ramBudget": ram_budget,
@@ -112,6 +170,7 @@ def write_artifacts(
     (artifact_dir / "project_slice.json").write_text(json.dumps(project_slice, indent=2) + "\n", encoding="utf-8")
     (artifact_dir / "asset_storage_policy.json").write_text(json.dumps(storage_policy, indent=2) + "\n", encoding="utf-8")
     (artifact_dir / "logical_bank_budget.json").write_text(json.dumps(logical_budget, indent=2) + "\n", encoding="utf-8")
+    (artifact_dir / "msx2_world_bank_manifest.json").write_text(json.dumps(world_bank_manifest, indent=2) + "\n", encoding="utf-8")
     (artifact_dir / "ram_budget.json").write_text(json.dumps(ram_budget, indent=2) + "\n", encoding="utf-8")
 
 
@@ -129,10 +188,14 @@ def make_budget(package_bytes: int, over_budget: bool = False) -> dict:
     }
     packed_bank = {
         "bankIndex": 0,
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
         "usedBytes": min(package_bytes, 8192),
         "freeBytes": max(0, 8192 - package_bytes),
+        "usedPercent": round((package_bytes / 8192) * 100, 2),
         "warning": package_bytes >= 7372,
         "overBudgetBytes": max(0, package_bytes - 8192),
+        "status": "error" if package_bytes > 8192 else "warning" if package_bytes >= 7372 else "ok",
         "packages": [{"id": package["id"], "usedBytes": package_bytes, "recommendedBankClass": "world.screen"}],
     }
     recommendations = [{
@@ -233,10 +296,10 @@ def main() -> None:
         if preflight_summary.get("planB", {}).get("recoveryPlan") != make_budget(4096)["recoveryPlan"]:
             raise AssertionError(f"Unexpected recovery plan: {preflight_summary.get('planB')!r}")
         artifact_checks = preflight_summary.get("artifactChecks")
-        if not isinstance(artifact_checks, list) or len(artifact_checks) != 4:
+        if not isinstance(artifact_checks, list) or len(artifact_checks) != 5:
             raise AssertionError(f"Unexpected artifact checks: {artifact_checks!r}")
         artifact_names = {item.get("name") for item in artifact_checks if isinstance(item, dict)}
-        if artifact_names != {"project_slice.json", "asset_storage_policy.json", "logical_bank_budget.json", "ram_budget.json"}:
+        if artifact_names != {"project_slice.json", "asset_storage_policy.json", "logical_bank_budget.json", "msx2_world_bank_manifest.json", "ram_budget.json"}:
             raise AssertionError(f"Unexpected artifact check names: {artifact_checks!r}")
         for artifact_check in artifact_checks:
             if not isinstance(artifact_check, dict) or int(artifact_check.get("bytes") or 0) <= 0:
@@ -247,6 +310,7 @@ def main() -> None:
             ("project_slice.json", ok_dir / "project_slice.json"),
             ("asset_storage_policy.json", ok_dir / "asset_storage_policy.json"),
             ("logical_bank_budget.json", ok_dir / "logical_bank_budget.json"),
+            ("msx2_world_bank_manifest.json", ok_dir / "msx2_world_bank_manifest.json"),
             ("ram_budget.json", ok_dir / "ram_budget.json"),
         ])
         if artifact_checks != expected_artifact_checks:
@@ -315,6 +379,23 @@ def main() -> None:
             raise AssertionError(f"IDE feedback did not expose largest assets: {ide_feedback!r}")
         if not isinstance(ide_feedback.get("suggestedFixes"), list):
             raise AssertionError(f"IDE feedback did not expose suggested fixes: {ide_feedback!r}")
+
+        manifest_mismatch_dir = root / "manifest_mismatch_generated"
+        write_artifacts(manifest_mismatch_dir, make_budget(4096), storage_policy)
+        manifest_path = manifest_mismatch_dir / "msx2_world_bank_manifest.json"
+        project_slice_path = manifest_mismatch_dir / "project_slice.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["estimatedPhysicalBanks"][0]["usedBytes"] += 1
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        project_slice = json.loads(project_slice_path.read_text(encoding="utf-8"))
+        project_slice["worldBankManifest"] = manifest
+        project_slice_path.write_text(json.dumps(project_slice, indent=2) + "\n", encoding="utf-8")
+        try:
+            validate_msx2_screen4_megarom_preflight_budget(manifest_mismatch_dir)
+            raise AssertionError("Expected preflight failure for worldBankManifest/logicalBankBudget bank mismatch")
+        except RuntimeError as exc:
+            if "worldBankManifest bank 0 usedBytes differs from logicalBankBudget" not in str(exc):
+                raise AssertionError(f"Unexpected manifest mismatch failure: {exc}") from exc
 
         rom_path = ok_dir / "test.rom"
         asm_path = ok_dir / "test.asm"

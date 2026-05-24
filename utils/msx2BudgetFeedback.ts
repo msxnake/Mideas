@@ -36,6 +36,16 @@ export interface Msx2BudgetFeedback {
     farCodeCount: number;
     worldSpecificCount: number;
   };
+  worldBankManifest?: {
+    worldCount: number;
+    estimatedPhysicalBankCount: number;
+    dataWindowAddress?: string;
+    packageCount: number;
+    warningBankCount: number;
+    overBudgetBankCount: number;
+    worlds: any[];
+    estimatedPhysicalBanks: any[];
+  };
   worldPackages: any[];
   largestAssets: Array<{
     id: string;
@@ -129,6 +139,7 @@ export const parseMideasJsonArtifact = (sourceCode: string, fileName: string): a
 export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFeedback | null => {
   const projectSlice = parseMideasJsonArtifact(sourceCode, 'project_slice.json');
   const logicalBudget = parseMideasJsonArtifact(sourceCode, 'logical_bank_budget.json');
+  const artifactWorldBankManifest = parseMideasJsonArtifact(sourceCode, 'msx2_world_bank_manifest.json');
   const ramBudget = parseMideasJsonArtifact(sourceCode, 'ram_budget.json');
   if (!projectSlice || projectSlice.scope !== 'msx2_screen4_project_slice' || !logicalBudget || !ramBudget) {
     return null;
@@ -187,6 +198,13 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
     placement: item?.placement || 'unknown',
     reason: item?.reason,
   }));
+  const worldBankManifest = artifactWorldBankManifest || projectSlice.worldBankManifest || null;
+  const manifestWorlds = Array.isArray(worldBankManifest?.worlds) ? worldBankManifest.worlds : [];
+  const manifestPhysicalBanks = Array.isArray(worldBankManifest?.estimatedPhysicalBanks) ? worldBankManifest.estimatedPhysicalBanks : [];
+  const manifestPackageCount = manifestWorlds.reduce((sum: number, world: any) =>
+    sum + (Array.isArray(world?.packages) ? world.packages.length : 0), 0);
+  const manifestWarningBankCount = manifestPhysicalBanks.filter((bank: any) => bank?.status === 'warning' || bank?.warning === true).length;
+  const manifestOverBudgetBankCount = manifestPhysicalBanks.filter((bank: any) => bank?.status === 'error' || Number(bank?.overBudgetBytes || 0) > 0).length;
 
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
@@ -228,6 +246,16 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       farCodeCount: includedRuntimeModuleDetails.filter((item: any) => item.placement === 'far_code').length,
       worldSpecificCount: includedRuntimeModuleDetails.filter((item: any) => item.placement === 'world_specific').length
     },
+    worldBankManifest: worldBankManifest ? {
+      worldCount: manifestWorlds.length,
+      estimatedPhysicalBankCount: manifestPhysicalBanks.length,
+      dataWindowAddress: worldBankManifest.dataWindowAddress,
+      packageCount: manifestPackageCount,
+      warningBankCount: manifestWarningBankCount,
+      overBudgetBankCount: manifestOverBudgetBankCount,
+      worlds: manifestWorlds,
+      estimatedPhysicalBanks: manifestPhysicalBanks,
+    } : undefined,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets: [...packages]
       .sort((a: any, b: any) => Number(b?.usedBytes || 0) - Number(a?.usedBytes || 0))

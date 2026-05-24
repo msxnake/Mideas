@@ -996,6 +996,28 @@ def write_msx2_ide_budget_feedback(
             "farCodeCount": sum(1 for item in included_runtime_modules if isinstance(item, dict) and item.get("placement") == "far_code"),
             "worldSpecificCount": sum(1 for item in included_runtime_modules if isinstance(item, dict) and item.get("placement") == "world_specific"),
         },
+        "worldBankManifest": {
+            "worldCount": len((project_slice.get("worldBankManifest") or {}).get("worlds") or []),
+            "estimatedPhysicalBankCount": len((project_slice.get("worldBankManifest") or {}).get("estimatedPhysicalBanks") or []),
+            "dataWindowAddress": (project_slice.get("worldBankManifest") or {}).get("dataWindowAddress"),
+            "packageCount": sum(
+                len(world.get("packages") or [])
+                for world in ((project_slice.get("worldBankManifest") or {}).get("worlds") or [])
+                if isinstance(world, dict)
+            ),
+            "warningBankCount": sum(
+                1
+                for bank in ((project_slice.get("worldBankManifest") or {}).get("estimatedPhysicalBanks") or [])
+                if isinstance(bank, dict) and (bank.get("status") == "warning" or bank.get("warning") is True)
+            ),
+            "overBudgetBankCount": sum(
+                1
+                for bank in ((project_slice.get("worldBankManifest") or {}).get("estimatedPhysicalBanks") or [])
+                if isinstance(bank, dict) and (bank.get("status") == "error" or int(bank.get("overBudgetBytes") or 0) > 0)
+            ),
+            "worlds": (project_slice.get("worldBankManifest") or {}).get("worlds") or [],
+            "estimatedPhysicalBanks": (project_slice.get("worldBankManifest") or {}).get("estimatedPhysicalBanks") or [],
+        },
         "worldPackages": world_package_summary,
         "largestAssets": [
             {
@@ -1088,6 +1110,35 @@ def validate_msx2_screen4_megarom_preflight_budget(
     world_package_summary = project_slice.get("worldPackageSummary")
     if not isinstance(world_package_summary, list) or not world_package_summary:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no worldPackageSummary")
+    world_bank_manifest = project_slice.get("worldBankManifest")
+    if not isinstance(world_bank_manifest, dict) or world_bank_manifest.get("scope") != "msx2_screen4_world_bank_manifest":
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no worldBankManifest")
+    world_bank_manifest_path = artifact_dir / "msx2_world_bank_manifest.json"
+    world_bank_manifest_artifact = read_preflight_json_artifact(world_bank_manifest_path, "msx2_world_bank_manifest.json")
+    if world_bank_manifest_artifact != world_bank_manifest:
+        raise RuntimeError("MSX2 MegaROM preflight failed: msx2_world_bank_manifest.json differs from project_slice.json")
+    manifest_worlds = world_bank_manifest.get("worlds")
+    if not isinstance(manifest_worlds, list) or not manifest_worlds:
+        raise RuntimeError("MSX2 MegaROM preflight failed: worldBankManifest has no worlds")
+    manifest_physical_banks = world_bank_manifest.get("estimatedPhysicalBanks")
+    if not isinstance(manifest_physical_banks, list) or not manifest_physical_banks:
+        raise RuntimeError("MSX2 MegaROM preflight failed: worldBankManifest has no estimatedPhysicalBanks")
+    for physical_bank in manifest_physical_banks:
+        if not isinstance(physical_bank, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldBankManifest physical bank: {physical_bank}")
+        if int(physical_bank.get("bankSizeBytes") or 0) != 8192:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldBankManifest bankSizeBytes: {physical_bank}")
+        if int(physical_bank.get("warningThresholdBytes") or 0) <= 0:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest bank missing warningThresholdBytes: {physical_bank}")
+        if int(physical_bank.get("usedBytes") or 0) <= 0 or int(physical_bank.get("freeBytes") or 0) < 0:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldBankManifest bank usage: {physical_bank}")
+        if int(physical_bank.get("overBudgetBytes") or 0) < 0:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldBankManifest overBudgetBytes: {physical_bank}")
+        if physical_bank.get("status") not in {"ok", "warning", "error"}:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldBankManifest bank status: {physical_bank}")
+        if not isinstance(physical_bank.get("packages"), list) or not physical_bank.get("packages"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest bank has no packages: {physical_bank}")
+    manifest_world_ids = {item.get("worldId") for item in manifest_worlds if isinstance(item, dict)}
     entry_world_ids = set((project_slice.get("entryPoints") or {}).get("worldIds") or [])
     summary_world_ids = {item.get("worldId") for item in world_package_summary if isinstance(item, dict)}
     missing_world_summaries = sorted(entry_world_ids - summary_world_ids)
@@ -1103,6 +1154,18 @@ def validate_msx2_screen4_megarom_preflight_budget(
         estimated_bytes = int(world_summary.get("estimatedBytes") or 0)
         if not world_id or estimated_bytes <= 0:
             raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldPackageSummary budget: {world_summary}")
+        if world_id not in manifest_world_ids:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest missing world: {world_id}")
+        manifest_world = next((item for item in manifest_worlds if isinstance(item, dict) and item.get("worldId") == world_id), None)
+        if not isinstance(manifest_world, dict) or not isinstance(manifest_world.get("packages"), list) or not manifest_world.get("packages"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest world has no packages: {world_id}")
+        for package in manifest_world.get("packages"):
+            if not isinstance(package, dict):
+                raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldBankManifest package: {package}")
+            if not package.get("packageId") or not package.get("logicalSection") or not package.get("windowAddress"):
+                raise RuntimeError(f"MSX2 MegaROM preflight failed: incomplete worldBankManifest package: {package}")
+            if int(package.get("storedBytes") or 0) <= 0:
+                raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest package has invalid storedBytes: {package}")
         if int(world_summary.get("screenCount") or 0) <= 0:
             raise RuntimeError(f"MSX2 MegaROM preflight failed: worldPackageSummary has no reachable screens: {world_summary}")
         bank_class_bytes = world_summary.get("bankClassBytes")
@@ -1294,6 +1357,57 @@ def validate_msx2_screen4_megarom_preflight_budget(
     packed_banks = logical_budget.get("estimatedPackedBanks") or []
     total_payload = int(logical_budget.get("totalPayloadBytes") or 0)
     estimated_count = int(logical_budget.get("estimatedPackedBankCount") or 0)
+    if not isinstance(packed_banks, list) or not packed_banks:
+        raise RuntimeError("MSX2 MegaROM preflight failed: logicalBankBudget has no estimatedPackedBanks")
+    if estimated_count != len(packed_banks):
+        raise RuntimeError("MSX2 MegaROM preflight failed: estimatedPackedBankCount does not match estimatedPackedBanks length")
+    if len(manifest_physical_banks) != len(packed_banks):
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            "worldBankManifest estimatedPhysicalBanks length differs from logicalBankBudget estimatedPackedBanks"
+        )
+    manifest_bank_by_index = {
+        int(bank.get("bankIndex") or 0): bank
+        for bank in manifest_physical_banks
+        if isinstance(bank, dict)
+    }
+    for bank in packed_banks:
+        if not isinstance(bank, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid estimated packed bank: {bank}")
+        bank_index = int(bank.get("bankIndex") or 0)
+        used = int(bank.get("usedBytes") or 0)
+        free = int(bank.get("freeBytes") or 0)
+        if used <= 0 or used + free != bank_size:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: estimated packed bank has invalid used/free bytes: {bank}")
+        if not isinstance(bank.get("packages"), list) or not bank.get("packages"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: estimated packed bank has no package list: {bank}")
+        manifest_bank = manifest_bank_by_index.get(bank_index)
+        if not isinstance(manifest_bank, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest missing physical bank {bank_index}")
+        expected_status = "error" if int(bank.get("overBudgetBytes") or 0) > 0 else "warning" if bool(bank.get("warning")) else "ok"
+        comparisons = {
+            "usedBytes": used,
+            "freeBytes": free,
+            "warningThresholdBytes": int(logical_budget.get("warningThresholdBytes") or 0),
+            "overBudgetBytes": int(bank.get("overBudgetBytes") or 0),
+        }
+        for field, expected_value in comparisons.items():
+            if int(manifest_bank.get(field) or 0) != expected_value:
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"worldBankManifest bank {bank_index} {field} differs from logicalBankBudget: "
+                    f"{manifest_bank.get(field)} != {expected_value}"
+                )
+        if bool(manifest_bank.get("warning")) != bool(bank.get("warning")):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest bank {bank_index} warning differs from logicalBankBudget")
+        if manifest_bank.get("status") != expected_status:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"worldBankManifest bank {bank_index} status differs from logicalBankBudget: "
+                f"{manifest_bank.get('status')} != {expected_status}"
+            )
+        if manifest_bank.get("packages") != bank.get("packages"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest bank {bank_index} packages differ from logicalBankBudget")
     largest_package = max(
         (item for item in packages if isinstance(item, dict)),
         key=lambda item: int(item.get("usedBytes") or 0),
@@ -1392,12 +1506,14 @@ def validate_msx2_screen4_megarom_preflight_budget(
             "project_slice.json",
             "asset_storage_policy.json",
             "logical_bank_budget.json",
+            "msx2_world_bank_manifest.json",
             "ram_budget.json",
         ],
         "artifactChecks": build_preflight_artifact_summaries([
             ("project_slice.json", project_slice_path),
             ("asset_storage_policy.json", storage_policy_path),
             ("logical_bank_budget.json", budget_path),
+            ("msx2_world_bank_manifest.json", world_bank_manifest_path),
             ("ram_budget.json", ram_budget_path),
         ]),
         "outputArtifactChecks": build_preflight_artifact_summaries([
@@ -1415,6 +1531,13 @@ def validate_msx2_screen4_megarom_preflight_budget(
             "warningBankCount": len(warning_banks),
         },
         "worldPackages": world_package_summary,
+        "worldBankManifest": {
+            "worldCount": len(manifest_worlds),
+            "estimatedPhysicalBankCount": len(manifest_physical_banks),
+            "dataWindowAddress": world_bank_manifest.get("dataWindowAddress"),
+            "warningBankCount": sum(1 for bank in manifest_physical_banks if isinstance(bank, dict) and bank.get("status") == "warning"),
+            "overBudgetBankCount": sum(1 for bank in manifest_physical_banks if isinstance(bank, dict) and bank.get("status") == "error"),
+        },
         "ram": {
             "start": ram_budget.get("start"),
             "limit": ram_budget.get("limit"),

@@ -1438,6 +1438,7 @@ function parseMideasJsonArtifact(sourceCode, fileName) {
 function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
   const projectSlice = parseMideasJsonArtifact(sourceCode, 'project_slice.json');
   const logicalBudget = parseMideasJsonArtifact(sourceCode, 'logical_bank_budget.json');
+  const artifactWorldBankManifest = parseMideasJsonArtifact(sourceCode, 'msx2_world_bank_manifest.json');
   const ramBudget = parseMideasJsonArtifact(sourceCode, 'ram_budget.json');
   if (
     !projectSlice ||
@@ -1513,6 +1514,13 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
     placement: item?.placement || 'unknown',
     reason: item?.reason
   }));
+  const worldBankManifest = artifactWorldBankManifest || projectSlice.worldBankManifest || null;
+  const manifestWorlds = Array.isArray(worldBankManifest?.worlds) ? worldBankManifest.worlds : [];
+  const manifestPhysicalBanks = Array.isArray(worldBankManifest?.estimatedPhysicalBanks) ? worldBankManifest.estimatedPhysicalBanks : [];
+  const manifestPackageCount = manifestWorlds.reduce((sum, world) =>
+    sum + (Array.isArray(world?.packages) ? world.packages.length : 0), 0);
+  const manifestWarningBankCount = manifestPhysicalBanks.filter((bank) => bank?.status === 'warning' || bank?.warning === true).length;
+  const manifestOverBudgetBankCount = manifestPhysicalBanks.filter((bank) => bank?.status === 'error' || Number(bank?.overBudgetBytes || 0) > 0).length;
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
     status,
@@ -1551,6 +1559,16 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       farCodeCount: includedRuntimeModuleDetails.filter((item) => item.placement === 'far_code').length,
       worldSpecificCount: includedRuntimeModuleDetails.filter((item) => item.placement === 'world_specific').length
     },
+    worldBankManifest: worldBankManifest ? {
+      worldCount: manifestWorlds.length,
+      estimatedPhysicalBankCount: manifestPhysicalBanks.length,
+      dataWindowAddress: worldBankManifest.dataWindowAddress,
+      packageCount: manifestPackageCount,
+      warningBankCount: manifestWarningBankCount,
+      overBudgetBankCount: manifestOverBudgetBankCount,
+      worlds: manifestWorlds,
+      estimatedPhysicalBanks: manifestPhysicalBanks
+    } : undefined,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets,
     warnings: {

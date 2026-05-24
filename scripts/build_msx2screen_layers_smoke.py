@@ -552,6 +552,33 @@ def validate_project_slice_artifact(
     world_package_summary = artifact.get("worldPackageSummary")
     if not isinstance(world_package_summary, list) or not world_package_summary:
         raise RuntimeError("project_slice.json must include worldPackageSummary")
+    world_bank_manifest = artifact.get("worldBankManifest")
+    if not isinstance(world_bank_manifest, dict) or world_bank_manifest.get("scope") != "msx2_screen4_world_bank_manifest":
+        raise RuntimeError("project_slice.json must include worldBankManifest")
+    manifest_path = generated_dir / "msx2_world_bank_manifest.json"
+    if not manifest_path.exists():
+        raise RuntimeError(f"Generated msx2_world_bank_manifest.json was not created: {manifest_path}")
+    manifest_artifact = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest_artifact != world_bank_manifest:
+        raise RuntimeError("msx2_world_bank_manifest.json does not match project_slice worldBankManifest")
+    manifest_worlds = world_bank_manifest.get("worlds")
+    if not isinstance(manifest_worlds, list) or not manifest_worlds:
+        raise RuntimeError("worldBankManifest must include worlds")
+    manifest_physical_banks = world_bank_manifest.get("estimatedPhysicalBanks")
+    if not isinstance(manifest_physical_banks, list) or not manifest_physical_banks:
+        raise RuntimeError("worldBankManifest must include estimatedPhysicalBanks")
+    for physical_bank in manifest_physical_banks:
+        if not isinstance(physical_bank, dict):
+            raise RuntimeError(f"worldBankManifest physical bank is invalid: {physical_bank}")
+        if int(physical_bank.get("bankSizeBytes") or 0) != 8192:
+            raise RuntimeError(f"worldBankManifest physical bank has invalid bank size: {physical_bank}")
+        if int(physical_bank.get("warningThresholdBytes") or 0) <= 0:
+            raise RuntimeError(f"worldBankManifest physical bank must expose warningThresholdBytes: {physical_bank}")
+        if physical_bank.get("status") not in {"ok", "warning", "error"}:
+            raise RuntimeError(f"worldBankManifest physical bank must expose status: {physical_bank}")
+        if int(physical_bank.get("overBudgetBytes") or 0) < 0:
+            raise RuntimeError(f"worldBankManifest physical bank has invalid overBudgetBytes: {physical_bank}")
+    manifest_world_ids = {item.get("worldId") for item in manifest_worlds if isinstance(item, dict)}
     entry_world_ids = set((artifact.get("entryPoints") or {}).get("worldIds") or [])
     summary_world_ids = {item.get("worldId") for item in world_package_summary if isinstance(item, dict)}
     if entry_world_ids and not entry_world_ids.issubset(summary_world_ids):
@@ -562,6 +589,18 @@ def validate_project_slice_artifact(
         world_id = world_summary.get("worldId")
         if not world_id:
             raise RuntimeError(f"worldPackageSummary entry must include worldId: {world_summary}")
+        if world_id not in manifest_world_ids:
+            raise RuntimeError(f"worldBankManifest missing world: {world_id}")
+        manifest_world = next((item for item in manifest_worlds if isinstance(item, dict) and item.get("worldId") == world_id), None)
+        if not isinstance(manifest_world, dict) or not isinstance(manifest_world.get("packages"), list) or not manifest_world.get("packages"):
+            raise RuntimeError(f"worldBankManifest world must include packages: {world_id}")
+        for package in manifest_world.get("packages"):
+            if not isinstance(package, dict) or not package.get("packageId") or not package.get("logicalSection"):
+                raise RuntimeError(f"Invalid worldBankManifest package: {package}")
+            if package.get("windowAddress") != "#A000":
+                raise RuntimeError(f"worldBankManifest package must target Konami data window #A000: {package}")
+            if int(package.get("storedBytes") or 0) <= 0:
+                raise RuntimeError(f"worldBankManifest package must include storedBytes: {package}")
         estimated_bytes = int(world_summary.get("estimatedBytes") or 0)
         if estimated_bytes <= 0:
             raise RuntimeError(f"worldPackageSummary entry must include positive estimatedBytes: {world_summary}")
@@ -630,6 +669,13 @@ def validate_project_slice_artifact(
         raise RuntimeError("project_slice.json logicalBankBudget must include estimatedPackedBanks")
     if int(logical_bank_budget.get("estimatedPackedBankCount") or 0) != len(packed_banks):
         raise RuntimeError("project_slice.json estimatedPackedBankCount must match estimatedPackedBanks length")
+    if len(manifest_physical_banks) != len(packed_banks):
+        raise RuntimeError("worldBankManifest estimatedPhysicalBanks must match logicalBankBudget estimatedPackedBanks length")
+    manifest_bank_by_index = {
+        int(bank.get("bankIndex") or 0): bank
+        for bank in manifest_physical_banks
+        if isinstance(bank, dict)
+    }
     for bank in packed_banks:
         used = int(bank.get("usedBytes") or 0)
         free = int(bank.get("freeBytes") or 0)
@@ -639,6 +685,21 @@ def validate_project_slice_artifact(
             raise RuntimeError(f"MSX2 preflight budget failed before Glass: estimated packed bank exceeds 8KB: {bank}")
         if not isinstance(bank.get("packages"), list) or not bank.get("packages"):
             raise RuntimeError(f"Estimated packed bank has no package list: {bank}")
+        bank_index = int(bank.get("bankIndex") or 0)
+        manifest_bank = manifest_bank_by_index.get(bank_index)
+        if not isinstance(manifest_bank, dict):
+            raise RuntimeError(f"worldBankManifest missing physical bank: {bank_index}")
+        expected_status = "error" if int(bank.get("overBudgetBytes") or 0) > 0 else "warning" if bool(bank.get("warning")) else "ok"
+        if int(manifest_bank.get("usedBytes") or 0) != used or int(manifest_bank.get("freeBytes") or 0) != free:
+            raise RuntimeError(f"worldBankManifest bank usage must match logicalBankBudget: {manifest_bank} != {bank}")
+        if int(manifest_bank.get("warningThresholdBytes") or 0) != int(logical_bank_budget.get("warningThresholdBytes") or 0):
+            raise RuntimeError(f"worldBankManifest warning threshold must match logicalBankBudget: {manifest_bank}")
+        if int(manifest_bank.get("overBudgetBytes") or 0) != int(bank.get("overBudgetBytes") or 0):
+            raise RuntimeError(f"worldBankManifest overBudgetBytes must match logicalBankBudget: {manifest_bank} != {bank}")
+        if bool(manifest_bank.get("warning")) != bool(bank.get("warning")) or manifest_bank.get("status") != expected_status:
+            raise RuntimeError(f"worldBankManifest pressure status must match logicalBankBudget: {manifest_bank} != {bank}")
+        if manifest_bank.get("packages") != bank.get("packages"):
+            raise RuntimeError(f"worldBankManifest bank packages must match logicalBankBudget: {manifest_bank} != {bank}")
     recommendations = logical_bank_budget.get("recoveryRecommendations")
     if not isinstance(recommendations, list) or not recommendations:
         raise RuntimeError("project_slice.json logicalBankBudget must include recoveryRecommendations")
@@ -734,7 +795,7 @@ def validate_project_slice_artifact(
         if not isinstance(artifact_checks, list):
             raise RuntimeError("preflight_summary.json must include artifactChecks")
         artifact_names = {item.get("name") for item in artifact_checks if isinstance(item, dict)}
-        expected_artifact_names = {"project_slice.json", "asset_storage_policy.json", "logical_bank_budget.json", "ram_budget.json"}
+        expected_artifact_names = {"project_slice.json", "asset_storage_policy.json", "logical_bank_budget.json", "msx2_world_bank_manifest.json", "ram_budget.json"}
         if artifact_names != expected_artifact_names:
             raise RuntimeError(f"preflight_summary.json artifactChecks names are invalid: {artifact_checks}")
         for artifact_check in artifact_checks:
@@ -746,6 +807,7 @@ def validate_project_slice_artifact(
             "project_slice.json": artifact_path,
             "asset_storage_policy.json": storage_policy_path,
             "logical_bank_budget.json": budget_path,
+            "msx2_world_bank_manifest.json": manifest_path,
             "ram_budget.json": ram_budget_path,
         }
         for artifact_check in artifact_checks:
@@ -824,6 +886,29 @@ def validate_project_slice_artifact(
             raise RuntimeError("msx2_ide_budget_feedback.json RAM usage does not match ram_budget.json")
         if ide_feedback.get("worldPackages") != world_package_summary:
             raise RuntimeError("msx2_ide_budget_feedback.json world packages do not match project_slice.json")
+        ide_manifest = ide_feedback.get("worldBankManifest")
+        if not isinstance(ide_manifest, dict):
+            raise RuntimeError("msx2_ide_budget_feedback.json must include worldBankManifest")
+        if int(ide_manifest.get("worldCount") or 0) != len(manifest_worlds):
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest world count does not match manifest")
+        if int(ide_manifest.get("estimatedPhysicalBankCount") or 0) != len(manifest_physical_banks):
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest bank count does not match manifest")
+        if int(ide_manifest.get("packageCount") or 0) <= 0:
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest must include package count")
+        if ide_manifest.get("dataWindowAddress") != "#A000":
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest must expose Konami data window")
+        expected_manifest_warnings = sum(
+            1 for bank in manifest_physical_banks
+            if isinstance(bank, dict) and (bank.get("status") == "warning" or bank.get("warning") is True)
+        )
+        expected_manifest_over_budget = sum(
+            1 for bank in manifest_physical_banks
+            if isinstance(bank, dict) and (bank.get("status") == "error" or int(bank.get("overBudgetBytes") or 0) > 0)
+        )
+        if int(ide_manifest.get("warningBankCount") or 0) != expected_manifest_warnings:
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest warning count does not match manifest")
+        if int(ide_manifest.get("overBudgetBankCount") or 0) != expected_manifest_over_budget:
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest over-budget count does not match manifest")
         if not isinstance(ide_feedback.get("largestAssets"), list):
             raise RuntimeError("msx2_ide_budget_feedback.json must include largestAssets")
         if not isinstance(ide_feedback.get("suggestedFixes"), list):

@@ -5874,10 +5874,14 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
   const totalPayloadBytes = packages.reduce((sum, entry) => sum + entry.usedBytes, 0);
   const packedBanks: Array<{
     bankIndex: number;
+    bankSizeBytes: number;
+    warningThresholdBytes: number;
     usedBytes: number;
     freeBytes: number;
+    usedPercent: number;
     warning: boolean;
     overBudgetBytes: number;
+    status: 'ok' | 'warning' | 'error';
     packages: Array<{ id: string; usedBytes: number; recommendedBankClass: string }>;
   }> = [];
   const sortedPackages = [...packages]
@@ -5891,10 +5895,14 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     if (!targetBank) {
       targetBank = {
         bankIndex: packedBanks.length,
+        bankSizeBytes,
+        warningThresholdBytes,
         usedBytes: 0,
         freeBytes: bankSizeBytes,
+        usedPercent: 0,
         warning: false,
         overBudgetBytes: 0,
+        status: 'ok',
         packages: [],
       };
       packedBanks.push(targetBank);
@@ -5906,8 +5914,10 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     });
     targetBank.usedBytes += entry.usedBytes;
     targetBank.freeBytes = Math.max(0, bankSizeBytes - targetBank.usedBytes);
+    targetBank.usedPercent = Number(((targetBank.usedBytes / bankSizeBytes) * 100).toFixed(2));
     targetBank.warning = targetBank.usedBytes >= warningThresholdBytes;
     targetBank.overBudgetBytes = Math.max(0, targetBank.usedBytes - bankSizeBytes);
+    targetBank.status = targetBank.overBudgetBytes > 0 ? 'error' : targetBank.warning ? 'warning' : 'ok';
   }
   const overBudgetPackages = packages.filter(entry => entry.overBudgetBytes > 0);
   const warningPackages = packages.filter(entry => entry.warning);
@@ -6143,6 +6153,122 @@ function buildMsx2WorldPackageSummary(includedAssets: any[], assetStoragePolicy:
     .sort((left, right) => String(left.worldId).localeCompare(String(right.worldId)));
 }
 
+function buildMsx2WorldBankManifest(
+  includedAssets: any[],
+  assetStoragePolicy: any[],
+  logicalBankBudget: Record<string, unknown>,
+  worldPackageSummary: Array<Record<string, unknown>>,
+  useKonamiDataBank: boolean
+): Record<string, unknown> {
+  const bankSizeBytes = Number(logicalBankBudget.bankSizeBytes || 8192);
+  const dataWindowAddress = useKonamiDataBank ? '#A000' : '#8000';
+  const includedByKey = new Map(includedAssets.map(asset => [assetKey(asset.type, asset.id), asset]));
+  const physicalBankByPackage = new Map<string, number>();
+  for (const bank of (Array.isArray(logicalBankBudget.estimatedPackedBanks) ? logicalBankBudget.estimatedPackedBanks : []) as any[]) {
+    for (const pkg of (Array.isArray(bank?.packages) ? bank.packages : [])) {
+      if (pkg?.id) physicalBankByPackage.set(String(pkg.id), Number(bank.bankIndex || 0));
+    }
+  }
+  const logicalSectionForPolicy = (policy: any): string => policy.type === 'msx2screen'
+    ? 'world screens'
+    : policy.type === 'msx2sprite'
+      ? 'world graphics'
+      : policy.type === 'track'
+        ? 'world music'
+        : policy.type === 'worldmap'
+          ? 'world manifest'
+          : 'world manifest';
+  const bankClassForPolicy = (policy: any): string => policy.type === 'msx2screen'
+    ? 'world.screen'
+    : policy.type === 'msx2sprite'
+      ? 'world.graphics.sprite'
+      : 'world.manifest';
+  const worlds = new Map<string, {
+    worldId: string;
+    estimatedBytes: number;
+    estimated8kBanks: number;
+    packages: Array<Record<string, unknown>>;
+  }>();
+  for (const summary of worldPackageSummary) {
+    const worldId = String(summary.worldId || '');
+    if (!worldId) continue;
+    worlds.set(worldId, {
+      worldId,
+      estimatedBytes: Number(summary.estimatedBytes || 0),
+      estimated8kBanks: Number(summary.estimated8kBanks || 1),
+      packages: [],
+    });
+  }
+
+  for (const policy of assetStoragePolicy) {
+    if (!policy || policy.decision === 'INHERIT_OWNER_SCREEN_POLICY') continue;
+    const included = includedByKey.get(assetKey(policy.type, policy.id));
+    const ownerWorldIds = policy.type === 'worldmap'
+      ? [policy.id]
+      : (Array.isArray(included?.ownerWorldIds) ? included.ownerWorldIds : []);
+    const packageId = `${policy.type}.${policy.id}`;
+    const physicalBankIndex = physicalBankByPackage.has(packageId) ? physicalBankByPackage.get(packageId)! : null;
+    const packageRow = {
+      packageId,
+      type: policy.type,
+      sourceId: policy.id,
+      logicalSection: logicalSectionForPolicy(policy),
+      recommendedBankClass: bankClassForPolicy(policy),
+      physicalBankIndex,
+      windowAddress: dataWindowAddress,
+      bankSizeBytes,
+      rawBytes: Number(policy.rawBytes || 0),
+      storedBytes: Number(policy.storedBytesEstimate || 0),
+      decision: policy.decision || 'ROM_RAW',
+      placementReason: physicalBankIndex === null
+        ? 'Package is not assigned to an estimated physical bank because it is over budget or not independently packable yet.'
+        : 'Estimated first-fit-decreasing placement before final compression and allocator pass.',
+    };
+    for (const worldId of ownerWorldIds) {
+      if (!worldId) continue;
+      if (!worlds.has(worldId)) {
+        worlds.set(worldId, {
+          worldId,
+          estimatedBytes: 0,
+          estimated8kBanks: 1,
+          packages: [],
+        });
+      }
+      worlds.get(worldId)!.packages.push(packageRow);
+    }
+  }
+
+  const estimatedPhysicalBanks = (Array.isArray(logicalBankBudget.estimatedPackedBanks) ? logicalBankBudget.estimatedPackedBanks : [])
+    .map((bank: any) => ({
+      bankIndex: Number(bank?.bankIndex || 0),
+      windowAddress: dataWindowAddress,
+      bankSizeBytes,
+      warningThresholdBytes: Number(bank?.warningThresholdBytes || logicalBankBudget.warningThresholdBytes || Math.floor(bankSizeBytes * 0.9)),
+      usedBytes: Number(bank?.usedBytes || 0),
+      freeBytes: Number(bank?.freeBytes || 0),
+      usedPercent: Number(bank?.usedPercent || 0),
+      warning: Boolean(bank?.warning),
+      overBudgetBytes: Number(bank?.overBudgetBytes || 0),
+      status: String(bank?.status || (Number(bank?.overBudgetBytes || 0) > 0 ? 'error' : bank?.warning ? 'warning' : 'ok')),
+      packages: Array.isArray(bank?.packages) ? bank.packages : [],
+    }));
+
+  return {
+    scope: 'msx2_screen4_world_bank_manifest',
+    mapper: useKonamiDataBank ? 'konami' : 'linear',
+    bankSizeBytes,
+    dataWindowAddress,
+    estimatedPhysicalBanks,
+    worlds: Array.from(worlds.values())
+      .map(world => ({
+        ...world,
+        packages: world.packages.sort((left, right) => String(left.packageId).localeCompare(String(right.packageId))),
+      }))
+      .sort((left, right) => String(left.worldId).localeCompare(String(right.worldId))),
+    note: 'Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression.',
+  };
+}
+
 function buildMsx2ProjectSliceJson(
   projectName: string,
   analysis: ProjectAnalysis,
@@ -6311,6 +6437,13 @@ function buildMsx2ProjectSliceJson(
   const assetStoragePolicy = buildMsx2AssetStoragePolicy(analysis, includedAssetList, tileScreens);
   const logicalBankBudget = buildMsx2LogicalBankBudget(assetStoragePolicy);
   const worldPackageSummary = buildMsx2WorldPackageSummary(includedAssetList, assetStoragePolicy);
+  const worldBankManifest = buildMsx2WorldBankManifest(
+    includedAssetList,
+    assetStoragePolicy,
+    logicalBankBudget,
+    worldPackageSummary,
+    useKonamiDataBank
+  );
   const ramBudget = buildMsx2RamBudget(tileScreens, runtimeRamEnd);
   const romPayloadBytesEstimate = assetStoragePolicy
     .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
@@ -6335,6 +6468,7 @@ function buildMsx2ProjectSliceJson(
     excludedRuntimeModules,
     runtimeModuleDetails,
     worldPackageSummary,
+    worldBankManifest,
     assetStoragePolicy,
     logicalBankBudget,
     ramBudget,
@@ -7491,6 +7625,10 @@ update_msx2_air_timer:
     'logical_bank_budget.json',
     JSON.stringify(projectSliceData.logicalBankBudget, null, 2) + '\n'
   );
+  const worldBankManifestArtifact = renderNamedArtifactAsCommentBlock(
+    'msx2_world_bank_manifest.json',
+    JSON.stringify(projectSliceData.worldBankManifest, null, 2) + '\n'
+  );
   const ramBudgetArtifact = renderNamedArtifactAsCommentBlock(
     'ram_budget.json',
     JSON.stringify(projectSliceData.ramBudget, null, 2) + '\n'
@@ -7557,6 +7695,8 @@ ${projectSliceArtifact}
 ${assetStoragePolicyArtifact}
 
 ${logicalBankBudgetArtifact}
+
+${worldBankManifestArtifact}
 
 ${ramBudgetArtifact}
 

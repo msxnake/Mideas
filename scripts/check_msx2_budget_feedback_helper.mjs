@@ -73,6 +73,58 @@ const artifactBlock = (fileName, payload) => {
   return `; [[[MIDEAS_ARTIFACT:${fileName}:BEGIN]]]\n${body}\n; [[[MIDEAS_ARTIFACT:${fileName}:END]]]`;
 };
 
+const worldBankManifest = {
+  scope: 'msx2_screen4_world_bank_manifest',
+  mapper: 'konami',
+  bankSizeBytes: 8192,
+  dataWindowAddress: '#A000',
+  estimatedPhysicalBanks: [
+    {
+      bankIndex: 0,
+      windowAddress: '#A000',
+      bankSizeBytes: 8192,
+      warningThresholdBytes: 7372,
+      usedBytes: 7600,
+      freeBytes: 592,
+      usedPercent: 92.77,
+      warning: true,
+      overBudgetBytes: 0,
+      status: 'warning',
+      packages: [
+        { id: 'world.screen.forest_00', usedBytes: 3600, recommendedBankClass: 'world.screen' },
+        { id: 'world.graphics.sprites', usedBytes: 1800, recommendedBankClass: 'world.graphics.sprite' },
+      ],
+    },
+  ],
+  worlds: [
+    {
+      worldId: 'world_forest',
+      estimatedBytes: 5400,
+      estimated8kBanks: 1,
+      packages: [
+        {
+          packageId: 'world.screen.forest_00',
+          logicalSection: 'world screens',
+          physicalBankIndex: 0,
+          windowAddress: '#A000',
+          storedBytes: 3600,
+          rawBytes: 3600,
+          decision: 'ROM_RAW',
+        },
+        {
+          packageId: 'world.graphics.sprites',
+          logicalSection: 'world graphics',
+          physicalBankIndex: 0,
+          windowAddress: '#A000',
+          storedBytes: 1800,
+          rawBytes: 1800,
+          decision: 'ROM_RAW_TO_VRAM',
+        },
+      ],
+    },
+  ],
+};
+
 const asm = [
   '; synthetic MSX2 SCREEN 4 ASM',
   artifactBlock('project_slice.json', {
@@ -85,6 +137,7 @@ const asm = [
     worldPackageSummary: [
       { worldId: 'world_forest', estimatedBytes: 4096 },
     ],
+    worldBankManifest,
     includedRuntimeModules: [
       'runtime.msx2.boot',
       'runtime.msx2.mapper.konami8k',
@@ -114,6 +167,7 @@ const asm = [
       },
     ],
   }),
+  artifactBlock('msx2_world_bank_manifest.json', worldBankManifest),
   artifactBlock('logical_bank_budget.json', {
     bankSizeBytes: 8192,
     totalPayloadBytes: 7600,
@@ -197,6 +251,18 @@ if (feedback.runtimeModules?.includedCount !== 2 || feedback.runtimeModules?.res
 }
 if ((feedback.runtimeModules?.excluded || [])[0]?.placement !== 'world_specific') {
   throw new Error(`Expected excluded runtime module placement to stay visible: ${JSON.stringify(feedback.runtimeModules)}`);
+}
+if (
+  feedback.worldBankManifest?.worldCount !== 1
+  || feedback.worldBankManifest?.estimatedPhysicalBankCount !== 1
+  || feedback.worldBankManifest?.packageCount !== 2
+  || feedback.worldBankManifest?.warningBankCount !== 1
+  || feedback.worldBankManifest?.overBudgetBankCount !== 0
+) {
+  throw new Error(`Expected world bank manifest summary: ${JSON.stringify(feedback.worldBankManifest)}`);
+}
+if (feedback.worldBankManifest?.dataWindowAddress !== '#A000') {
+  throw new Error(`Expected world bank manifest data window to stay visible: ${JSON.stringify(feedback.worldBankManifest)}`);
 }
 
 const pressure = summarizeMsx2BudgetPressure(feedback);

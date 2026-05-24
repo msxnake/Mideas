@@ -2065,6 +2065,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         {' '}{msx2BudgetFeedback.runtimeModules.worldSpecificCount ?? 0} world)
                       </div>
                     )}
+                    {msx2BudgetFeedback.worldBankManifest && (
+                      <div className="mt-1">
+                        World Bank Packs: <strong>{msx2BudgetFeedback.worldBankManifest.worldCount ?? 0}</strong>
+                        {' '}worlds, <strong>{msx2BudgetFeedback.worldBankManifest.estimatedPhysicalBankCount ?? 0}</strong>
+                        {' '}banks @ {msx2BudgetFeedback.worldBankManifest.dataWindowAddress ?? '#A000'}
+                        {(msx2BudgetFeedback.worldBankManifest.warningBankCount || msx2BudgetFeedback.worldBankManifest.overBudgetBankCount) ? (
+                          <>
+                            {' '}({msx2BudgetFeedback.worldBankManifest.warningBankCount ?? 0} warning, {msx2BudgetFeedback.worldBankManifest.overBudgetBankCount ?? 0} over)
+                          </>
+                        ) : null}
+                      </div>
+                    )}
                     {Array.isArray(msx2BudgetFeedback.worldPackages) && msx2BudgetFeedback.worldPackages.length > 0 && (
                       <div className="mt-1">
                         Worlds: {msx2BudgetFeedback.worldPackages
@@ -2529,6 +2541,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             {' '}included ({msx2BudgetFeedback.runtimeModules.residentCount ?? 0} resident,
                             {' '}{msx2BudgetFeedback.runtimeModules.farCodeCount ?? 0} far,
                             {' '}{msx2BudgetFeedback.runtimeModules.worldSpecificCount ?? 0} world)
+                          </div>
+                        )}
+                        {msx2BudgetFeedback.worldBankManifest && (
+                          <div className="col-span-2">
+                            World Bank Packs: <strong>{msx2BudgetFeedback.worldBankManifest.worldCount ?? 0}</strong>
+                            {' '}worlds, <strong>{msx2BudgetFeedback.worldBankManifest.estimatedPhysicalBankCount ?? 0}</strong>
+                            {' '}banks @ {msx2BudgetFeedback.worldBankManifest.dataWindowAddress ?? '#A000'}
+                            {(msx2BudgetFeedback.worldBankManifest.warningBankCount || msx2BudgetFeedback.worldBankManifest.overBudgetBankCount) ? (
+                              <>
+                                {' '}({msx2BudgetFeedback.worldBankManifest.warningBankCount ?? 0} warning, {msx2BudgetFeedback.worldBankManifest.overBudgetBankCount ?? 0} over)
+                              </>
+                            ) : null}
                           </div>
                         )}
                       </div>
