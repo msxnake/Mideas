@@ -10,6 +10,9 @@
 ; MSX2_GAMEFLOW_START_NODE: asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_start
 ; MSX2_GAMEFLOW_SCREEN5_NODE: asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_screen5
 ; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: asset_presentacion_naves_galaxian_rtype_screen5_png_test
+; MSX2_GAMEFLOW_NEXT_TRANSITION: asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_transition
+; MSX2_GAMEFLOW_TRANSITION_EFFECT: fade_to_black
+; MSX2_GAMEFLOW_TRANSITION_DURATION_FRAMES: 30
 ; ROM mode requested: simple32k
 ; ROM Mode: simple32k
 ; Mapper Target: konami
@@ -21,6 +24,7 @@ CHGMOD  EQU #005F
 DISSCR  EQU #0041
 ENASCR  EQU #0044
 LDIRVM  EQU #005C
+FILVRM  EQU #0056
 CHGET   EQU #009F
 WRTVDP  EQU #0047
 RSLREG  EQU #0138
@@ -53,7 +57,7 @@ init_rom:
     ei
 .main_loop:
     call CHGET
-    jp .main_loop
+    jp msx2_gameflow_run_transition
 
 map_page2_to_cart_primary:
     ; Map #8000-#BFFF to the same primary/expanded slot as cart page #4000.
@@ -83,6 +87,38 @@ get_cart_slot_value:
     and #0C
 .slot_ready:
     or c
+    ret
+
+
+msx2_gameflow_run_transition:
+    call load_screen5_black_palette
+    ld b, #1E
+.transition_wait:
+    halt
+    djnz .transition_wait
+.gameflow_end_loop:
+    halt
+    jp .gameflow_end_loop
+
+clear_screen5_visible_vram:
+    ; Terminal clear helper. Clobbers AF, BC, HL.
+    xor a
+    ld hl, #0000
+    ld bc, SCREEN5_PRESENTATION_BITMAP_SIZE
+    call FILVRM
+    ret
+
+load_screen5_black_palette:
+    ; Terminal transition helper. Clobbers AF, BC, HL.
+    ld bc, #0010
+    call WRTVDP
+    ld hl, screen5_black_palette_data
+    ld b, 32
+.black_palette_loop:
+    ld a, (hl)
+    out (VDP_PALETTE_PORT), a
+    inc hl
+    djnz .black_palette_loop
     ret
 
 
@@ -186,6 +222,11 @@ SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU #0000
 screen5_presentation_palette_data:
     DB #00,#00,#01,#00,#11,#00,#02,#01,#22,#01,#24,#02,#45,#03,#55,#05
     DB #77,#07,#66,#06,#64,#04,#46,#05,#26,#04,#52,#01,#14,#02,#00,#00
+
+; All-black palette used by terminal MSX2 GameFlow transitions
+screen5_black_palette_data:
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 SCREEN5_PRESENTATION_BITMAP_CHUNK_0_SIZE EQU 4096
 

@@ -121,6 +121,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const startNode = nodes.find(node => node.type === 'Start') || nodes[0];
     if (!startNode) return;
     const presentationNodeId = `msx2_gf_screen5_${Date.now()}`;
+    const transitionNodeId = `msx2_gf_transition_${Date.now()}`;
     const endNodeId = `msx2_gf_end_${Date.now()}`;
     const presentationNode: Msx2GameFlowScreen5PresentationNode = {
       id: presentationNodeId,
@@ -130,16 +131,24 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       waitForKey: true,
       waitFrames: 0,
     };
+    const transitionNode: Msx2GameFlowNode = {
+      id: transitionNodeId,
+      type: 'Transition',
+      position: { x: startNode.position.x + 460, y: startNode.position.y },
+      effect: 'fade_to_black',
+      durationFrames: 30,
+    };
     const endNode: Msx2GameFlowNode = {
       id: endNodeId,
       type: 'End',
-      position: { x: startNode.position.x + 460, y: startNode.position.y },
+      position: { x: startNode.position.x + 690, y: startNode.position.y },
     };
     onUpdate({
-      nodes: [startNode, presentationNode, endNode],
+      nodes: [startNode, presentationNode, transitionNode, endNode],
       connections: [
         makeConnection(startNode.id, presentationNodeId),
-        makeConnection(presentationNodeId, endNodeId),
+        makeConnection(presentationNodeId, transitionNodeId),
+        makeConnection(transitionNodeId, endNodeId),
       ],
       startNodeId: startNode.id,
     });

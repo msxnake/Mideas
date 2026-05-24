@@ -73888,10 +73888,20 @@
             "waitFrames": 0
           },
           {
+            "id": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_transition",
+            "type": "Transition",
+            "position": {
+              "x": 530,
+              "y": 110
+            },
+            "effect": "fade_to_black",
+            "durationFrames": 30
+          },
+          {
             "id": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_end",
             "type": "End",
             "position": {
-              "x": 530,
+              "x": 760,
               "y": 110
             }
           }
@@ -73907,9 +73917,18 @@
             }
           },
           {
-            "id": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_conn_screen5_end",
+            "id": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_conn_screen5_transition",
             "from": {
               "nodeId": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_screen5"
+            },
+            "to": {
+              "nodeId": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_transition"
+            }
+          },
+          {
+            "id": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_conn_transition_end",
+            "from": {
+              "nodeId": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_transition"
             },
             "to": {
               "nodeId": "asset_presentacion_naves_galaxian_rtype_screen5_png_test_msx2_gameflow_end"

@@ -542,6 +542,7 @@ export const useAssetHandlers = ({
       case 'msx2gameflow':
         const msx2StartNodeId = `msx2_gf_start_${Date.now()}`;
         const msx2PresentationNodeId = `msx2_gf_screen5_${Date.now()}`;
+        const msx2TransitionNodeId = `msx2_gf_transition_${Date.now()}`;
         const msx2EndNodeId = `msx2_gf_end_${Date.now()}`;
         newAssetData = {
           id,
@@ -557,11 +558,19 @@ export const useAssetHandlers = ({
               waitForKey: true,
               waitFrames: 0,
             },
-            { id: msx2EndNodeId, type: 'End', position: { x: 530, y: 110 } },
+            {
+              id: msx2TransitionNodeId,
+              type: 'Transition',
+              position: { x: 530, y: 110 },
+              effect: 'fade_to_black',
+              durationFrames: 30,
+            },
+            { id: msx2EndNodeId, type: 'End', position: { x: 760, y: 110 } },
           ],
           connections: [
             { id: `msx2_gfc_start_screen5_${Date.now()}`, from: { nodeId: msx2StartNodeId }, to: { nodeId: msx2PresentationNodeId } },
-            { id: `msx2_gfc_screen5_end_${Date.now()}`, from: { nodeId: msx2PresentationNodeId }, to: { nodeId: msx2EndNodeId } },
+            { id: `msx2_gfc_screen5_transition_${Date.now()}`, from: { nodeId: msx2PresentationNodeId }, to: { nodeId: msx2TransitionNodeId } },
+            { id: `msx2_gfc_transition_end_${Date.now()}`, from: { nodeId: msx2TransitionNodeId }, to: { nodeId: msx2EndNodeId } },
           ],
           startNodeId: msx2StartNodeId,
           panOffset: { x: 0, y: 0 },

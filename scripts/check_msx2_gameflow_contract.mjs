@@ -36,8 +36,9 @@ addCheck('MSX1 gameflow handler still opens MSX1 editor', gameflowCase.includes(
 addCheck('MSX2 gameflow handler does not use MSX1 GameFlowGraph cast', !/\bas\s+GameFlowGraph\b/.test(msx2GameflowCase));
 addCheck('MSX2 gameflow handler opens only MSX2 editor', msx2GameflowCase.includes('EditorType.Msx2GameFlow') && !msx2GameflowCase.includes('EditorType.GameFlow'));
 addCheck('MSX2 gameflow default includes SCREEN 5 node', msx2GameflowCase.includes("type: 'Screen5Presentation'"));
+addCheck('MSX2 gameflow default includes terminal fade transition', msx2GameflowCase.includes("type: 'Transition'") && msx2GameflowCase.includes("effect: 'fade_to_black'") && msx2GameflowCase.includes('durationFrames: 30'));
 addCheck('MSX2 gameflow default includes End node', msx2GameflowCase.includes("type: 'End'"));
-addCheck('MSX2 gameflow default creates two connections', (msx2GameflowCase.match(/from:\s*\{\s*nodeId:/g) || []).length >= 2);
+addCheck('MSX2 gameflow default creates presentation-transition-end connections', (msx2GameflowCase.match(/from:\s*\{\s*nodeId:/g) || []).length >= 3 && msx2GameflowCase.includes('msx2_gfc_screen5_transition') && msx2GameflowCase.includes('msx2_gfc_transition_end'));
 addCheck('toolbar exposes MSX2 Game Flow', /MSX2 Game Flow/.test(toolbar) && /onNewAsset\('msx2gameflow'\)/.test(toolbar));
 addCheck('explorer has MSX2 Game Flows folder', /msx2gameflow:\s*"MSX2 Game Flows"/.test(explorer));
 addCheck('explorer maps msx2gameflow editor', /msx2gameflow:\s*EditorType\.Msx2GameFlow/.test(explorer));
@@ -55,6 +56,7 @@ addCheck(
 addCheck('MSX2 GameFlow editor exposes explicit outgoing connection controls', editor.includes('connectSelectedNodeTo') && editor.includes('Clear Connection') && editor.includes('Next node'));
 addCheck('MSX2 GameFlow editor exposes SCREEN 5 runtime wait controls', editor.includes('updateSelectedPresentationRuntime') && editor.includes('GameFlow runtime override') && editor.includes('Wait for key') && editor.includes('Wait frames') && editor.includes('waitForKey') && editor.includes('waitFrames') && editor.includes('disabled={selectedPresentationNode.waitForKey !== false}'));
 addCheck('MSX2 GameFlow editor exposes transition duration controls', editor.includes('updateSelectedTransitionDuration') && editor.includes('Duration frames') && editor.includes('durationFrames') && editor.includes('Math.max(0, Math.min(255'));
+addCheck('MSX2 GameFlow intro template includes terminal transition', editor.includes('applyIntroTemplate') && editor.includes("type: 'Transition'") && editor.includes("effect: 'fade_to_black'") && editor.includes('durationFrames: 30'));
 addCheck(
   'MSX1 GameFlow presentation picker remains MSX1-only',
   gameFlowEditor.includes("assetType: 'presentationscreen'") && !gameFlowEditor.includes("['presentationscreen', 'msx2presentation']")

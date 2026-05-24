@@ -284,6 +284,7 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
     if args.with_msx2_gameflow:
         start_node_id = f"{gameflow_asset_id}_start"
         presentation_node_id = f"{gameflow_asset_id}_screen5"
+        transition_node_id = f"{gameflow_asset_id}_transition"
         end_node_id = f"{gameflow_asset_id}_end"
         gameflow_name = args.msx2_gameflow_name or "Main MSX2"
         assets.append({
@@ -309,9 +310,16 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
                         "waitFrames": 0,
                     },
                     {
+                        "id": transition_node_id,
+                        "type": "Transition",
+                        "position": {"x": 530, "y": 110},
+                        "effect": "fade_to_black",
+                        "durationFrames": 30,
+                    },
+                    {
                         "id": end_node_id,
                         "type": "End",
-                        "position": {"x": 530, "y": 110},
+                        "position": {"x": 760, "y": 110},
                     },
                 ],
                 "connections": [
@@ -321,8 +329,13 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
                         "to": {"nodeId": presentation_node_id},
                     },
                     {
-                        "id": f"{gameflow_asset_id}_conn_screen5_end",
+                        "id": f"{gameflow_asset_id}_conn_screen5_transition",
                         "from": {"nodeId": presentation_node_id},
+                        "to": {"nodeId": transition_node_id},
+                    },
+                    {
+                        "id": f"{gameflow_asset_id}_conn_transition_end",
+                        "from": {"nodeId": transition_node_id},
                         "to": {"nodeId": end_node_id},
                     },
                 ],

@@ -88,7 +88,7 @@ const checks = [
   ],
   [
     'ASM template generator reinjects missing MSX1 defaults for MSX1 projects',
-    asmTemplate.includes("const inferredScreenMode = msx2Screens.length > 0 || msx2Sprites.length > 0 || msx2Bitmaps.length > 0") &&
+    asmTemplate.includes('const inferredScreenMode = msx2Screens.length > 0 || msx2BitmapRooms.length > 0 || msx2Presentations.length > 0 || msx2Sprites.length > 0 || msx2Bitmaps.length > 0') &&
       asmTemplate.includes(": 'SCREEN 2 (Graphics I)'") &&
       asmTemplate.includes('isEntityTemplateEnabledForProject(template, inferredScreenMode)') &&
       asmTemplate.includes('isComponentDefinitionEnabledForProject(component, inferredScreenMode)'),
