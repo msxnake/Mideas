@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 
 
 def repo_root_from_script() -> Path:
@@ -78,9 +84,63 @@ def assert_screen5_zx0_contract(path: Path) -> None:
             raise RuntimeError(f"ZX0-preprocessed ASM is missing SCREEN 5 presentation contract text: {needle}")
 
 
+def assert_fixture_contract(path: Path) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assets = [asset for asset in data.get("assets", []) if asset.get("type") == "msx2presentation"]
+    if len(assets) != 1:
+        raise RuntimeError(f"Expected exactly one msx2presentation asset in {path}, found {len(assets)}")
+
+    asset_data = assets[0].get("data") or {}
+    if data.get("targetGraphicsBackend") != "msx2-screen5-presentation":
+        raise RuntimeError("Fixture does not select msx2-screen5-presentation backend")
+    if data.get("screenMode") != "SCREEN 5 (Graphics III)":
+        raise RuntimeError("Fixture does not select SCREEN 5 (Graphics III)")
+    if asset_data.get("backgroundSlot") not in (None, 0):
+        raise RuntimeError("SCREEN 5 presentation background slot must be 0")
+    if asset_data.get("backgroundHex") not in (None, "#000000"):
+        raise RuntimeError("SCREEN 5 presentation background color must be #000000")
+    palette = asset_data.get("palette") or []
+    if len(palette) != 16:
+        raise RuntimeError(f"SCREEN 5 presentation palette must have 16 slots, found {len(palette)}")
+    if palette[0].get("slotIndex") != 0 or palette[0].get("hex") != "#000000":
+        raise RuntimeError("SCREEN 5 presentation palette slot 0 must be black")
+
+    width = asset_data.get("width")
+    height = asset_data.get("height")
+    packed = asset_data.get("packedBitmap")
+    if width != 256 or height not in (192, 212):
+        raise RuntimeError(f"Unexpected SCREEN 5 presentation geometry: {width}x{height}")
+    if not isinstance(packed, list) or len(packed) != (width * height) // 2:
+        raise RuntimeError("SCREEN 5 presentation packedBitmap does not match visible image size")
+
+
+def assert_openmsx_capture(path: Path) -> None:
+    if not path.exists():
+        raise RuntimeError(f"OpenMSX screenshot was not created: {path}")
+    if Image is None:
+        if path.stat().st_size <= 10_000:
+            raise RuntimeError(f"OpenMSX screenshot is unexpectedly small: {path.stat().st_size} bytes")
+        return
+
+    image = Image.open(path).convert("RGB")
+    if image.width < 256 or image.height < 192:
+        raise RuntimeError(f"OpenMSX screenshot has unexpected dimensions: {image.width}x{image.height}")
+    pixels = list(image.getdata())
+    unique_colors = len(set(pixels))
+    non_black = sum(1 for pixel in pixels if pixel != (0, 0, 0))
+    if unique_colors <= 8:
+        raise RuntimeError(f"OpenMSX screenshot has too little color variety: {unique_colors}")
+    if non_black <= 1000:
+        raise RuntimeError(f"OpenMSX screenshot looks blank: {non_black} non-black pixels")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build and optionally capture the MSX2 SCREEN 5 presentation smoke ROM.")
     parser.add_argument("--project-root", default=".", help="Mideas repository root")
+    parser.add_argument("--fixture", default=None, help="Mideas JSON fixture to compile")
+    parser.add_argument("--out-dir", default=None, help="Output directory for ASM/ROM/SYM/screenshot")
+    parser.add_argument("--project-name", default="msx2_screen5_presentation_smoke", help="Project name for generated ASM labels")
+    parser.add_argument("--screenshot-output", default=None, help="Exact OpenMSX screenshot path")
     parser.add_argument("--skip-openmsx", action="store_true", help="Compile only; do not launch OpenMSX")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine")
     parser.add_argument("--wait-ms", type=int, default=6000, help="OpenMSX capture wait in milliseconds")
@@ -90,21 +150,24 @@ def main() -> int:
     if not (project_root / "package.json").exists():
         project_root = repo_root_from_script()
 
-    fixture = project_root / "test" / "msx2-screen5-presentation" / "presentation_screen5_project.json"
-    out_dir = project_root / "test" / "msx2-screen5-presentation" / "out"
+    fixture = Path(args.fixture).resolve() if args.fixture else project_root / "test" / "msx2-screen5-presentation" / "presentation_screen5_project.json"
+    out_dir = Path(args.out_dir).resolve() if args.out_dir else project_root / "test" / "msx2-screen5-presentation" / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
-    asm_output = out_dir / "msx2_screen5_presentation.asm"
-    zx0_asm_output = out_dir / "msx2_screen5_presentation_compressed.asm"
-    rom_output = out_dir / "msx2_screen5_presentation.rom"
-    sym_output = out_dir / "msx2_screen5_presentation.sym"
-    screenshot_output = out_dir / "msx2_screen5_presentation.png"
+    output_stem = Path(args.project_name).stem
+    asm_output = out_dir / f"{output_stem}.asm"
+    zx0_asm_output = out_dir / f"{output_stem}_compressed.asm"
+    rom_output = out_dir / f"{output_stem}.rom"
+    sym_output = out_dir / f"{output_stem}.sym"
+    screenshot_output = Path(args.screenshot_output).resolve() if args.screenshot_output else out_dir / f"{output_stem}.png"
+
+    assert_fixture_contract(fixture)
 
     build_result = run_command([
         sys.executable,
         "scripts/build_mideas_unified_rom.py",
         "--json", str(fixture),
         "--project-root", str(project_root),
-        "--project-name", "msx2_screen5_presentation_smoke",
+        "--project-name", args.project_name,
         "--asm-output", str(asm_output),
         "--rom-output", str(rom_output),
         "--sym-output", str(sym_output),
@@ -142,6 +205,7 @@ def main() -> int:
             "-WaitMs", str(args.wait_ms),
             "-Machine", args.machine,
         ], cwd=project_root, timeout=120)
+        assert_openmsx_capture(screenshot_output)
         print(f"Screenshot: {screenshot_output}")
 
     return 0

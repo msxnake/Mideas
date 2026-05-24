@@ -4,6 +4,12 @@ Use this flow to convert a PNG into a boot presentation screen for the `msx2-scr
 
 ## Command
 
+Install the Python image dependency first when needed:
+
+```powershell
+pip install -r requirements.txt
+```
+
 ```powershell
 npm run create:msx2-screen5-presentation -- `
   --source-png generated_assets/presentacion_naves_galaxian_rtype.png `
@@ -38,3 +44,6 @@ The importer writes:
 - Slot 0 is black: `#000000`.
 - ZX0 compression is enabled with 32-line chunks.
 - ROM output must be 8KB aligned.
+- Default visible height is 192 lines. The generator still uploads a full 256x212 SCREEN 5 VRAM bitmap and pads the remaining lines with black.
+- The Python importer uses Pillow for PNG decoding/resizing/quantization. Fixture/smoke regeneration is deterministic only when `--timestamp-ms` is fixed and the `requirements.txt` Pillow version is used.
+- OpenMSX capture validation rejects missing, tiny, blank, or very low-color screenshots.

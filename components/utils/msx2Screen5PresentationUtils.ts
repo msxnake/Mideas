@@ -80,7 +80,7 @@ const isScreen5Height = (value: number | undefined): value is Msx2Screen5Present
   value === 192 || value === 212;
 
 const normalizeHeight = (height?: number): Msx2Screen5PresentationHeight =>
-  isScreen5Height(height) ? height : 212;
+  isScreen5Height(height) ? height : 192;
 
 const normalizeFitMode = (fitMode?: string): Msx2Screen5PresentationFitMode =>
   fitMode === 'cover' || fitMode === 'contain' || fitMode === 'stretch' ? fitMode : 'cover';

@@ -27,6 +27,7 @@ const createSummary = read('create_summary.js');
 const smokeScript = read('scripts', 'build_msx2_screen5_presentation_smoke.py');
 const pngImportScript = read('scripts', 'create_msx2_screen5_presentation_from_png.py');
 const pngImportDoc = read('docs', 'project', 'MSX2_SCREEN5_PRESENTATION_PNG_IMPORT.md');
+const requirements = read('requirements.txt');
 const buildScript = read('scripts', 'build_mideas_unified_rom.py');
 const serverJs = read('server', 'server.js');
 const packageJson = readJson('package.json');
@@ -153,21 +154,24 @@ validateFromPngFixture();
 check('types expose the MSX2 SCREEN 5 presentation config', types.includes('export interface Msx2Screen5PresentationConfig') && types.includes("target: 'MSX2'") && types.includes("screenMode: 'SCREEN 5'"));
 check('types constrain SCREEN 5 presentation geometry and import modes', types.includes('export type Msx2Screen5PresentationHeight = 192 | 212') && types.includes("export type Msx2Screen5PresentationFitMode = 'cover' | 'contain' | 'stretch'") && types.includes('width: 256;'));
 check('types constrain SCREEN 5 presentation compression and runtime', types.includes("codec: 'ZX0'") && types.includes('vramPage: 0 | 1') && types.includes("romDataGroup: 'auto' | 'default' | 'page0'"));
+check('types expose serialized SCREEN 5 presentation import metadata', types.includes('backgroundSlot?: 0') && types.includes("backgroundHex?: '#000000'") && types.includes('visibleImageBytes?: number') && types.includes('vramBitmapBytes?: number') && types.includes('packedPixels?: number[]'));
 
 check('default config is a disabled MSX2 SCREEN 5 presentation asset', constants.includes('DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG') && constants.includes('enabled: false') && constants.includes("target: 'MSX2'") && constants.includes("screenMode: 'SCREEN 5'"));
 check('default config uses 256x192 pixels and empty packed bitmap', constants.includes('width: 256') && constants.includes('height: 192') && constants.includes('Array.from({ length: 192 }, () => Array.from({ length: 256 }, () => 0))') && constants.includes('packedBitmap: []'));
 check('default config keeps ZX0 chunk and runtime defaults', constants.includes("codec: 'ZX0'") && constants.includes('chunkLines: 32') && constants.includes('waitForKey: true') && constants.includes("romDataGroup: 'auto'"));
 
 check('utility exposes fixed SCREEN 5 presentation geometry', utils.includes('SCREEN5_PRESENTATION_WIDTH = 256') && utils.includes('SCREEN5_PRESENTATION_HEIGHTS = [192, 212]') && utils.includes('SCREEN5_PRESENTATION_CHUNK_LINES = 32'));
+check('utility defaults missing SCREEN 5 presentation height to 192', utils.includes('isScreen5Height(height) ? height : 192'));
 check('utility packs two 4-bit pixels per byte', utils.includes('((left & 0x0f) << 4) | (right & 0x0f)') && utils.includes('packed.push'));
 check('utility unpacks current packedBitmap data', utils.includes('unpackScreen5PresentationPixels') && utils.includes('packedBitmap.length < (SCREEN5_PRESENTATION_WIDTH * height) / 2'));
 check('utility stats report raw bytes and chunk count', utils.includes('getScreen5PresentationStats') && utils.includes('rawBytes: (SCREEN5_PRESENTATION_WIDTH * height) / 2') && utils.includes('chunks: Math.ceil(height / SCREEN5_PRESENTATION_CHUNK_LINES)'));
 check('PNG import CLI exists and builds SCREEN 5 presentation projects', pngImportScript.includes('Create an MSX2 SCREEN 5 presentation project from a PNG') && pngImportScript.includes('--source-png') && pngImportScript.includes('--output-prefix') && pngImportScript.includes('--timestamp-ms') && pngImportScript.includes('targetGraphicsBackend') && pngImportScript.includes('msx2-screen5-presentation') && pngImportScript.includes('backgroundHex') && pngImportScript.includes('#000000'));
 check('PNG import CLI validates OpenMSX captures when requested', pngImportScript.includes('assert_openmsx_capture') && pngImportScript.includes('unique_colors') && pngImportScript.includes('non_black'));
+check('Python requirements pin Pillow for PNG import reproducibility', requirements.includes('Pillow==11.3.0'));
 check('package exposes PNG import CLI script', packageJson.scripts?.['create:msx2-screen5-presentation'] === 'python scripts/create_msx2_screen5_presentation_from_png.py');
 check('package exposes deterministic PNG presentation smoke', packageJson.scripts?.['smoke:msx2-screen5-presentation-png']?.includes('create_msx2_screen5_presentation_from_png.py') && packageJson.scripts?.['smoke:msx2-screen5-presentation-png']?.includes('--timestamp-ms 1779625323134') && packageJson.scripts?.['smoke:msx2-screen5-presentation-png']?.includes('--build-rom'));
 check('static MSX2 smoke includes PNG presentation import', packageJson.scripts?.['smoke:msx2-static']?.includes('smoke:msx2-screen5-presentation-png'));
-check('PNG import documentation covers command and contracts', pngImportDoc.includes('MSX2 SCREEN 5 Presentation PNG Import') && pngImportDoc.includes('npm run create:msx2-screen5-presentation') && pngImportDoc.includes('targetGraphicsBackend') && pngImportDoc.includes('ZX0'));
+check('PNG import documentation covers command and contracts', pngImportDoc.includes('MSX2 SCREEN 5 Presentation PNG Import') && pngImportDoc.includes('npm run create:msx2-screen5-presentation') && pngImportDoc.includes('pip install -r requirements.txt') && pngImportDoc.includes('targetGraphicsBackend') && pngImportDoc.includes('ZX0'));
 
 check('editor normalizes flat and legacy nested presentation data', editor.includes('flat.packedBitmap ?? data?.packedBitmap ?? data?.packedPixels') && editor.includes('normalizeScreen5PresentationPixels(flat.pixels ?? data?.pixels, height)'));
 check('editor emits current flat data plus legacy-compatible nested data', editor.includes('onUpdate(normalized)') && editor.includes('data: {') && editor.includes('packedPixels: next.packedBitmap') && editor.includes('packedBitmap: next.packedBitmap'));
@@ -187,6 +191,8 @@ check('legacy summary extractor carries msx2presentation assets', createSummary.
 check('CLI JSON export preserves SCREEN 5 presentation backend', buildScript.includes('hasMsx2Presentation') && buildScript.includes('? "msx2-screen5-presentation"') && buildScript.includes('targetGraphicsBackend: raw.targetGraphicsBackend || defaultGraphicsBackend'));
 check('CLI build runs ZX0 preprocessing before compile by default', buildScript.includes('maybe_run_zx0_preprocess(') && buildScript.includes('enabled=not args.skip_zx0_preprocess') && buildScript.includes('asm_output=zx0_asm') && buildScript.includes('asm_output=asm_to_compile'));
 check('CLI smoke inspects the post-ZX0 ASM emitted by build_mideas_unified_rom.py', smokeScript.includes('assert_screen5_zx0_contract') && smokeScript.includes('_compressed.asm'));
+check('CLI smoke accepts custom fixtures and output paths', smokeScript.includes('--fixture') && smokeScript.includes('--out-dir') && smokeScript.includes('--project-name') && smokeScript.includes('--screenshot-output'));
+check('CLI smoke validates fixture and OpenMSX screenshot content', smokeScript.includes('assert_fixture_contract(fixture)') && smokeScript.includes('assert_openmsx_capture(screenshot_output)') && smokeScript.includes('unique_colors') && smokeScript.includes('non_black'));
 check('presentation generator emits SCREEN 5 palette and bitmap chunk labels', presentationGenerator.includes('screen5_presentation_palette_data') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}'));
 check('presentation generator switches to SCREEN 5 mode', presentationGenerator.includes('ld a, 5') && presentationGenerator.includes('call CHGMOD'));
 check('presentation generator does not switch back to SCREEN 4', !/\bld\s+a,\s*4\b/i.test(presentationGenerator) && !presentationGenerator.includes('call INIGRP'));

@@ -1817,14 +1817,24 @@ export interface Msx2Screen5PresentationConfig {
   sourceImageHeight: number;
   width: 256;
   height: Msx2Screen5PresentationHeight;
+  displayHeight?: Msx2Screen5PresentationHeight;
   fitMode: Msx2Screen5PresentationFitMode;
+  backgroundSlot?: 0;
+  backgroundHex?: '#000000';
   palette: Screen5PaletteSlot[];
   pixels: number[][];
   packedBitmap: number[];
+  visibleImageBytes?: number;
+  vramBitmapBytes?: number;
   compression: Msx2Screen5PresentationCompressionConfig;
   runtime: Msx2Screen5PresentationRuntimeConfig;
   updatedAt?: number | null;
   lastImportError?: string | null;
+  data?: {
+    pixels?: number[][];
+    packedBitmap?: number[];
+    packedPixels?: number[];
+  };
 }
 // --- End MSX2 SCREEN 5 Presentation Types ---
 
