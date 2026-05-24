@@ -5558,6 +5558,20 @@ function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, node
   return connection?.to?.nodeId || connection?.toNodeId;
 }
 
+function sourceTargetNodeId(connections: GameFlowConnection[] | undefined, nodeId: string, sourceIds: string | string[] | undefined): string | undefined {
+  const allowedSourceIds = Array.isArray(sourceIds) ? sourceIds.filter(Boolean) : sourceIds ? [sourceIds] : [];
+  if (allowedSourceIds.length === 0) return undefined;
+  for (const sourceId of allowedSourceIds) {
+    const connection = (connections || []).find((candidate: any) => {
+      const fromNodeId = candidate.from?.nodeId || candidate.fromNodeId;
+      const fromSourceId = candidate.from?.sourceId || candidate.sourceId;
+      return fromNodeId === nodeId && fromSourceId === sourceId;
+    }) as any;
+    if (connection) return connection?.to?.nodeId || connection?.toNodeId;
+  }
+  return undefined;
+}
+
 function getScreen4RuntimeGameFlow(analysis: ProjectAnalysis): any {
   const msx2Flow = ((analysis as any).msx2GameFlows || []).find((flow: any) => flow?.purpose === 'screen4-runtime');
   return msx2Flow || analysis.gameFlow;
@@ -7248,33 +7262,65 @@ function buildMsx2GameFlowProgram(
 
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
   const startNodeId = graph.startNodeId || graph.nodes.find(node => node.type === 'Start')?.id;
+  if (!startNodeId) {
+    return buildMsx2TileScreenLoadLines(fallbackLabel, tileScreenIndexByLabel, refreshHardwareSprites);
+  }
+
+  const nodeLabels = new Map<string, string>();
+  graph.nodes.forEach((node: any, index: number) => {
+    nodeLabels.set(node.id, `msx2_gf_node_${index}`);
+  });
+  const labelForNodeId = (nodeId: string | undefined): string | undefined => nodeId ? nodeLabels.get(nodeId) : undefined;
+  const jumpToNodeOrMain = (nodeId: string | undefined): string => {
+    const label = labelForNodeId(nodeId);
+    return label ? `    jp ${label}` : '    jp .main_loop';
+  };
   const lines: string[] = [
-    '    ; MSX2 minimal GameFlow: Start/Text(background)/Transition(cls)/End.',
+    '    ; MSX2 SCREEN 4 GameFlow entry.',
+    jumpToNodeOrMain(startNodeId),
   ];
   const unsupported = new Set<string>();
-  const visited = new Set<string>();
-  let terminated = false;
-  let current: any = startNodeId ? nodeById.get(startNodeId) : undefined;
+  const emitted = new Set<string>();
 
-  while (current && !visited.has(current.id)) {
-    visited.add(current.id);
-
+  const emitNode = (current: any) => {
+    if (!current || emitted.has(current.id)) return;
+    emitted.add(current.id);
+    const label = labelForNodeId(current.id);
+    if (!label) return;
+    lines.push(`${label}:`);
     switch (current.type) {
       case 'Start':
       case 'Waypoint':
       case 'Globals':
       case 'Music':
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       case 'Text': {
         const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       }
       case 'SubMenu': {
         const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
-        lines.push('    call wait_key');
+        const options = Array.isArray(current.options) ? current.options.slice(0, 6) : [];
+        if (options.length === 0) {
+          lines.push('    call wait_key');
+          lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
+          break;
+        }
+        lines.push(`    ld b, ${options.length}`);
+        lines.push('    call msx2_submenu_select');
+        options.forEach((option: any, index: number) => {
+          const targetLabel = labelForNodeId(sourceTargetNodeId(graph.connections, current.id, [option?.id, `OPTION_${index}`]));
+          if (targetLabel) {
+            lines.push(`    cp ${index}`);
+            lines.push(`    jp z, ${targetLabel}`);
+          }
+        });
+        lines.push(`    jp ${label}`);
         break;
       }
       case 'WorldLink': {
@@ -7288,9 +7334,7 @@ function buildMsx2GameFlowProgram(
           lines.push('    call load_current_msx2_screen4');
         }
         lines.push('    jp .main_loop');
-        terminated = true;
-        current = undefined;
-        continue;
+        break;
       }
       case 'Transition':
         if (current.effect === 'cls') {
@@ -7298,32 +7342,34 @@ function buildMsx2GameFlowProgram(
         } else {
           unsupported.add(`Transition:${current.effect}`);
         }
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       case 'End':
         lines.push('    jp .main_loop');
-        terminated = true;
-        current = undefined;
-        continue;
+        break;
       case 'Restart':
         lines.push('    jp init_rom');
-        terminated = true;
-        current = undefined;
-        continue;
+        break;
       default:
         unsupported.add(current.type);
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
     }
 
-    const nextNodeId = defaultTargetNodeId(graph.connections, current.id);
-    current = nextNodeId ? nodeById.get(nextNodeId) : undefined;
-  }
+    const nextNodeIds = [
+      defaultTargetNodeId(graph.connections, current.id),
+      ...(Array.isArray(current.options) ? current.options.map((option: any, index: number) => sourceTargetNodeId(graph.connections, current.id, [option?.id, `OPTION_${index}`])) : []),
+    ];
+    for (const nextNodeId of nextNodeIds) {
+      const nextNode = nextNodeId ? nodeById.get(nextNodeId) : undefined;
+      if (nextNode) emitNode(nextNode);
+    }
+  };
+
+  emitNode(nodeById.get(startNodeId));
 
   if (unsupported.size > 0) {
     lines.push(`    ; Unsupported MSX2 GameFlow nodes skipped in MVP: ${Array.from(unsupported).join(', ')}`);
-  }
-
-  if (!terminated) {
-    lines.push('    jp .main_loop');
   }
   return `${lines.join('\n')}\n`;
 }
@@ -7958,6 +8004,78 @@ msx2_screen4_data_bank_leave:
 
 wait_key:
     call CHGET
+    ret
+
+msx2_submenu_select:
+    ; Input: B=option count, 1..6. Output: A=selected zero-based option.
+    ; Uses BIOS GTSTCK/SNSMAT/GTTRIG. Clobbers AF/BC only.
+    ld c, 0
+.loop:
+    call wait_frame_busy
+    ld a, 0
+    push bc
+    call GTSTCK
+    pop bc
+    cp 1
+    jp z, .up
+    cp 5
+    jp z, .down
+    push bc
+    call msx2_submenu_confirm_pressed
+    pop bc
+    or a
+    jp z, .loop
+    ld a, c
+    push af
+.wait_confirm_release:
+    call wait_frame_busy
+    push bc
+    call msx2_submenu_confirm_pressed
+    pop bc
+    or a
+    jp nz, .wait_confirm_release
+    pop af
+    ret
+.up:
+    ld a, c
+    or a
+    jp z, .wait_neutral
+    dec c
+    jp .wait_neutral
+.down:
+    ld a, c
+    inc a
+    cp b
+    jp nc, .wait_neutral
+    ld c, a
+    jp .wait_neutral
+.wait_neutral:
+    call wait_frame_busy
+    ld a, 0
+    push bc
+    call GTSTCK
+    pop bc
+    or a
+    jp nz, .wait_neutral
+    jp .loop
+
+msx2_submenu_confirm_pressed:
+    ; Output: A=1 when SPACE or joystick trigger is pressed, A=0 otherwise.
+    ; Clobbers AF. Callers that need BC/DE/HL must preserve them.
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp z, .pressed
+    xor a
+    call GTTRIG
+    or a
+    ret nz
+    ld a, 1
+    call GTTRIG
+    or a
+    ret
+.pressed:
+    ld a, 1
     ret
 
 clear_screen4_names:
