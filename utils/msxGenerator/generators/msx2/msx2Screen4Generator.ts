@@ -126,6 +126,9 @@ const sanitizeLabel = (value: string, fallback: string): string =>
 const formatHexWord = (value: number): string =>
   `#${Math.max(0, Math.min(0xFFFF, Math.floor(value))).toString(16).toUpperCase().padStart(4, '0')}`;
 
+const formatHexByte = (value: number): string =>
+  `#${Math.max(0, Math.min(0xFF, Math.floor(value))).toString(16).toUpperCase().padStart(2, '0')}`;
+
 function validateMsx2Screen4RomConfig(config: Msx2Screen4Config): void {
   if (isMsx2Screen4MegaRomRequested(config) && config.targetFormat !== 'konami') {
     throw new Error(
@@ -716,6 +719,8 @@ function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd:
   const effectRuntimeEnd = effectRuntimeBase + effectRuntimeSize;
   const effectScratchBase = Math.max(0xC200, (effectRuntimeEnd + 0x0f) & 0xfff0);
   const enemyRuntimeBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const enemyRuntimeEnd = enemyRuntimeBase + MSX2_ENEMY_RUNTIME_BYTES;
+  const gameFlowGlobalsBytes = Math.max(0, runtimeRamEnd - enemyRuntimeEnd);
   const usedBytes = Math.max(0, runtimeRamEnd - MSX2_RUNTIME_RAM_START);
   const usableBytes = Math.max(0, MSX2_RUNTIME_RAM_LIMIT - MSX2_RUNTIME_RAM_START);
   const freeBytes = Math.max(0, MSX2_RUNTIME_RAM_LIMIT - runtimeRamEnd);
@@ -759,13 +764,23 @@ function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd:
     {
       id: 'runtime.enemy_pool',
       start: formatHexWord(enemyRuntimeBase),
-      end: formatHexWord(enemyRuntimeBase + MSX2_ENEMY_RUNTIME_BYTES),
+      end: formatHexWord(enemyRuntimeEnd),
       bytes: MSX2_ENEMY_RUNTIME_BYTES,
       mutable: true,
       slots: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
       reason: 'Active enemy/hazard runtime arrays; ROM keeps enemy templates.',
     },
   ];
+  if (gameFlowGlobalsBytes > 0) {
+    sections.push({
+      id: 'runtime.gameflow_globals',
+      start: formatHexWord(enemyRuntimeEnd),
+      end: formatHexWord(runtimeRamEnd),
+      bytes: gameFlowGlobalsBytes,
+      mutable: true,
+      reason: 'MSX2 SCREEN 4 GameFlow Globals/IfThenElse variables.',
+    });
+  }
   const recommendations: Array<Record<string, unknown>> = [];
   if (runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT) {
     recommendations.push({
@@ -7277,11 +7292,212 @@ function screenLoadLabelForAssetId(
   return undefined;
 }
 
+interface Msx2Screen4GameFlowGlobal {
+  variableName: string;
+  asmName: string;
+  address: number;
+  isWord: boolean;
+  values?: any[];
+}
+
+function normalizeMsx2GameFlowGlobalName(name: unknown): string {
+  return typeof name === 'string' ? name.trim() : '';
+}
+
+function buildMsx2GameFlowGlobalAsmName(variableName: string): string {
+  return `global_var_${variableName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
+}
+
+function resolveMsx2GameFlowGlobalInfo(variableName: string, analysis: ProjectAnalysis): { asmName: string; isWord: boolean; values?: any[] } {
+  const normalizedName = normalizeMsx2GameFlowGlobalName(variableName);
+  const variables = Array.isArray((analysis as any).globalVariables) ? (analysis as any).globalVariables : [];
+  const found = variables.find((variable: any) => String(variable?.name || '').toLowerCase() === normalizedName.toLowerCase());
+  const type = String(found?.type || '').toLowerCase();
+  return {
+    asmName: found?.asmName || buildMsx2GameFlowGlobalAsmName(normalizedName),
+    isWord: type === 'word' || type === '16bit',
+    values: Array.isArray(found?.values) ? found.values : undefined,
+  };
+}
+
+function parseMsx2GameFlowGlobalValue(rawValue: unknown, values: any[] | undefined, isWord: boolean): number {
+  if (typeof rawValue === 'boolean') return rawValue ? 1 : 0;
+  const text = String(rawValue ?? '').trim();
+  const matchedValue = values?.find(option => String(option?.label).toLowerCase() === text.toLowerCase() || String(option?.value) === text)?.value;
+  const source = matchedValue ?? text;
+  if (typeof source === 'boolean') return source ? 1 : 0;
+  if (typeof source === 'string') {
+    if (source.toLowerCase() === 'true') return 1;
+    if (source.toLowerCase() === 'false') return 0;
+  }
+  const numeric = Number(source);
+  if (!Number.isFinite(numeric)) return 0;
+  return isWord
+    ? Math.max(0, Math.min(65535, Math.trunc(numeric)))
+    : Math.max(0, Math.min(255, Math.trunc(numeric)));
+}
+
+function getMsx2GameFlowOperatorId(operator: unknown): number {
+  switch (operator) {
+    case '!=': return 1;
+    case '>': return 2;
+    case '<': return 3;
+    case '>=': return 4;
+    case '<=': return 5;
+    case '==':
+    default:
+      return 0;
+  }
+}
+
+function buildMsx2GameFlowGlobalMap(graph: any, analysis: ProjectAnalysis, baseAddress: number): Map<string, Msx2Screen4GameFlowGlobal> {
+  const globals = new Map<string, Msx2Screen4GameFlowGlobal>();
+  let address = baseAddress;
+  const includeName = (rawName: unknown) => {
+    const variableName = normalizeMsx2GameFlowGlobalName(rawName);
+    if (!variableName || globals.has(variableName.toLowerCase())) return;
+    const info = resolveMsx2GameFlowGlobalInfo(variableName, analysis);
+    globals.set(variableName.toLowerCase(), {
+      variableName,
+      asmName: info.asmName,
+      address,
+      isWord: info.isWord,
+      values: info.values,
+    });
+    address += info.isWord ? 2 : 1;
+  };
+  (graph?.nodes || []).forEach((node: any) => {
+    if (node?.type === 'Globals') {
+      (Array.isArray(node.variables) ? node.variables : []).forEach((variable: any) => includeName(variable?.name));
+    } else if (node?.type === 'IfThenElse') {
+      includeName(node.variableName);
+    }
+  });
+  if (address > MSX2_RUNTIME_RAM_LIMIT) {
+    throw new Error(`MSX2 SCREEN 4 GameFlow globals require RAM through ${formatHexWord(address)}, beyond safe limit ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}.`);
+  }
+  return globals;
+}
+
+function buildMsx2GameFlowGlobalEquates(globals: Map<string, Msx2Screen4GameFlowGlobal>): string {
+  if (globals.size === 0) return '';
+  return Array.from(globals.values()).map(global =>
+    `${global.asmName} EQU ${formatHexWord(global.address)}    ; MSX2 SCREEN 4 GameFlow global: ${global.variableName}`
+  ).join('\n') + '\n';
+}
+
+function estimateMsx2GameFlowRuntimeRamEnd(analysis: ProjectAnalysis, baseAddress: number): number {
+  const graph = getScreen4RuntimeGameFlow(analysis);
+  if (!graph?.nodes?.length) return baseAddress;
+  const globals = buildMsx2GameFlowGlobalMap(graph, analysis, baseAddress);
+  return Array.from(globals.values()).reduce((end, global) =>
+    Math.max(end, global.address + (global.isWord ? 2 : 1)),
+    baseAddress
+  );
+}
+
+function buildMsx2GameFlowGlobalInitLines(globals: Map<string, Msx2Screen4GameFlowGlobal>): string[] {
+  const lines: string[] = [];
+  for (const global of globals.values()) {
+    if (global.isWord) {
+      lines.push('    ld hl, 0');
+      lines.push(`    ld (${global.asmName}), hl`);
+    } else {
+      lines.push('    xor a');
+      lines.push(`    ld (${global.asmName}), a`);
+    }
+  }
+  return lines;
+}
+
+function buildMsx2GameFlowGlobalsApplyLines(node: any, globals: Map<string, Msx2Screen4GameFlowGlobal>): string[] {
+  const lines: string[] = [];
+  (Array.isArray(node?.variables) ? node.variables : []).forEach((variable: any) => {
+    const global = globals.get(normalizeMsx2GameFlowGlobalName(variable?.name).toLowerCase());
+    if (!global) return;
+    const value = parseMsx2GameFlowGlobalValue(variable?.value, global.values, global.isWord);
+    lines.push(`    ; ${global.variableName} = ${value}`);
+    if (global.isWord) {
+      lines.push(`    ld hl, ${formatHexWord(value)}`);
+      lines.push(`    ld (${global.asmName}), hl`);
+    } else {
+      lines.push(`    ld a, ${formatHexByte(value)}`);
+      lines.push(`    ld (${global.asmName}), a`);
+    }
+  });
+  return lines;
+}
+
+function buildMsx2GameFlowCompareRoutine(needed: boolean): string {
+  if (!needed) return '';
+  return `
+msx2_gf_compare_hl_de:
+    ; Input: HL=current, DE=compare, A=operator. Output: A=1 true, A=0 false.
+    ld c, a
+    or a
+    sbc hl, de
+    ld a, c
+    cp 0
+    jp z, .equals
+    cp 1
+    jp z, .not_equals
+    cp 2
+    jp z, .greater
+    cp 3
+    jp z, .less
+    cp 4
+    jp z, .greater_equal
+    cp 5
+    jp z, .less_equal
+    xor a
+    ret
+.equals:
+    ld a, h
+    or l
+    jp z, .true
+    xor a
+    ret
+.not_equals:
+    ld a, h
+    or l
+    jp nz, .true
+    xor a
+    ret
+.greater:
+    jp c, .false
+    ld a, h
+    or l
+    jp nz, .true
+    xor a
+    ret
+.less:
+    jp c, .true
+    xor a
+    ret
+.greater_equal:
+    jp nc, .true
+    xor a
+    ret
+.less_equal:
+    jp c, .true
+    ld a, h
+    or l
+    jp z, .true
+.false:
+    xor a
+    ret
+.true:
+    ld a, 1
+    ret
+`;
+}
+
 function buildMsx2GameFlowProgram(
   analysis: ProjectAnalysis,
   screenLabels: Map<string, string>,
   tileScreenLabels: Map<string, string>,
-  tileScreenIndexByLabel: Map<string, number>
+  tileScreenIndexByLabel: Map<string, number>,
+  globalBaseAddress: number
 ): string {
   const graph = getScreen4RuntimeGameFlow(analysis);
   const fallbackLabel = tileScreenLabels.values().next().value || screenLabels.values().next().value;
@@ -7302,6 +7518,8 @@ function buildMsx2GameFlowProgram(
   graph.nodes.forEach((node: any, index: number) => {
     nodeLabels.set(node.id, `msx2_gf_node_${index}`);
   });
+  const globalMap = buildMsx2GameFlowGlobalMap(graph, analysis, globalBaseAddress);
+  const hasIfThenElse = graph.nodes.some((node: any) => node?.type === 'IfThenElse');
   const labelForNodeId = (nodeId: string | undefined): string | undefined => nodeId ? nodeLabels.get(nodeId) : undefined;
   const jumpToNodeOrMain = (nodeId: string | undefined): string => {
     const label = labelForNodeId(nodeId);
@@ -7309,6 +7527,7 @@ function buildMsx2GameFlowProgram(
   };
   const lines: string[] = [
     '    ; MSX2 SCREEN 4 GameFlow entry.',
+    ...buildMsx2GameFlowGlobalInitLines(globalMap),
     jumpToNodeOrMain(startNodeId),
   ];
   const dataBlocks: string[] = [];
@@ -7324,10 +7543,42 @@ function buildMsx2GameFlowProgram(
     switch (current.type) {
       case 'Start':
       case 'Waypoint':
-      case 'Globals':
       case 'Music':
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
+      case 'Globals': {
+        const applyLines = buildMsx2GameFlowGlobalsApplyLines(current, globalMap);
+        lines.push(...(applyLines.length ? applyLines : ['    ; Empty Globals node']));
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
+        break;
+      }
+      case 'IfThenElse': {
+        const global = globalMap.get(normalizeMsx2GameFlowGlobalName(current.variableName).toLowerCase());
+        const thenTarget = sourceTargetNodeId(graph.connections, current.id, ['then']);
+        const elseTarget = sourceTargetNodeId(graph.connections, current.id, ['else']);
+        if (!global) {
+          throw new Error(`MSX2 SCREEN 4 IfThenElse node ${current.id} references missing global variable "${current.variableName || ''}".`);
+        }
+        if (!thenTarget || !elseTarget) {
+          throw new Error(`MSX2 SCREEN 4 IfThenElse node ${current.id} must have both THEN and ELSE branches.`);
+        }
+        const compareValue = parseMsx2GameFlowGlobalValue(current.compareValue, global.values, global.isWord);
+        lines.push(`    ; ${global.variableName} ${current.operator || '=='} ${compareValue}`);
+        if (global.isWord) {
+          lines.push(`    ld hl, (${global.asmName})`);
+        } else {
+          lines.push(`    ld a, (${global.asmName})`);
+          lines.push('    ld l, a');
+          lines.push('    ld h, 0');
+        }
+        lines.push(`    ld de, ${formatHexWord(compareValue)}`);
+        lines.push(`    ld a, ${getMsx2GameFlowOperatorId(current.operator)}`);
+        lines.push('    call msx2_gf_compare_hl_de');
+        lines.push('    or a');
+        lines.push(`    jp nz, ${labelForNodeId(thenTarget) || '.main_loop'}`);
+        lines.push(jumpToNodeOrMain(elseTarget || defaultTargetNodeId(graph.connections, current.id)));
+        break;
+      }
       case 'Text': {
         const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
@@ -7395,8 +7646,10 @@ function buildMsx2GameFlowProgram(
 
     const nextNodeIds = [
       defaultTargetNodeId(graph.connections, current.id),
+      current.type === 'IfThenElse' ? sourceTargetNodeId(graph.connections, current.id, ['then']) : undefined,
+      current.type === 'IfThenElse' ? sourceTargetNodeId(graph.connections, current.id, ['else']) : undefined,
       ...(Array.isArray(current.options) ? current.options.map((option: any, index: number) => sourceTargetNodeId(graph.connections, current.id, [option?.id, `OPTION_${index}`])) : []),
-    ];
+    ].filter(Boolean);
     for (const nextNodeId of nextNodeIds) {
       const nextNode = nextNodeId ? nodeById.get(nextNodeId) : undefined;
       if (nextNode) emitNode(nextNode);
@@ -7408,7 +7661,7 @@ function buildMsx2GameFlowProgram(
   if (unsupported.size > 0) {
     lines.push(`    ; Unsupported MSX2 GameFlow nodes skipped in MVP: ${Array.from(unsupported).join(', ')}`);
   }
-  return `${lines.join('\n')}\n${dataBlocks.join('')}`;
+  return `${buildMsx2GameFlowGlobalEquates(globalMap)}${lines.join('\n')}\n${buildMsx2GameFlowCompareRoutine(hasIfThenElse)}${dataBlocks.join('')}`;
 }
 
 function buildMsx2WorldTransitionAsm(
@@ -7559,7 +7812,6 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ].join('\n')
     : '';
   const firstScreenLabel = tileScreenLoadLabels[0];
-  const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels, tileScreenLabels, tileScreenIndexByLabel);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis, useKonamiDataBank);
   const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis);
   const requiredCollectiblesByScreen = tileScreens.map(screen => getTileScreenRequiredCollectibles(screen));
@@ -7633,7 +7885,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const effectRuntimeSize = Math.max(1, tileScreens.length) * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
   const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
   const enemyRuntimeBase = (effectScratchBase + (MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT) + 0x0f) & 0xfff0;
-  const runtimeRamEnd = estimateMsx2RuntimeRamEnd(tileScreens.length);
+  const coreRuntimeRamEnd = estimateMsx2RuntimeRamEnd(tileScreens.length);
+  const runtimeRamEnd = estimateMsx2GameFlowRuntimeRamEnd(analysis, coreRuntimeRamEnd);
   if (runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT) {
     const maxScreens = maxPersistentMsx2ScreenCount();
     throw new Error(
@@ -7644,6 +7897,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       `Current simple runtime supports about ${maxScreens} rooms with persistent effects.`
     );
   }
+  const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels, tileScreenLabels, tileScreenIndexByLabel, coreRuntimeRamEnd);
   const spawnXBytes = tileScreens.map(screen => clampHardwareSpriteX(getPlayerStartFromTileScreen(screen)?.x ?? 96));
   const spawnYBytes = tileScreens.map(screen => clampHardwareSpriteY(getPlayerStartFromTileScreen(screen)?.y ?? 144));
   const enemyHazards = tileScreens.map(screen => getMsx2EnemyHazardRuntimeSlots(screen));
