@@ -945,6 +945,31 @@ ${body}
 ${strings}`;
 }
 
+function buildMsx2SubMenuTextData(label: string, node: any, analysis: ProjectAnalysis): string {
+  const allowedCharacters = getMsx2HudFontCharacters(analysis);
+  const title = normalizeMsx2HudText(String(node?.title || 'MENU'), 20, allowedCharacters);
+  const options = (Array.isArray(node?.options) ? node.options : [])
+    .slice(0, 6)
+    .map((option: any) => normalizeMsx2HudText(String(option?.text || ''), 18, allowedCharacters));
+  const rows = [title, ...options].map((text, index) =>
+    formatBytes(`${label}_TEXT_${index}`, [...Array.from(text).map(char => String(char).charCodeAt(0) & 0xff), 0], `MSX2 SCREEN 4 SubMenu text "${text}"`)
+  );
+  const optionDraws = options.map((_option, index) => {
+    const vram = 0x19E7 + (index * SCREEN4_CHAR_COLUMNS);
+    return `    ld hl, #${vram.toString(16).toUpperCase().padStart(4, '0')}
+    ld de, ${label}_TEXT_${index + 1}
+    call draw_msx2_hud_string`;
+  }).join('\n');
+  return `draw_${label}:
+    ld hl, #19A6
+    ld de, ${label}_TEXT_0
+    call draw_msx2_hud_string
+${optionDraws || '    ; No submenu options to draw'}
+    ret
+
+${rows.join('')}`;
+}
+
 function getEntityRenderSpriteId(entity: any): string {
   return String(
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
@@ -1976,7 +2001,11 @@ copy_to_vram_ext:
     out (VDP_CTRL_PORT), a
     ret
 
-write_vram_byte_ext:
+`;
+}
+
+function buildMsx2VramByteWriteAsm(): string {
+  return `write_vram_byte_ext:
     ; A=data, HL=absolute VRAM destination. Clobbers AF/B.
     ld b, a
     ld a, h
@@ -2013,6 +2042,107 @@ write_vram_byte_ext:
 function addImmediateToA(value: number): string {
   if (!value) return '';
   return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
+}
+
+function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
+  const hudFontBaseChar = getMsx2HudFontBaseChar(analysis);
+  const hudFontPatternVram = hudFontBaseChar * 8;
+  const hudFontColorVram = 0x2000 + (hudFontBaseChar * 8);
+  const hudFontUsesContiguousAscii = isMsx2HudFontContiguousAscii(analysis);
+  const hudAsciiMapperAsm = hudFontUsesContiguousAscii ? `msx2_hud_ascii_to_char:
+    ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
+    ; ZX-style imports store the first glyph at ASCII #20, so map by subtracting #20.
+    cp #20
+    jp c, .fallback
+    cp #80
+    jp nc, .fallback
+    sub #20
+    add a, MSX2_HUD_FONT_BASE_CHAR
+    ret
+.fallback:
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ret
+` : `msx2_hud_ascii_to_char:
+    ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
+    cp #20
+    jp z, .space
+    cp #30
+    jp c, .punct
+    cp #3A
+    jp c, .digit
+    cp #41
+    jp c, .punct
+    cp #5B
+    jp c, .upper
+.punct:
+    cp #3A
+    jp z, .colon
+    cp #2D
+    jp z, .dash
+    cp #2F
+    jp z, .slash
+.space:
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ret
+.digit:
+    sub #30
+    add a, MSX2_HUD_FONT_BASE_CHAR + 1
+    ret
+.upper:
+    sub #41
+    add a, MSX2_HUD_FONT_BASE_CHAR + 11
+    ret
+.colon:
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 37
+    ret
+.dash:
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 38
+    ret
+.slash:
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 39
+    ret
+`;
+
+  return `load_msx2_hud_font:
+    ; Loads the generic MSX2 SCREEN 4 HUD font into reserved high char slots. Clobbers AF/BC/DE/HL.
+    ld hl, msx2_hud_font_patterns
+    ld de, ${formatHexWord(hudFontPatternVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call LDIRVM
+    ld hl, msx2_hud_font_patterns
+    ld de, ${formatHexWord(0x0800 + hudFontPatternVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call LDIRVM
+    ld hl, msx2_hud_font_patterns
+    ld de, ${formatHexWord(0x1000 + hudFontPatternVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call LDIRVM
+    ld a, #F1
+    ld hl, ${formatHexWord(hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    ld a, #F1
+    ld hl, ${formatHexWord(0x0800 + hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    ld a, #F1
+    ld hl, ${formatHexWord(0x1000 + hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    jp FILVRM
+
+draw_msx2_hud_string:
+    ; DE=zero-terminated ASCII, HL=SCREEN 4 name-table VRAM destination. Clobbers AF/B/DE/HL.
+    ld a, (de)
+    or a
+    ret z
+    inc de
+    call msx2_hud_ascii_to_char
+    call write_vram_byte_ext
+    inc hl
+    jp draw_msx2_hud_string
+
+${hudAsciiMapperAsm}
+`;
 }
 
 function buildHardwareSpriteRuntimeAsm(
@@ -3762,64 +3892,6 @@ control_2_players_ball_collect_item:
     ret
 ` : '';
 
-  const hudFontBaseChar = getMsx2HudFontBaseChar(analysis);
-  const hudFontPatternVram = hudFontBaseChar * 8;
-  const hudFontColorVram = 0x2000 + (hudFontBaseChar * 8);
-  const hudFontUsesContiguousAscii = isMsx2HudFontContiguousAscii(analysis);
-  const hudAsciiMapperAsm = hudFontUsesContiguousAscii ? `msx2_hud_ascii_to_char:
-    ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
-    ; ZX-style imports store the first glyph at ASCII #20, so map by subtracting #20.
-    cp #20
-    jp c, .fallback
-    cp #80
-    jp nc, .fallback
-    sub #20
-    add a, MSX2_HUD_FONT_BASE_CHAR
-    ret
-.fallback:
-    ld a, MSX2_HUD_FONT_BASE_CHAR
-    ret
-` : `msx2_hud_ascii_to_char:
-    ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
-    cp #20
-    jp z, .space
-    cp #30
-    jp c, .punct
-    cp #3A
-    jp c, .digit
-    cp #41
-    jp c, .punct
-    cp #5B
-    jp c, .upper
-.punct:
-    cp #3A
-    jp z, .colon
-    cp #2D
-    jp z, .dash
-    cp #2F
-    jp z, .slash
-.space:
-    ld a, MSX2_HUD_FONT_BASE_CHAR
-    ret
-.digit:
-    sub #30
-    add a, MSX2_HUD_FONT_BASE_CHAR + 1
-    ret
-.upper:
-    sub #41
-    add a, MSX2_HUD_FONT_BASE_CHAR + 11
-    ret
-.colon:
-    ld a, MSX2_HUD_FONT_BASE_CHAR + 37
-    ret
-.dash:
-    ld a, MSX2_HUD_FONT_BASE_CHAR + 38
-    ret
-.slash:
-    ld a, MSX2_HUD_FONT_BASE_CHAR + 39
-    ret
-`;
-
   const statusHudAsm = `draw_msx2_lives_hud:
 draw_msx2_score_hud:
 draw_msx2_collectible_hud:
@@ -3827,46 +3899,6 @@ draw_msx2_air_hud:
     ; Native SCREEN 4 HUD authoring is exported as metadata for now.
     ; Runtime drawing is intentionally data-driven work, not hardcoded bars.
     ret
-
-load_msx2_hud_font:
-    ; Loads the generic MSX2 SCREEN 4 HUD font into reserved high char slots. Clobbers AF/BC/DE/HL.
-    ld hl, msx2_hud_font_patterns
-    ld de, ${formatHexWord(hudFontPatternVram)}
-    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
-    call LDIRVM
-    ld hl, msx2_hud_font_patterns
-    ld de, ${formatHexWord(0x0800 + hudFontPatternVram)}
-    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
-    call LDIRVM
-    ld hl, msx2_hud_font_patterns
-    ld de, ${formatHexWord(0x1000 + hudFontPatternVram)}
-    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
-    call LDIRVM
-    ld a, #F1
-    ld hl, ${formatHexWord(hudFontColorVram)}
-    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
-    call FILVRM
-    ld a, #F1
-    ld hl, ${formatHexWord(0x0800 + hudFontColorVram)}
-    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
-    call FILVRM
-    ld a, #F1
-    ld hl, ${formatHexWord(0x1000 + hudFontColorVram)}
-    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
-    jp FILVRM
-
-draw_msx2_hud_string:
-    ; DE=zero-terminated ASCII, HL=SCREEN 4 name-table VRAM destination. Clobbers AF/B/DE/HL.
-    ld a, (de)
-    or a
-    ret z
-    inc de
-    call msx2_hud_ascii_to_char
-    call write_vram_byte_ext
-    inc hl
-    jp draw_msx2_hud_string
-
-${hudAsciiMapperAsm}
 `;
 
   const stageBannerAsm = stageBannerEnabled ? `
@@ -7279,6 +7311,7 @@ function buildMsx2GameFlowProgram(
     '    ; MSX2 SCREEN 4 GameFlow entry.',
     jumpToNodeOrMain(startNodeId),
   ];
+  const dataBlocks: string[] = [];
   const unsupported = new Set<string>();
   const emitted = new Set<string>();
 
@@ -7303,14 +7336,18 @@ function buildMsx2GameFlowProgram(
         break;
       }
       case 'SubMenu': {
-        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
-        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
+        const backgroundLabel = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
+        if (backgroundLabel) lines.push(buildMsx2TileScreenLoadLines(backgroundLabel, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         const options = Array.isArray(current.options) ? current.options.slice(0, 6) : [];
         if (options.length === 0) {
           lines.push('    call wait_key');
           lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
           break;
         }
+        const dataLabel = `${labelForNodeId(current.id)}_SUBMENU`;
+        dataBlocks.push(buildMsx2SubMenuTextData(dataLabel, current, analysis));
+        lines.push('    call load_msx2_hud_font');
+        lines.push(`    call draw_${dataLabel}`);
         lines.push(`    ld b, ${options.length}`);
         lines.push('    call msx2_submenu_select');
         options.forEach((option: any, index: number) => {
@@ -7320,7 +7357,7 @@ function buildMsx2GameFlowProgram(
             lines.push(`    jp z, ${targetLabel}`);
           }
         });
-        lines.push(`    jp ${label}`);
+        lines.push(jumpToNodeOrMain(current.id));
         break;
       }
       case 'WorldLink': {
@@ -7371,7 +7408,7 @@ function buildMsx2GameFlowProgram(
   if (unsupported.size > 0) {
     lines.push(`    ; Unsupported MSX2 GameFlow nodes skipped in MVP: ${Array.from(unsupported).join(', ')}`);
   }
-  return `${lines.join('\n')}\n`;
+  return `${lines.join('\n')}\n${dataBlocks.join('')}`;
 }
 
 function buildMsx2WorldTransitionAsm(
@@ -7665,7 +7702,20 @@ write_hardware_sprite_attrs:
 update_hardware_sprite_input:
 update_msx2_air_timer:
     ret
+
+draw_msx2_lives_hud:
+draw_msx2_score_hud:
+draw_msx2_collectible_hud:
+draw_msx2_air_hud:
+draw_msx2_game_over_banner:
+draw_msx2_level_complete_banner:
+draw_msx2_stage_banner:
+wait_msx2_stage_banner:
+reset_msx2_status_border:
+    ret
 `;
+  const vramByteWriteAsm = buildMsx2VramByteWriteAsm();
+  const hudTextRuntimeAsm = buildMsx2HudTextRuntimeAsm(analysis);
   const backgroundScrollEnabled = usesShooterHorizontalMovement(analysis) && usesMsx2Screen4BackgroundScroll(analysis);
   const backgroundScrollAsm = backgroundScrollEnabled
     ? buildScreen4BackgroundScrollAsm(tileScreenLoadLabels, useKonamiDataBank)
@@ -8008,8 +8058,11 @@ wait_key:
 
 msx2_submenu_select:
     ; Input: B=option count, 1..6. Output: A=selected zero-based option.
-    ; Uses BIOS GTSTCK/SNSMAT/GTTRIG. Clobbers AF/BC only.
+    ; Uses BIOS GTSTCK/SNSMAT/GTTRIG. Clobbers AF/BC/HL.
     ld c, 0
+    push bc
+    call draw_msx2_submenu_cursor
+    pop bc
 .loop:
     call wait_frame_busy
     ld a, 0
@@ -8041,6 +8094,9 @@ msx2_submenu_select:
     or a
     jp z, .wait_neutral
     dec c
+    push bc
+    call draw_msx2_submenu_cursor
+    pop bc
     jp .wait_neutral
 .down:
     ld a, c
@@ -8048,6 +8104,9 @@ msx2_submenu_select:
     cp b
     jp nc, .wait_neutral
     ld c, a
+    push bc
+    call draw_msx2_submenu_cursor
+    pop bc
     jp .wait_neutral
 .wait_neutral:
     call wait_frame_busy
@@ -8077,6 +8136,40 @@ msx2_submenu_confirm_pressed:
 .pressed:
     ld a, 1
     ret
+
+draw_msx2_submenu_cursor:
+    ; Input: C=selected option index. Draws a simple '-' marker in fixed menu rows.
+    ; Clobbers AF/BC/HL.
+    ld hl, #19E5
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A05
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A25
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A45
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A65
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A85
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld a, c
+    ld h, 0
+    ld l, a
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld bc, #19E5
+    add hl, bc
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 38
+    jp WRTVRM
 
 clear_screen4_names:
     xor a
@@ -8205,6 +8298,8 @@ msx2_music_ch_c_hi:
     db #02,#00,#01,#00,#02,#00,#01,#00,#02,#00,#01,#00,#02,#00,#01,#00
 ` : ''}
 ${hardwareSpriteInitAsm}
+${vramByteWriteAsm}
+${hudTextRuntimeAsm}
 ${hardwareSpriteRuntimeAsm}
 ${snakeCharRuntimeAsm}
 ${backgroundScrollAsm}
