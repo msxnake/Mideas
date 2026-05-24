@@ -4441,14 +4441,20 @@ if (raw.presentationScreen && raw.presentationScreen.data && Array.isArray(raw.p
   });
 }
 
+const hasMsx2Presentation = assets.some(asset => asset && asset.type === "msx2presentation");
+const requestedScreenMode = raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)";
+const defaultGraphicsBackend = hasMsx2Presentation && requestedScreenMode === "SCREEN 5 (Graphics III)"
+  ? "msx2-screen5-presentation"
+  : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(requestedScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank");
+
 const files = generator.generateModularASM(name, assets, {
   generateUnified: true,
   romMode,
   targetFormat,
   executionMode,
   autoMegaROM,
-  screenMode: raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)",
-  targetGraphicsBackend: raw.targetGraphicsBackend || (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(raw.screenMode || raw.currentScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank"),
+  screenMode: requestedScreenMode,
+  targetGraphicsBackend: raw.targetGraphicsBackend || defaultGraphicsBackend,
   interruptConfig: {
     ...(raw.interruptConfig || {}),
     enableHardPlayerTick: enableHardPlayerTick || Boolean(raw.interruptConfig && raw.interruptConfig.enableHardPlayerTick),

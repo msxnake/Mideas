@@ -2,7 +2,7 @@
  * @fileoverview Shared types for MSX ASM Generator
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, Boss, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2Sprite } from '../../../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, Boss, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite } from '../../../types';
 import { MideasGlobalVariable } from '../../../constants';
 
 /**
@@ -93,6 +93,7 @@ export interface ProjectSummary {
     msx2Bitmaps?: Msx2Bitmap[];
     msx2Screens?: Msx2Screen4TileScreen[];
     msx2BitmapRooms?: Msx2Screen4BitmapRoom[];
+    msx2Presentations?: Msx2Screen5PresentationConfig[];
     tileBanks?: TileBank[];
     components?: ComponentDefinition[];
     templates?: EntityTemplate[];
@@ -161,5 +162,6 @@ export interface ProjectAnalysis {
   tracks?: TrackerSongData[];
   trackIndexByAssetId?: Record<string, number>;
   presentationScreen?: PresentationScreenConfig;
+  msx2Presentations?: Msx2Screen5PresentationConfig[];
   bosses?: Boss[];
 }

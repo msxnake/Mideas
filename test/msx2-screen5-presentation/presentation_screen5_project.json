@@ -1,6 +1,8 @@
 {
   "name": "presentation_screen5_openmsx_test",
-  "currentScreenMode": "SCREEN 5 (Bitmap)",
+  "screenMode": "SCREEN 5 (Graphics III)",
+  "currentScreenMode": "SCREEN 5 (Graphics III)",
+  "targetGraphicsBackend": "msx2-screen5-presentation",
   "assets": [
     {
       "id": "asset_presentation_screen5_test",
