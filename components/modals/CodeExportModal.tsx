@@ -87,6 +87,9 @@ const normalizeMsx2ExportScreenMode = (screenMode: string): string =>
 const isMsx2Screen4ExportMode = (screenMode: string): boolean =>
   normalizeMsx2ExportScreenMode(screenMode) === SCREEN4_MODE;
 
+const hasMsx2PresentationAsset = (assets: ProjectAsset[]): boolean =>
+  assets.some(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
+
 const formatDbRows = (label: string, rows: number[][], comment: string): string => {
   const body = rows.length > 0
     ? rows.map(row => `    DB ${row.map(value => Math.max(0, Math.min(255, Number(value) || 0))).join(',')}`).join('\n')
@@ -485,13 +488,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   ): Promise<MapperReadyBundle> => {
     const projectName = projectNameInput || currentProjectName || 'MSX_Game';
     const romConfig = romConfigInput || buildCurrentRomConfig();
-    const currentScreenMode = normalizeMsx2ExportScreenMode(projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)');
-    const targetGraphicsBackend = isMsx2Screen4ExportMode(currentScreenMode)
+    const enhancedAssets = getEnhancedAssets();
+    const rawScreenMode = projectData?.screenMode || projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)';
+    const hasScreen5Presentation = hasMsx2PresentationAsset(enhancedAssets);
+    const currentScreenMode = hasScreen5Presentation ? LEGACY_SCREEN5_MODE : normalizeMsx2ExportScreenMode(rawScreenMode);
+    const targetGraphicsBackend = hasScreen5Presentation
+      ? 'msx2-screen5-presentation'
+      : isMsx2Screen4ExportMode(currentScreenMode)
       ? 'msx2-screen4-pattern'
       : 'screen2-tilebank';
     const { generateModularASM } = await import('../../utils/msxGenerator');
 
-    const modularFiles = generateModularASM(projectName, getEnhancedAssets(), {
+    const modularFiles = generateModularASM(projectName, enhancedAssets, {
       generateUnified: true,
       ...romConfig,
       screenMode: currentScreenMode,
@@ -961,7 +969,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       let nextActiveFileIndex = 0;
 
       const projectName = currentProjectName || "MSX_Project";
-      const activeScreenMode = normalizeMsx2ExportScreenMode(projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)');
+      const hasScreen5Presentation = hasMsx2PresentationAsset(assets);
+      const rawScreenMode = projectData?.currentScreenMode || projectData?.screenMode || 'SCREEN 2 (Graphics I)';
+      const activeScreenMode = hasScreen5Presentation ? LEGACY_SCREEN5_MODE : normalizeMsx2ExportScreenMode(rawScreenMode);
       const isScreen4Backend = isMsx2Screen4ExportMode(activeScreenMode);
 
       switch (exportType) {
@@ -1033,7 +1043,13 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           const msx2Screens = assets.filter(a => a.type === 'msx2screen').map(a => a.data as Msx2Screen4TileScreen);
           const tilesForScreens = assets.filter(a => a.type === 'tile').map(a => a.data as any);
 
-          if (isScreen4Backend && msx2Screens.length > 0) {
+          if (hasScreen5Presentation) {
+            const screen5Bundle = await generateMapperReadyBundle(projectName, buildCurrentRomConfig());
+            generatedRomConfig = screen5Bundle.romConfig;
+            files = screen5Bundle.files;
+            code = screen5Bundle.mainCode;
+            nextActiveFileIndex = screen5Bundle.activeIndex;
+          } else if (isScreen4Backend && msx2Screens.length > 0) {
             files = msx2Screens.map((screen, index) => ({
               name: `screen4_${index}.asm`,
               content: generateMsx2Screen4ScreenAssembly(screen, index)
@@ -1885,7 +1901,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <li>• Components: {projectAnalysis.components.length}</li>
                       <li>• Entity Templates: {projectAnalysis.templates.length}</li>
                       <li>• Sprites: {projectAnalysis.sprites.length} ({projectAnalysis.hasAnimations ? 'with animations' : 'static'})</li>
-                      <li>• Screens: {(projectAnalysis.screenMaps?.length || 0) + (projectAnalysis.msx2Screens?.length || 0)}</li>
+                      <li>• Screens: {(projectAnalysis.screenMaps?.length || 0) + (projectAnalysis.msx2Screens?.length || 0) + (projectAnalysis.msx2Presentations?.length || 0)}</li>
                       <li>• Collisions: {projectAnalysis.hasCollisions ? '✅ Detected' : '❌ Not detected'}</li>
                       <li>• Menu System: {projectAnalysis.hasMenuSystem ? '✅ Detected' : '❌ Not detected'}</li>
                       {projectAnalysis.customStates.length > 0 && (

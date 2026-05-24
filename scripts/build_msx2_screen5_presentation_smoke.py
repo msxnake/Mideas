@@ -58,6 +58,26 @@ def assert_screen5_generated_labels(path: Path) -> None:
             raise RuntimeError(f"Generated ASM is missing SCREEN5 label: {label}")
 
 
+def assert_screen5_zx0_contract(path: Path) -> None:
+    if not path.exists():
+        raise RuntimeError(f"ZX0-preprocessed ASM was not emitted: {path}")
+    text = path.read_text(encoding="utf-8", errors="replace")
+    required = [
+        "Backend: msx2-screen5-presentation",
+        "SCREEN5_PRESENTATION_COMPRESSION: ZX0",
+        "SCREEN5_PRESENTATION_CHUNK_LINES: 32",
+        "SCREEN5_PRESENTATION_BITMAP_CHUNK_0:",
+        "ZX0 compressed tile_pattern",
+        "Decompress ZX0 SCREEN 5 presentation chunk into RAM buffer",
+        "ld de, SCREEN5_PRESENTATION_ZX0_BUFFER",
+        "call dzx0_standard",
+        "ld hl, SCREEN5_PRESENTATION_ZX0_BUFFER",
+    ]
+    for needle in required:
+        if needle not in text:
+            raise RuntimeError(f"ZX0-preprocessed ASM is missing SCREEN 5 presentation contract text: {needle}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build and optionally capture the MSX2 SCREEN 5 presentation smoke ROM.")
     parser.add_argument("--project-root", default=".", help="Mideas repository root")
@@ -74,11 +94,12 @@ def main() -> int:
     out_dir = project_root / "test" / "msx2-screen5-presentation" / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     asm_output = out_dir / "msx2_screen5_presentation.asm"
+    zx0_asm_output = out_dir / "msx2_screen5_presentation_compressed.asm"
     rom_output = out_dir / "msx2_screen5_presentation.rom"
     sym_output = out_dir / "msx2_screen5_presentation.sym"
     screenshot_output = out_dir / "msx2_screen5_presentation.png"
 
-    run_command([
+    build_result = run_command([
         sys.executable,
         "scripts/build_mideas_unified_rom.py",
         "--json", str(fixture),
@@ -100,6 +121,10 @@ def main() -> int:
     assert_contains(asm_output, "call map_page2_to_cart_primary", "page-2 cart mapping for bitmap data crossing #8000")
     assert_screen5_mode_contract(asm_output)
     assert_screen5_generated_labels(asm_output)
+    assert_screen5_zx0_contract(zx0_asm_output)
+    build_stdout = build_result.stdout.decode("utf-8", errors="replace")
+    if "ZX0: applied=True" not in build_stdout:
+        raise RuntimeError("build_mideas_unified_rom.py did not report applied ZX0 preprocessing for SCREEN 5 presentation")
 
     size = rom_output.stat().st_size
     if size % 8192 != 0:

@@ -72,6 +72,7 @@ function createProjectSummary(projectPath) {
     worldMaps: [],
     screens: [],
     msx2Screens: [],
+    msx2Presentations: [],
     tiles: [],
     sprites: [],
     entities: [],
@@ -81,6 +82,18 @@ function createProjectSummary(projectPath) {
   };
 
   const warnings = [];
+
+  assets
+    .filter(asset => asset.type === 'msx2presentation' && asset.data?.enabled !== false)
+    .forEach(asset => {
+      if (usedAssets.msx2Presentations.some(existing => existing.id === asset.id)) return;
+      usedAssets.msx2Presentations.push({
+        id: asset.id,
+        name: asset.name,
+        data: asset.data
+      });
+      console.log(`MSX2 SCREEN 5 presentation added: "${asset.name}"`);
+    });
 
   // 4. Seguir cadena: GameFlow → WorldMaps → Screens → Assets
   const worldMapIds = new Set();

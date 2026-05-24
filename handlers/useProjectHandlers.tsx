@@ -1,12 +1,17 @@
 import { useCallback } from 'react';
 import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset } from '../types';
-import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
+import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
 import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
 import { resolveBestPortraitTileBankAssetId } from '../utils/portraitPackageUtils';
+import {
+  packScreen5PresentationPixels,
+  normalizeScreen5PresentationPixels,
+  unpackScreen5PresentationPixels,
+} from '../components/utils/msx2Screen5PresentationUtils';
 import {
   filterComponentDefinitionsForProject,
   filterEntityTemplatesForProject,
@@ -672,6 +677,57 @@ export const useProjectHandlers = ({
             Array.from({ length: 16 }, (_, x) => Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)))
           );
 
+        const normalizeMsx2Presentation = (asset: ProjectAsset): ProjectAsset => {
+          const raw = (asset.data || {}) as any;
+          const legacyData = raw.data && typeof raw.data === 'object' ? raw.data : {};
+          const flat = { ...raw, ...legacyData };
+          const height = flat.height === 212 ? 212 : 192;
+          const sourcePacked = Array.isArray(flat.packedBitmap)
+            ? flat.packedBitmap
+            : Array.isArray(flat.packedPixels)
+            ? flat.packedPixels
+            : undefined;
+          const pixels = sourcePacked
+            ? unpackScreen5PresentationPixels(sourcePacked, height)
+            : normalizeScreen5PresentationPixels(flat.pixels, height);
+          const packedBitmap = sourcePacked
+            ? sourcePacked.map((value: number) => Math.max(0, Math.min(255, Number(value) || 0)))
+            : packScreen5PresentationPixels(pixels);
+
+          return {
+            ...asset,
+            data: {
+              ...DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG,
+              ...flat,
+              target: 'MSX2',
+              screenMode: 'SCREEN 5',
+              width: 256,
+              height,
+              displayHeight: flat.displayHeight === 212 ? 212 : height,
+              palette: Array.isArray(flat.palette) && flat.palette.length === 16
+                ? flat.palette
+                : DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG.palette,
+              pixels,
+              packedBitmap,
+              compression: {
+                ...DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG.compression,
+                ...(flat.compression || {}),
+                codec: 'ZX0',
+              },
+              runtime: {
+                ...DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG.runtime,
+                ...(flat.runtime || {}),
+              },
+              data: {
+                ...legacyData,
+                pixels,
+                packedBitmap,
+                packedPixels: packedBitmap,
+              },
+            },
+          };
+        };
+
         loadedAssets = projectData.assets.map((asset: ProjectAsset) => {
           if (asset.type === 'screenmap' && asset.data) {
             const screenMap = asset.data as ScreenMap;
@@ -722,6 +778,9 @@ export const useProjectHandlers = ({
               },
             };
           }
+          if (asset.type === 'msx2presentation' && asset.data) {
+            return normalizeMsx2Presentation(asset);
+          }
           if (asset.type === 'globalvariables' && asset.data) {
             const data = asset.data as any;
             const normalization = normalizeLoadedCustomGlobalVariables(data.customVariables || []);
@@ -764,7 +823,7 @@ export const useProjectHandlers = ({
         loadedAssets = repairPortraitTileBankLinks(loadedAssets);
       }
 
-      const loadedMode = projectData.currentScreenMode || DEFAULT_SCREEN_MODE;
+      const loadedMode = projectData.currentScreenMode || projectData.screenMode || DEFAULT_SCREEN_MODE;
       applyScreenModeDefaults(loadedMode);
       const selectedAsset = loadedAssets.find(asset => asset.id === projectData.selectedAssetId);
       if (selectedAsset && isAssetTypeEnabledForProject(selectedAsset.type, loadedMode)) {

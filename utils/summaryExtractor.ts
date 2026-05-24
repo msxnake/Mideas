@@ -46,6 +46,7 @@ export interface ProjectSummary {
     worldMaps: any[];
     screens: any[];
     msx2Screens: any[];
+    msx2Presentations: any[];
     tiles: any[];
     sprites: any[];
     entities: any[];
@@ -518,6 +519,20 @@ function extractBosses(assets: ProjectAsset[], usedAssets: any, warnings: string
 /**
  * Calcula estadísticas y metadata del summary
  */
+function extractMsx2Presentations(assets: ProjectAsset[], usedAssets: any): void {
+  assets
+    .filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false)
+    .forEach(asset => {
+      if (usedAssets.msx2Presentations.some((existing: any) => existing.id === asset.id)) return;
+      usedAssets.msx2Presentations.push({
+        id: asset.id,
+        name: asset.name,
+        data: asset.data
+      });
+      console.log(`MSX2 SCREEN 5 presentation added: "${asset.name}"`);
+    });
+}
+
 function calculateMetadata(originalAssets: ProjectAsset[], usedAssets: any, warnings: string[]): any {
   const totalUsed = Object.values(usedAssets).reduce((sum: number, assetArray: any) => {
     return sum + (Array.isArray(assetArray) ? assetArray.length : 0);
@@ -582,6 +597,7 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
     worldMaps: [],
     screens: [],
     msx2Screens: [],
+    msx2Presentations: [],
     msx2Sprites: [],
     tiles: [],
     sprites: [],
@@ -595,6 +611,7 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
   // 4. Extraer assets siguiendo cadena de dependencias
   console.log('🔗 Following dependency chain...');
   extractUsedWorldMaps(mainGameFlow.data, assets, usedAssets, warnings);
+  extractMsx2Presentations(assets, usedAssets);
   extractBosses(assets, usedAssets, warnings);
 
   // 5. Crear summary final

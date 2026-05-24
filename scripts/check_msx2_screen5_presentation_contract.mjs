@@ -20,7 +20,13 @@ const fileExplorer = read('components', 'tools', 'FileExplorerPanel.tsx');
 const projectTarget = read('utils', 'projectTarget.ts');
 const generatorIndex = read('utils', 'msxGenerator', 'index.ts');
 const presentationGenerator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5PresentationGenerator.ts');
+const codeExportModal = read('components', 'modals', 'CodeExportModal.tsx');
+const projectHandlers = read('handlers', 'useProjectHandlers.tsx');
+const summaryExtractor = read('utils', 'summaryExtractor.ts');
+const createSummary = read('create_summary.js');
 const smokeScript = read('scripts', 'build_msx2_screen5_presentation_smoke.py');
+const buildScript = read('scripts', 'build_mideas_unified_rom.py');
+const serverJs = read('server', 'server.js');
 
 const fixturePath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentation_screen5_project.json');
 const bitmapPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentation_screen5_bitmap.bin');
@@ -121,14 +127,27 @@ check('file explorer groups msx2presentation assets', fileExplorer.includes('msx
 check('MSX2 project target allows msx2presentation assets', projectTarget.includes("'msx2presentation'"));
 check('generator exposes the SCREEN 5 presentation backend', generatorIndex.includes("'msx2-screen5-presentation'") && generatorIndex.includes('generateMsx2Screen5PresentationFiles'));
 check('generator auto-selects presentation backend for SCREEN 5 assets', generatorIndex.includes("asset?.type === 'msx2presentation'") && generatorIndex.includes("return 'msx2-screen5-presentation'"));
+check('code export preserves SCREEN 5 presentation backend', codeExportModal.includes('hasMsx2PresentationAsset') && codeExportModal.includes("hasScreen5Presentation ? LEGACY_SCREEN5_MODE") && codeExportModal.includes("? 'msx2-screen5-presentation'"));
+check('code export routes SCREEN 5 presentation screen export through mapper bundle', codeExportModal.includes("case 'screens'") && codeExportModal.includes('if (hasScreen5Presentation)') && codeExportModal.includes('const screen5Bundle = await generateMapperReadyBundle'));
+check('project load restores screenMode when currentScreenMode is absent', projectHandlers.includes('projectData.currentScreenMode || projectData.screenMode || DEFAULT_SCREEN_MODE'));
+check('project load normalizes flat and legacy nested msx2presentation assets', projectHandlers.includes("asset.type === 'msx2presentation'") && projectHandlers.includes('normalizeMsx2Presentation(asset)') && projectHandlers.includes('unpackScreen5PresentationPixels(sourcePacked, height)') && projectHandlers.includes('packedPixels: packedBitmap'));
+check('summary extractor carries msx2presentation assets', summaryExtractor.includes('msx2Presentations: any[]') && summaryExtractor.includes('extractMsx2Presentations(assets, usedAssets)') && summaryExtractor.includes("asset.type === 'msx2presentation'"));
+check('legacy summary extractor carries msx2presentation assets', createSummary.includes('msx2Presentations: []') && createSummary.includes("asset.type === 'msx2presentation'") && createSummary.includes('usedAssets.msx2Presentations.push'));
+check('CLI JSON export preserves SCREEN 5 presentation backend', buildScript.includes('hasMsx2Presentation') && buildScript.includes('? "msx2-screen5-presentation"') && buildScript.includes('targetGraphicsBackend: raw.targetGraphicsBackend || defaultGraphicsBackend'));
+check('CLI build runs ZX0 preprocessing before compile by default', buildScript.includes('maybe_run_zx0_preprocess(') && buildScript.includes('enabled=not args.skip_zx0_preprocess') && buildScript.includes('asm_output=zx0_asm') && buildScript.includes('asm_output=asm_to_compile'));
+check('CLI smoke inspects the post-ZX0 ASM emitted by build_mideas_unified_rom.py', smokeScript.includes('assert_screen5_zx0_contract') && smokeScript.includes('_compressed.asm'));
 check('presentation generator emits SCREEN 5 palette and bitmap chunk labels', presentationGenerator.includes('screen5_presentation_palette_data') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}'));
 check('presentation generator switches to SCREEN 5 mode', presentationGenerator.includes('ld a, 5') && presentationGenerator.includes('call CHGMOD'));
 check('presentation generator does not switch back to SCREEN 4', !/\bld\s+a,\s*4\b/i.test(presentationGenerator) && !presentationGenerator.includes('call INIGRP'));
 check('presentation generator uploads full 256x212 VRAM bitmap', presentationGenerator.includes('VISIBLE_HEIGHT = 212') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}'));
 check('presentation generator maps ROM page 2 before LDIRVM', presentationGenerator.includes('map_page2_to_cart_primary') && presentationGenerator.includes('call map_page2_to_cart_primary'));
+check('ZX0 preprocessor discovers SCREEN 5 presentation chunks', serverJs.includes('hasScreen5PresentationBitmapData') && serverJs.includes('SCREEN5_PRESENTATION_BITMAP_CHUNK_\\d+'));
+check('ZX0 preprocessor treats SCREEN 5 presentation chunks as compression candidates', serverJs.includes('screen5PresentationBitmapBlocks') && serverJs.includes('...screen5PresentationBitmapBlocks') && serverJs.includes("await processBlocks(allTilePatternBlocks, 'tile_pattern'"));
+check('ZX0 preprocessor rewrites compressed SCREEN 5 presentation chunk loads', serverJs.includes('hlScreen5PresentationChunkMatch') && serverJs.includes('Decompress ZX0 SCREEN 5 presentation chunk into RAM buffer') && serverJs.includes('ld de, SCREEN5_PRESENTATION_ZX0_BUFFER') && serverJs.includes('ld hl, SCREEN5_PRESENTATION_ZX0_BUFFER'));
 
 check('real smoke asserts SCREEN 5 mode and forbids SCREEN 4 fallback', smokeScript.includes('assert_screen5_mode_contract') && smokeScript.includes('must not switch to SCREEN 4'));
 check('real smoke asserts generated SCREEN5 labels', smokeScript.includes('assert_screen5_generated_labels'));
+check('real smoke asserts ZX0-compressed SCREEN 5 presentation chunks', smokeScript.includes('ZX0 compressed tile_pattern') && smokeScript.includes('call dzx0_standard'));
 check('real smoke asserts ROM output is 8KB aligned', smokeScript.includes('size % 8192 != 0'));
 
 check('standalone ASM smoke exists beside the fixture', existsSync(asmPath));
