@@ -49,6 +49,7 @@ const fromPngZx0Asm = existsSync(fromPngZx0AsmPath) ? readFileSync(fromPngZx0Asm
 
 const allowedHeights = new Set([192, 212]);
 const allowedFitModes = new Set(['cover', 'contain', 'stretch']);
+const allowedPaletteModes = new Set(['auto', 'default']);
 const allowedRomDataGroups = new Set(['auto', 'default', 'page0']);
 const hexColor = /^#[0-9A-Fa-f]{6}$/;
 
@@ -74,6 +75,7 @@ function validatePresentationAsset(asset) {
   check('asset data uses fixed SCREEN 5 width', data.width === 256);
   check('asset data height is an accepted presentation height', allowedHeights.has(data.height));
   check('asset fit mode is supported', allowedFitModes.has(data.fitMode));
+  check('asset palette mode is supported when present', data.paletteMode === undefined || allowedPaletteModes.has(data.paletteMode));
   check('asset source image dimensions are preserved', data.sourceImageWidth > 0 && data.sourceImageHeight > 0);
   check('asset palette has exactly 16 slots', Array.isArray(data.palette) && data.palette.length === 16);
 
@@ -137,6 +139,8 @@ function validateFromPngFixture() {
   check('from_png fixture has exactly one msx2presentation asset', assets.length === 1);
   check('from_png fixture selects the SCREEN 5 presentation backend', fromPngFixture.targetGraphicsBackend === 'msx2-screen5-presentation' && fromPngFixture.screenMode === 'SCREEN 5 (Graphics III)');
   check('from_png asset records real PNG import metadata', data.sourceFileName?.endsWith('.png') && data.sourceImageWidth === 1672 && data.sourceImageHeight === 941 && data.width === 256 && data.height === 192 && data.fitMode === 'cover');
+  check('from_png fixture keeps auto palette mode', data.paletteMode === undefined || data.paletteMode === 'auto');
+  check('from_png fixture keeps characteristic auto palette slots', data.palette?.[1]?.hex === '#000024' && data.palette?.[6]?.hex === '#926DB6' && data.palette?.[8]?.hex === '#FFFFFF');
   check('from_png asset keeps black background in slot 0', data.backgroundSlot === 0 && data.backgroundHex === '#000000' && data.palette?.[0]?.slotIndex === 0 && data.palette?.[0]?.masterIndex === 0 && data.palette?.[0]?.hex === '#000000');
   check('from_png packed bitmap is visible SCREEN 5 size', Array.isArray(data.packedBitmap) && data.packedBitmap.length === expectedBytes);
   check('from_png sidecar bitmap matches packed bitmap', Boolean(fromPngBitmap) && fromPngBitmap.length === expectedBytes && Array.isArray(data.packedBitmap) && data.packedBitmap.every((value, index) => value === fromPngBitmap[index]));
@@ -166,6 +170,7 @@ check('utility packs two 4-bit pixels per byte', utils.includes('((left & 0x0f) 
 check('utility unpacks current packedBitmap data', utils.includes('unpackScreen5PresentationPixels') && utils.includes('packedBitmap.length < (SCREEN5_PRESENTATION_WIDTH * height) / 2'));
 check('utility stats report raw bytes and chunk count', utils.includes('getScreen5PresentationStats') && utils.includes('rawBytes: (SCREEN5_PRESENTATION_WIDTH * height) / 2') && utils.includes('chunks: Math.ceil(height / SCREEN5_PRESENTATION_CHUNK_LINES)'));
 check('PNG import CLI exists and builds SCREEN 5 presentation projects', pngImportScript.includes('Create an MSX2 SCREEN 5 presentation project from a PNG') && pngImportScript.includes('--source-png') && pngImportScript.includes('--output-prefix') && pngImportScript.includes('--timestamp-ms') && pngImportScript.includes('targetGraphicsBackend') && pngImportScript.includes('msx2-screen5-presentation') && pngImportScript.includes('backgroundHex') && pngImportScript.includes('#000000'));
+check('PNG import CLI exposes auto and default palette modes', pngImportScript.includes('--palette-mode') && pngImportScript.includes('choices=["auto", "default"]') && pngImportScript.includes('default="auto"') && pngImportScript.includes('build_default_palette()') && pngImportScript.includes('paletteMode'));
 check('PNG import CLI validates OpenMSX captures when requested', pngImportScript.includes('assert_openmsx_capture') && pngImportScript.includes('unique_colors') && pngImportScript.includes('non_black'));
 check('Python requirements pin Pillow for PNG import reproducibility', requirements.includes('Pillow==11.3.0'));
 check('package exposes PNG import CLI script', packageJson.scripts?.['create:msx2-screen5-presentation'] === 'python scripts/create_msx2_screen5_presentation_from_png.py');

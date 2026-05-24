@@ -17,6 +17,7 @@ npm run create:msx2-screen5-presentation -- `
   --project-name presentacion_naves_galaxian_rtype_screen5_png_test `
   --output-prefix presentacion_naves_galaxian_rtype_screen5 `
   --asset-name "Presentation Naves Galaxian R-Type PNG Test" `
+  --palette-mode auto `
   --build-rom `
   --capture-openmsx
 ```
@@ -42,6 +43,8 @@ The importer writes:
 - `screenMode`: `SCREEN 5 (Graphics III)`.
 - `targetGraphicsBackend`: `msx2-screen5-presentation`.
 - Slot 0 is black: `#000000`.
+- `--palette-mode auto` adapts 15 visible colors from the PNG and keeps slot 0 black. This is the default and usually gives the best presentation image.
+- `--palette-mode default` uses the standard SCREEN 5 palette snapped to RGB333, also with slot 0 black. Use it when you need closer parity with editor/default palette behavior.
 - ZX0 compression is enabled with 32-line chunks.
 - ROM output must be 8KB aligned.
 - Default visible height is 192 lines. The generator still uploads a full 256x212 SCREEN 5 VRAM bitmap and pads the remaining lines with black.

@@ -19,6 +19,7 @@
         "width": 256,
         "height": 192,
         "fitMode": "cover",
+        "paletteMode": "auto",
         "backgroundSlot": 0,
         "backgroundHex": "#000000",
         "palette": [

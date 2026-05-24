@@ -21,6 +21,24 @@ DEFAULT_HEIGHT = 192
 SCREEN5_VRAM_HEIGHT = 212
 CHUNK_LINES = 32
 MSX2_LEVELS = [0x00, 0x24, 0x49, 0x6D, 0x92, 0xB6, 0xDB, 0xFF]
+MSX_SCREEN5_PALETTE = [
+    "#000000",
+    "#000000",
+    "#3EB847",
+    "#74D07D",
+    "#2F2FC1",
+    "#5858FC",
+    "#B63125",
+    "#68D2DA",
+    "#FC584A",
+    "#FF8E81",
+    "#C0BF3B",
+    "#E7E474",
+    "#309337",
+    "#B640C8",
+    "#999999",
+    "#FFFFFF",
+]
 
 
 def repo_root_from_script() -> Path:
@@ -60,6 +78,17 @@ def snap_rgb(rgb: tuple[int, int, int]) -> tuple[tuple[int, int, int], int]:
 
 def hex_rgb(rgb: tuple[int, int, int]) -> str:
     return f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
+
+
+def parse_hex_rgb(hex_color: str) -> tuple[int, int, int]:
+    normalized = hex_color.strip().lstrip("#")
+    if len(normalized) != 6:
+        return (0, 0, 0)
+    return (
+        int(normalized[0:2], 16),
+        int(normalized[2:4], 16),
+        int(normalized[4:6], 16),
+    )
 
 
 def distance2(left: tuple[int, int, int], right: tuple[int, int, int]) -> int:
@@ -128,6 +157,17 @@ def build_palette(image: Image.Image) -> list[tuple[tuple[int, int, int], int]]:
     return palette
 
 
+def build_default_palette() -> list[tuple[tuple[int, int, int], int]]:
+    palette: list[tuple[tuple[int, int, int], int]] = []
+    for index, color in enumerate(MSX_SCREEN5_PALETTE):
+        snapped, master_index = snap_rgb(parse_hex_rgb(color))
+        if index == 0:
+            palette.append(((0, 0, 0), 0))
+        else:
+            palette.append((snapped, master_index))
+    return palette
+
+
 def quantize_and_pack(image: Image.Image, palette: list[tuple[tuple[int, int, int], int]]) -> tuple[list[list[int]], bytes]:
     pixels: list[list[int]] = []
     packed = bytearray()
@@ -171,7 +211,7 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
     source = Image.open(source_png)
     source_w, source_h = source.size
     screen_image = resize_to_screen5(source, args.height, args.fit_mode)
-    palette = build_palette(screen_image)
+    palette = build_default_palette() if args.palette_mode == "default" else build_palette(screen_image)
     pixels, packed = quantize_and_pack(screen_image, palette)
 
     project_path = out_dir / f"{output_prefix}_project.json"
@@ -205,6 +245,7 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
         "width": SCREEN5_WIDTH,
         "height": args.height,
         "fitMode": args.fit_mode,
+        "paletteMode": args.palette_mode,
         "backgroundSlot": 0,
         "backgroundHex": "#000000",
         "palette": palette_json,
@@ -323,6 +364,7 @@ def main() -> int:
     parser.add_argument("--timestamp-ms", type=int, default=None, help="Deterministic timestamp for generated JSON")
     parser.add_argument("--height", type=int, choices=[192, 212], default=DEFAULT_HEIGHT, help="Visible SCREEN 5 height")
     parser.add_argument("--fit-mode", choices=["cover", "contain", "stretch"], default="cover", help="Resize behavior")
+    parser.add_argument("--palette-mode", choices=["auto", "default"], default="auto", help="auto adapts 15 colors from the PNG; default uses the standard SCREEN 5 palette with black slot 0")
     parser.add_argument("--build-rom", action="store_true", help="Compile the generated project to ROM")
     parser.add_argument("--capture-openmsx", action="store_true", help="Capture OpenMSX screenshot after compiling")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine")
