@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
-  TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
+  TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph, Msx2GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
   DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen4BitmapRoom
 } from '../types';
@@ -363,6 +363,20 @@ export const useAssetHandlers = ({
         defaultName = candidateName;
       }
     }
+    if (type === 'msx2gameflow') {
+      const existingMsx2Gameflows = assets.filter(a => a.type === 'msx2gameflow');
+      if (existingMsx2Gameflows.length === 0) {
+        defaultName = 'Main MSX2';
+      } else {
+        let counter = 1;
+        let candidateName = `New MSX2 Game Flow ${counter}`;
+        while (existingMsx2Gameflows.some(a => a.name === candidateName)) {
+          counter++;
+          candidateName = `New MSX2 Game Flow ${counter}`;
+        }
+        defaultName = candidateName;
+      }
+    }
 
     let newEditorType: EditorType = EditorType.None;
     const defaultLogicalProps: TileLogicalProperties = {
@@ -524,6 +538,36 @@ export const useAssetHandlers = ({
           name: defaultName,
         };
         newEditorType = EditorType.Msx2Presentation;
+        break;
+      case 'msx2gameflow':
+        const msx2StartNodeId = `msx2_gf_start_${Date.now()}`;
+        const msx2PresentationNodeId = `msx2_gf_screen5_${Date.now()}`;
+        const msx2EndNodeId = `msx2_gf_end_${Date.now()}`;
+        newAssetData = {
+          id,
+          name: defaultName,
+          target: 'MSX2',
+          nodes: [
+            { id: msx2StartNodeId, type: 'Start', position: { x: 70, y: 110 } },
+            {
+              id: msx2PresentationNodeId,
+              type: 'Screen5Presentation',
+              position: { x: 300, y: 110 },
+              presentationAssetId: undefined,
+              waitForKey: true,
+              waitFrames: 0,
+            },
+            { id: msx2EndNodeId, type: 'End', position: { x: 530, y: 110 } },
+          ],
+          connections: [
+            { id: `msx2_gfc_start_screen5_${Date.now()}`, from: { nodeId: msx2StartNodeId }, to: { nodeId: msx2PresentationNodeId } },
+            { id: `msx2_gfc_screen5_end_${Date.now()}`, from: { nodeId: msx2PresentationNodeId }, to: { nodeId: msx2EndNodeId } },
+          ],
+          startNodeId: msx2StartNodeId,
+          panOffset: { x: 0, y: 0 },
+          zoomLevel: 1,
+        } as Msx2GameFlowGraph;
+        newEditorType = EditorType.Msx2GameFlow;
         break;
       case 'screenmap':
         const { widthTiles: mapW, heightTiles: mapH } = getScreenModeMetrics(currentScreenMode);

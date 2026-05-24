@@ -2450,6 +2450,56 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
     }
 
 
+def validate_msx2_screen5_konami_fixed_bank0_megarom(rom_path: Path, asm_path: Path) -> dict[str, int | bool]:
+    rom_data = rom_path.read_bytes()
+    if len(rom_data) == 0:
+        raise RuntimeError(f"MSX2 SCREEN 5 Konami8K validation failed: ROM is empty: {rom_path}")
+    if len(rom_data) % 8192 != 0:
+        raise RuntimeError(
+            f"MSX2 SCREEN 5 Konami8K validation failed: ROM size must be a multiple of 8192 bytes, got {len(rom_data)}"
+        )
+    if len(rom_data) <= 32768:
+        raise RuntimeError(
+            f"MSX2 SCREEN 5 Konami8K validation failed: MegaROM output should exceed 32KB, got {len(rom_data)}"
+        )
+    if rom_data[:2] != b"AB":
+        raise RuntimeError("MSX2 SCREEN 5 Konami8K validation failed: missing AB cartridge header at ROM offset 0000h")
+
+    asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
+    required_markers = [
+        "Mideas MSX2 SCREEN 5 presentation backend",
+        "; Backend: msx2-screen5-presentation",
+        "; ROM Mode: megarom",
+        "; Mapper Target: konami",
+        "MSX2 SCREEN 5 MegaROM Path: Konami 8K fixed-bank0 compatibility",
+        "init_konami8k_fixed_bank0_banks:",
+        "mapper_set_bank_p1:",
+        "mapper_set_bank_p2:",
+        "mapper_set_bank_p3:",
+        "SCREEN5_PRESENTATION_BITMAP_CHUNK_0:",
+    ]
+    missing = [marker for marker in required_markers if marker not in asm_text]
+    if missing:
+        raise RuntimeError(
+            "MSX2 SCREEN 5 Konami8K validation failed: missing fixed-bank0 markers: " + ", ".join(missing)
+        )
+
+    required_boot_patterns = [
+        (r"ld\s+a,\s*1\s*\n\s*call\s+mapper_set_bank_p1", "6000h window initialized to bank 1"),
+        (r"ld\s+a,\s*2\s*\n\s*call\s+mapper_set_bank_p2", "8000h window initialized to bank 2"),
+        (r"ld\s+a,\s*3\s*\n\s*call\s+mapper_set_bank_p3", "A000h window initialized to bank 3"),
+    ]
+    for pattern, description in required_boot_patterns:
+        if not re.search(pattern, asm_text, flags=re.IGNORECASE):
+            raise RuntimeError(f"MSX2 SCREEN 5 Konami8K validation failed: missing boot mapper init for {description}")
+
+    return {
+        "segment_count": len(rom_data) // 8192,
+        "size_bytes": len(rom_data),
+        "header_ok": True,
+    }
+
+
 def _require_json_object(path: Path) -> dict:
     if not path.exists():
         raise RuntimeError(f"Konami8K validation failed: missing generated artifact {path.name}")
@@ -5376,10 +5426,17 @@ def main() -> int:
         and "Mideas MSX2 SCREEN 4 tile backend" in asm_compiled_text
         and "init_konami8k_fixed_bank0_banks:" in asm_compiled_text
     )
+    screen5_konami_fixed_bank0_compat = (
+        args.rom_mode == "megarom"
+        and args.target_format == "konami"
+        and "Mideas MSX2 SCREEN 5 presentation backend" in asm_compiled_text
+        and "init_konami8k_fixed_bank0_banks:" in asm_compiled_text
+    )
     megarom_mapper_artifact_validation = None
     ascii16_runtime_layout = None
     msx2_screen4_konami_validation = None
-    if args.rom_mode == "megarom" and not screen4_konami_fixed_bank0_compat:
+    msx2_screen5_konami_validation = None
+    if args.rom_mode == "megarom" and not screen4_konami_fixed_bank0_compat and not screen5_konami_fixed_bank0_compat:
         megarom_mapper_artifact_validation = validate_megarom_mapper_artifact_metadata(
             artifact_dir,
             args.target_format,
@@ -5398,6 +5455,8 @@ def main() -> int:
     konami8k_artifact_validation = None
     if screen4_konami_fixed_bank0_compat:
         msx2_screen4_konami_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, asm_to_compile)
+    elif screen5_konami_fixed_bank0_compat:
+        msx2_screen5_konami_validation = validate_msx2_screen5_konami_fixed_bank0_megarom(rom_output, asm_to_compile)
     elif args.rom_mode == "megarom" and args.target_format == "konami":
         konami8k_validation = validate_konami8k_megarom(rom_output, asm_to_compile)
         konami8k_artifact_validation = validate_konami8k_generated_artifacts(
@@ -5413,6 +5472,8 @@ def main() -> int:
     validation_kind = (
         "msx2_screen4_konami_fixed_bank0"
         if screen4_konami_fixed_bank0_compat
+        else "msx2_screen5_konami_fixed_bank0"
+        if screen5_konami_fixed_bank0_compat
         else f"{args.rom_mode}_{args.target_format}"
     )
     write_msx2_build_summary(
@@ -5461,6 +5522,17 @@ def main() -> int:
         )
         print(
             "Konami8K validation: SCREEN 4 fixed-bank0 compatibility path; "
+            "ROM has MegaROM-sized 8KB banks and boot initializes 6000h=1 8000h=2 A000h=3"
+            f"{validation_suffix}"
+        )
+    if screen5_konami_fixed_bank0_compat:
+        validation_suffix = (
+            f"; segments={msx2_screen5_konami_validation['segment_count']}"
+            if msx2_screen5_konami_validation
+            else ""
+        )
+        print(
+            "Konami8K validation: SCREEN 5 presentation fixed-bank0 compatibility path; "
             "ROM has MegaROM-sized 8KB banks and boot initializes 6000h=1 8000h=2 A000h=3"
             f"{validation_suffix}"
         )

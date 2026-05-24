@@ -3,7 +3,7 @@ import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenu
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon, ScissorsIcon } from '../icons/MsxIcons';
-import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { AssetPickerModal, AssetPickerType } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 import { GameFlowLogModal } from '../modals/GameFlowLogModalSimple';
 import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
@@ -344,7 +344,12 @@ const GameFlowNodeComponent: React.FC<{
 
   const groupGameFlow = node.type === 'Group' ? allAssets.find(a => a.id === (node as any).gameFlowAssetId && a.type === 'gameflow') : null;
   const musicTrack = node.type === 'Music' ? allAssets.find(a => a.id === (node as any).trackAssetId && a.type === 'track') : null;
-  const presentationScreenAsset = node.type === 'PresentationScreen' ? allAssets.find(a => a.id === (node as GameFlowPresentationScreenNode).presentationScreenAssetId && a.type === 'presentationscreen') : null;
+  const presentationScreenAsset = node.type === 'PresentationScreen'
+    ? allAssets.find(a =>
+        a.id === (node as GameFlowPresentationScreenNode).presentationScreenAssetId &&
+        a.type === 'presentationscreen'
+      )
+    : null;
 
   const nodeName =
       node.type === 'Start' ? (isMainGameFlow ? 'Main' : 'Start')
@@ -626,7 +631,7 @@ const GameFlowNodeComponent: React.FC<{
 
       {node.type === 'PresentationScreen' && (
         <text x={nodeWidth / 2} y={nodeHeight - 20} textAnchor="middle" fill="hsl(160, 80%, 70%)" fontSize="8px" className="pixel-font select-none pointer-events-none">
-          {presentationScreenAsset ? 'Screen 2' : 'Sin asignar'}
+          {presentationScreenAsset ? (presentationScreenAsset.type === 'msx2presentation' ? 'SCREEN 5' : 'SCREEN 2') : 'Sin asignar'}
         </text>
       )}
     </g>
@@ -642,7 +647,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [isCutMode, setIsCutMode] = useState(false);
-  const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; assetType: ProjectAsset['type']; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, assetType: 'worldmap', onSelect: null });
+  const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; assetType: AssetPickerType; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, assetType: 'worldmap', onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewBox, setViewBox] = useState(`0 0 1000 700`);
   const [isPanning, setIsPanning] = useState(false);

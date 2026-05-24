@@ -6596,9 +6596,12 @@ useEffect(() => {
             case 'PresentationScreen': {
                 const psNode = currentNode as any;
                 const psAsset = psNode.presentationScreenAssetId
-                    ? allAssets.find(a => a.id === psNode.presentationScreenAssetId && a.type === 'presentationscreen')
+                    ? allAssets.find(a =>
+                        a.id === psNode.presentationScreenAssetId &&
+                        a.type === 'presentationscreen'
+                    )
                     : null;
-                const psConfig = psAsset
+                const psConfig = psAsset?.type === 'presentationscreen'
                     ? (psAsset.data as PresentationScreenConfig)
                     : null;
                 const canvas = canvasRef.current;

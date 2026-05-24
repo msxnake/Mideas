@@ -5,7 +5,7 @@ import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 import { SoundIcon, PuzzlePieceIcon, SpriteIcon as EntityIcon } from '../icons/MsxIcons';
 
-export type AssetPickerType = ProjectAsset['type'] | 'screenBackground';
+export type AssetPickerType = ProjectAsset['type'] | ProjectAsset['type'][] | 'screenBackground';
 
 /**
  * A component that renders a small preview of a sprite's first frame.
@@ -33,6 +33,24 @@ const AssetTypeIcon: React.FC<{ type: ProjectAsset['type'] }> = ({ type }) => {
         case 'entitytemplate': return <EntityIcon className={iconClass} />;
         default: return <div className="w-4 h-4" />;
     }
+};
+
+const getAssetPickerTypes = (assetTypeToPick: AssetPickerType): ProjectAsset['type'][] => {
+    if (assetTypeToPick === 'screenBackground') return ['screenmap', 'msx2screen'];
+    return Array.isArray(assetTypeToPick) ? assetTypeToPick : [assetTypeToPick];
+};
+
+const getAssetPickerName = (assetTypeToPick: AssetPickerType): string => {
+    if (assetTypeToPick === 'screenBackground') return 'Screen Background';
+    if (Array.isArray(assetTypeToPick)) {
+        if (assetTypeToPick.includes('presentationscreen') && assetTypeToPick.includes('msx2presentation')) {
+            return 'Presentation Screen';
+        }
+        return 'Assets';
+    }
+    return assetTypeToPick === 'msx2sprite'
+        ? 'MSX2 Sprites'
+        : assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
 };
 
 const TEMPLATE_SPRITE_PROP_KEYS = ['spriteAssetId', 'renderSpriteAssetId', 'render', 'sprite'];
@@ -97,9 +115,7 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredAssets = useMemo(() => {
-        const acceptedTypes: ProjectAsset['type'][] = assetTypeToPick === 'screenBackground'
-            ? ['screenmap', 'msx2screen']
-            : [assetTypeToPick];
+        const acceptedTypes = getAssetPickerTypes(assetTypeToPick);
         return allAssets
             .filter(asset => acceptedTypes.includes(asset.type))
             .filter(asset => asset.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -112,11 +128,7 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
         onClose();
     };
     
-    const assetTypeName = assetTypeToPick === 'screenBackground'
-        ? 'Screen Background'
-        : assetTypeToPick === 'msx2sprite'
-            ? 'MSX2 Sprites'
-            : assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
+    const assetTypeName = getAssetPickerName(assetTypeToPick);
 
     return (
         <div

@@ -66,6 +66,10 @@ const DEFAULT_RUNTIME: Msx2Screen5PresentationRuntimeConfig = {
   romDataGroup: 'auto',
 };
 
+const CONTRAST_MIN = -4;
+const CONTRAST_MAX = 4;
+const CONTRAST_STEP = 24;
+
 function isScreen5Height(value: unknown): value is Msx2Screen5PresentationHeight {
   return value === 192 || value === 212;
 }
@@ -97,6 +101,30 @@ function loadImageDataFromFile(file: File): Promise<ImageData> {
     };
     reader.readAsDataURL(file);
   });
+}
+
+function clampChannel(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function applyContrastToImageData(imageData: ImageData, contrastLevel: number): ImageData {
+  if (contrastLevel === 0) return imageData;
+  const canvas = document.createElement('canvas');
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return imageData;
+
+  const adjusted = ctx.createImageData(imageData.width, imageData.height);
+  const contrast = Math.max(-96, Math.min(96, contrastLevel * CONTRAST_STEP));
+  const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    adjusted.data[index] = clampChannel(factor * ((imageData.data[index] ?? 0) - 128) + 128);
+    adjusted.data[index + 1] = clampChannel(factor * ((imageData.data[index + 1] ?? 0) - 128) + 128);
+    adjusted.data[index + 2] = clampChannel(factor * ((imageData.data[index + 2] ?? 0) - 128) + 128);
+    adjusted.data[index + 3] = imageData.data[index + 3] ?? 255;
+  }
+  return adjusted;
 }
 
 function normalizeConfig(
@@ -144,6 +172,7 @@ export const Msx2Screen5PresentationEditor: React.FC<Msx2Screen5PresentationEdit
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const lastImageDataRef = useRef<ImageData | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [contrastLevel, setContrastLevel] = useState(0);
   const current = useMemo(() => normalizeConfig(config), [config]);
   const stats = useMemo(
     () => getScreen5PresentationStats(current.height, current.packedBitmap.length),
@@ -175,9 +204,11 @@ export const Msx2Screen5PresentationEditor: React.FC<Msx2Screen5PresentationEdit
     imageData: ImageData,
     sourceFileName: string | null,
     height: Msx2Screen5PresentationHeight,
-    fitMode: Msx2Screen5PresentationFitMode
+    fitMode: Msx2Screen5PresentationFitMode,
+    contrast = contrastLevel
   ) => {
-    const converted = convertImageDataToMsx2Screen5Presentation(imageData, {
+    const adjustedImageData = applyContrastToImageData(imageData, contrast);
+    const converted = convertImageDataToMsx2Screen5Presentation(adjustedImageData, {
       name: current.name,
       sourceFileName,
       height,
@@ -193,6 +224,15 @@ export const Msx2Screen5PresentationEditor: React.FC<Msx2Screen5PresentationEdit
       target: 'MSX2',
       screenMode: 'SCREEN 5',
     });
+  };
+
+  const updateContrast = (delta: number) => {
+    const nextContrast = Math.max(CONTRAST_MIN, Math.min(CONTRAST_MAX, contrastLevel + delta));
+    if (nextContrast === contrastLevel) return;
+    setContrastLevel(nextContrast);
+    if (lastImageDataRef.current) {
+      rebuildFromImageData(lastImageDataRef.current, current.sourceFileName, current.height, current.fitMode, nextContrast);
+    }
   };
 
   const updateName = (name: string) => {
@@ -215,6 +255,11 @@ export const Msx2Screen5PresentationEditor: React.FC<Msx2Screen5PresentationEdit
       return;
     }
     emitUpdate({ ...current, fitMode, updatedAt: Date.now() });
+  };
+
+  const convertCurrentImage = () => {
+    if (!lastImageDataRef.current) return;
+    rebuildFromImageData(lastImageDataRef.current, current.sourceFileName, current.height, current.fitMode);
   };
 
   const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,17 +341,44 @@ export const Msx2Screen5PresentationEditor: React.FC<Msx2Screen5PresentationEdit
               </div>
             </div>
 
-            {lastImageDataRef.current && (
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<RefreshCwIcon />}
-                className="w-full"
-                onClick={() => rebuildFromImageData(lastImageDataRef.current!, current.sourceFileName, current.height, current.fitMode)}
-              >
-                Rebuild
-              </Button>
-            )}
+            <div className="space-y-1">
+              <span className="block text-msx-textsecondary">Contrast</span>
+              <div className="grid grid-cols-[1fr_3rem_1fr] gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => updateContrast(-1)}
+                  disabled={contrastLevel <= CONTRAST_MIN}
+                  title="Lower contrast and reconvert"
+                >
+                  Contrast -
+                </Button>
+                <div className="h-8 rounded border border-msx-border bg-msx-bgcolor flex items-center justify-center text-msx-textprimary">
+                  {contrastLevel > 0 ? `+${contrastLevel}` : contrastLevel}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => updateContrast(1)}
+                  disabled={contrastLevel >= CONTRAST_MAX}
+                  title="Raise contrast and reconvert"
+                >
+                  Contrast +
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<RefreshCwIcon />}
+              className="w-full"
+              onClick={convertCurrentImage}
+              disabled={!lastImageDataRef.current}
+              title={lastImageDataRef.current ? 'Convert current image to SCREEN 5 4bpp' : 'Import a PNG/JPG/WebP before converting'}
+            >
+              Convertir a SCREEN 5
+            </Button>
           </div>
         </Panel>
 

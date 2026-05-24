@@ -170,6 +170,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
   const msx2Screens = unwrapSummaryAssets(summaryAssets.msx2Screens || summaryAssets.msx2screens || summaryAssets.msx2Screen5Screens);
   const msx2BitmapRooms = unwrapSummaryAssets(summaryAssets.msx2BitmapRooms || summaryAssets.msx2bitmaprooms);
   const msx2Presentations = unwrapSummaryAssets(summaryAssets.msx2Presentations || summaryAssets.msx2presentations);
+  const msx2GameFlows = unwrapSummaryAssets(summaryAssets.msx2GameFlows || summaryAssets.msx2gameflows);
   const tiles = unwrapSummaryAssets(summaryAssets.tiles);
   const tileBanks = unwrapSummaryAssets(summaryAssets.tileBanks || summaryAssets.tilebanks);
   const screenMaps = unwrapSummaryAssets(summaryAssets.screens || summaryAssets.screenMaps);
@@ -216,6 +217,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     msx2Screens: msx2Screens as any[],
     msx2BitmapRooms: msx2BitmapRooms as any[],
     msx2Presentations: msx2Presentations as any[],
+    msx2GameFlows: msx2GameFlows as any[],
     sounds: [],
     tracks: tracks as any[],
     trackIndexByAssetId,

@@ -2153,7 +2153,7 @@ export interface GameFlowIfThenElseNode extends GameFlowNode_Base {
 /** Represents a node that displays a Presentation Screen asset. */
 export interface GameFlowPresentationScreenNode extends GameFlowNode_Base {
   type: 'PresentationScreen';
-  /** ID of the PresentationScreen asset to display. */
+  /** ID of the MSX1 PresentationScreen asset to display. */
   presentationScreenAssetId?: string;
 }
 
@@ -2176,6 +2176,61 @@ export interface GameFlowGraph {
   name: string;
   nodes: GameFlowNode[];
   connections: GameFlowConnection[];
+  startNodeId: string;
+  panOffset: { x: number; y: number };
+  zoomLevel: number;
+}
+
+// --- MSX2 Game Flow Types ---
+
+export type Msx2GameFlowNodeType = 'Start' | 'Screen5Presentation' | 'Transition' | 'End';
+
+export interface Msx2GameFlowNode_Base {
+  id: string;
+  type: Msx2GameFlowNodeType;
+  position: { x: number; y: number };
+}
+
+export interface Msx2GameFlowStartNode extends Msx2GameFlowNode_Base {
+  type: 'Start';
+}
+
+export interface Msx2GameFlowScreen5PresentationNode extends Msx2GameFlowNode_Base {
+  type: 'Screen5Presentation';
+  presentationAssetId?: string;
+  waitForKey?: boolean;
+  waitFrames?: number;
+}
+
+export interface Msx2GameFlowTransitionNode extends Msx2GameFlowNode_Base {
+  type: 'Transition';
+  effect: 'cls' | 'fade_to_black';
+  durationFrames?: number;
+}
+
+export interface Msx2GameFlowEndNode extends Msx2GameFlowNode_Base {
+  type: 'End';
+}
+
+export type Msx2GameFlowNode =
+  | Msx2GameFlowStartNode
+  | Msx2GameFlowScreen5PresentationNode
+  | Msx2GameFlowTransitionNode
+  | Msx2GameFlowEndNode;
+
+export interface Msx2GameFlowConnection {
+  id: string;
+  from: { nodeId: string; sourceId?: string };
+  to: { nodeId: string };
+  waypoints?: Point[];
+}
+
+export interface Msx2GameFlowGraph {
+  id: string;
+  name: string;
+  target: 'MSX2';
+  nodes: Msx2GameFlowNode[];
+  connections: Msx2GameFlowConnection[];
   startNodeId: string;
   panOffset: { x: number; y: number };
   zoomLevel: number;
@@ -2208,6 +2263,7 @@ export enum EditorType {
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2HudFont = "Msx2HudFont",
   Msx2Presentation = "Msx2Presentation",
+  Msx2GameFlow = "Msx2GameFlow",
   PngMsxChars = "PngMsxChars",
 }
 
@@ -2220,9 +2276,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2hudfont' | 'msx2presentation' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2HudFontAsset | Msx2Screen5PresentationConfig | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

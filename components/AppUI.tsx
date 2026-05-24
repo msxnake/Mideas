@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -49,6 +49,7 @@ import { PresentationScreenEditor } from './editors/PresentationScreenEditor';
 import { DialogueEditor } from './editors/DialogueEditor';
 import { PortraitEditor } from './editors/PortraitEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
+import { Msx2GameFlowEditor } from './editors/Msx2GameFlowEditor';
 import { StateMachineEditor } from './editors/StateMachineEditor';
 import { PngMsxCharsTool } from './editors/PngMsxCharsTool';
 import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
@@ -649,6 +650,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               gameFlowAssetName={activeAsset.name}
             />
           )}
+          {currentEditor === EditorType.Msx2GameFlow && activeAsset?.type === 'msx2gameflow' && (
+            <Msx2GameFlowEditor
+              gameFlowGraph={activeAsset.data as Msx2GameFlowGraph}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
+              selectedNodeId={selectedGameFlowNodeId}
+              setSelectedNodeId={setSelectedGameFlowNodeId}
+            />
+          )}
           {currentEditor === EditorType.Dialogue && activeAsset?.type === 'dialogue' && (
             <DialogueEditor
               dialogue={(activeAsset.data as DialogueAsset) || ({ id: activeAsset.id, name: activeAsset.name } as DialogueAsset)}
@@ -686,8 +696,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Screen && activeAsset?.type === 'screenmap' && ( <ScreenEditor screenMap={activeAsset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { if (data.layers?.entities === undefined && (activeAsset.data as ScreenMap).layers.entities) { (data as Partial<ScreenMap>).layers = { ... (activeAsset.data as ScreenMap).layers, ...data.layers, entities: (activeAsset.data as ScreenMap).layers.entities };} if(data.effectZones === undefined && (activeAsset.data as ScreenMap).effectZones) { (data as Partial<ScreenMap>).effectZones = (activeAsset.data as ScreenMap).effectZones;} handleUpdateAsset(activeAsset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} onActiveLayerChange={setCurrentScreenEditorActiveLayer} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates.filter(template => isEntityTemplateEnabledForProject(template, currentScreenMode))} onShowMapFile={handleShowMapFile} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} zoom={screenEditorZoom} setZoom={setScreenEditorZoom} showSectorLines={showSectorLines} onToggleSectorLines={() => setShowSectorLines(v => !v)} catalogStamp={selectedScreenCatalogBlock} onClearCatalogStamp={() => setSelectedScreenCatalogBlock(null)} />)}
           {currentEditor === EditorType.Code && activeAsset?.type === 'code' && ( <div className="flex flex-grow h-full overflow-hidden"> <div className="flex-grow h-full"> <CodeEditor code={activeAsset.data as string} onUpdate={(code) => handleUpdateAsset(activeAsset.id, code)} language="z80" assetName={activeAsset.name} snippetToInsert={snippetToInsert} /> </div> {snippetsEnabled && ( <SnippetsPanel snippets={userSnippets.filter(s => !Z80_BEHAVIOR_SNIPPETS.find(bs => bs.name === s.name))} onSnippetSelect={handleSnippetSelected} isEnabled={true} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet}/>)}</div>)}
           {currentEditor === EditorType.BehaviorEditor && activeAsset?.type === 'behavior' && ( <BehaviorEditor behaviorScript={activeAsset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} /> )}
-          {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen').map(a => a.data as ScreenMap | Msx2Screen4TileScreen)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
-          {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen').map(a => a.data as ScreenMap | Msx2Screen4TileScreen)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} /> )}
+          {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
+          {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} /> )}
           {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.TileBanks && activeAsset?.type === 'tilebank' && ( <TileBankEditor tileBank={activeAsset.data as TileBank} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allTiles={assets.filter(a => a.type === 'tile')} allFonts={assets.filter(a => a.type === 'font')} currentScreenMode={currentScreenMode}/>)}

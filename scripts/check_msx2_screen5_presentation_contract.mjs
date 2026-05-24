@@ -17,6 +17,9 @@ const handlers = read('handlers', 'useAssetHandlers.tsx');
 const appUi = read('components', 'AppUI.tsx');
 const toolbar = read('components', 'layout', 'Toolbar.tsx');
 const fileExplorer = read('components', 'tools', 'FileExplorerPanel.tsx');
+const assetPicker = read('components', 'modals', 'AssetPickerModal.tsx');
+const gameFlowEditor = read('components', 'editors', 'GameFlowEditor.tsx');
+const gameFlowPreviewModal = read('components', 'modals', 'GameFlowPreviewModal.tsx');
 const projectTarget = read('utils', 'projectTarget.ts');
 const generatorIndex = read('utils', 'msxGenerator', 'index.ts');
 const presentationGenerator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5PresentationGenerator.ts');
@@ -180,10 +183,15 @@ check('PNG import documentation covers command and contracts', pngImportDoc.incl
 
 check('editor normalizes flat and legacy nested presentation data', editor.includes('flat.packedBitmap ?? data?.packedBitmap ?? data?.packedPixels') && editor.includes('normalizeScreen5PresentationPixels(flat.pixels ?? data?.pixels, height)'));
 check('editor emits current flat data plus legacy-compatible nested data', editor.includes('onUpdate(normalized)') && editor.includes('data: {') && editor.includes('packedPixels: next.packedBitmap') && editor.includes('packedBitmap: next.packedBitmap'));
+check('editor exposes an explicit SCREEN 5 convert action', editor.includes('convertCurrentImage') && editor.includes('Convertir a SCREEN 5') && editor.includes('disabled={!lastImageDataRef.current}'));
+check('editor exposes contrast adjustment before SCREEN 5 conversion', editor.includes('applyContrastToImageData') && editor.includes('Contrast -') && editor.includes('Contrast +') && editor.includes('updateContrast'));
 check('asset creation uses the shared default config', handlers.includes("case 'msx2presentation'") && handlers.includes('DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG') && handlers.includes('EditorType.Msx2Presentation'));
 check('AppUI routes msx2presentation to its editor', appUi.includes('EditorType.Msx2Presentation') && appUi.includes("activeAsset?.type === 'msx2presentation'") && appUi.includes('<Msx2Screen5PresentationEditor'));
 check('toolbar exposes the SCREEN 5 presentation asset type', toolbar.includes("onNewAsset('msx2presentation')") && toolbar.includes('MSX2 SCREEN 5 Presentation'));
 check('file explorer groups msx2presentation assets', fileExplorer.includes('msx2presentation: "MSX2 SCREEN 5 Presentations"') && fileExplorer.includes('msx2presentation: EditorType.Msx2Presentation'));
+check('asset picker can accept multiple asset types', assetPicker.includes("ProjectAsset['type'][]") && assetPicker.includes('getAssetPickerTypes'));
+check('MSX1 GameFlow presentation node picker stays MSX1-only', gameFlowEditor.includes("assetType: 'presentationscreen'") && !gameFlowEditor.includes("['presentationscreen', 'msx2presentation']"));
+check('MSX1 GameFlow preview stays MSX1-only', !gameFlowPreviewModal.includes('drawMsx2Screen5PresentationPreview') && !gameFlowPreviewModal.includes("a.type === 'presentationscreen' || a.type === 'msx2presentation'"));
 check('MSX2 project target allows msx2presentation assets', projectTarget.includes("'msx2presentation'"));
 check('generator exposes the SCREEN 5 presentation backend', generatorIndex.includes("'msx2-screen5-presentation'") && generatorIndex.includes('generateMsx2Screen5PresentationFiles'));
 check('generator auto-selects presentation backend for SCREEN 5 assets', generatorIndex.includes("asset?.type === 'msx2presentation'") && generatorIndex.includes("return 'msx2-screen5-presentation'"));

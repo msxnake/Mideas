@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2Screen5PresentationConfig, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset, Boss } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset, Boss } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
@@ -32,6 +32,7 @@ export interface ProjectAnalysis {
   msx2Screens: Msx2Screen4TileScreen[];
   msx2BitmapRooms: Msx2Screen4BitmapRoom[];
   msx2Presentations: Msx2Screen5PresentationConfig[];
+  msx2GameFlows?: Msx2GameFlowGraph[];
   sounds?: any[];
   tracks?: TrackerSongData[];
   trackIndexByAssetId?: Record<string, number>;
@@ -85,7 +86,20 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const msx2Bitmaps = assets.filter(a => a.type === 'msx2bitmap').map(a => a.data as Msx2Bitmap);
   const msx2Screens = assets.filter(a => a.type === 'msx2screen').map(a => a.data as Msx2Screen4TileScreen);
   const msx2BitmapRooms = assets.filter(a => a.type === 'msx2bitmaproom').map(a => a.data as Msx2Screen4BitmapRoom);
-  const msx2Presentations = assets.filter(a => a.type === 'msx2presentation').map(a => a.data as Msx2Screen5PresentationConfig);
+  const msx2Presentations = assets
+    .filter(a => a.type === 'msx2presentation')
+    .map(a => ({
+      ...(a.data as Msx2Screen5PresentationConfig),
+      id: (a.data as any)?.id || a.id,
+      name: (a.data as any)?.name || a.name,
+    } as Msx2Screen5PresentationConfig & { id?: string }));
+  const msx2GameFlows = assets
+    .filter(a => a.type === 'msx2gameflow')
+    .map(a => ({
+      ...(a.data as Msx2GameFlowGraph),
+      id: (a.data as any)?.id || a.id,
+      name: (a.data as any)?.name || a.name,
+    } as Msx2GameFlowGraph));
   const sounds = assets
     .filter(a => a.type === 'sound')
     .map(a => ({
@@ -264,6 +278,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     msx2Screens,
     msx2BitmapRooms,
     msx2Presentations,
+    msx2GameFlows,
     sounds,
     tracks,
     trackIndexByAssetId,

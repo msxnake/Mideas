@@ -46,7 +46,9 @@ export interface ProjectSummary {
     worldMaps: any[];
     screens: any[];
     msx2Screens: any[];
+    msx2BitmapRooms: any[];
     msx2Presentations: any[];
+    msx2GameFlows: any[];
     tiles: any[];
     sprites: any[];
     entities: any[];
@@ -180,7 +182,7 @@ function extractUsedScreensFromWorldMap(worldMap: any, assets: ProjectAsset[], u
 
   // Validar y extraer cada Screen
   screenIds.forEach(screenId => {
-    const screenAsset = getAsset(assets, 'screenmap', screenId) || getAsset(assets, 'msx2screen', screenId);
+    const screenAsset = getAsset(assets, 'screenmap', screenId) || getAsset(assets, 'msx2screen', screenId) || getAsset(assets, 'msx2bitmaproom', screenId);
     if (screenAsset) {
       if (screenAsset.type === 'msx2screen') {
         usedAssets.msx2Screens.push({
@@ -190,6 +192,15 @@ function extractUsedScreensFromWorldMap(worldMap: any, assets: ProjectAsset[], u
         });
         console.log(`âœ… MSX2 Screen added: "${screenAsset.name}"`);
         extractSpritesFromMsx2Screen(screenAsset.data, assets, usedAssets, warnings);
+        return;
+      }
+      if (screenAsset.type === 'msx2bitmaproom') {
+        usedAssets.msx2BitmapRooms.push({
+          id: screenAsset.id,
+          name: screenAsset.name,
+          data: screenAsset.data
+        });
+        console.log(`MSX2 SCREEN 4 Bitmap Room added: "${screenAsset.name}"`);
         return;
       }
       if (screenAsset) {
@@ -533,6 +544,20 @@ function extractMsx2Presentations(assets: ProjectAsset[], usedAssets: any): void
     });
 }
 
+function extractMsx2GameFlows(assets: ProjectAsset[], usedAssets: any): void {
+  assets
+    .filter(asset => asset.type === 'msx2gameflow')
+    .forEach(asset => {
+      if (usedAssets.msx2GameFlows.some((existing: any) => existing.id === asset.id)) return;
+      usedAssets.msx2GameFlows.push({
+        id: asset.id,
+        name: asset.name,
+        data: asset.data
+      });
+      console.log(`MSX2 GameFlow added: "${asset.name}"`);
+    });
+}
+
 function calculateMetadata(originalAssets: ProjectAsset[], usedAssets: any, warnings: string[]): any {
   const totalUsed = Object.values(usedAssets).reduce((sum: number, assetArray: any) => {
     return sum + (Array.isArray(assetArray) ? assetArray.length : 0);
@@ -597,7 +622,9 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
     worldMaps: [],
     screens: [],
     msx2Screens: [],
+    msx2BitmapRooms: [],
     msx2Presentations: [],
+    msx2GameFlows: [],
     msx2Sprites: [],
     tiles: [],
     sprites: [],
@@ -612,6 +639,7 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
   console.log('🔗 Following dependency chain...');
   extractUsedWorldMaps(mainGameFlow.data, assets, usedAssets, warnings);
   extractMsx2Presentations(assets, usedAssets);
+  extractMsx2GameFlows(assets, usedAssets);
   extractBosses(assets, usedAssets, warnings);
 
   // 5. Crear summary final

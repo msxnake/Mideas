@@ -11,6 +11,7 @@
     "test:msx2-default-catalog": "node scripts/check_msx2_default_catalog.mjs",
     "test:msx2-editor-contract": "node scripts/check_msx2_entity_editor_contract.mjs",
     "test:msx2-screen5-presentation": "node scripts/check_msx2_screen5_presentation_contract.mjs",
+    "test:msx2-gameflow": "node scripts/check_msx2_gameflow_contract.mjs",
     "test:msx2-budget-feedback": "node scripts/check_msx2_budget_feedback_helper.mjs",
     "test:msx2-megarom-preflight": "python -B scripts/check_msx2_megarom_preflight_budget.py",
     "test:msx2-runtime-separation": "node scripts/check_msx2_runtime_separation.mjs",

@@ -6,6 +6,7 @@ param(
   [string]$Output,
   [int]$WaitMs = 6000,
   [string]$Machine = "C-BIOS_MSX2",
+  [string]$RomType,
   [string]$OpenMsx,
   [switch]$DryRun,
   [switch]$AllowRunningInstance
@@ -82,7 +83,11 @@ if (-not $AllowRunningInstance) {
   Get-Process openmsx -ErrorAction SilentlyContinue | Stop-Process -Force
 }
 
-$args = @("-machine", $Machine, "-cart", $romPath, "-script", $tclPath)
+$args = @("-machine", $Machine, "-cart", $romPath)
+if ($RomType) {
+  $args += @("-romtype", $RomType)
+}
+$args += @("-script", $tclPath)
 Write-Output ("OpenMSX: " + $openMsxPath)
 Write-Output ("ROM: " + $romPath)
 Write-Output ("Screenshot: " + $outputPath)

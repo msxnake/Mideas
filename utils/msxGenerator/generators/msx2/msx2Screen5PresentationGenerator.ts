@@ -1,4 +1,4 @@
-import { Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
+import { Msx2GameFlowGraph, Msx2GameFlowScreen5PresentationNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -30,8 +30,49 @@ const clampLevel = (value: unknown, fallback = 0): number => {
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
 
-function firstPresentation(analysis: ProjectAnalysis): Msx2Screen5PresentationConfig | undefined {
-  return ((analysis as any).msx2Presentations || [])[0] as Msx2Screen5PresentationConfig | undefined;
+interface ResolvedPresentationFlow {
+  presentation?: Msx2Screen5PresentationConfig;
+  flow?: Msx2GameFlowGraph;
+  node?: Msx2GameFlowScreen5PresentationNode;
+  requestedPresentationAssetId?: string;
+}
+
+function resolveMsx2GameFlowPresentationNode(flow: Msx2GameFlowGraph | undefined): Msx2GameFlowScreen5PresentationNode | undefined {
+  if (!flow || !Array.isArray(flow.nodes)) return undefined;
+  const nodesById = new Map(flow.nodes.map(node => [node.id, node]));
+  const visited = new Set<string>();
+  let currentId = flow.startNodeId || flow.nodes.find(node => node.type === 'Start')?.id;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const node = nodesById.get(currentId);
+    if (!node) break;
+    if (node.type === 'Screen5Presentation') {
+      return node as Msx2GameFlowScreen5PresentationNode;
+    }
+    const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
+    currentId = nextConnection?.to.nodeId;
+  }
+
+  return flow.nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
+}
+
+function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentationFlow {
+  const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>);
+  const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]);
+  const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
+  const node = resolveMsx2GameFlowPresentationNode(flow);
+  const requestedPresentationAssetId = node?.presentationAssetId;
+  const presentation = requestedPresentationAssetId
+    ? presentations.find(item => (item as any).id === requestedPresentationAssetId)
+    : undefined;
+
+  return {
+    presentation: presentation || presentations[0],
+    flow,
+    node,
+    requestedPresentationAssetId,
+  };
 }
 
 function parseHexColor(hex: unknown): [number, number, number] | null {
@@ -119,6 +160,21 @@ function generateWaitLoop(presentation: Msx2Screen5PresentationConfig): string {
     jp .main_loop`;
 }
 
+function applyGameFlowRuntimeOverrides(
+  presentation: Msx2Screen5PresentationConfig | undefined,
+  node: Msx2GameFlowScreen5PresentationNode | undefined
+): Msx2Screen5PresentationConfig | undefined {
+  if (!node) return presentation;
+  return {
+    ...presentation,
+    runtime: {
+      ...presentation.runtime,
+      waitForKey: node.waitForKey ?? presentation.runtime?.waitForKey,
+      waitForFrames: node.waitFrames ?? presentation.runtime?.waitForFrames,
+    },
+  };
+}
+
 function normalizePresentation(presentation: Msx2Screen5PresentationConfig | undefined): Msx2Screen5PresentationConfig {
   return {
     enabled: presentation?.enabled !== false,
@@ -147,12 +203,14 @@ function normalizePresentation(presentation: Msx2Screen5PresentationConfig | und
 }
 
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5PresentationGeneratorConfig): string {
-  const presentation = normalizePresentation(firstPresentation(analysis));
+  const resolvedFlow = resolvePresentationFlow(analysis);
+  const presentation = normalizePresentation(applyGameFlowRuntimeOverrides(resolvedFlow.presentation, resolvedFlow.node));
   const paletteBytes = buildPaletteBytes(presentation.palette);
   const bitmapBytes = buildBitmapBytes(presentation);
   const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
   const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
   const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
+  const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   const uploadChunks = bitmapChunks.map((_chunk, index) => {
     const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
     const vramOffset = index * chunkLines * BYTES_PER_LINE;
@@ -177,8 +235,15 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; Presentation: ${presentation.name}
 ; Screen mode: ${config.screenMode}
 ; Backend: msx2-screen5-presentation
+; MSX2_GAMEFLOW_PRESENT: ${resolvedFlow.flow ? 'yes' : 'no'}
+; MSX2_GAMEFLOW_ASSET: ${resolvedFlow.flow?.name || 'none'}
+; MSX2_GAMEFLOW_START_NODE: ${resolvedFlow.flow?.startNodeId || 'none'}
+; MSX2_GAMEFLOW_SCREEN5_NODE: ${resolvedFlow.node?.id || 'none'}
+; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: ${resolvedFlow.requestedPresentationAssetId || 'auto-first'}
 ; ROM mode requested: ${config.romMode}
-; SCREEN5_PRESENTATION_COMPRESSION: ${presentation.compression?.enabled ? 'ZX0' : 'raw'}
+; ROM Mode: ${config.romMode}
+; Mapper Target: ${config.targetFormat}
+${usesKonamiMegaRom ? '; MSX2 SCREEN 5 MegaROM Path: Konami 8K fixed-bank0 compatibility\n' : ''}; SCREEN5_PRESENTATION_COMPRESSION: ${presentation.compression?.enabled ? 'ZX0' : 'raw'}
 ; SCREEN5_PRESENTATION_CHUNK_LINES: ${chunkLines}
 ; ==================================================================
 
@@ -207,7 +272,7 @@ SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
 init_rom:
     di
     call map_page2_to_cart_primary
-    call DISSCR
+${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call DISSCR
     ld a, 5
     call CHGMOD
     ld bc, #0007
@@ -248,6 +313,28 @@ get_cart_slot_value:
     or c
     ret
 
+${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    call mapper_set_bank_p3
+    ret
+
+mapper_set_bank_p1:
+    ld (#6000), a
+    ret
+
+mapper_set_bank_p2:
+    ld (#8000), a
+    ret
+
+mapper_set_bank_p3:
+    ld (#A000), a
+    ret
+
+` : ''}
 load_screen5_palette:
     ; R#16 selects palette slot 0; then 32 bytes go to port #9A.
     ld bc, #0010
@@ -304,7 +391,7 @@ export function generateMsx2Screen5PresentationFiles(
     'scroll.asm': '; Scroll is not emitted by SCREEN 5 presentation MVP yet.\n',
     'animtiles.asm': '; Animated tiles are not emitted by SCREEN 5 presentation MVP yet.\n',
     'bosses.asm': '; Bosses are not emitted by SCREEN 5 presentation MVP yet.\n',
-    'gameflow.asm': '; GameFlow is not emitted by SCREEN 5 presentation MVP yet.\n',
+    'gameflow.asm': '; MSX2 SCREEN 5 presentation GameFlow is emitted inline in unitedFiles.asm.\n',
     'menus.asm': '; Menus are not emitted by SCREEN 5 presentation MVP yet.\n',
     'statemachine.asm': '; State machines are not emitted by SCREEN 5 presentation MVP yet.\n',
     'font.asm': '; Bitmap HUD font is not emitted by SCREEN 5 presentation MVP yet.\n',

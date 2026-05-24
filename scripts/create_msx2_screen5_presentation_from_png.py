@@ -323,7 +323,7 @@ def build_rom(paths: dict[str, Path], args: argparse.Namespace, project_root: Pa
 def capture_openmsx(paths: dict[str, Path], args: argparse.Namespace, project_root: Path) -> None:
     if not paths["rom"].exists():
         raise FileNotFoundError(f"ROM does not exist for capture: {paths['rom']}")
-    run_command([
+    command = [
         "powershell",
         "-ExecutionPolicy", "Bypass",
         "-File", "scripts\\capture_openmsx_screenshot.ps1",
@@ -332,7 +332,10 @@ def capture_openmsx(paths: dict[str, Path], args: argparse.Namespace, project_ro
         "-Output", str(paths["screenshot"]),
         "-WaitMs", str(args.wait_ms),
         "-Machine", args.machine,
-    ], cwd=project_root, timeout=120)
+    ]
+    if args.rom_type:
+        command.extend(["-RomType", args.rom_type])
+    run_command(command, cwd=project_root, timeout=120)
     assert_openmsx_capture(paths["screenshot"])
     print(f"Screenshot: {paths['screenshot']}")
 
@@ -368,11 +371,14 @@ def main() -> int:
     parser.add_argument("--build-rom", action="store_true", help="Compile the generated project to ROM")
     parser.add_argument("--capture-openmsx", action="store_true", help="Capture OpenMSX screenshot after compiling")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine")
+    parser.add_argument("--rom-type", default=None, help="Optional OpenMSX ROM type for capture; defaults to konami for Konami MegaROM")
     parser.add_argument("--wait-ms", type=int, default=6000, help="OpenMSX capture wait in milliseconds")
     parser.add_argument("--rom-mode", default="simple32k", help="ROM mode passed to build_mideas_unified_rom.py")
     parser.add_argument("--target-format", default="konami", help="Target format passed to build_mideas_unified_rom.py")
     parser.add_argument("--execution-mode", default="gameLoopHalt", help="Execution mode passed to build_mideas_unified_rom.py")
     args = parser.parse_args()
+    if args.rom_type is None and args.rom_mode == "megarom" and args.target_format == "konami":
+        args.rom_type = "konami"
 
     project_root = Path(args.project_root).resolve()
     if not (project_root / "package.json").exists():
