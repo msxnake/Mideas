@@ -439,7 +439,7 @@ def main() -> int:
     parser.add_argument("--height", type=int, choices=[192, 212], default=DEFAULT_HEIGHT, help="Visible SCREEN 5 height")
     parser.add_argument("--fit-mode", choices=["cover", "contain", "stretch"], default="cover", help="Resize behavior")
     parser.add_argument("--palette-mode", choices=["auto", "default"], default="auto", help="auto adapts 15 colors from the PNG; default uses the standard SCREEN 5 palette with black slot 0")
-    parser.add_argument("--with-msx2-gameflow", action="store_true", help="Also create a Main MSX2 GameFlow with Start -> SCREEN 5 Presentation -> End")
+    parser.add_argument("--with-msx2-gameflow", action="store_true", help="Also create a Main MSX2 GameFlow with Start -> SCREEN 5 Presentation -> Transition(fade_to_black) -> End")
     parser.add_argument("--msx2-gameflow-name", default="Main MSX2", help="Name for the optional MSX2 GameFlow asset")
     parser.add_argument("--build-rom", action="store_true", help="Compile the generated project to ROM")
     parser.add_argument("--capture-openmsx", action="store_true", help="Capture OpenMSX screenshot after compiling")

@@ -157,6 +157,91 @@ def write_terminal_transition_fixture(source: Path, destination: Path, effect: s
     return destination
 
 
+def write_invalid_strict_shape_fixture(source: Path, destination: Path) -> Path:
+    data = json.loads(source.read_text(encoding="utf-8"))
+    presentation_asset = next((asset for asset in data.get("assets", []) if asset.get("type") == "msx2presentation"), None)
+    if presentation_asset is None:
+        raise RuntimeError(f"Cannot create invalid MSX2 GameFlow fixture without an msx2presentation asset: {source}")
+
+    flow_id = "msx2_strict_shape_rejection_flow"
+    start_id = f"{flow_id}_start"
+    transition_id = f"{flow_id}_transition_before_screen5"
+    screen5_id = f"{flow_id}_screen5"
+    end_id = f"{flow_id}_end"
+    assets = [asset for asset in data.get("assets", []) if asset.get("type") != "msx2gameflow"]
+    assets.append({
+        "id": flow_id,
+        "name": "Invalid Strict Shape MSX2",
+        "type": "msx2gameflow",
+        "data": {
+            "id": flow_id,
+            "name": "Invalid Strict Shape MSX2",
+            "target": "MSX2",
+            "nodes": [
+                {"id": start_id, "type": "Start", "position": {"x": 70, "y": 110}},
+                {"id": transition_id, "type": "Transition", "position": {"x": 300, "y": 110}, "effect": "fade_to_black", "durationFrames": 30},
+                {
+                    "id": screen5_id,
+                    "type": "Screen5Presentation",
+                    "position": {"x": 530, "y": 110},
+                    "presentationAssetId": presentation_asset.get("id"),
+                    "waitForKey": True,
+                    "waitFrames": 0,
+                },
+                {"id": end_id, "type": "End", "position": {"x": 760, "y": 110}},
+            ],
+            "connections": [
+                {"id": f"{flow_id}_conn_start_transition", "from": {"nodeId": start_id}, "to": {"nodeId": transition_id}},
+                {"id": f"{flow_id}_conn_transition_screen5", "from": {"nodeId": transition_id}, "to": {"nodeId": screen5_id}},
+                {"id": f"{flow_id}_conn_screen5_end", "from": {"nodeId": screen5_id}, "to": {"nodeId": end_id}},
+            ],
+            "startNodeId": start_id,
+            "panOffset": {"x": 0, "y": 0},
+            "zoomLevel": 1,
+        },
+    })
+    data["assets"] = assets
+    data["selectedAssetId"] = flow_id
+    data["currentEditor"] = "Msx2GameFlow"
+    destination.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return destination
+
+
+def assert_strict_shape_rejection(source: Path, out_dir: Path, args: argparse.Namespace, project_root: Path) -> None:
+    invalid_fixture = write_invalid_strict_shape_fixture(
+        source,
+        out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape_fixture.json",
+    )
+    asm_output = out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape.asm"
+    rom_output = out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape.rom"
+    sym_output = out_dir / f"{Path(args.project_name).stem}_invalid_strict_shape.sym"
+    cmd = [
+        sys.executable,
+        "scripts/build_mideas_unified_rom.py",
+        "--json", str(invalid_fixture),
+        "--project-root", str(project_root),
+        "--project-name", f"{args.project_name}_invalid_strict_shape",
+        "--asm-output", str(asm_output),
+        "--rom-output", str(rom_output),
+        "--sym-output", str(sym_output),
+        "--rom-mode", "simple32k",
+        "--target-format", "konami",
+        "--execution-mode", "gameLoopHalt",
+    ]
+    print("Running expected-failure strict shape check:", " ".join(str(part) for part in cmd))
+    completed = subprocess.run(cmd, cwd=str(project_root), capture_output=True, timeout=180)
+    output = "\n".join([
+        completed.stdout.decode("utf-8", errors="replace"),
+        completed.stderr.decode("utf-8", errors="replace"),
+    ])
+    if completed.returncode == 0:
+        raise RuntimeError("Invalid MSX2 GameFlow strict-shape fixture compiled successfully; expected rejection")
+    expected = "MSX2 GameFlow must start with Start -> Screen5Presentation"
+    if expected not in output:
+        raise RuntimeError(f"Invalid MSX2 GameFlow rejection did not include expected error: {expected}")
+    print("Strict shape rejection OK")
+
+
 def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
     data = json.loads(path.read_text(encoding="utf-8"))
     presentations = {asset.get("id") for asset in data.get("assets", []) if asset.get("type") == "msx2presentation"}
@@ -170,28 +255,33 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
     connections = flow_data.get("connections") or []
     start_node_id = flow_data.get("startNodeId") or next((node.get("id") for node in nodes if node.get("type") == "Start"), None)
     node_by_id = {node.get("id"): node for node in nodes}
-    current_id = start_node_id
-    visited: set[str] = set()
-    screen5_node = None
-    while current_id and current_id not in visited:
-        visited.add(current_id)
-        current = node_by_id.get(current_id)
-        if current and current.get("type") == "Screen5Presentation":
-            screen5_node = current
-            break
-        next_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == current_id), None)
-        current_id = (next_connection.get("to") or {}).get("nodeId") if next_connection else None
-
-    if screen5_node is None:
-        screen5_node = next((node for node in nodes if node.get("type") == "Screen5Presentation"), None)
+    start_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == start_node_id), None)
+    screen5_node_id = (start_connection.get("to") or {}).get("nodeId") if start_connection else None
+    screen5_node = node_by_id.get(screen5_node_id) if screen5_node_id else None
     if screen5_node is None:
         raise RuntimeError(f"MSX2 GameFlow fixture has no Screen5Presentation node: {path}")
+    if screen5_node.get("type") != "Screen5Presentation":
+        raise RuntimeError(
+            f"MSX2 GameFlow fixture must start with Start -> Screen5Presentation for SCREEN 5 backend: {path}"
+        )
 
     next_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == screen5_node.get("id")), None)
     next_node_id = (next_connection.get("to") or {}).get("nodeId") if next_connection else None
-    transition_node = node_by_id.get(next_node_id) if next_node_id else None
-    if transition_node and transition_node.get("type") != "Transition":
-        transition_node = None
+    next_node = node_by_id.get(next_node_id) if next_node_id else None
+    if next_node is None:
+        raise RuntimeError(f"MSX2 GameFlow Screen5Presentation node must continue to End or terminal Transition: {path}")
+    transition_node = None
+    if next_node.get("type") == "Transition":
+        transition_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == next_node.get("id")), None)
+        node_after_transition_id = (transition_connection.get("to") or {}).get("nodeId") if transition_connection else None
+        node_after_transition = node_by_id.get(node_after_transition_id) if node_after_transition_id else None
+        if node_after_transition is None or node_after_transition.get("type") != "End":
+            raise RuntimeError(f"MSX2 GameFlow terminal Transition node must continue to End: {path}")
+        transition_node = next_node
+    elif next_node.get("type") != "End":
+        raise RuntimeError(
+            f"MSX2 GameFlow Screen5Presentation node cannot continue to {next_node.get('type')} in SCREEN 5 backend: {path}"
+        )
 
     presentation_asset_id = screen5_node.get("presentationAssetId")
     if presentation_asset_id not in presentations:
@@ -294,6 +384,7 @@ def main() -> int:
     parser.add_argument("--inject-terminal-transition", action="store_true", help="Inject Screen5Presentation -> Transition -> End into a temp fixture before compiling")
     parser.add_argument("--transition-effect", choices=["fade_to_black", "cls"], default="fade_to_black", help="Effect used with --inject-terminal-transition")
     parser.add_argument("--transition-duration-frames", type=int, default=29, help="Duration used with --inject-terminal-transition")
+    parser.add_argument("--assert-strict-shape-rejection", action="store_true", help="Also verify that Start -> Transition -> Screen5Presentation is rejected")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -311,6 +402,8 @@ def main() -> int:
             args.transition_effect,
             args.transition_duration_frames,
         )
+    if args.assert_strict_shape_rejection:
+        assert_strict_shape_rejection(fixture, out_dir, args, project_root)
     asm_output = out_dir / f"{output_stem}.asm"
     zx0_asm_output = out_dir / f"{output_stem}_compressed.asm"
     rom_output = out_dir / f"{output_stem}.rom"
