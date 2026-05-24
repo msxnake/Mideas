@@ -41,6 +41,7 @@ const loderunnerCreatorPath = join(repoRoot, 'scripts', 'create_msx2_loderunner_
 const msx2AtlasPreviewPath = join(repoRoot, 'components', 'screen_editor', 'MSX2AtlasPreviewPanel.tsx');
 const msx2ExportContractPath = join(repoRoot, 'components', 'screen_editor', 'MSX2ExportContractPanel.tsx');
 const msx2HudPlanPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'MSX2HudPlanPanel.tsx');
+const packageJsonPath = join(repoRoot, 'package.json');
 const source = [
   readFileSync(editorPath, 'utf8'),
   readFileSync(partsPath, 'utf8'),
@@ -104,6 +105,7 @@ const summaryExtractorSource = readFileSync(summaryExtractorPath, 'utf8');
 const globalVariablesUtilsSource = readFileSync(globalVariablesUtilsPath, 'utf8');
 const msx2BudgetFeedbackSource = readFileSync(msx2BudgetFeedbackPath, 'utf8');
 const loderunnerCreatorSource = readFileSync(loderunnerCreatorPath, 'utf8');
+const packageScripts = JSON.parse(readFileSync(packageJsonPath, 'utf8')).scripts || {};
 const hardwareSpriteInit = generatorSource.match(/function buildHardwareSpriteInitAsm[\s\S]*?return `init_hardware_sprites:[\s\S]*?copy_to_vram_ext[\s\S]*?copy_to_vram_ext[\s\S]*?copy_to_vram_ext[\s\S]*?ld a, \$\{x\}/)?.[0] || '';
 const hardwareSpritePatternBuilder = generatorSource.match(/function buildHardwareSpritePatternForLayer[\s\S]*?return bytes;\n}/)?.[0] || '';
 const extendedVramWriters = generatorSource.match(/copy_to_vram_ext:[\s\S]*?write_vram_byte_ext:[\s\S]*?ret/)?.[0] || '';
@@ -133,6 +135,7 @@ const checks = [
   ['MSX2 SCREEN 4 Bitmap Room properties and palette integration are exposed', propertiesPanelSource.includes("case 'msx2bitmaproom'") && propertiesPanelSource.includes('SCREEN 4 bitmap room') && appUiSource.includes("'msx2bitmaproom'") && appUiSource.includes('isMsx2BitmapRoomEditor') && appUiSource.includes('pantalla bitmap SCREEN 4')],
   ['MSX2 SCREEN 4 Bitmap Room reaches project analysis and backend routing', asmTemplateGeneratorSource.includes('msx2BitmapRooms') && asmTemplateGeneratorSource.includes("a.type === 'msx2bitmaproom'") && msxGeneratorIndexSource.includes("'msx2-screen4-bitmap-room'") && msxGeneratorIndexSource.includes('generateMsx2Screen4BitmapRoomFiles')],
   ['MSX2 SCREEN 4 Bitmap Room generator emits SCREEN 4 PGT/PNT/CGT tables', bitmapRoomGeneratorSource.includes('buildPatternColorTables') && bitmapRoomGeneratorSource.includes('screen4_pattern_data') && bitmapRoomGeneratorSource.includes('screen4_name_data') && bitmapRoomGeneratorSource.includes('screen4_color_data') && bitmapRoomGeneratorSource.includes('max 2 colors per 8 pixels horizontally') && bitmapRoomGeneratorSource.includes('ld de, #1800') && bitmapRoomGeneratorSource.includes('ld de, #2000')],
+  ['MSX2 SCREEN 4 Bitmap Room smoke is exposed in npm scripts', packageScripts['smoke:msx2-screen4-bitmap-room'] === 'python scripts/build_msx2_screen4_bitmap_room_smoke.py' && packageScripts['smoke:msx2-static']?.includes('npm run smoke:msx2-screen4-bitmap-room -- --skip-openmsx')],
   ['MSX2 HUD Font asset is exposed separately from MSX1 font', toolbarSource.includes("onNewAsset('msx2hudfont')") && toolbarSource.includes('>MSX2 HUD Font</DropdownItem>') && fileExplorerSource.includes('msx2hudfont: "MSX2 HUD Fonts"') && fileExplorerSource.includes('msx2hudfont: EditorType.Msx2HudFont')],
   ['MSX2 HUD Font editor persists edits through asset update', appUiSource.includes('<Msx2HudFontEditor') && appUiSource.includes('onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}') && appUiSource.includes('dataOutputFormat={dataOutputFormat}')],
   ['MSX2 HUD Font editor imports rasterized TTF fonts', msx2HudFontEditorSource.includes('new FontFace') && msx2HudFontEditorSource.includes('Import TTF') && msx2HudFontEditorSource.includes('rasterizeGlyph')],
