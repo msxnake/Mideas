@@ -27,6 +27,8 @@ interface Msx2GameFlowEditorProps {
 const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string => {
   if (node.type === 'Start') return 'Start MSX2';
   if (node.type === 'End') return 'End';
+  if (node.type === 'Waypoint') return 'Waypoint';
+  if (node.type === 'Restart') return 'Restart ROM';
   if (node.type === 'Transition') return node.effect === 'fade_to_black' ? 'Fade to Black' : 'CLS';
   const asset = allAssets.find(a => a.id === node.presentationAssetId && a.type === 'msx2presentation');
   return asset?.name || 'SCREEN 5 Presentation';
@@ -35,7 +37,9 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
 const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Start') return 'hsl(185, 62%, 32%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
+  if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'Transition') return 'hsl(42, 58%, 35%)';
+  if (node.type === 'Restart') return 'hsl(8, 58%, 36%)';
   return 'hsl(330, 42%, 34%)';
 };
 
@@ -53,6 +57,20 @@ const getNextNode = (
   if (!node) return undefined;
   const nextConnection = connections.find(connection => connection.from.nodeId === node.id);
   return nextConnection ? nodes.find(candidate => candidate.id === nextConnection.to.nodeId) : undefined;
+};
+
+const getNextExportNode = (
+  node: Msx2GameFlowNode | undefined,
+  nodes: Msx2GameFlowNode[],
+  connections: Msx2GameFlowConnection[]
+): Msx2GameFlowNode | undefined => {
+  let current = getNextNode(node, nodes, connections);
+  const visited = new Set<string>();
+  while (current?.type === 'Waypoint' && !visited.has(current.id)) {
+    visited.add(current.id);
+    current = getNextNode(current, nodes, connections);
+  }
+  return current;
 };
 
 const flowHasAnyCycle = (nodes: Msx2GameFlowNode[], connections: Msx2GameFlowConnection[]): boolean => {
@@ -133,19 +151,19 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const nodeIds = new Set(nodes.map(node => node.id));
     const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
     const firstScreen5 = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
-    const presentationNode = startNode ? getNextNode(startNode, nodes, connections) : undefined;
+    const presentationNode = startNode ? getNextExportNode(startNode, nodes, connections) : undefined;
     const screen5Node = presentationNode?.type === 'Screen5Presentation'
       ? presentationNode as Msx2GameFlowScreen5PresentationNode
       : firstScreen5;
-    const afterScreen5 = getNextNode(screen5Node, nodes, connections);
+    const afterScreen5 = getNextExportNode(screen5Node, nodes, connections);
     const afterTransition = afterScreen5?.type === 'Transition'
-      ? getNextNode(afterScreen5, nodes, connections)
+      ? getNextExportNode(afterScreen5, nodes, connections)
       : undefined;
 
     if (!startNode) {
       issues.push('Missing Start node.');
     } else if (presentationNode?.type !== 'Screen5Presentation') {
-      issues.push('Start should connect to a SCREEN 5 Presentation node for the current export path.');
+      issues.push('Start should reach a SCREEN 5 Presentation node through optional Waypoint nodes.');
     }
     if (!screen5Node) {
       issues.push('Missing SCREEN 5 Presentation node.');
@@ -153,13 +171,13 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       issues.push('SCREEN 5 node has no valid presentation asset.');
     }
     if (screen5Node && !afterScreen5) {
-      issues.push('SCREEN 5 node should continue to Transition or End.');
+      issues.push('SCREEN 5 node should continue to Transition, Restart, or End.');
     }
-    if (afterScreen5 && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'End') {
-      issues.push('SCREEN 5 node can only continue to Transition or End in this backend.');
+    if (afterScreen5 && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
+      issues.push('SCREEN 5 node can only continue to Transition, Restart, or End in this backend.');
     }
-    if (afterScreen5?.type === 'Transition' && afterTransition?.type !== 'End') {
-      issues.push('Terminal Transition should continue to End.');
+    if (afterScreen5?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
+      issues.push('Terminal Transition should continue to Restart or End.');
     }
     const visited = new Set<string>();
     let current = startNode;
@@ -182,13 +200,13 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     for (const node of nodes) {
       const outgoingCount = connections.filter(connection => connection.from.nodeId === node.id).length;
       const incomingCount = connections.filter(connection => connection.to.nodeId === node.id).length;
-      if (node.type === 'End' && outgoingCount > 0) {
-        issues.push('End nodes do not support outgoing connections.');
+      if ((node.type === 'End' || node.type === 'Restart') && outgoingCount > 0) {
+        issues.push(`${node.type} nodes do not support outgoing connections.`);
       }
       if (node.type !== 'Start' && incomingCount === 0 && outgoingCount === 0) {
         issues.push(`Orphaned node: ${node.type}.`);
       }
-      if (node.type === 'End') continue;
+      if (node.type === 'End' || node.type === 'Restart') continue;
       if (outgoingCount > 1) {
         issues.push(`${node.type} has more than one outgoing connection.`);
       }
@@ -210,7 +228,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
-  const addNode = (type: 'Screen5Presentation' | 'Transition' | 'End') => {
+  const addNode = (type: 'Screen5Presentation' | 'Waypoint' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -227,9 +245,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           }
         : type === 'Transition'
           ? { id, type, position: { x, y }, effect: 'cls', durationFrames: 30 }
+          : type === 'Restart'
+            ? { id, type, position: { x, y }, title: 'Restart', message: '' }
           : { id, type, position: { x, y } };
 
-    const nextConnections = previousNode && previousNode.type !== 'End'
+    const nextConnections = previousNode && previousNode.type !== 'End' && previousNode.type !== 'Restart'
       ? [...connections.filter(conn => conn.from.nodeId !== previousNode.id), makeConnection(previousNode.id, id)]
       : connections;
     onUpdate({ nodes: [...nodes, newNode], connections: nextConnections });
@@ -331,7 +351,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     : undefined;
 
   const connectSelectedNodeTo = (toNodeId: string) => {
-    if (!selectedNode || selectedNode.type === 'End' || selectedNode.id === toNodeId) return;
+    if (!selectedNode || selectedNode.type === 'End' || selectedNode.type === 'Restart' || selectedNode.id === toNodeId) return;
     const targetNode = nodes.find(node => node.id === toNodeId);
     if (!targetNode) return;
     onUpdate({
@@ -375,8 +395,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add SCREEN 5
         </Button>
+        <Button onClick={() => addNode('Waypoint')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
+          Waypoint
+        </Button>
         <Button onClick={() => addNode('Transition')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Transition
+        </Button>
+        <Button onClick={() => addNode('Restart')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
+          Add Restart
         </Button>
         <Button onClick={() => addNode('End')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add End
@@ -551,8 +577,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           {selectedNode && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Connection</h3>
-              {selectedNode.type === 'End' ? (
-                <p className="text-xs text-msx-textsecondary">End nodes do not have outgoing connections.</p>
+              {selectedNode.type === 'End' || selectedNode.type === 'Restart' ? (
+                <p className="text-xs text-msx-textsecondary">{selectedNode.type} nodes do not have outgoing connections.</p>
               ) : (
                 <>
                   <label className="block text-xs">

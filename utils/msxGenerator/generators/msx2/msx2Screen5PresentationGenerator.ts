@@ -1,4 +1,4 @@
-import { Msx2GameFlowGraph, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
+import { Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -35,38 +35,60 @@ interface ResolvedPresentationFlow {
   flow?: Msx2GameFlowGraph;
   node?: Msx2GameFlowScreen5PresentationNode;
   transition?: Msx2GameFlowTransitionNode;
+  terminalAction: 'loop' | 'restart';
   requestedPresentationAssetId?: string;
+}
+
+function getNodeById(flow: Msx2GameFlowGraph, nodeId: string | undefined): Msx2GameFlowNode | undefined {
+  return nodeId ? flow.nodes.find(node => node.id === nodeId) : undefined;
+}
+
+function getNextFlowNode(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode | undefined): Msx2GameFlowNode | undefined {
+  if (!node) return undefined;
+  const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
+  return getNodeById(flow, nextConnection?.to.nodeId);
+}
+
+function getNextExportNode(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode | undefined): Msx2GameFlowNode | undefined {
+  let nextNode = getNextFlowNode(flow, node);
+  const visited = new Set<string>();
+  while (nextNode?.type === 'Waypoint' && !visited.has(nextNode.id)) {
+    visited.add(nextNode.id);
+    nextNode = getNextFlowNode(flow, nextNode);
+  }
+  return nextNode;
 }
 
 function resolveMsx2GameFlowPresentationNode(flow: Msx2GameFlowGraph | undefined): Msx2GameFlowScreen5PresentationNode | undefined {
   if (!flow || !Array.isArray(flow.nodes)) return undefined;
-  const nodesById = new Map(flow.nodes.map(node => [node.id, node]));
   const startId = flow.startNodeId || flow.nodes.find(node => node.type === 'Start')?.id;
-  const startNode = startId ? nodesById.get(startId) : undefined;
-  const nextConnection = startNode
-    ? (flow.connections || []).find(connection => connection.from.nodeId === startNode.id)
-    : undefined;
-  const nextNode = nextConnection ? nodesById.get(nextConnection.to.nodeId) : undefined;
+  const startNode = getNodeById(flow, startId);
+  const nextNode = getNextExportNode(flow, startNode);
   return nextNode?.type === 'Screen5Presentation' ? nextNode as Msx2GameFlowScreen5PresentationNode : undefined;
 }
 
-function resolveNextTransition(flow: Msx2GameFlowGraph | undefined, node: Msx2GameFlowScreen5PresentationNode | undefined): Msx2GameFlowTransitionNode | undefined {
-  if (!flow || !node || !Array.isArray(flow.nodes)) return undefined;
-  const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
-  const nextNode = nextConnection ? flow.nodes.find(candidate => candidate.id === nextConnection.to.nodeId) : undefined;
+function resolveNextExportStep(
+  flow: Msx2GameFlowGraph | undefined,
+  node: Msx2GameFlowScreen5PresentationNode | undefined
+): { transition?: Msx2GameFlowTransitionNode; terminalAction: 'loop' | 'restart' } {
+  if (!flow || !node || !Array.isArray(flow.nodes)) return { terminalAction: 'loop' };
+  const nextNode = getNextExportNode(flow, node);
   if (!nextNode) {
-    throw new Error(`MSX2 GameFlow Screen5Presentation node "${node.id}" must continue to End or terminal Transition.`);
+    throw new Error(`MSX2 GameFlow Screen5Presentation node "${node.id}" must continue to End, Restart, or terminal Transition.`);
   }
-  if (nextNode.type === 'End') return undefined;
+  if (nextNode.type === 'End') return { terminalAction: 'loop' };
+  if (nextNode.type === 'Restart') return { terminalAction: 'restart' };
   if (nextNode.type !== 'Transition') {
     throw new Error(`MSX2 GameFlow Screen5Presentation node "${node.id}" cannot continue to "${nextNode.type}" in the SCREEN 5 backend.`);
   }
-  const transitionNextConnection = (flow.connections || []).find(connection => connection.from.nodeId === nextNode.id);
-  const nodeAfterTransition = transitionNextConnection ? flow.nodes.find(candidate => candidate.id === transitionNextConnection.to.nodeId) : undefined;
-  if (nodeAfterTransition?.type !== 'End') {
-    throw new Error(`MSX2 GameFlow terminal Transition node "${nextNode.id}" must continue to End.`);
+  const nodeAfterTransition = getNextExportNode(flow, nextNode);
+  if (nodeAfterTransition?.type !== 'End' && nodeAfterTransition?.type !== 'Restart') {
+    throw new Error(`MSX2 GameFlow terminal Transition node "${nextNode.id}" must continue to End or Restart.`);
   }
-  return nextNode as Msx2GameFlowTransitionNode;
+  return {
+    transition: nextNode as Msx2GameFlowTransitionNode,
+    terminalAction: nodeAfterTransition.type === 'Restart' ? 'restart' : 'loop',
+  };
 }
 
 function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentationFlow {
@@ -80,7 +102,7 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     : undefined;
 
   if (flow && !node) {
-    throw new Error('MSX2 GameFlow must start with Start -> Screen5Presentation for the SCREEN 5 backend.');
+    throw new Error('MSX2 GameFlow must reach Screen5Presentation from Start through optional Waypoint nodes for the SCREEN 5 backend.');
   }
 
   if (requestedPresentationAssetId && !presentation) {
@@ -89,11 +111,14 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     );
   }
 
+  const nextStep = resolveNextExportStep(flow, node);
+
   return {
     presentation: presentation || presentations[0],
     flow,
     node,
-    transition: resolveNextTransition(flow, node),
+    transition: nextStep.transition,
+    terminalAction: nextStep.terminalAction,
     requestedPresentationAssetId,
   };
 }
@@ -179,9 +204,9 @@ function generateWaitStep(presentation: Msx2Screen5PresentationConfig, nextLabel
   return `    jp ${nextLabel}`;
 }
 
-function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, hasNextTransition: boolean): string {
-  if (hasNextTransition) {
-    return generateWaitStep(presentation, 'msx2_gameflow_run_transition');
+function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, nextLabel: string | null): string {
+  if (nextLabel) {
+    return generateWaitStep(presentation, nextLabel);
   }
   const runtime = presentation.runtime;
   if (runtime.waitForKey !== false) {
@@ -204,7 +229,11 @@ function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, hasNextTr
     jp .main_loop`;
 }
 
-function generateTerminalTransitionRoutine(transition: Msx2GameFlowTransitionNode | undefined, vramBase: string): string {
+function generateTerminalTransitionRoutine(
+  transition: Msx2GameFlowTransitionNode | undefined,
+  vramBase: string,
+  afterTransitionAction: 'loop' | 'restart'
+): string {
   if (!transition) return '';
   const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
   const waitBlock = durationFrames > 0
@@ -222,9 +251,11 @@ function generateTerminalTransitionRoutine(transition: Msx2GameFlowTransitionNod
   return `
 msx2_gameflow_run_transition:
 ${effectBlock}
-${waitBlock}.gameflow_end_loop:
+${waitBlock}${afterTransitionAction === 'restart' ? `    jp init_rom
+` : `.gameflow_end_loop:
     halt
     jp .gameflow_end_loop
+`}
 
 clear_screen5_visible_vram:
     ; Terminal clear helper. Clobbers AF, BC, HL.
@@ -301,6 +332,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
   const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   const terminalTransition = resolvedFlow.transition;
+  const terminalAction = resolvedFlow.terminalAction;
+  const nextRuntimeLabel = terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null;
   const transitionDurationFrames = Math.max(0, Math.min(255, Math.trunc(Number(terminalTransition?.durationFrames) || 0)));
   const uploadChunks = bitmapChunks.map((_chunk, index) => {
     const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
@@ -332,6 +365,7 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; MSX2_GAMEFLOW_SCREEN5_NODE: ${resolvedFlow.node?.id || 'none'}
 ; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: ${resolvedFlow.requestedPresentationAssetId || 'auto-first'}
 ; MSX2_GAMEFLOW_NEXT_TRANSITION: ${terminalTransition?.id || 'none'}
+; MSX2_GAMEFLOW_TERMINAL_ACTION: ${terminalAction}
 ; MSX2_GAMEFLOW_TRANSITION_EFFECT: ${terminalTransition?.effect || 'none'}
 ; MSX2_GAMEFLOW_TRANSITION_DURATION_FRAMES: ${terminalTransition ? transitionDurationFrames : 0}
 ; ROM mode requested: ${config.romMode}
@@ -376,7 +410,7 @@ ${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call
     call upload_screen5_presentation_bitmap
     call ENASCR
     ei
-${generateWaitLoop(presentation, !!terminalTransition)}
+${generateWaitLoop(presentation, nextRuntimeLabel)}
 
 map_page2_to_cart_primary:
     ; Map #8000-#BFFF to the same primary/expanded slot as cart page #4000.
@@ -408,7 +442,7 @@ get_cart_slot_value:
     or c
     ret
 
-${generateTerminalTransitionRoutine(terminalTransition, vramBase)}
+${generateTerminalTransitionRoutine(terminalTransition, vramBase, terminalAction)}
 ${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
     ld a, 1
     call mapper_set_bank_p1

@@ -98,13 +98,25 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const nodes = Array.isArray(flowData?.nodes) ? flowData.nodes : [];
   const connections = Array.isArray(flowData?.connections) ? flowData.connections : [];
   const nodesById = new Map(nodes.map((node: any) => [node.id, node]));
+  const getNextNode = (node: any): any => {
+    const nextConnection = node
+      ? connections.find((connection: any) => connection?.from?.nodeId === node.id)
+      : null;
+    return nextConnection?.to?.nodeId ? nodesById.get(nextConnection.to.nodeId) as any : null;
+  };
+  const getNextExportNode = (node: any): any => {
+    let nextNode = getNextNode(node);
+    const waypointIds = new Set<string>();
+    while (nextNode?.type === 'Waypoint' && !waypointIds.has(nextNode.id)) {
+      waypointIds.add(nextNode.id);
+      nextNode = getNextNode(nextNode);
+    }
+    return nextNode;
+  };
   const visited = new Set<string>();
   let currentId = flowData?.startNodeId || nodes.find((node: any) => node.type === 'Start')?.id;
   const startNode = currentId ? nodesById.get(currentId) as any : nodes.find((node: any) => node.type === 'Start');
-  const startNextConnection = startNode
-    ? connections.find((connection: any) => connection?.from?.nodeId === startNode.id)
-    : null;
-  const startNextNode = startNextConnection?.to?.nodeId ? nodesById.get(startNextConnection.to.nodeId) as any : null;
+  const startNextNode = getNextExportNode(startNode);
   let screen5Node: any = null;
 
   while (currentId && !visited.has(currentId)) {
@@ -128,20 +140,17 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
     ? presentations.find(asset => asset.id === presentationAssetId)
     : presentations[0];
   const missingPresentation = Boolean(screen5Node && !presentation);
-  const nextAfterScreen5 = screen5Node
-    ? connections.find((connection: any) => connection?.from?.nodeId === screen5Node.id)
+  const terminalNode = getNextExportNode(screen5Node);
+  const nodeAfterTransition = terminalNode?.type === 'Transition'
+    ? getNextExportNode(terminalNode)
     : null;
-  const terminalNode = nextAfterScreen5?.to?.nodeId ? nodesById.get(nextAfterScreen5.to.nodeId) as any : null;
-  const nextAfterTransition = terminalNode?.type === 'Transition'
-    ? connections.find((connection: any) => connection?.from?.nodeId === terminalNode.id)
-    : null;
-  const nodeAfterTransition = nextAfterTransition?.to?.nodeId ? nodesById.get(nextAfterTransition.to.nodeId) as any : null;
   const hasValidTerminalPath = Boolean(
     screen5Node &&
     startNextNode?.id === screen5Node.id &&
     (
       terminalNode?.type === 'End' ||
-      (terminalNode?.type === 'Transition' && nodeAfterTransition?.type === 'End')
+      terminalNode?.type === 'Restart' ||
+      (terminalNode?.type === 'Transition' && (nodeAfterTransition?.type === 'End' || nodeAfterTransition?.type === 'Restart'))
     )
   );
 
@@ -1893,7 +1902,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   )}
                   {msx2Screen5ExportInfo.invalidFlowShape && (
                     <div className="mt-1 text-yellow-300">
-                      Warning: MSX2 SCREEN 5 export needs a reachable Screen5Presentation node and supports Start -&gt; Screen5Presentation -&gt; optional terminal Transition -&gt; End.
+                      Warning: MSX2 SCREEN 5 export needs a reachable Screen5Presentation node and supports Start -&gt; optional Waypoints -&gt; Screen5Presentation -&gt; optional terminal Transition -&gt; End/Restart.
                     </div>
                   )}
                   <div className="mt-1">

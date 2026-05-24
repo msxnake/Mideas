@@ -301,7 +301,7 @@ def assert_strict_shape_rejection(source: Path, out_dir: Path, args: argparse.Na
         args,
         project_root,
         "invalid_strict_shape",
-        "MSX2 GameFlow must start with Start -> Screen5Presentation",
+        "MSX2 GameFlow must reach Screen5Presentation from Start through optional Waypoint nodes",
     )
     invalid_terminal_fixture = write_invalid_terminal_transition_fixture(
         source,
@@ -331,29 +331,40 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
     connections = flow_data.get("connections") or []
     start_node_id = flow_data.get("startNodeId") or next((node.get("id") for node in nodes if node.get("type") == "Start"), None)
     node_by_id = {node.get("id"): node for node in nodes}
-    start_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == start_node_id), None)
-    screen5_node_id = (start_connection.get("to") or {}).get("nodeId") if start_connection else None
-    screen5_node = node_by_id.get(screen5_node_id) if screen5_node_id else None
+
+    def next_node_after_optional_waypoints(node_id: str | None) -> dict | None:
+        connection = next((item for item in connections if (item.get("from") or {}).get("nodeId") == node_id), None)
+        next_node_id = (connection.get("to") or {}).get("nodeId") if connection else None
+        next_node = node_by_id.get(next_node_id) if next_node_id else None
+        visited: set[str] = set()
+        while next_node and next_node.get("type") == "Waypoint" and next_node.get("id") not in visited:
+            visited.add(next_node.get("id"))
+            connection = next((item for item in connections if (item.get("from") or {}).get("nodeId") == next_node.get("id")), None)
+            next_node_id = (connection.get("to") or {}).get("nodeId") if connection else None
+            next_node = node_by_id.get(next_node_id) if next_node_id else None
+        return next_node
+
+    screen5_node = next_node_after_optional_waypoints(start_node_id)
     if screen5_node is None:
         raise RuntimeError(f"MSX2 GameFlow fixture has no Screen5Presentation node: {path}")
     if screen5_node.get("type") != "Screen5Presentation":
         raise RuntimeError(
-            f"MSX2 GameFlow fixture must start with Start -> Screen5Presentation for SCREEN 5 backend: {path}"
+            f"MSX2 GameFlow fixture must reach Screen5Presentation from Start through optional Waypoint nodes for SCREEN 5 backend: {path}"
         )
 
-    next_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == screen5_node.get("id")), None)
-    next_node_id = (next_connection.get("to") or {}).get("nodeId") if next_connection else None
-    next_node = node_by_id.get(next_node_id) if next_node_id else None
+    next_node = next_node_after_optional_waypoints(screen5_node.get("id"))
     if next_node is None:
-        raise RuntimeError(f"MSX2 GameFlow Screen5Presentation node must continue to End or terminal Transition: {path}")
+        raise RuntimeError(f"MSX2 GameFlow Screen5Presentation node must continue to End, Restart, or terminal Transition: {path}")
     transition_node = None
+    terminal_action = "loop"
     if next_node.get("type") == "Transition":
-        transition_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == next_node.get("id")), None)
-        node_after_transition_id = (transition_connection.get("to") or {}).get("nodeId") if transition_connection else None
-        node_after_transition = node_by_id.get(node_after_transition_id) if node_after_transition_id else None
-        if node_after_transition is None or node_after_transition.get("type") != "End":
-            raise RuntimeError(f"MSX2 GameFlow terminal Transition node must continue to End: {path}")
+        node_after_transition = next_node_after_optional_waypoints(next_node.get("id"))
+        if node_after_transition is None or node_after_transition.get("type") not in {"End", "Restart"}:
+            raise RuntimeError(f"MSX2 GameFlow terminal Transition node must continue to End or Restart: {path}")
+        terminal_action = "restart" if node_after_transition.get("type") == "Restart" else "loop"
         transition_node = next_node
+    elif next_node.get("type") == "Restart":
+        terminal_action = "restart"
     elif next_node.get("type") != "End":
         raise RuntimeError(
             f"MSX2 GameFlow Screen5Presentation node cannot continue to {next_node.get('type')} in SCREEN 5 backend: {path}"
@@ -373,6 +384,7 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
         "wait_for_key": screen5_node.get("waitForKey"),
         "wait_frames": screen5_node.get("waitFrames"),
         "transition_id": transition_node.get("id") if transition_node else "none",
+        "terminal_action": terminal_action,
         "transition_effect": transition_node.get("effect") if transition_node else "none",
         "transition_duration_frames": transition_node.get("durationFrames") if transition_node else 0,
     }
@@ -392,6 +404,7 @@ def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | Non
         f"; MSX2_GAMEFLOW_SCREEN5_NODE: {contract['screen5_node_id']}",
         f"; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: {contract['presentation_asset_id']}",
         f"; MSX2_GAMEFLOW_NEXT_TRANSITION: {contract['transition_id']}",
+        f"; MSX2_GAMEFLOW_TERMINAL_ACTION: {contract['terminal_action']}",
         f"; MSX2_GAMEFLOW_TRANSITION_EFFECT: {contract['transition_effect']}",
         f"; MSX2_GAMEFLOW_TRANSITION_DURATION_FRAMES: {contract['transition_duration_frames']}",
     ]
@@ -412,9 +425,11 @@ def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | Non
         required_transition_code = [
             "jp msx2_gameflow_run_transition",
             "msx2_gameflow_run_transition:",
-            ".gameflow_end_loop:",
-            "jp .gameflow_end_loop",
         ]
+        if contract.get("terminal_action") == "restart":
+            required_transition_code.append("jp init_rom")
+        else:
+            required_transition_code.extend([".gameflow_end_loop:", "jp .gameflow_end_loop"])
         if contract.get("transition_effect") == "fade_to_black":
             required_transition_code.extend(["call load_screen5_black_palette", "screen5_black_palette_data"])
         if contract.get("transition_effect") == "cls":
