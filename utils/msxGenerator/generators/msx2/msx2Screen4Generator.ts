@@ -1034,6 +1034,36 @@ ${promptDraw}
 ${rows.join('')}`;
 }
 
+function buildMsx2ControlsTextData(label: string, node: any, analysis: ProjectAnalysis): string {
+  const allowedCharacters = getMsx2HudFontCharacters(analysis);
+  const keyForButton = (button: unknown): string =>
+    String(button || '').toLowerCase() === 'button2'
+      ? String(node?.keyboardButton2 || 'N').toUpperCase()
+      : String(node?.keyboardButton1 || 'SPC').toUpperCase();
+  const title = normalizeMsx2HudText(String(node?.title || 'CONTROLS'), 22, allowedCharacters);
+  const button1 = normalizeMsx2HudText(`B1 KEY: ${String(node?.keyboardButton1 || 'SPC').toUpperCase()}`, 24, allowedCharacters);
+  const button2 = normalizeMsx2HudText(`B2 KEY: ${String(node?.keyboardButton2 || 'N').toUpperCase()}`, 24, allowedCharacters);
+  const jumpLabel = normalizeMsx2HudText(String(node?.jumpActionLabel || 'JUMP'), 10, allowedCharacters);
+  const actionLabel = normalizeMsx2HudText(String(node?.actionLabel || 'FIRE'), 10, allowedCharacters);
+  const action1 = normalizeMsx2HudText(`${jumpLabel}: ${keyForButton(node?.jumpActionButton || 'button1')}`, 24, allowedCharacters);
+  const action2 = normalizeMsx2HudText(`${actionLabel}: ${keyForButton(node?.actionButton || 'button2')}`, 24, allowedCharacters);
+  const prompt = node?.waitForKey === false ? '' : normalizeMsx2HudText('PRESS KEY', 12, allowedCharacters);
+  const rows = [title, button1, button2, action1, action2, ...(prompt ? [prompt] : [])].map((text, index) =>
+    formatBytes(`${label}_TEXT_${index}`, [...Array.from(text).map(char => String(char).charCodeAt(0) & 0xff), 0], `MSX2 SCREEN 4 Controls text "${text}"`)
+  );
+  const drawRows = rows.map((_row, index) => {
+    const vram = (index === 0 ? 0x1945 : 0x1984 + ((index - 1) * SCREEN4_CHAR_COLUMNS));
+    return `    ld hl, #${vram.toString(16).toUpperCase().padStart(4, '0')}
+    ld de, ${label}_TEXT_${index}
+    call draw_msx2_hud_string`;
+  }).join('\n');
+  return `draw_${label}:
+${drawRows}
+    ret
+
+${rows.join('')}`;
+}
+
 function getEntityRenderSpriteId(entity: any): string {
   return String(
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
@@ -7912,6 +7942,29 @@ function buildMsx2GameFlowProgram(
             lines.push(`    djnz .${dataLabel}_wait_frames`);
           }
         } else {
+          lines.push('    call wait_key_release');
+          lines.push('    call wait_key');
+        }
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
+        break;
+      }
+      case 'Controls': {
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
+        const dataLabel = `${labelForNodeId(current.id)}_CONTROLS`;
+        dataBlocks.push(buildMsx2ControlsTextData(dataLabel, current, analysis));
+        lines.push('    call load_msx2_hud_font');
+        lines.push(`    call draw_${dataLabel}`);
+        if (current.waitForKey === false) {
+          const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
+          if (frames > 0) {
+            lines.push(`    ld b, ${formatHexByte(frames)}`);
+            lines.push(`.${dataLabel}_wait_frames:`);
+            lines.push('    halt');
+            lines.push(`    djnz .${dataLabel}_wait_frames`);
+          }
+        } else {
+          lines.push('    call wait_key_release');
           lines.push('    call wait_key');
         }
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
@@ -7922,6 +7975,7 @@ function buildMsx2GameFlowProgram(
         if (backgroundLabel) lines.push(buildMsx2TileScreenLoadLines(backgroundLabel, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         const options = Array.isArray(current.options) ? current.options.slice(0, 6) : [];
         if (options.length === 0) {
+          lines.push('    call wait_key_release');
           lines.push('    call wait_key');
           lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
           break;
@@ -7965,9 +8019,33 @@ function buildMsx2GameFlowProgram(
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       }
-      case 'End':
+      case 'End': {
+        const hasEndText = Boolean(String(current.title || '').trim() || String(current.message || '').trim());
+        if (hasEndText) {
+          const dataLabel = `${labelForNodeId(current.id)}_END`;
+          dataBlocks.push(buildMsx2TextNodeData(dataLabel, {
+            title: current.title || 'END',
+            message: current.message || '',
+            waitForKey: current.waitForKey,
+          }, analysis));
+          lines.push('    call load_msx2_hud_font');
+          lines.push(`    call draw_${dataLabel}`);
+          if (current.waitForKey === false) {
+            const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
+            if (frames > 0) {
+              lines.push(`    ld b, ${formatHexByte(frames)}`);
+              lines.push(`.${dataLabel}_wait_frames:`);
+              lines.push('    halt');
+              lines.push(`    djnz .${dataLabel}_wait_frames`);
+            }
+          } else {
+            lines.push('    call wait_key_release');
+            lines.push('    call wait_key');
+          }
+        }
         lines.push('    jp .main_loop');
         break;
+      }
       case 'Restart':
         lines.push('    jp init_rom');
         break;
@@ -8411,6 +8489,7 @@ WRTVDP  EQU #0047
 LDIRVM  EQU #005C
 CHGCLR  EQU #0062
 CHGET   EQU #009F
+KILBUF  EQU #0156
 GTSTCK  EQU #00D5
 GTTRIG  EQU #00D8
 SNSMAT  EQU #0141
@@ -8644,6 +8723,16 @@ msx2_screen4_data_bank_leave:
 
 wait_key:
     call CHGET
+    ret
+
+wait_key_release:
+    ; Debounce menu-confirm keys and clear BIOS keyboard buffer before CHGET.
+.release_loop:
+    call wait_frame_busy
+    call msx2_submenu_confirm_pressed
+    or a
+    jp nz, .release_loop
+    call KILBUF
     ret
 
 msx2_submenu_select:

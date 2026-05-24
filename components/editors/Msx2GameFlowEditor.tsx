@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Msx2GameFlowConnection,
+  Msx2GameFlowControlsNode,
+  Msx2GameFlowEndNode,
   Msx2GameFlowGraph,
   Msx2GameFlowGlobalsNode,
   Msx2GameFlowIfThenElseNode,
@@ -66,11 +68,12 @@ interface Msx2GameFlowEditorProps {
 
 const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string => {
   if (node.type === 'Start') return 'Start MSX2';
-  if (node.type === 'End') return 'End';
+  if (node.type === 'End') return node.title || 'End';
   if (node.type === 'Waypoint') return 'Waypoint';
   if (node.type === 'Restart') return 'Restart ROM';
   if (node.type === 'Globals') return node.title || `${node.variables?.length || 0} global set`;
   if (node.type === 'SubMenu') return node.title || 'SubMenu';
+  if (node.type === 'Controls') return node.title || 'Controls';
   if (node.type === 'Text') return node.title || 'Text';
   if (node.type === 'WorldLink') {
     const asset = allAssets.find(a => a.id === node.worldAssetId && a.type === 'worldmap');
@@ -89,6 +92,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Globals') return 'hsl(265, 42%, 36%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
   if (node.type === 'SubMenu') return 'hsl(215, 52%, 34%)';
+  if (node.type === 'Controls') return 'hsl(185, 45%, 34%)';
   if (node.type === 'Text') return 'hsl(188, 46%, 34%)';
   if (node.type === 'WorldLink') return 'hsl(150, 48%, 30%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
@@ -189,8 +193,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedSubMenuNode = selectedNode?.type === 'SubMenu'
     ? selectedNode as Msx2GameFlowSubMenuNode
     : null;
+  const selectedControlsNode = selectedNode?.type === 'Controls'
+    ? selectedNode as Msx2GameFlowControlsNode
+    : null;
   const selectedTextNode = selectedNode?.type === 'Text'
     ? selectedNode as Msx2GameFlowTextNode
+    : null;
+  const selectedEndNode = selectedNode?.type === 'End'
+    ? selectedNode as Msx2GameFlowEndNode
     : null;
   const selectedWorldLinkNode = selectedNode?.type === 'WorldLink'
     ? selectedNode as Msx2GameFlowWorldLinkNode
@@ -275,6 +285,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               issues.push(`SubMenu option "${option.text || option.id}" needs an outgoing connection.`);
             }
           }
+        } else if (node.type === 'Controls') {
+          if (!node.title?.trim()) issues.push('Controls node must include a title.');
         } else if (node.type === 'Text') {
           if (!node.message?.trim()) issues.push('Text node must include a message.');
         } else if (node.type === 'WorldLink') {
@@ -445,7 +457,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     onUpdate({ purpose });
   };
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -498,6 +510,22 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               position: { x, y },
               worldAssetId: worldAssets[0]?.id || '',
             }
+        : type === 'Controls'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              title: 'Controls',
+              keyboardButton1: 'SPC',
+              keyboardButton2: 'N',
+              jumpActionLabel: 'JUMP',
+              jumpActionButton: 'button1',
+              actionLabel: 'FIRE',
+              actionButton: 'button2',
+              backgroundScreenAssetId: screen4Assets[0]?.id,
+              waitForKey: true,
+              waitFrames: 0,
+            }
         : type === 'Screen5Presentation'
         ? {
             id,
@@ -511,6 +539,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           ? { id, type, position: { x, y }, effect: 'cls', durationFrames: 30 }
           : type === 'Restart'
             ? { id, type, position: { x, y }, title: 'Restart', message: '' }
+          : type === 'End'
+            ? { id, type, position: { x, y }, title: 'End', message: 'THANKS FOR PLAYING', waitForKey: true, waitFrames: 0 }
           : { id, type, position: { x, y } };
 
     const nextConnections = previousNode && previousNode.type !== 'End' && previousNode.type !== 'Restart' && previousNode.type !== 'IfThenElse'
@@ -727,6 +757,36 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedControls = (updates: Partial<Msx2GameFlowControlsNode>) => {
+    if (!selectedControlsNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedControlsNode.id && node.type === 'Controls'
+        ? {
+            ...node,
+            ...updates,
+            waitFrames: updates.waitFrames !== undefined
+              ? Math.max(0, Math.min(255, Math.trunc(updates.waitFrames) || 0))
+              : node.waitFrames,
+          }
+        : node
+    ));
+  };
+
+  const updateSelectedEnd = (updates: Partial<Msx2GameFlowEndNode>) => {
+    if (!selectedEndNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedEndNode.id && node.type === 'End'
+        ? {
+            ...node,
+            ...updates,
+            waitFrames: updates.waitFrames !== undefined
+              ? Math.max(0, Math.min(255, Math.trunc(updates.waitFrames) || 0))
+              : node.waitFrames,
+          }
+        : node
+    ));
+  };
+
   const updateSelectedWorldLink = (updates: Partial<Msx2GameFlowWorldLinkNode>) => {
     if (!selectedWorldLinkNode) return;
     updateNodes(nodes.map(node =>
@@ -877,6 +937,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add SubMenu
+        </Button>
+        <Button onClick={() => addNode('Controls')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+          Add Controls
         </Button>
         <Button onClick={() => addNode('WorldLink')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add World
@@ -1116,6 +1179,173 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
                 />
               </label>
+            </div>
+          )}
+
+          {selectedEndNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">End</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedEndNode.title || ''}
+                  onChange={event => updateSelectedEnd({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Message
+                <textarea
+                  value={selectedEndNode.message || ''}
+                  onChange={event => updateSelectedEnd({ message: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedEndNode.waitForKey !== false}
+                  onChange={event => updateSelectedEnd({ waitForKey: event.target.checked })}
+                />
+                Wait for key
+              </label>
+              <label className="block text-xs">
+                Wait frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedEndNode.waitFrames || 0}
+                  onChange={event => updateSelectedEnd({ waitFrames: Number(event.target.value) })}
+                  disabled={selectedEndNode.waitForKey !== false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
+                />
+              </label>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 4 export draws this final message and then returns to the runtime loop.
+              </p>
+            </div>
+          )}
+
+          {selectedControlsNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Controls</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedControlsNode.title}
+                  onChange={event => updateSelectedControls({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                SCREEN 4 background
+                <select
+                  value={selectedControlsNode.backgroundScreenAssetId || ''}
+                  onChange={event => updateSelectedControls({ backgroundScreenAssetId: event.target.value || undefined })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  disabled={screen4Assets.length === 0}
+                >
+                  <option value="">Fallback first SCREEN 4 room</option>
+                  {screen4Assets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs">
+                  B1 key
+                  <select
+                    value={selectedControlsNode.keyboardButton1 || 'SPC'}
+                    onChange={event => updateSelectedControls({ keyboardButton1: event.target.value as Msx2GameFlowControlsNode['keyboardButton1'] })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  >
+                    <option value="SPC">SPC</option>
+                    <option value="CTRL">CTRL</option>
+                  </select>
+                </label>
+                <label className="block text-xs">
+                  B2 key
+                  <select
+                    value={selectedControlsNode.keyboardButton2 || 'N'}
+                    onChange={event => updateSelectedControls({ keyboardButton2: event.target.value as Msx2GameFlowControlsNode['keyboardButton2'] })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  >
+                    <option value="N">N</option>
+                    <option value="CTRL">CTRL</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-[1fr_82px] gap-2">
+                <label className="block text-xs">
+                  Action 1
+                  <input
+                    type="text"
+                    value={selectedControlsNode.jumpActionLabel || ''}
+                    onChange={event => updateSelectedControls({ jumpActionLabel: event.target.value })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Uses
+                  <select
+                    value={selectedControlsNode.jumpActionButton || 'button1'}
+                    onChange={event => updateSelectedControls({ jumpActionButton: event.target.value as Msx2GameFlowControlsNode['jumpActionButton'] })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  >
+                    <option value="button1">B1</option>
+                    <option value="button2">B2</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-[1fr_82px] gap-2">
+                <label className="block text-xs">
+                  Action 2
+                  <input
+                    type="text"
+                    value={selectedControlsNode.actionLabel || ''}
+                    onChange={event => updateSelectedControls({ actionLabel: event.target.value })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Uses
+                  <select
+                    value={selectedControlsNode.actionButton || 'button2'}
+                    onChange={event => updateSelectedControls({ actionButton: event.target.value as Msx2GameFlowControlsNode['actionButton'] })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  >
+                    <option value="button1">B1</option>
+                    <option value="button2">B2</option>
+                  </select>
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedControlsNode.waitForKey !== false}
+                  onChange={event => updateSelectedControls({ waitForKey: event.target.checked })}
+                />
+                Wait for key
+              </label>
+              <label className="block text-xs">
+                Wait frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedControlsNode.waitFrames || 0}
+                  onChange={event => updateSelectedControls({ waitFrames: Number(event.target.value) })}
+                  disabled={selectedControlsNode.waitForKey !== false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
+                />
+              </label>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 4 export draws this as a controls reference screen; it does not rewrite runtime input bindings yet.
+              </p>
             </div>
           )}
 
