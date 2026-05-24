@@ -114,6 +114,49 @@ def assert_fixture_contract(path: Path) -> None:
         raise RuntimeError("SCREEN 5 presentation packedBitmap does not match visible image size")
 
 
+def write_terminal_transition_fixture(source: Path, destination: Path, effect: str, duration_frames: int) -> Path:
+    data = json.loads(source.read_text(encoding="utf-8"))
+    flows = [asset for asset in data.get("assets", []) if asset.get("type") == "msx2gameflow"]
+    if not flows:
+        raise RuntimeError(f"Cannot inject terminal Transition because fixture has no MSX2 GameFlow asset: {source}")
+
+    flow_asset = next((asset for asset in flows if asset.get("name") == "Main MSX2"), flows[0])
+    flow_data = flow_asset.get("data") or {}
+    nodes = flow_data.get("nodes") or []
+    connections = flow_data.get("connections") or []
+    screen5_node = next((node for node in nodes if node.get("type") == "Screen5Presentation"), None)
+    end_node = next((node for node in nodes if node.get("type") == "End"), None)
+    if screen5_node is None or end_node is None:
+        raise RuntimeError("Cannot inject terminal Transition without Screen5Presentation and End nodes")
+
+    screen5_id = screen5_node.get("id")
+    end_id = end_node.get("id")
+    transition_id = f"{screen5_id}_terminal_transition"
+    transition_node = next((node for node in nodes if node.get("id") == transition_id), None)
+    if transition_node is None:
+        transition_node = {
+            "id": transition_id,
+            "type": "Transition",
+            "position": {"x": (screen5_node.get("position") or {}).get("x", 300) + 230, "y": (screen5_node.get("position") or {}).get("y", 110)},
+        }
+        nodes.append(transition_node)
+    transition_node["effect"] = effect
+    transition_node["durationFrames"] = max(0, min(255, int(duration_frames)))
+    screen5_node["waitForKey"] = False
+    screen5_node["waitFrames"] = 5
+
+    flow_data["connections"] = [
+        connection for connection in connections
+        if (connection.get("from") or {}).get("nodeId") not in (screen5_id, transition_id)
+    ]
+    flow_data["connections"].extend([
+        {"id": f"{screen5_id}_to_terminal_transition", "from": {"nodeId": screen5_id}, "to": {"nodeId": transition_id}},
+        {"id": f"{transition_id}_to_end", "from": {"nodeId": transition_id}, "to": {"nodeId": end_id}},
+    ])
+    destination.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return destination
+
+
 def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
     data = json.loads(path.read_text(encoding="utf-8"))
     presentations = {asset.get("id") for asset in data.get("assets", []) if asset.get("type") == "msx2presentation"}
@@ -144,6 +187,12 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
     if screen5_node is None:
         raise RuntimeError(f"MSX2 GameFlow fixture has no Screen5Presentation node: {path}")
 
+    next_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == screen5_node.get("id")), None)
+    next_node_id = (next_connection.get("to") or {}).get("nodeId") if next_connection else None
+    transition_node = node_by_id.get(next_node_id) if next_node_id else None
+    if transition_node and transition_node.get("type") != "Transition":
+        transition_node = None
+
     presentation_asset_id = screen5_node.get("presentationAssetId")
     if presentation_asset_id not in presentations:
         raise RuntimeError(
@@ -157,6 +206,9 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
         "presentation_asset_id": presentation_asset_id,
         "wait_for_key": screen5_node.get("waitForKey"),
         "wait_frames": screen5_node.get("waitFrames"),
+        "transition_id": transition_node.get("id") if transition_node else "none",
+        "transition_effect": transition_node.get("effect") if transition_node else "none",
+        "transition_duration_frames": transition_node.get("durationFrames") if transition_node else 0,
     }
 
 
@@ -173,6 +225,9 @@ def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | Non
         f"; MSX2_GAMEFLOW_START_NODE: {contract['start_node_id']}",
         f"; MSX2_GAMEFLOW_SCREEN5_NODE: {contract['screen5_node_id']}",
         f"; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: {contract['presentation_asset_id']}",
+        f"; MSX2_GAMEFLOW_NEXT_TRANSITION: {contract['transition_id']}",
+        f"; MSX2_GAMEFLOW_TRANSITION_EFFECT: {contract['transition_effect']}",
+        f"; MSX2_GAMEFLOW_TRANSITION_DURATION_FRAMES: {contract['transition_duration_frames']}",
     ]
     for needle in required:
         if needle not in text:
@@ -186,6 +241,24 @@ def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | Non
                 raise RuntimeError(f"Generated ASM is missing MSX2 GameFlow wait-frame override code: {needle}")
         if "    call CHGET" in text:
             raise RuntimeError("Generated ASM still waits for CHGET even though the GameFlow node disabled waitForKey")
+
+    if contract.get("transition_id") != "none":
+        required_transition_code = [
+            "jp msx2_gameflow_run_transition",
+            "msx2_gameflow_run_transition:",
+            ".gameflow_end_loop:",
+            "jp .gameflow_end_loop",
+        ]
+        if contract.get("transition_effect") == "fade_to_black":
+            required_transition_code.extend(["call load_screen5_black_palette", "screen5_black_palette_data"])
+        if contract.get("transition_effect") == "cls":
+            required_transition_code.extend(["call DISSCR", "call clear_screen5_visible_vram", "call FILVRM"])
+        duration_frames = int(contract.get("transition_duration_frames") or 0)
+        if duration_frames > 0:
+            required_transition_code.extend([f"ld b, #{duration_frames:02X}", ".transition_wait:", "djnz .transition_wait"])
+        for needle in required_transition_code:
+            if needle not in text:
+                raise RuntimeError(f"Generated ASM is missing MSX2 GameFlow terminal transition code: {needle}")
 
 
 def assert_openmsx_capture(path: Path) -> None:
@@ -218,6 +291,9 @@ def main() -> int:
     parser.add_argument("--skip-openmsx", action="store_true", help="Compile only; do not launch OpenMSX")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine")
     parser.add_argument("--wait-ms", type=int, default=6000, help="OpenMSX capture wait in milliseconds")
+    parser.add_argument("--inject-terminal-transition", action="store_true", help="Inject Screen5Presentation -> Transition -> End into a temp fixture before compiling")
+    parser.add_argument("--transition-effect", choices=["fade_to_black", "cls"], default="fade_to_black", help="Effect used with --inject-terminal-transition")
+    parser.add_argument("--transition-duration-frames", type=int, default=29, help="Duration used with --inject-terminal-transition")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -228,6 +304,13 @@ def main() -> int:
     out_dir = Path(args.out_dir).resolve() if args.out_dir else project_root / "test" / "msx2-screen5-presentation" / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     output_stem = Path(args.project_name).stem
+    if args.inject_terminal_transition:
+        fixture = write_terminal_transition_fixture(
+            fixture,
+            out_dir / f"{output_stem}_terminal_transition_fixture.json",
+            args.transition_effect,
+            args.transition_duration_frames,
+        )
     asm_output = out_dir / f"{output_stem}.asm"
     zx0_asm_output = out_dir / f"{output_stem}_compressed.asm"
     rom_output = out_dir / f"{output_stem}.rom"

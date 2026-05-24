@@ -1,4 +1,4 @@
-import { Msx2GameFlowGraph, Msx2GameFlowScreen5PresentationNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
+import { Msx2GameFlowGraph, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -34,6 +34,7 @@ interface ResolvedPresentationFlow {
   presentation?: Msx2Screen5PresentationConfig;
   flow?: Msx2GameFlowGraph;
   node?: Msx2GameFlowScreen5PresentationNode;
+  transition?: Msx2GameFlowTransitionNode;
   requestedPresentationAssetId?: string;
 }
 
@@ -57,6 +58,13 @@ function resolveMsx2GameFlowPresentationNode(flow: Msx2GameFlowGraph | undefined
   return flow.nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
 }
 
+function resolveNextTransition(flow: Msx2GameFlowGraph | undefined, node: Msx2GameFlowScreen5PresentationNode | undefined): Msx2GameFlowTransitionNode | undefined {
+  if (!flow || !node || !Array.isArray(flow.nodes)) return undefined;
+  const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
+  const nextNode = nextConnection ? flow.nodes.find(candidate => candidate.id === nextConnection.to.nodeId) : undefined;
+  return nextNode?.type === 'Transition' ? nextNode as Msx2GameFlowTransitionNode : undefined;
+}
+
 function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentationFlow {
   const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>);
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]);
@@ -77,6 +85,7 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     presentation: presentation || presentations[0],
     flow,
     node,
+    transition: resolveNextTransition(flow, node),
     requestedPresentationAssetId,
   };
 }
@@ -144,7 +153,28 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
   return `${lines.join('\n')}\n`;
 }
 
-function generateWaitLoop(presentation: Msx2Screen5PresentationConfig): string {
+function generateWaitStep(presentation: Msx2Screen5PresentationConfig, nextLabel: string): string {
+  const runtime = presentation.runtime;
+  if (runtime.waitForKey !== false) {
+    return `.main_loop:
+    call CHGET
+    jp ${nextLabel}`;
+  }
+  const waitForFrames = Math.max(0, Math.min(255, Math.trunc(Number(runtime.waitForFrames) || 0)));
+  if (waitForFrames > 0) {
+    return `    ld b, ${hexByte(waitForFrames)}
+.frame_wait:
+    halt
+    djnz .frame_wait
+    jp ${nextLabel}`;
+  }
+  return `    jp ${nextLabel}`;
+}
+
+function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, hasNextTransition: boolean): string {
+  if (hasNextTransition) {
+    return generateWaitStep(presentation, 'msx2_gameflow_run_transition');
+  }
   const runtime = presentation.runtime;
   if (runtime.waitForKey !== false) {
     return `.main_loop:
@@ -164,6 +194,51 @@ function generateWaitLoop(presentation: Msx2Screen5PresentationConfig): string {
   return `.main_loop:
     halt
     jp .main_loop`;
+}
+
+function generateTerminalTransitionRoutine(transition: Msx2GameFlowTransitionNode | undefined, vramBase: string): string {
+  if (!transition) return '';
+  const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
+  const waitBlock = durationFrames > 0
+    ? `    ld b, ${hexByte(durationFrames)}
+.transition_wait:
+    halt
+    djnz .transition_wait
+`
+    : '';
+  const effectBlock = transition.effect === 'fade_to_black'
+    ? `    call load_screen5_black_palette`
+    : `    call DISSCR
+    call clear_screen5_visible_vram`;
+
+  return `
+msx2_gameflow_run_transition:
+${effectBlock}
+${waitBlock}.gameflow_end_loop:
+    halt
+    jp .gameflow_end_loop
+
+clear_screen5_visible_vram:
+    ; Terminal clear helper. Clobbers AF, BC, HL.
+    xor a
+    ld hl, ${vramBase}
+    ld bc, SCREEN5_PRESENTATION_BITMAP_SIZE
+    call FILVRM
+    ret
+
+load_screen5_black_palette:
+    ; Terminal transition helper. Clobbers AF, BC, HL.
+    ld bc, #0010
+    call WRTVDP
+    ld hl, screen5_black_palette_data
+    ld b, 32
+.black_palette_loop:
+    ld a, (hl)
+    out (VDP_PALETTE_PORT), a
+    inc hl
+    djnz .black_palette_loop
+    ret
+`;
 }
 
 function applyGameFlowRuntimeOverrides(
@@ -217,6 +292,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
   const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
   const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
+  const terminalTransition = resolvedFlow.transition;
+  const transitionDurationFrames = Math.max(0, Math.min(255, Math.trunc(Number(terminalTransition?.durationFrames) || 0)));
   const uploadChunks = bitmapChunks.map((_chunk, index) => {
     const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
     const vramOffset = index * chunkLines * BYTES_PER_LINE;
@@ -246,6 +323,9 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; MSX2_GAMEFLOW_START_NODE: ${resolvedFlow.flow?.startNodeId || 'none'}
 ; MSX2_GAMEFLOW_SCREEN5_NODE: ${resolvedFlow.node?.id || 'none'}
 ; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: ${resolvedFlow.requestedPresentationAssetId || 'auto-first'}
+; MSX2_GAMEFLOW_NEXT_TRANSITION: ${terminalTransition?.id || 'none'}
+; MSX2_GAMEFLOW_TRANSITION_EFFECT: ${terminalTransition?.effect || 'none'}
+; MSX2_GAMEFLOW_TRANSITION_DURATION_FRAMES: ${terminalTransition ? transitionDurationFrames : 0}
 ; ROM mode requested: ${config.romMode}
 ; ROM Mode: ${config.romMode}
 ; Mapper Target: ${config.targetFormat}
@@ -257,6 +337,7 @@ CHGMOD  EQU #005F
 DISSCR  EQU #0041
 ENASCR  EQU #0044
 LDIRVM  EQU #005C
+FILVRM  EQU #0056
 CHGET   EQU #009F
 WRTVDP  EQU #0047
 RSLREG  EQU #0138
@@ -287,7 +368,7 @@ ${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call
     call upload_screen5_presentation_bitmap
     call ENASCR
     ei
-${generateWaitLoop(presentation)}
+${generateWaitLoop(presentation, !!terminalTransition)}
 
 map_page2_to_cart_primary:
     ; Map #8000-#BFFF to the same primary/expanded slot as cart page #4000.
@@ -319,6 +400,7 @@ get_cart_slot_value:
     or c
     ret
 
+${generateTerminalTransitionRoutine(terminalTransition, vramBase)}
 ${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
     ld a, 1
     call mapper_set_bank_p1
@@ -362,6 +444,7 @@ SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}
 SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU ${vramBase}
 
 ${formatBytes('screen5_presentation_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
+${terminalTransition ? formatBytes('screen5_black_palette_data', Array.from({ length: 32 }, () => 0), 'All-black palette used by terminal MSX2 GameFlow transitions') : ''}
 ${chunkData}
 
     ds #C000 - $, #FF

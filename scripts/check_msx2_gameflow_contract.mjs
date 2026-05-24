@@ -54,6 +54,7 @@ addCheck(
 );
 addCheck('MSX2 GameFlow editor exposes explicit outgoing connection controls', editor.includes('connectSelectedNodeTo') && editor.includes('Clear Connection') && editor.includes('Next node'));
 addCheck('MSX2 GameFlow editor exposes SCREEN 5 runtime wait controls', editor.includes('updateSelectedPresentationRuntime') && editor.includes('GameFlow runtime override') && editor.includes('Wait for key') && editor.includes('Wait frames') && editor.includes('waitForKey') && editor.includes('waitFrames') && editor.includes('disabled={selectedPresentationNode.waitForKey !== false}'));
+addCheck('MSX2 GameFlow editor exposes transition duration controls', editor.includes('updateSelectedTransitionDuration') && editor.includes('Duration frames') && editor.includes('durationFrames') && editor.includes('Math.max(0, Math.min(255'));
 addCheck(
   'MSX1 GameFlow presentation picker remains MSX1-only',
   gameFlowEditor.includes("assetType: 'presentationscreen'") && !gameFlowEditor.includes("['presentationscreen', 'msx2presentation']")
@@ -88,6 +89,7 @@ addCheck('SCREEN 5 generator resolves MSX2 gameflow presentation node', screen5P
 addCheck('SCREEN 5 generator selects presentation by msx2gameflow asset id', screen5PresentationGenerator.includes('requestedPresentationAssetId') && screen5PresentationGenerator.includes('presentationAssetId'));
 addCheck('SCREEN 5 generator fails on missing msx2gameflow presentation asset', screen5PresentationGenerator.includes('references missing msx2presentation asset') && screen5PresentationGenerator.includes('throw new Error'));
 addCheck('SCREEN 5 generator emits MSX2 gameflow markers', screen5PresentationGenerator.includes('MSX2_GAMEFLOW_PRESENT') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_SCREEN5_NODE'));
+addCheck('SCREEN 5 generator emits terminal MSX2 transition runtime', screen5PresentationGenerator.includes('resolveNextTransition') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_NEXT_TRANSITION') && screen5PresentationGenerator.includes('msx2_gameflow_run_transition') && screen5PresentationGenerator.includes('load_screen5_black_palette') && screen5PresentationGenerator.includes('clear_screen5_visible_vram'));
 
 const failed = checks.filter(check => !check.ok);
 for (const check of checks) {

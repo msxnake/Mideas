@@ -189,6 +189,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedTransitionDuration = (durationFrames: number) => {
+    if (selectedNode?.type !== 'Transition') return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedNode.id && node.type === 'Transition'
+        ? { ...node, durationFrames: Math.max(0, Math.min(255, Math.trunc(durationFrames) || 0)) }
+        : node
+    ));
+  };
+
   const selectedOutgoingConnection = selectedNode
     ? connections.find(connection => connection.from.nodeId === selectedNode.id)
     : undefined;
@@ -362,17 +371,30 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           )}
 
           {selectedNode?.type === 'Transition' && (
-            <label className="block text-xs">
-              Effect
-              <select
-                value={selectedNode.effect}
-                onChange={event => updateSelectedTransition(event.target.value as 'cls' | 'fade_to_black')}
-                className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
-              >
-                <option value="cls">CLS</option>
-                <option value="fade_to_black">Fade to black</option>
-              </select>
-            </label>
+            <div className="space-y-2">
+              <label className="block text-xs">
+                Effect
+                <select
+                  value={selectedNode.effect}
+                  onChange={event => updateSelectedTransition(event.target.value as 'cls' | 'fade_to_black')}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                >
+                  <option value="cls">CLS</option>
+                  <option value="fade_to_black">Fade to black</option>
+                </select>
+              </label>
+              <label className="block text-xs">
+                Duration frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedNode.durationFrames ?? 30}
+                  onChange={event => updateSelectedTransitionDuration(Number(event.target.value))}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+            </div>
           )}
 
           {selectedNode && (
