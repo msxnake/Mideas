@@ -9,6 +9,7 @@ import type {
   Msx2GameFlowScreen5PresentationNode,
   Msx2GameFlowSubMenuNode,
   Msx2GameFlowTextNode,
+  Msx2GameFlowTransitionNode,
   Msx2GameFlowWorldLinkNode,
   Msx2Screen5PresentationConfig,
   ProjectAsset,
@@ -22,6 +23,34 @@ import { drawMsx2Screen5PresentationPreview } from '../utils/msx2Screen5Presenta
 
 const NODE_WIDTH = 168;
 const NODE_HEIGHT = 76;
+
+const MSX2_SCREEN5_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string }> = [
+  { value: 'cls', label: 'CLS' },
+  { value: 'fade_to_black', label: 'Fade to black' },
+];
+
+const MSX2_SCREEN4_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string }> = [
+  ...MSX2_SCREEN5_TRANSITION_OPTIONS,
+  { value: 'dissolve_pixels', label: 'Dissolve pixels' },
+  { value: 'dissolve_chars', label: 'Dissolve chars' },
+  { value: 'horizontal_lines', label: 'Horizontal lines' },
+  { value: 'vertical_lines', label: 'Vertical lines' },
+  { value: 'spiral', label: 'Spiral' },
+  { value: 'diagonal_clear', label: 'Diagonal clear' },
+  { value: 'diagonal_inverse', label: 'Diagonal inverse' },
+  { value: 'checkerboard', label: 'Checkerboard' },
+  { value: 'doors', label: 'Doors' },
+  { value: 'center_curtain', label: 'Center curtain' },
+  { value: 'venetian_blinds', label: 'Venetian blinds' },
+  { value: 'radial_wipe', label: 'Radial wipe' },
+  { value: 'fill_white_squares', label: '2x2 blocks' },
+  { value: 'block4_shuffle', label: '4x4 block shuffle' },
+  { value: 'zoom_box', label: 'Zoom box' },
+];
+
+const MSX2_SCREEN5_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effect']>(
+  MSX2_SCREEN5_TRANSITION_OPTIONS.map(option => option.value)
+);
 
 interface Msx2GameFlowEditorProps {
   gameFlowGraph: Msx2GameFlowGraph;
@@ -44,7 +73,9 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
     return asset?.name || 'World Link';
   }
   if (node.type === 'IfThenElse') return `${node.variableName || 'var'} ${node.operator || '=='} ${node.compareValue || '0'}`;
-  if (node.type === 'Transition') return node.effect === 'fade_to_black' ? 'Fade to Black' : 'CLS';
+  if (node.type === 'Transition') {
+    return MSX2_SCREEN4_TRANSITION_OPTIONS.find(option => option.value === node.effect)?.label || 'Transition';
+  }
   const asset = allAssets.find(a => a.id === node.presentationAssetId && a.type === 'msx2presentation');
   return asset?.name || 'SCREEN 5 Presentation';
 };
@@ -163,6 +194,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedIfThenElseNode = selectedNode?.type === 'IfThenElse'
     ? selectedNode as Msx2GameFlowIfThenElseNode
     : null;
+  const transitionOptions = isScreen5PresentationFlow
+    ? MSX2_SCREEN5_TRANSITION_OPTIONS
+    : MSX2_SCREEN4_TRANSITION_OPTIONS;
   const firstPresentationNode = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
   const previewPresentationNode = selectedPresentationNode || firstPresentationNode || null;
 
@@ -304,6 +338,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     if (terminalNode?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
       issues.push('Terminal Transition should continue to Restart or End.');
     }
+    if (terminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(terminalNode.effect)) {
+      issues.push(`SCREEN 5 terminal Transition only supports CLS or Fade to black; "${terminalNode.effect}" is SCREEN 4-only.`);
+    }
     if (afterScreen5?.type === 'IfThenElse') {
       if (!afterScreen5.variableName?.trim()) {
         issues.push('IfThenElse must select a global variable.');
@@ -330,6 +367,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           : undefined;
         if (branchTerminalNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
           issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
+        }
+        if (branchTerminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(branchTerminalNode.effect)) {
+          issues.push(`IfThenElse ${label} terminal Transition uses "${branchTerminalNode.effect}", which is SCREEN 4-only.`);
         }
       }
     }
@@ -588,7 +628,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
-  const updateSelectedTransition = (effect: 'cls' | 'fade_to_black') => {
+  const updateSelectedTransition = (effect: Msx2GameFlowTransitionNode['effect']) => {
     if (selectedNode?.type !== 'Transition') return;
     updateNodes(nodes.map(node =>
       node.id === selectedNode.id && node.type === 'Transition'
@@ -1005,11 +1045,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 Effect
                 <select
                   value={selectedNode.effect}
-                  onChange={event => updateSelectedTransition(event.target.value as 'cls' | 'fade_to_black')}
+                  onChange={event => updateSelectedTransition(event.target.value as Msx2GameFlowTransitionNode['effect'])}
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                 >
-                  <option value="cls">CLS</option>
-                  <option value="fade_to_black">Fade to black</option>
+                  {transitionOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </label>
               <label className="block text-xs">

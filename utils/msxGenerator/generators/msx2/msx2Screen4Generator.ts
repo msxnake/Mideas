@@ -2112,6 +2112,7 @@ function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
   const hudFontBaseChar = getMsx2HudFontBaseChar(analysis);
   const hudFontPatternVram = hudFontBaseChar * 8;
   const hudFontColorVram = 0x2000 + (hudFontBaseChar * 8);
+  const hudFontColorByte = buildMsx2HudFontColorBytes(analysis)[0] ?? 0xF1;
   const hudFontUsesContiguousAscii = isMsx2HudFontContiguousAscii(analysis);
   const hudAsciiMapperAsm = hudFontUsesContiguousAscii ? `msx2_hud_ascii_to_char:
     ; Input A=ASCII. Output A=SCREEN 4 HUD font char code.
@@ -2181,15 +2182,15 @@ function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
     ld de, ${formatHexWord(0x1000 + hudFontPatternVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call LDIRVM
-    ld a, #F1
+    ld a, ${formatHexByte(hudFontColorByte)}
     ld hl, ${formatHexWord(hudFontColorVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call FILVRM
-    ld a, #F1
+    ld a, ${formatHexByte(hudFontColorByte)}
     ld hl, ${formatHexWord(0x0800 + hudFontColorVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call FILVRM
-    ld a, #F1
+    ld a, ${formatHexByte(hudFontColorByte)}
     ld hl, ${formatHexWord(0x1000 + hudFontColorVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     jp FILVRM
@@ -7541,6 +7542,212 @@ msx2_gf_compare_hl_de:
 `;
 }
 
+function buildMsx2GameFlowTransitionWaitLines(label: string, durationFrames: unknown): string[] {
+  const frames = Math.max(0, Math.min(255, Math.trunc(Number(durationFrames) || 0)));
+  if (frames <= 0) return [];
+  const waitLabel = `.${label}_wait_frames`;
+  return [
+    `    ld b, ${formatHexByte(frames)}`,
+    `${waitLabel}:`,
+    '    call wait_frame_busy',
+    `    djnz ${waitLabel}`,
+  ];
+}
+
+function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durationFrames: unknown): string[] {
+  const lines: string[] = ['    call load_msx2_hud_font'];
+  const nameAddr = (offset: number): string => formatHexWord(0x1800 + offset);
+  const waitStep = () => lines.push('    call wait_frame_busy');
+  const writeBlankCell = (row: number, column: number) => {
+    lines.push(`    ld hl, ${nameAddr((row * 32) + column)}`);
+    lines.push('    call clear_screen4_name_cell_blank');
+  };
+  const writeBlankRow = (row: number) => {
+    lines.push(`    ld hl, ${nameAddr(row * 32)}`);
+    lines.push('    call clear_screen4_name_row');
+  };
+  const writeBlankBlock = (row: number, column: number, height: number, width: number) => {
+    for (let y = 0; y < height; y++) {
+      const targetRow = row + y;
+      if (targetRow < 0 || targetRow >= 24) continue;
+      for (let x = 0; x < width; x++) {
+        const targetColumn = column + x;
+        if (targetColumn < 0 || targetColumn >= 32) continue;
+        writeBlankCell(targetRow, targetColumn);
+      }
+    }
+  };
+
+  switch (effect) {
+    case 'cls':
+      lines.push('    call clear_screen4_names');
+      lines.push(...buildMsx2GameFlowTransitionWaitLines(label, durationFrames));
+      break;
+    case 'fade_to_black':
+      lines.push('    call DISSCR');
+      lines.push('    call clear_screen4_names');
+      lines.push(...buildMsx2GameFlowTransitionWaitLines(label, durationFrames));
+      lines.push('    call ENASCR');
+      break;
+    case 'dissolve_pixels':
+      for (let phase = 0; phase < 8; phase++) {
+        for (let column = phase; column < 32; column += 8) {
+          lines.push(`    ld hl, ${nameAddr(column)}`);
+          lines.push('    call clear_screen4_name_column');
+        }
+        waitStep();
+      }
+      break;
+    case 'dissolve_chars':
+      for (let phase = 0; phase < 8; phase++) {
+        for (let row = phase; row < 24; row += 8) {
+          writeBlankRow(row);
+        }
+        waitStep();
+      }
+      break;
+    case 'horizontal_lines':
+      for (let row = 0; row < 24; row++) {
+        writeBlankRow(row);
+        waitStep();
+      }
+      break;
+    case 'spiral': {
+      let left = 0;
+      let right = 31;
+      let top = 0;
+      let bottom = 23;
+      while (left <= right && top <= bottom) {
+        for (let column = left; column <= right; column++) writeBlankCell(top, column);
+        for (let row = top + 1; row <= bottom; row++) writeBlankCell(row, right);
+        if (top < bottom) {
+          for (let column = right - 1; column >= left; column--) writeBlankCell(bottom, column);
+        }
+        if (left < right) {
+          for (let row = bottom - 1; row > top; row--) writeBlankCell(row, left);
+        }
+        waitStep();
+        left += 1;
+        right -= 1;
+        top += 1;
+        bottom -= 1;
+      }
+      break;
+    }
+    case 'vertical_lines':
+      for (let column = 0; column < 32; column++) {
+        lines.push(`    ld hl, ${nameAddr(column)}`);
+        lines.push('    call clear_screen4_name_column');
+        waitStep();
+      }
+      break;
+    case 'diagonal_clear':
+      for (let diagonal = 0; diagonal <= 54; diagonal++) {
+        for (let row = 0; row < 24; row++) {
+          const column = diagonal - row;
+          if (column < 0 || column >= 32) continue;
+          writeBlankCell(row, column);
+        }
+        waitStep();
+      }
+      break;
+    case 'diagonal_inverse':
+      for (let diagonal = 0; diagonal <= 54; diagonal++) {
+        for (let row = 0; row < 24; row++) {
+          const column = 31 - (diagonal - row);
+          if (column < 0 || column >= 32) continue;
+          writeBlankCell(row, column);
+        }
+        waitStep();
+      }
+      break;
+    case 'checkerboard':
+      for (let phase = 0; phase < 2; phase++) {
+        for (let row = 0; row < 24; row++) {
+          for (let column = 0; column < 32; column++) {
+            if (((row + column) & 1) !== phase) continue;
+            writeBlankCell(row, column);
+          }
+        }
+        waitStep();
+      }
+      break;
+    case 'doors':
+      for (let offset = 0; offset < 16; offset++) {
+        lines.push(`    ld hl, ${nameAddr(offset)}`);
+        lines.push('    call clear_screen4_name_column');
+        lines.push(`    ld hl, ${nameAddr(31 - offset)}`);
+        lines.push('    call clear_screen4_name_column');
+        waitStep();
+      }
+      break;
+    case 'center_curtain':
+      for (let offset = 0; offset < 16; offset++) {
+        lines.push(`    ld hl, ${nameAddr(15 - offset)}`);
+        lines.push('    call clear_screen4_name_column');
+        lines.push(`    ld hl, ${nameAddr(16 + offset)}`);
+        lines.push('    call clear_screen4_name_column');
+        waitStep();
+      }
+      break;
+    case 'venetian_blinds':
+      for (let phase = 0; phase < 2; phase++) {
+        for (let row = phase; row < 24; row += 2) {
+          writeBlankRow(row);
+        }
+        waitStep();
+      }
+      break;
+    case 'radial_wipe':
+      for (let radius = 0; radius <= 28; radius++) {
+        for (let row = 0; row < 24; row++) {
+          for (let column = 0; column < 32; column++) {
+            if ((Math.abs(column - 15) + Math.abs(row - 11)) !== radius) continue;
+            writeBlankCell(row, column);
+          }
+        }
+        waitStep();
+      }
+      break;
+    case 'fill_white_squares':
+      for (let row = 0; row < 24; row += 2) {
+        for (let column = 0; column < 32; column += 2) {
+          writeBlankBlock(row, column, 2, 2);
+          waitStep();
+        }
+      }
+      break;
+    case 'block4_shuffle': {
+      const blocks = Array.from({ length: 48 }, (_, index) => index)
+        .sort((a, b) => ((a * 13) % 48) - ((b * 13) % 48));
+      for (const block of blocks) {
+        const blockColumn = block % 8;
+        const blockRow = Math.floor(block / 8);
+        writeBlankBlock(blockRow * 4, blockColumn * 4, 4, 4);
+        waitStep();
+      }
+      break;
+    }
+    case 'zoom_box':
+      for (let inset = 0; inset < 12; inset += 2) {
+        const left = inset;
+        const right = 31 - inset;
+        const top = inset;
+        const bottom = 23 - inset;
+        writeBlankBlock(top, left, 2, right - left + 1);
+        writeBlankBlock(bottom - 1, left, 2, right - left + 1);
+        writeBlankBlock(top + 2, left, Math.max(0, bottom - top - 3), 2);
+        writeBlankBlock(top + 2, right - 1, Math.max(0, bottom - top - 3), 2);
+        waitStep();
+      }
+      break;
+    default:
+      return [];
+  }
+
+  return lines;
+}
+
 function buildMsx2GameFlowProgram(
   analysis: ProjectAnalysis,
   screenLabels: Map<string, string>,
@@ -7687,14 +7894,16 @@ function buildMsx2GameFlowProgram(
         lines.push('    jp .main_loop');
         break;
       }
-      case 'Transition':
-        if (current.effect === 'cls') {
-          lines.push('    call clear_screen4_names');
+      case 'Transition': {
+        const transitionLines = buildMsx2GameFlowTransitionLines(current.effect, label, current.durationFrames);
+        if (transitionLines.length > 0) {
+          lines.push(...transitionLines);
         } else {
           unsupported.add(`Transition:${current.effect}`);
         }
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
+      }
       case 'End':
         lines.push('    jp .main_loop');
         break;
@@ -8489,10 +8698,33 @@ draw_msx2_submenu_cursor:
     jp WRTVRM
 
 clear_screen4_names:
-    xor a
+    ; Clears SCREEN 4 name table with the HUD blank char. Clobbers AF/BC/DE/HL.
+    ld a, MSX2_HUD_FONT_BASE_CHAR
     ld hl, SCREEN4_NAME_VRAM
     ld bc, SCREEN4_NAME_SIZE
     call FILVRM
+    ret
+
+clear_screen4_name_cell_blank:
+    ; HL=SCREEN 4 name-table cell. Clobbers AF/BC/DE/HL.
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    jp WRTVRM
+
+clear_screen4_name_row:
+    ; HL=start cell in SCREEN 4 name-table row. Clobbers AF/BC/DE/HL.
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    ld bc, 32
+    jp FILVRM
+
+clear_screen4_name_column:
+    ; HL=top cell in SCREEN 4 name-table column. Clobbers AF/BC/DE/HL.
+    ld b, 24
+    ld de, 32
+.column_loop:
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    add hl, de
+    djnz .column_loop
     ret
 
 clear_screen4_name_cell_16:

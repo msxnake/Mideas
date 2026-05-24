@@ -781,6 +781,9 @@ function generateTransitionRuntime(
   afterTransitionAction: 'loop' | 'restart',
   beforeActionAsm = ''
 ): string {
+  if (transition.effect !== 'cls' && transition.effect !== 'fade_to_black') {
+    throw new Error(`MSX2 SCREEN 5 GameFlow transition "${transition.effect}" is not supported; use CLS or fade_to_black.`);
+  }
   const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
   const waitBlock = durationFrames > 0
     ? `    ld b, ${hexByte(durationFrames)}

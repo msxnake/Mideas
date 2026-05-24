@@ -2247,7 +2247,7 @@ export interface Msx2GameFlowIfThenElseNode extends Msx2GameFlowNode_Base {
 
 export interface Msx2GameFlowTransitionNode extends Msx2GameFlowNode_Base {
   type: 'Transition';
-  effect: 'cls' | 'fade_to_black';
+  effect: 'cls' | 'fade_to_black' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box';
   durationFrames?: number;
 }
 
