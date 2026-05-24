@@ -75,6 +75,33 @@ const renderComposition = (
   return pixels;
 };
 
+interface Screen4ColorLimitDiagnostic {
+  tileX: number;
+  tileY: number;
+  row: number;
+  colors: number[];
+}
+
+const analyzeScreen4ColorLimits = (pixels: number[][]): Screen4ColorLimitDiagnostic[] => {
+  const diagnostics: Screen4ColorLimitDiagnostic[] = [];
+  const tileRows = Math.floor(pixels.length / GRID);
+  for (let tileY = 0; tileY < tileRows; tileY++) {
+    for (let tileX = 0; tileX < SCREEN_W / GRID; tileX++) {
+      for (let row = 0; row < GRID; row++) {
+        const colors = new Set<number>();
+        const y = tileY * GRID + row;
+        for (let x = tileX * GRID; x < tileX * GRID + GRID; x++) {
+          colors.add((pixels[y]?.[x] ?? 0) & 0x0f);
+        }
+        if (colors.size > 2) {
+          diagnostics.push({ tileX, tileY, row, colors: [...colors].sort((a, b) => a - b) });
+        }
+      }
+    }
+  }
+  return diagnostics;
+};
+
 export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorProps> = ({ room, onUpdate }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +115,8 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
   const atlasHeight = Math.max(1, Number(room.atlas?.height) || 128);
   const atlasPixels = useMemo(() => normalizePixels(room.atlas?.pixels, atlasWidth, atlasHeight), [room.atlas?.pixels, atlasWidth, atlasHeight]);
   const previewPixels = useMemo(() => renderComposition(room, atlasPixels, room.height || 192), [room, atlasPixels]);
+  const colorLimitDiagnostics = useMemo(() => analyzeScreen4ColorLimits(previewPixels), [previewPixels]);
+  const diagnosticPreview = colorLimitDiagnostics.slice(0, 6);
   const commands = room.composition?.commands || [];
   const atlasEntries = room.atlas?.entries || [];
   const selectedAtlasEntry = atlasEntries.find(entry => entry.id === selectedAtlasEntryId) || atlasEntries[0];
@@ -255,9 +284,25 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
               />
             ))}
           </div>
-          <p className="mt-3 text-[0.7rem] text-msx-textsecondary">
-            Coordinates are pixel-based. Commands are the future V9938 copy/fill/line export list.
-          </p>
+          <div className="mt-3 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary space-y-1">
+            <div className="font-semibold text-msx-highlight">SCREEN 4 export contract</div>
+            <div>Authoring uses pixels, export emits PGT/PNT/CGT.</div>
+            <div>Layout: 32x24 cells, 3 banks, 256 unique chars per bank.</div>
+            <div>Limit: each 8-pixel row exports as 1 pattern byte + 1 FG/BG color byte.</div>
+          </div>
+          <div className={`mt-2 rounded border p-2 text-[0.7rem] ${colorLimitDiagnostics.length ? 'border-msx-warning bg-msx-warning/10 text-msx-warning' : 'border-msx-border bg-msx-panelbg text-msx-textsecondary'}`}>
+            <div className="font-semibold">{colorLimitDiagnostics.length ? 'Color rows will be reduced' : 'Color rows are SCREEN 4 safe'}</div>
+            <div>{colorLimitDiagnostics.length ? `${colorLimitDiagnostics.length} rows use more than 2 colors.` : 'No 8-pixel row exceeds 2 colors.'}</div>
+            {diagnosticPreview.length > 0 && (
+              <div className="mt-1 max-h-20 overflow-auto font-mono">
+                {diagnosticPreview.map(item => (
+                  <div key={`${item.tileX}-${item.tileY}-${item.row}`}>
+                    c{item.tileX},{item.tileY} r{item.row}: {item.colors.join(',')}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </aside>
 
         <main className="flex-1 overflow-auto p-3 flex justify-center bg-[#080A0F]">

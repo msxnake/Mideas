@@ -37,6 +37,7 @@ import { generateBossesFile } from './generators/bossesGenerator';
 import { generatePage0File } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
 import { generateMsx2Screen4Files } from './generators/msx2/msx2Screen4Generator';
+import { generateMsx2Screen4BitmapRoomFiles } from './generators/msx2/msx2Screen4BitmapRoomGenerator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
 import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
@@ -46,7 +47,7 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
-export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern';
+export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern' | 'msx2-screen4-bitmap-room';
 type LegacyGraphicsBackend = 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
 
 export interface MSXInterruptConfig {
@@ -114,13 +115,20 @@ function buildRuntimeTrackIndexByAssetId(tracks: any[]): Record<string, number> 
   }, {} as Record<string, number>);
 }
 
-function resolveGraphicsBackend(config: MSXModularConfig): GraphicsBackend {
+function hasMsx2BitmapRoomAssets(assets: ProjectAsset[] | undefined): boolean {
+  return Array.isArray(assets) && assets.some(asset => asset?.type === 'msx2bitmaproom');
+}
+
+function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
   if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
     console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
     return 'msx2-screen4-pattern';
   }
   if (config.targetGraphicsBackend) {
     return config.targetGraphicsBackend;
+  }
+  if (hasMsx2BitmapRoomAssets(assets)) {
+    return 'msx2-screen4-bitmap-room';
   }
   if (config.screenMode === 'SCREEN 4 (Graphics II)' || config.screenMode === 'SCREEN 5 (Graphics III)') {
     return 'msx2-screen4-pattern';
@@ -152,6 +160,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
   const msx2Sprites = unwrapSummaryAssets(summaryAssets.msx2Sprites || summaryAssets.msx2sprites);
   const msx2Bitmaps = unwrapSummaryAssets(summaryAssets.msx2Bitmaps || summaryAssets.msx2bitmaps);
   const msx2Screens = unwrapSummaryAssets(summaryAssets.msx2Screens || summaryAssets.msx2screens || summaryAssets.msx2Screen5Screens);
+  const msx2BitmapRooms = unwrapSummaryAssets(summaryAssets.msx2BitmapRooms || summaryAssets.msx2bitmaprooms);
   const tiles = unwrapSummaryAssets(summaryAssets.tiles);
   const tileBanks = unwrapSummaryAssets(summaryAssets.tileBanks || summaryAssets.tilebanks);
   const screenMaps = unwrapSummaryAssets(summaryAssets.screens || summaryAssets.screenMaps);
@@ -178,7 +187,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
   const analysis: ProjectAnalysis = {
     hasSprites: sprites.length > 0,
     hasTiles: tiles.length > 0,
-    hasScreens: screenMaps.length > 0,
+    hasScreens: screenMaps.length > 0 || msx2BitmapRooms.length > 0,
     hasEntities: entities.length > 0,
     hasComponents: components.length > 0 || entities.some((e: any) => e.components && Object.keys(e.components).length > 0),
     hasGameFlow: !!summary.execution.mainGameFlow,
@@ -196,6 +205,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     msx2Sprites: msx2Sprites as any[],
     msx2Bitmaps: msx2Bitmaps as any[],
     msx2Screens: msx2Screens as any[],
+    msx2BitmapRooms: msx2BitmapRooms as any[],
     sounds: [],
     tracks: tracks as any[],
     trackIndexByAssetId,
@@ -244,7 +254,16 @@ export function generateModularASM(
 
   console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
 
-  const targetGraphicsBackend = resolveGraphicsBackend(config);
+  const targetGraphicsBackend = resolveGraphicsBackend(config, assets);
+  if (targetGraphicsBackend === 'msx2-screen4-bitmap-room') {
+    const analysis = analyzeProject(projectName, assets);
+    return generateMsx2Screen4BitmapRoomFiles(projectName, analysis, {
+      screenMode: 'SCREEN 4 (Graphics II)',
+      romMode: config.romMode || 'simple32k',
+      targetFormat: config.targetFormat || 'konami',
+      autoMegaROM: config.autoMegaROM ?? false,
+    });
+  }
   if (targetGraphicsBackend === 'msx2-screen4-pattern') {
     const analysis = analyzeProject(projectName, assets);
     return generateMsx2Screen4Files(projectName, analysis, {
@@ -284,6 +303,7 @@ export function generateModularASM(
       msx2Sprites: [],
       msx2Bitmaps: [],
       msx2Screens: [],
+      msx2BitmapRooms: [],
       sounds: [],
       tracks: [],
       trackIndexByAssetId: {},
@@ -428,7 +448,19 @@ export function generateModularASMFromSummary(
     screenMode: config.screenMode || (summary as any).screenMode || (summary as any).currentScreenMode,
     targetGraphicsBackend: config.targetGraphicsBackend || (summary as any).targetGraphicsBackend,
   };
-  const summaryGraphicsBackend = resolveGraphicsBackend(summaryGraphicsConfig);
+  const summaryAssetList = [
+    ...((summary.assets as any).msx2BitmapRooms || []),
+    ...((summary.assets as any).msx2bitmaprooms || []),
+  ].map((data: any) => ({ type: 'msx2bitmaproom', data } as ProjectAsset));
+  const summaryGraphicsBackend = resolveGraphicsBackend(summaryGraphicsConfig, summaryAssetList);
+  if (summaryGraphicsBackend === 'msx2-screen4-bitmap-room') {
+    return generateMsx2Screen4BitmapRoomFiles(summary.projectInfo.name, analysis, {
+      screenMode: 'SCREEN 4 (Graphics II)',
+      romMode: summaryGraphicsConfig.romMode || 'simple32k',
+      targetFormat: summaryGraphicsConfig.targetFormat || 'konami',
+      autoMegaROM: summaryGraphicsConfig.autoMegaROM ?? false,
+    });
+  }
   if (summaryGraphicsBackend === 'msx2-screen4-pattern') {
     return generateMsx2Screen4Files(summary.projectInfo.name, analysis, {
       screenMode: summaryGraphicsConfig.screenMode === 'SCREEN 5 (Graphics III)' ? 'SCREEN 5 (Graphics III)' : 'SCREEN 4 (Graphics II)',

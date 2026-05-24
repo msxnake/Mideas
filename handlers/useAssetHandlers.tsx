@@ -10,7 +10,8 @@ import {
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN_WIDTH_TILES,
   DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SPRITE_SIZE, EDITOR_BASE_TILE_DIM_S2,
   DEFAULT_TILE_BANK_DEFINITIONS,
-  DEFAULT_PRESENTATION_SCREEN_CONFIG
+  DEFAULT_PRESENTATION_SCREEN_CONFIG,
+  DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG
 } from '../constants';
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
@@ -515,6 +516,14 @@ export const useAssetHandlers = ({
           notes: 'Generic SCREEN 4 HUD font for counters and text widgets. Separate from MSX1 font assets.',
         } as Msx2HudFontAsset;
         newEditorType = EditorType.Msx2HudFont;
+        break;
+      case 'msx2presentation':
+        defaultName = 'New MSX2 SCREEN 5 Presentation';
+        newAssetData = {
+          ...JSON.parse(JSON.stringify(DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG)),
+          name: defaultName,
+        };
+        newEditorType = EditorType.Msx2Presentation;
         break;
       case 'screenmap':
         const { widthTiles: mapW, heightTiles: mapH } = getScreenModeMetrics(currentScreenMode);

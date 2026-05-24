@@ -9,7 +9,10 @@ const editorPath = join(repoRoot, 'components', 'editors', 'Msx2Screen4RoomEdito
 const partsPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'Msx2Screen4EditorParts.tsx');
 const catalogPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const generatorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
+const bitmapRoomGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4BitmapRoomGenerator.ts');
 const entityRuntimeGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
+const msxGeneratorIndexPath = join(repoRoot, 'utils', 'msxGenerator', 'index.ts');
+const asmTemplateGeneratorPath = join(repoRoot, 'utils', 'asmTemplateGenerator.ts');
 const appUiPath = join(repoRoot, 'components', 'AppUI.tsx');
 const componentEditorPath = join(repoRoot, 'components', 'editors', 'ComponentDefinitionEditor.tsx');
 const templateEditorPath = join(repoRoot, 'components', 'editors', 'EntityTemplateEditor.tsx');
@@ -46,7 +49,10 @@ const source = [
   readFileSync(msx2AtlasPreviewPath, 'utf8'),
   readFileSync(msx2ExportContractPath, 'utf8'),
   readFileSync(generatorPath, 'utf8'),
+  readFileSync(bitmapRoomGeneratorPath, 'utf8'),
   readFileSync(entityRuntimeGeneratorPath, 'utf8'),
+  readFileSync(msxGeneratorIndexPath, 'utf8'),
+  readFileSync(asmTemplateGeneratorPath, 'utf8'),
   readFileSync(appUiPath, 'utf8'),
   readFileSync(componentEditorPath, 'utf8'),
   readFileSync(templateEditorPath, 'utf8'),
@@ -73,7 +79,10 @@ const source = [
 ].join('\n');
 
 const generatorSource = readFileSync(generatorPath, 'utf8');
+const bitmapRoomGeneratorSource = readFileSync(bitmapRoomGeneratorPath, 'utf8');
 const entityRuntimeSource = readFileSync(entityRuntimeGeneratorPath, 'utf8');
+const msxGeneratorIndexSource = readFileSync(msxGeneratorIndexPath, 'utf8');
+const asmTemplateGeneratorSource = readFileSync(asmTemplateGeneratorPath, 'utf8');
 const appUiSource = readFileSync(appUiPath, 'utf8');
 const catalogSource = readFileSync(catalogPath, 'utf8');
 const partsSource = readFileSync(partsPath, 'utf8');
@@ -120,6 +129,10 @@ const checks = [
   ['MSX2 sprite creator uses MSX2 Sprites label', toolbarSource.includes('>MSX2 Sprites</DropdownItem>') && fileExplorerSource.includes('msx2sprite: "MSX2 Sprites"')],
   ['MSX2 SCREEN 4 Bitmap Room is exposed as a separate asset', toolbarSource.includes("onNewAsset('msx2bitmaproom')") && toolbarSource.includes('>MSX2 SCREEN 4 Bitmap Room</DropdownItem>') && fileExplorerSource.includes('msx2bitmaproom: "MSX2 SCREEN 4 Bitmap Rooms"') && fileExplorerSource.includes('msx2bitmaproom: EditorType.Msx2BitmapRoom') && appUiSource.includes('Msx2Screen4BitmapRoomEditor')],
   ['MSX2 SCREEN 4 Bitmap Room editor is atlas command based', msx2BitmapRoomEditorSource.includes("op: 'copy'") && msx2BitmapRoomEditorSource.includes("op: 'fill'") && msx2BitmapRoomEditorSource.includes("op: 'lineH'") && msx2BitmapRoomEditorSource.includes('Import Atlas PNG') && msx2BitmapRoomEditorSource.includes('renderComposition')],
+  ['MSX2 SCREEN 4 Bitmap Room editor exposes color-limit diagnostics', msx2BitmapRoomEditorSource.includes('analyzeScreen4ColorLimits') && msx2BitmapRoomEditorSource.includes('SCREEN 4 export contract') && msx2BitmapRoomEditorSource.includes('Color rows will be reduced') && msx2BitmapRoomEditorSource.includes('No 8-pixel row exceeds 2 colors')],
+  ['MSX2 SCREEN 4 Bitmap Room properties and palette integration are exposed', propertiesPanelSource.includes("case 'msx2bitmaproom'") && propertiesPanelSource.includes('SCREEN 4 bitmap room') && appUiSource.includes("'msx2bitmaproom'") && appUiSource.includes('isMsx2BitmapRoomEditor') && appUiSource.includes('pantalla bitmap SCREEN 4')],
+  ['MSX2 SCREEN 4 Bitmap Room reaches project analysis and backend routing', asmTemplateGeneratorSource.includes('msx2BitmapRooms') && asmTemplateGeneratorSource.includes("a.type === 'msx2bitmaproom'") && msxGeneratorIndexSource.includes("'msx2-screen4-bitmap-room'") && msxGeneratorIndexSource.includes('generateMsx2Screen4BitmapRoomFiles')],
+  ['MSX2 SCREEN 4 Bitmap Room generator emits SCREEN 4 PGT/PNT/CGT tables', bitmapRoomGeneratorSource.includes('buildPatternColorTables') && bitmapRoomGeneratorSource.includes('screen4_pattern_data') && bitmapRoomGeneratorSource.includes('screen4_name_data') && bitmapRoomGeneratorSource.includes('screen4_color_data') && bitmapRoomGeneratorSource.includes('max 2 colors per 8 pixels horizontally') && bitmapRoomGeneratorSource.includes('ld de, #1800') && bitmapRoomGeneratorSource.includes('ld de, #2000')],
   ['MSX2 HUD Font asset is exposed separately from MSX1 font', toolbarSource.includes("onNewAsset('msx2hudfont')") && toolbarSource.includes('>MSX2 HUD Font</DropdownItem>') && fileExplorerSource.includes('msx2hudfont: "MSX2 HUD Fonts"') && fileExplorerSource.includes('msx2hudfont: EditorType.Msx2HudFont')],
   ['MSX2 HUD Font editor persists edits through asset update', appUiSource.includes('<Msx2HudFontEditor') && appUiSource.includes('onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}') && appUiSource.includes('dataOutputFormat={dataOutputFormat}')],
   ['MSX2 HUD Font editor imports rasterized TTF fonts', msx2HudFontEditorSource.includes('new FontFace') && msx2HudFontEditorSource.includes('Import TTF') && msx2HudFontEditorSource.includes('rasterizeGlyph')],
@@ -248,9 +261,14 @@ const checks = [
   ['MSX2 project slice explains runtime module placement', generatorSource.includes('includedRuntimeModuleDetails') && generatorSource.includes('runtimeModuleDetails') && generatorSource.includes("placement: 'resident'") && generatorSource.includes('excludedRuntimeModules') && generatorSource.includes('runtime.msx2.mapper.konami8k') && generatorSource.includes('reason: module.reason')],
   ['MSX2 project slice emits world bank manifest artifact', generatorSource.includes('function buildMsx2WorldBankManifest') && generatorSource.includes('worldBankManifest') && generatorSource.includes('msx2_world_bank_manifest.json') && generatorSource.includes("scope: 'msx2_screen4_world_bank_manifest'") && generatorSource.includes("dataWindowAddress = useKonamiDataBank ? '#A000'")],
   ['MSX2 preflight cross-validates world bank manifest against logical bank budget', buildScriptSource.includes('worldBankManifest bank') && buildScriptSource.includes('differs from logicalBankBudget') && buildScriptSource.includes('manifest_bank_by_index') && buildScriptSource.includes('estimatedPhysicalBanks length differs')],
+  ['MSX2 preflight failures preserve world bank manifest summary', buildScriptSource.includes('"scope": "msx2_screen4_megarom_preflight_failure"') && buildScriptSource.includes('"worldBankManifest"') && buildScriptSource.includes('"overBudgetBankCount"') && buildScriptSource.includes('"estimatedPhysicalBanks"')],
+  ['MSX2 preflight failures are tied to checked input artifacts', buildScriptSource.includes('"artifactChecks"') && buildScriptSource.includes('build_preflight_artifact_summaries') && buildScriptSource.includes('"msx2_world_bank_manifest.json"') && buildScriptSource.includes('if artifact_path.exists()')],
+  ['MSX2 preflight failures expose failed pipeline gate', buildScriptSource.includes('build_msx2_preflight_failure_gate_summary') && buildScriptSource.includes('"pipelineGates"') && buildScriptSource.includes('"strict_warning_gate_rejected": "overflow_recovery_plan"') && buildScriptSource.includes('updated_gate["status"] = "not_run"')],
+  ['MSX2 budget resolution attempts preserve compact failure context', buildScriptSource.includes('summarize_msx2_preflight_failure_for_resolution') && buildScriptSource.includes('"failedGateId"') && buildScriptSource.includes('"artifactCheckNames"') && buildScriptSource.includes('"failure": summarize_msx2_preflight_failure_for_resolution')],
   ['compile endpoint returns MSX2 budget feedback from embedded artifacts', serverSource.includes('function buildMsx2IdeBudgetFeedbackFromAsm') && serverSource.includes("project_slice.json") && serverSource.includes("logical_bank_budget.json") && serverSource.includes('responseData.msx2BudgetFeedback') && serverSource.includes('msx2BudgetFeedback: msx2BudgetFeedback') && serverSource.includes('msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile)')],
   ['MSX2 budget feedback keeps IDE-facing shape stable', serverSource.includes("scope: 'msx2_screen4_ide_budget_feedback'") && serverSource.includes("status = 'warning'") && serverSource.includes("status = 'error'") && serverSource.includes('bankClassSummary: Array.isArray(logicalBudget.bankClassSummary)') && serverSource.includes('worldPackages: Array.isArray(projectSlice.worldPackageSummary)') && serverSource.includes('runtimeModules') && serverSource.includes('residentCount') && serverSource.includes('worldBankManifest') && serverSource.includes('packageCount') && serverSource.includes('largestAssets') && serverSource.includes('suggestedFixes')],
   ['compile endpoint gates MSX2 budget errors before Glass and records resolution attempts', serverSource.includes("error: 'MSX2 MegaROM preflight budget failed'") && serverSource.includes("action: 'server_compile_budget_gate'") && serverSource.includes("action: 'enable_zx0_preprocess'") && serverSource.includes('responseData.msx2BudgetResolution')],
+  ['compile endpoint budget resolver preserves failure context', serverSource.includes('function buildMsx2BudgetResolutionFailureContext') && serverSource.includes('failedGateId') && serverSource.includes('buildMsx2BudgetResolutionFailureContext(msx2BudgetFeedback)') && codeExportModalSource.includes('failed gate:')],
   ['ROM build result displays MSX2 MegaROM budget feedback', codeExportModalSource.includes('MSX2 MegaROM budget') && codeExportModalSource.includes('msx2BudgetFeedback.rom?.payloadBytes') && codeExportModalSource.includes('msx2BudgetFeedback.rom.bankClassSummary') && codeExportModalSource.includes('msx2BudgetFeedback.largestAssets') && codeExportModalSource.includes('Suggested fixes:')],
   ['MSX2 budget feedback exposes warning banks and actionable fix targets', codeExportModalSource.includes('Warning banks:') && codeExportModalSource.includes('msx2BudgetFeedback.warnings?.warningPackedBanks') && codeExportModalSource.includes('fix.target') && codeExportModalSource.includes("fix.action || fix.reason || 'Review budget'")],
   ['ROM export modal previews MSX2 budget directly from generated ASM', codeExportModalSource.includes("from '../../utils/msx2BudgetFeedback'") && codeExportModalSource.includes('generatedMsx2BudgetFeedback') && codeExportModalSource.includes('MSX2 MegaROM budget preview') && codeExportModalSource.includes('updateGeneratedCode') && msx2BudgetFeedbackSource.includes('export const buildMsx2BudgetFeedbackFromAsm')],

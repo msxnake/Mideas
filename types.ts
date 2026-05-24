@@ -1788,6 +1788,46 @@ export interface PresentationScreenConfig {
 }
 // --- End Presentation Screen Types ---
 
+// --- MSX2 SCREEN 5 Presentation Types ---
+export interface Msx2Screen5PresentationRuntimeConfig {
+  showAtBoot: boolean;
+  clearSpritesBeforeShow: boolean;
+  waitForKey: boolean;
+  waitForFrames: number;
+  vramPage: 0 | 1;
+  romDataGroup: 'auto' | 'default' | 'page0';
+}
+
+export type Msx2Screen5PresentationHeight = 192 | 212;
+export type Msx2Screen5PresentationFitMode = 'cover' | 'contain' | 'stretch';
+
+export interface Msx2Screen5PresentationCompressionConfig {
+  codec: 'ZX0';
+  enabled: boolean;
+  chunkLines: number;
+}
+
+export interface Msx2Screen5PresentationConfig {
+  enabled: boolean;
+  name: string;
+  target: 'MSX2';
+  screenMode: 'SCREEN 5';
+  sourceFileName: string | null;
+  sourceImageWidth: number;
+  sourceImageHeight: number;
+  width: 256;
+  height: Msx2Screen5PresentationHeight;
+  fitMode: Msx2Screen5PresentationFitMode;
+  palette: Screen5PaletteSlot[];
+  pixels: number[][];
+  packedBitmap: number[];
+  compression: Msx2Screen5PresentationCompressionConfig;
+  runtime: Msx2Screen5PresentationRuntimeConfig;
+  updatedAt?: number | null;
+  lastImportError?: string | null;
+}
+// --- End MSX2 SCREEN 5 Presentation Types ---
+
 // --- Dialogue Asset Types ---
 export interface DialogueLine {
   id: string;
@@ -2157,6 +2197,7 @@ export enum EditorType {
   Msx2Screen = "Msx2Screen",
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2HudFont = "Msx2HudFont",
+  Msx2Presentation = "Msx2Presentation",
   PngMsxChars = "PngMsxChars",
 }
 
@@ -2169,9 +2210,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2hudfont' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2hudfont' | 'msx2presentation' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2HudFontAsset | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2HudFontAsset | Msx2Screen5PresentationConfig | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

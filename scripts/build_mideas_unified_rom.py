@@ -396,6 +396,31 @@ def build_preflight_artifact_summaries(paths: list[tuple[str, Path]]) -> list[di
     return summaries
 
 
+def build_msx2_preflight_failure_gate_summary(reason: str) -> list[dict[str, object]]:
+    failed_gate_by_reason = {
+        "logical_package_over_budget": "bank_allocation_dry_run",
+        "estimated_packed_bank_over_budget": "bank_allocation_dry_run",
+        "strict_warning_gate_rejected": "overflow_recovery_plan",
+    }
+    failed_gate_id = failed_gate_by_reason.get(reason, "bank_allocation_dry_run")
+    gates: list[dict[str, object]] = []
+    has_failed = False
+    for gate in build_msx2_preflight_gate_summary(reason == "strict_warning_gate_rejected"):
+        updated_gate = dict(gate)
+        gate_id = updated_gate.get("id")
+        if gate_id == failed_gate_id:
+            updated_gate["status"] = "failed"
+            evidence = list(updated_gate.get("evidence") or [])
+            evidence.append(f"msx2_preflight_failure.json:{reason}")
+            updated_gate["evidence"] = evidence
+            has_failed = True
+        elif has_failed:
+            updated_gate["status"] = "not_run"
+            updated_gate["evidence"] = []
+        gates.append(updated_gate)
+    return gates
+
+
 def write_msx2_preflight_failure_summary(
     artifact_dir: Path,
     reason: str,
@@ -404,11 +429,32 @@ def write_msx2_preflight_failure_summary(
     ram_budget: dict,
     details: dict[str, object] | None = None,
 ) -> Path:
+    world_bank_manifest = project_slice.get("worldBankManifest") or {}
+    manifest_worlds = world_bank_manifest.get("worlds") or []
+    manifest_physical_banks = world_bank_manifest.get("estimatedPhysicalBanks") or []
+    manifest_package_count = sum(
+        len(world.get("packages") or [])
+        for world in manifest_worlds
+        if isinstance(world, dict)
+    )
+    artifact_checks = build_preflight_artifact_summaries([
+        (artifact_name, artifact_path)
+        for artifact_name, artifact_path in [
+            ("project_slice.json", artifact_dir / "project_slice.json"),
+            ("asset_storage_policy.json", artifact_dir / "asset_storage_policy.json"),
+            ("logical_bank_budget.json", artifact_dir / "logical_bank_budget.json"),
+            ("msx2_world_bank_manifest.json", artifact_dir / "msx2_world_bank_manifest.json"),
+            ("ram_budget.json", artifact_dir / "ram_budget.json"),
+        ]
+        if artifact_path.exists()
+    ])
     failure_summary = {
         "scope": "msx2_screen4_megarom_preflight_failure",
         "status": "error",
         "reason": reason,
         "artifactDir": str(artifact_dir),
+        "artifactChecks": artifact_checks,
+        "pipelineGates": build_msx2_preflight_failure_gate_summary(reason),
         "project": {
             "name": project_slice.get("projectName"),
             "backend": project_slice.get("backend"),
@@ -424,6 +470,35 @@ def write_msx2_preflight_failure_summary(
             "overBudgetBanks": [
                 bank for bank in (logical_budget.get("estimatedPackedBanks") or [])
                 if isinstance(bank, dict) and int(bank.get("overBudgetBytes") or 0) > 0
+            ],
+        },
+        "worldBankManifest": {
+            "worldCount": len(manifest_worlds) if isinstance(manifest_worlds, list) else 0,
+            "estimatedPhysicalBankCount": len(manifest_physical_banks) if isinstance(manifest_physical_banks, list) else 0,
+            "dataWindowAddress": world_bank_manifest.get("dataWindowAddress") if isinstance(world_bank_manifest, dict) else None,
+            "packageCount": manifest_package_count,
+            "warningBankCount": sum(
+                1
+                for bank in manifest_physical_banks
+                if isinstance(bank, dict) and (bank.get("status") == "warning" or bank.get("warning") is True)
+            ),
+            "overBudgetBankCount": sum(
+                1
+                for bank in manifest_physical_banks
+                if isinstance(bank, dict) and (bank.get("status") == "error" or int(bank.get("overBudgetBytes") or 0) > 0)
+            ),
+            "estimatedPhysicalBanks": [
+                {
+                    "bankIndex": bank.get("bankIndex"),
+                    "windowAddress": bank.get("windowAddress"),
+                    "usedBytes": int(bank.get("usedBytes") or 0),
+                    "freeBytes": int(bank.get("freeBytes") or 0),
+                    "overBudgetBytes": int(bank.get("overBudgetBytes") or 0),
+                    "status": bank.get("status"),
+                    "packageCount": len(bank.get("packages") or []),
+                }
+                for bank in manifest_physical_banks
+                if isinstance(bank, dict)
             ],
         },
         "ram": {
@@ -458,6 +533,41 @@ def read_msx2_preflight_failure_summary(artifact_dir: Path | None) -> dict[str, 
     if isinstance(failure, dict) and failure.get("scope") == "msx2_screen4_megarom_preflight_failure":
         return failure
     return None
+
+
+def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | None) -> dict[str, object]:
+    if not isinstance(failure, dict):
+        return {}
+    failed_gate = next(
+        (
+            gate
+            for gate in failure.get("pipelineGates") or []
+            if isinstance(gate, dict) and gate.get("status") == "failed"
+        ),
+        None,
+    )
+    artifact_checks = [
+        item for item in failure.get("artifactChecks") or []
+        if isinstance(item, dict)
+    ]
+    world_bank_manifest = failure.get("worldBankManifest") if isinstance(failure.get("worldBankManifest"), dict) else {}
+    rom = failure.get("rom") if isinstance(failure.get("rom"), dict) else {}
+    return {
+        "reason": failure.get("reason"),
+        "failedGateId": failed_gate.get("id") if isinstance(failed_gate, dict) else None,
+        "artifactCheckCount": len(artifact_checks),
+        "artifactCheckNames": [item.get("name") for item in artifact_checks if item.get("name")],
+        "worldBankManifest": {
+            "worldCount": world_bank_manifest.get("worldCount"),
+            "estimatedPhysicalBankCount": world_bank_manifest.get("estimatedPhysicalBankCount"),
+            "warningBankCount": world_bank_manifest.get("warningBankCount"),
+            "overBudgetBankCount": world_bank_manifest.get("overBudgetBankCount"),
+        },
+        "rom": {
+            "overBudgetPackageCount": len(rom.get("overBudgetPackages") or []),
+            "overBudgetBankCount": len(rom.get("overBudgetBanks") or []),
+        },
+    }
 
 
 def write_msx2_budget_resolution_summary(
@@ -507,6 +617,7 @@ def validate_msx2_preflight_with_safe_resolution(
             "action": "initial_preflight",
             "status": "failed",
             "reason": reason or str(first_error),
+            "failure": summarize_msx2_preflight_failure_for_resolution(failure),
             "artifactDir": str(artifact_dir),
         })
 
@@ -535,11 +646,13 @@ def validate_msx2_preflight_with_safe_resolution(
                 )
                 return artifact_dir, asm_output
             except RuntimeError as retry_error:
+                retry_failure = read_msx2_preflight_failure_summary(artifact_dir) or {}
                 attempts.append({
                     "attempt": 1,
                     "action": "relax_strict_warning_gate",
                     "status": "failed",
                     "reason": str(retry_error),
+                    "failure": summarize_msx2_preflight_failure_for_resolution(retry_failure),
                     "artifactDir": str(artifact_dir),
                 })
 
@@ -548,6 +661,7 @@ def validate_msx2_preflight_with_safe_resolution(
             and skip_zx0_preprocess
             and attempt_limit >= 1
         ):
+            retry_artifact_dir = artifact_dir
             try:
                 zx0_retry_asm, zx0_retry_info = maybe_run_zx0_preprocess(
                     project_root=project_root,
@@ -574,12 +688,14 @@ def validate_msx2_preflight_with_safe_resolution(
                 )
                 return retry_artifact_dir, zx0_retry_asm
             except RuntimeError as retry_error:
+                retry_failure = read_msx2_preflight_failure_summary(retry_artifact_dir) or {}
                 attempts.append({
                     "attempt": 1,
                     "action": "enable_zx0_preprocess",
                     "status": "failed",
                     "reason": str(retry_error),
-                    "artifactDir": str(artifact_dir),
+                    "failure": summarize_msx2_preflight_failure_for_resolution(retry_failure),
+                    "artifactDir": str(retry_artifact_dir),
                 })
 
         write_msx2_budget_resolution_summary(

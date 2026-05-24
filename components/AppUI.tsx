@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -26,6 +26,7 @@ import { Msx2BitmapEditor } from './editors/Msx2BitmapEditor';
 import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
 import { Msx2Screen4BitmapRoomEditor } from './editors/Msx2Screen4BitmapRoomEditor';
 import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
+import { Msx2Screen5PresentationEditor } from './editors/Msx2Screen5PresentationEditor';
 import { ScreenEditor } from './editors/ScreenEditor';
 import { CodeEditor } from './editors/CodeEditor';
 import { WorldMapEditor } from './editors/WorldMapEditor';
@@ -361,7 +362,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     .map(a => a.data as WorldMapGraph), [assets]);
 
   const dataAssets = assets.filter(a =>
-    ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
+    ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'msx2bitmaproom', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
   );
 
   if (Object.keys(msxFont).length > 0) {
@@ -421,7 +422,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       const isMsx2SpriteEditor = currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite';
       const isMsx2BitmapEditor = currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap';
       const isMsx2ScreenEditor = currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen';
-      const usesScreen2Palette = currentScreenMode === "SCREEN 2 (Graphics I)" && !isMsx2SpriteEditor && !isMsx2BitmapEditor && !isMsx2ScreenEditor;
+      const isMsx2BitmapRoomEditor = currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom';
+      const usesScreen2Palette = currentScreenMode === "SCREEN 2 (Graphics I)" && !isMsx2SpriteEditor && !isMsx2BitmapEditor && !isMsx2ScreenEditor && !isMsx2BitmapRoomEditor;
       let paletteToUse = usesScreen2Palette ? MSX1_PALETTE : MSX_SCREEN5_PALETTE;
       if (!usesScreen2Palette && currentEditor === EditorType.Tile && activeAsset?.type === 'tile') {
         const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Tile).screen5Palette);
@@ -439,12 +441,17 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Msx2Screen4TileScreen).palette);
         paletteToUse = screen5SlotsToMsxColors(slots);
       }
+      if (isMsx2BitmapRoomEditor) {
+        const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Msx2Screen4BitmapRoom).palette);
+        paletteToUse = screen5SlotsToMsxColors(slots);
+      }
       const paletteAssets = assets.filter(a => a.type === 'palette');
       const canApplySavedPalette = !usesScreen2Palette && (
         (currentEditor === EditorType.Tile && activeAsset?.type === 'tile') ||
         isMsx2SpriteEditor ||
         isMsx2BitmapEditor ||
-        isMsx2ScreenEditor
+        isMsx2ScreenEditor ||
+        isMsx2BitmapRoomEditor
       );
       const applyPaletteFromAsset = () => {
         if (!canApplySavedPalette || !selectedPaletteAssetId) {
@@ -475,6 +482,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         if (activeAsset?.type === 'msx2screen') {
           handleUpdateAsset(activeAsset.id, { palette: sanitized.map(slot => ({ ...slot })) });
           setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada a la pantalla MSX2.`);
+          return;
+        }
+        if (activeAsset?.type === 'msx2bitmaproom') {
+          handleUpdateAsset(activeAsset.id, { palette: sanitized.map(slot => ({ ...slot })) });
+          setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada a la pantalla bitmap SCREEN 4.`);
         }
       };
       return (
@@ -790,6 +802,12 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 onUpdatePresentationScreen={onUpdatePresentationScreen}
               />
             )
+          )}
+          {currentEditor === EditorType.Msx2Presentation && activeAsset?.type === 'msx2presentation' && (
+            <Msx2Screen5PresentationEditor
+              config={activeAsset.data as Msx2Screen5PresentationConfig}
+              onUpdate={(updatedData) => handleUpdateAsset(activeAsset.id, updatedData as Msx2Screen5PresentationConfig)}
+            />
           )}
           {currentEditor === EditorType.StateMachine && activeAsset?.type === 'statemachine' && (
             <StateMachineEditor

@@ -1856,7 +1856,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     <p>💡 State Machine will be automatically analyzed and optimized for your project assets:</p>
                     <ul className="mt-1 ml-4 text-xs">
                       <li>• ECS integration: {getAssetCount('componentdefinition') > 0 ? 'Enabled' : 'Disabled'}</li>
-                      <li>• Multiple screens: {(getAssetCount('screenmap') + getAssetCount('msx2screen')) > 1 ? 'Yes' : 'No'}</li>
+                      <li>• Multiple screens: {(getAssetCount('screenmap') + getAssetCount('msx2screen') + getAssetCount('msx2bitmaproom')) > 1 ? 'Yes' : 'No'}</li>
                       <li>• Custom states: Auto-detected</li>
                     </ul>
                   </div>
@@ -2614,6 +2614,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             <div key={`${attempt.action || 'budget'}_${index}`} className="mt-1 font-mono text-[11px] text-msx-textprimary">
                               #{attempt.attempt ?? index}: {attempt.action ?? 'unknown'} {'->'} {attempt.status ?? 'unknown'}
                               {attempt.reason ? ` (${attempt.reason})` : ''}
+                              {attempt.failure?.failedGateId ? (
+                                <span className="block text-msx-textsecondary">
+                                  failed gate: {attempt.failure.failedGateId}
+                                  {attempt.failure.worldBankManifest
+                                    ? `, world banks ${attempt.failure.worldBankManifest.warningBankCount ?? 0} warning/${attempt.failure.worldBankManifest.overBudgetBankCount ?? 0} over`
+                                    : ''}
+                                </span>
+                              ) : null}
                             </div>
                           ))}
                         </div>

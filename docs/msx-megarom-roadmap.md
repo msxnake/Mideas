@@ -1263,23 +1263,36 @@ Current CLI gate:
 8. If a budget-oriented MSX2 preflight fails before Glass, it writes
    `msx2_preflight_failure.json` instead of leaving stale success summaries.
    This gives the CLI/IDE a machine-readable reason, affected package/bank
-   data, RAM context, and the ordered Plan B recommendations.
+   data, RAM context, and the ordered Plan B recommendations. Failure summaries
+   also carry compact `worldBankManifest` counts and per-estimated-bank
+   pressure rows, so the IDE can show which world data bank failed without
+   reparsing the full project slice. They also record byte counts and stable
+   checksums for the input artifacts present at failure time, tying the stop
+   report to the exact slice/budget/manifest/RAM data that failed. The same
+   failure summary exposes `pipelineGates`, marking the failed preflight gate
+   and every later gate as `not_run`, so the CLI/IDE can distinguish an
+   allocator stop from a Glass or symbol-validation failure.
 9. `scripts/build_mideas_unified_rom.py --auto-resolve-msx2-budget` now adds
    the first controlled retry loop. It can resolve safe cases without changing
    project data: strict-warning failures can retry as non-strict, and over-budget
    failures produced while ZX0 was explicitly skipped can retry with ZX0
    preprocessing enabled. Each attempt is recorded in
-   `msx2_budget_resolution.json`; unresolved cases keep
-   `msx2_preflight_failure.json` as the actionable stop report.
+   `msx2_budget_resolution.json` with the compact failed-gate, input-artifact,
+   ROM, and world-bank context copied from `msx2_preflight_failure.json`;
+   unresolved cases keep `msx2_preflight_failure.json` as the actionable stop
+   report.
 10. The normal `/compile` server path now also has a budget gate for embedded
     MSX2 SCREEN 4 artifacts. If the ASM budget is already marked `error`, the
     server stops before Glass and returns `msx2BudgetFeedback` plus
     `msx2BudgetResolution`. If compression was disabled, it first tries one
     safe ZX0 preprocess pass and only continues to Glass when that clears the
     budget error. The export modal reports the resolver status and final action
-    in the compile summary. Failed compile responses preserve the same
-    `msx2BudgetFeedback` payload, so the user sees the concrete bank/RAM cause
-    and the attempted resolver steps even when no ROM is produced.
+    in the compile summary. Server-side resolver attempts also preserve a
+    compact failure context derived from the IDE feedback: failed gate, ROM/RAM
+    pressure, and World Bank Pack warning/overflow counts. Failed compile
+    responses preserve the same `msx2BudgetFeedback` payload, so the user sees
+    the concrete bank/RAM cause and the attempted resolver steps even when no
+    ROM is produced.
 11. Glass `Negative initial size` failures are now translated into Mideas
     diagnostics. For MSX2 SCREEN 4 Konami builds, a negative `ds #C000 - $`
     padding is reported as `MSX2 MegaROM resident bank overflow`, not as a raw

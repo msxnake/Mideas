@@ -1580,6 +1580,47 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
   };
 }
 
+function buildMsx2BudgetResolutionFailureContext(feedback) {
+  if (!feedback || typeof feedback !== 'object') return null;
+  const worldBankManifest = feedback.worldBankManifest || {};
+  const largestAssets = Array.isArray(feedback.largestAssets) ? feedback.largestAssets : [];
+  const warningPackedBanks = Array.isArray(feedback.warnings?.warningPackedBanks) ? feedback.warnings.warningPackedBanks : [];
+  const overBudgetAssets = largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0);
+  const ramStatus = String(feedback.ram?.status || 'unknown');
+  let failedGateId = 'ide_budget_feedback';
+  if (ramStatus && ramStatus !== 'ok' && ramStatus !== 'unknown') {
+    failedGateId = 'ram_budget_report';
+  } else if (
+    Number(worldBankManifest.overBudgetBankCount || 0) > 0 ||
+    overBudgetAssets.length > 0 ||
+    String(feedback.status || '') === 'error'
+  ) {
+    failedGateId = 'bank_allocation_dry_run';
+  }
+  return {
+    failedGateId,
+    project: feedback.project || {},
+    rom: {
+      payloadBytes: Number(feedback.rom?.payloadBytes || 0),
+      estimatedPackedBankCount: Number(feedback.rom?.estimatedPackedBankCount || 0),
+      warningBankCount: Number(feedback.rom?.warningBankCount || warningPackedBanks.length || 0),
+      overBudgetAssetCount: overBudgetAssets.length
+    },
+    ram: {
+      status: ramStatus,
+      usedBytes: Number(feedback.ram?.usedBytes || 0),
+      freeBytes: Number(feedback.ram?.freeBytes || 0)
+    },
+    worldBankManifest: {
+      worldCount: Number(worldBankManifest.worldCount || 0),
+      estimatedPhysicalBankCount: Number(worldBankManifest.estimatedPhysicalBankCount || 0),
+      warningBankCount: Number(worldBankManifest.warningBankCount || 0),
+      overBudgetBankCount: Number(worldBankManifest.overBudgetBankCount || 0),
+      dataWindowAddress: worldBankManifest.dataWindowAddress
+    }
+  };
+}
+
 function isResourceTableRamZx0Candidate(resource) {
   const type = String(resource?.type || '').toUpperCase();
   const label = String(resource?.label || '').toUpperCase();
@@ -4629,7 +4670,8 @@ app.post('/compile', async (req, res) => {
           attempt: 0,
           action: 'server_compile_budget_gate',
           status: 'failed',
-          reason: 'ide_budget_feedback_error'
+          reason: 'ide_budget_feedback_error',
+          failure: buildMsx2BudgetResolutionFailureContext(msx2BudgetFeedback)
         }
       ]
     };
@@ -4658,6 +4700,9 @@ app.post('/compile', async (req, res) => {
         action: 'enable_zx0_preprocess',
         status: retryFeedback && retryFeedback.status !== 'error' ? 'resolved' : 'failed',
         reason: retryFeedback ? `budget_status_${retryFeedback.status}` : 'missing_msx2_budget_feedback',
+        failure: retryFeedback && retryFeedback.status === 'error'
+          ? buildMsx2BudgetResolutionFailureContext(retryFeedback)
+          : undefined,
         zx0: retryPreprocessed.info
       });
       msx2BudgetResolution.status = retryFeedback && retryFeedback.status !== 'error' ? 'resolved' : 'unresolved';
@@ -4682,7 +4727,8 @@ app.post('/compile', async (req, res) => {
             attempt: 0,
             action: 'server_compile_budget_gate',
             status: 'failed',
-            reason: 'ide_budget_feedback_error'
+            reason: 'ide_budget_feedback_error',
+            failure: buildMsx2BudgetResolutionFailureContext(msx2BudgetFeedback)
           }
         ]
       };

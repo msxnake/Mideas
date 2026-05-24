@@ -513,8 +513,26 @@ def main() -> None:
             raise AssertionError(f"Unexpected failure summary scope: {over_failure!r}")
         if over_failure.get("reason") != "logical_package_over_budget":
             raise AssertionError(f"Unexpected over-budget failure reason: {over_failure!r}")
+        over_artifact_checks = over_failure.get("artifactChecks")
+        if not isinstance(over_artifact_checks, list) or len(over_artifact_checks) < 5:
+            raise AssertionError(f"Failure summary did not include input artifact checks: {over_failure!r}")
+        over_artifact_names = {item.get("name") for item in over_artifact_checks if isinstance(item, dict)}
+        if not {"project_slice.json", "logical_bank_budget.json", "msx2_world_bank_manifest.json", "ram_budget.json"}.issubset(over_artifact_names):
+            raise AssertionError(f"Failure summary artifact checks missed required inputs: {over_failure!r}")
+        over_gates = over_failure.get("pipelineGates") or []
+        over_bank_gate = next((gate for gate in over_gates if gate.get("id") == "bank_allocation_dry_run"), None)
+        over_glass_gate = next((gate for gate in over_gates if gate.get("id") == "glass_compile"), None)
+        if over_bank_gate is None or over_bank_gate.get("status") != "failed":
+            raise AssertionError(f"Failure summary did not mark bank allocation gate failed: {over_failure!r}")
+        if over_glass_gate is None or over_glass_gate.get("status") != "not_run":
+            raise AssertionError(f"Failure summary did not mark Glass as not run: {over_failure!r}")
         if not (over_failure.get("rom") or {}).get("overBudgetPackages"):
             raise AssertionError(f"Failure summary did not include overBudgetPackages: {over_failure!r}")
+        over_manifest = over_failure.get("worldBankManifest") or {}
+        if over_manifest.get("overBudgetBankCount") != 1 or over_manifest.get("estimatedPhysicalBankCount") != 1:
+            raise AssertionError(f"Failure summary did not include over-budget world bank manifest data: {over_failure!r}")
+        if (over_manifest.get("estimatedPhysicalBanks") or [{}])[0].get("status") != "error":
+            raise AssertionError(f"Failure summary did not include failing world bank status: {over_failure!r}")
         if not (over_failure.get("planB") or {}).get("recoveryPlan"):
             raise AssertionError(f"Failure summary did not include recoveryPlan: {over_failure!r}")
 
@@ -554,6 +572,13 @@ def main() -> None:
         warning_failure = json.loads(warning_failure_path.read_text(encoding="utf-8"))
         if warning_failure.get("reason") != "strict_warning_gate_rejected":
             raise AssertionError(f"Unexpected strict warning failure reason: {warning_failure!r}")
+        warning_manifest = warning_failure.get("worldBankManifest") or {}
+        if warning_manifest.get("warningBankCount") != 1 or warning_manifest.get("overBudgetBankCount") != 0:
+            raise AssertionError(f"Strict warning failure did not expose world bank warning counts: {warning_failure!r}")
+        warning_gates = warning_failure.get("pipelineGates") or []
+        warning_recovery_gate = next((gate for gate in warning_gates if gate.get("id") == "overflow_recovery_plan"), None)
+        if warning_recovery_gate is None or warning_recovery_gate.get("status") != "failed":
+            raise AssertionError(f"Strict warning failure did not mark recovery gate failed: {warning_failure!r}")
         if not (warning_failure.get("details") or {}).get("warningBanks"):
             raise AssertionError(f"Strict warning failure did not expose warningBanks: {warning_failure!r}")
 
@@ -580,6 +605,14 @@ def main() -> None:
             raise AssertionError(f"Unexpected strict warning resolution summary: {resolution!r}")
         if not any(item.get("action") == "relax_strict_warning_gate" for item in resolution.get("attempts", []) if isinstance(item, dict)):
             raise AssertionError(f"Strict warning resolution did not record relaxed gate attempt: {resolution!r}")
+        initial_resolution_attempt = next((item for item in resolution.get("attempts", []) if isinstance(item, dict) and item.get("attempt") == 0), None)
+        initial_failure = initial_resolution_attempt.get("failure") if isinstance(initial_resolution_attempt, dict) else None
+        if not isinstance(initial_failure, dict) or initial_failure.get("failedGateId") != "overflow_recovery_plan":
+            raise AssertionError(f"Strict warning resolution did not preserve failed gate summary: {resolution!r}")
+        if "msx2_world_bank_manifest.json" not in (initial_failure.get("artifactCheckNames") or []):
+            raise AssertionError(f"Strict warning resolution did not preserve artifact check names: {resolution!r}")
+        if (initial_failure.get("worldBankManifest") or {}).get("warningBankCount") != 1:
+            raise AssertionError(f"Strict warning resolution did not preserve world bank warning summary: {resolution!r}")
         auto_rom_path = auto_warning_dir / "auto_warning.rom"
         auto_sym_path = auto_warning_dir / "auto_warning.sym"
         auto_rom_path.write_bytes(b"CD" + bytes([0xFF]) * 8190)

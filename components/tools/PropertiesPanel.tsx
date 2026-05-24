@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Screen4TileScreen, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -1021,6 +1021,23 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Tiles:</strong> {tileCount}</div>
             <div><strong className="text-msx-highlight">Entities:</strong> {entityCount}</div>
             <div><strong className="text-msx-highlight">Runtime:</strong> {screen.runtime?.screenKind || 'playable'} / {screen.runtime?.screenEngine || 'player'}</div>
+            <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
+          </div>
+        );
+      }
+      case 'msx2bitmaproom': {
+        const room = asset.data as Msx2Screen4BitmapRoom;
+        const commandCount = room.composition?.commands?.length || 0;
+        const atlasEntries = room.atlas?.entries?.length || 0;
+        const collisionRows = room.collision?.length || 0;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {room.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 4 bitmap room</div>
+            <div><strong className="text-msx-highlight">Screen:</strong> {room.width}x{room.height} px</div>
+            <div><strong className="text-msx-highlight">Atlas:</strong> {room.atlas?.width || 0}x{room.atlas?.height || 0} px / {atlasEntries} entries</div>
+            <div><strong className="text-msx-highlight">Commands:</strong> {commandCount}</div>
+            <div><strong className="text-msx-highlight">Export:</strong> PGT/PNT/CGT, 3 banks</div>
             <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
           </div>
         );
@@ -2363,7 +2380,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               ? renderEntityInstanceProperties()
             : effectZone && activeEditorType === EditorType.Screen
               ? renderEffectZoneProperties()
-            : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Msx2Sprite || activeEditorType === EditorType.Msx2Screen || activeEditorType === EditorType.Palette || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables || activeEditorType === EditorType.Dialogue ))
+            : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Msx2Sprite || activeEditorType === EditorType.Msx2Screen || activeEditorType === EditorType.Msx2BitmapRoom || activeEditorType === EditorType.Palette || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables || activeEditorType === EditorType.Dialogue ))
                   ? renderAssetProperties()
                   : (activeEditorType === EditorType.Font
                       ? (

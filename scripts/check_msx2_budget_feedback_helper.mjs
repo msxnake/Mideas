@@ -41,12 +41,17 @@ if (serverFeedbackStart < 0 || serverFeedbackEnd < serverFeedbackStart) {
 const serverContext = {};
 vm.runInNewContext(
   `${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
-this.buildMsx2IdeBudgetFeedbackFromAsm = buildMsx2IdeBudgetFeedbackFromAsm;`,
+this.buildMsx2IdeBudgetFeedbackFromAsm = buildMsx2IdeBudgetFeedbackFromAsm;
+this.buildMsx2BudgetResolutionFailureContext = buildMsx2BudgetResolutionFailureContext;`,
   serverContext
 );
 const buildServerMsx2BudgetFeedbackFromAsm = serverContext.buildMsx2IdeBudgetFeedbackFromAsm;
 if (typeof buildServerMsx2BudgetFeedbackFromAsm !== 'function') {
   throw new Error('Server MSX2 budget feedback helper was not evaluable');
+}
+const buildServerMsx2BudgetResolutionFailureContext = serverContext.buildMsx2BudgetResolutionFailureContext;
+if (typeof buildServerMsx2BudgetResolutionFailureContext !== 'function') {
+  throw new Error('Server MSX2 budget resolution failure helper was not evaluable');
 }
 
 const serverResidentFailureStart = serverSource.indexOf('function getNegativeDsOverflowBytes');
@@ -283,6 +288,23 @@ if (JSON.stringify(feedback) !== JSON.stringify(serverFeedback)) {
 }
 if (buildServerMsx2BudgetFeedbackFromAsm('; no artifacts') !== null) {
   throw new Error('Expected null server feedback for ASM without artifacts');
+}
+const serverResolutionContext = buildServerMsx2BudgetResolutionFailureContext({
+  ...feedback,
+  status: 'error',
+  worldBankManifest: {
+    ...feedback.worldBankManifest,
+    overBudgetBankCount: 1,
+  },
+  largestAssets: [
+    { id: 'world.screen.large', usedBytes: 9000, overBudgetBytes: 808 },
+  ],
+});
+if (serverResolutionContext?.failedGateId !== 'bank_allocation_dry_run') {
+  throw new Error(`Expected server resolution context to point at bank allocation: ${JSON.stringify(serverResolutionContext)}`);
+}
+if (serverResolutionContext.worldBankManifest?.overBudgetBankCount !== 1) {
+  throw new Error(`Expected server resolution context to preserve world bank pressure: ${JSON.stringify(serverResolutionContext)}`);
 }
 
 const residentOverflowAsm = [

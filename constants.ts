@@ -1,4 +1,4 @@
-import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_TYPE_CONFIG as EFFECT_ZONE_TYPE_CONFIG_TYPE, MainMenuConfig, PresentationScreenConfig, PT3Instrument } from './types';
+import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_TYPE_CONFIG as EFFECT_ZONE_TYPE_CONFIG_TYPE, MainMenuConfig, PresentationScreenConfig, Msx2Screen5PresentationConfig, PT3Instrument } from './types';
 
 /** The current version of the application. */
 export const APP_VERSION = "0.267";
@@ -718,6 +718,39 @@ export const DEFAULT_PRESENTATION_SCREEN_CONFIG: PresentationScreenConfig = {
   lastImportError: null,
 };
 // --- End Presentation Screen Constants ---
+
+// --- MSX2 SCREEN 5 Presentation Constants ---
+export const DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG: Msx2Screen5PresentationConfig = {
+  enabled: false,
+  name: 'MSX2 SCREEN 5 Presentation',
+  target: 'MSX2',
+  screenMode: 'SCREEN 5',
+  sourceFileName: null,
+  sourceImageWidth: 0,
+  sourceImageHeight: 0,
+  width: 256,
+  height: 192,
+  fitMode: 'cover',
+  palette: DEFAULT_SCREEN5_CUSTOM_PALETTE.map(slot => ({ ...slot })),
+  pixels: Array.from({ length: 192 }, () => Array.from({ length: 256 }, () => 0)),
+  packedBitmap: [],
+  compression: {
+    codec: 'ZX0',
+    enabled: true,
+    chunkLines: 32,
+  },
+  runtime: {
+    showAtBoot: false,
+    clearSpritesBeforeShow: true,
+    waitForKey: true,
+    waitForFrames: 0,
+    vramPage: 0,
+    romDataGroup: 'auto',
+  },
+  updatedAt: null,
+  lastImportError: null,
+};
+// --- End MSX2 SCREEN 5 Presentation Constants ---
 
 // --- Effect Zone Constants ---
 /** Re-export of effect zone display metadata from `types.ts` for convenient access. */
