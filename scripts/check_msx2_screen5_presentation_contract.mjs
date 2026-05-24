@@ -20,6 +20,7 @@ const fileExplorer = read('components', 'tools', 'FileExplorerPanel.tsx');
 const projectTarget = read('utils', 'projectTarget.ts');
 const generatorIndex = read('utils', 'msxGenerator', 'index.ts');
 const presentationGenerator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5PresentationGenerator.ts');
+const smokeScript = read('scripts', 'build_msx2_screen5_presentation_smoke.py');
 
 const fixturePath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentation_screen5_project.json');
 const bitmapPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentation_screen5_bitmap.bin');
@@ -120,9 +121,15 @@ check('file explorer groups msx2presentation assets', fileExplorer.includes('msx
 check('MSX2 project target allows msx2presentation assets', projectTarget.includes("'msx2presentation'"));
 check('generator exposes the SCREEN 5 presentation backend', generatorIndex.includes("'msx2-screen5-presentation'") && generatorIndex.includes('generateMsx2Screen5PresentationFiles'));
 check('generator auto-selects presentation backend for SCREEN 5 assets', generatorIndex.includes("asset?.type === 'msx2presentation'") && generatorIndex.includes("return 'msx2-screen5-presentation'"));
-check('presentation generator emits SCREEN 5 palette and bitmap labels', presentationGenerator.includes('screen5_presentation_palette_data') && presentationGenerator.includes('screen5_presentation_bitmap_data'));
+check('presentation generator emits SCREEN 5 palette and bitmap chunk labels', presentationGenerator.includes('screen5_presentation_palette_data') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}'));
+check('presentation generator switches to SCREEN 5 mode', presentationGenerator.includes('ld a, 5') && presentationGenerator.includes('call CHGMOD'));
+check('presentation generator does not switch back to SCREEN 4', !/\bld\s+a,\s*4\b/i.test(presentationGenerator) && !presentationGenerator.includes('call INIGRP'));
 check('presentation generator uploads full 256x212 VRAM bitmap', presentationGenerator.includes('VISIBLE_HEIGHT = 212') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}'));
 check('presentation generator maps ROM page 2 before LDIRVM', presentationGenerator.includes('map_page2_to_cart_primary') && presentationGenerator.includes('call map_page2_to_cart_primary'));
+
+check('real smoke asserts SCREEN 5 mode and forbids SCREEN 4 fallback', smokeScript.includes('assert_screen5_mode_contract') && smokeScript.includes('must not switch to SCREEN 4'));
+check('real smoke asserts generated SCREEN5 labels', smokeScript.includes('assert_screen5_generated_labels'));
+check('real smoke asserts ROM output is 8KB aligned', smokeScript.includes('size % 8192 != 0'));
 
 check('standalone ASM smoke exists beside the fixture', existsSync(asmPath));
 check('standalone ASM switches to SCREEN 5 before loading bitmap', asm.includes('ld a, 5') && asm.includes('call CHGMOD') && asm.includes('ld hl, screen5_bitmap_data'));

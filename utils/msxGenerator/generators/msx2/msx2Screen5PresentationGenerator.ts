@@ -13,6 +13,7 @@ interface Msx2Screen5PresentationGeneratorConfig {
 const SCREEN_WIDTH = 256;
 const VISIBLE_HEIGHT = 212;
 const BYTES_PER_LINE = SCREEN_WIDTH / 2;
+const DEFAULT_CHUNK_LINES = 32;
 const BITMAP_BYTE_COUNT = VISIBLE_HEIGHT * BYTES_PER_LINE;
 
 const clampByte = (value: unknown, fallback = 0): number => {
@@ -74,6 +75,16 @@ function buildBitmapBytes(presentation: Msx2Screen5PresentationConfig): number[]
     bytes[index] = clampByte(source[index], 0);
   }
   return bytes;
+}
+
+function chunkBitmapBytes(bytes: number[], chunkLines: number): number[][] {
+  const normalizedChunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(chunkLines) || DEFAULT_CHUNK_LINES));
+  const chunkSize = normalizedChunkLines * BYTES_PER_LINE;
+  const chunks: number[][] = [];
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    chunks.push(bytes.slice(offset, offset + chunkSize));
+  }
+  return chunks;
 }
 
 function formatBytes(label: string, bytes: number[], comment?: string): string {
@@ -139,7 +150,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const presentation = normalizePresentation(firstPresentation(analysis));
   const paletteBytes = buildPaletteBytes(presentation.palette);
   const bitmapBytes = buildBitmapBytes(presentation);
+  const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
+  const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
   const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
+  const uploadChunks = bitmapChunks.map((_chunk, index) => {
+    const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
+    const vramOffset = index * chunkLines * BYTES_PER_LINE;
+    const destination = presentation.runtime.vramPage === 1 ? `#${(0x8000 + vramOffset).toString(16).toUpperCase().padStart(4, '0')}` : `#${vramOffset.toString(16).toUpperCase().padStart(4, '0')}`;
+    return `    ; @mideas:screen5-presentation-chunk ${label}
+    ld hl, ${label}
+    ld de, ${destination}
+    ld bc, ${label}_SIZE
+    call LDIRVM`;
+  }).join('\n');
+  const chunkData = bitmapChunks.map((chunk, index) => {
+    const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
+    return `${label}_SIZE EQU ${chunk.length}
+
+${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length} bytes`)}`;
+  }).join('\n');
 
   return `; File: unitedFiles.asm
 ; ==================================================================
@@ -148,6 +177,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Presentation: ${presentation.name}
 ; Screen mode: ${config.screenMode}
 ; Backend: msx2-screen5-presentation
+; ROM mode requested: ${config.romMode}
+; SCREEN5_PRESENTATION_COMPRESSION: ${presentation.compression?.enabled ? 'ZX0' : 'raw'}
+; SCREEN5_PRESENTATION_CHUNK_LINES: ${chunkLines}
 ; ==================================================================
 
 CHGMOD  EQU #005F
@@ -159,6 +191,7 @@ WRTVDP  EQU #0047
 RSLREG  EQU #0138
 ENASLT  EQU #0024
 VDP_PALETTE_PORT EQU #9A
+SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
 
     org #4000
 
@@ -180,10 +213,7 @@ init_rom:
     ld bc, #0007
     call WRTVDP
     call load_screen5_palette
-    ld hl, screen5_presentation_bitmap_data
-    ld de, ${vramBase}
-    ld bc, SCREEN5_PRESENTATION_BITMAP_SIZE
-    call LDIRVM
+    call upload_screen5_presentation_bitmap
     call ENASCR
     ei
 ${generateWaitLoop(presentation)}
@@ -231,10 +261,15 @@ load_screen5_palette:
     djnz .palette_loop
     ret
 
+upload_screen5_presentation_bitmap:
+${uploadChunks}
+    ret
+
 SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}
+SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU ${vramBase}
 
 ${formatBytes('screen5_presentation_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-${formatBytes('screen5_presentation_bitmap_data', bitmapBytes, 'SCREEN 5 4bpp bitmap, 256x212, two pixels per byte')}
+${chunkData}
 
     ds #C000 - $, #FF
     end

@@ -3274,6 +3274,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const hasPresentationNameData = /^\s*PRESENTATION_SCREEN_NAMETBL:\s*$/im.test(sourceCode);
   const hasPresentationPatternData = /^\s*PRESENTATION_SCREEN_PATTERNS_B[0-2]:\s*$/im.test(sourceCode);
   const hasPresentationColorData = /^\s*PRESENTATION_SCREEN_COLORS_B[0-2]:\s*$/im.test(sourceCode);
+  const hasScreen5PresentationBitmapData = /^\s*SCREEN5_PRESENTATION_BITMAP_CHUNK_\d+:\s*$/im.test(sourceCode);
   const hasScreen4NameData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_NAMES:\s*$/im.test(sourceCode);
   const hasScreen4EffectsData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_EFFECTS:\s*$/im.test(sourceCode);
   const hasScreen4PatternData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_PATTERNS:\s*$/im.test(sourceCode);
@@ -3292,6 +3293,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     !hasPresentationNameData &&
     !hasPresentationPatternData &&
     !hasPresentationColorData &&
+    !hasScreen5PresentationBitmapData &&
     !hasScreen4NameData &&
     !hasScreen4EffectsData &&
     !hasScreen4PatternData &&
@@ -3346,6 +3348,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const presentationColorBlocks = (presentationScreen && compressPresentationColors)
     ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_COLORS_B[0-2]):\s*$/)
     : [];
+  const screen5PresentationBitmapBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN5_PRESENTATION_BITMAP_CHUNK_\d+):\s*$/);
   const screen4NameBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_NAMES):\s*$/);
   const screen4EffectsBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_EFFECTS):\s*$/);
   const screen4PatternBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_PATTERNS):\s*$/);
@@ -3367,6 +3370,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     behaviorBlocks.length === 0 &&
     presentationPatternBlocks.length === 0 &&
     presentationColorBlocks.length === 0 &&
+    screen5PresentationBitmapBlocks.length === 0 &&
     screen4PatternBlocks.length === 0 &&
     screen4ColorBlocks.length === 0 &&
     tilePatternBlocks.length === 0 &&
@@ -3381,7 +3385,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const allLayoutBlocks = [...layoutBlocks, ...presentationNameBlocks, ...screen4NameBlocks];
   const allScreenBlockMapBlocks = [...blockCatalogBlocks, ...blockMapBlocks];
   const allEffectsBlocks = [...effectsBlocks, ...screen4EffectsBlocks];
-  const allTilePatternBlocks = [...tilePatternBlocks, ...presentationPatternBlocks, ...screen4PatternBlocks];
+  const allTilePatternBlocks = [...tilePatternBlocks, ...presentationPatternBlocks, ...screen4PatternBlocks, ...screen5PresentationBitmapBlocks];
   const allTileColorBlocks = [...tileColorBlocks, ...presentationColorBlocks, ...screen4ColorBlocks];
 
   info.candidateScreens = allLayoutBlocks.length;
@@ -3660,6 +3664,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let inInitMsx2EffectBuffers = false;
   let inLoadPattern = false;
   let inLoadColor = false;
+  let inLoadScreen5PresentationBitmap = false;
   let layoutDecompressedInCurrentFunction = false;
   let blockCatalogDecompressedInCurrentFunction = false;
   let blockMapDecompressedInCurrentFunction = false;
@@ -3817,6 +3822,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = false;
+      inLoadScreen5PresentationBitmap = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
@@ -3831,12 +3837,28 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
+    if (/^\s*upload_screen5_presentation_bitmap:\s*$/i.test(line)) {
+      inLoadScreen = false;
+      inLoadScreen4 = false;
+      inInitMsx2EffectBuffers = false;
+      inLoadPattern = false;
+      inLoadColor = false;
+      inLoadScreen5PresentationBitmap = true;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
+      patched.push(line);
+      continue;
+    }
+
     if (/^\s*load_[A-Z0-9_]+_screen4:\s*$/i.test(line)) {
       inLoadScreen = false;
       inLoadScreen4 = true;
       inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = false;
+      inLoadScreen5PresentationBitmap = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
@@ -3857,6 +3879,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inInitMsx2EffectBuffers = true;
       inLoadPattern = false;
       inLoadColor = false;
+      inLoadScreen5PresentationBitmap = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
@@ -3871,6 +3894,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inInitMsx2EffectBuffers = false;
       inLoadPattern = true;
       inLoadColor = false;
+      inLoadScreen5PresentationBitmap = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
@@ -3891,6 +3915,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = true;
+      inLoadScreen5PresentationBitmap = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
@@ -4094,6 +4119,21 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
+    const hlScreen5PresentationChunkMatch = matchAsmLabelLoad(line, 'hl', 'SCREEN5_PRESENTATION_BITMAP_CHUNK_\\d+');
+    if (inLoadScreen5PresentationBitmap && hlScreen5PresentationChunkMatch) {
+      const chunkLabel = hlScreen5PresentationChunkMatch.label.toUpperCase();
+      if (compressedTilePatternLabels.has(chunkLabel)) {
+        patched.push('    ; Decompress ZX0 SCREEN 5 presentation chunk into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlScreen5PresentationChunkMatch.label}`);
+        patched.push('    ld de, SCREEN5_PRESENTATION_ZX0_BUFFER');
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push('    ld hl, SCREEN5_PRESENTATION_ZX0_BUFFER');
+        continue;
+      }
+    }
+
     const hlTilePatternMatch = matchAsmLabelLoad(line, 'hl', '(?:tile_pattern_[a-z0-9_]+|tilebank_pattern_data_\\d+)');
     if (inLoadPattern && hlTilePatternMatch) {
       const patternLabel = hlTilePatternMatch.label.toUpperCase();
@@ -4190,12 +4230,13 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
-    if ((inLoadScreen || inLoadScreen4 || inInitMsx2EffectBuffers || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite || inShowPresentationScreen) && /^\s*ret\s*$/i.test(line)) {
+    if ((inLoadScreen || inLoadScreen4 || inInitMsx2EffectBuffers || inLoadPattern || inLoadColor || inLoadScreen5PresentationBitmap || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite || inShowPresentationScreen) && /^\s*ret\s*$/i.test(line)) {
       inLoadScreen = false;
       inLoadScreen4 = false;
       inInitMsx2EffectBuffers = false;
       inLoadPattern = false;
       inLoadColor = false;
+      inLoadScreen5PresentationBitmap = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inActionChangeSprite = false;

@@ -29,6 +29,35 @@ def assert_contains(path: Path, needle: str, description: str) -> None:
         raise RuntimeError(f"Generated ASM is missing {description}: {needle}")
 
 
+def assert_not_contains(path: Path, needle: str, description: str) -> None:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if needle in text:
+        raise RuntimeError(f"Generated ASM must not contain {description}: {needle}")
+
+
+def assert_screen5_mode_contract(path: Path) -> None:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    normalized = "\n".join(line.strip().lower() for line in text.splitlines())
+    if "ld a, 5\ncall chgmod" not in normalized:
+        raise RuntimeError("Generated ASM does not switch to SCREEN 5 with CHGMOD")
+    if "ld a, 4\ncall chgmod" in normalized:
+        raise RuntimeError("Generated ASM must not switch to SCREEN 4 with CHGMOD")
+    assert_not_contains(path, "call INIGRP", "SCREEN 4 BIOS initialization fallback")
+    assert_not_contains(path, "screen4_", "SCREEN 4 labels in SCREEN 5 presentation smoke")
+
+
+def assert_screen5_generated_labels(path: Path) -> None:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    required_labels = [
+        "SCREEN5_PRESENTATION_BITMAP_SIZE EQU 27136",
+        "screen5_presentation_palette_data:",
+        "SCREEN5_PRESENTATION_BITMAP_CHUNK_0:",
+    ]
+    for label in required_labels:
+        if label not in text:
+            raise RuntimeError(f"Generated ASM is missing SCREEN5 label: {label}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build and optionally capture the MSX2 SCREEN 5 presentation smoke ROM.")
     parser.add_argument("--project-root", default=".", help="Mideas repository root")
@@ -66,9 +95,11 @@ def main() -> int:
     assert_contains(asm_output, "Backend: msx2-screen5-presentation", "SCREEN 5 presentation backend marker")
     assert_contains(asm_output, "ld a, 5", "SCREEN 5 mode switch")
     assert_contains(asm_output, "screen5_presentation_palette_data", "SCREEN 5 palette data")
-    assert_contains(asm_output, "screen5_presentation_bitmap_data", "SCREEN 5 bitmap data")
+    assert_contains(asm_output, "SCREEN5_PRESENTATION_BITMAP_CHUNK_0", "SCREEN 5 bitmap chunk data")
     assert_contains(asm_output, "SCREEN5_PRESENTATION_BITMAP_SIZE EQU 27136", "full 256x212 bitmap upload")
     assert_contains(asm_output, "call map_page2_to_cart_primary", "page-2 cart mapping for bitmap data crossing #8000")
+    assert_screen5_mode_contract(asm_output)
+    assert_screen5_generated_labels(asm_output)
 
     size = rom_output.stat().st_size
     if size % 8192 != 0:
