@@ -2183,7 +2183,7 @@ export interface GameFlowGraph {
 
 // --- MSX2 Game Flow Types ---
 
-export type Msx2GameFlowNodeType = 'Start' | 'Screen5Presentation' | 'Waypoint' | 'Transition' | 'Restart' | 'End';
+export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Waypoint' | 'Transition' | 'Restart' | 'End';
 
 export interface Msx2GameFlowNode_Base {
   id: string;
@@ -2200,6 +2200,17 @@ export interface Msx2GameFlowScreen5PresentationNode extends Msx2GameFlowNode_Ba
   presentationAssetId?: string;
   waitForKey?: boolean;
   waitFrames?: number;
+}
+
+export interface Msx2GameFlowGlobalsNode extends Msx2GameFlowNode_Base {
+  type: 'Globals';
+  title?: string;
+  globalVariablesAssetId?: string;
+  variables: Array<{
+    id: string;
+    name: string;
+    value: string;
+  }>;
 }
 
 export interface Msx2GameFlowTransitionNode extends Msx2GameFlowNode_Base {
@@ -2224,6 +2235,7 @@ export interface Msx2GameFlowEndNode extends Msx2GameFlowNode_Base {
 
 export type Msx2GameFlowNode =
   | Msx2GameFlowStartNode
+  | Msx2GameFlowGlobalsNode
   | Msx2GameFlowScreen5PresentationNode
   | Msx2GameFlowWaypointNode
   | Msx2GameFlowTransitionNode

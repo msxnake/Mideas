@@ -174,7 +174,7 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
   });
 
   // 2. Extract code from StateMachine nodes AND variable references from IfThenElse and Globals nodes
-  const gameFlowAsset = assets.find(a => a.type === 'gameflow');
+  const gameFlowAssets = assets.filter(a => a.type === 'gameflow' || a.type === 'msx2gameflow');
   const ifThenElseVariableNames = new Set<string>();
   const globalsVariableNames = new Set<string>();
   const initGlobalsVariableNames = new Set<string>();
@@ -200,43 +200,46 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     }
   };
 
-  if (gameFlowAsset?.data) {
-    const gameFlow = gameFlowAsset.data as any;
-    if (gameFlow.nodes && Array.isArray(gameFlow.nodes)) {
-      gameFlow.nodes.forEach((node: any) => {
-        // StateMachine nodes have customCode
-        if (node.type === 'StateMachine' && node.data?.customCode) {
-          codeSnippets.push(node.data.customCode);
-        }
-
-        // IfThenElse nodes reference global variables by name
-        if (node.type === 'IfThenElse' && node.variableName) {
-          const normalizedName = normalizeGlobalVariableName(node.variableName);
-          if (normalizedName) {
-            ifThenElseVariableNames.add(normalizedName);
+  gameFlowAssets.forEach(gameFlowAsset => {
+    if (gameFlowAsset?.data) {
+      const gameFlow = gameFlowAsset.data as any;
+      if (gameFlow.nodes && Array.isArray(gameFlow.nodes)) {
+        gameFlow.nodes.forEach((node: any) => {
+          // StateMachine nodes have customCode
+          if (node.type === 'StateMachine' && node.data?.customCode) {
+            codeSnippets.push(node.data.customCode);
           }
-        }
 
-        // Globals nodes set global variables
-        if (node.type === 'Globals' && node.variables && Array.isArray(node.variables)) {
-          node.variables.forEach((varAssignment: any) => {
-            if (varAssignment.variableName) {
-              const normalizedName = normalizeGlobalVariableName(varAssignment.variableName);
-              if (normalizedName) {
-                globalsVariableNames.add(normalizedName);
-              }
+          // IfThenElse nodes reference global variables by name
+          if (node.type === 'IfThenElse' && node.variableName) {
+            const normalizedName = normalizeGlobalVariableName(node.variableName);
+            if (normalizedName) {
+              ifThenElseVariableNames.add(normalizedName);
             }
-          });
-        }
+          }
 
-        if ((node.type === 'Start' || node.type === 'WorldLink') && node.initializeGlobals?.variables && Array.isArray(node.initializeGlobals.variables)) {
-          node.initializeGlobals.variables.forEach((varAssignment: any) => {
-            addInitGlobalVariableName(varAssignment?.variableName);
-          });
-        }
-      });
+          // Globals nodes set global variables
+          if (node.type === 'Globals' && node.variables && Array.isArray(node.variables)) {
+            node.variables.forEach((varAssignment: any) => {
+              const rawName = varAssignment.variableName || varAssignment.name;
+              if (rawName) {
+                const normalizedName = normalizeGlobalVariableName(rawName);
+                if (normalizedName) {
+                  globalsVariableNames.add(normalizedName);
+                }
+              }
+            });
+          }
+
+          if ((node.type === 'Start' || node.type === 'WorldLink') && node.initializeGlobals?.variables && Array.isArray(node.initializeGlobals.variables)) {
+            node.initializeGlobals.variables.forEach((varAssignment: any) => {
+              addInitGlobalVariableName(varAssignment?.variableName);
+            });
+          }
+        });
+      }
     }
-  }
+  });
 
   // 3. Extract code from component definitions
   const componentDefs = assets.filter(a => a.type === 'componentdefinition');

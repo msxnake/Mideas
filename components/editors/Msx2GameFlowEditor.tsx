@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Msx2GameFlowConnection,
   Msx2GameFlowGraph,
+  Msx2GameFlowGlobalsNode,
   Msx2GameFlowNode,
   Msx2GameFlowScreen5PresentationNode,
   Msx2Screen5PresentationConfig,
   ProjectAsset,
 } from '../../types';
+import type { MideasGlobalVariable } from '../../constants';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
@@ -29,6 +31,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
   if (node.type === 'End') return 'End';
   if (node.type === 'Waypoint') return 'Waypoint';
   if (node.type === 'Restart') return 'Restart ROM';
+  if (node.type === 'Globals') return node.title || `${node.variables?.length || 0} global set`;
   if (node.type === 'Transition') return node.effect === 'fade_to_black' ? 'Fade to Black' : 'CLS';
   const asset = allAssets.find(a => a.id === node.presentationAssetId && a.type === 'msx2presentation');
   return asset?.name || 'SCREEN 5 Presentation';
@@ -36,6 +39,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
 
 const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Start') return 'hsl(185, 62%, 32%)';
+  if (node.type === 'Globals') return 'hsl(265, 42%, 36%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'Transition') return 'hsl(42, 58%, 35%)';
@@ -66,7 +70,7 @@ const getNextExportNode = (
 ): Msx2GameFlowNode | undefined => {
   let current = getNextNode(node, nodes, connections);
   const visited = new Set<string>();
-  while (current?.type === 'Waypoint' && !visited.has(current.id)) {
+  while ((current?.type === 'Waypoint' || current?.type === 'Globals') && !visited.has(current.id)) {
     visited.add(current.id);
     current = getNextNode(current, nodes, connections);
   }
@@ -109,6 +113,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedPresentationNode = selectedNode?.type === 'Screen5Presentation'
     ? selectedNode as Msx2GameFlowScreen5PresentationNode
     : null;
+  const selectedGlobalsNode = selectedNode?.type === 'Globals'
+    ? selectedNode as Msx2GameFlowGlobalsNode
+    : null;
   const firstPresentationNode = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
   const previewPresentationNode = selectedPresentationNode || firstPresentationNode || null;
 
@@ -116,6 +123,17 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     () => allAssets.filter(asset => asset.type === 'msx2presentation'),
     [allAssets]
   );
+  const globalVariablesAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'globalvariables'),
+    [allAssets]
+  );
+  const selectedGlobalsAssetVariables = useMemo(() => {
+    const selectedAssetId = selectedGlobalsNode?.globalVariablesAssetId || globalVariablesAssets[0]?.id;
+    const selectedAsset = selectedAssetId
+      ? globalVariablesAssets.find(asset => asset.id === selectedAssetId)
+      : undefined;
+    return (((selectedAsset?.data as any)?.customVariables || []) as MideasGlobalVariable[]);
+  }, [globalVariablesAssets, selectedGlobalsNode?.globalVariablesAssetId]);
 
   const activePresentationAsset = useMemo(() => {
     const selectedAssetId = previewPresentationNode?.presentationAssetId;
@@ -163,7 +181,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     if (!startNode) {
       issues.push('Missing Start node.');
     } else if (presentationNode?.type !== 'Screen5Presentation') {
-      issues.push('Start should reach a SCREEN 5 Presentation node through optional Waypoint nodes.');
+      issues.push('Start should reach a SCREEN 5 Presentation node through optional Waypoint/Globals nodes.');
     }
     if (!screen5Node) {
       issues.push('Missing SCREEN 5 Presentation node.');
@@ -228,13 +246,22 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
-  const addNode = (type: 'Screen5Presentation' | 'Waypoint' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Waypoint' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
     const id = `msx2_gf_${type.toLowerCase()}_${Date.now()}`;
     const newNode: Msx2GameFlowNode =
-      type === 'Screen5Presentation'
+      type === 'Globals'
+        ? {
+            id,
+            type,
+            position: { x, y },
+            title: 'Set globals',
+            globalVariablesAssetId: globalVariablesAssets[0]?.id,
+            variables: [],
+          }
+        : type === 'Screen5Presentation'
         ? {
             id,
             type,
@@ -346,6 +373,55 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedGlobals = (updates: Partial<Msx2GameFlowGlobalsNode>) => {
+    if (!selectedGlobalsNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedGlobalsNode.id && node.type === 'Globals'
+        ? { ...node, ...updates }
+        : node
+    ));
+  };
+
+  const getDefaultGlobalValue = (variable?: MideasGlobalVariable): string => {
+    if (!variable) return '0';
+    if (variable.type === 'boolean') return 'false';
+    const firstValue = variable.values?.[0]?.value;
+    return firstValue !== undefined && firstValue !== 'number' ? `${firstValue}` : '0';
+  };
+
+  const addGlobalAssignment = () => {
+    if (!selectedGlobalsNode) return;
+    const defaultVariable = selectedGlobalsAssetVariables[0];
+    updateSelectedGlobals({
+      variables: [
+        ...(selectedGlobalsNode.variables || []),
+        {
+          id: `msx2_gf_var_${Date.now()}`,
+          name: defaultVariable?.name || 'NewVar',
+          value: getDefaultGlobalValue(defaultVariable),
+        },
+      ],
+    });
+  };
+
+  const updateGlobalAssignment = (id: string, updates: { name?: string; value?: string }) => {
+    if (!selectedGlobalsNode) return;
+    updateSelectedGlobals({
+      variables: (selectedGlobalsNode.variables || []).map(variable =>
+        variable.id === id
+          ? { ...variable, ...updates }
+          : variable
+      ),
+    });
+  };
+
+  const deleteGlobalAssignment = (id: string) => {
+    if (!selectedGlobalsNode) return;
+    updateSelectedGlobals({
+      variables: (selectedGlobalsNode.variables || []).filter(variable => variable.id !== id),
+    });
+  };
+
   const selectedOutgoingConnection = selectedNode
     ? connections.find(connection => connection.from.nodeId === selectedNode.id)
     : undefined;
@@ -394,6 +470,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       <div className="flex flex-wrap items-center gap-2 p-2 border-b border-msx-border bg-msx-panelbg">
         <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add SCREEN 5
+        </Button>
+        <Button onClick={() => addNode('Globals')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
+          Add Globals
         </Button>
         <Button onClick={() => addNode('Waypoint')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Waypoint
@@ -571,6 +650,91 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                 />
               </label>
+            </div>
+          )}
+
+          {selectedGlobalsNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Globals</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedGlobalsNode.title || ''}
+                  onChange={event => updateSelectedGlobals({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Source asset
+                <select
+                  value={selectedGlobalsNode.globalVariablesAssetId || globalVariablesAssets[0]?.id || ''}
+                  onChange={event => updateSelectedGlobals({ globalVariablesAssetId: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  disabled={globalVariablesAssets.length === 0}
+                >
+                  {globalVariablesAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              <Button onClick={addGlobalAssignment} size="sm" variant="secondary" className="w-full">
+                Add Assignment
+              </Button>
+              {(selectedGlobalsNode.variables || []).map(variable => {
+                const selectedVariable = selectedGlobalsAssetVariables.find(item => item.name === variable.name);
+                return (
+                  <div key={variable.id} className="grid grid-cols-[1fr_82px_auto] gap-1 items-center">
+                    {selectedGlobalsAssetVariables.length > 0 ? (
+                      <select
+                        value={variable.name}
+                        onChange={event => {
+                          const nextVariable = selectedGlobalsAssetVariables.find(item => item.name === event.target.value);
+                          updateGlobalAssignment(variable.id, {
+                            name: event.target.value,
+                            value: getDefaultGlobalValue(nextVariable),
+                          });
+                        }}
+                        className="min-w-0 bg-msx-panelbg border border-msx-border rounded p-1 text-xs"
+                      >
+                        {selectedGlobalsAssetVariables.map(item => (
+                          <option key={item.name} value={item.name}>{item.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={variable.name}
+                        onChange={event => updateGlobalAssignment(variable.id, { name: event.target.value })}
+                        className="min-w-0 bg-msx-panelbg border border-msx-border rounded p-1 text-xs"
+                      />
+                    )}
+                    {selectedVariable?.type === 'boolean' ? (
+                      <select
+                        value={variable.value}
+                        onChange={event => updateGlobalAssignment(variable.id, { value: event.target.value })}
+                        className="bg-msx-panelbg border border-msx-border rounded p-1 text-xs"
+                      >
+                        <option value="false">false</option>
+                        <option value="true">true</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={variable.value}
+                        onChange={event => updateGlobalAssignment(variable.id, { value: event.target.value })}
+                        className="min-w-0 bg-msx-panelbg border border-msx-border rounded p-1 text-xs"
+                      />
+                    )}
+                    <Button onClick={() => deleteGlobalAssignment(variable.id)} size="sm" variant="ghost">
+                      Del
+                    </Button>
+                  </div>
+                );
+              })}
+              {selectedGlobalsNode.variables.length === 0 && (
+                <p className="text-xs text-msx-textsecondary">No assignments.</p>
+              )}
             </div>
           )}
 
