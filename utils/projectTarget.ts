@@ -11,6 +11,7 @@ const MSX1_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'tilebank',
   'boss',
   'portrait',
+  'presentationscreen',
 ]);
 
 const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([

@@ -115,7 +115,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   entitytemplate: "Entity Templates (Data)",
   globalvariables: "Global Variables",
   palette: "MSX2 Palettes",
-  presentationscreen: "Presentation Screens",
+  presentationscreen: "MSX1 Presentation Screens",
   code: "Code Files",
 };
 
