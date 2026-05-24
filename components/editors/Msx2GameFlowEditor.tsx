@@ -45,6 +45,37 @@ const makeConnection = (fromNodeId: string, toNodeId: string): Msx2GameFlowConne
   to: { nodeId: toNodeId },
 });
 
+const getNextNode = (
+  node: Msx2GameFlowNode | undefined,
+  nodes: Msx2GameFlowNode[],
+  connections: Msx2GameFlowConnection[]
+): Msx2GameFlowNode | undefined => {
+  if (!node) return undefined;
+  const nextConnection = connections.find(connection => connection.from.nodeId === node.id);
+  return nextConnection ? nodes.find(candidate => candidate.id === nextConnection.to.nodeId) : undefined;
+};
+
+const flowHasAnyCycle = (nodes: Msx2GameFlowNode[], connections: Msx2GameFlowConnection[]): boolean => {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const nodeIds = new Set(nodes.map(node => node.id));
+
+  const visit = (nodeId: string): boolean => {
+    if (visiting.has(nodeId)) return true;
+    if (visited.has(nodeId)) return false;
+    visiting.add(nodeId);
+    for (const connection of connections.filter(candidate => candidate.from.nodeId === nodeId)) {
+      const nextId = connection.to.nodeId;
+      if (nodeIds.has(nextId) && visit(nextId)) return true;
+    }
+    visiting.delete(nodeId);
+    visited.add(nodeId);
+    return false;
+  };
+
+  return nodes.some(node => visit(node.id));
+};
+
 export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   gameFlowGraph,
   onUpdate,
@@ -73,7 +104,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const selectedAsset = selectedAssetId
       ? allAssets.find(asset => asset.id === selectedAssetId && asset.type === 'msx2presentation')
       : undefined;
-    return selectedAsset || presentationAssets[0];
+    return selectedAssetId ? selectedAsset : presentationAssets[0];
   }, [allAssets, presentationAssets, previewPresentationNode?.presentationAssetId]);
   const hasAssignedPresentation = !!previewPresentationNode?.presentationAssetId;
   const previewLabel = hasAssignedPresentation
@@ -81,11 +112,99 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     : activePresentationAsset
       ? `Previewing first available SCREEN 5: ${activePresentationAsset.name}`
       : 'No SCREEN 5 asset assigned';
+  const flowPath = useMemo(() => {
+    const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
+    if (!startNode) return [];
+    const path: string[] = [];
+    const visited = new Set<string>();
+    let current: Msx2GameFlowNode | undefined = startNode;
+    while (current && !visited.has(current.id) && path.length <= nodes.length) {
+      visited.add(current.id);
+      path.push(`${current.type}: ${getNodeLabel(current, allAssets)}`);
+      current = getNextNode(current, nodes, connections);
+    }
+    if (current && visited.has(current.id)) {
+      path.push(`Cycle: ${current.type}`);
+    }
+    return path;
+  }, [allAssets, connections, gameFlowGraph.startNodeId, nodes]);
+  const flowIssues = useMemo(() => {
+    const issues: string[] = [];
+    const nodeIds = new Set(nodes.map(node => node.id));
+    const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
+    const firstScreen5 = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
+    const presentationNode = startNode ? getNextNode(startNode, nodes, connections) : undefined;
+    const screen5Node = presentationNode?.type === 'Screen5Presentation'
+      ? presentationNode as Msx2GameFlowScreen5PresentationNode
+      : firstScreen5;
+    const afterScreen5 = getNextNode(screen5Node, nodes, connections);
+    const afterTransition = afterScreen5?.type === 'Transition'
+      ? getNextNode(afterScreen5, nodes, connections)
+      : undefined;
+
+    if (!startNode) {
+      issues.push('Missing Start node.');
+    } else if (presentationNode?.type !== 'Screen5Presentation') {
+      issues.push('Start should connect to a SCREEN 5 Presentation node for the current export path.');
+    }
+    if (!screen5Node) {
+      issues.push('Missing SCREEN 5 Presentation node.');
+    } else if (!screen5Node.presentationAssetId || !presentationAssets.some(asset => asset.id === screen5Node.presentationAssetId)) {
+      issues.push('SCREEN 5 node has no valid presentation asset.');
+    }
+    if (screen5Node && !afterScreen5) {
+      issues.push('SCREEN 5 node should continue to Transition or End.');
+    }
+    if (afterScreen5 && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'End') {
+      issues.push('SCREEN 5 node can only continue to Transition or End in this backend.');
+    }
+    if (afterScreen5?.type === 'Transition' && afterTransition?.type !== 'End') {
+      issues.push('Terminal Transition should continue to End.');
+    }
+    const visited = new Set<string>();
+    let current = startNode;
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+      current = getNextNode(current, nodes, connections);
+    }
+    if (current && visited.has(current.id)) {
+      issues.push('Export path contains a cycle.');
+    }
+    if (flowHasAnyCycle(nodes, connections)) {
+      issues.push('Flow contains a cycle.');
+    }
+    for (const connection of connections) {
+      if (!nodeIds.has(connection.from.nodeId) || !nodeIds.has(connection.to.nodeId)) {
+        issues.push('Flow contains a connection to a missing node.');
+        break;
+      }
+    }
+    for (const node of nodes) {
+      const outgoingCount = connections.filter(connection => connection.from.nodeId === node.id).length;
+      const incomingCount = connections.filter(connection => connection.to.nodeId === node.id).length;
+      if (node.type === 'End' && outgoingCount > 0) {
+        issues.push('End nodes do not support outgoing connections.');
+      }
+      if (node.type !== 'Start' && incomingCount === 0 && outgoingCount === 0) {
+        issues.push(`Orphaned node: ${node.type}.`);
+      }
+      if (node.type === 'End') continue;
+      if (outgoingCount > 1) {
+        issues.push(`${node.type} has more than one outgoing connection.`);
+      }
+    }
+
+    return Array.from(new Set(issues));
+  }, [connections, gameFlowGraph.startNodeId, nodes, presentationAssets]);
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
     const config = activePresentationAsset?.data as Msx2Screen5PresentationConfig | undefined;
-    if (!canvas || !config?.pixels || !config?.palette) return;
+    if (!canvas) return;
+    if (!config?.pixels || !config?.palette) {
+      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
     drawMsx2Screen5PresentationPreview(canvas, config.pixels, config.palette, 1);
   }, [activePresentationAsset]);
 
@@ -330,6 +449,29 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           <div>
             <h3 className="text-sm font-semibold mb-2">Node</h3>
             <p className="text-xs text-msx-textsecondary">{selectedNode ? selectedNode.type : 'Select a node'}</p>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Flow status</h3>
+            {flowPath.length > 0 && (
+              <div className="space-y-1 text-xs text-msx-textsecondary">
+                <p>Export path: {flowPath.map(item => item.split(':')[0]).join(' -> ')}</p>
+                <ol className="space-y-1">
+                  {flowPath.map((item, index) => (
+                    <li key={`${item}_${index}`}>{index + 1}. {item}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {flowIssues.length === 0 ? (
+              <p className="text-xs text-green-300">Export path ready for SCREEN 5.</p>
+            ) : (
+              <ul className="space-y-1 text-xs text-yellow-200">
+                {flowIssues.map(issue => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {selectedPresentationNode && (
