@@ -98,20 +98,40 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const nodes = Array.isArray(flowData?.nodes) ? flowData.nodes : [];
   const connections = Array.isArray(flowData?.connections) ? flowData.connections : [];
   const nodesById = new Map(nodes.map((node: any) => [node.id, node]));
-  const getNextNode = (node: any): any => {
+  const getNextNode = (node: any, sourceId?: string): any => {
     const nextConnection = node
-      ? connections.find((connection: any) => connection?.from?.nodeId === node.id)
+      ? connections.find((connection: any) => (
+        connection?.from?.nodeId === node.id &&
+        (sourceId ? connection?.from?.sourceId === sourceId : !connection?.from?.sourceId)
+      ))
       : null;
     return nextConnection?.to?.nodeId ? nodesById.get(nextConnection.to.nodeId) as any : null;
   };
-  const getNextExportNode = (node: any): any => {
-    let nextNode = getNextNode(node);
+  const getNextExportNode = (node: any, sourceId?: string): any => {
+    let nextNode = getNextNode(node, sourceId);
     const waypointIds = new Set<string>();
-    while (nextNode?.type === 'Waypoint' && !waypointIds.has(nextNode.id)) {
+    while ((nextNode?.type === 'Waypoint' || nextNode?.type === 'Globals') && !waypointIds.has(nextNode.id)) {
       waypointIds.add(nextNode.id);
       nextNode = getNextNode(nextNode);
     }
     return nextNode;
+  };
+  const isValidTerminalPath = (node: any, visited: Set<string> = new Set()): boolean => {
+    if (!node?.id || visited.has(node.id)) return false;
+    visited.add(node.id);
+    if (node.type === 'End' || node.type === 'Restart') return true;
+    if (node.type === 'Text') {
+      return isValidTerminalPath(getNextExportNode(node), new Set(visited));
+    }
+    if (node.type === 'Transition') {
+      const afterTransition = getNextExportNode(node);
+      return afterTransition?.type === 'End' || afterTransition?.type === 'Restart';
+    }
+    if (node.type === 'IfThenElse') {
+      return isValidTerminalPath(getNextExportNode(node, 'then'), new Set(visited)) &&
+        isValidTerminalPath(getNextExportNode(node, 'else'), new Set(visited));
+    }
+    return false;
   };
   const visited = new Set<string>();
   let currentId = flowData?.startNodeId || nodes.find((node: any) => node.type === 'Start')?.id;
@@ -140,18 +160,18 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
     ? presentations.find(asset => asset.id === presentationAssetId)
     : presentations[0];
   const missingPresentation = Boolean(screen5Node && !presentation);
-  const terminalNode = getNextExportNode(screen5Node);
+  const afterScreen5Node = getNextExportNode(screen5Node);
+  const terminalNode = afterScreen5Node?.type === 'Text'
+    ? getNextExportNode(afterScreen5Node)
+    : afterScreen5Node;
   const nodeAfterTransition = terminalNode?.type === 'Transition'
     ? getNextExportNode(terminalNode)
     : null;
   const hasValidTerminalPath = Boolean(
     screen5Node &&
     startNextNode?.id === screen5Node.id &&
-    (
-      terminalNode?.type === 'End' ||
-      terminalNode?.type === 'Restart' ||
-      (terminalNode?.type === 'Transition' && (nodeAfterTransition?.type === 'End' || nodeAfterTransition?.type === 'Restart'))
-    )
+    afterScreen5Node &&
+    isValidTerminalPath(afterScreen5Node)
   );
 
   return {

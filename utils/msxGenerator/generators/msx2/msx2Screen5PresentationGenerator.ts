@@ -1,4 +1,4 @@
-import { Msx2GameFlowGlobalsNode, Msx2GameFlowGraph, Msx2GameFlowIfThenElseNode, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
+import { Msx2GameFlowGlobalsNode, Msx2GameFlowGraph, Msx2GameFlowIfThenElseNode, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTextNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -38,6 +38,7 @@ interface ResolvedPresentationFlow {
   afterPresentationGlobals: Msx2GameFlowGlobalsNode[];
   afterTransitionGlobals: Msx2GameFlowGlobalsNode[];
   ifThenElse?: ResolvedIfThenElseStep;
+  text?: Msx2GameFlowTextNode;
   transition?: Msx2GameFlowTransitionNode;
   terminalAction: 'loop' | 'restart';
   requestedPresentationAssetId?: string;
@@ -52,8 +53,10 @@ interface ResolvedGlobalAssignment {
 }
 
 interface ResolvedTerminalStep {
+  text?: Msx2GameFlowTextNode;
   transition?: Msx2GameFlowTransitionNode;
   terminalAction: 'loop' | 'restart';
+  globalsBeforeText: Msx2GameFlowGlobalsNode[];
   globals: Msx2GameFlowGlobalsNode[];
 }
 
@@ -102,14 +105,32 @@ function collectNextExportStep(
   return { node: nextNode, globals };
 }
 
-function resolveTerminalStep(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode, sourceId?: string): ResolvedTerminalStep {
+function resolveTerminalStep(
+  flow: Msx2GameFlowGraph,
+  node: Msx2GameFlowNode,
+  sourceId?: string,
+  visited: Set<string> = new Set()
+): ResolvedTerminalStep {
+  const visitKey = `${node.id}:${sourceId || 'next'}`;
+  if (visited.has(visitKey)) {
+    throw new Error(`MSX2 GameFlow branch from "${node.id}" contains a cycle before reaching End, Restart, or terminal Transition.`);
+  }
+  visited.add(visitKey);
   const step = collectNextExportStep(flow, node, sourceId);
   const nextNode = step.node;
   if (!nextNode) {
     throw new Error(`MSX2 GameFlow branch from "${node.id}" must continue to End, Restart, or terminal Transition.`);
   }
-  if (nextNode.type === 'End') return { terminalAction: 'loop', globals: step.globals };
-  if (nextNode.type === 'Restart') return { terminalAction: 'restart', globals: step.globals };
+  if (nextNode.type === 'Text') {
+    const afterTextStep = resolveTerminalStep(flow, nextNode, undefined, new Set(visited));
+    return {
+      ...afterTextStep,
+      text: nextNode as Msx2GameFlowTextNode,
+      globalsBeforeText: step.globals,
+    };
+  }
+  if (nextNode.type === 'End') return { terminalAction: 'loop', globalsBeforeText: [], globals: step.globals };
+  if (nextNode.type === 'Restart') return { terminalAction: 'restart', globalsBeforeText: [], globals: step.globals };
   if (nextNode.type !== 'Transition') {
     throw new Error(`MSX2 GameFlow branch from "${node.id}" cannot continue to "${nextNode.type}" in the SCREEN 5 backend.`);
   }
@@ -121,6 +142,7 @@ function resolveTerminalStep(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode, so
   return {
     transition: nextNode as Msx2GameFlowTransitionNode,
     terminalAction: nodeAfterTransition.type === 'Restart' ? 'restart' : 'loop',
+    globalsBeforeText: [],
     globals: [...step.globals, ...afterTransitionStep.globals],
   };
 }
@@ -162,6 +184,7 @@ function resolveNextExportStep(
   terminalAction: 'loop' | 'restart';
   afterPresentationGlobals: Msx2GameFlowGlobalsNode[];
   afterTransitionGlobals: Msx2GameFlowGlobalsNode[];
+  text?: Msx2GameFlowTextNode;
   ifThenElse?: ResolvedIfThenElseStep;
 } {
   if (!flow || !node || !Array.isArray(flow.nodes)) {
@@ -184,6 +207,16 @@ function resolveNextExportStep(
       terminalAction: 'restart',
       afterPresentationGlobals: afterPresentationStep.globals,
       afterTransitionGlobals: [],
+    };
+  }
+  if (nextNode.type === 'Text') {
+    const textStep = resolveTerminalStep(flow, nextNode);
+    return {
+      transition: textStep.transition,
+      terminalAction: textStep.terminalAction,
+      afterPresentationGlobals: afterPresentationStep.globals,
+      afterTransitionGlobals: textStep.globals,
+      text: nextNode as Msx2GameFlowTextNode,
     };
   }
   if (nextNode.type === 'IfThenElse') {
@@ -243,6 +276,7 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     initialGlobals: collectInitialGlobalsNodes(flow, node),
     afterPresentationGlobals: nextStep.afterPresentationGlobals,
     afterTransitionGlobals: nextStep.afterTransitionGlobals,
+    text: nextStep.text,
     ifThenElse: nextStep.ifThenElse,
     transition: nextStep.transition,
     terminalAction: nextStep.terminalAction,
@@ -280,6 +314,22 @@ function buildPaletteBytes(palette: Screen5PaletteSlot[] | undefined): number[] 
     const [r, g, b] = resolvePaletteSlot(slot);
     return [(r << 4) | b, g];
   }).flat();
+}
+
+function resolveTextPaletteIndex(palette: Screen5PaletteSlot[] | undefined): number {
+  const source = Array.isArray(palette) ? palette : [];
+  let bestSlot = 15;
+  let bestBrightness = -1;
+  for (let slotIndex = 1; slotIndex < 16; slotIndex++) {
+    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
+    const [r, g, b] = resolvePaletteSlot(slot);
+    const brightness = r + g + b;
+    if (brightness > bestBrightness) {
+      bestBrightness = brightness;
+      bestSlot = slotIndex;
+    }
+  }
+  return bestSlot;
 }
 
 function buildBitmapBytes(presentation: Msx2Screen5PresentationConfig): number[] {
@@ -508,6 +558,34 @@ msx2_gameflow_compare_hl_de:
 `;
 }
 
+function sanitizeScreen5TextLine(value: unknown, maxLength: number): string {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/"/g, "'")
+    .slice(0, maxLength);
+}
+
+function wrapScreen5Text(value: unknown, maxLineLength = 28, maxLines = 8): string[] {
+  const rawLines = String(value || '').replace(/\r/g, '').split('\n');
+  const lines: string[] = [];
+  rawLines.forEach(rawLine => {
+    const words = sanitizeScreen5TextLine(rawLine, 160).split(/\s+/).filter(Boolean);
+    let current = '';
+    words.forEach(word => {
+      const next = current ? `${current} ${word}` : word;
+      if (next.length > maxLineLength && current) {
+        lines.push(current);
+        current = word.slice(0, maxLineLength);
+      } else {
+        current = next.slice(0, maxLineLength);
+      }
+    });
+    if (current || rawLine.trim().length === 0) lines.push(current);
+  });
+  return lines.filter((line, index) => line.length > 0 || index < rawLines.length - 1).slice(0, maxLines);
+}
+
 function chunkBitmapBytes(bytes: number[], chunkLines: number): number[][] {
   const normalizedChunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(chunkLines) || DEFAULT_CHUNK_LINES));
   const chunkSize = normalizedChunkLines * BYTES_PER_LINE;
@@ -571,6 +649,130 @@ function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, nextLabel
     jp .main_loop`;
 }
 
+const SCREEN5_TEXT_FONT: Record<string, string[]> = {
+  ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  G: ['01111', '10000', '10000', '10111', '10001', '10001', '01111'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  J: ['00111', '00010', '00010', '00010', '10010', '10010', '01100'],
+  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+  W: ['10001', '10001', '10001', '10101', '10101', '10101', '01010'],
+  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
+  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '10000', '11110', '00001', '00001', '11110'],
+  '6': ['01110', '10000', '10000', '11110', '10001', '10001', '01110'],
+  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  '9': ['01110', '10001', '10001', '01111', '00001', '00001', '01110'],
+  '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100'],
+  ',': ['00000', '00000', '00000', '00000', '01100', '01100', '01000'],
+  ':': ['00000', '01100', '01100', '00000', '01100', '01100', '00000'],
+  '!': ['00100', '00100', '00100', '00100', '00100', '00000', '00100'],
+  '?': ['01110', '10001', '00001', '00010', '00100', '00000', '00100'],
+  '-': ['00000', '00000', '00000', '11111', '00000', '00000', '00000'],
+};
+
+function renderScreen5TextBlock(text: string, colorIndex: number, width = 160, height = 9): number[] {
+  const bytes = new Array((width / 2) * height).fill(0);
+  const chars = text.toUpperCase().slice(0, Math.floor((width - 4) / 6));
+  const colorNibble = Math.max(1, Math.min(15, Math.trunc(colorIndex) || 15));
+  for (let charIndex = 0; charIndex < chars.length; charIndex++) {
+    const glyph = SCREEN5_TEXT_FONT[chars[charIndex]] || SCREEN5_TEXT_FONT['?'];
+    const x0 = 2 + charIndex * 6;
+    for (let gy = 0; gy < glyph.length; gy++) {
+      for (let gx = 0; gx < 5; gx++) {
+        if (glyph[gy][gx] !== '1') continue;
+        const x = x0 + gx;
+        const byteIndex = gy * (width / 2) + Math.floor(x / 2);
+        bytes[byteIndex] |= x % 2 === 0 ? colorNibble << 4 : colorNibble;
+      }
+    }
+  }
+  return bytes;
+}
+
+function screen5TextBlockDb(label: string, text: string, colorIndex: number): string {
+  const bytes = renderScreen5TextBlock(text, colorIndex);
+  return `${formatBytes(label, bytes, `SCREEN 5 text block: ${text}`)}${label}_SIZE EQU ${bytes.length}`;
+}
+
+function screen5TextBlockCall(label: string, x: number, y: number, vramBase: number, width = 160, height = 9): string {
+  const rowBytes = width / 2;
+  return Array.from({ length: height }, (_item, row) => {
+    const destination = vramBase + (y + row) * BYTES_PER_LINE + Math.floor(x / 2);
+    return `    ld hl, ${label} + ${row * rowBytes}
+    ld de, #${destination.toString(16).toUpperCase().padStart(4, '0')}
+    ld bc, ${rowBytes}
+    call LDIRVM`;
+  }).join('\n');
+}
+
+function generateScreen5TextRoutine(label: string, node: Msx2GameFlowTextNode | undefined, nextActionAsm: string, vramBase: number, textColorIndex: number): string {
+  if (!node) return '';
+  const safeLabel = label.replace(/[^A-Za-z0-9_]/g, '_');
+  const title = sanitizeScreen5TextLine(node.title || 'TEXT', 26);
+  const messageLines = wrapScreen5Text(node.message || '', 28, 8);
+  const prompt = node.waitForKey === false ? '' : 'PRESS KEY';
+  const titleLabel = `${safeLabel}_title`;
+  const lineLabels = messageLines.map((_line, index) => `${safeLabel}_line_${index}`);
+  const promptLabel = `${safeLabel}_prompt`;
+  const lineCalls = messageLines.map((_line, index) => screen5TextBlockCall(lineLabels[index], 16, 48 + index * 10, vramBase)).join('\n');
+  const waitBlock = node.waitForKey === false
+    ? (() => {
+        const frames = Math.max(0, Math.min(255, Math.trunc(Number(node.waitFrames) || 0)));
+        return frames > 0
+          ? `    ld b, ${hexByte(frames)}
+.${safeLabel}_frame_wait:
+    halt
+    djnz .${safeLabel}_frame_wait
+`
+          : '';
+      })()
+    : `${screen5TextBlockCall(promptLabel, 88, 168, vramBase)}
+.${safeLabel}_wait_key:
+    call CHGET
+`;
+  return `
+${label}:
+    ; MSX2_GAMEFLOW_TEXT_NODE: ${node.id}
+${screen5TextBlockCall(titleLabel, 16, 24, vramBase)}
+${lineCalls}
+${waitBlock}${nextActionAsm}
+
+${screen5TextBlockDb(titleLabel, title, textColorIndex)}
+${messageLines.map((line, index) => screen5TextBlockDb(lineLabels[index], line, textColorIndex)).join('\n')}
+${prompt ? screen5TextBlockDb(promptLabel, prompt, textColorIndex) : ''}
+`;
+}
+
+function generateScreen5TextHelpers(needed: boolean): string {
+  if (!needed) return '';
+  return '';
+}
+
 function generateTransitionRuntime(
   label: string,
   transition: Msx2GameFlowTransitionNode,
@@ -605,10 +807,33 @@ function generateTerminalActionRoutine(
   label: string,
   step: ResolvedTerminalStep | undefined,
   globalsLabel: string,
-  vramBase: string
+  globalsBeforeTextLabel: string,
+  vramBase: string,
+  textColorIndex: number
 ): string {
   if (!step) return '';
   const globalsCall = step.globals.length > 0 ? `    call ${globalsLabel}\n` : '';
+  if (step.text) {
+    const preTextGlobalsCall = step.globalsBeforeText.length > 0 ? `    call ${globalsBeforeTextLabel}\n` : '';
+    const textLabel = step.globalsBeforeText.length > 0 ? `${label}_text` : label;
+    const textAction = step.transition
+      ? `${globalsCall}    jp ${label}_transition\n`
+      : step.terminalAction === 'restart'
+        ? `${globalsCall}    jp init_rom\n`
+        : `${globalsCall}.${label}_end_loop:\n    halt\n    jp .${label}_end_loop\n`;
+    const preTextRoutine = step.globalsBeforeText.length > 0
+      ? `
+${label}:
+${preTextGlobalsCall}    jp ${textLabel}
+`
+      : '';
+    const vramBaseAddress = vramBase === '#8000' ? 0x8000 : 0;
+    return `${preTextRoutine}${generateScreen5TextRoutine(textLabel, step.text, textAction, vramBaseAddress, textColorIndex)}${
+      step.transition
+        ? generateTransitionRuntime(`${label}_transition`, step.transition, vramBase, step.terminalAction)
+        : ''
+    }`;
+  }
   if (step.transition) {
     return generateTransitionRuntime(label, step.transition, vramBase, step.terminalAction, globalsCall);
   }
@@ -714,6 +939,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const resolvedFlow = resolvePresentationFlow(analysis);
   const presentation = normalizePresentation(applyGameFlowRuntimeOverrides(resolvedFlow.presentation, resolvedFlow.node));
   const paletteBytes = buildPaletteBytes(presentation.palette);
+  const textColorIndex = resolveTextPaletteIndex(presentation.palette);
   const bitmapBytes = buildBitmapBytes(presentation);
   const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
   const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
@@ -728,21 +954,33 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   if (resolvedFlow.ifThenElse && !ifThenElseCondition) {
     throw new Error(`MSX2 GameFlow IfThenElse node "${resolvedFlow.ifThenElse.node.id}" must select a global variable.`);
   }
+  const thenPreTextGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.thenStep.globalsBeforeText || [], analysis);
   const thenGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.thenStep.globals || [], analysis);
+  const elsePreTextGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.elseStep.globalsBeforeText || [], analysis);
   const elseGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.elseStep.globals || [], analysis);
   const allGlobalAssignments = [
     ...initialGlobalAssignments,
     ...afterPresentationGlobalAssignments,
     ...afterTransitionGlobalAssignments,
+    ...thenPreTextGlobalAssignments,
     ...thenGlobalAssignments,
+    ...elsePreTextGlobalAssignments,
     ...elseGlobalAssignments,
     ...(ifThenElseCondition ? [ifThenElseCondition] : []),
   ];
   const globalEquates = generateGlobalVariableEquates(allGlobalAssignments);
   const ifThenElseLabel = resolvedFlow.ifThenElse ? `msx2_gameflow_ifthenelse_${resolvedFlow.ifThenElse.node.id.replace(/[^A-Za-z0-9_]/g, '_')}` : null;
-  const terminalRuntimeLabel = ifThenElseLabel || (terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null);
-  const nextRuntimeLabel = (afterPresentationGlobalAssignments.length > 0 || ifThenElseLabel) ? 'msx2_gameflow_after_presentation' : terminalRuntimeLabel;
+  const textLabel = resolvedFlow.text ? `msx2_gameflow_text_${resolvedFlow.text.id.replace(/[^A-Za-z0-9_]/g, '_')}` : null;
+  const terminalRuntimeLabel = ifThenElseLabel || textLabel || (terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null);
+  const nextRuntimeLabel = (afterPresentationGlobalAssignments.length > 0 || ifThenElseLabel || textLabel) ? 'msx2_gameflow_after_presentation' : terminalRuntimeLabel;
   const anyTransition = Boolean(terminalTransition || resolvedFlow.ifThenElse?.thenStep.transition || resolvedFlow.ifThenElse?.elseStep.transition);
+  const anyText = Boolean(resolvedFlow.text || resolvedFlow.ifThenElse?.thenStep.text || resolvedFlow.ifThenElse?.elseStep.text);
+  const mainTextGlobalsCall = afterTransitionGlobalAssignments.length > 0 ? '    call msx2_gameflow_apply_after_transition_globals\n' : '';
+  const mainTextAction = terminalTransition
+    ? '    jp msx2_gameflow_run_transition\n'
+    : terminalAction === 'restart'
+      ? `${mainTextGlobalsCall}    jp init_rom\n`
+      : `${mainTextGlobalsCall}.gameflow_end_loop_after_text:\n    halt\n    jp .gameflow_end_loop_after_text\n`;
   const transitionDurationFrames = Math.max(0, Math.min(255, Math.trunc(Number(terminalTransition?.durationFrames) || 0)));
   const uploadChunks = bitmapChunks.map((_chunk, index) => {
     const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
@@ -776,6 +1014,7 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; MSX2_GAMEFLOW_INITIAL_GLOBALS: ${initialGlobalAssignments.length}
 ; MSX2_GAMEFLOW_AFTER_PRESENTATION_GLOBALS: ${afterPresentationGlobalAssignments.length}
 ; MSX2_GAMEFLOW_AFTER_TRANSITION_GLOBALS: ${afterTransitionGlobalAssignments.length}
+; MSX2_GAMEFLOW_TEXT: ${resolvedFlow.text?.id || 'none'}
 ; MSX2_GAMEFLOW_IFTHENELSE: ${resolvedFlow.ifThenElse?.node.id || 'none'}
 ; MSX2_GAMEFLOW_NEXT_TRANSITION: ${terminalTransition?.id || 'none'}
 ; MSX2_GAMEFLOW_TERMINAL_ACTION: ${terminalAction}
@@ -794,9 +1033,14 @@ ENASCR  EQU #0044
 LDIRVM  EQU #005C
 FILVRM  EQU #0056
 CHGET   EQU #009F
+POSIT   EQU #00C6
+GRPPRT  EQU #0089
 WRTVDP  EQU #0047
 RSLREG  EQU #0138
 ENASLT  EQU #0024
+FORCLR  EQU #F3E8
+BAKCLR  EQU #F3E9
+BDRCLR  EQU #F3EA
 VDP_PALETTE_PORT EQU #9A
 SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
 ${globalEquates ? `${globalEquates}\n` : ''}
@@ -857,17 +1101,21 @@ get_cart_slot_value:
     or c
     ret
 
-${generateAfterPresentationRoutine(terminalRuntimeLabel, afterPresentationGlobalAssignments.length > 0, afterPresentationGlobalAssignments.length > 0 || Boolean(ifThenElseLabel))}
+${generateAfterPresentationRoutine(terminalRuntimeLabel, afterPresentationGlobalAssignments.length > 0, afterPresentationGlobalAssignments.length > 0 || Boolean(ifThenElseLabel || textLabel))}
+${generateScreen5TextRoutine(textLabel || '', resolvedFlow.text, mainTextAction, presentation.runtime.vramPage === 1 ? 0x8000 : 0, textColorIndex)}
 ${generateIfThenElseRoutine(resolvedFlow.ifThenElse?.node, ifThenElseCondition)}
-${generateTerminalActionRoutine('msx2_gameflow_branch_then', resolvedFlow.ifThenElse?.thenStep, 'msx2_gameflow_apply_then_globals', vramBase)}
-${generateTerminalActionRoutine('msx2_gameflow_branch_else', resolvedFlow.ifThenElse?.elseStep, 'msx2_gameflow_apply_else_globals', vramBase)}
+${generateTerminalActionRoutine('msx2_gameflow_branch_then', resolvedFlow.ifThenElse?.thenStep, 'msx2_gameflow_apply_then_globals', 'msx2_gameflow_apply_then_pre_text_globals', vramBase, textColorIndex)}
+${generateTerminalActionRoutine('msx2_gameflow_branch_else', resolvedFlow.ifThenElse?.elseStep, 'msx2_gameflow_apply_else_globals', 'msx2_gameflow_apply_else_pre_text_globals', vramBase, textColorIndex)}
 ${generateTerminalTransitionRoutine(terminalTransition, vramBase, terminalAction, afterTransitionGlobalAssignments.length > 0)}
 ${generateTransitionHelpers(anyTransition, vramBase)}
+${generateScreen5TextHelpers(anyText)}
 ${generateCompareRoutine(Boolean(resolvedFlow.ifThenElse))}
 ${generateGlobalsRoutine('msx2_gameflow_apply_initial_globals', initialGlobalAssignments, 'Initial Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_after_presentation_globals', afterPresentationGlobalAssignments, 'Post-presentation Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_after_transition_globals', afterTransitionGlobalAssignments, 'Post-transition Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_then_pre_text_globals', thenPreTextGlobalAssignments, 'THEN branch pre-text Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_then_globals', thenGlobalAssignments, 'THEN branch Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_else_pre_text_globals', elsePreTextGlobalAssignments, 'ELSE branch pre-text Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_else_globals', elseGlobalAssignments, 'ELSE branch Globals nodes')}
 ${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
     ld a, 1

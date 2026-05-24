@@ -6,6 +6,7 @@ import type {
   Msx2GameFlowIfThenElseNode,
   Msx2GameFlowNode,
   Msx2GameFlowScreen5PresentationNode,
+  Msx2GameFlowTextNode,
   Msx2Screen5PresentationConfig,
   ProjectAsset,
 } from '../../types';
@@ -33,6 +34,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
   if (node.type === 'Waypoint') return 'Waypoint';
   if (node.type === 'Restart') return 'Restart ROM';
   if (node.type === 'Globals') return node.title || `${node.variables?.length || 0} global set`;
+  if (node.type === 'Text') return node.title || 'Text';
   if (node.type === 'IfThenElse') return `${node.variableName || 'var'} ${node.operator || '=='} ${node.compareValue || '0'}`;
   if (node.type === 'Transition') return node.effect === 'fade_to_black' ? 'Fade to Black' : 'CLS';
   const asset = allAssets.find(a => a.id === node.presentationAssetId && a.type === 'msx2presentation');
@@ -43,6 +45,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Start') return 'hsl(185, 62%, 32%)';
   if (node.type === 'Globals') return 'hsl(265, 42%, 36%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
+  if (node.type === 'Text') return 'hsl(188, 46%, 34%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'IfThenElse') return 'hsl(28, 58%, 36%)';
   if (node.type === 'Transition') return 'hsl(42, 58%, 35%)';
@@ -136,6 +139,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedGlobalsNode = selectedNode?.type === 'Globals'
     ? selectedNode as Msx2GameFlowGlobalsNode
     : null;
+  const selectedTextNode = selectedNode?.type === 'Text'
+    ? selectedNode as Msx2GameFlowTextNode
+    : null;
   const selectedIfThenElseNode = selectedNode?.type === 'IfThenElse'
     ? selectedNode as Msx2GameFlowIfThenElseNode
     : null;
@@ -197,8 +203,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       ? presentationNode as Msx2GameFlowScreen5PresentationNode
       : firstScreen5;
     const afterScreen5 = getNextExportNode(screen5Node, nodes, connections);
-    const afterTransition = afterScreen5?.type === 'Transition'
+    const afterText = afterScreen5?.type === 'Text'
       ? getNextExportNode(afterScreen5, nodes, connections)
+      : undefined;
+    const terminalNode = afterScreen5?.type === 'Text' ? afterText : afterScreen5;
+    const afterTransition = terminalNode?.type === 'Transition'
+      ? getNextExportNode(terminalNode, nodes, connections)
       : undefined;
     const thenNode = afterScreen5?.type === 'IfThenElse'
       ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'then', nodes, connections)
@@ -218,12 +228,18 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       issues.push('SCREEN 5 node has no valid presentation asset.');
     }
     if (screen5Node && !afterScreen5) {
-      issues.push('SCREEN 5 node should continue to Transition, Restart, or End.');
+      issues.push('SCREEN 5 node should continue to Text, Transition, Restart, or End.');
     }
-    if (afterScreen5 && afterScreen5.type !== 'IfThenElse' && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
-      issues.push('SCREEN 5 node can only continue to IfThenElse, Transition, Restart, or End in this backend.');
+    if (afterScreen5 && afterScreen5.type !== 'Text' && afterScreen5.type !== 'IfThenElse' && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
+      issues.push('SCREEN 5 node can only continue to Text, IfThenElse, Transition, Restart, or End in this backend.');
     }
-    if (afterScreen5?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
+    if (afterScreen5?.type === 'Text') {
+      if (!afterScreen5.message?.trim()) issues.push('Text node must include a message.');
+      if (afterText?.type !== 'Transition' && afterText?.type !== 'Restart' && afterText?.type !== 'End') {
+        issues.push('Text node should continue to Transition, Restart, or End.');
+      }
+    }
+    if (terminalNode?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
       issues.push('Terminal Transition should continue to Restart or End.');
     }
     if (afterScreen5?.type === 'IfThenElse') {
@@ -234,13 +250,23 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         issues.push('IfThenElse must have THEN and ELSE branches.');
       }
       for (const [label, branchNode] of [['THEN', thenNode], ['ELSE', elseNode]] as const) {
-        if (branchNode && branchNode.type !== 'Transition' && branchNode.type !== 'Restart' && branchNode.type !== 'End') {
-          issues.push(`IfThenElse ${label} branch can only continue to Transition, Restart, or End.`);
-        }
-        const afterBranchTransition = branchNode?.type === 'Transition'
+        const afterBranchText = branchNode?.type === 'Text'
           ? getNextExportNode(branchNode, nodes, connections)
           : undefined;
-        if (branchNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
+        const branchTerminalNode = branchNode?.type === 'Text' ? afterBranchText : branchNode;
+        if (branchNode?.type === 'Text' && !branchNode.message?.trim()) {
+          issues.push(`IfThenElse ${label} Text node must include a message.`);
+        }
+        if (branchNode?.type === 'Text' && afterBranchText?.type !== 'Transition' && afterBranchText?.type !== 'Restart' && afterBranchText?.type !== 'End') {
+          issues.push(`IfThenElse ${label} Text node should continue to Transition, Restart, or End.`);
+        }
+        if (branchNode && branchNode.type !== 'Text' && branchNode.type !== 'Transition' && branchNode.type !== 'Restart' && branchNode.type !== 'End') {
+          issues.push(`IfThenElse ${label} branch can only continue to Text, Transition, Restart, or End.`);
+        }
+        const afterBranchTransition = branchTerminalNode?.type === 'Transition'
+          ? getNextExportNode(branchTerminalNode, nodes, connections)
+          : undefined;
+        if (branchTerminalNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
           issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
         }
       }
@@ -281,6 +307,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         if (outgoingCount > 2) issues.push('IfThenElse has more than two outgoing connections.');
         continue;
       }
+      if (node.type === 'Text' && !node.message?.trim()) {
+        issues.push('Text node must include a message.');
+      }
       if (outgoingCount > 1) {
         issues.push(`${node.type} has more than one outgoing connection.`);
       }
@@ -302,7 +331,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Text' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -325,6 +354,16 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               variableName: selectedGlobalsAssetVariables[0]?.name || 'Goal',
               compareValue: '0',
               operator: '==',
+            }
+        : type === 'Text'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              title: 'Text',
+              message: 'PRESS KEY TO CONTINUE',
+              waitForKey: true,
+              waitFrames: 0,
             }
         : type === 'Screen5Presentation'
         ? {
@@ -496,6 +535,21 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedText = (updates: Partial<Msx2GameFlowTextNode>) => {
+    if (!selectedTextNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedTextNode.id && node.type === 'Text'
+        ? {
+            ...node,
+            ...updates,
+            waitFrames: updates.waitFrames !== undefined
+              ? Math.max(0, Math.min(255, Math.trunc(updates.waitFrames) || 0))
+              : node.waitFrames,
+          }
+        : node
+    ));
+  };
+
   const selectedOutgoingConnection = selectedNode
     ? connections.find(connection => connection.from.nodeId === selectedNode.id)
     : undefined;
@@ -562,6 +616,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => addNode('Globals')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Globals
+        </Button>
+        <Button onClick={() => addNode('Text')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
+          Add Text
         </Button>
         <Button onClick={() => addNode('IfThenElse')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           If/Then/Else
@@ -740,6 +797,50 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   value={selectedNode.durationFrames ?? 30}
                   onChange={event => updateSelectedTransitionDuration(Number(event.target.value))}
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+            </div>
+          )}
+
+          {selectedTextNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Text</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedTextNode.title}
+                  onChange={event => updateSelectedText({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Message
+                <textarea
+                  value={selectedTextNode.message}
+                  onChange={event => updateSelectedText({ message: event.target.value })}
+                  rows={4}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedTextNode.waitForKey !== false}
+                  onChange={event => updateSelectedText({ waitForKey: event.target.checked })}
+                />
+                Wait for key
+              </label>
+              <label className="block text-xs">
+                Wait frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedTextNode.waitFrames || 0}
+                  onChange={event => updateSelectedText({ waitFrames: Number(event.target.value) })}
+                  disabled={selectedTextNode.waitForKey !== false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
                 />
               </label>
             </div>
