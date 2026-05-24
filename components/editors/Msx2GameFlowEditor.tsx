@@ -174,6 +174,29 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const selectedOutgoingConnection = selectedNode
+    ? connections.find(connection => connection.from.nodeId === selectedNode.id)
+    : undefined;
+
+  const connectSelectedNodeTo = (toNodeId: string) => {
+    if (!selectedNode || selectedNode.type === 'End' || selectedNode.id === toNodeId) return;
+    const targetNode = nodes.find(node => node.id === toNodeId);
+    if (!targetNode) return;
+    onUpdate({
+      connections: [
+        ...connections.filter(connection => connection.from.nodeId !== selectedNode.id),
+        makeConnection(selectedNode.id, targetNode.id),
+      ],
+    });
+  };
+
+  const clearSelectedOutgoingConnection = () => {
+    if (!selectedNode) return;
+    onUpdate({
+      connections: connections.filter(connection => connection.from.nodeId !== selectedNode.id),
+    });
+  };
+
   const deleteSelectedNode = () => {
     if (!selectedNode || selectedNode.type === 'Start') return;
     onUpdate({
@@ -314,6 +337,46 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 <option value="fade_to_black">Fade to black</option>
               </select>
             </label>
+          )}
+
+          {selectedNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Connection</h3>
+              {selectedNode.type === 'End' ? (
+                <p className="text-xs text-msx-textsecondary">End nodes do not have outgoing connections.</p>
+              ) : (
+                <>
+                  <label className="block text-xs">
+                    Next node
+                    <select
+                      value={selectedOutgoingConnection?.to.nodeId || ''}
+                      onChange={event => {
+                        if (event.target.value) connectSelectedNodeTo(event.target.value);
+                      }}
+                      className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                    >
+                      <option value="">None</option>
+                      {nodes
+                        .filter(node => node.id !== selectedNode.id)
+                        .map(node => (
+                          <option key={node.id} value={node.id}>
+                            {node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <Button
+                    onClick={clearSelectedOutgoingConnection}
+                    size="sm"
+                    variant="ghost"
+                    disabled={!selectedOutgoingConnection}
+                    className="w-full"
+                  >
+                    Clear Connection
+                  </Button>
+                </>
+              )}
+            </div>
           )}
 
           <Button onClick={deleteSelectedNode} size="sm" variant="danger" disabled={!selectedNode || selectedNode.type === 'Start'} className="w-full">

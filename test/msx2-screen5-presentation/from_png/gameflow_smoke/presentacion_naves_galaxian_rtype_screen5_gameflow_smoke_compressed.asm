@@ -1,7 +1,7 @@
 ; File: unitedFiles.asm
 ; ==================================================================
 ; Mideas MSX2 SCREEN 5 presentation backend
-; Project: presentacion_naves_galaxian_rtype_screen5_png_test
+; Project: presentacion_naves_galaxian_rtype_screen5_gameflow_smoke
 ; Presentation: Presentation Naves Galaxian R-Type PNG Test
 ; Screen mode: SCREEN 5 (Graphics III)
 ; Backend: msx2-screen5-presentation

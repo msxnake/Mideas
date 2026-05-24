@@ -114,6 +114,69 @@ def assert_fixture_contract(path: Path) -> None:
         raise RuntimeError("SCREEN 5 presentation packedBitmap does not match visible image size")
 
 
+def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    presentations = {asset.get("id") for asset in data.get("assets", []) if asset.get("type") == "msx2presentation"}
+    flows = [asset for asset in data.get("assets", []) if asset.get("type") == "msx2gameflow"]
+    if not flows:
+        return None
+
+    flow = next((asset for asset in flows if asset.get("name") == "Main MSX2"), flows[0])
+    flow_data = flow.get("data") or {}
+    nodes = flow_data.get("nodes") or []
+    connections = flow_data.get("connections") or []
+    start_node_id = flow_data.get("startNodeId") or next((node.get("id") for node in nodes if node.get("type") == "Start"), None)
+    node_by_id = {node.get("id"): node for node in nodes}
+    current_id = start_node_id
+    visited: set[str] = set()
+    screen5_node = None
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        current = node_by_id.get(current_id)
+        if current and current.get("type") == "Screen5Presentation":
+            screen5_node = current
+            break
+        next_connection = next((connection for connection in connections if (connection.get("from") or {}).get("nodeId") == current_id), None)
+        current_id = (next_connection.get("to") or {}).get("nodeId") if next_connection else None
+
+    if screen5_node is None:
+        screen5_node = next((node for node in nodes if node.get("type") == "Screen5Presentation"), None)
+    if screen5_node is None:
+        raise RuntimeError(f"MSX2 GameFlow fixture has no Screen5Presentation node: {path}")
+
+    presentation_asset_id = screen5_node.get("presentationAssetId")
+    if presentation_asset_id not in presentations:
+        raise RuntimeError(
+            f"MSX2 GameFlow Screen5Presentation node references missing presentation asset: {presentation_asset_id}"
+        )
+
+    return {
+        "flow_name": flow.get("name") or "Main MSX2",
+        "start_node_id": start_node_id or "none",
+        "screen5_node_id": screen5_node.get("id") or "none",
+        "presentation_asset_id": presentation_asset_id,
+    }
+
+
+def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | None) -> None:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if contract is None:
+        if "MSX2_GAMEFLOW_PRESENT: yes" in text:
+            raise RuntimeError("Generated ASM reports an MSX2 GameFlow even though the fixture has none")
+        return
+
+    required = [
+        "; MSX2_GAMEFLOW_PRESENT: yes",
+        f"; MSX2_GAMEFLOW_ASSET: {contract['flow_name']}",
+        f"; MSX2_GAMEFLOW_START_NODE: {contract['start_node_id']}",
+        f"; MSX2_GAMEFLOW_SCREEN5_NODE: {contract['screen5_node_id']}",
+        f"; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: {contract['presentation_asset_id']}",
+    ]
+    for needle in required:
+        if needle not in text:
+            raise RuntimeError(f"Generated ASM is missing MSX2 GameFlow contract marker: {needle}")
+
+
 def assert_openmsx_capture(path: Path) -> None:
     if not path.exists():
         raise RuntimeError(f"OpenMSX screenshot was not created: {path}")
@@ -161,6 +224,7 @@ def main() -> int:
     screenshot_output = Path(args.screenshot_output).resolve() if args.screenshot_output else out_dir / f"{output_stem}.png"
 
     assert_fixture_contract(fixture)
+    msx2_gameflow_contract = get_msx2_gameflow_contract(fixture)
 
     build_result = run_command([
         sys.executable,
@@ -182,6 +246,7 @@ def main() -> int:
     assert_contains(asm_output, "SCREEN5_PRESENTATION_BITMAP_CHUNK_0", "SCREEN 5 bitmap chunk data")
     assert_contains(asm_output, "SCREEN5_PRESENTATION_BITMAP_SIZE EQU 27136", "full 256x212 bitmap upload")
     assert_contains(asm_output, "call map_page2_to_cart_primary", "page-2 cart mapping for bitmap data crossing #8000")
+    assert_msx2_gameflow_asm_contract(asm_output, msx2_gameflow_contract)
     assert_screen5_mode_contract(asm_output)
     assert_screen5_generated_labels(asm_output)
     assert_screen5_zx0_contract(zx0_asm_output)

@@ -90,6 +90,49 @@ const isMsx2Screen4ExportMode = (screenMode: string): boolean =>
 const hasMsx2PresentationAsset = (assets: ProjectAsset[]): boolean =>
   assets.some(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
 
+const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
+  const presentations = assets.filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
+  const flows = assets.filter(asset => asset.type === 'msx2gameflow');
+  const flow = flows.find(asset => asset.name === 'Main MSX2') || flows[0];
+  const flowData = flow?.data as any;
+  const nodes = Array.isArray(flowData?.nodes) ? flowData.nodes : [];
+  const connections = Array.isArray(flowData?.connections) ? flowData.connections : [];
+  const nodesById = new Map(nodes.map((node: any) => [node.id, node]));
+  const visited = new Set<string>();
+  let currentId = flowData?.startNodeId || nodes.find((node: any) => node.type === 'Start')?.id;
+  let screen5Node: any = null;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const currentNode = nodesById.get(currentId) as any;
+    if (!currentNode) break;
+    if (currentNode.type === 'Screen5Presentation') {
+      screen5Node = currentNode;
+      break;
+    }
+    const nextConnection = connections.find((connection: any) => connection?.from?.nodeId === currentNode.id);
+    currentId = nextConnection?.to?.nodeId;
+  }
+
+  if (!screen5Node) {
+    screen5Node = nodes.find((node: any) => node.type === 'Screen5Presentation');
+  }
+
+  const presentationAssetId = screen5Node?.presentationAssetId;
+  const presentation = presentationAssetId
+    ? presentations.find(asset => asset.id === presentationAssetId)
+    : presentations[0];
+
+  return {
+    hasScreen5Presentation: presentations.length > 0,
+    flowName: flow?.name || null,
+    screen5NodeId: screen5Node?.id || null,
+    presentationAssetId: presentationAssetId || presentation?.id || null,
+    presentationName: presentation?.name || null,
+    missingPresentation: Boolean(presentationAssetId && !presentation),
+  };
+};
+
 const formatDbRows = (label: string, rows: number[][], comment: string): string => {
   const body = rows.length > 0
     ? rows.map(row => `    DB ${row.map(value => Math.max(0, Math.min(255, Number(value) || 0))).join(',')}`).join('\n')
@@ -270,6 +313,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [zx0Options, setZx0Options] = useState<Zx0CompressionOptions>(DEFAULT_ZX0_OPTIONS);
 
   const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isPostAsmAnalyzing || isPostAsmOptimizing || isQuickValidating || isBuildingAndRunning;
+  const msx2Screen5ExportInfo = getMsx2Screen5ExportInfo(assets);
   const backendBaseUrl = (() => {
     const env = import.meta.env as Record<string, string | undefined>;
     const configuredBaseUrl = env.VITE_BACKEND_URL?.trim() || env.VITE_API_BASE_URL?.trim();
@@ -1805,6 +1849,16 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
                   Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, size=<strong>{romSizeKB ? `${romSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
+                  {msx2Screen5ExportInfo.hasScreen5Presentation && (
+                    <div className="mt-1">
+                      SCREEN 5 export: GameFlow=<strong>{msx2Screen5ExportInfo.flowName || 'auto'}</strong>, presentation=<strong>{msx2Screen5ExportInfo.presentationName || 'missing'}</strong>
+                    </div>
+                  )}
+                  {msx2Screen5ExportInfo.missingPresentation && (
+                    <div className="mt-1 text-red-300">
+                      Warning: selected MSX2 GameFlow node references a missing SCREEN 5 presentation asset.
+                    </div>
+                  )}
                   <div className="mt-1">
                     Last generated ASM config: <strong>{formatRomConfig(lastGeneratedRomConfig)}</strong>
                   </div>

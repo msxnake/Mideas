@@ -232,6 +232,7 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
     ]
     packed_list = list(packed)
     asset_id = f"asset_{project_name}"
+    gameflow_asset_id = f"asset_{project_name}_msx2_gameflow"
     now_ms = args.timestamp_ms if args.timestamp_ms is not None else int(time.time() * 1000)
 
     asset_data = {
@@ -269,21 +270,78 @@ def create_project(args: argparse.Namespace, project_root: Path) -> dict[str, Pa
         },
     }
 
+    assets = [
+        {
+            "id": asset_id,
+            "name": asset_name,
+            "type": "msx2presentation",
+            "data": asset_data,
+        }
+    ]
+
+    selected_asset_id = asset_id
+    current_editor = "msx2presentation"
+    if args.with_msx2_gameflow:
+        start_node_id = f"{gameflow_asset_id}_start"
+        presentation_node_id = f"{gameflow_asset_id}_screen5"
+        end_node_id = f"{gameflow_asset_id}_end"
+        gameflow_name = args.msx2_gameflow_name or "Main MSX2"
+        assets.append({
+            "id": gameflow_asset_id,
+            "name": gameflow_name,
+            "type": "msx2gameflow",
+            "data": {
+                "id": gameflow_asset_id,
+                "name": gameflow_name,
+                "target": "MSX2",
+                "nodes": [
+                    {
+                        "id": start_node_id,
+                        "type": "Start",
+                        "position": {"x": 70, "y": 110},
+                    },
+                    {
+                        "id": presentation_node_id,
+                        "type": "Screen5Presentation",
+                        "position": {"x": 300, "y": 110},
+                        "presentationAssetId": asset_id,
+                        "waitForKey": True,
+                        "waitFrames": 0,
+                    },
+                    {
+                        "id": end_node_id,
+                        "type": "End",
+                        "position": {"x": 530, "y": 110},
+                    },
+                ],
+                "connections": [
+                    {
+                        "id": f"{gameflow_asset_id}_conn_start_screen5",
+                        "from": {"nodeId": start_node_id},
+                        "to": {"nodeId": presentation_node_id},
+                    },
+                    {
+                        "id": f"{gameflow_asset_id}_conn_screen5_end",
+                        "from": {"nodeId": presentation_node_id},
+                        "to": {"nodeId": end_node_id},
+                    },
+                ],
+                "startNodeId": start_node_id,
+                "panOffset": {"x": 0, "y": 0},
+                "zoomLevel": 1,
+            },
+        })
+        selected_asset_id = gameflow_asset_id
+        current_editor = "Msx2GameFlow"
+
     project = {
         "name": project_name,
         "screenMode": "SCREEN 5 (Graphics III)",
         "currentScreenMode": "SCREEN 5 (Graphics III)",
         "targetGraphicsBackend": "msx2-screen5-presentation",
-        "assets": [
-            {
-                "id": asset_id,
-                "name": asset_name,
-                "type": "msx2presentation",
-                "data": asset_data,
-            }
-        ],
-        "selectedAssetId": asset_id,
-        "currentEditor": "msx2presentation",
+        "assets": assets,
+        "selectedAssetId": selected_asset_id,
+        "currentEditor": current_editor,
         "createdAt": now_ms,
     }
     project_path.write_text(json.dumps(project, indent=2), encoding="utf-8")
@@ -368,6 +426,8 @@ def main() -> int:
     parser.add_argument("--height", type=int, choices=[192, 212], default=DEFAULT_HEIGHT, help="Visible SCREEN 5 height")
     parser.add_argument("--fit-mode", choices=["cover", "contain", "stretch"], default="cover", help="Resize behavior")
     parser.add_argument("--palette-mode", choices=["auto", "default"], default="auto", help="auto adapts 15 colors from the PNG; default uses the standard SCREEN 5 palette with black slot 0")
+    parser.add_argument("--with-msx2-gameflow", action="store_true", help="Also create a Main MSX2 GameFlow with Start -> SCREEN 5 Presentation -> End")
+    parser.add_argument("--msx2-gameflow-name", default="Main MSX2", help="Name for the optional MSX2 GameFlow asset")
     parser.add_argument("--build-rom", action="store_true", help="Compile the generated project to ROM")
     parser.add_argument("--capture-openmsx", action="store_true", help="Capture OpenMSX screenshot after compiling")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine")

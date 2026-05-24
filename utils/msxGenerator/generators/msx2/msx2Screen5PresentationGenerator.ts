@@ -67,6 +67,12 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     ? presentations.find(item => (item as any).id === requestedPresentationAssetId)
     : undefined;
 
+  if (requestedPresentationAssetId && !presentation) {
+    throw new Error(
+      `MSX2 GameFlow Screen5Presentation node "${node?.id || 'unknown'}" references missing msx2presentation asset "${requestedPresentationAssetId}".`
+    );
+  }
+
   return {
     presentation: presentation || presentations[0],
     flow,
