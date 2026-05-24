@@ -3,6 +3,7 @@ import type {
   Msx2GameFlowConnection,
   Msx2GameFlowGraph,
   Msx2GameFlowGlobalsNode,
+  Msx2GameFlowIfThenElseNode,
   Msx2GameFlowNode,
   Msx2GameFlowScreen5PresentationNode,
   Msx2Screen5PresentationConfig,
@@ -32,6 +33,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
   if (node.type === 'Waypoint') return 'Waypoint';
   if (node.type === 'Restart') return 'Restart ROM';
   if (node.type === 'Globals') return node.title || `${node.variables?.length || 0} global set`;
+  if (node.type === 'IfThenElse') return `${node.variableName || 'var'} ${node.operator || '=='} ${node.compareValue || '0'}`;
   if (node.type === 'Transition') return node.effect === 'fade_to_black' ? 'Fade to Black' : 'CLS';
   const asset = allAssets.find(a => a.id === node.presentationAssetId && a.type === 'msx2presentation');
   return asset?.name || 'SCREEN 5 Presentation';
@@ -42,14 +44,15 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Globals') return 'hsl(265, 42%, 36%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
+  if (node.type === 'IfThenElse') return 'hsl(28, 58%, 36%)';
   if (node.type === 'Transition') return 'hsl(42, 58%, 35%)';
   if (node.type === 'Restart') return 'hsl(8, 58%, 36%)';
   return 'hsl(330, 42%, 34%)';
 };
 
-const makeConnection = (fromNodeId: string, toNodeId: string): Msx2GameFlowConnection => ({
+const makeConnection = (fromNodeId: string, toNodeId: string, sourceId?: string): Msx2GameFlowConnection => ({
   id: `msx2_gfc_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-  from: { nodeId: fromNodeId },
+  from: { nodeId: fromNodeId, sourceId },
   to: { nodeId: toNodeId },
 });
 
@@ -69,6 +72,23 @@ const getNextExportNode = (
   connections: Msx2GameFlowConnection[]
 ): Msx2GameFlowNode | undefined => {
   let current = getNextNode(node, nodes, connections);
+  const visited = new Set<string>();
+  while ((current?.type === 'Waypoint' || current?.type === 'Globals') && !visited.has(current.id)) {
+    visited.add(current.id);
+    current = getNextNode(current, nodes, connections);
+  }
+  return current;
+};
+
+const getBranchExportNode = (
+  node: Msx2GameFlowIfThenElseNode | undefined,
+  sourceId: 'then' | 'else',
+  nodes: Msx2GameFlowNode[],
+  connections: Msx2GameFlowConnection[]
+): Msx2GameFlowNode | undefined => {
+  if (!node) return undefined;
+  const branchConnection = connections.find(connection => connection.from.nodeId === node.id && connection.from.sourceId === sourceId);
+  let current = branchConnection ? nodes.find(candidate => candidate.id === branchConnection.to.nodeId) : undefined;
   const visited = new Set<string>();
   while ((current?.type === 'Waypoint' || current?.type === 'Globals') && !visited.has(current.id)) {
     visited.add(current.id);
@@ -115,6 +135,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     : null;
   const selectedGlobalsNode = selectedNode?.type === 'Globals'
     ? selectedNode as Msx2GameFlowGlobalsNode
+    : null;
+  const selectedIfThenElseNode = selectedNode?.type === 'IfThenElse'
+    ? selectedNode as Msx2GameFlowIfThenElseNode
     : null;
   const firstPresentationNode = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
   const previewPresentationNode = selectedPresentationNode || firstPresentationNode || null;
@@ -177,6 +200,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const afterTransition = afterScreen5?.type === 'Transition'
       ? getNextExportNode(afterScreen5, nodes, connections)
       : undefined;
+    const thenNode = afterScreen5?.type === 'IfThenElse'
+      ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'then', nodes, connections)
+      : undefined;
+    const elseNode = afterScreen5?.type === 'IfThenElse'
+      ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'else', nodes, connections)
+      : undefined;
 
     if (!startNode) {
       issues.push('Missing Start node.');
@@ -191,11 +220,30 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     if (screen5Node && !afterScreen5) {
       issues.push('SCREEN 5 node should continue to Transition, Restart, or End.');
     }
-    if (afterScreen5 && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
-      issues.push('SCREEN 5 node can only continue to Transition, Restart, or End in this backend.');
+    if (afterScreen5 && afterScreen5.type !== 'IfThenElse' && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
+      issues.push('SCREEN 5 node can only continue to IfThenElse, Transition, Restart, or End in this backend.');
     }
     if (afterScreen5?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
       issues.push('Terminal Transition should continue to Restart or End.');
+    }
+    if (afterScreen5?.type === 'IfThenElse') {
+      if (!afterScreen5.variableName?.trim()) {
+        issues.push('IfThenElse must select a global variable.');
+      }
+      if (!thenNode || !elseNode) {
+        issues.push('IfThenElse must have THEN and ELSE branches.');
+      }
+      for (const [label, branchNode] of [['THEN', thenNode], ['ELSE', elseNode]] as const) {
+        if (branchNode && branchNode.type !== 'Transition' && branchNode.type !== 'Restart' && branchNode.type !== 'End') {
+          issues.push(`IfThenElse ${label} branch can only continue to Transition, Restart, or End.`);
+        }
+        const afterBranchTransition = branchNode?.type === 'Transition'
+          ? getNextExportNode(branchNode, nodes, connections)
+          : undefined;
+        if (branchNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
+          issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
+        }
+      }
     }
     const visited = new Set<string>();
     let current = startNode;
@@ -225,6 +273,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         issues.push(`Orphaned node: ${node.type}.`);
       }
       if (node.type === 'End' || node.type === 'Restart') continue;
+      if (node.type === 'IfThenElse') {
+        const hasThen = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'then');
+        const hasElse = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'else');
+        if (!node.variableName?.trim()) issues.push('IfThenElse must select a global variable.');
+        if (!hasThen || !hasElse) issues.push('IfThenElse needs both THEN and ELSE outgoing connections.');
+        if (outgoingCount > 2) issues.push('IfThenElse has more than two outgoing connections.');
+        continue;
+      }
       if (outgoingCount > 1) {
         issues.push(`${node.type} has more than one outgoing connection.`);
       }
@@ -246,7 +302,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Waypoint' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -261,6 +317,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             globalVariablesAssetId: globalVariablesAssets[0]?.id,
             variables: [],
           }
+        : type === 'IfThenElse'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              variableName: selectedGlobalsAssetVariables[0]?.name || 'Goal',
+              compareValue: '0',
+              operator: '==',
+            }
         : type === 'Screen5Presentation'
         ? {
             id,
@@ -276,7 +341,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             ? { id, type, position: { x, y }, title: 'Restart', message: '' }
           : { id, type, position: { x, y } };
 
-    const nextConnections = previousNode && previousNode.type !== 'End' && previousNode.type !== 'Restart'
+    const nextConnections = previousNode && previousNode.type !== 'End' && previousNode.type !== 'Restart' && previousNode.type !== 'IfThenElse'
       ? [...connections.filter(conn => conn.from.nodeId !== previousNode.id), makeConnection(previousNode.id, id)]
       : connections;
     onUpdate({ nodes: [...nodes, newNode], connections: nextConnections });
@@ -422,14 +487,38 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     });
   };
 
+  const updateSelectedIfThenElse = (updates: Partial<Msx2GameFlowIfThenElseNode>) => {
+    if (!selectedIfThenElseNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedIfThenElseNode.id && node.type === 'IfThenElse'
+        ? { ...node, ...updates }
+        : node
+    ));
+  };
+
   const selectedOutgoingConnection = selectedNode
     ? connections.find(connection => connection.from.nodeId === selectedNode.id)
     : undefined;
+  const selectedThenConnection = selectedIfThenElseNode
+    ? connections.find(connection => connection.from.nodeId === selectedIfThenElseNode.id && connection.from.sourceId === 'then')
+    : undefined;
+  const selectedElseConnection = selectedIfThenElseNode
+    ? connections.find(connection => connection.from.nodeId === selectedIfThenElseNode.id && connection.from.sourceId === 'else')
+    : undefined;
 
-  const connectSelectedNodeTo = (toNodeId: string) => {
+  const connectSelectedNodeTo = (toNodeId: string, sourceId?: 'then' | 'else') => {
     if (!selectedNode || selectedNode.type === 'End' || selectedNode.type === 'Restart' || selectedNode.id === toNodeId) return;
     const targetNode = nodes.find(node => node.id === toNodeId);
     if (!targetNode) return;
+    if (selectedNode.type === 'IfThenElse' && sourceId) {
+      onUpdate({
+        connections: [
+          ...connections.filter(connection => !(connection.from.nodeId === selectedNode.id && connection.from.sourceId === sourceId)),
+          makeConnection(selectedNode.id, targetNode.id, sourceId),
+        ],
+      });
+      return;
+    }
     onUpdate({
       connections: [
         ...connections.filter(connection => connection.from.nodeId !== selectedNode.id),
@@ -473,6 +562,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => addNode('Globals')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Globals
+        </Button>
+        <Button onClick={() => addNode('IfThenElse')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
+          If/Then/Else
         </Button>
         <Button onClick={() => addNode('Waypoint')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Waypoint
@@ -738,11 +830,104 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             </div>
           )}
 
+          {selectedIfThenElseNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">If/Then/Else</h3>
+              <label className="block text-xs">
+                Variable
+                {selectedGlobalsAssetVariables.length > 0 ? (
+                  <select
+                    value={selectedIfThenElseNode.variableName}
+                    onChange={event => updateSelectedIfThenElse({ variableName: event.target.value })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  >
+                    {selectedGlobalsAssetVariables.map(variable => (
+                      <option key={variable.name} value={variable.name}>{variable.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={selectedIfThenElseNode.variableName}
+                    onChange={event => updateSelectedIfThenElse({ variableName: event.target.value })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                )}
+              </label>
+              <label className="block text-xs">
+                Operator
+                <select
+                  value={selectedIfThenElseNode.operator || '=='}
+                  onChange={event => updateSelectedIfThenElse({ operator: event.target.value as Msx2GameFlowIfThenElseNode['operator'] })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                >
+                  <option value="==">==</option>
+                  <option value="!=">!=</option>
+                  <option value=">">&gt;</option>
+                  <option value="<">&lt;</option>
+                  <option value=">=">&gt;=</option>
+                  <option value="<=">&lt;=</option>
+                </select>
+              </label>
+              <label className="block text-xs">
+                Compare value
+                <input
+                  type="text"
+                  value={selectedIfThenElseNode.compareValue}
+                  onChange={event => updateSelectedIfThenElse({ compareValue: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+            </div>
+          )}
+
           {selectedNode && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Connection</h3>
               {selectedNode.type === 'End' || selectedNode.type === 'Restart' ? (
                 <p className="text-xs text-msx-textsecondary">{selectedNode.type} nodes do not have outgoing connections.</p>
+              ) : selectedIfThenElseNode ? (
+                <>
+                  <label className="block text-xs">
+                    THEN node
+                    <select
+                      value={selectedThenConnection?.to.nodeId || ''}
+                      onChange={event => {
+                        if (event.target.value) connectSelectedNodeTo(event.target.value, 'then');
+                      }}
+                      className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                    >
+                      <option value="">None</option>
+                      {nodes.filter(node => node.id !== selectedNode.id).map(node => (
+                        <option key={node.id} value={node.id}>{node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs">
+                    ELSE node
+                    <select
+                      value={selectedElseConnection?.to.nodeId || ''}
+                      onChange={event => {
+                        if (event.target.value) connectSelectedNodeTo(event.target.value, 'else');
+                      }}
+                      className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                    >
+                      <option value="">None</option>
+                      {nodes.filter(node => node.id !== selectedNode.id).map(node => (
+                        <option key={node.id} value={node.id}>{node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    onClick={clearSelectedOutgoingConnection}
+                    size="sm"
+                    variant="ghost"
+                    disabled={!selectedThenConnection && !selectedElseConnection}
+                    className="w-full"
+                  >
+                    Clear Branches
+                  </Button>
+                </>
               ) : (
                 <>
                   <label className="block text-xs">

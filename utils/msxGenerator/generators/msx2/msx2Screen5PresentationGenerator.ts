@@ -1,4 +1,4 @@
-import { Msx2GameFlowGlobalsNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
+import { Msx2GameFlowGlobalsNode, Msx2GameFlowGraph, Msx2GameFlowIfThenElseNode, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -37,6 +37,7 @@ interface ResolvedPresentationFlow {
   initialGlobals: Msx2GameFlowGlobalsNode[];
   afterPresentationGlobals: Msx2GameFlowGlobalsNode[];
   afterTransitionGlobals: Msx2GameFlowGlobalsNode[];
+  ifThenElse?: ResolvedIfThenElseStep;
   transition?: Msx2GameFlowTransitionNode;
   terminalAction: 'loop' | 'restart';
   requestedPresentationAssetId?: string;
@@ -50,13 +51,28 @@ interface ResolvedGlobalAssignment {
   isWord: boolean;
 }
 
+interface ResolvedTerminalStep {
+  transition?: Msx2GameFlowTransitionNode;
+  terminalAction: 'loop' | 'restart';
+  globals: Msx2GameFlowGlobalsNode[];
+}
+
+interface ResolvedIfThenElseStep {
+  node: Msx2GameFlowIfThenElseNode;
+  thenStep: ResolvedTerminalStep;
+  elseStep: ResolvedTerminalStep;
+}
+
 function getNodeById(flow: Msx2GameFlowGraph, nodeId: string | undefined): Msx2GameFlowNode | undefined {
   return nodeId ? flow.nodes.find(node => node.id === nodeId) : undefined;
 }
 
-function getNextFlowNode(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode | undefined): Msx2GameFlowNode | undefined {
+function getNextFlowNode(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode | undefined, sourceId?: string): Msx2GameFlowNode | undefined {
   if (!node) return undefined;
-  const nextConnection = (flow.connections || []).find(connection => connection.from.nodeId === node.id);
+  const nextConnection = (flow.connections || []).find(connection => (
+    connection.from.nodeId === node.id &&
+    (sourceId ? connection.from.sourceId === sourceId : !connection.from.sourceId)
+  ));
   return getNodeById(flow, nextConnection?.to.nodeId);
 }
 
@@ -72,9 +88,10 @@ function getNextExportNode(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode | und
 
 function collectNextExportStep(
   flow: Msx2GameFlowGraph,
-  node: Msx2GameFlowNode | undefined
+  node: Msx2GameFlowNode | undefined,
+  sourceId?: string
 ): { node?: Msx2GameFlowNode; globals: Msx2GameFlowGlobalsNode[] } {
-  let nextNode = getNextFlowNode(flow, node);
+  let nextNode = getNextFlowNode(flow, node, sourceId);
   const visited = new Set<string>();
   const globals: Msx2GameFlowGlobalsNode[] = [];
   while ((nextNode?.type === 'Waypoint' || nextNode?.type === 'Globals') && !visited.has(nextNode.id)) {
@@ -83,6 +100,29 @@ function collectNextExportStep(
     nextNode = getNextFlowNode(flow, nextNode);
   }
   return { node: nextNode, globals };
+}
+
+function resolveTerminalStep(flow: Msx2GameFlowGraph, node: Msx2GameFlowNode, sourceId?: string): ResolvedTerminalStep {
+  const step = collectNextExportStep(flow, node, sourceId);
+  const nextNode = step.node;
+  if (!nextNode) {
+    throw new Error(`MSX2 GameFlow branch from "${node.id}" must continue to End, Restart, or terminal Transition.`);
+  }
+  if (nextNode.type === 'End') return { terminalAction: 'loop', globals: step.globals };
+  if (nextNode.type === 'Restart') return { terminalAction: 'restart', globals: step.globals };
+  if (nextNode.type !== 'Transition') {
+    throw new Error(`MSX2 GameFlow branch from "${node.id}" cannot continue to "${nextNode.type}" in the SCREEN 5 backend.`);
+  }
+  const afterTransitionStep = collectNextExportStep(flow, nextNode);
+  const nodeAfterTransition = afterTransitionStep.node;
+  if (nodeAfterTransition?.type !== 'End' && nodeAfterTransition?.type !== 'Restart') {
+    throw new Error(`MSX2 GameFlow terminal Transition node "${nextNode.id}" must continue to End or Restart.`);
+  }
+  return {
+    transition: nextNode as Msx2GameFlowTransitionNode,
+    terminalAction: nodeAfterTransition.type === 'Restart' ? 'restart' : 'loop',
+    globals: [...step.globals, ...afterTransitionStep.globals],
+  };
 }
 
 function collectInitialGlobalsNodes(
@@ -122,6 +162,7 @@ function resolveNextExportStep(
   terminalAction: 'loop' | 'restart';
   afterPresentationGlobals: Msx2GameFlowGlobalsNode[];
   afterTransitionGlobals: Msx2GameFlowGlobalsNode[];
+  ifThenElse?: ResolvedIfThenElseStep;
 } {
   if (!flow || !node || !Array.isArray(flow.nodes)) {
     return { terminalAction: 'loop', afterPresentationGlobals: [], afterTransitionGlobals: [] };
@@ -143,6 +184,18 @@ function resolveNextExportStep(
       terminalAction: 'restart',
       afterPresentationGlobals: afterPresentationStep.globals,
       afterTransitionGlobals: [],
+    };
+  }
+  if (nextNode.type === 'IfThenElse') {
+    return {
+      terminalAction: 'loop',
+      afterPresentationGlobals: afterPresentationStep.globals,
+      afterTransitionGlobals: [],
+      ifThenElse: {
+        node: nextNode as Msx2GameFlowIfThenElseNode,
+        thenStep: resolveTerminalStep(flow, nextNode, 'then'),
+        elseStep: resolveTerminalStep(flow, nextNode, 'else'),
+      },
     };
   }
   if (nextNode.type !== 'Transition') {
@@ -190,6 +243,7 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     initialGlobals: collectInitialGlobalsNodes(flow, node),
     afterPresentationGlobals: nextStep.afterPresentationGlobals,
     afterTransitionGlobals: nextStep.afterTransitionGlobals,
+    ifThenElse: nextStep.ifThenElse,
     transition: nextStep.transition,
     terminalAction: nextStep.terminalAction,
     requestedPresentationAssetId,
@@ -276,6 +330,19 @@ function parseGlobalAssignmentValue(rawValue: unknown, values: any[] | undefined
     : Math.max(0, Math.min(255, Math.trunc(numeric)));
 }
 
+function getIfThenElseOperatorId(operator: unknown): number {
+  switch (operator) {
+    case '!=': return 1;
+    case '>': return 2;
+    case '<': return 3;
+    case '>=': return 4;
+    case '<=': return 5;
+    case '==':
+    default:
+      return 0;
+  }
+}
+
 function resolveInitialGlobalAssignments(globalsNodes: Msx2GameFlowGlobalsNode[], analysis: ProjectAnalysis): ResolvedGlobalAssignment[] {
   return globalsNodes.flatMap(node => {
     const variables = Array.isArray(node.variables) ? node.variables : [];
@@ -294,6 +361,20 @@ function resolveInitialGlobalAssignments(globalsNodes: Msx2GameFlowGlobalsNode[]
       })
       .filter(Boolean) as ResolvedGlobalAssignment[];
   });
+}
+
+function resolveConditionAsGlobalAssignment(node: Msx2GameFlowIfThenElseNode | undefined, analysis: ProjectAnalysis): ResolvedGlobalAssignment | undefined {
+  if (!node) return undefined;
+  const variableName = normalizeGlobalName(node.variableName);
+  if (!variableName) return undefined;
+  const info = resolveGlobalVariableInfo(variableName, analysis);
+  return {
+    nodeId: node.id,
+    variableName,
+    asmName: info.asmName,
+    value: parseGlobalAssignmentValue(node.compareValue, info.values, info.isWord),
+    isWord: info.isWord,
+  };
 }
 
 function generateGlobalVariableEquates(assignments: ResolvedGlobalAssignment[]): string {
@@ -332,8 +413,8 @@ function generateGlobalsRoutine(label: string, assignments: ResolvedGlobalAssign
   return lines.join('\n');
 }
 
-function generateAfterPresentationRoutine(nextLabel: string | null, hasAssignments: boolean): string {
-  if (!hasAssignments) return '';
+function generateAfterPresentationRoutine(nextLabel: string | null, hasAssignments: boolean, shouldEmit: boolean): string {
+  if (!shouldEmit) return '';
   const nextStep = nextLabel
     ? `    jp ${nextLabel}`
     : `.gameflow_end_loop:
@@ -341,8 +422,89 @@ function generateAfterPresentationRoutine(nextLabel: string | null, hasAssignmen
     jp .gameflow_end_loop`;
   return `
 msx2_gameflow_after_presentation:
-    call msx2_gameflow_apply_after_presentation_globals
-${nextStep}
+${hasAssignments ? '    call msx2_gameflow_apply_after_presentation_globals\n' : ''}${nextStep}
+`;
+}
+
+function generateIfThenElseRoutine(node: Msx2GameFlowIfThenElseNode | undefined, condition: ResolvedGlobalAssignment | undefined): string {
+  if (!node || !condition) return '';
+  const safeId = node.id.replace(/[^A-Za-z0-9_]/g, '_');
+  const compare = condition.value;
+  return `
+msx2_gameflow_ifthenelse_${safeId}:
+    ; MSX2_GAMEFLOW_IFTHENELSE_NODE: ${node.id}
+    ; ${condition.variableName} ${node.operator || '=='} ${compare}
+    ld hl, (${condition.asmName})
+${condition.isWord ? '' : '    ld h, 0\n'}    ld de, #${compare.toString(16).toUpperCase().padStart(4, '0')}
+    ld a, ${getIfThenElseOperatorId(node.operator)}
+    call msx2_gameflow_compare_hl_de
+    or a
+    jp nz, msx2_gameflow_branch_then
+    jp msx2_gameflow_branch_else
+`;
+}
+
+function generateCompareRoutine(needed: boolean): string {
+  if (!needed) return '';
+  return `
+msx2_gameflow_compare_hl_de:
+    ; Input: HL=current, DE=compare, A=operator. Output: A=1 true, A=0 false.
+    ld c, a
+    or a
+    sbc hl, de
+    ld a, c
+    cp 0
+    jp z, .equals
+    cp 1
+    jp z, .not_equals
+    cp 2
+    jp z, .greater
+    cp 3
+    jp z, .less
+    cp 4
+    jp z, .greater_equal
+    cp 5
+    jp z, .less_equal
+    xor a
+    ret
+.equals:
+    ld a, h
+    or l
+    jp z, .true
+    xor a
+    ret
+.not_equals:
+    ld a, h
+    or l
+    jp nz, .true
+    xor a
+    ret
+.greater:
+    jp c, .false
+    ld a, h
+    or l
+    jp nz, .true
+    xor a
+    ret
+.less:
+    jp c, .true
+    xor a
+    ret
+.greater_equal:
+    jp nc, .true
+    xor a
+    ret
+.less_equal:
+    jp c, .true
+    ld a, h
+    or l
+    jp z, .true
+.false:
+    xor a
+    ret
+.true:
+    ld a, 1
+    ret
 `;
 }
 
@@ -409,13 +571,13 @@ function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, nextLabel
     jp .main_loop`;
 }
 
-function generateTerminalTransitionRoutine(
-  transition: Msx2GameFlowTransitionNode | undefined,
+function generateTransitionRuntime(
+  label: string,
+  transition: Msx2GameFlowTransitionNode,
   vramBase: string,
   afterTransitionAction: 'loop' | 'restart',
-  hasAfterTransitionGlobals: boolean
+  beforeActionAsm = ''
 ): string {
-  if (!transition) return '';
   const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
   const waitBlock = durationFrames > 0
     ? `    ld b, ${hexByte(durationFrames)}
@@ -430,14 +592,59 @@ function generateTerminalTransitionRoutine(
     call clear_screen5_visible_vram`;
 
   return `
-msx2_gameflow_run_transition:
-${effectBlock}
-${waitBlock}${hasAfterTransitionGlobals ? '    call msx2_gameflow_apply_after_transition_globals\n' : ''}${afterTransitionAction === 'restart' ? `    jp init_rom
-` : `.gameflow_end_loop:
+${label}:
+${beforeActionAsm}${effectBlock}
+${waitBlock}${afterTransitionAction === 'restart' ? `    jp init_rom
+` : `.gameflow_end_loop_${label}:
     halt
-    jp .gameflow_end_loop
-`}
+    jp .gameflow_end_loop_${label}
+`}`;
+}
 
+function generateTerminalActionRoutine(
+  label: string,
+  step: ResolvedTerminalStep | undefined,
+  globalsLabel: string,
+  vramBase: string
+): string {
+  if (!step) return '';
+  const globalsCall = step.globals.length > 0 ? `    call ${globalsLabel}\n` : '';
+  if (step.transition) {
+    return generateTransitionRuntime(label, step.transition, vramBase, step.terminalAction, globalsCall);
+  }
+  if (step.terminalAction === 'restart') {
+    return `
+${label}:
+${globalsCall}    jp init_rom
+`;
+  }
+  return `
+${label}:
+${globalsCall}.gameflow_end_loop_${label}:
+    halt
+    jp .gameflow_end_loop_${label}
+`;
+}
+
+function generateTerminalTransitionRoutine(
+  transition: Msx2GameFlowTransitionNode | undefined,
+  vramBase: string,
+  afterTransitionAction: 'loop' | 'restart',
+  hasAfterTransitionGlobals: boolean
+): string {
+  if (!transition) return '';
+  return generateTransitionRuntime(
+    'msx2_gameflow_run_transition',
+    transition,
+    vramBase,
+    afterTransitionAction,
+    hasAfterTransitionGlobals ? '    call msx2_gameflow_apply_after_transition_globals\n' : ''
+  );
+}
+
+function generateTransitionHelpers(needed: boolean, vramBase: string): string {
+  if (!needed) return '';
+  return `
 clear_screen5_visible_vram:
     ; Terminal clear helper. Clobbers AF, BC, HL.
     xor a
@@ -517,14 +724,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const initialGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.initialGlobals, analysis);
   const afterPresentationGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.afterPresentationGlobals, analysis);
   const afterTransitionGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.afterTransitionGlobals, analysis);
+  const ifThenElseCondition = resolveConditionAsGlobalAssignment(resolvedFlow.ifThenElse?.node, analysis);
+  if (resolvedFlow.ifThenElse && !ifThenElseCondition) {
+    throw new Error(`MSX2 GameFlow IfThenElse node "${resolvedFlow.ifThenElse.node.id}" must select a global variable.`);
+  }
+  const thenGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.thenStep.globals || [], analysis);
+  const elseGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.elseStep.globals || [], analysis);
   const allGlobalAssignments = [
     ...initialGlobalAssignments,
     ...afterPresentationGlobalAssignments,
     ...afterTransitionGlobalAssignments,
+    ...thenGlobalAssignments,
+    ...elseGlobalAssignments,
+    ...(ifThenElseCondition ? [ifThenElseCondition] : []),
   ];
   const globalEquates = generateGlobalVariableEquates(allGlobalAssignments);
-  const terminalRuntimeLabel = terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null;
-  const nextRuntimeLabel = afterPresentationGlobalAssignments.length > 0 ? 'msx2_gameflow_after_presentation' : terminalRuntimeLabel;
+  const ifThenElseLabel = resolvedFlow.ifThenElse ? `msx2_gameflow_ifthenelse_${resolvedFlow.ifThenElse.node.id.replace(/[^A-Za-z0-9_]/g, '_')}` : null;
+  const terminalRuntimeLabel = ifThenElseLabel || (terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null);
+  const nextRuntimeLabel = (afterPresentationGlobalAssignments.length > 0 || ifThenElseLabel) ? 'msx2_gameflow_after_presentation' : terminalRuntimeLabel;
+  const anyTransition = Boolean(terminalTransition || resolvedFlow.ifThenElse?.thenStep.transition || resolvedFlow.ifThenElse?.elseStep.transition);
   const transitionDurationFrames = Math.max(0, Math.min(255, Math.trunc(Number(terminalTransition?.durationFrames) || 0)));
   const uploadChunks = bitmapChunks.map((_chunk, index) => {
     const label = `SCREEN5_PRESENTATION_BITMAP_CHUNK_${index}`;
@@ -558,6 +776,7 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; MSX2_GAMEFLOW_INITIAL_GLOBALS: ${initialGlobalAssignments.length}
 ; MSX2_GAMEFLOW_AFTER_PRESENTATION_GLOBALS: ${afterPresentationGlobalAssignments.length}
 ; MSX2_GAMEFLOW_AFTER_TRANSITION_GLOBALS: ${afterTransitionGlobalAssignments.length}
+; MSX2_GAMEFLOW_IFTHENELSE: ${resolvedFlow.ifThenElse?.node.id || 'none'}
 ; MSX2_GAMEFLOW_NEXT_TRANSITION: ${terminalTransition?.id || 'none'}
 ; MSX2_GAMEFLOW_TERMINAL_ACTION: ${terminalAction}
 ; MSX2_GAMEFLOW_TRANSITION_EFFECT: ${terminalTransition?.effect || 'none'}
@@ -638,11 +857,18 @@ get_cart_slot_value:
     or c
     ret
 
-${generateAfterPresentationRoutine(terminalRuntimeLabel, afterPresentationGlobalAssignments.length > 0)}
+${generateAfterPresentationRoutine(terminalRuntimeLabel, afterPresentationGlobalAssignments.length > 0, afterPresentationGlobalAssignments.length > 0 || Boolean(ifThenElseLabel))}
+${generateIfThenElseRoutine(resolvedFlow.ifThenElse?.node, ifThenElseCondition)}
+${generateTerminalActionRoutine('msx2_gameflow_branch_then', resolvedFlow.ifThenElse?.thenStep, 'msx2_gameflow_apply_then_globals', vramBase)}
+${generateTerminalActionRoutine('msx2_gameflow_branch_else', resolvedFlow.ifThenElse?.elseStep, 'msx2_gameflow_apply_else_globals', vramBase)}
 ${generateTerminalTransitionRoutine(terminalTransition, vramBase, terminalAction, afterTransitionGlobalAssignments.length > 0)}
+${generateTransitionHelpers(anyTransition, vramBase)}
+${generateCompareRoutine(Boolean(resolvedFlow.ifThenElse))}
 ${generateGlobalsRoutine('msx2_gameflow_apply_initial_globals', initialGlobalAssignments, 'Initial Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_after_presentation_globals', afterPresentationGlobalAssignments, 'Post-presentation Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_after_transition_globals', afterTransitionGlobalAssignments, 'Post-transition Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_then_globals', thenGlobalAssignments, 'THEN branch Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_else_globals', elseGlobalAssignments, 'ELSE branch Globals nodes')}
 ${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
     ld a, 1
     call mapper_set_bank_p1
@@ -686,7 +912,7 @@ SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}
 SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU ${vramBase}
 
 ${formatBytes('screen5_presentation_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-${terminalTransition ? formatBytes('screen5_black_palette_data', Array.from({ length: 32 }, () => 0), 'All-black palette used by terminal MSX2 GameFlow transitions') : ''}
+${anyTransition ? formatBytes('screen5_black_palette_data', Array.from({ length: 32 }, () => 0), 'All-black palette used by terminal MSX2 GameFlow transitions') : ''}
 ${chunkData}
 
     ds #C000 - $, #FF
