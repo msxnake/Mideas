@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen } from '../../types';
+import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
@@ -17,13 +17,13 @@ interface WorldViewEditorProps {
   currentScreenMode: string;
 }
 
-type WorldViewScreen = ScreenMap | Msx2Screen4TileScreen;
+type WorldViewScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom;
 
 const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
 
 const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): WorldViewScreen | undefined => {
     const data = screen?.data;
-    if (data && (isMsx2Screen4Mode(data.vdpMode) || data.layers || data.map)) {
+    if (data && (isMsx2Screen4Mode(data.vdpMode) || data.vdpMode === 'SCREEN4_BITMAP_ROOM' || data.layers || data.map)) {
         return data as WorldViewScreen;
     }
     return screen as WorldViewScreen | undefined;
@@ -32,6 +32,11 @@ const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): World
 const isMsx2Screen4TileScreen = (screen: WorldViewScreen | undefined): screen is Msx2Screen4TileScreen => {
     const unwrapped = unwrapWorldViewScreen(screen);
     return !!unwrapped && isMsx2Screen4Mode((unwrapped as Msx2Screen4TileScreen).vdpMode) && Array.isArray((unwrapped as Msx2Screen4TileScreen).tiles);
+};
+
+const isMsx2Screen4BitmapRoom = (screen: WorldViewScreen | undefined): screen is Msx2Screen4BitmapRoom => {
+    const unwrapped = unwrapWorldViewScreen(screen);
+    return !!unwrapped && (unwrapped as Msx2Screen4BitmapRoom).vdpMode === 'SCREEN4_BITMAP_ROOM' && !!(unwrapped as Msx2Screen4BitmapRoom).composition;
 };
 
 const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
@@ -46,6 +51,9 @@ const getWorldViewScreenPixelSize = (
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
     if (isMsx2Screen4TileScreen(unwrapped)) {
         return { width: MSX2_SCREEN_WIDTH, height: MSX2_SCREEN_HEIGHT };
+    }
+    if (isMsx2Screen4BitmapRoom(unwrapped)) {
+        return { width: unwrapped.width || MSX2_SCREEN_WIDTH, height: unwrapped.height || MSX2_SCREEN_HEIGHT };
     }
 
     return {
@@ -100,6 +108,54 @@ const renderMsx2Screen4ToCanvas = (
                     const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
                     ctx.fillStyle = resolveMsx2Screen4Color(screen, colorIndex);
                     ctx.fillRect(destX, destY, 1, 1);
+                }
+            }
+        }
+    }
+};
+
+const renderMsx2BitmapRoomToCanvas = (
+    canvas: HTMLCanvasElement,
+    room: Msx2Screen4BitmapRoom
+) => {
+    canvas.width = room.width || MSX2_SCREEN_WIDTH;
+    canvas.height = room.height || MSX2_SCREEN_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+
+    const paletteColor = (index: number): string =>
+        room.palette?.find(slot => slot.slotIndex === index)?.hex || room.palette?.[index]?.hex || (index === 0 ? '#000000' : '#ffffff');
+    const atlasPixels = room.atlas?.pixels || [];
+    const atlasEntries = new Map((room.atlas?.entries || []).map(entry => [entry.id, entry]));
+
+    const fillRect = (x: number, y: number, w: number, h: number, color: number) => {
+        ctx.fillStyle = paletteColor(color);
+        ctx.fillRect(x, y, w, h);
+    };
+
+    for (const command of room.composition?.commands || []) {
+        if (command.op === 'fill') {
+            fillRect(command.x, command.y, command.w, command.h, command.color);
+            continue;
+        }
+        if (command.op === 'lineH') {
+            fillRect(command.x, command.y, command.length, 1, command.color);
+            continue;
+        }
+        if (command.op === 'lineV') {
+            fillRect(command.x, command.y, 1, command.length, command.color);
+            continue;
+        }
+        if (command.op === 'copy') {
+            const entry = atlasEntries.get(command.atlasEntryId);
+            if (!entry) continue;
+            const width = command.w ?? entry.w;
+            const height = command.h ?? entry.h;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const color = atlasPixels[entry.sy + y]?.[entry.sx + x] ?? 0;
+                    fillRect(command.dx + x, command.dy + y, 1, 1, color);
                 }
             }
         }
@@ -241,6 +297,10 @@ const renderWorldViewScreenToCanvas = (
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
     if (isMsx2Screen4TileScreen(unwrapped)) {
         renderMsx2Screen4ToCanvas(canvas, unwrapped);
+        return;
+    }
+    if (isMsx2Screen4BitmapRoom(unwrapped)) {
+        renderMsx2BitmapRoomToCanvas(canvas, unwrapped);
         return;
     }
 
