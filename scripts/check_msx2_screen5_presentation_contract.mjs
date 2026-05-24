@@ -25,8 +25,11 @@ const projectHandlers = read('handlers', 'useProjectHandlers.tsx');
 const summaryExtractor = read('utils', 'summaryExtractor.ts');
 const createSummary = read('create_summary.js');
 const smokeScript = read('scripts', 'build_msx2_screen5_presentation_smoke.py');
+const pngImportScript = read('scripts', 'create_msx2_screen5_presentation_from_png.py');
+const pngImportDoc = read('docs', 'project', 'MSX2_SCREEN5_PRESENTATION_PNG_IMPORT.md');
 const buildScript = read('scripts', 'build_mideas_unified_rom.py');
 const serverJs = read('server', 'server.js');
+const packageJson = readJson('package.json');
 
 const fixturePath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentation_screen5_project.json');
 const bitmapPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentation_screen5_bitmap.bin');
@@ -34,6 +37,14 @@ const asmPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'presentatio
 const fixture = readJson('test', 'msx2-screen5-presentation', 'presentation_screen5_project.json');
 const bitmap = readFileSync(bitmapPath);
 const asm = readFileSync(asmPath, 'utf8');
+const fromPngFixturePath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_project.json');
+const fromPngBitmapPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_bitmap.bin');
+const fromPngPreviewPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_preview.png');
+const fromPngZx0AsmPath = join(repoRoot, 'test', 'msx2-screen5-presentation', 'from_png', 'presentacion_naves_galaxian_rtype_screen5_compressed.asm');
+const fromPngFixture = existsSync(fromPngFixturePath) ? JSON.parse(readFileSync(fromPngFixturePath, 'utf8')) : null;
+const fromPngBitmap = existsSync(fromPngBitmapPath) ? readFileSync(fromPngBitmapPath) : null;
+const fromPngPreview = existsSync(fromPngPreviewPath) ? readFileSync(fromPngPreviewPath) : null;
+const fromPngZx0Asm = existsSync(fromPngZx0AsmPath) ? readFileSync(fromPngZx0AsmPath, 'utf8') : '';
 
 const allowedHeights = new Set([192, 212]);
 const allowedFitModes = new Set(['cover', 'contain', 'stretch']);
@@ -100,10 +111,44 @@ function validatePresentationAsset(asset) {
   );
 }
 
+function readPngDimensions(buffer) {
+  if (!buffer || buffer.length < 24) return null;
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (!signature.every((value, index) => buffer[index] === value)) return null;
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function validateFromPngFixture() {
+  check('from_png fixture exists', Boolean(fromPngFixture));
+  if (!fromPngFixture) return;
+
+  const assets = (fromPngFixture.assets || []).filter(asset => asset.type === 'msx2presentation');
+  const asset = assets[0];
+  const data = asset?.data || {};
+  const expectedBytes = 256 * 192 / 2;
+  const uniquePacked = new Set(Array.isArray(data.packedBitmap) ? data.packedBitmap : []);
+  const nonZeroBytes = Array.isArray(data.packedBitmap) ? data.packedBitmap.filter(value => value !== 0).length : 0;
+  const previewDimensions = readPngDimensions(fromPngPreview);
+
+  check('from_png fixture has exactly one msx2presentation asset', assets.length === 1);
+  check('from_png fixture selects the SCREEN 5 presentation backend', fromPngFixture.targetGraphicsBackend === 'msx2-screen5-presentation' && fromPngFixture.screenMode === 'SCREEN 5 (Graphics III)');
+  check('from_png asset records real PNG import metadata', data.sourceFileName?.endsWith('.png') && data.sourceImageWidth === 1672 && data.sourceImageHeight === 941 && data.width === 256 && data.height === 192 && data.fitMode === 'cover');
+  check('from_png asset keeps black background in slot 0', data.backgroundSlot === 0 && data.backgroundHex === '#000000' && data.palette?.[0]?.slotIndex === 0 && data.palette?.[0]?.masterIndex === 0 && data.palette?.[0]?.hex === '#000000');
+  check('from_png packed bitmap is visible SCREEN 5 size', Array.isArray(data.packedBitmap) && data.packedBitmap.length === expectedBytes);
+  check('from_png sidecar bitmap matches packed bitmap', Boolean(fromPngBitmap) && fromPngBitmap.length === expectedBytes && Array.isArray(data.packedBitmap) && data.packedBitmap.every((value, index) => value === fromPngBitmap[index]));
+  check('from_png packed bitmap has real image variety', uniquePacked.size > 16 && nonZeroBytes > 1000);
+  check('from_png preview PNG is real 256x192 output', previewDimensions?.width === 256 && previewDimensions?.height === 192 && fromPngPreview.length > 1024);
+  check('from_png ZX0 artifact exists and decompresses chunks', fromPngZx0Asm.includes('SCREEN5_PRESENTATION_COMPRESSION: ZX0') && fromPngZx0Asm.includes('SCREEN5_PRESENTATION_CHUNK_LINES: 32') && fromPngZx0Asm.includes('call dzx0_standard') && fromPngZx0Asm.includes('SCREEN5_PRESENTATION_ZX0_BUFFER') && fromPngZx0Asm.includes('@mideas:screen5-presentation-chunk'));
+}
+
 const presentationAssets = (fixture.assets || []).filter(asset => asset.type === 'msx2presentation');
 check('fixture project has exactly one msx2presentation asset', presentationAssets.length === 1);
 check('fixture selects the SCREEN 5 presentation backend', fixture.targetGraphicsBackend === 'msx2-screen5-presentation' && fixture.screenMode === 'SCREEN 5 (Graphics III)');
 validatePresentationAsset(presentationAssets[0]);
+validateFromPngFixture();
 
 check('types expose the MSX2 SCREEN 5 presentation config', types.includes('export interface Msx2Screen5PresentationConfig') && types.includes("target: 'MSX2'") && types.includes("screenMode: 'SCREEN 5'"));
 check('types constrain SCREEN 5 presentation geometry and import modes', types.includes('export type Msx2Screen5PresentationHeight = 192 | 212') && types.includes("export type Msx2Screen5PresentationFitMode = 'cover' | 'contain' | 'stretch'") && types.includes('width: 256;'));
@@ -117,6 +162,12 @@ check('utility exposes fixed SCREEN 5 presentation geometry', utils.includes('SC
 check('utility packs two 4-bit pixels per byte', utils.includes('((left & 0x0f) << 4) | (right & 0x0f)') && utils.includes('packed.push'));
 check('utility unpacks current packedBitmap data', utils.includes('unpackScreen5PresentationPixels') && utils.includes('packedBitmap.length < (SCREEN5_PRESENTATION_WIDTH * height) / 2'));
 check('utility stats report raw bytes and chunk count', utils.includes('getScreen5PresentationStats') && utils.includes('rawBytes: (SCREEN5_PRESENTATION_WIDTH * height) / 2') && utils.includes('chunks: Math.ceil(height / SCREEN5_PRESENTATION_CHUNK_LINES)'));
+check('PNG import CLI exists and builds SCREEN 5 presentation projects', pngImportScript.includes('Create an MSX2 SCREEN 5 presentation project from a PNG') && pngImportScript.includes('--source-png') && pngImportScript.includes('--output-prefix') && pngImportScript.includes('--timestamp-ms') && pngImportScript.includes('targetGraphicsBackend') && pngImportScript.includes('msx2-screen5-presentation') && pngImportScript.includes('backgroundHex') && pngImportScript.includes('#000000'));
+check('PNG import CLI validates OpenMSX captures when requested', pngImportScript.includes('assert_openmsx_capture') && pngImportScript.includes('unique_colors') && pngImportScript.includes('non_black'));
+check('package exposes PNG import CLI script', packageJson.scripts?.['create:msx2-screen5-presentation'] === 'python scripts/create_msx2_screen5_presentation_from_png.py');
+check('package exposes deterministic PNG presentation smoke', packageJson.scripts?.['smoke:msx2-screen5-presentation-png']?.includes('create_msx2_screen5_presentation_from_png.py') && packageJson.scripts?.['smoke:msx2-screen5-presentation-png']?.includes('--timestamp-ms 1779625323134') && packageJson.scripts?.['smoke:msx2-screen5-presentation-png']?.includes('--build-rom'));
+check('static MSX2 smoke includes PNG presentation import', packageJson.scripts?.['smoke:msx2-static']?.includes('smoke:msx2-screen5-presentation-png'));
+check('PNG import documentation covers command and contracts', pngImportDoc.includes('MSX2 SCREEN 5 Presentation PNG Import') && pngImportDoc.includes('npm run create:msx2-screen5-presentation') && pngImportDoc.includes('targetGraphicsBackend') && pngImportDoc.includes('ZX0'));
 
 check('editor normalizes flat and legacy nested presentation data', editor.includes('flat.packedBitmap ?? data?.packedBitmap ?? data?.packedPixels') && editor.includes('normalizeScreen5PresentationPixels(flat.pixels ?? data?.pixels, height)'));
 check('editor emits current flat data plus legacy-compatible nested data', editor.includes('onUpdate(normalized)') && editor.includes('data: {') && editor.includes('packedPixels: next.packedBitmap') && editor.includes('packedBitmap: next.packedBitmap'));
