@@ -4500,9 +4500,10 @@ if (raw.presentationScreen && raw.presentationScreen.data && Array.isArray(raw.p
 
 const hasMsx2Presentation = assets.some(asset => asset && asset.type === "msx2presentation");
 const requestedScreenMode = raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)";
-const defaultGraphicsBackend = hasMsx2Presentation && requestedScreenMode === "SCREEN 5 (Graphics III)"
+const exportScreenMode = hasMsx2Presentation ? "SCREEN 5 (Graphics III)" : requestedScreenMode;
+const defaultGraphicsBackend = hasMsx2Presentation
   ? "msx2-screen5-presentation"
-  : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(requestedScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank");
+  : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(exportScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank");
 
 const files = generator.generateModularASM(name, assets, {
   generateUnified: true,
@@ -4510,7 +4511,7 @@ const files = generator.generateModularASM(name, assets, {
   targetFormat,
   executionMode,
   autoMegaROM,
-  screenMode: requestedScreenMode,
+  screenMode: exportScreenMode,
   targetGraphicsBackend: raw.targetGraphicsBackend || defaultGraphicsBackend,
   interruptConfig: {
     ...(raw.interruptConfig || {}),

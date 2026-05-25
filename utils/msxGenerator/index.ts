@@ -132,7 +132,7 @@ function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[
   if (config.targetGraphicsBackend) {
     return config.targetGraphicsBackend;
   }
-  if (config.screenMode === 'SCREEN 5 (Graphics III)' && hasMsx2PresentationAssets(assets)) {
+  if (hasMsx2PresentationAssets(assets)) {
     return 'msx2-screen5-presentation';
   }
   if (hasMsx2BitmapRoomAssets(assets)) {
