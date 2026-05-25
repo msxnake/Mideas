@@ -1324,6 +1324,12 @@ function generatePresentationChainUnitedFiles(
   const entryLabel = options.entryLabel || 'init_rom';
   const includeCartridgeScaffold = options.includeCartridgeScaffold !== false;
   const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
+  const hasExplicitChunkBankStart = typeof options.bankedChunkStartBank === 'number';
+  const bankedChunkStartBank = typeof options.bankedChunkStartBank === 'number'
+    ? Math.max(0, Math.trunc(options.bankedChunkStartBank))
+    : usesKonamiMegaRom
+      ? 3
+      : undefined;
   const preparedScenes = scenes.map((scene, sceneIndex) => {
     const presentation = scene.presentation;
     const paletteBytes = buildPaletteBytes(presentation.palette);
@@ -1335,14 +1341,18 @@ function generatePresentationChainUnitedFiles(
     return { ...scene, presentation, paletteBytes, bitmapChunks, chunkLines, vramBase, label, sceneIndex };
   });
   const chunkBankByLabel = new Map<string, number>();
-  if (typeof options.bankedChunkStartBank === 'number') {
-    let nextBank = Math.max(0, Math.trunc(options.bankedChunkStartBank));
+  if (typeof bankedChunkStartBank === 'number') {
+    let nextBank = bankedChunkStartBank;
     preparedScenes.forEach(scene => {
       scene.bitmapChunks.forEach((_chunk, index) => {
         chunkBankByLabel.set(`SCREEN5_SCENE_${scene.sceneIndex}_BITMAP_CHUNK_${index}`, nextBank++);
       });
     });
   }
+  const bankedChunkVramWindow = chunkBankByLabel.size > 0 && usesKonamiMegaRom && !hasExplicitChunkBankStart ? '#A000' : '#8000';
+  const bankedChunkWindowEnd = bankedChunkVramWindow === '#A000' ? '#C000' : '#A000';
+  const bankedChunkMapperCall = bankedChunkVramWindow === '#A000' ? 'mapper_set_bank_p3' : 'mapper_set_bank_p2';
+  const bankedChunkRestoreBank = bankedChunkVramWindow === '#A000' ? 3 : 2;
   const anyTransition = preparedScenes.some(scene => Boolean(scene.transitionToNext));
   const usedTransitionEffects = new Set(preparedScenes
     .map(scene => scene.transitionToNext?.effect)
@@ -1373,7 +1383,7 @@ palette_loop_scene_${scene.sceneIndex}:
       const bankSwitch = bank === undefined
         ? ''
         : `    ld a, ${label}_BANK
-    call mapper_set_bank_p2
+    call ${bankedChunkMapperCall}
 `;
       return `${bankSwitch}    ; @mideas:screen5-presentation-chunk ${label}
     ld hl, ${label}
@@ -1383,7 +1393,7 @@ palette_loop_scene_${scene.sceneIndex}:
     }).join('\n');
     return `upload_screen5_scene_${scene.sceneIndex}_bitmap:
 ${uploadChunks}
-${chunkBankByLabel.size > 0 ? '    ld a, 2\n    call mapper_set_bank_p2\n' : ''}
+${chunkBankByLabel.size > 0 ? `    ld a, ${bankedChunkRestoreBank}\n    call ${bankedChunkMapperCall}\n` : ''}
     ret`;
   }).join('\n\n');
 
@@ -1422,9 +1432,9 @@ ${transitionRoutine}`;
     const bankHeader = bank === undefined
       ? ''
       : `${label}_BANK EQU ${bank}
-    org #8000
+    org ${bankedChunkVramWindow}
 `;
-    const bankPad = bank === undefined ? '' : '    ds #A000 - $, #FF\n';
+    const bankPad = bank === undefined ? '' : `    ds ${bankedChunkWindowEnd} - $, #FF\n`;
     return `${label}_SIZE EQU ${chunk.length}
 
 ${bankHeader}${formatBytes(label, chunk, `SCREEN 5 scene ${scene.sceneIndex} bitmap chunk ${index}, ${chunk.length} bytes`)}${bankPad}`;
@@ -1551,10 +1561,14 @@ SCREEN5_PRESENTATION_HALF_BYTES_PER_LINE EQU ${BYTES_PER_LINE / 2}
 SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU ${firstScene.vramBase}
 
 ${paletteData}
+${anyTransition ? formatBytes('screen5_black_palette_data', Array.from({ length: 32 }, () => 0), 'All-black palette used by MSX2 GameFlow transitions') : ''}
+${chunkBankByLabel.size > 0 ? `    IF ($ < ${bankedChunkVramWindow})
+    ds ${bankedChunkVramWindow} - $, #FF
+    ENDIF
+` : ''}
 ; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_START__
 ${chunkData}
 ; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_END__
-${anyTransition ? formatBytes('screen5_black_palette_data', Array.from({ length: 32 }, () => 0), 'All-black palette used by MSX2 GameFlow transitions') : ''}
 `;
   return body;
 }

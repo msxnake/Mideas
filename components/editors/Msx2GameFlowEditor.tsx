@@ -2391,20 +2391,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             )}
           </div>
 
-          {!selectedPresentationNode && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Preview</h3>
-              <p className="text-xs text-msx-textsecondary">
-                {previewLabel}
-              </p>
-              {activePresentationAsset ? (
-                <Screen5PresentationPreviewCanvas asset={activePresentationAsset} />
-              ) : (
-                <div className="h-24 border border-dashed border-msx-border bg-black" />
-              )}
-            </div>
-          )}
-
           <Button onClick={deleteSelectedNode} size="sm" variant="danger" disabled={!selectedNode || selectedNode.type === 'Start'} className="w-full">
             Delete Node
           </Button>
