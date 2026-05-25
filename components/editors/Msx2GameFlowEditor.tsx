@@ -102,6 +102,39 @@ const resolveScreen5PresentationPreviewData = (
   return null;
 };
 
+interface Screen5PresentationPreviewCanvasProps {
+  asset: ProjectAsset | undefined;
+}
+
+const Screen5PresentationPreviewCanvas: React.FC<Screen5PresentationPreviewCanvasProps> = ({ asset }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const config = asset?.data as Msx2Screen5PresentationConfig | undefined;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const preview = resolveScreen5PresentationPreviewData(config);
+    if (!preview) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      return;
+    }
+
+    drawMsx2Screen5PresentationPreview(canvas, preview.pixels, preview.palette, 1);
+  }, [asset?.id, config]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full border border-msx-border bg-black"
+      style={{ imageRendering: 'pixelated' }}
+    />
+  );
+};
+
 const MSX2_SCREEN5_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effect']>(
   MSX2_SCREEN5_TRANSITION_OPTIONS.map(option => option.value)
 );
@@ -255,7 +288,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const nodes = gameFlowGraph.nodes || [];
   const connections = gameFlowGraph.connections || [];
   const flowPurpose = gameFlowGraph.purpose || 'screen5-presentation';
@@ -586,18 +618,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
     return Array.from(new Set(issues));
   }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, worldAssets]);
-
-  useEffect(() => {
-    const canvas = previewCanvasRef.current;
-    const config = activePresentationAsset?.data as Msx2Screen5PresentationConfig | undefined;
-    if (!canvas) return;
-    const preview = resolveScreen5PresentationPreviewData(config);
-    if (!preview) {
-      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-    drawMsx2Screen5PresentationPreview(canvas, preview.pixels, preview.palette, 1);
-  }, [activePresentationAsset]);
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
@@ -1638,7 +1658,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               <p className="text-xs text-msx-textsecondary">
                 {previewLabel}
               </p>
-              <canvas ref={previewCanvasRef} className="w-full border border-msx-border bg-black" style={{ imageRendering: 'pixelated' }} />
+              <Screen5PresentationPreviewCanvas asset={activePresentationAsset} />
               <h3 className="text-sm font-semibold">GameFlow runtime override</h3>
               <label className="flex items-center gap-2 text-xs">
                 <input
@@ -2378,7 +2398,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 {previewLabel}
               </p>
               {activePresentationAsset ? (
-                <canvas ref={previewCanvasRef} className="w-full border border-msx-border bg-black" style={{ imageRendering: 'pixelated' }} />
+                <Screen5PresentationPreviewCanvas asset={activePresentationAsset} />
               ) : (
                 <div className="h-24 border border-dashed border-msx-border bg-black" />
               )}
