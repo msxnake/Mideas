@@ -278,6 +278,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   }, [allAssets, connections, gameFlowGraph.startNodeId, nodes]);
   const flowIssues = useMemo(() => {
     const issues: string[] = [];
+    const nodeIds = new Set(nodes.map(node => node.id));
+    const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
     if (!isScreen5PresentationFlow) {
       if (nodes.some(node => node.type === 'Screen5Presentation')) {
         issues.push('SCREEN 4 runtime flows should not include SCREEN 5 Presentation nodes.');
@@ -322,89 +324,90 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       if (!nodes.some(node => node.type === 'SubMenu')) {
         issues.push('SCREEN 4 runtime GameFlow is ready for SubMenu nodes.');
       }
-      return Array.from(new Set(issues));
-    }
-    const nodeIds = new Set(nodes.map(node => node.id));
-    const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
-    const firstScreen5 = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
-    const presentationNode = startNode ? getNextExportNode(startNode, nodes, connections) : undefined;
-    const screen5Node = presentationNode?.type === 'Screen5Presentation'
-      ? presentationNode as Msx2GameFlowScreen5PresentationNode
-      : firstScreen5;
-    const afterScreen5 = getNextExportNode(screen5Node, nodes, connections);
-    const afterText = afterScreen5?.type === 'Text'
-      ? getNextExportNode(afterScreen5, nodes, connections)
-      : undefined;
-    const terminalNode = afterScreen5?.type === 'Text' ? afterText : afterScreen5;
-    const afterTransition = terminalNode?.type === 'Transition'
-      ? getNextExportNode(terminalNode, nodes, connections)
-      : undefined;
-    const thenNode = afterScreen5?.type === 'IfThenElse'
-      ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'then', nodes, connections)
-      : undefined;
-    const elseNode = afterScreen5?.type === 'IfThenElse'
-      ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'else', nodes, connections)
-      : undefined;
+    } else {
+      const firstScreen5 = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
+      const presentationNode = startNode ? getNextExportNode(startNode, nodes, connections) : undefined;
+      const screen5Node = presentationNode?.type === 'Screen5Presentation'
+        ? presentationNode as Msx2GameFlowScreen5PresentationNode
+        : firstScreen5;
+      const afterScreen5 = getNextExportNode(screen5Node, nodes, connections);
+      const afterText = afterScreen5?.type === 'Text'
+        ? getNextExportNode(afterScreen5, nodes, connections)
+        : undefined;
+      const terminalNode = afterScreen5?.type === 'Text' ? afterText : afterScreen5;
+      const afterTransition = terminalNode?.type === 'Transition'
+        ? getNextExportNode(terminalNode, nodes, connections)
+        : undefined;
+      const thenNode = afterScreen5?.type === 'IfThenElse'
+        ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'then', nodes, connections)
+        : undefined;
+      const elseNode = afterScreen5?.type === 'IfThenElse'
+        ? getBranchExportNode(afterScreen5 as Msx2GameFlowIfThenElseNode, 'else', nodes, connections)
+        : undefined;
 
+      if (!startNode) {
+        issues.push('Missing Start node.');
+      } else if (presentationNode?.type !== 'Screen5Presentation') {
+        issues.push('Start should reach a SCREEN 5 Presentation node through optional Waypoint/Globals nodes.');
+      }
+      if (!screen5Node) {
+        issues.push('Missing SCREEN 5 Presentation node.');
+      } else if (!screen5Node.presentationAssetId || !presentationAssets.some(asset => asset.id === screen5Node.presentationAssetId)) {
+        issues.push('SCREEN 5 node has no valid presentation asset.');
+      }
+      if (screen5Node && !afterScreen5) {
+        issues.push('SCREEN 5 node should continue to Text, Transition, Restart, or End.');
+      }
+      if (afterScreen5 && afterScreen5.type !== 'Text' && afterScreen5.type !== 'IfThenElse' && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
+        issues.push('SCREEN 5 node can only continue to Text, IfThenElse, Transition, Restart, or End in this backend.');
+      }
+      if (afterScreen5?.type === 'Text') {
+        if (!afterScreen5.message?.trim()) issues.push('Text node must include a message.');
+        if (afterText?.type !== 'Transition' && afterText?.type !== 'Restart' && afterText?.type !== 'End') {
+          issues.push('Text node should continue to Transition, Restart, or End.');
+        }
+      }
+      if (terminalNode?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
+        issues.push('Terminal Transition should continue to Restart or End.');
+      }
+      if (terminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(terminalNode.effect)) {
+        issues.push(`SCREEN 5 terminal Transition only supports CLS or Fade to black; "${terminalNode.effect}" is SCREEN 4-only.`);
+      }
+      if (afterScreen5?.type === 'IfThenElse') {
+        if (!afterScreen5.variableName?.trim()) {
+          issues.push('IfThenElse must select a global variable.');
+        }
+        if (!thenNode || !elseNode) {
+          issues.push('IfThenElse must have THEN and ELSE branches.');
+        }
+        for (const [label, branchNode] of [['THEN', thenNode], ['ELSE', elseNode]] as const) {
+          const afterBranchText = branchNode?.type === 'Text'
+            ? getNextExportNode(branchNode, nodes, connections)
+            : undefined;
+          const branchTerminalNode = branchNode?.type === 'Text' ? afterBranchText : branchNode;
+          if (branchNode?.type === 'Text' && !branchNode.message?.trim()) {
+            issues.push(`IfThenElse ${label} Text node must include a message.`);
+          }
+          if (branchNode?.type === 'Text' && afterBranchText?.type !== 'Transition' && afterBranchText?.type !== 'Restart' && afterBranchText?.type !== 'End') {
+            issues.push(`IfThenElse ${label} Text node should continue to Transition, Restart, or End.`);
+          }
+          if (branchNode && branchNode.type !== 'Text' && branchNode.type !== 'Transition' && branchNode.type !== 'Restart' && branchNode.type !== 'End') {
+            issues.push(`IfThenElse ${label} branch can only continue to Text, Transition, Restart, or End.`);
+          }
+          const afterBranchTransition = branchTerminalNode?.type === 'Transition'
+            ? getNextExportNode(branchTerminalNode, nodes, connections)
+            : undefined;
+          if (branchTerminalNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
+            issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
+          }
+          if (branchTerminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(branchTerminalNode.effect)) {
+            issues.push(`IfThenElse ${label} terminal Transition uses "${branchTerminalNode.effect}", which is SCREEN 4-only.`);
+          }
+        }
+      }
+    }
     if (!startNode) {
       issues.push('Missing Start node.');
-    } else if (presentationNode?.type !== 'Screen5Presentation') {
-      issues.push('Start should reach a SCREEN 5 Presentation node through optional Waypoint/Globals nodes.');
-    }
-    if (!screen5Node) {
-      issues.push('Missing SCREEN 5 Presentation node.');
-    } else if (!screen5Node.presentationAssetId || !presentationAssets.some(asset => asset.id === screen5Node.presentationAssetId)) {
-      issues.push('SCREEN 5 node has no valid presentation asset.');
-    }
-    if (screen5Node && !afterScreen5) {
-      issues.push('SCREEN 5 node should continue to Text, Transition, Restart, or End.');
-    }
-    if (afterScreen5 && afterScreen5.type !== 'Text' && afterScreen5.type !== 'IfThenElse' && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
-      issues.push('SCREEN 5 node can only continue to Text, IfThenElse, Transition, Restart, or End in this backend.');
-    }
-    if (afterScreen5?.type === 'Text') {
-      if (!afterScreen5.message?.trim()) issues.push('Text node must include a message.');
-      if (afterText?.type !== 'Transition' && afterText?.type !== 'Restart' && afterText?.type !== 'End') {
-        issues.push('Text node should continue to Transition, Restart, or End.');
-      }
-    }
-    if (terminalNode?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
-      issues.push('Terminal Transition should continue to Restart or End.');
-    }
-    if (terminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(terminalNode.effect)) {
-      issues.push(`SCREEN 5 terminal Transition only supports CLS or Fade to black; "${terminalNode.effect}" is SCREEN 4-only.`);
-    }
-    if (afterScreen5?.type === 'IfThenElse') {
-      if (!afterScreen5.variableName?.trim()) {
-        issues.push('IfThenElse must select a global variable.');
-      }
-      if (!thenNode || !elseNode) {
-        issues.push('IfThenElse must have THEN and ELSE branches.');
-      }
-      for (const [label, branchNode] of [['THEN', thenNode], ['ELSE', elseNode]] as const) {
-        const afterBranchText = branchNode?.type === 'Text'
-          ? getNextExportNode(branchNode, nodes, connections)
-          : undefined;
-        const branchTerminalNode = branchNode?.type === 'Text' ? afterBranchText : branchNode;
-        if (branchNode?.type === 'Text' && !branchNode.message?.trim()) {
-          issues.push(`IfThenElse ${label} Text node must include a message.`);
-        }
-        if (branchNode?.type === 'Text' && afterBranchText?.type !== 'Transition' && afterBranchText?.type !== 'Restart' && afterBranchText?.type !== 'End') {
-          issues.push(`IfThenElse ${label} Text node should continue to Transition, Restart, or End.`);
-        }
-        if (branchNode && branchNode.type !== 'Text' && branchNode.type !== 'Transition' && branchNode.type !== 'Restart' && branchNode.type !== 'End') {
-          issues.push(`IfThenElse ${label} branch can only continue to Text, Transition, Restart, or End.`);
-        }
-        const afterBranchTransition = branchTerminalNode?.type === 'Transition'
-          ? getNextExportNode(branchTerminalNode, nodes, connections)
-          : undefined;
-        if (branchTerminalNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
-          issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
-        }
-        if (branchTerminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(branchTerminalNode.effect)) {
-          issues.push(`IfThenElse ${label} terminal Transition uses "${branchTerminalNode.effect}", which is SCREEN 4-only.`);
-        }
-      }
     }
     const visited = new Set<string>();
     let current = startNode;
@@ -434,6 +437,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         issues.push(`Orphaned node: ${node.type}.`);
       }
       if (node.type === 'End' || node.type === 'Restart') continue;
+      if (node.type === 'SubMenu') continue;
       if (node.type === 'IfThenElse') {
         const hasThen = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'then');
         const hasElse = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'else');
