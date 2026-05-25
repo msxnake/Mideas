@@ -12,7 +12,7 @@ import {
   getMsx2EnemyHazardRuntimeSlots,
 } from './msx2EntityRuntimeGenerator';
 
-interface Msx2Screen4Config {
+export interface Msx2Screen4Config {
   screenMode: 'SCREEN 4 (Graphics II)' | 'SCREEN 5 (Graphics III)';
   romMode: MSXRomMode;
   targetFormat: MSXMapperFormat;
@@ -8577,7 +8577,7 @@ ${cases}`;
 ${buildDirectionRoutine('east')}`;
 }
 
-function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen4Config): string {
+export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen4Config): string {
   const useKonamiDataBank = usesMsx2Screen4KonamiDataBank(config);
   const screens = collectReferencedScreens(analysis);
   const bitmaps = analysis.msx2Bitmaps || [];
@@ -9594,7 +9594,7 @@ export function generateMsx2Screen4Files(
   config: Msx2Screen4Config
 ): GeneratedASMFiles {
   validateMsx2Screen4RomConfig(config);
-  const unitedFiles = generateUnitedFiles(projectName, analysis, config);
+  const unitedFiles = generateMsx2Screen4UnitedFiles(projectName, analysis, config);
   return {
     'page0.asm': '; MSX2 SCREEN 4 backend: page0 not used in MVP.\n',
     'bios.asm': '; MSX2 SCREEN 4 backend emits BIOS equates in unitedFiles.asm.\n',

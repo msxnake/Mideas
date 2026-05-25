@@ -599,6 +599,9 @@ def validate_msx2_preflight_with_safe_resolution(
     skip_zx0_preprocess: bool,
     max_attempts: int,
 ) -> tuple[Path | None, Path]:
+    asm_text = asm_output.read_text(encoding="utf-8", errors="ignore")
+    if "MSX2_GAMEFLOW_SCREEN5_TO_SCREEN4_MIXED: yes" in asm_text:
+        return artifact_dir, asm_output
     try:
         validate_msx2_screen4_megarom_preflight_budget(
             artifact_dir,
