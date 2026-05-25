@@ -8,6 +8,7 @@ import type {
   Msx2GameFlowIfThenElseNode,
   Msx2GameFlowNode,
   Msx2GameFlowPurpose,
+  Msx2GameFlowScreen4ScreenNode,
   Msx2GameFlowScreen5PresentationNode,
   Msx2GameFlowSubMenuNode,
   Msx2GameFlowTextNode,
@@ -72,6 +73,10 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
   if (node.type === 'Waypoint') return 'Waypoint';
   if (node.type === 'Restart') return 'Restart ROM';
   if (node.type === 'Globals') return node.title || `${node.variables?.length || 0} global set`;
+  if (node.type === 'Screen4Screen') {
+    const asset = allAssets.find(a => a.id === node.screenAssetId && a.type === 'msx2screen');
+    return asset?.name || 'SCREEN 4 Screen';
+  }
   if (node.type === 'SubMenu') return node.title || 'SubMenu';
   if (node.type === 'Controls') return node.title || 'Controls';
   if (node.type === 'Text') return node.title || 'Text';
@@ -91,6 +96,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'Start') return 'hsl(185, 62%, 32%)';
   if (node.type === 'Globals') return 'hsl(265, 42%, 36%)';
   if (node.type === 'Screen5Presentation') return 'hsl(168, 58%, 30%)';
+  if (node.type === 'Screen4Screen') return 'hsl(198, 52%, 32%)';
   if (node.type === 'SubMenu') return 'hsl(215, 52%, 34%)';
   if (node.type === 'Controls') return 'hsl(185, 45%, 34%)';
   if (node.type === 'Text') return 'hsl(188, 46%, 34%)';
@@ -187,6 +193,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedPresentationNode = selectedNode?.type === 'Screen5Presentation'
     ? selectedNode as Msx2GameFlowScreen5PresentationNode
     : null;
+  const selectedScreen4ScreenNode = selectedNode?.type === 'Screen4Screen'
+    ? selectedNode as Msx2GameFlowScreen4ScreenNode
+    : null;
   const selectedGlobalsNode = selectedNode?.type === 'Globals'
     ? selectedNode as Msx2GameFlowGlobalsNode
     : null;
@@ -274,7 +283,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         issues.push('SCREEN 4 runtime flows should not include SCREEN 5 Presentation nodes.');
       }
       for (const node of nodes) {
-        if (node.type === 'SubMenu') {
+        if (node.type === 'Screen4Screen') {
+          if (!node.screenAssetId || !screen4Assets.some(asset => asset.id === node.screenAssetId)) {
+            issues.push('Screen4Screen node must select a valid SCREEN 4 room.');
+          }
+        } else if (node.type === 'SubMenu') {
           if (!node.title?.trim()) issues.push('SubMenu node must include a title.');
           if (!Array.isArray(node.options) || node.options.length === 0) {
             issues.push('SubMenu node must include at least one option.');
@@ -438,7 +451,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
 
     return Array.from(new Set(issues));
-  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, worldAssets]);
+  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, worldAssets]);
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
@@ -457,7 +470,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     onUpdate({ purpose });
   };
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -488,6 +501,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               position: { x, y },
               title: 'Text',
               message: 'PRESS KEY TO CONTINUE',
+              waitForKey: true,
+              waitFrames: 0,
+            }
+        : type === 'Screen4Screen'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              screenAssetId: screen4Assets[0]?.id,
               waitForKey: true,
               waitFrames: 0,
             }
@@ -655,6 +677,21 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     if (!selectedPresentationNode) return;
     updateNodes(nodes.map(node =>
       node.id === selectedPresentationNode.id && node.type === 'Screen5Presentation'
+        ? {
+            ...node,
+            ...updates,
+            waitFrames: updates.waitFrames !== undefined
+              ? Math.max(0, Math.min(255, Math.trunc(updates.waitFrames) || 0))
+              : node.waitFrames,
+          }
+        : node
+    ));
+  };
+
+  const updateSelectedScreen4Screen = (updates: Partial<Msx2GameFlowScreen4ScreenNode>) => {
+    if (!selectedScreen4ScreenNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedScreen4ScreenNode.id && node.type === 'Screen4Screen'
         ? {
             ...node,
             ...updates,
@@ -938,6 +975,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add SubMenu
         </Button>
+        <Button onClick={() => addNode('Screen4Screen')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+          Add SCREEN 4
+        </Button>
         <Button onClick={() => addNode('Controls')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add Controls
         </Button>
@@ -1179,6 +1219,49 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
                 />
               </label>
+            </div>
+          )}
+
+          {selectedScreen4ScreenNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">SCREEN 4 Screen</h3>
+              <label className="block text-xs">
+                SCREEN 4 room
+                <select
+                  value={selectedScreen4ScreenNode.screenAssetId || ''}
+                  onChange={event => updateSelectedScreen4Screen({ screenAssetId: event.target.value || undefined })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  disabled={screen4Assets.length === 0}
+                >
+                  <option value="">Select SCREEN 4 room</option>
+                  {screen4Assets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedScreen4ScreenNode.waitForKey !== false}
+                  onChange={event => updateSelectedScreen4Screen({ waitForKey: event.target.checked })}
+                />
+                Wait for key
+              </label>
+              <label className="block text-xs">
+                Wait frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedScreen4ScreenNode.waitFrames || 0}
+                  onChange={event => updateSelectedScreen4Screen({ waitFrames: Number(event.target.value) })}
+                  disabled={selectedScreen4ScreenNode.waitForKey !== false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
+                />
+              </label>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 4 export loads this room as a visual panel and then continues to the next node.
+              </p>
             </div>
           )}
 

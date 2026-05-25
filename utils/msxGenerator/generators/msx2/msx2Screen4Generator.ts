@@ -5764,7 +5764,7 @@ function getScreen4RuntimeGameFlow(analysis: ProjectAnalysis): any {
 }
 
 function getFlowBackgroundScreenAssetId(node: any): string | undefined {
-  return node?.appearance?.backgroundScreenAssetId || node?.backgroundScreenAssetId;
+  return node?.appearance?.backgroundScreenAssetId || node?.backgroundScreenAssetId || node?.screenAssetId;
 }
 
 function resolveScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): ScreenMap | undefined {
@@ -5808,7 +5808,11 @@ function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
   };
 
   for (const node of graph?.nodes || []) {
-    if (node.type === 'Text') {
+    if (node.type === 'Screen4Screen') {
+      addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
+    } else if (node.type === 'Text') {
+      addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
+    } else if (node.type === 'Controls') {
       addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'SubMenu') {
       addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
@@ -5829,7 +5833,7 @@ function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen4Til
   };
 
   for (const node of graph?.nodes || []) {
-    if (node.type === 'Text' || node.type === 'SubMenu' || node.type === 'Restart') {
+    if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
       addScreen(resolveTileScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'WorldLink') {
       const worldAssetId = getGameFlowWorldAssetId(node);
@@ -6511,7 +6515,7 @@ function buildMsx2ProjectSliceJson(
       const worldAssetId = getGameFlowWorldAssetId(node);
       if (worldAssetId) worldIds.add(worldAssetId);
       includeByTypeAndId('worldmap', worldAssetId, `GameFlow WorldLink node ${node.id}`);
-    } else if (node.type === 'Text' || node.type === 'SubMenu' || node.type === 'Restart') {
+    } else if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
       includeByTypeAndId('msx2screen', getFlowBackgroundScreenAssetId(node), `GameFlow ${node.type} background`);
     } else if (node.type === 'Music') {
       includeByTypeAndId('track', node.trackAssetId, `GameFlow Music node ${node.id}`);
@@ -7924,6 +7928,27 @@ function buildMsx2GameFlowProgram(
         lines.push('    or a');
         lines.push(`    jp nz, ${labelForNodeId(thenTarget) || '.main_loop'}`);
         lines.push(jumpToNodeOrMain(elseTarget || defaultTargetNodeId(graph.connections, current.id)));
+        break;
+      }
+      case 'Screen4Screen': {
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
+        if (!label) {
+          throw new Error(`MSX2 SCREEN 4 GameFlow Screen4Screen node ${current.id} must reference an exportable SCREEN 4 room.`);
+        }
+        lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
+        if (current.waitForKey === false) {
+          const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
+          if (frames > 0) {
+            lines.push(`    ld b, ${formatHexByte(frames)}`);
+            lines.push(`.${labelForNodeId(current.id)}_wait_frames:`);
+            lines.push('    halt');
+            lines.push(`    djnz .${labelForNodeId(current.id)}_wait_frames`);
+          }
+        } else {
+          lines.push('    call wait_key_release');
+          lines.push('    call wait_key');
+        }
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       }
       case 'Text': {

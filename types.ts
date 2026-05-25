@@ -2183,7 +2183,7 @@ export interface GameFlowGraph {
 
 // --- MSX2 Game Flow Types ---
 
-export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';
+export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';
 
 export interface Msx2GameFlowNode_Base {
   id: string;
@@ -2198,6 +2198,13 @@ export interface Msx2GameFlowStartNode extends Msx2GameFlowNode_Base {
 export interface Msx2GameFlowScreen5PresentationNode extends Msx2GameFlowNode_Base {
   type: 'Screen5Presentation';
   presentationAssetId?: string;
+  waitForKey?: boolean;
+  waitFrames?: number;
+}
+
+export interface Msx2GameFlowScreen4ScreenNode extends Msx2GameFlowNode_Base {
+  type: 'Screen4Screen';
+  screenAssetId?: string;
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -2287,6 +2294,7 @@ export type Msx2GameFlowNode =
   | Msx2GameFlowStartNode
   | Msx2GameFlowGlobalsNode
   | Msx2GameFlowScreen5PresentationNode
+  | Msx2GameFlowScreen4ScreenNode
   | Msx2GameFlowSubMenuNode
   | Msx2GameFlowControlsNode
   | Msx2GameFlowWorldLinkNode
