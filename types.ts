@@ -2183,7 +2183,7 @@ export interface GameFlowGraph {
 
 // --- MSX2 Game Flow Types ---
 
-export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End';
+export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'TextScroll' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End';
 
 export interface Msx2GameFlowNode_Base {
   id: string;
@@ -2213,6 +2213,15 @@ export interface Msx2GameFlowTextNode extends Msx2GameFlowNode_Base {
   type: 'Text';
   title: string;
   message: string;
+  waitForKey?: boolean;
+  waitFrames?: number;
+}
+
+export interface Msx2GameFlowTextScrollNode extends Msx2GameFlowNode_Base {
+  type: 'TextScroll';
+  title: string;
+  text: string;
+  backgroundScreenAssetId?: string;
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -2307,6 +2316,7 @@ export type Msx2GameFlowNode =
   | Msx2GameFlowControlsNode
   | Msx2GameFlowWorldLinkNode
   | Msx2GameFlowTextNode
+  | Msx2GameFlowTextScrollNode
   | Msx2GameFlowWaypointNode
   | Msx2GameFlowIfThenElseNode
   | Msx2GameFlowMusicNode

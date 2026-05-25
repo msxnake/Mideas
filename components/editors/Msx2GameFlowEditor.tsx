@@ -11,6 +11,7 @@ import type {
   Msx2GameFlowPurpose,
   Msx2GameFlowScreen4ScreenNode,
   Msx2GameFlowScreen5PresentationNode,
+  Msx2GameFlowTextScrollNode,
   Msx2GameFlowSubMenuNode,
   Msx2GameFlowTextNode,
   Msx2GameFlowTransitionNode,
@@ -81,6 +82,7 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
   if (node.type === 'SubMenu') return node.title || 'SubMenu';
   if (node.type === 'Controls') return node.title || 'Controls';
   if (node.type === 'Text') return node.title || 'Text';
+  if (node.type === 'TextScroll') return node.title || 'Text Scroll';
   if (node.type === 'WorldLink') {
     const asset = allAssets.find(a => a.id === node.worldAssetId && a.type === 'worldmap');
     return asset?.name || 'World Link';
@@ -106,6 +108,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'SubMenu') return 'hsl(215, 52%, 34%)';
   if (node.type === 'Controls') return 'hsl(185, 45%, 34%)';
   if (node.type === 'Text') return 'hsl(188, 46%, 34%)';
+  if (node.type === 'TextScroll') return 'hsl(172, 46%, 31%)';
   if (node.type === 'WorldLink') return 'hsl(150, 48%, 30%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'IfThenElse') return 'hsl(28, 58%, 36%)';
@@ -214,6 +217,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     : null;
   const selectedTextNode = selectedNode?.type === 'Text'
     ? selectedNode as Msx2GameFlowTextNode
+    : null;
+  const selectedTextScrollNode = selectedNode?.type === 'TextScroll'
+    ? selectedNode as Msx2GameFlowTextScrollNode
     : null;
   const selectedEndNode = selectedNode?.type === 'End'
     ? selectedNode as Msx2GameFlowEndNode
@@ -327,6 +333,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!node.title?.trim()) issues.push('Controls node must include a title.');
         } else if (node.type === 'Text') {
           if (!node.message?.trim()) issues.push('Text node must include a message.');
+        } else if (node.type === 'TextScroll') {
+          if (!node.text?.trim()) issues.push('TextScroll node must include text.');
         } else if (node.type === 'WorldLink') {
           if (!node.worldAssetId || !worldAssets.some(asset => asset.id === node.worldAssetId)) {
             issues.push('WorldLink node must select a valid World Map asset.');
@@ -474,6 +482,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       if (node.type === 'Text' && !node.message?.trim()) {
         issues.push('Text node must include a message.');
       }
+      if (node.type === 'TextScroll' && !node.text?.trim()) {
+        issues.push('TextScroll node must include text.');
+      }
       if (outgoingCount > 1) {
         issues.push(`${node.type} has more than one outgoing connection.`);
       }
@@ -499,7 +510,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     onUpdate({ purpose });
   };
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'TextScroll' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -530,6 +541,17 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               position: { x, y },
               title: 'Text',
               message: 'PRESS KEY TO CONTINUE',
+              waitForKey: true,
+              waitFrames: 0,
+            }
+        : type === 'TextScroll'
+          ? {
+              id,
+              type,
+              position: { x, y },
+              title: 'Story',
+              text: 'THE INVASION HAS BEGUN. PREPARE YOUR SHIP AND DEFEND THE COLONY.',
+              backgroundScreenAssetId: screen4Assets[0]?.id,
               waitForKey: true,
               waitFrames: 0,
             }
@@ -842,6 +864,21 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedTextScroll = (updates: Partial<Msx2GameFlowTextScrollNode>) => {
+    if (!selectedTextScrollNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedTextScrollNode.id && node.type === 'TextScroll'
+        ? {
+            ...node,
+            ...updates,
+            waitFrames: updates.waitFrames !== undefined
+              ? Math.max(0, Math.min(255, Math.trunc(updates.waitFrames) || 0))
+              : node.waitFrames,
+          }
+        : node
+    ));
+  };
+
   const updateSelectedControls = (updates: Partial<Msx2GameFlowControlsNode>) => {
     if (!selectedControlsNode) return;
     updateNodes(nodes.map(node =>
@@ -1034,6 +1071,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => addNode('Text')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Text
+        </Button>
+        <Button onClick={() => addNode('TextScroll')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+          Add Text Scroll
         </Button>
         <Button onClick={() => addNode('IfThenElse')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           If/Then/Else
@@ -1270,6 +1310,65 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
                 />
               </label>
+            </div>
+          )}
+
+          {selectedTextScrollNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Text Scroll</h3>
+              <label className="block text-xs">
+                Title
+                <input
+                  type="text"
+                  value={selectedTextScrollNode.title}
+                  onChange={event => updateSelectedTextScroll({ title: event.target.value })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="block text-xs">
+                Background SCREEN 4
+                <select
+                  value={selectedTextScrollNode.backgroundScreenAssetId || ''}
+                  onChange={event => updateSelectedTextScroll({ backgroundScreenAssetId: event.target.value || undefined })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                >
+                  <option value="">Use first exported room</option>
+                  {screen4Assets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs">
+                Text
+                <textarea
+                  value={selectedTextScrollNode.text}
+                  onChange={event => updateSelectedTextScroll({ text: event.target.value })}
+                  className="mt-1 w-full min-h-24 bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedTextScrollNode.waitForKey !== false}
+                  onChange={event => updateSelectedTextScroll({ waitForKey: event.target.checked })}
+                />
+                Wait for key
+              </label>
+              <label className="block text-xs">
+                Wait frames
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={selectedTextScrollNode.waitFrames || 0}
+                  onChange={event => updateSelectedTextScroll({ waitFrames: Number(event.target.value) })}
+                  disabled={selectedTextScrollNode.waitForKey !== false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                />
+              </label>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 4 export renders this as a story panel now; smooth pixel scrolling remains a later runtime step.
+              </p>
             </div>
           )}
 
