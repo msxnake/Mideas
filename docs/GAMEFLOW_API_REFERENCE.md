@@ -370,6 +370,11 @@ Start → (siguiente nodo)
 **Propiedades**:
 - `effect`: Tipo de efecto visual
   - `cls`: Clear Screen
+  - `fade_to_black`: Fade a negro
+  - `screen5_vertical_pixel_wipe`: SCREEN 5, barrido vertical por columnas
+  - `screen5_horizontal_pixel_wipe`: SCREEN 5, barrido horizontal por scanlines
+  - `screen5_diagonal_pixel_wipe`: SCREEN 5, barrido diagonal por bloques raster
+  - `screen5_mirror_pixel_wipe`: SCREEN 5, barrido vertical en espejo desde ambos lados
   - `dissolve_pixels`: Disolver pixeles
   - `dissolve_chars`: Disolver chars
   - `vertical_lines`: Lineas verticales
@@ -377,6 +382,30 @@ Start → (siguiente nodo)
   - `spiral`: Espiral
   - `fill_white_squares`: Cuadrados blancos
   - `diagonal_clear`: Borrado diagonal/raster
+  - `diagonal_inverse`: Borrado diagonal inverso
+  - `checkerboard`: Patron alterno
+  - `doors`: Puertas laterales
+  - `center_curtain`: Cortina desde el centro
+  - `venetian_blinds`: Persianas horizontales
+  - `radial_wipe`: Wipe radial
+  - `block4_shuffle`: Bloques 4x4 pseudoaleatorios
+  - `zoom_box`: Caja/zoom hacia el centro
+  - `raster_bars`: Barras raster-like
+  - `raster_split_wipe`: Barras desde el centro
+  - `raster_scanlines`: Lineas alternas
+  - `raster_palette_fade`: Fade de paleta a negro
+  - `raster_bands_down`: Bandas descendentes
+  - `raster_bands_up`: Bandas ascendentes
+  - `raster_center_bands`: Bandas desde el centro
+  - `raster_wave_bands`: Bandas en onda
+  - `raster_corner_wipe`: Raster desde las esquinas
+  - `raster_diagonal_corner`: Raster diagonal desde una esquina a la opuesta
+
+**Compatibilidad MSX2 SCREEN 4**:
+- Los efectos `raster_*` son compatibles con MSX2 SCREEN 4.
+- Son transiciones raster-like: actualizan name table o paleta una vez por frame.
+- No usan IRQ de scanline ni timing horizontal del VDP, por lo que son mas seguras para el runtime SCREEN 4 actual.
+- En MSX2 SCREEN 5 Presentation se admiten `cls`, `fade_to_black`, `screen5_vertical_pixel_wipe`, `screen5_horizontal_pixel_wipe`, `screen5_diagonal_pixel_wipe` y `screen5_mirror_pixel_wipe`; los efectos SCREEN 4-only se rechazan o se normalizan en el editor.
 - Conexión DEFAULT (siguiente nodo)
 
 **Uso**:

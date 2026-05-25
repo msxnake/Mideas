@@ -29,6 +29,7 @@ const clampLevel = (value: unknown, fallback = 0): number => {
 };
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
+const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
 
 interface ResolvedPresentationFlow {
   presentation?: Msx2Screen5PresentationConfig;
@@ -781,8 +782,16 @@ function generateTransitionRuntime(
   afterTransitionAction: 'loop' | 'restart',
   beforeActionAsm = ''
 ): string {
-  if (transition.effect !== 'cls' && transition.effect !== 'fade_to_black') {
-    throw new Error(`MSX2 SCREEN 5 GameFlow transition "${transition.effect}" is not supported; use CLS or fade_to_black.`);
+  const screen5TransitionEffects = new Set([
+    'cls',
+    'fade_to_black',
+    'screen5_vertical_pixel_wipe',
+    'screen5_horizontal_pixel_wipe',
+    'screen5_diagonal_pixel_wipe',
+    'screen5_mirror_pixel_wipe',
+  ]);
+  if (!screen5TransitionEffects.has(transition.effect)) {
+    throw new Error(`MSX2 SCREEN 5 GameFlow transition "${transition.effect}" is not supported; use a SCREEN 5 transition effect.`);
   }
   const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
   const waitBlock = durationFrames > 0
@@ -794,7 +803,15 @@ function generateTransitionRuntime(
     : '';
   const effectBlock = transition.effect === 'fade_to_black'
     ? `    call load_screen5_black_palette`
-    : `    call DISSCR
+    : transition.effect === 'screen5_vertical_pixel_wipe'
+      ? `    call clear_screen5_vertical_pixel_wipe`
+      : transition.effect === 'screen5_horizontal_pixel_wipe'
+        ? `    call clear_screen5_horizontal_pixel_wipe`
+        : transition.effect === 'screen5_diagonal_pixel_wipe'
+          ? `    call clear_screen5_diagonal_pixel_wipe`
+          : transition.effect === 'screen5_mirror_pixel_wipe'
+            ? `    call clear_screen5_mirror_pixel_wipe`
+            : `    call DISSCR
     call clear_screen5_visible_vram`;
 
   return `
@@ -871,6 +888,29 @@ function generateTerminalTransitionRoutine(
   );
 }
 
+function generateScreen5DiagonalPixelWipeTable(): string {
+  const entries: string[] = [];
+  const rowBlockHeight = 8;
+  const columnBlockWidth = 4;
+  const rowBlocks = Math.ceil(VISIBLE_HEIGHT / rowBlockHeight);
+  const columnBlocks = Math.ceil(BYTES_PER_LINE / columnBlockWidth);
+  for (let diagonal = 0; diagonal <= rowBlocks + columnBlocks - 2; diagonal++) {
+    for (let rowBlock = 0; rowBlock < rowBlocks; rowBlock++) {
+      const columnBlock = diagonal - rowBlock;
+      if (columnBlock < 0 || columnBlock >= columnBlocks) continue;
+      const row = rowBlock * rowBlockHeight;
+      const column = columnBlock * columnBlockWidth;
+      const height = Math.min(rowBlockHeight, VISIBLE_HEIGHT - row);
+      const width = Math.min(columnBlockWidth, BYTES_PER_LINE - column);
+      const offset = (row * BYTES_PER_LINE) + column;
+      entries.push(`    DW ${hexWord(offset)}\n    DB ${hexByte(height)},${hexByte(width)}`);
+    }
+    entries.push('    DW #FFFE');
+  }
+  entries.push('    DW #FFFF');
+  return entries.join('\n');
+}
+
 function generateTransitionHelpers(needed: boolean, vramBase: string): string {
   if (!needed) return '';
   return `
@@ -894,6 +934,152 @@ load_screen5_black_palette:
     inc hl
     djnz .black_palette_loop
     ret
+
+clear_screen5_vertical_pixel_wipe:
+    ; Wipes SCREEN 5 bitmap in 4-pixel vertical steps. Clobbers AF, BC, DE, HL.
+    ld e, 0
+.vertical_column_loop:
+    call clear_screen5_vertical_pixel_column
+    inc e
+    ld a, e
+    cp SCREEN5_PRESENTATION_BYTES_PER_LINE
+    jp nc, .vertical_wipe_done
+    call clear_screen5_vertical_pixel_column
+    inc e
+    halt
+    ld a, e
+    cp SCREEN5_PRESENTATION_BYTES_PER_LINE
+    jp c, .vertical_column_loop
+.vertical_wipe_done:
+    ret
+
+clear_screen5_vertical_pixel_column:
+    ; E=byte column. Clears one 2-pixel SCREEN 5 column. Clobbers AF, BC, D, HL.
+    ld hl, ${vramBase}
+    ld d, 0
+    add hl, de
+    ld b, SCREEN5_PRESENTATION_VISIBLE_LINES
+.vertical_row_loop:
+    xor a
+    push bc
+    push de
+    push hl
+    ld bc, 1
+    call FILVRM
+    pop hl
+    ld bc, SCREEN5_PRESENTATION_BYTES_PER_LINE
+    add hl, bc
+    pop de
+    pop bc
+    djnz .vertical_row_loop
+    ret
+
+clear_screen5_mirror_pixel_wipe:
+    ; Wipes SCREEN 5 from both vertical edges inward. Clobbers AF, BC, DE, HL.
+    ld e, 0
+.mirror_column_loop:
+    call clear_screen5_vertical_pixel_column
+    ld a, SCREEN5_PRESENTATION_LAST_BYTE_COLUMN
+    sub e
+    ld e, a
+    call clear_screen5_vertical_pixel_column
+    ld a, SCREEN5_PRESENTATION_LAST_BYTE_COLUMN
+    sub e
+    inc a
+    ld e, a
+    halt
+    cp SCREEN5_PRESENTATION_HALF_BYTES_PER_LINE
+    jp c, .mirror_column_loop
+    ret
+
+clear_screen5_horizontal_pixel_wipe:
+    ; Wipes SCREEN 5 in two horizontal scanlines per frame. Clobbers AF, BC, DE, HL.
+    ld hl, ${vramBase}
+    ld d, SCREEN5_PRESENTATION_VISIBLE_LINES
+.horizontal_row_loop:
+    xor a
+    push de
+    push hl
+    ld bc, SCREEN5_PRESENTATION_BYTES_PER_LINE
+    call FILVRM
+    pop hl
+    ld bc, SCREEN5_PRESENTATION_BYTES_PER_LINE
+    add hl, bc
+    pop de
+    dec d
+    jp z, .horizontal_wipe_done
+    xor a
+    push de
+    push hl
+    ld bc, SCREEN5_PRESENTATION_BYTES_PER_LINE
+    call FILVRM
+    pop hl
+    ld bc, SCREEN5_PRESENTATION_BYTES_PER_LINE
+    add hl, bc
+    pop de
+    dec d
+    halt
+    jp nz, .horizontal_row_loop
+.horizontal_wipe_done:
+    ret
+
+clear_screen5_rect:
+    ; HL=top-left VRAM byte, B=height, C=width. Clobbers AF, BC, DE, HL.
+    ld a, b
+    or a
+    ret z
+    ld a, c
+    or a
+    ret z
+.rect_loop:
+    push bc
+    push hl
+    ld b, 0
+    xor a
+    call FILVRM
+    pop hl
+    ld de, SCREEN5_PRESENTATION_BYTES_PER_LINE
+    add hl, de
+    pop bc
+    djnz .rect_loop
+    ret
+
+clear_screen5_diagonal_pixel_wipe:
+    ; Wipes SCREEN 5 in diagonal 8-line by 8-pixel bands. Clobbers AF, BC, DE, HL.
+    ld hl, screen5_diagonal_pixel_wipe_table
+.diagonal_table_loop:
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld a, d
+    cp #FF
+    jp nz, .diagonal_rect_entry
+    ld a, e
+    cp #FE
+    jp z, .diagonal_wait
+    ret
+.diagonal_wait:
+    halt
+    jp .diagonal_table_loop
+.diagonal_rect_entry:
+    push hl
+    ld hl, ${vramBase}
+    add hl, de
+    pop de
+    ld a, (de)
+    inc de
+    ld b, a
+    ld a, (de)
+    inc de
+    ld c, a
+    push de
+    call clear_screen5_rect
+    pop hl
+    jp .diagonal_table_loop
+
+screen5_diagonal_pixel_wipe_table:
+${generateScreen5DiagonalPixelWipeTable()}
 `;
 }
 
@@ -1161,6 +1347,10 @@ ${uploadChunks}
     ret
 
 SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}
+SCREEN5_PRESENTATION_VISIBLE_LINES EQU ${VISIBLE_HEIGHT}
+SCREEN5_PRESENTATION_BYTES_PER_LINE EQU ${BYTES_PER_LINE}
+SCREEN5_PRESENTATION_LAST_BYTE_COLUMN EQU ${BYTES_PER_LINE - 1}
+SCREEN5_PRESENTATION_HALF_BYTES_PER_LINE EQU ${BYTES_PER_LINE / 2}
 SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU ${vramBase}
 
 ${formatBytes('screen5_presentation_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}

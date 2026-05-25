@@ -7893,6 +7893,15 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
   const lines: string[] = ['    call load_msx2_hud_font'];
   const nameAddr = (offset: number): string => formatHexWord(0x1800 + offset);
   const waitStep = () => lines.push('    call wait_frame_busy');
+  let timedStepIndex = 0;
+  const waitTimedStep = () => {
+    const frames = Math.max(1, Math.min(15, Math.trunc(Number(durationFrames) || 1)));
+    const waitLabel = `.${label}_timed_step_${timedStepIndex++}`;
+    lines.push(`    ld b, ${formatHexByte(frames)}`);
+    lines.push(`${waitLabel}:`);
+    lines.push('    call wait_frame_busy');
+    lines.push(`    djnz ${waitLabel}`);
+  };
   const writeBlankCell = (row: number, column: number) => {
     lines.push(`    ld hl, ${nameAddr((row * 32) + column)}`);
     lines.push('    call clear_screen4_name_cell_blank');
@@ -8110,17 +8119,43 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
       for (let offset = 0; offset < 12; offset += 2) {
         writeBlankBlock(10 - offset, 0, 2, 32);
         writeBlankBlock(12 + offset, 0, 2, 32);
-        waitStep();
+        waitTimedStep();
       }
       break;
     case 'raster_wave_bands': {
       const waveRows = [12, 10, 14, 8, 16, 6, 18, 4, 20, 2, 22, 0];
       for (const row of waveRows) {
         writeBlankBlock(row, 0, 2, 32);
-        waitStep();
+        waitTimedStep();
       }
       break;
     }
+    case 'raster_corner_wipe': {
+      for (let inset = 0; inset < 12; inset += 2) {
+        const top = inset;
+        const bottom = 22 - inset;
+        const leftWidth = Math.min(16, 4 + inset);
+        const rightColumn = Math.max(0, 32 - leftWidth);
+        writeBlankBlock(top, 0, 2, leftWidth);
+        writeBlankBlock(top, rightColumn, 2, leftWidth);
+        writeBlankBlock(bottom, 0, 2, leftWidth);
+        writeBlankBlock(bottom, rightColumn, 2, leftWidth);
+        waitTimedStep();
+      }
+      lines.push('    call clear_screen4_names');
+      break;
+    }
+    case 'raster_diagonal_corner':
+      for (let diagonal = 0; diagonal <= 40; diagonal += 2) {
+        for (let row = 0; row < 24; row += 2) {
+          const column = diagonal - row;
+          if (column < 0 || column >= 32) continue;
+          writeBlankBlock(row, column, 2, 2);
+        }
+        waitTimedStep();
+      }
+      lines.push('    call clear_screen4_names');
+      break;
     default:
       return [];
   }

@@ -37,6 +37,10 @@ const NODE_HEIGHT = 76;
 const MSX2_SCREEN5_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string }> = [
   { value: 'cls', label: 'CLS' },
   { value: 'fade_to_black', label: 'Fade to black' },
+  { value: 'screen5_vertical_pixel_wipe', label: 'SCREEN 5 vertical pixel wipe' },
+  { value: 'screen5_horizontal_pixel_wipe', label: 'SCREEN 5 horizontal pixel wipe' },
+  { value: 'screen5_diagonal_pixel_wipe', label: 'SCREEN 5 diagonal pixel wipe' },
+  { value: 'screen5_mirror_pixel_wipe', label: 'SCREEN 5 mirror pixel wipe' },
 ];
 
 const MSX2_SCREEN4_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode['effect']; label: string }> = [
@@ -64,6 +68,8 @@ const MSX2_SCREEN4_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode
   { value: 'raster_bands_up', label: 'Raster bands up' },
   { value: 'raster_center_bands', label: 'Raster center bands' },
   { value: 'raster_wave_bands', label: 'Raster wave bands' },
+  { value: 'raster_corner_wipe', label: 'Raster corner wipe' },
+  { value: 'raster_diagonal_corner', label: 'Raster diagonal corner' },
 ];
 
 const isScreen5PresentationHeight = (value: unknown): value is Msx2Screen5PresentationHeight =>
@@ -464,7 +470,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         issues.push('Terminal Transition should continue to Restart or End.');
       }
       if (terminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(terminalNode.effect)) {
-        issues.push(`SCREEN 5 terminal Transition only supports CLS or Fade to black; "${terminalNode.effect}" is SCREEN 4-only.`);
+        issues.push(`SCREEN 5 terminal Transition does not support "${terminalNode.effect}"; use a SCREEN 5 transition effect.`);
       }
       if (afterScreen5?.type === 'IfThenElse') {
         if (!afterScreen5.variableName?.trim()) {
@@ -494,7 +500,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
           }
           if (branchTerminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(branchTerminalNode.effect)) {
-            issues.push(`IfThenElse ${label} terminal Transition uses "${branchTerminalNode.effect}", which is SCREEN 4-only.`);
+            issues.push(`IfThenElse ${label} terminal Transition uses "${branchTerminalNode.effect}", which is not supported by SCREEN 5.`);
           }
         }
       }
@@ -1707,6 +1713,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   ))}
                 </select>
               </label>
+              {selectedNode.effect.startsWith('raster_') && (
+                <p className="text-[0.65rem] leading-snug text-msx-textsecondary">
+                  SCREEN 4 compatible raster-like transition: uses name-table or palette updates per frame, not scanline IRQ timing.
+                </p>
+              )}
               <label className="block text-xs">
                 Duration frames
                 <input

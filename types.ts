@@ -2296,7 +2296,7 @@ export interface Msx2GameFlowMusicNode extends Msx2GameFlowNode_Base {
 
 export interface Msx2GameFlowTransitionNode extends Msx2GameFlowNode_Base {
   type: 'Transition';
-  effect: 'cls' | 'fade_to_black' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box' | 'raster_bars' | 'raster_split_wipe' | 'raster_scanlines' | 'raster_palette_fade' | 'raster_bands_down' | 'raster_bands_up' | 'raster_center_bands' | 'raster_wave_bands';
+  effect: 'cls' | 'fade_to_black' | 'screen5_vertical_pixel_wipe' | 'screen5_horizontal_pixel_wipe' | 'screen5_diagonal_pixel_wipe' | 'screen5_mirror_pixel_wipe' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box' | 'raster_bars' | 'raster_split_wipe' | 'raster_scanlines' | 'raster_palette_fade' | 'raster_bands_down' | 'raster_bands_up' | 'raster_center_bands' | 'raster_wave_bands' | 'raster_corner_wipe' | 'raster_diagonal_corner';
   durationFrames?: number;
 }
 
