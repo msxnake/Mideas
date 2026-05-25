@@ -2393,6 +2393,68 @@ clear_screen4_name_column:
     pop bc
     djnz .column_loop
     ret
+
+clear_screen4_checkerboard_phase0:
+    ; Clears alternating name-table cells. Clobbers AF/BC/DE/HL.
+    ld hl, SCREEN4_NAME_VRAM
+    ld b, 24
+.phase0_row:
+    push bc
+    push hl
+    ld a, b
+    and 1
+    jp z, .phase0_start
+    inc hl
+.phase0_start:
+    ld c, 16
+.phase0_column:
+    push bc
+    push hl
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    pop hl
+    ld de, 2
+    add hl, de
+    pop bc
+    dec c
+    jp nz, .phase0_column
+    pop hl
+    ld de, 32
+    add hl, de
+    pop bc
+    djnz .phase0_row
+    ret
+
+clear_screen4_checkerboard_phase1:
+    ; Clears the opposite alternating name-table cells. Clobbers AF/BC/DE/HL.
+    ld hl, SCREEN4_NAME_VRAM
+    ld b, 24
+.phase1_row:
+    push bc
+    push hl
+    ld a, b
+    and 1
+    jp nz, .phase1_start
+    inc hl
+.phase1_start:
+    ld c, 16
+.phase1_column:
+    push bc
+    push hl
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    pop hl
+    ld de, 2
+    add hl, de
+    pop bc
+    dec c
+    jp nz, .phase1_column
+    pop hl
+    ld de, 32
+    add hl, de
+    pop bc
+    djnz .phase1_row
+    ret
 `;
 }
 
@@ -7915,15 +7977,10 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
       }
       break;
     case 'checkerboard':
-      for (let phase = 0; phase < 2; phase++) {
-        for (let row = 0; row < 24; row++) {
-          for (let column = 0; column < 32; column++) {
-            if (((row + column) & 1) !== phase) continue;
-            writeBlankCell(row, column);
-          }
-        }
-        waitStep();
-      }
+      lines.push('    call clear_screen4_checkerboard_phase0');
+      waitStep();
+      lines.push('    call clear_screen4_checkerboard_phase1');
+      waitStep();
       break;
     case 'doors':
       for (let offset = 0; offset < 16; offset++) {
@@ -7952,20 +8009,15 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
       }
       break;
     case 'radial_wipe':
-      for (let radius = 0; radius <= 28; radius++) {
-        for (let row = 0; row < 24; row++) {
-          for (let column = 0; column < 32; column++) {
-            if ((Math.abs(column - 15) + Math.abs(row - 11)) !== radius) continue;
-            writeBlankCell(row, column);
-          }
-        }
+      for (let radius = 0; radius <= 12; radius += 2) {
+        writeBlankBlock(11 - radius, 15 - radius, (radius * 2) + 2, (radius * 2) + 2);
         waitStep();
       }
       break;
     case 'fill_white_squares':
-      for (let row = 0; row < 24; row += 2) {
-        for (let column = 0; column < 32; column += 2) {
-          writeBlankBlock(row, column, 2, 2);
+      for (let row = 0; row < 24; row += 4) {
+        for (let column = 0; column < 32; column += 4) {
+          writeBlankBlock(row, column, 4, 4);
           waitStep();
         }
       }
