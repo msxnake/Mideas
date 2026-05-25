@@ -5758,6 +5758,48 @@ function sourceTargetNodeId(connections: GameFlowConnection[] | undefined, nodeI
   return undefined;
 }
 
+function validateMsx2GameFlowSubMenuEdges(graph: any): void {
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const connections = Array.isArray(graph?.connections) ? graph.connections : [];
+  const nodeIds = new Set(nodes.map((node: any) => node?.id).filter(Boolean));
+  for (const connection of connections) {
+    const fromNodeId = connection.from?.nodeId || connection.fromNodeId;
+    const toNodeId = connection.to?.nodeId || connection.toNodeId;
+    if (!nodeIds.has(fromNodeId) || !nodeIds.has(toNodeId)) {
+      throw new Error('MSX2 SCREEN 4 GameFlow contains a connection to a missing node.');
+    }
+  }
+  for (const node of nodes) {
+    if (node?.type !== 'SubMenu') continue;
+    const options = Array.isArray(node.options) ? node.options.slice(0, 6) : [];
+    if (options.length === 0) {
+      throw new Error(`MSX2 SCREEN 4 SubMenu node ${node.id} must include at least one option.`);
+    }
+    const optionIds = new Set(options.map((option: any) => option?.id).filter(Boolean));
+    for (const option of options) {
+      const optionConnections = connections.filter((connection: any) => {
+        const fromNodeId = connection.from?.nodeId || connection.fromNodeId;
+        const fromSourceId = connection.from?.sourceId || connection.sourceId;
+        return fromNodeId === node.id && fromSourceId === option?.id;
+      });
+      if (optionConnections.length === 0) {
+        throw new Error(`MSX2 SCREEN 4 SubMenu node ${node.id} option "${option?.text || option?.id || ''}" needs an outgoing connection.`);
+      }
+      if (optionConnections.length > 1) {
+        throw new Error(`MSX2 SCREEN 4 SubMenu node ${node.id} option "${option?.text || option?.id || ''}" has more than one outgoing connection.`);
+      }
+    }
+    for (const connection of connections) {
+      const fromNodeId = connection.from?.nodeId || connection.fromNodeId;
+      if (fromNodeId !== node.id) continue;
+      const fromSourceId = connection.from?.sourceId || connection.sourceId;
+      if (!fromSourceId || !optionIds.has(fromSourceId)) {
+        throw new Error(`MSX2 SCREEN 4 SubMenu node ${node.id} has an outgoing connection for unknown option "${fromSourceId || 'default'}".`);
+      }
+    }
+  }
+}
+
 function getScreen4RuntimeGameFlow(analysis: ProjectAnalysis): any {
   const msx2Flow = ((analysis as any).msx2GameFlows || []).find((flow: any) => flow?.purpose === 'screen4-runtime');
   return msx2Flow || analysis.gameFlow;
@@ -7864,6 +7906,7 @@ function buildMsx2GameFlowProgram(
   if (!startNodeId) {
     return buildMsx2TileScreenLoadLines(fallbackLabel, tileScreenIndexByLabel, refreshHardwareSprites);
   }
+  validateMsx2GameFlowSubMenuEdges(graph);
 
   const nodeLabels = new Map<string, string>();
   graph.nodes.forEach((node: any, index: number) => {
@@ -8012,7 +8055,7 @@ function buildMsx2GameFlowProgram(
         lines.push(`    ld b, ${options.length}`);
         lines.push('    call msx2_submenu_select');
         options.forEach((option: any, index: number) => {
-          const targetLabel = labelForNodeId(sourceTargetNodeId(graph.connections, current.id, [option?.id, `OPTION_${index}`]));
+          const targetLabel = labelForNodeId(sourceTargetNodeId(graph.connections, current.id, option?.id));
           if (targetLabel) {
             lines.push(`    cp ${index}`);
             lines.push(`    jp z, ${targetLabel}`);
@@ -8084,7 +8127,7 @@ function buildMsx2GameFlowProgram(
       defaultTargetNodeId(graph.connections, current.id),
       current.type === 'IfThenElse' ? sourceTargetNodeId(graph.connections, current.id, ['then']) : undefined,
       current.type === 'IfThenElse' ? sourceTargetNodeId(graph.connections, current.id, ['else']) : undefined,
-      ...(Array.isArray(current.options) ? current.options.map((option: any, index: number) => sourceTargetNodeId(graph.connections, current.id, [option?.id, `OPTION_${index}`])) : []),
+      ...(Array.isArray(current.options) ? current.options.map((option: any) => sourceTargetNodeId(graph.connections, current.id, option?.id)) : []),
     ].filter(Boolean);
     for (const nextNodeId of nextNodeIds) {
       const nextNode = nextNodeId ? nodeById.get(nextNodeId) : undefined;
