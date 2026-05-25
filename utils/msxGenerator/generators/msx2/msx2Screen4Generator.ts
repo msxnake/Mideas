@@ -47,7 +47,8 @@ const MSX2_ENEMY_SPRITE_COLOR = 13;
 const MSX2_RUNTIME_RAM_START = 0xC000;
 const MSX2_RUNTIME_RAM_LIMIT = 0xF300;
 const MSX2_SNAKE_MAX_BODY_CELLS = 32;
-const MSX2_SNAKE_BODY_BASE = 0xC040;
+const MSX2_CONTROLS_RAM_BASE = 0xC040;
+const MSX2_SNAKE_BODY_BASE = 0xC044;
 const MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2);
 const MSX2_ENEMY_SPRITE_PATTERN = [
   0x07, 0x1F, 0x3F, 0x7F, 0x67, 0xE7, 0xFF, 0xFF,
@@ -1128,6 +1129,19 @@ ${drawRows}
     ret
 
 ${rows.join('')}`;
+}
+
+function getMsx2ControlsKeyButton1Mode(node: any): 0 | 1 {
+  return String(node?.keyboardButton1 || node?.button1Key || 'SPC').toUpperCase() === 'CTRL' ? 1 : 0;
+}
+
+function getMsx2ControlsKeyButton2Mode(node: any): 0 | 1 {
+  return String(node?.keyboardButton2 || node?.button2Key || 'N').toUpperCase() === 'CTRL' ? 1 : 0;
+}
+
+function getMsx2ControlsActionButtonMode(value: any, fallback: 'button1' | 'button2'): 0 | 1 {
+  const normalized = String(value || fallback).trim().toLowerCase();
+  return normalized === 'button2' || normalized === 'btn2' || normalized === 'b2' || normalized === '2' ? 1 : 0;
 }
 
 function getEntityRenderSpriteId(entity: any): string {
@@ -4429,16 +4443,7 @@ ${secondPlayerBullet ? `update_msx2_player_bullet_slot_1:
     ld a, (msx2_player_bullet_cooldown)
     or a
     ret nz
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp z, .bullet_fire_pressed
-    xor a
-    call GTTRIG
-    or a
-    jp nz, .bullet_fire_pressed
-    ld a, 1
-    call GTTRIG
+    call msx2_control_action_pressed
     or a
     ret z
 .bullet_fire_pressed:
@@ -4842,25 +4847,15 @@ finish_msx2_horizontal_move:
 msx2_game_over_idle:
     ld a, (msx2_game_over_restart_lock)
     or a
-    jp z, .restart_space_check
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp z, .draw_game_over
+    jp z, .restart_action_check
+    call msx2_control_action_pressed
+    or a
+    jp nz, .draw_game_over
     xor a
     ld (msx2_game_over_restart_lock), a
     jp .draw_game_over
-.restart_space_check:
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp z, msx2_restart_game
-    xor a
-    call GTTRIG
-    or a
-    jp nz, msx2_restart_game
-    ld a, 1
-    call GTTRIG
+.restart_action_check:
+    call msx2_control_action_pressed
     or a
     jp nz, msx2_restart_game
 .draw_game_over:
@@ -4869,10 +4864,9 @@ msx2_game_over_idle:
     ret
 
 msx2_level_complete_idle:
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp nz, .continue_space_released
+    call msx2_control_action_pressed
+    or a
+    jp z, .continue_space_released
     ld a, (msx2_level_continue_lock)
     or a
     jp z, msx2_continue_after_level_complete
@@ -4995,17 +4989,16 @@ auto_patrol_hardware_sprite:
     jp move_hardware_sprite_right
 
 update_hardware_sprite_vertical:
-    ; Jump uses SPACE on keyboard matrix row 8, bit 0. Gravity is 1 px/frame.
+    ; Jump uses the MSX2 GameFlow Controls logical jump mapping. Gravity is 1 px/frame.
     ; Clobbers AF/BC/DE/HL.
 ${mazeMovement ? `    ; Maze/Pac-Man mode has no platform vertical physics.
     jp upload_hardware_sprite_attrs
 ` : ''}${shooterHorizontal ? `    ; Shooter mode has no platform vertical physics.
     jp upload_hardware_sprite_attrs
 ` : ''}
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp nz, .space_released
+    call msx2_control_jump_pressed
+    or a
+    jp z, .space_released
     ld a, (msx2_player_jump_lock)
     or a
     jp nz, .after_jump_input
@@ -5132,10 +5125,9 @@ ${animationFrameCount > 1 ? '    call update_msx2_player_sprite_animation\n' : '
 ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
     or a
     jp z, .paddle_serve_not_pending
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp z, .paddle_serve_launch
+    call msx2_control_action_pressed
+    or a
+    jp nz, .paddle_serve_launch
 .paddle_serve_space_released:
     xor a
     ld (msx2_player_jump_lock), a
@@ -7044,11 +7036,10 @@ msx2_snake_read_input:
     ret
 
 msx2_snake_game_over_idle:
-    ; SPACE restarts the ROM after a Snake collision. Clobbers AF.
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    ret nz
+    ; The GameFlow Controls logical action button restarts after a Snake collision.
+    call msx2_control_action_pressed
+    or a
+    ret z
     jp init_rom
 
 msx2_snake_step_head:
@@ -8196,6 +8187,14 @@ function buildMsx2GameFlowProgram(
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         const dataLabel = `${labelForNodeId(current.id)}_CONTROLS`;
         dataBlocks.push(buildMsx2ControlsTextData(dataLabel, current, analysis));
+        lines.push(`    ld a, ${formatHexByte(getMsx2ControlsKeyButton1Mode(current))}`);
+        lines.push('    ld (msx2_input_key_button1_mode), a');
+        lines.push(`    ld a, ${formatHexByte(getMsx2ControlsKeyButton2Mode(current))}`);
+        lines.push('    ld (msx2_input_key_button2_mode), a');
+        lines.push(`    ld a, ${formatHexByte(getMsx2ControlsActionButtonMode(current.jumpActionButton ?? current.jumpButton, 'button1'))}`);
+        lines.push('    ld (msx2_control_jump_button), a');
+        lines.push(`    ld a, ${formatHexByte(getMsx2ControlsActionButtonMode(current.actionButton ?? current.gameActionButton, 'button2'))}`);
+        lines.push('    ld (msx2_control_action_button), a');
         lines.push('    call load_msx2_hud_font');
         lines.push(`    call draw_${dataLabel}`);
         if (current.waitForKey === false) {
@@ -8818,6 +8817,10 @@ msx2_attack_cursor EQU #C03E
 msx2_attack_pending EQU #C03F
 msx2_bg_scroll_frame EQU #C03D
 msx2_bg_scroll_fine EQU #C03F
+msx2_input_key_button1_mode EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE)}
+msx2_input_key_button2_mode EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE + 1)}
+msx2_control_jump_button EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE + 2)}
+msx2_control_action_button EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE + 3)}
 MSX2_SCREEN4_DATA_BANK EQU 4
 msx2_snake_body_cells EQU ${formatHexWord(MSX2_SNAKE_BODY_BASE)}
 msx2_effects_runtime_buffers EQU ${formatHexWord(effectRuntimeBase)}
@@ -8874,6 +8877,7 @@ init_rom:
 
     call load_screen4_palette
 ${firstScreenIndexInit}    call init_msx2_effect_buffers
+    call init_msx2_controls
     call load_${firstScreenLabel}_screen4
 ${backgroundScrollEnabled ? '    call install_msx2_split_scroll_hook\n    call init_msx2_bg_scroll\n' : ''}${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
 ${snakeCharMovement ? '    call init_msx2_snake_char\n' : ''}
@@ -8966,6 +8970,111 @@ msx2_screen4_data_bank_leave:
     ld a, 2
     jp mapper_set_bank_p2
 
+init_msx2_controls:
+    ; Defaults match legacy MSX1 Controls: B1=SPC, B2=N, jump=B1, action=B2. Clobbers AF.
+    xor a
+    ld (msx2_input_key_button1_mode), a
+    ld (msx2_input_key_button2_mode), a
+    ld (msx2_control_jump_button), a
+    ld a, 1
+    ld (msx2_control_action_button), a
+    ret
+
+msx2_control_jump_pressed:
+    ; Output: A=1 when logical jump is pressed, A=0 otherwise. Clobbers AF/CD.
+    call msx2_read_control_buttons
+    bit 0, c
+    jp z, .jump_not_pressed
+    ld a, 1
+    ret
+.jump_not_pressed:
+    xor a
+    ret
+
+msx2_control_action_pressed:
+    ; Output: A=1 when logical action is pressed, A=0 otherwise. Clobbers AF/CD.
+    call msx2_read_control_buttons
+    bit 1, c
+    jp z, .action_not_pressed
+    ld a, 1
+    ret
+.action_not_pressed:
+    xor a
+    ret
+
+msx2_read_control_buttons:
+    ; Output: C bit0=logical jump, bit1=logical action. Clobbers AF/CD.
+    ld d, 0
+    xor a
+    call GTTRIG
+    or a
+    jp z, .button1_keyboard
+    set 0, d
+.button1_keyboard:
+    ld a, (msx2_input_key_button1_mode)
+    or a
+    jp nz, .button1_ctrl
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp nz, .button1_done
+    set 0, d
+    jp .button1_done
+.button1_ctrl:
+    ld a, 6
+    call SNSMAT
+    bit 2, a
+    jp nz, .button1_done
+    set 0, d
+.button1_done:
+    ld a, 3
+    call GTTRIG
+    or a
+    jp z, .button2_keyboard
+    set 1, d
+.button2_keyboard:
+    ld a, (msx2_input_key_button2_mode)
+    or a
+    jp nz, .button2_ctrl
+    ld a, 4
+    call SNSMAT
+    bit 3, a
+    jp nz, .button2_done
+    set 1, d
+    jp .button2_done
+.button2_ctrl:
+    ld a, 6
+    call SNSMAT
+    bit 2, a
+    jp nz, .button2_done
+    set 1, d
+.button2_done:
+    ld c, 0
+    ld a, (msx2_control_jump_button)
+    or a
+    jp nz, .jump_uses_button2
+    bit 0, d
+    jp z, .jump_done
+    set 0, c
+    jp .jump_done
+.jump_uses_button2:
+    bit 1, d
+    jp z, .jump_done
+    set 0, c
+.jump_done:
+    ld a, (msx2_control_action_button)
+    or a
+    jp nz, .action_uses_button2
+    bit 0, d
+    ret z
+    set 1, c
+    ret
+.action_uses_button2:
+    bit 1, d
+    ret z
+    set 1, c
+    ret
+
 wait_key:
     call CHGET
     ret
@@ -8982,7 +9091,7 @@ wait_key_release:
 
 msx2_submenu_select:
     ; Input: B=option count, 1..6. Output: A=selected zero-based option.
-    ; Uses BIOS GTSTCK/SNSMAT/GTTRIG. Clobbers AF/BC/HL.
+    ; Uses BIOS GTSTCK plus the GameFlow Controls logical action button. Clobbers AF/BC/HL.
     ld c, 0
     push bc
     call draw_msx2_submenu_cursor
@@ -9043,22 +9152,9 @@ msx2_submenu_select:
     jp .loop
 
 msx2_submenu_confirm_pressed:
-    ; Output: A=1 when SPACE or joystick trigger is pressed, A=0 otherwise.
-    ; Clobbers AF. Callers that need BC/DE/HL must preserve them.
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp z, .pressed
-    xor a
-    call GTTRIG
-    or a
-    ret nz
-    ld a, 1
-    call GTTRIG
-    or a
-    ret
-.pressed:
-    ld a, 1
+    ; Output: A=1 when the GameFlow Controls logical action button is pressed.
+    ; Clobbers AF/CD. Callers that need BC/DE/HL must preserve them.
+    call msx2_control_action_pressed
     ret
 
 draw_msx2_submenu_cursor:
