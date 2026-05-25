@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -1007,6 +1007,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </div>
         );
       }
+      case 'msx2bitmap': {
+        const bitmap = asset.data as Msx2Bitmap;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {bitmap.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> {bitmap.vdpMode}</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {bitmap.size.width}x{bitmap.size.height} px</div>
+            <div><strong className="text-msx-highlight">Palette slots:</strong> {bitmap.palette?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Transparent slot:</strong> {bitmap.transparentSlot ?? 'None'}</div>
+          </div>
+        );
+      }
       case 'msx2screen': {
         const screen = asset.data as Msx2Screen4TileScreen;
         const tileCount = screen.tiles?.length || 0;
@@ -1022,6 +1034,44 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Entities:</strong> {entityCount}</div>
             <div><strong className="text-msx-highlight">Runtime:</strong> {screen.runtime?.screenKind || 'playable'} / {screen.runtime?.screenEngine || 'player'}</div>
             <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
+          </div>
+        );
+      }
+      case 'msx2hudfont': {
+        const font = asset.data as Msx2HudFontAsset;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> {font.vdpMode}</div>
+            <div><strong className="text-msx-highlight">Base char:</strong> {font.baseChar}</div>
+            <div><strong className="text-msx-highlight">Characters:</strong> {font.characters?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Patterns:</strong> {Object.keys(font.patterns || {}).length}</div>
+            <div><strong className="text-msx-highlight">Color byte:</strong> #{(font.colorByte ?? 0).toString(16).padStart(2, '0').toUpperCase()}</div>
+          </div>
+        );
+      }
+      case 'msx2presentation': {
+        const presentation = asset.data as Msx2Screen5PresentationConfig;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {presentation.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> {presentation.screenMode}</div>
+            <div><strong className="text-msx-highlight">Target:</strong> {presentation.width}x{presentation.height}</div>
+            <div><strong className="text-msx-highlight">Source:</strong> {presentation.sourceFileName || 'None'}</div>
+            <div><strong className="text-msx-highlight">Fit:</strong> {presentation.fitMode}</div>
+            <div><strong className="text-msx-highlight">Compression:</strong> {presentation.compression?.enabled ? presentation.compression.codec : 'none'}</div>
+          </div>
+        );
+      }
+      case 'msx2gameflow': {
+        const flow = asset.data as Msx2GameFlowGraph;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {flow.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Target:</strong> {flow.target}</div>
+            <div><strong className="text-msx-highlight">Purpose:</strong> {flow.purpose || 'screen5-presentation'}</div>
+            <div><strong className="text-msx-highlight">Nodes:</strong> {flow.nodes?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Connections:</strong> {flow.connections?.length || 0}</div>
           </div>
         );
       }
@@ -1946,12 +1996,324 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   };
 
   const compDefExists = (id: string, template: EntityTemplate) => template.components.some(c => c.definitionId === id);
+
+  const renderEditorHelp = (): React.ReactNode => {
+    const helpByEditor: Partial<Record<EditorType, { title: string; summary: string; tips: string[] }>> = {
+      [EditorType.Msx2Sprite]: {
+        title: 'MSX2 Sprite Editor Help',
+        summary: 'Author V9938 hardware sprites for SCREEN 4/SCREEN 5 style MSX2 projects. Keep an eye on color-plane diagnostics and metasprite parts.',
+        tips: [
+          'Use transparent color consistently; hardware sprite export depends on masks and color planes.',
+          'Check 3+ color rows and max cell layers before export.',
+          'Use facing/mirror preview to keep left and right animation frames coherent.',
+        ],
+      },
+      [EditorType.Msx2Screen]: {
+        title: 'MSX2 SCREEN 4 Room Help',
+        summary: 'Build tile-based SCREEN 4 rooms with entities, collision, behavior codes, HUD metadata, and export contract previews.',
+        tips: [
+          'Use the left tool panels for tiles, entities, selection tools, atlas, and export contract.',
+          'Keep collision/effect layers aligned with authored tile coordinates.',
+          'For menus, use SCREEN 4 rooms plus MSX2 HUD fonts for readable text.',
+        ],
+      },
+      [EditorType.Msx2BitmapRoom]: {
+        title: 'MSX2 SCREEN 4 Bitmap Room Help',
+        summary: 'Compose bitmap-style SCREEN 4 rooms from atlas commands while preserving the 2-color-per-8-pixel-row constraint.',
+        tips: [
+          'Use copy/fill/line commands for compact reusable backgrounds.',
+          'Watch color-limit diagnostics before exporting.',
+          'Prefer repeated atlas pieces over one-off full-screen art when ROM budget matters.',
+        ],
+      },
+      [EditorType.Msx2Bitmap]: {
+        title: 'MSX2 Bitmap Editor Help',
+        summary: 'Edit MSX2 bitmap pixels and palette slots for imported or hand-authored visual assets.',
+        tips: [
+          'Keep palette slot 0/1 usage deliberate for background and transparency workflows.',
+          'Use contrast controls after PNG import to recover readable silhouettes.',
+          'For presentation screens, prefer the dedicated SCREEN 5 presentation importer.',
+        ],
+      },
+      [EditorType.Msx2HudFont]: {
+        title: 'MSX2 HUD Font Help',
+        summary: 'Prepare SCREEN 4 text glyphs for menus, HUDs, story panels, and GameFlow runtime text.',
+        tips: [
+          'Keep menu fonts consistent with the visual style of SCREEN 4 menus.',
+          'Import TTF or ZX .ch8 only when the glyph size remains readable at 8x8.',
+          'Check colorByte defaults so text has enough contrast on menu backgrounds.',
+        ],
+      },
+      [EditorType.Msx2Presentation]: {
+        title: 'MSX2 SCREEN 5 Presentation Help',
+        summary: 'Manage 256px wide SCREEN 5 4bpp presentation images generated from PNG/JPG/WebP imports.',
+        tips: [
+          'Use black background and a tuned 16-slot palette for stronger first-screen impact.',
+          'Use 192 height for regular display or 212 for taller overscan-style content.',
+          'ZX0 compression is expected for ROM-friendly presentation payloads.',
+        ],
+      },
+      [EditorType.Msx2GameFlow]: {
+        title: 'MSX2 GameFlow Help',
+        summary: 'Wire MSX2 presentation and SCREEN 4 runtime flows without touching the legacy MSX1 GameFlow.',
+        tips: [
+          'Use SCREEN 5 flow for presentation/intro and SCREEN 4 runtime flow for menus/submenus.',
+          'Connect nodes with ports; Ctrl+click a connection to add waypoints.',
+          'Use transitions that match the target purpose: SCREEN 5 terminal effects or SCREEN 4 wipes.',
+        ],
+      },
+      [EditorType.Sprite]: {
+        title: 'MSX1 Sprite Editor Help',
+        summary: 'Edit MSX1 sprite frames, animation timing, and compact previews.',
+        tips: [
+          'Keep frame dimensions consistent across animation frames.',
+          'Use animation speed to validate timing before export.',
+          'For MSX2 hardware sprites, use the MSX2 Sprite editor instead.',
+        ],
+      },
+      [EditorType.Tile]: {
+        title: 'MSX1 Tile Editor Help',
+        summary: 'Author SCREEN 2 tiles with logical IDs, line colors, and reusable patterns.',
+        tips: [
+          'Assign logical properties when tiles participate in collision or runtime semantics.',
+          'For SCREEN 2, line attributes matter as much as bitmap pattern data.',
+          'Use tile banks to keep export mapping predictable.',
+        ],
+      },
+      [EditorType.Screen]: {
+        title: 'MSX1 Screen Editor Help',
+        summary: 'Build SCREEN 2 maps with layers, entities, effect zones, and tile placement tools.',
+        tips: [
+          'Select entities or effect zones to edit their concrete properties here.',
+          'Use catalog blocks when repeating larger chunks across screens.',
+          'Keep active area and collision/effect layers aligned with gameplay needs.',
+        ],
+      },
+      [EditorType.GameFlow]: {
+        title: 'MSX1 GameFlow Help',
+        summary: 'Edit legacy MSX1 flow nodes, presentation screens, menus, text, transitions, and world entry.',
+        tips: [
+          'Use Preview before Play to validate flow logs.',
+          'Use ports and cut mode for graph wiring.',
+          'MSX2-only nodes belong in MSX2 GameFlow, not this editor.',
+        ],
+      },
+      [EditorType.WorldMap]: {
+        title: 'World Map Help',
+        summary: 'Connect screens into a navigable graph and assign directional links.',
+        tips: [
+          'Keep start screen explicit.',
+          'Use links to define spatial transitions.',
+          'SCREEN 4 rooms can participate in MSX2 projects.',
+        ],
+      },
+      [EditorType.WorldView]: {
+        title: 'World View Help',
+        summary: 'Inspect and navigate the authored world layout as a higher-level map.',
+        tips: [
+          'Use this view to catch missing links or unexpected room ordering.',
+          'Open rooms directly when a visual or collision fix is needed.',
+        ],
+      },
+      [EditorType.Code]: {
+        title: 'Code Editor Help',
+        summary: 'Edit ASM/code assets that feed exports or custom runtime hooks.',
+        tips: [
+          'Keep labels unique across generated and hand-written code.',
+          'Compile after changing shared routines.',
+          'Avoid changing generator-owned code in exported files directly.',
+        ],
+      },
+      [EditorType.Track]: {
+        title: 'Music Track Help',
+        summary: 'Author tracker-style PSG music patterns, instruments, order, and playback metadata.',
+        tips: [
+          'Keep loop/restart positions explicit.',
+          'Use short pattern tests before wiring music into GameFlow.',
+        ],
+      },
+      [EditorType.Sound]: {
+        title: 'Sound FX Help',
+        summary: 'Create PSG sound effects for gameplay events and menu feedback.',
+        tips: [
+          'Keep SFX short so they do not mask music channels for long.',
+          'Test tone/noise/envelope combinations before export.',
+        ],
+      },
+      [EditorType.Dialogue]: {
+        title: 'Dialogue Help',
+        summary: 'Configure dialogue lines, text box geometry, and character delay settings.',
+        tips: [
+          'Keep box dimensions within readable screen regions.',
+          'Match text speed to the target preview/runtime flow.',
+        ],
+      },
+      [EditorType.GlobalVariables]: {
+        title: 'Global Variables Help',
+        summary: 'Define reusable variables for GameFlow branches, runtime counters, flags, and conditions.',
+        tips: [
+          'Use clear variable names because GameFlow condition nodes reference them directly.',
+          'Prefer enumerated values for state machines and menu decisions.',
+        ],
+      },
+      [EditorType.Palette]: {
+        title: 'MSX2 Palette Help',
+        summary: 'Edit V9938 16-slot palettes used by MSX2 assets and runtime screens.',
+        tips: [
+          'Keep slot assignments consistent across related assets.',
+          'Use high contrast for text and menus.',
+        ],
+      },
+      [EditorType.Font]: {
+        title: 'MSX1 Font Help',
+        summary: 'Edit global MSX1 font patterns and row color attributes.',
+        tips: [
+          'Focus on Space, digits, and A-Z for HUD/menu readability.',
+          'Use MSX2 HUD Font for SCREEN 4 text workflows.',
+        ],
+      },
+      [EditorType.ComponentDefinitionEditor]: {
+        title: 'Component Definition Help',
+        summary: 'Define reusable ECS-style components and property schemas for entity templates.',
+        tips: [
+          'Use stable property names because generators and templates reference them.',
+          'Prefer explicit defaults for runtime-sensitive values.',
+        ],
+      },
+      [EditorType.EntityTemplateEditor]: {
+        title: 'Entity Template Help',
+        summary: 'Combine components into reusable entity templates for screens and generators.',
+        tips: [
+          'Keep template names descriptive and engine-specific when needed.',
+          'Use component defaults to reduce per-instance editing.',
+        ],
+      },
+      [EditorType.StateMachine]: {
+        title: 'State Machine Help',
+        summary: 'Author state transitions and logic definitions for runtime behavior.',
+        tips: [
+          'Keep state names short and explicit.',
+          'Validate transition coverage before wiring into gameplay.',
+        ],
+      },
+      [EditorType.Boss]: {
+        title: 'Boss Editor Help',
+        summary: 'Author boss phases, behavior previews, collision parameters, and runtime metadata.',
+        tips: [
+          'Keep phase transitions explicit and test behavior previews before export.',
+          'Use clear hitbox and projectile settings so runtime collision remains predictable.',
+        ],
+      },
+      [EditorType.Portrait]: {
+        title: 'Portrait Editor Help',
+        summary: 'Prepare character portraits for dialogue, story panels, and presentation-style UI.',
+        tips: [
+          'Keep palette and contrast consistent with dialogue backgrounds.',
+          'Preview at target size so facial details remain readable on MSX output.',
+        ],
+      },
+      [EditorType.PresentationScreen]: {
+        title: 'MSX1 Presentation Screen Help',
+        summary: 'Edit legacy MSX1 presentation screens without mixing them with MSX2 SCREEN 5 presentations.',
+        tips: [
+          'Use this for MSX1 intro/title screens.',
+          'For MSX2 impact screens, use MSX2 SCREEN 5 Presentation instead.',
+        ],
+      },
+      [EditorType.TileBanks]: {
+        title: 'Tile Banks Help',
+        summary: 'Manage SCREEN 2 tile-to-character assignments and bank placement for export.',
+        tips: [
+          'Keep repeated tiles assigned consistently across banks.',
+          'Check char codes when a screen renders unexpected patterns.',
+        ],
+      },
+      [EditorType.HUD]: {
+        title: 'HUD Editor Help',
+        summary: 'Configure gameplay UI elements such as counters, icons, bars, and labels.',
+        tips: [
+          'Keep HUD regions away from active gameplay space.',
+          'For MSX2 SCREEN 4 HUD text, pair this with MSX2 HUD Font assets.',
+        ],
+      },
+      [EditorType.MainMenu]: {
+        title: 'Main Menu Help',
+        summary: 'Configure top-level menu flow, options, labels, and visual entry points.',
+        tips: [
+          'Keep option labels short and aligned with the font used by the target runtime.',
+          'For MSX2 projects, prefer SCREEN 4 menu GameFlow nodes for runtime menus.',
+        ],
+      },
+      [EditorType.PngMsxChars]: {
+        title: 'PNG to MSX Chars Help',
+        summary: 'Convert raster input into MSX character/tile data for constrained screen modes.',
+        tips: [
+          'Start from clean high-contrast images.',
+          'Review color reduction before moving output into screens or banks.',
+        ],
+      },
+      [EditorType.BehaviorEditor]: {
+        title: 'Behavior Script Help',
+        summary: 'Edit behavior ASM snippets or generated behavior scripts used by entities.',
+        tips: [
+          'Keep register usage explicit in comments when writing hand ASM.',
+          'Compile after touching shared behavior routines.',
+        ],
+      },
+      [EditorType.HelpDocs]: {
+        title: 'Help Viewer Help',
+        summary: 'Read built-in documentation and workflow notes for Mideas editors.',
+        tips: [
+          'Use the help viewer for longer tutorials.',
+          'Use this side panel for short editor-specific reminders.',
+        ],
+      },
+      [EditorType.Attributes]: {
+        title: 'Attributes Help',
+        summary: 'Inspect or edit color/attribute data used by screen and tile rendering.',
+        tips: [
+          'Keep attribute choices aligned with the current screen mode.',
+          'For SCREEN 2, row color attributes can drive most visual issues.',
+        ],
+      },
+      [EditorType.Platformer]: {
+        title: 'Platformer Help',
+        summary: 'Configure or inspect platformer-oriented runtime settings and gameplay data.',
+        tips: [
+          'Validate movement, collision, and spawn data together.',
+          'Use screen/effect layers to make runtime behavior explicit.',
+        ],
+      },
+      [EditorType.None]: {
+        title: 'Editor Help',
+        summary: 'Select or create an asset to open an editor and see contextual guidance here.',
+        tips: [
+          'Use Project Assets to open an asset.',
+          'Use New Asset to create MSX1 or MSX2 resources.',
+        ],
+      },
+    };
+    const help = activeEditorType ? helpByEditor[activeEditorType] : undefined;
+    if (!help) return null;
+    return (
+      <div className="mt-3 border-t border-msx-border pt-2 space-y-1">
+        <div className="text-xs font-semibold text-msx-highlight">{help.title}</div>
+        <p className="text-[0.7rem] text-msx-textsecondary">{help.summary}</p>
+        <ul className="list-disc list-inside space-y-0.5 text-[0.68rem] text-msx-textsecondary">
+          {help.tips.map(tip => <li key={tip}>{tip}</li>)}
+        </ul>
+      </div>
+    );
+  };
   
-  let panelTitle = "Properties";
-  if (gameFlowNode && activeEditorType === EditorType.GameFlow) panelTitle = "Game Flow Node Properties";
-  else if (entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties";
-  else if (effectZone && activeEditorType === EditorType.Screen) panelTitle = "Effect Zone Properties";
-  else if (asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties";
+  const editorHelpContent = renderEditorHelp();
+  const hasContextualEditorHelp = !!editorHelpContent;
+
+  let panelTitle = hasContextualEditorHelp ? "Properties / Help" : "Properties";
+  if (gameFlowNode && activeEditorType === EditorType.GameFlow) panelTitle = "Game Flow Node Properties / Help";
+  else if (entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties / Help";
+  else if (effectZone && activeEditorType === EditorType.Screen) panelTitle = "Effect Zone Properties / Help";
+  else if (asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties / Help";
 
   /**
    * Renders the properties for the currently selected game flow node.
@@ -2374,28 +2736,49 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               />
             </div>
           )}
-          {gameFlowNode && activeEditorType === EditorType.GameFlow
-            ? renderGameFlowNodeProperties()
-            : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
-              ? renderEntityInstanceProperties()
-            : effectZone && activeEditorType === EditorType.Screen
-              ? renderEffectZoneProperties()
-            : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Msx2Sprite || activeEditorType === EditorType.Msx2Screen || activeEditorType === EditorType.Msx2BitmapRoom || activeEditorType === EditorType.Palette || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables || activeEditorType === EditorType.Dialogue ))
-                  ? renderAssetProperties()
-                  : (activeEditorType === EditorType.Font
-                      ? (
-                        <div className="space-y-1">
-                          <div><strong className="text-msx-highlight">Font:</strong> {msxFontName || "Default MSX1 Font"}</div>
-                          {msxFontStats && (<><div><strong className="text-msx-highlight">Total Defined Chars:</strong> {msxFontStats.defined} / 256</div><div><strong className="text-msx-highlight">Editable Range Defined:</strong> {msxFontStats.editableDefined} / {msxFontStats.editableTotal}</div></>)}
-                          <p className="text-[0.65rem] text-msx-textsecondary mt-1">Global MSX1 font used for HUD text rendering. Edit Space, 0-9, A-Z.</p>
-                        </div>
-                      )
-                      : (activeEditorType === EditorType.HelpDocs
-                          ? <p className="text-msx-textsecondary">Viewing Help & Documentation.</p>
-                          : <p className="text-msx-textsecondary">Select an asset or element.</p>
+          <>
+            {gameFlowNode && activeEditorType === EditorType.GameFlow
+              ? renderGameFlowNodeProperties()
+              : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
+                ? renderEntityInstanceProperties()
+              : effectZone && activeEditorType === EditorType.Screen
+                ? renderEffectZoneProperties()
+              : (asset && (
+                  activeEditorType === EditorType.Tile
+                  || activeEditorType === EditorType.Sprite
+                  || activeEditorType === EditorType.Msx2Sprite
+                  || activeEditorType === EditorType.Msx2Bitmap
+                  || activeEditorType === EditorType.Msx2Screen
+                  || activeEditorType === EditorType.Msx2BitmapRoom
+                  || activeEditorType === EditorType.Msx2HudFont
+                  || activeEditorType === EditorType.Msx2Presentation
+                  || activeEditorType === EditorType.Msx2GameFlow
+                  || activeEditorType === EditorType.Palette
+                  || activeEditorType === EditorType.Screen
+                  || activeEditorType === EditorType.Code
+                  || activeEditorType === EditorType.BehaviorEditor
+                  || activeEditorType === EditorType.ComponentDefinitionEditor
+                  || activeEditorType === EditorType.EntityTemplateEditor
+                  || activeEditorType === EditorType.GlobalVariables
+                  || activeEditorType === EditorType.Dialogue
+                ))
+                    ? renderAssetProperties()
+                    : (activeEditorType === EditorType.Font
+                        ? (
+                          <div className="space-y-1">
+                            <div><strong className="text-msx-highlight">Font:</strong> {msxFontName || "Default MSX1 Font"}</div>
+                            {msxFontStats && (<><div><strong className="text-msx-highlight">Total Defined Chars:</strong> {msxFontStats.defined} / 256</div><div><strong className="text-msx-highlight">Editable Range Defined:</strong> {msxFontStats.editableDefined} / {msxFontStats.editableTotal}</div></>)}
+                            <p className="text-[0.65rem] text-msx-textsecondary mt-1">Global MSX1 font used for HUD text rendering. Edit Space, 0-9, A-Z.</p>
+                          </div>
                         )
-                    )
-        }
+                        : (activeEditorType === EditorType.HelpDocs
+                            ? <p className="text-msx-textsecondary">Viewing Help & Documentation.</p>
+                            : <p className="text-msx-textsecondary">Select an asset or element.</p>
+                          )
+                      )
+            }
+            {editorHelpContent}
+          </>
         {activeEditorType === EditorType.Screen && screenEditorSelectedTileId && charCodesForDrawingTile && screenEditorActiveLayer !== 'effects' && screenEditorActiveLayer !== 'entities' && (
           <div className="mt-2 pt-2 border-t border-msx-border">
             <strong className="text-msx-highlight block mb-0.5">Char Codes (Drawing Tile):</strong>

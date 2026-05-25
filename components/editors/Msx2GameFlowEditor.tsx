@@ -560,7 +560,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
   const updateFlowPurpose = (purpose: Msx2GameFlowPurpose) => {
-    onUpdate({ purpose });
+    const nextNodes = purpose === 'screen5-presentation'
+      ? nodes.map(node =>
+          node.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(node.effect)
+            ? { ...node, effect: 'fade_to_black' as const }
+            : node
+        )
+      : nodes;
+    onUpdate({ purpose, nodes: nextNodes });
   };
 
   const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End') => {
@@ -1348,8 +1355,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   };
 
   return (
-    <Panel title="MSX2 Game Flow" className="flex-grow flex flex-col">
-      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-msx-border bg-msx-panelbg">
+    <Panel title="MSX2 Game Flow" className="min-h-0 flex-grow flex flex-col">
+      <div className="shrink-0 flex flex-wrap items-center gap-2 p-2 border-b border-msx-border bg-msx-panelbg">
         <div className="flex items-center gap-1 mr-2">
           <Button
             onClick={() => updateFlowPurpose('screen5-presentation')}
@@ -1432,8 +1439,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <div className="flex-grow" />
       </div>
 
-      <div className="min-h-0 flex-grow grid grid-cols-[1fr_300px]">
-        <div className="relative overflow-hidden bg-[#101018]" onClick={() => setContextMenu(null)}>
+      <div className="min-h-0 flex-grow overflow-hidden grid grid-cols-[1fr_300px]">
+        <div className="relative min-h-0 overflow-hidden bg-[#101018]" onClick={() => setContextMenu(null)}>
           {contextMenu && (
             <div
               className="fixed z-50 min-w-36 rounded border border-msx-border bg-msx-panelbg shadow-lg"
@@ -1637,42 +1644,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           </svg>
         </div>
 
-        <aside className="border-l border-msx-border bg-msx-bgcolor p-3 space-y-3 overflow-auto">
+        <aside className="h-full min-h-0 overflow-y-auto overflow-x-hidden border-l border-msx-border bg-msx-bgcolor p-3 space-y-3">
           <div>
             <h3 className="text-sm font-semibold mb-2">Node</h3>
             <p className="text-xs text-msx-textsecondary">{selectedNode ? selectedNode.type : 'Select a node'}</p>
           </div>
 
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Flow status</h3>
-            {flowPath.length > 0 && (
-              <div className="space-y-1 text-xs text-msx-textsecondary">
-                <p>Export path: {flowPath.map(item => item.split(':')[0]).join(' -> ')}</p>
-                <ol className="space-y-1">
-                  {flowPath.map((item, index) => (
-                    <li key={`${item}_${index}`}>{index + 1}. {item}</li>
-                  ))}
-                </ol>
-              </div>
-            )}
-            <p className="text-xs text-msx-textsecondary">
-              Purpose: {isScreen5PresentationFlow ? 'SCREEN 5 presentation/export' : 'SCREEN 4 menu/game runtime'}
-            </p>
-            {flowIssues.length === 0 ? (
-              <p className="text-xs text-green-300">
-                {isScreen5PresentationFlow ? 'Export path ready for SCREEN 5.' : 'SCREEN 4 runtime scaffold is clean.'}
-              </p>
-            ) : (
-              <ul className="space-y-1 text-xs text-yellow-200">
-                {flowIssues.map(issue => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-
           {selectedPresentationNode && (
             <div className="space-y-2">
+              <h3 className="text-sm font-semibold">SCREEN 5 Presentation</h3>
               <Button onClick={() => setIsPickerOpen(true)} size="sm" variant="secondary" className="w-full">
                 Select SCREEN 5 Asset
               </Button>
@@ -1704,22 +1684,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             </div>
           )}
 
-          {!selectedPresentationNode && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Preview</h3>
-              <p className="text-xs text-msx-textsecondary">
-                {previewLabel}
-              </p>
-              {activePresentationAsset ? (
-                <canvas ref={previewCanvasRef} className="w-full border border-msx-border bg-black" style={{ imageRendering: 'pixelated' }} />
-              ) : (
-                <div className="h-24 border border-dashed border-msx-border bg-black" />
-              )}
-            </div>
-          )}
-
           {selectedNode?.type === 'Transition' && (
             <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Transition</h3>
               <label className="block text-xs">
                 Effect
                 <select
@@ -2389,6 +2356,48 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               <p className="text-xs text-msx-textsecondary">
                 SCREEN 4 export currently supports stop/mute immediately; active track playback is blocked until the MSX2 tracker runtime is connected.
               </p>
+            </div>
+          )}
+
+          <div className="space-y-2 border-t border-msx-border pt-3">
+            <h3 className="text-sm font-semibold">Flow status</h3>
+            {flowPath.length > 0 && (
+              <div className="space-y-1 text-xs text-msx-textsecondary">
+                <p>Export path: {flowPath.map(item => item.split(':')[0]).join(' -> ')}</p>
+                <ol className="space-y-1">
+                  {flowPath.map((item, index) => (
+                    <li key={`${item}_${index}`}>{index + 1}. {item}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            <p className="text-xs text-msx-textsecondary">
+              Purpose: {isScreen5PresentationFlow ? 'SCREEN 5 presentation/export' : 'SCREEN 4 menu/game runtime'}
+            </p>
+            {flowIssues.length === 0 ? (
+              <p className="text-xs text-green-300">
+                {isScreen5PresentationFlow ? 'Export path ready for SCREEN 5.' : 'SCREEN 4 runtime scaffold is clean.'}
+              </p>
+            ) : (
+              <ul className="space-y-1 text-xs text-yellow-200">
+                {flowIssues.map(issue => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {!selectedPresentationNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Preview</h3>
+              <p className="text-xs text-msx-textsecondary">
+                {previewLabel}
+              </p>
+              {activePresentationAsset ? (
+                <canvas ref={previewCanvasRef} className="w-full border border-msx-border bg-black" style={{ imageRendering: 'pixelated' }} />
+              ) : (
+                <div className="h-24 border border-dashed border-msx-border bg-black" />
+              )}
             </div>
           )}
 

@@ -2218,7 +2218,7 @@ function addImmediateToA(value: number): string {
   return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
 }
 
-function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
+function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis, useKonamiDataBank = false): string {
   const hudFontBaseChar = getMsx2HudFontBaseChar(analysis);
   const hudFontPatternVram = hudFontBaseChar * 8;
   const hudFontColorVram = 0x2000 + (hudFontBaseChar * 8);
@@ -2280,6 +2280,7 @@ function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
 
   return `load_msx2_hud_font:
     ; Loads the generic MSX2 SCREEN 4 HUD font into reserved high char slots. Clobbers AF/BC/DE/HL.
+${useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : ''}
     ld hl, msx2_hud_font_patterns
     ld de, ${formatHexWord(hudFontPatternVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
@@ -2292,6 +2293,7 @@ function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
     ld de, ${formatHexWord(0x1000 + hudFontPatternVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call LDIRVM
+${useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : ''}
     ld a, ${formatHexByte(hudFontColorByte)}
     ld hl, ${formatHexWord(hudFontColorVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
@@ -4124,33 +4126,33 @@ control_2_players_ball_angle_from_left_paddle:
 control_2_players_ball_store_angle:
     ; A=ball center relative to paddle top. Produces six vertical angles.
     cp 4
-    jp c, .steep_up
+    jp c, control_2_players_ball_angle_store_steep_up
     cp 8
-    jp c, .up
+    jp c, control_2_players_ball_angle_store_up
     cp 13
-    jp c, .soft_up
+    jp c, control_2_players_ball_angle_store_soft_up
     cp 17
-    jp c, .soft_down
+    jp c, control_2_players_ball_angle_store_soft_down
     cp 19
-    jp c, .down
+    jp c, control_2_players_ball_angle_store_down
     ld a, 3
-    jp .store
+    jp control_2_players_ball_angle_store_dy
 control_2_players_ball_angle_steep_up:
-.steep_up:
+control_2_players_ball_angle_store_steep_up:
     ld a, #FD
-    jp .store
-.up:
+    jp control_2_players_ball_angle_store_dy
+control_2_players_ball_angle_store_up:
     ld a, #FE
-    jp .store
-.soft_up:
+    jp control_2_players_ball_angle_store_dy
+control_2_players_ball_angle_store_soft_up:
     ld a, #FF
-    jp .store
-.soft_down:
+    jp control_2_players_ball_angle_store_dy
+control_2_players_ball_angle_store_soft_down:
     ld a, 1
-    jp .store
-.down:
+    jp control_2_players_ball_angle_store_dy
+control_2_players_ball_angle_store_down:
     ld a, 2
-.store:
+control_2_players_ball_angle_store_dy:
     ld hl, msx2_enemy_runtime_dy + 1
     ld (hl), a
     ret
@@ -4909,6 +4911,10 @@ msx2_game_over_idle:
     call msx2_control_action_pressed
     or a
     jp nz, .draw_game_over
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp z, .draw_game_over
     xor a
     ld (msx2_game_over_restart_lock), a
     jp .draw_game_over
@@ -4916,6 +4922,11 @@ msx2_game_over_idle:
     call msx2_control_action_pressed
     or a
     jp nz, msx2_restart_game
+.restart_space_check:
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp z, msx2_restart_game
 .draw_game_over:
     call draw_msx2_game_over_banner
     call write_hardware_sprite_attrs
@@ -8081,7 +8092,7 @@ function buildMsx2GameFlowProgram(
     return label ? `    jp ${label}` : '    jp .main_loop';
   };
   const lines: string[] = [
-    '    ; MSX2 SCREEN 4 GameFlow entry.',
+    '    ; MSX2 minimal GameFlow: MSX2 SCREEN 4 GameFlow entry.',
     ...buildMsx2GameFlowGlobalInitLines(globalMap),
     jumpToNodeOrMain(startNodeId),
   ];
@@ -8677,7 +8688,7 @@ reset_msx2_status_border:
     ret
 `;
   const vramByteWriteAsm = buildMsx2VramByteWriteAsm();
-  const hudTextRuntimeAsm = buildMsx2HudTextRuntimeAsm(analysis);
+  const hudTextRuntimeAsm = buildMsx2HudTextRuntimeAsm(analysis, useKonamiDataBank);
   const backgroundScrollEnabled = usesShooterHorizontalMovement(analysis) && usesMsx2Screen4BackgroundScroll(analysis);
   const backgroundScrollAsm = backgroundScrollEnabled
     ? buildScreen4BackgroundScrollAsm(tileScreenLoadLabels, useKonamiDataBank)
@@ -8685,6 +8696,8 @@ reset_msx2_status_border:
   const snakeCharMovement = usesSnakeCharMovement(analysis);
   const stageBannerEnabled = hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis);
   const snakeCharRuntimeAsm = buildSnakeCharRuntimeAsm(analysis);
+  const hudFontPatternDataAsm = `${formatBytes('msx2_hud_font_patterns', buildMsx2HudFontPatternBytes(analysis), 'MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash')}msx2_hud_font_patterns_end:
+`;
   const projectSliceJson = buildMsx2ProjectSliceJson(projectName, analysis, config, tileScreens, runtimeRamEnd, useKonamiDataBank);
   const projectSliceData = JSON.parse(projectSliceJson);
   const projectSliceArtifact = renderNamedArtifactAsCommentBlock(
@@ -9418,8 +9431,7 @@ ${formatBytes('msx2_screen_hud_widget_text_pool', hudWidgetTextPool, 'Zero-termi
 ${formatWords('msx2_screen_hud_widget_variable_name_offset', hudWidgetVariableNameOffsetByWidget.length ? hudWidgetVariableNameOffsetByWidget : [0], 'Per-widget byte offsets into msx2_screen_hud_widget_variable_name_pool')}
 ${formatBytes('msx2_screen_hud_widget_variable_length', hudWidgetVariableNameLengthByWidget.length ? hudWidgetVariableNameLengthByWidget : [0], 'Per-widget variable name lengths for custom HUD bindings')}
 ${formatBytes('msx2_screen_hud_widget_variable_name_pool', hudWidgetVariableNamePool, 'Zero-terminated ASCII variable names for custom HUD bindings; offset 0 is empty')}
-${formatBytes('msx2_hud_font_patterns', buildMsx2HudFontPatternBytes(analysis), 'MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash')}
-msx2_hud_font_patterns_end:
+${useKonamiDataBank ? '' : hudFontPatternDataAsm}
 ${formatBytes('msx2_screen_attack_interval', attackWaveSettingsByScreen.map(settings => settings.intervalFrames), 'Per-msx2screen Galaxian Attack Wave interval in frames')}
 ${formatBytes('msx2_screen_attack_min', attackWaveSettingsByScreen.map(settings => settings.minAttackers), 'Per-msx2screen Galaxian Attack Wave minimum attackers')}
 ${formatBytes('msx2_screen_attack_max', attackWaveSettingsByScreen.map(settings => settings.maxAttackers), 'Per-msx2screen Galaxian Attack Wave maximum attackers')}
@@ -9460,6 +9472,7 @@ ${useKonamiDataBank ? `    ds #C000 - $, #FF
 MSX2_SCREEN4_DATA_BANK_ROM_START:
 
 ${formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
+${hudFontPatternDataAsm}
 ${hardwareSpriteDataAsm}
 ${tileScreenBlocks.join('\n')}
     ds #A000 - $, #FF` : `${tileScreenBlocks.join('\n')}

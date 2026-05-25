@@ -274,6 +274,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const bossPackageInputRef = React.useRef<HTMLInputElement>(null);
   const [isAssetExplorerCollapsed, setIsAssetExplorerCollapsed] = useState(false);
   const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
+  const [selectedMsx2GameFlowNodeId, setSelectedMsx2GameFlowNodeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedMsx2GameFlowNodeId(null);
+  }, [currentEditor, selectedAssetId]);
   
   const selectedEntityInstance = activeScreenMapAsset?.layers.entities.find(e => e.id === selectedEntityInstanceId);
   const selectedEffectZone = activeScreenMapAsset?.effectZones?.find(ez => ez.id === selectedEffectZoneId); 
@@ -655,8 +660,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               gameFlowGraph={activeAsset.data as Msx2GameFlowGraph}
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               allAssets={assets}
-              selectedNodeId={selectedGameFlowNodeId}
-              setSelectedNodeId={setSelectedGameFlowNodeId}
+              selectedNodeId={selectedMsx2GameFlowNodeId}
+              setSelectedNodeId={setSelectedMsx2GameFlowNodeId}
             />
           )}
           {currentEditor === EditorType.Dialogue && activeAsset?.type === 'dialogue' && (

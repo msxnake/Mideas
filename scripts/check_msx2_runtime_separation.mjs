@@ -98,10 +98,10 @@ const checks = [
   ],
   [
     'MSX2 SCREEN 4 backend owns Snake char runtime without legacy ECS',
-    msx2Generator.includes('usesSnakeCharMovement') &&
+      msx2Generator.includes('usesSnakeCharMovement') &&
       msx2Generator.includes('buildSnakeCharRuntimeAsm') &&
       msx2Generator.includes('msx2_snake_head_x EQU #C030') &&
-      msx2Generator.includes('MSX2_SNAKE_BODY_BASE = 0xC040') &&
+      msx2Generator.includes('MSX2_SNAKE_BODY_BASE = 0xC044') &&
       msx2Generator.includes('MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2)') &&
       msx2Generator.includes('call update_msx2_snake_char'),
   ],
