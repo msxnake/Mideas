@@ -2422,10 +2422,6 @@ msx2_gameflow_music_stop:
     ld e, #3F
     call msx2_gameflow_psg_write
     ret
-
-msx2_gameflow_music_play_marker:
-    ; Reserved hook for track playback once the MSX2 SCREEN 4 tracker runtime is wired.
-    ret
 `;
 }
 
@@ -5907,6 +5903,16 @@ function validateMsx2GameFlowSubMenuEdges(graph: any): void {
   }
 }
 
+function validateMsx2GameFlowMusicRuntime(graph: any): void {
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  for (const node of nodes) {
+    if (node?.type !== 'Music') continue;
+    if (node.stop !== true && node.autoPlay !== false) {
+      throw new Error(`MSX2 SCREEN 4 Music node ${node.id || ''} requests active playback, but tracker playback is not wired yet; use stop/autoPlay=false.`);
+    }
+  }
+}
+
 function getScreen4RuntimeGameFlow(analysis: ProjectAnalysis): any {
   const msx2Flow = ((analysis as any).msx2GameFlows || []).find((flow: any) => flow?.purpose === 'screen4-runtime');
   return msx2Flow || analysis.gameFlow;
@@ -6669,7 +6675,9 @@ function buildMsx2ProjectSliceJson(
     } else if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
       includeByTypeAndId('msx2screen', getFlowBackgroundScreenAssetId(node), `GameFlow ${node.type} background`);
     } else if (node.type === 'Music') {
-      includeByTypeAndId('track', node.trackAssetId, `GameFlow Music node ${node.id}`);
+      if (node.stop !== true && node.autoPlay !== false) {
+        includeByTypeAndId('track', node.trackAssetId, `GameFlow Music node ${node.id}`);
+      }
     } else if (node.type === 'Globals') {
       includeByTypeAndId('globalvariables', node.globalVariablesAssetId, `GameFlow Globals node ${node.id}`);
     } else if (node.type === 'PresentationScreen') {
@@ -8015,6 +8023,7 @@ function buildMsx2GameFlowProgram(
     return buildMsx2TileScreenLoadLines(fallbackLabel, tileScreenIndexByLabel, refreshHardwareSprites);
   }
   validateMsx2GameFlowSubMenuEdges(graph);
+  validateMsx2GameFlowMusicRuntime(graph);
 
   const nodeLabels = new Map<string, string>();
   graph.nodes.forEach((node: any, index: number) => {
@@ -8050,11 +8059,8 @@ function buildMsx2GameFlowProgram(
       case 'Music':
         if (current.stop === true || current.autoPlay === false) {
           lines.push('    call msx2_gameflow_music_stop');
-        } else if (current.trackAssetId) {
-          lines.push('    ; Music track marker reserved for MSX2 SCREEN 4 tracker hookup');
-          lines.push('    call msx2_gameflow_music_play_marker');
         } else {
-          lines.push('    ; Empty Music node');
+          throw new Error(`MSX2 SCREEN 4 Music node ${current.id || ''} requests active playback, but tracker playback is not wired yet; use stop/autoPlay=false.`);
         }
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
@@ -8092,7 +8098,7 @@ function buildMsx2GameFlowProgram(
         break;
       }
       case 'Screen4Screen': {
-        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current));
         if (!label) {
           throw new Error(`MSX2 SCREEN 4 GameFlow Screen4Screen node ${current.id} must reference an exportable SCREEN 4 room.`);
         }
@@ -9076,11 +9082,17 @@ msx2_read_control_buttons:
     ret
 
 wait_key:
-    call CHGET
+    ; Wait for the GameFlow Controls logical action button instead of raw BIOS CHGET.
+.wait_action:
+    call wait_frame_busy
+    call msx2_control_action_pressed
+    or a
+    jp z, .wait_action
+    call wait_key_release
     ret
 
 wait_key_release:
-    ; Debounce menu-confirm keys and clear BIOS keyboard buffer before CHGET.
+    ; Debounce menu-confirm keys and clear BIOS keyboard buffer before action waits.
 .release_loop:
     call wait_frame_busy
     call msx2_submenu_confirm_pressed
@@ -9430,7 +9442,7 @@ export function generateMsx2Screen4Files(
     'resource_ids.asm': '; MSX2 SCREEN 4 backend has no resource table in MVP.\n',
     'resource_table.asm': '; MSX2 SCREEN 4 backend has no resource table in MVP.\n',
     'resource_manager.asm': '; MSX2 SCREEN 4 backend has no resource manager in MVP.\n',
-    'interrupt.asm': '; MSX2 SCREEN 4 backend uses BIOS CHGET and HALT loop in MVP.\n',
+    'interrupt.asm': '; MSX2 SCREEN 4 backend uses Controls-mapped GameFlow waits and HALT loop in MVP.\n',
     'header.asm': '; MSX2 SCREEN 4 backend header is emitted in unitedFiles.asm.\n',
     'patterns.asm': '; SCREEN 2 pattern tables are intentionally not used by MSX2 SCREEN 4.\n',
     'colors.asm': '; SCREEN 2 color tables are intentionally not used by MSX2 SCREEN 4.\n',

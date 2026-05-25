@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import * as esbuild from 'esbuild';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -23,6 +24,203 @@ const screen5PresentationGenerator = read('utils/msxGenerator/generators/msx2/ms
 const screen4Generator = read('utils/msxGenerator/generators/msx2/msx2Screen4Generator.ts');
 const gameflowCase = assetHandlers.match(/case 'gameflow':[\s\S]*?break;/)?.[0] || '';
 const msx2GameflowCase = assetHandlers.match(/case 'msx2gameflow':[\s\S]*?break;/)?.[0] || '';
+const screen4TransitionEffects = [
+  'cls',
+  'fade_to_black',
+  'dissolve_pixels',
+  'dissolve_chars',
+  'horizontal_lines',
+  'vertical_lines',
+  'spiral',
+  'fill_white_squares',
+  'diagonal_clear',
+  'diagonal_inverse',
+  'checkerboard',
+  'doors',
+  'center_curtain',
+  'venetian_blinds',
+  'radial_wipe',
+  'block4_shuffle',
+  'zoom_box',
+];
+
+async function loadBundledGenerator() {
+  const bundle = await esbuild.build({
+    entryPoints: [path.join(root, 'utils/msxGenerator/index.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    write: false,
+    external: ['react', 'react-dom', '@xyflow/react', 'jszip', 'axios', 'lucide-react', 'twgl.js'],
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+}
+
+function makeMusicGuardAssets(musicNode) {
+  const palette = [
+    { slotIndex: 0, masterIndex: -1, hex: 'rgba(0,0,0,0)' },
+    { slotIndex: 1, masterIndex: 0, hex: '#000000' },
+    { slotIndex: 15, masterIndex: 511, hex: '#FFFFFF' },
+  ];
+  const tile = {
+    id: 'tile_music_guard_black',
+    name: 'Black',
+    width: 16,
+    height: 16,
+    screen5Palette: palette,
+    pixels: Array.from({ length: 16 }, () => Array(16).fill('#000000')),
+    logicalProperties: { mapId: 0, familyId: 0, instanceId: 0, isSolid: false },
+  };
+  const emptyLayer = Array.from({ length: 12 }, () => Array(16).fill(0));
+  const screen = {
+    id: 'screen_music_guard',
+    name: 'Music Guard Screen',
+    target: 'MSX2',
+    vdpMode: 'SCREEN4',
+    tileSize: 16,
+    widthTiles: 16,
+    heightTiles: 12,
+    tiles: [tile],
+    map: emptyLayer,
+    collisionMap: emptyLayer,
+    layers: { collision: emptyLayer, effects: emptyLayer, behavior: emptyLayer, entities: [] },
+    runtime: { screenKind: 'cutscene', screenEngine: 'fakePlayer', requiredCollectibles: 0, initialAir: 255 },
+    backgroundColor: 1,
+    borderColor: 1,
+  };
+  const gameFlow = {
+    id: 'gf_music_guard',
+    name: 'MSX2 Music Guard',
+    purpose: 'screen4-runtime',
+    startNodeId: 'start',
+    panOffset: { x: 0, y: 0 },
+    zoomLevel: 1,
+    nodes: [
+      { id: 'start', type: 'Start', position: { x: 0, y: 0 } },
+      { id: 'music', type: 'Music', position: { x: 160, y: 0 }, ...musicNode },
+      { id: 'end', type: 'End', position: { x: 320, y: 0 }, message: 'END', waitForKey: false },
+    ],
+    connections: [
+      { id: 'c_start_music', from: { nodeId: 'start' }, to: { nodeId: 'music' } },
+      { id: 'c_music_end', from: { nodeId: 'music' }, to: { nodeId: 'end' } },
+    ],
+  };
+  return [
+    { id: 'asset_tile_music_guard_black', name: tile.name, type: 'tile', data: tile },
+    { id: 'asset_screen_music_guard', name: screen.name, type: 'msx2screen', data: screen },
+    { id: 'track_music_guard', name: 'Guard Track', type: 'track', data: { patterns: [] } },
+    { id: 'asset_gf_music_guard', name: gameFlow.name, type: 'msx2gameflow', data: gameFlow },
+  ];
+}
+
+function makeScreen4ScreenGuardAssets(screenNode) {
+  const assets = makeMusicGuardAssets({ stop: true, autoPlay: false });
+  const gameFlowAsset = assets.find(asset => asset.id === 'asset_gf_music_guard');
+  gameFlowAsset.name = 'MSX2 Screen4Screen Guard';
+  gameFlowAsset.data = {
+    ...gameFlowAsset.data,
+    id: 'gf_screen4screen_guard',
+    name: 'MSX2 Screen4Screen Guard',
+    nodes: [
+      { id: 'start', type: 'Start', position: { x: 0, y: 0 } },
+      { id: 'screen', type: 'Screen4Screen', position: { x: 160, y: 0 }, ...screenNode },
+      { id: 'end', type: 'End', position: { x: 320, y: 0 }, message: 'END', waitForKey: false },
+    ],
+    connections: [
+      { id: 'c_start_screen', from: { nodeId: 'start' }, to: { nodeId: 'screen' } },
+      { id: 'c_screen_end', from: { nodeId: 'screen' }, to: { nodeId: 'end' } },
+    ],
+  };
+  return assets;
+}
+
+function makeTransitionGuardAssets(effect) {
+  const assets = makeMusicGuardAssets({ stop: true, autoPlay: false });
+  const gameFlowAsset = assets.find(asset => asset.id === 'asset_gf_music_guard');
+  gameFlowAsset.name = 'MSX2 Transition Guard';
+  gameFlowAsset.data = {
+    ...gameFlowAsset.data,
+    id: 'gf_transition_guard',
+    name: 'MSX2 Transition Guard',
+    nodes: [
+      { id: 'start', type: 'Start', position: { x: 0, y: 0 } },
+      { id: 'transition', type: 'Transition', position: { x: 160, y: 0 }, effect, durationFrames: 3 },
+      { id: 'end', type: 'End', position: { x: 320, y: 0 }, message: 'END', waitForKey: false },
+    ],
+    connections: [
+      { id: 'c_start_transition', from: { nodeId: 'start' }, to: { nodeId: 'transition' } },
+      { id: 'c_transition_end', from: { nodeId: 'transition' }, to: { nodeId: 'end' } },
+    ],
+  };
+  return assets;
+}
+
+async function runExecutableMusicGuardChecks() {
+  const generator = await loadBundledGenerator();
+  const generate = (assets) => {
+    const originalLog = console.log;
+    try {
+      console.log = () => {};
+      return generator.generateModularASM('MSX2_Music_Guard', assets, {
+        generateUnified: true,
+        screenMode: 'SCREEN 4 (Graphics II)',
+        targetGraphicsBackend: 'msx2-screen4-pattern',
+        romMode: 'simple32k',
+        targetFormat: 'konami',
+      })['unitedFiles.asm'];
+    } finally {
+      console.log = originalLog;
+    }
+  };
+  try {
+    const asm = generate(makeMusicGuardAssets({ stop: true, autoPlay: false }));
+    addCheck('SCREEN 4 Music stop node is executable in generator', asm.includes('call msx2_gameflow_music_stop') && asm.includes('msx2_gameflow_music_stop:'));
+  } catch (error) {
+    addCheck('SCREEN 4 Music stop node is executable in generator', false, error?.message || String(error));
+  }
+  try {
+    const asm = generate(makeMusicGuardAssets({ stop: true, autoPlay: false, trackAssetId: 'missing_track_asset' }));
+    addCheck('SCREEN 4 Music stop node ignores stale track references', asm.includes('call msx2_gameflow_music_stop') && !asm.includes('missing_track_asset'));
+  } catch (error) {
+    addCheck('SCREEN 4 Music stop node ignores stale track references', false, error?.message || String(error));
+  }
+  try {
+    generate(makeMusicGuardAssets({ stop: false, autoPlay: true, trackAssetId: 'track_music_guard' }));
+    addCheck('SCREEN 4 Music active track is rejected by generator', false, 'active Music track did not throw');
+  } catch (error) {
+    addCheck('SCREEN 4 Music active track is rejected by generator', /active playback/.test(error?.message || String(error)) && /tracker playback is not wired yet/.test(error?.message || String(error)));
+  }
+  try {
+    generate(makeMusicGuardAssets({ stop: false, autoPlay: true }));
+    addCheck('SCREEN 4 Music active empty node is rejected by generator', false, 'active empty Music node did not throw');
+  } catch (error) {
+    addCheck('SCREEN 4 Music active empty node is rejected by generator', /active playback/.test(error?.message || String(error)) && /tracker playback is not wired yet/.test(error?.message || String(error)));
+  }
+  try {
+    generate(makeScreen4ScreenGuardAssets({ screenAssetId: 'missing_screen_asset' }));
+    addCheck('SCREEN 4 Screen4Screen missing room is rejected by generator', false, 'missing Screen4Screen room did not throw');
+  } catch (error) {
+    addCheck('SCREEN 4 Screen4Screen missing room is rejected by generator', /must reference an exportable SCREEN 4 room/.test(error?.message || String(error)));
+  }
+  const transitionFailures = [];
+  for (const effect of screen4TransitionEffects) {
+    try {
+      const asm = generate(makeTransitionGuardAssets(effect));
+      if (!asm.includes('MSX2 SCREEN 4 GameFlow entry.') || !asm.includes('clear_screen4')) {
+        transitionFailures.push(effect);
+      }
+    } catch (_error) {
+      transitionFailures.push(effect);
+    }
+  }
+  addCheck('SCREEN 4 all declared transition effects are executable in generator', transitionFailures.length === 0, transitionFailures.join(', '));
+  try {
+    generate(makeTransitionGuardAssets('invalid_transition'));
+    addCheck('SCREEN 4 invalid transition effect is rejected by generator', false, 'invalid transition did not throw');
+  } catch (error) {
+    addCheck('SCREEN 4 invalid transition effect is rejected by generator', /transition "invalid_transition" is not supported/.test(error?.message || String(error)));
+  }
+}
 
 addCheck('types declare Msx2GameFlowGraph', /interface\s+Msx2GameFlowGraph/.test(types));
 addCheck('types declare Msx2GameFlowNode union', /type\s+Msx2GameFlowNode\s*=/.test(types));
@@ -108,7 +306,7 @@ addCheck(
 );
 addCheck(
   'MSX2 Transition type includes converted SCREEN 4 effects',
-  types.includes("effect: 'cls' | 'fade_to_black' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box';")
+  screen4TransitionEffects.every(effect => types.includes(`'${effect}'`))
 );
 addCheck(
   'MSX1 GameFlowNode union does not include MSX2 nodes',
@@ -129,19 +327,20 @@ addCheck('SCREEN 5 generator resolves MSX2 gameflow presentation node', screen5P
 addCheck('SCREEN 5 generator ignores SCREEN 4 runtime GameFlows', screen5PresentationGenerator.includes("candidate?.purpose !== 'screen4-runtime'"));
 addCheck('SCREEN 4 generator selects MSX2 screen4 runtime GameFlow', screen4Generator.includes('getScreen4RuntimeGameFlow') && screen4Generator.includes("flow?.purpose === 'screen4-runtime'") && screen4Generator.includes("asset?.type === gameFlowAssetType") && screen4Generator.includes("'msx2gameflow'"));
 addCheck('SCREEN 4 generator reads MSX2 visual screen ids', screen4Generator.includes('getFlowBackgroundScreenAssetId') && screen4Generator.includes('node?.backgroundScreenAssetId || node?.screenAssetId') && screen4Generator.includes('getFlowBackgroundScreenAssetId(current)'));
-addCheck('SCREEN 4 generator emits Screen4Screen panel runtime', screen4Generator.includes("case 'Screen4Screen'") && screen4Generator.includes('must reference an exportable SCREEN 4 room') && screen4Generator.includes('buildMsx2TileScreenLoadLines(label') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('djnz .${labelForNodeId(current.id)}_wait_frames'));
+addCheck('SCREEN 4 generator emits Screen4Screen panel runtime', screen4Generator.includes("case 'Screen4Screen'") && screen4Generator.includes('must reference an exportable SCREEN 4 room') && screen4Generator.includes('buildMsx2TileScreenLoadLines(label') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('djnz .${labelForNodeId(current.id)}_wait_frames') && /case 'Screen4Screen':[\s\S]*?const label = screenLoadLabelForAssetId\(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId\(current\)\);\s*if \(!label\)/.test(screen4Generator));
 addCheck('MSX2 GameFlow editor exposes TextScroll panel controls', editor.includes("addNode('TextScroll')") && editor.includes('selectedTextScrollNode') && editor.includes('updateSelectedTextScroll') && editor.includes('SCREEN 4 export renders this as a story panel'));
 addCheck('MSX2 GameFlow editor exposes TextScrollColor panel controls', editor.includes("addNode('TextScrollColor')") && editor.includes('selectedTextScrollColorNode') && editor.includes('updateSelectedTextScrollColor') && editor.includes('colored story panel'));
-addCheck('MSX2 GameFlow editor exposes Music node controls', editor.includes("addNode('Music')") && editor.includes('selectedMusicNode') && editor.includes('updateSelectedMusic'));
+addCheck('MSX2 GameFlow editor exposes Music node controls', editor.includes("addNode('Music')") && editor.includes('selectedMusicNode') && editor.includes('updateSelectedMusic') && editor.includes('Music track playback is not wired for MSX2 SCREEN 4 export yet') && editor.includes('active track playback is blocked until the MSX2 tracker runtime is connected') && editor.includes('stop: true') && editor.includes('autoPlay: false'));
 addCheck('SCREEN 4 generator emits TextScroll panel runtime', screen4Generator.includes("case 'TextScroll'") && screen4Generator.includes('buildMsx2TextScrollNodeData') && screen4Generator.includes('_TEXTSCROLL') && screen4Generator.includes('TextScroll panel text'));
 addCheck('SCREEN 4 generator emits TextScrollColor panel runtime', screen4Generator.includes("case 'TextScrollColor'") && screen4Generator.includes('buildMsx2TextScrollColorNodeData') && screen4Generator.includes('_TEXTSCROLL_COLOR') && screen4Generator.includes('fill_msx2_hud_font_color') && screen4Generator.includes('TextScrollColor panel text'));
-addCheck('SCREEN 4 generator emits Music node runtime helper', screen4Generator.includes("case 'Music'") && screen4Generator.includes('call msx2_gameflow_music') && screen4Generator.includes('msx2_gameflow_music:'));
+addCheck('SCREEN 4 generator emits Music stop helper and rejects unwired active playback', screen4Generator.includes("case 'Music'") && screen4Generator.includes('call msx2_gameflow_music_stop') && screen4Generator.includes('msx2_gameflow_music:') && screen4Generator.includes('validateMsx2GameFlowMusicRuntime(graph)') && screen4Generator.includes('active playback') && screen4Generator.includes('tracker playback is not wired yet') && screen4Generator.includes("includeByTypeAndId('track', node.trackAssetId") && screen4Generator.includes('node.stop !== true && node.autoPlay !== false') && !screen4Generator.includes('msx2_gameflow_music_play_marker'));
 addCheck('SCREEN 4 generator includes Screen4Screen referenced assets', screen4Generator.includes("node.type === 'Screen4Screen'") && screen4Generator.includes("includeByTypeAndId('msx2screen', getFlowBackgroundScreenAssetId(node), `GameFlow ${node.type} background`)"));
 addCheck('SCREEN 4 generator emits runtime SubMenu option branching', screen4Generator.includes('sourceTargetNodeId') && screen4Generator.includes('sourceTargetNodeId(graph.connections, current.id, option?.id)') && !screen4Generator.includes('OPTION_${index}') && screen4Generator.includes('call msx2_submenu_select') && screen4Generator.includes('jp z, ${targetLabel}') && screen4Generator.includes('call GTSTCK') && screen4Generator.includes('call msx2_submenu_confirm_pressed') && screen4Generator.includes('Input: B=option count'));
 addCheck('SCREEN 4 generator rejects invalid SubMenu option edges', screen4Generator.includes('validateMsx2GameFlowSubMenuEdges') && screen4Generator.includes('connection to a missing node') && screen4Generator.includes('must include at least one option') && screen4Generator.includes('needs an outgoing connection') && screen4Generator.includes('has more than one outgoing connection') && screen4Generator.includes('unknown option') && screen4Generator.includes('validateMsx2GameFlowSubMenuEdges(graph)'));
 addCheck('SCREEN 4 generator draws visual SubMenu text and cursor', screen4Generator.includes('buildMsx2SubMenuTextData') && screen4Generator.includes('call load_msx2_hud_font') && screen4Generator.includes('call draw_${dataLabel}') && screen4Generator.includes('draw_msx2_submenu_cursor') && screen4Generator.includes('MSX2_HUD_FONT_BASE_CHAR + 38'));
 addCheck('SCREEN 4 generator draws visual Text node messages', screen4Generator.includes('buildMsx2TextNodeData') && screen4Generator.includes('wrapMsx2Screen4Text') && screen4Generator.includes('draw_${dataLabel}') && screen4Generator.includes('PRESS KEY') && screen4Generator.includes('djnz .${dataLabel}_wait_frames'));
-addCheck('SCREEN 4 GameFlow key waits debounce menu confirmation', screen4Generator.includes('KILBUF  EQU #0156') && screen4Generator.includes('wait_key_release:') && screen4Generator.includes('call msx2_submenu_confirm_pressed') && screen4Generator.includes('jp nz, .release_loop') && screen4Generator.includes('call KILBUF') && screen4Generator.includes('call wait_key_release'));
+addCheck('SCREEN 4 GameFlow key waits use Controls action mapping', screen4Generator.includes('KILBUF  EQU #0156') && screen4Generator.includes('wait_key_release:') && screen4Generator.includes('call msx2_submenu_confirm_pressed') && screen4Generator.includes('jp nz, .release_loop') && screen4Generator.includes('call KILBUF') && screen4Generator.includes('wait_key:') && screen4Generator.includes('call msx2_control_action_pressed') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('Wait for the GameFlow Controls logical action button instead of raw BIOS CHGET'));
+addCheck('SCREEN 4 generated file comments no longer promise CHGET waits', screen4Generator.includes('Controls-mapped GameFlow waits') && !screen4Generator.includes('backend uses BIOS CHGET'));
 addCheck('SCREEN 4 generator draws visual End node messages', screen4Generator.includes("case 'End'") && screen4Generator.includes('hasEndText') && screen4Generator.includes('_END') && screen4Generator.includes('call draw_${dataLabel}') && screen4Generator.includes('jp .main_loop'));
 addCheck('SCREEN 4 generator draws Controls node and applies runtime bindings', screen4Generator.includes("case 'Controls'") && screen4Generator.includes('buildMsx2ControlsTextData') && screen4Generator.includes('B1 KEY:') && screen4Generator.includes('B2 KEY:') && screen4Generator.includes('_CONTROLS') && screen4Generator.includes('call draw_${dataLabel}') && screen4Generator.includes('msx2_input_key_button1_mode') && screen4Generator.includes('msx2_control_jump_button') && screen4Generator.includes('msx2_control_action_pressed'));
 addCheck('SCREEN 4 generator keeps SubMenu HUD text available without sprite runtime', screen4Generator.includes('hasHardwareSprite(analysis)') && screen4Generator.includes('load_msx2_hud_font:') && screen4Generator.includes('draw_msx2_hud_string:') && screen4Generator.includes('write_vram_byte_ext:') && screen4Generator.includes('draw_msx2_game_over_banner:'));
@@ -161,6 +360,8 @@ addCheck('SCREEN 5 generator emits terminal MSX2 transition runtime', screen5Pre
 addCheck('SCREEN 5 generator emits MSX2 Globals runtime writes', screen5PresentationGenerator.includes('Msx2GameFlowGlobalsNode') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_INITIAL_GLOBALS') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_AFTER_PRESENTATION_GLOBALS') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_AFTER_TRANSITION_GLOBALS') && screen5PresentationGenerator.includes('msx2_gameflow_apply_initial_globals') && screen5PresentationGenerator.includes('global_var_') && screen5PresentationGenerator.includes('EQU #'));
 addCheck('SCREEN 5 generator emits MSX2 Text runtime', screen5PresentationGenerator.includes('Msx2GameFlowTextNode') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_TEXT') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_TEXT_NODE') && screen5PresentationGenerator.includes('renderScreen5TextBlock') && screen5PresentationGenerator.includes('screen5TextBlockCall') && screen5PresentationGenerator.includes('(y + row) * BYTES_PER_LINE') && screen5PresentationGenerator.includes('call LDIRVM'));
 addCheck('SCREEN 5 generator emits MSX2 IfThenElse runtime branches', screen5PresentationGenerator.includes('Msx2GameFlowIfThenElseNode') && screen5PresentationGenerator.includes('MSX2_GAMEFLOW_IFTHENELSE') && screen5PresentationGenerator.includes('msx2_gameflow_compare_hl_de') && screen5PresentationGenerator.includes('msx2_gameflow_branch_then') && screen5PresentationGenerator.includes('msx2_gameflow_branch_else') && screen5PresentationGenerator.includes("'then'") && screen5PresentationGenerator.includes("'else'"));
+
+await runExecutableMusicGuardChecks();
 
 const failed = checks.filter(check => !check.ok);
 for (const check of checks) {

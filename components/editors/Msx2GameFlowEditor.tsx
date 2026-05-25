@@ -355,7 +355,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 4 runtime.`);
           }
         } else if (node.type === 'Music') {
-          // Music stop/mute is supported in SCREEN 4; track playback is exported as a marker until tracker hookup.
+          if (node.stop !== true && node.autoPlay !== false) {
+            issues.push('Music track playback is not wired for MSX2 SCREEN 4 export yet; use Stop PSG on entry.');
+          }
         } else if (node.type !== 'Start' && node.type !== 'Waypoint' && node.type !== 'Globals' && node.type !== 'Transition' && node.type !== 'Restart' && node.type !== 'End') {
           issues.push(`${node.type} is not supported by the SCREEN 4 runtime purpose yet.`);
         }
@@ -578,10 +580,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           ? {
               id,
               type,
-              stop: false,
-              trackAssetId: trackAssets[0]?.id,
+              stop: true,
+              trackAssetId: undefined,
               loop: true,
-              autoPlay: true,
+              autoPlay: false,
               position: { x, y },
             }
         : type === 'Screen4Screen'
@@ -1953,7 +1955,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 Loop track
               </label>
               <p className="text-xs text-msx-textsecondary">
-                SCREEN 4 export currently supports stop/mute immediately; track playback is kept as an export marker until the MSX2 tracker runtime is connected.
+                SCREEN 4 export currently supports stop/mute immediately; active track playback is blocked until the MSX2 tracker runtime is connected.
               </p>
             </div>
           )}
