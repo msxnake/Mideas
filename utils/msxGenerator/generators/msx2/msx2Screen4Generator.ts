@@ -7928,24 +7928,16 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
       }
       break;
     case 'spiral': {
-      let left = 0;
-      let right = 31;
-      let top = 0;
-      let bottom = 23;
-      while (left <= right && top <= bottom) {
-        for (let column = left; column <= right; column++) writeBlankCell(top, column);
-        for (let row = top + 1; row <= bottom; row++) writeBlankCell(row, right);
-        if (top < bottom) {
-          for (let column = right - 1; column >= left; column--) writeBlankCell(bottom, column);
-        }
-        if (left < right) {
-          for (let row = bottom - 1; row > top; row--) writeBlankCell(row, left);
-        }
+      for (let inset = 0; inset < 12; inset += 2) {
+        const left = inset;
+        const right = 31 - inset;
+        const top = inset;
+        const bottom = 23 - inset;
+        writeBlankBlock(top, left, 1, right - left + 1);
+        writeBlankBlock(bottom, left, 1, right - left + 1);
+        writeBlankBlock(top + 1, left, Math.max(0, bottom - top - 1), 1);
+        writeBlankBlock(top + 1, right, Math.max(0, bottom - top - 1), 1);
         waitStep();
-        left += 1;
-        right -= 1;
-        top += 1;
-        bottom -= 1;
       }
       break;
     }
@@ -7957,21 +7949,21 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
       }
       break;
     case 'diagonal_clear':
-      for (let diagonal = 0; diagonal <= 54; diagonal++) {
-        for (let row = 0; row < 24; row++) {
+      for (let diagonal = 0; diagonal <= 52; diagonal += 4) {
+        for (let row = 0; row < 24; row += 4) {
           const column = diagonal - row;
-          if (column < 0 || column >= 32) continue;
-          writeBlankCell(row, column);
+          if (column < -3 || column >= 32) continue;
+          writeBlankBlock(row, Math.max(0, column), 4, 4);
         }
         waitStep();
       }
       break;
     case 'diagonal_inverse':
-      for (let diagonal = 0; diagonal <= 54; diagonal++) {
-        for (let row = 0; row < 24; row++) {
+      for (let diagonal = 0; diagonal <= 52; diagonal += 4) {
+        for (let row = 0; row < 24; row += 4) {
           const column = 31 - (diagonal - row);
-          if (column < 0 || column >= 32) continue;
-          writeBlankCell(row, column);
+          if (column < 0 || column >= 35) continue;
+          writeBlankBlock(row, Math.min(31, column), 4, 4);
         }
         waitStep();
       }
