@@ -1065,6 +1065,41 @@ ${promptDraw}
 ${rows.join('')}`;
 }
 
+function getMsx2Screen4ColorNibble(value: unknown, fallback: number): number {
+  return Math.max(0, Math.min(15, Math.trunc(Number(value) || fallback)));
+}
+
+function buildMsx2TextScrollColorNodeData(label: string, node: any, analysis: ProjectAnalysis): string {
+  const allowedCharacters = getMsx2HudFontCharacters(analysis);
+  const title = normalizeMsx2HudText(String(node?.title || 'TEXT SCROLL COLOR'), 22, allowedCharacters);
+  const textLines = wrapMsx2Screen4Text(node?.text || '', 26, 8)
+    .map(line => normalizeMsx2HudText(line, 26, allowedCharacters));
+  const prompt = node?.waitForKey === false ? '' : normalizeMsx2HudText('PRESS KEY', 12, allowedCharacters);
+  const rows = [title, ...textLines, ...(prompt ? [prompt] : [])].map((text, index) =>
+    formatBytes(`${label}_TEXT_${index}`, [...Array.from(text).map(char => String(char).charCodeAt(0) & 0xff), 0], `MSX2 SCREEN 4 TextScrollColor panel text "${text}"`)
+  );
+  const textDraws = textLines.map((_line, index) => {
+    const vram = 0x1943 + ((index + 1) * SCREEN4_CHAR_COLUMNS);
+    return `    ld hl, #${vram.toString(16).toUpperCase().padStart(4, '0')}
+    ld de, ${label}_TEXT_${index + 1}
+    call draw_msx2_hud_string`;
+  }).join('\n');
+  const promptDraw = prompt
+    ? `    ld hl, #1AEF
+    ld de, ${label}_TEXT_${textLines.length + 1}
+    call draw_msx2_hud_string`
+    : '';
+  return `draw_${label}:
+    ld hl, #1905
+    ld de, ${label}_TEXT_0
+    call draw_msx2_hud_string
+${textDraws || '    ; No TextScrollColor lines to draw'}
+${promptDraw}
+    ret
+
+${rows.join('')}`;
+}
+
 function buildMsx2ControlsTextData(label: string, node: any, analysis: ProjectAnalysis): string {
   const allowedCharacters = getMsx2HudFontCharacters(analysis);
   const keyForButton = (button: unknown): string =>
@@ -2252,6 +2287,22 @@ function buildMsx2HudTextRuntimeAsm(analysis: ProjectAnalysis): string {
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call FILVRM
     ld a, ${formatHexByte(hudFontColorByte)}
+    ld hl, ${formatHexWord(0x1000 + hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    jp FILVRM
+
+fill_msx2_hud_font_color:
+    ; A=color byte, high nibble foreground and low nibble background. Clobbers AF/BC/HL.
+    push af
+    ld hl, ${formatHexWord(hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    pop af
+    push af
+    ld hl, ${formatHexWord(0x0800 + hudFontColorVram)}
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    pop af
     ld hl, ${formatHexWord(0x1000 + hudFontColorVram)}
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     jp FILVRM
@@ -5918,7 +5969,7 @@ function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
       addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'Text') {
       addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
-    } else if (node.type === 'TextScroll') {
+    } else if (node.type === 'TextScroll' || node.type === 'TextScrollColor') {
       addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'Controls') {
       addScreen(resolveScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
@@ -5941,7 +5992,7 @@ function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen4Til
   };
 
   for (const node of graph?.nodes || []) {
-    if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'TextScroll' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
+    if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
       addScreen(resolveTileScreenByAssetId(analysis, getFlowBackgroundScreenAssetId(node)));
     } else if (node.type === 'WorldLink') {
       const worldAssetId = getGameFlowWorldAssetId(node);
@@ -6623,7 +6674,7 @@ function buildMsx2ProjectSliceJson(
       const worldAssetId = getGameFlowWorldAssetId(node);
       if (worldAssetId) worldIds.add(worldAssetId);
       includeByTypeAndId('worldmap', worldAssetId, `GameFlow WorldLink node ${node.id}`);
-    } else if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'TextScroll' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
+    } else if (node.type === 'Screen4Screen' || node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'Controls' || node.type === 'SubMenu' || node.type === 'Restart') {
       includeByTypeAndId('msx2screen', getFlowBackgroundScreenAssetId(node), `GameFlow ${node.type} background`);
     } else if (node.type === 'Music') {
       includeByTypeAndId('track', node.trackAssetId, `GameFlow Music node ${node.id}`);
@@ -8098,6 +8149,32 @@ function buildMsx2GameFlowProgram(
         const dataLabel = `${labelForNodeId(current.id)}_TEXTSCROLL`;
         dataBlocks.push(buildMsx2TextScrollNodeData(dataLabel, current, analysis));
         lines.push('    call load_msx2_hud_font');
+        lines.push(`    call draw_${dataLabel}`);
+        if (current.waitForKey === false) {
+          const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
+          if (frames > 0) {
+            lines.push(`    ld b, ${formatHexByte(frames)}`);
+            lines.push(`.${dataLabel}_wait_frames:`);
+            lines.push('    halt');
+            lines.push(`    djnz .${dataLabel}_wait_frames`);
+          }
+        } else {
+          lines.push('    call wait_key_release');
+          lines.push('    call wait_key');
+        }
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
+        break;
+      }
+      case 'TextScrollColor': {
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
+        const dataLabel = `${labelForNodeId(current.id)}_TEXTSCROLL_COLOR`;
+        dataBlocks.push(buildMsx2TextScrollColorNodeData(dataLabel, current, analysis));
+        const fg = getMsx2Screen4ColorNibble(current.textColorIndex, 15);
+        const bg = getMsx2Screen4ColorNibble(current.backgroundColorIndex, 1);
+        lines.push('    call load_msx2_hud_font');
+        lines.push(`    ld a, ${formatHexByte((fg << 4) | bg)}`);
+        lines.push('    call fill_msx2_hud_font_color');
         lines.push(`    call draw_${dataLabel}`);
         if (current.waitForKey === false) {
           const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
