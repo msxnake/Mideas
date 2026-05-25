@@ -6,6 +6,7 @@ import type {
   Msx2GameFlowGraph,
   Msx2GameFlowGlobalsNode,
   Msx2GameFlowIfThenElseNode,
+  Msx2GameFlowMusicNode,
   Msx2GameFlowNode,
   Msx2GameFlowPurpose,
   Msx2GameFlowScreen4ScreenNode,
@@ -85,6 +86,11 @@ const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string
     return asset?.name || 'World Link';
   }
   if (node.type === 'IfThenElse') return `${node.variableName || 'var'} ${node.operator || '=='} ${node.compareValue || '0'}`;
+  if (node.type === 'Music') {
+    if (node.stop || node.autoPlay === false) return 'Stop Music';
+    const asset = allAssets.find(a => a.id === node.trackAssetId && a.type === 'track');
+    return asset?.name || 'Music';
+  }
   if (node.type === 'Transition') {
     return MSX2_SCREEN4_TRANSITION_OPTIONS.find(option => option.value === node.effect)?.label || 'Transition';
   }
@@ -103,6 +109,7 @@ const getNodeColor = (node: Msx2GameFlowNode): string => {
   if (node.type === 'WorldLink') return 'hsl(150, 48%, 30%)';
   if (node.type === 'Waypoint') return 'hsl(215, 34%, 35%)';
   if (node.type === 'IfThenElse') return 'hsl(28, 58%, 36%)';
+  if (node.type === 'Music') return 'hsl(300, 38%, 36%)';
   if (node.type === 'Transition') return 'hsl(42, 58%, 35%)';
   if (node.type === 'Restart') return 'hsl(8, 58%, 36%)';
   return 'hsl(330, 42%, 34%)';
@@ -217,6 +224,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedIfThenElseNode = selectedNode?.type === 'IfThenElse'
     ? selectedNode as Msx2GameFlowIfThenElseNode
     : null;
+  const selectedMusicNode = selectedNode?.type === 'Music'
+    ? selectedNode as Msx2GameFlowMusicNode
+    : null;
   const transitionOptions = isScreen5PresentationFlow
     ? MSX2_SCREEN5_TRANSITION_OPTIONS
     : MSX2_SCREEN4_TRANSITION_OPTIONS;
@@ -237,6 +247,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   );
   const worldAssets = useMemo(
     () => allAssets.filter(asset => asset.type === 'worldmap'),
+    [allAssets]
+  );
+  const trackAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'track'),
     [allAssets]
   );
   const selectedGlobalsAssetVariables = useMemo(() => {
@@ -326,6 +340,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!MSX2_SCREEN4_TRANSITION_EFFECTS.has(node.effect)) {
             issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 4 runtime.`);
           }
+        } else if (node.type === 'Music') {
+          // Music stop/mute is supported in SCREEN 4; track playback is exported as a marker until tracker hookup.
         } else if (node.type !== 'Start' && node.type !== 'Waypoint' && node.type !== 'Globals' && node.type !== 'Transition' && node.type !== 'Restart' && node.type !== 'End') {
           issues.push(`${node.type} is not supported by the SCREEN 4 runtime purpose yet.`);
         }
@@ -483,7 +499,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     onUpdate({ purpose });
   };
 
-  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End') => {
+  const addNode = (type: 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End') => {
     const previousNode = selectedNode || nodes[nodes.length - 1];
     const x = previousNode ? previousNode.position.x + 230 : 60;
     const y = previousNode ? previousNode.position.y : 80;
@@ -516,6 +532,16 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               message: 'PRESS KEY TO CONTINUE',
               waitForKey: true,
               waitFrames: 0,
+            }
+        : type === 'Music'
+          ? {
+              id,
+              type,
+              stop: false,
+              trackAssetId: trackAssets[0]?.id,
+              loop: true,
+              autoPlay: true,
+              position: { x, y },
             }
         : type === 'Screen4Screen'
           ? {
@@ -792,6 +818,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     ));
   };
 
+  const updateSelectedMusic = (updates: Partial<Msx2GameFlowMusicNode>) => {
+    if (!selectedMusicNode) return;
+    updateNodes(nodes.map(node =>
+      node.id === selectedMusicNode.id && node.type === 'Music'
+        ? { ...node, ...updates }
+        : node
+    ));
+  };
+
   const updateSelectedText = (updates: Partial<Msx2GameFlowTextNode>) => {
     if (!selectedTextNode) return;
     updateNodes(nodes.map(node =>
@@ -1002,6 +1037,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => addNode('IfThenElse')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           If/Then/Else
+        </Button>
+        <Button onClick={() => addNode('Music')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+          Add Music
         </Button>
         <Button onClick={() => addNode('Waypoint')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Waypoint
@@ -1649,6 +1687,49 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                 />
               </label>
+            </div>
+          )}
+
+          {selectedMusicNode && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Music</h3>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedMusicNode.stop === true || selectedMusicNode.autoPlay === false}
+                  onChange={event => updateSelectedMusic({
+                    stop: event.target.checked,
+                    autoPlay: event.target.checked ? false : true,
+                  })}
+                />
+                Stop PSG on entry
+              </label>
+              <label className="block text-xs">
+                Track
+                <select
+                  value={selectedMusicNode.trackAssetId || ''}
+                  onChange={event => updateSelectedMusic({ trackAssetId: event.target.value || undefined })}
+                  disabled={selectedMusicNode.stop === true || selectedMusicNode.autoPlay === false}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                >
+                  <option value="">No track selected</option>
+                  {trackAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={selectedMusicNode.loop !== false}
+                  onChange={event => updateSelectedMusic({ loop: event.target.checked })}
+                  disabled={selectedMusicNode.stop === true || selectedMusicNode.autoPlay === false}
+                />
+                Loop track
+              </label>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 4 export currently supports stop/mute immediately; track playback is kept as an export marker until the MSX2 tracker runtime is connected.
+              </p>
             </div>
           )}
 

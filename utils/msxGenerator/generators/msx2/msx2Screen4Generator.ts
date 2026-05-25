@@ -2300,6 +2300,39 @@ clear_screen4_name_column:
 `;
 }
 
+function buildMsx2GameFlowMusicHelpersAsm(needed: boolean): string {
+  if (!needed) return '';
+  return `
+msx2_gameflow_psg_write:
+    ; Input: A=PSG register, E=value. Clobbers AF.
+    out (#A0), a
+    ld a, e
+    out (#A1), a
+    ret
+
+msx2_gameflow_music:
+msx2_gameflow_music_stop:
+    ; Silence AY channels for SCREEN 4 GameFlow Music stop/mute nodes. Clobbers AF.
+    ld a, 8
+    ld e, 0
+    call msx2_gameflow_psg_write
+    ld a, 9
+    ld e, 0
+    call msx2_gameflow_psg_write
+    ld a, 10
+    ld e, 0
+    call msx2_gameflow_psg_write
+    ld a, 7
+    ld e, #3F
+    call msx2_gameflow_psg_write
+    ret
+
+msx2_gameflow_music_play_marker:
+    ; Reserved hook for track playback once the MSX2 SCREEN 4 tracker runtime is wired.
+    ret
+`;
+}
+
 function buildHardwareSpriteRuntimeAsm(
   analysis: ProjectAnalysis,
   requiredCollectibles: number,
@@ -7937,7 +7970,17 @@ function buildMsx2GameFlowProgram(
     switch (current.type) {
       case 'Start':
       case 'Waypoint':
+        lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
+        break;
       case 'Music':
+        if (current.stop === true || current.autoPlay === false) {
+          lines.push('    call msx2_gameflow_music_stop');
+        } else if (current.trackAssetId) {
+          lines.push('    ; Music track marker reserved for MSX2 SCREEN 4 tracker hookup');
+          lines.push('    call msx2_gameflow_music_play_marker');
+        } else {
+          lines.push('    ; Empty Music node');
+        }
         lines.push(jumpToNodeOrMain(defaultTargetNodeId(graph.connections, current.id)));
         break;
       case 'Globals': {
@@ -8423,7 +8466,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const worldTransitionAsm = buildMsx2WorldTransitionAsm(analysis, tileScreens, tileScreenLoadLabels);
   const screen4GameFlow = getScreen4RuntimeGameFlow(analysis);
   const includeGameFlowTransitionHelpers = Boolean(screen4GameFlow?.nodes?.some((node: any) => node?.type === 'Transition'));
+  const includeGameFlowMusicHelpers = Boolean(screen4GameFlow?.nodes?.some((node: any) => node?.type === 'Music'));
   const gameFlowTransitionHelperAsm = buildMsx2GameFlowTransitionHelpersAsm(includeGameFlowTransitionHelpers);
+  const gameFlowMusicHelperAsm = buildMsx2GameFlowMusicHelpersAsm(includeGameFlowMusicHelpers);
   const firstScreenIndex = tileScreenIndexByLabel.get(firstScreenLabel);
   const firstScreenIndexInit = firstScreenIndex === undefined
     ? ''
@@ -8919,6 +8964,7 @@ draw_msx2_submenu_cursor:
     jp WRTVRM
 
 ${gameFlowTransitionHelperAsm}
+${gameFlowMusicHelperAsm}
 clear_screen4_name_cell_16:
     ; HL=top-left SCREEN 4 name-table cell for a 16x16 block. Clobbers AF/BC/HL.
     xor a

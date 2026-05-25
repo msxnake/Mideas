@@ -88,8 +88,13 @@ addCheck(
   types.includes("export type GameFlowNodeType = 'Start' | 'SubMenu' | 'Controls' | 'WorldLink' | 'End' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'TextScroll2' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen';")
 );
 addCheck(
-  'MSX2 GameFlowNodeType is separate and includes SCREEN 5 control nodes',
-  types.includes("export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Transition' | 'Restart' | 'End';")
+  'MSX2 GameFlowNodeType is separate and includes SCREEN 5 control nodes plus Music',
+  types.includes("export type Msx2GameFlowNodeType = 'Start' | 'Globals' | 'Screen5Presentation' | 'Screen4Screen' | 'SubMenu' | 'Controls' | 'Text' | 'WorldLink' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Transition' | 'Restart' | 'End';")
+);
+addCheck(
+  'MSX2 GameFlow types declare Music node and include it in the union',
+  /export interface Msx2GameFlowMusicNode[\s\S]*?type:\s*'Music'/.test(types) &&
+  /export type Msx2GameFlowNode\s*=[\s\S]*\|\s*Msx2GameFlowMusicNode/.test(types)
 );
 addCheck(
   'MSX2 Transition type includes converted SCREEN 4 effects',
@@ -100,8 +105,8 @@ addCheck(
   !/export type GameFlowNode[\s\S]*Msx2GameFlow/.test(types.split('// --- MSX2 Game Flow Types ---')[0])
 );
 addCheck(
-  'MSX2 GameFlowNode union does not include MSX1 nodes',
-  !/export type Msx2GameFlowNode[\s\S]*(TextScroll|PresentationScreen|Music|Group)/.test(types.split('// --- End Game Flow Types ---')[0].split('// --- MSX2 Game Flow Types ---')[1] || '')
+  'MSX2 GameFlowNode union does not include MSX1-only nodes',
+  !/export type Msx2GameFlowNode[\s\S]*(TextScroll|PresentationScreen|Group)/.test(types.split('// --- End Game Flow Types ---')[0].split('// --- MSX2 Game Flow Types ---')[1] || '')
 );
 const findMainGameFlowBlock = summaryExtractor.match(/function findMainGameFlow[\s\S]*?function extractUsedWorldMaps/)?.[0] || '';
 addCheck('summary extractor still selects only MSX1 gameflow for mainGameFlow', /asset\.type === 'gameflow'/.test(findMainGameFlowBlock) && !findMainGameFlowBlock.includes("asset.type === 'msx2gameflow'"));
@@ -115,6 +120,8 @@ addCheck('SCREEN 5 generator ignores SCREEN 4 runtime GameFlows', screen5Present
 addCheck('SCREEN 4 generator selects MSX2 screen4 runtime GameFlow', screen4Generator.includes('getScreen4RuntimeGameFlow') && screen4Generator.includes("flow?.purpose === 'screen4-runtime'") && screen4Generator.includes("asset?.type === gameFlowAssetType") && screen4Generator.includes("'msx2gameflow'"));
 addCheck('SCREEN 4 generator reads MSX2 visual screen ids', screen4Generator.includes('getFlowBackgroundScreenAssetId') && screen4Generator.includes('node?.backgroundScreenAssetId || node?.screenAssetId') && screen4Generator.includes('getFlowBackgroundScreenAssetId(current)'));
 addCheck('SCREEN 4 generator emits Screen4Screen panel runtime', screen4Generator.includes("case 'Screen4Screen'") && screen4Generator.includes('must reference an exportable SCREEN 4 room') && screen4Generator.includes('buildMsx2TileScreenLoadLines(label') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('djnz .${labelForNodeId(current.id)}_wait_frames'));
+addCheck('MSX2 GameFlow editor exposes Music node controls', editor.includes("addNode('Music')") && editor.includes('selectedMusicNode') && editor.includes('updateSelectedMusic'));
+addCheck('SCREEN 4 generator emits Music node runtime helper', screen4Generator.includes("case 'Music'") && screen4Generator.includes('call msx2_gameflow_music') && screen4Generator.includes('msx2_gameflow_music:'));
 addCheck('SCREEN 4 generator includes Screen4Screen referenced assets', screen4Generator.includes("node.type === 'Screen4Screen'") && screen4Generator.includes("includeByTypeAndId('msx2screen', getFlowBackgroundScreenAssetId(node), `GameFlow ${node.type} background`)"));
 addCheck('SCREEN 4 generator emits runtime SubMenu option branching', screen4Generator.includes('sourceTargetNodeId') && screen4Generator.includes('sourceTargetNodeId(graph.connections, current.id, option?.id)') && !screen4Generator.includes('OPTION_${index}') && screen4Generator.includes('call msx2_submenu_select') && screen4Generator.includes('jp z, ${targetLabel}') && screen4Generator.includes('call GTSTCK') && screen4Generator.includes('call msx2_submenu_confirm_pressed') && screen4Generator.includes('Input: B=option count'));
 addCheck('SCREEN 4 generator rejects invalid SubMenu option edges', screen4Generator.includes('validateMsx2GameFlowSubMenuEdges') && screen4Generator.includes('connection to a missing node') && screen4Generator.includes('must include at least one option') && screen4Generator.includes('needs an outgoing connection') && screen4Generator.includes('has more than one outgoing connection') && screen4Generator.includes('unknown option') && screen4Generator.includes('validateMsx2GameFlowSubMenuEdges(graph)'));
