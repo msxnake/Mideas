@@ -294,10 +294,19 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!Array.isArray(node.options) || node.options.length === 0) {
             issues.push('SubMenu node must include at least one option.');
           }
+          const optionIds = new Set((node.options || []).map(option => option.id));
           for (const option of node.options || []) {
             if (!option.text?.trim()) issues.push('SubMenu options must include text.');
-            if (!connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === option.id)) {
+            const optionConnections = connections.filter(connection => connection.from.nodeId === node.id && connection.from.sourceId === option.id);
+            if (optionConnections.length === 0) {
               issues.push(`SubMenu option "${option.text || option.id}" needs an outgoing connection.`);
+            } else if (optionConnections.length > 1) {
+              issues.push(`SubMenu option "${option.text || option.id}" has more than one outgoing connection.`);
+            }
+          }
+          for (const connection of connections.filter(connection => connection.from.nodeId === node.id)) {
+            if (!connection.from.sourceId || !optionIds.has(connection.from.sourceId)) {
+              issues.push(`SubMenu has an outgoing connection for an unknown option "${connection.from.sourceId || 'default'}".`);
             }
           }
         } else if (node.type === 'Controls') {
