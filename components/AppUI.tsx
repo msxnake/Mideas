@@ -998,6 +998,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           assets={assets}
           currentProjectName={currentProjectName}
           defaultRomMode={defaultExportRomMode}
+          activeAssetId={selectedAssetId}
           projectData={{
             tileBanks,
             msxFont,

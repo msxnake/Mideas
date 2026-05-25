@@ -31,6 +31,7 @@ interface CodeExportModalProps {
   assets: ProjectAsset[];
   currentProjectName?: string | null;
   projectData?: any; // Full project data including tileBanks
+  activeAssetId?: string | null;
   onEditFile?: (filename: string, content: string) => void;
   defaultRomMode?: ExportRomMode;
 }
@@ -89,6 +90,22 @@ const isMsx2Screen4ExportMode = (screenMode: string): boolean =>
 
 const hasMsx2PresentationAsset = (assets: ProjectAsset[]): boolean =>
   assets.some(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
+
+const getCurrentMsx2GameFlowPurpose = (assets: ProjectAsset[], activeAssetId?: string | null): string | undefined => {
+  const flows = assets.filter(asset => asset.type === 'msx2gameflow');
+  const activeFlow = activeAssetId
+    ? flows.find(asset => asset.id === activeAssetId)
+    : undefined;
+  const flow = activeFlow || flows.find(asset => asset.name === 'Main MSX2') || flows[0];
+  return typeof (flow?.data as any)?.purpose === 'string' ? (flow?.data as any).purpose : undefined;
+};
+
+const shouldExportMsx2Screen5Presentation = (assets: ProjectAsset[], activeAssetId?: string | null): boolean => {
+  const purpose = getCurrentMsx2GameFlowPurpose(assets, activeAssetId);
+  if (purpose === 'screen4-runtime') return false;
+  if (purpose === 'screen5-presentation') return hasMsx2PresentationAsset(assets);
+  return hasMsx2PresentationAsset(assets);
+};
 
 const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const presentations = assets.filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
@@ -350,6 +367,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   assets,
   currentProjectName,
   projectData,
+  activeAssetId,
   onEditFile,
   defaultRomMode = 'simple32k',
 }) => {
@@ -603,7 +621,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     const romConfig = romConfigInput || buildCurrentRomConfig();
     const enhancedAssets = getEnhancedAssets();
     const rawScreenMode = projectData?.screenMode || projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)';
-    const hasScreen5Presentation = hasMsx2PresentationAsset(enhancedAssets);
+    const hasScreen5Presentation = shouldExportMsx2Screen5Presentation(enhancedAssets, activeAssetId);
     const currentScreenMode = hasScreen5Presentation ? LEGACY_SCREEN5_MODE : normalizeMsx2ExportScreenMode(rawScreenMode);
     const targetGraphicsBackend = hasScreen5Presentation
       ? 'msx2-screen5-presentation'
@@ -1082,7 +1100,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       let nextActiveFileIndex = 0;
 
       const projectName = currentProjectName || "MSX_Project";
-      const hasScreen5Presentation = hasMsx2PresentationAsset(assets);
+      const hasScreen5Presentation = shouldExportMsx2Screen5Presentation(assets, activeAssetId);
       const rawScreenMode = projectData?.currentScreenMode || projectData?.screenMode || 'SCREEN 2 (Graphics I)';
       const activeScreenMode = hasScreen5Presentation ? LEGACY_SCREEN5_MODE : normalizeMsx2ExportScreenMode(rawScreenMode);
       const isScreen4Backend = isMsx2Screen4ExportMode(activeScreenMode);

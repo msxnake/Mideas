@@ -8381,7 +8381,7 @@ function buildMsx2GameFlowProgram(
         break;
       }
       case 'SubMenu': {
-        const backgroundLabel = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;
+        const backgroundLabel = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current));
         if (backgroundLabel) lines.push(buildMsx2TileScreenLoadLines(backgroundLabel, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         const options = Array.isArray(current.options) ? current.options.slice(0, 6) : [];
         if (options.length === 0) {
@@ -9328,9 +9328,12 @@ msx2_submenu_select:
     jp .loop
 
 msx2_submenu_confirm_pressed:
-    ; Output: A=1 when the GameFlow Controls logical action button is pressed.
+    ; Output: A=1 when either menu-confirm logical button is pressed.
     ; Clobbers AF/CD. Callers that need BC/DE/HL must preserve them.
     call msx2_control_action_pressed
+    or a
+    ret nz
+    call msx2_control_jump_pressed
     ret
 
 draw_msx2_submenu_cursor:

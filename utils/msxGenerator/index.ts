@@ -124,10 +124,24 @@ function hasMsx2PresentationAssets(assets: ProjectAsset[] | undefined): boolean 
   return Array.isArray(assets) && assets.some(asset => asset?.type === 'msx2presentation');
 }
 
+function resolveMsx2GameFlowBackend(assets: ProjectAsset[] | undefined): GraphicsBackend | undefined {
+  if (!Array.isArray(assets)) return undefined;
+  const flows = assets.filter(asset => asset?.type === 'msx2gameflow');
+  const flow = flows.find(asset => asset.name === 'Main MSX2') || flows[0];
+  const purpose = (flow?.data as any)?.purpose;
+  if (purpose === 'screen4-runtime') return 'msx2-screen4-pattern';
+  if (purpose === 'screen5-presentation') return 'msx2-screen5-presentation';
+  return undefined;
+}
+
 function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
   if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
     console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
     return 'msx2-screen4-pattern';
+  }
+  const msx2GameFlowBackend = resolveMsx2GameFlowBackend(assets);
+  if (msx2GameFlowBackend) {
+    return msx2GameFlowBackend;
   }
   if (config.targetGraphicsBackend) {
     return config.targetGraphicsBackend;

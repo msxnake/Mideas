@@ -719,7 +719,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 { id: `option_start_${Date.now()}`, text: 'START' },
                 { id: `option_options_${Date.now()}`, text: 'OPTIONS' },
               ],
-              backgroundScreenAssetId: screen4Assets[0]?.id,
             }
         : type === 'WorldLink'
           ? {
@@ -824,7 +823,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         { id: startOptionId, text: 'START' },
         { id: quitOptionId, text: 'QUIT' },
       ],
-      backgroundScreenAssetId: screen4Assets[0]?.id,
     };
     const worldNode: Msx2GameFlowNode = {
       id: worldNodeId,
@@ -2151,12 +2149,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               <label className="block text-xs">
                 SCREEN 4 background
                 <select
-                  value={selectedSubMenuNode.backgroundScreenAssetId || ''}
-                  onChange={event => updateSelectedSubMenu({ backgroundScreenAssetId: event.target.value || undefined })}
+                  value={selectedSubMenuNode.backgroundScreenAssetId || '__none'}
+                  onChange={event => updateSelectedSubMenu({ backgroundScreenAssetId: event.target.value === '__none' ? undefined : event.target.value })}
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
-                  disabled={screen4Assets.length === 0}
                 >
-                  <option value="">Fallback first SCREEN 4 room</option>
+                  <option value="__none">None</option>
                   {screen4Assets.map(asset => (
                     <option key={asset.id} value={asset.id}>{asset.name}</option>
                   ))}
