@@ -25,7 +25,11 @@ import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { ArrowsPointingOutIcon, PlusCircleIcon } from '../icons/MsxIcons';
-import { drawMsx2Screen5PresentationPreview } from '../utils/msx2Screen5PresentationUtils';
+import {
+  drawMsx2Screen5PresentationPreview,
+  unpackScreen5PresentationPixels,
+  type Msx2Screen5PresentationHeight,
+} from '../utils/msx2Screen5PresentationUtils';
 
 const NODE_WIDTH = 168;
 const NODE_HEIGHT = 76;
@@ -53,6 +57,36 @@ const MSX2_SCREEN4_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode
   { value: 'block4_shuffle', label: '4x4 block shuffle' },
   { value: 'zoom_box', label: 'Zoom box' },
 ];
+
+const isScreen5PresentationHeight = (value: unknown): value is Msx2Screen5PresentationHeight =>
+  value === 192 || value === 212;
+
+const resolveScreen5PresentationPreviewData = (
+  config: Msx2Screen5PresentationConfig | undefined
+): { pixels: number[][]; palette: Msx2Screen5PresentationConfig['palette'] } | null => {
+  if (!config) return null;
+  const nested = config.data as (
+    | (Msx2Screen5PresentationConfig['data'] & {
+        height?: unknown;
+        palette?: Msx2Screen5PresentationConfig['palette'];
+      })
+    | undefined
+  );
+  const height = isScreen5PresentationHeight(config.height)
+    ? config.height
+    : isScreen5PresentationHeight(nested?.height)
+      ? nested.height
+      : 212;
+  const palette = config.palette || nested?.palette;
+  if (!palette) return null;
+  const pixels = config.pixels || nested?.pixels;
+  if (pixels) return { pixels, palette };
+  const packedBitmap = config.packedBitmap || nested?.packedBitmap || nested?.packedPixels;
+  if (packedBitmap) {
+    return { pixels: unpackScreen5PresentationPixels(packedBitmap, height), palette };
+  }
+  return null;
+};
 
 const MSX2_SCREEN5_TRANSITION_EFFECTS = new Set<Msx2GameFlowTransitionNode['effect']>(
   MSX2_SCREEN5_TRANSITION_OPTIONS.map(option => option.value)
@@ -197,6 +231,16 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   setSelectedNodeId,
 }) => {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [linkingState, setLinkingState] = useState<{ fromNodeId: string; sourceId?: string } | null>(null);
+  const [isCutMode, setIsCutMode] = useState(false);
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [draggingState, setDraggingState] = useState<{ nodeId: string; offset: { x: number; y: number } } | null>(null);
+  const [draggingWaypoint, setDraggingWaypoint] = useState<{ connectionId: string; waypointIndex: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const [viewBox, setViewBox] = useState('0 0 1200 520');
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const nodes = gameFlowGraph.nodes || [];
   const connections = gameFlowGraph.connections || [];
@@ -505,11 +549,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const canvas = previewCanvasRef.current;
     const config = activePresentationAsset?.data as Msx2Screen5PresentationConfig | undefined;
     if (!canvas) return;
-    if (!config?.pixels || !config?.palette) {
+    const preview = resolveScreen5PresentationPreviewData(config);
+    if (!preview) {
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
       return;
     }
-    drawMsx2Screen5PresentationPreview(canvas, config.pixels, config.palette, 1);
+    drawMsx2Screen5PresentationPreview(canvas, preview.pixels, preview.palette, 1);
   }, [activePresentationAsset]);
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
@@ -1054,6 +1099,16 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     });
   };
 
+  const clearSelectedOutgoingConnectionPort = (sourceId?: string) => {
+    if (!selectedNode) return;
+    onUpdate({
+      connections: connections.filter(connection => !(
+        connection.from.nodeId === selectedNode.id
+        && (sourceId ? connection.from.sourceId === sourceId : !connection.from.sourceId)
+      )),
+    });
+  };
+
   const deleteSelectedNode = () => {
     if (!selectedNode || selectedNode.type === 'Start') return;
     onUpdate({
@@ -1061,6 +1116,224 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       connections: connections.filter(conn => conn.from.nodeId !== selectedNode.id && conn.to.nodeId !== selectedNode.id),
     });
     setSelectedNodeId(null);
+  };
+
+  const deleteNodeById = (nodeId: string) => {
+    const node = nodes.find(candidate => candidate.id === nodeId);
+    if (!node || node.type === 'Start') return;
+    onUpdate({
+      nodes: nodes.filter(candidate => candidate.id !== nodeId),
+      connections: connections.filter(connection => connection.from.nodeId !== nodeId && connection.to.nodeId !== nodeId),
+    });
+    if (selectedNodeId === nodeId) setSelectedNodeId(null);
+    setContextMenu(null);
+    setLinkingState(null);
+  };
+
+  const deleteConnectionById = (connectionId: string) => {
+    onUpdate({ connections: connections.filter(connection => connection.id !== connectionId) });
+  };
+
+  const updateConnectionWaypoints = (connectionId: string, waypoints: Array<{ x: number; y: number }>) => {
+    onUpdate({
+      connections: connections.map(connection => (
+        connection.id === connectionId ? { ...connection, waypoints } : connection
+      )),
+    });
+  };
+
+  const getSvgPoint = (event: React.MouseEvent<Element> | React.WheelEvent<Element>): { x: number; y: number } => {
+    const svg = svgRef.current;
+    if (!svg) return { x: event.clientX, y: event.clientY };
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const matrix = svg.getScreenCTM()?.inverse();
+    if (!matrix) return { x: event.clientX, y: event.clientY };
+    const transformed = point.matrixTransform(matrix);
+    return { x: transformed.x, y: transformed.y };
+  };
+
+  const startNodeDrag = (event: React.MouseEvent<SVGGElement>, nodeId: string) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    const node = nodes.find(candidate => candidate.id === nodeId);
+    if (!node) return;
+    const point = getSvgPoint(event);
+    setSelectedNodeId(nodeId);
+    setContextMenu(null);
+    setLinkingState(null);
+    setDraggingState({ nodeId, offset: { x: node.position.x - point.x, y: node.position.y - point.y } });
+  };
+
+  const handleSvgWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    const point = getSvgPoint(event);
+    const [x, y, width, height] = viewBox.split(' ').map(Number);
+    const factor = event.deltaY > 0 ? 1.12 : 0.88;
+    const nextWidth = Math.max(300, Math.min(3000, width * factor));
+    const nextHeight = Math.max(180, Math.min(1800, height * factor));
+    const nextX = point.x - ((point.x - x) * nextWidth / width);
+    const nextY = point.y - ((point.y - y) * nextHeight / height);
+    setViewBox(`${nextX} ${nextY} ${nextWidth} ${nextHeight}`);
+  };
+
+  const handleSvgMouseDown = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (event.button === 1 || (event.button === 0 && (event.ctrlKey || event.metaKey))) {
+      event.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: event.clientX, y: event.clientY });
+      setContextMenu(null);
+      return;
+    }
+    if (event.button !== 0) return;
+    if (linkingState) setLinkingState(null);
+    if (contextMenu) setContextMenu(null);
+  };
+
+  const handleSvgMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
+    const point = getSvgPoint(event);
+    setMousePosition(point);
+    if (isPanning && panStart && svgRef.current) {
+      const [x, y, width, height] = viewBox.split(' ').map(Number);
+      const scaleX = width / Math.max(svgRef.current.clientWidth, 1);
+      const scaleY = height / Math.max(svgRef.current.clientHeight, 1);
+      const dx = event.clientX - panStart.x;
+      const dy = event.clientY - panStart.y;
+      setViewBox(`${x - (dx * scaleX)} ${y - (dy * scaleY)} ${width} ${height}`);
+      setPanStart({ x: event.clientX, y: event.clientY });
+      return;
+    }
+    if (draggingWaypoint) {
+      onUpdate({
+        connections: connections.map(connection => {
+          if (connection.id !== draggingWaypoint.connectionId) return connection;
+          const waypoints = [...(connection.waypoints || [])];
+          waypoints[draggingWaypoint.waypointIndex] = point;
+          return { ...connection, waypoints };
+        }),
+      });
+      return;
+    }
+    if (!draggingState) return;
+    onUpdate({
+      nodes: nodes.map(node =>
+        node.id === draggingState.nodeId
+          ? { ...node, position: { x: point.x + draggingState.offset.x, y: point.y + draggingState.offset.y } }
+          : node
+      ),
+    });
+  };
+
+  const handleSvgMouseUp = () => {
+    if (draggingState) {
+      onUpdate({
+        nodes: nodes.map(node =>
+          node.id === draggingState.nodeId
+            ? { ...node, position: { x: Math.round(node.position.x / 10) * 10, y: Math.round(node.position.y / 10) * 10 } }
+            : node
+        ),
+      });
+    }
+    setDraggingState(null);
+    if (draggingWaypoint) {
+      onUpdate({
+        connections: connections.map(connection => {
+          if (connection.id !== draggingWaypoint.connectionId) return connection;
+          return {
+            ...connection,
+            waypoints: (connection.waypoints || []).map((waypoint, index) => (
+              index === draggingWaypoint.waypointIndex
+                ? { x: Math.round(waypoint.x / 10) * 10, y: Math.round(waypoint.y / 10) * 10 }
+                : waypoint
+            )),
+          };
+        }),
+      });
+    }
+    setDraggingWaypoint(null);
+    setIsPanning(false);
+    setPanStart(null);
+  };
+
+  const connectNodeTo = (fromNodeId: string, toNodeId: string, sourceId?: string) => {
+    if (fromNodeId === toNodeId) {
+      setLinkingState(null);
+      return;
+    }
+    const fromNode = nodes.find(node => node.id === fromNodeId);
+    const targetNode = nodes.find(node => node.id === toNodeId);
+    if (!fromNode || !targetNode || fromNode.type === 'End' || fromNode.type === 'Restart') return;
+    if ((fromNode.type === 'IfThenElse' || fromNode.type === 'SubMenu') && sourceId) {
+      onUpdate({
+        connections: [
+          ...connections.filter(connection => !(connection.from.nodeId === fromNode.id && connection.from.sourceId === sourceId)),
+          makeConnection(fromNode.id, targetNode.id, sourceId),
+        ],
+      });
+    } else {
+      onUpdate({
+        connections: [
+          ...connections.filter(connection => connection.from.nodeId !== fromNode.id),
+          makeConnection(fromNode.id, targetNode.id),
+        ],
+      });
+    }
+    setLinkingState(null);
+  };
+
+  const handleInputPortClick = (event: React.MouseEvent<SVGCircleElement>, nodeId: string) => {
+    event.stopPropagation();
+    setSelectedNodeId(nodeId);
+    if (linkingState) connectNodeTo(linkingState.fromNodeId, nodeId, linkingState.sourceId);
+  };
+
+  const handleOutputPortClick = (event: React.MouseEvent<SVGCircleElement>, nodeId: string, sourceId?: string) => {
+    event.stopPropagation();
+    setSelectedNodeId(nodeId);
+    setContextMenu(null);
+    setLinkingState({ fromNodeId: nodeId, sourceId });
+    setMousePosition(getSvgPoint(event));
+  };
+
+  const outputPortsForNode = (node: Msx2GameFlowNode): Array<{ sourceId?: string; y: number; label?: string }> => {
+    if (node.type === 'End' || node.type === 'Restart') return [];
+    if (node.type === 'IfThenElse') return [
+      { sourceId: 'then', y: 26, label: 'T' },
+      { sourceId: 'else', y: 50, label: 'E' },
+    ];
+    if (node.type === 'SubMenu') {
+      const options = (node.options || []).slice(0, 6);
+      return options.map((option, index) => ({ sourceId: option.id, y: 12 + (index * 10), label: String(index + 1) }));
+    }
+    return [{ y: NODE_HEIGHT / 2 }];
+  };
+
+  const resetGraphView = () => {
+    if (!nodes.length) {
+      setViewBox('0 0 1200 520');
+      return;
+    }
+    const padding = 80;
+    const minX = Math.min(...nodes.map(node => node.position.x)) - padding;
+    const minY = Math.min(...nodes.map(node => node.position.y)) - padding;
+    const maxX = Math.max(...nodes.map(node => node.position.x + NODE_WIDTH)) + padding;
+    const maxY = Math.max(...nodes.map(node => node.position.y + NODE_HEIGHT)) + padding;
+    const width = Math.max(700, maxX - minX);
+    const height = Math.max(360, maxY - minY);
+    setViewBox(`${minX} ${minY} ${width} ${height}`);
+  };
+
+  const makeConnectionPath = (
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    waypoints: Array<{ x: number; y: number }> = []
+  ) => {
+    if (waypoints.length) {
+      return [start, ...waypoints, end].map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+    }
+    const mid = Math.max(60, (end.x - start.x) / 2);
+    return `M ${start.x} ${start.y} C ${start.x + mid} ${start.y}, ${end.x - mid} ${end.y}, ${end.x} ${end.y}`;
   };
 
   const autoLayout = () => {
@@ -1141,6 +1414,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={autoLayout} size="sm" variant="primary" icon={<ArrowsPointingOutIcon className="w-4 h-4" />}>
           Auto Layout
         </Button>
+        <Button onClick={resetGraphView} size="sm" variant="ghost">
+          Reset View
+        </Button>
+        <Button onClick={() => setIsCutMode(value => !value)} size="sm" variant={isCutMode ? 'primary' : 'ghost'}>
+          Cut Connections
+        </Button>
         <Button onClick={applyIntroTemplate} size="sm" variant="secondary">
           SCREEN 5 Intro
         </Button>
@@ -1154,37 +1433,159 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       </div>
 
       <div className="min-h-0 flex-grow grid grid-cols-[1fr_300px]">
-        <div className="relative overflow-auto bg-[#101018]">
-          <svg width="1200" height="520" className="block">
+        <div className="relative overflow-hidden bg-[#101018]" onClick={() => setContextMenu(null)}>
+          {contextMenu && (
+            <div
+              className="fixed z-50 min-w-36 rounded border border-msx-border bg-msx-panelbg shadow-lg"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onClick={event => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-xs text-red-200 hover:bg-red-900/40 disabled:opacity-50"
+                disabled={nodes.find(node => node.id === contextMenu.nodeId)?.type === 'Start'}
+                onClick={() => deleteNodeById(contextMenu.nodeId)}
+              >
+                Delete Node
+              </button>
+            </div>
+          )}
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            viewBox={viewBox}
+            className="block min-h-[520px]"
+            onWheel={handleSvgWheel}
+            onMouseDown={handleSvgMouseDown}
+            onMouseMove={handleSvgMouseMove}
+            onMouseUp={handleSvgMouseUp}
+            onMouseLeave={handleSvgMouseUp}
+            onClick={() => {
+              if (linkingState) setLinkingState(null);
+              if (contextMenu) setContextMenu(null);
+            }}
+            style={{ cursor: isCutMode ? 'crosshair' : ((draggingState || isPanning) ? 'grabbing' : 'grab') }}
+          >
             <defs>
+              <pattern id="msx2FlowGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+              </pattern>
               <marker id="msx2FlowArrow" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
                 <polygon points="0 0, 6 2, 0 4" fill="hsl(150, 60%, 60%)" />
               </marker>
             </defs>
+            <rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#msx2FlowGrid)" />
             {connections.map(conn => {
               const from = nodes.find(node => node.id === conn.from.nodeId);
               const to = nodes.find(node => node.id === conn.to.nodeId);
               if (!from || !to) return null;
               const x1 = from.position.x + NODE_WIDTH;
-              const y1 = from.position.y + NODE_HEIGHT / 2;
+              const fromPort = outputPortsForNode(from).find(port => port.sourceId === conn.from.sourceId) || outputPortsForNode(from)[0];
+              const y1 = from.position.y + (fromPort?.y || NODE_HEIGHT / 2);
               const x2 = to.position.x;
               const y2 = to.position.y + NODE_HEIGHT / 2;
-              const mid = Math.max(60, (x2 - x1) / 2);
+              const pathD = makeConnectionPath({ x: x1, y: y1 }, { x: x2, y: y2 }, conn.waypoints || []);
               return (
-                <path
-                  key={conn.id}
-                  d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`}
-                  stroke="hsl(150, 60%, 60%)"
-                  strokeWidth="2"
-                  fill="none"
-                  markerEnd="url(#msx2FlowArrow)"
-                />
+                <g key={conn.id}>
+                  <path
+                    d={pathD}
+                    stroke="hsl(150, 60%, 60%)"
+                    strokeWidth="2"
+                    fill="none"
+                    markerEnd="url(#msx2FlowArrow)"
+                    pointerEvents="none"
+                  />
+                  <path
+                    d={pathD}
+                    stroke="transparent"
+                    strokeWidth="12"
+                    fill="none"
+                    pointerEvents="stroke"
+                    onMouseDown={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (event.ctrlKey || event.metaKey) {
+                        const point = getSvgPoint(event);
+                        updateConnectionWaypoints(conn.id, [...(conn.waypoints || []), {
+                          x: Math.round(point.x / 10) * 10,
+                          y: Math.round(point.y / 10) * 10,
+                        }]);
+                        return;
+                      }
+                      if (isCutMode) deleteConnectionById(conn.id);
+                    }}
+                    onContextMenu={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      deleteConnectionById(conn.id);
+                    }}
+                    style={{ cursor: isCutMode ? 'crosshair' : 'pointer' }}
+                  />
+                  {(conn.waypoints || []).map((waypoint, index) => (
+                    <circle
+                      key={`${conn.id}-wp-${index}`}
+                      cx={waypoint.x}
+                      cy={waypoint.y}
+                      r="6"
+                      fill="hsl(50, 100%, 70%)"
+                      stroke="hsl(30, 90%, 35%)"
+                      strokeWidth="1.5"
+                      onMouseDown={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDraggingWaypoint({ connectionId: conn.id, waypointIndex: index });
+                      }}
+                      onDoubleClick={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        updateConnectionWaypoints(conn.id, (conn.waypoints || []).filter((_, waypointIndex) => waypointIndex !== index));
+                      }}
+                      style={{ cursor: 'move' }}
+                    />
+                  ))}
+                </g>
               );
             })}
+            {linkingState && mousePosition && (() => {
+              const from = nodes.find(node => node.id === linkingState.fromNodeId);
+              if (!from) return null;
+              const sourcePort = outputPortsForNode(from).find(port => port.sourceId === linkingState.sourceId) || outputPortsForNode(from)[0];
+              if (!sourcePort) return null;
+              const x1 = from.position.x + NODE_WIDTH;
+              const y1 = from.position.y + sourcePort.y;
+              return (
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={mousePosition.x}
+                  y2={mousePosition.y}
+                  stroke="hsl(50, 100%, 70%)"
+                  strokeWidth="2"
+                  strokeDasharray="4 3"
+                  pointerEvents="none"
+                />
+              );
+            })()}
             {nodes.map(node => {
               const isSelected = selectedNodeId === node.id;
               return (
-                <g key={node.id} transform={`translate(${node.position.x}, ${node.position.y})`} onClick={() => setSelectedNodeId(node.id)} style={{ cursor: 'pointer' }}>
+                <g
+                  key={node.id}
+                  transform={`translate(${node.position.x}, ${node.position.y})`}
+                  onMouseDown={event => startNodeDrag(event, node.id)}
+                  onClick={event => {
+                    event.stopPropagation();
+                    setSelectedNodeId(node.id);
+                  }}
+                  onContextMenu={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSelectedNodeId(node.id);
+                    setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+                  }}
+                  style={{ cursor: draggingState?.nodeId === node.id ? 'grabbing' : 'grab' }}
+                >
                   <rect
                     width={NODE_WIDTH}
                     height={NODE_HEIGHT}
@@ -1199,6 +1600,37 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   <text x={NODE_WIDTH / 2} y="52" textAnchor="middle" fill="hsl(210, 30%, 86%)" fontSize="10">
                     {getNodeLabel(node, allAssets).slice(0, 24)}
                   </text>
+                  <circle
+                    cx="0"
+                    cy={NODE_HEIGHT / 2}
+                    r="7"
+                    fill={linkingState ? 'hsl(50, 100%, 70%)' : 'hsl(210, 30%, 20%)'}
+                    stroke="white"
+                    strokeWidth="1.5"
+                    onMouseDown={event => event.stopPropagation()}
+                    onClick={event => handleInputPortClick(event, node.id)}
+                    style={{ cursor: linkingState ? 'crosshair' : 'pointer' }}
+                  />
+                  {outputPortsForNode(node).map(port => (
+                    <g key={port.sourceId || 'default'}>
+                      <circle
+                        cx={NODE_WIDTH}
+                        cy={port.y}
+                        r="7"
+                        fill="hsl(150, 70%, 45%)"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        onMouseDown={event => event.stopPropagation()}
+                        onClick={event => handleOutputPortClick(event, node.id, port.sourceId)}
+                        style={{ cursor: 'crosshair' }}
+                      />
+                      {port.label && (
+                        <text x={NODE_WIDTH} y={port.y + 3} textAnchor="middle" fill="white" fontSize="8" pointerEvents="none">
+                          {port.label}
+                        </text>
+                      )}
+                    </g>
+                  ))}
                 </g>
               );
             })}
@@ -1973,6 +2405,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                       value={selectedThenConnection?.to.nodeId || ''}
                       onChange={event => {
                         if (event.target.value) connectSelectedNodeTo(event.target.value, 'then');
+                        else clearSelectedOutgoingConnectionPort('then');
                       }}
                       className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                     >
@@ -1988,6 +2421,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                       value={selectedElseConnection?.to.nodeId || ''}
                       onChange={event => {
                         if (event.target.value) connectSelectedNodeTo(event.target.value, 'else');
+                        else clearSelectedOutgoingConnectionPort('else');
                       }}
                       className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                     >
@@ -2018,6 +2452,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                           value={connection?.to.nodeId || ''}
                           onChange={event => {
                             if (event.target.value) connectSelectedNodeTo(event.target.value, option.id);
+                            else clearSelectedOutgoingConnectionPort(option.id);
                           }}
                           className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                         >
@@ -2047,6 +2482,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                       value={selectedOutgoingConnection?.to.nodeId || ''}
                       onChange={event => {
                         if (event.target.value) connectSelectedNodeTo(event.target.value);
+                        else clearSelectedOutgoingConnectionPort();
                       }}
                       className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                     >
