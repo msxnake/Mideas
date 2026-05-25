@@ -2296,7 +2296,7 @@ export interface Msx2GameFlowMusicNode extends Msx2GameFlowNode_Base {
 
 export interface Msx2GameFlowTransitionNode extends Msx2GameFlowNode_Base {
   type: 'Transition';
-  effect: 'cls' | 'fade_to_black' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box';
+  effect: 'cls' | 'fade_to_black' | 'dissolve_pixels' | 'dissolve_chars' | 'horizontal_lines' | 'vertical_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box' | 'raster_bars' | 'raster_split_wipe' | 'raster_scanlines' | 'raster_palette_fade' | 'raster_bands_down' | 'raster_bands_up' | 'raster_center_bands' | 'raster_wave_bands';
   durationFrames?: number;
 }
 

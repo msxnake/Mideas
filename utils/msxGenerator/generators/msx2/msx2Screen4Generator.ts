@@ -2349,6 +2349,17 @@ clear_screen4_names:
     call FILVRM
     ret
 
+load_screen4_black_palette:
+    ; Sets all SCREEN 4 palette slots to black. Clobbers AF/BC.
+    ld bc, #0010
+    call WRTVDP
+    ld b, 32
+    xor a
+.black_palette_loop:
+    out (VDP_PALETTE_PORT), a
+    djnz .black_palette_loop
+    ret
+
 clear_screen4_name_cell_blank:
     ; HL=SCREEN 4 name-table cell. Clobbers AF/BC/DE/HL.
     ld a, MSX2_HUD_FONT_BASE_CHAR
@@ -8049,6 +8060,67 @@ function buildMsx2GameFlowTransitionLines(effect: unknown, label: string, durati
         waitStep();
       }
       break;
+    case 'raster_bars':
+      for (let row = 0; row < 24; row += 4) {
+        writeBlankBlock(row, 0, 2, 32);
+        waitStep();
+      }
+      for (let row = 2; row < 24; row += 4) {
+        writeBlankBlock(row, 0, 2, 32);
+        waitStep();
+      }
+      break;
+    case 'raster_split_wipe':
+      for (let offset = 0; offset < 12; offset++) {
+        writeBlankRow(11 - offset);
+        writeBlankRow(12 + offset);
+        waitStep();
+      }
+      break;
+    case 'raster_scanlines':
+      for (let row = 0; row < 24; row += 2) {
+        writeBlankRow(row);
+      }
+      waitStep();
+      for (let row = 1; row < 24; row += 2) {
+        writeBlankRow(row);
+      }
+      waitStep();
+      break;
+    case 'raster_palette_fade':
+      lines.push('    call load_screen4_black_palette');
+      lines.push(...buildMsx2GameFlowTransitionWaitLines(label, durationFrames));
+      lines.push('    call clear_screen4_names');
+      lines.push('    call load_screen4_palette');
+      waitStep();
+      break;
+    case 'raster_bands_down':
+      for (let row = 0; row < 24; row += 3) {
+        writeBlankBlock(row, 0, 3, 32);
+        waitStep();
+      }
+      break;
+    case 'raster_bands_up':
+      for (let row = 21; row >= 0; row -= 3) {
+        writeBlankBlock(row, 0, 3, 32);
+        waitStep();
+      }
+      break;
+    case 'raster_center_bands':
+      for (let offset = 0; offset < 12; offset += 2) {
+        writeBlankBlock(10 - offset, 0, 2, 32);
+        writeBlankBlock(12 + offset, 0, 2, 32);
+        waitStep();
+      }
+      break;
+    case 'raster_wave_bands': {
+      const waveRows = [12, 10, 14, 8, 16, 6, 18, 4, 20, 2, 22, 0];
+      for (const row of waveRows) {
+        writeBlankBlock(row, 0, 2, 32);
+        waitStep();
+      }
+      break;
+    }
     default:
       return [];
   }

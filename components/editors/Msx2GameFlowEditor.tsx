@@ -56,6 +56,14 @@ const MSX2_SCREEN4_TRANSITION_OPTIONS: Array<{ value: Msx2GameFlowTransitionNode
   { value: 'fill_white_squares', label: '2x2 blocks' },
   { value: 'block4_shuffle', label: '4x4 block shuffle' },
   { value: 'zoom_box', label: 'Zoom box' },
+  { value: 'raster_bars', label: 'Raster bars' },
+  { value: 'raster_split_wipe', label: 'Raster split wipe' },
+  { value: 'raster_scanlines', label: 'Raster scanlines' },
+  { value: 'raster_palette_fade', label: 'Raster palette fade' },
+  { value: 'raster_bands_down', label: 'Raster bands down' },
+  { value: 'raster_bands_up', label: 'Raster bands up' },
+  { value: 'raster_center_bands', label: 'Raster center bands' },
+  { value: 'raster_wave_bands', label: 'Raster wave bands' },
 ];
 
 const isScreen5PresentationHeight = (value: unknown): value is Msx2Screen5PresentationHeight =>
