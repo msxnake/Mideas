@@ -120,13 +120,22 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const isValidTerminalPath = (node: any, visited: Set<string> = new Set()): boolean => {
     if (!node?.id || visited.has(node.id)) return false;
     visited.add(node.id);
+    if (node.type === 'Screen5Presentation') {
+      return isValidTerminalPath(getNextExportNode(node), new Set(visited));
+    }
     if (node.type === 'End' || node.type === 'Restart') return true;
     if (node.type === 'Text') {
       return isValidTerminalPath(getNextExportNode(node), new Set(visited));
     }
     if (node.type === 'Transition') {
       const afterTransition = getNextExportNode(node);
-      return afterTransition?.type === 'End' || afterTransition?.type === 'Restart';
+      if (afterTransition?.type === 'Text') {
+        return isValidTerminalPath(afterTransition, new Set(visited));
+      }
+      if (afterTransition?.type === 'Screen5Presentation') {
+        return isValidTerminalPath(afterTransition, new Set(visited));
+      }
+      return !afterTransition || afterTransition.type === 'End' || afterTransition.type === 'Restart';
     }
     if (node.type === 'IfThenElse') {
       return isValidTerminalPath(getNextExportNode(node, 'then'), new Set(visited)) &&
@@ -162,12 +171,15 @@ const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
     : presentations[0];
   const missingPresentation = Boolean(screen5Node && !presentation);
   const afterScreen5Node = getNextExportNode(screen5Node);
-  const terminalNode = afterScreen5Node?.type === 'Text'
+  const afterPreTextTransitionNode = afterScreen5Node?.type === 'Transition'
     ? getNextExportNode(afterScreen5Node)
-    : afterScreen5Node;
-  const nodeAfterTransition = terminalNode?.type === 'Transition'
-    ? getNextExportNode(terminalNode)
     : null;
+  const textNode = afterScreen5Node?.type === 'Text'
+    ? afterScreen5Node
+    : afterPreTextTransitionNode?.type === 'Text'
+      ? afterPreTextTransitionNode
+      : null;
+  const terminalNode = textNode ? getNextExportNode(textNode) : afterScreen5Node;
   const hasValidTerminalPath = Boolean(
     screen5Node &&
     startNextNode?.id === screen5Node.id &&

@@ -241,6 +241,7 @@ def write_invalid_terminal_transition_fixture(source: Path, destination: Path) -
             "connections": [
                 {"id": f"{flow_id}_conn_start_screen5", "from": {"nodeId": start_id}, "to": {"nodeId": screen5_id}},
                 {"id": f"{flow_id}_conn_screen5_transition", "from": {"nodeId": screen5_id}, "to": {"nodeId": transition_id}},
+                {"id": f"{flow_id}_conn_transition_start", "from": {"nodeId": transition_id}, "to": {"nodeId": start_id}},
             ],
             "startNodeId": start_id,
             "panOffset": {"x": 0, "y": 0},
@@ -313,7 +314,7 @@ def assert_strict_shape_rejection(source: Path, out_dir: Path, args: argparse.Na
         args,
         project_root,
         "invalid_terminal_transition",
-        "MSX2 GameFlow terminal Transition node",
+        "MSX2 GameFlow Transition node",
     )
     print("Strict shape rejection OK")
 
@@ -355,13 +356,38 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
     next_node = next_node_after_optional_waypoints(screen5_node.get("id"))
     if next_node is None:
         raise RuntimeError(f"MSX2 GameFlow Screen5Presentation node must continue to End, Restart, or terminal Transition: {path}")
+    pre_text_transition_node = None
     transition_node = None
     terminal_action = "loop"
     if next_node.get("type") == "Transition":
         node_after_transition = next_node_after_optional_waypoints(next_node.get("id"))
-        if node_after_transition is None or node_after_transition.get("type") not in {"End", "Restart"}:
-            raise RuntimeError(f"MSX2 GameFlow terminal Transition node must continue to End or Restart: {path}")
-        terminal_action = "restart" if node_after_transition.get("type") == "Restart" else "loop"
+        if node_after_transition and node_after_transition.get("type") == "Text":
+            pre_text_transition_node = next_node
+            next_node = node_after_transition
+        elif node_after_transition is not None and node_after_transition.get("type") not in {"End", "Restart"}:
+            raise RuntimeError(f"MSX2 GameFlow Transition node cannot continue to {node_after_transition.get('type')} in SCREEN 5 backend; use Text, End, or Restart: {path}")
+        else:
+            terminal_action = "restart" if node_after_transition and node_after_transition.get("type") == "Restart" else "loop"
+            transition_node = next_node
+    if next_node.get("type") == "Text":
+        after_text_node = next_node_after_optional_waypoints(next_node.get("id"))
+        if after_text_node and after_text_node.get("type") == "Transition":
+            node_after_transition = next_node_after_optional_waypoints(after_text_node.get("id"))
+            if node_after_transition is not None and node_after_transition.get("type") not in {"End", "Restart"}:
+                raise RuntimeError(f"MSX2 GameFlow Transition node cannot continue to {node_after_transition.get('type')} in SCREEN 5 backend; use Text, End, or Restart: {path}")
+            terminal_action = "restart" if node_after_transition and node_after_transition.get("type") == "Restart" else "loop"
+            transition_node = after_text_node
+        elif after_text_node and after_text_node.get("type") == "Restart":
+            terminal_action = "restart"
+        elif after_text_node is not None and after_text_node.get("type") != "End":
+            raise RuntimeError(f"MSX2 GameFlow Text node cannot continue to {after_text_node.get('type')} in SCREEN 5 backend: {path}")
+    elif transition_node is not None:
+        pass
+    elif next_node.get("type") == "Transition":
+        node_after_transition = next_node_after_optional_waypoints(next_node.get("id"))
+        if node_after_transition is not None and node_after_transition.get("type") not in {"End", "Restart"}:
+            raise RuntimeError(f"MSX2 GameFlow Transition node cannot continue to {node_after_transition.get('type')} in SCREEN 5 backend; use Text, End, or Restart: {path}")
+        terminal_action = "restart" if node_after_transition and node_after_transition.get("type") == "Restart" else "loop"
         transition_node = next_node
     elif next_node.get("type") == "Restart":
         terminal_action = "restart"
@@ -383,6 +409,7 @@ def get_msx2_gameflow_contract(path: Path) -> dict[str, str] | None:
         "presentation_asset_id": presentation_asset_id,
         "wait_for_key": screen5_node.get("waitForKey"),
         "wait_frames": screen5_node.get("waitFrames"),
+        "pre_text_transition_id": pre_text_transition_node.get("id") if pre_text_transition_node else "none",
         "transition_id": transition_node.get("id") if transition_node else "none",
         "terminal_action": terminal_action,
         "transition_effect": transition_node.get("effect") if transition_node else "none",
@@ -405,7 +432,9 @@ def assert_msx2_gameflow_asm_contract(path: Path, contract: dict[str, str] | Non
         f"; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: {contract['presentation_asset_id']}",
         "; MSX2_GAMEFLOW_INITIAL_GLOBALS:",
         "; MSX2_GAMEFLOW_AFTER_PRESENTATION_GLOBALS:",
+        "; MSX2_GAMEFLOW_AFTER_PRE_TEXT_TRANSITION_GLOBALS:",
         "; MSX2_GAMEFLOW_AFTER_TRANSITION_GLOBALS:",
+        f"; MSX2_GAMEFLOW_PRE_TEXT_TRANSITION: {contract['pre_text_transition_id']}",
         f"; MSX2_GAMEFLOW_NEXT_TRANSITION: {contract['transition_id']}",
         f"; MSX2_GAMEFLOW_TERMINAL_ACTION: {contract['terminal_action']}",
         f"; MSX2_GAMEFLOW_TRANSITION_EFFECT: {contract['transition_effect']}",
@@ -478,7 +507,7 @@ def main() -> int:
     parser.add_argument("--inject-terminal-transition", action="store_true", help="Inject Screen5Presentation -> Transition -> End into a temp fixture before compiling")
     parser.add_argument("--transition-effect", choices=["fade_to_black", "cls"], default="fade_to_black", help="Effect used with --inject-terminal-transition")
     parser.add_argument("--transition-duration-frames", type=int, default=29, help="Duration used with --inject-terminal-transition")
-    parser.add_argument("--assert-strict-shape-rejection", action="store_true", help="Also verify that Start -> Transition -> Screen5Presentation is rejected")
+    parser.add_argument("--assert-strict-shape-rejection", action="store_true", help="Also verify that Transition -> unsupported node is rejected")
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()

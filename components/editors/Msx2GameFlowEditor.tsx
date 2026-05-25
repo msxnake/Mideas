@@ -430,10 +430,18 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         ? presentationNode as Msx2GameFlowScreen5PresentationNode
         : firstScreen5;
       const afterScreen5 = getNextExportNode(screen5Node, nodes, connections);
-      const afterText = afterScreen5?.type === 'Text'
+      const afterPreTextTransition = afterScreen5?.type === 'Transition'
         ? getNextExportNode(afterScreen5, nodes, connections)
         : undefined;
-      const terminalNode = afterScreen5?.type === 'Text' ? afterText : afterScreen5;
+      const textNode = afterScreen5?.type === 'Text'
+        ? afterScreen5
+        : afterPreTextTransition?.type === 'Text'
+          ? afterPreTextTransition
+          : undefined;
+      const afterText = textNode
+        ? getNextExportNode(textNode, nodes, connections)
+        : undefined;
+      const terminalNode = textNode ? afterText : afterScreen5;
       const afterTransition = terminalNode?.type === 'Transition'
         ? getNextExportNode(terminalNode, nodes, connections)
         : undefined;
@@ -460,14 +468,20 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       if (afterScreen5 && afterScreen5.type !== 'Text' && afterScreen5.type !== 'IfThenElse' && afterScreen5.type !== 'Transition' && afterScreen5.type !== 'Restart' && afterScreen5.type !== 'End') {
         issues.push('SCREEN 5 node can only continue to Text, IfThenElse, Transition, Restart, or End in this backend.');
       }
-      if (afterScreen5?.type === 'Text') {
-        if (!afterScreen5.message?.trim()) issues.push('Text node must include a message.');
+      if (afterScreen5?.type === 'Transition' && afterPreTextTransition?.type === 'Text' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(afterScreen5.effect)) {
+        issues.push(`SCREEN 5 pre-text Transition does not support "${afterScreen5.effect}"; use a SCREEN 5 transition effect.`);
+      }
+      if (afterScreen5?.type === 'Transition' && afterPreTextTransition && afterPreTextTransition.type !== 'Text' && afterPreTextTransition.type !== 'Screen5Presentation' && afterPreTextTransition.type !== 'End' && afterPreTextTransition.type !== 'Restart') {
+        issues.push(`SCREEN 5 Transition should continue to SCREEN 5 Presentation, Text, Restart, End, or no outgoing node; it cannot continue to ${afterPreTextTransition.type}.`);
+      }
+      if (textNode) {
+        if (!textNode.message?.trim()) issues.push('Text node must include a message.');
         if (afterText?.type !== 'Transition' && afterText?.type !== 'Restart' && afterText?.type !== 'End') {
           issues.push('Text node should continue to Transition, Restart, or End.');
         }
       }
-      if (terminalNode?.type === 'Transition' && afterTransition?.type !== 'End' && afterTransition?.type !== 'Restart') {
-        issues.push('Terminal Transition should continue to Restart or End.');
+      if (terminalNode?.type === 'Transition' && afterTransition && afterTransition.type !== 'End' && afterTransition.type !== 'Restart' && afterTransition.type !== 'Text') {
+        issues.push('Terminal Transition should continue to Restart, End, or no outgoing node.');
       }
       if (terminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(terminalNode.effect)) {
         issues.push(`SCREEN 5 terminal Transition does not support "${terminalNode.effect}"; use a SCREEN 5 transition effect.`);
@@ -480,14 +494,28 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           issues.push('IfThenElse must have THEN and ELSE branches.');
         }
         for (const [label, branchNode] of [['THEN', thenNode], ['ELSE', elseNode]] as const) {
-          const afterBranchText = branchNode?.type === 'Text'
+          const afterBranchPreTextTransition = branchNode?.type === 'Transition'
             ? getNextExportNode(branchNode, nodes, connections)
             : undefined;
-          const branchTerminalNode = branchNode?.type === 'Text' ? afterBranchText : branchNode;
-          if (branchNode?.type === 'Text' && !branchNode.message?.trim()) {
+          const branchTextNode = branchNode?.type === 'Text'
+            ? branchNode
+            : afterBranchPreTextTransition?.type === 'Text'
+              ? afterBranchPreTextTransition
+              : undefined;
+          const afterBranchText = branchTextNode
+            ? getNextExportNode(branchTextNode, nodes, connections)
+            : undefined;
+          const branchTerminalNode = branchTextNode ? afterBranchText : branchNode;
+          if (branchNode?.type === 'Transition' && afterBranchPreTextTransition?.type === 'Text' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(branchNode.effect)) {
+            issues.push(`IfThenElse ${label} pre-text Transition uses "${branchNode.effect}", which is not supported by SCREEN 5.`);
+          }
+          if (branchNode?.type === 'Transition' && afterBranchPreTextTransition && afterBranchPreTextTransition.type !== 'Text' && afterBranchPreTextTransition.type !== 'End' && afterBranchPreTextTransition.type !== 'Restart') {
+            issues.push(`IfThenElse ${label} Transition should continue to Text, Restart, End, or no outgoing node; it cannot continue to ${afterBranchPreTextTransition.type}.`);
+          }
+          if (branchTextNode && !branchTextNode.message?.trim()) {
             issues.push(`IfThenElse ${label} Text node must include a message.`);
           }
-          if (branchNode?.type === 'Text' && afterBranchText?.type !== 'Transition' && afterBranchText?.type !== 'Restart' && afterBranchText?.type !== 'End') {
+          if (branchTextNode && afterBranchText?.type !== 'Transition' && afterBranchText?.type !== 'Restart' && afterBranchText?.type !== 'End') {
             issues.push(`IfThenElse ${label} Text node should continue to Transition, Restart, or End.`);
           }
           if (branchNode && branchNode.type !== 'Text' && branchNode.type !== 'Transition' && branchNode.type !== 'Restart' && branchNode.type !== 'End') {
@@ -496,8 +524,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           const afterBranchTransition = branchTerminalNode?.type === 'Transition'
             ? getNextExportNode(branchTerminalNode, nodes, connections)
             : undefined;
-          if (branchTerminalNode?.type === 'Transition' && afterBranchTransition?.type !== 'End' && afterBranchTransition?.type !== 'Restart') {
-            issues.push(`IfThenElse ${label} terminal Transition should continue to Restart or End.`);
+          if (branchTerminalNode?.type === 'Transition' && afterBranchTransition && afterBranchTransition.type !== 'End' && afterBranchTransition.type !== 'Restart') {
+            issues.push(`IfThenElse ${label} terminal Transition should continue to Restart, End, or no outgoing node.`);
           }
           if (branchTerminalNode?.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(branchTerminalNode.effect)) {
             issues.push(`IfThenElse ${label} terminal Transition uses "${branchTerminalNode.effect}", which is not supported by SCREEN 5.`);
@@ -1064,69 +1092,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           : node
       ),
       connections: connections.filter(connection => !(connection.from.nodeId === selectedSubMenuNode.id && connection.from.sourceId === id)),
-    });
-  };
-
-  const selectedOutgoingConnection = selectedNode
-    ? connections.find(connection => connection.from.nodeId === selectedNode.id)
-    : undefined;
-  const selectedThenConnection = selectedIfThenElseNode
-    ? connections.find(connection => connection.from.nodeId === selectedIfThenElseNode.id && connection.from.sourceId === 'then')
-    : undefined;
-  const selectedElseConnection = selectedIfThenElseNode
-    ? connections.find(connection => connection.from.nodeId === selectedIfThenElseNode.id && connection.from.sourceId === 'else')
-    : undefined;
-  const selectedSubMenuOptionConnections = selectedSubMenuNode
-    ? new Map((selectedSubMenuNode.options || []).map(option => [
-        option.id,
-        connections.find(connection => connection.from.nodeId === selectedSubMenuNode.id && connection.from.sourceId === option.id),
-      ]))
-    : new Map<string, Msx2GameFlowConnection | undefined>();
-
-  const connectSelectedNodeTo = (toNodeId: string, sourceId?: string) => {
-    if (!selectedNode || selectedNode.type === 'End' || selectedNode.type === 'Restart' || selectedNode.id === toNodeId) return;
-    const targetNode = nodes.find(node => node.id === toNodeId);
-    if (!targetNode) return;
-    if (selectedNode.type === 'IfThenElse' && sourceId) {
-      onUpdate({
-        connections: [
-          ...connections.filter(connection => !(connection.from.nodeId === selectedNode.id && connection.from.sourceId === sourceId)),
-          makeConnection(selectedNode.id, targetNode.id, sourceId),
-        ],
-      });
-      return;
-    }
-    if (selectedNode.type === 'SubMenu' && sourceId) {
-      onUpdate({
-        connections: [
-          ...connections.filter(connection => !(connection.from.nodeId === selectedNode.id && connection.from.sourceId === sourceId)),
-          makeConnection(selectedNode.id, targetNode.id, sourceId),
-        ],
-      });
-      return;
-    }
-    onUpdate({
-      connections: [
-        ...connections.filter(connection => connection.from.nodeId !== selectedNode.id),
-        makeConnection(selectedNode.id, targetNode.id),
-      ],
-    });
-  };
-
-  const clearSelectedOutgoingConnection = () => {
-    if (!selectedNode) return;
-    onUpdate({
-      connections: connections.filter(connection => connection.from.nodeId !== selectedNode.id),
-    });
-  };
-
-  const clearSelectedOutgoingConnectionPort = (sourceId?: string) => {
-    if (!selectedNode) return;
-    onUpdate({
-      connections: connections.filter(connection => !(
-        connection.from.nodeId === selectedNode.id
-        && (sourceId ? connection.from.sourceId === sourceId : !connection.from.sourceId)
-      )),
     });
   };
 
@@ -2416,124 +2381,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 <canvas ref={previewCanvasRef} className="w-full border border-msx-border bg-black" style={{ imageRendering: 'pixelated' }} />
               ) : (
                 <div className="h-24 border border-dashed border-msx-border bg-black" />
-              )}
-            </div>
-          )}
-
-          {selectedNode && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Connection</h3>
-              {selectedNode.type === 'End' || selectedNode.type === 'Restart' ? (
-                <p className="text-xs text-msx-textsecondary">{selectedNode.type} nodes do not have outgoing connections.</p>
-              ) : selectedIfThenElseNode ? (
-                <>
-                  <label className="block text-xs">
-                    THEN node
-                    <select
-                      value={selectedThenConnection?.to.nodeId || ''}
-                      onChange={event => {
-                        if (event.target.value) connectSelectedNodeTo(event.target.value, 'then');
-                        else clearSelectedOutgoingConnectionPort('then');
-                      }}
-                      className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
-                    >
-                      <option value="">None</option>
-                      {nodes.filter(node => node.id !== selectedNode.id).map(node => (
-                        <option key={node.id} value={node.id}>{node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block text-xs">
-                    ELSE node
-                    <select
-                      value={selectedElseConnection?.to.nodeId || ''}
-                      onChange={event => {
-                        if (event.target.value) connectSelectedNodeTo(event.target.value, 'else');
-                        else clearSelectedOutgoingConnectionPort('else');
-                      }}
-                      className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
-                    >
-                      <option value="">None</option>
-                      {nodes.filter(node => node.id !== selectedNode.id).map(node => (
-                        <option key={node.id} value={node.id}>{node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <Button
-                    onClick={clearSelectedOutgoingConnection}
-                    size="sm"
-                    variant="ghost"
-                    disabled={!selectedThenConnection && !selectedElseConnection}
-                    className="w-full"
-                  >
-                    Clear Branches
-                  </Button>
-                </>
-              ) : selectedSubMenuNode ? (
-                <>
-                  {(selectedSubMenuNode.options || []).map(option => {
-                    const connection = selectedSubMenuOptionConnections.get(option.id);
-                    return (
-                      <label key={option.id} className="block text-xs">
-                        {option.text || option.id}
-                        <select
-                          value={connection?.to.nodeId || ''}
-                          onChange={event => {
-                            if (event.target.value) connectSelectedNodeTo(event.target.value, option.id);
-                            else clearSelectedOutgoingConnectionPort(option.id);
-                          }}
-                          className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
-                        >
-                          <option value="">None</option>
-                          {nodes.filter(node => node.id !== selectedNode.id).map(node => (
-                            <option key={node.id} value={node.id}>{node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}</option>
-                          ))}
-                        </select>
-                      </label>
-                    );
-                  })}
-                  <Button
-                    onClick={clearSelectedOutgoingConnection}
-                    size="sm"
-                    variant="ghost"
-                    disabled={!connections.some(connection => connection.from.nodeId === selectedSubMenuNode.id)}
-                    className="w-full"
-                  >
-                    Clear Options
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <label className="block text-xs">
-                    Next node
-                    <select
-                      value={selectedOutgoingConnection?.to.nodeId || ''}
-                      onChange={event => {
-                        if (event.target.value) connectSelectedNodeTo(event.target.value);
-                        else clearSelectedOutgoingConnectionPort();
-                      }}
-                      className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
-                    >
-                      <option value="">None</option>
-                      {nodes
-                        .filter(node => node.id !== selectedNode.id)
-                        .map(node => (
-                          <option key={node.id} value={node.id}>
-                            {node.type}: {getNodeLabel(node, allAssets).slice(0, 24)}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <Button
-                    onClick={clearSelectedOutgoingConnection}
-                    size="sm"
-                    variant="ghost"
-                    disabled={!selectedOutgoingConnection}
-                    className="w-full"
-                  >
-                    Clear Connection
-                  </Button>
-                </>
               )}
             </div>
           )}

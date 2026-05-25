@@ -37,9 +37,11 @@ interface ResolvedPresentationFlow {
   node?: Msx2GameFlowScreen5PresentationNode;
   initialGlobals: Msx2GameFlowGlobalsNode[];
   afterPresentationGlobals: Msx2GameFlowGlobalsNode[];
+  afterPreTextTransitionGlobals: Msx2GameFlowGlobalsNode[];
   afterTransitionGlobals: Msx2GameFlowGlobalsNode[];
   ifThenElse?: ResolvedIfThenElseStep;
   text?: Msx2GameFlowTextNode;
+  preTextTransition?: Msx2GameFlowTransitionNode;
   transition?: Msx2GameFlowTransitionNode;
   terminalAction: 'loop' | 'restart';
   requestedPresentationAssetId?: string;
@@ -55,9 +57,11 @@ interface ResolvedGlobalAssignment {
 
 interface ResolvedTerminalStep {
   text?: Msx2GameFlowTextNode;
+  preTextTransition?: Msx2GameFlowTransitionNode;
   transition?: Msx2GameFlowTransitionNode;
   terminalAction: 'loop' | 'restart';
   globalsBeforeText: Msx2GameFlowGlobalsNode[];
+  globalsAfterPreTextTransition: Msx2GameFlowGlobalsNode[];
   globals: Msx2GameFlowGlobalsNode[];
 }
 
@@ -65,6 +69,13 @@ interface ResolvedIfThenElseStep {
   node: Msx2GameFlowIfThenElseNode;
   thenStep: ResolvedTerminalStep;
   elseStep: ResolvedTerminalStep;
+}
+
+interface ResolvedPresentationChainScene {
+  node: Msx2GameFlowScreen5PresentationNode;
+  presentation: Msx2Screen5PresentationConfig;
+  transitionToNext?: Msx2GameFlowTransitionNode;
+  terminalAction?: 'loop' | 'restart';
 }
 
 function getNodeById(flow: Msx2GameFlowGraph, nodeId: string | undefined): Msx2GameFlowNode | undefined {
@@ -130,20 +141,31 @@ function resolveTerminalStep(
       globalsBeforeText: step.globals,
     };
   }
-  if (nextNode.type === 'End') return { terminalAction: 'loop', globalsBeforeText: [], globals: step.globals };
-  if (nextNode.type === 'Restart') return { terminalAction: 'restart', globalsBeforeText: [], globals: step.globals };
+  if (nextNode.type === 'End') return { terminalAction: 'loop', globalsBeforeText: [], globalsAfterPreTextTransition: [], globals: step.globals };
+  if (nextNode.type === 'Restart') return { terminalAction: 'restart', globalsBeforeText: [], globalsAfterPreTextTransition: [], globals: step.globals };
   if (nextNode.type !== 'Transition') {
     throw new Error(`MSX2 GameFlow branch from "${node.id}" cannot continue to "${nextNode.type}" in the SCREEN 5 backend.`);
   }
   const afterTransitionStep = collectNextExportStep(flow, nextNode);
   const nodeAfterTransition = afterTransitionStep.node;
-  if (nodeAfterTransition?.type !== 'End' && nodeAfterTransition?.type !== 'Restart') {
-    throw new Error(`MSX2 GameFlow terminal Transition node "${nextNode.id}" must continue to End or Restart.`);
+  if (nodeAfterTransition?.type === 'Text') {
+    const afterTextStep = resolveTerminalStep(flow, nodeAfterTransition, undefined, new Set(visited));
+    return {
+      ...afterTextStep,
+      text: nodeAfterTransition as Msx2GameFlowTextNode,
+      preTextTransition: nextNode as Msx2GameFlowTransitionNode,
+      globalsBeforeText: step.globals,
+      globalsAfterPreTextTransition: afterTransitionStep.globals,
+    };
+  }
+  if (nodeAfterTransition && nodeAfterTransition.type !== 'End' && nodeAfterTransition.type !== 'Restart') {
+    throw new Error(`MSX2 GameFlow Transition node "${nextNode.id}" cannot continue to "${nodeAfterTransition.type}" in the SCREEN 5 backend; use Text, End, or Restart after a SCREEN 5 transition.`);
   }
   return {
     transition: nextNode as Msx2GameFlowTransitionNode,
-    terminalAction: nodeAfterTransition.type === 'Restart' ? 'restart' : 'loop',
+    terminalAction: nodeAfterTransition?.type === 'Restart' ? 'restart' : 'loop',
     globalsBeforeText: [],
+    globalsAfterPreTextTransition: [],
     globals: [...step.globals, ...afterTransitionStep.globals],
   };
 }
@@ -177,6 +199,54 @@ function resolveMsx2GameFlowPresentationNode(flow: Msx2GameFlowGraph | undefined
   return nextNode?.type === 'Screen5Presentation' ? nextNode as Msx2GameFlowScreen5PresentationNode : undefined;
 }
 
+function resolvePresentationChain(analysis: ProjectAnalysis): { flow: Msx2GameFlowGraph; scenes: ResolvedPresentationChainScene[] } | undefined {
+  const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>);
+  const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]);
+  const flow = flows.filter(candidate => candidate?.purpose !== 'screen4-runtime')
+    .find(candidate => candidate?.name === 'Main MSX2') || flows.find(candidate => candidate?.purpose !== 'screen4-runtime');
+  const firstNode = resolveMsx2GameFlowPresentationNode(flow);
+  if (!flow || !firstNode) return undefined;
+
+  const scenes: ResolvedPresentationChainScene[] = [];
+  let current: Msx2GameFlowScreen5PresentationNode | undefined = firstNode;
+  const visited = new Set<string>();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    const requestedPresentationAssetId = current.presentationAssetId;
+    const presentation = requestedPresentationAssetId
+      ? presentations.find(item => (item as any).id === requestedPresentationAssetId)
+      : presentations[0];
+    if (!presentation) {
+      throw new Error(`MSX2 GameFlow Screen5Presentation node "${current.id}" references missing msx2presentation asset "${requestedPresentationAssetId || 'auto-first'}".`);
+    }
+
+    const scene: ResolvedPresentationChainScene = {
+      node: current,
+      presentation: normalizePresentation(applyGameFlowRuntimeOverrides(presentation, current)),
+    };
+    const nextNode = getNextExportNode(flow, current);
+    if (!nextNode || nextNode.type === 'End') {
+      scene.terminalAction = 'loop';
+      scenes.push(scene);
+      break;
+    }
+    if (nextNode.type === 'Restart') {
+      scene.terminalAction = 'restart';
+      scenes.push(scene);
+      break;
+    }
+    if (nextNode.type !== 'Transition') return undefined;
+    const afterTransition = getNextExportNode(flow, nextNode);
+    if (afterTransition?.type !== 'Screen5Presentation') return undefined;
+    scene.transitionToNext = nextNode as Msx2GameFlowTransitionNode;
+    scenes.push(scene);
+    current = afterTransition as Msx2GameFlowScreen5PresentationNode;
+  }
+
+  if (scenes.length < 2) return undefined;
+  return { flow, scenes };
+}
+
 function resolveNextExportStep(
   flow: Msx2GameFlowGraph | undefined,
   node: Msx2GameFlowScreen5PresentationNode | undefined
@@ -184,12 +254,14 @@ function resolveNextExportStep(
   transition?: Msx2GameFlowTransitionNode;
   terminalAction: 'loop' | 'restart';
   afterPresentationGlobals: Msx2GameFlowGlobalsNode[];
+  afterPreTextTransitionGlobals: Msx2GameFlowGlobalsNode[];
   afterTransitionGlobals: Msx2GameFlowGlobalsNode[];
   text?: Msx2GameFlowTextNode;
+  preTextTransition?: Msx2GameFlowTransitionNode;
   ifThenElse?: ResolvedIfThenElseStep;
 } {
   if (!flow || !node || !Array.isArray(flow.nodes)) {
-    return { terminalAction: 'loop', afterPresentationGlobals: [], afterTransitionGlobals: [] };
+    return { terminalAction: 'loop', afterPresentationGlobals: [], afterPreTextTransitionGlobals: [], afterTransitionGlobals: [] };
   }
   const afterPresentationStep = collectNextExportStep(flow, node);
   const nextNode = afterPresentationStep.node;
@@ -200,6 +272,7 @@ function resolveNextExportStep(
     return {
       terminalAction: 'loop',
       afterPresentationGlobals: afterPresentationStep.globals,
+      afterPreTextTransitionGlobals: [],
       afterTransitionGlobals: [],
     };
   }
@@ -207,6 +280,7 @@ function resolveNextExportStep(
     return {
       terminalAction: 'restart',
       afterPresentationGlobals: afterPresentationStep.globals,
+      afterPreTextTransitionGlobals: [],
       afterTransitionGlobals: [],
     };
   }
@@ -216,14 +290,17 @@ function resolveNextExportStep(
       transition: textStep.transition,
       terminalAction: textStep.terminalAction,
       afterPresentationGlobals: afterPresentationStep.globals,
+      afterPreTextTransitionGlobals: textStep.globalsAfterPreTextTransition,
       afterTransitionGlobals: textStep.globals,
       text: nextNode as Msx2GameFlowTextNode,
+      preTextTransition: textStep.preTextTransition,
     };
   }
   if (nextNode.type === 'IfThenElse') {
     return {
       terminalAction: 'loop',
       afterPresentationGlobals: afterPresentationStep.globals,
+      afterPreTextTransitionGlobals: [],
       afterTransitionGlobals: [],
       ifThenElse: {
         node: nextNode as Msx2GameFlowIfThenElseNode,
@@ -237,13 +314,26 @@ function resolveNextExportStep(
   }
   const afterTransitionStep = collectNextExportStep(flow, nextNode);
   const nodeAfterTransition = afterTransitionStep.node;
-  if (nodeAfterTransition?.type !== 'End' && nodeAfterTransition?.type !== 'Restart') {
-    throw new Error(`MSX2 GameFlow terminal Transition node "${nextNode.id}" must continue to End or Restart.`);
+  if (nodeAfterTransition?.type === 'Text') {
+    const textStep = resolveTerminalStep(flow, nodeAfterTransition);
+    return {
+      preTextTransition: nextNode as Msx2GameFlowTransitionNode,
+      transition: textStep.transition,
+      terminalAction: textStep.terminalAction,
+      afterPresentationGlobals: afterPresentationStep.globals,
+      afterPreTextTransitionGlobals: afterTransitionStep.globals,
+      afterTransitionGlobals: textStep.globals,
+      text: nodeAfterTransition as Msx2GameFlowTextNode,
+    };
+  }
+  if (nodeAfterTransition && nodeAfterTransition.type !== 'End' && nodeAfterTransition.type !== 'Restart') {
+    throw new Error(`MSX2 GameFlow Transition node "${nextNode.id}" cannot continue to "${nodeAfterTransition.type}" in the SCREEN 5 backend; use Text, End, or Restart after a SCREEN 5 transition.`);
   }
   return {
     transition: nextNode as Msx2GameFlowTransitionNode,
-    terminalAction: nodeAfterTransition.type === 'Restart' ? 'restart' : 'loop',
+    terminalAction: nodeAfterTransition?.type === 'Restart' ? 'restart' : 'loop',
     afterPresentationGlobals: afterPresentationStep.globals,
+    afterPreTextTransitionGlobals: [],
     afterTransitionGlobals: afterTransitionStep.globals,
   };
 }
@@ -277,9 +367,11 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     node,
     initialGlobals: collectInitialGlobalsNodes(flow, node),
     afterPresentationGlobals: nextStep.afterPresentationGlobals,
+    afterPreTextTransitionGlobals: nextStep.afterPreTextTransitionGlobals,
     afterTransitionGlobals: nextStep.afterTransitionGlobals,
     text: nextStep.text,
     ifThenElse: nextStep.ifThenElse,
+    preTextTransition: nextStep.preTextTransition,
     transition: nextStep.transition,
     terminalAction: nextStep.terminalAction,
     requestedPresentationAssetId,
@@ -651,6 +743,24 @@ function generateWaitLoop(presentation: Msx2Screen5PresentationConfig, nextLabel
     jp .main_loop`;
 }
 
+function generateSceneWaitStep(label: string, presentation: Msx2Screen5PresentationConfig, nextLabel: string): string {
+  const runtime = presentation.runtime;
+  if (runtime.waitForKey !== false) {
+    return `.${label}_wait_key:
+    call CHGET
+    jp ${nextLabel}`;
+  }
+  const waitForFrames = Math.max(0, Math.min(255, Math.trunc(Number(runtime.waitForFrames) || 0)));
+  if (waitForFrames > 0) {
+    return `    ld b, ${hexByte(waitForFrames)}
+.${label}_frame_wait:
+    halt
+    djnz .${label}_frame_wait
+    jp ${nextLabel}`;
+  }
+  return `    jp ${nextLabel}`;
+}
+
 const SCREEN5_TEXT_FONT: Record<string, string[]> = {
   ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
   A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
@@ -782,6 +892,27 @@ function generateTransitionRuntime(
   afterTransitionAction: 'loop' | 'restart',
   beforeActionAsm = ''
 ): string {
+  const effectBlock = getScreen5TransitionEffectBlock(transition, vramBase);
+  const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
+  const waitBlock = durationFrames > 0
+    ? `    ld b, ${hexByte(durationFrames)}
+${label}_transition_wait:
+    halt
+    djnz ${label}_transition_wait
+`
+    : '';
+
+  return `
+${label}:
+${beforeActionAsm}${effectBlock}
+${waitBlock}${afterTransitionAction === 'restart' ? `    jp init_rom
+` : `.gameflow_end_loop_${label}:
+    halt
+    jp .gameflow_end_loop_${label}
+`}`;
+}
+
+function getScreen5TransitionEffectBlock(transition: Msx2GameFlowTransitionNode, _vramBase: string): string {
   const screen5TransitionEffects = new Set([
     'cls',
     'fade_to_black',
@@ -793,15 +924,7 @@ function generateTransitionRuntime(
   if (!screen5TransitionEffects.has(transition.effect)) {
     throw new Error(`MSX2 SCREEN 5 GameFlow transition "${transition.effect}" is not supported; use a SCREEN 5 transition effect.`);
   }
-  const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
-  const waitBlock = durationFrames > 0
-    ? `    ld b, ${hexByte(durationFrames)}
-.transition_wait:
-    halt
-    djnz .transition_wait
-`
-    : '';
-  const effectBlock = transition.effect === 'fade_to_black'
+  return transition.effect === 'fade_to_black'
     ? `    call load_screen5_black_palette`
     : transition.effect === 'screen5_vertical_pixel_wipe'
       ? `    call clear_screen5_vertical_pixel_wipe`
@@ -813,15 +936,53 @@ function generateTransitionRuntime(
             ? `    call clear_screen5_mirror_pixel_wipe`
             : `    call DISSCR
     call clear_screen5_visible_vram`;
+}
+
+function generatePreTextTransitionRuntime(
+  label: string,
+  transition: Msx2GameFlowTransitionNode,
+  vramBase: string,
+  textLabel: string,
+  beforeActionAsm = '',
+  afterActionAsm = ''
+): string {
+  const effectBlock = getScreen5TransitionEffectBlock(transition, vramBase);
+  const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
+  const waitBlock = durationFrames > 0
+    ? `    ld b, ${hexByte(durationFrames)}
+${label}_transition_wait:
+    halt
+    djnz ${label}_transition_wait
+`
+    : '';
 
   return `
 ${label}:
 ${beforeActionAsm}${effectBlock}
-${waitBlock}${afterTransitionAction === 'restart' ? `    jp init_rom
-` : `.gameflow_end_loop_${label}:
+${waitBlock}${afterActionAsm}    jp ${textLabel}
+`;
+}
+
+function generateTransitionToLabelRuntime(
+  label: string,
+  transition: Msx2GameFlowTransitionNode,
+  vramBase: string,
+  nextLabel: string
+): string {
+  const effectBlock = getScreen5TransitionEffectBlock(transition, vramBase);
+  const durationFrames = Math.max(0, Math.min(255, Math.trunc(Number(transition.durationFrames) || 0)));
+  const waitBlock = durationFrames > 0
+    ? `    ld b, ${hexByte(durationFrames)}
+${label}_transition_wait:
     halt
-    jp .gameflow_end_loop_${label}
-`}`;
+    djnz ${label}_transition_wait
+`
+    : '';
+  return `
+${label}:
+${effectBlock}
+${waitBlock}    jp ${nextLabel}
+`;
 }
 
 function generateTerminalActionRoutine(
@@ -836,18 +997,21 @@ function generateTerminalActionRoutine(
   const globalsCall = step.globals.length > 0 ? `    call ${globalsLabel}\n` : '';
   if (step.text) {
     const preTextGlobalsCall = step.globalsBeforeText.length > 0 ? `    call ${globalsBeforeTextLabel}\n` : '';
-    const textLabel = step.globalsBeforeText.length > 0 ? `${label}_text` : label;
+    const afterPreTextTransitionGlobalsCall = step.globalsAfterPreTextTransition.length > 0 ? `    call ${globalsBeforeTextLabel}_after_transition\n` : '';
+    const textLabel = step.globalsBeforeText.length > 0 || step.preTextTransition ? `${label}_text` : label;
     const textAction = step.transition
       ? `${globalsCall}    jp ${label}_transition\n`
       : step.terminalAction === 'restart'
         ? `${globalsCall}    jp init_rom\n`
         : `${globalsCall}.${label}_end_loop:\n    halt\n    jp .${label}_end_loop\n`;
-    const preTextRoutine = step.globalsBeforeText.length > 0
-      ? `
+    const preTextRoutine = step.preTextTransition
+      ? generatePreTextTransitionRuntime(label, step.preTextTransition, vramBase, textLabel, preTextGlobalsCall, afterPreTextTransitionGlobalsCall)
+      : step.globalsBeforeText.length > 0
+        ? `
 ${label}:
 ${preTextGlobalsCall}    jp ${textLabel}
 `
-      : '';
+        : '';
     const vramBaseAddress = vramBase === '#8000' ? 0x8000 : 0;
     return `${preTextRoutine}${generateScreen5TextRoutine(textLabel, step.text, textAction, vramBaseAddress, textColorIndex)}${
       step.transition
@@ -1125,7 +1289,212 @@ function normalizePresentation(presentation: Msx2Screen5PresentationConfig | und
   };
 }
 
+function generatePresentationChainUnitedFiles(
+  projectName: string,
+  flow: Msx2GameFlowGraph,
+  scenes: ResolvedPresentationChainScene[],
+  config: Msx2Screen5PresentationGeneratorConfig
+): string {
+  const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
+  const preparedScenes = scenes.map((scene, sceneIndex) => {
+    const presentation = scene.presentation;
+    const paletteBytes = buildPaletteBytes(presentation.palette);
+    const bitmapBytes = buildBitmapBytes(presentation);
+    const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
+    const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
+    const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
+    const label = `msx2_gameflow_screen5_scene_${sceneIndex}`;
+    return { ...scene, presentation, paletteBytes, bitmapChunks, chunkLines, vramBase, label, sceneIndex };
+  });
+  const anyTransition = preparedScenes.some(scene => Boolean(scene.transitionToNext));
+  const firstScene = preparedScenes[0];
+
+  const paletteRoutines = preparedScenes.map(scene => `load_screen5_palette_scene_${scene.sceneIndex}:
+    ld bc, #0010
+    call WRTVDP
+    ld hl, screen5_palette_scene_${scene.sceneIndex}_data
+    ld b, 32
+palette_loop_scene_${scene.sceneIndex}:
+    ld a, (hl)
+    out (VDP_PALETTE_PORT), a
+    inc hl
+    djnz palette_loop_scene_${scene.sceneIndex}
+    ret`).join('\n\n');
+
+  const uploadRoutines = preparedScenes.map(scene => {
+    const uploadChunks = scene.bitmapChunks.map((_chunk, index) => {
+      const label = `SCREEN5_SCENE_${scene.sceneIndex}_BITMAP_CHUNK_${index}`;
+      const vramOffset = index * scene.chunkLines * BYTES_PER_LINE;
+      const destination = scene.presentation.runtime.vramPage === 1
+        ? `#${(0x8000 + vramOffset).toString(16).toUpperCase().padStart(4, '0')}`
+        : `#${vramOffset.toString(16).toUpperCase().padStart(4, '0')}`;
+      return `    ; @mideas:screen5-presentation-chunk ${label}
+    ld hl, ${label}
+    ld de, ${destination}
+    ld bc, ${label}_SIZE
+    call LDIRVM`;
+    }).join('\n');
+    return `upload_screen5_scene_${scene.sceneIndex}_bitmap:
+${uploadChunks}
+    ret`;
+  }).join('\n\n');
+
+  const sceneRoutines = preparedScenes.map((scene, index) => {
+    const nextScene = preparedScenes[index + 1];
+    const nextLabel = scene.transitionToNext && nextScene
+      ? `${scene.label}_transition`
+      : scene.terminalAction === 'restart'
+        ? 'init_rom'
+        : `${scene.label}_end_loop`;
+    const terminalLoop = !scene.transitionToNext && scene.terminalAction !== 'restart'
+      ? `
+${scene.label}_end_loop:
+    halt
+    jp ${scene.label}_end_loop`
+      : '';
+    const transitionRoutine = scene.transitionToNext && nextScene
+      ? generateTransitionToLabelRuntime(`${scene.label}_transition`, scene.transitionToNext, scene.vramBase, nextScene.label)
+      : '';
+    return `${scene.label}:
+    call DISSCR
+    call load_screen5_palette_scene_${scene.sceneIndex}
+    call upload_screen5_scene_${scene.sceneIndex}_bitmap
+    call ENASCR
+${generateSceneWaitStep(scene.label, scene.presentation, nextLabel)}
+${terminalLoop}
+${transitionRoutine}`;
+  }).join('\n\n');
+
+  const paletteData = preparedScenes.map(scene => formatBytes(`screen5_palette_scene_${scene.sceneIndex}_data`, scene.paletteBytes, `SCREEN 5 palette for scene ${scene.sceneIndex}`)).join('\n');
+  const chunkData = preparedScenes.map(scene => scene.bitmapChunks.map((chunk, index) => {
+    const label = `SCREEN5_SCENE_${scene.sceneIndex}_BITMAP_CHUNK_${index}`;
+    return `${label}_SIZE EQU ${chunk.length}
+
+${formatBytes(label, chunk, `SCREEN 5 scene ${scene.sceneIndex} bitmap chunk ${index}, ${chunk.length} bytes`)}`;
+  }).join('\n')).join('\n');
+
+  return `; File: unitedFiles.asm
+; ==================================================================
+; Mideas MSX2 SCREEN 5 presentation chain backend
+; Project: ${projectName}
+; Presentation scenes: ${preparedScenes.length}
+; Screen mode: ${config.screenMode}
+; Backend: msx2-screen5-presentation-chain
+; MSX2_GAMEFLOW_PRESENT: yes
+; MSX2_GAMEFLOW_ASSET: ${flow.name || 'Main MSX2'}
+; MSX2_GAMEFLOW_SCREEN5_CHAIN: ${preparedScenes.length}
+; ROM mode requested: ${config.romMode}
+; ROM Mode: ${config.romMode}
+; Mapper Target: ${config.targetFormat}
+; ==================================================================
+
+CHGMOD  EQU #005F
+DISSCR  EQU #0041
+ENASCR  EQU #0044
+LDIRVM  EQU #005C
+FILVRM  EQU #0056
+CHGET   EQU #009F
+WRTVDP  EQU #0047
+RSLREG  EQU #0138
+ENASLT  EQU #0024
+VDP_PALETTE_PORT EQU #9A
+SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
+
+    org #4000
+
+    db "AB"
+    dw init_rom
+    dw 0
+    dw 0
+    dw 0
+    dw 0
+    dw 0
+    dw 0
+
+init_rom:
+    di
+    call map_page2_to_cart_primary
+${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call DISSCR
+    ld a, 5
+    call CHGMOD
+    ld bc, #0007
+    call WRTVDP
+    ei
+    jp ${firstScene.label}
+
+map_page2_to_cart_primary:
+    call RSLREG
+    rrca
+    rrca
+    call get_cart_slot_value
+    ld h, #80
+    jp ENASLT
+
+get_cart_slot_value:
+    and #03
+    ld c, a
+    ld b, 0
+    ld hl, #FCC1
+    add hl, bc
+    ld a, (hl)
+    and #80
+    jr z, .slot_ready
+    or c
+    ld c, a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    ld a, (hl)
+    and #0C
+.slot_ready:
+    or c
+    ret
+
+${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    call mapper_set_bank_p3
+    ret
+
+mapper_set_bank_p1:
+    ld (#6000), a
+    ret
+
+mapper_set_bank_p2:
+    ld (#8000), a
+    ret
+
+mapper_set_bank_p3:
+    ld (#A000), a
+    ret
+
+` : ''}
+${sceneRoutines}
+${paletteRoutines}
+${uploadRoutines}
+${generateTransitionHelpers(anyTransition, firstScene.vramBase)}
+SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}
+SCREEN5_PRESENTATION_VISIBLE_LINES EQU ${VISIBLE_HEIGHT}
+SCREEN5_PRESENTATION_BYTES_PER_LINE EQU ${BYTES_PER_LINE}
+SCREEN5_PRESENTATION_LAST_BYTE_COLUMN EQU ${BYTES_PER_LINE - 1}
+SCREEN5_PRESENTATION_HALF_BYTES_PER_LINE EQU ${BYTES_PER_LINE / 2}
+SCREEN5_PRESENTATION_BITMAP_VRAM_BASE EQU ${firstScene.vramBase}
+
+${paletteData}
+${chunkData}
+${anyTransition ? formatBytes('screen5_black_palette_data', Array.from({ length: 32 }, () => 0), 'All-black palette used by MSX2 GameFlow transitions') : ''}
+`;
+}
+
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5PresentationGeneratorConfig): string {
+  const presentationChain = resolvePresentationChain(analysis);
+  if (presentationChain) {
+    return generatePresentationChainUnitedFiles(projectName, presentationChain.flow, presentationChain.scenes, config);
+  }
   const resolvedFlow = resolvePresentationFlow(analysis);
   const presentation = normalizePresentation(applyGameFlowRuntimeOverrides(resolvedFlow.presentation, resolvedFlow.node));
   const paletteBytes = buildPaletteBytes(presentation.palette);
@@ -1136,35 +1505,44 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
   const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   const terminalTransition = resolvedFlow.transition;
+  const preTextTransition = resolvedFlow.preTextTransition;
   const terminalAction = resolvedFlow.terminalAction;
   const initialGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.initialGlobals, analysis);
   const afterPresentationGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.afterPresentationGlobals, analysis);
+  const afterPreTextTransitionGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.afterPreTextTransitionGlobals, analysis);
   const afterTransitionGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.afterTransitionGlobals, analysis);
   const ifThenElseCondition = resolveConditionAsGlobalAssignment(resolvedFlow.ifThenElse?.node, analysis);
   if (resolvedFlow.ifThenElse && !ifThenElseCondition) {
     throw new Error(`MSX2 GameFlow IfThenElse node "${resolvedFlow.ifThenElse.node.id}" must select a global variable.`);
   }
   const thenPreTextGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.thenStep.globalsBeforeText || [], analysis);
+  const thenAfterPreTextTransitionGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.thenStep.globalsAfterPreTextTransition || [], analysis);
   const thenGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.thenStep.globals || [], analysis);
   const elsePreTextGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.elseStep.globalsBeforeText || [], analysis);
+  const elseAfterPreTextTransitionGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.elseStep.globalsAfterPreTextTransition || [], analysis);
   const elseGlobalAssignments = resolveInitialGlobalAssignments(resolvedFlow.ifThenElse?.elseStep.globals || [], analysis);
   const allGlobalAssignments = [
     ...initialGlobalAssignments,
     ...afterPresentationGlobalAssignments,
+    ...afterPreTextTransitionGlobalAssignments,
     ...afterTransitionGlobalAssignments,
     ...thenPreTextGlobalAssignments,
+    ...thenAfterPreTextTransitionGlobalAssignments,
     ...thenGlobalAssignments,
     ...elsePreTextGlobalAssignments,
+    ...elseAfterPreTextTransitionGlobalAssignments,
     ...elseGlobalAssignments,
     ...(ifThenElseCondition ? [ifThenElseCondition] : []),
   ];
   const globalEquates = generateGlobalVariableEquates(allGlobalAssignments);
   const ifThenElseLabel = resolvedFlow.ifThenElse ? `msx2_gameflow_ifthenelse_${resolvedFlow.ifThenElse.node.id.replace(/[^A-Za-z0-9_]/g, '_')}` : null;
   const textLabel = resolvedFlow.text ? `msx2_gameflow_text_${resolvedFlow.text.id.replace(/[^A-Za-z0-9_]/g, '_')}` : null;
-  const terminalRuntimeLabel = ifThenElseLabel || textLabel || (terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null);
+  const preTextTransitionLabel = preTextTransition ? 'msx2_gameflow_run_pre_text_transition' : null;
+  const terminalRuntimeLabel = ifThenElseLabel || preTextTransitionLabel || textLabel || (terminalTransition ? 'msx2_gameflow_run_transition' : terminalAction === 'restart' ? 'init_rom' : null);
   const nextRuntimeLabel = (afterPresentationGlobalAssignments.length > 0 || ifThenElseLabel || textLabel) ? 'msx2_gameflow_after_presentation' : terminalRuntimeLabel;
-  const anyTransition = Boolean(terminalTransition || resolvedFlow.ifThenElse?.thenStep.transition || resolvedFlow.ifThenElse?.elseStep.transition);
+  const anyTransition = Boolean(preTextTransition || terminalTransition || resolvedFlow.ifThenElse?.thenStep.preTextTransition || resolvedFlow.ifThenElse?.thenStep.transition || resolvedFlow.ifThenElse?.elseStep.preTextTransition || resolvedFlow.ifThenElse?.elseStep.transition);
   const anyText = Boolean(resolvedFlow.text || resolvedFlow.ifThenElse?.thenStep.text || resolvedFlow.ifThenElse?.elseStep.text);
+  const afterPreTextTransitionGlobalsCall = afterPreTextTransitionGlobalAssignments.length > 0 ? '    call msx2_gameflow_apply_after_pre_text_transition_globals\n' : '';
   const mainTextGlobalsCall = afterTransitionGlobalAssignments.length > 0 ? '    call msx2_gameflow_apply_after_transition_globals\n' : '';
   const mainTextAction = terminalTransition
     ? '    jp msx2_gameflow_run_transition\n'
@@ -1203,9 +1581,11 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; MSX2_GAMEFLOW_PRESENTATION_ASSET_ID: ${resolvedFlow.requestedPresentationAssetId || 'auto-first'}
 ; MSX2_GAMEFLOW_INITIAL_GLOBALS: ${initialGlobalAssignments.length}
 ; MSX2_GAMEFLOW_AFTER_PRESENTATION_GLOBALS: ${afterPresentationGlobalAssignments.length}
+; MSX2_GAMEFLOW_AFTER_PRE_TEXT_TRANSITION_GLOBALS: ${afterPreTextTransitionGlobalAssignments.length}
 ; MSX2_GAMEFLOW_AFTER_TRANSITION_GLOBALS: ${afterTransitionGlobalAssignments.length}
 ; MSX2_GAMEFLOW_TEXT: ${resolvedFlow.text?.id || 'none'}
 ; MSX2_GAMEFLOW_IFTHENELSE: ${resolvedFlow.ifThenElse?.node.id || 'none'}
+; MSX2_GAMEFLOW_PRE_TEXT_TRANSITION: ${preTextTransition?.id || 'none'}
 ; MSX2_GAMEFLOW_NEXT_TRANSITION: ${terminalTransition?.id || 'none'}
 ; MSX2_GAMEFLOW_TERMINAL_ACTION: ${terminalAction}
 ; MSX2_GAMEFLOW_TRANSITION_EFFECT: ${terminalTransition?.effect || 'none'}
@@ -1292,6 +1672,7 @@ get_cart_slot_value:
     ret
 
 ${generateAfterPresentationRoutine(terminalRuntimeLabel, afterPresentationGlobalAssignments.length > 0, afterPresentationGlobalAssignments.length > 0 || Boolean(ifThenElseLabel || textLabel))}
+${preTextTransition && textLabel ? generatePreTextTransitionRuntime('msx2_gameflow_run_pre_text_transition', preTextTransition, vramBase, textLabel, '', afterPreTextTransitionGlobalsCall) : ''}
 ${generateScreen5TextRoutine(textLabel || '', resolvedFlow.text, mainTextAction, presentation.runtime.vramPage === 1 ? 0x8000 : 0, textColorIndex)}
 ${generateIfThenElseRoutine(resolvedFlow.ifThenElse?.node, ifThenElseCondition)}
 ${generateTerminalActionRoutine('msx2_gameflow_branch_then', resolvedFlow.ifThenElse?.thenStep, 'msx2_gameflow_apply_then_globals', 'msx2_gameflow_apply_then_pre_text_globals', vramBase, textColorIndex)}
@@ -1302,10 +1683,13 @@ ${generateScreen5TextHelpers(anyText)}
 ${generateCompareRoutine(Boolean(resolvedFlow.ifThenElse))}
 ${generateGlobalsRoutine('msx2_gameflow_apply_initial_globals', initialGlobalAssignments, 'Initial Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_after_presentation_globals', afterPresentationGlobalAssignments, 'Post-presentation Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_after_pre_text_transition_globals', afterPreTextTransitionGlobalAssignments, 'Post-pre-text-transition Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_after_transition_globals', afterTransitionGlobalAssignments, 'Post-transition Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_then_pre_text_globals', thenPreTextGlobalAssignments, 'THEN branch pre-text Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_then_pre_text_globals_after_transition', thenAfterPreTextTransitionGlobalAssignments, 'THEN branch post-pre-text-transition Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_then_globals', thenGlobalAssignments, 'THEN branch Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_else_pre_text_globals', elsePreTextGlobalAssignments, 'ELSE branch pre-text Globals nodes')}
+${generateGlobalsRoutine('msx2_gameflow_apply_else_pre_text_globals_after_transition', elseAfterPreTextTransitionGlobalAssignments, 'ELSE branch post-pre-text-transition Globals nodes')}
 ${generateGlobalsRoutine('msx2_gameflow_apply_else_globals', elseGlobalAssignments, 'ELSE branch Globals nodes')}
 ${usesKonamiMegaRom ? `init_konami8k_fixed_bank0_banks:
     ld a, 1

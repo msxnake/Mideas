@@ -3274,7 +3274,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const hasPresentationNameData = /^\s*PRESENTATION_SCREEN_NAMETBL:\s*$/im.test(sourceCode);
   const hasPresentationPatternData = /^\s*PRESENTATION_SCREEN_PATTERNS_B[0-2]:\s*$/im.test(sourceCode);
   const hasPresentationColorData = /^\s*PRESENTATION_SCREEN_COLORS_B[0-2]:\s*$/im.test(sourceCode);
-  const hasScreen5PresentationBitmapData = /^\s*SCREEN5_PRESENTATION_BITMAP_CHUNK_\d+:\s*$/im.test(sourceCode);
+  const screen5PresentationChunkPattern = '(?:SCREEN5_PRESENTATION_BITMAP_CHUNK_\\d+|SCREEN5_SCENE_\\d+_BITMAP_CHUNK_\\d+)';
+  const hasScreen5PresentationBitmapData = new RegExp(`^\\s*${screen5PresentationChunkPattern}:\\s*$`, 'im').test(sourceCode);
   const hasScreen4NameData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_NAMES:\s*$/im.test(sourceCode);
   const hasScreen4EffectsData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_EFFECTS:\s*$/im.test(sourceCode);
   const hasScreen4PatternData = /^\s*[A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_PATTERNS:\s*$/im.test(sourceCode);
@@ -3308,6 +3309,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   const sourceHasZx0Routine = /^\s*dzx0_standard:/im.test(sourceCode);
+  const sourceIsKonamiMegaRom = /;\s*ROM Mode:\s*megarom\b/im.test(sourceCode)
+    && /;\s*Mapper Target:\s*konami\b/im.test(sourceCode)
+    && /^\s*mapper_set_bank_p3:\s*$/im.test(sourceCode);
   const usesResourceManager = /^\s*resource_table:\s*$/im.test(sourceCode);
   if (usesResourceManager) {
     return injectZx0IntoMegaromResourceTableAsm(sourceCode, tempDir, info, onProgress);
@@ -3348,7 +3352,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const presentationColorBlocks = (presentationScreen && compressPresentationColors)
     ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_COLORS_B[0-2]):\s*$/)
     : [];
-  const screen5PresentationBitmapBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN5_PRESENTATION_BITMAP_CHUNK_\d+):\s*$/);
+  const screen5PresentationBitmapBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN5_PRESENTATION_BITMAP_CHUNK_\d+|SCREEN5_SCENE_\d+_BITMAP_CHUNK_\d+):\s*$/);
   const screen4NameBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_NAMES):\s*$/);
   const screen4EffectsBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_EFFECTS):\s*$/);
   const screen4PatternBlocks = collectAsmDataBlocks(lines, /^\s*([A-Z0-9_]*SCREEN_4[A-Z0-9_]*_BANK_[0-2]_PATTERNS):\s*$/);
@@ -3622,6 +3626,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   ];
   for (const block of allSelectedBlocks) {
     const replacement = [];
+    if (sourceIsKonamiMegaRom && /^SCREEN5_SCENE_\d+_BITMAP_CHUNK_\d+$/i.test(block.label)) {
+      replacement.push('    ; Align SCREEN 5 chain chunk so ZX0 never crosses an 8KB MegaROM bank');
+      replacement.push(`    IF (($ & #1FFF) > (#2000 - ${block.compressedBytes.length}))`);
+      replacement.push('    ds #2000 - ($ & #1FFF), #FF');
+      replacement.push('    ENDIF');
+    }
     replacement.push(lines[block.startLine]);
     replacement.push(`    ; ZX0 compressed ${block.kind} (${block.bytes.length} -> ${block.compressedBytes.length} bytes)`);
     replacement.push(...formatAsmDbLines(block.compressedBytes));
@@ -3837,7 +3847,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
-    if (/^\s*upload_screen5_presentation_bitmap:\s*$/i.test(line)) {
+    if (/^\s*(?:upload_screen5_presentation_bitmap|upload_screen5_scene_\d+_bitmap):\s*$/i.test(line)) {
       inLoadScreen = false;
       inLoadScreen4 = false;
       inInitMsx2EffectBuffers = false;
@@ -4119,12 +4129,16 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlScreen5PresentationChunkMatch = matchAsmLabelLoad(line, 'hl', 'SCREEN5_PRESENTATION_BITMAP_CHUNK_\\d+');
+    const hlScreen5PresentationChunkMatch = matchAsmLabelLoad(line, 'hl', '(?:SCREEN5_PRESENTATION_BITMAP_CHUNK_\\d+|SCREEN5_SCENE_\\d+_BITMAP_CHUNK_\\d+)');
     if (inLoadScreen5PresentationBitmap && hlScreen5PresentationChunkMatch) {
       const chunkLabel = hlScreen5PresentationChunkMatch.label.toUpperCase();
       if (compressedTilePatternLabels.has(chunkLabel)) {
+        const isScreen5ChainChunk = /^SCREEN5_SCENE_\d+_BITMAP_CHUNK_\d+$/i.test(hlScreen5PresentationChunkMatch.label);
         patched.push('    ; Decompress ZX0 SCREEN 5 presentation chunk into RAM buffer');
         patched.push('    di');
+        if (isScreen5ChainChunk && sourceIsKonamiMegaRom) {
+          patched.push('    ; SCREEN 5 chain chunks are padded to stay inside the currently mapped 8KB window.');
+        }
         patched.push(`    ld hl, ${hlScreen5PresentationChunkMatch.label}`);
         patched.push('    ld de, SCREEN5_PRESENTATION_ZX0_BUFFER');
         patched.push('    call dzx0_standard');
@@ -4526,7 +4540,14 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       ''
     ].join('\n');
 
-    injectCodeBeforeEnd(zx0Block);
+    if (sourceIsKonamiMegaRom && /;\s*MSX2_GAMEFLOW_SCREEN5_CHAIN:\s*\d+/im.test(finalCode)) {
+      finalCode = finalCode.replace(
+        /^\s*SCREEN5_PRESENTATION_BITMAP_SIZE\s+EQU\s+/im,
+        `${zx0Block}\n$&`
+      );
+    } else {
+      injectCodeBeforeEnd(zx0Block);
+    }
   }
 
   // Keep the fixed-size 48KB pad as the last data reservation in plain48k builds.

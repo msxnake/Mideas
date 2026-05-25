@@ -12,6 +12,7 @@ const MSX1_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'boss',
   'portrait',
   'presentationscreen',
+  'gameflow',
 ]);
 
 const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([

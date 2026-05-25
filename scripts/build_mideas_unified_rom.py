@@ -2466,17 +2466,17 @@ def validate_msx2_screen5_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
         raise RuntimeError("MSX2 SCREEN 5 Konami8K validation failed: missing AB cartridge header at ROM offset 0000h")
 
     asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
+    is_chain_backend = "Mideas MSX2 SCREEN 5 presentation chain backend" in asm_text
     required_markers = [
-        "Mideas MSX2 SCREEN 5 presentation backend",
-        "; Backend: msx2-screen5-presentation",
+        "Mideas MSX2 SCREEN 5 presentation chain backend" if is_chain_backend else "Mideas MSX2 SCREEN 5 presentation backend",
+        "; Backend: msx2-screen5-presentation-chain" if is_chain_backend else "; Backend: msx2-screen5-presentation",
         "; ROM Mode: megarom",
         "; Mapper Target: konami",
-        "MSX2 SCREEN 5 MegaROM Path: Konami 8K fixed-bank0 compatibility",
         "init_konami8k_fixed_bank0_banks:",
         "mapper_set_bank_p1:",
         "mapper_set_bank_p2:",
         "mapper_set_bank_p3:",
-        "SCREEN5_PRESENTATION_BITMAP_CHUNK_0:",
+        "SCREEN5_SCENE_0_BITMAP_CHUNK_0:" if is_chain_backend else "SCREEN5_PRESENTATION_BITMAP_CHUNK_0:",
     ]
     missing = [marker for marker in required_markers if marker not in asm_text]
     if missing:
@@ -2492,6 +2492,13 @@ def validate_msx2_screen5_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
     for pattern, description in required_boot_patterns:
         if not re.search(pattern, asm_text, flags=re.IGNORECASE):
             raise RuntimeError(f"MSX2 SCREEN 5 Konami8K validation failed: missing boot mapper init for {description}")
+
+    if is_chain_backend:
+        if "Align SCREEN 5 chain chunk so ZX0 never crosses an 8KB MegaROM bank" not in asm_text:
+            raise RuntimeError(
+                "MSX2 SCREEN 5 Konami8K validation failed: SCREEN 5 chain chunks must be padded so "
+                "ZX0 streams never cross an 8KB mapper window"
+            )
 
     return {
         "segment_count": len(rom_data) // 8192,
@@ -5429,7 +5436,10 @@ def main() -> int:
     screen5_konami_fixed_bank0_compat = (
         args.rom_mode == "megarom"
         and args.target_format == "konami"
-        and "Mideas MSX2 SCREEN 5 presentation backend" in asm_compiled_text
+        and (
+            "Mideas MSX2 SCREEN 5 presentation backend" in asm_compiled_text
+            or "Mideas MSX2 SCREEN 5 presentation chain backend" in asm_compiled_text
+        )
         and "init_konami8k_fixed_bank0_banks:" in asm_compiled_text
     )
     megarom_mapper_artifact_validation = None
