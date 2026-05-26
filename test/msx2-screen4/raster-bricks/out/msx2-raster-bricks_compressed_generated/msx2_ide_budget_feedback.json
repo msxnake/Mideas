@@ -1,0 +1,439 @@
+{
+  "scope": "msx2_screen4_ide_budget_feedback",
+  "status": "warning",
+  "project": {
+    "name": "msx2_raster_bricks_demo",
+    "backend": "msx2-screen4-pattern",
+    "screenMode": "SCREEN 4 (Graphics II)",
+    "romMode": "megarom",
+    "mapper": "konami"
+  },
+  "rom": {
+    "bankSizeBytes": 8192,
+    "payloadBytes": 7503,
+    "estimatedPackedBankCount": 1,
+    "warningThresholdBytes": 7372,
+    "usedPercentOfSingleBank": 91.59,
+    "warningBankCount": 1,
+    "warningRecommendationCount": 1,
+    "bankClassSummary": [
+      {
+        "id": "world.screen",
+        "packageCount": 1,
+        "usedBytes": 6347,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2screen.asset_screen_msx2_raster_bricks",
+          "usedBytes": 6347
+        }
+      },
+      {
+        "id": "world.manifest",
+        "packageCount": 2,
+        "usedBytes": 1156,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "palette.palette_msx2_raster_bricks",
+          "usedBytes": 835
+        }
+      }
+    ]
+  },
+  "ram": {
+    "start": "#C000",
+    "limit": "#F300",
+    "usedBytes": 788,
+    "freeBytes": 12268,
+    "status": "ok",
+    "warningCount": 0,
+    "sections": [
+      {
+        "id": "runtime.globals_player_input",
+        "start": "#C000",
+        "end": "#C044",
+        "bytes": 68,
+        "mutable": true,
+        "reason": "Fixed hot runtime state for player/input/global counters."
+      },
+      {
+        "id": "runtime.snake_body_cache",
+        "start": "#C044",
+        "end": "#C084",
+        "bytes": 64,
+        "mutable": true,
+        "reason": "Fixed-size cache reserved only for snake-char body state."
+      },
+      {
+        "id": "runtime.persistent_effect_layers",
+        "start": "#C084",
+        "end": "#C144",
+        "bytes": 192,
+        "mutable": true,
+        "count": 1,
+        "bytesPerScreen": 192,
+        "reason": "One mutable effects layer per reachable SCREEN 4 room."
+      },
+      {
+        "id": "runtime.effects_scratch",
+        "start": "#C200",
+        "end": "#C2C0",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
+      },
+      {
+        "id": "runtime.enemy_pool",
+        "start": "#C2C0",
+        "end": "#C314",
+        "bytes": 84,
+        "mutable": true,
+        "slots": 12,
+        "reason": "Active enemy/hazard runtime arrays; ROM keeps enemy templates."
+      }
+    ]
+  },
+  "runtimeModules": {
+    "included": [
+      {
+        "id": "runtime.msx2.boot",
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.screen4.vdp",
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.input",
+        "placement": "resident",
+        "reason": "Required by current MSX2 gameplay loop"
+      },
+      {
+        "id": "runtime.msx2.screen_loader",
+        "placement": "resident",
+        "reason": "Required to load reachable native MSX2 screens"
+      },
+      {
+        "id": "runtime.msx2.layers.collision",
+        "placement": "resident",
+        "reason": "Collision layer pointers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.layers.effects",
+        "placement": "resident",
+        "reason": "Effects layer runtime buffers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.layers.behavior",
+        "placement": "resident",
+        "reason": "Behavior layer pointers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.mapper.konami8k",
+        "placement": "resident",
+        "reason": "Enabled by Konami MegaROM data-bank mode"
+      }
+    ],
+    "excluded": [
+      {
+        "id": "runtime.msx2.hardware_sprites",
+        "placement": "resident",
+        "reason": "Enabled only when a reachable MSX2 sprite source exists"
+      },
+      {
+        "id": "runtime.msx2.projectiles",
+        "placement": "resident",
+        "reason": "Enabled only by shooter-horizontal movement"
+      },
+      {
+        "id": "runtime.msx2.stage_banner",
+        "placement": "resident",
+        "reason": "Enabled only by shooter wave flow"
+      },
+      {
+        "id": "runtime.msx2.scroll.vertical",
+        "placement": "resident",
+        "reason": "Enabled only when reachable screens request scroll"
+      },
+      {
+        "id": "runtime.msx2.snake_char",
+        "placement": "resident",
+        "reason": "Enabled only by snake-char movement"
+      }
+    ],
+    "all": [
+      {
+        "id": "runtime.msx2.boot",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.screen4.vdp",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.input",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required by current MSX2 gameplay loop"
+      },
+      {
+        "id": "runtime.msx2.screen_loader",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required to load reachable native MSX2 screens"
+      },
+      {
+        "id": "runtime.msx2.layers.collision",
+        "included": true,
+        "placement": "resident",
+        "reason": "Collision layer pointers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.layers.effects",
+        "included": true,
+        "placement": "resident",
+        "reason": "Effects layer runtime buffers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.layers.behavior",
+        "included": true,
+        "placement": "resident",
+        "reason": "Behavior layer pointers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.hardware_sprites",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only when a reachable MSX2 sprite source exists"
+      },
+      {
+        "id": "runtime.msx2.projectiles",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only by shooter-horizontal movement"
+      },
+      {
+        "id": "runtime.msx2.stage_banner",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only by shooter wave flow"
+      },
+      {
+        "id": "runtime.msx2.scroll.vertical",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only when reachable screens request scroll"
+      },
+      {
+        "id": "runtime.msx2.snake_char",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only by snake-char movement"
+      },
+      {
+        "id": "runtime.msx2.mapper.konami8k",
+        "included": true,
+        "placement": "resident",
+        "reason": "Enabled by Konami MegaROM data-bank mode"
+      }
+    ],
+    "includedCount": 8,
+    "residentCount": 8,
+    "farCodeCount": 0,
+    "worldSpecificCount": 0
+  },
+  "worldBankManifest": {
+    "worldCount": 1,
+    "estimatedPhysicalBankCount": 1,
+    "dataWindowAddress": "#A000",
+    "packageCount": 2,
+    "warningBankCount": 1,
+    "overBudgetBankCount": 0,
+    "worlds": [
+      {
+        "worldId": "world_msx2_raster_bricks",
+        "estimatedBytes": 6668,
+        "estimated8kBanks": 1,
+        "packages": [
+          {
+            "packageId": "msx2screen.asset_screen_msx2_raster_bricks",
+            "type": "msx2screen",
+            "sourceId": "asset_screen_msx2_raster_bricks",
+            "logicalSection": "world screens",
+            "recommendedBankClass": "world.screen",
+            "physicalBankIndex": 0,
+            "windowAddress": "#A000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 6347,
+            "storedBytes": 6347,
+            "decision": "ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "worldmap.world_msx2_raster_bricks",
+            "type": "worldmap",
+            "sourceId": "world_msx2_raster_bricks",
+            "logicalSection": "world manifest",
+            "recommendedBankClass": "world.manifest",
+            "physicalBankIndex": 0,
+            "windowAddress": "#A000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 321,
+            "storedBytes": 321,
+            "decision": "ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          }
+        ]
+      }
+    ],
+    "estimatedPhysicalBanks": [
+      {
+        "bankIndex": 0,
+        "windowAddress": "#A000",
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
+        "usedBytes": 7503,
+        "freeBytes": 689,
+        "usedPercent": 91.59,
+        "warning": true,
+        "overBudgetBytes": 0,
+        "status": "warning",
+        "packages": [
+          {
+            "id": "msx2screen.asset_screen_msx2_raster_bricks",
+            "usedBytes": 6347,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "palette.palette_msx2_raster_bricks",
+            "usedBytes": 835,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "worldmap.world_msx2_raster_bricks",
+            "usedBytes": 321,
+            "recommendedBankClass": "world.manifest"
+          }
+        ]
+      }
+    ]
+  },
+  "worldPackages": [
+    {
+      "worldId": "world_msx2_raster_bricks",
+      "assetCount": 2,
+      "screenCount": 1,
+      "estimatedBytes": 6668,
+      "estimated8kBanks": 1,
+      "bankClassBytes": [
+        {
+          "id": "world.screen",
+          "usedBytes": 6347
+        },
+        {
+          "id": "world.manifest",
+          "usedBytes": 321
+        }
+      ]
+    }
+  ],
+  "largestAssets": [
+    {
+      "id": "msx2screen.asset_screen_msx2_raster_bricks",
+      "usedBytes": 6347,
+      "bankClass": "world.screen",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "palette.palette_msx2_raster_bricks",
+      "usedBytes": 835,
+      "bankClass": "world.manifest",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "worldmap.world_msx2_raster_bricks",
+      "usedBytes": 321,
+      "bankClass": "world.manifest",
+      "warning": false,
+      "overBudgetBytes": 0
+    }
+  ],
+  "warnings": {
+    "romRecommendations": [
+      {
+        "severity": "warning",
+        "target": "estimatedBank0",
+        "reason": "Estimated packed bank uses 7503/8192 bytes.",
+        "action": "Repack by final post-compression sizes, then move cold read-only data to another world data bank if still above threshold."
+      }
+    ],
+    "warningPackedBanks": [
+      {
+        "bankIndex": 0,
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
+        "usedBytes": 7503,
+        "freeBytes": 689,
+        "usedPercent": 91.59,
+        "warning": true,
+        "overBudgetBytes": 0,
+        "status": "warning",
+        "packages": [
+          {
+            "id": "msx2screen.asset_screen_msx2_raster_bricks",
+            "usedBytes": 6347,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "palette.palette_msx2_raster_bricks",
+            "usedBytes": 835,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "worldmap.world_msx2_raster_bricks",
+            "usedBytes": 321,
+            "recommendedBankClass": "world.manifest"
+          }
+        ]
+      }
+    ],
+    "ramRecommendations": []
+  },
+  "suggestedFixes": [
+    {
+      "severity": "warning",
+      "target": "estimatedBank0",
+      "reason": "Estimated packed bank uses 7503/8192 bytes.",
+      "action": "Repack by final post-compression sizes, then move cold read-only data to another world data bank if still above threshold."
+    },
+    {
+      "severity": "recommended",
+      "target": "estimatedBank0",
+      "reason": "estimated packed bank reaches warning threshold or any package is over one 8 KB window",
+      "action": "Re-run first-fit-decreasing with final stored sizes after ZX0 policy decisions."
+    },
+    {
+      "severity": "recommended",
+      "target": "move_cold_readonly_data",
+      "reason": "resident or manifest data creates bank pressure",
+      "action": "Move cold read-only tables out of resident/core placement and into world data banks."
+    },
+    {
+      "severity": "enforced",
+      "target": "runtime lookup tables, entity instances, state-machine runtime state",
+      "reason": "runtime table is tiny, mutable, or accessed in hot loops",
+      "action": "Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables."
+    }
+  ]
+}

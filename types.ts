@@ -347,7 +347,7 @@ export interface Msx2Screen4Tile {
 export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
 export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'hazard' | 'custom';
-export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'static';
+export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'ghostMaze' | 'dive';
 
 export interface Msx2Screen4EntityInstance {
@@ -399,6 +399,53 @@ export interface Msx2HudWidget {
   variableName?: string;
 }
 
+export type Msx2ShooterDirection = 'vertical' | 'horizontal';
+export type Msx2ShooterScrollMode = 'none' | 'tileVertical' | 'spaceLoop' | 'bossStatic';
+export type Msx2ShooterPlayerMode = 'single' | 'twoPlayerAlternate' | 'twoPlayerLimited';
+export type Msx2IrqProfileId =
+  | 'IRQ_IDLE'
+  | 'IRQ_STAGE_NORMAL'
+  | 'IRQ_STAGE_SCROLL_EVEN'
+  | 'IRQ_STAGE_SCROLL_ODD'
+  | 'IRQ_HUD_DIRTY'
+  | 'IRQ_PALETTE_FLASH'
+  | 'IRQ_BOSS'
+  | 'IRQ_TRANSITION_FADE';
+
+export interface Msx2IrqProfileBudget {
+  id: Msx2IrqProfileId;
+  estimatedCycles: number;
+  worstCaseCycles: number;
+  maxAllowedCycles: number;
+  vramBytes: number;
+  frequency: 'everyFrame' | 'every2Frames' | 'burst' | 'transitionOnly';
+  sustained: boolean;
+  tasks: string[];
+}
+
+export interface Msx2Shooter60HzBudget {
+  targetHz: 60;
+  maxEnemies: number;
+  maxPlayerShots: number;
+  maxEnemyShots: number;
+  maxPowerups: number;
+  maxExplosions: number;
+  maxBossParts: number;
+  activeIrqProfile: Msx2IrqProfileId;
+  irqProfiles: Msx2IrqProfileBudget[];
+}
+
+export interface Msx2ShooterRuntimeConfig {
+  direction: Msx2ShooterDirection;
+  scrollMode: Msx2ShooterScrollMode;
+  playerMode: Msx2ShooterPlayerMode;
+  stageId?: string;
+  waveSetId?: string;
+  bossId?: string;
+  hudMode: 'compactTop' | 'compactBottom' | 'minimal';
+  budget: Msx2Shooter60HzBudget;
+}
+
 export interface Msx2Screen4Runtime {
   screenKind: Msx2ScreenKind;
   screenEngine: Msx2ScreenEngineKind;
@@ -431,6 +478,7 @@ export interface Msx2Screen4Runtime {
   hudBorderColor?: number;
   hudEmptyColor?: number;
   hudWidgets?: Msx2HudWidget[];
+  shooter?: Msx2ShooterRuntimeConfig;
   notes?: string;
 }
 

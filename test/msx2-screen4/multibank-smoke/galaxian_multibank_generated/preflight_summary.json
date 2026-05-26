@@ -1,0 +1,389 @@
+{
+  "scope": "msx2_screen4_megarom_preflight_summary",
+  "status": "ok",
+  "artifactDir": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\multibank-smoke\\galaxian_multibank_generated",
+  "requiredArtifacts": [
+    "project_slice.json",
+    "asset_storage_policy.json",
+    "logical_bank_budget.json",
+    "msx2_world_bank_manifest.json",
+    "ram_budget.json"
+  ],
+  "artifactChecks": [
+    {
+      "name": "project_slice.json",
+      "bytes": 333058,
+      "checksum": "fnv1a32:26FAEB26"
+    },
+    {
+      "name": "asset_storage_policy.json",
+      "bytes": 184853,
+      "checksum": "fnv1a32:F2F332C3"
+    },
+    {
+      "name": "logical_bank_budget.json",
+      "bytes": 12384,
+      "checksum": "fnv1a32:A9EA2737"
+    },
+    {
+      "name": "msx2_world_bank_manifest.json",
+      "bytes": 3783,
+      "checksum": "fnv1a32:9B987CD9"
+    },
+    {
+      "name": "ram_budget.json",
+      "bytes": 2299,
+      "checksum": "fnv1a32:C989EBE6"
+    }
+  ],
+  "outputArtifactChecks": [
+    {
+      "name": "msx2_ide_budget_feedback.json",
+      "bytes": 14851,
+      "checksum": "fnv1a32:7E5C5169"
+    }
+  ],
+  "pipelineGates": [
+    {
+      "order": 1,
+      "id": "project_analysis_and_world_package_extraction",
+      "status": "passed",
+      "evidence": [
+        "project_slice.json",
+        "worldPackageSummary"
+      ]
+    },
+    {
+      "order": 2,
+      "id": "project_precompilation_slice",
+      "status": "passed",
+      "evidence": [
+        "includedAssets",
+        "excludedAssets",
+        "includedRuntimeModules",
+        "excludedRuntimeModules"
+      ]
+    },
+    {
+      "order": 3,
+      "id": "asset_storage_policy",
+      "status": "passed",
+      "evidence": [
+        "asset_storage_policy.json"
+      ]
+    },
+    {
+      "order": 4,
+      "id": "ram_budget_report",
+      "status": "passed",
+      "evidence": [
+        "ram_budget.json"
+      ]
+    },
+    {
+      "order": 5,
+      "id": "bank_allocation_dry_run",
+      "status": "passed",
+      "evidence": [
+        "logical_bank_budget.json"
+      ]
+    },
+    {
+      "order": 6,
+      "id": "overflow_recovery_plan",
+      "status": "passed",
+      "evidence": [
+        "recoveryRecommendations",
+        "recoveryPlan"
+      ],
+      "strictWarnings": false
+    },
+    {
+      "order": 7,
+      "id": "asm_generation",
+      "status": "already_done",
+      "evidence": [
+        "unified ASM with embedded preflight artifacts"
+      ]
+    },
+    {
+      "order": 8,
+      "id": "glass_compile",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 9,
+      "id": "artifact_validation_against_symbols",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 10,
+      "id": "post_compilation_optimization",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 11,
+      "id": "openmsx_smoke",
+      "status": "pending_when_requested",
+      "evidence": []
+    }
+  ],
+  "rom": {
+    "bankSizeBytes": 8192,
+    "payloadBytes": 10942,
+    "estimatedPackedBankCount": 2,
+    "packageCount": 6,
+    "largestPackage": {
+      "id": "msx2screen.screen_galaxian_msx2",
+      "type": "msx2screen",
+      "sourceId": "screen_galaxian_msx2",
+      "recommendedBankClass": "world.screen",
+      "usedBytes": 4464,
+      "freeBytesIfAlone": 3728,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "canSplit": true,
+      "screenLabel": "GALAXIAN_HEAVY_8X8_A",
+      "payloadParts": [
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_NAMES",
+          "kind": "screen4_names",
+          "rawBytes": 768,
+          "loadOrder": 20
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BANK_0_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 520,
+          "loadOrder": 0
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BANK_0_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 520,
+          "loadOrder": 1
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BANK_1_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 520,
+          "loadOrder": 2
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BANK_1_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 520,
+          "loadOrder": 3
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BANK_2_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 520,
+          "loadOrder": 4
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BANK_2_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 520,
+          "loadOrder": 5
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_COLLISION",
+          "kind": "screen4_collision",
+          "rawBytes": 192,
+          "loadOrder": 30
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_EFFECTS",
+          "kind": "screen4_effects",
+          "rawBytes": 192,
+          "loadOrder": 31
+        },
+        {
+          "label": "GALAXIAN_HEAVY_8X8_A_BEHAVIOR",
+          "kind": "screen4_behavior",
+          "rawBytes": 192,
+          "loadOrder": 32
+        }
+      ],
+      "payloadLabels": [
+        "GALAXIAN_HEAVY_8X8_A_NAMES",
+        "GALAXIAN_HEAVY_8X8_A_BANK_0_PATTERNS",
+        "GALAXIAN_HEAVY_8X8_A_BANK_0_COLORS",
+        "GALAXIAN_HEAVY_8X8_A_BANK_1_PATTERNS",
+        "GALAXIAN_HEAVY_8X8_A_BANK_1_COLORS",
+        "GALAXIAN_HEAVY_8X8_A_BANK_2_PATTERNS",
+        "GALAXIAN_HEAVY_8X8_A_BANK_2_COLORS",
+        "GALAXIAN_HEAVY_8X8_A_COLLISION",
+        "GALAXIAN_HEAVY_8X8_A_EFFECTS",
+        "GALAXIAN_HEAVY_8X8_A_BEHAVIOR"
+      ]
+    },
+    "bankClassSummary": [
+      {
+        "id": "world.screen",
+        "packageCount": 2,
+        "usedBytes": 8928,
+        "estimatedMinimumBanks": 2,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2screen.screen_galaxian_msx2",
+          "usedBytes": 4464
+        }
+      },
+      {
+        "id": "world.manifest",
+        "packageCount": 3,
+        "usedBytes": 1870,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "palette.palette_galaxian_msx2",
+          "usedBytes": 893
+        }
+      },
+      {
+        "id": "world.graphics.sprite",
+        "packageCount": 1,
+        "usedBytes": 144,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2sprite.sprite_galaxian_player_msx2",
+          "usedBytes": 144
+        }
+      }
+    ],
+    "warningCount": 0,
+    "warningBankCount": 0
+  },
+  "worldPackages": [
+    {
+      "worldId": "world_galaxian_msx2",
+      "assetCount": 3,
+      "screenCount": 2,
+      "estimatedBytes": 9465,
+      "estimated8kBanks": 2,
+      "bankClassBytes": [
+        {
+          "id": "world.screen",
+          "usedBytes": 8928
+        },
+        {
+          "id": "world.manifest",
+          "usedBytes": 537
+        }
+      ]
+    }
+  ],
+  "worldBankManifest": {
+    "worldCount": 1,
+    "estimatedPhysicalBankCount": 2,
+    "dataWindowAddress": "#8000",
+    "warningBankCount": 0,
+    "overBudgetBankCount": 0
+  },
+  "ram": {
+    "start": "#C000",
+    "limit": "#F300",
+    "usedBytes": 1188,
+    "freeBytes": 11868,
+    "status": "ok",
+    "sectionCount": 7,
+    "warningCount": 0
+  },
+  "planB": {
+    "romRecommendations": [
+      {
+        "severity": "ok",
+        "target": "logicalBankBudget",
+        "reason": "All estimated packages fit below warning threshold.",
+        "action": "No recovery needed before the final allocator pass."
+      }
+    ],
+    "recoveryPlan": [
+      {
+        "order": 1,
+        "id": "repack_final_sizes",
+        "status": "not_needed",
+        "trigger": "estimated packed bank reaches warning threshold or any package is over one 8 KB window",
+        "appliesTo": [],
+        "action": "Re-run first-fit-decreasing with final stored sizes after ZX0 policy decisions."
+      },
+      {
+        "order": 2,
+        "id": "split_world_packages",
+        "status": "not_needed",
+        "trigger": "independently addressable world/screen/sprite package is too large or near the bank limit",
+        "appliesTo": [],
+        "action": "Split the logical world package across additional physical world data banks."
+      },
+      {
+        "order": 3,
+        "id": "move_cold_readonly_data",
+        "status": "not_needed",
+        "trigger": "resident or manifest data creates bank pressure",
+        "appliesTo": [],
+        "action": "Move cold read-only tables out of resident/core placement and into world data banks."
+      },
+      {
+        "order": 4,
+        "id": "selective_zx0",
+        "status": "not_needed",
+        "trigger": "large load-to-VRAM screen, pattern, color, tilemap, or sprite data creates pressure",
+        "appliesTo": [],
+        "action": "Try ZX0 only for large load-to-VRAM resources; keep runtime lookup data raw."
+      },
+      {
+        "order": 5,
+        "id": "keep_hot_runtime_raw",
+        "status": "enforced",
+        "trigger": "runtime table is tiny, mutable, or accessed in hot loops",
+        "appliesTo": [
+          "runtime lookup tables",
+          "entity instances",
+          "state-machine runtime state"
+        ],
+        "action": "Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables."
+      },
+      {
+        "order": 6,
+        "id": "world_special_code_bank",
+        "status": "not_needed",
+        "trigger": "rare behavior or boss-specific code contributes to resident pressure",
+        "appliesTo": [],
+        "action": "Move rare behavior behind a world special-code bank and far-call boundary."
+      },
+      {
+        "order": 7,
+        "id": "split_large_payload_chunks",
+        "status": "not_needed",
+        "trigger": "single screen/graphics payload cannot fit one mapper window as a unit",
+        "appliesTo": [],
+        "action": "Split large screen or graphics payloads into loader-addressable chunks only when each chunk is independently referenced."
+      },
+      {
+        "order": 8,
+        "id": "fail_actionable_report",
+        "status": "ready",
+        "trigger": "all deterministic recovery attempts still leave an over-budget unit",
+        "appliesTo": [],
+        "action": "Fail before Glass with largest contributors and concrete authoring changes."
+      }
+    ],
+    "ramRecommendations": [
+      {
+        "severity": "ok",
+        "target": "runtimeRam",
+        "reason": "Estimated runtime RAM fits below warning threshold.",
+        "action": "No RAM recovery needed for this project slice."
+      }
+    ]
+  }
+}

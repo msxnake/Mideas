@@ -1,0 +1,114 @@
+{
+  "scope": "msx2_screen4_megarom_compile_failure",
+  "status": "error",
+  "reason": "Command failed (1): java -jar C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar -I C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks_compressed.asm C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks.rom C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks.sym",
+  "artifactDir": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks_compressed_generated",
+  "pipelineGates": [
+    {
+      "order": 1,
+      "id": "project_analysis_and_world_package_extraction",
+      "status": "passed",
+      "evidence": [
+        "project_slice.json",
+        "worldPackageSummary"
+      ]
+    },
+    {
+      "order": 2,
+      "id": "project_precompilation_slice",
+      "status": "passed",
+      "evidence": [
+        "includedAssets",
+        "excludedAssets",
+        "includedRuntimeModules",
+        "excludedRuntimeModules"
+      ]
+    },
+    {
+      "order": 3,
+      "id": "asset_storage_policy",
+      "status": "passed",
+      "evidence": [
+        "asset_storage_policy.json"
+      ]
+    },
+    {
+      "order": 4,
+      "id": "ram_budget_report",
+      "status": "passed",
+      "evidence": [
+        "ram_budget.json"
+      ]
+    },
+    {
+      "order": 5,
+      "id": "bank_allocation_dry_run",
+      "status": "passed",
+      "evidence": [
+        "logical_bank_budget.json"
+      ]
+    },
+    {
+      "order": 6,
+      "id": "overflow_recovery_plan",
+      "status": "passed",
+      "evidence": [
+        "recoveryRecommendations",
+        "recoveryPlan"
+      ],
+      "strictWarnings": false
+    },
+    {
+      "order": 7,
+      "id": "asm_generation",
+      "status": "already_done",
+      "evidence": [
+        "unified ASM with embedded preflight artifacts"
+      ]
+    },
+    {
+      "order": 8,
+      "id": "glass_compile",
+      "status": "failed",
+      "evidence": [
+        "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks_compressed.asm"
+      ]
+    },
+    {
+      "order": 9,
+      "id": "artifact_validation_against_symbols",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 10,
+      "id": "post_compilation_optimization",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 11,
+      "id": "openmsx_smoke",
+      "status": "pending_when_requested",
+      "evidence": []
+    }
+  ],
+  "asm": {
+    "path": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks_compressed.asm",
+    "bytes": 80891,
+    "checksum": "fnv1a32:81B04C4B"
+  },
+  "rom": {
+    "path": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks.rom",
+    "exists": true
+  },
+  "sym": {
+    "path": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks.sym",
+    "exists": true
+  },
+  "planB": {
+    "primary": "Move cold read-only tables to world/data banks or special-code banks.",
+    "secondary": "Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.",
+    "avoid": "Do not solve resident ROM pressure by copying whole worlds into RAM."
+  }
+}

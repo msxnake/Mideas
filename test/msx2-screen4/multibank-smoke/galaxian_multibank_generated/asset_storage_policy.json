@@ -1,0 +1,6075 @@
+[
+  {
+    "type": "gameflow",
+    "id": "gameflow_galaxian_msx2",
+    "name": "Galaxian Main",
+    "rawBytes": 440,
+    "storedBytesEstimate": 440,
+    "accessPattern": "manifest_read",
+    "mutable": false,
+    "decision": "ROM_RAW",
+    "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_0",
+    "name": "Heavy8 0.0",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_1",
+    "name": "Heavy8 0.1",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_10",
+    "name": "Heavy8 0.10",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_100",
+    "name": "Heavy8 0.100",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_101",
+    "name": "Heavy8 0.101",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_102",
+    "name": "Heavy8 0.102",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_103",
+    "name": "Heavy8 0.103",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_104",
+    "name": "Heavy8 0.104",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_105",
+    "name": "Heavy8 0.105",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_106",
+    "name": "Heavy8 0.106",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_107",
+    "name": "Heavy8 0.107",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_108",
+    "name": "Heavy8 0.108",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_109",
+    "name": "Heavy8 0.109",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_11",
+    "name": "Heavy8 0.11",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_110",
+    "name": "Heavy8 0.110",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_111",
+    "name": "Heavy8 0.111",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_112",
+    "name": "Heavy8 0.112",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_113",
+    "name": "Heavy8 0.113",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_114",
+    "name": "Heavy8 0.114",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_115",
+    "name": "Heavy8 0.115",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_116",
+    "name": "Heavy8 0.116",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_117",
+    "name": "Heavy8 0.117",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_118",
+    "name": "Heavy8 0.118",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_119",
+    "name": "Heavy8 0.119",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_12",
+    "name": "Heavy8 0.12",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_120",
+    "name": "Heavy8 0.120",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_121",
+    "name": "Heavy8 0.121",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_122",
+    "name": "Heavy8 0.122",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_123",
+    "name": "Heavy8 0.123",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_124",
+    "name": "Heavy8 0.124",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_125",
+    "name": "Heavy8 0.125",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_126",
+    "name": "Heavy8 0.126",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_127",
+    "name": "Heavy8 0.127",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_128",
+    "name": "Heavy8 0.128",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_129",
+    "name": "Heavy8 0.129",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_13",
+    "name": "Heavy8 0.13",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_130",
+    "name": "Heavy8 0.130",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_131",
+    "name": "Heavy8 0.131",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_132",
+    "name": "Heavy8 0.132",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_133",
+    "name": "Heavy8 0.133",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_134",
+    "name": "Heavy8 0.134",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_135",
+    "name": "Heavy8 0.135",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_136",
+    "name": "Heavy8 0.136",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_137",
+    "name": "Heavy8 0.137",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_138",
+    "name": "Heavy8 0.138",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_139",
+    "name": "Heavy8 0.139",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_14",
+    "name": "Heavy8 0.14",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_140",
+    "name": "Heavy8 0.140",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_141",
+    "name": "Heavy8 0.141",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_142",
+    "name": "Heavy8 0.142",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_143",
+    "name": "Heavy8 0.143",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_144",
+    "name": "Heavy8 0.144",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_145",
+    "name": "Heavy8 0.145",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_146",
+    "name": "Heavy8 0.146",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_147",
+    "name": "Heavy8 0.147",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_148",
+    "name": "Heavy8 0.148",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_149",
+    "name": "Heavy8 0.149",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_15",
+    "name": "Heavy8 0.15",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_150",
+    "name": "Heavy8 0.150",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_151",
+    "name": "Heavy8 0.151",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_152",
+    "name": "Heavy8 0.152",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_153",
+    "name": "Heavy8 0.153",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_154",
+    "name": "Heavy8 0.154",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_155",
+    "name": "Heavy8 0.155",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_156",
+    "name": "Heavy8 0.156",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_157",
+    "name": "Heavy8 0.157",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_158",
+    "name": "Heavy8 0.158",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_159",
+    "name": "Heavy8 0.159",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_16",
+    "name": "Heavy8 0.16",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_160",
+    "name": "Heavy8 0.160",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_161",
+    "name": "Heavy8 0.161",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_162",
+    "name": "Heavy8 0.162",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_163",
+    "name": "Heavy8 0.163",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_164",
+    "name": "Heavy8 0.164",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_165",
+    "name": "Heavy8 0.165",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_166",
+    "name": "Heavy8 0.166",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_167",
+    "name": "Heavy8 0.167",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_168",
+    "name": "Heavy8 0.168",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_169",
+    "name": "Heavy8 0.169",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_17",
+    "name": "Heavy8 0.17",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_170",
+    "name": "Heavy8 0.170",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_171",
+    "name": "Heavy8 0.171",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_172",
+    "name": "Heavy8 0.172",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_173",
+    "name": "Heavy8 0.173",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_174",
+    "name": "Heavy8 0.174",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_175",
+    "name": "Heavy8 0.175",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_176",
+    "name": "Heavy8 0.176",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_177",
+    "name": "Heavy8 0.177",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_178",
+    "name": "Heavy8 0.178",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_179",
+    "name": "Heavy8 0.179",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_18",
+    "name": "Heavy8 0.18",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_180",
+    "name": "Heavy8 0.180",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_181",
+    "name": "Heavy8 0.181",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_182",
+    "name": "Heavy8 0.182",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_183",
+    "name": "Heavy8 0.183",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_184",
+    "name": "Heavy8 0.184",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_185",
+    "name": "Heavy8 0.185",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_186",
+    "name": "Heavy8 0.186",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_187",
+    "name": "Heavy8 0.187",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_188",
+    "name": "Heavy8 0.188",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_189",
+    "name": "Heavy8 0.189",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_19",
+    "name": "Heavy8 0.19",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_190",
+    "name": "Heavy8 0.190",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_191",
+    "name": "Heavy8 0.191",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_2",
+    "name": "Heavy8 0.2",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_20",
+    "name": "Heavy8 0.20",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_21",
+    "name": "Heavy8 0.21",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_22",
+    "name": "Heavy8 0.22",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_23",
+    "name": "Heavy8 0.23",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_24",
+    "name": "Heavy8 0.24",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_25",
+    "name": "Heavy8 0.25",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_26",
+    "name": "Heavy8 0.26",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_27",
+    "name": "Heavy8 0.27",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_28",
+    "name": "Heavy8 0.28",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_29",
+    "name": "Heavy8 0.29",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_3",
+    "name": "Heavy8 0.3",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_30",
+    "name": "Heavy8 0.30",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_31",
+    "name": "Heavy8 0.31",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_32",
+    "name": "Heavy8 0.32",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_33",
+    "name": "Heavy8 0.33",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_34",
+    "name": "Heavy8 0.34",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_35",
+    "name": "Heavy8 0.35",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_36",
+    "name": "Heavy8 0.36",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_37",
+    "name": "Heavy8 0.37",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_38",
+    "name": "Heavy8 0.38",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_39",
+    "name": "Heavy8 0.39",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_4",
+    "name": "Heavy8 0.4",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_40",
+    "name": "Heavy8 0.40",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_41",
+    "name": "Heavy8 0.41",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_42",
+    "name": "Heavy8 0.42",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_43",
+    "name": "Heavy8 0.43",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_44",
+    "name": "Heavy8 0.44",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_45",
+    "name": "Heavy8 0.45",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_46",
+    "name": "Heavy8 0.46",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_47",
+    "name": "Heavy8 0.47",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_48",
+    "name": "Heavy8 0.48",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_49",
+    "name": "Heavy8 0.49",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_5",
+    "name": "Heavy8 0.5",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_50",
+    "name": "Heavy8 0.50",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_51",
+    "name": "Heavy8 0.51",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_52",
+    "name": "Heavy8 0.52",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_53",
+    "name": "Heavy8 0.53",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_54",
+    "name": "Heavy8 0.54",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_55",
+    "name": "Heavy8 0.55",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_56",
+    "name": "Heavy8 0.56",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_57",
+    "name": "Heavy8 0.57",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_58",
+    "name": "Heavy8 0.58",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_59",
+    "name": "Heavy8 0.59",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_6",
+    "name": "Heavy8 0.6",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_60",
+    "name": "Heavy8 0.60",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_61",
+    "name": "Heavy8 0.61",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_62",
+    "name": "Heavy8 0.62",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_63",
+    "name": "Heavy8 0.63",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_64",
+    "name": "Heavy8 0.64",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_65",
+    "name": "Heavy8 0.65",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_66",
+    "name": "Heavy8 0.66",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_67",
+    "name": "Heavy8 0.67",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_68",
+    "name": "Heavy8 0.68",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_69",
+    "name": "Heavy8 0.69",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_7",
+    "name": "Heavy8 0.7",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_70",
+    "name": "Heavy8 0.70",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_71",
+    "name": "Heavy8 0.71",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_72",
+    "name": "Heavy8 0.72",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_73",
+    "name": "Heavy8 0.73",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_74",
+    "name": "Heavy8 0.74",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_75",
+    "name": "Heavy8 0.75",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_76",
+    "name": "Heavy8 0.76",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_77",
+    "name": "Heavy8 0.77",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_78",
+    "name": "Heavy8 0.78",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_79",
+    "name": "Heavy8 0.79",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_8",
+    "name": "Heavy8 0.8",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_80",
+    "name": "Heavy8 0.80",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_81",
+    "name": "Heavy8 0.81",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_82",
+    "name": "Heavy8 0.82",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_83",
+    "name": "Heavy8 0.83",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_84",
+    "name": "Heavy8 0.84",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_85",
+    "name": "Heavy8 0.85",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_86",
+    "name": "Heavy8 0.86",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_87",
+    "name": "Heavy8 0.87",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_88",
+    "name": "Heavy8 0.88",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_89",
+    "name": "Heavy8 0.89",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_9",
+    "name": "Heavy8 0.9",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_90",
+    "name": "Heavy8 0.90",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_91",
+    "name": "Heavy8 0.91",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_92",
+    "name": "Heavy8 0.92",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_93",
+    "name": "Heavy8 0.93",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_94",
+    "name": "Heavy8 0.94",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_95",
+    "name": "Heavy8 0.95",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_96",
+    "name": "Heavy8 0.96",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_97",
+    "name": "Heavy8 0.97",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_98",
+    "name": "Heavy8 0.98",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_0_99",
+    "name": "Heavy8 0.99",
+    "ownerScreenId": "screen_galaxian_msx2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_0",
+    "name": "Heavy8 1.0",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_1",
+    "name": "Heavy8 1.1",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_10",
+    "name": "Heavy8 1.10",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_100",
+    "name": "Heavy8 1.100",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_101",
+    "name": "Heavy8 1.101",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_102",
+    "name": "Heavy8 1.102",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_103",
+    "name": "Heavy8 1.103",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_104",
+    "name": "Heavy8 1.104",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_105",
+    "name": "Heavy8 1.105",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_106",
+    "name": "Heavy8 1.106",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_107",
+    "name": "Heavy8 1.107",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_108",
+    "name": "Heavy8 1.108",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_109",
+    "name": "Heavy8 1.109",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_11",
+    "name": "Heavy8 1.11",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_110",
+    "name": "Heavy8 1.110",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_111",
+    "name": "Heavy8 1.111",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_112",
+    "name": "Heavy8 1.112",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_113",
+    "name": "Heavy8 1.113",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_114",
+    "name": "Heavy8 1.114",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_115",
+    "name": "Heavy8 1.115",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_116",
+    "name": "Heavy8 1.116",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_117",
+    "name": "Heavy8 1.117",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_118",
+    "name": "Heavy8 1.118",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_119",
+    "name": "Heavy8 1.119",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_12",
+    "name": "Heavy8 1.12",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_120",
+    "name": "Heavy8 1.120",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_121",
+    "name": "Heavy8 1.121",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_122",
+    "name": "Heavy8 1.122",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_123",
+    "name": "Heavy8 1.123",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_124",
+    "name": "Heavy8 1.124",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_125",
+    "name": "Heavy8 1.125",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_126",
+    "name": "Heavy8 1.126",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_127",
+    "name": "Heavy8 1.127",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_128",
+    "name": "Heavy8 1.128",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_129",
+    "name": "Heavy8 1.129",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_13",
+    "name": "Heavy8 1.13",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_130",
+    "name": "Heavy8 1.130",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_131",
+    "name": "Heavy8 1.131",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_132",
+    "name": "Heavy8 1.132",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_133",
+    "name": "Heavy8 1.133",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_134",
+    "name": "Heavy8 1.134",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_135",
+    "name": "Heavy8 1.135",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_136",
+    "name": "Heavy8 1.136",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_137",
+    "name": "Heavy8 1.137",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_138",
+    "name": "Heavy8 1.138",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_139",
+    "name": "Heavy8 1.139",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_14",
+    "name": "Heavy8 1.14",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_140",
+    "name": "Heavy8 1.140",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_141",
+    "name": "Heavy8 1.141",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_142",
+    "name": "Heavy8 1.142",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_143",
+    "name": "Heavy8 1.143",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_144",
+    "name": "Heavy8 1.144",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_145",
+    "name": "Heavy8 1.145",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_146",
+    "name": "Heavy8 1.146",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_147",
+    "name": "Heavy8 1.147",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_148",
+    "name": "Heavy8 1.148",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_149",
+    "name": "Heavy8 1.149",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_15",
+    "name": "Heavy8 1.15",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_150",
+    "name": "Heavy8 1.150",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_151",
+    "name": "Heavy8 1.151",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_152",
+    "name": "Heavy8 1.152",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_153",
+    "name": "Heavy8 1.153",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_154",
+    "name": "Heavy8 1.154",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_155",
+    "name": "Heavy8 1.155",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_156",
+    "name": "Heavy8 1.156",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_157",
+    "name": "Heavy8 1.157",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_158",
+    "name": "Heavy8 1.158",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_159",
+    "name": "Heavy8 1.159",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_16",
+    "name": "Heavy8 1.16",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_160",
+    "name": "Heavy8 1.160",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_161",
+    "name": "Heavy8 1.161",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_162",
+    "name": "Heavy8 1.162",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_163",
+    "name": "Heavy8 1.163",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_164",
+    "name": "Heavy8 1.164",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_165",
+    "name": "Heavy8 1.165",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_166",
+    "name": "Heavy8 1.166",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_167",
+    "name": "Heavy8 1.167",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_168",
+    "name": "Heavy8 1.168",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_169",
+    "name": "Heavy8 1.169",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_17",
+    "name": "Heavy8 1.17",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_170",
+    "name": "Heavy8 1.170",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_171",
+    "name": "Heavy8 1.171",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_172",
+    "name": "Heavy8 1.172",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_173",
+    "name": "Heavy8 1.173",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_174",
+    "name": "Heavy8 1.174",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_175",
+    "name": "Heavy8 1.175",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_176",
+    "name": "Heavy8 1.176",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_177",
+    "name": "Heavy8 1.177",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_178",
+    "name": "Heavy8 1.178",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_179",
+    "name": "Heavy8 1.179",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_18",
+    "name": "Heavy8 1.18",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_180",
+    "name": "Heavy8 1.180",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_181",
+    "name": "Heavy8 1.181",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_182",
+    "name": "Heavy8 1.182",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_183",
+    "name": "Heavy8 1.183",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_184",
+    "name": "Heavy8 1.184",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_185",
+    "name": "Heavy8 1.185",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_186",
+    "name": "Heavy8 1.186",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_187",
+    "name": "Heavy8 1.187",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_188",
+    "name": "Heavy8 1.188",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_189",
+    "name": "Heavy8 1.189",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_19",
+    "name": "Heavy8 1.19",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_190",
+    "name": "Heavy8 1.190",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_191",
+    "name": "Heavy8 1.191",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_2",
+    "name": "Heavy8 1.2",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_20",
+    "name": "Heavy8 1.20",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_21",
+    "name": "Heavy8 1.21",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_22",
+    "name": "Heavy8 1.22",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_23",
+    "name": "Heavy8 1.23",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_24",
+    "name": "Heavy8 1.24",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_25",
+    "name": "Heavy8 1.25",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_26",
+    "name": "Heavy8 1.26",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_27",
+    "name": "Heavy8 1.27",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_28",
+    "name": "Heavy8 1.28",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_29",
+    "name": "Heavy8 1.29",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_3",
+    "name": "Heavy8 1.3",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_30",
+    "name": "Heavy8 1.30",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_31",
+    "name": "Heavy8 1.31",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_32",
+    "name": "Heavy8 1.32",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_33",
+    "name": "Heavy8 1.33",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_34",
+    "name": "Heavy8 1.34",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_35",
+    "name": "Heavy8 1.35",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_36",
+    "name": "Heavy8 1.36",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_37",
+    "name": "Heavy8 1.37",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_38",
+    "name": "Heavy8 1.38",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_39",
+    "name": "Heavy8 1.39",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_4",
+    "name": "Heavy8 1.4",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_40",
+    "name": "Heavy8 1.40",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_41",
+    "name": "Heavy8 1.41",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_42",
+    "name": "Heavy8 1.42",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_43",
+    "name": "Heavy8 1.43",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_44",
+    "name": "Heavy8 1.44",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_45",
+    "name": "Heavy8 1.45",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_46",
+    "name": "Heavy8 1.46",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_47",
+    "name": "Heavy8 1.47",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_48",
+    "name": "Heavy8 1.48",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_49",
+    "name": "Heavy8 1.49",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_5",
+    "name": "Heavy8 1.5",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_50",
+    "name": "Heavy8 1.50",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_51",
+    "name": "Heavy8 1.51",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_52",
+    "name": "Heavy8 1.52",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_53",
+    "name": "Heavy8 1.53",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_54",
+    "name": "Heavy8 1.54",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_55",
+    "name": "Heavy8 1.55",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_56",
+    "name": "Heavy8 1.56",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_57",
+    "name": "Heavy8 1.57",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_58",
+    "name": "Heavy8 1.58",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_59",
+    "name": "Heavy8 1.59",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_6",
+    "name": "Heavy8 1.6",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_60",
+    "name": "Heavy8 1.60",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_61",
+    "name": "Heavy8 1.61",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_62",
+    "name": "Heavy8 1.62",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_63",
+    "name": "Heavy8 1.63",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_64",
+    "name": "Heavy8 1.64",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_65",
+    "name": "Heavy8 1.65",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_66",
+    "name": "Heavy8 1.66",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_67",
+    "name": "Heavy8 1.67",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_68",
+    "name": "Heavy8 1.68",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_69",
+    "name": "Heavy8 1.69",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_7",
+    "name": "Heavy8 1.7",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_70",
+    "name": "Heavy8 1.70",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_71",
+    "name": "Heavy8 1.71",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_72",
+    "name": "Heavy8 1.72",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_73",
+    "name": "Heavy8 1.73",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_74",
+    "name": "Heavy8 1.74",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_75",
+    "name": "Heavy8 1.75",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_76",
+    "name": "Heavy8 1.76",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_77",
+    "name": "Heavy8 1.77",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_78",
+    "name": "Heavy8 1.78",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_79",
+    "name": "Heavy8 1.79",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_8",
+    "name": "Heavy8 1.8",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_80",
+    "name": "Heavy8 1.80",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_81",
+    "name": "Heavy8 1.81",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_82",
+    "name": "Heavy8 1.82",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_83",
+    "name": "Heavy8 1.83",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_84",
+    "name": "Heavy8 1.84",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_85",
+    "name": "Heavy8 1.85",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_86",
+    "name": "Heavy8 1.86",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_87",
+    "name": "Heavy8 1.87",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_88",
+    "name": "Heavy8 1.88",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_89",
+    "name": "Heavy8 1.89",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_9",
+    "name": "Heavy8 1.9",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_90",
+    "name": "Heavy8 1.90",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_91",
+    "name": "Heavy8 1.91",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_92",
+    "name": "Heavy8 1.92",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_93",
+    "name": "Heavy8 1.93",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_94",
+    "name": "Heavy8 1.94",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_95",
+    "name": "Heavy8 1.95",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_96",
+    "name": "Heavy8 1.96",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_97",
+    "name": "Heavy8 1.97",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_98",
+    "name": "Heavy8 1.98",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "heavy8_1_99",
+    "name": "Heavy8 1.99",
+    "ownerScreenId": "screen_galaxian_msx2_phase2",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen",
+    "id": "screen_galaxian_msx2",
+    "name": "Galaxian Heavy 8x8 A",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 4464,
+    "storedBytesEstimate": 4464,
+    "accessPattern": "mixed_load_to_vram_and_runtime_read",
+    "mutable": false,
+    "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+    "reason": "Reachable SCREEN 4 room: graphics are loaded to VRAM; layers/spawns stay as ROM/runtime data.",
+    "parts": [
+      {
+        "name": "nameTable",
+        "rawBytes": 768,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+      },
+      {
+        "name": "patterns",
+        "rawBytes": 1560,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+      },
+      {
+        "name": "colors",
+        "rawBytes": 1560,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+      },
+      {
+        "name": "runtimeLayersAndSpawns",
+        "rawBytes": 576,
+        "accessPattern": "runtime_read",
+        "decision": "ROM_RAW",
+        "placement": "world_data_bank",
+        "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
+      }
+    ],
+    "screenLabel": "GALAXIAN_HEAVY_8X8_A",
+    "payloadParts": [
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_NAMES",
+        "kind": "screen4_names",
+        "rawBytes": 768,
+        "loadOrder": 20
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BANK_0_PATTERNS",
+        "kind": "screen4_patterns",
+        "rawBytes": 520,
+        "loadOrder": 0
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BANK_0_COLORS",
+        "kind": "screen4_colors",
+        "rawBytes": 520,
+        "loadOrder": 1
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BANK_1_PATTERNS",
+        "kind": "screen4_patterns",
+        "rawBytes": 520,
+        "loadOrder": 2
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BANK_1_COLORS",
+        "kind": "screen4_colors",
+        "rawBytes": 520,
+        "loadOrder": 3
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BANK_2_PATTERNS",
+        "kind": "screen4_patterns",
+        "rawBytes": 520,
+        "loadOrder": 4
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BANK_2_COLORS",
+        "kind": "screen4_colors",
+        "rawBytes": 520,
+        "loadOrder": 5
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_COLLISION",
+        "kind": "screen4_collision",
+        "rawBytes": 192,
+        "loadOrder": 30
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_EFFECTS",
+        "kind": "screen4_effects",
+        "rawBytes": 192,
+        "loadOrder": 31
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_A_BEHAVIOR",
+        "kind": "screen4_behavior",
+        "rawBytes": 192,
+        "loadOrder": 32
+      }
+    ],
+    "payloadLabels": [
+      "GALAXIAN_HEAVY_8X8_A_NAMES",
+      "GALAXIAN_HEAVY_8X8_A_BANK_0_PATTERNS",
+      "GALAXIAN_HEAVY_8X8_A_BANK_0_COLORS",
+      "GALAXIAN_HEAVY_8X8_A_BANK_1_PATTERNS",
+      "GALAXIAN_HEAVY_8X8_A_BANK_1_COLORS",
+      "GALAXIAN_HEAVY_8X8_A_BANK_2_PATTERNS",
+      "GALAXIAN_HEAVY_8X8_A_BANK_2_COLORS",
+      "GALAXIAN_HEAVY_8X8_A_COLLISION",
+      "GALAXIAN_HEAVY_8X8_A_EFFECTS",
+      "GALAXIAN_HEAVY_8X8_A_BEHAVIOR"
+    ]
+  },
+  {
+    "type": "msx2screen",
+    "id": "screen_galaxian_msx2_phase2",
+    "name": "Galaxian Heavy 8x8 B",
+    "ownerWorldIds": [
+      "world_galaxian_msx2"
+    ],
+    "rawBytes": 4464,
+    "storedBytesEstimate": 4464,
+    "accessPattern": "mixed_load_to_vram_and_runtime_read",
+    "mutable": false,
+    "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+    "reason": "Reachable SCREEN 4 room: graphics are loaded to VRAM; layers/spawns stay as ROM/runtime data.",
+    "parts": [
+      {
+        "name": "nameTable",
+        "rawBytes": 768,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+      },
+      {
+        "name": "patterns",
+        "rawBytes": 1560,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+      },
+      {
+        "name": "colors",
+        "rawBytes": 1560,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+      },
+      {
+        "name": "runtimeLayersAndSpawns",
+        "rawBytes": 576,
+        "accessPattern": "runtime_read",
+        "decision": "ROM_RAW",
+        "placement": "world_data_bank",
+        "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
+      }
+    ],
+    "screenLabel": "GALAXIAN_HEAVY_8X8_B",
+    "payloadParts": [
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_NAMES",
+        "kind": "screen4_names",
+        "rawBytes": 768,
+        "loadOrder": 20
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BANK_0_PATTERNS",
+        "kind": "screen4_patterns",
+        "rawBytes": 520,
+        "loadOrder": 0
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BANK_0_COLORS",
+        "kind": "screen4_colors",
+        "rawBytes": 520,
+        "loadOrder": 1
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BANK_1_PATTERNS",
+        "kind": "screen4_patterns",
+        "rawBytes": 520,
+        "loadOrder": 2
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BANK_1_COLORS",
+        "kind": "screen4_colors",
+        "rawBytes": 520,
+        "loadOrder": 3
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BANK_2_PATTERNS",
+        "kind": "screen4_patterns",
+        "rawBytes": 520,
+        "loadOrder": 4
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BANK_2_COLORS",
+        "kind": "screen4_colors",
+        "rawBytes": 520,
+        "loadOrder": 5
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_COLLISION",
+        "kind": "screen4_collision",
+        "rawBytes": 192,
+        "loadOrder": 30
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_EFFECTS",
+        "kind": "screen4_effects",
+        "rawBytes": 192,
+        "loadOrder": 31
+      },
+      {
+        "label": "GALAXIAN_HEAVY_8X8_B_BEHAVIOR",
+        "kind": "screen4_behavior",
+        "rawBytes": 192,
+        "loadOrder": 32
+      }
+    ],
+    "payloadLabels": [
+      "GALAXIAN_HEAVY_8X8_B_NAMES",
+      "GALAXIAN_HEAVY_8X8_B_BANK_0_PATTERNS",
+      "GALAXIAN_HEAVY_8X8_B_BANK_0_COLORS",
+      "GALAXIAN_HEAVY_8X8_B_BANK_1_PATTERNS",
+      "GALAXIAN_HEAVY_8X8_B_BANK_1_COLORS",
+      "GALAXIAN_HEAVY_8X8_B_BANK_2_PATTERNS",
+      "GALAXIAN_HEAVY_8X8_B_BANK_2_COLORS",
+      "GALAXIAN_HEAVY_8X8_B_COLLISION",
+      "GALAXIAN_HEAVY_8X8_B_EFFECTS",
+      "GALAXIAN_HEAVY_8X8_B_BEHAVIOR"
+    ]
+  },
+  {
+    "type": "msx2sprite",
+    "id": "sprite_galaxian_player_msx2",
+    "name": "Galaxian Player Ship",
+    "ownerWorldIds": [],
+    "rawBytes": 144,
+    "storedBytesEstimate": 144,
+    "accessPattern": "load_to_vram",
+    "mutable": false,
+    "decision": "ROM_RAW_TO_VRAM",
+    "reason": "Referenced MSX2 hardware sprite source; sprite patterns/colors are loaded to VRAM/SAT data.",
+    "superSpriteLayout": "1x1",
+    "superSpriteParts": [
+      {
+        "label": "A",
+        "offsetX": 0,
+        "offsetY": 0,
+        "width": 16,
+        "height": 16
+      }
+    ],
+    "metaspriteCells": {
+      "columns": 1,
+      "rows": 1,
+      "count": 1
+    },
+    "hardwareLayerCount": 3,
+    "emittedHardwareLayerCount": 3,
+    "worstScanlineHardwareSprites": 3,
+    "scanlineLimit": 16,
+    "overScanlineLimit": false,
+    "parts": [
+      {
+        "name": "patterns",
+        "rawBytes": 96,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_RAW_TO_VRAM"
+      },
+      {
+        "name": "lineColors",
+        "rawBytes": 48,
+        "accessPattern": "load_to_vram",
+        "decision": "ROM_RAW_TO_VRAM"
+      }
+    ]
+  },
+  {
+    "type": "palette",
+    "id": "palette_galaxian_msx2",
+    "name": "Galaxian MSX2 Palette",
+    "rawBytes": 893,
+    "storedBytesEstimate": 893,
+    "accessPattern": "manifest_read",
+    "mutable": false,
+    "decision": "ROM_RAW",
+    "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
+  },
+  {
+    "type": "worldmap",
+    "id": "world_galaxian_msx2",
+    "name": "Galaxian World",
+    "rawBytes": 537,
+    "storedBytesEstimate": 537,
+    "accessPattern": "manifest_read",
+    "mutable": false,
+    "decision": "ROM_RAW",
+    "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
+  }
+]

@@ -1,0 +1,164 @@
+{
+  "bankSizeBytes": 8192,
+  "warningThresholdBytes": 7372,
+  "totalPayloadBytes": 7182,
+  "estimatedMinimumBanks": 1,
+  "estimatedPackedBankCount": 1,
+  "estimatedPackedBanks": [
+    {
+      "bankIndex": 0,
+      "bankSizeBytes": 8192,
+      "warningThresholdBytes": 7372,
+      "usedBytes": 7182,
+      "freeBytes": 1010,
+      "usedPercent": 87.67,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "status": "ok",
+      "packages": [
+        {
+          "id": "msx2screen.asset_screen_msx2_raster_bricks",
+          "usedBytes": 6347,
+          "recommendedBankClass": "world.screen"
+        },
+        {
+          "id": "palette.palette_msx2_raster_bricks",
+          "usedBytes": 835,
+          "recommendedBankClass": "world.manifest"
+        }
+      ]
+    }
+  ],
+  "overBudgetPackages": [],
+  "warningPackages": [],
+  "warningPackedBanks": [],
+  "bankClassSummary": [
+    {
+      "id": "world.screen",
+      "packageCount": 1,
+      "usedBytes": 6347,
+      "estimatedMinimumBanks": 1,
+      "warningPackageCount": 0,
+      "overBudgetPackageCount": 0,
+      "largestPackage": {
+        "id": "msx2screen.asset_screen_msx2_raster_bricks",
+        "usedBytes": 6347
+      }
+    },
+    {
+      "id": "world.manifest",
+      "packageCount": 1,
+      "usedBytes": 835,
+      "estimatedMinimumBanks": 1,
+      "warningPackageCount": 0,
+      "overBudgetPackageCount": 0,
+      "largestPackage": {
+        "id": "palette.palette_msx2_raster_bricks",
+        "usedBytes": 835
+      }
+    }
+  ],
+  "recoveryRecommendations": [
+    {
+      "severity": "ok",
+      "target": "logicalBankBudget",
+      "reason": "All estimated packages fit below warning threshold.",
+      "action": "No recovery needed before the final allocator pass."
+    }
+  ],
+  "recoveryPlan": [
+    {
+      "order": 1,
+      "id": "repack_final_sizes",
+      "status": "not_needed",
+      "trigger": "estimated packed bank reaches warning threshold or any package is over one 8 KB window",
+      "appliesTo": [],
+      "action": "Re-run first-fit-decreasing with final stored sizes after ZX0 policy decisions."
+    },
+    {
+      "order": 2,
+      "id": "split_world_packages",
+      "status": "not_needed",
+      "trigger": "independently addressable world/screen/sprite package is too large or near the bank limit",
+      "appliesTo": [],
+      "action": "Split the logical world package across additional physical world data banks."
+    },
+    {
+      "order": 3,
+      "id": "move_cold_readonly_data",
+      "status": "not_needed",
+      "trigger": "resident or manifest data creates bank pressure",
+      "appliesTo": [],
+      "action": "Move cold read-only tables out of resident/core placement and into world data banks."
+    },
+    {
+      "order": 4,
+      "id": "selective_zx0",
+      "status": "not_needed",
+      "trigger": "large load-to-VRAM screen, pattern, color, tilemap, or sprite data creates pressure",
+      "appliesTo": [],
+      "action": "Try ZX0 only for large load-to-VRAM resources; keep runtime lookup data raw."
+    },
+    {
+      "order": 5,
+      "id": "keep_hot_runtime_raw",
+      "status": "enforced",
+      "trigger": "runtime table is tiny, mutable, or accessed in hot loops",
+      "appliesTo": [
+        "runtime lookup tables",
+        "entity instances",
+        "state-machine runtime state"
+      ],
+      "action": "Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables."
+    },
+    {
+      "order": 6,
+      "id": "world_special_code_bank",
+      "status": "not_needed",
+      "trigger": "rare behavior or boss-specific code contributes to resident pressure",
+      "appliesTo": [],
+      "action": "Move rare behavior behind a world special-code bank and far-call boundary."
+    },
+    {
+      "order": 7,
+      "id": "split_large_payload_chunks",
+      "status": "not_needed",
+      "trigger": "single screen/graphics payload cannot fit one mapper window as a unit",
+      "appliesTo": [],
+      "action": "Split large screen or graphics payloads into loader-addressable chunks only when each chunk is independently referenced."
+    },
+    {
+      "order": 8,
+      "id": "fail_actionable_report",
+      "status": "ready",
+      "trigger": "all deterministic recovery attempts still leave an over-budget unit",
+      "appliesTo": [],
+      "action": "Fail before Glass with largest contributors and concrete authoring changes."
+    }
+  ],
+  "packages": [
+    {
+      "id": "msx2screen.asset_screen_msx2_raster_bricks",
+      "type": "msx2screen",
+      "sourceId": "asset_screen_msx2_raster_bricks",
+      "recommendedBankClass": "world.screen",
+      "usedBytes": 6347,
+      "freeBytesIfAlone": 1845,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "canSplit": true
+    },
+    {
+      "id": "palette.palette_msx2_raster_bricks",
+      "type": "palette",
+      "sourceId": "palette_msx2_raster_bricks",
+      "recommendedBankClass": "world.manifest",
+      "usedBytes": 835,
+      "freeBytesIfAlone": 7357,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "canSplit": false
+    }
+  ],
+  "note": "Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression."
+}

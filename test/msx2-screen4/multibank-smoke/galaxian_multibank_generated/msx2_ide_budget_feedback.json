@@ -1,0 +1,494 @@
+{
+  "scope": "msx2_screen4_ide_budget_feedback",
+  "status": "ok",
+  "project": {
+    "name": "galaxian_msx2_multibank_smoke",
+    "backend": "msx2-screen4-pattern",
+    "screenMode": "SCREEN 4 (Graphics II)",
+    "romMode": "megarom",
+    "mapper": "konami"
+  },
+  "rom": {
+    "bankSizeBytes": 8192,
+    "payloadBytes": 10942,
+    "estimatedPackedBankCount": 2,
+    "warningThresholdBytes": 7372,
+    "usedPercentOfSingleBank": 133.57,
+    "warningBankCount": 0,
+    "warningRecommendationCount": 0,
+    "bankClassSummary": [
+      {
+        "id": "world.screen",
+        "packageCount": 2,
+        "usedBytes": 8928,
+        "estimatedMinimumBanks": 2,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2screen.screen_galaxian_msx2",
+          "usedBytes": 4464
+        }
+      },
+      {
+        "id": "world.manifest",
+        "packageCount": 3,
+        "usedBytes": 1870,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "palette.palette_galaxian_msx2",
+          "usedBytes": 893
+        }
+      },
+      {
+        "id": "world.graphics.sprite",
+        "packageCount": 1,
+        "usedBytes": 144,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2sprite.sprite_galaxian_player_msx2",
+          "usedBytes": 144
+        }
+      }
+    ]
+  },
+  "ram": {
+    "start": "#C000",
+    "limit": "#F300",
+    "usedBytes": 1188,
+    "freeBytes": 11868,
+    "status": "ok",
+    "warningCount": 0,
+    "sections": [
+      {
+        "id": "runtime.globals_player_input",
+        "start": "#C000",
+        "end": "#C044",
+        "bytes": 68,
+        "mutable": true,
+        "reason": "Fixed hot runtime state for player/input/global counters."
+      },
+      {
+        "id": "runtime.snake_body_cache",
+        "start": "#C044",
+        "end": "#C084",
+        "bytes": 64,
+        "mutable": true,
+        "reason": "Fixed-size cache reserved only for snake-char body state."
+      },
+      {
+        "id": "runtime.persistent_effect_layers",
+        "start": "#C084",
+        "end": "#C204",
+        "bytes": 384,
+        "mutable": true,
+        "count": 2,
+        "bytesPerScreen": 192,
+        "reason": "One mutable effects layer per reachable SCREEN 4 room."
+      },
+      {
+        "id": "runtime.effects_scratch",
+        "start": "#C210",
+        "end": "#C2D0",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
+      },
+      {
+        "id": "runtime.collision_current_cache",
+        "start": "#C2D0",
+        "end": "#C390",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Hot cache for the current SCREEN 4 collision layer copied from ROM data banks."
+      },
+      {
+        "id": "runtime.behavior_current_cache",
+        "start": "#C390",
+        "end": "#C450",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks."
+      },
+      {
+        "id": "runtime.enemy_pool",
+        "start": "#C450",
+        "end": "#C4A4",
+        "bytes": 84,
+        "mutable": true,
+        "slots": 12,
+        "reason": "Active enemy/hazard runtime arrays; ROM keeps enemy templates."
+      }
+    ]
+  },
+  "runtimeModules": {
+    "included": [
+      {
+        "id": "runtime.msx2.boot",
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.screen4.vdp",
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.input",
+        "placement": "resident",
+        "reason": "Required by current MSX2 gameplay loop"
+      },
+      {
+        "id": "runtime.msx2.screen_loader",
+        "placement": "resident",
+        "reason": "Required to load reachable native MSX2 screens"
+      },
+      {
+        "id": "runtime.msx2.layers.collision",
+        "placement": "resident",
+        "reason": "Collision reader stays resident; current screen data is cached in RAM from world data banks"
+      },
+      {
+        "id": "runtime.msx2.layers.effects",
+        "placement": "resident",
+        "reason": "Effects layer runtime buffers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.layers.behavior",
+        "placement": "resident",
+        "reason": "Behavior reader stays resident; current screen data is cached in RAM from world data banks"
+      },
+      {
+        "id": "runtime.msx2.hardware_sprites",
+        "placement": "resident",
+        "reason": "Enabled only when a reachable MSX2 sprite source exists"
+      },
+      {
+        "id": "runtime.msx2.projectiles",
+        "placement": "resident",
+        "reason": "Enabled only by shooter-horizontal movement"
+      },
+      {
+        "id": "runtime.msx2.stage_banner",
+        "placement": "resident",
+        "reason": "Enabled only by shooter wave flow"
+      },
+      {
+        "id": "runtime.msx2.mapper.konami8k",
+        "placement": "resident",
+        "reason": "Enabled by Konami MegaROM data-bank mode"
+      }
+    ],
+    "excluded": [
+      {
+        "id": "runtime.msx2.shooter60hz.contract",
+        "placement": "metadata",
+        "reason": "Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles"
+      },
+      {
+        "id": "runtime.msx2.scroll.vertical",
+        "placement": "resident",
+        "reason": "Enabled only when reachable screens request scroll"
+      },
+      {
+        "id": "runtime.msx2.snake_char",
+        "placement": "resident",
+        "reason": "Enabled only by snake-char movement"
+      }
+    ],
+    "all": [
+      {
+        "id": "runtime.msx2.boot",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.screen4.vdp",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required by every native MSX2 SCREEN 4 build"
+      },
+      {
+        "id": "runtime.msx2.input",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required by current MSX2 gameplay loop"
+      },
+      {
+        "id": "runtime.msx2.screen_loader",
+        "included": true,
+        "placement": "resident",
+        "reason": "Required to load reachable native MSX2 screens"
+      },
+      {
+        "id": "runtime.msx2.layers.collision",
+        "included": true,
+        "placement": "resident",
+        "reason": "Collision reader stays resident; current screen data is cached in RAM from world data banks"
+      },
+      {
+        "id": "runtime.msx2.layers.effects",
+        "included": true,
+        "placement": "resident",
+        "reason": "Effects layer runtime buffers are part of the current runtime contract"
+      },
+      {
+        "id": "runtime.msx2.layers.behavior",
+        "included": true,
+        "placement": "resident",
+        "reason": "Behavior reader stays resident; current screen data is cached in RAM from world data banks"
+      },
+      {
+        "id": "runtime.msx2.hardware_sprites",
+        "included": true,
+        "placement": "resident",
+        "reason": "Enabled only when a reachable MSX2 sprite source exists"
+      },
+      {
+        "id": "runtime.msx2.projectiles",
+        "included": true,
+        "placement": "resident",
+        "reason": "Enabled only by shooter-horizontal movement"
+      },
+      {
+        "id": "runtime.msx2.shooter60hz.contract",
+        "included": false,
+        "placement": "metadata",
+        "reason": "Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles"
+      },
+      {
+        "id": "runtime.msx2.stage_banner",
+        "included": true,
+        "placement": "resident",
+        "reason": "Enabled only by shooter wave flow"
+      },
+      {
+        "id": "runtime.msx2.scroll.vertical",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only when reachable screens request scroll"
+      },
+      {
+        "id": "runtime.msx2.snake_char",
+        "included": false,
+        "placement": "resident",
+        "reason": "Enabled only by snake-char movement"
+      },
+      {
+        "id": "runtime.msx2.mapper.konami8k",
+        "included": true,
+        "placement": "resident",
+        "reason": "Enabled by Konami MegaROM data-bank mode"
+      }
+    ],
+    "includedCount": 11,
+    "residentCount": 11,
+    "farCodeCount": 0,
+    "worldSpecificCount": 0
+  },
+  "worldBankManifest": {
+    "worldCount": 1,
+    "estimatedPhysicalBankCount": 2,
+    "dataWindowAddress": "#8000",
+    "packageCount": 3,
+    "warningBankCount": 0,
+    "overBudgetBankCount": 0,
+    "worlds": [
+      {
+        "worldId": "world_galaxian_msx2",
+        "estimatedBytes": 9465,
+        "estimated8kBanks": 2,
+        "packages": [
+          {
+            "packageId": "msx2screen.screen_galaxian_msx2",
+            "type": "msx2screen",
+            "sourceId": "screen_galaxian_msx2",
+            "logicalSection": "world screens",
+            "recommendedBankClass": "world.screen",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 4464,
+            "storedBytes": 4464,
+            "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "msx2screen.screen_galaxian_msx2_phase2",
+            "type": "msx2screen",
+            "sourceId": "screen_galaxian_msx2_phase2",
+            "logicalSection": "world screens",
+            "recommendedBankClass": "world.screen",
+            "physicalBankIndex": 1,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 4464,
+            "storedBytes": 4464,
+            "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "worldmap.world_galaxian_msx2",
+            "type": "worldmap",
+            "sourceId": "world_galaxian_msx2",
+            "logicalSection": "world manifest",
+            "recommendedBankClass": "world.manifest",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 537,
+            "storedBytes": 537,
+            "decision": "ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          }
+        ]
+      }
+    ],
+    "estimatedPhysicalBanks": [
+      {
+        "bankIndex": 0,
+        "windowAddress": "#8000",
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
+        "usedBytes": 6478,
+        "freeBytes": 1714,
+        "usedPercent": 79.08,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "status": "ok",
+        "packages": [
+          {
+            "id": "msx2screen.screen_galaxian_msx2",
+            "usedBytes": 4464,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "palette.palette_galaxian_msx2",
+            "usedBytes": 893,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "worldmap.world_galaxian_msx2",
+            "usedBytes": 537,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "gameflow.gameflow_galaxian_msx2",
+            "usedBytes": 440,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "msx2sprite.sprite_galaxian_player_msx2",
+            "usedBytes": 144,
+            "recommendedBankClass": "world.graphics.sprite"
+          }
+        ]
+      },
+      {
+        "bankIndex": 1,
+        "windowAddress": "#8000",
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
+        "usedBytes": 4464,
+        "freeBytes": 3728,
+        "usedPercent": 54.49,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "status": "ok",
+        "packages": [
+          {
+            "id": "msx2screen.screen_galaxian_msx2_phase2",
+            "usedBytes": 4464,
+            "recommendedBankClass": "world.screen"
+          }
+        ]
+      }
+    ]
+  },
+  "worldPackages": [
+    {
+      "worldId": "world_galaxian_msx2",
+      "assetCount": 3,
+      "screenCount": 2,
+      "estimatedBytes": 9465,
+      "estimated8kBanks": 2,
+      "bankClassBytes": [
+        {
+          "id": "world.screen",
+          "usedBytes": 8928
+        },
+        {
+          "id": "world.manifest",
+          "usedBytes": 537
+        }
+      ]
+    }
+  ],
+  "largestAssets": [
+    {
+      "id": "msx2screen.screen_galaxian_msx2",
+      "usedBytes": 4464,
+      "bankClass": "world.screen",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "msx2screen.screen_galaxian_msx2_phase2",
+      "usedBytes": 4464,
+      "bankClass": "world.screen",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "palette.palette_galaxian_msx2",
+      "usedBytes": 893,
+      "bankClass": "world.manifest",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "worldmap.world_galaxian_msx2",
+      "usedBytes": 537,
+      "bankClass": "world.manifest",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "gameflow.gameflow_galaxian_msx2",
+      "usedBytes": 440,
+      "bankClass": "world.manifest",
+      "warning": false,
+      "overBudgetBytes": 0
+    },
+    {
+      "id": "msx2sprite.sprite_galaxian_player_msx2",
+      "usedBytes": 144,
+      "bankClass": "world.graphics.sprite",
+      "warning": false,
+      "overBudgetBytes": 0
+    }
+  ],
+  "warnings": {
+    "romRecommendations": [],
+    "warningPackedBanks": [],
+    "ramRecommendations": []
+  },
+  "suggestedFixes": [
+    {
+      "severity": "ok",
+      "target": "logicalBankBudget",
+      "reason": "All estimated packages fit below warning threshold.",
+      "action": "No recovery needed before the final allocator pass."
+    },
+    {
+      "severity": "enforced",
+      "target": "runtime lookup tables, entity instances, state-machine runtime state",
+      "reason": "runtime table is tiny, mutable, or accessed in hot loops",
+      "action": "Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables."
+    }
+  ]
+}

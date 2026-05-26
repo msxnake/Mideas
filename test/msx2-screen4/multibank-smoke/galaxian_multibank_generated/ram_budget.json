@@ -1,0 +1,83 @@
+{
+  "scope": "msx2_screen4_ram_budget",
+  "start": "#C000",
+  "end": "#C4A4",
+  "limit": "#F300",
+  "usableBytes": 13056,
+  "usedBytes": 1188,
+  "freeBytes": 11868,
+  "warningThresholdBytes": 11097,
+  "maxPersistentScreens": 63,
+  "reachableScreens": 2,
+  "status": "ok",
+  "sections": [
+    {
+      "id": "runtime.globals_player_input",
+      "start": "#C000",
+      "end": "#C044",
+      "bytes": 68,
+      "mutable": true,
+      "reason": "Fixed hot runtime state for player/input/global counters."
+    },
+    {
+      "id": "runtime.snake_body_cache",
+      "start": "#C044",
+      "end": "#C084",
+      "bytes": 64,
+      "mutable": true,
+      "reason": "Fixed-size cache reserved only for snake-char body state."
+    },
+    {
+      "id": "runtime.persistent_effect_layers",
+      "start": "#C084",
+      "end": "#C204",
+      "bytes": 384,
+      "mutable": true,
+      "count": 2,
+      "bytesPerScreen": 192,
+      "reason": "One mutable effects layer per reachable SCREEN 4 room."
+    },
+    {
+      "id": "runtime.effects_scratch",
+      "start": "#C210",
+      "end": "#C2D0",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
+    },
+    {
+      "id": "runtime.collision_current_cache",
+      "start": "#C2D0",
+      "end": "#C390",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Hot cache for the current SCREEN 4 collision layer copied from ROM data banks."
+    },
+    {
+      "id": "runtime.behavior_current_cache",
+      "start": "#C390",
+      "end": "#C450",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks."
+    },
+    {
+      "id": "runtime.enemy_pool",
+      "start": "#C450",
+      "end": "#C4A4",
+      "bytes": 84,
+      "mutable": true,
+      "slots": 12,
+      "reason": "Active enemy/hazard runtime arrays; ROM keeps enemy templates."
+    }
+  ],
+  "recommendations": [
+    {
+      "severity": "ok",
+      "target": "runtimeRam",
+      "reason": "Estimated runtime RAM fits below warning threshold.",
+      "action": "No RAM recovery needed for this project slice."
+    }
+  ],
+  "note": "RAM budget reports mutable runtime state only. ROM and VRAM storage are reported separately."
+}

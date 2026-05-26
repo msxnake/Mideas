@@ -47,6 +47,7 @@ export type Msx2RuntimeEngine =
   | 'platform'
   | 'maze'
   | 'shooterHorizontal'
+  | 'shooterVertical'
   | 'staticEnemy'
   | 'ghostMaze'
   | 'patrolX'
@@ -305,6 +306,7 @@ export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Exclude<Msx2EntityKind, 'c
 export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
   { value: 'static', label: 'Static' },
   { value: 'maze', label: 'Maze Player' },
+  { value: 'shooterVertical', label: 'Shooter Vertical 60Hz' },
   { value: 'shooterHorizontal', label: 'Shooter Horizontal' },
   { value: 'paddleHorizontal', label: 'Paddle Horizontal' },
   { value: 'ballBounce', label: 'Ball Bounce' },
@@ -485,6 +487,25 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_screen_transition: { requiresCollectibles: false, lockIfMissingTarget: false },
     },
     params: { runtime: 'MSX2', engine: 'checkpoint', checkpoint: true },
+  },
+  {
+    id: 'shooter_vertical_player',
+    label: 'MSX2 Shooter Player 60Hz',
+    kind: 'player',
+    runtime: 'MSX2',
+    engine: 'shooterVertical',
+    description: 'Vertical arcade shooter player tuned for the SCREEN 4 60Hz runtime budget.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: { paletteSlot: 15 },
+      msx2_player_control: { controlMode: 'shooterVertical', movementMode: 'shooterVertical', jump: false, gravity: false, air: 0, disableAirTimer: true },
+      msx2_movement: { mode: 'shooterVertical', speed: 3, minX: 0, maxX: 240, minY: 16, maxY: 176, boundsUnit: 'px' },
+      msx2_collision: { hitboxW: 8, hitboxH: 8, offsetX: 4, offsetY: 4 },
+      msx2_shooter: { enabled: true, fireKey: 'space', cooldownFrames: 10, projectilePresetId: 'player_laser', maxProjectiles: 6 },
+      msx2_lives: { lives: 3, maxLives: 3, extraLifeAt: 10000, gameOverAction: 'gameflow_exit' },
+      msx2_score: { points: 0, variableId: 'score', addOnCollect: false },
+    },
+    params: { runtime: 'MSX2', engine: 'shooterVertical', controlMode: 'shooterVertical', movement: 'shooterVertical', movementMode: 'shooterVertical', speed: 3, initialAir: 0, disableAirTimer: true },
   },
   {
     id: 'galaxian_player',

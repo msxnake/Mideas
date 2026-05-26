@@ -1,0 +1,304 @@
+{
+  "scope": "msx2_screen4_megarom_preflight_summary",
+  "status": "ok",
+  "artifactDir": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test\\msx2-screen4\\raster-bricks\\out\\msx2-raster-bricks_compressed_generated",
+  "requiredArtifacts": [
+    "project_slice.json",
+    "asset_storage_policy.json",
+    "logical_bank_budget.json",
+    "msx2_world_bank_manifest.json",
+    "ram_budget.json"
+  ],
+  "artifactChecks": [
+    {
+      "name": "project_slice.json",
+      "bytes": 23822,
+      "checksum": "fnv1a32:CFB77EA2"
+    },
+    {
+      "name": "asset_storage_policy.json",
+      "bytes": 3460,
+      "checksum": "fnv1a32:0C90AD1B"
+    },
+    {
+      "name": "logical_bank_budget.json",
+      "bytes": 6573,
+      "checksum": "fnv1a32:F18D34C7"
+    },
+    {
+      "name": "msx2_world_bank_manifest.json",
+      "bytes": 2409,
+      "checksum": "fnv1a32:5B1757AE"
+    },
+    {
+      "name": "ram_budget.json",
+      "bytes": 1808,
+      "checksum": "fnv1a32:5C95D809"
+    }
+  ],
+  "outputArtifactChecks": [
+    {
+      "name": "msx2_ide_budget_feedback.json",
+      "bytes": 13203,
+      "checksum": "fnv1a32:B762714C"
+    }
+  ],
+  "pipelineGates": [
+    {
+      "order": 1,
+      "id": "project_analysis_and_world_package_extraction",
+      "status": "passed",
+      "evidence": [
+        "project_slice.json",
+        "worldPackageSummary"
+      ]
+    },
+    {
+      "order": 2,
+      "id": "project_precompilation_slice",
+      "status": "passed",
+      "evidence": [
+        "includedAssets",
+        "excludedAssets",
+        "includedRuntimeModules",
+        "excludedRuntimeModules"
+      ]
+    },
+    {
+      "order": 3,
+      "id": "asset_storage_policy",
+      "status": "passed",
+      "evidence": [
+        "asset_storage_policy.json"
+      ]
+    },
+    {
+      "order": 4,
+      "id": "ram_budget_report",
+      "status": "passed",
+      "evidence": [
+        "ram_budget.json"
+      ]
+    },
+    {
+      "order": 5,
+      "id": "bank_allocation_dry_run",
+      "status": "passed",
+      "evidence": [
+        "logical_bank_budget.json"
+      ]
+    },
+    {
+      "order": 6,
+      "id": "overflow_recovery_plan",
+      "status": "passed",
+      "evidence": [
+        "recoveryRecommendations",
+        "recoveryPlan"
+      ],
+      "strictWarnings": false
+    },
+    {
+      "order": 7,
+      "id": "asm_generation",
+      "status": "already_done",
+      "evidence": [
+        "unified ASM with embedded preflight artifacts"
+      ]
+    },
+    {
+      "order": 8,
+      "id": "glass_compile",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 9,
+      "id": "artifact_validation_against_symbols",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 10,
+      "id": "post_compilation_optimization",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "order": 11,
+      "id": "openmsx_smoke",
+      "status": "pending_when_requested",
+      "evidence": []
+    }
+  ],
+  "rom": {
+    "bankSizeBytes": 8192,
+    "payloadBytes": 7503,
+    "estimatedPackedBankCount": 1,
+    "packageCount": 3,
+    "largestPackage": {
+      "id": "msx2screen.asset_screen_msx2_raster_bricks",
+      "type": "msx2screen",
+      "sourceId": "asset_screen_msx2_raster_bricks",
+      "recommendedBankClass": "world.screen",
+      "usedBytes": 6347,
+      "freeBytesIfAlone": 1845,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "canSplit": true
+    },
+    "bankClassSummary": [
+      {
+        "id": "world.screen",
+        "packageCount": 1,
+        "usedBytes": 6347,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2screen.asset_screen_msx2_raster_bricks",
+          "usedBytes": 6347
+        }
+      },
+      {
+        "id": "world.manifest",
+        "packageCount": 2,
+        "usedBytes": 1156,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "palette.palette_msx2_raster_bricks",
+          "usedBytes": 835
+        }
+      }
+    ],
+    "warningCount": 1,
+    "warningBankCount": 1
+  },
+  "worldPackages": [
+    {
+      "worldId": "world_msx2_raster_bricks",
+      "assetCount": 2,
+      "screenCount": 1,
+      "estimatedBytes": 6668,
+      "estimated8kBanks": 1,
+      "bankClassBytes": [
+        {
+          "id": "world.screen",
+          "usedBytes": 6347
+        },
+        {
+          "id": "world.manifest",
+          "usedBytes": 321
+        }
+      ]
+    }
+  ],
+  "worldBankManifest": {
+    "worldCount": 1,
+    "estimatedPhysicalBankCount": 1,
+    "dataWindowAddress": "#A000",
+    "warningBankCount": 1,
+    "overBudgetBankCount": 0
+  },
+  "ram": {
+    "start": "#C000",
+    "limit": "#F300",
+    "usedBytes": 788,
+    "freeBytes": 12268,
+    "status": "ok",
+    "sectionCount": 5,
+    "warningCount": 0
+  },
+  "planB": {
+    "romRecommendations": [
+      {
+        "severity": "warning",
+        "target": "estimatedBank0",
+        "reason": "Estimated packed bank uses 7503/8192 bytes.",
+        "action": "Repack by final post-compression sizes, then move cold read-only data to another world data bank if still above threshold."
+      }
+    ],
+    "recoveryPlan": [
+      {
+        "order": 1,
+        "id": "repack_final_sizes",
+        "status": "recommended",
+        "trigger": "estimated packed bank reaches warning threshold or any package is over one 8 KB window",
+        "appliesTo": [
+          "estimatedBank0"
+        ],
+        "action": "Re-run first-fit-decreasing with final stored sizes after ZX0 policy decisions."
+      },
+      {
+        "order": 2,
+        "id": "split_world_packages",
+        "status": "not_needed",
+        "trigger": "independently addressable world/screen/sprite package is too large or near the bank limit",
+        "appliesTo": [],
+        "action": "Split the logical world package across additional physical world data banks."
+      },
+      {
+        "order": 3,
+        "id": "move_cold_readonly_data",
+        "status": "recommended",
+        "trigger": "resident or manifest data creates bank pressure",
+        "appliesTo": [],
+        "action": "Move cold read-only tables out of resident/core placement and into world data banks."
+      },
+      {
+        "order": 4,
+        "id": "selective_zx0",
+        "status": "not_needed",
+        "trigger": "large load-to-VRAM screen, pattern, color, tilemap, or sprite data creates pressure",
+        "appliesTo": [],
+        "action": "Try ZX0 only for large load-to-VRAM resources; keep runtime lookup data raw."
+      },
+      {
+        "order": 5,
+        "id": "keep_hot_runtime_raw",
+        "status": "enforced",
+        "trigger": "runtime table is tiny, mutable, or accessed in hot loops",
+        "appliesTo": [
+          "runtime lookup tables",
+          "entity instances",
+          "state-machine runtime state"
+        ],
+        "action": "Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables."
+      },
+      {
+        "order": 6,
+        "id": "world_special_code_bank",
+        "status": "not_needed",
+        "trigger": "rare behavior or boss-specific code contributes to resident pressure",
+        "appliesTo": [],
+        "action": "Move rare behavior behind a world special-code bank and far-call boundary."
+      },
+      {
+        "order": 7,
+        "id": "split_large_payload_chunks",
+        "status": "not_needed",
+        "trigger": "single screen/graphics payload cannot fit one mapper window as a unit",
+        "appliesTo": [],
+        "action": "Split large screen or graphics payloads into loader-addressable chunks only when each chunk is independently referenced."
+      },
+      {
+        "order": 8,
+        "id": "fail_actionable_report",
+        "status": "ready",
+        "trigger": "all deterministic recovery attempts still leave an over-budget unit",
+        "appliesTo": [],
+        "action": "Fail before Glass with largest contributors and concrete authoring changes."
+      }
+    ],
+    "ramRecommendations": [
+      {
+        "severity": "ok",
+        "target": "runtimeRam",
+        "reason": "Estimated runtime RAM fits below warning threshold.",
+        "action": "No RAM recovery needed for this project slice."
+      }
+    ]
+  }
+}

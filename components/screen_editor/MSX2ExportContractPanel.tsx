@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Msx2Screen4Layers, Msx2Screen4Runtime } from '../../types';
 import { Panel } from '../common/Panel';
+import { normalizeMsx2ShooterRuntimeConfig, validateMsx2Shooter60HzBudget } from '../../utils/msx2ShooterRuntime';
 
 interface MSX2ExportContractPanelProps {
   map: number[][];
@@ -12,6 +13,12 @@ export const MSX2ExportContractPanel: React.FC<MSX2ExportContractPanelProps> = (
   const contract = useMemo(() => {
     const activeCells = Math.max(0, runtime.activeAreaWidth * runtime.activeAreaHeight);
     const hudWidgets = runtime.hudWidgets || [];
+    const shooter = runtime.screenEngine === 'shooter'
+      ? normalizeMsx2ShooterRuntimeConfig(runtime.shooter)
+      : null;
+    const activeIrqProfile = shooter
+      ? shooter.budget.irqProfiles.find(profile => profile.id === shooter.budget.activeIrqProfile)
+      : null;
     const hudStatic = hudWidgets.filter(widget => widget.kind === 'icon' || widget.kind === 'text');
     const hudDynamic = hudWidgets.filter(widget => widget.kind === 'bar' || widget.kind === 'counter');
     const widgetPrimitive = (kind: string) =>
@@ -87,6 +94,30 @@ export const MSX2ExportContractPanel: React.FC<MSX2ExportContractPanelProps> = (
           cells: (layers.behavior || []).flat().length,
           storage: 'rom_table',
         },
+        shooter60Hz: shooter ? {
+          direction: shooter.direction,
+          scrollMode: shooter.scrollMode,
+          playerMode: shooter.playerMode,
+          pools: {
+            enemies: shooter.budget.maxEnemies,
+            playerShots: shooter.budget.maxPlayerShots,
+            enemyShots: shooter.budget.maxEnemyShots,
+            powerups: shooter.budget.maxPowerups,
+            explosions: shooter.budget.maxExplosions,
+            bossParts: shooter.budget.maxBossParts,
+          },
+          irq: activeIrqProfile ? {
+            profile: activeIrqProfile.id,
+            estimatedCycles: activeIrqProfile.estimatedCycles,
+            worstCaseCycles: activeIrqProfile.worstCaseCycles,
+            maxAllowedCycles: activeIrqProfile.maxAllowedCycles,
+            vramBytes: activeIrqProfile.vramBytes,
+            frequency: activeIrqProfile.frequency,
+            sustained: activeIrqProfile.sustained,
+            tasks: activeIrqProfile.tasks,
+          } : null,
+          validation: validateMsx2Shooter60HzBudget(shooter),
+        } : null,
       },
     };
   }, [layers, map, runtime]);

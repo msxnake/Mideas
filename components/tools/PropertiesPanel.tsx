@@ -10,6 +10,7 @@ import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MA
 import { Button } from '../common/Button';
 import { CaretDownIcon, CaretRightIcon, CollapseAllIcon, TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { normalizeMsx2ShooterRuntimeConfig } from '../../utils/msx2ShooterRuntime';
 import { StartNodeEditor } from '../editors/StartNodeEditor';
 import { GameFlowGlobalInitializationEditor } from '../editors/GameFlowGlobalInitializationEditor';
 import { autoEventStringUsesDialogue, parseAutoEventString } from '../../utils/autoEventString';
@@ -1024,6 +1025,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         const tileCount = screen.tiles?.length || 0;
         const entityCount = screen.layers?.entities?.length || 0;
         const collisionRows = screen.layers?.collision?.length || screen.collisionMap?.length || 0;
+        const shooter = screen.runtime?.screenEngine === 'shooter'
+          ? normalizeMsx2ShooterRuntimeConfig(screen.runtime.shooter)
+          : null;
+        const activeIrqProfile = shooter?.budget.irqProfiles.find(profile => profile.id === shooter.budget.activeIrqProfile);
         return (
           <div className="space-y-1">
             <div><strong className="text-msx-highlight">Name:</strong> {screen.name}</div>
@@ -1033,6 +1038,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Tiles:</strong> {tileCount}</div>
             <div><strong className="text-msx-highlight">Entities:</strong> {entityCount}</div>
             <div><strong className="text-msx-highlight">Runtime:</strong> {screen.runtime?.screenKind || 'playable'} / {screen.runtime?.screenEngine || 'player'}</div>
+            {shooter && (
+              <div><strong className="text-msx-highlight">Shooter:</strong> {shooter.direction} 60Hz / {activeIrqProfile?.id || shooter.budget.activeIrqProfile} / {activeIrqProfile?.worstCaseCycles ?? '?'} cyc worst</div>
+            )}
             <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
           </div>
         );

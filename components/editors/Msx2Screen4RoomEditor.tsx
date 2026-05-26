@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MSXColorValue, Msx2HudWidget, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { normalizeMsx2ShooterRuntimeConfig } from '../../utils/msx2ShooterRuntime';
 import {
   MAP_HEIGHT,
   MAP_WIDTH,
@@ -141,7 +142,8 @@ const normalizeRuntimeArea = (runtime?: Msx2Screen4Runtime): Msx2Screen4Runtime 
     || runtime?.movementModel
     || runtime?.controlMode
     || runtime?.playerMode
-    || (runtime?.screenEngine === 'maze' ? 'maze' : undefined);
+    || (runtime?.screenEngine === 'maze' ? 'maze' : undefined)
+    || (runtime?.screenEngine === 'shooter' ? 'shooterVertical' : undefined);
   const initialAir = runtime?.disableAirTimer || runtime?.airTimer === false
     ? 0
     : normalizeOptionalByte(runtime?.initialAir, 0);
@@ -170,6 +172,9 @@ const normalizeRuntimeArea = (runtime?: Msx2Screen4Runtime): Msx2Screen4Runtime 
     ...(runtime?.hudBorderColor !== undefined ? { hudBorderColor: normalizeOptionalByte(runtime.hudBorderColor) } : {}),
     ...(runtime?.hudEmptyColor !== undefined ? { hudEmptyColor: normalizeOptionalByte(runtime.hudEmptyColor) } : {}),
     ...(runtime?.hudWidgets ? { hudWidgets: normalizeHudWidgets(runtime.hudWidgets) } : {}),
+    ...(runtime?.screenEngine === 'shooter' || runtime?.shooter
+      ? { shooter: normalizeMsx2ShooterRuntimeConfig(runtime?.shooter) }
+      : {}),
     ...(runtime?.notes ? { notes: runtime.notes } : {}),
   };
 };
@@ -413,10 +418,18 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
           screenKind: 'playable',
           screenEngine: movementMode === 'maze'
             ? 'maze'
-            : movementMode === 'shooterHorizontal'
+            : movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'
               ? 'shooter'
               : 'player',
           ...(movementMode ? { movementMode, movementModel: movementMode } : {}),
+          ...(movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'
+            ? {
+              shooter: normalizeMsx2ShooterRuntimeConfig({
+                direction: movementMode === 'shooterHorizontal' ? 'horizontal' : 'vertical',
+                scrollMode: movementMode === 'shooterHorizontal' ? 'none' : 'tileVertical',
+              }),
+            }
+            : {}),
           ...(presetParams.disableAirTimer ? { initialAir: 0, disableAirTimer: true, airTimer: false } : {}),
         };
         onUpdate({

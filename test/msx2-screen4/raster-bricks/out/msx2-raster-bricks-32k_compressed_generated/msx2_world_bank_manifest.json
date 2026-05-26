@@ -1,0 +1,34 @@
+{
+  "scope": "msx2_screen4_world_bank_manifest",
+  "mapper": "linear",
+  "bankSizeBytes": 8192,
+  "dataWindowAddress": "#8000",
+  "estimatedPhysicalBanks": [
+    {
+      "bankIndex": 0,
+      "windowAddress": "#8000",
+      "bankSizeBytes": 8192,
+      "warningThresholdBytes": 7372,
+      "usedBytes": 7182,
+      "freeBytes": 1010,
+      "usedPercent": 87.67,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "status": "ok",
+      "packages": [
+        {
+          "id": "msx2screen.asset_screen_msx2_raster_bricks",
+          "usedBytes": 6347,
+          "recommendedBankClass": "world.screen"
+        },
+        {
+          "id": "palette.palette_msx2_raster_bricks",
+          "usedBytes": 835,
+          "recommendedBankClass": "world.manifest"
+        }
+      ]
+    }
+  ],
+  "worlds": [],
+  "note": "Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression."
+}

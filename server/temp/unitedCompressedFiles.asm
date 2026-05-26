@@ -1,7 +1,7 @@
 ; File: unitedFiles.asm
 ; ==================================================================
 ; Mideas MSX2 SCREEN 4 tile backend
-; Project: pp1
+; Project: MyMSXGame4
 ; Screen mode: SCREEN 4 (Graphics II)
 ; ROM Mode: megarom
 ; Mapper Target: konami
@@ -14,106 +14,114 @@
 ; [[[MIDEAS_ARTIFACT:project_slice.json:BEGIN]]]
 ; {
 ;   "scope": "msx2_screen4_project_slice",
-;   "projectName": "pp1",
+;   "projectName": "MyMSXGame4",
 ;   "backend": "msx2-screen4-pattern",
 ;   "screenMode": "SCREEN 4 (Graphics II)",
 ;   "romMode": "megarom",
 ;   "mapper": "konami",
 ;   "entryPoints": {
-;     "gameFlowId": "gameflow_1779560142630",
-;     "gameFlowName": "Main",
+;     "gameFlowId": "msx2gameflow_1779732915427",
+;     "gameFlowName": "Main MSX2",
 ;     "worldIds": [
-;       "worldmap_1779560130702"
+;       "worldmap_1779743562940"
 ;     ],
 ;     "screenIds": [
-;       "msx2screen_1779559974838"
+;       "msx2screen_1779743570483"
 ;     ]
 ;   },
 ;   "includedAssets": [
 ;     {
-;       "type": "gameflow",
-;       "id": "gameflow_1779560142630",
-;       "name": "Main",
-;       "reason": "Active MSX2 GameFlow entry point"
-;     },
-;     {
 ;       "type": "msx2screen_tile",
-;       "id": "tile_1779559974838_0",
+;       "id": "tile_1779743570483_0",
 ;       "name": "Blank",
-;       "ownerScreenId": "msx2screen_1779559974838",
+;       "ownerScreenId": "msx2screen_1779743570483",
 ;       "ownerWorldIds": [
-;         "worldmap_1779560130702"
+;         "worldmap_1779743562940"
 ;       ],
 ;       "reason": "Tile used by reachable native MSX2 screen"
 ;     },
 ;     {
 ;       "type": "msx2screen_tile",
-;       "id": "tile_1779559974838_1",
+;       "id": "tile_1779743570483_1",
 ;       "name": "Platform",
-;       "ownerScreenId": "msx2screen_1779559974838",
+;       "ownerScreenId": "msx2screen_1779743570483",
 ;       "ownerWorldIds": [
-;         "worldmap_1779560130702"
+;         "worldmap_1779743562940"
 ;       ],
 ;       "reason": "Tile used by reachable native MSX2 screen"
 ;     },
 ;     {
 ;       "type": "msx2screen",
-;       "id": "msx2screen_1779559974838",
+;       "id": "msx2screen_1779743570483",
 ;       "name": "New MSX2 SCREEN 4 Room",
-;       "reason": "Referenced by world worldmap_1779560130702",
+;       "reason": "Referenced by world worldmap_1779743562940",
 ;       "ownerWorldIds": [
-;         "worldmap_1779560130702"
+;         "worldmap_1779743562940"
 ;       ]
 ;     },
 ;     {
 ;       "type": "msx2sprite",
-;       "id": "msx2sprite_1779556659727",
+;       "id": "msx2sprite_1779743578883",
 ;       "name": "New MSX2 Metasprite",
 ;       "reason": "Referenced by reachable MSX2 entity or sprite fallback",
-;       "ownerWorldIds": []
+;       "ownerWorldIds": [
+;         "worldmap_1779743562940"
+;       ]
 ;     },
 ;     {
 ;       "type": "worldmap",
-;       "id": "worldmap_1779560130702",
+;       "id": "worldmap_1779743562940",
 ;       "name": "New Worldmap",
-;       "reason": "GameFlow WorldLink node gfn_1779560146006"
+;       "reason": "GameFlow WorldLink node msx2_gf_screen4_world_1779741898109"
 ;     }
 ;   ],
 ;   "excludedAssets": [
 ;     {
 ;       "type": "code",
-;       "id": "code_new_MyMSXGame_main_1779556555705_3116q",
+;       "id": "code_new_MyMSXGame_main_1779732881355_97zkv",
 ;       "name": "main.asm",
 ;       "reason": "Not used by native MSX2 SCREEN 4 backend"
 ;     },
 ;     {
 ;       "type": "code",
-;       "id": "code_new_MyMSXGame_data_graphics_1779556555705_v4e2d",
+;       "id": "code_new_MyMSXGame_data_graphics_1779732881355_dn48t",
 ;       "name": "data/graphics.asm",
 ;       "reason": "Not used by native MSX2 SCREEN 4 backend"
 ;     },
 ;     {
 ;       "type": "code",
-;       "id": "code_new_MyMSXGame_data_components_1779556555705_1837y",
+;       "id": "code_new_MyMSXGame_data_components_1779732881355_53prl",
 ;       "name": "data/components.asm",
 ;       "reason": "Not used by native MSX2 SCREEN 4 backend"
 ;     },
 ;     {
 ;       "type": "code",
-;       "id": "code_new_MyMSXGame_code_behaviors_1779556555705_te30m",
+;       "id": "code_new_MyMSXGame_code_behaviors_1779732881355_czyrq",
 ;       "name": "code/behaviors.asm",
 ;       "reason": "Not used by native MSX2 SCREEN 4 backend"
 ;     },
 ;     {
-;       "type": "msx2hudfont",
-;       "id": "msx2hudfont_1779557282139",
-;       "name": "New MSX2 HUD Font",
+;       "type": "msx2gameflow",
+;       "id": "msx2gameflow_1779732915427",
+;       "name": "Main MSX2",
 ;       "reason": "Not reachable from active MSX2 GameFlow/world slice"
 ;     },
 ;     {
-;       "type": "msx2bitmaproom",
-;       "id": "msx2bitmaproom_1779560299984",
-;       "name": "New MSX2 SCREEN 4 Bitmap Room",
+;       "type": "msx2presentation",
+;       "id": "msx2presentation_1779733620706",
+;       "name": "New MSX2 SCREEN 5 Presentation",
+;       "reason": "Not reachable from active MSX2 GameFlow/world slice"
+;     },
+;     {
+;       "type": "msx2presentation",
+;       "id": "msx2presentation_1779735096319",
+;       "name": "New MSX2 SCREEN 5 Presentation",
+;       "reason": "Not reachable from active MSX2 GameFlow/world slice"
+;     },
+;     {
+;       "type": "msx2hudfont",
+;       "id": "msx2hudfont_1779741923373",
+;       "name": "New MSX2 HUD Font",
 ;       "reason": "Not reachable from active MSX2 GameFlow/world slice"
 ;     },
 ;     {
@@ -458,62 +466,275 @@
 ;     "runtime.msx2.hardware_sprites",
 ;     "runtime.msx2.mapper.konami8k"
 ;   ],
+;   "includedRuntimeModuleDetails": [
+;     {
+;       "id": "runtime.msx2.boot",
+;       "placement": "resident",
+;       "reason": "Required by every native MSX2 SCREEN 4 build"
+;     },
+;     {
+;       "id": "runtime.msx2.screen4.vdp",
+;       "placement": "resident",
+;       "reason": "Required by every native MSX2 SCREEN 4 build"
+;     },
+;     {
+;       "id": "runtime.msx2.input",
+;       "placement": "resident",
+;       "reason": "Required by current MSX2 gameplay loop"
+;     },
+;     {
+;       "id": "runtime.msx2.screen_loader",
+;       "placement": "resident",
+;       "reason": "Required to load reachable native MSX2 screens"
+;     },
+;     {
+;       "id": "runtime.msx2.layers.collision",
+;       "placement": "resident",
+;       "reason": "Collision layer pointers are part of the current runtime contract"
+;     },
+;     {
+;       "id": "runtime.msx2.layers.effects",
+;       "placement": "resident",
+;       "reason": "Effects layer runtime buffers are part of the current runtime contract"
+;     },
+;     {
+;       "id": "runtime.msx2.layers.behavior",
+;       "placement": "resident",
+;       "reason": "Behavior layer pointers are part of the current runtime contract"
+;     },
+;     {
+;       "id": "runtime.msx2.hardware_sprites",
+;       "placement": "resident",
+;       "reason": "Enabled only when a reachable MSX2 sprite source exists"
+;     },
+;     {
+;       "id": "runtime.msx2.mapper.konami8k",
+;       "placement": "resident",
+;       "reason": "Enabled by Konami MegaROM data-bank mode"
+;     }
+;   ],
 ;   "excludedRuntimeModules": [
 ;     {
 ;       "id": "runtime.msx2.projectiles",
+;       "placement": "resident",
 ;       "reason": "Enabled only by shooter-horizontal movement"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.stage_banner",
+;       "placement": "resident",
 ;       "reason": "Enabled only by shooter wave flow"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.scroll.vertical",
+;       "placement": "resident",
 ;       "reason": "Enabled only when reachable screens request scroll"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.snake_char",
+;       "placement": "resident",
 ;       "reason": "Enabled only by snake-char movement"
+;     }
+;   ],
+;   "runtimeModuleDetails": [
+;     {
+;       "id": "runtime.msx2.boot",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Required by every native MSX2 SCREEN 4 build"
+;     },
+;     {
+;       "id": "runtime.msx2.screen4.vdp",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Required by every native MSX2 SCREEN 4 build"
+;     },
+;     {
+;       "id": "runtime.msx2.input",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Required by current MSX2 gameplay loop"
+;     },
+;     {
+;       "id": "runtime.msx2.screen_loader",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Required to load reachable native MSX2 screens"
+;     },
+;     {
+;       "id": "runtime.msx2.layers.collision",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Collision layer pointers are part of the current runtime contract"
+;     },
+;     {
+;       "id": "runtime.msx2.layers.effects",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Effects layer runtime buffers are part of the current runtime contract"
+;     },
+;     {
+;       "id": "runtime.msx2.layers.behavior",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Behavior layer pointers are part of the current runtime contract"
+;     },
+;     {
+;       "id": "runtime.msx2.hardware_sprites",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Enabled only when a reachable MSX2 sprite source exists"
+;     },
+;     {
+;       "id": "runtime.msx2.projectiles",
+;       "included": false,
+;       "placement": "resident",
+;       "reason": "Enabled only by shooter-horizontal movement"
+;     },
+;     {
+;       "id": "runtime.msx2.stage_banner",
+;       "included": false,
+;       "placement": "resident",
+;       "reason": "Enabled only by shooter wave flow"
+;     },
+;     {
+;       "id": "runtime.msx2.scroll.vertical",
+;       "included": false,
+;       "placement": "resident",
+;       "reason": "Enabled only when reachable screens request scroll"
+;     },
+;     {
+;       "id": "runtime.msx2.snake_char",
+;       "included": false,
+;       "placement": "resident",
+;       "reason": "Enabled only by snake-char movement"
+;     },
+;     {
+;       "id": "runtime.msx2.mapper.konami8k",
+;       "included": true,
+;       "placement": "resident",
+;       "reason": "Enabled by Konami MegaROM data-bank mode"
 ;     }
 ;   ],
 ;   "worldPackageSummary": [
 ;     {
-;       "worldId": "worldmap_1779560130702",
-;       "assetCount": 2,
+;       "worldId": "worldmap_1779743562940",
+;       "assetCount": 3,
 ;       "screenCount": 1,
-;       "estimatedBytes": 1879,
+;       "estimatedBytes": 1823,
 ;       "estimated8kBanks": 1,
 ;       "bankClassBytes": [
 ;         {
 ;           "id": "world.screen",
-;           "usedBytes": 1568
+;           "usedBytes": 1432
 ;         },
 ;         {
 ;           "id": "world.manifest",
 ;           "usedBytes": 311
+;         },
+;         {
+;           "id": "world.graphics.sprite",
+;           "usedBytes": 80
 ;         }
 ;       ]
 ;     }
 ;   ],
+;   "worldBankManifest": {
+;     "scope": "msx2_screen4_world_bank_manifest",
+;     "mapper": "konami",
+;     "bankSizeBytes": 8192,
+;     "dataWindowAddress": "#A000",
+;     "estimatedPhysicalBanks": [
+;       {
+;         "bankIndex": 0,
+;         "windowAddress": "#A000",
+;         "bankSizeBytes": 8192,
+;         "warningThresholdBytes": 7372,
+;         "usedBytes": 1823,
+;         "freeBytes": 6369,
+;         "usedPercent": 22.25,
+;         "warning": false,
+;         "overBudgetBytes": 0,
+;         "status": "ok",
+;         "packages": [
+;           {
+;             "id": "msx2screen.msx2screen_1779743570483",
+;             "usedBytes": 1432,
+;             "recommendedBankClass": "world.screen"
+;           },
+;           {
+;             "id": "worldmap.worldmap_1779743562940",
+;             "usedBytes": 311,
+;             "recommendedBankClass": "world.manifest"
+;           },
+;           {
+;             "id": "msx2sprite.msx2sprite_1779743578883",
+;             "usedBytes": 80,
+;             "recommendedBankClass": "world.graphics.sprite"
+;           }
+;         ]
+;       }
+;     ],
+;     "worlds": [
+;       {
+;         "worldId": "worldmap_1779743562940",
+;         "estimatedBytes": 1823,
+;         "estimated8kBanks": 1,
+;         "packages": [
+;           {
+;             "packageId": "msx2screen.msx2screen_1779743570483",
+;             "type": "msx2screen",
+;             "sourceId": "msx2screen_1779743570483",
+;             "logicalSection": "world screens",
+;             "recommendedBankClass": "world.screen",
+;             "physicalBankIndex": 0,
+;             "windowAddress": "#A000",
+;             "bankSizeBytes": 8192,
+;             "rawBytes": 1432,
+;             "storedBytes": 1432,
+;             "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+;             "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+;           },
+;           {
+;             "packageId": "msx2sprite.msx2sprite_1779743578883",
+;             "type": "msx2sprite",
+;             "sourceId": "msx2sprite_1779743578883",
+;             "logicalSection": "world graphics",
+;             "recommendedBankClass": "world.graphics.sprite",
+;             "physicalBankIndex": 0,
+;             "windowAddress": "#A000",
+;             "bankSizeBytes": 8192,
+;             "rawBytes": 80,
+;             "storedBytes": 80,
+;             "decision": "ROM_RAW_TO_VRAM",
+;             "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+;           },
+;           {
+;             "packageId": "worldmap.worldmap_1779743562940",
+;             "type": "worldmap",
+;             "sourceId": "worldmap_1779743562940",
+;             "logicalSection": "world manifest",
+;             "recommendedBankClass": "world.manifest",
+;             "physicalBankIndex": 0,
+;             "windowAddress": "#A000",
+;             "bankSizeBytes": 8192,
+;             "rawBytes": 311,
+;             "storedBytes": 311,
+;             "decision": "ROM_RAW",
+;             "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+;           }
+;         ]
+;       }
+;     ],
+;     "note": "Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression."
+;   },
 ;   "assetStoragePolicy": [
 ;     {
-;       "type": "gameflow",
-;       "id": "gameflow_1779560142630",
-;       "name": "Main",
-;       "rawBytes": 461,
-;       "storedBytesEstimate": 461,
-;       "accessPattern": "manifest_read",
-;       "mutable": false,
-;       "decision": "ROM_RAW",
-;       "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
-;     },
-;     {
 ;       "type": "msx2screen_tile",
-;       "id": "tile_1779559974838_0",
+;       "id": "tile_1779743570483_0",
 ;       "name": "Blank",
-;       "ownerScreenId": "msx2screen_1779559974838",
+;       "ownerScreenId": "msx2screen_1779743570483",
 ;       "ownerWorldIds": [
-;         "worldmap_1779560130702"
+;         "worldmap_1779743562940"
 ;       ],
 ;       "rawBytes": 64,
 ;       "storedBytesEstimate": 64,
@@ -524,11 +745,11 @@
 ;     },
 ;     {
 ;       "type": "msx2screen_tile",
-;       "id": "tile_1779559974838_1",
+;       "id": "tile_1779743570483_1",
 ;       "name": "Platform",
-;       "ownerScreenId": "msx2screen_1779559974838",
+;       "ownerScreenId": "msx2screen_1779743570483",
 ;       "ownerWorldIds": [
-;         "worldmap_1779560130702"
+;         "worldmap_1779743562940"
 ;       ],
 ;       "rawBytes": 64,
 ;       "storedBytesEstimate": 64,
@@ -539,13 +760,13 @@
 ;     },
 ;     {
 ;       "type": "msx2screen",
-;       "id": "msx2screen_1779559974838",
+;       "id": "msx2screen_1779743570483",
 ;       "name": "New MSX2 SCREEN 4 Room",
 ;       "ownerWorldIds": [
-;         "worldmap_1779560130702"
+;         "worldmap_1779743562940"
 ;       ],
-;       "rawBytes": 1568,
-;       "storedBytesEstimate": 1568,
+;       "rawBytes": 1432,
+;       "storedBytesEstimate": 1432,
 ;       "accessPattern": "mixed_load_to_vram_and_runtime_read",
 ;       "mutable": false,
 ;       "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
@@ -559,19 +780,19 @@
 ;         },
 ;         {
 ;           "name": "patterns",
-;           "rawBytes": 112,
+;           "rawBytes": 40,
 ;           "accessPattern": "load_to_vram",
 ;           "decision": "ROM_RAW_TO_VRAM"
 ;         },
 ;         {
 ;           "name": "colors",
-;           "rawBytes": 112,
+;           "rawBytes": 40,
 ;           "accessPattern": "load_to_vram",
 ;           "decision": "ROM_RAW_TO_VRAM"
 ;         },
 ;         {
 ;           "name": "runtimeLayersAndSpawns",
-;           "rawBytes": 576,
+;           "rawBytes": 584,
 ;           "accessPattern": "runtime_read",
 ;           "decision": "ROM_RAW"
 ;         }
@@ -579,9 +800,11 @@
 ;     },
 ;     {
 ;       "type": "msx2sprite",
-;       "id": "msx2sprite_1779556659727",
+;       "id": "msx2sprite_1779743578883",
 ;       "name": "New MSX2 Metasprite",
-;       "ownerWorldIds": [],
+;       "ownerWorldIds": [
+;         "worldmap_1779743562940"
+;       ],
 ;       "rawBytes": 80,
 ;       "storedBytesEstimate": 80,
 ;       "accessPattern": "load_to_vram",
@@ -625,7 +848,7 @@
 ;     },
 ;     {
 ;       "type": "worldmap",
-;       "id": "worldmap_1779560130702",
+;       "id": "worldmap_1779743562940",
 ;       "name": "New Worldmap",
 ;       "rawBytes": 311,
 ;       "storedBytesEstimate": 311,
@@ -638,34 +861,33 @@
 ;   "logicalBankBudget": {
 ;     "bankSizeBytes": 8192,
 ;     "warningThresholdBytes": 7372,
-;     "totalPayloadBytes": 2420,
+;     "totalPayloadBytes": 1823,
 ;     "estimatedMinimumBanks": 1,
 ;     "estimatedPackedBankCount": 1,
 ;     "estimatedPackedBanks": [
 ;       {
 ;         "bankIndex": 0,
-;         "usedBytes": 2420,
-;         "freeBytes": 5772,
+;         "bankSizeBytes": 8192,
+;         "warningThresholdBytes": 7372,
+;         "usedBytes": 1823,
+;         "freeBytes": 6369,
+;         "usedPercent": 22.25,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
+;         "status": "ok",
 ;         "packages": [
 ;           {
-;             "id": "msx2screen.msx2screen_1779559974838",
-;             "usedBytes": 1568,
+;             "id": "msx2screen.msx2screen_1779743570483",
+;             "usedBytes": 1432,
 ;             "recommendedBankClass": "world.screen"
 ;           },
 ;           {
-;             "id": "gameflow.gameflow_1779560142630",
-;             "usedBytes": 461,
-;             "recommendedBankClass": "world.manifest"
-;           },
-;           {
-;             "id": "worldmap.worldmap_1779560130702",
+;             "id": "worldmap.worldmap_1779743562940",
 ;             "usedBytes": 311,
 ;             "recommendedBankClass": "world.manifest"
 ;           },
 ;           {
-;             "id": "msx2sprite.msx2sprite_1779556659727",
+;             "id": "msx2sprite.msx2sprite_1779743578883",
 ;             "usedBytes": 80,
 ;             "recommendedBankClass": "world.graphics.sprite"
 ;           }
@@ -679,25 +901,25 @@
 ;       {
 ;         "id": "world.screen",
 ;         "packageCount": 1,
-;         "usedBytes": 1568,
+;         "usedBytes": 1432,
 ;         "estimatedMinimumBanks": 1,
 ;         "warningPackageCount": 0,
 ;         "overBudgetPackageCount": 0,
 ;         "largestPackage": {
-;           "id": "msx2screen.msx2screen_1779559974838",
-;           "usedBytes": 1568
+;           "id": "msx2screen.msx2screen_1779743570483",
+;           "usedBytes": 1432
 ;         }
 ;       },
 ;       {
 ;         "id": "world.manifest",
-;         "packageCount": 2,
-;         "usedBytes": 772,
+;         "packageCount": 1,
+;         "usedBytes": 311,
 ;         "estimatedMinimumBanks": 1,
 ;         "warningPackageCount": 0,
 ;         "overBudgetPackageCount": 0,
 ;         "largestPackage": {
-;           "id": "gameflow.gameflow_1779560142630",
-;           "usedBytes": 461
+;           "id": "worldmap.worldmap_1779743562940",
+;           "usedBytes": 311
 ;         }
 ;       },
 ;       {
@@ -708,7 +930,7 @@
 ;         "warningPackageCount": 0,
 ;         "overBudgetPackageCount": 0,
 ;         "largestPackage": {
-;           "id": "msx2sprite.msx2sprite_1779556659727",
+;           "id": "msx2sprite.msx2sprite_1779743578883",
 ;           "usedBytes": 80
 ;         }
 ;       }
@@ -793,31 +1015,20 @@
 ;     ],
 ;     "packages": [
 ;       {
-;         "id": "gameflow.gameflow_1779560142630",
-;         "type": "gameflow",
-;         "sourceId": "gameflow_1779560142630",
-;         "recommendedBankClass": "world.manifest",
-;         "usedBytes": 461,
-;         "freeBytesIfAlone": 7731,
-;         "warning": false,
-;         "overBudgetBytes": 0,
-;         "canSplit": false
-;       },
-;       {
-;         "id": "msx2screen.msx2screen_1779559974838",
+;         "id": "msx2screen.msx2screen_1779743570483",
 ;         "type": "msx2screen",
-;         "sourceId": "msx2screen_1779559974838",
+;         "sourceId": "msx2screen_1779743570483",
 ;         "recommendedBankClass": "world.screen",
-;         "usedBytes": 1568,
-;         "freeBytesIfAlone": 6624,
+;         "usedBytes": 1432,
+;         "freeBytesIfAlone": 6760,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
 ;         "canSplit": true
 ;       },
 ;       {
-;         "id": "msx2sprite.msx2sprite_1779556659727",
+;         "id": "msx2sprite.msx2sprite_1779743578883",
 ;         "type": "msx2sprite",
-;         "sourceId": "msx2sprite_1779556659727",
+;         "sourceId": "msx2sprite_1779743578883",
 ;         "recommendedBankClass": "world.graphics.sprite",
 ;         "usedBytes": 80,
 ;         "freeBytesIfAlone": 8112,
@@ -826,9 +1037,9 @@
 ;         "canSplit": true
 ;       },
 ;       {
-;         "id": "worldmap.worldmap_1779560130702",
+;         "id": "worldmap.worldmap_1779743562940",
 ;         "type": "worldmap",
-;         "sourceId": "worldmap_1779560130702",
+;         "sourceId": "worldmap_1779743562940",
 ;         "recommendedBankClass": "world.manifest",
 ;         "usedBytes": 311,
 ;         "freeBytesIfAlone": 7881,
@@ -855,23 +1066,23 @@
 ;       {
 ;         "id": "runtime.globals_player_input",
 ;         "start": "#C000",
-;         "end": "#C040",
-;         "bytes": 64,
+;         "end": "#C044",
+;         "bytes": 68,
 ;         "mutable": true,
 ;         "reason": "Fixed hot runtime state for player/input/global counters."
 ;       },
 ;       {
 ;         "id": "runtime.snake_body_cache",
-;         "start": "#C040",
-;         "end": "#C080",
+;         "start": "#C044",
+;         "end": "#C084",
 ;         "bytes": 64,
 ;         "mutable": true,
 ;         "reason": "Fixed-size cache reserved only for snake-char body state."
 ;       },
 ;       {
 ;         "id": "runtime.persistent_effect_layers",
-;         "start": "#C080",
-;         "end": "#C140",
+;         "start": "#C084",
+;         "end": "#C144",
 ;         "bytes": 192,
 ;         "mutable": true,
 ;         "count": 1,
@@ -906,8 +1117,19 @@
 ;     ],
 ;     "note": "RAM budget reports mutable runtime state only. ROM and VRAM storage are reported separately."
 ;   },
-;   "includedComponents": [],
-;   "includedMovementProfiles": [],
+;   "includedComponents": [
+;     "msx2_animation",
+;     "msx2_collision",
+;     "msx2_hardware_sprite",
+;     "msx2_health",
+;     "msx2_player_control",
+;     "msx2_spawn",
+;     "msx2_timer",
+;     "msx2_transform"
+;   ],
+;   "includedMovementProfiles": [
+;     "platform"
+;   ],
 ;   "includedAttackProfiles": [],
 ;   "includedStateMachines": [],
 ;   "estimatedRamNeeds": {
@@ -925,7 +1147,7 @@
 ;     "reachableMsx2SpriteCount": 1,
 ;     "reachableWorldCount": 1,
 ;     "usesKonamiDataBank": true,
-;     "romPayloadBytesEstimate": 2420,
+;     "romPayloadBytesEstimate": 1823,
 ;     "estimated8kBanksForPayload": 1,
 ;     "warningThresholdBytesPerBank": 7372,
 ;     "note": "Slice reports reachability and storage policy estimates; final bank placement remains allocator-owned."
@@ -937,23 +1159,12 @@
 ; [[[MIDEAS_ARTIFACT:asset_storage_policy.json:BEGIN]]]
 ; [
 ;   {
-;     "type": "gameflow",
-;     "id": "gameflow_1779560142630",
-;     "name": "Main",
-;     "rawBytes": 461,
-;     "storedBytesEstimate": 461,
-;     "accessPattern": "manifest_read",
-;     "mutable": false,
-;     "decision": "ROM_RAW",
-;     "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
-;   },
-;   {
 ;     "type": "msx2screen_tile",
-;     "id": "tile_1779559974838_0",
+;     "id": "tile_1779743570483_0",
 ;     "name": "Blank",
-;     "ownerScreenId": "msx2screen_1779559974838",
+;     "ownerScreenId": "msx2screen_1779743570483",
 ;     "ownerWorldIds": [
-;       "worldmap_1779560130702"
+;       "worldmap_1779743562940"
 ;     ],
 ;     "rawBytes": 64,
 ;     "storedBytesEstimate": 64,
@@ -964,11 +1175,11 @@
 ;   },
 ;   {
 ;     "type": "msx2screen_tile",
-;     "id": "tile_1779559974838_1",
+;     "id": "tile_1779743570483_1",
 ;     "name": "Platform",
-;     "ownerScreenId": "msx2screen_1779559974838",
+;     "ownerScreenId": "msx2screen_1779743570483",
 ;     "ownerWorldIds": [
-;       "worldmap_1779560130702"
+;       "worldmap_1779743562940"
 ;     ],
 ;     "rawBytes": 64,
 ;     "storedBytesEstimate": 64,
@@ -979,13 +1190,13 @@
 ;   },
 ;   {
 ;     "type": "msx2screen",
-;     "id": "msx2screen_1779559974838",
+;     "id": "msx2screen_1779743570483",
 ;     "name": "New MSX2 SCREEN 4 Room",
 ;     "ownerWorldIds": [
-;       "worldmap_1779560130702"
+;       "worldmap_1779743562940"
 ;     ],
-;     "rawBytes": 1568,
-;     "storedBytesEstimate": 1568,
+;     "rawBytes": 1432,
+;     "storedBytesEstimate": 1432,
 ;     "accessPattern": "mixed_load_to_vram_and_runtime_read",
 ;     "mutable": false,
 ;     "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
@@ -999,19 +1210,19 @@
 ;       },
 ;       {
 ;         "name": "patterns",
-;         "rawBytes": 112,
+;         "rawBytes": 40,
 ;         "accessPattern": "load_to_vram",
 ;         "decision": "ROM_RAW_TO_VRAM"
 ;       },
 ;       {
 ;         "name": "colors",
-;         "rawBytes": 112,
+;         "rawBytes": 40,
 ;         "accessPattern": "load_to_vram",
 ;         "decision": "ROM_RAW_TO_VRAM"
 ;       },
 ;       {
 ;         "name": "runtimeLayersAndSpawns",
-;         "rawBytes": 576,
+;         "rawBytes": 584,
 ;         "accessPattern": "runtime_read",
 ;         "decision": "ROM_RAW"
 ;       }
@@ -1019,9 +1230,11 @@
 ;   },
 ;   {
 ;     "type": "msx2sprite",
-;     "id": "msx2sprite_1779556659727",
+;     "id": "msx2sprite_1779743578883",
 ;     "name": "New MSX2 Metasprite",
-;     "ownerWorldIds": [],
+;     "ownerWorldIds": [
+;       "worldmap_1779743562940"
+;     ],
 ;     "rawBytes": 80,
 ;     "storedBytesEstimate": 80,
 ;     "accessPattern": "load_to_vram",
@@ -1065,7 +1278,7 @@
 ;   },
 ;   {
 ;     "type": "worldmap",
-;     "id": "worldmap_1779560130702",
+;     "id": "worldmap_1779743562940",
 ;     "name": "New Worldmap",
 ;     "rawBytes": 311,
 ;     "storedBytesEstimate": 311,
@@ -1082,34 +1295,33 @@
 ; {
 ;   "bankSizeBytes": 8192,
 ;   "warningThresholdBytes": 7372,
-;   "totalPayloadBytes": 2420,
+;   "totalPayloadBytes": 1823,
 ;   "estimatedMinimumBanks": 1,
 ;   "estimatedPackedBankCount": 1,
 ;   "estimatedPackedBanks": [
 ;     {
 ;       "bankIndex": 0,
-;       "usedBytes": 2420,
-;       "freeBytes": 5772,
+;       "bankSizeBytes": 8192,
+;       "warningThresholdBytes": 7372,
+;       "usedBytes": 1823,
+;       "freeBytes": 6369,
+;       "usedPercent": 22.25,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
+;       "status": "ok",
 ;       "packages": [
 ;         {
-;           "id": "msx2screen.msx2screen_1779559974838",
-;           "usedBytes": 1568,
+;           "id": "msx2screen.msx2screen_1779743570483",
+;           "usedBytes": 1432,
 ;           "recommendedBankClass": "world.screen"
 ;         },
 ;         {
-;           "id": "gameflow.gameflow_1779560142630",
-;           "usedBytes": 461,
-;           "recommendedBankClass": "world.manifest"
-;         },
-;         {
-;           "id": "worldmap.worldmap_1779560130702",
+;           "id": "worldmap.worldmap_1779743562940",
 ;           "usedBytes": 311,
 ;           "recommendedBankClass": "world.manifest"
 ;         },
 ;         {
-;           "id": "msx2sprite.msx2sprite_1779556659727",
+;           "id": "msx2sprite.msx2sprite_1779743578883",
 ;           "usedBytes": 80,
 ;           "recommendedBankClass": "world.graphics.sprite"
 ;         }
@@ -1123,25 +1335,25 @@
 ;     {
 ;       "id": "world.screen",
 ;       "packageCount": 1,
-;       "usedBytes": 1568,
+;       "usedBytes": 1432,
 ;       "estimatedMinimumBanks": 1,
 ;       "warningPackageCount": 0,
 ;       "overBudgetPackageCount": 0,
 ;       "largestPackage": {
-;         "id": "msx2screen.msx2screen_1779559974838",
-;         "usedBytes": 1568
+;         "id": "msx2screen.msx2screen_1779743570483",
+;         "usedBytes": 1432
 ;       }
 ;     },
 ;     {
 ;       "id": "world.manifest",
-;       "packageCount": 2,
-;       "usedBytes": 772,
+;       "packageCount": 1,
+;       "usedBytes": 311,
 ;       "estimatedMinimumBanks": 1,
 ;       "warningPackageCount": 0,
 ;       "overBudgetPackageCount": 0,
 ;       "largestPackage": {
-;         "id": "gameflow.gameflow_1779560142630",
-;         "usedBytes": 461
+;         "id": "worldmap.worldmap_1779743562940",
+;         "usedBytes": 311
 ;       }
 ;     },
 ;     {
@@ -1152,7 +1364,7 @@
 ;       "warningPackageCount": 0,
 ;       "overBudgetPackageCount": 0,
 ;       "largestPackage": {
-;         "id": "msx2sprite.msx2sprite_1779556659727",
+;         "id": "msx2sprite.msx2sprite_1779743578883",
 ;         "usedBytes": 80
 ;       }
 ;     }
@@ -1237,31 +1449,20 @@
 ;   ],
 ;   "packages": [
 ;     {
-;       "id": "gameflow.gameflow_1779560142630",
-;       "type": "gameflow",
-;       "sourceId": "gameflow_1779560142630",
-;       "recommendedBankClass": "world.manifest",
-;       "usedBytes": 461,
-;       "freeBytesIfAlone": 7731,
-;       "warning": false,
-;       "overBudgetBytes": 0,
-;       "canSplit": false
-;     },
-;     {
-;       "id": "msx2screen.msx2screen_1779559974838",
+;       "id": "msx2screen.msx2screen_1779743570483",
 ;       "type": "msx2screen",
-;       "sourceId": "msx2screen_1779559974838",
+;       "sourceId": "msx2screen_1779743570483",
 ;       "recommendedBankClass": "world.screen",
-;       "usedBytes": 1568,
-;       "freeBytesIfAlone": 6624,
+;       "usedBytes": 1432,
+;       "freeBytesIfAlone": 6760,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
 ;       "canSplit": true
 ;     },
 ;     {
-;       "id": "msx2sprite.msx2sprite_1779556659727",
+;       "id": "msx2sprite.msx2sprite_1779743578883",
 ;       "type": "msx2sprite",
-;       "sourceId": "msx2sprite_1779556659727",
+;       "sourceId": "msx2sprite_1779743578883",
 ;       "recommendedBankClass": "world.graphics.sprite",
 ;       "usedBytes": 80,
 ;       "freeBytesIfAlone": 8112,
@@ -1270,9 +1471,9 @@
 ;       "canSplit": true
 ;     },
 ;     {
-;       "id": "worldmap.worldmap_1779560130702",
+;       "id": "worldmap.worldmap_1779743562940",
 ;       "type": "worldmap",
-;       "sourceId": "worldmap_1779560130702",
+;       "sourceId": "worldmap_1779743562940",
 ;       "recommendedBankClass": "world.manifest",
 ;       "usedBytes": 311,
 ;       "freeBytesIfAlone": 7881,
@@ -1285,6 +1486,99 @@
 ; }
 ;
 ; [[[MIDEAS_ARTIFACT:logical_bank_budget.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:msx2_world_bank_manifest.json:BEGIN]]]
+; {
+;   "scope": "msx2_screen4_world_bank_manifest",
+;   "mapper": "konami",
+;   "bankSizeBytes": 8192,
+;   "dataWindowAddress": "#A000",
+;   "estimatedPhysicalBanks": [
+;     {
+;       "bankIndex": 0,
+;       "windowAddress": "#A000",
+;       "bankSizeBytes": 8192,
+;       "warningThresholdBytes": 7372,
+;       "usedBytes": 1823,
+;       "freeBytes": 6369,
+;       "usedPercent": 22.25,
+;       "warning": false,
+;       "overBudgetBytes": 0,
+;       "status": "ok",
+;       "packages": [
+;         {
+;           "id": "msx2screen.msx2screen_1779743570483",
+;           "usedBytes": 1432,
+;           "recommendedBankClass": "world.screen"
+;         },
+;         {
+;           "id": "worldmap.worldmap_1779743562940",
+;           "usedBytes": 311,
+;           "recommendedBankClass": "world.manifest"
+;         },
+;         {
+;           "id": "msx2sprite.msx2sprite_1779743578883",
+;           "usedBytes": 80,
+;           "recommendedBankClass": "world.graphics.sprite"
+;         }
+;       ]
+;     }
+;   ],
+;   "worlds": [
+;     {
+;       "worldId": "worldmap_1779743562940",
+;       "estimatedBytes": 1823,
+;       "estimated8kBanks": 1,
+;       "packages": [
+;         {
+;           "packageId": "msx2screen.msx2screen_1779743570483",
+;           "type": "msx2screen",
+;           "sourceId": "msx2screen_1779743570483",
+;           "logicalSection": "world screens",
+;           "recommendedBankClass": "world.screen",
+;           "physicalBankIndex": 0,
+;           "windowAddress": "#A000",
+;           "bankSizeBytes": 8192,
+;           "rawBytes": 1432,
+;           "storedBytes": 1432,
+;           "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+;           "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+;         },
+;         {
+;           "packageId": "msx2sprite.msx2sprite_1779743578883",
+;           "type": "msx2sprite",
+;           "sourceId": "msx2sprite_1779743578883",
+;           "logicalSection": "world graphics",
+;           "recommendedBankClass": "world.graphics.sprite",
+;           "physicalBankIndex": 0,
+;           "windowAddress": "#A000",
+;           "bankSizeBytes": 8192,
+;           "rawBytes": 80,
+;           "storedBytes": 80,
+;           "decision": "ROM_RAW_TO_VRAM",
+;           "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+;         },
+;         {
+;           "packageId": "worldmap.worldmap_1779743562940",
+;           "type": "worldmap",
+;           "sourceId": "worldmap_1779743562940",
+;           "logicalSection": "world manifest",
+;           "recommendedBankClass": "world.manifest",
+;           "physicalBankIndex": 0,
+;           "windowAddress": "#A000",
+;           "bankSizeBytes": 8192,
+;           "rawBytes": 311,
+;           "storedBytes": 311,
+;           "decision": "ROM_RAW",
+;           "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+;         }
+;       ]
+;     }
+;   ],
+;   "note": "Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression."
+; }
+;
+; [[[MIDEAS_ARTIFACT:msx2_world_bank_manifest.json:END]]]
 
 ; [[[MIDEAS_ARTIFACT:ram_budget.json:BEGIN]]]
 ; {
@@ -1303,23 +1597,23 @@
 ;     {
 ;       "id": "runtime.globals_player_input",
 ;       "start": "#C000",
-;       "end": "#C040",
-;       "bytes": 64,
+;       "end": "#C044",
+;       "bytes": 68,
 ;       "mutable": true,
 ;       "reason": "Fixed hot runtime state for player/input/global counters."
 ;     },
 ;     {
 ;       "id": "runtime.snake_body_cache",
-;       "start": "#C040",
-;       "end": "#C080",
+;       "start": "#C044",
+;       "end": "#C084",
 ;       "bytes": 64,
 ;       "mutable": true,
 ;       "reason": "Fixed-size cache reserved only for snake-char body state."
 ;     },
 ;     {
 ;       "id": "runtime.persistent_effect_layers",
-;       "start": "#C080",
-;       "end": "#C140",
+;       "start": "#C084",
+;       "end": "#C144",
 ;       "bytes": 192,
 ;       "mutable": true,
 ;       "count": 1,
@@ -1366,6 +1660,7 @@ WRTVDP  EQU #0047
 LDIRVM  EQU #005C
 CHGCLR  EQU #0062
 CHGET   EQU #009F
+KILBUF  EQU #0156
 GTSTCK  EQU #00D5
 GTTRIG  EQU #00D8
 SNSMAT  EQU #0141
@@ -1449,9 +1744,13 @@ msx2_attack_cursor EQU #C03E
 msx2_attack_pending EQU #C03F
 msx2_bg_scroll_frame EQU #C03D
 msx2_bg_scroll_fine EQU #C03F
+msx2_input_key_button1_mode EQU #C040
+msx2_input_key_button2_mode EQU #C041
+msx2_control_jump_button EQU #C042
+msx2_control_action_button EQU #C043
 MSX2_SCREEN4_DATA_BANK EQU 4
-msx2_snake_body_cells EQU #C040
-msx2_effects_runtime_buffers EQU #C080
+msx2_snake_body_cells EQU #C044
+msx2_effects_runtime_buffers EQU #C084
 msx2_effects_runtime_scratch EQU #C200
 msx2_enemy_runtime_x EQU #C2C0
 msx2_enemy_runtime_y EQU #C2CC
@@ -1507,6 +1806,7 @@ init_rom:
     ld a, 0
     ld (msx2_current_screen_index), a
     call init_msx2_effect_buffers
+    call init_msx2_controls
     call load_NEW_MSX2_SCREEN_4_ROOM_screen4
     call msx2_reset_enemy_runtime_for_current_screen
     call init_hardware_sprites
@@ -1516,8 +1816,104 @@ init_rom:
     call ENASCR
     ei
 
-    ; MSX2 minimal GameFlow: Start/Text(background)/Transition(cls)/End.
+    ; MSX2 minimal GameFlow: MSX2 SCREEN 4 GameFlow entry.
+    jp msx2_gf_node_0
+msx2_gf_node_0:
+    jp msx2_gf_node_1
+msx2_gf_node_1:
+    ld a, 0
+    ld (msx2_current_screen_index), a
+    call load_NEW_MSX2_SCREEN_4_ROOM_screen4
+    call msx2_reset_enemy_runtime_for_current_screen
+    call init_hardware_sprites
+    call load_msx2_hud_font
+    call draw_msx2_gf_node_1_SUBMENU
+    ld b, 2
+    call msx2_submenu_select
+    cp 0
+    jp z, msx2_gf_node_2
+    cp 1
+    jp z, msx2_gf_node_3
+    jp msx2_gf_node_1
+msx2_gf_node_2:
+    ld a, 0
+    ld (msx2_current_screen_index), a
+    call load_NEW_MSX2_SCREEN_4_ROOM_screen4
+    call msx2_reset_enemy_runtime_for_current_screen
+    call init_hardware_sprites
     jp .main_loop
+msx2_gf_node_4:
+    ld a, 0
+    ld (msx2_current_screen_index), a
+    call load_NEW_MSX2_SCREEN_4_ROOM_screen4
+    call msx2_reset_enemy_runtime_for_current_screen
+    call init_hardware_sprites
+    call load_msx2_hud_font
+    call draw_msx2_gf_node_4_TEXTSCROLL
+    call wait_key_release
+    call wait_key
+    jp msx2_gf_node_5
+msx2_gf_node_5:
+    jp init_rom
+msx2_gf_node_3:
+    jp .main_loop
+draw_msx2_gf_node_1_SUBMENU:
+    ld hl, #19A6
+    ld de, msx2_gf_node_1_SUBMENU_TEXT_0
+    call draw_msx2_hud_string
+    ld hl, #19E7
+    ld de, msx2_gf_node_1_SUBMENU_TEXT_1
+    call draw_msx2_hud_string
+    ld hl, #1A07
+    ld de, msx2_gf_node_1_SUBMENU_TEXT_2
+    call draw_msx2_hud_string
+    ret
+
+; MSX2 SCREEN 4 SubMenu text "MAIN MENU"
+msx2_gf_node_1_SUBMENU_TEXT_0:
+    DB #4D,#41,#49,#4E,#20,#4D,#45,#4E,#55,#00
+; MSX2 SCREEN 4 SubMenu text "START"
+msx2_gf_node_1_SUBMENU_TEXT_1:
+    DB #53,#54,#41,#52,#54,#00
+; MSX2 SCREEN 4 SubMenu text "QUIT"
+msx2_gf_node_1_SUBMENU_TEXT_2:
+    DB #51,#55,#49,#54,#00
+draw_msx2_gf_node_4_TEXTSCROLL:
+    ld hl, #1905
+    ld de, msx2_gf_node_4_TEXTSCROLL_TEXT_0
+    call draw_msx2_hud_string
+    ld hl, #1963
+    ld de, msx2_gf_node_4_TEXTSCROLL_TEXT_1
+    call draw_msx2_hud_string
+    ld hl, #1983
+    ld de, msx2_gf_node_4_TEXTSCROLL_TEXT_2
+    call draw_msx2_hud_string
+    ld hl, #19A3
+    ld de, msx2_gf_node_4_TEXTSCROLL_TEXT_3
+    call draw_msx2_hud_string
+    ld hl, #1AEF
+    ld de, msx2_gf_node_4_TEXTSCROLL_TEXT_4
+    call draw_msx2_hud_string
+    ret
+
+; MSX2 SCREEN 4 TextScroll panel text "STORY"
+msx2_gf_node_4_TEXTSCROLL_TEXT_0:
+    DB #53,#54,#4F,#52,#59,#00
+; MSX2 SCREEN 4 TextScroll panel text "THE INVASION HAS BEGUN "
+msx2_gf_node_4_TEXTSCROLL_TEXT_1:
+    DB #54,#48,#45,#20,#49,#4E,#56,#41,#53,#49,#4F,#4E,#20,#48,#41,#53
+    DB #20,#42,#45,#47,#55,#4E,#20,#00
+; MSX2 SCREEN 4 TextScroll panel text "PREPARE YOUR SHIP AND"
+msx2_gf_node_4_TEXTSCROLL_TEXT_2:
+    DB #50,#52,#45,#50,#41,#52,#45,#20,#59,#4F,#55,#52,#20,#53,#48,#49
+    DB #50,#20,#41,#4E,#44,#00
+; MSX2 SCREEN 4 TextScroll panel text "DEFEND THE COLONY "
+msx2_gf_node_4_TEXTSCROLL_TEXT_3:
+    DB #44,#45,#46,#45,#4E,#44,#20,#54,#48,#45,#20,#43,#4F,#4C,#4F,#4E
+    DB #59,#20,#00
+; MSX2 SCREEN 4 TextScroll panel text "PRESS KEY"
+msx2_gf_node_4_TEXTSCROLL_TEXT_4:
+    DB #50,#52,#45,#53,#53,#20,#4B,#45,#59,#00
 
 .main_loop:
     call update_hardware_sprite_input
@@ -1605,16 +2001,234 @@ msx2_screen4_data_bank_leave:
     ld a, 2
     jp mapper_set_bank_p2
 
-wait_key:
-    call CHGET
+init_msx2_controls:
+    ; Defaults match legacy MSX1 Controls: B1=SPC, B2=N, jump=B1, action=B2. Clobbers AF.
+    xor a
+    ld (msx2_input_key_button1_mode), a
+    ld (msx2_input_key_button2_mode), a
+    ld (msx2_control_jump_button), a
+    ld a, 1
+    ld (msx2_control_action_button), a
     ret
 
-clear_screen4_names:
-    xor a
-    ld hl, SCREEN4_NAME_VRAM
-    ld bc, SCREEN4_NAME_SIZE
-    call FILVRM
+msx2_control_jump_pressed:
+    ; Output: A=1 when logical jump is pressed, A=0 otherwise. Clobbers AF/CD.
+    call msx2_read_control_buttons
+    bit 0, c
+    jp z, .jump_not_pressed
+    ld a, 1
     ret
+.jump_not_pressed:
+    xor a
+    ret
+
+msx2_control_action_pressed:
+    ; Output: A=1 when logical action is pressed, A=0 otherwise. Clobbers AF/CD.
+    call msx2_read_control_buttons
+    bit 1, c
+    jp z, .action_not_pressed
+    ld a, 1
+    ret
+.action_not_pressed:
+    xor a
+    ret
+
+msx2_read_control_buttons:
+    ; Output: C bit0=logical jump, bit1=logical action. Clobbers AF/CD.
+    ld d, 0
+    xor a
+    call GTTRIG
+    or a
+    jp z, .button1_keyboard
+    set 0, d
+.button1_keyboard:
+    ld a, (msx2_input_key_button1_mode)
+    or a
+    jp nz, .button1_ctrl
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp nz, .button1_done
+    set 0, d
+    jp .button1_done
+.button1_ctrl:
+    ld a, 6
+    call SNSMAT
+    bit 2, a
+    jp nz, .button1_done
+    set 0, d
+.button1_done:
+    ld a, 3
+    call GTTRIG
+    or a
+    jp z, .button2_keyboard
+    set 1, d
+.button2_keyboard:
+    ld a, (msx2_input_key_button2_mode)
+    or a
+    jp nz, .button2_ctrl
+    ld a, 4
+    call SNSMAT
+    bit 3, a
+    jp nz, .button2_done
+    set 1, d
+    jp .button2_done
+.button2_ctrl:
+    ld a, 6
+    call SNSMAT
+    bit 2, a
+    jp nz, .button2_done
+    set 1, d
+.button2_done:
+    ld c, 0
+    ld a, (msx2_control_jump_button)
+    or a
+    jp nz, .jump_uses_button2
+    bit 0, d
+    jp z, .jump_done
+    set 0, c
+    jp .jump_done
+.jump_uses_button2:
+    bit 1, d
+    jp z, .jump_done
+    set 0, c
+.jump_done:
+    ld a, (msx2_control_action_button)
+    or a
+    jp nz, .action_uses_button2
+    bit 0, d
+    ret z
+    set 1, c
+    ret
+.action_uses_button2:
+    bit 1, d
+    ret z
+    set 1, c
+    ret
+
+wait_key:
+    ; Wait for the GameFlow Controls logical action button instead of raw BIOS CHGET.
+.wait_action:
+    call wait_frame_busy
+    call msx2_control_action_pressed
+    or a
+    jp z, .wait_action
+    call wait_key_release
+    ret
+
+wait_key_release:
+    ; Debounce menu-confirm keys and clear BIOS keyboard buffer before action waits.
+.release_loop:
+    call wait_frame_busy
+    call msx2_submenu_confirm_pressed
+    or a
+    jp nz, .release_loop
+    call KILBUF
+    ret
+
+msx2_submenu_select:
+    ; Input: B=option count, 1..6. Output: A=selected zero-based option.
+    ; Uses BIOS GTSTCK plus the GameFlow Controls logical action button. Clobbers AF/BC/HL.
+    ld c, 0
+    push bc
+    call draw_msx2_submenu_cursor
+    pop bc
+.loop:
+    call wait_frame_busy
+    ld a, 0
+    push bc
+    call GTSTCK
+    pop bc
+    cp 1
+    jp z, .up
+    cp 5
+    jp z, .down
+    push bc
+    call msx2_submenu_confirm_pressed
+    pop bc
+    or a
+    jp z, .loop
+    ld a, c
+    push af
+.wait_confirm_release:
+    call wait_frame_busy
+    push bc
+    call msx2_submenu_confirm_pressed
+    pop bc
+    or a
+    jp nz, .wait_confirm_release
+    pop af
+    ret
+.up:
+    ld a, c
+    or a
+    jp z, .wait_neutral
+    dec c
+    push bc
+    call draw_msx2_submenu_cursor
+    pop bc
+    jp .wait_neutral
+.down:
+    ld a, c
+    inc a
+    cp b
+    jp nc, .wait_neutral
+    ld c, a
+    push bc
+    call draw_msx2_submenu_cursor
+    pop bc
+    jp .wait_neutral
+.wait_neutral:
+    call wait_frame_busy
+    ld a, 0
+    push bc
+    call GTSTCK
+    pop bc
+    or a
+    jp nz, .wait_neutral
+    jp .loop
+
+msx2_submenu_confirm_pressed:
+    ; Output: A=1 when the GameFlow Controls logical action button is pressed.
+    ; Clobbers AF/CD. Callers that need BC/DE/HL must preserve them.
+    call msx2_control_action_pressed
+    ret
+
+draw_msx2_submenu_cursor:
+    ; Input: C=selected option index. Draws a simple '-' marker in fixed menu rows.
+    ; Clobbers AF/BC/HL.
+    ld hl, #19E5
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A05
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A25
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A45
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A65
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld hl, #1A85
+    ld a, MSX2_HUD_FONT_BASE_CHAR
+    call WRTVRM
+    ld a, c
+    ld h, 0
+    ld l, a
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld bc, #19E5
+    add hl, bc
+    ld a, MSX2_HUD_FONT_BASE_CHAR + 38
+    jp WRTVRM
+
+
 
 clear_screen4_name_cell_16:
     ; HL=top-left SCREEN 4 name-table cell for a 16x16 block. Clobbers AF/BC/HL.
@@ -1673,9 +2287,9 @@ init_hardware_sprites:
     call msx2_screen4_data_bank_leave
 
 
-    ld a, 72
+    ld a, 128
     ld (msx2_player_sprite_x), a
-    ld a, 102
+    ld a, 96
     ld (msx2_player_sprite_y), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
@@ -1764,6 +2378,7 @@ copy_to_vram_ext:
     out (VDP_CTRL_PORT), a
     ret
 
+
 write_vram_byte_ext:
     ; A=data, HL=absolute VRAM destination. Clobbers AF/B.
     ld b, a
@@ -1796,16 +2411,10 @@ write_vram_byte_ext:
     ret
 
 
-draw_msx2_lives_hud:
-draw_msx2_score_hud:
-draw_msx2_collectible_hud:
-draw_msx2_air_hud:
-    ; Native SCREEN 4 HUD authoring is exported as metadata for now.
-    ; Runtime drawing is intentionally data-driven work, not hardcoded bars.
-    ret
-
 load_msx2_hud_font:
     ; Loads the generic MSX2 SCREEN 4 HUD font into reserved high char slots. Clobbers AF/BC/DE/HL.
+    call msx2_screen4_data_bank_enter
+
     ld hl, msx2_hud_font_patterns
     ld de, #0600
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
@@ -1818,18 +2427,36 @@ load_msx2_hud_font:
     ld de, #1600
     ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
     call LDIRVM
-    ld hl, msx2_hud_font_colors
-    ld de, #2600
-    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
-    call LDIRVM
-    ld hl, msx2_hud_font_colors
-    ld de, #2E00
-    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
-    call LDIRVM
-    ld hl, msx2_hud_font_colors
-    ld de, #3600
-    ld bc, msx2_hud_font_colors_end - msx2_hud_font_colors
-    jp LDIRVM
+    call msx2_screen4_data_bank_leave
+
+    ld a, #F1
+    ld hl, #2600
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    ld a, #F1
+    ld hl, #2E00
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    ld a, #F1
+    ld hl, #3600
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    jp FILVRM
+
+fill_msx2_hud_font_color:
+    ; A=color byte, high nibble foreground and low nibble background. Clobbers AF/BC/HL.
+    push af
+    ld hl, #2600
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    pop af
+    push af
+    ld hl, #2E00
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    call FILVRM
+    pop af
+    ld hl, #3600
+    ld bc, msx2_hud_font_patterns_end - msx2_hud_font_patterns
+    jp FILVRM
 
 draw_msx2_hud_string:
     ; DE=zero-terminated ASCII, HL=SCREEN 4 name-table VRAM destination. Clobbers AF/B/DE/HL.
@@ -1882,6 +2509,14 @@ msx2_hud_ascii_to_char:
     ld a, MSX2_HUD_FONT_BASE_CHAR + 39
     ret
 
+
+draw_msx2_lives_hud:
+draw_msx2_score_hud:
+draw_msx2_collectible_hud:
+draw_msx2_air_hud:
+    ; Native SCREEN 4 HUD authoring is exported as metadata for now.
+    ; Runtime drawing is intentionally data-driven work, not hardcoded bars.
+    ret
 
 draw_msx2_game_over_banner:
     ; Final-state feedback: red backdrop. Normal screen reload restores black.
@@ -2058,16 +2693,7 @@ update_msx2_player_bullet_slot_1:
     ld a, (msx2_player_bullet_cooldown)
     or a
     ret nz
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp z, .bullet_fire_pressed
-    xor a
-    call GTTRIG
-    or a
-    jp nz, .bullet_fire_pressed
-    ld a, 1
-    call GTTRIG
+    call msx2_control_action_pressed
     or a
     ret z
 .bullet_fire_pressed:
@@ -7014,7 +7640,10 @@ finish_msx2_horizontal_move:
 msx2_game_over_idle:
     ld a, (msx2_game_over_restart_lock)
     or a
-    jp z, .restart_space_check
+    jp z, .restart_action_check
+    call msx2_control_action_pressed
+    or a
+    jp nz, .draw_game_over
     ld a, 8
     call SNSMAT
     bit 0, a
@@ -7022,29 +7651,24 @@ msx2_game_over_idle:
     xor a
     ld (msx2_game_over_restart_lock), a
     jp .draw_game_over
+.restart_action_check:
+    call msx2_control_action_pressed
+    or a
+    jp nz, msx2_restart_game
 .restart_space_check:
     ld a, 8
     call SNSMAT
     bit 0, a
     jp z, msx2_restart_game
-    xor a
-    call GTTRIG
-    or a
-    jp nz, msx2_restart_game
-    ld a, 1
-    call GTTRIG
-    or a
-    jp nz, msx2_restart_game
 .draw_game_over:
     call draw_msx2_game_over_banner
     call write_hardware_sprite_attrs
     ret
 
 msx2_level_complete_idle:
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp nz, .continue_space_released
+    call msx2_control_action_pressed
+    or a
+    jp z, .continue_space_released
     ld a, (msx2_level_continue_lock)
     or a
     jp z, msx2_continue_after_level_complete
@@ -7167,13 +7791,12 @@ auto_patrol_hardware_sprite:
     jp move_hardware_sprite_right
 
 update_hardware_sprite_vertical:
-    ; Jump uses SPACE on keyboard matrix row 8, bit 0. Gravity is 1 px/frame.
+    ; Jump uses the MSX2 GameFlow Controls logical jump mapping. Gravity is 1 px/frame.
     ; Clobbers AF/BC/DE/HL.
 
-    ld a, 8
-    call SNSMAT
-    bit 0, a
-    jp nz, .space_released
+    call msx2_control_jump_pressed
+    or a
+    jp z, .space_released
     ld a, (msx2_player_jump_lock)
     or a
     jp nz, .after_jump_input
@@ -8356,7 +8979,7 @@ update_msx2_enemy_position_slot_0:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_0_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -9285,7 +9908,7 @@ update_msx2_enemy_position_slot_1:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_1_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -10313,7 +10936,7 @@ update_msx2_enemy_position_slot_2:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_2_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -11341,7 +11964,7 @@ update_msx2_enemy_position_slot_3:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_3_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -12369,7 +12992,7 @@ update_msx2_enemy_position_slot_4:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_4_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -13397,7 +14020,7 @@ update_msx2_enemy_position_slot_5:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_5_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -14425,7 +15048,7 @@ update_msx2_enemy_position_slot_6:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_6_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -15453,7 +16076,7 @@ update_msx2_enemy_position_slot_7:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_7_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -16481,7 +17104,7 @@ update_msx2_enemy_position_slot_8:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_8_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -17509,7 +18132,7 @@ update_msx2_enemy_position_slot_9:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_9_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -18537,7 +19160,7 @@ update_msx2_enemy_position_slot_10:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_10_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -19565,7 +20188,7 @@ update_msx2_enemy_position_slot_11:
     ld e, a
     ld a, c
     sub e
-    cp 32
+    cp 14
     jp nc, .enemy_slot_11_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -21607,7 +22230,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ei
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, #0000
-    ld bc, 32
+    ld bc, 8
     call LDIRVM
     ; Decompress ZX0 screen4 color bank into RAM buffer
     di
@@ -21617,7 +22240,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ei
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, #2000
-    ld bc, 32
+    ld bc, 8
     call LDIRVM
     ; Decompress ZX0 screen4 pattern bank into RAM buffer
     di
@@ -21627,7 +22250,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ei
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, #0800
-    ld bc, 32
+    ld bc, 8
     call LDIRVM
     ; Decompress ZX0 screen4 color bank into RAM buffer
     di
@@ -21637,7 +22260,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ei
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, #2800
-    ld bc, 32
+    ld bc, 8
     call LDIRVM
     ; Decompress ZX0 screen4 pattern bank into RAM buffer
     di
@@ -21647,7 +22270,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ei
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, #1000
-    ld bc, 48
+    ld bc, 24
     call LDIRVM
     ; Decompress ZX0 screen4 color bank into RAM buffer
     di
@@ -21657,7 +22280,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ei
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, #3000
-    ld bc, 48
+    ld bc, 24
     call LDIRVM
 
     ; Decompress ZX0 screen4 name table into RAM buffer
@@ -21678,7 +22301,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ld (msx2_current_collision_ptr), hl
     ld hl, NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR
     ld (msx2_current_behavior_ptr), hl
-    ld hl, #C080
+    ld hl, #C084
     ld (msx2_current_effects_ptr), hl
     call apply_NEW_MSX2_SCREEN_4_ROOM_collected_visuals
     ret
@@ -21697,11 +22320,11 @@ draw_NEW_MSX2_SCREEN_4_ROOM_hud_text:
 
 ; Per-msx2screen respawn X coordinates
 msx2_screen_spawn_x:
-    DB #60
+    DB #80
 
 ; Per-msx2screen respawn Y coordinates
 msx2_screen_spawn_y:
-    DB #90
+    DB #60
 
 ; Per-msx2screen collectible count required before exits unlock
 msx2_screen_required_collectibles:
@@ -21788,54 +22411,7 @@ msx2_screen_hud_widget_variable_length:
 msx2_screen_hud_widget_variable_name_pool:
     DB #00
 
-; MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash
-msx2_hud_font_patterns:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#3C,#66,#6E,#76,#66,#66,#3C,#00
-    DB #18,#38,#18,#18,#18,#18,#7E,#00,#3C,#66,#06,#1C,#30,#60,#7E,#00
-    DB #3C,#66,#06,#1C,#06,#66,#3C,#00,#0C,#1C,#3C,#6C,#7E,#0C,#0C,#00
-    DB #7E,#60,#7C,#06,#06,#66,#3C,#00,#1C,#30,#60,#7C,#66,#66,#3C,#00
-    DB #7E,#06,#0C,#18,#30,#30,#30,#00,#3C,#66,#66,#3C,#66,#66,#3C,#00
-    DB #3C,#66,#66,#3E,#06,#0C,#38,#00,#18,#3C,#66,#66,#7E,#66,#66,#00
-    DB #7C,#66,#66,#7C,#66,#66,#7C,#00,#3C,#66,#60,#60,#60,#76,#3C,#00
-    DB #78,#6C,#66,#66,#66,#6C,#78,#00,#7E,#60,#60,#7C,#60,#60,#7E,#00
-    DB #7E,#60,#60,#7C,#60,#60,#60,#00,#3C,#66,#60,#6E,#66,#66,#3C,#00
-    DB #66,#66,#66,#7E,#66,#66,#66,#00,#7E,#18,#18,#18,#18,#18,#7E,#00
-    DB #1E,#0C,#0C,#0C,#0C,#6C,#38,#00,#66,#6C,#78,#70,#78,#6C,#66,#00
-    DB #60,#60,#60,#60,#60,#60,#7E,#00,#63,#77,#7F,#6B,#63,#63,#63,#00
-    DB #66,#76,#7E,#7E,#6E,#66,#66,#00,#3C,#66,#66,#66,#66,#66,#3C,#00
-    DB #7C,#66,#66,#7C,#60,#60,#60,#00,#3C,#66,#66,#66,#6A,#6C,#36,#00
-    DB #7C,#66,#66,#7C,#78,#6C,#66,#00,#3C,#66,#60,#3C,#06,#66,#3C,#00
-    DB #7E,#18,#18,#18,#18,#18,#18,#00,#66,#66,#66,#66,#66,#66,#3C,#00
-    DB #66,#66,#66,#66,#66,#3C,#18,#00,#63,#63,#63,#6B,#7F,#77,#63,#00
-    DB #66,#66,#3C,#18,#3C,#66,#66,#00,#66,#66,#66,#3C,#18,#18,#18,#00
-    DB #7E,#06,#0C,#18,#30,#60,#7E,#00,#00,#18,#18,#00,#00,#18,#18,#00
-    DB #00,#00,#00,#7E,#00,#00,#00,#00,#06,#0C,#0C,#18,#30,#30,#60,#00
 
-msx2_hud_font_patterns_end:
-; MSX2 SCREEN 4 HUD font colors: foreground 15 over background 1
-msx2_hud_font_colors:
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-    DB #75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75,#75
-
-msx2_hud_font_colors_end:
 ; Per-msx2screen Galaxian Attack Wave interval in frames
 msx2_screen_attack_interval:
     DB #B4
@@ -21900,50 +22476,6 @@ msx2_screen_enemy_speed:
 msx2_screen_enemy_score:
     DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
 
-; Default empty MSX2 SCREEN 4 collision layer, 16x12 cells
-screen4_empty_collision_layer:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-; Default empty MSX2 SCREEN 4 effects layer, 16x12 cells
-screen4_empty_effects_layer:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-; Default empty MSX2 SCREEN 4 behavior layer, 16x12 cells
-screen4_empty_behavior_layer:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 
 
@@ -22062,16 +22594,40 @@ screen4_palette_data:
     DB #00,#00,#00,#00,#22,#05,#33,#06,#15,#01,#27,#02,#51,#01,#36,#06
     DB #72,#02,#74,#04,#52,#05,#63,#06,#12,#04,#55,#02,#44,#04,#77,#07
 
+; MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash
+msx2_hud_font_patterns:
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#3C,#66,#6E,#76,#66,#66,#3C,#00
+    DB #18,#38,#18,#18,#18,#18,#7E,#00,#3C,#66,#06,#1C,#30,#60,#7E,#00
+    DB #3C,#66,#06,#1C,#06,#66,#3C,#00,#0C,#1C,#3C,#6C,#7E,#0C,#0C,#00
+    DB #7E,#60,#7C,#06,#06,#66,#3C,#00,#1C,#30,#60,#7C,#66,#66,#3C,#00
+    DB #7E,#06,#0C,#18,#30,#30,#30,#00,#3C,#66,#66,#3C,#66,#66,#3C,#00
+    DB #3C,#66,#66,#3E,#06,#0C,#38,#00,#18,#3C,#66,#66,#7E,#66,#66,#00
+    DB #7C,#66,#66,#7C,#66,#66,#7C,#00,#3C,#66,#60,#60,#60,#66,#3C,#00
+    DB #78,#6C,#66,#66,#66,#6C,#78,#00,#7E,#60,#60,#7C,#60,#60,#7E,#00
+    DB #7E,#60,#60,#7C,#60,#60,#60,#00,#3C,#66,#60,#6E,#66,#66,#3C,#00
+    DB #66,#66,#66,#7E,#66,#66,#66,#00,#7E,#18,#18,#18,#18,#18,#7E,#00
+    DB #1E,#0C,#0C,#0C,#0C,#6C,#38,#00,#66,#6C,#78,#70,#78,#6C,#66,#00
+    DB #60,#60,#60,#60,#60,#60,#7E,#00,#63,#77,#7F,#6B,#63,#63,#63,#00
+    DB #66,#76,#7E,#7E,#6E,#66,#66,#00,#3C,#66,#66,#66,#66,#66,#3C,#00
+    DB #7C,#66,#66,#7C,#60,#60,#60,#00,#3C,#66,#66,#66,#6A,#6C,#36,#00
+    DB #7C,#66,#66,#7C,#78,#6C,#66,#00,#3C,#66,#60,#3C,#06,#66,#3C,#00
+    DB #7E,#18,#18,#18,#18,#18,#18,#00,#66,#66,#66,#66,#66,#66,#3C,#00
+    DB #66,#66,#66,#66,#66,#3C,#18,#00,#63,#63,#63,#6B,#7F,#77,#63,#00
+    DB #66,#66,#3C,#18,#3C,#66,#66,#00,#66,#66,#66,#3C,#18,#18,#18,#00
+    DB #7E,#06,#0C,#18,#30,#60,#7E,#00,#00,#18,#18,#00,#00,#18,#18,#00
+    DB #00,#00,#00,#7E,#00,#00,#00,#00,#06,#0C,#0C,#18,#30,#30,#60,#00
+msx2_hud_font_patterns_end:
+
 
 msx2_hw_sprite_patterns:
 ; Hardware metasprite frame 0 part 0: x+0, y+0
 msx2_hw_sprite_frame_0_pattern_0:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#0F,#09,#09,#09,#08,#0C,#0C,#0C,#06,#06,#06,#03,#00
+    DB #00,#00,#00,#80,#C0,#E0,#F0,#F0,#F0,#20,#60,#40,#40,#40,#E0,#00
 ; Mirrored hardware metasprite frame 0 part 0: authored right
 msx2_hw_sprite_frame_0_mirror_pattern_0:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#01,#03,#07,#0F,#0F,#0F,#04,#06,#02,#02,#02,#07,#00
+    DB #00,#00,#00,#F0,#90,#90,#90,#10,#30,#30,#30,#60,#60,#60,#C0,#00
 ; Shared 16x16 enemy/hazard hardware sprite pattern
 msx2_hw_enemy_sprite_pattern:
     DB #07,#1F,#3F,#7F,#67,#E7,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#EE,#C6,#80
@@ -22136,7 +22692,7 @@ msx2_hw_sprite_colors_end:
 
 ; 1 player hardware sprite(s), 12 enemy/hazard sprite slots, 2 player bullet slot, 1 enemy bullet slot; next Y=208 terminates the SAT
 msx2_hw_sprite_attrs:
-    DB #66,#48,#00,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
+    DB #60,#80,#00,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
     DB #D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
     DB #D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
     DB #D0,#00,#08,#00,#D0,#00,#0C,#00,#D0,#00,#0C,#00,#D0,#00,#10,#00
@@ -22148,34 +22704,26 @@ msx2_hw_sprite_attrs:
 
 ; New MSX2 SCREEN 4 Room SCREEN 4 name table, 32x24 chars
 NEW_MSX2_SCREEN_4_ROOM_NAMES:
-    ; ZX0 compressed layout (768 -> 21 bytes)
-    DB #3D,#00,#01,#FC,#18,#95,#02,#03,#38,#80,#55,#56,#F5,#04,#FE,#29
-    DB #05,#57,#55,#55,#80
+    ; ZX0 compressed layout (768 -> 11 bytes)
+    DB #84,#00,#55,#5A,#01,#55,#A5,#02,#5D,#55,#56
 NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS:
-    ; ZX0 compressed tile_pattern (32 -> 30 bytes)
-    DB #2A,#00,#C0,#20,#86,#05,#06,#07,#00,#01,#92,#02,#04,#50,#A0,#0D
-    DB #07,#28,#20,#98,#C0,#00,#0D,#A2,#02,#35,#01,#00,#55,#58
+    ; ZX0 compressed tile_pattern (8 -> 5 bytes)
+    DB #97,#00,#55,#55,#80
 NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS:
-    ; ZX0 compressed tile_color (32 -> 27 bytes)
-    DB #2A,#00,#03,#E0,#8A,#40,#90,#29,#00,#0D,#22,#E0,#90,#40,#90,#09
-    DB #90,#89,#E0,#8E,#0E,#00,#09,#F0,#35,#55,#58
+    ; ZX0 compressed tile_color (8 -> 5 bytes)
+    DB #97,#00,#55,#55,#80
 NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS:
-    ; ZX0 compressed tile_pattern (32 -> 30 bytes)
-    DB #2A,#00,#C0,#20,#86,#05,#06,#07,#00,#01,#92,#02,#04,#50,#A0,#0D
-    DB #07,#28,#20,#98,#C0,#00,#0D,#A2,#02,#35,#01,#00,#55,#58
+    ; ZX0 compressed tile_pattern (8 -> 5 bytes)
+    DB #97,#00,#55,#55,#80
 NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS:
-    ; ZX0 compressed tile_color (32 -> 27 bytes)
-    DB #2A,#00,#03,#E0,#8A,#40,#90,#29,#00,#0D,#22,#E0,#90,#40,#90,#09
-    DB #90,#89,#E0,#8E,#0E,#00,#09,#F0,#35,#55,#58
+    ; ZX0 compressed tile_color (8 -> 5 bytes)
+    DB #97,#00,#55,#55,#80
 NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS:
-    ; ZX0 compressed tile_pattern (48 -> 33 bytes)
-    DB #2A,#00,#C0,#20,#86,#05,#06,#07,#00,#01,#92,#02,#04,#50,#A0,#0D
-    DB #07,#28,#20,#98,#C0,#00,#0D,#A2,#02,#26,#01,#00,#90,#F0,#D5,#55
-    DB #60
+    ; ZX0 compressed tile_pattern (24 -> 7 bytes)
+    DB #84,#00,#A4,#F0,#35,#55,#58
 NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS:
-    ; ZX0 compressed tile_color (48 -> 32 bytes)
-    DB #2A,#00,#03,#E0,#8A,#40,#90,#29,#00,#0D,#22,#E0,#90,#40,#90,#09
-    DB #90,#89,#E0,#8E,#0E,#00,#09,#F0,#2E,#FF,#FF,#90,#54,#D5,#55,#60
+    ; ZX0 compressed tile_color (24 -> 9 bytes)
+    DB #96,#00,#8A,#FF,#54,#43,#55,#55,#80
     ds #A000 - $, #FF
 
 ; ==================================================================
@@ -22186,13 +22734,13 @@ ZX0_SCREEN_BUFFER EQU #C900
 
 ; ==================================================================
 ; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
-; Shared scratch buffer for tile pattern data decompression (48 bytes, scratch slot 768 bytes)
+; Shared scratch buffer for tile pattern data decompression (24 bytes, scratch slot 768 bytes)
 ; ==================================================================
 ZX0_TILE_PATTERN_BUFFER EQU #C900
 
 ; ==================================================================
 ; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
-; Shared scratch buffer for tile color data decompression (48 bytes, scratch slot 768 bytes)
+; Shared scratch buffer for tile color data decompression (24 bytes, scratch slot 768 bytes)
 ; ==================================================================
 ZX0_TILE_COLOR_BUFFER EQU #C900
 

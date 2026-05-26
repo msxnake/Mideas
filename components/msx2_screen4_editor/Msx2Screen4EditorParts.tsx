@@ -11,6 +11,7 @@ import {
   MSX2_ENTITY_REPERTOIRE,
   Msx2EntityCreatePreset,
 } from './msx2EntityCatalog';
+import { normalizeMsx2ShooterRuntimeConfig, MSX2_SHOOTER_IRQ_PROFILES_60HZ } from '../../utils/msx2ShooterRuntime';
 
 export type Msx2Screen4EditMode = 'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile';
 export type Msx2Screen4TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick';
@@ -106,6 +107,53 @@ export const Msx2Screen4Toolbar: React.FC<Msx2Screen4ToolbarProps> = ({
     const height = Math.max(1, Math.min(MAP_HEIGHT - y, Number(next.activeAreaHeight) || MAP_HEIGHT - y));
     onRuntimeChange({ ...next, activeAreaX: x, activeAreaY: y, activeAreaWidth: width, activeAreaHeight: height });
   };
+  const setRuntimeMode = (mode: string) => {
+    if (mode === 'maze') {
+      updateRuntimeArea({ screenKind: 'playable', screenEngine: 'maze', movementMode: 'maze', movementModel: 'maze' });
+      return;
+    }
+    if (mode === 'shooterHorizontal' || mode === 'shooterVertical') {
+      updateRuntimeArea({
+        screenKind: 'playable',
+        screenEngine: 'shooter',
+        movementMode: mode,
+        movementModel: mode,
+        initialAir: 0,
+        disableAirTimer: true,
+        airTimer: false,
+        shooter: normalizeMsx2ShooterRuntimeConfig({
+          ...runtime.shooter,
+          direction: mode === 'shooterHorizontal' ? 'horizontal' : 'vertical',
+          scrollMode: mode === 'shooterHorizontal' ? 'none' : 'tileVertical',
+        }),
+      });
+      return;
+    }
+    updateRuntimeArea({ screenKind: 'playable', screenEngine: 'player', movementMode: 'platform', movementModel: 'platform' });
+  };
+  const updateShooterConfig = (patch: Partial<NonNullable<Msx2Screen4Runtime['shooter']>>) => {
+    updateRuntimeArea({
+      screenEngine: 'shooter',
+      movementMode: runtime.movementMode === 'shooterHorizontal' ? 'shooterHorizontal' : 'shooterVertical',
+      movementModel: runtime.movementMode === 'shooterHorizontal' ? 'shooterHorizontal' : 'shooterVertical',
+      shooter: normalizeMsx2ShooterRuntimeConfig({ ...(runtime.shooter || {}), ...patch }),
+    });
+  };
+  const updateShooterBudget = (patch: Partial<NonNullable<Msx2Screen4Runtime['shooter']>['budget']>) => {
+    updateShooterConfig({
+      budget: {
+        ...normalizeMsx2ShooterRuntimeConfig(runtime.shooter).budget,
+        ...patch,
+      },
+    });
+  };
+  const runtimeMode = runtime.screenEngine === 'maze'
+    ? 'maze'
+    : runtime.screenEngine === 'shooter'
+      ? runtime.movementMode === 'shooterHorizontal' ? 'shooterHorizontal' : 'shooterVertical'
+      : 'platform';
+  const shooterConfig = normalizeMsx2ShooterRuntimeConfig(runtime.shooter);
+  const activeIrqProfile = MSX2_SHOOTER_IRQ_PROFILES_60HZ.find(profile => profile.id === shooterConfig.budget.activeIrqProfile);
   const layerButton = (layer: Msx2Screen4EditMode, label: string) => (
     <Button size="sm" variant={mode === layer ? 'primary' : 'secondary'} onClick={() => onModeChange(layer)}>
       {label}
@@ -198,6 +246,65 @@ export const Msx2Screen4Toolbar: React.FC<Msx2Screen4ToolbarProps> = ({
         <div className="text-msx-textsecondary">
           Runtime: {runtime.screenKind} / {runtime.screenEngine}
         </div>
+        <label className="block space-y-1">
+          <span className="text-msx-textsecondary">Runtime mode</span>
+          <select
+            value={runtimeMode}
+            onChange={event => setRuntimeMode(event.target.value)}
+            className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+            aria-label="MSX2 runtime mode"
+          >
+            <option value="platform">Player platform</option>
+            <option value="maze">Maze</option>
+            <option value="shooterVertical">Shooter vertical 60Hz</option>
+            <option value="shooterHorizontal">Shooter horizontal</option>
+          </select>
+        </label>
+        {runtime.screenEngine === 'shooter' && (
+          <div className="space-y-2 rounded border border-msx-border/70 p-2">
+            <div className="text-msx-highlight">Shooter 60Hz budget</div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block space-y-1">
+                <span className="text-msx-textsecondary">Scroll</span>
+                <select
+                  value={shooterConfig.scrollMode}
+                  onChange={event => updateShooterConfig({ scrollMode: event.target.value as any })}
+                  className={numberInputClass}
+                  aria-label="MSX2 shooter scroll mode"
+                >
+                  <option value="none">None</option>
+                  <option value="tileVertical">Tile vertical</option>
+                  <option value="spaceLoop">Space loop</option>
+                  <option value="bossStatic">Boss static</option>
+                </select>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-msx-textsecondary">IRQ profile</span>
+                <select
+                  value={shooterConfig.budget.activeIrqProfile}
+                  onChange={event => updateShooterBudget({ activeIrqProfile: event.target.value as any })}
+                  className={numberInputClass}
+                  aria-label="MSX2 shooter IRQ profile"
+                >
+                  {MSX2_SHOOTER_IRQ_PROFILES_60HZ.map(profile => (
+                    <option key={profile.id} value={profile.id}>{profile.id}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-msx-textsecondary">Enemies</span>
+                <input type="number" min={1} max={12} value={shooterConfig.budget.maxEnemies} onChange={event => updateShooterBudget({ maxEnemies: Number(event.target.value) || 1 })} className={numberInputClass} aria-label="MSX2 shooter max enemies" />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-msx-textsecondary">Enemy shots</span>
+                <input type="number" min={1} max={20} value={shooterConfig.budget.maxEnemyShots} onChange={event => updateShooterBudget({ maxEnemyShots: Number(event.target.value) || 1 })} className={numberInputClass} aria-label="MSX2 shooter max enemy shots" />
+              </label>
+            </div>
+            <div className="text-msx-textsecondary">
+              IRQ: {activeIrqProfile ? `${activeIrqProfile.estimatedCycles}/${activeIrqProfile.worstCaseCycles} cycles, ${activeIrqProfile.vramBytes} VRAM bytes` : 'unknown'}
+            </div>
+          </div>
+        )}
         <label className="block space-y-1">
           <span className="text-msx-textsecondary">Required collectibles</span>
           <input

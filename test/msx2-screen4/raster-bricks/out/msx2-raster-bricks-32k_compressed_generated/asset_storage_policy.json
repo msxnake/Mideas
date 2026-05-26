@@ -1,0 +1,89 @@
+[
+  {
+    "type": "msx2screen_tile",
+    "id": "brick_blank",
+    "name": "Black",
+    "ownerScreenId": "screen_msx2_raster_bricks",
+    "ownerWorldIds": [],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "brick_dark",
+    "name": "Dark Brick",
+    "ownerScreenId": "screen_msx2_raster_bricks",
+    "ownerWorldIds": [],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "brick_gold",
+    "name": "Gold Brick",
+    "ownerScreenId": "screen_msx2_raster_bricks",
+    "ownerWorldIds": [],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "brick_hot",
+    "name": "Hot Brick",
+    "ownerScreenId": "screen_msx2_raster_bricks",
+    "ownerWorldIds": [],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen_tile",
+    "id": "brick_red",
+    "name": "Red Brick",
+    "ownerScreenId": "screen_msx2_raster_bricks",
+    "ownerWorldIds": [],
+    "rawBytes": 64,
+    "storedBytesEstimate": 64,
+    "accessPattern": "compiled_into_owner_screen",
+    "mutable": false,
+    "decision": "INHERIT_OWNER_SCREEN_POLICY",
+    "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+  },
+  {
+    "type": "msx2screen",
+    "id": "asset_screen_msx2_raster_bricks",
+    "name": "MSX2 Raster Bricks Screen",
+    "rawBytes": 6347,
+    "storedBytesEstimate": 6347,
+    "accessPattern": "manifest_read",
+    "mutable": false,
+    "decision": "ROM_RAW",
+    "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
+  },
+  {
+    "type": "palette",
+    "id": "palette_msx2_raster_bricks",
+    "name": "MSX2 Raster Bricks Palette",
+    "rawBytes": 835,
+    "storedBytesEstimate": 835,
+    "accessPattern": "manifest_read",
+    "mutable": false,
+    "decision": "ROM_RAW",
+    "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
+  }
+]
