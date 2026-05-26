@@ -1742,6 +1742,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const msx2BudgetResolutionAttempts = Array.isArray(msx2BudgetResolution?.attempts)
     ? msx2BudgetResolution.attempts
     : [];
+  const msx2BudgetAutomaticResolutionPlan = msx2BudgetFeedback?.automaticResolutionPlan;
   const msx2BudgetResolverCandidates = Array.isArray(msx2BudgetFeedback?.resolverCandidates)
     ? msx2BudgetFeedback.resolverCandidates
     : [];
@@ -1760,6 +1761,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const msx2CompileFailure = (compilationResult as any)?.msx2CompileFailure;
   const msx2CompileResolution = (compilationResult as any)?.msx2CompileResolution;
   const msx2CompileFailurePlanB = msx2CompileFailure?.planB;
+  const msx2CompileAutomaticResolutionPlan = msx2CompileFailure?.automaticResolutionPlan;
+  const msx2ResidentRegenerationReadiness = msx2CompileFailure?.residentRegenerationReadiness;
   const msx2CompileResolverCandidates = Array.isArray(msx2CompileFailure?.resolverCandidates)
     ? msx2CompileFailure.resolverCandidates
     : [];
@@ -2813,6 +2816,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       {msx2BudgetResolverCandidates.length > 0 && (
                         <div className="mt-3 border-t border-msx-border pt-2 text-msx-textsecondary">
                           <div className="text-xs text-msx-textprimary">Resolver candidates:</div>
+                          {msx2BudgetAutomaticResolutionPlan && (
+                            <div className="mt-1 text-[11px]">
+                              Automatic plan: <span className="text-yellow-100">{msx2BudgetAutomaticResolutionPlan.status || 'unknown'}</span>
+                              {msx2BudgetAutomaticResolutionPlan.nextCandidateId ? ` / next ${msx2BudgetAutomaticResolutionPlan.nextCandidateId}` : ''}
+                            </div>
+                          )}
                           {msx2BudgetResolverCandidates.slice(0, 3).map((candidate: any, index: number) => (
                             <div key={`${candidate.id || 'candidate'}_${index}`} className="mt-1 font-mono text-[11px]">
                               {candidate.id || 'unknown'}: {candidate.eligible === false ? 'pending' : 'auto'} / {candidate.retryKind || 'manual'}
@@ -2926,12 +2935,51 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           ).join(', ')}
                         </div>
                       )}
+                      {msx2ResidentRegenerationReadiness && (
+                        <div className="mt-2 text-xs text-msx-textsecondary space-y-1">
+                          <div>
+                            Regeneration readiness:{' '}
+                            <span className="text-yellow-100">{msx2ResidentRegenerationReadiness.status || 'unknown'}</span>
+                          </div>
+                          <div>{msx2ResidentRegenerationReadiness.reason}</div>
+                          {msx2ResidentRegenerationReadiness.nextAutomaticAction && (
+                            <div>Next action: {msx2ResidentRegenerationReadiness.nextAutomaticAction}</div>
+                          )}
+                          {Array.isArray(msx2ResidentRegenerationReadiness.topTargets) && msx2ResidentRegenerationReadiness.topTargets.length > 0 && (
+                            <div>
+                              Move targets:{' '}
+                              {msx2ResidentRegenerationReadiness.topTargets.slice(0, 3).map((target: any) =>
+                                `${target.label || 'unknown'} (${target.category || 'data'}, ${target.estimatedBytes || target.sourceBytes || '?'} bytes)`
+                              ).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {msx2CompileResolverCandidates.length > 0 && (
                         <div className="mt-2 text-xs text-msx-textsecondary">
+                          {msx2CompileAutomaticResolutionPlan && (
+                            <div>
+                              Automatic plan:{' '}
+                              <span className="text-yellow-100">{msx2CompileAutomaticResolutionPlan.status || 'unknown'}</span>
+                              {msx2CompileAutomaticResolutionPlan.nextCandidateId ? ` / next ${msx2CompileAutomaticResolutionPlan.nextCandidateId}` : ''}
+                            </div>
+                          )}
                           Resolver candidate:{' '}
                           {msx2CompileResolverCandidates.slice(0, 2).map((candidate: any) =>
-                            `${candidate.id || 'unknown'} (${candidate.eligible === false ? 'pending' : 'auto'})`
+                            `${candidate.id || 'unknown'} (${candidate.eligible === false ? 'pending' : 'auto'}${candidate.readinessStatus ? `, ${candidate.readinessStatus}` : ''})`
                           ).join(', ')}
+                          {msx2CompileResolverCandidates.find((candidate: any) => candidate?.blockedBy) && (
+                            <div>
+                              Blocked:{' '}
+                              {msx2CompileResolverCandidates.find((candidate: any) => candidate?.blockedBy)?.blockedBy}
+                            </div>
+                          )}
+                          {msx2CompileResolverCandidates.find((candidate: any) => candidate?.nextAutomaticAction) && (
+                            <div>
+                              Candidate action:{' '}
+                              {msx2CompileResolverCandidates.find((candidate: any) => candidate?.nextAutomaticAction)?.nextAutomaticAction}
+                            </div>
+                          )}
                         </div>
                       )}
                       {msx2CompileResolverAttempts.length > 0 && (

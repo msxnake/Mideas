@@ -76,6 +76,21 @@ export interface Msx2BudgetFeedback {
     blockedBy?: string;
     regenerate?: Record<string, any>;
   }>;
+  automaticResolutionPlan?: {
+    scope: string;
+    status: 'ready' | 'blocked' | 'manual' | 'resolved';
+    nextCandidateId?: string | null;
+    nextAutomaticAction?: string | null;
+    eligibleCandidateIds: string[];
+    blockedCandidateIds: string[];
+    blockedReasons: Array<{
+      id?: string;
+      blockedBy?: string;
+      readinessStatus?: string;
+    }>;
+    attemptCount: number;
+    resolvedCandidateId?: string | null;
+  };
 }
 
 export interface Msx2BudgetPressureSummary {
@@ -306,7 +321,53 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       ramRecommendations
     },
     suggestedFixes,
-    resolverCandidates
+    resolverCandidates,
+    automaticResolutionPlan: buildMsx2AutomaticResolutionPlan(
+      'msx2_screen4_megarom_preflight_resolution_plan',
+      resolverCandidates
+    )
+  };
+};
+
+const buildMsx2AutomaticResolutionPlan = (
+  scope: string,
+  resolverCandidates: NonNullable<Msx2BudgetFeedback['resolverCandidates']> = [],
+  resolverAttempts: any[] = []
+): NonNullable<Msx2BudgetFeedback['automaticResolutionPlan']> => {
+  const candidates = Array.isArray(resolverCandidates)
+    ? resolverCandidates.filter((item) => item && typeof item === 'object')
+    : [];
+  const attempts = Array.isArray(resolverAttempts)
+    ? resolverAttempts.filter((item) => item && typeof item === 'object')
+    : [];
+  const eligible = candidates.filter((item) => item.id && item.eligible !== false);
+  const blocked = candidates.filter((item) => item.id && item.eligible === false);
+  const resolvedAttempt = [...attempts].reverse().find((item) => item.status === 'resolved') || null;
+  const nextCandidate = eligible[0] || null;
+  const status = resolvedAttempt
+    ? 'resolved'
+    : nextCandidate
+      ? 'ready'
+      : blocked.length
+        ? 'blocked'
+        : 'manual';
+  return {
+    scope,
+    status,
+    nextCandidateId: nextCandidate?.id || null,
+    nextAutomaticAction: nextCandidate
+      ? (nextCandidate.regenerate?.postAsmRules || nextCandidate.retryKind || null)
+      : null,
+    eligibleCandidateIds: eligible.map((item) => String(item.id)),
+    blockedCandidateIds: blocked.map((item) => String(item.id)),
+    blockedReasons: blocked
+      .filter((item) => item.blockedBy)
+      .map((item) => ({
+        id: item.id,
+        blockedBy: item.blockedBy
+      })),
+    attemptCount: attempts.length,
+    resolvedCandidateId: resolvedAttempt?.candidateId || null
   };
 };
 

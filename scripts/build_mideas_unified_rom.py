@@ -485,9 +485,43 @@ def build_msx2_preflight_resolver_candidates(reason: str, details: dict[str, obj
     return candidates
 
 
-def build_msx2_compile_resolver_candidates(reason: str) -> list[dict[str, object]]:
+def build_msx2_compile_resolver_candidates(
+    reason: str,
+    resident_regeneration_readiness: dict[str, object] | None = None,
+) -> list[dict[str, object]]:
     candidates: list[dict[str, object]] = []
     if "resident bank overflow" in reason.lower() or "negative initial size" in reason.lower():
+        readiness_status = (
+            str(resident_regeneration_readiness.get("status"))
+            if isinstance(resident_regeneration_readiness, dict) and resident_regeneration_readiness.get("status")
+            else ""
+        )
+        cold_data_candidate: dict[str, object] = {
+            "id": "move_cold_readonly_data_to_world_bank",
+            "eligible": False,
+            "stage": "post_compile",
+            "retryKind": "regenerate_from_project_json",
+            "reason": "Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.",
+            "blockedBy": "resident cold-data classifier/regenerator is not implemented yet",
+            "regenerate": {
+                "preferredPlacement": "world_data_bank",
+                "avoidPlacement": "ram",
+            },
+        }
+        if isinstance(resident_regeneration_readiness, dict):
+            cold_data_candidate["readinessStatus"] = readiness_status or "unknown"
+            cold_data_candidate["readinessReason"] = resident_regeneration_readiness.get("reason")
+            cold_data_candidate["nextAutomaticAction"] = resident_regeneration_readiness.get("nextAutomaticAction")
+            cold_data_candidate["topTargets"] = resident_regeneration_readiness.get("topTargets") or []
+            if readiness_status == "generator_rule_available":
+                cold_data_candidate["eligible"] = True
+                cold_data_candidate["stage"] = "precompile"
+                cold_data_candidate.pop("blockedBy", None)
+                cold_data_candidate["reason"] = "Resident SCREEN 4 runtime layer data can be regenerated into world data banks with the current generator policy."
+            elif readiness_status == "needs_classifier_rule":
+                cold_data_candidate["blockedBy"] = "cold read-only data exists, but no generator classifier owns those labels yet"
+            elif readiness_status == "no_cold_readonly_targets":
+                cold_data_candidate["blockedBy"] = "no cold read-only resident contributors remain to move automatically"
         candidates.append({
             "id": "run_post_asm_dead_block_optimizer",
             "eligible": True,
@@ -500,18 +534,7 @@ def build_msx2_compile_resolver_candidates(reason: str) -> list[dict[str, object
                 "fallback": "keep_last_known_failure_report_if_optimized_asm_still_fails",
             },
         })
-        candidates.append({
-            "id": "move_cold_readonly_data_to_world_bank",
-            "eligible": False,
-            "stage": "post_compile",
-            "retryKind": "regenerate_asm",
-            "reason": "Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.",
-            "blockedBy": "resident cold-data classifier/regenerator is not implemented yet",
-            "regenerate": {
-                "preferredPlacement": "world_data_bank",
-                "avoidPlacement": "ram",
-            },
-        })
+        candidates.append(cold_data_candidate)
     if not candidates:
         candidates.append({
             "id": "manual_compile_review",
@@ -521,6 +544,136 @@ def build_msx2_compile_resolver_candidates(reason: str) -> list[dict[str, object
             "reason": "No automatic compile resolver is registered for this Glass failure.",
         })
     return candidates
+
+
+def build_msx2_automatic_resolution_plan(
+    scope: str,
+    resolver_candidates: list[dict[str, object]] | None,
+    resolver_attempts: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    candidates = [
+        item for item in (resolver_candidates or [])
+        if isinstance(item, dict)
+    ]
+    attempts = [
+        item for item in (resolver_attempts or [])
+        if isinstance(item, dict)
+    ]
+    eligible = [
+        item for item in candidates
+        if item.get("id") and item.get("eligible") is not False
+    ]
+    blocked = [
+        item for item in candidates
+        if item.get("id") and item.get("eligible") is False
+    ]
+    resolved_attempt = next(
+        (item for item in reversed(attempts) if item.get("status") == "resolved"),
+        None,
+    )
+    next_candidate = eligible[0] if eligible else None
+    if resolved_attempt:
+        status = "resolved"
+    elif next_candidate:
+        status = "ready"
+    elif blocked:
+        status = "blocked"
+    else:
+        status = "manual"
+    return {
+        "scope": scope,
+        "status": status,
+        "nextCandidateId": next_candidate.get("id") if isinstance(next_candidate, dict) else None,
+        "nextAutomaticAction": (
+            next_candidate.get("nextAutomaticAction")
+            or (next_candidate.get("regenerate") or {}).get("postAsmRules")
+            or next_candidate.get("retryKind")
+            if isinstance(next_candidate, dict)
+            else None
+        ),
+        "eligibleCandidateIds": [str(item.get("id")) for item in eligible],
+        "blockedCandidateIds": [str(item.get("id")) for item in blocked],
+        "blockedReasons": [
+            {
+                "id": item.get("id"),
+                "blockedBy": item.get("blockedBy"),
+                "readinessStatus": item.get("readinessStatus"),
+            }
+            for item in blocked
+            if item.get("blockedBy") or item.get("readinessStatus")
+        ],
+        "attemptCount": len(attempts),
+        "resolvedCandidateId": resolved_attempt.get("candidateId") if isinstance(resolved_attempt, dict) else None,
+    }
+
+
+def build_msx2_resident_regeneration_readiness(resident_bank_analysis: dict[str, object]) -> dict[str, object]:
+    contributors = [
+        item
+        for item in (resident_bank_analysis.get("topContributors") or [])
+        if isinstance(item, dict)
+    ]
+    movable = [
+        item
+        for item in contributors
+        if item.get("moveCandidate") is True
+    ]
+    screen_layers = [
+        item
+        for item in movable
+        if item.get("category") == "screen_runtime_layer"
+    ]
+    raw_data = [
+        item
+        for item in movable
+        if item.get("category") == "data"
+    ]
+    top_targets = [
+        {
+            "label": item.get("label"),
+            "category": item.get("category"),
+            "estimatedBytes": int(item.get("estimatedBytes") or 0),
+            "sourceBytes": int(item.get("sourceBytes") or 0),
+            "startLine": item.get("startLine"),
+            "endLine": item.get("endLine"),
+        }
+        for item in movable[:5]
+    ]
+    if screen_layers:
+        return {
+            "scope": "msx2_screen4_resident_regeneration_readiness",
+            "status": "generator_rule_available",
+            "candidateId": "move_cold_readonly_data_to_world_bank",
+            "reason": "Resident SCREEN 4 layer tables are still present; current generator policy can place collision/behavior/effects in world data banks and cache hot layers in RAM.",
+            "nextAutomaticAction": "regenerate_from_project_json_with_current_screen4_runtime_layer_policy",
+            "movableContributorCount": len(movable),
+            "screenRuntimeLayerContributorCount": len(screen_layers),
+            "rawDataContributorCount": len(raw_data),
+            "topTargets": top_targets,
+        }
+    if raw_data:
+        return {
+            "scope": "msx2_screen4_resident_regeneration_readiness",
+            "status": "needs_classifier_rule",
+            "candidateId": "move_cold_readonly_data_to_world_bank",
+            "reason": "Resident read-only data remains, but it is not one of the SCREEN 4 runtime layer classes already handled by the generator.",
+            "nextAutomaticAction": "add_or_extend_cold_data_classifier_before_retry",
+            "movableContributorCount": len(movable),
+            "screenRuntimeLayerContributorCount": len(screen_layers),
+            "rawDataContributorCount": len(raw_data),
+            "topTargets": top_targets,
+        }
+    return {
+        "scope": "msx2_screen4_resident_regeneration_readiness",
+        "status": "no_cold_readonly_targets",
+        "candidateId": "move_cold_readonly_data_to_world_bank",
+        "reason": "No resident screen-layer or obvious read-only data contributors remain in the fixed section; further recovery should focus on dead runtime code, far code, or feature slicing.",
+        "nextAutomaticAction": "run_post_asm_dead_block_optimizer_or_reduce_resident_runtime",
+        "movableContributorCount": 0,
+        "screenRuntimeLayerContributorCount": 0,
+        "rawDataContributorCount": 0,
+        "topTargets": [],
+    }
 
 
 def write_msx2_preflight_failure_summary(
@@ -551,6 +704,7 @@ def write_msx2_preflight_failure_summary(
         ]
         if artifact_path.exists()
     ])
+    resolver_candidates = build_msx2_preflight_resolver_candidates(reason, failure_details)
     failure_summary = {
         "scope": "msx2_screen4_megarom_preflight_failure",
         "status": "error",
@@ -616,7 +770,11 @@ def write_msx2_preflight_failure_summary(
             "recoveryPlan": logical_budget.get("recoveryPlan") or [],
             "ramRecommendations": ram_budget.get("recommendations") or [],
         },
-        "resolverCandidates": build_msx2_preflight_resolver_candidates(reason, failure_details),
+        "resolverCandidates": resolver_candidates,
+        "automaticResolutionPlan": build_msx2_automatic_resolution_plan(
+            "msx2_screen4_megarom_preflight_resolution_plan",
+            resolver_candidates,
+        ),
         "details": failure_details,
     }
     failure_path = artifact_dir / "msx2_preflight_failure.json"
@@ -634,6 +792,28 @@ def write_msx2_loader_capability_failure_summary(
     ram_budget: dict,
     details: dict[str, object],
 ) -> Path:
+    resolver_candidates = [
+        {
+            "id": "emit_multi_bank_world_data_loader",
+            "eligible": False,
+            "stage": "asm_generation",
+            "retryKind": "regenerate_asm",
+            "reason": "The logical allocator produced multiple data banks, but the current SCREEN 4 loader can map only one #8000 data bank.",
+            "blockedBy": "multi-bank SCREEN 4 data loader is not implemented yet",
+        },
+        {
+            "id": "enable_zx0_preprocess",
+            "eligible": True,
+            "stage": "preflight",
+            "retryKind": "regenerate_asm",
+            "reason": "Selective ZX0 may reduce data to one physical data bank.",
+            "requires": ["source build used --skip-zx0-preprocess"],
+            "regenerate": {
+                "argsRemove": ["--skip-zx0-preprocess"],
+                "argsAdd": [],
+            },
+        },
+    ]
     failure_summary = {
         "scope": "msx2_screen4_megarom_preflight_failure",
         "status": "error",
@@ -676,28 +856,11 @@ def write_msx2_loader_capability_failure_summary(
             "recoveryPlan": logical_budget.get("recoveryPlan") or [],
             "ramRecommendations": ram_budget.get("recommendations") or [],
         },
-        "resolverCandidates": [
-            {
-                "id": "emit_multi_bank_world_data_loader",
-                "eligible": False,
-                "stage": "asm_generation",
-                "retryKind": "regenerate_asm",
-                "reason": "The logical allocator produced multiple data banks, but the current SCREEN 4 loader can map only one #8000 data bank.",
-                "blockedBy": "multi-bank SCREEN 4 data loader is not implemented yet",
-            },
-            {
-                "id": "enable_zx0_preprocess",
-                "eligible": True,
-                "stage": "preflight",
-                "retryKind": "regenerate_asm",
-                "reason": "Selective ZX0 may reduce data to one physical data bank.",
-                "requires": ["source build used --skip-zx0-preprocess"],
-                "regenerate": {
-                    "argsRemove": ["--skip-zx0-preprocess"],
-                    "argsAdd": [],
-                },
-            },
-        ],
+        "resolverCandidates": resolver_candidates,
+        "automaticResolutionPlan": build_msx2_automatic_resolution_plan(
+            "msx2_screen4_megarom_preflight_resolution_plan",
+            resolver_candidates,
+        ),
         "details": details,
     }
     failure_path = artifact_dir / "msx2_preflight_failure.json"
@@ -737,6 +900,7 @@ def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | No
     ]
     world_bank_manifest = failure.get("worldBankManifest") if isinstance(failure.get("worldBankManifest"), dict) else {}
     rom = failure.get("rom") if isinstance(failure.get("rom"), dict) else {}
+    automatic_resolution_plan = failure.get("automaticResolutionPlan") if isinstance(failure.get("automaticResolutionPlan"), dict) else {}
     resolver_candidates = [
         item for item in failure.get("resolverCandidates") or []
         if isinstance(item, dict)
@@ -758,6 +922,12 @@ def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | No
         "artifactCheckNames": [item.get("name") for item in artifact_checks if item.get("name")],
         "resolverCandidateIds": resolver_candidate_ids,
         "eligibleResolverCandidateIds": eligible_resolver_candidate_ids,
+        "automaticResolutionPlan": {
+            "status": automatic_resolution_plan.get("status"),
+            "nextCandidateId": automatic_resolution_plan.get("nextCandidateId"),
+            "eligibleCandidateIds": automatic_resolution_plan.get("eligibleCandidateIds") or eligible_resolver_candidate_ids,
+            "blockedCandidateIds": automatic_resolution_plan.get("blockedCandidateIds") or [],
+        },
         "worldBankManifest": {
             "worldCount": world_bank_manifest.get("worldCount"),
             "estimatedPhysicalBankCount": world_bank_manifest.get("estimatedPhysicalBankCount"),
@@ -1252,6 +1422,8 @@ def write_msx2_compile_failure_summary(
 
     asm_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore") if asm_to_compile.exists() else ""
     resident_bank_analysis = analyze_msx2_resident_asm_contributors(asm_text, overflow_bytes=_extract_overflow_bytes_from_reason(reason))
+    resident_regeneration_readiness = build_msx2_resident_regeneration_readiness(resident_bank_analysis)
+    resolver_candidates = build_msx2_compile_resolver_candidates(reason, resident_regeneration_readiness)
     largest_resident_contributors = [
         f"{item.get('label')}: {int(item.get('estimatedBytes') or item.get('sourceBytes') or 0)} bytes"
         for item in resident_bank_analysis.get("topContributors", [])[:5]
@@ -1283,9 +1455,15 @@ def write_msx2_compile_failure_summary(
             "largestContributors": largest_resident_contributors,
         },
         "residentBankAnalysis": resident_bank_analysis,
+        "residentRegenerationReadiness": resident_regeneration_readiness,
         "residentContributors": resident_bank_analysis.get("topContributors", []),
-        "resolverCandidates": build_msx2_compile_resolver_candidates(reason),
+        "resolverCandidates": resolver_candidates,
         "resolverAttempts": resolver_attempts or [],
+        "automaticResolutionPlan": build_msx2_automatic_resolution_plan(
+            "msx2_screen4_megarom_compile_resolution_plan",
+            resolver_candidates,
+            resolver_attempts,
+        ),
     }
     failure_path = artifact_dir / "msx2_compile_failure.json"
     failure_path.write_text(

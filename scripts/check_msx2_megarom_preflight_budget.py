@@ -1003,6 +1003,11 @@ def main() -> None:
         ]
         if resident_bank_analysis.get("scope") != "msx2_screen4_resident_label_spans" or "SCREEN_TEST_COLLISION" not in contributor_labels:
             raise AssertionError(f"Compile failure did not expose resident contributors: {compile_failure}")
+        regeneration_readiness = compile_failure.get("residentRegenerationReadiness") or {}
+        if regeneration_readiness.get("status") != "generator_rule_available":
+            raise AssertionError(f"Compile failure did not classify resident layer regeneration readiness: {compile_failure}")
+        if not regeneration_readiness.get("topTargets") or regeneration_readiness.get("candidateId") != "move_cold_readonly_data_to_world_bank":
+            raise AssertionError(f"Compile failure did not expose movable cold-data targets: {compile_failure}")
         collision_entry = next((item for item in resident_bank_analysis.get("topContributors") or [] if item.get("label") == "SCREEN_TEST_COLLISION"), None)
         if not collision_entry or int(collision_entry.get("startLine") or 0) <= 0 or int(collision_entry.get("endLine") or 0) < int(collision_entry.get("startLine") or 0):
             raise AssertionError(f"Compile failure resident contributor did not include valid line span: {compile_failure}")
@@ -1015,6 +1020,20 @@ def main() -> None:
             raise AssertionError(f"Compile failure did not expose automatic post-ASM resolver candidate: {compile_failure}")
         if "move_cold_readonly_data_to_world_bank" not in compile_candidate_ids:
             raise AssertionError(f"Compile failure did not expose resident overflow resolver candidate: {compile_failure}")
+        cold_data_candidate = next(
+            (
+                item for item in (compile_failure.get("resolverCandidates") or [])
+                if isinstance(item, dict) and item.get("id") == "move_cold_readonly_data_to_world_bank"
+            ),
+            None,
+        )
+        if not cold_data_candidate or cold_data_candidate.get("eligible") is not True or cold_data_candidate.get("readinessStatus") != "generator_rule_available":
+            raise AssertionError(f"Compile failure did not mark resident cold-data regeneration as actionable: {compile_failure}")
+        if cold_data_candidate.get("nextAutomaticAction") != "regenerate_from_project_json_with_current_screen4_runtime_layer_policy":
+            raise AssertionError(f"Compile failure did not expose the next automatic resident action: {compile_failure}")
+        automatic_plan = compile_failure.get("automaticResolutionPlan") or {}
+        if automatic_plan.get("status") != "ready" or automatic_plan.get("nextCandidateId") != "run_post_asm_dead_block_optimizer":
+            raise AssertionError(f"Compile failure did not expose an automatic resolution plan: {compile_failure}")
         compile_failure_with_attempts_path = write_msx2_compile_failure_summary(
             compile_failure_dir,
             overflow_asm,

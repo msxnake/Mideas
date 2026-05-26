@@ -1382,6 +1382,26 @@ Current CLI gate:
     `current_screen` RAM cache. The IDE/server budget feedback forwards the
     same policy so automatic regeneration can explain that the resident
     pressure was reduced by moving cold read-only layers, not by hiding bytes.
+15. Resident overflow diagnostics now include
+    `residentRegenerationReadiness`. This bridges the detailed bank contributor
+    report to the next automatic action: if resident SCREEN 4 layer labels are
+    still present, the current generator rule can regenerate from project JSON;
+    if only generic read-only data remains, the report says a new classifier
+    rule is needed; if no cold-data targets remain, Mideas should continue with
+    Post-ASM dead-block removal, far-code splitting, or runtime feature slicing.
+16. The compile `resolverCandidates` list now consumes that readiness signal.
+    `move_cold_readonly_data_to_world_bank` is marked actionable only when the
+    failure still contains SCREEN 4 runtime layer labels already handled by the
+    generator; otherwise the same candidate stays blocked with the exact missing
+    classifier or "no cold targets" reason. The UI shows the readiness status,
+    blocked reason, and next automatic action next to the resident overflow
+    report.
+17. Failure summaries and IDE feedback now include `automaticResolutionPlan`.
+    This is the compact decision layer over `resolverCandidates`: it lists which
+    resolver IDs are eligible, which are blocked, the first next retry Mideas can
+    attempt, and whether previous attempts already resolved the failure. This
+    gives the future regeneration loop a single stable field to consume instead
+    of reinterpreting bank diagnostics or UI strings.
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor

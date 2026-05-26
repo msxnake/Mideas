@@ -33,7 +33,10 @@ const {
 } = await import(pathToFileURL(helperModulePath).href);
 
 const serverSource = readFileSync(join(repoRoot, 'server', 'server.js'), 'utf8');
-const serverFeedbackStart = serverSource.indexOf('function extractMideasArtifactCommentBlock');
+const serverFeedbackHelperStart = serverSource.indexOf('function buildMsx2AutomaticResolutionPlan');
+const serverFeedbackStart = serverFeedbackHelperStart >= 0
+  ? serverFeedbackHelperStart
+  : serverSource.indexOf('function extractMideasArtifactCommentBlock');
 const serverFeedbackEnd = serverSource.indexOf('function isResourceTableRamZx0Candidate');
 if (serverFeedbackStart < 0 || serverFeedbackEnd < serverFeedbackStart) {
   throw new Error('Could not locate server MSX2 budget feedback helper block');
@@ -301,6 +304,9 @@ if (feedback.worldBankManifest?.dataWindowAddress !== '#A000') {
 if (!Array.isArray(feedback.resolverCandidates) || feedback.resolverCandidates[0]?.id !== 'relax_strict_warning_gate') {
   throw new Error(`Expected warning feedback to expose resolver candidates: ${JSON.stringify(feedback.resolverCandidates)}`);
 }
+if (feedback.automaticResolutionPlan?.status !== 'ready' || feedback.automaticResolutionPlan?.nextCandidateId !== 'relax_strict_warning_gate') {
+  throw new Error(`Expected warning feedback to expose automatic resolution plan: ${JSON.stringify(feedback.automaticResolutionPlan)}`);
+}
 
 const pressure = summarizeMsx2BudgetPressure(feedback);
 if (pressure.residentCoreBytes !== 1200) {
@@ -362,6 +368,9 @@ if (serverResolutionContext.worldBankManifest?.overBudgetBankCount !== 1) {
 if (!Array.isArray(serverResolutionContext.eligibleResolverCandidateIds) || !serverResolutionContext.eligibleResolverCandidateIds.includes('relax_strict_warning_gate')) {
   throw new Error(`Expected server resolution context to preserve resolver candidates: ${JSON.stringify(serverResolutionContext)}`);
 }
+if (serverResolutionContext.automaticResolutionPlan?.nextCandidateId !== 'relax_strict_warning_gate') {
+  throw new Error(`Expected server resolution context to preserve automatic plan: ${JSON.stringify(serverResolutionContext)}`);
+}
 
 const residentOverflowAsm = [
   '; Mideas MSX2 SCREEN 4 tile backend',
@@ -389,14 +398,26 @@ if ((residentFailure.pipelineGates || [])[0]?.status !== 'failed') {
 if (!residentFailure.planB?.primary?.includes('Move cold read-only tables')) {
   throw new Error(`Expected Plan B guidance in resident failure: ${JSON.stringify(residentFailure.planB)}`);
 }
+if (residentFailure.residentRegenerationReadiness?.status !== 'no_cold_readonly_targets') {
+  throw new Error(`Expected resident regeneration readiness in server failure: ${JSON.stringify(residentFailure.residentRegenerationReadiness)}`);
+}
 const residentCandidateIds = Array.isArray(residentFailure.resolverCandidates)
   ? residentFailure.resolverCandidates.map((candidate) => candidate?.id)
   : [];
+const residentColdDataCandidate = Array.isArray(residentFailure.resolverCandidates)
+  ? residentFailure.resolverCandidates.find((candidate) => candidate?.id === 'move_cold_readonly_data_to_world_bank')
+  : null;
 if (
   residentCandidateIds[0] !== 'run_post_asm_dead_block_optimizer' ||
   !residentCandidateIds.includes('move_cold_readonly_data_to_world_bank')
 ) {
   throw new Error(`Expected resident failure resolver candidate: ${JSON.stringify(residentFailure)}`);
+}
+if (residentColdDataCandidate?.readinessStatus !== 'no_cold_readonly_targets' || residentColdDataCandidate?.eligible !== false || !residentColdDataCandidate?.blockedBy) {
+  throw new Error(`Expected resident cold-data candidate to carry blocked readiness: ${JSON.stringify(residentColdDataCandidate)}`);
+}
+if (residentFailure.automaticResolutionPlan?.status !== 'ready' || residentFailure.automaticResolutionPlan?.nextCandidateId !== 'run_post_asm_dead_block_optimizer') {
+  throw new Error(`Expected resident failure automatic resolution plan: ${JSON.stringify(residentFailure.automaticResolutionPlan)}`);
 }
 if (buildServerMsx2ResidentOverflowFailure('; plain asm', 'Negative initial size: -12', 'plain.asm') !== null) {
   throw new Error('Expected null resident failure for non-MSX2 source');

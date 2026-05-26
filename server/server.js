@@ -861,9 +861,42 @@ function getNegativeDsOverflowBytes(text) {
   return Math.abs(parsed);
 }
 
-function buildMsx2CompileResolverCandidates(reason) {
+function buildMsx2CompileResolverCandidates(reason, residentRegenerationReadiness = null) {
   const normalized = String(reason || '').toLowerCase();
   if (normalized.includes('resident') || normalized.includes('negative initial size') || normalized.includes('#c000')) {
+    const readinessStatus = residentRegenerationReadiness && residentRegenerationReadiness.status
+      ? String(residentRegenerationReadiness.status)
+      : '';
+    const coldDataCandidate = {
+      id: 'move_cold_readonly_data_to_world_bank',
+      eligible: false,
+      stage: 'post_compile',
+      retryKind: 'regenerate_from_project_json',
+      reason: 'Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.',
+      blockedBy: 'resident cold-data classifier/regenerator is not implemented yet',
+      regenerate: {
+        preferredPlacement: 'world_data_bank',
+        avoidPlacement: 'ram'
+      }
+    };
+    if (residentRegenerationReadiness && typeof residentRegenerationReadiness === 'object') {
+      coldDataCandidate.readinessStatus = readinessStatus || 'unknown';
+      coldDataCandidate.readinessReason = residentRegenerationReadiness.reason;
+      coldDataCandidate.nextAutomaticAction = residentRegenerationReadiness.nextAutomaticAction;
+      coldDataCandidate.topTargets = Array.isArray(residentRegenerationReadiness.topTargets)
+        ? residentRegenerationReadiness.topTargets
+        : [];
+      if (readinessStatus === 'generator_rule_available') {
+        coldDataCandidate.eligible = true;
+        coldDataCandidate.stage = 'precompile';
+        delete coldDataCandidate.blockedBy;
+        coldDataCandidate.reason = 'Resident SCREEN 4 runtime layer data can be regenerated into world data banks with the current generator policy.';
+      } else if (readinessStatus === 'needs_classifier_rule') {
+        coldDataCandidate.blockedBy = 'cold read-only data exists, but no generator classifier owns those labels yet';
+      } else if (readinessStatus === 'no_cold_readonly_targets') {
+        coldDataCandidate.blockedBy = 'no cold read-only resident contributors remain to move automatically';
+      }
+    }
     return [
       {
         id: 'run_post_asm_dead_block_optimizer',
@@ -877,18 +910,7 @@ function buildMsx2CompileResolverCandidates(reason) {
           fallback: 'keep_last_known_failure_report_if_optimized_asm_still_fails'
         }
       },
-      {
-        id: 'move_cold_readonly_data_to_world_bank',
-        eligible: false,
-        stage: 'post_compile',
-        retryKind: 'regenerate_asm',
-        reason: 'Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.',
-        blockedBy: 'resident cold-data classifier/regenerator is not implemented yet',
-        regenerate: {
-          preferredPlacement: 'world_data_bank',
-          avoidPlacement: 'ram'
-        }
-      }
+      coldDataCandidate
     ];
   }
   return [
@@ -900,6 +922,99 @@ function buildMsx2CompileResolverCandidates(reason) {
       reason: 'No automatic compile resolver is registered for this Glass failure.'
     }
   ];
+}
+
+function buildMsx2AutomaticResolutionPlan(scope, resolverCandidates = [], resolverAttempts = []) {
+  const candidates = Array.isArray(resolverCandidates)
+    ? resolverCandidates.filter((item) => item && typeof item === 'object')
+    : [];
+  const attempts = Array.isArray(resolverAttempts)
+    ? resolverAttempts.filter((item) => item && typeof item === 'object')
+    : [];
+  const eligible = candidates.filter((item) => item.id && item.eligible !== false);
+  const blocked = candidates.filter((item) => item.id && item.eligible === false);
+  const resolvedAttempt = [...attempts].reverse().find((item) => item.status === 'resolved') || null;
+  const nextCandidate = eligible[0] || null;
+  const status = resolvedAttempt
+    ? 'resolved'
+    : nextCandidate
+      ? 'ready'
+      : blocked.length
+        ? 'blocked'
+        : 'manual';
+  return {
+    scope,
+    status,
+    nextCandidateId: nextCandidate?.id || null,
+    nextAutomaticAction: nextCandidate
+      ? (nextCandidate.nextAutomaticAction || nextCandidate.regenerate?.postAsmRules || nextCandidate.retryKind || null)
+      : null,
+    eligibleCandidateIds: eligible.map((item) => String(item.id)),
+    blockedCandidateIds: blocked.map((item) => String(item.id)),
+    blockedReasons: blocked
+      .filter((item) => item.blockedBy || item.readinessStatus)
+      .map((item) => ({
+        id: item.id,
+        blockedBy: item.blockedBy,
+        readinessStatus: item.readinessStatus
+      })),
+    attemptCount: attempts.length,
+    resolvedCandidateId: resolvedAttempt?.candidateId || null
+  };
+}
+
+function buildMsx2ResidentRegenerationReadiness(residentBankAnalysis) {
+  const contributors = Array.isArray(residentBankAnalysis?.topContributors)
+    ? residentBankAnalysis.topContributors.filter((item) => item && typeof item === 'object')
+    : [];
+  const movable = contributors.filter((item) => item.moveCandidate === true);
+  const screenLayers = movable.filter((item) => item.category === 'screen_runtime_layer');
+  const rawData = movable.filter((item) => item.category === 'data');
+  const topTargets = movable.slice(0, 5).map((item) => ({
+    label: item.label,
+    category: item.category,
+    estimatedBytes: Number(item.estimatedBytes || 0),
+    sourceBytes: Number(item.sourceBytes || 0),
+    startLine: item.startLine,
+    endLine: item.endLine
+  }));
+  if (screenLayers.length > 0) {
+    return {
+      scope: 'msx2_screen4_resident_regeneration_readiness',
+      status: 'generator_rule_available',
+      candidateId: 'move_cold_readonly_data_to_world_bank',
+      reason: 'Resident SCREEN 4 layer tables are still present; current generator policy can place collision/behavior/effects in world data banks and cache hot layers in RAM.',
+      nextAutomaticAction: 'regenerate_from_project_json_with_current_screen4_runtime_layer_policy',
+      movableContributorCount: movable.length,
+      screenRuntimeLayerContributorCount: screenLayers.length,
+      rawDataContributorCount: rawData.length,
+      topTargets
+    };
+  }
+  if (rawData.length > 0) {
+    return {
+      scope: 'msx2_screen4_resident_regeneration_readiness',
+      status: 'needs_classifier_rule',
+      candidateId: 'move_cold_readonly_data_to_world_bank',
+      reason: 'Resident read-only data remains, but it is not one of the SCREEN 4 runtime layer classes already handled by the generator.',
+      nextAutomaticAction: 'add_or_extend_cold_data_classifier_before_retry',
+      movableContributorCount: movable.length,
+      screenRuntimeLayerContributorCount: screenLayers.length,
+      rawDataContributorCount: rawData.length,
+      topTargets
+    };
+  }
+  return {
+    scope: 'msx2_screen4_resident_regeneration_readiness',
+    status: 'no_cold_readonly_targets',
+    candidateId: 'move_cold_readonly_data_to_world_bank',
+    reason: 'No resident screen-layer or obvious read-only data contributors remain in the fixed section; further recovery should focus on dead runtime code, far code, or feature slicing.',
+    nextAutomaticAction: 'run_post_asm_dead_block_optimizer_or_reduce_resident_runtime',
+    movableContributorCount: 0,
+    screenRuntimeLayerContributorCount: 0,
+    rawDataContributorCount: 0,
+    topTargets: []
+  };
 }
 
 function stripAsmComment(line) {
@@ -1063,6 +1178,8 @@ function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile)
     return null;
   }
   const residentBankAnalysis = analyzeMsx2ResidentAsmContributors(text);
+  const residentRegenerationReadiness = buildMsx2ResidentRegenerationReadiness(residentBankAnalysis);
+  const resolverCandidates = buildMsx2CompileResolverCandidates(fullErrorText, residentRegenerationReadiness);
   const largestResidentContributors = (residentBankAnalysis.topContributors || [])
     .slice(0, 5)
     .map((item) => `${item.label}: ${Number(item.estimatedBytes || item.sourceBytes || 0)} bytes`);
@@ -1079,6 +1196,7 @@ function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile)
         overflowBytes
       }
     },
+    residentRegenerationReadiness,
     residentContributors: residentBankAnalysis.topContributors,
     pipelineGates: [
       {
@@ -1093,7 +1211,11 @@ function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile)
       avoid: 'Do not solve resident ROM pressure by copying whole worlds into RAM.',
       largestContributors: largestResidentContributors
     },
-    resolverCandidates: buildMsx2CompileResolverCandidates(fullErrorText)
+    resolverCandidates,
+    automaticResolutionPlan: buildMsx2AutomaticResolutionPlan(
+      'msx2_screen4_megarom_compile_resolution_plan',
+      resolverCandidates
+    )
   };
 }
 
@@ -1802,7 +1924,11 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       ramRecommendations: ramWarnings
     },
     suggestedFixes,
-    resolverCandidates
+    resolverCandidates,
+    automaticResolutionPlan: buildMsx2AutomaticResolutionPlan(
+      'msx2_screen4_megarom_preflight_resolution_plan',
+      resolverCandidates
+    )
   };
 }
 
@@ -1882,6 +2008,9 @@ function buildMsx2BudgetResolutionFailureContext(feedback) {
   const overBudgetAssets = largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0);
   const ramStatus = String(feedback.ram?.status || 'unknown');
   const resolverCandidates = Array.isArray(feedback.resolverCandidates) ? feedback.resolverCandidates : [];
+  const automaticResolutionPlan = feedback.automaticResolutionPlan && typeof feedback.automaticResolutionPlan === 'object'
+    ? feedback.automaticResolutionPlan
+    : null;
   let failedGateId = 'ide_budget_feedback';
   if (ramStatus && ramStatus !== 'ok' && ramStatus !== 'unknown') {
     failedGateId = 'ram_budget_report';
@@ -1919,7 +2048,13 @@ function buildMsx2BudgetResolutionFailureContext(feedback) {
     eligibleResolverCandidateIds: resolverCandidates
       .filter((item) => item?.eligible !== false)
       .map((item) => item?.id)
-      .filter(Boolean)
+      .filter(Boolean),
+    automaticResolutionPlan: automaticResolutionPlan ? {
+      status: automaticResolutionPlan.status,
+      nextCandidateId: automaticResolutionPlan.nextCandidateId,
+      eligibleCandidateIds: automaticResolutionPlan.eligibleCandidateIds || [],
+      blockedCandidateIds: automaticResolutionPlan.blockedCandidateIds || []
+    } : null
   };
 }
 
