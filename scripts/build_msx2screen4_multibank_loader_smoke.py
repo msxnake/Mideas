@@ -172,19 +172,49 @@ def validate_multibank_artifacts(asm_output: Path, rom_output: Path) -> None:
         f"ld hl, {target_label}_NAMES",
         f"ld hl, {target_label}_COLLISION",
         "ld de, msx2_collision_runtime_cache",
+        "ld bc, msx2_layer_size",
+        "ldir",
         f"ld hl, {target_label}_BEHAVIOR",
         "ld de, msx2_behavior_runtime_cache",
+        "ld bc, msx2_layer_size",
+        "ldir",
         "ld (msx2_current_collision_ptr), hl",
         "ld (msx2_current_behavior_ptr), hl",
         "call msx2_screen4_data_bank_leave",
     ):
         if needle not in load_body:
             raise RuntimeError(f"Target load routine does not use the selected data bank correctly; missing {needle}")
+    enter_selected = load_body.find("call msx2_screen4_data_bank_enter_selected")
     collision_copy_start = load_body.find(f"ld hl, {target_label}_COLLISION")
+    collision_dest = load_body.find("ld de, msx2_collision_runtime_cache", collision_copy_start)
+    collision_size = load_body.find("ld bc, msx2_layer_size", collision_dest)
+    collision_ldir = load_body.find("ldir", collision_size)
     behavior_copy_start = load_body.find(f"ld hl, {target_label}_BEHAVIOR")
+    behavior_dest = load_body.find("ld de, msx2_behavior_runtime_cache", behavior_copy_start)
+    behavior_size = load_body.find("ld bc, msx2_layer_size", behavior_dest)
+    behavior_ldir = load_body.find("ldir", behavior_size)
     cache_leave = load_body.find("call msx2_screen4_data_bank_leave", max(collision_copy_start, 0))
-    if collision_copy_start < 0 or behavior_copy_start < 0 or cache_leave < 0 or not (collision_copy_start < behavior_copy_start < cache_leave):
-        raise RuntimeError("Target load routine must copy collision and behavior caches before leaving the selected data bank")
+    collision_ptr = load_body.find("ld (msx2_current_collision_ptr), hl", cache_leave)
+    behavior_ptr = load_body.find("ld (msx2_current_behavior_ptr), hl", cache_leave)
+    ordered_cache_steps = [
+        enter_selected,
+        collision_copy_start,
+        collision_dest,
+        collision_size,
+        collision_ldir,
+        behavior_copy_start,
+        behavior_dest,
+        behavior_size,
+        behavior_ldir,
+        cache_leave,
+        collision_ptr,
+        behavior_ptr,
+    ]
+    if any(position < 0 for position in ordered_cache_steps) or ordered_cache_steps != sorted(ordered_cache_steps):
+        raise RuntimeError(
+            "Target load routine must copy collision/behavior with LDIR inside the selected data bank "
+            "and switch gameplay pointers to RAM caches after leaving it"
+        )
 
     bank0 = extract_section(asm, "MSX2_SCREEN4_DATA_BANK_0_ROM_START")
     bank1 = extract_section(asm, "MSX2_SCREEN4_DATA_BANK_1_ROM_START")

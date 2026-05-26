@@ -503,6 +503,7 @@ def build_msx2_compile_resolver_candidates(
             "eligible": False,
             "stage": "post_compile",
             "retryKind": "regenerate_from_project_json",
+            "priority": 20,
             "reason": "Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.",
             "blockedBy": "resident cold-data classifier/regenerator is not implemented yet",
             "regenerate": {
@@ -517,6 +518,7 @@ def build_msx2_compile_resolver_candidates(
             cold_data_candidate["topTargets"] = resident_regeneration_readiness.get("topTargets") or []
             if readiness_status == "generator_rule_available":
                 cold_data_candidate["eligible"] = True
+                cold_data_candidate["priority"] = 5
                 cold_data_candidate["stage"] = "precompile"
                 cold_data_candidate.pop("blockedBy", None)
                 cold_data_candidate["reason"] = "Resident SCREEN 4 runtime layer data can be regenerated into world data banks with the current generator policy."
@@ -529,6 +531,7 @@ def build_msx2_compile_resolver_candidates(
             "eligible": True,
             "stage": "post_compile",
             "retryKind": "regenerate_asm",
+            "priority": 10,
             "reason": "A resident bank overflow can sometimes be recovered by removing annotated dead ASM blocks and recompiling the optimized ASM.",
             "regenerate": {
                 "postAsmRules": "dead-blocks",
@@ -565,6 +568,10 @@ def build_msx2_automatic_resolution_plan(
         item for item in candidates
         if item.get("id") and item.get("eligible") is not False
     ]
+    eligible = sorted(
+        eligible,
+        key=lambda item: int(item.get("priority") or 100),
+    )
     blocked = [
         item for item in candidates
         if item.get("id") and item.get("eligible") is False
@@ -1995,6 +2002,38 @@ def validate_msx2_screen4_megarom_preflight_budget(
     storage_policy_artifact = read_preflight_json_artifact(storage_policy_path, "asset_storage_policy.json")
     if storage_policy_artifact != storage_policy:
         raise RuntimeError("MSX2 MegaROM preflight failed: asset_storage_policy.json differs from project_slice.json")
+    screen_policies = [
+        policy for policy in storage_policy
+        if isinstance(policy, dict) and policy.get("type") == "msx2screen"
+    ]
+    if not screen_policies:
+        raise RuntimeError("MSX2 MegaROM preflight failed: assetStoragePolicy has no reachable msx2screen entries")
+    for policy in screen_policies:
+        parts = policy.get("parts")
+        if not isinstance(parts, list) or not parts:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: msx2screen storage policy has no parts: {policy}")
+        runtime_part = next(
+            (
+                part for part in parts
+                if isinstance(part, dict) and part.get("name") == "runtimeLayersAndSpawns"
+            ),
+            None,
+        )
+        if not isinstance(runtime_part, dict):
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"msx2screen storage policy lacks runtimeLayersAndSpawns part: {policy.get('id')}"
+            )
+        if (
+            runtime_part.get("decision") != "ROM_RAW"
+            or runtime_part.get("placement") != "world_data_bank"
+            or runtime_part.get("runtimePlacement") != "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
+        ):
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                "SCREEN 4 runtime layers must remain raw in world data banks and use only the current-screen RAM cache: "
+                f"{runtime_part}"
+            )
     world_package_summary = project_slice.get("worldPackageSummary")
     if not isinstance(world_package_summary, list) or not world_package_summary:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no worldPackageSummary")
@@ -2085,6 +2124,40 @@ def validate_msx2_screen4_megarom_preflight_budget(
     budget_artifact = read_preflight_json_artifact(budget_path, "logical_bank_budget.json")
     if budget_artifact != logical_budget:
         raise RuntimeError("MSX2 MegaROM preflight failed: logical_bank_budget.json differs from project_slice.json")
+    split_packages = logical_budget.get("splitPackages") or []
+    split_chunk_manifest = logical_budget.get("splitChunkManifest") or []
+    if split_packages:
+        if not isinstance(split_chunk_manifest, list) or len(split_chunk_manifest) != len(split_packages):
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                "logicalBankBudget splitPackages must include one splitChunkManifest entry per chunk"
+            )
+        chunk_ids = {str(item.get("id") or item.get("chunkId") or "") for item in split_packages if isinstance(item, dict)}
+        manifest_chunk_ids = {
+            str(item.get("chunkId") or "")
+            for item in split_chunk_manifest
+            if isinstance(item, dict)
+        }
+        if chunk_ids != manifest_chunk_ids:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                "logicalBankBudget splitChunkManifest does not match splitPackages"
+            )
+        for chunk in split_chunk_manifest:
+            if not isinstance(chunk, dict):
+                raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid splitChunkManifest entry: {chunk}")
+            required_chunk_fields = ("chunkId", "splitFrom", "labelStem", "dataLabel", "dataEndLabel", "dataBankSymbol", "loaderSymbol", "windowAddress")
+            missing_chunk_fields = [field for field in required_chunk_fields if not chunk.get(field)]
+            if missing_chunk_fields:
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"splitChunkManifest entry is missing {', '.join(missing_chunk_fields)}: {chunk}"
+                )
+            if chunk.get("windowAddress") != "#8000":
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"splitChunkManifest chunks must target the SCREEN 4 #8000 data window: {chunk}"
+                )
 
     ram_budget = project_slice.get("ramBudget")
     if not isinstance(ram_budget, dict) or not ram_budget:
@@ -2149,6 +2222,19 @@ def validate_msx2_screen4_megarom_preflight_budget(
             "MSX2 MegaROM preflight failed: "
             f"ramBudget is missing required sections: {', '.join(missing_ram_sections)}"
         )
+    ram_sections_by_id = {
+        section.get("id"): section
+        for section in ram_sections
+        if isinstance(section, dict) and section.get("id")
+    }
+    for cache_section_id in ("runtime.collision_current_cache", "runtime.behavior_current_cache"):
+        if cache_section_id in required_ram_sections:
+            cache_section = ram_sections_by_id.get(cache_section_id) or {}
+            if int(cache_section.get("bytes") or 0) != 192:
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"{cache_section_id} must reserve exactly one current 16x12 screen layer: {cache_section}"
+                )
     ram_recommendations = ram_budget.get("recommendations")
     if not isinstance(ram_recommendations, list) or not ram_recommendations:
         raise RuntimeError("MSX2 MegaROM preflight failed: ramBudget has no recommendations")
@@ -6512,76 +6598,170 @@ def main() -> int:
             project_root=project_root,
         )
     except RuntimeError as exc:
-        can_auto_post_asm_resolve = (
+        can_auto_compile_resolve = (
             auto_resolve_msx2_budget
             and not args.post_asm_opt
             and not args.post_asm_check_only
             and not args.strict_post_asm_no_dead_blocks
             and "resident bank overflow" in str(exc).lower()
         )
-        if can_auto_post_asm_resolve:
+        compile_resolved_by_retry = False
+        if can_auto_compile_resolve:
+            initial_failure_path = write_msx2_compile_failure_summary(
+                artifact_dir=artifact_dir,
+                asm_to_compile=asm_to_compile,
+                rom_output=rom_output,
+                sym_output=sym_output,
+                reason=str(exc),
+                resolver_attempts=[],
+            )
+            initial_failure = (
+                read_preflight_json_artifact(initial_failure_path, "msx2_compile_failure.json")
+                if initial_failure_path and initial_failure_path.exists()
+                else {}
+            )
+            automatic_plan = initial_failure.get("automaticResolutionPlan") if isinstance(initial_failure, dict) else {}
+            next_compile_candidate = (
+                automatic_plan.get("nextCandidateId")
+                if isinstance(automatic_plan, dict) and automatic_plan.get("nextCandidateId")
+                else "run_post_asm_dead_block_optimizer"
+            )
             compile_resolver_attempts.append({
                 "attempt": 0,
                 "action": "glass_compile",
                 "status": "failed",
                 "reason": str(exc),
-                "candidateId": "run_post_asm_dead_block_optimizer",
+                "candidateId": next_compile_candidate,
                 "asm": str(asm_to_compile),
             })
-            try:
-                auto_post_asm_requested = True
-                optimized_asm = maybe_run_post_asm_optimizer(
-                    project_root=project_root,
-                    asm_output=zx0_asm,
-                    glass_jar=glass_jar,
-                    enabled=True,
-                    check_only=False,
-                    rules="dead-blocks",
-                    explicit_output=None,
-                    passes=1,
-                    strict_no_dead_blocks=False,
-                )
-                ensure_sprite_copy_helper(optimized_asm)
-                compile_with_glass(
-                    glass_jar=glass_jar,
-                    asm_output=optimized_asm,
-                    rom_output=rom_output,
-                    sym_output=sym_output,
-                    project_root=project_root,
-                )
-                asm_to_compile = optimized_asm
+            if next_compile_candidate == "move_cold_readonly_data_to_world_bank":
+                regenerated_asm = asm_output.with_name(f"{asm_output.stem}.resident-regenerated.asm")
                 compile_resolver_attempts.append({
                     "attempt": 1,
-                    "action": "run_post_asm_dead_block_optimizer",
-                    "candidateId": "run_post_asm_dead_block_optimizer",
-                    "status": "resolved",
-                    "asm": str(asm_to_compile),
-                    "report": str(post_asm_report_json_path(asm_to_compile)),
+                    "action": "move_cold_readonly_data_to_world_bank",
+                    "candidateId": "move_cold_readonly_data_to_world_bank",
+                    "status": "started",
+                    "reason": "Regenerating ASM from project JSON with the current SCREEN 4 runtime layer policy.",
+                    "asm": str(regenerated_asm),
                 })
-            except RuntimeError as retry_exc:
-                compile_resolver_attempts.append({
-                    "attempt": 1,
-                    "action": "run_post_asm_dead_block_optimizer",
-                    "candidateId": "run_post_asm_dead_block_optimizer",
-                    "status": "failed",
-                    "reason": str(retry_exc),
-                    "report": str(post_asm_report_json_path(zx0_asm.with_suffix(".optimized.asm"))),
-                })
-                if (
-                    args.rom_mode == "megarom"
-                    and args.target_format == "konami"
-                    and "MSX2 SCREEN 4" in zx0_asm.read_text(encoding="utf-8", errors="ignore")
-                ):
+                try:
+                    generate_asm_from_json(
+                        compiled_index=compiled_index,
+                        json_path=json_path,
+                        asm_output=regenerated_asm,
+                        project_name_override=args.project_name,
+                        project_root=project_root,
+                        rom_mode=args.rom_mode,
+                        target_format=args.target_format,
+                        execution_mode=args.execution_mode,
+                        auto_megarom=args.auto_megarom,
+                        enable_hard_player_tick=args.enable_hard_player_tick,
+                    )
+                    regenerated_zx0_asm, _ = maybe_run_zx0_preprocess(
+                        project_root=project_root,
+                        asm_output=regenerated_asm,
+                        enabled=not args.skip_zx0_preprocess,
+                    )
+                    regenerated_artifact_dir = write_generated_artifacts(regenerated_zx0_asm)
+                    regenerated_artifact_dir, regenerated_zx0_asm = validate_msx2_preflight_with_safe_resolution(
+                        artifact_dir=regenerated_artifact_dir,
+                        asm_output=regenerated_zx0_asm,
+                        project_root=project_root,
+                        strict_warnings=args.strict_msx2_megarom_preflight_warnings,
+                        auto_resolve=auto_resolve_msx2_budget,
+                        skip_zx0_preprocess=args.skip_zx0_preprocess,
+                        max_attempts=args.msx2_budget_resolve_attempts,
+                    )
+                    ensure_sprite_copy_helper(regenerated_zx0_asm)
+                    compile_with_glass(
+                        glass_jar=glass_jar,
+                        asm_output=regenerated_zx0_asm,
+                        rom_output=rom_output,
+                        sym_output=sym_output,
+                        project_root=project_root,
+                    )
+                    artifact_dir = regenerated_artifact_dir
+                    zx0_asm = regenerated_zx0_asm
+                    asm_to_compile = regenerated_zx0_asm
+                    compile_resolver_attempts[-1].update({
+                        "status": "resolved",
+                        "asm": str(asm_to_compile),
+                    })
+                    compile_resolved_by_retry = True
+                except RuntimeError as regen_exc:
+                    compile_resolver_attempts[-1].update({
+                        "status": "failed",
+                        "reason": str(regen_exc),
+                    })
                     write_msx2_compile_failure_summary(
                         artifact_dir=artifact_dir,
-                        asm_to_compile=zx0_asm,
+                        asm_to_compile=asm_to_compile,
                         rom_output=rom_output,
                         sym_output=sym_output,
                         reason=str(exc),
                         resolver_attempts=compile_resolver_attempts,
                     )
-                raise exc
-        if asm_to_compile != zx0_asm and args.post_asm_opt and not args.post_asm_check_only:
+            if compile_resolved_by_retry:
+                pass
+            else:
+                post_attempt_number = len(compile_resolver_attempts)
+                try:
+                    auto_post_asm_requested = True
+                    optimized_asm = maybe_run_post_asm_optimizer(
+                        project_root=project_root,
+                        asm_output=zx0_asm,
+                        glass_jar=glass_jar,
+                        enabled=True,
+                        check_only=False,
+                        rules="dead-blocks",
+                        explicit_output=None,
+                        passes=1,
+                        strict_no_dead_blocks=False,
+                    )
+                    ensure_sprite_copy_helper(optimized_asm)
+                    compile_with_glass(
+                        glass_jar=glass_jar,
+                        asm_output=optimized_asm,
+                        rom_output=rom_output,
+                        sym_output=sym_output,
+                        project_root=project_root,
+                    )
+                    asm_to_compile = optimized_asm
+                    compile_resolver_attempts.append({
+                        "attempt": post_attempt_number,
+                        "action": "run_post_asm_dead_block_optimizer",
+                        "candidateId": "run_post_asm_dead_block_optimizer",
+                        "status": "resolved",
+                        "asm": str(asm_to_compile),
+                        "report": str(post_asm_report_json_path(asm_to_compile)),
+                    })
+                    compile_resolved_by_retry = True
+                except RuntimeError as retry_exc:
+                    compile_resolver_attempts.append({
+                        "attempt": post_attempt_number,
+                        "action": "run_post_asm_dead_block_optimizer",
+                        "candidateId": "run_post_asm_dead_block_optimizer",
+                        "status": "failed",
+                        "reason": str(retry_exc),
+                        "report": str(post_asm_report_json_path(zx0_asm.with_suffix(".optimized.asm"))),
+                    })
+                    if (
+                        args.rom_mode == "megarom"
+                        and args.target_format == "konami"
+                        and "MSX2 SCREEN 4" in zx0_asm.read_text(encoding="utf-8", errors="ignore")
+                    ):
+                        write_msx2_compile_failure_summary(
+                            artifact_dir=artifact_dir,
+                            asm_to_compile=zx0_asm,
+                            rom_output=rom_output,
+                            sym_output=sym_output,
+                            reason=str(exc),
+                            resolver_attempts=compile_resolver_attempts,
+                        )
+                    raise exc
+        if compile_resolved_by_retry:
+            pass
+        elif asm_to_compile != zx0_asm and args.post_asm_opt and not args.post_asm_check_only:
             post_asm_rejected_report_paths.append(post_asm_report_json_path(asm_to_compile))
             post_asm_rejected_reason = str(exc)
             print(
@@ -6614,7 +6794,7 @@ def main() -> int:
                         resolver_attempts=compile_resolver_attempts,
                     )
                 raise
-        elif not can_auto_post_asm_resolve:
+        elif not can_auto_compile_resolve:
             if (
                 args.rom_mode == "megarom"
                 and args.target_format == "konami"

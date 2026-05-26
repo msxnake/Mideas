@@ -1319,6 +1319,12 @@ Current CLI gate:
     budget split exists, but chunk-to-label physical loading is not implemented
     yet. The resolver metadata now says that explicitly instead of implying that
     all world-package splitting is absent.
+    The logical budget now also emits `splitChunkManifest`: every automatic
+    chunk carries its future `labelStem`, `dataLabel`, `dataEndLabel`,
+    `dataBankSymbol`, `loaderSymbol`, source package, chunk index/count, and
+    target `#8000` data window. Preflight rejects split packages without this
+    manifest, so the next implementation step is purely to emit those labels and
+    loader routines instead of reverse-engineering chunk names from diagnostics.
     SCREEN 4 effect templates now follow the same cold-data policy: each
     `<LABEL>_EFFECTS` table is emitted with its screen data bank and
     `init_msx2_effect_buffers` copies it to persistent RAM through the
@@ -1336,17 +1342,22 @@ Current CLI gate:
     `glass_compile` pipeline gate, ASM checksum, ROM/SYM targets, and Plan B:
     move cold read-only tables to world/data banks, remove unused resident
     fallbacks, or replace repeated resident tables with VRAM fill/streaming.
-    This failure report also carries a non-eligible
-    `move_cold_readonly_data_to_world_bank` resolver candidate so the next
-    roadmap step can promote resident cold-data movement into a real automatic
-    regeneration pass.
-    The CLI now also tries one controlled automatic regeneration for this
+    This failure report also carries a conditional
+    `move_cold_readonly_data_to_world_bank` resolver candidate. It is eligible
+    when `residentRegenerationReadiness.status=generator_rule_available`
+    proves the resident contributors are SCREEN 4 runtime layers already owned
+    by the generator policy; it stays blocked when only generic read-only data
+    remains and a new classifier is still needed.
+    The CLI now follows the same ordered `automaticResolutionPlan` for this
     class of failure when normal MSX2 budget auto-resolve is enabled and
-    Post-ASM was not already requested: it runs the conservative
-    `dead-blocks` Post-ASM optimizer, recompiles the optimized ASM, and records
-    the result in `compileResolution` / `resolverAttempts`. If the optimized
-    ASM still fails, the original detailed compile failure remains the
-    actionable stop report.
+    Post-ASM was not already requested. If the resident contributor analysis
+    proves SCREEN 4 cold runtime layers can be moved by the generator, it first
+    regenerates ASM from the project JSON with the current world-data-bank/RAM
+    cache policy and recompiles that ASM. If that retry is not applicable or
+    fails, it falls back to the conservative `dead-blocks` Post-ASM optimizer,
+    recompiles the optimized ASM, and records every attempt in
+    `compileResolution` / `resolverAttempts`. If all retries fail, the original
+    detailed compile failure remains the actionable stop report.
     The same failure report now includes `residentBankAnalysis`: a pre-Glass
     label-span ranking for the resident `#4000-#C000` SCREEN 4 section. It
     lists the largest labels by estimated data bytes/source pressure, marks
@@ -1357,12 +1368,17 @@ Current CLI gate:
     The `/compile` server returns the same failure shape as
     `msx2CompileFailure`, and the export modal shows the resident-overflow
     reason plus Plan B directly beside the Glass logs. Its resolver candidates
-    now mirror the CLI order for this failure class: first the eligible
-    `run_post_asm_dead_block_optimizer` retry, then the pending
-    `move_cold_readonly_data_to_world_bank` regeneration path. The server also
-    returns `msx2CompileResolution` / `resolverAttempts` for the Post-ASM retry,
-    so successful and failed regeneration attempts are visible in the same
-    machine-readable shape as CLI build summaries.
+    now mirror the CLI priority for this failure class: if the resident
+    analysis proves a known cold-data layer move is available, the automatic
+    plan selects `move_cold_readonly_data_to_world_bank` first and keeps
+    `run_post_asm_dead_block_optimizer` as a fallback. If no known cold-data
+    targets exist, Post-ASM remains the first eligible recovery. The `/compile`
+    endpoint receives ASM rather than project JSON, so it records the JSON
+    regeneration step as blocked when that is the first plan item, then attempts
+    Post-ASM as the available fallback. The server also returns
+    `msx2CompileResolution` / `resolverAttempts` for the Post-ASM retry, so
+    successful, failed, and blocked regeneration attempts are visible in the
+    same machine-readable shape as CLI build summaries.
 12. The CLI post-ASM path now has its first safe rollback. When
     `--post-asm-opt` emits an optimized ASM but that candidate fails Glass or
     the later mapper/artifact validators, the builder records the optimized
@@ -1416,8 +1432,8 @@ Current resolver status:
 | --- | --- | --- | --- |
 | `relax_strict_warning_gate` | preflight | automatic | Re-runs validation as non-strict when banks fit but warning thresholds fail. |
 | `enable_zx0_preprocess` | preflight | automatic | Regenerates ASM with ZX0 preprocessing when compression was skipped and bank pressure can drop. |
-| `run_post_asm_dead_block_optimizer` | post-Glass failure | automatic | Tries conservative dead-block Post-ASM recovery after resident/capacity overflow and records attempts. |
-| `move_cold_readonly_data_to_world_bank` | compile failure | partially implemented | SCREEN 4 collision/behavior/effects already moved to world data banks; generic cold-data classifiers still pending. |
+| `move_cold_readonly_data_to_world_bank` | compile failure | conditional automatic | First priority when resident contributors are known SCREEN 4 layer tables covered by `screen4RuntimeLayerPolicy`; blocked for generic cold data until classifier rules exist. |
+| `run_post_asm_dead_block_optimizer` | post-Glass failure | automatic fallback | Tries conservative dead-block Post-ASM recovery after resident/capacity overflow and records attempts. |
 | `emit_multi_bank_world_data_loader` | asm generation | partially implemented | Per-screen multi-bank loader is supported and symbol-validated; chunk-to-label physical loading remains blocked. |
 | `split_over_budget_world_packages` | precompile | partially implemented | Logical `auto_world_package_chunk` budgeting exists; physical chunk labels and chunk-aware loader are pending. |
 | `reduce_runtime_ram` | precompile | blocked | Needs an authoring/runtime policy to shrink live pools or caches without moving whole worlds into RAM. |

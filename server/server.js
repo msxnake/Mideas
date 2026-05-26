@@ -872,6 +872,7 @@ function buildMsx2CompileResolverCandidates(reason, residentRegenerationReadines
       eligible: false,
       stage: 'post_compile',
       retryKind: 'regenerate_from_project_json',
+      priority: 20,
       reason: 'Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.',
       blockedBy: 'resident cold-data classifier/regenerator is not implemented yet',
       regenerate: {
@@ -886,11 +887,12 @@ function buildMsx2CompileResolverCandidates(reason, residentRegenerationReadines
       coldDataCandidate.topTargets = Array.isArray(residentRegenerationReadiness.topTargets)
         ? residentRegenerationReadiness.topTargets
         : [];
-      if (readinessStatus === 'generator_rule_available') {
-        coldDataCandidate.eligible = true;
-        coldDataCandidate.stage = 'precompile';
-        delete coldDataCandidate.blockedBy;
-        coldDataCandidate.reason = 'Resident SCREEN 4 runtime layer data can be regenerated into world data banks with the current generator policy.';
+    if (readinessStatus === 'generator_rule_available') {
+      coldDataCandidate.eligible = true;
+      coldDataCandidate.priority = 5;
+      coldDataCandidate.stage = 'precompile';
+      delete coldDataCandidate.blockedBy;
+      coldDataCandidate.reason = 'Resident SCREEN 4 runtime layer data can be regenerated into world data banks with the current generator policy.';
       } else if (readinessStatus === 'needs_classifier_rule') {
         coldDataCandidate.blockedBy = 'cold read-only data exists, but no generator classifier owns those labels yet';
       } else if (readinessStatus === 'no_cold_readonly_targets') {
@@ -899,12 +901,13 @@ function buildMsx2CompileResolverCandidates(reason, residentRegenerationReadines
     }
     return [
       {
-        id: 'run_post_asm_dead_block_optimizer',
-        eligible: true,
-        stage: 'post_compile',
-        retryKind: 'regenerate_asm',
-        reason: 'A resident bank overflow can sometimes be recovered by removing annotated dead ASM blocks and recompiling the optimized ASM.',
-        regenerate: {
+      id: 'run_post_asm_dead_block_optimizer',
+      eligible: true,
+      stage: 'post_compile',
+      retryKind: 'regenerate_asm',
+      priority: 10,
+      reason: 'A resident bank overflow can sometimes be recovered by removing annotated dead ASM blocks and recompiling the optimized ASM.',
+      regenerate: {
           postAsmRules: 'dead-blocks',
           postAsmPasses: 1,
           fallback: 'keep_last_known_failure_report_if_optimized_asm_still_fails'
@@ -932,6 +935,7 @@ function buildMsx2AutomaticResolutionPlan(scope, resolverCandidates = [], resolv
     ? resolverAttempts.filter((item) => item && typeof item === 'object')
     : [];
   const eligible = candidates.filter((item) => item.id && item.eligible !== false);
+  eligible.sort((a, b) => Number(a.priority || 100) - Number(b.priority || 100));
   const blocked = candidates.filter((item) => item.id && item.eligible === false);
   const resolvedAttempt = [...attempts].reverse().find((item) => item.status === 'resolved') || null;
   const nextCandidate = eligible[0] || null;
@@ -5470,6 +5474,16 @@ app.post('/compile', async (req, res) => {
 
           if (capacityOverflow && normalizedRomMode === 'megarom' && attempt === 1) {
             try {
+              if (msx2CompileFailure?.automaticResolutionPlan?.nextCandidateId === 'move_cold_readonly_data_to_world_bank') {
+                msx2CompileResolverAttempts.push({
+                  attempt: 0,
+                  action: 'move_cold_readonly_data_to_world_bank',
+                  candidateId: 'move_cold_readonly_data_to_world_bank',
+                  status: 'blocked',
+                  reason: 'The /compile endpoint received ASM only; project-JSON regeneration must run in the export pipeline before falling back to Post-ASM.',
+                  nextAutomaticAction: 'regenerate_from_project_json_with_current_screen4_runtime_layer_policy'
+                });
+              }
               console.warn('MegaROM capacity failure detected. Retrying once with post-ASM optimization...');
               const recovery = await optimizePostAsmCode(codeToCompile, {
                 projectName: projectName || 'megarom_recovery',

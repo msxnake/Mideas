@@ -6442,6 +6442,31 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
   }
   const overBudgetPackages = packages.filter(entry => entry.overBudgetBytes > 0);
   const splitPackages = packages.filter(entry => Boolean((entry as any).splitFrom));
+  const splitChunkManifest = splitPackages.map(entry => {
+    const splitIndex = Number((entry as any).splitIndex || 0);
+    const splitCount = Number((entry as any).splitCount || 1);
+    const labelStem = sanitizeLabel(
+      `${entry.type}_${entry.sourceId}_chunk_${String(splitIndex).padStart(2, '0')}`,
+      `WORLD_CHUNK_${String(splitIndex).padStart(2, '0')}`
+    );
+    return {
+      chunkId: entry.id,
+      splitFrom: (entry as any).splitFrom,
+      type: entry.type,
+      sourceId: entry.sourceId,
+      splitIndex,
+      splitCount,
+      splitStrategy: (entry as any).splitStrategy || 'auto_world_package_chunk',
+      usedBytes: entry.usedBytes,
+      recommendedBankClass: entry.recommendedBankClass,
+      windowAddress: '#8000',
+      labelStem,
+      dataLabel: `${labelStem}_DATA`,
+      dataEndLabel: `${labelStem}_DATA_END`,
+      dataBankSymbol: `${labelStem}_DATA_BANK`,
+      loaderSymbol: `load_${labelStem.toLowerCase()}_chunk`,
+    };
+  });
   const splitSourcePackages = originalPackages.filter(entry =>
     entry.canSplit && entry.usedBytes > bankSizeBytes
   );
@@ -6622,6 +6647,7 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     recoveryPlan,
     packages,
     splitPackages,
+    splitChunkManifest,
     splitSourcePackages,
     note: 'Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression.',
   };
@@ -6834,6 +6860,7 @@ function buildMsx2Screen4DataBankPlan(
 ): {
   bankCount: number;
   unsupportedReason: string | null;
+  splitChunkManifest: any[];
   screenBankIndexByLabel: Map<string, number>;
   screenPackageIdByLabel: Map<string, string>;
   bankIndexes: number[];
@@ -6843,6 +6870,9 @@ function buildMsx2Screen4DataBankPlan(
     : [];
   const splitPackages = Array.isArray(logicalBankBudget.splitPackages)
     ? logicalBankBudget.splitPackages as any[]
+    : [];
+  const splitChunkManifest = Array.isArray(logicalBankBudget.splitChunkManifest)
+    ? logicalBankBudget.splitChunkManifest as any[]
     : [];
   const packageBankById = new Map<string, number>();
   const packageIdsByBank = new Map<number, string[]>();
@@ -6874,6 +6904,7 @@ function buildMsx2Screen4DataBankPlan(
   return {
     bankCount,
     unsupportedReason,
+    splitChunkManifest,
     screenBankIndexByLabel,
     screenPackageIdByLabel,
     bankIndexes: Array.from({ length: bankCount }, (_unused, index) => index),
@@ -8991,6 +9022,8 @@ reset_msx2_status_border:
     bankCount: screen4DataBankPlan.bankCount,
     dataWindowAddress: '#8000',
     unsupportedReason: screen4DataBankPlan.unsupportedReason,
+    splitChunkCount: screen4DataBankPlan.splitChunkManifest.length,
+    splitChunkManifest: screen4DataBankPlan.splitChunkManifest,
     screenBanks: tileScreenLoadLabels.map(label => ({
       label,
       packageId: screen4DataBankPlan.screenPackageIdByLabel.get(label),

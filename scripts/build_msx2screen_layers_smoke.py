@@ -564,6 +564,21 @@ def validate_project_slice_artifact(
         decisions = {part.get("decision") for part in parts if isinstance(part, dict)}
         if "ROM_RAW" not in decisions:
             raise RuntimeError(f"msx2screen storage policy must keep runtime layers/spawns raw: {policy.get('id')}")
+        runtime_part = next(
+            (part for part in parts if isinstance(part, dict) and part.get("name") == "runtimeLayersAndSpawns"),
+            None,
+        )
+        if not isinstance(runtime_part, dict):
+            raise RuntimeError(f"msx2screen storage policy must expose runtimeLayersAndSpawns: {policy.get('id')}")
+        if (
+            runtime_part.get("decision") != "ROM_RAW"
+            or runtime_part.get("placement") != "world_data_bank"
+            or runtime_part.get("runtimePlacement") != "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
+        ):
+            raise RuntimeError(
+                "msx2screen runtime layers must stay in world data banks and use bounded RAM caches: "
+                f"{runtime_part}"
+            )
 
     storage_policy_path = generated_dir / "asset_storage_policy.json"
     if not storage_policy_path.exists():

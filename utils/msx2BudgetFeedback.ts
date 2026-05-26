@@ -72,6 +72,7 @@ export interface Msx2BudgetFeedback {
     stage: string;
     retryKind: string;
     reason: string;
+    priority?: number;
     requires?: string[];
     blockedBy?: string;
     implementedPart?: string;
@@ -349,7 +350,9 @@ const buildMsx2AutomaticResolutionPlan = (
   const attempts = Array.isArray(resolverAttempts)
     ? resolverAttempts.filter((item) => item && typeof item === 'object')
     : [];
-  const eligible = candidates.filter((item) => item.id && item.eligible !== false);
+  const eligible = candidates
+    .filter((item) => item.id && item.eligible !== false)
+    .sort((a, b) => Number(a.priority || 100) - Number(b.priority || 100));
   const blocked = candidates.filter((item) => item.id && item.eligible === false);
   const resolvedAttempt = [...attempts].reverse().find((item) => item.status === 'resolved') || null;
   const nextCandidate = eligible[0] || null;

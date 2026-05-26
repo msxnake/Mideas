@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { Buffer } from 'node:buffer';
 import vm from 'node:vm';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -41,9 +42,10 @@ const serverFeedbackEnd = serverSource.indexOf('function isResourceTableRamZx0Ca
 if (serverFeedbackStart < 0 || serverFeedbackEnd < serverFeedbackStart) {
   throw new Error('Could not locate server MSX2 budget feedback helper block');
 }
-const serverContext = {};
+const serverContext = { Buffer };
 vm.runInNewContext(
-`${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
+`const Buffer = this.Buffer;
+${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
 this.buildMsx2IdeBudgetFeedbackFromAsm = buildMsx2IdeBudgetFeedbackFromAsm;
 this.buildMsx2BudgetResolutionFailureContext = buildMsx2BudgetResolutionFailureContext;
 this.appendMsx2BlockedResolutionAttempts = appendMsx2BlockedResolutionAttempts;`,
@@ -67,9 +69,10 @@ const serverResidentFailureEnd = serverSource.indexOf('function parsePlain48kPag
 if (serverResidentFailureStart < 0 || serverResidentFailureEnd < serverResidentFailureStart) {
   throw new Error('Could not locate server MSX2 resident overflow helper block');
 }
-const serverResidentFailureContext = {};
+const serverResidentFailureContext = { Buffer };
 vm.runInNewContext(
-  `${serverSource.slice(serverResidentFailureStart, serverResidentFailureEnd)}
+  `const Buffer = this.Buffer;
+${serverSource.slice(serverResidentFailureStart, serverResidentFailureEnd)}
 this.buildMsx2ResidentOverflowFailure = buildMsx2ResidentOverflowFailure;`,
   serverResidentFailureContext
 );
@@ -439,6 +442,40 @@ if (residentColdDataCandidate?.readinessStatus !== 'no_cold_readonly_targets' ||
 }
 if (residentFailure.automaticResolutionPlan?.status !== 'ready' || residentFailure.automaticResolutionPlan?.nextCandidateId !== 'run_post_asm_dead_block_optimizer') {
   throw new Error(`Expected resident failure automatic resolution plan: ${JSON.stringify(residentFailure.automaticResolutionPlan)}`);
+}
+const movableResidentOverflowAsm = [
+  '; Mideas MSX2 SCREEN 4 tile backend',
+  '    org #4000',
+  'SCREEN_TEST_COLLISION:',
+  '    ds 224, #00',
+  'SCREEN_TEST_BEHAVIOR:',
+  '    db #00, #01, #02, #03',
+  '; MSX2 SCREEN 4 cold data bank.',
+  '    ds #C000 - $, #FF',
+].join('\n');
+const movableResidentFailure = buildServerMsx2ResidentOverflowFailure(
+  movableResidentOverflowAsm,
+  'Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -213',
+  'server/temp/synthetic_msx2_movable.asm'
+);
+const movableColdCandidate = Array.isArray(movableResidentFailure?.resolverCandidates)
+  ? movableResidentFailure.resolverCandidates.find((candidate) => candidate?.id === 'move_cold_readonly_data_to_world_bank')
+  : null;
+if (
+  movableResidentFailure?.residentRegenerationReadiness?.status !== 'generator_rule_available' ||
+  movableColdCandidate?.eligible !== true ||
+  movableColdCandidate?.readinessStatus !== 'generator_rule_available' ||
+  !Array.isArray(movableColdCandidate?.topTargets) ||
+  !movableColdCandidate.topTargets.some((target) => target?.label === 'SCREEN_TEST_COLLISION')
+) {
+  throw new Error(`Expected movable resident cold-data candidate: ${JSON.stringify(movableResidentFailure)}`);
+}
+if (
+  movableResidentFailure.automaticResolutionPlan?.status !== 'ready' ||
+  movableResidentFailure.automaticResolutionPlan?.nextCandidateId !== 'move_cold_readonly_data_to_world_bank' ||
+  !movableResidentFailure.automaticResolutionPlan?.eligibleCandidateIds?.includes('run_post_asm_dead_block_optimizer')
+) {
+  throw new Error(`Expected movable resident automatic plan to prioritize cold-data regeneration: ${JSON.stringify(movableResidentFailure.automaticResolutionPlan)}`);
 }
 if (buildServerMsx2ResidentOverflowFailure('; plain asm', 'Negative initial size: -12', 'plain.asm') !== null) {
   throw new Error('Expected null resident failure for non-MSX2 source');

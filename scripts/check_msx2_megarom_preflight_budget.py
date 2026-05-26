@@ -52,6 +52,60 @@ def make_ram_budget(status: str = "ok", free_bytes: int = 12000) -> dict:
     }
 
 
+def ensure_split_chunk_manifest(logical_budget: dict) -> None:
+    split_packages = logical_budget.get("splitPackages")
+    if not isinstance(split_packages, list) or not split_packages:
+        return
+    manifest = []
+    for index, package in enumerate(split_packages):
+        if not isinstance(package, dict):
+            continue
+        chunk_id = str(package.get("id") or package.get("chunkId") or f"chunk{index:02d}")
+        source_id = str(package.get("sourceId") or package.get("splitFrom") or chunk_id).replace(".", "_").replace("#", "_")
+        label_stem = f"TEST_{source_id.upper()}_{index:02d}"
+        manifest.append({
+            "chunkId": chunk_id,
+            "splitFrom": package.get("splitFrom") or chunk_id.split("#", 1)[0],
+            "type": package.get("type") or "msx2screen",
+            "sourceId": package.get("sourceId") or source_id,
+            "splitIndex": int(package.get("splitIndex") or index),
+            "splitCount": int(package.get("splitCount") or len(split_packages)),
+            "splitStrategy": package.get("splitStrategy") or "auto_world_package_chunk",
+            "usedBytes": int(package.get("usedBytes") or 0),
+            "recommendedBankClass": package.get("recommendedBankClass") or "world.screen",
+            "windowAddress": "#8000",
+            "labelStem": label_stem,
+            "dataLabel": f"{label_stem}_DATA",
+            "dataEndLabel": f"{label_stem}_DATA_END",
+            "dataBankSymbol": f"{label_stem}_DATA_BANK",
+            "loaderSymbol": f"load_{label_stem.lower()}_chunk",
+        })
+    logical_budget["splitChunkManifest"] = manifest
+
+
+def ensure_screen_storage_parts(storage_policy: list[dict]) -> None:
+    for policy in storage_policy:
+        if policy.get("type") != "msx2screen" or isinstance(policy.get("parts"), list):
+            continue
+        raw_bytes = int(policy.get("rawBytes") or policy.get("storedBytesEstimate") or 0)
+        policy["parts"] = [
+            {
+                "name": "graphicsAndNameTables",
+                "rawBytes": max(0, raw_bytes - 576),
+                "accessPattern": "load_to_vram",
+                "decision": "ROM_ZX0_CANDIDATE_TO_VRAM",
+            },
+            {
+                "name": "runtimeLayersAndSpawns",
+                "rawBytes": min(raw_bytes, 576),
+                "accessPattern": "runtime_read",
+                "decision": "ROM_RAW",
+                "placement": "world_data_bank",
+                "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects",
+            },
+        ]
+
+
 def write_artifacts(
     artifact_dir: Path,
     logical_budget: dict,
@@ -61,6 +115,8 @@ def write_artifacts(
 ) -> None:
     if ram_budget is None:
         ram_budget = make_ram_budget()
+    ensure_split_chunk_manifest(logical_budget)
+    ensure_screen_storage_parts(storage_policy)
     if world_package_summary is None:
         world_package_summary = [{
             "worldId": "world_test",
@@ -141,6 +197,8 @@ def write_artifacts(
         "bankCount": estimated_count,
         "dataWindowAddress": "#8000",
         "unsupportedReason": "split_packages_require_physical_chunk_labels" if split_packages else None,
+        "splitChunkCount": len(logical_budget.get("splitChunkManifest") or []),
+        "splitChunkManifest": logical_budget.get("splitChunkManifest") or [],
         "screenBanks": [
             {
                 "label": str(policy.get("id") or ""),
@@ -883,6 +941,14 @@ def main() -> None:
         chunked_plan = chunked_failure.get("automaticResolutionPlan") or {}
         if not (chunked_plan.get("blockedReasons") or [{}])[0].get("missingPart"):
             raise AssertionError(f"Chunked loader failure did not preserve blocked resolver detail in automatic plan: {chunked_failure!r}")
+        chunk_manifest = ((chunked_failure.get("details") or {}).get("screen4DataBankPlan") or {}).get("splitChunkManifest") or []
+        if (
+            len(chunk_manifest) != 1
+            or not chunk_manifest[0].get("dataLabel")
+            or not chunk_manifest[0].get("dataBankSymbol")
+            or chunk_manifest[0].get("windowAddress") != "#8000"
+        ):
+            raise AssertionError(f"Chunked loader failure did not preserve loader-addressable chunk manifest: {chunked_failure!r}")
         try:
             validate_msx2_preflight_with_safe_resolution(
                 chunked_multi_dir,
@@ -951,6 +1017,26 @@ def main() -> None:
         ram_without_sections["sections"] = []
         write_artifacts(ram_sections_dir, make_budget(4096), storage_policy, ram_without_sections)
         expect_failure(ram_sections_dir, "ramBudget has no runtime sections")
+
+        bad_cache_bytes_dir = root / "bad_cache_bytes_generated"
+        ram_bad_cache_bytes = make_ram_budget()
+        for section in ram_bad_cache_bytes["sections"]:
+            if section.get("id") == "runtime.behavior_current_cache":
+                section["bytes"] = 224
+                section["end"] = "#C460"
+        write_artifacts(bad_cache_bytes_dir, make_budget(4096), storage_policy, ram_bad_cache_bytes)
+        expect_failure(
+            bad_cache_bytes_dir,
+            "runtime.behavior_current_cache must reserve exactly one current 16x12 screen layer",
+        )
+
+        bad_runtime_storage_dir = root / "bad_runtime_storage_policy_generated"
+        bad_runtime_policy = json.loads(json.dumps(storage_policy))
+        ensure_screen_storage_parts(bad_runtime_policy)
+        bad_runtime_policy[0]["parts"][-1]["placement"] = "ram"
+        bad_runtime_policy[0]["parts"][-1]["runtimePlacement"] = "persistent_ram"
+        write_artifacts(bad_runtime_storage_dir, make_budget(4096), bad_runtime_policy)
+        expect_failure(bad_runtime_storage_dir, "SCREEN 4 runtime layers must remain raw in world data banks")
 
         mismatch_dir = root / "mismatch_generated"
         write_artifacts(mismatch_dir, make_budget(4096), storage_policy)
@@ -1076,8 +1162,10 @@ def main() -> None:
         if cold_data_candidate.get("nextAutomaticAction") != "regenerate_from_project_json_with_current_screen4_runtime_layer_policy":
             raise AssertionError(f"Compile failure did not expose the next automatic resident action: {compile_failure}")
         automatic_plan = compile_failure.get("automaticResolutionPlan") or {}
-        if automatic_plan.get("status") != "ready" or automatic_plan.get("nextCandidateId") != "run_post_asm_dead_block_optimizer":
+        if automatic_plan.get("status") != "ready" or automatic_plan.get("nextCandidateId") != "move_cold_readonly_data_to_world_bank":
             raise AssertionError(f"Compile failure did not expose an automatic resolution plan: {compile_failure}")
+        if "run_post_asm_dead_block_optimizer" not in (automatic_plan.get("eligibleCandidateIds") or []):
+            raise AssertionError(f"Compile failure automatic plan lost Post-ASM fallback candidate: {compile_failure}")
         compile_failure_with_attempts_path = write_msx2_compile_failure_summary(
             compile_failure_dir,
             overflow_asm,
