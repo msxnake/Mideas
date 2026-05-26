@@ -74,6 +74,10 @@ export interface Msx2BudgetFeedback {
     reason: string;
     requires?: string[];
     blockedBy?: string;
+    implementedPart?: string;
+    missingPart?: string;
+    unsupportedReason?: string;
+    splitPackageCount?: number;
     regenerate?: Record<string, any>;
   }>;
   automaticResolutionPlan?: {
@@ -85,8 +89,13 @@ export interface Msx2BudgetFeedback {
     blockedCandidateIds: string[];
     blockedReasons: Array<{
       id?: string;
+      reason?: string;
       blockedBy?: string;
       readinessStatus?: string;
+      implementedPart?: string;
+      missingPart?: string;
+      unsupportedReason?: string;
+      splitPackageCount?: number;
     }>;
     attemptCount: number;
     resolvedCandidateId?: string | null;
@@ -361,10 +370,15 @@ const buildMsx2AutomaticResolutionPlan = (
     eligibleCandidateIds: eligible.map((item) => String(item.id)),
     blockedCandidateIds: blocked.map((item) => String(item.id)),
     blockedReasons: blocked
-      .filter((item) => item.blockedBy)
+      .filter((item) => item.blockedBy || item.missingPart || item.unsupportedReason)
       .map((item) => ({
         id: item.id,
-        blockedBy: item.blockedBy
+        reason: item.reason,
+        blockedBy: item.blockedBy,
+        implementedPart: item.implementedPart,
+        missingPart: item.missingPart,
+        unsupportedReason: item.unsupportedReason,
+        splitPackageCount: item.splitPackageCount
       })),
     attemptCount: attempts.length,
     resolvedCandidateId: resolvedAttempt?.candidateId || null
@@ -391,6 +405,8 @@ const buildMsx2BudgetResolverCandidates = ({
   const candidates: NonNullable<Msx2BudgetFeedback['resolverCandidates']> = [];
   const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
   const estimatedPackedBankCount = Number(logicalBudget?.estimatedPackedBankCount || 0);
+  const splitPackages = Array.isArray(logicalBudget?.splitPackages) ? logicalBudget.splitPackages : [];
+  const screen4DataBankUnsupportedReason = String(screen4DataBankPlan?.unsupportedReason || '');
   const multiBankSupported = screen4DataBankPlan
     && screen4DataBankPlan.supported === true
     && Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount;
@@ -409,13 +425,25 @@ const buildMsx2BudgetResolverCandidates = ({
     });
   }
   if (estimatedPackedBankCount > 1 && !multiBankSupported) {
+    const splitChunkBlocked = screen4DataBankUnsupportedReason === 'split_packages_require_physical_chunk_labels'
+      || splitPackages.length > 0;
     candidates.push({
       id: 'emit_multi_bank_world_data_loader',
       eligible: false,
       stage: 'asm_generation',
       retryKind: 'regenerate_asm',
-      reason: 'The logical allocator produced multiple SCREEN 4 data banks, but the current loader can map only one #8000/#A000 data window during gameplay.',
-      blockedBy: 'multi-bank SCREEN 4 data loader is not implemented yet'
+      reason: splitChunkBlocked
+        ? 'The logical allocator already split oversized world packages into chunks, but the ASM loader cannot yet bind chunks to physical labels.'
+        : 'The logical allocator produced multiple SCREEN 4 data banks, but this plan is not marked supported by the current loader.',
+      blockedBy: splitChunkBlocked
+        ? 'chunk-to-label SCREEN 4 physical loader is not implemented yet'
+        : 'multi-bank SCREEN 4 data loader is not implemented for this plan',
+      unsupportedReason: screen4DataBankUnsupportedReason || undefined,
+      splitPackageCount: splitPackages.length,
+      implementedPart: 'normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required',
+      missingPart: splitChunkBlocked
+        ? 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank'
+        : 'screen4DataBankPlan must describe a supported per-screen physical bank layout'
     });
   }
   if (overBudgetPackageCount > 0 || Number(manifestOverBudgetBankCount || 0) > 0 || overBudgetAssetCount > 0 || status === 'error') {
@@ -436,8 +464,11 @@ const buildMsx2BudgetResolverCandidates = ({
       eligible: false,
       stage: 'precompile',
       retryKind: 'repack_world_banks',
-      reason: 'The packer must split the over-budget package across more 8K world banks.',
-      blockedBy: 'world-package split resolver is not implemented yet'
+      reason: 'The precompiler can budget-split oversized world packages, but chunk-to-label physical SCREEN 4 loading is still pending.',
+      blockedBy: 'chunk-to-label SCREEN 4 physical loader is not implemented yet',
+      implementedPart: 'logical budget emits auto_world_package_chunk entries for splittable world packages',
+      missingPart: 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank',
+      splitPackageCount: splitPackages.length
     });
   } else if (Number(manifestWarningBankCount || 0) > 0 || status === 'warning') {
     candidates.push({

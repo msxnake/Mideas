@@ -43,9 +43,10 @@ if (serverFeedbackStart < 0 || serverFeedbackEnd < serverFeedbackStart) {
 }
 const serverContext = {};
 vm.runInNewContext(
-  `${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
+`${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
 this.buildMsx2IdeBudgetFeedbackFromAsm = buildMsx2IdeBudgetFeedbackFromAsm;
-this.buildMsx2BudgetResolutionFailureContext = buildMsx2BudgetResolutionFailureContext;`,
+this.buildMsx2BudgetResolutionFailureContext = buildMsx2BudgetResolutionFailureContext;
+this.appendMsx2BlockedResolutionAttempts = appendMsx2BlockedResolutionAttempts;`,
   serverContext
 );
 const buildServerMsx2BudgetFeedbackFromAsm = serverContext.buildMsx2IdeBudgetFeedbackFromAsm;
@@ -55,6 +56,10 @@ if (typeof buildServerMsx2BudgetFeedbackFromAsm !== 'function') {
 const buildServerMsx2BudgetResolutionFailureContext = serverContext.buildMsx2BudgetResolutionFailureContext;
 if (typeof buildServerMsx2BudgetResolutionFailureContext !== 'function') {
   throw new Error('Server MSX2 budget resolution failure helper was not evaluable');
+}
+const appendServerMsx2BlockedResolutionAttempts = serverContext.appendMsx2BlockedResolutionAttempts;
+if (typeof appendServerMsx2BlockedResolutionAttempts !== 'function') {
+  throw new Error('Server MSX2 blocked resolution helper was not evaluable');
 }
 
 const serverResidentFailureStart = serverSource.indexOf('function getNegativeDsOverflowBytes');
@@ -345,6 +350,12 @@ if (multiBankFeedback.status !== 'error') {
 if (!Array.isArray(multiBankFeedback.resolverCandidates) || multiBankFeedback.resolverCandidates[0]?.id !== 'emit_multi_bank_world_data_loader') {
   throw new Error(`Expected multi-bank feedback to expose loader resolver first: ${JSON.stringify(multiBankFeedback.resolverCandidates)}`);
 }
+if (!multiBankFeedback.resolverCandidates[0]?.blockedBy?.includes('multi-bank SCREEN 4 data loader')) {
+  throw new Error(`Expected unsupported multi-bank feedback to explain loader blocker: ${JSON.stringify(multiBankFeedback.resolverCandidates[0])}`);
+}
+if (!multiBankFeedback.automaticResolutionPlan?.blockedReasons?.[0]?.missingPart) {
+  throw new Error(`Expected unsupported multi-bank feedback to preserve blocked resolver detail: ${JSON.stringify(multiBankFeedback.automaticResolutionPlan)}`);
+}
 if (!multiBankFeedback.resolverCandidates.some((candidate) => candidate?.id === 'enable_zx0_preprocess')) {
   throw new Error(`Expected multi-bank feedback to keep ZX0 retry candidate: ${JSON.stringify(multiBankFeedback.resolverCandidates)}`);
 }
@@ -370,6 +381,16 @@ if (!Array.isArray(serverResolutionContext.eligibleResolverCandidateIds) || !ser
 }
 if (serverResolutionContext.automaticResolutionPlan?.nextCandidateId !== 'relax_strict_warning_gate') {
   throw new Error(`Expected server resolution context to preserve automatic plan: ${JSON.stringify(serverResolutionContext)}`);
+}
+const blockedResolution = {
+  scope: 'msx2_screen4_budget_resolution',
+  status: 'unresolved',
+  attempts: [{ attempt: 0, action: 'server_compile_budget_gate', status: 'failed' }],
+};
+appendServerMsx2BlockedResolutionAttempts(blockedResolution, multiBankFeedback);
+const blockedServerAttempt = blockedResolution.attempts.find((item) => item?.candidateId === 'emit_multi_bank_world_data_loader');
+if (!blockedServerAttempt || blockedServerAttempt.status !== 'blocked' || !blockedServerAttempt.missingPart) {
+  throw new Error(`Expected server blocked resolver attempt detail: ${JSON.stringify(blockedResolution)}`);
 }
 
 const residentOverflowAsm = [

@@ -2820,6 +2820,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             <div className="mt-1 text-[11px]">
                               Automatic plan: <span className="text-yellow-100">{msx2BudgetAutomaticResolutionPlan.status || 'unknown'}</span>
                               {msx2BudgetAutomaticResolutionPlan.nextCandidateId ? ` / next ${msx2BudgetAutomaticResolutionPlan.nextCandidateId}` : ''}
+                              {Array.isArray(msx2BudgetAutomaticResolutionPlan.blockedReasons) && msx2BudgetAutomaticResolutionPlan.blockedReasons.length > 0 && (
+                                <span className="block text-yellow-200">
+                                  Blocked detail: {msx2BudgetAutomaticResolutionPlan.blockedReasons[0].missingPart || msx2BudgetAutomaticResolutionPlan.blockedReasons[0].blockedBy}
+                                </span>
+                              )}
                             </div>
                           )}
                           {msx2BudgetResolverCandidates.slice(0, 3).map((candidate: any, index: number) => (
@@ -2962,6 +2967,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                               Automatic plan:{' '}
                               <span className="text-yellow-100">{msx2CompileAutomaticResolutionPlan.status || 'unknown'}</span>
                               {msx2CompileAutomaticResolutionPlan.nextCandidateId ? ` / next ${msx2CompileAutomaticResolutionPlan.nextCandidateId}` : ''}
+                              {Array.isArray(msx2CompileAutomaticResolutionPlan.blockedReasons) && msx2CompileAutomaticResolutionPlan.blockedReasons.length > 0 && (
+                                <span className="block">
+                                  Blocked detail: {msx2CompileAutomaticResolutionPlan.blockedReasons[0].missingPart || msx2CompileAutomaticResolutionPlan.blockedReasons[0].blockedBy}
+                                </span>
+                              )}
                             </div>
                           )}
                           Resolver candidate:{' '}

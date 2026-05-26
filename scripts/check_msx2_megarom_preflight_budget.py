@@ -646,6 +646,15 @@ def main() -> None:
         }
         if "enable_zx0_preprocess" not in over_candidate_ids or "split_over_budget_world_packages" not in over_candidate_ids:
             raise AssertionError(f"Over-budget failure did not expose resolver candidates: {over_failure!r}")
+        split_candidate = next(
+            (
+                item for item in (over_failure.get("resolverCandidates") or [])
+                if isinstance(item, dict) and item.get("id") == "split_over_budget_world_packages"
+            ),
+            None,
+        )
+        if not split_candidate or split_candidate.get("blockedBy") != "chunk-to-label SCREEN 4 physical loader is not implemented yet":
+            raise AssertionError(f"Over-budget split candidate did not describe chunk loader blocker: {over_failure!r}")
 
         warning_dir = root / "warning_generated"
         write_artifacts(warning_dir, make_budget(7600), storage_policy)
@@ -862,6 +871,41 @@ def main() -> None:
         }
         if chunked_failure.get("reason") != "loader_multi_bank_data_window_not_implemented" or "emit_multi_bank_world_data_loader" not in chunked_candidate_ids:
             raise AssertionError(f"Chunked multi-bank loader failure did not expose loader resolver candidate: {chunked_failure!r}")
+        chunked_loader_candidate = next(
+            (
+                item for item in (chunked_failure.get("resolverCandidates") or [])
+                if isinstance(item, dict) and item.get("id") == "emit_multi_bank_world_data_loader"
+            ),
+            None,
+        )
+        if not chunked_loader_candidate or chunked_loader_candidate.get("blockedBy") != "chunk-to-label SCREEN 4 physical loader is not implemented yet":
+            raise AssertionError(f"Chunked loader failure did not explain physical chunk blocker: {chunked_failure!r}")
+        chunked_plan = chunked_failure.get("automaticResolutionPlan") or {}
+        if not (chunked_plan.get("blockedReasons") or [{}])[0].get("missingPart"):
+            raise AssertionError(f"Chunked loader failure did not preserve blocked resolver detail in automatic plan: {chunked_failure!r}")
+        try:
+            validate_msx2_preflight_with_safe_resolution(
+                chunked_multi_dir,
+                auto_warning_asm,
+                root,
+                strict_warnings=True,
+                auto_resolve=True,
+                skip_zx0_preprocess=False,
+                max_attempts=1,
+            )
+            raise AssertionError("Chunked loader auto-resolve should remain blocked until chunk-to-label loading exists")
+        except RuntimeError:
+            pass
+        chunked_resolution = json.loads((chunked_multi_dir / "msx2_budget_resolution.json").read_text(encoding="utf-8"))
+        blocked_attempt = next(
+            (
+                item for item in (chunked_resolution.get("attempts") or [])
+                if isinstance(item, dict) and item.get("candidateId") == "emit_multi_bank_world_data_loader"
+            ),
+            None,
+        )
+        if not blocked_attempt or blocked_attempt.get("status") != "blocked" or not blocked_attempt.get("missingPart"):
+            raise AssertionError(f"Chunked auto-resolve did not record blocked loader attempt: {chunked_resolution!r}")
         auto_rom_path = auto_warning_dir / "auto_warning.rom"
         auto_sym_path = auto_warning_dir / "auto_warning.sym"
         auto_rom_path.write_bytes(b"CD" + bytes([0xFF]) * 8190)

@@ -461,8 +461,10 @@ def build_msx2_preflight_resolver_candidates(reason: str, details: dict[str, obj
             "eligible": False,
             "stage": "precompile",
             "retryKind": "repack_world_banks",
-            "reason": "The packer must split the over-budget package across more 8K world banks.",
-            "blockedBy": "world-package split resolver is not implemented yet",
+            "reason": "The precompiler can budget-split oversized world packages, but chunk-to-label physical SCREEN 4 loading is still pending.",
+            "blockedBy": "chunk-to-label SCREEN 4 physical loader is not implemented yet",
+            "implementedPart": "logical budget emits auto_world_package_chunk entries for splittable world packages",
+            "missingPart": "ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank",
             "targets": details.get("overBudgetPackages") or details.get("overBudgetBanks") or [],
         })
     if reason == "ram_budget_failed":
@@ -596,11 +598,21 @@ def build_msx2_automatic_resolution_plan(
         "blockedReasons": [
             {
                 "id": item.get("id"),
+                "reason": item.get("reason"),
                 "blockedBy": item.get("blockedBy"),
                 "readinessStatus": item.get("readinessStatus"),
+                "implementedPart": item.get("implementedPart"),
+                "missingPart": item.get("missingPart"),
+                "unsupportedReason": item.get("unsupportedReason"),
+                "splitPackageCount": item.get("splitPackageCount"),
             }
             for item in blocked
-            if item.get("blockedBy") or item.get("readinessStatus")
+            if (
+                item.get("blockedBy")
+                or item.get("readinessStatus")
+                or item.get("missingPart")
+                or item.get("unsupportedReason")
+            )
         ],
         "attemptCount": len(attempts),
         "resolvedCandidateId": resolved_attempt.get("candidateId") if isinstance(resolved_attempt, dict) else None,
@@ -792,14 +804,38 @@ def write_msx2_loader_capability_failure_summary(
     ram_budget: dict,
     details: dict[str, object],
 ) -> Path:
+    screen4_data_bank_plan = project_slice.get("screen4DataBankPlan") if isinstance(project_slice, dict) else {}
+    unsupported_reason = (
+        str(screen4_data_bank_plan.get("unsupportedReason"))
+        if isinstance(screen4_data_bank_plan, dict) and screen4_data_bank_plan.get("unsupportedReason")
+        else ""
+    )
+    split_packages = logical_budget.get("splitPackages") if isinstance(logical_budget.get("splitPackages"), list) else []
+    split_chunk_blocked = unsupported_reason == "split_packages_require_physical_chunk_labels" or bool(split_packages)
     resolver_candidates = [
         {
             "id": "emit_multi_bank_world_data_loader",
             "eligible": False,
             "stage": "asm_generation",
             "retryKind": "regenerate_asm",
-            "reason": "The logical allocator produced multiple data banks, but the current SCREEN 4 loader can map only one #8000 data bank.",
-            "blockedBy": "multi-bank SCREEN 4 data loader is not implemented yet",
+            "reason": (
+                "The logical allocator already split oversized world packages into chunks, but the ASM loader cannot yet bind chunks to physical labels."
+                if split_chunk_blocked
+                else "The logical allocator produced multiple data banks, but this plan is not marked supported by the current SCREEN 4 loader."
+            ),
+            "blockedBy": (
+                "chunk-to-label SCREEN 4 physical loader is not implemented yet"
+                if split_chunk_blocked
+                else "multi-bank SCREEN 4 data loader is not implemented for this plan"
+            ),
+            "unsupportedReason": unsupported_reason or None,
+            "splitPackageCount": len(split_packages),
+            "implementedPart": "normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required",
+            "missingPart": (
+                "ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank"
+                if split_chunk_blocked
+                else "screen4DataBankPlan must describe a supported per-screen physical bank layout"
+            ),
         },
         {
             "id": "enable_zx0_preprocess",
@@ -927,6 +963,7 @@ def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | No
             "nextCandidateId": automatic_resolution_plan.get("nextCandidateId"),
             "eligibleCandidateIds": automatic_resolution_plan.get("eligibleCandidateIds") or eligible_resolver_candidate_ids,
             "blockedCandidateIds": automatic_resolution_plan.get("blockedCandidateIds") or [],
+            "blockedReasons": automatic_resolution_plan.get("blockedReasons") or [],
         },
         "worldBankManifest": {
             "worldCount": world_bank_manifest.get("worldCount"),
@@ -959,6 +996,45 @@ def write_msx2_budget_resolution_summary(
         json.dumps(summary, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def append_msx2_blocked_resolution_attempts(
+    attempts: list[dict[str, object]],
+    failure: dict[str, Any] | None,
+) -> None:
+    if not isinstance(failure, dict):
+        return
+    attempted_candidate_ids = {
+        str(item.get("candidateId") or item.get("action"))
+        for item in attempts
+        if isinstance(item, dict) and (item.get("candidateId") or item.get("action"))
+    }
+    resolver_candidates = [
+        item for item in (failure.get("resolverCandidates") or [])
+        if isinstance(item, dict) and item.get("id") and item.get("eligible") is False
+    ]
+    blocked_by_id = {
+        str(item.get("id")): item
+        for item in ((failure.get("automaticResolutionPlan") or {}).get("blockedReasons") or [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    for candidate in resolver_candidates:
+        candidate_id = str(candidate.get("id"))
+        if candidate_id in attempted_candidate_ids:
+            continue
+        detail = blocked_by_id.get(candidate_id, {})
+        attempts.append({
+            "attempt": len(attempts),
+            "action": candidate_id,
+            "candidateId": candidate_id,
+            "status": "blocked",
+            "reason": detail.get("blockedBy") or candidate.get("blockedBy") or candidate.get("reason"),
+            "blockedBy": detail.get("blockedBy") or candidate.get("blockedBy"),
+            "implementedPart": detail.get("implementedPart") or candidate.get("implementedPart"),
+            "missingPart": detail.get("missingPart") or candidate.get("missingPart"),
+            "unsupportedReason": detail.get("unsupportedReason") or candidate.get("unsupportedReason"),
+            "splitPackageCount": detail.get("splitPackageCount") or candidate.get("splitPackageCount"),
+        })
 
 
 def validate_msx2_preflight_with_safe_resolution(
@@ -1084,6 +1160,8 @@ def validate_msx2_preflight_with_safe_resolution(
                     "artifactDir": str(retry_artifact_dir),
                 })
 
+        final_failure = read_msx2_preflight_failure_summary(artifact_dir) or failure
+        append_msx2_blocked_resolution_attempts(attempts, final_failure)
         write_msx2_budget_resolution_summary(
             artifact_dir,
             "unresolved",
@@ -3143,7 +3221,70 @@ def validate_konami8k_megarom(rom_path: Path, asm_path: Path) -> dict[str, int |
     }
 
 
-def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: Path) -> dict[str, int | bool]:
+def validate_msx2_screen4_data_bank_symbols(
+    sym_path: Path,
+    data_bank_indexes: set[int],
+    data_bank_labels: set[str],
+) -> dict[str, int | bool]:
+    if not sym_path.exists():
+        raise RuntimeError(f"MSX2 Konami8K validation failed: missing symbols file {sym_path}")
+    sym_text = sym_path.read_text(encoding="utf-8", errors="ignore")
+    for bank_index in sorted(data_bank_indexes):
+        phys_start = _sym_equ_value(sym_text, f"MSX2_SCREEN4_DATA_BANK_{bank_index}_PHYS_START")
+        rom_start = _sym_equ_value(sym_text, f"MSX2_SCREEN4_DATA_BANK_{bank_index}_ROM_START")
+        used_end = _sym_equ_value(sym_text, f"MSX2_SCREEN4_DATA_BANK_{bank_index}_USED_END")
+        expected_phys_start = 0xC000 + (bank_index * 0x2000)
+        if phys_start != expected_phys_start:
+            raise RuntimeError(
+                "MSX2 Konami8K validation failed: SCREEN 4 data-bank physical anchor is not contiguous; "
+                f"bank={bank_index} expected=#{expected_phys_start:04X} actual=#{phys_start:04X}"
+            )
+        if rom_start != 0x8000:
+            raise RuntimeError(
+                "MSX2 Konami8K validation failed: SCREEN 4 data-bank runtime label must assemble in P2/#8000; "
+                f"bank={bank_index} actual=#{rom_start:04X}"
+            )
+        if used_end < 0x8000 or used_end > 0xA000:
+            raise RuntimeError(
+                "MSX2 Konami8K validation failed: SCREEN 4 data-bank data crosses the #8000-#9FFF runtime window; "
+                f"bank={bank_index} usedEnd=#{used_end:04X}"
+            )
+
+    cold_suffixes = (
+        "_BANK_0_PATTERNS",
+        "_BANK_0_COLORS",
+        "_NAMES",
+        "_COLLISION",
+        "_EFFECTS",
+        "_BEHAVIOR",
+    )
+    for label in sorted(data_bank_labels):
+        data_bank_value = _sym_equ_value(sym_text, f"{label}_DATA_BANK")
+        expected_bank_indexes = [index for index in data_bank_indexes if data_bank_value == 4 + index]
+        if not expected_bank_indexes:
+            raise RuntimeError(
+                "MSX2 Konami8K validation failed: screen data-bank equate points outside emitted SCREEN 4 data banks; "
+                f"label={label} dataBank={data_bank_value}"
+            )
+        for suffix in cold_suffixes:
+            symbol = f"{label}{suffix}"
+            try:
+                value = _sym_equ_value(sym_text, symbol)
+            except RuntimeError:
+                continue
+            if value < 0x8000 or value >= 0xA000:
+                raise RuntimeError(
+                    "MSX2 Konami8K validation failed: cold SCREEN 4 label is not addressable in the #8000 data window; "
+                    f"label={symbol} value=#{value:04X}"
+                )
+    return {
+        "data_bank_symbol_count": len(data_bank_indexes),
+        "screen_data_bank_label_count": len(data_bank_labels),
+        "data_bank_symbols_ok": True,
+    }
+
+
+def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: Path, sym_path: Path | None = None) -> dict[str, int | bool]:
     rom_data = rom_path.read_bytes()
     if len(rom_data) == 0:
         raise RuntimeError(f"MSX2 Konami8K validation failed: ROM is empty: {rom_path}")
@@ -3222,6 +3363,11 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
         match.group(1)
         for match in re.finditer(r"^([A-Za-z0-9_]+)_DATA_BANK\s+EQU\s+MSX2_SCREEN4_DATA_BANK_\d+", asm_text, flags=re.MULTILINE)
     }
+    symbol_validation = (
+        validate_msx2_screen4_data_bank_symbols(sym_path, data_bank_equates, data_bank_labels)
+        if sym_path is not None
+        else {}
+    )
     for label, body in load_routines:
         if f"{label}_DATA_BANK" in asm_text and (
             f"ld a, {label}_DATA_BANK" not in body
@@ -3303,6 +3449,7 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
         "size_bytes": len(rom_data),
         "header_ok": True,
         "scattered_mapper_writes": 0,
+        **symbol_validation,
     }
 
 
@@ -6523,7 +6670,7 @@ def main() -> int:
         konami_validation = None
         konami_artifact_validation = None
         if screen4_fixed:
-            screen4_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, selected_asm)
+            screen4_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, selected_asm, sym_output)
         elif screen5_fixed:
             screen5_validation = validate_msx2_screen5_konami_fixed_bank0_megarom(rom_output, selected_asm)
         elif args.rom_mode == "megarom" and args.target_format == "konami":

@@ -1315,8 +1315,10 @@ Current CLI gate:
     emits per-screen `<LABEL>_DATA_BANK` constants, selectable P2/#8000 bank
     entry, and physical `MSX2_SCREEN4_DATA_BANK_n_*` anchors so Glass symbols
     can verify that cold screen data really lands in separate 8 KB banks. Cases
-    that require `auto_world_package_chunk` still stop before Glass because
-    chunk-to-label physical loading is not implemented yet.
+    that require `auto_world_package_chunk` still stop before Glass because the
+    budget split exists, but chunk-to-label physical loading is not implemented
+    yet. The resolver metadata now says that explicitly instead of implying that
+    all world-package splitting is absent.
     SCREEN 4 effect templates now follow the same cold-data policy: each
     `<LABEL>_EFFECTS` table is emitted with its screen data bank and
     `init_msx2_effect_buffers` copies it to persistent RAM through the
@@ -1402,6 +1404,23 @@ Current CLI gate:
     attempt, and whether previous attempts already resolved the failure. This
     gives the future regeneration loop a single stable field to consume instead
     of reinterpreting bank diagnostics or UI strings.
+18. SCREEN 4 Konami validation now checks data-bank symbols when a `.sym` file
+    is available. Each `MSX2_SCREEN4_DATA_BANK_n` section must expose contiguous
+    physical anchors, runtime `ROM_START` at `#8000`, `USED_END <= #A000`, and
+    every per-screen cold label referenced by `<LABEL>_DATA_BANK` must remain
+    addressable inside the selected P2 data window.
+
+Current resolver status:
+
+| Resolver | Stage | Status | Notes |
+| --- | --- | --- | --- |
+| `relax_strict_warning_gate` | preflight | automatic | Re-runs validation as non-strict when banks fit but warning thresholds fail. |
+| `enable_zx0_preprocess` | preflight | automatic | Regenerates ASM with ZX0 preprocessing when compression was skipped and bank pressure can drop. |
+| `run_post_asm_dead_block_optimizer` | post-Glass failure | automatic | Tries conservative dead-block Post-ASM recovery after resident/capacity overflow and records attempts. |
+| `move_cold_readonly_data_to_world_bank` | compile failure | partially implemented | SCREEN 4 collision/behavior/effects already moved to world data banks; generic cold-data classifiers still pending. |
+| `emit_multi_bank_world_data_loader` | asm generation | partially implemented | Per-screen multi-bank loader is supported and symbol-validated; chunk-to-label physical loading remains blocked. |
+| `split_over_budget_world_packages` | precompile | partially implemented | Logical `auto_world_package_chunk` budgeting exists; physical chunk labels and chunk-aware loader are pending. |
+| `reduce_runtime_ram` | precompile | blocked | Needs an authoring/runtime policy to shrink live pools or caches without moving whole worlds into RAM. |
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor
