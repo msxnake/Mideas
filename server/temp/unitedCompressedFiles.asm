@@ -1,7 +1,7 @@
 ; File: unitedFiles.asm
 ; ==================================================================
 ; Mideas MSX2 SCREEN 4 tile backend
-; Project: MyMSXGame4
+; Project: MyMSXGame5
 ; Screen mode: SCREEN 4 (Graphics II)
 ; ROM Mode: megarom
 ; Mapper Target: konami
@@ -14,7 +14,7 @@
 ; [[[MIDEAS_ARTIFACT:project_slice.json:BEGIN]]]
 ; {
 ;   "scope": "msx2_screen4_project_slice",
-;   "projectName": "MyMSXGame4",
+;   "projectName": "MyMSXGame5",
 ;   "backend": "msx2-screen4-pattern",
 ;   "screenMode": "SCREEN 4 (Graphics II)",
 ;   "romMode": "megarom",
@@ -464,6 +464,8 @@
 ;     "runtime.msx2.layers.effects",
 ;     "runtime.msx2.layers.behavior",
 ;     "runtime.msx2.hardware_sprites",
+;     "runtime.msx2.shooter60hz.contract",
+;     "runtime.msx2.scroll.vertical",
 ;     "runtime.msx2.mapper.konami8k"
 ;   ],
 ;   "includedRuntimeModuleDetails": [
@@ -490,7 +492,7 @@
 ;     {
 ;       "id": "runtime.msx2.layers.collision",
 ;       "placement": "resident",
-;       "reason": "Collision layer pointers are part of the current runtime contract"
+;       "reason": "Collision reader stays resident; current screen data is cached in RAM from world data banks"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.layers.effects",
@@ -500,12 +502,22 @@
 ;     {
 ;       "id": "runtime.msx2.layers.behavior",
 ;       "placement": "resident",
-;       "reason": "Behavior layer pointers are part of the current runtime contract"
+;       "reason": "Behavior reader stays resident; current screen data is cached in RAM from world data banks"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.hardware_sprites",
 ;       "placement": "resident",
 ;       "reason": "Enabled only when a reachable MSX2 sprite source exists"
+;     },
+;     {
+;       "id": "runtime.msx2.shooter60hz.contract",
+;       "placement": "metadata",
+;       "reason": "Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles"
+;     },
+;     {
+;       "id": "runtime.msx2.scroll.vertical",
+;       "placement": "resident",
+;       "reason": "Enabled only when reachable screens request scroll"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.mapper.konami8k",
@@ -523,11 +535,6 @@
 ;       "id": "runtime.msx2.stage_banner",
 ;       "placement": "resident",
 ;       "reason": "Enabled only by shooter wave flow"
-;     },
-;     {
-;       "id": "runtime.msx2.scroll.vertical",
-;       "placement": "resident",
-;       "reason": "Enabled only when reachable screens request scroll"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.snake_char",
@@ -564,7 +571,7 @@
 ;       "id": "runtime.msx2.layers.collision",
 ;       "included": true,
 ;       "placement": "resident",
-;       "reason": "Collision layer pointers are part of the current runtime contract"
+;       "reason": "Collision reader stays resident; current screen data is cached in RAM from world data banks"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.layers.effects",
@@ -576,7 +583,7 @@
 ;       "id": "runtime.msx2.layers.behavior",
 ;       "included": true,
 ;       "placement": "resident",
-;       "reason": "Behavior layer pointers are part of the current runtime contract"
+;       "reason": "Behavior reader stays resident; current screen data is cached in RAM from world data banks"
 ;     },
 ;     {
 ;       "id": "runtime.msx2.hardware_sprites",
@@ -591,6 +598,12 @@
 ;       "reason": "Enabled only by shooter-horizontal movement"
 ;     },
 ;     {
+;       "id": "runtime.msx2.shooter60hz.contract",
+;       "included": true,
+;       "placement": "metadata",
+;       "reason": "Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles"
+;     },
+;     {
 ;       "id": "runtime.msx2.stage_banner",
 ;       "included": false,
 ;       "placement": "resident",
@@ -598,7 +611,7 @@
 ;     },
 ;     {
 ;       "id": "runtime.msx2.scroll.vertical",
-;       "included": false,
+;       "included": true,
 ;       "placement": "resident",
 ;       "reason": "Enabled only when reachable screens request scroll"
 ;     },
@@ -620,12 +633,12 @@
 ;       "worldId": "worldmap_1779743562940",
 ;       "assetCount": 3,
 ;       "screenCount": 1,
-;       "estimatedBytes": 1823,
+;       "estimatedBytes": 1831,
 ;       "estimated8kBanks": 1,
 ;       "bankClassBytes": [
 ;         {
 ;           "id": "world.screen",
-;           "usedBytes": 1432
+;           "usedBytes": 1440
 ;         },
 ;         {
 ;           "id": "world.manifest",
@@ -642,23 +655,23 @@
 ;     "scope": "msx2_screen4_world_bank_manifest",
 ;     "mapper": "konami",
 ;     "bankSizeBytes": 8192,
-;     "dataWindowAddress": "#A000",
+;     "dataWindowAddress": "#8000",
 ;     "estimatedPhysicalBanks": [
 ;       {
 ;         "bankIndex": 0,
-;         "windowAddress": "#A000",
+;         "windowAddress": "#8000",
 ;         "bankSizeBytes": 8192,
 ;         "warningThresholdBytes": 7372,
-;         "usedBytes": 1823,
-;         "freeBytes": 6369,
-;         "usedPercent": 22.25,
+;         "usedBytes": 1831,
+;         "freeBytes": 6361,
+;         "usedPercent": 22.35,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
 ;         "status": "ok",
 ;         "packages": [
 ;           {
 ;             "id": "msx2screen.msx2screen_1779743570483",
-;             "usedBytes": 1432,
+;             "usedBytes": 1440,
 ;             "recommendedBankClass": "world.screen"
 ;           },
 ;           {
@@ -677,7 +690,7 @@
 ;     "worlds": [
 ;       {
 ;         "worldId": "worldmap_1779743562940",
-;         "estimatedBytes": 1823,
+;         "estimatedBytes": 1831,
 ;         "estimated8kBanks": 1,
 ;         "packages": [
 ;           {
@@ -687,10 +700,10 @@
 ;             "logicalSection": "world screens",
 ;             "recommendedBankClass": "world.screen",
 ;             "physicalBankIndex": 0,
-;             "windowAddress": "#A000",
+;             "windowAddress": "#8000",
 ;             "bankSizeBytes": 8192,
-;             "rawBytes": 1432,
-;             "storedBytes": 1432,
+;             "rawBytes": 1440,
+;             "storedBytes": 1440,
 ;             "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
 ;             "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
 ;           },
@@ -701,7 +714,7 @@
 ;             "logicalSection": "world graphics",
 ;             "recommendedBankClass": "world.graphics.sprite",
 ;             "physicalBankIndex": 0,
-;             "windowAddress": "#A000",
+;             "windowAddress": "#8000",
 ;             "bankSizeBytes": 8192,
 ;             "rawBytes": 80,
 ;             "storedBytes": 80,
@@ -715,7 +728,7 @@
 ;             "logicalSection": "world manifest",
 ;             "recommendedBankClass": "world.manifest",
 ;             "physicalBankIndex": 0,
-;             "windowAddress": "#A000",
+;             "windowAddress": "#8000",
 ;             "bankSizeBytes": 8192,
 ;             "rawBytes": 311,
 ;             "storedBytes": 311,
@@ -726,6 +739,78 @@
 ;       }
 ;     ],
 ;     "note": "Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression."
+;   },
+;   "screen4RuntimeLayerPolicy": {
+;     "collision": {
+;       "definitionPlacement": "world_data_bank",
+;       "runtimePlacement": "ram_cache",
+;       "cacheScope": "current_screen",
+;       "bytesPerScreen": 192
+;     },
+;     "behavior": {
+;       "definitionPlacement": "world_data_bank",
+;       "runtimePlacement": "ram_cache",
+;       "cacheScope": "current_screen",
+;       "bytesPerScreen": 192
+;     },
+;     "effects": {
+;       "definitionPlacement": "world_data_bank",
+;       "runtimePlacement": "persistent_ram",
+;       "cacheScope": "per_screen",
+;       "bytesPerScreen": 192
+;     }
+;   },
+;   "shooter60Hz": {
+;     "targetHz": 60,
+;     "screens": [
+;       {
+;         "screenId": "msx2screen_1779743570483",
+;         "screenName": "New MSX2 SCREEN 4 Room",
+;         "direction": "vertical",
+;         "scrollMode": "tileVertical",
+;         "playerMode": "single",
+;         "hudMode": "compactTop",
+;         "pools": {
+;           "enemies": 8,
+;           "playerShots": 6,
+;           "enemyShots": 12,
+;           "powerups": 2,
+;           "explosions": 4,
+;           "bossParts": 5
+;         },
+;         "activeIrqProfile": {
+;           "id": "IRQ_STAGE_NORMAL",
+;           "estimatedCycles": 3600,
+;           "worstCaseCycles": 4800,
+;           "maxAllowedCycles": 6000,
+;           "vramBytes": 128,
+;           "frequency": "everyFrame",
+;           "sustained": true,
+;           "tasks": [
+;             "input",
+;             "sat_upload_24",
+;             "music"
+;           ]
+;         },
+;         "validation": [
+;           {
+;             "severity": "warning",
+;             "code": "scroll_without_scroll_irq",
+;             "message": "Tile vertical scroll is selected but the active IRQ profile does not upload a scroll row."
+;           }
+;         ]
+;       }
+;     ],
+;     "screenCount": 1,
+;     "warnings": [
+;       {
+;         "screenId": "msx2screen_1779743570483",
+;         "severity": "warning",
+;         "code": "scroll_without_scroll_irq",
+;         "message": "Tile vertical scroll is selected but the active IRQ profile does not upload a scroll row."
+;       }
+;     ],
+;     "errors": []
 ;   },
 ;   "assetStoragePolicy": [
 ;     {
@@ -765,8 +850,8 @@
 ;       "ownerWorldIds": [
 ;         "worldmap_1779743562940"
 ;       ],
-;       "rawBytes": 1432,
-;       "storedBytesEstimate": 1432,
+;       "rawBytes": 1440,
+;       "storedBytesEstimate": 1440,
 ;       "accessPattern": "mixed_load_to_vram_and_runtime_read",
 ;       "mutable": false,
 ;       "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
@@ -792,10 +877,87 @@
 ;         },
 ;         {
 ;           "name": "runtimeLayersAndSpawns",
-;           "rawBytes": 584,
+;           "rawBytes": 592,
 ;           "accessPattern": "runtime_read",
-;           "decision": "ROM_RAW"
+;           "decision": "ROM_RAW",
+;           "placement": "world_data_bank",
+;           "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
 ;         }
+;       ],
+;       "screenLabel": "NEW_MSX2_SCREEN_4_ROOM",
+;       "payloadParts": [
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;           "kind": "screen4_names",
+;           "rawBytes": 768,
+;           "loadOrder": 20
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;           "kind": "screen4_patterns",
+;           "rawBytes": 8,
+;           "loadOrder": 0
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;           "kind": "screen4_colors",
+;           "rawBytes": 8,
+;           "loadOrder": 1
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;           "kind": "screen4_patterns",
+;           "rawBytes": 8,
+;           "loadOrder": 2
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;           "kind": "screen4_colors",
+;           "rawBytes": 8,
+;           "loadOrder": 3
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;           "kind": "screen4_patterns",
+;           "rawBytes": 24,
+;           "loadOrder": 4
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;           "kind": "screen4_colors",
+;           "rawBytes": 24,
+;           "loadOrder": 5
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;           "kind": "screen4_collision",
+;           "rawBytes": 192,
+;           "loadOrder": 30
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;           "kind": "screen4_effects",
+;           "rawBytes": 192,
+;           "loadOrder": 31
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR",
+;           "kind": "screen4_behavior",
+;           "rawBytes": 192,
+;           "loadOrder": 32
+;         }
+;       ],
+;       "payloadLabels": [
+;         "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;         "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;         "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR"
 ;       ]
 ;     },
 ;     {
@@ -861,7 +1023,7 @@
 ;   "logicalBankBudget": {
 ;     "bankSizeBytes": 8192,
 ;     "warningThresholdBytes": 7372,
-;     "totalPayloadBytes": 1823,
+;     "totalPayloadBytes": 1831,
 ;     "estimatedMinimumBanks": 1,
 ;     "estimatedPackedBankCount": 1,
 ;     "estimatedPackedBanks": [
@@ -869,16 +1031,16 @@
 ;         "bankIndex": 0,
 ;         "bankSizeBytes": 8192,
 ;         "warningThresholdBytes": 7372,
-;         "usedBytes": 1823,
-;         "freeBytes": 6369,
-;         "usedPercent": 22.25,
+;         "usedBytes": 1831,
+;         "freeBytes": 6361,
+;         "usedPercent": 22.35,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
 ;         "status": "ok",
 ;         "packages": [
 ;           {
 ;             "id": "msx2screen.msx2screen_1779743570483",
-;             "usedBytes": 1432,
+;             "usedBytes": 1440,
 ;             "recommendedBankClass": "world.screen"
 ;           },
 ;           {
@@ -901,13 +1063,13 @@
 ;       {
 ;         "id": "world.screen",
 ;         "packageCount": 1,
-;         "usedBytes": 1432,
+;         "usedBytes": 1440,
 ;         "estimatedMinimumBanks": 1,
 ;         "warningPackageCount": 0,
 ;         "overBudgetPackageCount": 0,
 ;         "largestPackage": {
 ;           "id": "msx2screen.msx2screen_1779743570483",
-;           "usedBytes": 1432
+;           "usedBytes": 1440
 ;         }
 ;       },
 ;       {
@@ -1019,11 +1181,86 @@
 ;         "type": "msx2screen",
 ;         "sourceId": "msx2screen_1779743570483",
 ;         "recommendedBankClass": "world.screen",
-;         "usedBytes": 1432,
-;         "freeBytesIfAlone": 6760,
+;         "usedBytes": 1440,
+;         "freeBytesIfAlone": 6752,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
-;         "canSplit": true
+;         "canSplit": true,
+;         "screenLabel": "NEW_MSX2_SCREEN_4_ROOM",
+;         "payloadParts": [
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;             "kind": "screen4_names",
+;             "rawBytes": 768,
+;             "loadOrder": 20
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;             "kind": "screen4_patterns",
+;             "rawBytes": 8,
+;             "loadOrder": 0
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;             "kind": "screen4_colors",
+;             "rawBytes": 8,
+;             "loadOrder": 1
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;             "kind": "screen4_patterns",
+;             "rawBytes": 8,
+;             "loadOrder": 2
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;             "kind": "screen4_colors",
+;             "rawBytes": 8,
+;             "loadOrder": 3
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;             "kind": "screen4_patterns",
+;             "rawBytes": 24,
+;             "loadOrder": 4
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;             "kind": "screen4_colors",
+;             "rawBytes": 24,
+;             "loadOrder": 5
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;             "kind": "screen4_collision",
+;             "rawBytes": 192,
+;             "loadOrder": 30
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;             "kind": "screen4_effects",
+;             "rawBytes": 192,
+;             "loadOrder": 31
+;           },
+;           {
+;             "label": "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR",
+;             "kind": "screen4_behavior",
+;             "rawBytes": 192,
+;             "loadOrder": 32
+;           }
+;         ],
+;         "payloadLabels": [
+;           "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;           "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;           "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;           "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;           "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;           "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;           "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;           "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;           "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;           "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR"
+;         ]
 ;       },
 ;       {
 ;         "id": "msx2sprite.msx2sprite_1779743578883",
@@ -1034,7 +1271,9 @@
 ;         "freeBytesIfAlone": 8112,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
-;         "canSplit": true
+;         "canSplit": true,
+;         "payloadParts": [],
+;         "payloadLabels": []
 ;       },
 ;       {
 ;         "id": "worldmap.worldmap_1779743562940",
@@ -1045,21 +1284,26 @@
 ;         "freeBytesIfAlone": 7881,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
-;         "canSplit": false
+;         "canSplit": false,
+;         "payloadParts": [],
+;         "payloadLabels": []
 ;       }
 ;     ],
+;     "splitPackages": [],
+;     "splitChunkManifest": [],
+;     "splitSourcePackages": [],
 ;     "note": "Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression."
 ;   },
 ;   "ramBudget": {
 ;     "scope": "msx2_screen4_ram_budget",
 ;     "start": "#C000",
-;     "end": "#C314",
+;     "end": "#C494",
 ;     "limit": "#F300",
 ;     "usableBytes": 13056,
-;     "usedBytes": 788,
-;     "freeBytes": 12268,
+;     "usedBytes": 1172,
+;     "freeBytes": 11884,
 ;     "warningThresholdBytes": 11097,
-;     "maxPersistentScreens": 65,
+;     "maxPersistentScreens": 63,
 ;     "reachableScreens": 1,
 ;     "status": "ok",
 ;     "sections": [
@@ -1098,9 +1342,25 @@
 ;         "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
 ;       },
 ;       {
-;         "id": "runtime.enemy_pool",
+;         "id": "runtime.collision_current_cache",
 ;         "start": "#C2C0",
-;         "end": "#C314",
+;         "end": "#C380",
+;         "bytes": 192,
+;         "mutable": true,
+;         "reason": "Hot cache for the current SCREEN 4 collision layer copied from ROM data banks."
+;       },
+;       {
+;         "id": "runtime.behavior_current_cache",
+;         "start": "#C380",
+;         "end": "#C440",
+;         "bytes": 192,
+;         "mutable": true,
+;         "reason": "Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks."
+;       },
+;       {
+;         "id": "runtime.enemy_pool",
+;         "start": "#C440",
+;         "end": "#C494",
 ;         "bytes": 84,
 ;         "mutable": true,
 ;         "slots": 12,
@@ -1122,22 +1382,27 @@
 ;     "msx2_collision",
 ;     "msx2_hardware_sprite",
 ;     "msx2_health",
+;     "msx2_lives",
+;     "msx2_movement",
 ;     "msx2_player_control",
+;     "msx2_score",
+;     "msx2_shooter",
 ;     "msx2_spawn",
 ;     "msx2_timer",
 ;     "msx2_transform"
 ;   ],
 ;   "includedMovementProfiles": [
-;     "platform"
+;     "shooterVertical",
+;     "static"
 ;   ],
 ;   "includedAttackProfiles": [],
 ;   "includedStateMachines": [],
 ;   "estimatedRamNeeds": {
 ;     "start": "#C000",
-;     "end": "#C314",
+;     "end": "#C494",
 ;     "limit": "#F300",
-;     "usedBytes": 788,
-;     "freeBytes": 12268,
+;     "usedBytes": 1172,
+;     "freeBytes": 11884,
 ;     "persistentEffectBytes": 192,
 ;     "enemyRuntimeBytes": 84,
 ;     "ramBudgetStatus": "ok"
@@ -1147,10 +1412,26 @@
 ;     "reachableMsx2SpriteCount": 1,
 ;     "reachableWorldCount": 1,
 ;     "usesKonamiDataBank": true,
-;     "romPayloadBytesEstimate": 1823,
+;     "romPayloadBytesEstimate": 1831,
 ;     "estimated8kBanksForPayload": 1,
 ;     "warningThresholdBytesPerBank": 7372,
 ;     "note": "Slice reports reachability and storage policy estimates; final bank placement remains allocator-owned."
+;   },
+;   "screen4DataBankPlan": {
+;     "supported": true,
+;     "bankCount": 1,
+;     "dataWindowAddress": "#8000",
+;     "unsupportedReason": null,
+;     "splitChunkCount": 0,
+;     "splitChunkManifest": [],
+;     "screenBanks": [
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM",
+;         "packageId": "msx2screen.msx2screen_1779743570483",
+;         "bankIndex": 0,
+;         "physicalBank": 4
+;       }
+;     ]
 ;   }
 ; }
 ;
@@ -1195,8 +1476,8 @@
 ;     "ownerWorldIds": [
 ;       "worldmap_1779743562940"
 ;     ],
-;     "rawBytes": 1432,
-;     "storedBytesEstimate": 1432,
+;     "rawBytes": 1440,
+;     "storedBytesEstimate": 1440,
 ;     "accessPattern": "mixed_load_to_vram_and_runtime_read",
 ;     "mutable": false,
 ;     "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
@@ -1222,10 +1503,87 @@
 ;       },
 ;       {
 ;         "name": "runtimeLayersAndSpawns",
-;         "rawBytes": 584,
+;         "rawBytes": 592,
 ;         "accessPattern": "runtime_read",
-;         "decision": "ROM_RAW"
+;         "decision": "ROM_RAW",
+;         "placement": "world_data_bank",
+;         "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
 ;       }
+;     ],
+;     "screenLabel": "NEW_MSX2_SCREEN_4_ROOM",
+;     "payloadParts": [
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;         "kind": "screen4_names",
+;         "rawBytes": 768,
+;         "loadOrder": 20
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;         "kind": "screen4_patterns",
+;         "rawBytes": 8,
+;         "loadOrder": 0
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;         "kind": "screen4_colors",
+;         "rawBytes": 8,
+;         "loadOrder": 1
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;         "kind": "screen4_patterns",
+;         "rawBytes": 8,
+;         "loadOrder": 2
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;         "kind": "screen4_colors",
+;         "rawBytes": 8,
+;         "loadOrder": 3
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;         "kind": "screen4_patterns",
+;         "rawBytes": 24,
+;         "loadOrder": 4
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;         "kind": "screen4_colors",
+;         "rawBytes": 24,
+;         "loadOrder": 5
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;         "kind": "screen4_collision",
+;         "rawBytes": 192,
+;         "loadOrder": 30
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;         "kind": "screen4_effects",
+;         "rawBytes": 192,
+;         "loadOrder": 31
+;       },
+;       {
+;         "label": "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR",
+;         "kind": "screen4_behavior",
+;         "rawBytes": 192,
+;         "loadOrder": 32
+;       }
+;     ],
+;     "payloadLabels": [
+;       "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;       "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;       "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;       "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;       "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;       "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;       "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;       "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;       "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;       "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR"
 ;     ]
 ;   },
 ;   {
@@ -1295,7 +1653,7 @@
 ; {
 ;   "bankSizeBytes": 8192,
 ;   "warningThresholdBytes": 7372,
-;   "totalPayloadBytes": 1823,
+;   "totalPayloadBytes": 1831,
 ;   "estimatedMinimumBanks": 1,
 ;   "estimatedPackedBankCount": 1,
 ;   "estimatedPackedBanks": [
@@ -1303,16 +1661,16 @@
 ;       "bankIndex": 0,
 ;       "bankSizeBytes": 8192,
 ;       "warningThresholdBytes": 7372,
-;       "usedBytes": 1823,
-;       "freeBytes": 6369,
-;       "usedPercent": 22.25,
+;       "usedBytes": 1831,
+;       "freeBytes": 6361,
+;       "usedPercent": 22.35,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
 ;       "status": "ok",
 ;       "packages": [
 ;         {
 ;           "id": "msx2screen.msx2screen_1779743570483",
-;           "usedBytes": 1432,
+;           "usedBytes": 1440,
 ;           "recommendedBankClass": "world.screen"
 ;         },
 ;         {
@@ -1335,13 +1693,13 @@
 ;     {
 ;       "id": "world.screen",
 ;       "packageCount": 1,
-;       "usedBytes": 1432,
+;       "usedBytes": 1440,
 ;       "estimatedMinimumBanks": 1,
 ;       "warningPackageCount": 0,
 ;       "overBudgetPackageCount": 0,
 ;       "largestPackage": {
 ;         "id": "msx2screen.msx2screen_1779743570483",
-;         "usedBytes": 1432
+;         "usedBytes": 1440
 ;       }
 ;     },
 ;     {
@@ -1453,11 +1811,86 @@
 ;       "type": "msx2screen",
 ;       "sourceId": "msx2screen_1779743570483",
 ;       "recommendedBankClass": "world.screen",
-;       "usedBytes": 1432,
-;       "freeBytesIfAlone": 6760,
+;       "usedBytes": 1440,
+;       "freeBytesIfAlone": 6752,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
-;       "canSplit": true
+;       "canSplit": true,
+;       "screenLabel": "NEW_MSX2_SCREEN_4_ROOM",
+;       "payloadParts": [
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;           "kind": "screen4_names",
+;           "rawBytes": 768,
+;           "loadOrder": 20
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;           "kind": "screen4_patterns",
+;           "rawBytes": 8,
+;           "loadOrder": 0
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;           "kind": "screen4_colors",
+;           "rawBytes": 8,
+;           "loadOrder": 1
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;           "kind": "screen4_patterns",
+;           "rawBytes": 8,
+;           "loadOrder": 2
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;           "kind": "screen4_colors",
+;           "rawBytes": 8,
+;           "loadOrder": 3
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;           "kind": "screen4_patterns",
+;           "rawBytes": 24,
+;           "loadOrder": 4
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;           "kind": "screen4_colors",
+;           "rawBytes": 24,
+;           "loadOrder": 5
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;           "kind": "screen4_collision",
+;           "rawBytes": 192,
+;           "loadOrder": 30
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;           "kind": "screen4_effects",
+;           "rawBytes": 192,
+;           "loadOrder": 31
+;         },
+;         {
+;           "label": "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR",
+;           "kind": "screen4_behavior",
+;           "rawBytes": 192,
+;           "loadOrder": 32
+;         }
+;       ],
+;       "payloadLabels": [
+;         "NEW_MSX2_SCREEN_4_ROOM_NAMES",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_0_PATTERNS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_0_COLORS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_1_PATTERNS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_1_COLORS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS",
+;         "NEW_MSX2_SCREEN_4_ROOM_COLLISION",
+;         "NEW_MSX2_SCREEN_4_ROOM_EFFECTS",
+;         "NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR"
+;       ]
 ;     },
 ;     {
 ;       "id": "msx2sprite.msx2sprite_1779743578883",
@@ -1468,7 +1901,9 @@
 ;       "freeBytesIfAlone": 8112,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
-;       "canSplit": true
+;       "canSplit": true,
+;       "payloadParts": [],
+;       "payloadLabels": []
 ;     },
 ;     {
 ;       "id": "worldmap.worldmap_1779743562940",
@@ -1479,9 +1914,14 @@
 ;       "freeBytesIfAlone": 7881,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
-;       "canSplit": false
+;       "canSplit": false,
+;       "payloadParts": [],
+;       "payloadLabels": []
 ;     }
 ;   ],
+;   "splitPackages": [],
+;   "splitChunkManifest": [],
+;   "splitSourcePackages": [],
 ;   "note": "Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression."
 ; }
 ;
@@ -1492,23 +1932,23 @@
 ;   "scope": "msx2_screen4_world_bank_manifest",
 ;   "mapper": "konami",
 ;   "bankSizeBytes": 8192,
-;   "dataWindowAddress": "#A000",
+;   "dataWindowAddress": "#8000",
 ;   "estimatedPhysicalBanks": [
 ;     {
 ;       "bankIndex": 0,
-;       "windowAddress": "#A000",
+;       "windowAddress": "#8000",
 ;       "bankSizeBytes": 8192,
 ;       "warningThresholdBytes": 7372,
-;       "usedBytes": 1823,
-;       "freeBytes": 6369,
-;       "usedPercent": 22.25,
+;       "usedBytes": 1831,
+;       "freeBytes": 6361,
+;       "usedPercent": 22.35,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
 ;       "status": "ok",
 ;       "packages": [
 ;         {
 ;           "id": "msx2screen.msx2screen_1779743570483",
-;           "usedBytes": 1432,
+;           "usedBytes": 1440,
 ;           "recommendedBankClass": "world.screen"
 ;         },
 ;         {
@@ -1527,7 +1967,7 @@
 ;   "worlds": [
 ;     {
 ;       "worldId": "worldmap_1779743562940",
-;       "estimatedBytes": 1823,
+;       "estimatedBytes": 1831,
 ;       "estimated8kBanks": 1,
 ;       "packages": [
 ;         {
@@ -1537,10 +1977,10 @@
 ;           "logicalSection": "world screens",
 ;           "recommendedBankClass": "world.screen",
 ;           "physicalBankIndex": 0,
-;           "windowAddress": "#A000",
+;           "windowAddress": "#8000",
 ;           "bankSizeBytes": 8192,
-;           "rawBytes": 1432,
-;           "storedBytes": 1432,
+;           "rawBytes": 1440,
+;           "storedBytes": 1440,
 ;           "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
 ;           "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
 ;         },
@@ -1551,7 +1991,7 @@
 ;           "logicalSection": "world graphics",
 ;           "recommendedBankClass": "world.graphics.sprite",
 ;           "physicalBankIndex": 0,
-;           "windowAddress": "#A000",
+;           "windowAddress": "#8000",
 ;           "bankSizeBytes": 8192,
 ;           "rawBytes": 80,
 ;           "storedBytes": 80,
@@ -1565,7 +2005,7 @@
 ;           "logicalSection": "world manifest",
 ;           "recommendedBankClass": "world.manifest",
 ;           "physicalBankIndex": 0,
-;           "windowAddress": "#A000",
+;           "windowAddress": "#8000",
 ;           "bankSizeBytes": 8192,
 ;           "rawBytes": 311,
 ;           "storedBytes": 311,
@@ -1584,13 +2024,13 @@
 ; {
 ;   "scope": "msx2_screen4_ram_budget",
 ;   "start": "#C000",
-;   "end": "#C314",
+;   "end": "#C494",
 ;   "limit": "#F300",
 ;   "usableBytes": 13056,
-;   "usedBytes": 788,
-;   "freeBytes": 12268,
+;   "usedBytes": 1172,
+;   "freeBytes": 11884,
 ;   "warningThresholdBytes": 11097,
-;   "maxPersistentScreens": 65,
+;   "maxPersistentScreens": 63,
 ;   "reachableScreens": 1,
 ;   "status": "ok",
 ;   "sections": [
@@ -1629,9 +2069,25 @@
 ;       "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
 ;     },
 ;     {
-;       "id": "runtime.enemy_pool",
+;       "id": "runtime.collision_current_cache",
 ;       "start": "#C2C0",
-;       "end": "#C314",
+;       "end": "#C380",
+;       "bytes": 192,
+;       "mutable": true,
+;       "reason": "Hot cache for the current SCREEN 4 collision layer copied from ROM data banks."
+;     },
+;     {
+;       "id": "runtime.behavior_current_cache",
+;       "start": "#C380",
+;       "end": "#C440",
+;       "bytes": 192,
+;       "mutable": true,
+;       "reason": "Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks."
+;     },
+;     {
+;       "id": "runtime.enemy_pool",
+;       "start": "#C440",
+;       "end": "#C494",
 ;       "bytes": 84,
 ;       "mutable": true,
 ;       "slots": 12,
@@ -1749,17 +2205,22 @@ msx2_input_key_button2_mode EQU #C041
 msx2_control_jump_button EQU #C042
 msx2_control_action_button EQU #C043
 MSX2_SCREEN4_DATA_BANK EQU 4
+MSX2_SCREEN4_DATA_BANK_0 EQU 4
+NEW_MSX2_SCREEN_4_ROOM_DATA_BANK EQU MSX2_SCREEN4_DATA_BANK_0
+MSX2_SCREEN4_MULTI_BANK_LOADER_READY EQU 1
 msx2_snake_body_cells EQU #C044
 msx2_effects_runtime_buffers EQU #C084
 msx2_effects_runtime_scratch EQU #C200
-msx2_enemy_runtime_x EQU #C2C0
-msx2_enemy_runtime_y EQU #C2CC
-msx2_enemy_runtime_dx EQU #C2D8
-msx2_enemy_runtime_dy EQU #C2E4
-msx2_enemy_runtime_mode EQU #C2F0
-msx2_enemy_runtime_speed EQU #C2FC
-msx2_enemy_runtime_tick EQU #C308
-msx2_runtime_ram_end EQU #C314
+msx2_collision_runtime_cache EQU #C2C0
+msx2_behavior_runtime_cache EQU #C380
+msx2_enemy_runtime_x EQU #C440
+msx2_enemy_runtime_y EQU #C44C
+msx2_enemy_runtime_dx EQU #C458
+msx2_enemy_runtime_dy EQU #C464
+msx2_enemy_runtime_mode EQU #C470
+msx2_enemy_runtime_speed EQU #C47C
+msx2_enemy_runtime_tick EQU #C488
+msx2_runtime_ram_end EQU #C494
 msx2_runtime_ram_limit EQU #F300
 msx2_layer_size EQU 192
 msx2_required_collectibles EQU 0
@@ -1821,11 +2282,6 @@ init_rom:
 msx2_gf_node_0:
     jp msx2_gf_node_1
 msx2_gf_node_1:
-    ld a, 0
-    ld (msx2_current_screen_index), a
-    call load_NEW_MSX2_SCREEN_4_ROOM_screen4
-    call msx2_reset_enemy_runtime_for_current_screen
-    call init_hardware_sprites
     call load_msx2_hud_font
     call draw_msx2_gf_node_1_SUBMENU
     ld b, 2
@@ -1993,6 +2449,11 @@ msx2_screen4_data_bank_enter:
     ; Maps cold SCREEN 4 data to P2/#8000 while resident code runs from P0/P1.
     ; Clobbers AF. MSX2 SCREEN 4 runtime keeps normal P2 on bank 2.
     ld a, MSX2_SCREEN4_DATA_BANK
+    jp msx2_screen4_data_bank_enter_selected
+
+msx2_screen4_data_bank_enter_selected:
+    ; Input: A=8KB physical segment for SCREEN 4 cold data at P2/#8000.
+    ; Clobbers AF.
     jp mapper_set_bank_p2
 
 msx2_screen4_data_bank_leave:
@@ -2189,9 +2650,12 @@ msx2_submenu_select:
     jp .loop
 
 msx2_submenu_confirm_pressed:
-    ; Output: A=1 when the GameFlow Controls logical action button is pressed.
+    ; Output: A=1 when either menu-confirm logical button is pressed.
     ; Clobbers AF/CD. Callers that need BC/DE/HL must preserve them.
     call msx2_control_action_pressed
+    or a
+    ret nz
+    call msx2_control_jump_pressed
     ret
 
 draw_msx2_submenu_cursor:
@@ -2287,7 +2751,7 @@ init_hardware_sprites:
     call msx2_screen4_data_bank_leave
 
 
-    ld a, 128
+    ld a, 80
     ld (msx2_player_sprite_x), a
     ld a, 96
     ld (msx2_player_sprite_y), a
@@ -2721,7 +3185,7 @@ update_msx2_player_bullet_slot_1:
     ld (msx2_player_bullet_y), a
     ld a, 1
     ld (msx2_player_bullet_active), a
-    ld a, 8
+    ld a, 10
     ld (msx2_player_bullet_cooldown), a
     call msx2_sfx_fire
     ret
@@ -7954,7 +8418,13 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E05
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_0_base_pattern
+    ld a, 12
+.enemy_sprite_0_base_pattern:
     ld hl, #1E06
     call write_vram_byte_ext
     xor a
@@ -7988,7 +8458,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E09
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 1
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_1_base_pattern
+    ld a, 12
+.enemy_sprite_1_base_pattern:
     ld hl, #1E0A
     call write_vram_byte_ext
     xor a
@@ -8022,7 +8500,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E0D
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 2
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_2_base_pattern
+    ld a, 12
+.enemy_sprite_2_base_pattern:
     ld hl, #1E0E
     call write_vram_byte_ext
     xor a
@@ -8056,7 +8542,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E11
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 3
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_3_base_pattern
+    ld a, 12
+.enemy_sprite_3_base_pattern:
     ld hl, #1E12
     call write_vram_byte_ext
     xor a
@@ -8090,7 +8584,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E15
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 4
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_4_base_pattern
+    ld a, 12
+.enemy_sprite_4_base_pattern:
     ld hl, #1E16
     call write_vram_byte_ext
     xor a
@@ -8124,7 +8626,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E19
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 5
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_5_base_pattern
+    ld a, 12
+.enemy_sprite_5_base_pattern:
     ld hl, #1E1A
     call write_vram_byte_ext
     xor a
@@ -8158,7 +8668,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E1D
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 6
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_6_base_pattern
+    ld a, 12
+.enemy_sprite_6_base_pattern:
     ld hl, #1E1E
     call write_vram_byte_ext
     xor a
@@ -8192,7 +8710,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E21
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 7
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_7_base_pattern
+    ld a, 12
+.enemy_sprite_7_base_pattern:
     ld hl, #1E22
     call write_vram_byte_ext
     xor a
@@ -8226,7 +8752,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E25
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 8
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_8_base_pattern
+    ld a, 12
+.enemy_sprite_8_base_pattern:
     ld hl, #1E26
     call write_vram_byte_ext
     xor a
@@ -8260,7 +8794,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E29
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_9_base_pattern
+    ld a, 12
+.enemy_sprite_9_base_pattern:
     ld hl, #1E2A
     call write_vram_byte_ext
     xor a
@@ -8294,7 +8836,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E2D
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 10
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_10_base_pattern
+    ld a, 12
+.enemy_sprite_10_base_pattern:
     ld hl, #1E2E
     call write_vram_byte_ext
     xor a
@@ -8328,7 +8878,15 @@ write_hardware_sprite_attrs:
     ld a, (hl)
     ld hl, #1E31
     call write_vram_byte_ext
+    ld hl, msx2_enemy_runtime_dx
+    ld de, 11
+    add hl, de
+    ld a, (hl)
+    cp #FF
     ld a, 8
+    jp nz, .enemy_sprite_11_base_pattern
+    ld a, 12
+.enemy_sprite_11_base_pattern:
     ld hl, #1E32
     call write_vram_byte_ext
     xor a
@@ -8350,7 +8908,7 @@ write_hardware_sprite_attrs:
     ld a, (msx2_player_bullet_x)
     ld hl, #1E35
     call write_vram_byte_ext
-    ld a, 12
+    ld a, 16
     ld hl, #1E36
     call write_vram_byte_ext
     xor a
@@ -8373,7 +8931,7 @@ write_hardware_sprite_attrs:
     ld a, (msx2_player_bullet_1_x)
     ld hl, #1E39
     call write_vram_byte_ext
-    ld a, 12
+    ld a, 16
     ld hl, #1E3A
     call write_vram_byte_ext
     xor a
@@ -8396,15 +8954,83 @@ write_hardware_sprite_attrs:
     ld a, (msx2_enemy_bullet_x)
     ld hl, #1E3D
     call write_vram_byte_ext
-    ld a, 16
+    ld a, 20
     ld hl, #1E3E
     call write_vram_byte_ext
     xor a
     ld hl, #1E3F
     call write_vram_byte_ext
 .enemy_bullet_sprite_done:
+    ; HUD life marker 1.
+    ld a, (msx2_lives)
+    cp 1
+    jp nc, .hud_life_0_visible
     ld a, 208
     ld hl, #1E40
+    call write_vram_byte_ext
+    jp .hud_life_0_done
+.hud_life_0_visible:
+    ld a, 8
+    ld hl, #1E40
+    call write_vram_byte_ext
+    ld a, 28
+    ld hl, #1E41
+    call write_vram_byte_ext
+    ld a, 20
+    ld hl, #1E42
+    call write_vram_byte_ext
+    xor a
+    ld hl, #1E43
+    call write_vram_byte_ext
+.hud_life_0_done:
+
+    ; HUD life marker 2.
+    ld a, (msx2_lives)
+    cp 2
+    jp nc, .hud_life_1_visible
+    ld a, 208
+    ld hl, #1E44
+    call write_vram_byte_ext
+    jp .hud_life_1_done
+.hud_life_1_visible:
+    ld a, 18
+    ld hl, #1E44
+    call write_vram_byte_ext
+    ld a, 28
+    ld hl, #1E45
+    call write_vram_byte_ext
+    ld a, 20
+    ld hl, #1E46
+    call write_vram_byte_ext
+    xor a
+    ld hl, #1E47
+    call write_vram_byte_ext
+.hud_life_1_done:
+
+    ; HUD life marker 3.
+    ld a, (msx2_lives)
+    cp 3
+    jp nc, .hud_life_2_visible
+    ld a, 208
+    ld hl, #1E48
+    call write_vram_byte_ext
+    jp .hud_life_2_done
+.hud_life_2_visible:
+    ld a, 28
+    ld hl, #1E48
+    call write_vram_byte_ext
+    ld a, 28
+    ld hl, #1E49
+    call write_vram_byte_ext
+    ld a, 20
+    ld hl, #1E4A
+    call write_vram_byte_ext
+    xor a
+    ld hl, #1E4B
+    call write_vram_byte_ext
+.hud_life_2_done:
+    ld a, 208
+    ld hl, #1E4C
     call write_vram_byte_ext
     ret
 
@@ -8979,7 +9605,7 @@ update_msx2_enemy_position_slot_0:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_0_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -9908,7 +10534,7 @@ update_msx2_enemy_position_slot_1:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_1_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -10936,7 +11562,7 @@ update_msx2_enemy_position_slot_2:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_2_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -11964,7 +12590,7 @@ update_msx2_enemy_position_slot_3:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_3_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -12992,7 +13618,7 @@ update_msx2_enemy_position_slot_4:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_4_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -14020,7 +14646,7 @@ update_msx2_enemy_position_slot_5:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_5_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -15048,7 +15674,7 @@ update_msx2_enemy_position_slot_6:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_6_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -16076,7 +16702,7 @@ update_msx2_enemy_position_slot_7:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_7_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -17104,7 +17730,7 @@ update_msx2_enemy_position_slot_8:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_8_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -18132,7 +18758,7 @@ update_msx2_enemy_position_slot_9:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_9_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -19160,7 +19786,7 @@ update_msx2_enemy_position_slot_10:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_10_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -20188,7 +20814,7 @@ update_msx2_enemy_position_slot_11:
     ld e, a
     ld a, c
     sub e
-    cp 14
+    cp 8
     jp nc, .enemy_slot_11_ball_no_paddle_hit
 
     ld a, (msx2_current_screen_index)
@@ -22192,12 +22818,16 @@ load_screen4_palette:
 init_msx2_effect_buffers:
     ; Restores each msx2screen mutable effect layer from ROM into persistent RAM.
     ; Clobbers AF/BC/DE/HL.
-    ; Decompress ZX0 screen4 effects directly into the runtime buffer
+    ld a, NEW_MSX2_SCREEN_4_ROOM_DATA_BANK
+    call msx2_screen4_data_bank_enter_selected
+    ; Decompress ZX0 screen4 effects directly into the per-screen runtime buffer
     di
     ld hl, NEW_MSX2_SCREEN_4_ROOM_EFFECTS
-    ld de, #C080
+    ld de, #C084
     call dzx0_standard
     ei
+    call msx2_screen4_data_bank_leave
+
     ret
 
 load_current_msx2_screen4:
@@ -22220,7 +22850,8 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ld hl, SCREEN4_COLOR_VRAM
     ld bc, SCREEN4_COLOR_SIZE
     call FILVRM
-    call msx2_screen4_data_bank_enter
+    ld a, NEW_MSX2_SCREEN_4_ROOM_DATA_BANK
+    call msx2_screen4_data_bank_enter_selected
 
     ; Decompress ZX0 screen4 pattern bank into RAM buffer
     di
@@ -22297,9 +22928,20 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
 
     call load_msx2_hud_font
     call draw_NEW_MSX2_SCREEN_4_ROOM_hud_text
+    ld a, NEW_MSX2_SCREEN_4_ROOM_DATA_BANK
+    call msx2_screen4_data_bank_enter_selected
     ld hl, NEW_MSX2_SCREEN_4_ROOM_COLLISION
-    ld (msx2_current_collision_ptr), hl
+    ld de, msx2_collision_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
     ld hl, NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR
+    ld de, msx2_behavior_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
+    call msx2_screen4_data_bank_leave
+    ld hl, msx2_collision_runtime_cache
+    ld (msx2_current_collision_ptr), hl
+    ld hl, msx2_behavior_runtime_cache
     ld (msx2_current_behavior_ptr), hl
     ld hl, #C084
     ld (msx2_current_effects_ptr), hl
@@ -22320,7 +22962,7 @@ draw_NEW_MSX2_SCREEN_4_ROOM_hud_text:
 
 ; Per-msx2screen respawn X coordinates
 msx2_screen_spawn_x:
-    DB #80
+    DB #50
 
 ; Per-msx2screen respawn Y coordinates
 msx2_screen_spawn_y:
@@ -22332,7 +22974,7 @@ msx2_screen_required_collectibles:
 
 ; Per-msx2screen initial air/time values
 msx2_screen_initial_air:
-    DB #FF
+    DB #00
 
 ; Per-msx2screen HUD style: 0=compact runtime HUD, 1=status bars
 msx2_screen_hud_style:
@@ -22430,31 +23072,31 @@ msx2_screen_attack_seed:
 
 ; Per-msx2screen active enemy/hazard entity count, capped at 12
 msx2_screen_enemy_count:
-    DB #00
+    DB #01
 
 ; Per-msx2screen enemy/hazard entity X coordinates, 12 slots per screen
 msx2_screen_enemy_x:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; Per-msx2screen enemy/hazard entity Y coordinates, 12 slots per screen
 msx2_screen_enemy_y:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; Per-msx2screen enemy/hazard patrol minimum X, 12 slots per screen
 msx2_screen_enemy_min_x:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; Per-msx2screen enemy/hazard patrol maximum X, 12 slots per screen
 msx2_screen_enemy_max_x:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; Per-msx2screen enemy/hazard patrol minimum Y, 12 slots per screen
 msx2_screen_enemy_min_y:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; Per-msx2screen enemy/hazard patrol maximum Y, 12 slots per screen
 msx2_screen_enemy_max_y:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; Per-msx2screen enemy/hazard initial movement direction, 12 slots per screen
 msx2_screen_enemy_dx:
@@ -22475,42 +23117,6 @@ msx2_screen_enemy_speed:
 ; Per-msx2screen enemy/hazard score value, 12 slots per screen
 msx2_screen_enemy_score:
     DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-
-
-
-
-; New MSX2 SCREEN 4 Room collision layer, 16x14 bytes
-NEW_MSX2_SCREEN_4_ROOM_COLLISION:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-
-; New MSX2 SCREEN 4 Room effects layer, 16x14 bytes
-NEW_MSX2_SCREEN_4_ROOM_EFFECTS:
-    ; ZX0 compressed effects (192 -> 6 bytes)
-    DB #85,#00,#55,#D5,#55,#60
-NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR:
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ; ==================================================================
 ; ZX0 DECOMPRESSOR (AUTO-INJECTED)
@@ -22578,15 +23184,21 @@ dzx0s_elias_backtrack:
 ; -----------------------------------------------------------------------------
 
 
+
+
+
+
     ds #C000 - $, #FF
 
 ; ==================================================================
-; MSX2 SCREEN 4 cold data bank.
+; MSX2 SCREEN 4 cold data bank 0.
 ; Mapped to P2/#8000 only while copying palette, sprite patterns, and
 ; screen pattern/name data into VRAM. Resident gameplay code restores P2
 ; before returning to normal execution.
 ; ==================================================================
+MSX2_SCREEN4_DATA_BANK_0_PHYS_START:
     org #8000
+MSX2_SCREEN4_DATA_BANK_0_ROM_START:
 MSX2_SCREEN4_DATA_BANK_ROM_START:
 
 ; Palette bytes: byte1=(R<<4)|B, byte2=G
@@ -22628,10 +23240,14 @@ msx2_hw_sprite_frame_0_pattern_0:
 msx2_hw_sprite_frame_0_mirror_pattern_0:
     DB #00,#00,#00,#01,#03,#07,#0F,#0F,#0F,#04,#06,#02,#02,#02,#07,#00
     DB #00,#00,#00,#F0,#90,#90,#90,#10,#30,#30,#30,#60,#60,#60,#C0,#00
-; Shared 16x16 enemy/hazard hardware sprite pattern
+; Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_pattern:
-    DB #07,#1F,#3F,#7F,#67,#E7,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#EE,#C6,#80
-    DB #E0,#F8,#FC,#FE,#9E,#9F,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#EF,#31,#01
+    DB #00,#00,#00,#0F,#09,#09,#09,#08,#0C,#0C,#0C,#06,#06,#06,#03,#00
+    DB #00,#00,#00,#80,#C0,#E0,#F0,#F0,#F0,#20,#60,#40,#40,#40,#E0,#00
+; Mirrored shared enemy/hazard hardware sprite pattern: authored right
+msx2_hw_enemy_sprite_mirror_pattern:
+    DB #00,#00,#00,#01,#03,#07,#0F,#0F,#0F,#04,#06,#02,#02,#02,#07,#00
+    DB #00,#00,#00,#F0,#90,#90,#90,#10,#30,#30,#30,#60,#60,#60,#C0,#00
 ; Shared 16x16 player bullet hardware sprite pattern
 msx2_hw_player_bullet_pattern:
     DB #18,#18,#18,#18,#18,#18,#18,#18,#18,#18,#18,#18,#00,#00,#00,#00
@@ -22646,57 +23262,66 @@ msx2_hw_sprite_colors:
 ; Line colors for hardware sprite layer 0
 msx2_hw_sprite_colors_0:
     DB #05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05
-; Line colors for enemy/hazard hardware sprite slot 0
+; Line colors for enemy/hazard hardware sprite slot 0 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_0:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 1
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 1 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_1:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 2
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 2 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_2:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 3
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 3 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_3:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 4
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 4 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_4:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 5
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 5 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_5:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 6
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 6 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_6:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 7
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 7 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_7:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 8
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 8 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_8:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 9
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 9 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_9:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 10
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 10 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_10:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
-; Line colors for enemy/hazard hardware sprite slot 11
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
+; Line colors for enemy/hazard hardware sprite slot 11 from MSX2 entity sprite asset
 msx2_hw_enemy_sprite_colors_11:
-    DB #0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D
+    DB #0D,#0D,#0D,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#0D
 ; Line colors for player bullet hardware sprite slot
 msx2_hw_player_bullet_colors:
     DB #06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06
 ; Line colors for enemy bullet hardware sprite slot
 msx2_hw_enemy_bullet_colors:
     DB #08,#08,#08,#08,#08,#08,#08,#08,#08,#08,#08,#08,#08,#08,#08,#08
+; Line colors for HUD life marker 1
+msx2_hw_hud_life_colors_0:
+    DB #0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A
+; Line colors for HUD life marker 2
+msx2_hw_hud_life_colors_1:
+    DB #0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A
+; Line colors for HUD life marker 3
+msx2_hw_hud_life_colors_2:
+    DB #0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A
 msx2_hw_sprite_colors_end:
 
-; 1 player hardware sprite(s), 12 enemy/hazard sprite slots, 2 player bullet slot, 1 enemy bullet slot; next Y=208 terminates the SAT
+; 1 player hardware sprite(s), 12 enemy/hazard sprite slots, 2 player bullet slot, 1 enemy bullet slot, 3 HUD life slots; next Y=208 terminates the SAT
 msx2_hw_sprite_attrs:
-    DB #60,#80,#00,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
+    DB #60,#50,#00,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
     DB #D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
     DB #D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
-    DB #D0,#00,#08,#00,#D0,#00,#0C,#00,#D0,#00,#0C,#00,#D0,#00,#10,#00
-    DB #D0,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #D0,#00,#08,#00,#D0,#00,#10,#00,#D0,#00,#10,#00,#D0,#00,#14,#00
+    DB #D0,#08,#14,#00,#D0,#12,#14,#00,#D0,#1C,#14,#00,#D0,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
@@ -22724,7 +23349,41 @@ NEW_MSX2_SCREEN_4_ROOM_BANK_2_PATTERNS:
 NEW_MSX2_SCREEN_4_ROOM_BANK_2_COLORS:
     ; ZX0 compressed tile_color (24 -> 9 bytes)
     DB #96,#00,#8A,#FF,#54,#43,#55,#55,#80
+NEW_MSX2_SCREEN_4_ROOM_COLLISION:
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+
+; New MSX2 SCREEN 4 Room effects layer, copied from cold ROM to RAM on screen reset
+NEW_MSX2_SCREEN_4_ROOM_EFFECTS:
+    ; ZX0 compressed effects (192 -> 6 bytes)
+    DB #85,#00,#55,#D5,#55,#60
+NEW_MSX2_SCREEN_4_ROOM_BEHAVIOR:
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+MSX2_SCREEN4_DATA_BANK_0_USED_END:
     ds #A000 - $, #FF
+    org MSX2_SCREEN4_DATA_BANK_0_PHYS_START + #2000
 
 ; ==================================================================
 ; ZX0 SCREEN BUFFER (AUTO-INJECTED)
