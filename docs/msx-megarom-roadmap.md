@@ -1310,11 +1310,20 @@ Current CLI gate:
     preserve the same `msx2BudgetFeedback` payload, including
     `resolverCandidates`, so the user sees the concrete bank/RAM cause and the
     attempted or pending resolver steps even when no ROM is produced.
-    The IDE/server budget view also treats `estimatedPackedBankCount > 1` as a
-    pre-Glass error for SCREEN 4 today, because the current gameplay loader can
-    only keep one world data window visible. That stop exposes the pending
-    `emit_multi_bank_world_data_loader` resolver candidate instead of letting
-    the build continue into a ROM that cannot load the extra world banks.
+    The IDE/server budget view now accepts `estimatedPackedBankCount > 1` for
+    SCREEN 4 when `screen4DataBankPlan.supported=true`. The generated loader
+    emits per-screen `<LABEL>_DATA_BANK` constants, selectable P2/#8000 bank
+    entry, and physical `MSX2_SCREEN4_DATA_BANK_n_*` anchors so Glass symbols
+    can verify that cold screen data really lands in separate 8 KB banks. Cases
+    that require `auto_world_package_chunk` still stop before Glass because
+    chunk-to-label physical loading is not implemented yet.
+    SCREEN 4 effect templates now follow the same cold-data policy: each
+    `<LABEL>_EFFECTS` table is emitted with its screen data bank and
+    `init_msx2_effect_buffers` copies it to persistent RAM through the
+    selectable bank loader. Collision and behavior layers intentionally remain
+    resident for now because the gameplay loop still reads them directly from
+    pointers every frame; moving those requires a bank-aware reader or a
+    screen-local RAM cache, not a pure placement change.
 11. Glass `Negative initial size` failures are now translated into Mideas
     diagnostics. For MSX2 SCREEN 4 Konami builds, a negative `ds #C000 - $`
     padding is reported as `MSX2 MegaROM resident bank overflow`, not as a raw
@@ -1326,6 +1335,13 @@ Current CLI gate:
     `move_cold_readonly_data_to_world_bank` resolver candidate so the next
     roadmap step can promote resident cold-data movement into a real automatic
     regeneration pass.
+    The CLI now also tries one controlled automatic regeneration for this
+    class of failure when normal MSX2 budget auto-resolve is enabled and
+    Post-ASM was not already requested: it runs the conservative
+    `dead-blocks` Post-ASM optimizer, recompiles the optimized ASM, and records
+    the result in `compileResolution` / `resolverAttempts`. If the optimized
+    ASM still fails, the original detailed compile failure remains the
+    actionable stop report.
     The `/compile` server returns the same failure shape as
     `msx2CompileFailure`, and the export modal shows the resident-overflow
     reason plus Plan B directly beside the Glass logs.

@@ -132,6 +132,24 @@ def write_artifacts(
         ],
         "worlds": manifest_worlds,
     }
+    estimated_count = int(logical_budget.get("estimatedPackedBankCount") or len(logical_budget.get("estimatedPackedBanks") or []) or 1)
+    split_packages = logical_budget.get("splitPackages") or []
+    screen4_data_bank_plan = {
+        "supported": estimated_count <= 1 or not split_packages,
+        "bankCount": estimated_count,
+        "dataWindowAddress": "#8000",
+        "unsupportedReason": "split_packages_require_physical_chunk_labels" if split_packages else None,
+        "screenBanks": [
+            {
+                "label": str(policy.get("id") or ""),
+                "packageId": f"{policy.get('type')}.{policy.get('id')}",
+                "bankIndex": physical_bank_by_package.get(f"{policy.get('type')}.{policy.get('id')}", 0),
+                "physicalBank": 4 + int(physical_bank_by_package.get(f"{policy.get('type')}.{policy.get('id')}", 0) or 0),
+            }
+            for policy in storage_policy
+            if policy.get("type") == "msx2screen"
+        ],
+    }
     project_slice = {
         "scope": "msx2_screen4_project_slice",
         "entryPoints": {"worldIds": [item["worldId"] for item in world_package_summary]},
@@ -162,6 +180,7 @@ def write_artifacts(
         ],
         "worldPackageSummary": world_package_summary,
         "worldBankManifest": world_bank_manifest,
+        "screen4DataBankPlan": screen4_data_bank_plan,
         "assetStoragePolicy": storage_policy,
         "logicalBankBudget": logical_budget,
         "ramBudget": ram_budget,
@@ -795,15 +814,32 @@ def main() -> None:
             "packages": multi_packages,
         })
         write_artifacts(multi_bank_dir, multi_budget, multi_storage_policy)
-        expect_failure(multi_bank_dir, "current loader can map only one #8000 data bank")
-        multi_failure = json.loads((multi_bank_dir / "msx2_preflight_failure.json").read_text(encoding="utf-8"))
-        multi_candidate_ids = {
+        validate_msx2_screen4_megarom_preflight_budget(multi_bank_dir)
+        if (multi_bank_dir / "msx2_preflight_failure.json").exists():
+            raise AssertionError("Supported multi-screen data-bank plan should not leave a failure summary")
+        multi_summary = json.loads((multi_bank_dir / "preflight_summary.json").read_text(encoding="utf-8"))
+        if multi_summary.get("rom", {}).get("estimatedPackedBankCount") != 2:
+            raise AssertionError(f"Multi-bank preflight summary lost bank count: {multi_summary!r}")
+
+        chunked_multi_dir = root / "multi_bank_chunked_generated"
+        chunked_budget = json.loads(json.dumps(multi_budget))
+        chunked_budget["splitPackages"] = [{
+            "id": "msx2screen.test_room_a#chunk00",
+            "splitFrom": "msx2screen.test_room_a",
+            "splitIndex": 0,
+            "splitCount": 2,
+            "splitStrategy": "auto_world_package_chunk",
+        }]
+        write_artifacts(chunked_multi_dir, chunked_budget, multi_storage_policy)
+        expect_failure(chunked_multi_dir, "cannot safely map that bank plan")
+        chunked_failure = json.loads((chunked_multi_dir / "msx2_preflight_failure.json").read_text(encoding="utf-8"))
+        chunked_candidate_ids = {
             item.get("id")
-            for item in (multi_failure.get("resolverCandidates") or [])
+            for item in (chunked_failure.get("resolverCandidates") or [])
             if isinstance(item, dict)
         }
-        if multi_failure.get("reason") != "loader_multi_bank_data_window_not_implemented" or "emit_multi_bank_world_data_loader" not in multi_candidate_ids:
-            raise AssertionError(f"Multi-bank loader failure did not expose loader resolver candidate: {multi_failure!r}")
+        if chunked_failure.get("reason") != "loader_multi_bank_data_window_not_implemented" or "emit_multi_bank_world_data_loader" not in chunked_candidate_ids:
+            raise AssertionError(f"Chunked multi-bank loader failure did not expose loader resolver candidate: {chunked_failure!r}")
         auto_rom_path = auto_warning_dir / "auto_warning.rom"
         auto_sym_path = auto_warning_dir / "auto_warning.sym"
         auto_rom_path.write_bytes(b"CD" + bytes([0xFF]) * 8190)
@@ -934,8 +970,28 @@ def main() -> None:
             for item in (compile_failure.get("resolverCandidates") or [])
             if isinstance(item, dict)
         }
+        if "run_post_asm_dead_block_optimizer" not in compile_candidate_ids:
+            raise AssertionError(f"Compile failure did not expose automatic post-ASM resolver candidate: {compile_failure}")
         if "move_cold_readonly_data_to_world_bank" not in compile_candidate_ids:
             raise AssertionError(f"Compile failure did not expose resident overflow resolver candidate: {compile_failure}")
+        compile_failure_with_attempts_path = write_msx2_compile_failure_summary(
+            compile_failure_dir,
+            overflow_asm,
+            root / "failed.rom",
+            root / "failed.sym",
+            diagnostic,
+            resolver_attempts=[{
+                "attempt": 1,
+                "action": "run_post_asm_dead_block_optimizer",
+                "candidateId": "run_post_asm_dead_block_optimizer",
+                "status": "failed",
+                "reason": "still over budget",
+            }],
+        )
+        compile_failure_with_attempts = json.loads(compile_failure_with_attempts_path.read_text(encoding="utf-8"))
+        attempts = compile_failure_with_attempts.get("resolverAttempts")
+        if not isinstance(attempts, list) or attempts[0].get("candidateId") != "run_post_asm_dead_block_optimizer":
+            raise AssertionError(f"Compile failure did not preserve resolver attempts: {compile_failure_with_attempts}")
 
     print("MSX2 MegaROM preflight budget checks passed.")
 

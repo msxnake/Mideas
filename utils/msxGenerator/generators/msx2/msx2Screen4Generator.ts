@@ -601,7 +601,8 @@ function buildTileScreenLoadRoutine(
   loadRuntimeLayerPointers: (label: string, screenIndex?: number) => string,
   afterPatternLoad = '',
   afterNameLoad = '',
-  useKonamiDataBank = false
+  useKonamiDataBank = false,
+  dataBankConstant = 'MSX2_SCREEN4_DATA_BANK'
 ): string {
   const data = buildScreen4ScreenData(screen);
   const bankLoads = data.patternBanks.map((patterns, bank) => {
@@ -617,7 +618,7 @@ function buildTileScreenLoadRoutine(
     ld bc, ${byteCount}
     call LDIRVM`;
   }).filter(Boolean).join('\n');
-  const enterDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : '';
+  const enterDataBank = useKonamiDataBank ? `    ld a, ${dataBankConstant}\n    call msx2_screen4_data_bank_enter_selected\n` : '';
   const leaveDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : '';
   return `load_${label}_screen4:
     xor a
@@ -677,14 +678,25 @@ ${collectibleCells.length ? collectibleCells.join('\n') : '    ; No collectible 
 `;
 }
 
-function buildInitEffectBuffersRoutine(tileScreenLoadLabels: string[], effectRuntimeBase: number): string {
+function buildInitEffectBuffersRoutine(
+  tileScreenLoadLabels: string[],
+  effectRuntimeBase: number,
+  useKonamiDataBank = false
+): string {
   const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
   const copies = tileScreenLoadLabels.map((label, index) => {
     const destination = effectRuntimeBase + (index * layerSize);
-    return `    ld hl, ${label}_EFFECTS
+    const enterDataBank = useKonamiDataBank
+      ? `    ld a, ${label}_DATA_BANK
+    call msx2_screen4_data_bank_enter_selected
+`
+      : '';
+    const leaveDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : '';
+    return `${enterDataBank}    ld hl, ${label}_EFFECTS
     ld de, #${destination.toString(16).toUpperCase().padStart(4, '0')}
     ld bc, msx2_layer_size
-    ldir`;
+    ldir
+${leaveDataBank}`;
   });
 
   return `init_msx2_effect_buffers:
@@ -6793,6 +6805,59 @@ function buildMsx2WorldBankManifest(
   };
 }
 
+function buildMsx2Screen4DataBankPlan(
+  tileScreens: Msx2Screen4TileScreen[],
+  tileScreenLoadLabels: string[],
+  logicalBankBudget: Record<string, unknown>
+): {
+  bankCount: number;
+  unsupportedReason: string | null;
+  screenBankIndexByLabel: Map<string, number>;
+  screenPackageIdByLabel: Map<string, string>;
+  bankIndexes: number[];
+} {
+  const estimatedPackedBanks = Array.isArray(logicalBankBudget.estimatedPackedBanks)
+    ? logicalBankBudget.estimatedPackedBanks as any[]
+    : [];
+  const splitPackages = Array.isArray(logicalBankBudget.splitPackages)
+    ? logicalBankBudget.splitPackages as any[]
+    : [];
+  const packageBankById = new Map<string, number>();
+  const packageIdsByBank = new Map<number, string[]>();
+  for (const bank of estimatedPackedBanks) {
+    const bankIndex = Number(bank?.bankIndex || 0);
+    for (const pkg of (Array.isArray(bank?.packages) ? bank.packages : [])) {
+      const id = String(pkg?.id || '');
+      if (!id) continue;
+      packageBankById.set(id, bankIndex);
+      if (!packageIdsByBank.has(bankIndex)) packageIdsByBank.set(bankIndex, []);
+      packageIdsByBank.get(bankIndex)!.push(id);
+    }
+  }
+  const screenPackageIds = new Set<string>();
+  const screenBankIndexByLabel = new Map<string, number>();
+  const screenPackageIdByLabel = new Map<string, string>();
+  tileScreens.forEach((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    const packageId = `msx2screen.${screen?.id || screen?.name || `tile_screen_${index}`}`;
+    screenPackageIds.add(packageId);
+    screenPackageIdByLabel.set(label, packageId);
+    screenBankIndexByLabel.set(label, packageBankById.get(packageId) ?? 0);
+  });
+  const bankCount = Math.max(1, estimatedPackedBanks.length || 1);
+  let unsupportedReason: string | null = null;
+  if (splitPackages.length > 0) {
+    unsupportedReason = 'split_packages_require_physical_chunk_labels';
+  }
+  return {
+    bankCount,
+    unsupportedReason,
+    screenBankIndexByLabel,
+    screenPackageIdByLabel,
+    bankIndexes: Array.from({ length: bankCount }, (_unused, index) => index),
+  };
+}
+
 function buildMsx2ProjectSliceJson(
   projectName: string,
   analysis: ProjectAnalysis,
@@ -8669,10 +8734,6 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
     tileScreenLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
     return label;
   });
-  const tileScreenBlocks = tileScreens.map((screen, index) => {
-    const label = tileScreenLoadLabels[index];
-    return buildTileScreenTileBlocks(label, screen);
-  });
   const tileScreenIndexByLabel = new Map<string, number>();
   const runtimeLayerLabels = new Map<string, { collision: string; effects: string; behavior: string }>();
   tileScreens.forEach((screen, index) => {
@@ -8689,9 +8750,9 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
     const label = tileScreenLoadLabels[index];
     return [
       formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, 16x14 bytes`),
-      formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x14 bytes`),
+      useKonamiDataBank ? '' : formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x14 bytes`),
       formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x14 bytes`),
-    ].join('\n');
+    ].filter(Boolean).join('\n');
   });
   const emptyRuntimeLayerBlocks = tileScreens.length === 0
     ? [
@@ -8875,9 +8936,44 @@ reset_msx2_status_border:
 `;
   const projectSliceJson = buildMsx2ProjectSliceJson(projectName, analysis, config, tileScreens, runtimeRamEnd, useKonamiDataBank);
   const projectSliceData = JSON.parse(projectSliceJson);
+  const screen4DataBankPlan = buildMsx2Screen4DataBankPlan(
+    tileScreens,
+    tileScreenLoadLabels,
+    projectSliceData.logicalBankBudget || {}
+  );
+  projectSliceData.screen4DataBankPlan = {
+    supported: !screen4DataBankPlan.unsupportedReason,
+    bankCount: screen4DataBankPlan.bankCount,
+    dataWindowAddress: '#8000',
+    unsupportedReason: screen4DataBankPlan.unsupportedReason,
+    screenBanks: tileScreenLoadLabels.map(label => ({
+      label,
+      packageId: screen4DataBankPlan.screenPackageIdByLabel.get(label),
+      bankIndex: screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0,
+      physicalBank: 4 + (screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0),
+    })),
+  };
+  const tileScreenBlocks = tileScreens.map((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    const bankIndex = screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0;
+    return {
+      label,
+      bankIndex,
+      asm: buildTileScreenTileBlocks(label, screen),
+    };
+  });
+  const tileScreenEffectBlocks = tileScreens.map((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    const bankIndex = screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0;
+    return {
+      label,
+      bankIndex,
+      asm: formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, copied from cold ROM to RAM on screen reset`),
+    };
+  });
   const projectSliceArtifact = renderNamedArtifactAsCommentBlock(
     'project_slice.json',
-    projectSliceJson
+    JSON.stringify(projectSliceData, null, 2) + '\n'
   );
   const assetStoragePolicyArtifact = renderNamedArtifactAsCommentBlock(
     'asset_storage_policy.json',
@@ -8929,9 +9025,22 @@ ${loadEffectsPointer}`;
       loadRuntimeLayerPointers,
       tileScreenAfterPatternLoad,
       `    call load_msx2_hud_font\n    call draw_${tileScreenLoadLabels[index]}_hud_text\n`,
-      useKonamiDataBank
+      useKonamiDataBank,
+      `${tileScreenLoadLabels[index]}_DATA_BANK`
     )
   );
+  const screen4DataBankEquates = useKonamiDataBank
+    ? [
+      'MSX2_SCREEN4_DATA_BANK EQU 4',
+      ...screen4DataBankPlan.bankIndexes.map(bankIndex =>
+        `MSX2_SCREEN4_DATA_BANK_${bankIndex} EQU ${4 + bankIndex}`),
+      ...tileScreenLoadLabels.map(label =>
+        `${label}_DATA_BANK EQU MSX2_SCREEN4_DATA_BANK_${screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0}`),
+      screen4DataBankPlan.unsupportedReason
+        ? 'MSX2_SCREEN4_MULTI_BANK_UNSUPPORTED EQU 1'
+        : 'MSX2_SCREEN4_MULTI_BANK_LOADER_READY EQU 1',
+    ].join('\n')
+    : 'MSX2_SCREEN4_DATA_BANK EQU 0';
   const tileScreenHudTextRoutines = tileScreens.map((screen, index) =>
     buildMsx2HudTextRoutines(tileScreenLoadLabels[index], screen, analysis)
   );
@@ -8939,6 +9048,41 @@ ${loadEffectsPointer}`;
   const tileScreenCollectedVisualRoutines = tileScreens.map((screen, index) =>
     buildTileScreenCollectedVisualsRoutine(tileScreenLoadLabels[index], screen, index, effectRuntimeBase)
   );
+  const screen4ColdDataAsm = useKonamiDataBank
+    ? screen4DataBankPlan.bankIndexes.map(bankIndex => {
+      const sharedBankData = bankIndex === 0
+        ? [
+          formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G'),
+          hudFontPatternDataAsm,
+          hardwareSpriteDataAsm,
+        ].join('\n')
+        : '';
+      const screenData = tileScreenBlocks
+        .filter(block => block.bankIndex === bankIndex)
+        .map(block => block.asm)
+        .concat(tileScreenEffectBlocks
+          .filter(block => block.bankIndex === bankIndex)
+          .map(block => block.asm))
+        .join('\n');
+      return `; ==================================================================
+; MSX2 SCREEN 4 cold data bank ${bankIndex}.
+; Mapped to P2/#8000 only while copying palette, sprite patterns, and
+; screen pattern/name data into VRAM. Resident gameplay code restores P2
+; before returning to normal execution.
+; ==================================================================
+MSX2_SCREEN4_DATA_BANK_${bankIndex}_PHYS_START:
+    org #8000
+MSX2_SCREEN4_DATA_BANK_${bankIndex}_ROM_START:
+${bankIndex === 0 ? 'MSX2_SCREEN4_DATA_BANK_ROM_START:' : ''}
+
+${sharedBankData}
+${screenData}
+MSX2_SCREEN4_DATA_BANK_${bankIndex}_USED_END:
+    ds #A000 - $, #FF
+    org MSX2_SCREEN4_DATA_BANK_${bankIndex}_PHYS_START + #2000`;
+    }).join('\n\n')
+    : `${tileScreenBlocks.map(block => block.asm).join('\n')}
+    ds #C000 - $, #FF`;
   return `; File: unitedFiles.asm
 ; ==================================================================
 ; Mideas MSX2 SCREEN 4 tile backend
@@ -9059,7 +9203,7 @@ msx2_input_key_button1_mode EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE)}
 msx2_input_key_button2_mode EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE + 1)}
 msx2_control_jump_button EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE + 2)}
 msx2_control_action_button EQU ${formatHexWord(MSX2_CONTROLS_RAM_BASE + 3)}
-MSX2_SCREEN4_DATA_BANK EQU 4
+${screen4DataBankEquates}
 msx2_snake_body_cells EQU ${formatHexWord(MSX2_SNAKE_BODY_BASE)}
 msx2_effects_runtime_buffers EQU ${formatHexWord(effectRuntimeBase)}
 msx2_effects_runtime_scratch EQU ${formatHexWord(effectScratchBase)}
@@ -9200,6 +9344,11 @@ msx2_screen4_data_bank_enter:
     ; Maps cold SCREEN 4 data to P2/#8000 while resident code runs from P0/P1.
     ; Clobbers AF. MSX2 SCREEN 4 runtime keeps normal P2 on bank 2.
     ld a, MSX2_SCREEN4_DATA_BANK
+    jp msx2_screen4_data_bank_enter_selected
+
+msx2_screen4_data_bank_enter_selected:
+    ; Input: A=8KB physical segment for SCREEN 4 cold data at P2/#8000.
+    ; Clobbers AF.
     jp mapper_set_bank_p2
 
 msx2_screen4_data_bank_leave:
@@ -9581,7 +9730,7 @@ ${useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : ''}
 ${useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : ''}
     ret
 
-${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase)}
+${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase, useKonamiDataBank)}
 ${loadCurrentTileScreenDispatcher}
 ${[...tileScreenLoadRoutines, ...tileScreenCollectedVisualRoutines, ...tileScreenHudTextRoutines].join('\n')}
 ${useKonamiDataBank ? '' : formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
@@ -9638,23 +9787,7 @@ ${stageBannerEnabled ? formatBytes('msx2_stage_font_patterns', [
 ], 'Tiny centered STAGE banner font patterns: S,T,A,G,E,1,2') : ''}
 ${useKonamiDataBank ? '' : hardwareSpriteDataAsm}
 ${tileScreenRuntimeBlocks.join('\n')}
-${useKonamiDataBank ? `    ds #C000 - $, #FF
-
-; ==================================================================
-; MSX2 SCREEN 4 cold data bank.
-; Mapped to P2/#8000 only while copying palette, sprite patterns, and
-; screen pattern/name data into VRAM. Resident gameplay code restores P2
-; before returning to normal execution.
-; ==================================================================
-    org #8000
-MSX2_SCREEN4_DATA_BANK_ROM_START:
-
-${formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
-${hudFontPatternDataAsm}
-${hardwareSpriteDataAsm}
-${tileScreenBlocks.join('\n')}
-    ds #A000 - $, #FF` : `${tileScreenBlocks.join('\n')}
-    ds #C000 - $, #FF`}
+${useKonamiDataBank ? '    ds #C000 - $, #FF\n\n' : ''}${screen4ColdDataAsm}
     end
 `;
 }

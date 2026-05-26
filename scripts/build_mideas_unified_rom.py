@@ -489,6 +489,18 @@ def build_msx2_compile_resolver_candidates(reason: str) -> list[dict[str, object
     candidates: list[dict[str, object]] = []
     if "resident bank overflow" in reason.lower() or "negative initial size" in reason.lower():
         candidates.append({
+            "id": "run_post_asm_dead_block_optimizer",
+            "eligible": True,
+            "stage": "post_compile",
+            "retryKind": "regenerate_asm",
+            "reason": "A resident bank overflow can sometimes be recovered by removing annotated dead ASM blocks and recompiling the optimized ASM.",
+            "regenerate": {
+                "postAsmRules": "dead-blocks",
+                "postAsmPasses": 1,
+                "fallback": "keep_last_known_failure_report_if_optimized_asm_still_fails",
+            },
+        })
+        candidates.append({
             "id": "move_cold_readonly_data_to_world_bank",
             "eligible": False,
             "stage": "post_compile",
@@ -997,6 +1009,7 @@ def write_msx2_build_summary(
     post_asm_report_paths: list[Path] | None = None,
     post_asm_rejected_report_paths: list[Path] | None = None,
     post_asm_rejected_reason: str | None = None,
+    compile_resolver_attempts: list[dict[str, object]] | None = None,
     openmsx_requested: bool = False,
     openmsx_passed: bool = False,
 ) -> None:
@@ -1182,6 +1195,24 @@ def write_msx2_build_summary(
         },
         "ideBudgetFeedback": ide_budget_feedback_summary,
         "budgetResolution": budget_resolution_summary,
+        "compileResolution": {
+            "attempts": compile_resolver_attempts or [],
+            "status": (
+                "resolved"
+                if any(isinstance(item, dict) and item.get("status") == "resolved" for item in (compile_resolver_attempts or []))
+                else "not_needed"
+                if not compile_resolver_attempts
+                else "unresolved"
+            ),
+            "finalAction": next(
+                (
+                    str(item.get("action"))
+                    for item in reversed(compile_resolver_attempts or [])
+                    if isinstance(item, dict) and item.get("status") == "resolved" and item.get("action")
+                ),
+                None,
+            ),
+        },
         "postAsmReports": post_asm_reports,
         "postAsmAttempts": post_asm_attempts,
     }
@@ -1197,6 +1228,7 @@ def write_msx2_compile_failure_summary(
     rom_output: Path,
     sym_output: Path | None,
     reason: str,
+    resolver_attempts: list[dict[str, object]] | None = None,
 ) -> Path | None:
     if artifact_dir is None:
         return None
@@ -1244,6 +1276,7 @@ def write_msx2_compile_failure_summary(
             "avoid": "Do not solve resident ROM pressure by copying whole worlds into RAM.",
         },
         "resolverCandidates": build_msx2_compile_resolver_candidates(reason),
+        "resolverAttempts": resolver_attempts or [],
     }
     failure_path = artifact_dir / "msx2_compile_failure.json"
     failure_path.write_text(
@@ -1750,7 +1783,15 @@ def validate_msx2_screen4_megarom_preflight_budget(
         raise RuntimeError("MSX2 MegaROM preflight failed: logicalBankBudget has no estimatedPackedBanks")
     if estimated_count != len(packed_banks):
         raise RuntimeError("MSX2 MegaROM preflight failed: estimatedPackedBankCount does not match estimatedPackedBanks length")
-    if estimated_count > 1:
+    screen4_data_bank_plan = project_slice.get("screen4DataBankPlan") if isinstance(project_slice, dict) else None
+    split_packages = logical_budget.get("splitPackages") or []
+    multi_bank_loader_supported = (
+        isinstance(screen4_data_bank_plan, dict)
+        and screen4_data_bank_plan.get("supported") is True
+        and int(screen4_data_bank_plan.get("bankCount") or 0) >= estimated_count
+        and not split_packages
+    )
+    if estimated_count > 1 and not multi_bank_loader_supported:
         write_msx2_loader_capability_failure_summary(
             artifact_dir=artifact_dir,
             project_slice=project_slice,
@@ -1760,14 +1801,15 @@ def validate_msx2_screen4_megarom_preflight_budget(
                 "estimatedPackedBankCount": estimated_count,
                 "currentLoaderDataWindow": "#8000-#9FFF",
                 "requiredFeature": "multi-bank SCREEN 4 world data loader",
-                "splitPackages": logical_budget.get("splitPackages") or [],
+                "splitPackages": split_packages,
+                "screen4DataBankPlan": screen4_data_bank_plan,
                 "estimatedPackedBanks": packed_banks,
             },
         )
         raise RuntimeError(
             "MSX2 MegaROM preflight failed before Glass: "
             f"SCREEN 4 data requires {estimated_count} estimated 8KB data banks, "
-            "but the current loader can map only one #8000 data bank."
+            "but the current loader cannot safely map that bank plan."
         )
     if len(manifest_physical_banks) != len(packed_banks):
         raise RuntimeError(
@@ -2716,6 +2758,86 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
         raise RuntimeError(
             "MSX2 Konami8K validation failed: missing fixed-bank0 markers: " + ", ".join(missing)
         )
+    if "MSX2_SCREEN4_MULTI_BANK_LOADER_READY" not in asm_text:
+        raise RuntimeError("MSX2 Konami8K validation failed: missing SCREEN 4 data-bank loader capability marker")
+    if "msx2_screen4_data_bank_enter_selected:" not in asm_text:
+        raise RuntimeError("MSX2 Konami8K validation failed: missing selectable SCREEN 4 data-bank enter helper")
+    data_bank_sections = {
+        int(match.group(1))
+        for match in re.finditer(r"MSX2_SCREEN4_DATA_BANK_(\d+)_ROM_START:", asm_text)
+    }
+    data_bank_phys_starts = {
+        int(match.group(1))
+        for match in re.finditer(r"MSX2_SCREEN4_DATA_BANK_(\d+)_PHYS_START:", asm_text)
+    }
+    data_bank_used_ends = {
+        int(match.group(1))
+        for match in re.finditer(r"MSX2_SCREEN4_DATA_BANK_(\d+)_USED_END:", asm_text)
+    }
+    data_bank_equates = {
+        int(match.group(1))
+        for match in re.finditer(r"MSX2_SCREEN4_DATA_BANK_(\d+)\s+EQU\s+\d+", asm_text)
+    }
+    if not data_bank_sections or not data_bank_equates:
+        raise RuntimeError("MSX2 Konami8K validation failed: missing SCREEN 4 data-bank sections/equates")
+    missing_sections = sorted(data_bank_equates - data_bank_sections)
+    if missing_sections:
+        raise RuntimeError(
+            "MSX2 Konami8K validation failed: missing SCREEN 4 data-bank section(s): "
+            + ", ".join(str(index) for index in missing_sections)
+        )
+    missing_phys_starts = sorted(data_bank_equates - data_bank_phys_starts)
+    missing_used_ends = sorted(data_bank_equates - data_bank_used_ends)
+    if missing_phys_starts or missing_used_ends:
+        raise RuntimeError(
+            "MSX2 Konami8K validation failed: SCREEN 4 data-bank sections must expose physical anchors and used-end labels; "
+            f"missing phys={missing_phys_starts}, usedEnd={missing_used_ends}"
+        )
+    for bank_index in sorted(data_bank_equates):
+        expected_advance = f"org MSX2_SCREEN4_DATA_BANK_{bank_index}_PHYS_START + #2000"
+        if expected_advance not in asm_text:
+            raise RuntimeError(
+                "MSX2 Konami8K validation failed: SCREEN 4 data bank "
+                f"{bank_index} does not advance the physical ROM stream after its #8000 window"
+            )
+    load_routines = re.findall(r"load_([A-Za-z0-9_]+)_screen4:\n(.*?)(?=\n[A-Za-z0-9_.$]+:|\Z)", asm_text, flags=re.DOTALL)
+    data_bank_labels = {
+        match.group(1)
+        for match in re.finditer(r"^([A-Za-z0-9_]+)_DATA_BANK\s+EQU\s+MSX2_SCREEN4_DATA_BANK_\d+", asm_text, flags=re.MULTILINE)
+    }
+    for label, body in load_routines:
+        if f"{label}_DATA_BANK" in asm_text and (
+            f"ld a, {label}_DATA_BANK" not in body
+            or "call msx2_screen4_data_bank_enter_selected" not in body
+            or "call msx2_screen4_data_bank_leave" not in body
+        ):
+            raise RuntimeError(f"MSX2 Konami8K validation failed: load_{label}_screen4 does not use selectable data-bank enter/leave")
+    init_effects_match = re.search(
+        r"init_msx2_effect_buffers:\n(.*?)(?=\n[A-Za-z0-9_.$]+:|\Z)",
+        asm_text,
+        flags=re.DOTALL,
+    )
+    if data_bank_labels and not init_effects_match:
+        raise RuntimeError("MSX2 Konami8K validation failed: missing init_msx2_effect_buffers routine")
+    init_effects_body = init_effects_match.group(1) if init_effects_match else ""
+    for label in sorted(data_bank_labels):
+        if f"{label}_EFFECTS" not in asm_text:
+            continue
+        expected_sequence = [
+            f"ld a, {label}_DATA_BANK",
+            "call msx2_screen4_data_bank_enter_selected",
+            f"ld hl, {label}_EFFECTS",
+            "ld de, #",
+            "ld bc, msx2_layer_size",
+            "ldir",
+            "call msx2_screen4_data_bank_leave",
+        ]
+        missing_sequence = [needle for needle in expected_sequence if needle not in init_effects_body]
+        if missing_sequence:
+            raise RuntimeError(
+                "MSX2 Konami8K validation failed: init_msx2_effect_buffers does not restore "
+                f"{label}_EFFECTS through its selected data bank; missing {', '.join(missing_sequence)}"
+            )
 
     required_boot_patterns = [
         (r"ld\s+a,\s*1\s*\n\s*call\s+mapper_set_bank_p1", "6000h window initialized to bank 1"),
@@ -5789,6 +5911,8 @@ def main() -> int:
     ensure_sprite_copy_helper(asm_to_compile)
     post_asm_rejected_report_paths: list[Path] = []
     post_asm_rejected_reason: str | None = None
+    auto_post_asm_requested = False
+    compile_resolver_attempts: list[dict[str, object]] = []
 
     try:
         compile_with_glass(
@@ -5799,6 +5923,75 @@ def main() -> int:
             project_root=project_root,
         )
     except RuntimeError as exc:
+        can_auto_post_asm_resolve = (
+            auto_resolve_msx2_budget
+            and not args.post_asm_opt
+            and not args.post_asm_check_only
+            and not args.strict_post_asm_no_dead_blocks
+            and "resident bank overflow" in str(exc).lower()
+        )
+        if can_auto_post_asm_resolve:
+            compile_resolver_attempts.append({
+                "attempt": 0,
+                "action": "glass_compile",
+                "status": "failed",
+                "reason": str(exc),
+                "candidateId": "run_post_asm_dead_block_optimizer",
+                "asm": str(asm_to_compile),
+            })
+            try:
+                auto_post_asm_requested = True
+                optimized_asm = maybe_run_post_asm_optimizer(
+                    project_root=project_root,
+                    asm_output=zx0_asm,
+                    glass_jar=glass_jar,
+                    enabled=True,
+                    check_only=False,
+                    rules="dead-blocks",
+                    explicit_output=None,
+                    passes=1,
+                    strict_no_dead_blocks=False,
+                )
+                ensure_sprite_copy_helper(optimized_asm)
+                compile_with_glass(
+                    glass_jar=glass_jar,
+                    asm_output=optimized_asm,
+                    rom_output=rom_output,
+                    sym_output=sym_output,
+                    project_root=project_root,
+                )
+                asm_to_compile = optimized_asm
+                compile_resolver_attempts.append({
+                    "attempt": 1,
+                    "action": "run_post_asm_dead_block_optimizer",
+                    "candidateId": "run_post_asm_dead_block_optimizer",
+                    "status": "resolved",
+                    "asm": str(asm_to_compile),
+                    "report": str(post_asm_report_json_path(asm_to_compile)),
+                })
+            except RuntimeError as retry_exc:
+                compile_resolver_attempts.append({
+                    "attempt": 1,
+                    "action": "run_post_asm_dead_block_optimizer",
+                    "candidateId": "run_post_asm_dead_block_optimizer",
+                    "status": "failed",
+                    "reason": str(retry_exc),
+                    "report": str(post_asm_report_json_path(zx0_asm.with_suffix(".optimized.asm"))),
+                })
+                if (
+                    args.rom_mode == "megarom"
+                    and args.target_format == "konami"
+                    and "MSX2 SCREEN 4" in zx0_asm.read_text(encoding="utf-8", errors="ignore")
+                ):
+                    write_msx2_compile_failure_summary(
+                        artifact_dir=artifact_dir,
+                        asm_to_compile=zx0_asm,
+                        rom_output=rom_output,
+                        sym_output=sym_output,
+                        reason=str(exc),
+                        resolver_attempts=compile_resolver_attempts,
+                    )
+                raise exc
         if asm_to_compile != zx0_asm and args.post_asm_opt and not args.post_asm_check_only:
             post_asm_rejected_report_paths.append(post_asm_report_json_path(asm_to_compile))
             post_asm_rejected_reason = str(exc)
@@ -5829,9 +6022,10 @@ def main() -> int:
                         rom_output=rom_output,
                         sym_output=sym_output,
                         reason=str(fallback_exc),
+                        resolver_attempts=compile_resolver_attempts,
                     )
                 raise
-        else:
+        elif not can_auto_post_asm_resolve:
             if (
                 args.rom_mode == "megarom"
                 and args.target_format == "konami"
@@ -5843,6 +6037,7 @@ def main() -> int:
                     rom_output=rom_output,
                     sym_output=sym_output,
                     reason=str(exc),
+                    resolver_attempts=compile_resolver_attempts,
                 )
             raise
 
@@ -5925,7 +6120,7 @@ def main() -> int:
     try:
         validation_results = validate_compiled_outputs(asm_to_compile)
     except RuntimeError as exc:
-        if asm_to_compile != zx0_asm and args.post_asm_opt and not args.post_asm_check_only:
+        if asm_to_compile != zx0_asm and (args.post_asm_opt or auto_post_asm_requested) and not args.post_asm_check_only:
             post_asm_rejected_report_paths.append(post_asm_report_json_path(asm_to_compile))
             post_asm_rejected_reason = str(exc)
             print(
@@ -5965,18 +6160,19 @@ def main() -> int:
         original_size=original_size,
         padded_size=padded_size,
         validation_kind=validation_kind,
-        post_asm_requested=bool(args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks),
+        post_asm_requested=bool(auto_post_asm_requested or args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks),
         post_asm_check_only=bool(args.post_asm_check_only),
         post_asm_applied=bool(asm_to_compile != zx0_asm),
         post_asm_report_paths=(
             [post_asm_report_json_path(zx0_asm)]
             + ([post_asm_report_json_path(asm_to_compile)] if asm_to_compile != zx0_asm else [])
             + [path for path in post_asm_rejected_report_paths if path != post_asm_report_json_path(zx0_asm) and path != post_asm_report_json_path(asm_to_compile)]
-            if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
+            if auto_post_asm_requested or args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
             else []
         ),
         post_asm_rejected_report_paths=post_asm_rejected_report_paths,
         post_asm_rejected_reason=post_asm_rejected_reason,
+        compile_resolver_attempts=compile_resolver_attempts,
         openmsx_requested=bool(args.openmsx_smoke),
     )
 
@@ -6144,18 +6340,19 @@ def main() -> int:
             original_size=original_size,
             padded_size=padded_size,
             validation_kind=validation_kind,
-            post_asm_requested=bool(args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks),
+            post_asm_requested=bool(auto_post_asm_requested or args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks),
             post_asm_check_only=bool(args.post_asm_check_only),
             post_asm_applied=bool(asm_to_compile != zx0_asm),
             post_asm_report_paths=(
                 [post_asm_report_json_path(zx0_asm)]
                 + ([post_asm_report_json_path(asm_to_compile)] if asm_to_compile != zx0_asm else [])
                 + [path for path in post_asm_rejected_report_paths if path != post_asm_report_json_path(zx0_asm) and path != post_asm_report_json_path(asm_to_compile)]
-                if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
+                if auto_post_asm_requested or args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
                 else []
             ),
             post_asm_rejected_report_paths=post_asm_rejected_report_paths,
             post_asm_rejected_reason=post_asm_rejected_reason,
+            compile_resolver_attempts=compile_resolver_attempts,
             openmsx_requested=True,
             openmsx_passed=True,
         )

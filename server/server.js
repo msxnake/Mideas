@@ -1525,7 +1525,12 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
     });
   }
   const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
-  const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1;
+  const screen4DataBankPlan = projectSlice.screen4DataBankPlan;
+  const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1 && !(
+    screen4DataBankPlan &&
+    screen4DataBankPlan.supported === true &&
+    Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount
+  );
   let status = 'ok';
   if (warnings.length || warningPackedBanks.length || ramWarnings.length) status = 'warning';
   if (
@@ -1563,7 +1568,8 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
     ramBudget,
     manifestOverBudgetBankCount,
     manifestWarningBankCount,
-    largestAssets
+    largestAssets,
+    screen4DataBankPlan
   });
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
@@ -1625,10 +1631,13 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
   };
 }
 
-function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, manifestOverBudgetBankCount, manifestWarningBankCount, largestAssets }) {
+function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, manifestOverBudgetBankCount, manifestWarningBankCount, largestAssets, screen4DataBankPlan }) {
   const candidates = [];
   const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
   const estimatedPackedBankCount = Number(logicalBudget?.estimatedPackedBankCount || 0);
+  const multiBankSupported = screen4DataBankPlan &&
+    screen4DataBankPlan.supported === true &&
+    Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount;
   const overBudgetAssetCount = Array.isArray(largestAssets)
     ? largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0).length
     : 0;
@@ -1643,7 +1652,7 @@ function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, m
       blockedBy: 'automatic RAM layout reducer is not implemented yet'
     });
   }
-  if (estimatedPackedBankCount > 1) {
+  if (estimatedPackedBankCount > 1 && !multiBankSupported) {
     candidates.push({
       id: 'emit_multi_bank_world_data_loader',
       eligible: false,
@@ -3808,8 +3817,26 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let fontBlobInitInjected = false;
   let skipPage0CopyToRamAfterZx0 = false;
   let skipMsx2EffectRawCopyAfterZx0 = false;
+  let pendingMsx2EffectZx0 = null;
 
   for (const line of rebuilt) {
+    if (pendingMsx2EffectZx0) {
+      const destinationMatch = line.match(/^\s*ld\s+de\s*,\s*([^;\s]+)\s*(?:;.*)?$/i);
+      if (destinationMatch) {
+        patched.push('    ; Decompress ZX0 screen4 effects directly into the per-screen runtime buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${pendingMsx2EffectZx0.label}`);
+        patched.push(`    ld de, ${destinationMatch[1]}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        pendingMsx2EffectZx0 = null;
+        skipMsx2EffectRawCopyAfterZx0 = true;
+        continue;
+      }
+      patched.push(pendingMsx2EffectZx0.originalLine);
+      pendingMsx2EffectZx0 = null;
+    }
+
     if (skipPage0CopyToRamAfterZx0) {
       if (/^\s*ld\s+de\s*,/i.test(line) || /^\s*ld\s+bc\s*,/i.test(line)) {
         continue;
@@ -4206,13 +4233,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     if (inInitMsx2EffectBuffers && hlScreen4EffectsMatch) {
       const effectsLabel = hlScreen4EffectsMatch.label.toUpperCase();
       if (compressedEffectsLabels.has(effectsLabel)) {
-        patched.push('    ; Decompress ZX0 screen4 effects directly into the runtime buffer');
-        patched.push('    di');
-        patched.push(`    ld hl, ${hlScreen4EffectsMatch.label}`);
-        patched.push('    ld de, #C080');
-        patched.push('    call dzx0_standard');
-        patched.push('    ei');
-        skipMsx2EffectRawCopyAfterZx0 = true;
+        pendingMsx2EffectZx0 = {
+          label: hlScreen4EffectsMatch.label,
+          originalLine: line,
+        };
         continue;
       }
     }
@@ -4385,6 +4409,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     }
 
     patched.push(line);
+  }
+  if (pendingMsx2EffectZx0) {
+    patched.push(pendingMsx2EffectZx0.originalLine);
   }
 
   let finalCode = patched.join('\n');

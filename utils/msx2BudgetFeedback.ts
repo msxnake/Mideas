@@ -189,7 +189,12 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
     }))
   ];
   const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
-  const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1;
+  const screen4DataBankPlan = projectSlice.screen4DataBankPlan;
+  const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1 && !(
+    screen4DataBankPlan
+    && screen4DataBankPlan.supported === true
+    && Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount
+  );
   let status: Msx2BudgetFeedback['status'] = 'ok';
   if (romRecommendations.length || warningPackedBanks.length || ramRecommendations.length) status = 'warning';
   if (
@@ -237,7 +242,8 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
     ramBudget,
     manifestOverBudgetBankCount,
     manifestWarningBankCount,
-    largestAssets
+    largestAssets,
+    screen4DataBankPlan
   });
 
   return {
@@ -308,7 +314,8 @@ const buildMsx2BudgetResolverCandidates = ({
   ramBudget,
   manifestOverBudgetBankCount,
   manifestWarningBankCount,
-  largestAssets
+  largestAssets,
+  screen4DataBankPlan
 }: {
   status: Msx2BudgetFeedback['status'];
   logicalBudget: any;
@@ -316,10 +323,14 @@ const buildMsx2BudgetResolverCandidates = ({
   manifestOverBudgetBankCount: number;
   manifestWarningBankCount: number;
   largestAssets: Msx2BudgetFeedback['largestAssets'];
+  screen4DataBankPlan?: any;
 }): NonNullable<Msx2BudgetFeedback['resolverCandidates']> => {
   const candidates: NonNullable<Msx2BudgetFeedback['resolverCandidates']> = [];
   const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
   const estimatedPackedBankCount = Number(logicalBudget?.estimatedPackedBankCount || 0);
+  const multiBankSupported = screen4DataBankPlan
+    && screen4DataBankPlan.supported === true
+    && Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount;
   const overBudgetAssetCount = Array.isArray(largestAssets)
     ? largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0).length
     : 0;
@@ -334,7 +345,7 @@ const buildMsx2BudgetResolverCandidates = ({
       blockedBy: 'automatic RAM layout reducer is not implemented yet'
     });
   }
-  if (estimatedPackedBankCount > 1) {
+  if (estimatedPackedBankCount > 1 && !multiBankSupported) {
     candidates.push({
       id: 'emit_multi_bank_world_data_loader',
       eligible: false,
