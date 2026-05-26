@@ -6664,7 +6664,7 @@ function buildMsx2WorldBankManifest(
   useKonamiDataBank: boolean
 ): Record<string, unknown> {
   const bankSizeBytes = Number(logicalBankBudget.bankSizeBytes || 8192);
-  const dataWindowAddress = useKonamiDataBank ? '#A000' : '#8000';
+  const dataWindowAddress = '#8000';
   const includedByKey = new Map(includedAssets.map(asset => [assetKey(asset.type, asset.id), asset]));
   const physicalBankByPackage = new Map<string, number>();
   for (const bank of (Array.isArray(logicalBankBudget.estimatedPackedBanks) ? logicalBankBudget.estimatedPackedBanks : []) as any[]) {

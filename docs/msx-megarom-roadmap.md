@@ -1285,13 +1285,14 @@ Current CLI gate:
    first-fit bank packing. `logicalBankBudget` records `splitPackages` and
    `splitSourcePackages`, and `worldBankManifest` maps those chunks back to the
    owning world/asset so the report remains traceable.
-9. `scripts/build_mideas_unified_rom.py --auto-resolve-msx2-budget` now adds
-   the first controlled retry loop. It can resolve safe cases without changing
-   project data: strict-warning failures can retry as non-strict, and over-budget
-   failures produced while ZX0 was explicitly skipped can retry with ZX0
-   preprocessing enabled. The retry loop now chooses those actions from
-   `resolverCandidates` instead of matching only raw failure strings. Each
-   attempt is recorded in
+9. `scripts/build_mideas_unified_rom.py` now enables the first controlled retry
+   loop by default for MSX2 SCREEN 4 Konami MegaROM builds
+   (`--no-auto-resolve-msx2-budget` disables it for diagnostics). It can
+   resolve safe cases without changing project data: strict-warning failures
+   can retry as non-strict, and over-budget failures produced while ZX0 was
+   explicitly skipped can retry with ZX0 preprocessing enabled. The retry loop
+   now chooses those actions from `resolverCandidates` instead of matching only
+   raw failure strings. Each attempt is recorded in
    `msx2_budget_resolution.json` with the compact failed-gate, input-artifact,
    ROM, and world-bank context copied from `msx2_preflight_failure.json`;
    unresolved cases keep `msx2_preflight_failure.json` as the actionable stop
@@ -1309,6 +1310,11 @@ Current CLI gate:
     preserve the same `msx2BudgetFeedback` payload, including
     `resolverCandidates`, so the user sees the concrete bank/RAM cause and the
     attempted or pending resolver steps even when no ROM is produced.
+    The IDE/server budget view also treats `estimatedPackedBankCount > 1` as a
+    pre-Glass error for SCREEN 4 today, because the current gameplay loader can
+    only keep one world data window visible. That stop exposes the pending
+    `emit_multi_bank_world_data_loader` resolver candidate instead of letting
+    the build continue into a ROM that cannot load the extra world banks.
 11. Glass `Negative initial size` failures are now translated into Mideas
     diagnostics. For MSX2 SCREEN 4 Konami builds, a negative `ds #C000 - $`
     padding is reported as `MSX2 MegaROM resident bank overflow`, not as a raw
@@ -1323,6 +1329,20 @@ Current CLI gate:
     The `/compile` server returns the same failure shape as
     `msx2CompileFailure`, and the export modal shows the resident-overflow
     reason plus Plan B directly beside the Glass logs.
+12. The CLI post-ASM path now has its first safe rollback. When
+    `--post-asm-opt` emits an optimized ASM but that candidate fails Glass or
+    the later mapper/artifact validators, the builder records the optimized
+    report as `rejected_validation_failed`, falls back to the baseline ASM,
+    recompiles, and marks the build summary
+    `validation.postAsm = fallback_to_baseline`. This protects a previously
+    compilable ROM from being broken by an optimizer pass while still preserving
+    the rejected candidate, byte savings, rule classes, and exact failure reason
+    for the next resolver iteration.
+13. The SCREEN 4 `worldBankManifest` now reports the actual current loader
+    window as `#8000`, matching `MSX2_SCREEN4_DATA_BANK` and the P2 bank switch
+    helper. The paper still targets a future stable world data window model, but
+    the generated diagnostics must describe the ROM that exists today; otherwise
+    the automatic resolver would be reasoning from the wrong address window.
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor
@@ -1411,7 +1431,8 @@ Current artifact:
   of reducing the allocator's Plan B output to a single line.
   It also reports how many runtime modules the current slice includes and how
   many are resident, far-code, or world-specific, and how many World Bank Packs
-  are planned for the current `#A000` data window.
+  are planned for the current SCREEN 4 data window (`#8000` in the current
+  fixed-bank0 loader).
 - `npm run test:msx2-budget-feedback` compiles the shared frontend helper and
   runs it against synthetic embedded ASM artifacts. This gives the IDE preview
   parser a functional regression test beyond static contract checks. It also

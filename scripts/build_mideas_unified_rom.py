@@ -216,8 +216,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "After an MSX2 SCREEN 4 MegaROM preflight failure, try safe automatic "
             "recovery passes before Glass, such as enabling ZX0 preprocessing when "
-            "it was skipped or relaxing a strict warning-only gate."
+            "it was skipped or relaxing a strict warning-only gate. Enabled by "
+            "default for MSX2 SCREEN 4 Konami MegaROM builds."
         ),
+    )
+    parser.add_argument(
+        "--no-auto-resolve-msx2-budget",
+        action="store_true",
+        help="Disable the default safe MSX2 SCREEN 4 MegaROM budget resolver.",
     )
     parser.add_argument(
         "--msx2-budget-resolve-attempts",
@@ -989,6 +995,8 @@ def write_msx2_build_summary(
     post_asm_check_only: bool = False,
     post_asm_applied: bool = False,
     post_asm_report_paths: list[Path] | None = None,
+    post_asm_rejected_report_paths: list[Path] | None = None,
+    post_asm_rejected_reason: str | None = None,
     openmsx_requested: bool = False,
     openmsx_passed: bool = False,
 ) -> None:
@@ -1016,6 +1024,11 @@ def write_msx2_build_summary(
             elif post_asm_requested and post_asm_check_only:
                 updated_gate["status"] = "check_only_passed"
                 updated_gate["evidence"] = [str(asm_to_compile)]
+            elif post_asm_requested and post_asm_rejected_report_paths:
+                updated_gate["status"] = "fallback_to_baseline"
+                updated_gate["evidence"] = [str(asm_to_compile)]
+                if post_asm_rejected_reason:
+                    updated_gate["reason"] = post_asm_rejected_reason
             elif post_asm_requested:
                 updated_gate["status"] = "requested_no_change"
                 updated_gate["evidence"] = [str(asm_to_compile)]
@@ -1123,10 +1136,15 @@ def write_msx2_build_summary(
             "removedLines": int(optimization_summary.get("removed_lines") or 0),
             "removedSourceBytes": removed_source_bytes,
         })
+        attempt_status = "accepted" if post_asm_applied and is_selected_asm_report else "check_only_passed" if post_asm_check_only else "baseline_observed"
+        attempt_reason = "Compiled ROM and validation completed with this ASM" if post_asm_applied and is_selected_asm_report else "Report generated without applying optimized ASM" if post_asm_check_only else "Baseline report retained for comparison"
+        if post_asm_rejected_report_paths and report_path in post_asm_rejected_report_paths:
+            attempt_status = "rejected_validation_failed"
+            attempt_reason = post_asm_rejected_reason or "Optimized ASM failed compile or artifact validation; final build fell back to baseline ASM"
         post_asm_attempts.append({
             "path": str(report_path),
-            "status": "accepted" if post_asm_applied and is_selected_asm_report else "check_only_passed" if post_asm_check_only else "baseline_observed",
-            "reason": "Compiled ROM and validation completed with this ASM" if post_asm_applied and is_selected_asm_report else "Report generated without applying optimized ASM" if post_asm_check_only else "Baseline report retained for comparison",
+            "status": attempt_status,
+            "reason": attempt_reason,
             "ruleClasses": rule_classes,
             "appliedPatches": applied_patches,
             "removedSourceBytes": removed_source_bytes,
@@ -1159,7 +1177,7 @@ def write_msx2_build_summary(
             "kind": validation_kind,
             "glass": "passed",
             "symbols": "passed" if sym_output and sym_output.exists() else "not_available",
-            "postAsm": "applied" if post_asm_applied else "check_only_passed" if post_asm_requested and post_asm_check_only else "requested_no_change" if post_asm_requested else "not_requested",
+            "postAsm": "applied" if post_asm_applied else "check_only_passed" if post_asm_requested and post_asm_check_only else "fallback_to_baseline" if post_asm_requested and post_asm_rejected_report_paths else "requested_no_change" if post_asm_requested else "not_requested",
             "openmsx": "passed" if openmsx_passed else "requested_pending" if openmsx_requested else "not_requested",
         },
         "ideBudgetFeedback": ide_budget_feedback_summary,
@@ -5732,6 +5750,14 @@ def main() -> int:
         auto_megarom=args.auto_megarom,
         enable_hard_player_tick=args.enable_hard_player_tick,
     )
+    auto_resolve_msx2_budget = bool(
+        args.auto_resolve_msx2_budget
+        or (
+            not args.no_auto_resolve_msx2_budget
+            and args.rom_mode == "megarom"
+            and args.target_format == "konami"
+        )
+    )
 
     zx0_asm, zx0_info = maybe_run_zx0_preprocess(
         project_root=project_root,
@@ -5744,7 +5770,7 @@ def main() -> int:
         asm_output=zx0_asm,
         project_root=project_root,
         strict_warnings=args.strict_msx2_megarom_preflight_warnings,
-        auto_resolve=args.auto_resolve_msx2_budget,
+        auto_resolve=auto_resolve_msx2_budget,
         skip_zx0_preprocess=args.skip_zx0_preprocess,
         max_attempts=args.msx2_budget_resolve_attempts,
     )
@@ -5761,6 +5787,8 @@ def main() -> int:
         strict_no_dead_blocks=args.strict_post_asm_no_dead_blocks,
     )
     ensure_sprite_copy_helper(asm_to_compile)
+    post_asm_rejected_report_paths: list[Path] = []
+    post_asm_rejected_reason: str | None = None
 
     try:
         compile_with_glass(
@@ -5771,81 +5799,164 @@ def main() -> int:
             project_root=project_root,
         )
     except RuntimeError as exc:
-        if (
+        if asm_to_compile != zx0_asm and args.post_asm_opt and not args.post_asm_check_only:
+            post_asm_rejected_report_paths.append(post_asm_report_json_path(asm_to_compile))
+            post_asm_rejected_reason = str(exc)
+            print(
+                "Post-ASM optimized ASM failed Glass compile; "
+                f"falling back to baseline ASM. Reason: {post_asm_rejected_reason}",
+                file=sys.stderr,
+            )
+            asm_to_compile = zx0_asm
+            ensure_sprite_copy_helper(asm_to_compile)
+            try:
+                compile_with_glass(
+                    glass_jar=glass_jar,
+                    asm_output=asm_to_compile,
+                    rom_output=rom_output,
+                    sym_output=sym_output,
+                    project_root=project_root,
+                )
+            except RuntimeError as fallback_exc:
+                if (
+                    args.rom_mode == "megarom"
+                    and args.target_format == "konami"
+                    and "MSX2 SCREEN 4" in asm_to_compile.read_text(encoding="utf-8", errors="ignore")
+                ):
+                    write_msx2_compile_failure_summary(
+                        artifact_dir=artifact_dir,
+                        asm_to_compile=asm_to_compile,
+                        rom_output=rom_output,
+                        sym_output=sym_output,
+                        reason=str(fallback_exc),
+                    )
+                raise
+        else:
+            if (
+                args.rom_mode == "megarom"
+                and args.target_format == "konami"
+                and "MSX2 SCREEN 4" in asm_to_compile.read_text(encoding="utf-8", errors="ignore")
+            ):
+                write_msx2_compile_failure_summary(
+                    artifact_dir=artifact_dir,
+                    asm_to_compile=asm_to_compile,
+                    rom_output=rom_output,
+                    sym_output=sym_output,
+                    reason=str(exc),
+                )
+            raise
+
+    def validate_compiled_outputs(selected_asm: Path) -> dict[str, object]:
+        original, padded = pad_rom_to_valid_size(rom_output, args.rom_mode, args.target_format)
+        compiled_text = selected_asm.read_text(encoding="utf-8", errors="ignore")
+        screen4_fixed = (
             args.rom_mode == "megarom"
             and args.target_format == "konami"
-            and "MSX2 SCREEN 4" in asm_to_compile.read_text(encoding="utf-8", errors="ignore")
-        ):
-            write_msx2_compile_failure_summary(
-                artifact_dir=artifact_dir,
-                asm_to_compile=asm_to_compile,
+            and "Mideas MSX2 SCREEN 4 tile backend" in compiled_text
+            and "init_konami8k_fixed_bank0_banks:" in compiled_text
+        )
+        screen5_fixed = (
+            args.rom_mode == "megarom"
+            and args.target_format == "konami"
+            and (
+                "Mideas MSX2 SCREEN 5 presentation backend" in compiled_text
+                or "Mideas MSX2 SCREEN 5 presentation chain backend" in compiled_text
+            )
+            and "init_konami8k_fixed_bank0_banks:" in compiled_text
+        )
+        mapper_validation = None
+        ascii16_layout = None
+        screen4_validation = None
+        screen5_validation = None
+        if args.rom_mode == "megarom" and not screen4_fixed and not screen5_fixed:
+            mapper_validation = validate_megarom_mapper_artifact_metadata(
+                artifact_dir,
+                args.target_format,
+                strict_tilebank_integrity=args.strict_tilebank_integrity,
+            )
+            if args.target_format == "ascii16":
+                ascii16_layout = inspect_ascii16_runtime_layout(selected_asm, artifact_dir, sym_output)
+                if args.strict_ascii16_runtime_layout:
+                    validate_ascii16_runtime_layout_gate(ascii16_layout)
+                validate_ascii16_resident_free_gate(
+                    ascii16_layout,
+                    args.strict_ascii16_resident_free_bytes,
+                )
+                annotate_ascii16_runtime_layout_artifact(artifact_dir, ascii16_layout)
+        konami_validation = None
+        konami_artifact_validation = None
+        if screen4_fixed:
+            screen4_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, selected_asm)
+        elif screen5_fixed:
+            screen5_validation = validate_msx2_screen5_konami_fixed_bank0_megarom(rom_output, selected_asm)
+        elif args.rom_mode == "megarom" and args.target_format == "konami":
+            konami_validation = validate_konami8k_megarom(rom_output, selected_asm)
+            konami_artifact_validation = validate_konami8k_generated_artifacts(
+                artifact_dir,
+                expected_resource_count=konami_validation["resource_count"],
+                segment_count=konami_validation["segment_count"],
+                asm_path=selected_asm,
+                sym_path=sym_output,
+                strict_p3_data_window=args.strict_p3_data_window,
+                strict_vram_staging=args.strict_vram_staging,
+                strict_tilebank_integrity=args.strict_tilebank_integrity,
+            )
+        kind = (
+            "msx2_screen4_konami_fixed_bank0"
+            if screen4_fixed
+            else "msx2_screen5_konami_fixed_bank0"
+            if screen5_fixed
+            else f"{args.rom_mode}_{args.target_format}"
+        )
+        return {
+            "original_size": original,
+            "padded_size": padded,
+            "screen4_konami_fixed_bank0_compat": screen4_fixed,
+            "screen5_konami_fixed_bank0_compat": screen5_fixed,
+            "megarom_mapper_artifact_validation": mapper_validation,
+            "ascii16_runtime_layout": ascii16_layout,
+            "msx2_screen4_konami_validation": screen4_validation,
+            "msx2_screen5_konami_validation": screen5_validation,
+            "konami8k_validation": konami_validation,
+            "konami8k_artifact_validation": konami_artifact_validation,
+            "validation_kind": kind,
+        }
+
+    try:
+        validation_results = validate_compiled_outputs(asm_to_compile)
+    except RuntimeError as exc:
+        if asm_to_compile != zx0_asm and args.post_asm_opt and not args.post_asm_check_only:
+            post_asm_rejected_report_paths.append(post_asm_report_json_path(asm_to_compile))
+            post_asm_rejected_reason = str(exc)
+            print(
+                "Post-ASM optimized ASM failed artifact validation; "
+                f"falling back to baseline ASM. Reason: {post_asm_rejected_reason}",
+                file=sys.stderr,
+            )
+            asm_to_compile = zx0_asm
+            ensure_sprite_copy_helper(asm_to_compile)
+            compile_with_glass(
+                glass_jar=glass_jar,
+                asm_output=asm_to_compile,
                 rom_output=rom_output,
                 sym_output=sym_output,
-                reason=str(exc),
+                project_root=project_root,
             )
-        raise
+            validation_results = validate_compiled_outputs(asm_to_compile)
+        else:
+            raise
 
-    original_size, padded_size = pad_rom_to_valid_size(rom_output, args.rom_mode, args.target_format)
-    asm_compiled_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore")
-    screen4_konami_fixed_bank0_compat = (
-        args.rom_mode == "megarom"
-        and args.target_format == "konami"
-        and "Mideas MSX2 SCREEN 4 tile backend" in asm_compiled_text
-        and "init_konami8k_fixed_bank0_banks:" in asm_compiled_text
-    )
-    screen5_konami_fixed_bank0_compat = (
-        args.rom_mode == "megarom"
-        and args.target_format == "konami"
-        and (
-            "Mideas MSX2 SCREEN 5 presentation backend" in asm_compiled_text
-            or "Mideas MSX2 SCREEN 5 presentation chain backend" in asm_compiled_text
-        )
-        and "init_konami8k_fixed_bank0_banks:" in asm_compiled_text
-    )
-    megarom_mapper_artifact_validation = None
-    ascii16_runtime_layout = None
-    msx2_screen4_konami_validation = None
-    msx2_screen5_konami_validation = None
-    if args.rom_mode == "megarom" and not screen4_konami_fixed_bank0_compat and not screen5_konami_fixed_bank0_compat:
-        megarom_mapper_artifact_validation = validate_megarom_mapper_artifact_metadata(
-            artifact_dir,
-            args.target_format,
-            strict_tilebank_integrity=args.strict_tilebank_integrity,
-        )
-        if args.target_format == "ascii16":
-            ascii16_runtime_layout = inspect_ascii16_runtime_layout(asm_to_compile, artifact_dir, sym_output)
-            if args.strict_ascii16_runtime_layout:
-                validate_ascii16_runtime_layout_gate(ascii16_runtime_layout)
-            validate_ascii16_resident_free_gate(
-                ascii16_runtime_layout,
-                args.strict_ascii16_resident_free_bytes,
-            )
-            annotate_ascii16_runtime_layout_artifact(artifact_dir, ascii16_runtime_layout)
-    konami8k_validation = None
-    konami8k_artifact_validation = None
-    if screen4_konami_fixed_bank0_compat:
-        msx2_screen4_konami_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, asm_to_compile)
-    elif screen5_konami_fixed_bank0_compat:
-        msx2_screen5_konami_validation = validate_msx2_screen5_konami_fixed_bank0_megarom(rom_output, asm_to_compile)
-    elif args.rom_mode == "megarom" and args.target_format == "konami":
-        konami8k_validation = validate_konami8k_megarom(rom_output, asm_to_compile)
-        konami8k_artifact_validation = validate_konami8k_generated_artifacts(
-            artifact_dir,
-            expected_resource_count=konami8k_validation["resource_count"],
-            segment_count=konami8k_validation["segment_count"],
-            asm_path=asm_to_compile,
-            sym_path=sym_output,
-            strict_p3_data_window=args.strict_p3_data_window,
-            strict_vram_staging=args.strict_vram_staging,
-            strict_tilebank_integrity=args.strict_tilebank_integrity,
-        )
-    validation_kind = (
-        "msx2_screen4_konami_fixed_bank0"
-        if screen4_konami_fixed_bank0_compat
-        else "msx2_screen5_konami_fixed_bank0"
-        if screen5_konami_fixed_bank0_compat
-        else f"{args.rom_mode}_{args.target_format}"
-    )
+    original_size = int(validation_results["original_size"])
+    padded_size = int(validation_results["padded_size"])
+    screen4_konami_fixed_bank0_compat = bool(validation_results["screen4_konami_fixed_bank0_compat"])
+    screen5_konami_fixed_bank0_compat = bool(validation_results["screen5_konami_fixed_bank0_compat"])
+    megarom_mapper_artifact_validation = validation_results["megarom_mapper_artifact_validation"]
+    ascii16_runtime_layout = validation_results["ascii16_runtime_layout"]
+    msx2_screen4_konami_validation = validation_results["msx2_screen4_konami_validation"]
+    msx2_screen5_konami_validation = validation_results["msx2_screen5_konami_validation"]
+    konami8k_validation = validation_results["konami8k_validation"]
+    konami8k_artifact_validation = validation_results["konami8k_artifact_validation"]
+    validation_kind = str(validation_results["validation_kind"])
     write_msx2_build_summary(
         artifact_dir=artifact_dir,
         rom_output=rom_output,
@@ -5860,9 +5971,12 @@ def main() -> int:
         post_asm_report_paths=(
             [post_asm_report_json_path(zx0_asm)]
             + ([post_asm_report_json_path(asm_to_compile)] if asm_to_compile != zx0_asm else [])
+            + [path for path in post_asm_rejected_report_paths if path != post_asm_report_json_path(zx0_asm) and path != post_asm_report_json_path(asm_to_compile)]
             if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
             else []
         ),
+        post_asm_rejected_report_paths=post_asm_rejected_report_paths,
+        post_asm_rejected_reason=post_asm_rejected_reason,
         openmsx_requested=bool(args.openmsx_smoke),
     )
 
@@ -5984,7 +6098,8 @@ def main() -> int:
     print(f"Glass: {glass_jar}")
     print(
         "Generator config: "
-        f"mode={args.rom_mode}, mapper={args.target_format}, engine={args.execution_mode}, autoMegaROM={args.auto_megarom}"
+        f"mode={args.rom_mode}, mapper={args.target_format}, engine={args.execution_mode}, "
+        f"autoMegaROM={args.auto_megarom}, autoResolveMsx2Budget={auto_resolve_msx2_budget}"
     )
     if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks:
         print(
@@ -6035,9 +6150,12 @@ def main() -> int:
             post_asm_report_paths=(
                 [post_asm_report_json_path(zx0_asm)]
                 + ([post_asm_report_json_path(asm_to_compile)] if asm_to_compile != zx0_asm else [])
+                + [path for path in post_asm_rejected_report_paths if path != post_asm_report_json_path(zx0_asm) and path != post_asm_report_json_path(asm_to_compile)]
                 if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
                 else []
             ),
+            post_asm_rejected_report_paths=post_asm_rejected_report_paths,
+            post_asm_rejected_reason=post_asm_rejected_reason,
             openmsx_requested=True,
             openmsx_passed=True,
         )

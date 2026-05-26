@@ -597,8 +597,8 @@ def validate_project_slice_artifact(
         for package in manifest_world.get("packages"):
             if not isinstance(package, dict) or not package.get("packageId") or not package.get("logicalSection"):
                 raise RuntimeError(f"Invalid worldBankManifest package: {package}")
-            if package.get("windowAddress") != "#A000":
-                raise RuntimeError(f"worldBankManifest package must target Konami data window #A000: {package}")
+            if package.get("windowAddress") != "#8000":
+                raise RuntimeError(f"worldBankManifest package must target current SCREEN 4 data window #8000: {package}")
             if int(package.get("storedBytes") or 0) <= 0:
                 raise RuntimeError(f"worldBankManifest package must include storedBytes: {package}")
         estimated_bytes = int(world_summary.get("estimatedBytes") or 0)
@@ -895,8 +895,8 @@ def validate_project_slice_artifact(
             raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest bank count does not match manifest")
         if int(ide_manifest.get("packageCount") or 0) <= 0:
             raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest must include package count")
-        if ide_manifest.get("dataWindowAddress") != "#A000":
-            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest must expose Konami data window")
+        if ide_manifest.get("dataWindowAddress") != "#8000":
+            raise RuntimeError("msx2_ide_budget_feedback.json worldBankManifest must expose current SCREEN 4 data window")
         expected_manifest_warnings = sum(
             1 for bank in manifest_physical_banks
             if isinstance(bank, dict) and (bank.get("status") == "warning" or bank.get("warning") is True)

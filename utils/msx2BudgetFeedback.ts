@@ -188,9 +188,15 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       action: item.action
     }))
   ];
+  const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
+  const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1;
   let status: Msx2BudgetFeedback['status'] = 'ok';
   if (romRecommendations.length || warningPackedBanks.length || ramRecommendations.length) status = 'warning';
-  if ((Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length) || (ramBudget.status && ramBudget.status !== 'ok')) {
+  if (
+    (Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length)
+    || (ramBudget.status && ramBudget.status !== 'ok')
+    || needsUnsupportedMultiBankLoader
+  ) {
     status = 'error';
   }
   const includedRuntimeModules = Array.isArray(projectSlice.includedRuntimeModuleDetails)
@@ -247,7 +253,7 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
     rom: {
       bankSizeBytes: Number(logicalBudget.bankSizeBytes || 8192),
       payloadBytes: Number(logicalBudget.totalPayloadBytes || 0),
-      estimatedPackedBankCount: Number(logicalBudget.estimatedPackedBankCount || 0),
+      estimatedPackedBankCount,
       warningThresholdBytes: Number(logicalBudget.warningThresholdBytes || 0),
       usedPercentOfSingleBank: Number(logicalBudget.bankSizeBytes || 8192)
         ? Math.round((Number(logicalBudget.totalPayloadBytes || 0) / Number(logicalBudget.bankSizeBytes || 8192)) * 10000) / 100
@@ -313,6 +319,7 @@ const buildMsx2BudgetResolverCandidates = ({
 }): NonNullable<Msx2BudgetFeedback['resolverCandidates']> => {
   const candidates: NonNullable<Msx2BudgetFeedback['resolverCandidates']> = [];
   const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
+  const estimatedPackedBankCount = Number(logicalBudget?.estimatedPackedBankCount || 0);
   const overBudgetAssetCount = Array.isArray(largestAssets)
     ? largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0).length
     : 0;
@@ -325,6 +332,16 @@ const buildMsx2BudgetResolverCandidates = ({
       retryKind: 'authoring_or_runtime_layout_change',
       reason: 'RAM overflow needs smaller live pools, smaller hot caches, or fewer active runtime systems.',
       blockedBy: 'automatic RAM layout reducer is not implemented yet'
+    });
+  }
+  if (estimatedPackedBankCount > 1) {
+    candidates.push({
+      id: 'emit_multi_bank_world_data_loader',
+      eligible: false,
+      stage: 'asm_generation',
+      retryKind: 'regenerate_asm',
+      reason: 'The logical allocator produced multiple SCREEN 4 data banks, but the current loader can map only one #8000/#A000 data window during gameplay.',
+      blockedBy: 'multi-bank SCREEN 4 data loader is not implemented yet'
     });
   }
   if (overBudgetPackageCount > 0 || Number(manifestOverBudgetBankCount || 0) > 0 || overBudgetAssetCount > 0 || status === 'error') {

@@ -292,6 +292,27 @@ if (JSON.stringify(feedback) !== JSON.stringify(serverFeedback)) {
 if (buildServerMsx2BudgetFeedbackFromAsm('; no artifacts') !== null) {
   throw new Error('Expected null server feedback for ASM without artifacts');
 }
+const multiBankAsm = asm.replace(
+  '"estimatedPackedBankCount": 1',
+  '"estimatedPackedBankCount": 2'
+);
+const multiBankFeedback = buildMsx2BudgetFeedbackFromAsm(multiBankAsm);
+const serverMultiBankFeedback = buildServerMsx2BudgetFeedbackFromAsm(multiBankAsm);
+if (!multiBankFeedback || !serverMultiBankFeedback) {
+  throw new Error('Expected multi-bank MSX2 budget feedback from synthetic ASM');
+}
+if (JSON.stringify(multiBankFeedback) !== JSON.stringify(serverMultiBankFeedback)) {
+  throw new Error(`Frontend/server multi-bank MSX2 budget feedback mismatch:\nfrontend=${JSON.stringify(multiBankFeedback, null, 2)}\nserver=${JSON.stringify(serverMultiBankFeedback, null, 2)}`);
+}
+if (multiBankFeedback.status !== 'error') {
+  throw new Error(`Expected unsupported multi-bank feedback to be an error: ${JSON.stringify(multiBankFeedback)}`);
+}
+if (!Array.isArray(multiBankFeedback.resolverCandidates) || multiBankFeedback.resolverCandidates[0]?.id !== 'emit_multi_bank_world_data_loader') {
+  throw new Error(`Expected multi-bank feedback to expose loader resolver first: ${JSON.stringify(multiBankFeedback.resolverCandidates)}`);
+}
+if (!multiBankFeedback.resolverCandidates.some((candidate) => candidate?.id === 'enable_zx0_preprocess')) {
+  throw new Error(`Expected multi-bank feedback to keep ZX0 retry candidate: ${JSON.stringify(multiBankFeedback.resolverCandidates)}`);
+}
 const serverResolutionContext = buildServerMsx2BudgetResolutionFailureContext({
   ...feedback,
   status: 'error',

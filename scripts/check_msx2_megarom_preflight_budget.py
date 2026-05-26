@@ -96,7 +96,7 @@ def write_artifacts(
                 "logicalSection": "world screens",
                 "recommendedBankClass": "world.screen",
                 "physicalBankIndex": physical_bank_by_package.get(package_id),
-                "windowAddress": "#A000",
+                "windowAddress": "#8000",
                 "bankSizeBytes": 8192,
                 "rawBytes": int(policy.get("rawBytes") or 0),
                 "storedBytes": int(policy.get("storedBytesEstimate") or 0),
@@ -113,11 +113,11 @@ def write_artifacts(
         "scope": "msx2_screen4_world_bank_manifest",
         "mapper": "konami",
         "bankSizeBytes": 8192,
-        "dataWindowAddress": "#A000",
+        "dataWindowAddress": "#8000",
         "estimatedPhysicalBanks": [
             {
                 "bankIndex": int(bank.get("bankIndex") or 0),
-                "windowAddress": "#A000",
+                "windowAddress": "#8000",
                 "bankSizeBytes": 8192,
                 "warningThresholdBytes": int(bank.get("warningThresholdBytes") or 7372),
                 "usedBytes": int(bank.get("usedBytes") or 0),
@@ -502,6 +502,58 @@ def main() -> None:
             checksum = ((build_summary.get(summary_key) or {}).get("checksum"))
             if not str(checksum or "").startswith("fnv1a32:"):
                 raise AssertionError(f"Build summary {summary_key} checksum is invalid: {build_summary.get(summary_key)!r}")
+        optimized_report_path = ok_dir / "test.optimized.post-asm-report.json"
+        optimized_report_path.write_text(
+            json.dumps({
+                "input": str(ok_dir / "test.optimized.asm"),
+                "metrics": {
+                    "block_inventory": {
+                        "dead_block_candidates": 1,
+                        "dead_candidate_lines": 6,
+                        "dead_candidate_source_bytes": 192,
+                    },
+                    "optimization_summary": {
+                        "passes_run": 1,
+                        "removed_lines": 8,
+                        "removed_source_bytes": 256,
+                    },
+                },
+                "findings": [{"rule_id": "unit_optimized"}],
+                "applied_patches": 2,
+            }),
+            encoding="utf-8",
+        )
+        write_msx2_build_summary(
+            artifact_dir=ok_dir,
+            rom_output=rom_path,
+            asm_to_compile=asm_path,
+            sym_output=sym_path,
+            original_size=8192,
+            padded_size=8192,
+            validation_kind="unit_test",
+            post_asm_requested=True,
+            post_asm_check_only=False,
+            post_asm_applied=False,
+            post_asm_report_paths=[post_asm_report_path, optimized_report_path],
+            post_asm_rejected_report_paths=[optimized_report_path],
+            post_asm_rejected_reason="synthetic optimized ASM Glass failure",
+        )
+        fallback_summary = json.loads(build_summary_path.read_text(encoding="utf-8"))
+        fallback_gate_by_id = {
+            item.get("id"): item
+            for item in fallback_summary.get("pipelineGates", [])
+            if isinstance(item, dict)
+        }
+        if fallback_gate_by_id.get("post_compilation_optimization", {}).get("status") != "fallback_to_baseline":
+            raise AssertionError(f"Build summary did not mark Post-ASM fallback: {fallback_summary.get('pipelineGates')!r}")
+        if (fallback_summary.get("validation") or {}).get("postAsm") != "fallback_to_baseline":
+            raise AssertionError(f"Build summary validation did not mark Post-ASM fallback: {fallback_summary.get('validation')!r}")
+        rejected_attempts = [
+            item for item in fallback_summary.get("postAsmAttempts", [])
+            if isinstance(item, dict) and item.get("status") == "rejected_validation_failed"
+        ]
+        if len(rejected_attempts) != 1 or rejected_attempts[0].get("removedSourceBytes") != 256:
+            raise AssertionError(f"Build summary did not preserve rejected Post-ASM attempt: {fallback_summary.get('postAsmAttempts')!r}")
 
         over_dir = root / "over_generated"
         write_artifacts(over_dir, make_budget(9000, over_budget=True), storage_policy)
