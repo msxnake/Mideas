@@ -143,6 +143,26 @@ const asm = [
       { worldId: 'world_forest', estimatedBytes: 4096 },
     ],
     worldBankManifest,
+    screen4RuntimeLayerPolicy: {
+      collision: {
+        definitionPlacement: 'world_data_bank',
+        runtimePlacement: 'ram_cache',
+        cacheScope: 'current_screen',
+        bytesPerScreen: 192,
+      },
+      behavior: {
+        definitionPlacement: 'world_data_bank',
+        runtimePlacement: 'ram_cache',
+        cacheScope: 'current_screen',
+        bytesPerScreen: 192,
+      },
+      effects: {
+        definitionPlacement: 'world_data_bank',
+        runtimePlacement: 'persistent_ram',
+        cacheScope: 'per_screen',
+        bytesPerScreen: 192,
+      },
+    },
     includedRuntimeModules: [
       'runtime.msx2.boot',
       'runtime.msx2.mapper.konami8k',
@@ -223,6 +243,8 @@ const asm = [
     freeBytes: 12000,
     status: 'ok',
     sections: [
+      { id: 'runtime.collision_current_cache', bytes: 192 },
+      { id: 'runtime.behavior_current_cache', bytes: 192 },
       { id: 'entities', bytes: 512 },
     ],
     recommendations: [],
@@ -253,6 +275,13 @@ if ((feedback.suggestedFixes || [])[0]?.severity !== 'info') {
 }
 if (feedback.runtimeModules?.includedCount !== 2 || feedback.runtimeModules?.residentCount !== 2) {
   throw new Error(`Expected runtime module placement summary: ${JSON.stringify(feedback.runtimeModules)}`);
+}
+if (
+  feedback.screen4RuntimeLayerPolicy?.collision?.runtimePlacement !== 'ram_cache'
+  || feedback.screen4RuntimeLayerPolicy?.behavior?.runtimePlacement !== 'ram_cache'
+  || feedback.screen4RuntimeLayerPolicy?.effects?.runtimePlacement !== 'persistent_ram'
+) {
+  throw new Error(`Expected SCREEN 4 runtime layer policy in feedback: ${JSON.stringify(feedback.screen4RuntimeLayerPolicy)}`);
 }
 if ((feedback.runtimeModules?.excluded || [])[0]?.placement !== 'world_specific') {
   throw new Error(`Expected excluded runtime module placement to stay visible: ${JSON.stringify(feedback.runtimeModules)}`);

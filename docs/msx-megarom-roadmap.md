@@ -1320,10 +1320,13 @@ Current CLI gate:
     SCREEN 4 effect templates now follow the same cold-data policy: each
     `<LABEL>_EFFECTS` table is emitted with its screen data bank and
     `init_msx2_effect_buffers` copies it to persistent RAM through the
-    selectable bank loader. Collision and behavior layers intentionally remain
-    resident for now because the gameplay loop still reads them directly from
-    pointers every frame; moving those requires a bank-aware reader or a
-    screen-local RAM cache, not a pure placement change.
+    selectable bank loader. Collision and behavior layer definitions now leave
+    the resident bank too: the loader reads `<LABEL>_COLLISION` and
+    `<LABEL>_BEHAVIOR` from the selected world data bank, copies only the
+    current screen into fixed RAM caches, and points the hot gameplay readers
+    at those caches. This is the first implemented form of
+    `move_cold_readonly_data_to_world_bank`: ROM remains the source of truth,
+    RAM holds only the current-screen hot layer state.
 11. Glass `Negative initial size` failures are now translated into Mideas
     diagnostics. For MSX2 SCREEN 4 Konami builds, a negative `ds #C000 - $`
     padding is reported as `MSX2 MegaROM resident bank overflow`, not as a raw
@@ -1372,6 +1375,13 @@ Current CLI gate:
     helper. The paper still targets a future stable world data window model, but
     the generated diagnostics must describe the ROM that exists today; otherwise
     the automatic resolver would be reasoning from the wrong address window.
+14. `project_slice.json` now carries `screen4RuntimeLayerPolicy`, and the RAM
+    budget exposes `runtime.collision_current_cache` plus
+    `runtime.behavior_current_cache`. Preflight rejects a build where collision
+    or behavior definitions live in world data banks without using a
+    `current_screen` RAM cache. The IDE/server budget feedback forwards the
+    same policy so automatic regeneration can explain that the resident
+    pressure was reduced by moving cold read-only layers, not by hiding bytes.
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor

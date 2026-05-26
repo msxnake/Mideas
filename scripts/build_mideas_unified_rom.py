@@ -1700,6 +1700,37 @@ def validate_msx2_screen4_megarom_preflight_budget(
             raise RuntimeError(f"MSX2 MegaROM preflight failed: excluded runtime module lacks id/reason: {module}")
         if module.get("placement") not in allowed_runtime_placements:
             raise RuntimeError(f"MSX2 MegaROM preflight failed: excluded runtime module has invalid placement: {module}")
+    screen4_runtime_layer_policy = project_slice.get("screen4RuntimeLayerPolicy")
+    if not isinstance(screen4_runtime_layer_policy, dict):
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no screen4RuntimeLayerPolicy")
+    for layer_id in ("collision", "behavior", "effects"):
+        layer_policy = screen4_runtime_layer_policy.get(layer_id)
+        if not isinstance(layer_policy, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: missing screen4RuntimeLayerPolicy.{layer_id}")
+        if int(layer_policy.get("bytesPerScreen") or 0) != 192:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"screen4RuntimeLayerPolicy.{layer_id} must match current 16x12 layer bytes: {layer_policy}"
+            )
+    for layer_id in ("collision", "behavior"):
+        layer_policy = screen4_runtime_layer_policy.get(layer_id) or {}
+        if layer_policy.get("definitionPlacement") == "world_data_bank" and (
+            layer_policy.get("runtimePlacement") != "ram_cache"
+            or layer_policy.get("cacheScope") != "current_screen"
+        ):
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"screen4RuntimeLayerPolicy.{layer_id} must use current_screen RAM cache when stored in world data banks"
+            )
+    effects_policy = screen4_runtime_layer_policy.get("effects") or {}
+    if effects_policy.get("definitionPlacement") == "world_data_bank" and (
+        effects_policy.get("runtimePlacement") != "persistent_ram"
+        or effects_policy.get("cacheScope") != "per_screen"
+    ):
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            "screen4RuntimeLayerPolicy.effects must use per_screen persistent RAM when stored in world data banks"
+        )
 
     storage_policy = project_slice.get("assetStoragePolicy")
     if not isinstance(storage_policy, list) or not storage_policy:
@@ -1851,6 +1882,11 @@ def validate_msx2_screen4_megarom_preflight_budget(
         raise RuntimeError("MSX2 MegaROM preflight failed: ramBudget has no runtime sections")
     ram_section_ids = {section.get("id") for section in ram_sections if isinstance(section, dict)}
     required_ram_sections = {"runtime.persistent_effect_layers", "runtime.effects_scratch", "runtime.enemy_pool"}
+    if (
+        (screen4_runtime_layer_policy.get("collision") or {}).get("runtimePlacement") == "ram_cache"
+        or (screen4_runtime_layer_policy.get("behavior") or {}).get("runtimePlacement") == "ram_cache"
+    ):
+        required_ram_sections.update({"runtime.collision_current_cache", "runtime.behavior_current_cache"})
     missing_ram_sections = sorted(required_ram_sections - ram_section_ids)
     if missing_ram_sections:
         raise RuntimeError(
@@ -3015,6 +3051,31 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
             or "call msx2_screen4_data_bank_leave" not in body
         ):
             raise RuntimeError(f"MSX2 Konami8K validation failed: load_{label}_screen4 does not use selectable data-bank enter/leave")
+        for layer_suffix, cache_symbol, pointer_symbol in (
+            ("COLLISION", "msx2_collision_runtime_cache", "msx2_current_collision_ptr"),
+            ("BEHAVIOR", "msx2_behavior_runtime_cache", "msx2_current_behavior_ptr"),
+        ):
+            layer_label = f"{label}_{layer_suffix}"
+            if layer_label not in asm_text:
+                continue
+            expected_sequence = [
+                f"ld a, {label}_DATA_BANK",
+                "call msx2_screen4_data_bank_enter_selected",
+                f"ld hl, {layer_label}",
+                f"ld de, {cache_symbol}",
+                "ld bc, msx2_layer_size",
+                "ldir",
+                "call msx2_screen4_data_bank_leave",
+                f"ld hl, {cache_symbol}",
+                f"ld ({pointer_symbol}), hl",
+            ]
+            missing_sequence = [needle for needle in expected_sequence if needle not in body]
+            if missing_sequence:
+                raise RuntimeError(
+                    "MSX2 Konami8K validation failed: "
+                    f"load_{label}_screen4 does not copy {layer_label} into {cache_symbol}; "
+                    f"missing {', '.join(missing_sequence)}"
+                )
     init_effects_match = re.search(
         r"init_msx2_effect_buffers:\n(.*?)(?=\n[A-Za-z0-9_.$]+:|\Z)",
         asm_text,

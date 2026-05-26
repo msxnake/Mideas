@@ -39,7 +39,9 @@ def make_ram_budget(status: str = "ok", free_bytes: int = 12000) -> dict:
         "sections": [
             {"id": "runtime.persistent_effect_layers", "start": "#C080", "end": "#C140", "bytes": 192},
             {"id": "runtime.effects_scratch", "start": "#C200", "end": "#C2C0", "bytes": 192},
-            {"id": "runtime.enemy_pool", "start": "#C2C0", "end": "#C314", "bytes": 84},
+            {"id": "runtime.collision_current_cache", "start": "#C2C0", "end": "#C380", "bytes": 192, "cacheScope": "current_screen"},
+            {"id": "runtime.behavior_current_cache", "start": "#C380", "end": "#C440", "bytes": 192, "cacheScope": "current_screen"},
+            {"id": "runtime.enemy_pool", "start": "#C440", "end": "#C494", "bytes": 84},
         ],
         "recommendations": [{
             "severity": "error" if status == "error" else "ok",
@@ -181,6 +183,26 @@ def write_artifacts(
         "worldPackageSummary": world_package_summary,
         "worldBankManifest": world_bank_manifest,
         "screen4DataBankPlan": screen4_data_bank_plan,
+        "screen4RuntimeLayerPolicy": {
+            "collision": {
+                "definitionPlacement": "world_data_bank",
+                "runtimePlacement": "ram_cache",
+                "cacheScope": "current_screen",
+                "bytesPerScreen": 192,
+            },
+            "behavior": {
+                "definitionPlacement": "world_data_bank",
+                "runtimePlacement": "ram_cache",
+                "cacheScope": "current_screen",
+                "bytesPerScreen": 192,
+            },
+            "effects": {
+                "definitionPlacement": "world_data_bank",
+                "runtimePlacement": "persistent_ram",
+                "cacheScope": "per_screen",
+                "bytesPerScreen": 192,
+            },
+        },
         "assetStoragePolicy": storage_policy,
         "logicalBankBudget": logical_budget,
         "ramBudget": ram_budget,

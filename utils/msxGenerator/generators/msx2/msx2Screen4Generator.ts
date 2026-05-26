@@ -712,7 +712,9 @@ function estimateMsx2RuntimeRamEnd(tileScreenCount: number): number {
   const effectRuntimeBase = MSX2_EFFECT_RUNTIME_BASE;
   const effectRuntimeSize = Math.max(1, tileScreenCount) * layerSize;
   const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
-  const enemyRuntimeBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const collisionRuntimeCacheBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const behaviorRuntimeCacheBase = (collisionRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const enemyRuntimeBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
   return enemyRuntimeBase + MSX2_ENEMY_RUNTIME_BYTES;
 }
 
@@ -731,7 +733,9 @@ function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd:
   const effectRuntimeBase = MSX2_EFFECT_RUNTIME_BASE;
   const effectRuntimeEnd = effectRuntimeBase + effectRuntimeSize;
   const effectScratchBase = Math.max(0xC200, (effectRuntimeEnd + 0x0f) & 0xfff0);
-  const enemyRuntimeBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const collisionRuntimeCacheBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const behaviorRuntimeCacheBase = (collisionRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const enemyRuntimeBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
   const enemyRuntimeEnd = enemyRuntimeBase + MSX2_ENEMY_RUNTIME_BYTES;
   const gameFlowGlobalsBytes = Math.max(0, runtimeRamEnd - enemyRuntimeEnd);
   const usedBytes = Math.max(0, runtimeRamEnd - MSX2_RUNTIME_RAM_START);
@@ -773,6 +777,22 @@ function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd:
       bytes: layerSize,
       mutable: true,
       reason: 'Temporary effect layer buffer for screens without persistent slot or loaders.',
+    },
+    {
+      id: 'runtime.collision_current_cache',
+      start: formatHexWord(collisionRuntimeCacheBase),
+      end: formatHexWord(collisionRuntimeCacheBase + layerSize),
+      bytes: layerSize,
+      mutable: true,
+      reason: 'Hot cache for the current SCREEN 4 collision layer copied from ROM data banks.',
+    },
+    {
+      id: 'runtime.behavior_current_cache',
+      start: formatHexWord(behaviorRuntimeCacheBase),
+      end: formatHexWord(behaviorRuntimeCacheBase + layerSize),
+      bytes: layerSize,
+      mutable: true,
+      reason: 'Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks.',
     },
     {
       id: 'runtime.enemy_pool',
@@ -6202,6 +6222,8 @@ function estimateMsx2ScreenStoragePolicy(screen: Msx2Screen4TileScreen): Record<
         rawBytes: runtimeReadBytes,
         accessPattern: 'runtime_read',
         decision: 'ROM_RAW',
+        placement: 'world_data_bank',
+        runtimePlacement: 'ram_cache_for_collision_behavior_and_persistent_ram_for_effects',
       },
     ],
   };
@@ -7002,9 +7024,9 @@ function buildMsx2ProjectSliceJson(
     { id: 'runtime.msx2.screen4.vdp', enabled: true, placement: 'resident', reason: 'Required by every native MSX2 SCREEN 4 build' },
     { id: 'runtime.msx2.input', enabled: true, placement: 'resident', reason: 'Required by current MSX2 gameplay loop' },
     { id: 'runtime.msx2.screen_loader', enabled: true, placement: 'resident', reason: 'Required to load reachable native MSX2 screens' },
-    { id: 'runtime.msx2.layers.collision', enabled: true, placement: 'resident', reason: 'Collision layer pointers are part of the current runtime contract' },
+    { id: 'runtime.msx2.layers.collision', enabled: true, placement: 'resident', reason: useKonamiDataBank ? 'Collision reader stays resident; current screen data is cached in RAM from world data banks' : 'Collision layer pointers are part of the current runtime contract' },
     { id: 'runtime.msx2.layers.effects', enabled: true, placement: 'resident', reason: 'Effects layer runtime buffers are part of the current runtime contract' },
-    { id: 'runtime.msx2.layers.behavior', enabled: true, placement: 'resident', reason: 'Behavior layer pointers are part of the current runtime contract' },
+    { id: 'runtime.msx2.layers.behavior', enabled: true, placement: 'resident', reason: useKonamiDataBank ? 'Behavior reader stays resident; current screen data is cached in RAM from world data banks' : 'Behavior layer pointers are part of the current runtime contract' },
     { id: 'runtime.msx2.hardware_sprites', enabled: hasHardwareSprite(analysis), placement: 'resident', reason: 'Enabled only when a reachable MSX2 sprite source exists' },
     { id: 'runtime.msx2.projectiles', enabled: usesShooterHorizontalMovement(analysis), placement: 'resident', reason: 'Enabled only by shooter-horizontal movement' },
     { id: 'runtime.msx2.stage_banner', enabled: hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis), placement: 'resident', reason: 'Enabled only by shooter wave flow' },
@@ -7064,6 +7086,26 @@ function buildMsx2ProjectSliceJson(
     runtimeModuleDetails,
     worldPackageSummary,
     worldBankManifest,
+    screen4RuntimeLayerPolicy: {
+      collision: {
+        definitionPlacement: useKonamiDataBank ? 'world_data_bank' : 'resident_rom',
+        runtimePlacement: useKonamiDataBank ? 'ram_cache' : 'resident_rom',
+        cacheScope: useKonamiDataBank ? 'current_screen' : 'direct_pointer',
+        bytesPerScreen: MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT,
+      },
+      behavior: {
+        definitionPlacement: useKonamiDataBank ? 'world_data_bank' : 'resident_rom',
+        runtimePlacement: useKonamiDataBank ? 'ram_cache' : 'resident_rom',
+        cacheScope: useKonamiDataBank ? 'current_screen' : 'direct_pointer',
+        bytesPerScreen: MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT,
+      },
+      effects: {
+        definitionPlacement: useKonamiDataBank ? 'world_data_bank' : 'resident_rom',
+        runtimePlacement: 'persistent_ram',
+        cacheScope: 'per_screen',
+        bytesPerScreen: MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT,
+      },
+    },
     assetStoragePolicy,
     logicalBankBudget,
     ramBudget,
@@ -8749,9 +8791,9 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   const tileScreenRuntimeBlocks = tileScreens.map((screen, index) => {
     const label = tileScreenLoadLabels[index];
     return [
-      formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, 16x14 bytes`),
-      useKonamiDataBank ? '' : formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x14 bytes`),
-      formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x14 bytes`),
+      useKonamiDataBank ? '' : formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, 16x12 bytes`),
+      useKonamiDataBank ? '' : formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x12 bytes`),
+      useKonamiDataBank ? '' : formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x12 bytes`),
     ].filter(Boolean).join('\n');
   });
   const emptyRuntimeLayerBlocks = tileScreens.length === 0
@@ -8832,9 +8874,12 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   const collectibleErasePaletteIndex = getCollectibleErasePaletteIndex(tileScreens);
   const collectibleErasePackedByte = ((collectibleErasePaletteIndex & 0x0f) << 4) | (collectibleErasePaletteIndex & 0x0f);
   const effectRuntimeBase = MSX2_EFFECT_RUNTIME_BASE;
-  const effectRuntimeSize = Math.max(1, tileScreens.length) * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
+  const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
+  const effectRuntimeSize = Math.max(1, tileScreens.length) * layerSize;
   const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
-  const enemyRuntimeBase = (effectScratchBase + (MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT) + 0x0f) & 0xfff0;
+  const collisionRuntimeCacheBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  const behaviorRuntimeCacheBase = (collisionRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const enemyRuntimeBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
   const coreRuntimeRamEnd = estimateMsx2RuntimeRamEnd(tileScreens.length);
   const runtimeRamEnd = estimateMsx2GameFlowRuntimeRamEnd(analysis, coreRuntimeRamEnd);
   if (runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT) {
@@ -8971,6 +9016,24 @@ reset_msx2_status_border:
       asm: formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, copied from cold ROM to RAM on screen reset`),
     };
   });
+  const tileScreenCollisionBlocks = tileScreens.map((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    const bankIndex = screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0;
+    return {
+      label,
+      bankIndex,
+      asm: formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, copied from cold ROM to current RAM cache on screen load`),
+    };
+  });
+  const tileScreenBehaviorBlocks = tileScreens.map((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    const bankIndex = screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0;
+    return {
+      label,
+      bankIndex,
+      asm: formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, copied from cold ROM to current RAM cache on screen load`),
+    };
+  });
   const projectSliceArtifact = renderNamedArtifactAsCommentBlock(
     'project_slice.json',
     JSON.stringify(projectSliceData, null, 2) + '\n'
@@ -8996,6 +9059,28 @@ reset_msx2_status_border:
     const collisionLabel = runtimeLabels?.collision || 'screen4_empty_collision_layer';
     const effectsLabel = runtimeLabels?.effects || 'screen4_empty_effects_layer';
     const behaviorLabel = runtimeLabels?.behavior || 'screen4_empty_behavior_layer';
+    const loadCollisionBehaviorPointers = useKonamiDataBank && runtimeLabels
+      ? `    ld a, ${label}_DATA_BANK
+    call msx2_screen4_data_bank_enter_selected
+    ld hl, ${collisionLabel}
+    ld de, msx2_collision_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
+    ld hl, ${behaviorLabel}
+    ld de, msx2_behavior_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
+    call msx2_screen4_data_bank_leave
+    ld hl, msx2_collision_runtime_cache
+    ld (msx2_current_collision_ptr), hl
+    ld hl, msx2_behavior_runtime_cache
+    ld (msx2_current_behavior_ptr), hl
+`
+      : `    ld hl, ${collisionLabel}
+    ld (msx2_current_collision_ptr), hl
+    ld hl, ${behaviorLabel}
+    ld (msx2_current_behavior_ptr), hl
+`;
     const runtimeEffectsAddress = screenIndex === undefined
       ? undefined
       : effectRuntimeBase + (screenIndex * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT);
@@ -9010,11 +9095,7 @@ reset_msx2_status_border:
       : `    ld hl, #${runtimeEffectsAddress.toString(16).toUpperCase().padStart(4, '0')}
     ld (msx2_current_effects_ptr), hl
 `;
-    return `    ld hl, ${collisionLabel}
-    ld (msx2_current_collision_ptr), hl
-    ld hl, ${behaviorLabel}
-    ld (msx2_current_behavior_ptr), hl
-${loadEffectsPointer}`;
+    return `${loadCollisionBehaviorPointers}${loadEffectsPointer}`;
   };
   const tileScreenAfterPatternLoad = snakeCharMovement ? '    call msx2_snake_load_runtime_chars\n' : '';
   const tileScreenLoadRoutines = tileScreens.map((screen, index) =>
@@ -9060,7 +9141,13 @@ ${loadEffectsPointer}`;
       const screenData = tileScreenBlocks
         .filter(block => block.bankIndex === bankIndex)
         .map(block => block.asm)
+        .concat(tileScreenCollisionBlocks
+          .filter(block => block.bankIndex === bankIndex)
+          .map(block => block.asm))
         .concat(tileScreenEffectBlocks
+          .filter(block => block.bankIndex === bankIndex)
+          .map(block => block.asm))
+        .concat(tileScreenBehaviorBlocks
           .filter(block => block.bankIndex === bankIndex)
           .map(block => block.asm))
         .join('\n');
@@ -9207,6 +9294,8 @@ ${screen4DataBankEquates}
 msx2_snake_body_cells EQU ${formatHexWord(MSX2_SNAKE_BODY_BASE)}
 msx2_effects_runtime_buffers EQU ${formatHexWord(effectRuntimeBase)}
 msx2_effects_runtime_scratch EQU ${formatHexWord(effectScratchBase)}
+msx2_collision_runtime_cache EQU ${formatHexWord(collisionRuntimeCacheBase)}
+msx2_behavior_runtime_cache EQU ${formatHexWord(behaviorRuntimeCacheBase)}
 msx2_enemy_runtime_x EQU ${formatHexWord(enemyRuntimeBase)}
 msx2_enemy_runtime_y EQU ${formatHexWord(enemyRuntimeBase + MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}
 msx2_enemy_runtime_dx EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 2))}

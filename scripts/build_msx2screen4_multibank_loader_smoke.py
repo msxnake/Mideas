@@ -170,19 +170,37 @@ def validate_multibank_artifacts(asm_output: Path, rom_output: Path) -> None:
         f"ld a, {target_label}_DATA_BANK",
         "call msx2_screen4_data_bank_enter_selected",
         f"ld hl, {target_label}_NAMES",
+        f"ld hl, {target_label}_COLLISION",
+        "ld de, msx2_collision_runtime_cache",
+        f"ld hl, {target_label}_BEHAVIOR",
+        "ld de, msx2_behavior_runtime_cache",
+        "ld (msx2_current_collision_ptr), hl",
+        "ld (msx2_current_behavior_ptr), hl",
         "call msx2_screen4_data_bank_leave",
     ):
         if needle not in load_body:
             raise RuntimeError(f"Target load routine does not use the selected data bank correctly; missing {needle}")
+    collision_copy_start = load_body.find(f"ld hl, {target_label}_COLLISION")
+    behavior_copy_start = load_body.find(f"ld hl, {target_label}_BEHAVIOR")
+    cache_leave = load_body.find("call msx2_screen4_data_bank_leave", max(collision_copy_start, 0))
+    if collision_copy_start < 0 or behavior_copy_start < 0 or cache_leave < 0 or not (collision_copy_start < behavior_copy_start < cache_leave):
+        raise RuntimeError("Target load routine must copy collision and behavior caches before leaving the selected data bank")
 
     bank0 = extract_section(asm, "MSX2_SCREEN4_DATA_BANK_0_ROM_START")
     bank1 = extract_section(asm, "MSX2_SCREEN4_DATA_BANK_1_ROM_START")
-    for suffix in ("_BANK_0_PATTERNS", "_BANK_0_COLORS", "_NAMES", "_EFFECTS"):
+    for suffix in ("_BANK_0_PATTERNS", "_BANK_0_COLORS", "_NAMES", "_COLLISION", "_EFFECTS", "_BEHAVIOR"):
         label = f"{target_label}{suffix}"
         if label not in bank1:
             raise RuntimeError(f"Target cold label {label} is not emitted in data bank 1")
         if label in bank0:
             raise RuntimeError(f"Target cold label {label} leaked into data bank 0")
+    resident_match = re.search(r"org\s+#4000\b(.*?)(?:ds\s+#C000\s+-\s*\$,\s*#FF)", asm, flags=re.DOTALL | re.IGNORECASE)
+    if resident_match:
+        resident_body = resident_match.group(1)
+        for suffix in ("_COLLISION", "_BEHAVIOR"):
+            label = f"{target_label}{suffix}:"
+            if label in resident_body:
+                raise RuntimeError(f"Target cold label {label} leaked into resident ROM section")
 
     rom_size = rom_output.stat().st_size
     if rom_size <= 32768 or rom_size % 8192 != 0:

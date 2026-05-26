@@ -1793,6 +1793,7 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       worlds: manifestWorlds,
       estimatedPhysicalBanks: manifestPhysicalBanks
     } : undefined,
+    screen4RuntimeLayerPolicy: projectSlice.screen4RuntimeLayerPolicy,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets,
     warnings: {

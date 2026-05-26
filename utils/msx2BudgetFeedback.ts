@@ -46,6 +46,7 @@ export interface Msx2BudgetFeedback {
     worlds: any[];
     estimatedPhysicalBanks: any[];
   };
+  screen4RuntimeLayerPolicy?: Record<string, any>;
   worldPackages: any[];
   largestAssets: Array<{
     id: string;
@@ -296,6 +297,7 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       worlds: manifestWorlds,
       estimatedPhysicalBanks: manifestPhysicalBanks,
     } : undefined,
+    screen4RuntimeLayerPolicy: projectSlice.screen4RuntimeLayerPolicy,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets,
     warnings: {

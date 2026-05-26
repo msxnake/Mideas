@@ -526,6 +526,28 @@ def validate_project_slice_artifact(
         raise RuntimeError("project_slice.json should include runtime.msx2.stage_banner for shooter wave builds")
     if expect_stage_banner is False and not any(item.get("id") == "runtime.msx2.stage_banner" for item in excluded_modules if isinstance(item, dict)):
         raise RuntimeError("project_slice.json should exclude runtime.msx2.stage_banner for non-shooter builds")
+    runtime_layer_policy = artifact.get("screen4RuntimeLayerPolicy")
+    if not isinstance(runtime_layer_policy, dict):
+        raise RuntimeError("project_slice.json must include screen4RuntimeLayerPolicy")
+    for layer_id in ("collision", "behavior", "effects"):
+        layer_policy = runtime_layer_policy.get(layer_id)
+        if not isinstance(layer_policy, dict):
+            raise RuntimeError(f"screen4RuntimeLayerPolicy missing {layer_id}: {runtime_layer_policy}")
+        if int(layer_policy.get("bytesPerScreen") or 0) != 192:
+            raise RuntimeError(f"screen4RuntimeLayerPolicy {layer_id} must use current 16x12 layer size: {layer_policy}")
+    for layer_id in ("collision", "behavior"):
+        layer_policy = runtime_layer_policy.get(layer_id) or {}
+        if layer_policy.get("definitionPlacement") == "world_data_bank" and (
+            layer_policy.get("runtimePlacement") != "ram_cache"
+            or layer_policy.get("cacheScope") != "current_screen"
+        ):
+            raise RuntimeError(f"{layer_id} world data bank policy must use a current-screen RAM cache: {layer_policy}")
+    effects_policy = runtime_layer_policy.get("effects") or {}
+    if effects_policy.get("definitionPlacement") == "world_data_bank" and (
+        effects_policy.get("runtimePlacement") != "persistent_ram"
+        or effects_policy.get("cacheScope") != "per_screen"
+    ):
+        raise RuntimeError(f"effects world data bank policy must use persistent per-screen RAM: {effects_policy}")
 
     storage_policy = artifact.get("assetStoragePolicy")
     if not isinstance(storage_policy, list) or not storage_policy:
@@ -766,9 +788,25 @@ def validate_project_slice_artifact(
     if not isinstance(ram_sections, list) or not ram_sections:
         raise RuntimeError("ramBudget must include runtime RAM sections")
     section_ids = {section.get("id") for section in ram_sections if isinstance(section, dict)}
-    for required_section in ("runtime.persistent_effect_layers", "runtime.effects_scratch", "runtime.enemy_pool"):
+    required_ram_sections = {"runtime.persistent_effect_layers", "runtime.effects_scratch", "runtime.enemy_pool"}
+    if (
+        (runtime_layer_policy.get("collision") or {}).get("runtimePlacement") == "ram_cache"
+        or (runtime_layer_policy.get("behavior") or {}).get("runtimePlacement") == "ram_cache"
+    ):
+        required_ram_sections.update({"runtime.collision_current_cache", "runtime.behavior_current_cache"})
+    for required_section in sorted(required_ram_sections):
         if required_section not in section_ids:
             raise RuntimeError(f"ramBudget missing required section: {required_section}")
+    section_by_id = {
+        section.get("id"): section
+        for section in ram_sections
+        if isinstance(section, dict)
+    }
+    for cache_section_id in ("runtime.collision_current_cache", "runtime.behavior_current_cache"):
+        if cache_section_id in required_ram_sections:
+            section = section_by_id.get(cache_section_id) or {}
+            if int(section.get("bytes") or 0) != 192:
+                raise RuntimeError(f"{cache_section_id} must reserve exactly one current 16x12 screen layer: {section}")
     ram_recommendations = ram_budget.get("recommendations")
     if not isinstance(ram_recommendations, list) or not ram_recommendations:
         raise RuntimeError("ramBudget must include recommendations")
