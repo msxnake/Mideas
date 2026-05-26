@@ -1321,10 +1321,26 @@ Current CLI gate:
     all world-package splitting is absent.
     The logical budget now also emits `splitChunkManifest`: every automatic
     chunk carries its future `labelStem`, `dataLabel`, `dataEndLabel`,
-    `dataBankSymbol`, `loaderSymbol`, source package, chunk index/count, and
-    target `#8000` data window. Preflight rejects split packages without this
-    manifest, so the next implementation step is purely to emit those labels and
-    loader routines instead of reverse-engineering chunk names from diagnostics.
+    `dataBankSymbol`, `loaderSymbol`, source package, chunk index/count, target
+    `#8000` data window, estimated physical bank, and the concrete
+    `payloadLabels`/`payloadKind` that the chunk owns (`*_PATTERNS`,
+    `*_COLORS`, `*_NAMES`, `*_COLLISION`, `*_EFFECTS`, `*_BEHAVIOR`).
+    Preflight rejects split packages without this manifest, so the next
+    implementation step is purely to emit those labels and loader routines
+    instead of reverse-engineering chunk names from diagnostics.
+    The blocked resolver candidate also returns a compact `chunkLabels` list,
+    so CLI and IDE failures already carry the exact labels/bank symbols a later
+    regeneration pass must bind. The same compact list is preserved in
+    `msx2_budget_resolution.json` blocked attempts and in the server-side
+    budget resolution context, so an automatic retry loop can consume the
+    failing chunk contract from the resolution report rather than scraping the
+    original preflight failure. The ASM generator now also emits the first
+    physical symbol layer for those chunks: each chunk gets
+    `<CHUNK>_DATA_BANK EQU MSX2_SCREEN4_DATA_BANK_n`, and every owned
+    `payloadLabel` gets `<PAYLOAD>_DATA_BANK EQU <CHUNK>_DATA_BANK`. The
+    loader still remains blocked until the payload labels are physically
+    wrapped/moved into chunk data sections and the screen loader calls the
+    generated chunk routines.
     SCREEN 4 effect templates now follow the same cold-data policy: each
     `<LABEL>_EFFECTS` table is emitted with its screen data bank and
     `init_msx2_effect_buffers` copies it to persistent RAM through the

@@ -79,6 +79,8 @@ export interface Msx2BudgetFeedback {
     missingPart?: string;
     unsupportedReason?: string;
     splitPackageCount?: number;
+    splitChunkCount?: number;
+    chunkLabels?: any[];
     regenerate?: Record<string, any>;
   }>;
   automaticResolutionPlan?: {
@@ -409,6 +411,23 @@ const buildMsx2BudgetResolverCandidates = ({
   const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
   const estimatedPackedBankCount = Number(logicalBudget?.estimatedPackedBankCount || 0);
   const splitPackages = Array.isArray(logicalBudget?.splitPackages) ? logicalBudget.splitPackages : [];
+  const splitChunkManifest = Array.isArray(screen4DataBankPlan?.splitChunkManifest)
+    ? screen4DataBankPlan.splitChunkManifest
+    : Array.isArray(logicalBudget?.splitChunkManifest)
+      ? logicalBudget.splitChunkManifest
+      : [];
+  const splitChunkLabels = splitChunkManifest
+    .filter((chunk: any) => chunk && typeof chunk === 'object')
+    .map((chunk: any) => ({
+      chunkId: chunk.chunkId,
+      dataLabel: chunk.dataLabel,
+      dataEndLabel: chunk.dataEndLabel,
+      dataBankSymbol: chunk.dataBankSymbol,
+      loaderSymbol: chunk.loaderSymbol,
+      payloadLabels: Array.isArray(chunk.payloadLabels) ? chunk.payloadLabels : [],
+      bankIndex: chunk.bankIndex,
+      physicalBank: chunk.physicalBank,
+    }));
   const screen4DataBankUnsupportedReason = String(screen4DataBankPlan?.unsupportedReason || '');
   const multiBankSupported = screen4DataBankPlan
     && screen4DataBankPlan.supported === true
@@ -443,6 +462,8 @@ const buildMsx2BudgetResolverCandidates = ({
         : 'multi-bank SCREEN 4 data loader is not implemented for this plan',
       unsupportedReason: screen4DataBankUnsupportedReason || undefined,
       splitPackageCount: splitPackages.length,
+      splitChunkCount: splitChunkLabels.length,
+      chunkLabels: splitChunkLabels,
       implementedPart: 'normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required',
       missingPart: splitChunkBlocked
         ? 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank'

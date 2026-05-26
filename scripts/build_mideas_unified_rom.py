@@ -818,6 +818,26 @@ def write_msx2_loader_capability_failure_summary(
         else ""
     )
     split_packages = logical_budget.get("splitPackages") if isinstance(logical_budget.get("splitPackages"), list) else []
+    split_chunk_manifest = (
+        screen4_data_bank_plan.get("splitChunkManifest")
+        if isinstance(screen4_data_bank_plan, dict) and isinstance(screen4_data_bank_plan.get("splitChunkManifest"), list)
+        else logical_budget.get("splitChunkManifest") if isinstance(logical_budget.get("splitChunkManifest"), list)
+        else []
+    )
+    split_chunk_labels = [
+        {
+            "chunkId": chunk.get("chunkId"),
+            "dataLabel": chunk.get("dataLabel"),
+            "dataEndLabel": chunk.get("dataEndLabel"),
+            "dataBankSymbol": chunk.get("dataBankSymbol"),
+            "loaderSymbol": chunk.get("loaderSymbol"),
+            "payloadLabels": chunk.get("payloadLabels") or [],
+            "bankIndex": chunk.get("bankIndex"),
+            "physicalBank": chunk.get("physicalBank"),
+        }
+        for chunk in split_chunk_manifest
+        if isinstance(chunk, dict)
+    ]
     split_chunk_blocked = unsupported_reason == "split_packages_require_physical_chunk_labels" or bool(split_packages)
     resolver_candidates = [
         {
@@ -837,6 +857,8 @@ def write_msx2_loader_capability_failure_summary(
             ),
             "unsupportedReason": unsupported_reason or None,
             "splitPackageCount": len(split_packages),
+            "splitChunkCount": len(split_chunk_labels),
+            "chunkLabels": split_chunk_labels,
             "implementedPart": "normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required",
             "missingPart": (
                 "ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank"
@@ -958,6 +980,15 @@ def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | No
         for item in resolver_candidates
         if item.get("id") and item.get("eligible") is not False
     ]
+    blocked_chunk_label_candidates = [
+        {
+            "id": item.get("id"),
+            "splitChunkCount": item.get("splitChunkCount"),
+            "chunkLabels": item.get("chunkLabels") or [],
+        }
+        for item in resolver_candidates
+        if item.get("id") and item.get("chunkLabels")
+    ]
     return {
         "reason": failure.get("reason"),
         "failedGateId": failed_gate.get("id") if isinstance(failed_gate, dict) else None,
@@ -965,6 +996,7 @@ def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | No
         "artifactCheckNames": [item.get("name") for item in artifact_checks if item.get("name")],
         "resolverCandidateIds": resolver_candidate_ids,
         "eligibleResolverCandidateIds": eligible_resolver_candidate_ids,
+        "blockedChunkLabelCandidates": blocked_chunk_label_candidates,
         "automaticResolutionPlan": {
             "status": automatic_resolution_plan.get("status"),
             "nextCandidateId": automatic_resolution_plan.get("nextCandidateId"),
@@ -1041,6 +1073,8 @@ def append_msx2_blocked_resolution_attempts(
             "missingPart": detail.get("missingPart") or candidate.get("missingPart"),
             "unsupportedReason": detail.get("unsupportedReason") or candidate.get("unsupportedReason"),
             "splitPackageCount": detail.get("splitPackageCount") or candidate.get("splitPackageCount"),
+            "splitChunkCount": detail.get("splitChunkCount") or candidate.get("splitChunkCount"),
+            "chunkLabels": detail.get("chunkLabels") or candidate.get("chunkLabels") or [],
         })
 
 
@@ -2146,12 +2180,18 @@ def validate_msx2_screen4_megarom_preflight_budget(
         for chunk in split_chunk_manifest:
             if not isinstance(chunk, dict):
                 raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid splitChunkManifest entry: {chunk}")
-            required_chunk_fields = ("chunkId", "splitFrom", "labelStem", "dataLabel", "dataEndLabel", "dataBankSymbol", "loaderSymbol", "windowAddress")
+            required_chunk_fields = ("chunkId", "splitFrom", "labelStem", "dataLabel", "dataEndLabel", "dataBankSymbol", "loaderSymbol", "windowAddress", "payloadLabels")
             missing_chunk_fields = [field for field in required_chunk_fields if not chunk.get(field)]
             if missing_chunk_fields:
                 raise RuntimeError(
                     "MSX2 MegaROM preflight failed: "
                     f"splitChunkManifest entry is missing {', '.join(missing_chunk_fields)}: {chunk}"
+                )
+            payload_labels = chunk.get("payloadLabels")
+            if not isinstance(payload_labels, list) or not all(isinstance(label, str) and label for label in payload_labels):
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"splitChunkManifest payloadLabels must be a non-empty list of ASM labels: {chunk}"
                 )
             if chunk.get("windowAddress") != "#8000":
                 raise RuntimeError(

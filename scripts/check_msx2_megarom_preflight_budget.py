@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import copy
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -56,6 +57,8 @@ def ensure_split_chunk_manifest(logical_budget: dict) -> None:
     split_packages = logical_budget.get("splitPackages")
     if not isinstance(split_packages, list) or not split_packages:
         return
+    if isinstance(logical_budget.get("splitChunkManifest"), list) and logical_budget.get("splitChunkManifest"):
+        return
     manifest = []
     for index, package in enumerate(split_packages):
         if not isinstance(package, dict):
@@ -73,6 +76,18 @@ def ensure_split_chunk_manifest(logical_budget: dict) -> None:
             "splitStrategy": package.get("splitStrategy") or "auto_world_package_chunk",
             "usedBytes": int(package.get("usedBytes") or 0),
             "recommendedBankClass": package.get("recommendedBankClass") or "world.screen",
+            "screenLabel": f"TEST_{source_id.upper()}",
+            "payloadKind": "mixed_screen4_payload",
+            "payloadLabels": [
+                f"TEST_{source_id.upper()}_BANK_0_PATTERNS",
+                f"TEST_{source_id.upper()}_BANK_0_COLORS",
+                f"TEST_{source_id.upper()}_NAMES",
+            ],
+            "payloadParts": [
+                {"label": f"TEST_{source_id.upper()}_BANK_0_PATTERNS", "kind": "screen4_patterns", "rawBytes": 2048, "loadOrder": 0},
+                {"label": f"TEST_{source_id.upper()}_BANK_0_COLORS", "kind": "screen4_colors", "rawBytes": 2048, "loadOrder": 1},
+                {"label": f"TEST_{source_id.upper()}_NAMES", "kind": "screen4_names", "rawBytes": 768, "loadOrder": 20},
+            ],
             "windowAddress": "#8000",
             "labelStem": label_stem,
             "dataLabel": f"{label_stem}_DATA",
@@ -347,6 +362,15 @@ def expect_failure(artifact_dir: Path, expected_text: str, strict_warnings: bool
             raise AssertionError(f"Expected {expected_text!r} in preflight error, got: {exc}") from exc
         return
     raise AssertionError("Expected MSX2 MegaROM preflight to fail")
+
+
+def rewrite_budget_artifacts(artifact_dir: Path, project_slice: dict, logical_budget: dict) -> None:
+    project_slice["logicalBankBudget"] = logical_budget
+    if isinstance(project_slice.get("screen4DataBankPlan"), dict):
+        project_slice["screen4DataBankPlan"]["splitChunkCount"] = len(logical_budget.get("splitChunkManifest") or [])
+        project_slice["screen4DataBankPlan"]["splitChunkManifest"] = logical_budget.get("splitChunkManifest") or []
+    (artifact_dir / "project_slice.json").write_text(json.dumps(project_slice, indent=2) + "\n", encoding="utf-8")
+    (artifact_dir / "logical_bank_budget.json").write_text(json.dumps(logical_budget, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -919,6 +943,33 @@ def main() -> None:
             "splitCount": 2,
             "splitStrategy": "auto_world_package_chunk",
         }]
+        missing_manifest_dir = root / "multi_bank_chunked_missing_manifest"
+        missing_manifest_budget = copy.deepcopy(chunked_budget)
+        missing_manifest_budget["splitChunkManifest"] = []
+        write_artifacts(missing_manifest_dir, missing_manifest_budget, multi_storage_policy)
+        missing_manifest_budget["splitChunkManifest"] = []
+        missing_project_slice = json.loads((missing_manifest_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(missing_manifest_dir, missing_project_slice, missing_manifest_budget)
+        expect_failure(missing_manifest_dir, "splitPackages must include one splitChunkManifest entry per chunk")
+
+        mismatched_manifest_dir = root / "multi_bank_chunked_mismatched_manifest"
+        mismatched_manifest_budget = copy.deepcopy(chunked_budget)
+        ensure_split_chunk_manifest(mismatched_manifest_budget)
+        mismatched_manifest_budget["splitChunkManifest"][0]["chunkId"] = "msx2screen.other_room#chunk00"
+        write_artifacts(mismatched_manifest_dir, mismatched_manifest_budget, multi_storage_policy)
+        mismatched_project_slice = json.loads((mismatched_manifest_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(mismatched_manifest_dir, mismatched_project_slice, mismatched_manifest_budget)
+        expect_failure(mismatched_manifest_dir, "splitChunkManifest does not match splitPackages")
+
+        missing_payload_dir = root / "multi_bank_chunked_missing_payload_labels"
+        missing_payload_budget = copy.deepcopy(chunked_budget)
+        ensure_split_chunk_manifest(missing_payload_budget)
+        missing_payload_budget["splitChunkManifest"][0].pop("payloadLabels", None)
+        write_artifacts(missing_payload_dir, missing_payload_budget, multi_storage_policy)
+        missing_payload_project_slice = json.loads((missing_payload_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(missing_payload_dir, missing_payload_project_slice, missing_payload_budget)
+        expect_failure(missing_payload_dir, "splitChunkManifest entry is missing payloadLabels")
+
         write_artifacts(chunked_multi_dir, chunked_budget, multi_storage_policy)
         expect_failure(chunked_multi_dir, "cannot safely map that bank plan")
         chunked_failure = json.loads((chunked_multi_dir / "msx2_preflight_failure.json").read_text(encoding="utf-8"))
@@ -938,6 +989,14 @@ def main() -> None:
         )
         if not chunked_loader_candidate or chunked_loader_candidate.get("blockedBy") != "chunk-to-label SCREEN 4 physical loader is not implemented yet":
             raise AssertionError(f"Chunked loader failure did not explain physical chunk blocker: {chunked_failure!r}")
+        candidate_chunk_labels = chunked_loader_candidate.get("chunkLabels") or []
+        if (
+            len(candidate_chunk_labels) != 1
+            or not candidate_chunk_labels[0].get("dataLabel")
+            or not candidate_chunk_labels[0].get("loaderSymbol")
+            or not candidate_chunk_labels[0].get("payloadLabels")
+        ):
+            raise AssertionError(f"Chunked loader failure did not expose resolver chunk labels: {chunked_failure!r}")
         chunked_plan = chunked_failure.get("automaticResolutionPlan") or {}
         if not (chunked_plan.get("blockedReasons") or [{}])[0].get("missingPart"):
             raise AssertionError(f"Chunked loader failure did not preserve blocked resolver detail in automatic plan: {chunked_failure!r}")
@@ -972,6 +1031,21 @@ def main() -> None:
         )
         if not blocked_attempt or blocked_attempt.get("status") != "blocked" or not blocked_attempt.get("missingPart"):
             raise AssertionError(f"Chunked auto-resolve did not record blocked loader attempt: {chunked_resolution!r}")
+        if (
+            blocked_attempt.get("splitChunkCount") != 1
+            or not (blocked_attempt.get("chunkLabels") or [{}])[0].get("payloadLabels")
+        ):
+            raise AssertionError(f"Chunked auto-resolve did not preserve chunk labels for the future regenerator: {chunked_resolution!r}")
+        initial_attempt = next(
+            (
+                item for item in (chunked_resolution.get("attempts") or [])
+                if isinstance(item, dict) and item.get("action") == "initial_preflight"
+            ),
+            None,
+        )
+        blocked_chunk_context = (((initial_attempt or {}).get("failure") or {}).get("blockedChunkLabelCandidates") or [])
+        if not blocked_chunk_context or not blocked_chunk_context[0].get("chunkLabels"):
+            raise AssertionError(f"Initial preflight summary did not preserve chunk label context: {chunked_resolution!r}")
         auto_rom_path = auto_warning_dir / "auto_warning.rom"
         auto_sym_path = auto_warning_dir / "auto_warning.sym"
         auto_rom_path.write_bytes(b"CD" + bytes([0xFF]) * 8190)

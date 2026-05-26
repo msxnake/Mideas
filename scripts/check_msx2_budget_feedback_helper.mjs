@@ -154,6 +154,27 @@ const asm = [
       { worldId: 'world_forest', estimatedBytes: 4096 },
     ],
     worldBankManifest,
+    screen4DataBankPlan: {
+      supported: false,
+      bankCount: 2,
+      dataWindowAddress: '#8000',
+      unsupportedReason: 'split_packages_require_physical_chunk_labels',
+      splitChunkCount: 1,
+      splitChunkManifest: [
+        {
+          chunkId: 'msx2screen.forest_00#chunk00',
+          splitFrom: 'msx2screen.forest_00',
+          dataLabel: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA',
+          dataEndLabel: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA_END',
+          dataBankSymbol: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA_BANK',
+          loaderSymbol: 'load_msx2screen_forest_00_chunk_00_chunk',
+          payloadLabels: ['FOREST_00_BANK_0_PATTERNS', 'FOREST_00_BANK_0_COLORS', 'FOREST_00_NAMES'],
+          bankIndex: 1,
+          physicalBank: 5,
+          windowAddress: '#8000',
+        },
+      ],
+    },
     screen4RuntimeLayerPolicy: {
       collision: {
         definitionPlacement: 'world_data_bank',
@@ -221,6 +242,23 @@ const asm = [
       { id: 'core.runtime', usedBytes: 1200 },
       { id: 'world.screen', usedBytes: 3600 },
       { id: 'world.graphics.sprite', usedBytes: 1800 },
+    ],
+    splitPackages: [
+      { id: 'msx2screen.forest_00#chunk00', splitFrom: 'msx2screen.forest_00', usedBytes: 3600 },
+    ],
+    splitChunkManifest: [
+      {
+        chunkId: 'msx2screen.forest_00#chunk00',
+        splitFrom: 'msx2screen.forest_00',
+        dataLabel: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA',
+        dataEndLabel: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA_END',
+        dataBankSymbol: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA_BANK',
+        loaderSymbol: 'load_msx2screen_forest_00_chunk_00_chunk',
+        payloadLabels: ['FOREST_00_BANK_0_PATTERNS', 'FOREST_00_BANK_0_COLORS', 'FOREST_00_NAMES'],
+        bankIndex: 1,
+        physicalBank: 5,
+        windowAddress: '#8000',
+      },
     ],
     overBudgetPackages: [],
     recoveryRecommendations: [
@@ -353,8 +391,14 @@ if (multiBankFeedback.status !== 'error') {
 if (!Array.isArray(multiBankFeedback.resolverCandidates) || multiBankFeedback.resolverCandidates[0]?.id !== 'emit_multi_bank_world_data_loader') {
   throw new Error(`Expected multi-bank feedback to expose loader resolver first: ${JSON.stringify(multiBankFeedback.resolverCandidates)}`);
 }
-if (!multiBankFeedback.resolverCandidates[0]?.blockedBy?.includes('multi-bank SCREEN 4 data loader')) {
+if (!multiBankFeedback.resolverCandidates[0]?.blockedBy?.includes('chunk-to-label SCREEN 4 physical loader')) {
   throw new Error(`Expected unsupported multi-bank feedback to explain loader blocker: ${JSON.stringify(multiBankFeedback.resolverCandidates[0])}`);
+}
+if (
+  multiBankFeedback.resolverCandidates[0]?.splitChunkCount !== 1
+  || !multiBankFeedback.resolverCandidates[0]?.chunkLabels?.[0]?.payloadLabels?.includes('FOREST_00_NAMES')
+) {
+  throw new Error(`Expected unsupported multi-bank feedback to expose chunk labels: ${JSON.stringify(multiBankFeedback.resolverCandidates[0])}`);
 }
 if (!multiBankFeedback.automaticResolutionPlan?.blockedReasons?.[0]?.missingPart) {
   throw new Error(`Expected unsupported multi-bank feedback to preserve blocked resolver detail: ${JSON.stringify(multiBankFeedback.automaticResolutionPlan)}`);
@@ -385,6 +429,12 @@ if (!Array.isArray(serverResolutionContext.eligibleResolverCandidateIds) || !ser
 if (serverResolutionContext.automaticResolutionPlan?.nextCandidateId !== 'relax_strict_warning_gate') {
   throw new Error(`Expected server resolution context to preserve automatic plan: ${JSON.stringify(serverResolutionContext)}`);
 }
+const multiBankServerResolutionContext = buildServerMsx2BudgetResolutionFailureContext(multiBankFeedback);
+if (
+  !multiBankServerResolutionContext?.blockedChunkLabelCandidates?.[0]?.chunkLabels?.[0]?.payloadLabels?.includes('FOREST_00_NAMES')
+) {
+  throw new Error(`Expected server resolution context to preserve chunk labels: ${JSON.stringify(multiBankServerResolutionContext)}`);
+}
 const blockedResolution = {
   scope: 'msx2_screen4_budget_resolution',
   status: 'unresolved',
@@ -394,6 +444,12 @@ appendServerMsx2BlockedResolutionAttempts(blockedResolution, multiBankFeedback);
 const blockedServerAttempt = blockedResolution.attempts.find((item) => item?.candidateId === 'emit_multi_bank_world_data_loader');
 if (!blockedServerAttempt || blockedServerAttempt.status !== 'blocked' || !blockedServerAttempt.missingPart) {
   throw new Error(`Expected server blocked resolver attempt detail: ${JSON.stringify(blockedResolution)}`);
+}
+if (
+  blockedServerAttempt.splitChunkCount !== 1
+  || !blockedServerAttempt.chunkLabels?.[0]?.payloadLabels?.includes('FOREST_00_NAMES')
+) {
+  throw new Error(`Expected server blocked resolver attempt to preserve chunk labels: ${JSON.stringify(blockedResolution)}`);
 }
 
 const residentOverflowAsm = [

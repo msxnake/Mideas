@@ -6291,6 +6291,11 @@ function buildMsx2AssetStoragePolicy(
   tileScreens: Msx2Screen4TileScreen[]
 ): any[] {
   const screenById = new Map(tileScreens.map(screen => [screen.id, screen]));
+  const screenLabelById = new Map<string, string>();
+  tileScreens.forEach((screen, index) => {
+    const key = screen.id || screen.name || `tile_screen_${index}`;
+    screenLabelById.set(key, sanitizeLabel(screen?.name || `msx2_screen4_screen_${index}`, `MSX2_SCREEN4_SCREEN_${index}`));
+  });
   const assetByKey = new Map<string, any>();
   for (const asset of (((analysis as any).assets || []) as any[])) {
     assetByKey.set(assetKey(asset?.type, getAssetIdFromData(asset)), asset);
@@ -6299,6 +6304,24 @@ function buildMsx2AssetStoragePolicy(
     let policy: Record<string, unknown>;
     if (entry.type === 'msx2screen' && screenById.has(entry.id)) {
       policy = estimateMsx2ScreenStoragePolicy(screenById.get(entry.id)!);
+      const screenLabel = screenLabelById.get(entry.id) || sanitizeLabel(entry.name || entry.id, 'MSX2_SCREEN4_SCREEN');
+      const screenData = buildScreen4ScreenData(screenById.get(entry.id)!);
+      const payloadParts = [
+        { label: `${screenLabel}_NAMES`, kind: 'screen4_names', rawBytes: screenData.names.length, loadOrder: 20 },
+        ...screenData.patternBanks.flatMap((patterns, bank) => patterns.length
+          ? [
+            { label: `${screenLabel}_BANK_${bank}_PATTERNS`, kind: 'screen4_patterns', rawBytes: patterns.length, loadOrder: bank * 2 },
+            { label: `${screenLabel}_BANK_${bank}_COLORS`, kind: 'screen4_colors', rawBytes: screenData.colorBanks[bank]?.length || patterns.length, loadOrder: bank * 2 + 1 },
+          ]
+          : []
+        ),
+        { label: `${screenLabel}_COLLISION`, kind: 'screen4_collision', rawBytes: buildTileScreenLayerBytes(screenById.get(entry.id), 'collision').length, loadOrder: 30 },
+        { label: `${screenLabel}_EFFECTS`, kind: 'screen4_effects', rawBytes: buildTileScreenLayerBytes(screenById.get(entry.id), 'effects').length, loadOrder: 31 },
+        { label: `${screenLabel}_BEHAVIOR`, kind: 'screen4_behavior', rawBytes: buildTileScreenLayerBytes(screenById.get(entry.id), 'behavior').length, loadOrder: 32 },
+      ].filter(part => part.rawBytes > 0);
+      policy.screenLabel = screenLabel;
+      policy.payloadParts = payloadParts;
+      policy.payloadLabels = payloadParts.map(part => part.label);
     } else if (entry.type === 'msx2sprite') {
       const sprite = resolveMsx2SpriteById(analysis, entry.id);
       policy = sprite
@@ -6359,6 +6382,9 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
         warning: usedBytes >= warningThresholdBytes,
         overBudgetBytes: Math.max(0, usedBytes - bankSizeBytes),
         canSplit,
+        screenLabel: policy.screenLabel,
+        payloadParts: Array.isArray(policy.payloadParts) ? policy.payloadParts : [],
+        payloadLabels: Array.isArray(policy.payloadLabels) ? policy.payloadLabels : [],
       };
     });
   const packages = originalPackages.flatMap(entry => {
@@ -6445,6 +6471,12 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
   const splitChunkManifest = splitPackages.map(entry => {
     const splitIndex = Number((entry as any).splitIndex || 0);
     const splitCount = Number((entry as any).splitCount || 1);
+    const payloadParts = Array.isArray((entry as any).payloadParts) ? (entry as any).payloadParts : [];
+    const chunkPayloadParts = payloadParts.filter((_part: any, index: number) =>
+      Math.floor((index * splitCount) / Math.max(1, payloadParts.length)) === splitIndex
+    );
+    const payloadLabels = chunkPayloadParts.map((part: any) => String(part?.label || '')).filter(Boolean);
+    const payloadKinds = Array.from(new Set(chunkPayloadParts.map((part: any) => String(part?.kind || '')).filter(Boolean)));
     const labelStem = sanitizeLabel(
       `${entry.type}_${entry.sourceId}_chunk_${String(splitIndex).padStart(2, '0')}`,
       `WORLD_CHUNK_${String(splitIndex).padStart(2, '0')}`
@@ -6459,6 +6491,10 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
       splitStrategy: (entry as any).splitStrategy || 'auto_world_package_chunk',
       usedBytes: entry.usedBytes,
       recommendedBankClass: entry.recommendedBankClass,
+      screenLabel: (entry as any).screenLabel,
+      payloadKind: payloadKinds.length === 1 ? payloadKinds[0] : 'mixed_screen4_payload',
+      payloadLabels,
+      payloadParts: chunkPayloadParts,
       windowAddress: '#8000',
       labelStem,
       dataLabel: `${labelStem}_DATA`,
@@ -6901,10 +6937,19 @@ function buildMsx2Screen4DataBankPlan(
   if (splitPackages.length > 0) {
     unsupportedReason = 'split_packages_require_physical_chunk_labels';
   }
+  const splitChunkManifestWithBanks = splitChunkManifest.map(chunk => {
+    const chunkId = String(chunk?.chunkId || '');
+    const bankIndex = packageBankById.get(chunkId) ?? 0;
+    return {
+      ...chunk,
+      bankIndex,
+      physicalBank: 4 + bankIndex,
+    };
+  });
   return {
     bankCount,
     unsupportedReason,
-    splitChunkManifest,
+    splitChunkManifest: splitChunkManifestWithBanks,
     screenBankIndexByLabel,
     screenPackageIdByLabel,
     bankIndexes: Array.from({ length: bankCount }, (_unused, index) => index),
@@ -9150,6 +9195,18 @@ reset_msx2_status_border:
         `MSX2_SCREEN4_DATA_BANK_${bankIndex} EQU ${4 + bankIndex}`),
       ...tileScreenLoadLabels.map(label =>
         `${label}_DATA_BANK EQU MSX2_SCREEN4_DATA_BANK_${screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0}`),
+      ...screen4DataBankPlan.splitChunkManifest.flatMap(chunk => {
+        const bankIndex = Number(chunk?.bankIndex || 0);
+        const dataBankSymbol = String(chunk?.dataBankSymbol || '');
+        const payloadLabels = Array.isArray(chunk?.payloadLabels) ? chunk.payloadLabels : [];
+        return [
+          dataBankSymbol ? `${dataBankSymbol} EQU MSX2_SCREEN4_DATA_BANK_${bankIndex}` : '',
+          ...payloadLabels
+            .map((payloadLabel: unknown) => String(payloadLabel || ''))
+            .filter(Boolean)
+            .map(payloadLabel => `${payloadLabel}_DATA_BANK EQU ${dataBankSymbol || `MSX2_SCREEN4_DATA_BANK_${bankIndex}`}`),
+        ].filter(Boolean);
+      }),
       screen4DataBankPlan.unsupportedReason
         ? 'MSX2_SCREEN4_MULTI_BANK_UNSUPPORTED EQU 1'
         : 'MSX2_SCREEN4_MULTI_BANK_LOADER_READY EQU 1',
