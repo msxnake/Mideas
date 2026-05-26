@@ -1792,6 +1792,11 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
   const warningPackedBanks = Array.isArray(logicalBudget.warningPackedBanks) ? logicalBudget.warningPackedBanks : [];
   const ramRecommendations = Array.isArray(ramBudget.recommendations) ? ramBudget.recommendations : [];
   const ramWarnings = ramRecommendations.filter((item) => item && ['warning', 'plan_b'].includes(item.severity));
+  const shooter60Hz = projectSlice.shooter60Hz && typeof projectSlice.shooter60Hz === 'object'
+    ? projectSlice.shooter60Hz
+    : null;
+  const shooterWarnings = Array.isArray(shooter60Hz?.warnings) ? shooter60Hz.warnings : [];
+  const shooterErrors = Array.isArray(shooter60Hz?.errors) ? shooter60Hz.errors : [];
   const largestAssets = [...packages]
     .sort((a, b) => Number(b?.usedBytes || 0) - Number(a?.usedBytes || 0))
     .slice(0, 8)
@@ -1829,6 +1834,14 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       action: item.action
     });
   }
+  for (const item of [...shooterWarnings, ...shooterErrors]) {
+    suggestedFixes.push({
+      severity: item.severity || 'warning',
+      target: item.screenId || item.code || 'shooter60Hz',
+      reason: item.message,
+      action: 'Reduce shooter pools, switch IRQ profile, or defer this profile until OpenMSX profiling confirms spare frame time.'
+    });
+  }
   const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
   const screen4DataBankPlan = projectSlice.screen4DataBankPlan;
   const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1 && !(
@@ -1837,11 +1850,12 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
     Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount
   );
   let status = 'ok';
-  if (warnings.length || warningPackedBanks.length || ramWarnings.length) status = 'warning';
+  if (warnings.length || warningPackedBanks.length || ramWarnings.length || shooterWarnings.length) status = 'warning';
   if (
     (Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length)
     || (ramBudget.status && ramBudget.status !== 'ok')
     || needsUnsupportedMultiBankLoader
+    || shooterErrors.length
   ) {
     status = 'error';
   }
@@ -1925,6 +1939,7 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       estimatedPhysicalBanks: manifestPhysicalBanks
     } : undefined,
     screen4RuntimeLayerPolicy: projectSlice.screen4RuntimeLayerPolicy,
+    shooter60Hz: shooter60Hz || undefined,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets,
     warnings: {
@@ -1960,6 +1975,11 @@ function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, m
       dataBankSymbol: chunk.dataBankSymbol,
       loaderSymbol: chunk.loaderSymbol,
       payloadLabels: Array.isArray(chunk.payloadLabels) ? chunk.payloadLabels : [],
+      payloadBytes: Number(chunk.payloadBytes || 0),
+      payloadLabelCount: Number(chunk.payloadLabelCount || (Array.isArray(chunk.payloadLabels) ? chunk.payloadLabels.length : 0)),
+      loaderCoverageStatus: chunk.loaderCoverageStatus,
+      loaderCoveredPayloadLabels: Array.isArray(chunk.loaderCoveredPayloadLabels) ? chunk.loaderCoveredPayloadLabels : [],
+      loaderUncoveredPayloadLabels: Array.isArray(chunk.loaderUncoveredPayloadLabels) ? chunk.loaderUncoveredPayloadLabels : [],
       bankIndex: chunk.bankIndex,
       physicalBank: chunk.physicalBank,
     }));
@@ -1999,9 +2019,9 @@ function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, m
       splitPackageCount: splitPackages.length,
       splitChunkCount: splitChunkLabels.length,
       chunkLabels: splitChunkLabels,
-      implementedPart: 'normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required',
+      implementedPart: 'normal per-screen multi-bank loader is available; chunk diagnostics, data-bank symbols, and chunk data sections are emitted',
       missingPart: splitChunkBlocked
-        ? 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank'
+        ? 'chunk loader coverage is reported; chunked compile smoke must pass before supported=true'
         : 'screen4DataBankPlan must describe a supported per-screen physical bank layout'
     });
   }
@@ -2026,7 +2046,7 @@ function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, m
       reason: 'The precompiler can budget-split oversized world packages, but chunk-to-label physical SCREEN 4 loading is still pending.',
       blockedBy: 'chunk-to-label SCREEN 4 physical loader is not implemented yet',
       implementedPart: 'logical budget emits auto_world_package_chunk entries for splittable world packages',
-      missingPart: 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank',
+      missingPart: 'chunk section sizes and SCREEN 4 loader coverage must be validated before chunked packages can compile',
       splitPackageCount: splitPackages.length
     });
   } else if (Number(manifestWarningBankCount || 0) > 0 || status === 'warning') {

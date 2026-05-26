@@ -1,4 +1,4 @@
-export interface Msx2BudgetFeedback {
+﻿export interface Msx2BudgetFeedback {
   scope: 'msx2_screen4_ide_budget_feedback';
   status: 'ok' | 'warning' | 'error';
   project: {
@@ -47,6 +47,7 @@ export interface Msx2BudgetFeedback {
     estimatedPhysicalBanks: any[];
   };
   screen4RuntimeLayerPolicy?: Record<string, any>;
+  shooter60Hz?: Record<string, any>;
   worldPackages: any[];
   largestAssets: Array<{
     id: string;
@@ -194,6 +195,11 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
   const ramRecommendations = Array.isArray(ramBudget.recommendations)
     ? ramBudget.recommendations.filter((item: any) => item && ['warning', 'plan_b'].includes(item.severity))
     : [];
+  const shooter60Hz = projectSlice.shooter60Hz && typeof projectSlice.shooter60Hz === 'object'
+    ? projectSlice.shooter60Hz
+    : null;
+  const shooterWarnings = Array.isArray(shooter60Hz?.warnings) ? shooter60Hz.warnings : [];
+  const shooterErrors = Array.isArray(shooter60Hz?.errors) ? shooter60Hz.errors : [];
   const suggestedFixes = [
     ...allRomRecommendations.map((item: any) => ({
       severity: item.severity || 'info',
@@ -214,6 +220,12 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       target: item.target,
       reason: item.reason,
       action: item.action
+    })),
+    ...[...shooterWarnings, ...shooterErrors].map((item: any) => ({
+      severity: item.severity || 'warning',
+      target: item.screenId || item.code || 'shooter60Hz',
+      reason: item.message,
+      action: 'Reduce shooter pools, switch IRQ profile, or defer this profile until OpenMSX profiling confirms spare frame time.'
     }))
   ];
   const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
@@ -224,11 +236,12 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
     && Number(screen4DataBankPlan.bankCount || 0) >= estimatedPackedBankCount
   );
   let status: Msx2BudgetFeedback['status'] = 'ok';
-  if (romRecommendations.length || warningPackedBanks.length || ramRecommendations.length) status = 'warning';
+  if (romRecommendations.length || warningPackedBanks.length || ramRecommendations.length || shooterWarnings.length) status = 'warning';
   if (
     (Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length)
     || (ramBudget.status && ramBudget.status !== 'ok')
     || needsUnsupportedMultiBankLoader
+    || shooterErrors.length
   ) {
     status = 'error';
   }
@@ -325,6 +338,7 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       estimatedPhysicalBanks: manifestPhysicalBanks,
     } : undefined,
     screen4RuntimeLayerPolicy: projectSlice.screen4RuntimeLayerPolicy,
+    shooter60Hz: shooter60Hz || undefined,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
     largestAssets,
     warnings: {
@@ -425,6 +439,11 @@ const buildMsx2BudgetResolverCandidates = ({
       dataBankSymbol: chunk.dataBankSymbol,
       loaderSymbol: chunk.loaderSymbol,
       payloadLabels: Array.isArray(chunk.payloadLabels) ? chunk.payloadLabels : [],
+      payloadBytes: Number(chunk.payloadBytes || 0),
+      payloadLabelCount: Number(chunk.payloadLabelCount || (Array.isArray(chunk.payloadLabels) ? chunk.payloadLabels.length : 0)),
+      loaderCoverageStatus: chunk.loaderCoverageStatus,
+      loaderCoveredPayloadLabels: Array.isArray(chunk.loaderCoveredPayloadLabels) ? chunk.loaderCoveredPayloadLabels : [],
+      loaderUncoveredPayloadLabels: Array.isArray(chunk.loaderUncoveredPayloadLabels) ? chunk.loaderUncoveredPayloadLabels : [],
       bankIndex: chunk.bankIndex,
       physicalBank: chunk.physicalBank,
     }));
@@ -464,9 +483,9 @@ const buildMsx2BudgetResolverCandidates = ({
       splitPackageCount: splitPackages.length,
       splitChunkCount: splitChunkLabels.length,
       chunkLabels: splitChunkLabels,
-      implementedPart: 'normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required',
+      implementedPart: 'normal per-screen multi-bank loader is available; chunk diagnostics, data-bank symbols, and chunk data sections are emitted',
       missingPart: splitChunkBlocked
-        ? 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank'
+        ? 'chunk loader coverage is reported; chunked compile smoke must pass before supported=true'
         : 'screen4DataBankPlan must describe a supported per-screen physical bank layout'
     });
   }
@@ -491,7 +510,7 @@ const buildMsx2BudgetResolverCandidates = ({
       reason: 'The precompiler can budget-split oversized world packages, but chunk-to-label physical SCREEN 4 loading is still pending.',
       blockedBy: 'chunk-to-label SCREEN 4 physical loader is not implemented yet',
       implementedPart: 'logical budget emits auto_world_package_chunk entries for splittable world packages',
-      missingPart: 'ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank',
+      missingPart: 'chunk section sizes and SCREEN 4 loader coverage must be validated before chunked packages can compile',
       splitPackageCount: splitPackages.length
     });
   } else if (Number(manifestWarningBankCount || 0) > 0 || status === 'warning') {

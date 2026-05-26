@@ -169,6 +169,11 @@ const asm = [
           dataBankSymbol: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA_BANK',
           loaderSymbol: 'load_msx2screen_forest_00_chunk_00_chunk',
           payloadLabels: ['FOREST_00_BANK_0_PATTERNS', 'FOREST_00_BANK_0_COLORS', 'FOREST_00_NAMES'],
+          payloadBytes: 4864,
+          payloadLabelCount: 3,
+          loaderCoverageStatus: 'covered',
+          loaderCoveredPayloadLabels: ['FOREST_00_BANK_0_PATTERNS', 'FOREST_00_BANK_0_COLORS', 'FOREST_00_NAMES'],
+          loaderUncoveredPayloadLabels: [],
           bankIndex: 1,
           physicalBank: 5,
           windowAddress: '#8000',
@@ -194,6 +199,48 @@ const asm = [
         cacheScope: 'per_screen',
         bytesPerScreen: 192,
       },
+    },
+    shooter60Hz: {
+      targetHz: 60,
+      screenCount: 1,
+      screens: [
+        {
+          screenId: 'forest_00',
+          screenName: 'Forest Shooter',
+          direction: 'vertical',
+          scrollMode: 'tileVertical',
+          playerMode: 'single',
+          hudMode: 'compactTop',
+          pools: {
+            enemies: 8,
+            playerShots: 6,
+            enemyShots: 12,
+            powerups: 2,
+            explosions: 4,
+            bossParts: 5,
+          },
+          activeIrqProfile: {
+            id: 'IRQ_STAGE_NORMAL',
+            estimatedCycles: 3600,
+            worstCaseCycles: 4800,
+            maxAllowedCycles: 6000,
+            vramBytes: 128,
+            frequency: 'everyFrame',
+            sustained: true,
+            tasks: ['input', 'sat_upload_24', 'music'],
+          },
+          validation: [],
+        },
+      ],
+      warnings: [
+        {
+          severity: 'warning',
+          code: 'enemy_shot_pressure',
+          screenId: 'forest_00',
+          message: 'Synthetic shooter budget warning',
+        },
+      ],
+      errors: [],
     },
     includedRuntimeModules: [
       'runtime.msx2.boot',
@@ -255,6 +302,11 @@ const asm = [
         dataBankSymbol: 'MSX2SCREEN_FOREST_00_CHUNK_00_DATA_BANK',
         loaderSymbol: 'load_msx2screen_forest_00_chunk_00_chunk',
         payloadLabels: ['FOREST_00_BANK_0_PATTERNS', 'FOREST_00_BANK_0_COLORS', 'FOREST_00_NAMES'],
+        payloadBytes: 4864,
+        payloadLabelCount: 3,
+        loaderCoverageStatus: 'covered',
+        loaderCoveredPayloadLabels: ['FOREST_00_BANK_0_PATTERNS', 'FOREST_00_BANK_0_COLORS', 'FOREST_00_NAMES'],
+        loaderUncoveredPayloadLabels: [],
         bankIndex: 1,
         physicalBank: 5,
         windowAddress: '#8000',
@@ -332,6 +384,12 @@ if (
 ) {
   throw new Error(`Expected SCREEN 4 runtime layer policy in feedback: ${JSON.stringify(feedback.screen4RuntimeLayerPolicy)}`);
 }
+if (feedback.shooter60Hz?.screenCount !== 1 || feedback.shooter60Hz?.warnings?.[0]?.code !== 'enemy_shot_pressure') {
+  throw new Error(`Expected shooter 60Hz budget metadata in feedback: ${JSON.stringify(feedback.shooter60Hz)}`);
+}
+if (!feedback.suggestedFixes.some((item) => item.target === 'forest_00' && item.reason === 'Synthetic shooter budget warning')) {
+  throw new Error(`Expected shooter 60Hz warning in suggested fixes: ${JSON.stringify(feedback.suggestedFixes)}`);
+}
 if ((feedback.runtimeModules?.excluded || [])[0]?.placement !== 'world_specific') {
   throw new Error(`Expected excluded runtime module placement to stay visible: ${JSON.stringify(feedback.runtimeModules)}`);
 }
@@ -397,11 +455,17 @@ if (!multiBankFeedback.resolverCandidates[0]?.blockedBy?.includes('chunk-to-labe
 if (
   multiBankFeedback.resolverCandidates[0]?.splitChunkCount !== 1
   || !multiBankFeedback.resolverCandidates[0]?.chunkLabels?.[0]?.payloadLabels?.includes('FOREST_00_NAMES')
+  || multiBankFeedback.resolverCandidates[0]?.chunkLabels?.[0]?.payloadBytes !== 4864
+  || multiBankFeedback.resolverCandidates[0]?.chunkLabels?.[0]?.payloadLabelCount !== 3
+  || multiBankFeedback.resolverCandidates[0]?.chunkLabels?.[0]?.loaderCoverageStatus !== 'covered'
 ) {
   throw new Error(`Expected unsupported multi-bank feedback to expose chunk labels: ${JSON.stringify(multiBankFeedback.resolverCandidates[0])}`);
 }
 if (!multiBankFeedback.automaticResolutionPlan?.blockedReasons?.[0]?.missingPart) {
   throw new Error(`Expected unsupported multi-bank feedback to preserve blocked resolver detail: ${JSON.stringify(multiBankFeedback.automaticResolutionPlan)}`);
+}
+if (!multiBankFeedback.automaticResolutionPlan.blockedReasons[0].missingPart.includes('loader coverage')) {
+  throw new Error(`Expected unsupported multi-bank feedback to name remaining loader work: ${JSON.stringify(multiBankFeedback.automaticResolutionPlan)}`);
 }
 if (!multiBankFeedback.resolverCandidates.some((candidate) => candidate?.id === 'enable_zx0_preprocess')) {
   throw new Error(`Expected multi-bank feedback to keep ZX0 retry candidate: ${JSON.stringify(multiBankFeedback.resolverCandidates)}`);

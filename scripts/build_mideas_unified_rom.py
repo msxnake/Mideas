@@ -464,7 +464,7 @@ def build_msx2_preflight_resolver_candidates(reason: str, details: dict[str, obj
             "reason": "The precompiler can budget-split oversized world packages, but chunk-to-label physical SCREEN 4 loading is still pending.",
             "blockedBy": "chunk-to-label SCREEN 4 physical loader is not implemented yet",
             "implementedPart": "logical budget emits auto_world_package_chunk entries for splittable world packages",
-            "missingPart": "ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank",
+            "missingPart": "chunk section sizes and SCREEN 4 loader coverage must be validated before chunked packages can compile",
             "targets": details.get("overBudgetPackages") or details.get("overBudgetBanks") or [],
         })
     if reason == "ram_budget_failed":
@@ -832,6 +832,11 @@ def write_msx2_loader_capability_failure_summary(
             "dataBankSymbol": chunk.get("dataBankSymbol"),
             "loaderSymbol": chunk.get("loaderSymbol"),
             "payloadLabels": chunk.get("payloadLabels") or [],
+            "payloadBytes": int(chunk.get("payloadBytes") or 0),
+            "payloadLabelCount": int(chunk.get("payloadLabelCount") or len(chunk.get("payloadLabels") or [])),
+            "loaderCoverageStatus": chunk.get("loaderCoverageStatus"),
+            "loaderCoveredPayloadLabels": chunk.get("loaderCoveredPayloadLabels") or [],
+            "loaderUncoveredPayloadLabels": chunk.get("loaderUncoveredPayloadLabels") or [],
             "bankIndex": chunk.get("bankIndex"),
             "physicalBank": chunk.get("physicalBank"),
         }
@@ -859,9 +864,9 @@ def write_msx2_loader_capability_failure_summary(
             "splitPackageCount": len(split_packages),
             "splitChunkCount": len(split_chunk_labels),
             "chunkLabels": split_chunk_labels,
-            "implementedPart": "normal per-screen multi-bank SCREEN 4 loader is available when no package chunks are required",
+            "implementedPart": "normal per-screen multi-bank loader is available; chunk diagnostics, data-bank symbols, and chunk data sections are emitted",
             "missingPart": (
-                "ASM generator must emit chunk-owned physical labels and loader code that copies each chunk through the selected data bank"
+                "chunk loader coverage is reported; chunked compile smoke must pass before supported=true"
                 if split_chunk_blocked
                 else "screen4DataBankPlan must describe a supported per-screen physical bank layout"
             ),
@@ -1973,7 +1978,7 @@ def validate_msx2_screen4_megarom_preflight_budget(
     included_runtime_modules = project_slice.get("includedRuntimeModules")
     included_runtime_module_details = project_slice.get("includedRuntimeModuleDetails")
     excluded_runtime_modules = project_slice.get("excludedRuntimeModules")
-    allowed_runtime_placements = {"resident", "far_code", "world_specific"}
+    allowed_runtime_placements = {"resident", "far_code", "world_specific", "metadata"}
     if not isinstance(included_runtime_modules, list) or not included_runtime_modules:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no includedRuntimeModules")
     if not isinstance(included_runtime_module_details, list) or not included_runtime_module_details:
@@ -2160,6 +2165,7 @@ def validate_msx2_screen4_megarom_preflight_budget(
         raise RuntimeError("MSX2 MegaROM preflight failed: logical_bank_budget.json differs from project_slice.json")
     split_packages = logical_budget.get("splitPackages") or []
     split_chunk_manifest = logical_budget.get("splitChunkManifest") or []
+    logical_bank_size = int(logical_budget.get("bankSizeBytes") or 8192)
     if split_packages:
         if not isinstance(split_chunk_manifest, list) or len(split_chunk_manifest) != len(split_packages):
             raise RuntimeError(
@@ -2192,6 +2198,48 @@ def validate_msx2_screen4_megarom_preflight_budget(
                 raise RuntimeError(
                     "MSX2 MegaROM preflight failed: "
                     f"splitChunkManifest payloadLabels must be a non-empty list of ASM labels: {chunk}"
+                )
+            if "payloadLabelCount" in chunk:
+                try:
+                    payload_label_count = int(chunk.get("payloadLabelCount") or 0)
+                except (TypeError, ValueError):
+                    payload_label_count = -1
+                if payload_label_count != len(payload_labels):
+                    raise RuntimeError(
+                        "MSX2 MegaROM preflight failed: "
+                        f"splitChunkManifest payloadLabelCount does not match payloadLabels: {chunk}"
+                    )
+            if "payloadBytes" in chunk:
+                try:
+                    payload_bytes = int(chunk.get("payloadBytes") or 0)
+                except (TypeError, ValueError):
+                    payload_bytes = -1
+                if payload_bytes < 0:
+                    raise RuntimeError(
+                        "MSX2 MegaROM preflight failed: "
+                        f"splitChunkManifest payloadBytes must be a non-negative integer: {chunk}"
+                    )
+                if payload_bytes > logical_bank_size:
+                    raise RuntimeError(
+                        "MSX2 MegaROM preflight failed: "
+                        f"splitChunkManifest payloadBytes exceeds one 8KB bank: {payload_bytes} > {logical_bank_size}: {chunk}"
+                    )
+            if not chunk.get("loaderCoverageStatus"):
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"splitChunkManifest entry is missing loaderCoverageStatus: {chunk}"
+                )
+            if chunk.get("loaderCoverageStatus") != "covered":
+                uncovered_labels = chunk.get("loaderUncoveredPayloadLabels") or []
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"splitChunkManifest loader coverage is incomplete for payload labels {uncovered_labels}: {chunk}"
+                )
+            covered_labels = chunk.get("loaderCoveredPayloadLabels") or []
+            if not isinstance(covered_labels, list) or sorted(covered_labels) != sorted(payload_labels):
+                raise RuntimeError(
+                    "MSX2 MegaROM preflight failed: "
+                    f"splitChunkManifest loaderCoveredPayloadLabels must match payloadLabels: {chunk}"
                 )
             if chunk.get("windowAddress") != "#8000":
                 raise RuntimeError(

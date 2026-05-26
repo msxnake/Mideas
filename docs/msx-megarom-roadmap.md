@@ -1323,11 +1323,24 @@ Current CLI gate:
     chunk carries its future `labelStem`, `dataLabel`, `dataEndLabel`,
     `dataBankSymbol`, `loaderSymbol`, source package, chunk index/count, target
     `#8000` data window, estimated physical bank, and the concrete
-    `payloadLabels`/`payloadKind` that the chunk owns (`*_PATTERNS`,
-    `*_COLORS`, `*_NAMES`, `*_COLLISION`, `*_EFFECTS`, `*_BEHAVIOR`).
+    `payloadLabels`/`payloadLabelCount`/`payloadBytes`/`payloadKind` plus
+    `loaderCoverageStatus` and the covered/uncovered payload-label lists that
+    the chunk owns (`*_PATTERNS`, `*_COLORS`, `*_NAMES`, `*_COLLISION`,
+    `*_EFFECTS`, `*_BEHAVIOR`).
     Preflight rejects split packages without this manifest, so the next
     implementation step is purely to emit those labels and loader routines
     instead of reverse-engineering chunk names from diagnostics.
+    Preflight also rejects a chunk whose label count does not match its labels
+    or whose payload estimate still exceeds one 8 KB physical bank, so the
+    automatic retry loop gets a deterministic bank-failure reason before Glass.
+    It also rejects incomplete loader coverage, which means future regeneration
+    can tell the difference between an unsupported payload kind and a covered
+    chunk that is only waiting for the final compile-smoke gate.
+    Chunk creation is now payload-part aware: large SCREEN 4 rooms are split by
+    concrete `NAMES`/`PATTERNS`/`COLORS`/runtime-layer blocks with first-fit
+    8 KB packing, rather than by average bytes per chunk. This avoids the old
+    failure mode where a mathematically split package could still place two
+    6 KB payloads in the same physical 8 KB bank.
     The blocked resolver candidate also returns a compact `chunkLabels` list,
     so CLI and IDE failures already carry the exact labels/bank symbols a later
     regeneration pass must bind. The same compact list is preserved in
@@ -1338,9 +1351,17 @@ Current CLI gate:
     physical symbol layer for those chunks: each chunk gets
     `<CHUNK>_DATA_BANK EQU MSX2_SCREEN4_DATA_BANK_n`, and every owned
     `payloadLabel` gets `<PAYLOAD>_DATA_BANK EQU <CHUNK>_DATA_BANK`. The
-    loader still remains blocked until the payload labels are physically
-    wrapped/moved into chunk data sections and the screen loader calls the
-    generated chunk routines.
+    generator also builds non-active chunk data sections using
+    `dataLabel:` / `dataEndLabel:` and moves each owned payload block into the
+    selected chunk bank while keeping the normal per-screen route unchanged for
+    non-split screens. It now emits resident `loaderSymbol:` entry points that
+    select and restore the chunk bank. The screen load routine now has the
+    first split-aware path for `PATTERNS`, `COLORS`, `NAMES`, `COLLISION`,
+    `BEHAVIOR`, and the startup `EFFECTS` persistent-RAM copy: when a payload
+    label has a chunk bank, the generated copy code switches through that
+    payload's `<PAYLOAD>_DATA_BANK`. The loader still remains blocked until a
+    dedicated chunked compile smoke proves the covered path is safe enough to
+    set `screen4DataBankPlan.supported=true`.
     SCREEN 4 effect templates now follow the same cold-data policy: each
     `<LABEL>_EFFECTS` table is emitted with its screen data bank and
     `init_msx2_effect_buffers` copies it to persistent RAM through the

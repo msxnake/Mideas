@@ -4,6 +4,7 @@ import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import { renderNamedArtifactAsCommentBlock } from '../../utils/megaromResourceArtifacts';
+import { normalizeMsx2ShooterRuntimeConfig, validateMsx2Shooter60HzBudget } from '../../../msx2ShooterRuntime';
 import {
   MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
   MSX2_ENEMY_MOVEMENT_BALL_BOUNCE,
@@ -583,15 +584,30 @@ function getCollectibleErasePaletteIndex(screens: Array<Msx2Screen4TileScreen | 
   return Math.max(0, Math.min(15, best));
 }
 
-function buildTileScreenTileBlocks(label: string, screen: Msx2Screen4TileScreen | undefined): string {
+function buildTileScreenTileBlockParts(label: string, screen: Msx2Screen4TileScreen | undefined): Array<{ label: string; asm: string }> {
   const data = buildScreen4ScreenData(screen);
-  const blocks = [formatBytes(`${label}_NAMES`, data.names, `${screen?.name || label} SCREEN 4 name table, 32x24 chars`)];
+  const blocks = [
+    {
+      label: `${label}_NAMES`,
+      asm: formatBytes(`${label}_NAMES`, data.names, `${screen?.name || label} SCREEN 4 name table, 32x24 chars`),
+    },
+  ];
   data.patternBanks.forEach((patterns, bank) => {
     if (!patterns.length) return;
-    blocks.push(formatBytes(`${label}_BANK_${bank}_PATTERNS`, patterns, `${screen?.name || label} SCREEN 4 bank ${bank} compact patterns`));
-    blocks.push(formatBytes(`${label}_BANK_${bank}_COLORS`, data.colorBanks[bank], `${screen?.name || label} SCREEN 4 bank ${bank} compact colors`));
+    blocks.push({
+      label: `${label}_BANK_${bank}_PATTERNS`,
+      asm: formatBytes(`${label}_BANK_${bank}_PATTERNS`, patterns, `${screen?.name || label} SCREEN 4 bank ${bank} compact patterns`),
+    });
+    blocks.push({
+      label: `${label}_BANK_${bank}_COLORS`,
+      asm: formatBytes(`${label}_BANK_${bank}_COLORS`, data.colorBanks[bank], `${screen?.name || label} SCREEN 4 bank ${bank} compact colors`),
+    });
   });
-  return blocks.join('\n');
+  return blocks;
+}
+
+function buildTileScreenTileBlocks(label: string, screen: Msx2Screen4TileScreen | undefined): string {
+  return buildTileScreenTileBlockParts(label, screen).map(block => block.asm).join('\n');
 }
 
 function buildTileScreenLoadRoutine(
@@ -602,24 +618,43 @@ function buildTileScreenLoadRoutine(
   afterPatternLoad = '',
   afterNameLoad = '',
   useKonamiDataBank = false,
-  dataBankConstant = 'MSX2_SCREEN4_DATA_BANK'
+  dataBankConstant = 'MSX2_SCREEN4_DATA_BANK',
+  payloadDataBankConstants: Map<string, string> | undefined = undefined
 ): string {
   const data = buildScreen4ScreenData(screen);
+  const payloadCopy = (payloadLabel: string, body: string): string => {
+    if (!useKonamiDataBank) return body;
+    const bankConstant = payloadDataBankConstants?.get(payloadLabel) || (payloadDataBankConstants ? dataBankConstant : '');
+    if (!bankConstant) return body;
+    return `    ld a, ${bankConstant}
+    call msx2_screen4_data_bank_enter_selected
+${body}
+    call msx2_screen4_data_bank_leave`;
+  };
   const bankLoads = data.patternBanks.map((patterns, bank) => {
     if (!patterns.length) return '';
     const charOffset = bank * 0x0800;
     const byteCount = patterns.length;
-    return `    ld hl, ${label}_BANK_${bank}_PATTERNS
+    const patternPayloadLabel = `${label}_BANK_${bank}_PATTERNS`;
+    const colorPayloadLabel = `${label}_BANK_${bank}_COLORS`;
+    const patternCopy = `    ld hl, ${patternPayloadLabel}
     ld de, #${charOffset.toString(16).toUpperCase().padStart(4, '0')}
     ld bc, ${byteCount}
-    call LDIRVM
-    ld hl, ${label}_BANK_${bank}_COLORS
+    call LDIRVM`;
+    const colorCopy = `    ld hl, ${colorPayloadLabel}
     ld de, #${(0x2000 + charOffset).toString(16).toUpperCase().padStart(4, '0')}
     ld bc, ${byteCount}
     call LDIRVM`;
+    return `${payloadCopy(patternPayloadLabel, patternCopy)}
+${payloadCopy(colorPayloadLabel, colorCopy)}`;
   }).filter(Boolean).join('\n');
-  const enterDataBank = useKonamiDataBank ? `    ld a, ${dataBankConstant}\n    call msx2_screen4_data_bank_enter_selected\n` : '';
-  const leaveDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : '';
+  const splitAwarePayloadLoads = Boolean(useKonamiDataBank && payloadDataBankConstants);
+  const enterDataBank = useKonamiDataBank && !splitAwarePayloadLoads ? `    ld a, ${dataBankConstant}\n    call msx2_screen4_data_bank_enter_selected\n` : '';
+  const leaveDataBank = useKonamiDataBank && !splitAwarePayloadLoads ? '    call msx2_screen4_data_bank_leave\n' : '';
+  const nameCopy = `    ld hl, ${label}_NAMES
+    ld de, SCREEN4_NAME_VRAM
+    ld bc, SCREEN4_NAME_SIZE
+    call LDIRVM`;
   return `load_${label}_screen4:
     xor a
     ld hl, SCREEN4_NAME_VRAM
@@ -636,10 +671,7 @@ function buildTileScreenLoadRoutine(
 ${enterDataBank}
 ${bankLoads}
 ${afterPatternLoad}
-    ld hl, ${label}_NAMES
-    ld de, SCREEN4_NAME_VRAM
-    ld bc, SCREEN4_NAME_SIZE
-    call LDIRVM
+${payloadCopy(`${label}_NAMES`, nameCopy)}
 ${leaveDataBank}
 ${afterNameLoad}${loadRuntimeLayerPointers(label, screenIndex)}    call apply_${label}_collected_visuals
     ret
@@ -681,13 +713,16 @@ ${collectibleCells.length ? collectibleCells.join('\n') : '    ; No collectible 
 function buildInitEffectBuffersRoutine(
   tileScreenLoadLabels: string[],
   effectRuntimeBase: number,
-  useKonamiDataBank = false
+  useKonamiDataBank = false,
+  payloadDataBankConstants: Map<string, string> | undefined = undefined
 ): string {
   const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
   const copies = tileScreenLoadLabels.map((label, index) => {
     const destination = effectRuntimeBase + (index * layerSize);
+    const effectPayloadLabel = `${label}_EFFECTS`;
+    const effectBankConstant = payloadDataBankConstants?.get(effectPayloadLabel) || `${label}_DATA_BANK`;
     const enterDataBank = useKonamiDataBank
-      ? `    ld a, ${label}_DATA_BANK
+      ? `    ld a, ${effectBankConstant}
     call msx2_screen4_data_bank_enter_selected
 `
       : '';
@@ -1412,8 +1447,29 @@ function usesMsx2Screen4BackgroundScroll(analysis: ProjectAnalysis): boolean {
   return collectReferencedTileScreens(analysis).some(screen =>
     Boolean((screen?.runtime as any)?.scrollMode)
     || Boolean((screen?.runtime as any)?.scroll)
+    || ['tileVertical', 'spaceLoop'].includes(String((screen?.runtime as any)?.shooter?.scrollMode || ''))
     || Boolean(screen?.layers?.entities?.some(entity => Boolean(entity?.components?.msx2_scroll)))
   );
+}
+
+function usesShooterVerticalMovement(analysis: ProjectAnalysis): boolean {
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const runtime = (screen?.runtime || {}) as Record<string, any>;
+  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const mode = String(
+    runtime.movementMode
+      ?? runtime.controlMode
+      ?? runtime.playerMode
+      ?? player?.components?.msx2_player_control?.controlMode
+      ?? player?.params?.controlMode
+      ?? ''
+  ).replace(/[\s_-]+/g, '').toLowerCase();
+
+  return mode === 'shootervertical'
+    || mode === 'verticalshooter'
+    || mode === 'arcadeshooter'
+    || mode === 'salmanderstyle'
+    || mode === 'gradiusstyle';
 }
 
 function isRuntimeHudHidden(analysis: ProjectAnalysis): boolean {
@@ -6363,6 +6419,38 @@ function buildMsx2AssetStoragePolicy(
 function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, unknown> {
   const bankSizeBytes = 8192;
   const warningThresholdBytes = Math.floor(bankSizeBytes * 0.9);
+  const packPayloadPartsIntoBankChunks = (payloadParts: any[]): any[][] => {
+    const sortedParts = [...payloadParts]
+      .filter(part => part && Number(part.rawBytes || 0) > 0)
+      .sort((left, right) => {
+        const rightBytes = Number(right.rawBytes || 0);
+        const leftBytes = Number(left.rawBytes || 0);
+        if (rightBytes !== leftBytes) return rightBytes - leftBytes;
+        return Number(left.loadOrder || 0) - Number(right.loadOrder || 0);
+      });
+    const chunks: any[][] = [];
+    const chunkBytes: number[] = [];
+    for (const part of sortedParts) {
+      const rawBytes = Number(part.rawBytes || 0);
+      let targetIndex = -1;
+      for (let index = 0; index < chunks.length; index += 1) {
+        if (chunkBytes[index] + rawBytes <= bankSizeBytes) {
+          targetIndex = index;
+          break;
+        }
+      }
+      if (targetIndex < 0) {
+        targetIndex = chunks.length;
+        chunks.push([]);
+        chunkBytes.push(0);
+      }
+      chunks[targetIndex].push(part);
+      chunkBytes[targetIndex] += rawBytes;
+    }
+    return chunks.map(chunk =>
+      [...chunk].sort((left, right) => Number(left.loadOrder || 0) - Number(right.loadOrder || 0))
+    );
+  };
   const originalPackages = assetStoragePolicy
     .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
     .map(policy => {
@@ -6390,18 +6478,27 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
   const packages = originalPackages.flatMap(entry => {
     if (!entry.canSplit || entry.usedBytes <= bankSizeBytes) return [entry];
     const maxChunkBytes = warningThresholdBytes;
-    const splitCount = Math.max(2, Math.ceil(entry.usedBytes / maxChunkBytes));
+    const payloadPartChunks = entry.payloadParts.length > 0
+      ? packPayloadPartsIntoBankChunks(entry.payloadParts)
+      : [];
+    const splitCount = payloadPartChunks.length > 0
+      ? payloadPartChunks.length
+      : Math.max(2, Math.ceil(entry.usedBytes / maxChunkBytes));
     const chunks: Array<typeof entry & {
       splitFrom: string;
       splitIndex: number;
       splitCount: number;
       splitStrategy: string;
+      chunkPayloadParts?: any[];
     }> = [];
     let remainingBytes = entry.usedBytes;
     for (let index = 0; index < splitCount; index += 1) {
+      const chunkPayloadParts = payloadPartChunks[index] || [];
       const remainingSlots = splitCount - index;
-      const chunkBytes = Math.ceil(remainingBytes / remainingSlots);
-      const usedBytes = Math.min(maxChunkBytes, chunkBytes);
+      const chunkBytes = chunkPayloadParts.length > 0
+        ? chunkPayloadParts.reduce((sum, part) => sum + (Number(part.rawBytes) || 0), 0)
+        : Math.ceil(remainingBytes / remainingSlots);
+      const usedBytes = chunkPayloadParts.length > 0 ? chunkBytes : Math.min(maxChunkBytes, chunkBytes);
       remainingBytes -= usedBytes;
       chunks.push({
         ...entry,
@@ -6410,6 +6507,9 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
         freeBytesIfAlone: Math.max(0, bankSizeBytes - usedBytes),
         warning: usedBytes >= warningThresholdBytes,
         overBudgetBytes: Math.max(0, usedBytes - bankSizeBytes),
+        payloadParts: chunkPayloadParts.length > 0 ? chunkPayloadParts : entry.payloadParts,
+        payloadLabels: chunkPayloadParts.length > 0 ? chunkPayloadParts.map(part => String(part?.label || '')).filter(Boolean) : entry.payloadLabels,
+        chunkPayloadParts,
         splitFrom: entry.id,
         splitIndex: index,
         splitCount,
@@ -6468,15 +6568,27 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
   }
   const overBudgetPackages = packages.filter(entry => entry.overBudgetBytes > 0);
   const splitPackages = packages.filter(entry => Boolean((entry as any).splitFrom));
+  const isScreen4ChunkPayloadLoaderCovered = (label: string): boolean =>
+    /_BANK_\d+_PATTERNS$/.test(label)
+    || /_BANK_\d+_COLORS$/.test(label)
+    || /_NAMES$/.test(label)
+    || /_COLLISION$/.test(label)
+    || /_BEHAVIOR$/.test(label)
+    || /_EFFECTS$/.test(label);
   const splitChunkManifest = splitPackages.map(entry => {
     const splitIndex = Number((entry as any).splitIndex || 0);
     const splitCount = Number((entry as any).splitCount || 1);
     const payloadParts = Array.isArray((entry as any).payloadParts) ? (entry as any).payloadParts : [];
-    const chunkPayloadParts = payloadParts.filter((_part: any, index: number) =>
-      Math.floor((index * splitCount) / Math.max(1, payloadParts.length)) === splitIndex
-    );
+    const chunkPayloadParts = Array.isArray((entry as any).chunkPayloadParts) && (entry as any).chunkPayloadParts.length > 0
+      ? (entry as any).chunkPayloadParts
+      : payloadParts.filter((_part: any, index: number) =>
+        Math.floor((index * splitCount) / Math.max(1, payloadParts.length)) === splitIndex
+      );
     const payloadLabels = chunkPayloadParts.map((part: any) => String(part?.label || '')).filter(Boolean);
     const payloadKinds = Array.from(new Set(chunkPayloadParts.map((part: any) => String(part?.kind || '')).filter(Boolean)));
+    const payloadBytes = chunkPayloadParts.reduce((sum: number, part: any) => sum + (Number(part?.rawBytes) || 0), 0);
+    const loaderCoveredPayloadLabels = payloadLabels.filter(isScreen4ChunkPayloadLoaderCovered);
+    const loaderUncoveredPayloadLabels = payloadLabels.filter(label => !isScreen4ChunkPayloadLoaderCovered(label));
     const labelStem = sanitizeLabel(
       `${entry.type}_${entry.sourceId}_chunk_${String(splitIndex).padStart(2, '0')}`,
       `WORLD_CHUNK_${String(splitIndex).padStart(2, '0')}`
@@ -6493,8 +6605,13 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
       recommendedBankClass: entry.recommendedBankClass,
       screenLabel: (entry as any).screenLabel,
       payloadKind: payloadKinds.length === 1 ? payloadKinds[0] : 'mixed_screen4_payload',
+      payloadBytes,
+      payloadLabelCount: payloadLabels.length,
       payloadLabels,
       payloadParts: chunkPayloadParts,
+      loaderCoverageStatus: loaderUncoveredPayloadLabels.length === 0 ? 'covered' : 'partial',
+      loaderCoveredPayloadLabels,
+      loaderUncoveredPayloadLabels,
       windowAddress: '#8000',
       labelStem,
       dataLabel: `${labelStem}_DATA`,
@@ -6975,6 +7092,39 @@ function buildMsx2ProjectSliceJson(
   const screenIds = new Set(tileScreens.map(screen => screen.id).filter(Boolean));
   const screenOwnerWorldIds = new Map<string, Set<string>>();
   const spriteOwnerWorldIds = new Map<string, Set<string>>();
+  const shooter60HzScreens = tileScreens
+    .filter(screen => screen.runtime?.screenEngine === 'shooter' || Boolean((screen.runtime as any)?.shooter))
+    .map(screen => {
+      const shooter = normalizeMsx2ShooterRuntimeConfig((screen.runtime as any)?.shooter);
+      const activeIrqProfile = shooter.budget.irqProfiles.find(profile => profile.id === shooter.budget.activeIrqProfile);
+      return {
+        screenId: screen.id,
+        screenName: screen.name,
+        direction: shooter.direction,
+        scrollMode: shooter.scrollMode,
+        playerMode: shooter.playerMode,
+        hudMode: shooter.hudMode,
+        pools: {
+          enemies: shooter.budget.maxEnemies,
+          playerShots: shooter.budget.maxPlayerShots,
+          enemyShots: shooter.budget.maxEnemyShots,
+          powerups: shooter.budget.maxPowerups,
+          explosions: shooter.budget.maxExplosions,
+          bossParts: shooter.budget.maxBossParts,
+        },
+        activeIrqProfile: activeIrqProfile ? {
+          id: activeIrqProfile.id,
+          estimatedCycles: activeIrqProfile.estimatedCycles,
+          worstCaseCycles: activeIrqProfile.worstCaseCycles,
+          maxAllowedCycles: activeIrqProfile.maxAllowedCycles,
+          vramBytes: activeIrqProfile.vramBytes,
+          frequency: activeIrqProfile.frequency,
+          sustained: activeIrqProfile.sustained,
+          tasks: activeIrqProfile.tasks,
+        } : null,
+        validation: validateMsx2Shooter60HzBudget(shooter),
+      };
+    });
 
   const includeByTypeAndId = (type: string, id: string | undefined, reason: string, extra: Record<string, unknown> = {}) => {
     if (!id) return;
@@ -7105,6 +7255,7 @@ function buildMsx2ProjectSliceJson(
     { id: 'runtime.msx2.layers.behavior', enabled: true, placement: 'resident', reason: useKonamiDataBank ? 'Behavior reader stays resident; current screen data is cached in RAM from world data banks' : 'Behavior layer pointers are part of the current runtime contract' },
     { id: 'runtime.msx2.hardware_sprites', enabled: hasHardwareSprite(analysis), placement: 'resident', reason: 'Enabled only when a reachable MSX2 sprite source exists' },
     { id: 'runtime.msx2.projectiles', enabled: usesShooterHorizontalMovement(analysis), placement: 'resident', reason: 'Enabled only by shooter-horizontal movement' },
+    { id: 'runtime.msx2.shooter60hz.contract', enabled: shooter60HzScreens.length > 0 || usesShooterVerticalMovement(analysis), placement: 'metadata', reason: 'Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles' },
     { id: 'runtime.msx2.stage_banner', enabled: hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis), placement: 'resident', reason: 'Enabled only by shooter wave flow' },
     { id: 'runtime.msx2.scroll.vertical', enabled: usesMsx2Screen4BackgroundScroll(analysis), placement: 'resident', reason: 'Enabled only when reachable screens request scroll' },
     { id: 'runtime.msx2.snake_char', enabled: usesSnakeCharMovement(analysis), placement: 'resident', reason: 'Enabled only by snake-char movement' },
@@ -7181,6 +7332,21 @@ function buildMsx2ProjectSliceJson(
         cacheScope: 'per_screen',
         bytesPerScreen: MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT,
       },
+    },
+    shooter60Hz: {
+      targetHz: 60,
+      screens: shooter60HzScreens,
+      screenCount: shooter60HzScreens.length,
+      warnings: shooter60HzScreens.flatMap(screen =>
+        (screen.validation || [])
+          .filter(issue => issue.severity === 'warning')
+          .map(issue => ({ screenId: screen.screenId, ...issue }))
+      ),
+      errors: shooter60HzScreens.flatMap(screen =>
+        (screen.validation || [])
+          .filter(issue => issue.severity === 'error')
+          .map(issue => ({ screenId: screen.screenId, ...issue }))
+      ),
     },
     assetStoragePolicy,
     logicalBankBudget,
@@ -9083,6 +9249,7 @@ reset_msx2_status_border:
       label,
       bankIndex,
       asm: buildTileScreenTileBlocks(label, screen),
+      parts: buildTileScreenTileBlockParts(label, screen),
     };
   });
   const tileScreenEffectBlocks = tileScreens.map((screen, index) => {
@@ -9091,6 +9258,7 @@ reset_msx2_status_border:
     return {
       label,
       bankIndex,
+      payloadLabel: `${label}_EFFECTS`,
       asm: formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, copied from cold ROM to RAM on screen reset`),
     };
   });
@@ -9100,6 +9268,7 @@ reset_msx2_status_border:
     return {
       label,
       bankIndex,
+      payloadLabel: `${label}_COLLISION`,
       asm: formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, copied from cold ROM to current RAM cache on screen load`),
     };
   });
@@ -9109,6 +9278,7 @@ reset_msx2_status_border:
     return {
       label,
       bankIndex,
+      payloadLabel: `${label}_BEHAVIOR`,
       asm: formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, copied from cold ROM to current RAM cache on screen load`),
     };
   });
@@ -9132,13 +9302,45 @@ reset_msx2_status_border:
     'ram_budget.json',
     JSON.stringify(projectSliceData.ramBudget, null, 2) + '\n'
   );
-  const loadRuntimeLayerPointers = (label: string, screenIndex?: number): string => {
+  const chunkDataBankByPayloadLabel = new Map<string, string>();
+  screen4DataBankPlan.splitChunkManifest.forEach(chunk => {
+    const dataBankSymbol = String(chunk?.dataBankSymbol || '');
+    if (!dataBankSymbol) return;
+    (Array.isArray(chunk?.payloadLabels) ? chunk.payloadLabels : [])
+      .map((payloadLabel: unknown) => String(payloadLabel || ''))
+      .filter(Boolean)
+      .forEach(payloadLabel => chunkDataBankByPayloadLabel.set(payloadLabel, dataBankSymbol));
+  });
+  const getScreenPayloadDataBankConstants = (label: string): Map<string, string> | undefined => {
+    const entries = Array.from(chunkDataBankByPayloadLabel.entries())
+      .filter(([payloadLabel]) => payloadLabel === `${label}_NAMES` || payloadLabel.startsWith(`${label}_BANK_`) || payloadLabel.startsWith(`${label}_`));
+    return entries.length ? new Map(entries) : undefined;
+  };
+  const loadRuntimeLayerPointers = (label: string, screenIndex?: number, payloadDataBankConstants?: Map<string, string>): string => {
     const runtimeLabels = runtimeLayerLabels.get(label);
     const collisionLabel = runtimeLabels?.collision || 'screen4_empty_collision_layer';
     const effectsLabel = runtimeLabels?.effects || 'screen4_empty_effects_layer';
     const behaviorLabel = runtimeLabels?.behavior || 'screen4_empty_behavior_layer';
-    const loadCollisionBehaviorPointers = useKonamiDataBank && runtimeLabels
-      ? `    ld a, ${label}_DATA_BANK
+    const splitAwareCollisionBehavior = Boolean(useKonamiDataBank && runtimeLabels && payloadDataBankConstants);
+    const copyRuntimeLayerFromBank = (payloadLabel: string, destinationLabel: string): string => {
+      const bankConstant = payloadDataBankConstants?.get(payloadLabel) || `${label}_DATA_BANK`;
+      return `    ld a, ${bankConstant}
+    call msx2_screen4_data_bank_enter_selected
+    ld hl, ${payloadLabel}
+    ld de, ${destinationLabel}
+    ld bc, msx2_layer_size
+    ldir
+    call msx2_screen4_data_bank_leave
+`;
+    };
+    const loadCollisionBehaviorPointers = splitAwareCollisionBehavior
+      ? `${copyRuntimeLayerFromBank(collisionLabel, 'msx2_collision_runtime_cache')}${copyRuntimeLayerFromBank(behaviorLabel, 'msx2_behavior_runtime_cache')}    ld hl, msx2_collision_runtime_cache
+    ld (msx2_current_collision_ptr), hl
+    ld hl, msx2_behavior_runtime_cache
+    ld (msx2_current_behavior_ptr), hl
+`
+      : useKonamiDataBank && runtimeLabels
+        ? `    ld a, ${label}_DATA_BANK
     call msx2_screen4_data_bank_enter_selected
     ld hl, ${collisionLabel}
     ld de, msx2_collision_runtime_cache
@@ -9154,7 +9356,7 @@ reset_msx2_status_border:
     ld hl, msx2_behavior_runtime_cache
     ld (msx2_current_behavior_ptr), hl
 `
-      : `    ld hl, ${collisionLabel}
+        : `    ld hl, ${collisionLabel}
     ld (msx2_current_collision_ptr), hl
     ld hl, ${behaviorLabel}
     ld (msx2_current_behavior_ptr), hl
@@ -9181,11 +9383,12 @@ reset_msx2_status_border:
       tileScreenLoadLabels[index],
       screen,
       index,
-      loadRuntimeLayerPointers,
+      (label, screenIndex) => loadRuntimeLayerPointers(label, screenIndex, getScreenPayloadDataBankConstants(label)),
       tileScreenAfterPatternLoad,
       `    call load_msx2_hud_font\n    call draw_${tileScreenLoadLabels[index]}_hud_text\n`,
       useKonamiDataBank,
-      `${tileScreenLoadLabels[index]}_DATA_BANK`
+      `${tileScreenLoadLabels[index]}_DATA_BANK`,
+      getScreenPayloadDataBankConstants(tileScreenLoadLabels[index])
     )
   );
   const screen4DataBankEquates = useKonamiDataBank
@@ -9215,10 +9418,68 @@ reset_msx2_status_border:
   const tileScreenHudTextRoutines = tileScreens.map((screen, index) =>
     buildMsx2HudTextRoutines(tileScreenLoadLabels[index], screen, analysis)
   );
+  const splitChunkLoaderRoutines = useKonamiDataBank
+    ? screen4DataBankPlan.splitChunkManifest.map(chunk => {
+      const loaderSymbol = String(chunk?.loaderSymbol || '');
+      const dataBankSymbol = String(chunk?.dataBankSymbol || '');
+      if (!loaderSymbol || !dataBankSymbol) return '';
+      return `${loaderSymbol}:
+    ld a, ${dataBankSymbol}
+    call msx2_screen4_data_bank_enter_selected
+    call msx2_screen4_data_bank_leave
+    ret
+`;
+    }).filter(Boolean).join('\n')
+    : '';
   const loadCurrentTileScreenDispatcher = buildLoadCurrentTileScreenDispatcher(tileScreenLoadLabels);
   const tileScreenCollectedVisualRoutines = tileScreens.map((screen, index) =>
     buildTileScreenCollectedVisualsRoutine(tileScreenLoadLabels[index], screen, index, effectRuntimeBase)
   );
+  const chunkPayloadLabelSet = new Set(
+    screen4DataBankPlan.splitChunkManifest.flatMap(chunk =>
+      Array.isArray(chunk?.payloadLabels)
+        ? chunk.payloadLabels.map((payloadLabel: unknown) => String(payloadLabel || '')).filter(Boolean)
+        : []
+    )
+  );
+  const coldPayloadBlocks = new Map<string, { label: string; bankIndex: number; asm: string }>();
+  tileScreenBlocks.forEach(block => {
+    block.parts.forEach(part => coldPayloadBlocks.set(part.label, {
+      label: part.label,
+      bankIndex: block.bankIndex,
+      asm: part.asm,
+    }));
+  });
+  tileScreenCollisionBlocks.forEach(block => coldPayloadBlocks.set(block.payloadLabel, {
+    label: block.payloadLabel,
+    bankIndex: block.bankIndex,
+    asm: block.asm,
+  }));
+  tileScreenEffectBlocks.forEach(block => coldPayloadBlocks.set(block.payloadLabel, {
+    label: block.payloadLabel,
+    bankIndex: block.bankIndex,
+    asm: block.asm,
+  }));
+  tileScreenBehaviorBlocks.forEach(block => coldPayloadBlocks.set(block.payloadLabel, {
+    label: block.payloadLabel,
+    bankIndex: block.bankIndex,
+    asm: block.asm,
+  }));
+  const splitChunkSectionsByBank = new Map<number, string[]>();
+  screen4DataBankPlan.splitChunkManifest.forEach(chunk => {
+    const bankIndex = Number(chunk?.bankIndex || 0);
+    const dataLabel = String(chunk?.dataLabel || '');
+    const dataEndLabel = String(chunk?.dataEndLabel || '');
+    if (!dataLabel || !dataEndLabel) return;
+    const payloadAsms = (Array.isArray(chunk?.payloadLabels) ? chunk.payloadLabels : [])
+      .map((payloadLabel: unknown) => coldPayloadBlocks.get(String(payloadLabel || ''))?.asm || '')
+      .filter(Boolean);
+    const section = `${dataLabel}:
+${payloadAsms.join('\n')}
+${dataEndLabel}:`;
+    if (!splitChunkSectionsByBank.has(bankIndex)) splitChunkSectionsByBank.set(bankIndex, []);
+    splitChunkSectionsByBank.get(bankIndex)!.push(section);
+  });
   const screen4ColdDataAsm = useKonamiDataBank
     ? screen4DataBankPlan.bankIndexes.map(bankIndex => {
       const sharedBankData = bankIndex === 0
@@ -9230,16 +9491,19 @@ reset_msx2_status_border:
         : '';
       const screenData = tileScreenBlocks
         .filter(block => block.bankIndex === bankIndex)
+        .flatMap(block => block.parts)
+        .filter(block => !chunkPayloadLabelSet.has(block.label))
         .map(block => block.asm)
         .concat(tileScreenCollisionBlocks
-          .filter(block => block.bankIndex === bankIndex)
+          .filter(block => block.bankIndex === bankIndex && !chunkPayloadLabelSet.has(block.payloadLabel))
           .map(block => block.asm))
         .concat(tileScreenEffectBlocks
-          .filter(block => block.bankIndex === bankIndex)
+          .filter(block => block.bankIndex === bankIndex && !chunkPayloadLabelSet.has(block.payloadLabel))
           .map(block => block.asm))
         .concat(tileScreenBehaviorBlocks
-          .filter(block => block.bankIndex === bankIndex)
+          .filter(block => block.bankIndex === bankIndex && !chunkPayloadLabelSet.has(block.payloadLabel))
           .map(block => block.asm))
+        .concat(splitChunkSectionsByBank.get(bankIndex) || [])
         .join('\n');
       return `; ==================================================================
 ; MSX2 SCREEN 4 cold data bank ${bankIndex}.
@@ -9909,9 +10173,9 @@ ${useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : ''}
 ${useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : ''}
     ret
 
-${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase, useKonamiDataBank)}
+${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase, useKonamiDataBank, chunkDataBankByPayloadLabel)}
 ${loadCurrentTileScreenDispatcher}
-${[...tileScreenLoadRoutines, ...tileScreenCollectedVisualRoutines, ...tileScreenHudTextRoutines].join('\n')}
+${[...tileScreenLoadRoutines, splitChunkLoaderRoutines, ...tileScreenCollectedVisualRoutines, ...tileScreenHudTextRoutines].filter(Boolean).join('\n')}
 ${useKonamiDataBank ? '' : formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}

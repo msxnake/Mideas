@@ -511,7 +511,7 @@ def validate_project_slice_artifact(
     included_detail_ids = {item.get("id") for item in included_module_details if isinstance(item, dict)}
     if set(included_modules) != included_detail_ids:
         raise RuntimeError("includedRuntimeModuleDetails must match includedRuntimeModules")
-    allowed_runtime_placements = {"resident", "far_code", "world_specific"}
+    allowed_runtime_placements = {"resident", "far_code", "world_specific", "metadata"}
     for module in included_module_details:
         if not isinstance(module, dict) or not module.get("id") or not module.get("reason"):
             raise RuntimeError(f"Invalid included runtime module detail: {module}")

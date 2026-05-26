@@ -83,6 +83,15 @@ def ensure_split_chunk_manifest(logical_budget: dict) -> None:
                 f"TEST_{source_id.upper()}_BANK_0_COLORS",
                 f"TEST_{source_id.upper()}_NAMES",
             ],
+            "payloadBytes": 4864,
+            "payloadLabelCount": 3,
+            "loaderCoverageStatus": "covered",
+            "loaderCoveredPayloadLabels": [
+                f"TEST_{source_id.upper()}_BANK_0_PATTERNS",
+                f"TEST_{source_id.upper()}_BANK_0_COLORS",
+                f"TEST_{source_id.upper()}_NAMES",
+            ],
+            "loaderUncoveredPayloadLabels": [],
             "payloadParts": [
                 {"label": f"TEST_{source_id.upper()}_BANK_0_PATTERNS", "kind": "screen4_patterns", "rawBytes": 2048, "loadOrder": 0},
                 {"label": f"TEST_{source_id.upper()}_BANK_0_COLORS", "kind": "screen4_colors", "rawBytes": 2048, "loadOrder": 1},
@@ -970,6 +979,43 @@ def main() -> None:
         rewrite_budget_artifacts(missing_payload_dir, missing_payload_project_slice, missing_payload_budget)
         expect_failure(missing_payload_dir, "splitChunkManifest entry is missing payloadLabels")
 
+        bad_payload_count_dir = root / "multi_bank_chunked_bad_payload_label_count"
+        bad_payload_count_budget = copy.deepcopy(chunked_budget)
+        ensure_split_chunk_manifest(bad_payload_count_budget)
+        bad_payload_count_budget["splitChunkManifest"][0]["payloadLabelCount"] = 99
+        write_artifacts(bad_payload_count_dir, bad_payload_count_budget, multi_storage_policy)
+        bad_payload_count_project_slice = json.loads((bad_payload_count_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(bad_payload_count_dir, bad_payload_count_project_slice, bad_payload_count_budget)
+        expect_failure(bad_payload_count_dir, "payloadLabelCount does not match payloadLabels")
+
+        oversized_payload_dir = root / "multi_bank_chunked_oversized_payload_bytes"
+        oversized_payload_budget = copy.deepcopy(chunked_budget)
+        ensure_split_chunk_manifest(oversized_payload_budget)
+        oversized_payload_budget["splitChunkManifest"][0]["payloadBytes"] = 9000
+        write_artifacts(oversized_payload_dir, oversized_payload_budget, multi_storage_policy)
+        oversized_payload_project_slice = json.loads((oversized_payload_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(oversized_payload_dir, oversized_payload_project_slice, oversized_payload_budget)
+        expect_failure(oversized_payload_dir, "payloadBytes exceeds one 8KB bank")
+
+        missing_loader_coverage_dir = root / "multi_bank_chunked_missing_loader_coverage"
+        missing_loader_coverage_budget = copy.deepcopy(chunked_budget)
+        ensure_split_chunk_manifest(missing_loader_coverage_budget)
+        missing_loader_coverage_budget["splitChunkManifest"][0].pop("loaderCoverageStatus", None)
+        write_artifacts(missing_loader_coverage_dir, missing_loader_coverage_budget, multi_storage_policy)
+        missing_loader_coverage_project_slice = json.loads((missing_loader_coverage_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(missing_loader_coverage_dir, missing_loader_coverage_project_slice, missing_loader_coverage_budget)
+        expect_failure(missing_loader_coverage_dir, "splitChunkManifest entry is missing loaderCoverageStatus")
+
+        incomplete_loader_coverage_dir = root / "multi_bank_chunked_incomplete_loader_coverage"
+        incomplete_loader_coverage_budget = copy.deepcopy(chunked_budget)
+        ensure_split_chunk_manifest(incomplete_loader_coverage_budget)
+        incomplete_loader_coverage_budget["splitChunkManifest"][0]["loaderCoverageStatus"] = "partial"
+        incomplete_loader_coverage_budget["splitChunkManifest"][0]["loaderUncoveredPayloadLabels"] = ["TEST_UNKNOWN_PAYLOAD"]
+        write_artifacts(incomplete_loader_coverage_dir, incomplete_loader_coverage_budget, multi_storage_policy)
+        incomplete_loader_coverage_project_slice = json.loads((incomplete_loader_coverage_dir / "project_slice.json").read_text(encoding="utf-8"))
+        rewrite_budget_artifacts(incomplete_loader_coverage_dir, incomplete_loader_coverage_project_slice, incomplete_loader_coverage_budget)
+        expect_failure(incomplete_loader_coverage_dir, "loader coverage is incomplete")
+
         write_artifacts(chunked_multi_dir, chunked_budget, multi_storage_policy)
         expect_failure(chunked_multi_dir, "cannot safely map that bank plan")
         chunked_failure = json.loads((chunked_multi_dir / "msx2_preflight_failure.json").read_text(encoding="utf-8"))
@@ -995,11 +1041,16 @@ def main() -> None:
             or not candidate_chunk_labels[0].get("dataLabel")
             or not candidate_chunk_labels[0].get("loaderSymbol")
             or not candidate_chunk_labels[0].get("payloadLabels")
+            or candidate_chunk_labels[0].get("payloadBytes") != 4864
+            or candidate_chunk_labels[0].get("payloadLabelCount") != 3
+            or candidate_chunk_labels[0].get("loaderCoverageStatus") != "covered"
         ):
             raise AssertionError(f"Chunked loader failure did not expose resolver chunk labels: {chunked_failure!r}")
         chunked_plan = chunked_failure.get("automaticResolutionPlan") or {}
         if not (chunked_plan.get("blockedReasons") or [{}])[0].get("missingPart"):
             raise AssertionError(f"Chunked loader failure did not preserve blocked resolver detail in automatic plan: {chunked_failure!r}")
+        if "loader coverage" not in str((chunked_plan.get("blockedReasons") or [{}])[0].get("missingPart") or ""):
+            raise AssertionError(f"Chunked loader failure did not explain the remaining loader-work blocker: {chunked_failure!r}")
         chunk_manifest = ((chunked_failure.get("details") or {}).get("screen4DataBankPlan") or {}).get("splitChunkManifest") or []
         if (
             len(chunk_manifest) != 1
