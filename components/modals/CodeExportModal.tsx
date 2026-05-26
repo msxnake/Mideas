@@ -1758,10 +1758,21 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       : 'text-green-200';
   const msx2BudgetPressureSummary = summarizeMsx2BudgetPressure(msx2BudgetFeedback);
   const msx2CompileFailure = (compilationResult as any)?.msx2CompileFailure;
+  const msx2CompileResolution = (compilationResult as any)?.msx2CompileResolution;
   const msx2CompileFailurePlanB = msx2CompileFailure?.planB;
   const msx2CompileResolverCandidates = Array.isArray(msx2CompileFailure?.resolverCandidates)
     ? msx2CompileFailure.resolverCandidates
     : [];
+  const msx2CompileResolverAttempts = Array.isArray(msx2CompileFailure?.resolverAttempts)
+    ? msx2CompileFailure.resolverAttempts
+    : Array.isArray(msx2CompileResolution?.attempts)
+      ? msx2CompileResolution.attempts
+      : [];
+  const msx2ResidentContributors = Array.isArray(msx2CompileFailure?.residentContributors)
+    ? msx2CompileFailure.residentContributors
+    : Array.isArray(msx2CompileFailure?.residentBankAnalysis?.topContributors)
+      ? msx2CompileFailure.residentBankAnalysis.topContributors
+      : [];
 
   if (!isOpen) return null;
 
@@ -2907,11 +2918,27 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           <div className="text-yellow-200">{msx2CompileFailurePlanB.avoid}</div>
                         </div>
                       )}
+                      {msx2ResidentContributors.length > 0 && (
+                        <div className="mt-2 text-xs text-msx-textsecondary">
+                          Resident contributors:{' '}
+                          {msx2ResidentContributors.slice(0, 5).map((item: any) =>
+                            `${item.label || 'unknown'} (${item.estimatedBytes ?? item.sourceBytes ?? '?'} bytes${item.startLine ? ` @${item.startLine}` : ''})`
+                          ).join(', ')}
+                        </div>
+                      )}
                       {msx2CompileResolverCandidates.length > 0 && (
                         <div className="mt-2 text-xs text-msx-textsecondary">
                           Resolver candidate:{' '}
                           {msx2CompileResolverCandidates.slice(0, 2).map((candidate: any) =>
                             `${candidate.id || 'unknown'} (${candidate.eligible === false ? 'pending' : 'auto'})`
+                          ).join(', ')}
+                        </div>
+                      )}
+                      {msx2CompileResolverAttempts.length > 0 && (
+                        <div className="mt-2 text-xs text-msx-textsecondary">
+                          Compile resolver attempts:{' '}
+                          {msx2CompileResolverAttempts.slice(-3).map((attempt: any, index: number) =>
+                            `#${attempt.attempt ?? index} ${attempt.action || attempt.candidateId || 'unknown'} -> ${attempt.status || 'unknown'}`
                           ).join(', ')}
                         </div>
                       )}

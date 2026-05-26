@@ -866,6 +866,18 @@ function buildMsx2CompileResolverCandidates(reason) {
   if (normalized.includes('resident') || normalized.includes('negative initial size') || normalized.includes('#c000')) {
     return [
       {
+        id: 'run_post_asm_dead_block_optimizer',
+        eligible: true,
+        stage: 'post_compile',
+        retryKind: 'regenerate_asm',
+        reason: 'A resident bank overflow can sometimes be recovered by removing annotated dead ASM blocks and recompiling the optimized ASM.',
+        regenerate: {
+          postAsmRules: 'dead-blocks',
+          postAsmPasses: 1,
+          fallback: 'keep_last_known_failure_report_if_optimized_asm_still_fails'
+        }
+      },
+      {
         id: 'move_cold_readonly_data_to_world_bank',
         eligible: false,
         stage: 'post_compile',
@@ -890,6 +902,155 @@ function buildMsx2CompileResolverCandidates(reason) {
   ];
 }
 
+function stripAsmComment(line) {
+  let inString = false;
+  let quoteChar = '';
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"' || char === "'") {
+      if (inString && char === quoteChar) {
+        inString = false;
+        quoteChar = '';
+      } else if (!inString) {
+        inString = true;
+        quoteChar = char;
+      }
+    } else if (char === ';' && !inString) {
+      return line.slice(0, index);
+    }
+  }
+  return line;
+}
+
+function splitAsmArgs(argText) {
+  const args = [];
+  let current = '';
+  let inString = false;
+  let quoteChar = '';
+  for (const char of String(argText || '')) {
+    if (char === '"' || char === "'") {
+      current += char;
+      if (inString && char === quoteChar) {
+        inString = false;
+        quoteChar = '';
+      } else if (!inString) {
+        inString = true;
+        quoteChar = char;
+      }
+      continue;
+    }
+    if (char === ',' && !inString) {
+      if (current.trim()) args.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) args.push(current.trim());
+  return args;
+}
+
+function parseAsmInt(value) {
+  let text = String(value || '').trim();
+  if (!text) return null;
+  const negative = text.startsWith('-');
+  if (negative) text = text.slice(1).trim();
+  let parsed = null;
+  if (/^#[0-9a-f]+$/i.test(text)) parsed = Number.parseInt(text.slice(1), 16);
+  else if (/^[0-9a-f]+h$/i.test(text)) parsed = Number.parseInt(text.slice(0, -1), 16);
+  else if (/^\$[0-9a-f]+$/i.test(text)) parsed = Number.parseInt(text.slice(1), 16);
+  else if (/^\d+$/.test(text)) parsed = Number.parseInt(text, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return negative ? -parsed : parsed;
+}
+
+function estimateAsmDataBytes(line) {
+  const code = stripAsmComment(String(line || '')).trim();
+  if (!code) return 0;
+  const match = code.match(/^(?:[A-Za-z0-9_.$]+:\s*)?(db|defb|byte|dw|defw|word|ds|defs)\b\s*(.*)$/i);
+  if (!match) return 0;
+  const directive = match[1].toLowerCase();
+  const args = splitAsmArgs(match[2]);
+  if (['db', 'defb', 'byte'].includes(directive)) {
+    return args.reduce((total, arg) => {
+      const stringMatch = String(arg).trim().match(/^(?:"([^"]*)"|'([^']*)')$/);
+      if (stringMatch) return total + Buffer.byteLength(stringMatch[1] ?? stringMatch[2] ?? '', 'latin1');
+      return total + 1;
+    }, 0);
+  }
+  if (['dw', 'defw', 'word'].includes(directive)) return args.length * 2;
+  if (['ds', 'defs'].includes(directive) && args.length > 0) return Math.max(0, parseAsmInt(args[0]) || 0);
+  return 0;
+}
+
+function classifyResidentLabel(label) {
+  const upper = String(label || '').toUpperCase();
+  if (upper.startsWith('MSX2_SCREEN4_DATA_BANK') || upper.endsWith('_PHYS_START') || upper.endsWith('_ROM_START') || upper.endsWith('_USED_END')) return 'bank_marker';
+  if (upper.endsWith('_COLLISION') || upper.endsWith('_BEHAVIOR') || upper.endsWith('_EFFECTS')) return 'screen_runtime_layer';
+  if (upper.startsWith('LOAD_') && upper.endsWith('_SCREEN4')) return 'screen_loader';
+  if (upper.includes('MAPPER') || upper.startsWith('KONAMI')) return 'mapper';
+  if (upper.includes('SPRITE')) return 'sprite_runtime';
+  if (upper.includes('PROJECTILE')) return 'projectile_runtime';
+  if (upper.includes('HUD') || upper.includes('FONT')) return 'hud_runtime';
+  if (upper.startsWith('INIT_') || upper.startsWith('RESET_')) return 'boot_or_init';
+  if (upper.endsWith('_DATA') || upper.endsWith('_TABLE') || upper.endsWith('_PATTERNS') || upper.endsWith('_COLORS') || upper.endsWith('_NAMES')) return 'data';
+  return 'runtime_code';
+}
+
+function analyzeMsx2ResidentAsmContributors(sourceCode, limit = 12) {
+  const text = String(sourceCode || '');
+  if (!text) {
+    return {
+      scope: 'msx2_screen4_resident_label_spans',
+      status: 'unavailable',
+      reason: 'ASM text is empty or unavailable.',
+      topContributors: []
+    };
+  }
+  const coldMarker = text.match(/^.*(?:MSX2 SCREEN 4 cold data bank|MSX2_SCREEN4_DATA_BANK(?:_0)?_(?:PHYS_START|ROM_START):).*$/im);
+  const residentText = coldMarker && typeof coldMarker.index === 'number' ? text.slice(0, coldMarker.index) : text;
+  const labelMatches = Array.from(residentText.matchAll(/^([A-Za-z_.$][A-Za-z0-9_.$]*):\s*(?:;.*)?$/gm));
+  const contributors = [];
+  for (let index = 0; index < labelMatches.length; index += 1) {
+    const match = labelMatches[index];
+    const label = match[1];
+    const spanStart = (match.index || 0) + match[0].length;
+    const spanEnd = index + 1 < labelMatches.length ? (labelMatches[index + 1].index || residentText.length) : residentText.length;
+    const span = residentText.slice(spanStart, spanEnd);
+    const startLine = residentText.slice(0, match.index || 0).split(/\r?\n/).length;
+    const endLine = residentText.slice(0, spanEnd).split(/\r?\n/).length;
+    const lines = span.split(/\r?\n/).filter((line) => line.trim() && !line.trimStart().startsWith(';'));
+    const estimatedBytes = lines.reduce((total, line) => total + estimateAsmDataBytes(line), 0);
+    const sourceBytes = Buffer.byteLength(span, 'utf8');
+    const category = classifyResidentLabel(label);
+    if (category === 'bank_marker') continue;
+    if (estimatedBytes <= 0 && sourceBytes <= 0) continue;
+    contributors.push({
+      label,
+      category,
+      estimatedBytes,
+      sourceBytes,
+      lineCount: lines.length,
+      startLine,
+      endLine,
+      moveCandidate: ['screen_runtime_layer', 'data'].includes(category)
+    });
+  }
+  contributors.sort((a, b) => (b.estimatedBytes - a.estimatedBytes) || (b.sourceBytes - a.sourceBytes));
+  return {
+    scope: 'msx2_screen4_resident_label_spans',
+    status: contributors.length ? 'ok' : 'empty',
+    window: {
+      start: '#4000',
+      limit: '#C000',
+      limitBytes: 32768
+    },
+    coldBankMarkerFound: Boolean(coldMarker),
+    rankingBasis: 'estimatedDataBytes first, then sourceBytes; Z80 instruction sizes are not assembled in this pre-Glass diagnostic.',
+    topContributors: contributors.slice(0, limit)
+  };
+}
+
 function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile) {
   const overflowBytes = getNegativeDsOverflowBytes(fullErrorText);
   if (overflowBytes === null) return null;
@@ -901,12 +1062,24 @@ function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile)
   ) {
     return null;
   }
+  const residentBankAnalysis = analyzeMsx2ResidentAsmContributors(text);
+  const largestResidentContributors = (residentBankAnalysis.topContributors || [])
+    .slice(0, 5)
+    .map((item) => `${item.label}: ${Number(item.estimatedBytes || item.sourceBytes || 0)} bytes`);
   return {
     scope: 'msx2_screen4_megarom_compile_failure',
     status: 'error',
     reason: `Resident SCREEN 4 code/data crossed #C000 by ${overflowBytes} bytes before the cold data bank.`,
     sourceFile,
     overflowBytes,
+    residentBankAnalysis: {
+      ...residentBankAnalysis,
+      window: {
+        ...residentBankAnalysis.window,
+        overflowBytes
+      }
+    },
+    residentContributors: residentBankAnalysis.topContributors,
     pipelineGates: [
       {
         id: 'glass_compile',
@@ -917,7 +1090,8 @@ function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile)
     planB: {
       primary: 'Move cold read-only tables to world/data banks or special-code banks.',
       secondary: 'Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.',
-      avoid: 'Do not solve resident ROM pressure by copying whole worlds into RAM.'
+      avoid: 'Do not solve resident ROM pressure by copying whole worlds into RAM.',
+      largestContributors: largestResidentContributors
     },
     resolverCandidates: buildMsx2CompileResolverCandidates(fullErrorText)
   };
@@ -5025,6 +5199,7 @@ app.post('/compile', async (req, res) => {
           const plain48kPage0Info = parsePlain48kPage0Diagnostics(codeToCompile);
           const msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile);
           const msx2CompileFailure = buildMsx2ResidentOverflowFailure(codeToCompile, fullErrorText, tempFilePath);
+          const msx2CompileResolverAttempts = [];
           const canSuggestPlain48k =
             normalizedRomMode === 'simple32k' &&
             (negativeDsOverflowBytes === null || negativeDsOverflowBytes <= (PLAIN48_ROM_LIMIT_BYTES - SIMPLE_ROM_LIMIT_BYTES));
@@ -5061,6 +5236,7 @@ app.post('/compile', async (req, res) => {
             msx2BudgetFeedback: msx2BudgetFeedback,
             msx2BudgetResolution: msx2BudgetResolution,
             msx2CompileFailure: msx2CompileFailure,
+            msx2CompileResolution: null,
             screenCompressionInfo: screenCompressionInfo,
             compressedAsmFileInfo: compressedAsmFileInfo
           };
@@ -5114,6 +5290,16 @@ app.post('/compile', async (req, res) => {
               const recoveryStdout = execSync(recoveryCommand, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
               if (fs.existsSync(recoveryRomPath)) {
+                msx2CompileResolverAttempts.push({
+                  attempt: 1,
+                  action: 'run_post_asm_dead_block_optimizer',
+                  candidateId: 'run_post_asm_dead_block_optimizer',
+                  status: 'resolved',
+                  reason: 'Post-ASM optimization produced ASM that Glass compiled successfully.',
+                  optimizedAsmFile: path.basename(recovery.outputPath),
+                  reportJsonFile: path.basename(recovery.reportJsonPath),
+                  reportMarkdownFile: path.basename(recovery.reportMdPath)
+                });
                 const KB_8 = 8192;
                 const MIN_FLASHCART_ROM_BYTES = 32 * 1024;
                 const optimizedRomData = fs.readFileSync(recoveryRomPath);
@@ -5156,6 +5342,11 @@ app.post('/compile', async (req, res) => {
                   },
                   sourceRomConfig: sourceRomConfig,
                   msx2BudgetFeedback: buildMsx2IdeBudgetFeedbackFromAsm(recovery.optimizedCode || codeToCompile) || msx2BudgetFeedback,
+                  msx2CompileResolution: {
+                    status: 'resolved',
+                    attempts: msx2CompileResolverAttempts,
+                    finalAction: 'run_post_asm_dead_block_optimizer'
+                  },
                   resolvedRomConfig: {
                     requestedRomMode: normalizedRomMode,
                     resolvedRomMode: 'megarom',
@@ -5190,10 +5381,28 @@ app.post('/compile', async (req, res) => {
             } catch (recoveryError) {
               const recoveryMessage = recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
               console.warn('Post-ASM MegaROM recovery failed:', recoveryMessage);
+              msx2CompileResolverAttempts.push({
+                attempt: 1,
+                action: 'run_post_asm_dead_block_optimizer',
+                candidateId: 'run_post_asm_dead_block_optimizer',
+                status: 'failed',
+                reason: recoveryMessage
+              });
               errorResponse.postAsmRecovery = {
                 applied: false,
                 error: recoveryMessage,
               };
+            }
+          }
+
+          if (msx2CompileResolverAttempts.length > 0) {
+            errorResponse.msx2CompileResolution = {
+              status: msx2CompileResolverAttempts.some((item) => item.status === 'resolved') ? 'resolved' : 'unresolved',
+              attempts: msx2CompileResolverAttempts,
+              finalAction: msx2CompileResolverAttempts.find((item) => item.status === 'resolved')?.action || null
+            };
+            if (errorResponse.msx2CompileFailure) {
+              errorResponse.msx2CompileFailure.resolverAttempts = msx2CompileResolverAttempts;
             }
           }
 

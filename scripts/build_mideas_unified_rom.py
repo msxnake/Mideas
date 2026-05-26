@@ -1251,6 +1251,12 @@ def write_msx2_compile_failure_summary(
         pipeline_gates.append(updated_gate)
 
     asm_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore") if asm_to_compile.exists() else ""
+    resident_bank_analysis = analyze_msx2_resident_asm_contributors(asm_text, overflow_bytes=_extract_overflow_bytes_from_reason(reason))
+    largest_resident_contributors = [
+        f"{item.get('label')}: {int(item.get('estimatedBytes') or item.get('sourceBytes') or 0)} bytes"
+        for item in resident_bank_analysis.get("topContributors", [])[:5]
+        if isinstance(item, dict)
+    ]
     failure_summary = {
         "scope": "msx2_screen4_megarom_compile_failure",
         "status": "error",
@@ -1274,7 +1280,10 @@ def write_msx2_compile_failure_summary(
             "primary": "Move cold read-only tables to world/data banks or special-code banks.",
             "secondary": "Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.",
             "avoid": "Do not solve resident ROM pressure by copying whole worlds into RAM.",
+            "largestContributors": largest_resident_contributors,
         },
+        "residentBankAnalysis": resident_bank_analysis,
+        "residentContributors": resident_bank_analysis.get("topContributors", []),
         "resolverCandidates": build_msx2_compile_resolver_candidates(reason),
         "resolverAttempts": resolver_attempts or [],
     }
@@ -1284,6 +1293,200 @@ def write_msx2_compile_failure_summary(
         encoding="utf-8",
     )
     return failure_path
+
+
+def _strip_asm_comment(line: str) -> str:
+    in_string = False
+    quote_char = ""
+    for index, char in enumerate(line):
+        if char in {"'", '"'}:
+            if in_string and char == quote_char:
+                in_string = False
+                quote_char = ""
+            elif not in_string:
+                in_string = True
+                quote_char = char
+        elif char == ";" and not in_string:
+            return line[:index]
+    return line
+
+
+def _split_asm_args(arg_text: str) -> list[str]:
+    args: list[str] = []
+    current: list[str] = []
+    in_string = False
+    quote_char = ""
+    for char in arg_text:
+        if char in {"'", '"'}:
+            current.append(char)
+            if in_string and char == quote_char:
+                in_string = False
+                quote_char = ""
+            elif not in_string:
+                in_string = True
+                quote_char = char
+            continue
+        if char == "," and not in_string:
+            value = "".join(current).strip()
+            if value:
+                args.append(value)
+            current = []
+            continue
+        current.append(char)
+    value = "".join(current).strip()
+    if value:
+        args.append(value)
+    return args
+
+
+def _parse_asm_int(value: str) -> int | None:
+    text = value.strip()
+    if not text:
+        return None
+    negative = text.startswith("-")
+    if negative:
+        text = text[1:].strip()
+    try:
+        if text.startswith("#"):
+            parsed = int(text[1:], 16)
+        elif text.lower().endswith("h") and re.fullmatch(r"[0-9a-fA-F]+h", text):
+            parsed = int(text[:-1], 16)
+        elif text.startswith("$") and re.fullmatch(r"\$[0-9a-fA-F]+", text):
+            parsed = int(text[1:], 16)
+        elif re.fullmatch(r"\d+", text):
+            parsed = int(text, 10)
+        else:
+            return None
+    except ValueError:
+        return None
+    return -parsed if negative else parsed
+
+
+def _estimate_asm_data_bytes(line: str) -> int:
+    code = _strip_asm_comment(line).strip()
+    if not code:
+        return 0
+    match = re.match(r"^(?:[A-Za-z0-9_.$]+:\s*)?(db|defb|byte|dw|defw|word|ds|defs)\b\s*(.*)$", code, flags=re.IGNORECASE)
+    if not match:
+        return 0
+    directive = match.group(1).lower()
+    args = _split_asm_args(match.group(2))
+    if directive in {"db", "defb", "byte"}:
+        total = 0
+        for arg in args:
+            string_match = re.fullmatch(r"""(?:"([^"]*)"|'([^']*)')""", arg.strip())
+            if string_match:
+                total += len((string_match.group(1) if string_match.group(1) is not None else string_match.group(2)).encode("latin1", errors="replace"))
+            else:
+                total += 1
+        return total
+    if directive in {"dw", "defw", "word"}:
+        return len(args) * 2
+    if directive in {"ds", "defs"} and args:
+        parsed = _parse_asm_int(args[0])
+        return max(0, parsed or 0)
+    return 0
+
+
+def _classify_resident_label(label: str) -> str:
+    upper = label.upper()
+    if upper.startswith("MSX2_SCREEN4_DATA_BANK") or upper.endswith("_PHYS_START") or upper.endswith("_ROM_START") or upper.endswith("_USED_END"):
+        return "bank_marker"
+    if upper.endswith("_COLLISION") or upper.endswith("_BEHAVIOR") or upper.endswith("_EFFECTS"):
+        return "screen_runtime_layer"
+    if upper.startswith("LOAD_") and upper.endswith("_SCREEN4"):
+        return "screen_loader"
+    if "MAPPER" in upper or upper.startswith("KONAMI"):
+        return "mapper"
+    if "SPRITE" in upper:
+        return "sprite_runtime"
+    if "PROJECTILE" in upper:
+        return "projectile_runtime"
+    if "HUD" in upper or "FONT" in upper:
+        return "hud_runtime"
+    if upper.startswith("INIT_") or upper.startswith("RESET_"):
+        return "boot_or_init"
+    if upper.endswith("_DATA") or upper.endswith("_TABLE") or upper.endswith("_PATTERNS") or upper.endswith("_COLORS") or upper.endswith("_NAMES"):
+        return "data"
+    return "runtime_code"
+
+
+def _extract_overflow_bytes_from_reason(reason: str) -> int | None:
+    match = re.search(r"negative\s+#C000\s+padding\s+\((-?\d+)\s+bytes\)", reason, flags=re.IGNORECASE)
+    if not match:
+        match = re.search(r"negative\s+DS\s+padding\s+\((-?\d+)\s+bytes\)", reason, flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return abs(int(match.group(1)))
+    except ValueError:
+        return None
+
+
+def analyze_msx2_resident_asm_contributors(asm_text: str, limit: int = 12, overflow_bytes: int | None = None) -> dict[str, object]:
+    if not asm_text:
+        return {
+            "scope": "msx2_screen4_resident_label_spans",
+            "status": "unavailable",
+            "reason": "ASM text is empty or unavailable.",
+            "topContributors": [],
+        }
+
+    cold_marker = re.search(
+        r"(?m)^(?:;.*MSX2 SCREEN 4 cold data bank.*|MSX2_SCREEN4_DATA_BANK(?:_0)?_(?:PHYS_START|ROM_START):)",
+        asm_text,
+        flags=re.IGNORECASE,
+    )
+    resident_text = asm_text[:cold_marker.start()] if cold_marker else asm_text
+    label_matches = list(re.finditer(r"(?m)^([A-Za-z_.$][A-Za-z0-9_.$]*):\s*(?:;.*)?$", resident_text))
+    contributors: list[dict[str, object]] = []
+    ignore_categories = {"bank_marker"}
+    for index, match in enumerate(label_matches):
+        label = match.group(1)
+        span_start = match.end()
+        span_end = label_matches[index + 1].start() if index + 1 < len(label_matches) else len(resident_text)
+        span = resident_text[span_start:span_end]
+        start_line = resident_text.count("\n", 0, match.start()) + 1
+        end_line = resident_text.count("\n", 0, span_end) + 1
+        lines = [line for line in span.splitlines() if line.strip() and not line.lstrip().startswith(";")]
+        data_bytes = sum(_estimate_asm_data_bytes(line) for line in lines)
+        source_bytes = len(span.encode("utf-8", errors="replace"))
+        category = _classify_resident_label(label)
+        if category in ignore_categories:
+            continue
+        if source_bytes <= 0 and data_bytes <= 0:
+            continue
+        contributors.append({
+            "label": label,
+            "category": category,
+            "estimatedBytes": data_bytes,
+            "sourceBytes": source_bytes,
+            "lineCount": len(lines),
+            "startLine": start_line,
+            "endLine": end_line,
+            "moveCandidate": category in {"screen_runtime_layer", "data"},
+        })
+
+    contributors.sort(
+        key=lambda item: (
+            int(item.get("estimatedBytes") or 0),
+            int(item.get("sourceBytes") or 0),
+        ),
+        reverse=True,
+    )
+    return {
+        "scope": "msx2_screen4_resident_label_spans",
+        "status": "ok" if contributors else "empty",
+        "window": {
+            "start": "#4000",
+            "limit": "#C000",
+            "limitBytes": 32768,
+            "overflowBytes": overflow_bytes,
+        },
+        "coldBankMarkerFound": bool(cold_marker),
+        "rankingBasis": "estimatedBytes from obvious data directives first, then sourceBytes; Z80 instruction sizes are not assembled in this pre-Glass diagnostic.",
+        "topContributors": contributors[:limit],
+    }
 
 
 def write_msx2_ide_budget_feedback(

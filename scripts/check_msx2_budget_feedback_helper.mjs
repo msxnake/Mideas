@@ -360,7 +360,13 @@ if ((residentFailure.pipelineGates || [])[0]?.status !== 'failed') {
 if (!residentFailure.planB?.primary?.includes('Move cold read-only tables')) {
   throw new Error(`Expected Plan B guidance in resident failure: ${JSON.stringify(residentFailure.planB)}`);
 }
-if (!Array.isArray(residentFailure.resolverCandidates) || residentFailure.resolverCandidates[0]?.id !== 'move_cold_readonly_data_to_world_bank') {
+const residentCandidateIds = Array.isArray(residentFailure.resolverCandidates)
+  ? residentFailure.resolverCandidates.map((candidate) => candidate?.id)
+  : [];
+if (
+  residentCandidateIds[0] !== 'run_post_asm_dead_block_optimizer' ||
+  !residentCandidateIds.includes('move_cold_readonly_data_to_world_bank')
+) {
   throw new Error(`Expected resident failure resolver candidate: ${JSON.stringify(residentFailure)}`);
 }
 if (buildServerMsx2ResidentOverflowFailure('; plain asm', 'Negative initial size: -12', 'plain.asm') !== null) {

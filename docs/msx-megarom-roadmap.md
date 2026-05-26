@@ -1342,9 +1342,22 @@ Current CLI gate:
     the result in `compileResolution` / `resolverAttempts`. If the optimized
     ASM still fails, the original detailed compile failure remains the
     actionable stop report.
+    The same failure report now includes `residentBankAnalysis`: a pre-Glass
+    label-span ranking for the resident `#4000-#C000` SCREEN 4 section. It
+    lists the largest labels by estimated data bytes/source pressure, marks
+    likely move candidates such as resident layer/data tables, records the ASM
+    line span for each contributor, and is also exposed by `/compile` as
+    `residentContributors` so the export modal can show the concrete labels
+    causing fixed-bank pressure instead of only the generic Glass error.
     The `/compile` server returns the same failure shape as
     `msx2CompileFailure`, and the export modal shows the resident-overflow
-    reason plus Plan B directly beside the Glass logs.
+    reason plus Plan B directly beside the Glass logs. Its resolver candidates
+    now mirror the CLI order for this failure class: first the eligible
+    `run_post_asm_dead_block_optimizer` retry, then the pending
+    `move_cold_readonly_data_to_world_bank` regeneration path. The server also
+    returns `msx2CompileResolution` / `resolverAttempts` for the Post-ASM retry,
+    so successful and failed regeneration attempts are visible in the same
+    machine-readable shape as CLI build summaries.
 12. The CLI post-ASM path now has its first safe rollback. When
     `--post-asm-opt` emits an optimized ASM but that candidate fails Glass or
     the later mapper/artifact validators, the builder records the optimized

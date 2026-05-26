@@ -934,6 +934,12 @@ def main() -> None:
         overflow_asm.write_text(
             "\n".join([
                 "    org #4000",
+                "init_big_runtime:",
+                "    db " + ",".join(["#00"] * 96),
+                "SCREEN_TEST_COLLISION:",
+                "    ds 224, #00",
+                "SCREEN_TEST_BEHAVIOR:",
+                "    db " + ",".join(["#01"] * 64),
                 "; MSX2 SCREEN 4 cold data bank.",
                 "    ds #C000 - $, #FF",
             ]) + "\n",
@@ -965,6 +971,19 @@ def main() -> None:
             raise AssertionError(f"Compile failure did not mark glass_compile failed: {compile_failure}")
         if "Move cold read-only tables" not in (compile_failure.get("planB") or {}).get("primary", ""):
             raise AssertionError(f"Compile failure did not include Plan B guidance: {compile_failure}")
+        if not (compile_failure.get("planB") or {}).get("largestContributors"):
+            raise AssertionError(f"Compile failure did not summarize largest resident contributors in Plan B: {compile_failure}")
+        resident_bank_analysis = compile_failure.get("residentBankAnalysis") or {}
+        contributor_labels = [
+            item.get("label")
+            for item in resident_bank_analysis.get("topContributors") or []
+            if isinstance(item, dict)
+        ]
+        if resident_bank_analysis.get("scope") != "msx2_screen4_resident_label_spans" or "SCREEN_TEST_COLLISION" not in contributor_labels:
+            raise AssertionError(f"Compile failure did not expose resident contributors: {compile_failure}")
+        collision_entry = next((item for item in resident_bank_analysis.get("topContributors") or [] if item.get("label") == "SCREEN_TEST_COLLISION"), None)
+        if not collision_entry or int(collision_entry.get("startLine") or 0) <= 0 or int(collision_entry.get("endLine") or 0) < int(collision_entry.get("startLine") or 0):
+            raise AssertionError(f"Compile failure resident contributor did not include valid line span: {compile_failure}")
         compile_candidate_ids = {
             item.get("id")
             for item in (compile_failure.get("resolverCandidates") or [])
