@@ -500,6 +500,7 @@ def main() -> int:
     parser.add_argument("--fixture", default=None, help="Mideas JSON fixture to compile")
     parser.add_argument("--out-dir", default=None, help="Output directory for ASM/ROM/SYM/screenshot")
     parser.add_argument("--project-name", default="msx2_screen5_presentation_smoke", help="Project name for generated ASM labels")
+    parser.add_argument("--rom-mode", choices=["simple32k", "megarom"], default="simple32k", help="ROM mode to validate")
     parser.add_argument("--screenshot-output", default=None, help="Exact OpenMSX screenshot path")
     parser.add_argument("--skip-openmsx", action="store_true", help="Compile only; do not launch OpenMSX")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine")
@@ -545,7 +546,7 @@ def main() -> int:
         "--asm-output", str(asm_output),
         "--rom-output", str(rom_output),
         "--sym-output", str(sym_output),
-        "--rom-mode", "simple32k",
+        "--rom-mode", args.rom_mode,
         "--target-format", "konami",
         "--execution-mode", "gameLoopHalt",
     ], cwd=project_root, timeout=180)
@@ -567,6 +568,8 @@ def main() -> int:
     size = rom_output.stat().st_size
     if size % 8192 != 0:
         raise RuntimeError(f"ROM size is not a multiple of 8KB: {size}")
+    if args.rom_mode == "megarom" and size <= 32768:
+        raise RuntimeError(f"MegaROM smoke must produce a ROM larger than 32KB, got {size}")
     print(f"ROM ready: {rom_output} ({size} bytes)")
 
     if not args.skip_openmsx:

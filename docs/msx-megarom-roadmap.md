@@ -1249,7 +1249,10 @@ Current CLI gate:
    When Post-ASM is requested, `msx2_build_summary.json` also carries compact
    `postAsmReports` entries with findings, applied patch count, dead-block
    candidate size, and bytes removed. The IDE can use this without parsing the
-   full optimizer report.
+   full optimizer report. It also records `postAsmAttempts`, with status,
+   rule classes, bytes removed, and checksums for each report, so the
+   post-compilation loop has an auditable attempt history before a full
+   rollback/acceptance loop is promoted.
    The final build summary also records the path, size, checksum, scope, and
    status of `msx2_ide_budget_feedback.json`, so the UI-facing budget view is
    tied to the same passing build as the ROM. If the build used the controlled
@@ -1272,11 +1275,23 @@ Current CLI gate:
    failure summary exposes `pipelineGates`, marking the failed preflight gate
    and every later gate as `not_run`, so the CLI/IDE can distinguish an
    allocator stop from a Glass or symbol-validation failure.
+   They now also expose `resolverCandidates`: structured retry/regeneration
+   options such as `relax_strict_warning_gate`, `enable_zx0_preprocess`, and
+   the still-pending `split_over_budget_world_packages`. This is the stable
+   bridge from detailed bank-failure diagnostics to automatic regeneration.
+   The SCREEN 4 project slice now performs the first precompile-time split:
+   splittable world packages (`msx2screen` and `msx2sprite`) estimated above one
+   8KB window are emitted into `auto_world_package_chunk` logical chunks before
+   first-fit bank packing. `logicalBankBudget` records `splitPackages` and
+   `splitSourcePackages`, and `worldBankManifest` maps those chunks back to the
+   owning world/asset so the report remains traceable.
 9. `scripts/build_mideas_unified_rom.py --auto-resolve-msx2-budget` now adds
    the first controlled retry loop. It can resolve safe cases without changing
    project data: strict-warning failures can retry as non-strict, and over-budget
    failures produced while ZX0 was explicitly skipped can retry with ZX0
-   preprocessing enabled. Each attempt is recorded in
+   preprocessing enabled. The retry loop now chooses those actions from
+   `resolverCandidates` instead of matching only raw failure strings. Each
+   attempt is recorded in
    `msx2_budget_resolution.json` with the compact failed-gate, input-artifact,
    ROM, and world-bank context copied from `msx2_preflight_failure.json`;
    unresolved cases keep `msx2_preflight_failure.json` as the actionable stop
@@ -1289,10 +1304,11 @@ Current CLI gate:
     budget error. The export modal reports the resolver status and final action
     in the compile summary. Server-side resolver attempts also preserve a
     compact failure context derived from the IDE feedback: failed gate, ROM/RAM
-    pressure, and World Bank Pack warning/overflow counts. Failed compile
-    responses preserve the same `msx2BudgetFeedback` payload, so the user sees
-    the concrete bank/RAM cause and the attempted resolver steps even when no
-    ROM is produced.
+    pressure, World Bank Pack warning/overflow counts, and the resolver
+    candidate IDs that drove or blocked the retry. Failed compile responses
+    preserve the same `msx2BudgetFeedback` payload, including
+    `resolverCandidates`, so the user sees the concrete bank/RAM cause and the
+    attempted or pending resolver steps even when no ROM is produced.
 11. Glass `Negative initial size` failures are now translated into Mideas
     diagnostics. For MSX2 SCREEN 4 Konami builds, a negative `ds #C000 - $`
     padding is reported as `MSX2 MegaROM resident bank overflow`, not as a raw
@@ -1300,6 +1316,10 @@ Current CLI gate:
     `glass_compile` pipeline gate, ASM checksum, ROM/SYM targets, and Plan B:
     move cold read-only tables to world/data banks, remove unused resident
     fallbacks, or replace repeated resident tables with VRAM fill/streaming.
+    This failure report also carries a non-eligible
+    `move_cold_readonly_data_to_world_bank` resolver candidate so the next
+    roadmap step can promote resident cold-data movement into a real automatic
+    regeneration pass.
     The `/compile` server returns the same failure shape as
     `msx2CompileFailure`, and the export modal shows the resident-overflow
     reason plus Plan B directly beside the Glass logs.
@@ -1401,6 +1421,11 @@ Current artifact:
   responses. Resident overflow is shown as its own MSX2 failure class with a
   concrete byte count and Plan B, instead of forcing the user to infer the
   cause from Glass stderr.
+- The SCREEN 5 presentation smoke can now run the same fixture in `megarom`
+  mode. `smoke:msx2-screen5-presentation-megarom` compiles the Bionic Invaders
+  presentation fixture as a Konami MegaROM, verifies ZX0 preprocessing, and
+  rejects outputs that are not larger than 32 KB and 8 KB aligned. The static
+  MSX2 suite includes this check without launching OpenMSX.
 
 ### Non-negotiable invariant
 

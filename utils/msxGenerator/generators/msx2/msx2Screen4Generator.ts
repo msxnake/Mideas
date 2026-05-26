@@ -6306,7 +6306,7 @@ function buildMsx2AssetStoragePolicy(
 function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, unknown> {
   const bankSizeBytes = 8192;
   const warningThresholdBytes = Math.floor(bankSizeBytes * 0.9);
-  const packages = assetStoragePolicy
+  const originalPackages = assetStoragePolicy
     .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
     .map(policy => {
       const usedBytes = Number(policy.storedBytesEstimate) || 0;
@@ -6327,6 +6327,37 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
         canSplit,
       };
     });
+  const packages = originalPackages.flatMap(entry => {
+    if (!entry.canSplit || entry.usedBytes <= bankSizeBytes) return [entry];
+    const maxChunkBytes = warningThresholdBytes;
+    const splitCount = Math.max(2, Math.ceil(entry.usedBytes / maxChunkBytes));
+    const chunks: Array<typeof entry & {
+      splitFrom: string;
+      splitIndex: number;
+      splitCount: number;
+      splitStrategy: string;
+    }> = [];
+    let remainingBytes = entry.usedBytes;
+    for (let index = 0; index < splitCount; index += 1) {
+      const remainingSlots = splitCount - index;
+      const chunkBytes = Math.ceil(remainingBytes / remainingSlots);
+      const usedBytes = Math.min(maxChunkBytes, chunkBytes);
+      remainingBytes -= usedBytes;
+      chunks.push({
+        ...entry,
+        id: `${entry.id}#chunk${String(index).padStart(2, '0')}`,
+        usedBytes,
+        freeBytesIfAlone: Math.max(0, bankSizeBytes - usedBytes),
+        warning: usedBytes >= warningThresholdBytes,
+        overBudgetBytes: Math.max(0, usedBytes - bankSizeBytes),
+        splitFrom: entry.id,
+        splitIndex: index,
+        splitCount,
+        splitStrategy: 'auto_world_package_chunk',
+      });
+    }
+    return chunks;
+  });
   const totalPayloadBytes = packages.reduce((sum, entry) => sum + entry.usedBytes, 0);
   const packedBanks: Array<{
     bankIndex: number;
@@ -6376,6 +6407,10 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     targetBank.status = targetBank.overBudgetBytes > 0 ? 'error' : targetBank.warning ? 'warning' : 'ok';
   }
   const overBudgetPackages = packages.filter(entry => entry.overBudgetBytes > 0);
+  const splitPackages = packages.filter(entry => Boolean((entry as any).splitFrom));
+  const splitSourcePackages = originalPackages.filter(entry =>
+    entry.canSplit && entry.usedBytes > bankSizeBytes
+  );
   const warningPackages = packages.filter(entry => entry.warning);
   const warningPackedBanks = packedBanks.filter(bank => bank.warning);
   const bankClassSummary = Array.from(packages.reduce((summary, entry) => {
@@ -6438,6 +6473,14 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
       });
     }
   }
+  for (const entry of splitSourcePackages) {
+    recoveryRecommendations.push({
+      severity: 'info',
+      target: entry.id,
+      reason: `Package estimated at ${entry.usedBytes} bytes was split before bank allocation.`,
+      action: 'Mideas generated independently packable 8KB-safe chunks for this world asset.',
+    });
+  }
   for (const bank of warningPackedBanks) {
     recoveryRecommendations.push({
       severity: 'warning',
@@ -6466,9 +6509,11 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     {
       order: 2,
       id: 'split_world_packages',
-      status: overBudgetPackages.some(entry => entry.canSplit) ? 'required' : warningPackages.some(entry => entry.canSplit) ? 'recommended' : 'not_needed',
+      status: splitSourcePackages.length > 0 ? 'applied' : overBudgetPackages.some(entry => entry.canSplit) ? 'required' : warningPackages.some(entry => entry.canSplit) ? 'recommended' : 'not_needed',
       trigger: 'independently addressable world/screen/sprite package is too large or near the bank limit',
-      appliesTo: packages.filter(entry => entry.canSplit && (entry.warning || entry.overBudgetBytes > 0)).map(entry => entry.id),
+      appliesTo: splitSourcePackages.length > 0
+        ? splitSourcePackages.map(entry => entry.id)
+        : packages.filter(entry => entry.canSplit && (entry.warning || entry.overBudgetBytes > 0)).map(entry => entry.id),
       action: 'Split the logical world package across additional physical world data banks.',
     },
     {
@@ -6542,6 +6587,8 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     recoveryRecommendations,
     recoveryPlan,
     packages,
+    splitPackages,
+    splitSourcePackages,
     note: 'Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression.',
   };
 }
@@ -6625,6 +6672,13 @@ function buildMsx2WorldBankManifest(
       if (pkg?.id) physicalBankByPackage.set(String(pkg.id), Number(bank.bankIndex || 0));
     }
   }
+  const logicalPackagesBySource = new Map<string, any[]>();
+  for (const pkg of (Array.isArray(logicalBankBudget.packages) ? logicalBankBudget.packages : []) as any[]) {
+    const sourceKey = assetKey(pkg?.type, pkg?.sourceId);
+    if (!sourceKey) continue;
+    if (!logicalPackagesBySource.has(sourceKey)) logicalPackagesBySource.set(sourceKey, []);
+    logicalPackagesBySource.get(sourceKey)!.push(pkg);
+  }
   const logicalSectionForPolicy = (policy: any): string => policy.type === 'msx2screen'
     ? 'world screens'
     : policy.type === 'msx2sprite'
@@ -6663,23 +6717,37 @@ function buildMsx2WorldBankManifest(
       ? [policy.id]
       : (Array.isArray(included?.ownerWorldIds) ? included.ownerWorldIds : []);
     const packageId = `${policy.type}.${policy.id}`;
-    const physicalBankIndex = physicalBankByPackage.has(packageId) ? physicalBankByPackage.get(packageId)! : null;
-    const packageRow = {
-      packageId,
+    const budgetPackages = logicalPackagesBySource.get(assetKey(policy.type, policy.id)) || [{
+      id: packageId,
       type: policy.type,
       sourceId: policy.id,
-      logicalSection: logicalSectionForPolicy(policy),
       recommendedBankClass: bankClassForPolicy(policy),
-      physicalBankIndex,
-      windowAddress: dataWindowAddress,
-      bankSizeBytes,
-      rawBytes: Number(policy.rawBytes || 0),
-      storedBytes: Number(policy.storedBytesEstimate || 0),
-      decision: policy.decision || 'ROM_RAW',
-      placementReason: physicalBankIndex === null
-        ? 'Package is not assigned to an estimated physical bank because it is over budget or not independently packable yet.'
-        : 'Estimated first-fit-decreasing placement before final compression and allocator pass.',
-    };
+      usedBytes: Number(policy.storedBytesEstimate || 0),
+    }];
+    const packageRows = budgetPackages.map(pkg => {
+      const rowPackageId = String(pkg?.id || packageId);
+      const physicalBankIndex = physicalBankByPackage.has(rowPackageId) ? physicalBankByPackage.get(rowPackageId)! : null;
+      return {
+        packageId: rowPackageId,
+        type: policy.type,
+        sourceId: policy.id,
+        logicalSection: logicalSectionForPolicy(policy),
+        recommendedBankClass: pkg?.recommendedBankClass || bankClassForPolicy(policy),
+        physicalBankIndex,
+        windowAddress: dataWindowAddress,
+        bankSizeBytes,
+        rawBytes: Number(pkg?.usedBytes || policy.rawBytes || 0),
+        storedBytes: Number(pkg?.usedBytes || policy.storedBytesEstimate || 0),
+        decision: policy.decision || 'ROM_RAW',
+        splitFrom: pkg?.splitFrom,
+        splitIndex: pkg?.splitIndex,
+        splitCount: pkg?.splitCount,
+        splitStrategy: pkg?.splitStrategy,
+        placementReason: physicalBankIndex === null
+          ? 'Package is not assigned to an estimated physical bank because it is over budget or not independently packable yet.'
+          : 'Estimated first-fit-decreasing placement before final compression and allocator pass.',
+      };
+    });
     for (const worldId of ownerWorldIds) {
       if (!worldId) continue;
       if (!worlds.has(worldId)) {
@@ -6690,7 +6758,7 @@ function buildMsx2WorldBankManifest(
           packages: [],
         });
       }
-      worlds.get(worldId)!.packages.push(packageRow);
+      worlds.get(worldId)!.packages.push(...packageRows);
     }
   }
 

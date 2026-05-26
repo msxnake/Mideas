@@ -487,6 +487,17 @@ def main() -> None:
             or post_asm_report.get("removedSourceBytes") != 128
         ):
             raise AssertionError(f"Build summary Post-ASM report summary is invalid: {post_asm_report!r}")
+        post_asm_attempts = build_summary.get("postAsmAttempts")
+        if not isinstance(post_asm_attempts, list) or len(post_asm_attempts) != 1:
+            raise AssertionError(f"Build summary did not include Post-ASM attempt summaries: {post_asm_attempts!r}")
+        post_asm_attempt = post_asm_attempts[0]
+        if (
+            post_asm_attempt.get("status") != "check_only_passed"
+            or post_asm_attempt.get("appliedPatches") != 1
+            or post_asm_attempt.get("removedSourceBytes") != 128
+            or "unit" not in (post_asm_attempt.get("ruleClasses") or [])
+        ):
+            raise AssertionError(f"Build summary Post-ASM attempt summary is invalid: {post_asm_attempt!r}")
         for summary_key in ("rom", "asm", "sym"):
             checksum = ((build_summary.get(summary_key) or {}).get("checksum"))
             if not str(checksum or "").startswith("fnv1a32:"):
@@ -535,6 +546,13 @@ def main() -> None:
             raise AssertionError(f"Failure summary did not include failing world bank status: {over_failure!r}")
         if not (over_failure.get("planB") or {}).get("recoveryPlan"):
             raise AssertionError(f"Failure summary did not include recoveryPlan: {over_failure!r}")
+        over_candidate_ids = {
+            item.get("id")
+            for item in (over_failure.get("resolverCandidates") or [])
+            if isinstance(item, dict)
+        }
+        if "enable_zx0_preprocess" not in over_candidate_ids or "split_over_budget_world_packages" not in over_candidate_ids:
+            raise AssertionError(f"Over-budget failure did not expose resolver candidates: {over_failure!r}")
 
         warning_dir = root / "warning_generated"
         write_artifacts(warning_dir, make_budget(7600), storage_policy)
@@ -581,6 +599,13 @@ def main() -> None:
             raise AssertionError(f"Strict warning failure did not mark recovery gate failed: {warning_failure!r}")
         if not (warning_failure.get("details") or {}).get("warningBanks"):
             raise AssertionError(f"Strict warning failure did not expose warningBanks: {warning_failure!r}")
+        warning_candidate_ids = {
+            item.get("id")
+            for item in (warning_failure.get("resolverCandidates") or [])
+            if isinstance(item, dict)
+        }
+        if "relax_strict_warning_gate" not in warning_candidate_ids:
+            raise AssertionError(f"Strict warning failure did not expose resolver candidate: {warning_failure!r}")
 
         auto_warning_dir = root / "auto_warning_generated"
         write_artifacts(auto_warning_dir, make_budget(7600), storage_policy)
@@ -613,6 +638,120 @@ def main() -> None:
             raise AssertionError(f"Strict warning resolution did not preserve artifact check names: {resolution!r}")
         if (initial_failure.get("worldBankManifest") or {}).get("warningBankCount") != 1:
             raise AssertionError(f"Strict warning resolution did not preserve world bank warning summary: {resolution!r}")
+        if "relax_strict_warning_gate" not in (initial_failure.get("eligibleResolverCandidateIds") or []):
+            raise AssertionError(f"Strict warning resolution did not preserve eligible resolver candidates: {resolution!r}")
+        relaxed_attempt = next((item for item in resolution.get("attempts", []) if isinstance(item, dict) and item.get("action") == "relax_strict_warning_gate"), None)
+        if not relaxed_attempt or relaxed_attempt.get("candidateId") != "relax_strict_warning_gate":
+            raise AssertionError(f"Strict warning resolution did not tag the selected candidate: {resolution!r}")
+
+        multi_bank_dir = root / "multi_bank_loader_generated"
+        multi_storage_policy = [
+            {
+                "type": "msx2screen",
+                "id": "test_room_a",
+                "name": "Test Room A",
+                "rawBytes": 5000,
+                "storedBytesEstimate": 5000,
+                "accessPattern": "mixed_load_to_vram_and_runtime_read",
+                "mutable": False,
+                "decision": "MIXED_ROM_RAW_TO_VRAM_AND_ROM_RAW",
+            },
+            {
+                "type": "msx2screen",
+                "id": "test_room_b",
+                "name": "Test Room B",
+                "rawBytes": 5000,
+                "storedBytesEstimate": 5000,
+                "accessPattern": "mixed_load_to_vram_and_runtime_read",
+                "mutable": False,
+                "decision": "MIXED_ROM_RAW_TO_VRAM_AND_ROM_RAW",
+            },
+        ]
+        multi_budget = make_budget(5000)
+        multi_packages = [
+            {
+                "id": "msx2screen.test_room_a",
+                "type": "msx2screen",
+                "sourceId": "test_room_a",
+                "recommendedBankClass": "world.screen",
+                "usedBytes": 5000,
+                "freeBytesIfAlone": 3192,
+                "warning": False,
+                "overBudgetBytes": 0,
+                "canSplit": True,
+            },
+            {
+                "id": "msx2screen.test_room_b",
+                "type": "msx2screen",
+                "sourceId": "test_room_b",
+                "recommendedBankClass": "world.screen",
+                "usedBytes": 5000,
+                "freeBytesIfAlone": 3192,
+                "warning": False,
+                "overBudgetBytes": 0,
+                "canSplit": True,
+            },
+        ]
+        multi_budget.update({
+            "totalPayloadBytes": 10000,
+            "estimatedMinimumBanks": 2,
+            "estimatedPackedBankCount": 2,
+            "estimatedPackedBanks": [
+                {
+                    "bankIndex": 0,
+                    "bankSizeBytes": 8192,
+                    "warningThresholdBytes": 7372,
+                    "usedBytes": 5000,
+                    "freeBytes": 3192,
+                    "usedPercent": 61.04,
+                    "warning": False,
+                    "overBudgetBytes": 0,
+                    "status": "ok",
+                    "packages": [{"id": "msx2screen.test_room_a", "usedBytes": 5000, "recommendedBankClass": "world.screen"}],
+                },
+                {
+                    "bankIndex": 1,
+                    "bankSizeBytes": 8192,
+                    "warningThresholdBytes": 7372,
+                    "usedBytes": 5000,
+                    "freeBytes": 3192,
+                    "usedPercent": 61.04,
+                    "warning": False,
+                    "overBudgetBytes": 0,
+                    "status": "ok",
+                    "packages": [{"id": "msx2screen.test_room_b", "usedBytes": 5000, "recommendedBankClass": "world.screen"}],
+                },
+            ],
+            "overBudgetPackages": [],
+            "warningPackages": [],
+            "warningPackedBanks": [],
+            "bankClassSummary": [{
+                "id": "world.screen",
+                "packageCount": 2,
+                "usedBytes": 10000,
+                "estimatedMinimumBanks": 2,
+                "warningPackageCount": 0,
+                "overBudgetPackageCount": 0,
+                "largestPackage": {"id": "msx2screen.test_room_a", "usedBytes": 5000},
+            }],
+            "recoveryRecommendations": [{
+                "severity": "info",
+                "target": "loader",
+                "reason": "Multiple estimated data banks require a multi-bank loader.",
+                "action": "Emit per-chunk SCREEN 4 data bank switching before Glass.",
+            }],
+            "packages": multi_packages,
+        })
+        write_artifacts(multi_bank_dir, multi_budget, multi_storage_policy)
+        expect_failure(multi_bank_dir, "current loader can map only one #8000 data bank")
+        multi_failure = json.loads((multi_bank_dir / "msx2_preflight_failure.json").read_text(encoding="utf-8"))
+        multi_candidate_ids = {
+            item.get("id")
+            for item in (multi_failure.get("resolverCandidates") or [])
+            if isinstance(item, dict)
+        }
+        if multi_failure.get("reason") != "loader_multi_bank_data_window_not_implemented" or "emit_multi_bank_world_data_loader" not in multi_candidate_ids:
+            raise AssertionError(f"Multi-bank loader failure did not expose loader resolver candidate: {multi_failure!r}")
         auto_rom_path = auto_warning_dir / "auto_warning.rom"
         auto_sym_path = auto_warning_dir / "auto_warning.sym"
         auto_rom_path.write_bytes(b"CD" + bytes([0xFF]) * 8190)
@@ -641,6 +780,17 @@ def main() -> None:
         ram_over_dir = root / "ram_over_generated"
         write_artifacts(ram_over_dir, make_budget(4096), storage_policy, make_ram_budget(status="error", free_bytes=-1))
         expect_failure(ram_over_dir, "runtime RAM exceeds limit")
+        ram_failure_path = ram_over_dir / "msx2_preflight_failure.json"
+        if not ram_failure_path.exists():
+            raise AssertionError("RAM budget failure did not write msx2_preflight_failure.json")
+        ram_failure = json.loads(ram_failure_path.read_text(encoding="utf-8"))
+        ram_candidate_ids = {
+            item.get("id")
+            for item in (ram_failure.get("resolverCandidates") or [])
+            if isinstance(item, dict)
+        }
+        if ram_failure.get("reason") != "ram_budget_failed" or "reduce_runtime_ram" not in ram_candidate_ids:
+            raise AssertionError(f"RAM budget failure did not expose RAM resolver candidate: {ram_failure!r}")
 
         ram_sections_dir = root / "ram_sections_generated"
         ram_without_sections = make_ram_budget()
@@ -727,6 +877,13 @@ def main() -> None:
             raise AssertionError(f"Compile failure did not mark glass_compile failed: {compile_failure}")
         if "Move cold read-only tables" not in (compile_failure.get("planB") or {}).get("primary", ""):
             raise AssertionError(f"Compile failure did not include Plan B guidance: {compile_failure}")
+        compile_candidate_ids = {
+            item.get("id")
+            for item in (compile_failure.get("resolverCandidates") or [])
+            if isinstance(item, dict)
+        }
+        if "move_cold_readonly_data_to_world_bank" not in compile_candidate_ids:
+            raise AssertionError(f"Compile failure did not expose resident overflow resolver candidate: {compile_failure}")
 
     print("MSX2 MegaROM preflight budget checks passed.")
 

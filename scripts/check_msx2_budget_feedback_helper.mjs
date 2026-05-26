@@ -269,6 +269,9 @@ if (
 if (feedback.worldBankManifest?.dataWindowAddress !== '#A000') {
   throw new Error(`Expected world bank manifest data window to stay visible: ${JSON.stringify(feedback.worldBankManifest)}`);
 }
+if (!Array.isArray(feedback.resolverCandidates) || feedback.resolverCandidates[0]?.id !== 'relax_strict_warning_gate') {
+  throw new Error(`Expected warning feedback to expose resolver candidates: ${JSON.stringify(feedback.resolverCandidates)}`);
+}
 
 const pressure = summarizeMsx2BudgetPressure(feedback);
 if (pressure.residentCoreBytes !== 1200) {
@@ -306,6 +309,9 @@ if (serverResolutionContext?.failedGateId !== 'bank_allocation_dry_run') {
 if (serverResolutionContext.worldBankManifest?.overBudgetBankCount !== 1) {
   throw new Error(`Expected server resolution context to preserve world bank pressure: ${JSON.stringify(serverResolutionContext)}`);
 }
+if (!Array.isArray(serverResolutionContext.eligibleResolverCandidateIds) || !serverResolutionContext.eligibleResolverCandidateIds.includes('relax_strict_warning_gate')) {
+  throw new Error(`Expected server resolution context to preserve resolver candidates: ${JSON.stringify(serverResolutionContext)}`);
+}
 
 const residentOverflowAsm = [
   '; Mideas MSX2 SCREEN 4 tile backend',
@@ -332,6 +338,9 @@ if ((residentFailure.pipelineGates || [])[0]?.status !== 'failed') {
 }
 if (!residentFailure.planB?.primary?.includes('Move cold read-only tables')) {
   throw new Error(`Expected Plan B guidance in resident failure: ${JSON.stringify(residentFailure.planB)}`);
+}
+if (!Array.isArray(residentFailure.resolverCandidates) || residentFailure.resolverCandidates[0]?.id !== 'move_cold_readonly_data_to_world_bank') {
+  throw new Error(`Expected resident failure resolver candidate: ${JSON.stringify(residentFailure)}`);
 }
 if (buildServerMsx2ResidentOverflowFailure('; plain asm', 'Negative initial size: -12', 'plain.asm') !== null) {
   throw new Error('Expected null resident failure for non-MSX2 source');

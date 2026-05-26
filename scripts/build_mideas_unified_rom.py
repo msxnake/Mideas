@@ -400,6 +400,7 @@ def build_msx2_preflight_failure_gate_summary(reason: str) -> list[dict[str, obj
     failed_gate_by_reason = {
         "logical_package_over_budget": "bank_allocation_dry_run",
         "estimated_packed_bank_over_budget": "bank_allocation_dry_run",
+        "ram_budget_failed": "ram_budget_report",
         "strict_warning_gate_rejected": "overflow_recovery_plan",
     }
     failed_gate_id = failed_gate_by_reason.get(reason, "bank_allocation_dry_run")
@@ -421,6 +422,89 @@ def build_msx2_preflight_failure_gate_summary(reason: str) -> list[dict[str, obj
     return gates
 
 
+def build_msx2_preflight_resolver_candidates(reason: str, details: dict[str, object] | None = None) -> list[dict[str, object]]:
+    details = details or {}
+    candidates: list[dict[str, object]] = []
+    if reason == "strict_warning_gate_rejected":
+        candidates.append({
+            "id": "relax_strict_warning_gate",
+            "eligible": True,
+            "stage": "preflight",
+            "retryKind": "same_artifacts",
+            "reason": "Only the strict warning gate failed; the current packed banks still fit.",
+            "regenerate": {
+                "argsRemove": ["--strict-msx2-megarom-preflight-warnings"],
+                "argsAdd": [],
+            },
+        })
+    if reason in {"logical_package_over_budget", "estimated_packed_bank_over_budget"}:
+        candidates.append({
+            "id": "enable_zx0_preprocess",
+            "eligible": True,
+            "stage": "preflight",
+            "retryKind": "regenerate_asm",
+            "reason": "A logical or estimated bank overflow can often be resolved by re-emitting ASM after ZX0 preprocessing.",
+            "requires": ["source build used --skip-zx0-preprocess"],
+            "regenerate": {
+                "argsRemove": ["--skip-zx0-preprocess"],
+                "argsAdd": [],
+            },
+        })
+        candidates.append({
+            "id": "split_over_budget_world_packages",
+            "eligible": False,
+            "stage": "precompile",
+            "retryKind": "repack_world_banks",
+            "reason": "The packer must split the over-budget package across more 8K world banks.",
+            "blockedBy": "world-package split resolver is not implemented yet",
+            "targets": details.get("overBudgetPackages") or details.get("overBudgetBanks") or [],
+        })
+    if reason == "ram_budget_failed":
+        candidates.append({
+            "id": "reduce_runtime_ram",
+            "eligible": False,
+            "stage": "precompile",
+            "retryKind": "authoring_or_runtime_layout_change",
+            "reason": "RAM overflow needs smaller live pools, smaller hot caches, or fewer active runtime systems.",
+            "blockedBy": "automatic RAM layout reducer is not implemented yet",
+        })
+    if not candidates:
+        candidates.append({
+            "id": "manual_budget_review",
+            "eligible": False,
+            "stage": "diagnostic",
+            "retryKind": "manual",
+            "reason": f"No automatic resolver is registered for preflight reason '{reason}'.",
+        })
+    return candidates
+
+
+def build_msx2_compile_resolver_candidates(reason: str) -> list[dict[str, object]]:
+    candidates: list[dict[str, object]] = []
+    if "resident bank overflow" in reason.lower() or "negative initial size" in reason.lower():
+        candidates.append({
+            "id": "move_cold_readonly_data_to_world_bank",
+            "eligible": False,
+            "stage": "post_compile",
+            "retryKind": "regenerate_asm",
+            "reason": "Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.",
+            "blockedBy": "resident cold-data classifier/regenerator is not implemented yet",
+            "regenerate": {
+                "preferredPlacement": "world_data_bank",
+                "avoidPlacement": "ram",
+            },
+        })
+    if not candidates:
+        candidates.append({
+            "id": "manual_compile_review",
+            "eligible": False,
+            "stage": "diagnostic",
+            "retryKind": "manual",
+            "reason": "No automatic compile resolver is registered for this Glass failure.",
+        })
+    return candidates
+
+
 def write_msx2_preflight_failure_summary(
     artifact_dir: Path,
     reason: str,
@@ -437,6 +521,7 @@ def write_msx2_preflight_failure_summary(
         for world in manifest_worlds
         if isinstance(world, dict)
     )
+    failure_details = details or {}
     artifact_checks = build_preflight_artifact_summaries([
         (artifact_name, artifact_path)
         for artifact_name, artifact_path in [
@@ -513,7 +598,89 @@ def write_msx2_preflight_failure_summary(
             "recoveryPlan": logical_budget.get("recoveryPlan") or [],
             "ramRecommendations": ram_budget.get("recommendations") or [],
         },
-        "details": details or {},
+        "resolverCandidates": build_msx2_preflight_resolver_candidates(reason, failure_details),
+        "details": failure_details,
+    }
+    failure_path = artifact_dir / "msx2_preflight_failure.json"
+    failure_path.write_text(
+        json.dumps(failure_summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return failure_path
+
+
+def write_msx2_loader_capability_failure_summary(
+    artifact_dir: Path,
+    project_slice: dict,
+    logical_budget: dict,
+    ram_budget: dict,
+    details: dict[str, object],
+) -> Path:
+    failure_summary = {
+        "scope": "msx2_screen4_megarom_preflight_failure",
+        "status": "error",
+        "reason": "loader_multi_bank_data_window_not_implemented",
+        "artifactDir": str(artifact_dir),
+        "artifactChecks": build_preflight_artifact_summaries([
+            (artifact_name, artifact_path)
+            for artifact_name, artifact_path in [
+                ("project_slice.json", artifact_dir / "project_slice.json"),
+                ("logical_bank_budget.json", artifact_dir / "logical_bank_budget.json"),
+                ("msx2_world_bank_manifest.json", artifact_dir / "msx2_world_bank_manifest.json"),
+                ("ram_budget.json", artifact_dir / "ram_budget.json"),
+            ]
+            if artifact_path.exists()
+        ]),
+        "pipelineGates": build_msx2_preflight_failure_gate_summary("estimated_packed_bank_over_budget"),
+        "project": {
+            "name": project_slice.get("projectName"),
+            "backend": project_slice.get("backend"),
+            "screenMode": project_slice.get("screenMode"),
+            "romMode": project_slice.get("romMode"),
+            "mapper": project_slice.get("mapper"),
+        },
+        "rom": {
+            "bankSizeBytes": int(logical_budget.get("bankSizeBytes") or 0),
+            "payloadBytes": int(logical_budget.get("totalPayloadBytes") or 0),
+            "estimatedPackedBankCount": int(logical_budget.get("estimatedPackedBankCount") or 0),
+            "overBudgetPackages": [],
+            "overBudgetBanks": [],
+        },
+        "ram": {
+            "start": ram_budget.get("start"),
+            "limit": ram_budget.get("limit"),
+            "usedBytes": int(ram_budget.get("usedBytes") or 0),
+            "freeBytes": int(ram_budget.get("freeBytes") or 0),
+            "status": ram_budget.get("status", "unknown"),
+        },
+        "planB": {
+            "romRecommendations": logical_budget.get("recoveryRecommendations") or [],
+            "recoveryPlan": logical_budget.get("recoveryPlan") or [],
+            "ramRecommendations": ram_budget.get("recommendations") or [],
+        },
+        "resolverCandidates": [
+            {
+                "id": "emit_multi_bank_world_data_loader",
+                "eligible": False,
+                "stage": "asm_generation",
+                "retryKind": "regenerate_asm",
+                "reason": "The logical allocator produced multiple data banks, but the current SCREEN 4 loader can map only one #8000 data bank.",
+                "blockedBy": "multi-bank SCREEN 4 data loader is not implemented yet",
+            },
+            {
+                "id": "enable_zx0_preprocess",
+                "eligible": True,
+                "stage": "preflight",
+                "retryKind": "regenerate_asm",
+                "reason": "Selective ZX0 may reduce data to one physical data bank.",
+                "requires": ["source build used --skip-zx0-preprocess"],
+                "regenerate": {
+                    "argsRemove": ["--skip-zx0-preprocess"],
+                    "argsAdd": [],
+                },
+            },
+        ],
+        "details": details,
     }
     failure_path = artifact_dir / "msx2_preflight_failure.json"
     failure_path.write_text(
@@ -552,11 +719,27 @@ def summarize_msx2_preflight_failure_for_resolution(failure: dict[str, Any] | No
     ]
     world_bank_manifest = failure.get("worldBankManifest") if isinstance(failure.get("worldBankManifest"), dict) else {}
     rom = failure.get("rom") if isinstance(failure.get("rom"), dict) else {}
+    resolver_candidates = [
+        item for item in failure.get("resolverCandidates") or []
+        if isinstance(item, dict)
+    ]
+    resolver_candidate_ids = [
+        str(item.get("id"))
+        for item in resolver_candidates
+        if item.get("id")
+    ]
+    eligible_resolver_candidate_ids = [
+        str(item.get("id"))
+        for item in resolver_candidates
+        if item.get("id") and item.get("eligible") is not False
+    ]
     return {
         "reason": failure.get("reason"),
         "failedGateId": failed_gate.get("id") if isinstance(failed_gate, dict) else None,
         "artifactCheckCount": len(artifact_checks),
         "artifactCheckNames": [item.get("name") for item in artifact_checks if item.get("name")],
+        "resolverCandidateIds": resolver_candidate_ids,
+        "eligibleResolverCandidateIds": eligible_resolver_candidate_ids,
         "worldBankManifest": {
             "worldCount": world_bank_manifest.get("worldCount"),
             "estimatedPhysicalBankCount": world_bank_manifest.get("estimatedPhysicalBankCount"),
@@ -625,8 +808,13 @@ def validate_msx2_preflight_with_safe_resolution(
         })
 
         attempt_limit = max(0, int(max_attempts or 0))
+        eligible_candidate_ids = {
+            str(item.get("id"))
+            for item in (failure.get("resolverCandidates") or [])
+            if isinstance(item, dict) and item.get("id") and item.get("eligible") is not False
+        }
         if (
-            reason == "strict_warning_gate_rejected"
+            ("relax_strict_warning_gate" in eligible_candidate_ids or reason == "strict_warning_gate_rejected")
             and strict_warnings
             and attempt_limit >= 1
         ):
@@ -638,6 +826,7 @@ def validate_msx2_preflight_with_safe_resolution(
                 attempts.append({
                     "attempt": 1,
                     "action": "relax_strict_warning_gate",
+                    "candidateId": "relax_strict_warning_gate",
                     "status": "resolved",
                     "artifactDir": str(artifact_dir),
                 })
@@ -653,6 +842,7 @@ def validate_msx2_preflight_with_safe_resolution(
                 attempts.append({
                     "attempt": 1,
                     "action": "relax_strict_warning_gate",
+                    "candidateId": "relax_strict_warning_gate",
                     "status": "failed",
                     "reason": str(retry_error),
                     "failure": summarize_msx2_preflight_failure_for_resolution(retry_failure),
@@ -660,7 +850,10 @@ def validate_msx2_preflight_with_safe_resolution(
                 })
 
         if (
-            reason in {"logical_package_over_budget", "estimated_packed_bank_over_budget"}
+            (
+                "enable_zx0_preprocess" in eligible_candidate_ids
+                or reason in {"logical_package_over_budget", "estimated_packed_bank_over_budget"}
+            )
             and skip_zx0_preprocess
             and attempt_limit >= 1
         ):
@@ -679,6 +872,7 @@ def validate_msx2_preflight_with_safe_resolution(
                 attempts.append({
                     "attempt": 1,
                     "action": "enable_zx0_preprocess",
+                    "candidateId": "enable_zx0_preprocess",
                     "status": "resolved",
                     "artifactDir": str(retry_artifact_dir),
                     "zx0": zx0_retry_info,
@@ -695,6 +889,7 @@ def validate_msx2_preflight_with_safe_resolution(
                 attempts.append({
                     "attempt": 1,
                     "action": "enable_zx0_preprocess",
+                    "candidateId": "enable_zx0_preprocess",
                     "status": "failed",
                     "reason": str(retry_error),
                     "failure": summarize_msx2_preflight_failure_for_resolution(retry_failure),
@@ -873,13 +1068,21 @@ def write_msx2_build_summary(
             ) if isinstance(attempts, list) else None,
         }
     post_asm_reports = []
+    post_asm_attempts = []
     for report_path in post_asm_report_paths or []:
+        is_selected_asm_report = report_path == post_asm_report_json_path(asm_to_compile)
         if not report_path.exists():
             post_asm_reports.append({
                 "path": str(report_path),
                 "exists": False,
             })
+            post_asm_attempts.append({
+                "path": str(report_path),
+                "status": "missing_report",
+                "reason": "Post-ASM report file was not produced",
+            })
             continue
+        report_text = report_path.read_text(encoding="utf-8")
         report = read_preflight_json_artifact(report_path, report_path.name)
         if not isinstance(report, dict):
             post_asm_reports.append({
@@ -887,24 +1090,47 @@ def write_msx2_build_summary(
                 "exists": True,
                 "valid": False,
             })
+            post_asm_attempts.append({
+                "path": str(report_path),
+                "status": "invalid_report",
+                "reason": "Post-ASM report root was not an object",
+                "checksum": _bank_metadata_checksum([report_path.name, report_text]),
+            })
             continue
         metrics = report.get("metrics") if isinstance(report.get("metrics"), dict) else {}
         block_inventory = metrics.get("block_inventory") if isinstance(metrics.get("block_inventory"), dict) else {}
         optimization_summary = metrics.get("optimization_summary") if isinstance(metrics.get("optimization_summary"), dict) else {}
         findings = report.get("findings") if isinstance(report.get("findings"), list) else []
+        removed_source_bytes = int(optimization_summary.get("removed_source_bytes") or 0)
+        applied_patches = int(report.get("applied_patches") or 0)
+        rule_classes = sorted({
+            str(item.get("rule_id") or item.get("rule") or "unknown")
+            for item in findings
+            if isinstance(item, dict)
+        })
         post_asm_reports.append({
             "path": str(report_path),
             "exists": True,
             "valid": True,
+            "checksum": _bank_metadata_checksum([report_path.name, report_text]),
             "input": report.get("input"),
             "findings": len(findings),
-            "appliedPatches": int(report.get("applied_patches") or 0),
+            "appliedPatches": applied_patches,
             "deadBlockCandidates": int(block_inventory.get("dead_block_candidates") or 0),
             "deadCandidateLines": int(block_inventory.get("dead_candidate_lines") or 0),
             "deadCandidateSourceBytes": int(block_inventory.get("dead_candidate_source_bytes") or 0),
             "passesRun": int(optimization_summary.get("passes_run") or 0),
             "removedLines": int(optimization_summary.get("removed_lines") or 0),
-            "removedSourceBytes": int(optimization_summary.get("removed_source_bytes") or 0),
+            "removedSourceBytes": removed_source_bytes,
+        })
+        post_asm_attempts.append({
+            "path": str(report_path),
+            "status": "accepted" if post_asm_applied and is_selected_asm_report else "check_only_passed" if post_asm_check_only else "baseline_observed",
+            "reason": "Compiled ROM and validation completed with this ASM" if post_asm_applied and is_selected_asm_report else "Report generated without applying optimized ASM" if post_asm_check_only else "Baseline report retained for comparison",
+            "ruleClasses": rule_classes,
+            "appliedPatches": applied_patches,
+            "removedSourceBytes": removed_source_bytes,
+            "checksum": _bank_metadata_checksum([report_path.name, report_text]),
         })
     build_summary = {
         "scope": "msx2_screen4_megarom_build_summary",
@@ -939,6 +1165,7 @@ def write_msx2_build_summary(
         "ideBudgetFeedback": ide_budget_feedback_summary,
         "budgetResolution": budget_resolution_summary,
         "postAsmReports": post_asm_reports,
+        "postAsmAttempts": post_asm_attempts,
     }
     (artifact_dir / "msx2_build_summary.json").write_text(
         json.dumps(build_summary, indent=2) + "\n",
@@ -998,6 +1225,7 @@ def write_msx2_compile_failure_summary(
             "secondary": "Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.",
             "avoid": "Do not solve resident ROM pressure by copying whole worlds into RAM.",
         },
+        "resolverCandidates": build_msx2_compile_resolver_candidates(reason),
     }
     failure_path = artifact_dir / "msx2_compile_failure.json"
     failure_path.write_text(
@@ -1327,6 +1555,14 @@ def validate_msx2_screen4_megarom_preflight_budget(
     if ram_budget.get("scope") != "msx2_screen4_ram_budget":
         raise RuntimeError("MSX2 MegaROM preflight failed: ramBudget has invalid scope")
     if ram_budget.get("status") == "error":
+        write_msx2_preflight_failure_summary(
+            artifact_dir=artifact_dir,
+            reason="ram_budget_failed",
+            project_slice=project_slice,
+            logical_budget=logical_budget,
+            ram_budget=ram_budget,
+            details={"ramBudget": ram_budget},
+        )
         raise RuntimeError(
             "MSX2 MegaROM preflight failed before Glass: "
             f"runtime RAM exceeds limit: {ram_budget}"
@@ -1344,6 +1580,14 @@ def validate_msx2_screen4_megarom_preflight_budget(
     if int(ram_budget.get("usedBytes") or 0) <= 0:
         raise RuntimeError("MSX2 MegaROM preflight failed: runtime RAM usedBytes must be positive")
     if int(ram_budget.get("freeBytes") or -1) < 0:
+        write_msx2_preflight_failure_summary(
+            artifact_dir=artifact_dir,
+            reason="ram_budget_failed",
+            project_slice=project_slice,
+            logical_budget=logical_budget,
+            ram_budget=ram_budget,
+            details={"ramBudget": ram_budget},
+        )
         raise RuntimeError(
             "MSX2 MegaROM preflight failed before Glass: "
             f"runtime RAM freeBytes is negative: {ram_budget.get('freeBytes')}"
@@ -1367,6 +1611,14 @@ def validate_msx2_screen4_megarom_preflight_budget(
         if isinstance(item, dict) and item.get("severity") == "error"
     ]
     if error_ram_recommendations:
+        write_msx2_preflight_failure_summary(
+            artifact_dir=artifact_dir,
+            reason="ram_budget_failed",
+            project_slice=project_slice,
+            logical_budget=logical_budget,
+            ram_budget=ram_budget,
+            details={"errorRamRecommendations": error_ram_recommendations},
+        )
         raise RuntimeError(
             "MSX2 MegaROM preflight failed before Glass: "
             f"runtime RAM recommendations include errors: {error_ram_recommendations}"
@@ -1480,6 +1732,25 @@ def validate_msx2_screen4_megarom_preflight_budget(
         raise RuntimeError("MSX2 MegaROM preflight failed: logicalBankBudget has no estimatedPackedBanks")
     if estimated_count != len(packed_banks):
         raise RuntimeError("MSX2 MegaROM preflight failed: estimatedPackedBankCount does not match estimatedPackedBanks length")
+    if estimated_count > 1:
+        write_msx2_loader_capability_failure_summary(
+            artifact_dir=artifact_dir,
+            project_slice=project_slice,
+            logical_budget=logical_budget,
+            ram_budget=ram_budget,
+            details={
+                "estimatedPackedBankCount": estimated_count,
+                "currentLoaderDataWindow": "#8000-#9FFF",
+                "requiredFeature": "multi-bank SCREEN 4 world data loader",
+                "splitPackages": logical_budget.get("splitPackages") or [],
+                "estimatedPackedBanks": packed_banks,
+            },
+        )
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed before Glass: "
+            f"SCREEN 4 data requires {estimated_count} estimated 8KB data banks, "
+            "but the current loader can map only one #8000 data bank."
+        )
     if len(manifest_physical_banks) != len(packed_banks):
         raise RuntimeError(
             "MSX2 MegaROM preflight failed: "
@@ -4435,6 +4706,8 @@ def generate_asm_from_json(
 
     node_script = """
 const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const generator = require(process.argv[2]);
 const jsonPath = process.argv[3];
 const asmPath = process.argv[4];
@@ -4534,7 +4807,42 @@ const asm = files["unitedFiles.asm"] || files["main.asm"];
 if (!asm) {
   throw new Error("Generator did not return unitedFiles.asm or main.asm");
 }
-fs.writeFileSync(asmPath, asm, "utf8");
+function sleepMs(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {}
+}
+function writeTextFileWithRetry(filePath, content) {
+  const payload = Buffer.from(content, "utf8");
+  let lastError = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      fs.writeFileSync(filePath, payload);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!["EBUSY", "EPERM", "EACCES", "UNKNOWN"].includes(error && error.code) || attempt === 5) {
+        break;
+      }
+      sleepMs(75 * attempt);
+    }
+  }
+  try {
+    if (fs.existsSync(filePath)) {
+      const stalePath = `${filePath}.stale_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      fs.renameSync(filePath, stalePath);
+      fs.writeFileSync(filePath, payload);
+      try { fs.unlinkSync(stalePath); } catch (_) {}
+      return;
+    }
+  } catch (renameError) {
+    lastError = renameError;
+  }
+  const deferredPath = path.join(os.tmpdir(), `mideas_deferred_asm_${Date.now()}_${Math.random().toString(16).slice(2)}.asm`);
+  fs.writeFileSync(deferredPath, payload);
+  console.log(`ASM_DEFERRED_PATH:${deferredPath}`);
+  console.warn(`ASM direct write failed for ${filePath}; deferred write saved to ${deferredPath}: ${lastError && lastError.message}`);
+}
+writeTextFileWithRetry(asmPath, asm);
 console.log(`ASM generated: ${asmPath}`);
 console.log(`Project: ${name}`);
 console.log(`Assets: ${assets.length}`);
@@ -4552,7 +4860,7 @@ console.log(`ROM config: mode=${romMode}, mapper=${targetFormat}, engine=${execu
         tmp_script_path = Path(tmp_file.name)
 
     try:
-        run_command(
+        completed = run_command(
             [
                 "node",
                 str(tmp_script_path),
@@ -4568,6 +4876,31 @@ console.log(`ROM config: mode=${romMode}, mapper=${targetFormat}, engine=${execu
             ],
             cwd=project_root,
         )
+        stdout_text = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
+        deferred_match = re.search(r"ASM_DEFERRED_PATH:(.+)", stdout_text)
+        if deferred_match:
+            deferred_path = Path(deferred_match.group(1).strip())
+            if not deferred_path.exists():
+                raise RuntimeError(f"Deferred ASM write reported missing file: {deferred_path}")
+            ensure_parent(asm_output)
+            try:
+                shutil.copyfile(deferred_path, asm_output)
+            except OSError:
+                if asm_output.exists():
+                    stale_path = asm_output.with_name(f"{asm_output.name}.stale_{int(time.time() * 1000)}")
+                    asm_output.replace(stale_path)
+                    shutil.copyfile(deferred_path, asm_output)
+                    try:
+                        stale_path.unlink()
+                    except OSError:
+                        pass
+                else:
+                    raise
+            try:
+                deferred_path.unlink()
+            except OSError:
+                pass
+            print(f"ASM deferred write copied to: {asm_output}")
     finally:
         try:
             tmp_script_path.unlink(missing_ok=True)
@@ -4585,6 +4918,15 @@ def compile_with_glass(
     sym_output: Path | None,
     project_root: Path,
 ) -> None:
+    rotated_outputs: list[Path] = []
+    for output_path in [rom_output, sym_output]:
+        if output_path and output_path.exists():
+            stale_path = output_path.with_name(f"{output_path.name}.stale_{int(time.time() * 1000)}")
+            try:
+                output_path.replace(stale_path)
+                rotated_outputs.append(stale_path)
+            except OSError:
+                pass
     cmd = ["java", "-jar", str(glass_jar)]
     server_include = project_root / "server"
     if server_include.exists():
@@ -4594,6 +4936,11 @@ def compile_with_glass(
         cmd.append(str(sym_output))
     completed = run_command(cmd, cwd=project_root, allow_failure=True)
     if completed.returncode == 0:
+        for stale_path in rotated_outputs:
+            try:
+                stale_path.unlink()
+            except OSError:
+                pass
         return
     stdout_text = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
     stderr_text = completed.stderr.decode("utf-8", errors="replace") if completed.stderr else ""

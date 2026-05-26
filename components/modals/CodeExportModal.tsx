@@ -1742,6 +1742,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const msx2BudgetResolutionAttempts = Array.isArray(msx2BudgetResolution?.attempts)
     ? msx2BudgetResolution.attempts
     : [];
+  const msx2BudgetResolverCandidates = Array.isArray(msx2BudgetFeedback?.resolverCandidates)
+    ? msx2BudgetFeedback.resolverCandidates
+    : [];
   const msx2BudgetStatus = String(msx2BudgetFeedback?.status || 'ok');
   const msx2BudgetStatusClass = msx2BudgetStatus === 'error'
     ? 'border-red-500 bg-red-950 bg-opacity-40 text-red-100'
@@ -1756,6 +1759,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const msx2BudgetPressureSummary = summarizeMsx2BudgetPressure(msx2BudgetFeedback);
   const msx2CompileFailure = (compilationResult as any)?.msx2CompileFailure;
   const msx2CompileFailurePlanB = msx2CompileFailure?.planB;
+  const msx2CompileResolverCandidates = Array.isArray(msx2CompileFailure?.resolverCandidates)
+    ? msx2CompileFailure.resolverCandidates
+    : [];
 
   if (!isOpen) return null;
 
@@ -2793,6 +2799,19 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           ))}
                         </div>
                       )}
+                      {msx2BudgetResolverCandidates.length > 0 && (
+                        <div className="mt-3 border-t border-msx-border pt-2 text-msx-textsecondary">
+                          <div className="text-xs text-msx-textprimary">Resolver candidates:</div>
+                          {msx2BudgetResolverCandidates.slice(0, 3).map((candidate: any, index: number) => (
+                            <div key={`${candidate.id || 'candidate'}_${index}`} className="mt-1 font-mono text-[11px]">
+                              {candidate.id || 'unknown'}: {candidate.eligible === false ? 'pending' : 'auto'} / {candidate.retryKind || 'manual'}
+                              {candidate.blockedBy ? (
+                                <span className="block text-yellow-200">{candidate.blockedBy}</span>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2886,6 +2905,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           <div>Plan B: {msx2CompileFailurePlanB.primary}</div>
                           <div>{msx2CompileFailurePlanB.secondary}</div>
                           <div className="text-yellow-200">{msx2CompileFailurePlanB.avoid}</div>
+                        </div>
+                      )}
+                      {msx2CompileResolverCandidates.length > 0 && (
+                        <div className="mt-2 text-xs text-msx-textsecondary">
+                          Resolver candidate:{' '}
+                          {msx2CompileResolverCandidates.slice(0, 2).map((candidate: any) =>
+                            `${candidate.id || 'unknown'} (${candidate.eligible === false ? 'pending' : 'auto'})`
+                          ).join(', ')}
                         </div>
                       )}
                     </div>

@@ -65,6 +65,16 @@ export interface Msx2BudgetFeedback {
     reason?: string;
     action?: string;
   }>;
+  resolverCandidates?: Array<{
+    id: string;
+    eligible: boolean;
+    stage: string;
+    retryKind: string;
+    reason: string;
+    requires?: string[];
+    blockedBy?: string;
+    regenerate?: Record<string, any>;
+  }>;
 }
 
 export interface Msx2BudgetPressureSummary {
@@ -205,6 +215,24 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
     sum + (Array.isArray(world?.packages) ? world.packages.length : 0), 0);
   const manifestWarningBankCount = manifestPhysicalBanks.filter((bank: any) => bank?.status === 'warning' || bank?.warning === true).length;
   const manifestOverBudgetBankCount = manifestPhysicalBanks.filter((bank: any) => bank?.status === 'error' || Number(bank?.overBudgetBytes || 0) > 0).length;
+  const largestAssets = [...packages]
+    .sort((a: any, b: any) => Number(b?.usedBytes || 0) - Number(a?.usedBytes || 0))
+    .slice(0, 8)
+    .map((item: any) => ({
+      id: item.id,
+      usedBytes: Number(item.usedBytes || 0),
+      bankClass: item.recommendedBankClass,
+      warning: Boolean(item.warning),
+      overBudgetBytes: Number(item.overBudgetBytes || 0)
+    }));
+  const resolverCandidates = buildMsx2BudgetResolverCandidates({
+    status,
+    logicalBudget,
+    ramBudget,
+    manifestOverBudgetBankCount,
+    manifestWarningBankCount,
+    largestAssets
+  });
 
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
@@ -257,21 +285,81 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       estimatedPhysicalBanks: manifestPhysicalBanks,
     } : undefined,
     worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
-    largestAssets: [...packages]
-      .sort((a: any, b: any) => Number(b?.usedBytes || 0) - Number(a?.usedBytes || 0))
-      .slice(0, 8)
-      .map((item: any) => ({
-        id: item.id,
-        usedBytes: Number(item.usedBytes || 0),
-        bankClass: item.recommendedBankClass,
-        warning: Boolean(item.warning),
-        overBudgetBytes: Number(item.overBudgetBytes || 0)
-      })),
+    largestAssets,
     warnings: {
       romRecommendations,
       warningPackedBanks,
       ramRecommendations
     },
-    suggestedFixes
+    suggestedFixes,
+    resolverCandidates
   };
+};
+
+const buildMsx2BudgetResolverCandidates = ({
+  status,
+  logicalBudget,
+  ramBudget,
+  manifestOverBudgetBankCount,
+  manifestWarningBankCount,
+  largestAssets
+}: {
+  status: Msx2BudgetFeedback['status'];
+  logicalBudget: any;
+  ramBudget: any;
+  manifestOverBudgetBankCount: number;
+  manifestWarningBankCount: number;
+  largestAssets: Msx2BudgetFeedback['largestAssets'];
+}): NonNullable<Msx2BudgetFeedback['resolverCandidates']> => {
+  const candidates: NonNullable<Msx2BudgetFeedback['resolverCandidates']> = [];
+  const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
+  const overBudgetAssetCount = Array.isArray(largestAssets)
+    ? largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0).length
+    : 0;
+  const ramStatus = String(ramBudget?.status || 'unknown');
+  if (ramStatus && ramStatus !== 'ok' && ramStatus !== 'unknown') {
+    candidates.push({
+      id: 'reduce_runtime_ram',
+      eligible: false,
+      stage: 'precompile',
+      retryKind: 'authoring_or_runtime_layout_change',
+      reason: 'RAM overflow needs smaller live pools, smaller hot caches, or fewer active runtime systems.',
+      blockedBy: 'automatic RAM layout reducer is not implemented yet'
+    });
+  }
+  if (overBudgetPackageCount > 0 || Number(manifestOverBudgetBankCount || 0) > 0 || overBudgetAssetCount > 0 || status === 'error') {
+    candidates.push({
+      id: 'enable_zx0_preprocess',
+      eligible: true,
+      stage: 'preflight',
+      retryKind: 'regenerate_asm',
+      reason: 'A logical or estimated bank overflow can often be resolved by re-emitting ASM after ZX0 preprocessing.',
+      requires: ['source build used screenCompression=false'],
+      regenerate: {
+        argsRemove: ['screenCompression=false'],
+        argsAdd: []
+      }
+    });
+    candidates.push({
+      id: 'split_over_budget_world_packages',
+      eligible: false,
+      stage: 'precompile',
+      retryKind: 'repack_world_banks',
+      reason: 'The packer must split the over-budget package across more 8K world banks.',
+      blockedBy: 'world-package split resolver is not implemented yet'
+    });
+  } else if (Number(manifestWarningBankCount || 0) > 0 || status === 'warning') {
+    candidates.push({
+      id: 'relax_strict_warning_gate',
+      eligible: true,
+      stage: 'preflight',
+      retryKind: 'same_artifacts',
+      reason: 'Only warning-level bank pressure is present; a non-strict build can continue while preserving diagnostics.',
+      regenerate: {
+        argsRemove: ['strict warning gate'],
+        argsAdd: []
+      }
+    });
+  }
+  return candidates;
 };

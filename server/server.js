@@ -861,6 +861,35 @@ function getNegativeDsOverflowBytes(text) {
   return Math.abs(parsed);
 }
 
+function buildMsx2CompileResolverCandidates(reason) {
+  const normalized = String(reason || '').toLowerCase();
+  if (normalized.includes('resident') || normalized.includes('negative initial size') || normalized.includes('#c000')) {
+    return [
+      {
+        id: 'move_cold_readonly_data_to_world_bank',
+        eligible: false,
+        stage: 'post_compile',
+        retryKind: 'regenerate_asm',
+        reason: 'Glass reported resident ROM pressure after assembly; cold read-only tables must move out of fixed/resident code.',
+        blockedBy: 'resident cold-data classifier/regenerator is not implemented yet',
+        regenerate: {
+          preferredPlacement: 'world_data_bank',
+          avoidPlacement: 'ram'
+        }
+      }
+    ];
+  }
+  return [
+    {
+      id: 'manual_compile_review',
+      eligible: false,
+      stage: 'diagnostic',
+      retryKind: 'manual',
+      reason: 'No automatic compile resolver is registered for this Glass failure.'
+    }
+  ];
+}
+
 function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile) {
   const overflowBytes = getNegativeDsOverflowBytes(fullErrorText);
   if (overflowBytes === null) return null;
@@ -889,7 +918,8 @@ function buildMsx2ResidentOverflowFailure(sourceCode, fullErrorText, sourceFile)
       primary: 'Move cold read-only tables to world/data banks or special-code banks.',
       secondary: 'Remove unused resident fallback data and replace repeated resident tables with VRAM fill/streaming.',
       avoid: 'Do not solve resident ROM pressure by copying whole worlds into RAM.'
-    }
+    },
+    resolverCandidates: buildMsx2CompileResolverCandidates(fullErrorText)
   };
 }
 
@@ -1521,6 +1551,14 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
     sum + (Array.isArray(world?.packages) ? world.packages.length : 0), 0);
   const manifestWarningBankCount = manifestPhysicalBanks.filter((bank) => bank?.status === 'warning' || bank?.warning === true).length;
   const manifestOverBudgetBankCount = manifestPhysicalBanks.filter((bank) => bank?.status === 'error' || Number(bank?.overBudgetBytes || 0) > 0).length;
+  const resolverCandidates = buildMsx2BudgetResolverCandidates({
+    status,
+    logicalBudget,
+    ramBudget,
+    manifestOverBudgetBankCount,
+    manifestWarningBankCount,
+    largestAssets
+  });
   return {
     scope: 'msx2_screen4_ide_budget_feedback',
     status,
@@ -1576,8 +1614,63 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       warningPackedBanks,
       ramRecommendations: ramWarnings
     },
-    suggestedFixes
+    suggestedFixes,
+    resolverCandidates
   };
+}
+
+function buildMsx2BudgetResolverCandidates({ status, logicalBudget, ramBudget, manifestOverBudgetBankCount, manifestWarningBankCount, largestAssets }) {
+  const candidates = [];
+  const overBudgetPackageCount = Array.isArray(logicalBudget?.overBudgetPackages) ? logicalBudget.overBudgetPackages.length : 0;
+  const overBudgetAssetCount = Array.isArray(largestAssets)
+    ? largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0).length
+    : 0;
+  const ramStatus = String(ramBudget?.status || 'unknown');
+  if (ramStatus && ramStatus !== 'ok' && ramStatus !== 'unknown') {
+    candidates.push({
+      id: 'reduce_runtime_ram',
+      eligible: false,
+      stage: 'precompile',
+      retryKind: 'authoring_or_runtime_layout_change',
+      reason: 'RAM overflow needs smaller live pools, smaller hot caches, or fewer active runtime systems.',
+      blockedBy: 'automatic RAM layout reducer is not implemented yet'
+    });
+  }
+  if (overBudgetPackageCount > 0 || Number(manifestOverBudgetBankCount || 0) > 0 || overBudgetAssetCount > 0 || status === 'error') {
+    candidates.push({
+      id: 'enable_zx0_preprocess',
+      eligible: true,
+      stage: 'preflight',
+      retryKind: 'regenerate_asm',
+      reason: 'A logical or estimated bank overflow can often be resolved by re-emitting ASM after ZX0 preprocessing.',
+      requires: ['source build used screenCompression=false'],
+      regenerate: {
+        argsRemove: ['screenCompression=false'],
+        argsAdd: []
+      }
+    });
+    candidates.push({
+      id: 'split_over_budget_world_packages',
+      eligible: false,
+      stage: 'precompile',
+      retryKind: 'repack_world_banks',
+      reason: 'The packer must split the over-budget package across more 8K world banks.',
+      blockedBy: 'world-package split resolver is not implemented yet'
+    });
+  } else if (Number(manifestWarningBankCount || 0) > 0 || status === 'warning') {
+    candidates.push({
+      id: 'relax_strict_warning_gate',
+      eligible: true,
+      stage: 'preflight',
+      retryKind: 'same_artifacts',
+      reason: 'Only warning-level bank pressure is present; a non-strict build can continue while preserving diagnostics.',
+      regenerate: {
+        argsRemove: ['strict warning gate'],
+        argsAdd: []
+      }
+    });
+  }
+  return candidates;
 }
 
 function buildMsx2BudgetResolutionFailureContext(feedback) {
@@ -1587,6 +1680,7 @@ function buildMsx2BudgetResolutionFailureContext(feedback) {
   const warningPackedBanks = Array.isArray(feedback.warnings?.warningPackedBanks) ? feedback.warnings.warningPackedBanks : [];
   const overBudgetAssets = largestAssets.filter((item) => Number(item?.overBudgetBytes || 0) > 0);
   const ramStatus = String(feedback.ram?.status || 'unknown');
+  const resolverCandidates = Array.isArray(feedback.resolverCandidates) ? feedback.resolverCandidates : [];
   let failedGateId = 'ide_budget_feedback';
   if (ramStatus && ramStatus !== 'ok' && ramStatus !== 'unknown') {
     failedGateId = 'ram_budget_report';
@@ -1617,7 +1711,14 @@ function buildMsx2BudgetResolutionFailureContext(feedback) {
       warningBankCount: Number(worldBankManifest.warningBankCount || 0),
       overBudgetBankCount: Number(worldBankManifest.overBudgetBankCount || 0),
       dataWindowAddress: worldBankManifest.dataWindowAddress
-    }
+    },
+    resolverCandidateIds: resolverCandidates
+      .map((item) => item?.id)
+      .filter(Boolean),
+    eligibleResolverCandidateIds: resolverCandidates
+      .filter((item) => item?.eligible !== false)
+      .map((item) => item?.id)
+      .filter(Boolean)
   };
 }
 
@@ -4723,7 +4824,16 @@ app.post('/compile', async (req, res) => {
   }
 
   msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile);
-  if (msx2BudgetFeedback?.status === 'error' && screenCompression === false) {
+  const initialResolverCandidateIds = Array.isArray(msx2BudgetFeedback?.resolverCandidates)
+    ? msx2BudgetFeedback.resolverCandidates
+        .filter((item) => item?.eligible !== false)
+        .map((item) => item?.id)
+    : [];
+  if (
+    msx2BudgetFeedback?.status === 'error' &&
+    screenCompression === false &&
+    initialResolverCandidateIds.includes('enable_zx0_preprocess')
+  ) {
     msx2BudgetResolution = {
       scope: 'msx2_screen4_budget_resolution',
       status: 'attempted',
@@ -4760,6 +4870,7 @@ app.post('/compile', async (req, res) => {
       msx2BudgetResolution.attempts.push({
         attempt: 1,
         action: 'enable_zx0_preprocess',
+        candidateId: 'enable_zx0_preprocess',
         status: retryFeedback && retryFeedback.status !== 'error' ? 'resolved' : 'failed',
         reason: retryFeedback ? `budget_status_${retryFeedback.status}` : 'missing_msx2_budget_feedback',
         failure: retryFeedback && retryFeedback.status === 'error'
@@ -4772,6 +4883,7 @@ app.post('/compile', async (req, res) => {
       msx2BudgetResolution.attempts.push({
         attempt: 1,
         action: 'enable_zx0_preprocess',
+        candidateId: 'enable_zx0_preprocess',
         status: 'failed',
         reason: retryError instanceof Error ? retryError.message : String(retryError)
       });
