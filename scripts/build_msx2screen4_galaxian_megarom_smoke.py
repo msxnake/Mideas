@@ -47,6 +47,16 @@ def validate_asm(path: Path) -> None:
         "msx2_screen4_data_bank_leave:",
         "MSX2_SCREEN4_DATA_BANK_ROM_START:",
         "load_GALAXIAN_SECTOR_1_screen4",
+        "MSX2_SHOOTER60HZ_TARGET_HZ EQU 60",
+        "MSX2_SHOOTER60HZ_MAX_FRAME_CYCLES EQU",
+        "MSX2_SHOOTER60HZ_MAX_PLAYER_SHOTS EQU",
+        "MSX2_SHOOTER60HZ_MAX_ENEMIES EQU",
+        "MSX2_SHOOTER60HZ_ACTIVE_IRQ_PROFILE EQU",
+        "cp MSX2_SHOOTER60HZ_MAX_PLAYER_SHOTS",
+        "cp MSX2_SHOOTER60HZ_MAX_ENEMIES",
+        "cp MSX2_SHOOTER60HZ_MAX_ENEMY_SHOTS",
+        "call update_msx2_shooter60hz_frame",
+        "update_msx2_shooter60hz_frame:",
     ]
     missing = [needle for needle in required if needle not in asm]
     if missing:

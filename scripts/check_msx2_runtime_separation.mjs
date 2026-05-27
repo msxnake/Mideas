@@ -10,6 +10,7 @@ const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
 const msx2Generator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
 const msx2EntityRuntime = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
+const msx2ShooterRuntime = read('utils', 'msx2ShooterRuntime.ts');
 const msx2Catalog = read('components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const msxGeneratorIndex = read('utils', 'msxGenerator', 'index.ts');
 const defaults = read('data', 'defaults.ts');
@@ -101,7 +102,7 @@ const checks = [
       msx2Generator.includes('usesSnakeCharMovement') &&
       msx2Generator.includes('buildSnakeCharRuntimeAsm') &&
       msx2Generator.includes('msx2_snake_head_x EQU #C030') &&
-      msx2Generator.includes('MSX2_SNAKE_BODY_BASE = 0xC044') &&
+      msx2Generator.includes('MSX2_SNAKE_BODY_BASE = 0xC047') &&
       msx2Generator.includes('MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2)') &&
       msx2Generator.includes('call update_msx2_snake_char'),
   ],
@@ -131,6 +132,22 @@ const checks = [
       msx2Generator.includes('clear_msx2_effect_visual_at_pixel') &&
       msx2Generator.includes('ball_break_brick') &&
       msx2Generator.includes('call draw_msx2_collectible_hud'),
+  ],
+  [
+    'MSX2 SCREEN 4 backend emits shooter 60Hz budget constants from screen.runtime.shooter',
+    msx2Generator.includes('buildMsx2Shooter60HzConstantsAsm') &&
+      msx2Generator.includes('getMsx2Shooter60HzBudgetFromAnalysis') &&
+      msx2Generator.includes('shooter60HzConstantsAsm') &&
+      msx2Generator.includes('shooterBudget?.budget.maxPlayerShots') &&
+      msx2ShooterRuntime.includes('MSX2_SHOOTER60HZ_MAX_PLAYER_SHOTS EQU') &&
+      msx2ShooterRuntime.includes('MSX2_SHOOTER60HZ_ACTIVE_IRQ_PROFILE EQU') &&
+      msx2ShooterRuntime.includes('resolveMsx2Shooter60HzBudgetForGeneration'),
+  ],
+  [
+    'MSX2 SCREEN 4 backend wires shooter 60Hz budget into runtime ASM',
+    msx2Generator.includes('cp MSX2_SHOOTER60HZ_MAX_PLAYER_SHOTS') &&
+      msx2Generator.includes('cp MSX2_SHOOTER60HZ_MAX_ENEMIES') &&
+      msx2Generator.includes('shooter60HzContract'),
   ],
   [
     'MSX2 SCREEN 4 HUD contract is exported without legacy HUD coupling',

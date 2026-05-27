@@ -24,6 +24,7 @@ import { generateSpriteBinaryData } from '../utils/spriteUtils';
 import { generateTilePatternBytes } from '../utils/tileUtils';
 import { CodeIcon, SaveIcon, CompilerIcon } from '../icons/MsxIcons';
 import { buildMsx2BudgetFeedbackFromAsm, summarizeMsx2BudgetPressure } from '../../utils/msx2BudgetFeedback';
+import { Msx2Shooter60HzFrameBudgetView } from '../msx2_screen4_editor/Msx2Shooter60HzFrameBudgetView';
 
 interface CodeExportModalProps {
   isOpen: boolean;
@@ -2299,6 +2300,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         ))}
                       </div>
                     )}
+                    {msx2BudgetFeedback.shooter60Hz?.frameBudget && (
+                      <div className="mt-2">
+                        <Msx2Shooter60HzFrameBudgetView
+                          frameBudget={msx2BudgetFeedback.shooter60Hz.frameBudget}
+                          validation={[
+                            ...(msx2BudgetFeedback.shooter60Hz.errors || []),
+                            ...(msx2BudgetFeedback.shooter60Hz.warnings || []),
+                          ]}
+                          compact
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2789,6 +2802,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             ))}
                           </div>
                         )}
+                      {msx2BudgetFeedback.shooter60Hz?.frameBudget && (
+                        <div className="mt-2">
+                          <Msx2Shooter60HzFrameBudgetView
+                            frameBudget={msx2BudgetFeedback.shooter60Hz.frameBudget}
+                            validation={[
+                              ...(msx2BudgetFeedback.shooter60Hz.errors || []),
+                              ...(msx2BudgetFeedback.shooter60Hz.warnings || []),
+                            ]}
+                            compact
+                          />
+                        </div>
+                      )}
                       {msx2BudgetResolution && (
                         <div className="mt-3 border-t border-msx-border pt-2 text-msx-textsecondary">
                           <div>

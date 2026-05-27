@@ -89,6 +89,17 @@ export const MSX2_SHOOTER_IRQ_PROFILES_60HZ: Msx2IrqProfileBudget[] = [
   },
 ];
 
+export const MSX2_SHOOTER_IRQ_PROFILE_NUMERIC_IDS: Record<Msx2IrqProfileId, number> = {
+  IRQ_IDLE: 0,
+  IRQ_STAGE_NORMAL: 1,
+  IRQ_STAGE_SCROLL_EVEN: 2,
+  IRQ_STAGE_SCROLL_ODD: 3,
+  IRQ_HUD_DIRTY: 4,
+  IRQ_PALETTE_FLASH: 5,
+  IRQ_BOSS: 6,
+  IRQ_TRANSITION_FADE: 7,
+};
+
 const clampByte = (value: unknown, fallback: number, min = 0): number => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -145,6 +156,7 @@ export const normalizeMsx2ShooterRuntimeConfig = (
       maxPowerups: clampByte(config?.budget?.maxPowerups, defaults.budget.maxPowerups, 0),
       maxExplosions: clampByte(config?.budget?.maxExplosions, defaults.budget.maxExplosions, 0),
       maxBossParts: clampByte(config?.budget?.maxBossParts, defaults.budget.maxBossParts, 0),
+      targetHz: 60,
       activeIrqProfile,
       irqProfiles: MSX2_SHOOTER_IRQ_PROFILES_60HZ,
     },
@@ -157,6 +169,14 @@ export const validateMsx2Shooter60HzBudget = (
   const shooter = normalizeMsx2ShooterRuntimeConfig(config);
   const issues: Msx2ShooterBudgetIssue[] = [];
   const activeProfile = shooter.budget.irqProfiles.find(profile => profile.id === shooter.budget.activeIrqProfile);
+
+  if (Number(config?.budget?.targetHz ?? shooter.budget.targetHz) !== 60) {
+    issues.push({
+      severity: 'error',
+      code: 'frame_rate_not_60hz',
+      message: 'Shooter 60Hz contract requires targetHz=60; other frame rates are not supported in this runtime path.',
+    });
+  }
 
   if (!activeProfile) {
     issues.push({
@@ -222,4 +242,204 @@ export const validateMsx2Shooter60HzBudget = (
   }
 
   return issues;
+};
+
+export const resolveMsx2Shooter60HzBudgetForGeneration = (
+  config: Partial<Msx2ShooterRuntimeConfig> | null | undefined
+): Msx2ShooterRuntimeConfig => {
+  const normalized = normalizeMsx2ShooterRuntimeConfig(config);
+  const activeProfile = normalized.budget.irqProfiles.find(profile => profile.id === normalized.budget.activeIrqProfile);
+  if (
+    normalized.scrollMode === 'tileVertical'
+    && activeProfile
+    && !activeProfile.tasks.includes('scroll_row')
+  ) {
+    return normalizeMsx2ShooterRuntimeConfig({
+      ...normalized,
+      budget: {
+        ...normalized.budget,
+        activeIrqProfile: 'IRQ_STAGE_SCROLL_EVEN',
+      },
+    });
+  }
+  if (
+    normalized.scrollMode === 'bossStatic'
+    && activeProfile
+    && activeProfile.tasks.includes('scroll_row')
+  ) {
+    return normalizeMsx2ShooterRuntimeConfig({
+      ...normalized,
+      budget: {
+        ...normalized.budget,
+        activeIrqProfile: 'IRQ_BOSS',
+      },
+    });
+  }
+  return normalized;
+};
+
+export const buildMsx2Shooter60HzConstantsAsm = (
+  config: Partial<Msx2ShooterRuntimeConfig> | null | undefined
+): string => {
+  const shooter = resolveMsx2Shooter60HzBudgetForGeneration(config);
+  const profileId = MSX2_SHOOTER_IRQ_PROFILE_NUMERIC_IDS[shooter.budget.activeIrqProfile];
+  const activeProfile = shooter.budget.irqProfiles.find(profile => profile.id === shooter.budget.activeIrqProfile);
+  const maxFrameCycles = activeProfile?.maxAllowedCycles ?? 6000;
+  return `; MSX2 shooter 60Hz contract sourced from screen.runtime.shooter
+MSX2_SHOOTER60HZ_TARGET_HZ EQU 60
+MSX2_SHOOTER60HZ_MAX_ENEMIES EQU ${shooter.budget.maxEnemies}
+MSX2_SHOOTER60HZ_MAX_PLAYER_SHOTS EQU ${shooter.budget.maxPlayerShots}
+MSX2_SHOOTER60HZ_MAX_ENEMY_SHOTS EQU ${shooter.budget.maxEnemyShots}
+MSX2_SHOOTER60HZ_MAX_POWERUPS EQU ${shooter.budget.maxPowerups}
+MSX2_SHOOTER60HZ_MAX_EXPLOSIONS EQU ${shooter.budget.maxExplosions}
+MSX2_SHOOTER60HZ_MAX_BOSS_PARTS EQU ${shooter.budget.maxBossParts}
+MSX2_SHOOTER60HZ_MAX_FRAME_CYCLES EQU ${maxFrameCycles}    ; ${shooter.budget.activeIrqProfile} sustained budget
+MSX2_SHOOTER60HZ_ACTIVE_IRQ_PROFILE EQU ${profileId}    ; ${shooter.budget.activeIrqProfile}`;
+};
+
+export interface Msx2Shooter60HzFrameBudgetSummary {
+  targetHz: 60;
+  activeIrqProfile: Msx2IrqProfileId;
+  maxFrameCycles: number;
+  estimatedCycles: number;
+  worstCaseCycles: number;
+  estimatedHeadroomCycles: number;
+  worstCaseHeadroomCycles: number;
+  frameBudgetStatus: 'ok' | 'warning' | 'error';
+  scrollRowRoutine?: string;
+}
+
+export const buildMsx2Shooter60HzFrameBudgetSummary = (
+  config: Partial<Msx2ShooterRuntimeConfig> | null | undefined,
+  options: { scrollRowRoutine?: string } = {}
+): Msx2Shooter60HzFrameBudgetSummary | null => {
+  if (!config) return null;
+  const shooter = resolveMsx2Shooter60HzBudgetForGeneration(config);
+  const profile = shooter.budget.irqProfiles.find(entry => entry.id === shooter.budget.activeIrqProfile);
+  if (!profile) return null;
+  const maxFrameCycles = profile.maxAllowedCycles;
+  const estimatedHeadroomCycles = maxFrameCycles - profile.estimatedCycles;
+  const worstCaseHeadroomCycles = maxFrameCycles - profile.worstCaseCycles;
+  let frameBudgetStatus: Msx2Shooter60HzFrameBudgetSummary['frameBudgetStatus'] = 'ok';
+  if (profile.sustained && profile.worstCaseCycles > maxFrameCycles) {
+    frameBudgetStatus = 'error';
+  } else if (profile.estimatedCycles > maxFrameCycles) {
+    frameBudgetStatus = 'warning';
+  }
+  return {
+    targetHz: 60,
+    activeIrqProfile: shooter.budget.activeIrqProfile,
+    maxFrameCycles,
+    estimatedCycles: profile.estimatedCycles,
+    worstCaseCycles: profile.worstCaseCycles,
+    estimatedHeadroomCycles,
+    worstCaseHeadroomCycles,
+    frameBudgetStatus,
+    scrollRowRoutine: options.scrollRowRoutine,
+  };
+};
+
+export function resolveMsx2ShooterScrollRowRoutine(
+  shooter: Msx2ShooterRuntimeConfig,
+  options: { movementMode?: string } = {}
+): 'update_msx2_shooter_scroll_row' | 'update_msx2_bg_scroll' {
+  const verticalScrollRow = shooter.scrollMode === 'tileVertical'
+    || options.movementMode === 'shooterVertical';
+  return verticalScrollRow && shooter.direction !== 'horizontal'
+    ? 'update_msx2_shooter_scroll_row'
+    : 'update_msx2_bg_scroll';
+}
+
+export function buildMsx2Shooter60HzFrameDispatchAsm(options: {
+  backgroundScrollEnabled: boolean;
+  shooter: Msx2ShooterRuntimeConfig;
+  scrollRowRoutine?: 'update_msx2_bg_scroll' | 'update_msx2_shooter_scroll_row';
+  hardwareSprites?: boolean;
+  snakeMusic?: boolean;
+}): string {
+  const scrollRowRoutine = options.scrollRowRoutine || 'update_msx2_bg_scroll';
+  const profile = options.shooter.budget.irqProfiles.find(
+    entry => entry.id === options.shooter.budget.activeIrqProfile
+  );
+  const profileLabel = options.shooter.budget.activeIrqProfile;
+  const tasks = profile?.tasks ?? [];
+  const scrollRowTask = Boolean(
+    options.backgroundScrollEnabled
+    && tasks.includes('scroll_row')
+  );
+  const scrollRowEvenFramesOnly = scrollRowTask && profile?.frequency === 'every2Frames';
+  const satUploadTask = Boolean(options.hardwareSprites && tasks.includes('sat_upload_24'));
+  const musicTask = tasks.includes('music');
+  const hudDirtyTask = tasks.includes('hud_dirty');
+  const paletteTask = tasks.includes('palette_small');
+
+  const beginLines: string[] = [
+    `update_msx2_shooter60hz_frame:`,
+    `    ; Shooter 60Hz profile ${profileLabel} pre-update tasks (compile-time).`,
+    `    ld a, (msx2_runtime_frame_counter)`,
+    `    inc a`,
+    `    ld (msx2_runtime_frame_counter), a`,
+  ];
+
+  if (scrollRowEvenFramesOnly) {
+    beginLines.push(`    and 1`, `    ret nz`, `    jp ${scrollRowRoutine}`);
+  } else if (scrollRowTask) {
+    beginLines.push(`    jp ${scrollRowRoutine}`);
+  }
+
+  beginLines.push(`    ret`, '');
+
+  const endLines: string[] = [
+    `update_msx2_shooter60hz_present_frame:`,
+    `    ; Shooter 60Hz profile ${profileLabel} post-update tasks (compile-time).`,
+  ];
+
+  if (satUploadTask) {
+    endLines.push(`    call write_hardware_sprite_attrs`);
+  }
+
+  if (hudDirtyTask) {
+    endLines.push(`    call msx2_shooter_hud_dirty_task`);
+  }
+
+  if (paletteTask) {
+    endLines.push(`    call msx2_shooter_palette_small_task`);
+  }
+
+  if (musicTask) {
+    endLines.push(`    call ${options.snakeMusic ? 'update_msx2_snake_music' : 'update_msx2_shooter_music_tick'}`);
+  }
+
+  endLines.push(`    ret`, '');
+
+  const helperLines: string[] = [];
+
+  if (musicTask && !options.snakeMusic) {
+    helperLines.push(
+      `update_msx2_shooter_music_tick:`,
+      `    ; Reserved PSG music tick for shooter IRQ profiles.`,
+      `    ret`,
+      '',
+    );
+  }
+
+  if (hudDirtyTask) {
+    helperLines.push(
+      `msx2_shooter_hud_dirty_task:`,
+      `    ; Burst HUD refresh hook for IRQ_HUD_DIRTY profile.`,
+      `    ret`,
+      '',
+    );
+  }
+
+  if (paletteTask) {
+    helperLines.push(
+      `msx2_shooter_palette_small_task:`,
+      `    ; Small palette flash hook for IRQ_PALETTE_FLASH profile.`,
+      `    ret`,
+      '',
+    );
+  }
+
+  return `${[...beginLines, ...endLines, ...helperLines].join('\n')}`;
 };

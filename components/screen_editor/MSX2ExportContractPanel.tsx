@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Msx2Screen4Layers, Msx2Screen4Runtime } from '../../types';
 import { Panel } from '../common/Panel';
-import { normalizeMsx2ShooterRuntimeConfig, validateMsx2Shooter60HzBudget } from '../../utils/msx2ShooterRuntime';
+import { normalizeMsx2ShooterRuntimeConfig, validateMsx2Shooter60HzBudget, buildMsx2Shooter60HzFrameBudgetSummary, resolveMsx2ShooterScrollRowRoutine } from '../../utils/msx2ShooterRuntime';
+import { Msx2Shooter60HzFrameBudgetView } from '../msx2_screen4_editor/Msx2Shooter60HzFrameBudgetView';
 
 interface MSX2ExportContractPanelProps {
   map: number[][];
@@ -54,6 +55,14 @@ export const MSX2ExportContractPanel: React.FC<MSX2ExportContractPanelProps> = (
       ].filter(Boolean),
       runtimeRenderer: 'pending data-driven ASM consumer',
     }));
+    const shooterValidation = shooter ? validateMsx2Shooter60HzBudget(shooter) : [];
+    const shooterFrameBudget = shooter
+      ? buildMsx2Shooter60HzFrameBudgetSummary(shooter, {
+        scrollRowRoutine: resolveMsx2ShooterScrollRowRoutine(shooter, {
+          movementMode: runtime.movementMode || runtime.movementModel,
+        }),
+      })
+      : null;
     return {
       screen: {
         clear: {
@@ -116,14 +125,22 @@ export const MSX2ExportContractPanel: React.FC<MSX2ExportContractPanelProps> = (
             sustained: activeIrqProfile.sustained,
             tasks: activeIrqProfile.tasks,
           } : null,
-          validation: validateMsx2Shooter60HzBudget(shooter),
+          frameBudget: shooterFrameBudget,
+          validation: shooterValidation,
         } : null,
       },
     };
   }, [layers, map, runtime]);
 
   return (
-    <Panel title="MSX2 Export Contract" collapsible className="text-xs" bodyClassName="p-2">
+    <Panel title="MSX2 Export Contract" collapsible className="text-xs" bodyClassName="p-2 space-y-2">
+      {contract.screen.shooter60Hz?.frameBudget && (
+        <Msx2Shooter60HzFrameBudgetView
+          frameBudget={contract.screen.shooter60Hz.frameBudget}
+          validation={contract.screen.shooter60Hz.validation}
+          compact
+        />
+      )}
       <pre className="max-h-64 overflow-auto rounded border border-msx-border/60 bg-msx-bgcolor/60 p-2 text-[10px] leading-relaxed text-msx-textsecondary">
         {JSON.stringify(contract, null, 2)}
       </pre>

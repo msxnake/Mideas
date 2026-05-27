@@ -12,6 +12,7 @@ const execAsync = util.promisify(exec);
 const execFileAsync = util.promisify(execFile);
 const path = require('path');
 const { serializeAsset } = require('./assetSerializer');
+const { buildMsx2Shooter60HzSuggestedFixes } = require('../utils/msx2ShooterBudgetFixes.js');
 
 const app = express();
 const port = 3001;
@@ -1834,14 +1835,7 @@ function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
       action: item.action
     });
   }
-  for (const item of [...shooterWarnings, ...shooterErrors]) {
-    suggestedFixes.push({
-      severity: item.severity || 'warning',
-      target: item.screenId || item.code || 'shooter60Hz',
-      reason: item.message,
-      action: 'Reduce shooter pools, switch IRQ profile, or defer this profile until OpenMSX profiling confirms spare frame time.'
-    });
-  }
+  suggestedFixes.push(...buildMsx2Shooter60HzSuggestedFixes([...shooterWarnings, ...shooterErrors]));
   const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
   const screen4DataBankPlan = projectSlice.screen4DataBankPlan;
   const needsUnsupportedMultiBankLoader = estimatedPackedBankCount > 1 && !(

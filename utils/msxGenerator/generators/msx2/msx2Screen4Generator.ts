@@ -4,7 +4,7 @@ import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import { renderNamedArtifactAsCommentBlock } from '../../utils/megaromResourceArtifacts';
-import { normalizeMsx2ShooterRuntimeConfig, validateMsx2Shooter60HzBudget } from '../../../msx2ShooterRuntime';
+import { normalizeMsx2ShooterRuntimeConfig, validateMsx2Shooter60HzBudget, buildMsx2Shooter60HzConstantsAsm, resolveMsx2Shooter60HzBudgetForGeneration, buildMsx2Shooter60HzFrameDispatchAsm, buildMsx2Shooter60HzFrameBudgetSummary, resolveMsx2ShooterScrollRowRoutine } from '../../../msx2ShooterRuntime';
 import {
   MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
   MSX2_ENEMY_MOVEMENT_BALL_BOUNCE,
@@ -41,15 +41,15 @@ const MSX2_ZX_FONT_ASCII_FIRST = 0x20;
 const MSX2_TILE_SCREEN_WIDTH = 16;
 const MSX2_TILE_SCREEN_HEIGHT = 12;
 const MSX2_PLAYER_BULLET_HARDWARE_SLOTS = 2;
-const MSX2_ENEMY_BULLET_HARDWARE_SLOTS = 1;
+const MSX2_ENEMY_BULLET_HARDWARE_SLOTS = 2;
 const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - MSX2_PLAYER_BULLET_HARDWARE_SLOTS - MSX2_ENEMY_BULLET_HARDWARE_SLOTS - 1;
 const MSX2_ENEMY_RUNTIME_BYTES = MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7;
 const MSX2_ENEMY_SPRITE_COLOR = 13;
 const MSX2_RUNTIME_RAM_START = 0xC000;
 const MSX2_RUNTIME_RAM_LIMIT = 0xF300;
 const MSX2_SNAKE_MAX_BODY_CELLS = 32;
-const MSX2_CONTROLS_RAM_BASE = 0xC040;
-const MSX2_SNAKE_BODY_BASE = 0xC044;
+const MSX2_CONTROLS_RAM_BASE = 0xC043;
+const MSX2_SNAKE_BODY_BASE = 0xC047;
 const MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2);
 const MSX2_ENEMY_SPRITE_PATTERN = [
   0x07, 0x1F, 0x3F, 0x7F, 0x67, 0xE7, 0xFF, 0xFF,
@@ -761,7 +761,11 @@ function maxPersistentMsx2ScreenCount(): number {
   return count;
 }
 
-function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd: number): Record<string, unknown> {
+function buildMsx2RamBudget(
+  tileScreens: Msx2Screen4TileScreen[],
+  runtimeRamEnd: number,
+  shooterBudget?: { maxEnemies: number; maxPlayerShots: number; maxEnemyShots: number } | null
+): Record<string, unknown> {
   const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
   const screenCount = Math.max(1, tileScreens.length);
   const effectRuntimeSize = screenCount * layerSize;
@@ -836,7 +840,16 @@ function buildMsx2RamBudget(tileScreens: Msx2Screen4TileScreen[], runtimeRamEnd:
       bytes: MSX2_ENEMY_RUNTIME_BYTES,
       mutable: true,
       slots: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
-      reason: 'Active enemy/hazard runtime arrays; ROM keeps enemy templates.',
+      ...(shooterBudget ? {
+        shooterBudgetAuthoring: {
+          maxEnemies: shooterBudget.maxEnemies,
+          maxPlayerShots: shooterBudget.maxPlayerShots,
+          maxEnemyShots: shooterBudget.maxEnemyShots,
+        },
+      } : {}),
+      reason: shooterBudget
+        ? 'Active enemy/hazard runtime arrays; shooter60Hz budget caps are emitted as ASM EQU constants.'
+        : 'Active enemy/hazard runtime arrays; ROM keeps enemy templates.',
     },
   ];
   if (gameFlowGlobalsBytes > 0) {
@@ -1478,15 +1491,50 @@ function isRuntimeHudHidden(analysis: ProjectAnalysis): boolean {
   return runtime.hideHud === true;
 }
 
+function getMsx2Shooter60HzBudgetFromAnalysis(analysis: ProjectAnalysis): ReturnType<typeof resolveMsx2Shooter60HzBudgetForGeneration> | null {
+  const tileScreens = collectReferencedTileScreens(analysis);
+  const shooterScreens = tileScreens.filter(screen =>
+    screen.runtime?.screenEngine === 'shooter' || Boolean((screen.runtime as any)?.shooter)
+  );
+  const primary = shooterScreens[0] || getPrimaryRuntimeTileScreen(analysis);
+  if (!primary) return null;
+  const hasShooterRuntime = primary.runtime?.screenEngine === 'shooter' || Boolean((primary.runtime as any)?.shooter);
+  if (!hasShooterRuntime && !usesShooterHorizontalMovement(analysis) && !usesShooterVerticalMovement(analysis)) {
+    return null;
+  }
+  return resolveMsx2Shooter60HzBudgetForGeneration(
+    (primary.runtime as any)?.shooter || {
+      direction: usesShooterHorizontalMovement(analysis) ? 'horizontal' : 'vertical',
+      scrollMode: usesShooterHorizontalMovement(analysis) ? 'none' : 'tileVertical',
+    }
+  );
+}
+
 function getPlayerBulletSlotCount(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
+  const shooterBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
   const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
   const configured = Number(
-    player?.components?.msx2_shooter?.maxProjectiles
+    shooterBudget?.budget.maxPlayerShots
+      ?? player?.components?.msx2_shooter?.maxProjectiles
       ?? player?.params?.maxProjectiles
       ?? MSX2_PLAYER_BULLET_HARDWARE_SLOTS
   );
   return Math.max(1, Math.min(MSX2_PLAYER_BULLET_HARDWARE_SLOTS, Math.floor(configured) || 1));
+}
+
+function getEnemyBulletSlotCount(analysis: ProjectAnalysis): number {
+  const shooterBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
+  const primary = getPrimaryRuntimeTileScreen(analysis);
+  const explicitMaxEnemyShots = (primary?.runtime as any)?.shooter?.budget?.maxEnemyShots;
+  const configured = Number(
+    explicitMaxEnemyShots !== undefined && explicitMaxEnemyShots !== null
+      ? explicitMaxEnemyShots
+      : usesShooterHorizontalMovement(analysis)
+        ? 1
+        : shooterBudget?.budget.maxEnemyShots ?? 1
+  );
+  return Math.max(1, Math.min(MSX2_ENEMY_BULLET_HARDWARE_SLOTS, Math.floor(configured) || 1));
 }
 
 function getPlayerProjectileEntity(analysis: ProjectAnalysis): any | undefined {
@@ -2210,6 +2258,9 @@ ${usesMazeMovement(analysis) ? '' : '    ld (msx2_player_sprite_frame), a\n'}
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_score_lo), a
     ld (msx2_score_hi), a
     ld (msx2_runtime_frame_counter), a
@@ -2593,7 +2644,8 @@ function buildHardwareSpriteRuntimeAsm(
   requiredCollectibles: number,
   restartScreenLabel: string,
   restartScreenIndex: number,
-  tileScreenCount = 1
+  tileScreenCount = 1,
+  options: { deferSatUploadToShooterFrameDispatch?: boolean } = {}
 ): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
@@ -2625,7 +2677,13 @@ function buildHardwareSpriteRuntimeAsm(
   const stageBannerEnabled = shooterHorizontal;
   const hideHud = isRuntimeHudHidden(analysis);
   const playerBulletSlotCount = getPlayerBulletSlotCount(analysis);
-  const secondPlayerBullet = playerBulletSlotCount > 1;
+  const enemyBulletSlotCount = getEnemyBulletSlotCount(analysis);
+  const shooter60HzBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
+  const shooter60HzContract = Boolean(shooter60HzBudget);
+  const secondPlayerBullet = shooter60HzContract
+    ? MSX2_PLAYER_BULLET_HARDWARE_SLOTS > 1
+    : playerBulletSlotCount > 1;
+  const secondEnemyBullet = enemyBulletSlotCount > 1;
   const attackWaveSettings = getGalaxianAttackWaveSettings(analysis);
   const attackPatterns = getGalaxianAttackPatterns(analysis);
   const playerBulletCooldownFrames = getPlayerBulletCooldownFrames(analysis);
@@ -2677,14 +2735,22 @@ ${mirrorCondition}    ld a, ${enemyPatternIndex}
   };
   const buildRegularEnemyAttrWrite = (slot: number): string => {
     const attrAddress = 0x1E00 + ((layers.length + slot) * 4);
+    const enemyCountCompare = shooter60HzContract
+      ? `    ld a, (hl)
+    cp MSX2_SHOOTER60HZ_MAX_ENEMIES
+    jp c, .enemy_sprite_${slot}_count_ready
+    ld a, MSX2_SHOOTER60HZ_MAX_ENEMIES
+.enemy_sprite_${slot}_count_ready:
+    cp ${slot + 1}`
+      : `    ld a, (hl)
+    cp ${slot + 1}`;
     return `    ; Enemy/hazard sprite slot ${slot}.
     ld a, (msx2_current_screen_index)
     ld e, a
     ld d, 0
     ld hl, msx2_screen_enemy_count
     add hl, de
-    ld a, (hl)
-    cp ${slot + 1}
+${enemyCountCompare}
     jp nc, .enemy_sprite_${slot}_visible
     ld a, 208
     ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
@@ -2807,7 +2873,7 @@ ${secondPlayerBullet ? `
 ` : ''}
 `;
   const enemyBulletAttrAddress = 0x1E00 + ((layers.length + MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN + playerBulletSlotCount) * 4);
-  const enemyBulletAttrWrite = `    ; Enemy bullet hardware sprite slot.
+  const enemyBulletAttrWrite = `    ; Enemy bullet hardware sprite slot 0.
     ld a, (msx2_enemy_bullet_active)
     or a
     jp nz, .enemy_bullet_sprite_visible
@@ -2828,9 +2894,32 @@ ${secondPlayerBullet ? `
     xor a
     ld hl, #${(enemyBulletAttrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
-.enemy_bullet_sprite_done:
+${secondEnemyBullet ? `.enemy_bullet_sprite_done:
+    ; Enemy bullet hardware sprite slot 1.
+    ld a, (msx2_enemy_bullet_1_active)
+    or a
+    jp nz, .enemy_bullet_1_sprite_visible
+    ld a, 208
+    ld hl, #${(enemyBulletAttrAddress + 4).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    jp .enemy_bullet_1_sprite_done
+.enemy_bullet_1_sprite_visible:
+    ld a, (msx2_enemy_bullet_1_y)
+    ld hl, #${(enemyBulletAttrAddress + 4).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld a, (msx2_enemy_bullet_1_x)
+    ld hl, #${(enemyBulletAttrAddress + 5).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld a, ${enemyBulletPatternIndex}
+    ld hl, #${(enemyBulletAttrAddress + 6).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    xor a
+    ld hl, #${(enemyBulletAttrAddress + 7).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+.enemy_bullet_1_sprite_done:
+` : '.enemy_bullet_sprite_done:\n'}
 `;
-  const hudLivesAttrBase = 0x1E00 + ((layers.length + MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN + playerBulletSlotCount + MSX2_ENEMY_BULLET_HARDWARE_SLOTS) * 4);
+  const hudLivesAttrBase = 0x1E00 + ((layers.length + MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN + playerBulletSlotCount + (secondEnemyBullet ? 2 : 1)) * 4);
   const hudLivesAttrWrite = hideHud ? '' : [0, 1, 2].map(index => {
     const attrAddress = hudLivesAttrBase + (index * 4);
     return `    ; HUD life marker ${index + 1}.
@@ -3369,16 +3458,7 @@ ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
 .wave_slot_${slot}_not_active:
 `).join('');
   const enemyBulletSpawnChecks = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
-    const addSlot = slot ? `    add a, ${slot}\n` : '';
-    return `    ld a, (msx2_current_screen_index)
-    ld e, a
-    ld d, 0
-    ld hl, msx2_screen_enemy_count
-    add hl, de
-    ld a, (hl)
-    cp ${slot + 1}
-    jp c, .enemy_bullet_no_spawn_${slot}
-${buildEnemyScreenSlotOffsetAsm(slot)}
+    const spawnSlot0 = `${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld a, (hl)
     cp 200
@@ -3394,8 +3474,44 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld (msx2_enemy_bullet_active), a
     ld a, 54
     ld (msx2_enemy_bullet_cooldown), a
-    ret
-.enemy_bullet_no_spawn_${slot}:
+    ret`;
+    const spawnSlot1 = `${buildEnemyScreenSlotOffsetAsm(slot)}
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    cp 200
+    jp nc, .enemy_bullet_no_spawn_${slot}
+    add a, 16
+    ld (msx2_enemy_bullet_1_y), a
+${buildEnemyScreenSlotOffsetAsm(slot)}
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    add a, 6
+    ld (msx2_enemy_bullet_1_x), a
+    ld a, 1
+    ld (msx2_enemy_bullet_1_active), a
+    ld a, 54
+    ld (msx2_enemy_bullet_cooldown), a
+    ret`;
+    return `    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_count
+    add hl, de
+    ld a, (hl)
+    cp ${slot + 1}
+    jp c, .enemy_bullet_no_spawn_${slot}
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_${slot}
+${secondEnemyBullet ? `    ld a, (msx2_enemy_bullet_1_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_1_${slot}
+` : ''}    jp .enemy_bullet_no_spawn_${slot}
+.enemy_bullet_spawn_slot_0_${slot}:
+${spawnSlot0}
+${secondEnemyBullet ? `.enemy_bullet_spawn_slot_1_${slot}:
+${spawnSlot1}
+` : ''}.enemy_bullet_no_spawn_${slot}:
 `;
   }).join('');
   const enemySlotMovementRoutines = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
@@ -4606,7 +4722,31 @@ ${secondPlayerBullet ? `update_msx2_player_bullet_slot_1:
     or a
     ret z
 .bullet_fire_pressed:
+${shooter60HzContract ? `    xor a
+    ld b, a
     ld a, (msx2_player_bullet_active)
+    or a
+    jp z, .bullet_count_after_slot_0
+    inc b
+.bullet_count_after_slot_0:
+    ld a, (msx2_player_bullet_1_active)
+    or a
+    jp z, .bullet_count_ready
+    inc b
+.bullet_count_ready:
+    ld a, b
+    cp MSX2_SHOOTER60HZ_MAX_PLAYER_SHOTS
+    jp nc, .bullet_pool_full
+    ld a, (msx2_player_bullet_active)
+    or a
+    jp z, .bullet_spawn_slot_0
+    ld a, (msx2_player_bullet_1_active)
+    or a
+    jp nz, .bullet_pool_full
+    jp .bullet_spawn_slot_1
+.bullet_pool_full:
+    ret
+` : `    ld a, (msx2_player_bullet_active)
     or a
     jp z, .bullet_spawn_slot_0
 ${secondPlayerBullet ? `
@@ -4614,7 +4754,7 @@ ${secondPlayerBullet ? `
     or a
     ret nz
     jp .bullet_spawn_slot_1
-` : '    ret\n'}
+` : '    ret\n'}`}
 .bullet_spawn_slot_0:
     ld a, (msx2_player_sprite_x)
     add a, 6
@@ -4754,12 +4894,13 @@ ${enemyWaveCompleteChecks}    ld a, 1
     ld (msx2_player_bullet_active), a
     ld (msx2_player_bullet_1_active), a
     ld (msx2_enemy_bullet_active), a
+    ld (msx2_enemy_bullet_1_active), a
     call draw_msx2_level_complete_banner
     call write_hardware_sprite_attrs
     ret
 
 update_msx2_enemy_bullet:
-    ; Single enemy projectile for Galaxian-style MSX2 screens. Clobbers AF/BC/DE/HL.
+    ; Enemy projectile pool for Galaxian-style MSX2 screens. Clobbers AF/BC/DE/HL.
     ld a, (msx2_game_over_flag)
     or a
     ret nz
@@ -4772,12 +4913,16 @@ update_msx2_enemy_bullet:
     dec a
     ld (msx2_enemy_bullet_cooldown), a
 .enemy_bullet_cooldown_done:
+    call update_msx2_enemy_bullet_slot_0
+${secondEnemyBullet ? '    call update_msx2_enemy_bullet_slot_1\n' : ''}    jp .enemy_bullet_try_spawn
+
+update_msx2_enemy_bullet_slot_0:
     ld a, (msx2_enemy_bullet_active)
     or a
-    jp z, .enemy_bullet_try_spawn
+    ret z
     ld a, (msx2_enemy_bullet_y)
     cp 204
-    jp nc, .enemy_bullet_deactivate
+    jp nc, .enemy_bullet_deactivate_0
     add a, 2
     ld (msx2_enemy_bullet_y), a
     call msx2_enemy_bullet_check_effect_collision
@@ -4786,18 +4931,56 @@ update_msx2_enemy_bullet:
     ret z
     call msx2_enemy_bullet_check_player_collision
     ret
-.enemy_bullet_deactivate:
+.enemy_bullet_deactivate_0:
     xor a
     ld (msx2_enemy_bullet_active), a
     ret
+
+${secondEnemyBullet ? `update_msx2_enemy_bullet_slot_1:
+    ld a, (msx2_enemy_bullet_1_active)
+    or a
+    ret z
+    ld a, (msx2_enemy_bullet_1_y)
+    cp 204
+    jp nc, .enemy_bullet_deactivate_1
+    add a, 2
+    ld (msx2_enemy_bullet_1_y), a
+    call msx2_enemy_bullet_1_check_effect_collision
+    ld a, (msx2_enemy_bullet_1_active)
+    or a
+    ret z
+    call msx2_enemy_bullet_1_check_player_collision
+    ret
+.enemy_bullet_deactivate_1:
+    xor a
+    ld (msx2_enemy_bullet_1_active), a
+    ret
+` : ''}
 .enemy_bullet_try_spawn:
     ld a, (msx2_enemy_bullet_cooldown)
     or a
     ret nz
-${enemyBulletSpawnChecks}    ret
-
+${shooter60HzContract ? `    xor a
+    ld b, a
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_count_after_slot_0
+    inc b
+.enemy_bullet_count_after_slot_0:
+${secondEnemyBullet ? `    ld a, (msx2_enemy_bullet_1_active)
+    or a
+    jp z, .enemy_bullet_count_ready
+    inc b
+.enemy_bullet_count_ready:
+` : `.enemy_bullet_count_ready:
+`}    ld a, b
+    cp MSX2_SHOOTER60HZ_MAX_ENEMY_SHOTS
+    jp nc, .enemy_bullet_pool_full
+` : ''}${enemyBulletSpawnChecks}${shooter60HzContract ? `.enemy_bullet_pool_full:
+    ret
+` : '    ret\n'}
 msx2_enemy_bullet_check_player_collision:
-    ; Collides enemy projectile with player 16x16 body. Clobbers AF/BC/DE/HL.
+    ; Collides enemy projectile slot 0 with player 16x16 body. Clobbers AF/BC/DE/HL.
     ld a, (msx2_enemy_bullet_y)
     add a, 4
     ld c, a
@@ -4830,8 +5013,42 @@ msx2_enemy_bullet_check_player_collision:
     call msx2_apply_damage_respawn
     ret
 
-msx2_enemy_bullet_check_effect_collision:
-    ; Clears a destructible effect cell hit by an enemy projectile. Clobbers AF/BC/DE/HL.
+${secondEnemyBullet ? `msx2_enemy_bullet_1_check_player_collision:
+    ; Collides enemy projectile slot 1 with player 16x16 body. Clobbers AF/BC/DE/HL.
+    ld a, (msx2_enemy_bullet_1_y)
+    add a, 4
+    ld c, a
+    ld a, (msx2_player_sprite_y)
+    ld b, a
+    ld a, c
+    cp b
+    ret c
+    ld a, b
+    add a, 15
+    cp c
+    ret c
+    ld a, (msx2_enemy_bullet_1_x)
+    add a, 4
+    ld c, a
+    ld a, (msx2_player_sprite_x)
+    ld b, a
+    ld a, c
+    cp b
+    ret c
+    ld a, b
+    add a, 15
+    cp c
+    ret c
+    xor a
+    ld (msx2_enemy_bullet_1_active), a
+    ld a, 80
+    ld (msx2_enemy_bullet_cooldown), a
+    call msx2_sfx_hit
+    call msx2_apply_damage_respawn
+    ret
+
+` : ''}msx2_enemy_bullet_check_effect_collision:
+    ; Clears a destructible effect cell hit by enemy projectile slot 0. Clobbers AF/BC/DE/HL.
     ld a, (msx2_enemy_bullet_x)
     add a, 4
     ld b, a
@@ -4853,6 +5070,30 @@ msx2_enemy_bullet_check_effect_collision:
     call msx2_sfx_hit
     ret
 
+${secondEnemyBullet ? `msx2_enemy_bullet_1_check_effect_collision:
+    ; Clears a destructible effect cell hit by enemy projectile slot 1. Clobbers AF/BC/DE/HL.
+    ld a, (msx2_enemy_bullet_1_x)
+    add a, 4
+    ld b, a
+    ld a, (msx2_enemy_bullet_1_y)
+    add a, 8
+    ld c, a
+    push bc
+    call msx2_effect_at_pixel
+    cp 3
+    jp z, .enemy_bullet_1_effect_hit
+    pop bc
+    ret
+.enemy_bullet_1_effect_hit:
+    xor a
+    ld (hl), a
+    ld (msx2_enemy_bullet_1_active), a
+    pop bc
+    call clear_msx2_effect_visual_at_pixel
+    call msx2_sfx_hit
+    ret
+
+` : ''}
 update_hardware_sprite_input:
     ; First playable MSX2 slice: keyboard/joystick left-right plus jump/gravity.
     ; Clobbers AF/BC/DE/HL.
@@ -5079,6 +5320,9 @@ msx2_continue_after_level_complete:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_runtime_frame_counter), a
     call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
@@ -5131,6 +5375,9 @@ msx2_restart_game:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_runtime_frame_counter), a
     call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
@@ -5316,8 +5563,7 @@ ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
 .paddle_serve_not_pending:
 ` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}    call update_msx2_enemy_positions
     call update_msx2_enemy_state
-    call write_hardware_sprite_attrs
-    ret
+${options.deferSatUploadToShooterFrameDispatch ? '    ret\n' : '    call write_hardware_sprite_attrs\n    ret\n'}
 
 msx2_reset_enemy_runtime_for_current_screen:
     ; Copy static enemy slots for current screen into mutable runtime RAM.
@@ -5925,6 +6171,9 @@ msx2_respawn_current_screen:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_player_anim_counter), a
     ld (msx2_player_anim_frame), a
     inc a
@@ -7288,7 +7537,17 @@ function buildMsx2ProjectSliceJson(
     worldPackageSummary,
     useKonamiDataBank
   );
-  const ramBudget = buildMsx2RamBudget(tileScreens, runtimeRamEnd);
+  const ramBudget = buildMsx2RamBudget(
+    tileScreens,
+    runtimeRamEnd,
+    shooter60HzScreens[0]?.pools
+      ? {
+        maxEnemies: shooter60HzScreens[0].pools.enemies,
+        maxPlayerShots: shooter60HzScreens[0].pools.playerShots,
+        maxEnemyShots: shooter60HzScreens[0].pools.enemyShots,
+      }
+      : null
+  );
   const romPayloadBytesEstimate = assetStoragePolicy
     .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
     .reduce((sum, policy) => sum + (Number(policy.storedBytesEstimate) || 0), 0);
@@ -7335,6 +7594,15 @@ function buildMsx2ProjectSliceJson(
     },
     shooter60Hz: {
       targetHz: 60,
+      frameBudget: (() => {
+        const resolvedShooterBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
+        if (!resolvedShooterBudget) return null;
+        return buildMsx2Shooter60HzFrameBudgetSummary(resolvedShooterBudget, {
+          scrollRowRoutine: resolveMsx2ShooterScrollRowRoutine(resolvedShooterBudget, {
+            movementMode: usesShooterVerticalMovement(analysis) ? 'shooterVertical' : 'shooterHorizontal',
+          }),
+        });
+      })(),
       screens: shooter60HzScreens,
       screenCount: shooter60HzScreens.length,
       warnings: shooter60HzScreens.flatMap(screen =>
@@ -7929,8 +8197,15 @@ ${checks}
 `;
 }
 
-function buildScreen4BackgroundScrollAsm(tileScreenLoadLabels: string[], useKonamiDataBank: boolean): string {
+function buildScreen4BackgroundScrollAsm(
+  tileScreenLoadLabels: string[],
+  useKonamiDataBank: boolean,
+  options: { horizontalR23?: boolean; verticalScrollRow?: boolean } = {}
+): string {
   if (!tileScreenLoadLabels.length) return '';
+  const includeHorizontalR23 = options.horizontalR23 !== false;
+  const includeVerticalScrollRow = Boolean(options.verticalScrollRow);
+  if (!includeHorizontalR23 && !includeVerticalScrollRow) return '';
   const dispatch = tileScreenLoadLabels.map((label, index) => `    cp ${index}
     jp z, .copy_${label}`).join('\n');
   const screenCopies = tileScreenLoadLabels.map(label => `.copy_${label}:
@@ -7953,7 +8228,7 @@ function buildScreen4BackgroundScrollAsm(tileScreenLoadLabels: string[], useKona
 `).join('\n');
   const enterDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : '';
   const leaveDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : '';
-  return `install_msx2_split_scroll_hook:
+  const horizontalScrollAsm = includeHorizontalR23 ? `install_msx2_split_scroll_hook:
     ; Installs a line-interrupt hook that keeps the lower playfield fixed.
     ; Clobbers AF/BC.
     ld a, #C3
@@ -8036,8 +8311,25 @@ sync_msx2_bg_scroll_wrap_rows:
     ld bc, 256
     call FILVRM
     ret
+` : '';
+  const verticalScrollRowAsm = includeVerticalScrollRow ? `init_msx2_shooter_scroll_row:
+    ; Prepare tileVertical scroll_row uploads for shooter 60Hz profiles.
+    xor a
+    ld (msx2_bg_scroll_fine), a
+    call redraw_msx2_bg_scroll
+    ret
 
-redraw_msx2_bg_scroll:
+update_msx2_shooter_scroll_row:
+    ; scroll_row IRQ task for tileVertical shooters: one name-table row per call.
+    ld a, (msx2_bg_scroll_fine)
+    inc a
+    and 15
+    ld (msx2_bg_scroll_fine), a
+    ld b, 15
+    call copy_msx2_bg_row
+    ret
+` : '';
+  return `${horizontalScrollAsm}${verticalScrollRowAsm}redraw_msx2_bg_scroll:
     ld c, 0
 .row_loop:
     ld a, c
@@ -8685,10 +8977,7 @@ function buildMsx2GameFlowProgram(
         if (current.waitForKey === false) {
           const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
           if (frames > 0) {
-            lines.push(`    ld b, ${formatHexByte(frames)}`);
-            lines.push(`.${labelForNodeId(current.id)}_wait_frames:`);
-            lines.push('    halt');
-            lines.push(`    djnz .${labelForNodeId(current.id)}_wait_frames`);
+            lines.push(...buildMsx2GameFlowTransitionWaitLines(labelForNodeId(current.id), frames));
           }
         } else {
           lines.push('    call wait_key_release');
@@ -8707,10 +8996,7 @@ function buildMsx2GameFlowProgram(
         if (current.waitForKey === false) {
           const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
           if (frames > 0) {
-            lines.push(`    ld b, ${formatHexByte(frames)}`);
-            lines.push(`.${dataLabel}_wait_frames:`);
-            lines.push('    halt');
-            lines.push(`    djnz .${dataLabel}_wait_frames`);
+            lines.push(...buildMsx2GameFlowTransitionWaitLines(dataLabel, frames));
           }
         } else {
           lines.push('    call wait_key_release');
@@ -8729,10 +9015,7 @@ function buildMsx2GameFlowProgram(
         if (current.waitForKey === false) {
           const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
           if (frames > 0) {
-            lines.push(`    ld b, ${formatHexByte(frames)}`);
-            lines.push(`.${dataLabel}_wait_frames:`);
-            lines.push('    halt');
-            lines.push(`    djnz .${dataLabel}_wait_frames`);
+            lines.push(...buildMsx2GameFlowTransitionWaitLines(dataLabel, frames));
           }
         } else {
           lines.push('    call wait_key_release');
@@ -8755,10 +9038,7 @@ function buildMsx2GameFlowProgram(
         if (current.waitForKey === false) {
           const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
           if (frames > 0) {
-            lines.push(`    ld b, ${formatHexByte(frames)}`);
-            lines.push(`.${dataLabel}_wait_frames:`);
-            lines.push('    halt');
-            lines.push(`    djnz .${dataLabel}_wait_frames`);
+            lines.push(...buildMsx2GameFlowTransitionWaitLines(dataLabel, frames));
           }
         } else {
           lines.push('    call wait_key_release');
@@ -8785,10 +9065,7 @@ function buildMsx2GameFlowProgram(
         if (current.waitForKey === false) {
           const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
           if (frames > 0) {
-            lines.push(`    ld b, ${formatHexByte(frames)}`);
-            lines.push(`.${dataLabel}_wait_frames:`);
-            lines.push('    halt');
-            lines.push(`    djnz .${dataLabel}_wait_frames`);
+            lines.push(...buildMsx2GameFlowTransitionWaitLines(dataLabel, frames));
           }
         } else {
           lines.push('    call wait_key_release');
@@ -8860,10 +9137,7 @@ function buildMsx2GameFlowProgram(
           if (current.waitForKey === false) {
             const frames = Math.max(0, Math.min(255, Math.trunc(Number(current.waitFrames) || 0)));
             if (frames > 0) {
-              lines.push(`    ld b, ${formatHexByte(frames)}`);
-              lines.push(`.${dataLabel}_wait_frames:`);
-              lines.push('    halt');
-              lines.push(`    djnz .${dataLabel}_wait_frames`);
+              lines.push(...buildMsx2GameFlowTransitionWaitLines(dataLabel, frames));
             }
           } else {
             lines.push('    call wait_key_release');
@@ -9191,8 +9465,24 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   const firstScreenEnemyRuntimeInit = firstScreenIndex === undefined || !hasHardwareSprite(analysis)
     ? ''
     : '    call msx2_reset_enemy_runtime_for_current_screen\n';
+  const shooter60HzBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
+  const shooterActiveIrqProfile = shooter60HzBudget?.budget.irqProfiles.find(
+    profile => profile.id === shooter60HzBudget.budget.activeIrqProfile
+  );
+  const shooterSatUploadInFrameDispatch = Boolean(
+    shooter60HzBudget
+    && hasHardwareSprite(analysis)
+    && shooterActiveIrqProfile?.tasks.includes('sat_upload_24')
+  );
   const hardwareSpriteRuntimeAsm = hasHardwareSprite(analysis)
-    ? buildHardwareSpriteRuntimeAsm(analysis, requiredCollectibles, firstScreenLabel, firstScreenIndex ?? 0, tileScreens.length)
+    ? buildHardwareSpriteRuntimeAsm(
+      analysis,
+      requiredCollectibles,
+      firstScreenLabel,
+      firstScreenIndex ?? 0,
+      tileScreens.length,
+      { deferSatUploadToShooterFrameDispatch: shooterSatUploadInFrameDispatch }
+    )
     : `upload_hardware_sprite_attrs:
 write_hardware_sprite_attrs:
 update_hardware_sprite_input:
@@ -9212,11 +9502,35 @@ reset_msx2_status_border:
 `;
   const vramByteWriteAsm = buildMsx2VramByteWriteAsm();
   const hudTextRuntimeAsm = buildMsx2HudTextRuntimeAsm(analysis, useKonamiDataBank);
-  const backgroundScrollEnabled = usesShooterHorizontalMovement(analysis) && usesMsx2Screen4BackgroundScroll(analysis);
-  const backgroundScrollAsm = backgroundScrollEnabled
-    ? buildScreen4BackgroundScrollAsm(tileScreenLoadLabels, useKonamiDataBank)
-    : '';
+  const shooterHorizontalScroll = usesShooterHorizontalMovement(analysis) && usesMsx2Screen4BackgroundScroll(analysis);
+  const shooterVerticalTileScroll = Boolean(
+    shooter60HzBudget
+    && (
+      shooter60HzBudget.scrollMode === 'tileVertical'
+      || usesShooterVerticalMovement(analysis)
+    )
+  );
+  const shooterVerticalScrollRow = shooterVerticalTileScroll && usesMsx2Screen4BackgroundScroll(analysis);
+  const backgroundScrollEnabled = shooterHorizontalScroll || shooterVerticalScrollRow;
+  const shooterScrollRowRoutine = shooterVerticalScrollRow && !shooterHorizontalScroll
+    ? 'update_msx2_shooter_scroll_row' as const
+    : 'update_msx2_bg_scroll' as const;
   const snakeCharMovement = usesSnakeCharMovement(analysis);
+  const shooter60HzFrameDispatchAsm = shooter60HzBudget
+    ? buildMsx2Shooter60HzFrameDispatchAsm({
+      backgroundScrollEnabled: shooterVerticalScrollRow,
+      shooter: shooter60HzBudget,
+      scrollRowRoutine: shooterScrollRowRoutine,
+      hardwareSprites: hasHardwareSprite(analysis),
+      snakeMusic: snakeCharMovement,
+    })
+    : '';
+  const backgroundScrollAsm = backgroundScrollEnabled
+    ? buildScreen4BackgroundScrollAsm(tileScreenLoadLabels, useKonamiDataBank, {
+      horizontalR23: shooterHorizontalScroll,
+      verticalScrollRow: shooterVerticalScrollRow,
+    })
+    : '';
   const stageBannerEnabled = hasHardwareSprite(analysis) && usesShooterHorizontalMovement(analysis);
   const snakeCharRuntimeAsm = buildSnakeCharRuntimeAsm(analysis);
   const hudFontPatternDataAsm = `${formatBytes('msx2_hud_font_patterns', buildMsx2HudFontPatternBytes(analysis), 'MSX2 SCREEN 4 HUD font patterns: space, digits, A-Z, colon, dash, slash')}msx2_hud_font_patterns_end:
@@ -9302,6 +9616,9 @@ reset_msx2_status_border:
     'ram_budget.json',
     JSON.stringify(projectSliceData.ramBudget, null, 2) + '\n'
   );
+  const shooter60HzConstantsAsm = shooter60HzBudget
+    ? buildMsx2Shooter60HzConstantsAsm(shooter60HzBudget)
+    : '';
   const chunkDataBankByPayloadLabel = new Map<string, string>();
   screen4DataBankPlan.splitChunkManifest.forEach(chunk => {
     const dataBankSymbol = String(chunk?.dataBankSymbol || '');
@@ -9613,6 +9930,9 @@ msx2_score_lo EQU #C023
 msx2_score_hi EQU #C024
 msx2_score_digit_vram EQU #C025
 msx2_runtime_frame_counter EQU #C026
+msx2_enemy_bullet_1_active EQU #C040
+msx2_enemy_bullet_1_x EQU #C041
+msx2_enemy_bullet_1_y EQU #C042
 msx2_enemy_bullet_active EQU #C027
 msx2_enemy_bullet_x EQU #C028
 msx2_enemy_bullet_y EQU #C029
@@ -9662,6 +9982,7 @@ msx2_runtime_ram_limit EQU ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}
 msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
 msx2_required_collectibles EQU ${requiredCollectibles}
 MSX2_HUD_FONT_BASE_CHAR EQU #${getMsx2HudFontBaseChar(analysis).toString(16).toUpperCase().padStart(2, '0')}
+${shooter60HzConstantsAsm ? `\n${shooter60HzConstantsAsm}\n` : ''}
 
     org #4000
 
@@ -9704,7 +10025,7 @@ init_rom:
 ${firstScreenIndexInit}    call init_msx2_effect_buffers
     call init_msx2_controls
     call load_${firstScreenLabel}_screen4
-${backgroundScrollEnabled ? '    call install_msx2_split_scroll_hook\n    call init_msx2_bg_scroll\n' : ''}${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
+${backgroundScrollEnabled ? `${shooterHorizontalScroll ? '    call install_msx2_split_scroll_hook\n    call init_msx2_bg_scroll\n' : ''}${shooterVerticalScrollRow ? '    call init_msx2_shooter_scroll_row\n' : ''}` : ''}${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
 ${snakeCharMovement ? '    call init_msx2_snake_char\n' : ''}
 ${snakeCharMovement ? '    call init_msx2_snake_music\n' : ''}
     call ENASCR
@@ -9712,16 +10033,16 @@ ${snakeCharMovement ? '    call init_msx2_snake_music\n' : ''}
 
 ${gameFlowProgram}
 .main_loop:
-${backgroundScrollEnabled ? '    call update_msx2_bg_scroll\n' : ''}${hasHardwareSprite(analysis) ? '    call update_hardware_sprite_input\n' : ''}
+${shooter60HzBudget
+  ? '    call wait_frame_busy\n    call update_msx2_shooter60hz_frame\n'
+  : `${backgroundScrollEnabled ? '    call update_msx2_bg_scroll\n' : ''}`}${hasHardwareSprite(analysis) ? '    call update_hardware_sprite_input\n' : ''}
 ${hasHardwareSprite(analysis) ? '    call update_msx2_air_timer\n' : ''}
-${snakeCharMovement ? '    call update_msx2_snake_char\n' : ''}
-${snakeCharMovement ? '    call update_msx2_snake_music\n' : ''}
-    call wait_frame_busy
-    jr .main_loop
+${snakeCharMovement ? '    call update_msx2_snake_char\n' : ''}${snakeCharMovement && !(shooter60HzBudget && shooterActiveIrqProfile?.tasks.includes('music')) ? '    call update_msx2_snake_music\n' : ''}${shooter60HzBudget ? '    call update_msx2_shooter60hz_present_frame\n' : ''}
+${shooter60HzBudget ? '' : '    call wait_frame_busy\n'}    jr .main_loop
 
 wait_frame_busy:
     ; VBlank-paced frame wait. On 60 Hz machines this locks gameplay to 60 frames/second.
-    ei
+${shooter60HzBudget ? '    ; Shooter 60Hz contract: exactly one wait_frame_busy per main_loop iteration.\n' : ''}    ei
     halt
     ret
 
@@ -10157,6 +10478,7 @@ ${hudTextRuntimeAsm}
 ${hardwareSpriteRuntimeAsm}
 ${snakeCharRuntimeAsm}
 ${backgroundScrollAsm}
+${shooter60HzFrameDispatchAsm}
 ${worldTransitionAsm}
 load_screen4_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.

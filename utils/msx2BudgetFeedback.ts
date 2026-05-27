@@ -1,4 +1,6 @@
-﻿export interface Msx2BudgetFeedback {
+﻿import { buildMsx2Shooter60HzSuggestedFixes } from './msx2ShooterBudgetFixes.js';
+
+export interface Msx2BudgetFeedback {
   scope: 'msx2_screen4_ide_budget_feedback';
   status: 'ok' | 'warning' | 'error';
   project: {
@@ -221,12 +223,7 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
       reason: item.reason,
       action: item.action
     })),
-    ...[...shooterWarnings, ...shooterErrors].map((item: any) => ({
-      severity: item.severity || 'warning',
-      target: item.screenId || item.code || 'shooter60Hz',
-      reason: item.message,
-      action: 'Reduce shooter pools, switch IRQ profile, or defer this profile until OpenMSX profiling confirms spare frame time.'
-    }))
+    ...buildMsx2Shooter60HzSuggestedFixes([...shooterWarnings, ...shooterErrors])
   ];
   const estimatedPackedBankCount = Number(logicalBudget.estimatedPackedBankCount || 0);
   const screen4DataBankPlan = projectSlice.screen4DataBankPlan;
@@ -237,6 +234,8 @@ export const buildMsx2BudgetFeedbackFromAsm = (sourceCode: string): Msx2BudgetFe
   );
   let status: Msx2BudgetFeedback['status'] = 'ok';
   if (romRecommendations.length || warningPackedBanks.length || ramRecommendations.length || shooterWarnings.length) status = 'warning';
+  const shooterFrameBudgetStatus = shooter60Hz?.frameBudget?.frameBudgetStatus;
+  if (shooterFrameBudgetStatus === 'warning' && status === 'ok') status = 'warning';
   if (
     (Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length)
     || (ramBudget.status && ramBudget.status !== 'ok')

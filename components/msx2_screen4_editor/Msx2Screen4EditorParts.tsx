@@ -11,7 +11,8 @@ import {
   MSX2_ENTITY_REPERTOIRE,
   Msx2EntityCreatePreset,
 } from './msx2EntityCatalog';
-import { normalizeMsx2ShooterRuntimeConfig, MSX2_SHOOTER_IRQ_PROFILES_60HZ } from '../../utils/msx2ShooterRuntime';
+import { normalizeMsx2ShooterRuntimeConfig, MSX2_SHOOTER_IRQ_PROFILES_60HZ, buildMsx2Shooter60HzFrameBudgetSummary, validateMsx2Shooter60HzBudget, resolveMsx2ShooterScrollRowRoutine } from '../../utils/msx2ShooterRuntime';
+import { Msx2Shooter60HzFrameBudgetView } from './Msx2Shooter60HzFrameBudgetView';
 
 export type Msx2Screen4EditMode = 'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile';
 export type Msx2Screen4TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick';
@@ -154,6 +155,14 @@ export const Msx2Screen4Toolbar: React.FC<Msx2Screen4ToolbarProps> = ({
       : 'platform';
   const shooterConfig = normalizeMsx2ShooterRuntimeConfig(runtime.shooter);
   const activeIrqProfile = MSX2_SHOOTER_IRQ_PROFILES_60HZ.find(profile => profile.id === shooterConfig.budget.activeIrqProfile);
+  const shooterValidation = validateMsx2Shooter60HzBudget(shooterConfig);
+  const shooterFrameBudget = runtime.screenEngine === 'shooter'
+    ? buildMsx2Shooter60HzFrameBudgetSummary(shooterConfig, {
+      scrollRowRoutine: resolveMsx2ShooterScrollRowRoutine(shooterConfig, {
+        movementMode: runtime.movementMode || runtime.movementModel,
+      }),
+    })
+    : null;
   const layerButton = (layer: Msx2Screen4EditMode, label: string) => (
     <Button size="sm" variant={mode === layer ? 'primary' : 'secondary'} onClick={() => onModeChange(layer)}>
       {label}
@@ -300,8 +309,12 @@ export const Msx2Screen4Toolbar: React.FC<Msx2Screen4ToolbarProps> = ({
                 <input type="number" min={1} max={20} value={shooterConfig.budget.maxEnemyShots} onChange={event => updateShooterBudget({ maxEnemyShots: Number(event.target.value) || 1 })} className={numberInputClass} aria-label="MSX2 shooter max enemy shots" />
               </label>
             </div>
+            <Msx2Shooter60HzFrameBudgetView
+              frameBudget={shooterFrameBudget}
+              validation={shooterValidation}
+            />
             <div className="text-msx-textsecondary">
-              IRQ: {activeIrqProfile ? `${activeIrqProfile.estimatedCycles}/${activeIrqProfile.worstCaseCycles} cycles, ${activeIrqProfile.vramBytes} VRAM bytes` : 'unknown'}
+              IRQ tasks: {activeIrqProfile?.tasks.join(', ') || 'unknown'}
             </div>
           </div>
         )}

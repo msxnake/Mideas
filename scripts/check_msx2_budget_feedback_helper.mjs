@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Buffer } from 'node:buffer';
@@ -24,6 +24,10 @@ execSync(
     stdio: 'pipe',
   }
 );
+mkdirSync(join(outDir, 'utils'), { recursive: true });
+const shooterFixesSource = join(repoRoot, 'utils', 'msx2ShooterBudgetFixes.js');
+copyFileSync(shooterFixesSource, join(outDir, 'utils', 'msx2ShooterBudgetFixes.js'));
+copyFileSync(shooterFixesSource, join(outDir, 'msx2ShooterBudgetFixes.js'));
 
 const nestedHelperModulePath = join(outDir, 'utils', 'msx2BudgetFeedback.js');
 const flatHelperModulePath = join(outDir, 'msx2BudgetFeedback.js');
@@ -32,6 +36,7 @@ const {
   buildMsx2BudgetFeedbackFromAsm,
   summarizeMsx2BudgetPressure,
 } = await import(pathToFileURL(helperModulePath).href);
+const { buildMsx2Shooter60HzSuggestedFix, buildMsx2Shooter60HzSuggestedFixes } = await import(pathToFileURL(join(repoRoot, 'utils', 'msx2ShooterBudgetFixes.js')).href);
 
 const serverSource = readFileSync(join(repoRoot, 'server', 'server.js'), 'utf8');
 const serverFeedbackHelperStart = serverSource.indexOf('function buildMsx2AutomaticResolutionPlan');
@@ -42,9 +47,10 @@ const serverFeedbackEnd = serverSource.indexOf('function isResourceTableRamZx0Ca
 if (serverFeedbackStart < 0 || serverFeedbackEnd < serverFeedbackStart) {
   throw new Error('Could not locate server MSX2 budget feedback helper block');
 }
-const serverContext = { Buffer };
+const serverContext = { Buffer, buildMsx2Shooter60HzSuggestedFixes };
 vm.runInNewContext(
 `const Buffer = this.Buffer;
+const buildMsx2Shooter60HzSuggestedFixes = this.buildMsx2Shooter60HzSuggestedFixes;
 ${serverSource.slice(serverFeedbackStart, serverFeedbackEnd)}
 this.buildMsx2IdeBudgetFeedbackFromAsm = buildMsx2IdeBudgetFeedbackFromAsm;
 this.buildMsx2BudgetResolutionFailureContext = buildMsx2BudgetResolutionFailureContext;
@@ -202,6 +208,17 @@ const asm = [
     },
     shooter60Hz: {
       targetHz: 60,
+      frameBudget: {
+        targetHz: 60,
+        activeIrqProfile: 'IRQ_STAGE_NORMAL',
+        maxFrameCycles: 6000,
+        estimatedCycles: 3600,
+        worstCaseCycles: 4800,
+        estimatedHeadroomCycles: 2400,
+        worstCaseHeadroomCycles: 1200,
+        frameBudgetStatus: 'ok',
+        scrollRowRoutine: 'update_msx2_shooter_scroll_row',
+      },
       screenCount: 1,
       screens: [
         {
@@ -387,8 +404,29 @@ if (
 if (feedback.shooter60Hz?.screenCount !== 1 || feedback.shooter60Hz?.warnings?.[0]?.code !== 'enemy_shot_pressure') {
   throw new Error(`Expected shooter 60Hz budget metadata in feedback: ${JSON.stringify(feedback.shooter60Hz)}`);
 }
+if (
+  feedback.shooter60Hz?.frameBudget?.targetHz !== 60
+  || feedback.shooter60Hz?.frameBudget?.maxFrameCycles !== 6000
+  || feedback.shooter60Hz?.frameBudget?.estimatedHeadroomCycles !== 2400
+  || feedback.shooter60Hz?.frameBudget?.frameBudgetStatus !== 'ok'
+) {
+  throw new Error(`Expected shooter 60Hz frame budget summary in feedback: ${JSON.stringify(feedback.shooter60Hz?.frameBudget)}`);
+}
 if (!feedback.suggestedFixes.some((item) => item.target === 'forest_00' && item.reason === 'Synthetic shooter budget warning')) {
   throw new Error(`Expected shooter 60Hz warning in suggested fixes: ${JSON.stringify(feedback.suggestedFixes)}`);
+}
+const enemyShotFix = feedback.suggestedFixes.find((item) => item.target === 'forest_00' && item.reason === 'Synthetic shooter budget warning');
+if (!enemyShotFix || !enemyShotFix.action.includes('maxEnemyShots to 16 or less')) {
+  throw new Error(`Expected enemy_shot_pressure-specific suggested fix action: ${JSON.stringify(enemyShotFix)}`);
+}
+const scrollFix = buildMsx2Shooter60HzSuggestedFix({
+  severity: 'warning',
+  code: 'scroll_without_scroll_irq',
+  screenId: 'forest_00',
+  message: 'Tile vertical scroll is selected but the active IRQ profile does not upload a scroll row.',
+});
+if (!scrollFix.action.includes('IRQ_STAGE_SCROLL_EVEN')) {
+  throw new Error(`Expected scroll_without_scroll_irq-specific suggested fix action: ${JSON.stringify(scrollFix)}`);
 }
 if ((feedback.runtimeModules?.excluded || [])[0]?.placement !== 'world_specific') {
   throw new Error(`Expected excluded runtime module placement to stay visible: ${JSON.stringify(feedback.runtimeModules)}`);
