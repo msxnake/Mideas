@@ -5,7 +5,8 @@ import {
   HUDConfiguration, TileBank, MSXFont, MSXFontColorAttributes,
   MSXFontAsset, DataFormat, ExportRomMode, Snippet, HistoryState, HistoryAction,
   CopiedScreenData, CopiedLayerData, CopiedTileData, WaypointPickerState,
-  GameFlowGraph, CopiedBossPhaseData, HelpDocSection, PresentationScreenConfig
+  GameFlowGraph, CopiedBossPhaseData, HelpDocSection, PresentationScreenConfig,
+  Msx2ProjectProfile,
 } from '../types';
 import {
   MSX_SCREEN5_PALETTE, DEFAULT_SCREEN_MODE, DEFAULT_MAIN_MENU_CONFIG,
@@ -42,6 +43,8 @@ export const useAppState = () => {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
   const [currentScreenMode, setCurrentScreenMode] = useState<string>(DEFAULT_SCREEN_MODE);
+  const [msx2ProjectProfile, setMsx2ProjectProfile] = useState<Msx2ProjectProfile | null>(null);
+  const [pendingMsx2NewProject, setPendingMsx2NewProject] = useState<{ projectName: string; screenMode: string } | null>(null);
   const [statusBarMessage, setStatusBarMessage] = useState<string>("MSX Retro Game IDE Initialized.");
   const [selectedColor, setSelectedColor] = useState<MSXColorValue>(MSX_SCREEN5_PALETTE[1].hex);
 
@@ -373,6 +376,10 @@ export const useAppState = () => {
     setCurrentProjectName,
     currentScreenMode,
     setCurrentScreenMode,
+    msx2ProjectProfile,
+    setMsx2ProjectProfile,
+    pendingMsx2NewProject,
+    setPendingMsx2NewProject,
     statusBarMessage,
     setStatusBarMessage,
     selectedColor,

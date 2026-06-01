@@ -39,6 +39,7 @@ import {
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getScreenTileLogicalProperties, normalizeTileInteractionType } from '../utils/screenUtils';
+import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { renderBossInstancesToCanvas } from '../utils/bossRenderUtils';
 import { drawPresentationScreenPreview } from '../utils/presentationScreenUtils';
 import type { PresentationScreenConfig } from '../../types';
@@ -4873,6 +4874,84 @@ useEffect(() => {
         return true;
     };
 
+    const getDefaultTransitionMode = (direction: 'north' | 'south' | 'east' | 'west') => (
+        direction === 'east' || direction === 'west' ? 'preserve_y_validated' : 'preserve_x_validated'
+    );
+
+    const findSafeScreenEntryPoint = (
+        preferred: { x: number; y: number },
+        direction: 'north' | 'south' | 'east' | 'west',
+        spriteWidth: number,
+        spriteHeight: number,
+        screenMap: ScreenMap
+    ): { x: number; y: number } | null => {
+        const bounds = getScreenActiveBoundsPx(screenMap);
+        const margin = 2;
+        const minX = bounds.leftPx + margin;
+        const maxX = Math.max(minX, bounds.rightPx - spriteWidth - margin);
+        const minY = bounds.topPx + margin;
+        const maxY = Math.max(minY, bounds.bottomPx - spriteHeight - margin);
+        const clampX = (value: number) => Math.max(minX, Math.min(maxX, value));
+        const clampY = (value: number) => Math.max(minY, Math.min(maxY, value));
+        const base = { x: clampX(preferred.x), y: clampY(preferred.y) };
+
+        if (isCollisionRectClear(base.x, base.y, spriteWidth, spriteHeight, screenMap)) {
+            return base;
+        }
+
+        const scanStep = TILE_SIZE;
+        if (direction === 'east' || direction === 'west') {
+            for (let distance = scanStep; distance <= bounds.bottomPx - bounds.topPx; distance += scanStep) {
+                for (const sign of [-1, 1]) {
+                    const candidate = { x: base.x, y: clampY(base.y + distance * sign) };
+                    if (isCollisionRectClear(candidate.x, candidate.y, spriteWidth, spriteHeight, screenMap)) {
+                        return candidate;
+                    }
+                }
+            }
+            return null;
+        }
+
+        for (let distance = scanStep; distance <= bounds.rightPx - bounds.leftPx; distance += scanStep) {
+            for (const sign of [-1, 1]) {
+                const candidate = { x: clampX(base.x + distance * sign), y: base.y };
+                if (isCollisionRectClear(candidate.x, candidate.y, spriteWidth, spriteHeight, screenMap)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    };
+
+    const resolveScreenTransitionEntryPoint = (
+        preferred: { x: number; y: number },
+        direction: 'north' | 'south' | 'east' | 'west',
+        connection: any,
+        spriteWidth: number,
+        spriteHeight: number,
+        targetScreen: ScreenMap
+    ): { x: number; y: number } | null => {
+        const mode = connection?.transitionMode || getDefaultTransitionMode(direction);
+        const ifBlocked = connection?.ifBlocked || 'deny';
+        const fixedEntry = connection?.entryPoint && typeof connection.entryPoint.x === 'number' && typeof connection.entryPoint.y === 'number'
+            ? { x: connection.entryPoint.x, y: connection.entryPoint.y }
+            : null;
+        const candidate = mode === 'fixed_entry' || mode === 'door_entry' || mode === 'ladder_entry' || mode === 'checkpoint_entry'
+            ? (fixedEntry || preferred)
+            : preferred;
+
+        if (isCollisionRectClear(candidate.x, candidate.y, spriteWidth, spriteHeight, targetScreen)) {
+            return candidate;
+        }
+
+        if (ifBlocked === 'safe_entry') {
+            return findSafeScreenEntryPoint(candidate, direction, spriteWidth, spriteHeight, targetScreen);
+        }
+
+        return null;
+    };
+
     const isTileMatrixDropTargetClear = (
         tileX: number,
         tileY: number,
@@ -5229,6 +5308,23 @@ useEffect(() => {
                 width: entity.sprite.size.width,
                 height: entity.sprite.size.height,
             };
+        }
+
+        const msx2Source = getMsx2PreviewSource(screenMap);
+        if (msx2Source) {
+            const hazardProbes = [
+                [finalHitbox.x + 1, finalHitbox.y + finalHitbox.height - 1],
+                [finalHitbox.x + finalHitbox.width - 2, finalHitbox.y + finalHitbox.height - 1],
+                [finalHitbox.x + Math.floor(finalHitbox.width / 2), finalHitbox.y + Math.floor(finalHitbox.height / 2)],
+                [finalHitbox.x + 1, finalHitbox.y + 1],
+                [finalHitbox.x + finalHitbox.width - 2, finalHitbox.y + 1],
+                [finalHitbox.x + 1, finalHitbox.y + Math.floor(finalHitbox.height / 2)],
+                [finalHitbox.x + finalHitbox.width - 2, finalHitbox.y + Math.floor(finalHitbox.height / 2)],
+            ] as const;
+            entity.hasDangerousTileCollision = hazardProbes.some(
+                ([x, y]) => checkMsx2HazardAtWorldPixel(msx2Source, x, y)
+            );
+            return;
         }
 
         const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
@@ -8347,7 +8443,16 @@ useEffect(() => {
                                     case 'south': newPlayerPos.y = targetActiveBounds.topPx + entryMargin; break;
                                     case 'north': newPlayerPos.y = Math.max(targetActiveBounds.topPx + entryMargin, targetActiveBounds.bottomPx - spriteHeight - entryMargin); break;
                                 }
-                                setPlayerEntryPoint(newPlayerPos);
+                                const resolvedEntry = targetScreen
+                                    ? resolveScreenTransitionEntryPoint(newPlayerPos, exitDirection, connection, spriteWidth, spriteHeight, targetScreen)
+                                    : newPlayerPos;
+                                if (!resolvedEntry) {
+                                    if (isEntityComponentEnabled(entityA, 'comp_limit_on')) {
+                                        clampEntityToScreenBounds(entityA, currentActiveBounds, exitDirection);
+                                    }
+                                    return;
+                                }
+                                setPlayerEntryPoint(resolvedEntry);
                                 handleScreenTransition(targetNodeId);
                                 return; // Stop processing this frame so the transition can run cleanly
                             } else if (isEntityComponentEnabled(entityA, 'comp_limit_on')) {

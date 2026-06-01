@@ -1,13 +1,13 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { 
-  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
+  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, 
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -25,6 +25,7 @@ import { Msx2SpriteEditor } from './editors/Msx2SpriteEditor';
 import { Msx2BitmapEditor } from './editors/Msx2BitmapEditor';
 import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
 import { Msx2Screen4BitmapRoomEditor } from './editors/Msx2Screen4BitmapRoomEditor';
+import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
 import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
 import { Msx2Screen5PresentationEditor } from './editors/Msx2Screen5PresentationEditor';
 import { ScreenEditor } from './editors/ScreenEditor';
@@ -63,6 +64,7 @@ import { Toolbar } from './layout/Toolbar';
 import { RenameModal } from './modals/RenameModal';
 import { SaveAsModal } from './modals/SaveAsModal';
 import { NewProjectModal } from './modals/NewProjectModal';
+import { Msx2GameProfilePicker } from './modals/Msx2GameProfilePicker';
 import { AboutModal } from './modals/AboutModal';
 import { AsmCompilerHelpModal } from './modals/AsmCompilerHelpModal';
 import { MsxEmulatorHelpModal } from './modals/MsxEmulatorHelpModal';
@@ -89,6 +91,8 @@ interface AppUIProps {
   selectedAssetId: string | null;
   currentProjectName: string | null;
   currentScreenMode: string;
+  msx2ProjectProfile: Msx2ProjectProfile | null;
+  pendingMsx2NewProject: { projectName: string; screenMode: string } | null;
   statusBarMessage: string;
   selectedColor: MSXColorValue;
   screenEditorSelectedTileId: string | null;
@@ -221,6 +225,9 @@ interface AppUIProps {
   resetIdeConfig: () => void;
   handleOpenNewProjectModal: () => void;
   handleConfirmNewProject: (projectNameFromModal: string, screenMode: string) => void;
+  handleRequestMsx2GameProfile: (projectNameFromModal: string, screenMode: string) => void;
+  handleCancelMsx2NewProject: () => void;
+  handleConfirmMsx2GameProfile: (profileId: Msx2GameProfileId) => void;
   handleNewAsset: (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }) => void;
   handleSpriteImported: (newSpriteData: Omit<Sprite, 'id' | 'name'>) => void;
   memoizedOnRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
@@ -261,14 +268,15 @@ interface AppUIProps {
  */
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
-        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isCodeExportModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, defaultExportRomMode, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,
+        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, msx2ProjectProfile, pendingMsx2NewProject, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isCodeExportModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, defaultExportRomMode, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,
         
-        setCopiedBossPhase, setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setSelectedGameFlowNodeId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsCodeExportModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, onUpdatePresentationScreen, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleReorderSpriteFrames, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, onSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, handleOpenRecentProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleExportIntermediateGameJson, handleCopyTileData, handleGenerateTemplatesAsm,
+        setCopiedBossPhase, setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setSelectedGameFlowNodeId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsCodeExportModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, onUpdatePresentationScreen, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleReorderSpriteFrames, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleRequestMsx2GameProfile, handleCancelMsx2NewProject, handleConfirmMsx2GameProfile, handleNewAsset, handleSpriteImported, onSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, handleOpenRecentProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleExportIntermediateGameJson, handleCopyTileData, handleGenerateTemplatesAsm,
         isToggleEditorDisabled, onToggleEditor, bossEditorZoom, setBossEditorZoom, tileEditorZoom, setTileEditorZoom, screenEditorZoom, setScreenEditorZoom, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, showSectorLines, setShowSectorLines, saveSectorLines, setSaveSectorLines, setDefaultExportRomMode,
         onRequestSaveTile, onRequestSaveTrack, onImportTrack, handleImportBossPackageFile, onRequestLoadTile, onRequestSaveSelectedTiles
     } = props;
 
   const activeAsset = assets.find(a => a.id === selectedAssetId);
+  const hasUsableProject = Boolean(currentProjectName) && !pendingMsx2NewProject;
   const activeScreenMapAsset = activeAsset?.type === 'screenmap' ? activeAsset.data as ScreenMap : undefined;
   const activeGameFlowAsset = activeAsset?.type === 'gameflow' ? activeAsset.data as GameFlowGraph : undefined;
   const bossPackageInputRef = React.useRef<HTMLInputElement>(null);
@@ -368,7 +376,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     .map(a => a.data as WorldMapGraph), [assets]);
 
   const dataAssets = assets.filter(a =>
-    ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'msx2bitmaproom', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
+    ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'msx2bitmaproom', 'msx2player', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
   );
 
   if (Object.keys(msxFont).length > 0) {
@@ -598,13 +606,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onToggleEditor={onToggleEditor}
         isToggleEditorDisabled={isToggleEditorDisabled}
         currentScreenMode={currentScreenMode}
-        hasActiveProject={!!currentProjectName}
+        msx2ProjectProfile={msx2ProjectProfile}
+        hasActiveProject={hasUsableProject}
       />
       <input id="project-loader-input" type="file" accept=".json" ref={fileLoadInputRef} onChange={handleLoadProject} style={{ display: 'none' }} />
       <input id="boss-package-loader-input" type="file" accept=".json,.boss.json,application/json" ref={bossPackageInputRef} onChange={handleImportBossPackageFile} style={{ display: 'none' }} />
 
       <div className="min-h-0 flex-grow flex overflow-hidden">
-        {isAssetExplorerCollapsed ? (
+        {hasUsableProject && (
+          isAssetExplorerCollapsed ? (
           <div className="w-8 flex-shrink-0 border-r border-msx-border bg-msx-panelbg flex flex-col items-center py-2">
             <button
               type="button"
@@ -632,13 +642,23 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onRequestLoadTile={onRequestLoadTile}
             onRequestSaveSelectedTiles={onRequestSaveSelectedTiles}
             currentScreenMode={currentScreenMode}
-            hasActiveProject={!!currentProjectName}
+            msx2ProjectProfile={msx2ProjectProfile}
+            hasActiveProject={hasUsableProject}
             onRequestCollapse={() => setIsAssetExplorerCollapsed(true)}
           />
+        )
         )}
         
-        <div className="min-h-0 min-w-0 flex-grow flex flex-col" role="main">
-          {currentEditor === EditorType.None && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
+        <div className="relative min-h-0 min-w-0 flex-grow flex flex-col" role="main">
+          {pendingMsx2NewProject && (
+            <Msx2GameProfilePicker
+              projectName={pendingMsx2NewProject.projectName}
+              screenMode={pendingMsx2NewProject.screenMode}
+              onConfirm={handleConfirmMsx2GameProfile}
+              onCancel={handleCancelMsx2NewProject}
+            />
+          )}
+          {currentEditor === EditorType.None && !pendingMsx2NewProject && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
           {currentEditor === EditorType.GameFlow && activeAsset?.type === 'gameflow' && (
             <GameFlowEditor
               gameFlowGraph={activeAsset.data}
@@ -688,8 +708,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} saveSpriteZoom={saveSpriteZoom} />)}
           {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
-          {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} selectedColor={selectedColor} allAssets={assets} />)}
+          {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && ( <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
+          {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} />)}
           {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
             <Msx2HudFontEditor
               font={activeAsset.data as Msx2HudFontAsset}
@@ -760,7 +781,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.HelpDocs && ( <HelpDocsViewer helpDocsData={helpDocsData} /> )}
           {currentEditor === EditorType.PngMsxChars && ( <PngMsxCharsTool /> )}
            
-           {currentEditor === EditorType.ComponentDefinitionEditor && <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} currentScreenMode={currentScreenMode} />}
+           {currentEditor === EditorType.ComponentDefinitionEditor && <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} currentScreenMode={currentScreenMode} msx2ProjectProfile={msx2ProjectProfile} />}
            {currentEditor === EditorType.EntityTemplateEditor && (
             <EntityTemplateEditor
               entityTemplates={entityTemplates}
@@ -774,6 +795,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               allAssets={assets}
               setStatusBarMessage={setStatusBarMessage}
               currentScreenMode={currentScreenMode}
+              msx2ProjectProfile={msx2ProjectProfile}
             />
            )}
            {currentEditor === EditorType.GlobalVariables && activeAsset && activeAsset.type === 'globalvariables' && (
@@ -834,7 +856,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
         </div>
 
-        {isPropertiesPanelCollapsed ? (
+        {hasUsableProject && (
+          isPropertiesPanelCollapsed ? (
           <div className="w-8 flex-shrink-0 border-l border-msx-border bg-msx-panelbg flex flex-col items-center py-2">
             <button
               type="button"
@@ -847,7 +870,18 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             </button>
           </div>
         ) : (
-          <div className="w-64 flex-shrink-0 flex flex-col min-h-0 overflow-hidden">
+          <div className="w-64 flex-shrink-0 flex flex-col min-h-0 overflow-hidden border-l border-msx-border bg-msx-panelbg">
+            <div className="flex-shrink-0 flex items-center justify-end px-2 py-1 border-b border-msx-border">
+              <button
+                type="button"
+                onClick={() => setIsPropertiesPanelCollapsed(true)}
+                title="Hide right panel"
+                aria-label="Hide right panel"
+                className="h-7 w-6 rounded border border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary text-xs leading-none"
+              >
+                {'>'}
+              </button>
+            </div>
             {renderRightPanelContent()}
             <PropertiesPanel 
             asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || (currentEditor === EditorType.PresentationScreen && activeAsset?.type !== 'presentationscreen') ? undefined : activeAsset}
@@ -915,9 +949,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               setSelectedScreenCatalogBlock(stamp);
               setStatusBarMessage(`${stamp.name} selected. Click the screen grid to place it.`);
             }}
-            onRequestCollapse={() => setIsPropertiesPanelCollapsed(true)}
           />
           </div>
+        )
         )}
       </div>
       <StatusBar message={statusBarMessage} details={currentProjectName || activeAsset?.name} screenMode={currentScreenMode} />
@@ -932,6 +966,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         <NewProjectModal
           isOpen={isNewProjectModalOpen}
           onConfirm={handleConfirmNewProject}
+          onRequestMsx2GameProfile={handleRequestMsx2GameProfile}
           onClose={() => setIsNewProjectModalOpen(false)}
         />
       )}

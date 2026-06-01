@@ -1,0 +1,6 @@
+=== Box2 push v4 (alignment fix) ===
+[IDLE] player=(32,160) box=(96,160) moving_slot=255 count=1
+[PUSHING] player=(116,160) box=(136,160) moving_slot=255 count=1
+[HOLD] player=(136,160) box=(152,160) moving_slot=255 count=1
+[RELEASE] player=(136,160) box=(152,160) moving_slot=255 count=1
+DONE

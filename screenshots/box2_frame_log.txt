@@ -1,0 +1,25 @@
+=== frame probe ===
+t=7.00 px=32 dx=0 probe=(0,0) box=(96,160) find=9
+t=7.10 px=35 dx=8 probe=(18,168) box=(96,160) find=255
+t=7.20 px=41 dx=8 probe=(24,168) box=(96,160) find=255
+t=7.30 px=47 dx=8 probe=(30,168) box=(96,160) find=255
+t=7.40 px=53 dx=8 probe=(36,168) box=(96,160) find=255
+t=7.50 px=59 dx=8 probe=(42,168) box=(96,160) find=255
+t=7.60 px=65 dx=8 probe=(48,168) box=(96,160) find=255
+t=7.70 px=71 dx=8 probe=(54,168) box=(96,160) find=255
+t=7.80 px=77 dx=8 probe=(60,168) box=(96,160) find=255
+t=7.90 px=83 dx=8 probe=(66,168) box=(96,160) find=255
+t=8.00 px=89 dx=8 probe=(72,168) box=(96,160) find=255
+t=8.10 px=95 dx=8 probe=(78,168) box=(96,160) find=255
+t=8.20 px=101 dx=8 probe=(84,168) box=(96,160) find=255
+t=8.30 px=107 dx=8 probe=(90,168) box=(96,160) find=255
+t=8.40 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=8.50 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=8.60 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=8.70 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=8.80 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=8.90 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=9.00 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=9.10 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+t=9.20 px=112 dx=8 probe=(96,168) box=(96,160) find=0
+DONE

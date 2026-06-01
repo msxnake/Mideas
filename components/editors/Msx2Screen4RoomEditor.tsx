@@ -1,7 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MSXColorValue, Msx2HudWidget, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
+import { MSXColorValue, Msx2HudWidget, Msx2PlayerEntry, Msx2ProjectProfile, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4LineAttribute, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
+import { filterMsx2EntityPresetsForProfile, getMsx2LockedRuntimeMode } from '../../utils/msx2ProjectProfiles';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { normalizeMsx2ShooterRuntimeConfig } from '../../utils/msx2ShooterRuntime';
+import { normalizeMsx2PlayerEntries } from '../../utils/msx2PlayerDefaults';
+import {
+  createDefaultLineAttributes,
+  ensureLineAttributes,
+  fillAllLineAttributeSlots,
+  fixInvalidTilePixels,
+  mirrorLineAttributesHorizontal,
+  mirrorLineAttributesVertical,
+  remapSegmentPixels,
+  resizeLineAttributes,
+  resolvePaintSlot,
+} from '../../utils/msx2Screen4TileConstraints';
+import {
+  applyMsx2TileBehaviorToMapCell,
+  stripMsx2BoxTileCollisionFromLayer,
+  getDefaultHitboxForBehavior,
+  getMsx2TileBehaviorKind,
+  normalizeMsx2Screen4TileBehavior,
+} from '../../utils/msx2Screen4TileBehavior';
 import {
   MAP_HEIGHT,
   MAP_WIDTH,
@@ -28,14 +48,15 @@ import { buildMsx2EntityComponents } from '../msx2_screen4_editor/msx2EntityCata
 import { Button } from '../common/Button';
 import { MSX2AtlasPreviewPanel } from '../screen_editor/MSX2AtlasPreviewPanel';
 import { MSX2CompositionPanel } from '../screen_editor/MSX2CompositionPanel';
-import { MSX2ExportContractPanel } from '../screen_editor/MSX2ExportContractPanel';
 import { MSX2HudPlanPanel } from '../msx2_screen4_editor/MSX2HudPlanPanel';
+import { Msx2Screen4TileStudio } from '../msx2_screen4_editor/Msx2Screen4TileStudio';
 
 interface Msx2Screen4RoomEditorProps {
   screen: Msx2Screen4TileScreen;
   onUpdate: (data: Partial<Msx2Screen4TileScreen>) => void;
   selectedColor: MSXColorValue;
   allAssets: ProjectAsset[];
+  msx2ProjectProfile?: Msx2ProjectProfile | null;
 }
 
 const MSX2_TILE_DIMENSION_OPTIONS = [8, 16, 24, 32] as const;
@@ -51,27 +72,50 @@ const normalizeTileDimension = (value: unknown): number => {
 const createTilePixels = (slot = 0, width = TILE_SIZE, height = TILE_SIZE): number[][] =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => slot));
 
-const cloneTile = (tile: Msx2Screen4Tile): Msx2Screen4Tile => ({
-  ...tile,
-  width: normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE),
-  height: normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE),
-  pixels: tile.pixels.map(row => [...row]),
-});
+const createTileWithDefaults = (slot = 0, width = TILE_SIZE, height = TILE_SIZE): Msx2Screen4Tile =>
+  normalizeMsx2Screen4TileBehavior({
+    id: `tile_${Date.now()}`,
+    name: 'Tile',
+    width,
+    height,
+    pixels: createTilePixels(slot, width, height),
+    lineAttributes: createDefaultLineAttributes(width, height, slot === 0 ? 1 : slot, 0),
+    behaviorKind: 'background',
+    hitbox: getDefaultHitboxForBehavior('background', width, height),
+  }, width, height);
+
+const cloneTile = (tile: Msx2Screen4Tile): Msx2Screen4Tile => {
+  const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+  const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+  const pixels = tile.pixels.map(row => [...row]);
+  return normalizeMsx2Screen4TileBehavior({
+    ...tile,
+    width,
+    height,
+    pixels,
+    lineAttributes: ensureLineAttributes(pixels, tile.lineAttributes?.map(row => row.map(segment => ({ ...segment }))), width, height),
+    hitbox: tile.hitbox ? { ...tile.hitbox } : undefined,
+  }, width, height);
+};
 
 const normalizeTiles = (tiles?: Msx2Screen4Tile[]): Msx2Screen4Tile[] => {
   const source = tiles?.length ? tiles : [{ id: 'tile_0', name: 'Tile 0', pixels: createTilePixels(0) }];
   return source.map((tile, index) => {
     const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
     const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
-    return {
+    const pixels = Array.from({ length: height }, (_, y) =>
+      Array.from({ length: width }, (_, x) => Math.max(0, Math.min(15, Number(tile.pixels?.[y]?.[x]) || 0)))
+    );
+    return normalizeMsx2Screen4TileBehavior({
       id: tile.id || `tile_${index}`,
       name: tile.name || `Tile ${index}`,
       width,
       height,
-      pixels: Array.from({ length: height }, (_, y) =>
-        Array.from({ length: width }, (_, x) => Math.max(0, Math.min(15, Number(tile.pixels?.[y]?.[x]) || 0)))
-      ),
-    };
+      pixels,
+      lineAttributes: ensureLineAttributes(pixels, tile.lineAttributes, width, height),
+      behaviorKind: tile.behaviorKind,
+      hitbox: tile.hitbox,
+    }, width, height);
   });
 };
 
@@ -179,12 +223,19 @@ const normalizeRuntimeArea = (runtime?: Msx2Screen4Runtime): Msx2Screen4Runtime 
   };
 };
 
-const normalizeLayers = (screen: Msx2Screen4TileScreen): Msx2Screen4Layers => ({
-  collision: normalizeByteLayer(screen.layers?.collision, screen.collisionMap),
-  effects: normalizeByteLayer(screen.layers?.effects),
-  behavior: normalizeByteLayer(screen.layers?.behavior),
-  entities: normalizeEntities(screen.layers?.entities),
-});
+const normalizeLayers = (screen: Msx2Screen4TileScreen, map: number[][], tiles: Msx2Screen4Tile[]): Msx2Screen4Layers => {
+  const collision = stripMsx2BoxTileCollisionFromLayer(
+    map,
+    tiles,
+    normalizeByteLayer(screen.layers?.collision, screen.collisionMap)
+  );
+  return {
+    collision,
+    effects: normalizeByteLayer(screen.layers?.effects),
+    behavior: normalizeByteLayer(screen.layers?.behavior),
+    entities: normalizeEntities(screen.layers?.entities),
+  };
+};
 
 const normalizeRuntime = normalizeRuntimeArea;
 
@@ -194,12 +245,15 @@ interface CopiedMsx2Layer {
   height: number;
 }
 
-export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ screen, onUpdate, selectedColor, allAssets }) => {
+export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ screen, onUpdate, selectedColor, allAssets, msx2ProjectProfile = null }) => {
   const [selectedTileIndex, setSelectedTileIndex] = useState(0);
+  const [tileStudioOpen, setTileStudioOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const [mode, setMode] = useState<Msx2Screen4EditMode>('visual');
   const [selectedEffectCode, setSelectedEffectCode] = useState(1);
   const [selectedBehaviorCode, setSelectedBehaviorCode] = useState(1);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [selectedPlayerEntryId, setSelectedPlayerEntryId] = useState<string | null>(null);
   const [selectedEntityPresetId, setSelectedEntityPresetId] = useState(MSX2_ENTITY_REPERTOIRE[0].id);
   const [showGrid, setShowGrid] = useState(true);
   const [showRuntimeOverlays, setShowRuntimeOverlays] = useState(false);
@@ -210,21 +264,58 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   const [selectionRect, setSelectionRect] = useState<Msx2Screen4SelectionRect | null>(null);
   const [paintSlot, setPaintSlot] = useState(0);
   const [tilePaintTool, setTilePaintTool] = useState<Msx2Screen4TilePaintTool>('pencil');
+  const [copiedLineAttribute, setCopiedLineAttribute] = useState<Msx2Screen4LineAttribute | null>(null);
 
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(screen.palette), [screen.palette]);
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
   const map = useMemo(() => normalizeMap(screen.map, tiles.length), [screen.map, tiles.length]);
-  const layers = useMemo(() => normalizeLayers(screen), [screen]);
+  const layers = useMemo(() => normalizeLayers(screen, map, tiles), [screen, map, tiles]);
+  const playerEntries = useMemo(() => normalizeMsx2PlayerEntries(screen.playerEntries), [screen.playerEntries]);
   const runtime = useMemo(() => normalizeRuntime(screen.runtime), [screen.runtime]);
   const selectedTile = tiles[Math.max(0, Math.min(tiles.length - 1, selectedTileIndex))];
   const selectedEntity = useMemo(
     () => layers.entities.find(entity => entity.id === selectedEntityId) || null,
     [layers.entities, selectedEntityId]
   );
+  const selectedPlayerEntry = useMemo(
+    () => playerEntries.find(entry => entry.id === selectedPlayerEntryId) || playerEntries[0] || null,
+    [playerEntries, selectedPlayerEntryId]
+  );
+  const entityPresets = useMemo(
+    () => filterMsx2EntityPresetsForProfile(MSX2_ENTITY_REPERTOIRE, msx2ProjectProfile),
+    [msx2ProjectProfile]
+  );
+  const lockedRuntimeMode = useMemo(
+    () => getMsx2LockedRuntimeMode(msx2ProjectProfile),
+    [msx2ProjectProfile]
+  );
+
+  useEffect(() => {
+    if (!entityPresets.some(preset => preset.id === selectedEntityPresetId)) {
+      setSelectedEntityPresetId(entityPresets[0]?.id || MSX2_ENTITY_REPERTOIRE[0].id);
+    }
+  }, [entityPresets, selectedEntityPresetId]);
+
+  useEffect(() => {
+    const rawCollision = normalizeByteLayer(screen.layers?.collision, screen.collisionMap);
+    const cleaned = stripMsx2BoxTileCollisionFromLayer(map, tiles, rawCollision);
+    const changed = cleaned.some((row, y) => row.some((value, x) => value !== (rawCollision[y]?.[x] ?? 0)));
+    if (!changed) return;
+    onUpdate({
+      layers: {
+        collision: cleaned,
+        effects: normalizeByteLayer(screen.layers?.effects),
+        behavior: normalizeByteLayer(screen.layers?.behavior),
+        entities: normalizeEntities(screen.layers?.entities),
+      },
+    });
+  }, [screen.id, map, tiles, screen.layers?.collision, screen.collisionMap, onUpdate]);
+
   const selectedEntityPreset = useMemo<Msx2EntityCreatePreset>(
-    () => MSX2_ENTITY_REPERTOIRE.find(preset => preset.id === selectedEntityPresetId)
+    () => entityPresets.find(preset => preset.id === selectedEntityPresetId)
+      || entityPresets[0]
       || MSX2_ENTITY_REPERTOIRE[0],
-    [selectedEntityPresetId]
+    [entityPresets, selectedEntityPresetId]
   );
   const selectedColorSlot = useMemo(() => {
     const exact = slots.find(slot => slot.hex === selectedColor)?.slotIndex;
@@ -241,14 +332,15 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   }, [selectedColorSlot]);
 
   useEffect(() => {
-    if (!screen.layers || !screen.layers.behavior || !screen.runtime) {
+    if (!screen.layers || !screen.layers.behavior || !screen.runtime || !screen.playerEntries) {
       onUpdate({
         layers,
         runtime,
+        playerEntries,
         collisionMap: layers.collision,
       });
     }
-  }, [layers, onUpdate, runtime, screen.layers, screen.runtime]);
+  }, [layers, onUpdate, playerEntries, runtime, screen.layers, screen.playerEntries, screen.runtime]);
 
   useEffect(() => {
     setSelectedTileIndex(index => Math.max(0, Math.min(tiles.length - 1, index)));
@@ -259,6 +351,12 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
       setSelectedEntityId(null);
     }
   }, [layers.entities, selectedEntityId]);
+
+  useEffect(() => {
+    if (selectedPlayerEntryId && !playerEntries.some(entry => entry.id === selectedPlayerEntryId)) {
+      setSelectedPlayerEntryId(null);
+    }
+  }, [playerEntries, selectedPlayerEntryId]);
 
   useEffect(() => {
     const stop = () => setIsDrawing(false);
@@ -334,11 +432,49 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     setSelectedEntityId(null);
   };
 
+  const updatePlayerEntries = (nextEntries: Msx2PlayerEntry[]) => {
+    onUpdate({ playerEntries: normalizeMsx2PlayerEntries(nextEntries) });
+  };
+
+  const updateSelectedPlayerEntry = (patch: Partial<Msx2PlayerEntry>) => {
+    if (!selectedPlayerEntry) return;
+    updatePlayerEntries(playerEntries.map(entry => entry.id === selectedPlayerEntry.id ? { ...entry, ...patch } : entry));
+  };
+
+  const addPlayerEntry = (x = 32, y = 128) => {
+    const id = `entry_${playerEntries.length + 1}`;
+    const nextEntry: Msx2PlayerEntry = {
+      id,
+      x,
+      y,
+      facing: 'right',
+      state: 'IDLE',
+      entryAnimation: 'none',
+      invulnerabilityFrames: 0,
+      cameraTransition: 'instant',
+    };
+    updatePlayerEntries([...playerEntries, nextEntry]);
+    setSelectedPlayerEntryId(id);
+  };
+
+  const removeSelectedPlayerEntry = () => {
+    if (!selectedPlayerEntry) return;
+    updatePlayerEntries(playerEntries.filter(entry => entry.id !== selectedPlayerEntry.id));
+    setSelectedPlayerEntryId(null);
+  };
+
   const handleCellAction = ({ x, y, button }: Msx2Screen4CellAction) => {
     if (mode === 'visual') {
-      const next = map.map(row => [...row]);
-      next[y][x] = selectedTileIndex;
-      onUpdate({ map: next });
+      const paintedTile = tiles[selectedTileIndex];
+      const nextMap = map.map(row => [...row]);
+      const nextCollision = layers.collision.map(row => [...row]);
+      const nextEffects = layers.effects.map(row => [...row]);
+      nextMap[y][x] = selectedTileIndex;
+      applyMsx2TileBehaviorToMapCell(paintedTile, x, y, nextCollision, nextEffects);
+      onUpdate({
+        map: nextMap,
+        layers: { ...layers, collision: nextCollision, effects: nextEffects },
+      });
       return;
     }
 
@@ -360,6 +496,23 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
       const nextBehavior = (layers.behavior || normalizeByteLayer(undefined)).map(row => [...row]);
       nextBehavior[y][x] = button === 2 ? 0 : selectedBehaviorCode;
       updateLayers({ ...layers, behavior: nextBehavior });
+      return;
+    }
+
+    if (mode === 'playerEntries') {
+      const pixelX = Math.max(0, Math.min(255, x * TILE_SIZE + TILE_SIZE / 2));
+      const pixelY = Math.max(0, Math.min(191, y * TILE_SIZE + TILE_SIZE / 2));
+      const existing = playerEntries.find(entry => Math.floor(entry.x / TILE_SIZE) === x && Math.floor(entry.y / TILE_SIZE) === y);
+      if (button === 2) {
+        if (existing?.id === selectedPlayerEntryId) setSelectedPlayerEntryId(null);
+        updatePlayerEntries(playerEntries.filter(entry => entry.id !== existing?.id));
+        return;
+      }
+      if (existing) {
+        setSelectedPlayerEntryId(existing.id);
+        return;
+      }
+      addPlayerEntry(pixelX, pixelY);
       return;
     }
 
@@ -452,6 +605,8 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     const paintTool = button === 2 ? 'erase' : tilePaintTool;
     const tileWidth = normalizeTileDimension(targetTile.width ?? targetTile.pixels?.[0]?.length ?? TILE_SIZE);
     const tileHeight = normalizeTileDimension(targetTile.height ?? targetTile.pixels?.length ?? TILE_SIZE);
+    const lineAttributes = ensureLineAttributes(targetTile.pixels, targetTile.lineAttributes, tileWidth, tileHeight);
+    targetTile.lineAttributes = lineAttributes;
 
     if (paintTool === 'pick') {
       setPaintSlot(Math.max(0, Math.min(15, Number(targetTile.pixels?.[y]?.[x]) || 0)));
@@ -461,7 +616,8 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
 
     if (paintTool === 'fill') {
       const sourceSlot = Math.max(0, Math.min(15, Number(targetTile.pixels?.[y]?.[x]) || 0));
-      if (sourceSlot !== activeSlot) {
+      const fillSlot = resolvePaintSlot(x, y, button, 'pencil', lineAttributes, activeSlot);
+      if (sourceSlot !== fillSlot) {
         const queue: Array<[number, number]> = [[x, y]];
         const seen = new Set<string>();
         while (queue.length) {
@@ -470,7 +626,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
           if (seen.has(key) || cx < 0 || cy < 0 || cx >= tileWidth || cy >= tileHeight) continue;
           seen.add(key);
           if ((targetTile.pixels?.[cy]?.[cx] ?? 0) !== sourceSlot) continue;
-          targetTile.pixels[cy][cx] = activeSlot;
+          targetTile.pixels[cy][cx] = fillSlot;
           queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
         }
       }
@@ -478,45 +634,140 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
       return;
     }
 
-    targetTile.pixels[y][x] = paintTool === 'erase' ? 0 : activeSlot;
+    targetTile.pixels[y][x] = resolvePaintSlot(x, y, button, paintTool, lineAttributes, activeSlot);
     onUpdate({ tiles: nextTiles });
   };
 
-  const updateSelectedTilePixels = (buildPixels: (tile: Msx2Screen4Tile) => number[][]) => {
+  const updateSelectedTile = (buildTile: (tile: Msx2Screen4Tile) => Msx2Screen4Tile) => {
     if (!selectedTile) return;
     const nextTiles = tiles.map(cloneTile);
     const targetIndex = Math.max(0, Math.min(nextTiles.length - 1, selectedTileIndex));
-    const current = nextTiles[targetIndex];
-    const width = normalizeTileDimension(current.width ?? current.pixels?.[0]?.length ?? TILE_SIZE);
-    const height = normalizeTileDimension(current.height ?? current.pixels?.length ?? TILE_SIZE);
-    const pixels = buildPixels(current);
-    current.width = width;
-    current.height = height;
-    current.pixels = Array.from({ length: height }, (_, y) =>
-      Array.from({ length: width }, (_, x) => Math.max(0, Math.min(15, Number(pixels?.[y]?.[x]) || 0)))
-    );
+    nextTiles[targetIndex] = buildTile(nextTiles[targetIndex]);
     onUpdate({ tiles: nextTiles });
   };
 
+  const updateSelectedTileMeta = (patch: Partial<Pick<Msx2Screen4Tile, 'name' | 'behaviorKind' | 'hitbox'>>) => {
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      const nextBehavior = patch.behaviorKind ?? getMsx2TileBehaviorKind(tile);
+      const nextHitbox = patch.hitbox
+        ?? (patch.behaviorKind ? getDefaultHitboxForBehavior(nextBehavior, width, height) : tile.hitbox);
+      return normalizeMsx2Screen4TileBehavior({
+        ...tile,
+        ...patch,
+        behaviorKind: nextBehavior,
+        hitbox: nextHitbox,
+      }, width, height);
+    });
+  };
+
+  const handleUpdateLineAttribute = (rowIndex: number, segmentIndex: number, newAttribute: Msx2Screen4LineAttribute) => {
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      const lineAttributes = ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height);
+      const oldAttribute = lineAttributes[rowIndex]?.[segmentIndex];
+      if (!oldAttribute) {
+        return { ...tile, lineAttributes };
+      }
+      const nextAttributes = lineAttributes.map((row, rIdx) =>
+        rIdx === rowIndex ? row.map((seg, sIdx) => (sIdx === segmentIndex ? { ...newAttribute } : { ...seg })) : row.map(seg => ({ ...seg }))
+      );
+      return {
+        ...tile,
+        width,
+        height,
+        lineAttributes: nextAttributes,
+        pixels: remapSegmentPixels(tile.pixels, rowIndex, segmentIndex, oldAttribute, newAttribute),
+      };
+    });
+  };
+
+  const handleFillAllLineAttributeSlots = (type: 'fg' | 'bg') => {
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      const lineAttributes = ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height);
+      return {
+        ...tile,
+        lineAttributes: fillAllLineAttributeSlots(lineAttributes, activeSlot, type),
+      };
+    });
+  };
+
+  const handleCopyLineAttribute = (rowIndex: number, segmentIndex: number) => {
+    const attribute = selectedTile?.lineAttributes?.[rowIndex]?.[segmentIndex];
+    if (attribute) setCopiedLineAttribute({ ...attribute });
+  };
+
+  const handlePasteLineAttribute = (rowIndex: number, segmentIndex: number) => {
+    if (copiedLineAttribute) handleUpdateLineAttribute(rowIndex, segmentIndex, copiedLineAttribute);
+  };
+
+  const handleFixInvalidPixels = () => {
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      const lineAttributes = ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height);
+      return {
+        ...tile,
+        width,
+        height,
+        lineAttributes,
+        pixels: fixInvalidTilePixels(tile.pixels, lineAttributes),
+      };
+    });
+  };
+
+
   const fillSelectedTile = () => {
-    updateSelectedTilePixels(tile =>
-      createTilePixels(activeSlot, tile.width || TILE_SIZE, tile.height || TILE_SIZE)
-    );
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      const lineAttributes = ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height)
+        .map(row => row.map(segment => ({ fg: activeSlot, bg: segment.bg })));
+      const pixels = Array.from({ length: height }, (_, y) =>
+        Array.from({ length: width }, (_, x) => lineAttributes[y]?.[Math.floor(x / 8)]?.bg ?? 0)
+      );
+      return { ...tile, width, height, pixels, lineAttributes };
+    });
   };
 
   const flipSelectedTileHorizontal = () => {
-    updateSelectedTilePixels(tile => tile.pixels.map(row => [...row].reverse()));
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      return {
+        ...tile,
+        width,
+        height,
+        pixels: tile.pixels.map(row => [...row].reverse()),
+        lineAttributes: mirrorLineAttributesHorizontal(tile.lineAttributes, width) ?? ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height),
+      };
+    });
   };
 
   const flipSelectedTileVertical = () => {
-    updateSelectedTilePixels(tile => [...tile.pixels].reverse().map(row => [...row]));
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      return {
+        ...tile,
+        width,
+        height,
+        pixels: [...tile.pixels].reverse().map(row => [...row]),
+        lineAttributes: mirrorLineAttributesVertical(tile.lineAttributes) ?? ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height),
+      };
+    });
   };
 
   const shiftSelectedTile = (dx: number, dy: number) => {
-    updateSelectedTilePixels(tile => {
+    updateSelectedTile(tile => {
       const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
       const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
-      return Array.from({ length: height }, (_, y) =>
+      const lineAttributes = ensureLineAttributes(tile.pixels, tile.lineAttributes, width, height);
+      const shiftedPixels = Array.from({ length: height }, (_, y) =>
         Array.from({ length: width }, (_, x) => {
           const sourceX = x - dx;
           const sourceY = y - dy;
@@ -524,6 +775,13 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
           return tile.pixels[sourceY]?.[sourceX] ?? 0;
         })
       );
+      return {
+        ...tile,
+        width,
+        height,
+        pixels: fixInvalidTilePixels(shiftedPixels, lineAttributes),
+        lineAttributes,
+      };
     });
   };
 
@@ -531,18 +789,27 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     if (!selectedTile) return;
     const nextWidth = normalizeTileDimension(width);
     const nextHeight = normalizeTileDimension(height);
-    const nextTiles = tiles.map(cloneTile);
-    const current = nextTiles[selectedTileIndex];
-    current.width = nextWidth;
-    current.height = nextHeight;
-    current.pixels = Array.from({ length: nextHeight }, (_, y) =>
-      Array.from({ length: nextWidth }, (_, x) => Math.max(0, Math.min(15, Number(current.pixels?.[y]?.[x]) || 0)))
-    );
-    onUpdate({ tiles: nextTiles });
+    updateSelectedTile(tile => ({
+      ...tile,
+      width: nextWidth,
+      height: nextHeight,
+      pixels: Array.from({ length: nextHeight }, (_, y) =>
+        Array.from({ length: nextWidth }, (_, x) => Math.max(0, Math.min(15, Number(tile.pixels?.[y]?.[x]) || 0)))
+      ),
+      lineAttributes: resizeLineAttributes(
+        tile.lineAttributes,
+        normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE),
+        normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE),
+        nextWidth,
+        nextHeight
+      ),
+    }));
   };
 
   const addTile = () => {
-    const nextTiles = [...tiles.map(cloneTile), { id: `tile_${Date.now()}`, name: `Tile ${tiles.length}`, width: TILE_SIZE, height: TILE_SIZE, pixels: createTilePixels(0) }];
+    const nextTile = createTileWithDefaults(0, TILE_SIZE, TILE_SIZE);
+    nextTile.name = `Tile ${tiles.length}`;
+    const nextTiles = [...tiles.map(cloneTile), nextTile];
     onUpdate({ tiles: nextTiles });
     setSelectedTileIndex(nextTiles.length - 1);
   };
@@ -557,9 +824,17 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   };
 
   const clearTile = () => {
-    const nextTiles = tiles.map(cloneTile);
-    nextTiles[selectedTileIndex].pixels = createTilePixels(0, selectedTile.width || TILE_SIZE, selectedTile.height || TILE_SIZE);
-    onUpdate({ tiles: nextTiles });
+    updateSelectedTile(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      return {
+        ...tile,
+        width,
+        height,
+        pixels: createTilePixels(0, width, height),
+        lineAttributes: createDefaultLineAttributes(width, height),
+      };
+    });
   };
 
   const editableRuntimeLayer = mode === 'collision' || mode === 'effects' || mode === 'behavior';
@@ -591,13 +866,21 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   const applySelectionValue = (value: number) => {
     if (!editableSelectionLayer || !selectionRect) return;
     if (mode === 'visual') {
+      const paintedTile = tiles[Math.max(0, Math.min(tiles.length - 1, value))];
       const nextMap = map.map(row => [...row]);
+      const nextCollision = layers.collision.map(row => [...row]);
+      const nextEffects = layers.effects.map(row => [...row]);
       for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
         for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
-          nextMap[y][x] = Math.max(0, Math.min(tiles.length - 1, value));
+          const tileIndex = Math.max(0, Math.min(tiles.length - 1, value));
+          nextMap[y][x] = tileIndex;
+          applyMsx2TileBehaviorToMapCell(paintedTile, x, y, nextCollision, nextEffects);
         }
       }
-      onUpdate({ map: nextMap });
+      onUpdate({
+        map: nextMap,
+        layers: { ...layers, collision: nextCollision, effects: nextEffects },
+      });
       return;
     }
 
@@ -700,22 +983,94 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             onCompositionOverlayChange={setCompositionOverlay}
             runtime={runtime}
             onRuntimeChange={nextRuntime => onUpdate({ runtime: normalizeRuntime(nextRuntime) })}
+            lockedRuntimeMode={lockedRuntimeMode}
+            lockedRuntimeModeHint={msx2ProjectProfile ? `${msx2ProjectProfile.label} project` : null}
             canCopyLayer={editableRuntimeLayer}
             canPasteLayer={editableRuntimeLayer && !!copiedLayer}
             onCopyLayer={copyActiveLayer}
             onPasteLayer={pasteActiveLayer}
           />
+          {mode === 'playerEntries' && (
+            <Panel title="Player Entries" bodyClassName="p-2 space-y-2 text-xs">
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={() => addPlayerEntry()}>Add</Button>
+                <Button size="sm" variant="danger" onClick={removeSelectedPlayerEntry} disabled={!selectedPlayerEntry}>Remove</Button>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-auto">
+                {playerEntries.map(entry => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className={`w-full text-left px-2 py-1 rounded border ${selectedPlayerEntry?.id === entry.id ? 'border-msx-accent bg-msx-accent/15' : 'border-msx-border bg-msx-bgcolor'}`}
+                    onClick={() => setSelectedPlayerEntryId(entry.id)}
+                  >
+                    <span className="block font-mono">{entry.id}</span>
+                    <span className="block text-[10px] text-msx-textsecondary">{entry.x},{entry.y} {entry.facing}</span>
+                  </button>
+                ))}
+              </div>
+              {selectedPlayerEntry && (
+                <div className="space-y-2 border-t border-msx-border pt-2">
+                  <label className="block space-y-1">
+                    <span className="text-msx-textsecondary">Entry ID</span>
+                    <input className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.id} onChange={event => updateSelectedPlayerEntry({ id: event.target.value })} />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-msx-textsecondary">X</span>
+                      <input type="number" className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.x} onChange={event => updateSelectedPlayerEntry({ x: Number(event.target.value) })} />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-msx-textsecondary">Y</span>
+                      <input type="number" className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.y} onChange={event => updateSelectedPlayerEntry({ y: Number(event.target.value) })} />
+                    </label>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-msx-textsecondary">Facing</span>
+                    <select className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.facing} onChange={event => updateSelectedPlayerEntry({ facing: event.target.value as Msx2PlayerEntry['facing'] })}>
+                      <option value="right">Right</option>
+                      <option value="left">Left</option>
+                      <option value="up">Up</option>
+                      <option value="down">Down</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-msx-textsecondary">Spawn state</span>
+                    <input className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.state || 'IDLE'} onChange={event => updateSelectedPlayerEntry({ state: event.target.value })} />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-msx-textsecondary">Entry anim</span>
+                      <select className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.entryAnimation || 'none'} onChange={event => updateSelectedPlayerEntry({ entryAnimation: event.target.value as Msx2PlayerEntry['entryAnimation'] })}>
+                        <option value="none">None</option>
+                        <option value="walkIn">Walk in</option>
+                        <option value="doorExit">Door exit</option>
+                        <option value="ladderExit">Ladder exit</option>
+                        <option value="fadeIn">Fade in</option>
+                      </select>
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-msx-textsecondary">I-frames</span>
+                      <input type="number" className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.invulnerabilityFrames || 0} onChange={event => updateSelectedPlayerEntry({ invulnerabilityFrames: Number(event.target.value) })} />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </Panel>
+          )}
           <Msx2Screen4EntityPanel
             mode={mode}
             selectedEntity={selectedEntity}
+            tiles={tiles}
             allAssets={allAssets}
             onUpdateSelectedEntity={updateSelectedEntity}
             onUpdateSelectedEntityParams={updateSelectedEntityParams}
             onRemoveSelectedEntity={removeSelectedEntity}
+            msx2ProjectProfile={msx2ProjectProfile}
           />
           <Msx2Screen4EntityPalettePanel
             mode={mode}
-            presets={MSX2_ENTITY_REPERTOIRE}
+            presets={entityPresets}
             selectedPresetId={selectedEntityPresetId}
             onSelectPresetId={setSelectedEntityPresetId}
           />
@@ -732,7 +1087,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             onCopySelection={copyActiveLayer}
             onPasteSelection={pasteActiveLayer}
           />
-          {mode !== 'entities' && (
+          {mode !== 'entities' && mode !== 'playerEntries' && (
             <Msx2Screen4TilesPanel
               tiles={tiles}
               slots={slots}
@@ -741,11 +1096,47 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
               onAddTile={addTile}
               onDuplicateTile={duplicateTile}
               onClearTile={clearTile}
+              onOpenTileStudio={() => setTileStudioOpen(open => !open)}
+              tileStudioOpen={tileStudioOpen}
             />
           )}
         </div>
 
           <div className="min-w-0 flex-1 min-h-0 overflow-auto flex items-start justify-center p-3">
+          {tileStudioOpen && mode !== 'entities' && mode !== 'playerEntries' ? (
+            <Msx2Screen4TileStudio
+              tiles={tiles}
+              slots={slots}
+              selectedTileIndex={selectedTileIndex}
+              selectedTile={selectedTile}
+              onSelectTileIndex={setSelectedTileIndex}
+              onAddTile={addTile}
+              onDuplicateTile={duplicateTile}
+              onClearTile={clearTile}
+              onClose={() => setTileStudioOpen(false)}
+              activeSlot={activeSlot}
+              paintTool={tilePaintTool}
+              dimensionOptions={MSX2_TILE_DIMENSION_OPTIONS}
+              isDrawing={isDrawing}
+              onSetDrawing={setIsDrawing}
+              onSelectSlot={setPaintSlot}
+              onPaintToolChange={setTilePaintTool}
+              onPixelAction={handleTilePixelAction}
+              onResizeTile={resizeSelectedTile}
+              onFillTile={fillSelectedTile}
+              onFlipHorizontal={flipSelectedTileHorizontal}
+              onFlipVertical={flipSelectedTileVertical}
+              onShiftTile={shiftSelectedTile}
+              onUpdateLineAttribute={handleUpdateLineAttribute}
+              onFillAllLineAttributeFg={() => handleFillAllLineAttributeSlots('fg')}
+              onFillAllLineAttributeBg={() => handleFillAllLineAttributeSlots('bg')}
+              onCopyLineAttribute={handleCopyLineAttribute}
+              onPasteLineAttribute={handlePasteLineAttribute}
+              copiedLineAttribute={copiedLineAttribute}
+              onFixInvalidPixels={handleFixInvalidPixels}
+              onUpdateTileMeta={updateSelectedTileMeta}
+            />
+          ) : (
           <Msx2Screen4Grid
             map={map}
             slots={slots}
@@ -753,6 +1144,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             showGrid={showGrid}
             mode={mode}
             layers={layers}
+            playerEntries={playerEntries}
             runtime={runtime}
             selectionMode={selectionMode}
             selectionRect={selectionRect}
@@ -764,10 +1156,23 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             onCellAction={handleCellAction}
             onSelectionChange={setSelectionRect}
           />
+          )}
         </div>
 
+          <div className="flex flex-shrink-0 min-h-0 self-stretch">
+            <button
+              type="button"
+              onClick={() => setRightSidebarOpen(open => !open)}
+              className="self-start mt-2 w-6 min-h-[3.5rem] flex items-center justify-center rounded-l-md border border-msx-border border-r-0 bg-msx-bgcolor text-msx-textsecondary hover:text-msx-highlight hover:border-msx-highlight"
+              title={rightSidebarOpen ? 'Ocultar panel derecho' : 'Mostrar panel derecho'}
+              aria-expanded={rightSidebarOpen}
+              aria-label={rightSidebarOpen ? 'Ocultar panel derecho' : 'Mostrar panel derecho'}
+            >
+              {rightSidebarOpen ? '>' : '<'}
+            </button>
+            {rightSidebarOpen && (
           <div className="w-[300px] flex-shrink-0 min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
-          {mode !== 'entities' && (
+          {mode !== 'entities' && mode !== 'playerEntries' && !tileStudioOpen && (
             <Msx2Screen4TileEditorPanel
               selectedTileIndex={selectedTileIndex}
               selectedTile={selectedTile}
@@ -785,6 +1190,14 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
               onFlipHorizontal={flipSelectedTileHorizontal}
               onFlipVertical={flipSelectedTileVertical}
               onShiftTile={shiftSelectedTile}
+              onUpdateLineAttribute={handleUpdateLineAttribute}
+              onFillAllLineAttributeFg={() => handleFillAllLineAttributeSlots('fg')}
+              onFillAllLineAttributeBg={() => handleFillAllLineAttributeSlots('bg')}
+              onCopyLineAttribute={handleCopyLineAttribute}
+              onPasteLineAttribute={handlePasteLineAttribute}
+              copiedLineAttribute={copiedLineAttribute}
+              onFixInvalidPixels={handleFixInvalidPixels}
+              onUpdateTileMeta={updateSelectedTileMeta}
             />
           )}
           <Msx2Screen4ExportModelPanel layers={layers} />
@@ -816,11 +1229,8 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             map={map}
             runtime={runtime}
           />
-          <MSX2ExportContractPanel
-            map={map}
-            layers={layers}
-            runtime={runtime}
-          />
+          </div>
+            )}
           </div>
         </div>
       </div>

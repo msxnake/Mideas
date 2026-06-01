@@ -3,7 +3,7 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph, Msx2GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
-  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen4BitmapRoom
+  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen4BitmapRoom, Msx2PlayerDefinition
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -18,7 +18,8 @@ import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
 import { createDefaultScreen5PaletteSlots } from '../utils/msx2PaletteUtils';
 import { getScreenModeMetrics } from '../utils/screenModeConfig';
 import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
-import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../utils/projectTarget';
+import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../utils/projectTarget';
+import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -73,6 +74,7 @@ interface AssetHandlersProps {
   setSelectedAssetId: (id: string | null) => void;
   setCurrentEditor: (editor: EditorType) => void;
   currentScreenMode: string;
+  msx2ProjectProfile?: import('../types').Msx2ProjectProfile | null;
   setConfirmModalProps: (props: any) => void;
   setIsConfirmModalOpen: (open: boolean) => void;
   setSelectedEffectZoneId: (id: string | null) => void;
@@ -92,6 +94,7 @@ export const useAssetHandlers = ({
   setSelectedAssetId,
   setCurrentEditor,
   currentScreenMode,
+  msx2ProjectProfile = null,
   setConfirmModalProps,
   setIsConfirmModalOpen,
   setSelectedEffectZoneId,
@@ -337,8 +340,8 @@ export const useAssetHandlers = ({
       return undefined;
     }
 
-    if (!isAssetTypeEnabledForProject(type, currentScreenMode)) {
-      setStatusBarMessage(`${type} is disabled in ${getProjectTargetFromScreenMode(currentScreenMode)} projects.`);
+    if (!isAssetTypeEnabledForMsx2Project(type, currentScreenMode, msx2ProjectProfile)) {
+      setStatusBarMessage(`${type} is disabled for this ${getProjectTargetFromScreenMode(currentScreenMode)} project profile.`);
       return undefined;
     }
 
@@ -468,6 +471,7 @@ export const useAssetHandlers = ({
             behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
             entities: [],
           },
+          playerEntries: createDefaultMsx2PlayerEntries(),
           runtime: {
             screenKind: 'playable',
             screenEngine: 'player',
@@ -514,9 +518,16 @@ export const useAssetHandlers = ({
           effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           entities: [],
+          playerEntries: createDefaultMsx2PlayerEntries(),
           notes: 'Bitmap SCREEN 4 room composer: atlas offscreen, V9938 copy/fill/line command list, sprites above.',
         } as Msx2Screen4BitmapRoom;
         newEditorType = EditorType.Msx2BitmapRoom;
+        break;
+      case 'msx2player':
+        defaultName = 'Player_Main';
+        newAssetData = createDefaultMsx2PlayerDefinition(id, msx2ProjectProfile?.profileId) as Msx2PlayerDefinition;
+        newAssetData.name = defaultName;
+        newEditorType = EditorType.Msx2Player;
         break;
       case 'msx2hudfont':
         defaultName = 'New MSX2 HUD Font';

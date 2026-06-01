@@ -631,12 +631,12 @@
 ;       "worldId": "worldmap_1779743562940",
 ;       "assetCount": 3,
 ;       "screenCount": 1,
-;       "estimatedBytes": 1831,
+;       "estimatedBytes": 1823,
 ;       "estimated8kBanks": 1,
 ;       "bankClassBytes": [
 ;         {
 ;           "id": "world.screen",
-;           "usedBytes": 1440
+;           "usedBytes": 1432
 ;         },
 ;         {
 ;           "id": "world.manifest",
@@ -660,16 +660,16 @@
 ;         "windowAddress": "#8000",
 ;         "bankSizeBytes": 8192,
 ;         "warningThresholdBytes": 7372,
-;         "usedBytes": 1831,
-;         "freeBytes": 6361,
-;         "usedPercent": 22.35,
+;         "usedBytes": 1823,
+;         "freeBytes": 6369,
+;         "usedPercent": 22.25,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
 ;         "status": "ok",
 ;         "packages": [
 ;           {
 ;             "id": "msx2screen.msx2screen_1779743570483",
-;             "usedBytes": 1440,
+;             "usedBytes": 1432,
 ;             "recommendedBankClass": "world.screen"
 ;           },
 ;           {
@@ -688,7 +688,7 @@
 ;     "worlds": [
 ;       {
 ;         "worldId": "worldmap_1779743562940",
-;         "estimatedBytes": 1831,
+;         "estimatedBytes": 1823,
 ;         "estimated8kBanks": 1,
 ;         "packages": [
 ;           {
@@ -700,8 +700,8 @@
 ;             "physicalBankIndex": 0,
 ;             "windowAddress": "#8000",
 ;             "bankSizeBytes": 8192,
-;             "rawBytes": 1440,
-;             "storedBytes": 1440,
+;             "rawBytes": 1432,
+;             "storedBytes": 1432,
 ;             "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
 ;             "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
 ;           },
@@ -760,6 +760,7 @@
 ;   },
 ;   "shooter60Hz": {
 ;     "targetHz": 60,
+;     "frameBudget": null,
 ;     "screens": [],
 ;     "screenCount": 0,
 ;     "warnings": [],
@@ -803,8 +804,8 @@
 ;       "ownerWorldIds": [
 ;         "worldmap_1779743562940"
 ;       ],
-;       "rawBytes": 1440,
-;       "storedBytesEstimate": 1440,
+;       "rawBytes": 1432,
+;       "storedBytesEstimate": 1432,
 ;       "accessPattern": "mixed_load_to_vram_and_runtime_read",
 ;       "mutable": false,
 ;       "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
@@ -830,7 +831,7 @@
 ;         },
 ;         {
 ;           "name": "runtimeLayersAndSpawns",
-;           "rawBytes": 592,
+;           "rawBytes": 584,
 ;           "accessPattern": "runtime_read",
 ;           "decision": "ROM_RAW",
 ;           "placement": "world_data_bank",
@@ -944,7 +945,7 @@
 ;       "hardwareLayerCount": 1,
 ;       "emittedHardwareLayerCount": 1,
 ;       "worstScanlineHardwareSprites": 1,
-;       "scanlineLimit": 16,
+;       "scanlineLimit": 15,
 ;       "overScanlineLimit": false,
 ;       "parts": [
 ;         {
@@ -976,7 +977,7 @@
 ;   "logicalBankBudget": {
 ;     "bankSizeBytes": 8192,
 ;     "warningThresholdBytes": 7372,
-;     "totalPayloadBytes": 1831,
+;     "totalPayloadBytes": 1823,
 ;     "estimatedMinimumBanks": 1,
 ;     "estimatedPackedBankCount": 1,
 ;     "estimatedPackedBanks": [
@@ -984,16 +985,16 @@
 ;         "bankIndex": 0,
 ;         "bankSizeBytes": 8192,
 ;         "warningThresholdBytes": 7372,
-;         "usedBytes": 1831,
-;         "freeBytes": 6361,
-;         "usedPercent": 22.35,
+;         "usedBytes": 1823,
+;         "freeBytes": 6369,
+;         "usedPercent": 22.25,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
 ;         "status": "ok",
 ;         "packages": [
 ;           {
 ;             "id": "msx2screen.msx2screen_1779743570483",
-;             "usedBytes": 1440,
+;             "usedBytes": 1432,
 ;             "recommendedBankClass": "world.screen"
 ;           },
 ;           {
@@ -1016,13 +1017,13 @@
 ;       {
 ;         "id": "world.screen",
 ;         "packageCount": 1,
-;         "usedBytes": 1440,
+;         "usedBytes": 1432,
 ;         "estimatedMinimumBanks": 1,
 ;         "warningPackageCount": 0,
 ;         "overBudgetPackageCount": 0,
 ;         "largestPackage": {
 ;           "id": "msx2screen.msx2screen_1779743570483",
-;           "usedBytes": 1440
+;           "usedBytes": 1432
 ;         }
 ;       },
 ;       {
@@ -1134,8 +1135,8 @@
 ;         "type": "msx2screen",
 ;         "sourceId": "msx2screen_1779743570483",
 ;         "recommendedBankClass": "world.screen",
-;         "usedBytes": 1440,
-;         "freeBytesIfAlone": 6752,
+;         "usedBytes": 1432,
+;         "freeBytesIfAlone": 6760,
 ;         "warning": false,
 ;         "overBudgetBytes": 0,
 ;         "canSplit": true,
@@ -1263,23 +1264,23 @@
 ;       {
 ;         "id": "runtime.globals_player_input",
 ;         "start": "#C000",
-;         "end": "#C044",
-;         "bytes": 68,
+;         "end": "#C047",
+;         "bytes": 71,
 ;         "mutable": true,
 ;         "reason": "Fixed hot runtime state for player/input/global counters."
 ;       },
 ;       {
 ;         "id": "runtime.snake_body_cache",
-;         "start": "#C044",
-;         "end": "#C084",
+;         "start": "#C047",
+;         "end": "#C087",
 ;         "bytes": 64,
 ;         "mutable": true,
 ;         "reason": "Fixed-size cache reserved only for snake-char body state."
 ;       },
 ;       {
 ;         "id": "runtime.persistent_effect_layers",
-;         "start": "#C084",
-;         "end": "#C144",
+;         "start": "#C087",
+;         "end": "#C147",
 ;         "bytes": 192,
 ;         "mutable": true,
 ;         "count": 1,
@@ -1360,7 +1361,7 @@
 ;     "reachableMsx2SpriteCount": 1,
 ;     "reachableWorldCount": 1,
 ;     "usesKonamiDataBank": true,
-;     "romPayloadBytesEstimate": 1831,
+;     "romPayloadBytesEstimate": 1823,
 ;     "estimated8kBanksForPayload": 1,
 ;     "warningThresholdBytesPerBank": 7372,
 ;     "note": "Slice reports reachability and storage policy estimates; final bank placement remains allocator-owned."
@@ -1424,8 +1425,8 @@
 ;     "ownerWorldIds": [
 ;       "worldmap_1779743562940"
 ;     ],
-;     "rawBytes": 1440,
-;     "storedBytesEstimate": 1440,
+;     "rawBytes": 1432,
+;     "storedBytesEstimate": 1432,
 ;     "accessPattern": "mixed_load_to_vram_and_runtime_read",
 ;     "mutable": false,
 ;     "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
@@ -1451,7 +1452,7 @@
 ;       },
 ;       {
 ;         "name": "runtimeLayersAndSpawns",
-;         "rawBytes": 592,
+;         "rawBytes": 584,
 ;         "accessPattern": "runtime_read",
 ;         "decision": "ROM_RAW",
 ;         "placement": "world_data_bank",
@@ -1565,7 +1566,7 @@
 ;     "hardwareLayerCount": 1,
 ;     "emittedHardwareLayerCount": 1,
 ;     "worstScanlineHardwareSprites": 1,
-;     "scanlineLimit": 16,
+;     "scanlineLimit": 15,
 ;     "overScanlineLimit": false,
 ;     "parts": [
 ;       {
@@ -1601,7 +1602,7 @@
 ; {
 ;   "bankSizeBytes": 8192,
 ;   "warningThresholdBytes": 7372,
-;   "totalPayloadBytes": 1831,
+;   "totalPayloadBytes": 1823,
 ;   "estimatedMinimumBanks": 1,
 ;   "estimatedPackedBankCount": 1,
 ;   "estimatedPackedBanks": [
@@ -1609,16 +1610,16 @@
 ;       "bankIndex": 0,
 ;       "bankSizeBytes": 8192,
 ;       "warningThresholdBytes": 7372,
-;       "usedBytes": 1831,
-;       "freeBytes": 6361,
-;       "usedPercent": 22.35,
+;       "usedBytes": 1823,
+;       "freeBytes": 6369,
+;       "usedPercent": 22.25,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
 ;       "status": "ok",
 ;       "packages": [
 ;         {
 ;           "id": "msx2screen.msx2screen_1779743570483",
-;           "usedBytes": 1440,
+;           "usedBytes": 1432,
 ;           "recommendedBankClass": "world.screen"
 ;         },
 ;         {
@@ -1641,13 +1642,13 @@
 ;     {
 ;       "id": "world.screen",
 ;       "packageCount": 1,
-;       "usedBytes": 1440,
+;       "usedBytes": 1432,
 ;       "estimatedMinimumBanks": 1,
 ;       "warningPackageCount": 0,
 ;       "overBudgetPackageCount": 0,
 ;       "largestPackage": {
 ;         "id": "msx2screen.msx2screen_1779743570483",
-;         "usedBytes": 1440
+;         "usedBytes": 1432
 ;       }
 ;     },
 ;     {
@@ -1759,8 +1760,8 @@
 ;       "type": "msx2screen",
 ;       "sourceId": "msx2screen_1779743570483",
 ;       "recommendedBankClass": "world.screen",
-;       "usedBytes": 1440,
-;       "freeBytesIfAlone": 6752,
+;       "usedBytes": 1432,
+;       "freeBytesIfAlone": 6760,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
 ;       "canSplit": true,
@@ -1887,16 +1888,16 @@
 ;       "windowAddress": "#8000",
 ;       "bankSizeBytes": 8192,
 ;       "warningThresholdBytes": 7372,
-;       "usedBytes": 1831,
-;       "freeBytes": 6361,
-;       "usedPercent": 22.35,
+;       "usedBytes": 1823,
+;       "freeBytes": 6369,
+;       "usedPercent": 22.25,
 ;       "warning": false,
 ;       "overBudgetBytes": 0,
 ;       "status": "ok",
 ;       "packages": [
 ;         {
 ;           "id": "msx2screen.msx2screen_1779743570483",
-;           "usedBytes": 1440,
+;           "usedBytes": 1432,
 ;           "recommendedBankClass": "world.screen"
 ;         },
 ;         {
@@ -1915,7 +1916,7 @@
 ;   "worlds": [
 ;     {
 ;       "worldId": "worldmap_1779743562940",
-;       "estimatedBytes": 1831,
+;       "estimatedBytes": 1823,
 ;       "estimated8kBanks": 1,
 ;       "packages": [
 ;         {
@@ -1927,8 +1928,8 @@
 ;           "physicalBankIndex": 0,
 ;           "windowAddress": "#8000",
 ;           "bankSizeBytes": 8192,
-;           "rawBytes": 1440,
-;           "storedBytes": 1440,
+;           "rawBytes": 1432,
+;           "storedBytes": 1432,
 ;           "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
 ;           "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
 ;         },
@@ -1985,23 +1986,23 @@
 ;     {
 ;       "id": "runtime.globals_player_input",
 ;       "start": "#C000",
-;       "end": "#C044",
-;       "bytes": 68,
+;       "end": "#C047",
+;       "bytes": 71,
 ;       "mutable": true,
 ;       "reason": "Fixed hot runtime state for player/input/global counters."
 ;     },
 ;     {
 ;       "id": "runtime.snake_body_cache",
-;       "start": "#C044",
-;       "end": "#C084",
+;       "start": "#C047",
+;       "end": "#C087",
 ;       "bytes": 64,
 ;       "mutable": true,
 ;       "reason": "Fixed-size cache reserved only for snake-char body state."
 ;     },
 ;     {
 ;       "id": "runtime.persistent_effect_layers",
-;       "start": "#C084",
-;       "end": "#C144",
+;       "start": "#C087",
+;       "end": "#C147",
 ;       "bytes": 192,
 ;       "mutable": true,
 ;       "count": 1,
@@ -2121,6 +2122,9 @@ msx2_score_lo EQU #C023
 msx2_score_hi EQU #C024
 msx2_score_digit_vram EQU #C025
 msx2_runtime_frame_counter EQU #C026
+msx2_enemy_bullet_1_active EQU #C040
+msx2_enemy_bullet_1_x EQU #C041
+msx2_enemy_bullet_1_y EQU #C042
 msx2_enemy_bullet_active EQU #C027
 msx2_enemy_bullet_x EQU #C028
 msx2_enemy_bullet_y EQU #C029
@@ -2148,16 +2152,16 @@ msx2_attack_cursor EQU #C03E
 msx2_attack_pending EQU #C03F
 msx2_bg_scroll_frame EQU #C03D
 msx2_bg_scroll_fine EQU #C03F
-msx2_input_key_button1_mode EQU #C040
-msx2_input_key_button2_mode EQU #C041
-msx2_control_jump_button EQU #C042
-msx2_control_action_button EQU #C043
+msx2_input_key_button1_mode EQU #C043
+msx2_input_key_button2_mode EQU #C044
+msx2_control_jump_button EQU #C045
+msx2_control_action_button EQU #C046
 MSX2_SCREEN4_DATA_BANK EQU 4
 MSX2_SCREEN4_DATA_BANK_0 EQU 4
 NEW_MSX2_SCREEN_4_ROOM_DATA_BANK EQU MSX2_SCREEN4_DATA_BANK_0
 MSX2_SCREEN4_MULTI_BANK_LOADER_READY EQU 1
-msx2_snake_body_cells EQU #C044
-msx2_effects_runtime_buffers EQU #C084
+msx2_snake_body_cells EQU #C047
+msx2_effects_runtime_buffers EQU #C087
 msx2_effects_runtime_scratch EQU #C200
 msx2_collision_runtime_cache EQU #C2C0
 msx2_behavior_runtime_cache EQU #C380
@@ -2173,6 +2177,7 @@ msx2_runtime_ram_limit EQU #F300
 msx2_layer_size EQU 192
 msx2_required_collectibles EQU 0
 MSX2_HUD_FONT_BASE_CHAR EQU #C0
+
 
     org #4000
 
@@ -2323,7 +2328,6 @@ msx2_gf_node_4_TEXTSCROLL_TEXT_4:
     call update_hardware_sprite_input
 
     call update_msx2_air_timer
-
 
 
     call wait_frame_busy
@@ -2737,6 +2741,9 @@ init_hardware_sprites:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_score_lo), a
     ld (msx2_score_hi), a
     ld (msx2_runtime_frame_counter), a
@@ -6990,12 +6997,13 @@ msx2_check_enemy_wave_complete:
     ld (msx2_player_bullet_active), a
     ld (msx2_player_bullet_1_active), a
     ld (msx2_enemy_bullet_active), a
+    ld (msx2_enemy_bullet_1_active), a
     call draw_msx2_level_complete_banner
     call write_hardware_sprite_attrs
     ret
 
 update_msx2_enemy_bullet:
-    ; Single enemy projectile for Galaxian-style MSX2 screens. Clobbers AF/BC/DE/HL.
+    ; Enemy projectile pool for Galaxian-style MSX2 screens. Clobbers AF/BC/DE/HL.
     ld a, (msx2_game_over_flag)
     or a
     ret nz
@@ -7008,24 +7016,39 @@ update_msx2_enemy_bullet:
     dec a
     ld (msx2_enemy_bullet_cooldown), a
 .enemy_bullet_cooldown_done:
-    ld a, (msx2_enemy_bullet_active)
-    or a
-    jp z, .enemy_bullet_try_spawn
-    ld a, (msx2_enemy_bullet_y)
-    cp 204
-    jp nc, .enemy_bullet_deactivate
-    add a, 2
-    ld (msx2_enemy_bullet_y), a
-    call msx2_enemy_bullet_check_effect_collision
-    ld a, (msx2_enemy_bullet_active)
+    ld hl, msx2_enemy_bullet_active
+    call msx2_enemy_bullet_update_slot
+    jp .enemy_bullet_try_spawn
+
+msx2_enemy_bullet_update_slot:
+    ; HL -> slot active byte (active,x,y are contiguous). Clobbers AF/BC/DE/HL.
+    ld a, (hl)
     or a
     ret z
-    call msx2_enemy_bullet_check_player_collision
-    ret
-.enemy_bullet_deactivate:
+    push hl
+    inc hl
+    inc hl
+    ld a, (hl)
+    cp 204
+    jp nc, .enemy_bullet_deactivate_hl_pop
+    add a, 2
+    ld (hl), a
+    pop hl
+    push hl
+    call msx2_enemy_bullet_check_effect_collision_hl
+    pop hl
+    ld a, (hl)
+    or a
+    ret z
+    jp msx2_enemy_bullet_check_player_collision_hl
+
+.enemy_bullet_deactivate_hl_pop:
+    pop hl
+msx2_enemy_bullet_deactivate_hl:
     xor a
-    ld (msx2_enemy_bullet_active), a
+    ld (hl), a
     ret
+
 .enemy_bullet_try_spawn:
     ld a, (msx2_enemy_bullet_cooldown)
     or a
@@ -7038,6 +7061,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 1
     jp c, .enemy_bullet_no_spawn_0
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_0
+    jp .enemy_bullet_no_spawn_0
+.enemy_bullet_spawn_slot_0_0:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7100,6 +7128,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 2
     jp c, .enemy_bullet_no_spawn_1
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_1
+    jp .enemy_bullet_no_spawn_1
+.enemy_bullet_spawn_slot_0_1:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7168,6 +7201,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 3
     jp c, .enemy_bullet_no_spawn_2
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_2
+    jp .enemy_bullet_no_spawn_2
+.enemy_bullet_spawn_slot_0_2:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7236,6 +7274,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 4
     jp c, .enemy_bullet_no_spawn_3
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_3
+    jp .enemy_bullet_no_spawn_3
+.enemy_bullet_spawn_slot_0_3:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7304,6 +7347,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 5
     jp c, .enemy_bullet_no_spawn_4
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_4
+    jp .enemy_bullet_no_spawn_4
+.enemy_bullet_spawn_slot_0_4:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7372,6 +7420,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 6
     jp c, .enemy_bullet_no_spawn_5
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_5
+    jp .enemy_bullet_no_spawn_5
+.enemy_bullet_spawn_slot_0_5:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7440,6 +7493,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 7
     jp c, .enemy_bullet_no_spawn_6
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_6
+    jp .enemy_bullet_no_spawn_6
+.enemy_bullet_spawn_slot_0_6:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7508,6 +7566,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 8
     jp c, .enemy_bullet_no_spawn_7
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_7
+    jp .enemy_bullet_no_spawn_7
+.enemy_bullet_spawn_slot_0_7:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7576,6 +7639,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 9
     jp c, .enemy_bullet_no_spawn_8
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_8
+    jp .enemy_bullet_no_spawn_8
+.enemy_bullet_spawn_slot_0_8:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7644,6 +7712,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 10
     jp c, .enemy_bullet_no_spawn_9
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_9
+    jp .enemy_bullet_no_spawn_9
+.enemy_bullet_spawn_slot_0_9:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7712,6 +7785,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 11
     jp c, .enemy_bullet_no_spawn_10
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_10
+    jp .enemy_bullet_no_spawn_10
+.enemy_bullet_spawn_slot_0_10:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7780,6 +7858,11 @@ update_msx2_enemy_bullet:
     ld a, (hl)
     cp 12
     jp c, .enemy_bullet_no_spawn_11
+    ld a, (msx2_enemy_bullet_active)
+    or a
+    jp z, .enemy_bullet_spawn_slot_0_11
+    jp .enemy_bullet_no_spawn_11
+.enemy_bullet_spawn_slot_0_11:
     ld a, (msx2_current_screen_index)
     ld b, a
     xor a
@@ -7842,59 +7925,73 @@ update_msx2_enemy_bullet:
 .enemy_bullet_no_spawn_11:
     ret
 
-msx2_enemy_bullet_check_player_collision:
-    ; Collides enemy projectile with player 16x16 body. Clobbers AF/BC/DE/HL.
-    ld a, (msx2_enemy_bullet_y)
+msx2_enemy_bullet_check_player_collision_hl:
+    ; HL -> slot active. Clobbers AF/BC/DE/HL.
+    push hl
+    inc hl
+    inc hl
+    ld a, (hl)
     add a, 4
     ld c, a
     ld a, (msx2_player_sprite_y)
     ld b, a
     ld a, c
     cp b
-    ret c
+    jp c, .enemy_bullet_player_miss_pop
     ld a, b
     add a, 15
     cp c
-    ret c
-    ld a, (msx2_enemy_bullet_x)
+    jp c, .enemy_bullet_player_miss_pop
+    dec hl
+    ld a, (hl)
     add a, 4
     ld c, a
     ld a, (msx2_player_sprite_x)
     ld b, a
     ld a, c
     cp b
-    ret c
+    jp c, .enemy_bullet_player_miss_pop
     ld a, b
     add a, 15
     cp c
-    ret c
+    jp c, .enemy_bullet_player_miss_pop
+    pop hl
     xor a
-    ld (msx2_enemy_bullet_active), a
+    ld (hl), a
     ld a, 80
     ld (msx2_enemy_bullet_cooldown), a
     call msx2_sfx_hit
     call msx2_apply_damage_respawn
     ret
+.enemy_bullet_player_miss_pop:
+    pop hl
+    ret
 
-msx2_enemy_bullet_check_effect_collision:
-    ; Clears a destructible effect cell hit by an enemy projectile. Clobbers AF/BC/DE/HL.
-    ld a, (msx2_enemy_bullet_x)
+msx2_enemy_bullet_check_effect_collision_hl:
+    ; HL -> slot active. Clobbers AF/BC/DE/HL.
+    push hl
+    inc hl
+    ld a, (hl)
     add a, 4
     ld b, a
-    ld a, (msx2_enemy_bullet_y)
+    inc hl
+    ld a, (hl)
     add a, 8
     ld c, a
     push bc
     call msx2_effect_at_pixel
     cp 3
-    jp z, .enemy_bullet_effect_hit
+    jp z, .enemy_bullet_effect_hit_hl
     pop bc
+    pop hl
     ret
-.enemy_bullet_effect_hit:
+.enemy_bullet_effect_hit_hl:
     xor a
     ld (hl), a
-    ld (msx2_enemy_bullet_active), a
     pop bc
+    pop hl
+    xor a
+    ld (hl), a
     call clear_msx2_effect_visual_at_pixel
     call msx2_sfx_hit
     ret
@@ -8125,6 +8222,9 @@ msx2_continue_after_level_complete:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_runtime_frame_counter), a
     call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
@@ -8177,6 +8277,9 @@ msx2_restart_game:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_runtime_frame_counter), a
     call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
@@ -8793,7 +8896,7 @@ write_hardware_sprite_attrs:
     call write_vram_byte_ext
 .player_bullet_1_sprite_done:
 
-    ; Enemy bullet hardware sprite slot.
+    ; Enemy bullet hardware sprite slot 0.
     ld a, (msx2_enemy_bullet_active)
     or a
     jp nz, .enemy_bullet_sprite_visible
@@ -8815,6 +8918,7 @@ write_hardware_sprite_attrs:
     ld hl, #1E3F
     call write_vram_byte_ext
 .enemy_bullet_sprite_done:
+
     ; HUD life marker 1.
     ld a, (msx2_lives)
     cp 1
@@ -8895,6 +8999,7 @@ upload_hardware_sprite_attrs:
     call update_msx2_enemy_state
     call write_hardware_sprite_attrs
     ret
+
 
 msx2_reset_enemy_runtime_for_current_screen:
     ; Copy static enemy slots for current screen into mutable runtime RAM.
@@ -22626,12 +22731,16 @@ msx2_respawn_current_screen:
     ld (msx2_enemy_bullet_x), a
     ld (msx2_enemy_bullet_y), a
     ld (msx2_enemy_bullet_cooldown), a
+    ld (msx2_enemy_bullet_1_active), a
+    ld (msx2_enemy_bullet_1_x), a
+    ld (msx2_enemy_bullet_1_y), a
     ld (msx2_player_anim_counter), a
     ld (msx2_player_anim_frame), a
     inc a
     ld (msx2_player_jump_lock), a
 
     ret
+
 
 
 
@@ -22677,7 +22786,7 @@ init_msx2_effect_buffers:
     ; Decompress ZX0 screen4 effects directly into the per-screen runtime buffer
     di
     ld hl, NEW_MSX2_SCREEN_4_ROOM_EFFECTS
-    ld de, #C084
+    ld de, #C087
     call dzx0_standard
     ei
     call msx2_screen4_data_bank_leave
@@ -22797,7 +22906,7 @@ load_NEW_MSX2_SCREEN_4_ROOM_screen4:
     ld (msx2_current_collision_ptr), hl
     ld hl, msx2_behavior_runtime_cache
     ld (msx2_current_behavior_ptr), hl
-    ld hl, #C084
+    ld hl, #C087
     ld (msx2_current_effects_ptr), hl
     call apply_NEW_MSX2_SCREEN_4_ROOM_collected_visuals
     ret
@@ -22908,21 +23017,6 @@ msx2_screen_hud_widget_variable_name_pool:
     DB #00
 
 
-; Per-msx2screen Galaxian Attack Wave interval in frames
-msx2_screen_attack_interval:
-    DB #B4
-
-; Per-msx2screen Galaxian Attack Wave minimum attackers
-msx2_screen_attack_min:
-    DB #01
-
-; Per-msx2screen Galaxian Attack Wave maximum attackers
-msx2_screen_attack_max:
-    DB #03
-
-; Per-msx2screen Galaxian Attack Wave random seed
-msx2_screen_attack_seed:
-    DB #49
 
 ; Per-msx2screen active enemy/hazard entity count, capped at 12
 msx2_screen_enemy_count:
@@ -23165,7 +23259,7 @@ msx2_hw_hud_life_colors_2:
     DB #0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A,#0A
 msx2_hw_sprite_colors_end:
 
-; 1 player hardware sprite(s), 12 enemy/hazard sprite slots, 2 player bullet slot, 1 enemy bullet slot, 3 HUD life slots; next Y=208 terminates the SAT
+; 1 player hardware sprite(s), 12 enemy/hazard sprite slots, 2 player bullet slot, 2 enemy bullet slot, 3 HUD life slots; next Y=208 terminates the SAT
 msx2_hw_sprite_attrs:
     DB #60,#80,#00,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00
     DB #D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00,#D0,#00,#08,#00

@@ -1,4 +1,9 @@
-import { ComponentDefinition, EntityTemplate, ProjectAsset } from '../types';
+import { ComponentDefinition, EntityTemplate, Msx2ProjectProfile, ProjectAsset } from '../types';
+import {
+  filterComponentDefinitionsForMsx2Profile,
+  filterEntityTemplatesForMsx2Profile,
+  isAssetTypeAllowedForMsx2Profile,
+} from './msx2ProjectProfiles';
 
 export type ProjectTarget = 'MSX1' | 'MSX2';
 export type TargetScope = ProjectTarget | 'COMMON';
@@ -20,6 +25,7 @@ const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'msx2bitmap',
   'msx2screen',
   'msx2bitmaproom',
+  'msx2player',
   'msx2hudfont',
   'msx2presentation',
   'msx2gameflow',
@@ -59,17 +65,31 @@ export const isEntityTemplateEnabledForProject = (
 
 export const filterComponentDefinitionsForProject = (
   components: ComponentDefinition[],
-  currentScreenMode: string
-): ComponentDefinition[] => components.filter(component =>
-  isComponentDefinitionEnabledForProject(component, currentScreenMode)
-);
+  currentScreenMode: string,
+  msx2ProjectProfile?: Msx2ProjectProfile | null
+): ComponentDefinition[] => {
+  const targetFiltered = components.filter(component =>
+    isComponentDefinitionEnabledForProject(component, currentScreenMode)
+  );
+  if (isScreen4Project(currentScreenMode) && msx2ProjectProfile) {
+    return filterComponentDefinitionsForMsx2Profile(targetFiltered, msx2ProjectProfile);
+  }
+  return targetFiltered;
+};
 
 export const filterEntityTemplatesForProject = (
   templates: EntityTemplate[],
-  currentScreenMode: string
-): EntityTemplate[] => templates.filter(template =>
-  isEntityTemplateEnabledForProject(template, currentScreenMode)
-);
+  currentScreenMode: string,
+  msx2ProjectProfile?: Msx2ProjectProfile | null
+): EntityTemplate[] => {
+  const targetFiltered = templates.filter(template =>
+    isEntityTemplateEnabledForProject(template, currentScreenMode)
+  );
+  if (isScreen4Project(currentScreenMode) && msx2ProjectProfile) {
+    return filterEntityTemplatesForMsx2Profile(targetFiltered, msx2ProjectProfile);
+  }
+  return targetFiltered;
+};
 
 export const isAssetTypeEnabledForProject = (
   assetType: ProjectAsset['type'],
@@ -77,6 +97,20 @@ export const isAssetTypeEnabledForProject = (
 ): boolean => {
   const assetTarget = getAssetTarget(assetType);
   return assetTarget === 'COMMON' || assetTarget === getProjectTargetFromScreenMode(currentScreenMode);
+};
+
+/** MSX2 asset types hidden from all MSX2 profiles unless explicitly allowed. */
+export const MSX2_UI_HIDDEN_ASSET_TYPES: ProjectAsset['type'][] = [];
+
+export const isAssetTypeEnabledForMsx2Project = (
+  assetType: ProjectAsset['type'],
+  currentScreenMode: string,
+  msx2ProjectProfile?: Msx2ProjectProfile | null
+): boolean => {
+  if (!isAssetTypeEnabledForProject(assetType, currentScreenMode)) return false;
+  if (!isScreen4Project(currentScreenMode)) return true;
+  if (MSX2_UI_HIDDEN_ASSET_TYPES.includes(assetType)) return false;
+  return isAssetTypeAllowedForMsx2Profile(assetType, msx2ProjectProfile);
 };
 
 export const isScreen2Project = (screenMode: string): boolean => getProjectTargetFromScreenMode(screenMode) === 'MSX1';

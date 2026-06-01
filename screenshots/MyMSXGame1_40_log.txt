@@ -1,0 +1,21 @@
+=== Push Box Defer-Char-Tiles Verification v4 ===
+ROM: MyMSXGame1_40.rom (Konami MegaROM, MSX2 SCREEN 4)
+------------------------------------------------------
+
+--- T=7.0s: IDLE ---
+[IDLE] msx2_push_box_runtime_x(0xC04F)=0x60(96)  defer_char_slot(0xC077)=0xFF(255)  moving_slot(0xC04C)=0xFF(255)
+SS1: rc=0 path=C:/Users/salam/Documents/openMSX/screenshots/MyMSXGame1_40_01_reposo.png
+
+--- T=7.1s: RIGHT pressed (holding) ---
+
+--- T=9.1s: HOLDING RIGHT (2s into hold) ---
+[HOLDING_RIGHT] msx2_push_box_runtime_x(0xC04F)=0x90(144)  defer_char_slot(0xC077)=0xFF(255)  moving_slot(0xC04C)=0xFF(255)
+SS2: rc=0 path=C:/Users/salam/Documents/openMSX/screenshots/MyMSXGame1_40_02_empujando_right.png
+
+--- T=9.6s: RIGHT released ---
+
+--- T=9.72s: AFTER RELEASE 0.12s (pre-game-end) ---
+[AFTER_RELEASE] msx2_push_box_runtime_x(0xC04F)=0x90(144)  defer_char_slot(0xC077)=0xFF(255)  moving_slot(0xC04C)=0xFF(255)
+SS3: rc=0 path=C:/Users/salam/Documents/openMSX/screenshots/MyMSXGame1_40_03_tras_soltar_right.png
+
+=== All 3 screenshots complete ===

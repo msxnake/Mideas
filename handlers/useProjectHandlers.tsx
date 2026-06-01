@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset } from '../types';
+import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset, Msx2GameProfileId, Msx2ProjectProfile } from '../types';
 import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
@@ -17,7 +17,17 @@ import {
   filterEntityTemplatesForProject,
   isAssetTypeEnabledForProject,
   isEntityTemplateEnabledForProject,
+  isScreen4Project,
 } from '../utils/projectTarget';
+import {
+  buildMsx2ProjectProfile,
+  buildStarterMsx2BitmapRoomAsset,
+  buildStarterMsx2GameFlowAsset,
+  buildStarterMsx2ScreenAsset,
+  normalizeMsx2ProjectProfile,
+  usesMsx2BitmapRoomStarter,
+} from '../utils/msx2ProjectProfiles';
+import { createDefaultMsx2PlayerDefinition } from '../utils/msx2PlayerDefaults';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -37,6 +47,10 @@ interface ProjectHandlersProps {
   setIsConfirmModalOpen: (open: boolean) => void;
   setIsNewProjectModalOpen: (open: boolean) => void;
   setIsSaveAsModalOpen: (open: boolean) => void;
+  pendingMsx2NewProject: { projectName: string; screenMode: string } | null;
+  setPendingMsx2NewProject: (value: { projectName: string; screenMode: string } | null) => void;
+  msx2ProjectProfile: Msx2ProjectProfile | null;
+  setMsx2ProjectProfile: (profile: Msx2ProjectProfile | null) => void;
   tileBanks: TileBank[];
   setTileBanksState: (banks: TileBank[]) => void;
   componentDefinitions: ComponentDefinition[];
@@ -373,6 +387,10 @@ export const useProjectHandlers = ({
   setIsConfirmModalOpen,
   setIsNewProjectModalOpen,
   setIsSaveAsModalOpen,
+  pendingMsx2NewProject,
+  setPendingMsx2NewProject,
+  msx2ProjectProfile,
+  setMsx2ProjectProfile,
   tileBanks,
   setTileBanksState,
   componentDefinitions,
@@ -410,6 +428,126 @@ export const useProjectHandlers = ({
 
   const handleOpenNewProjectModal = () => setIsNewProjectModalOpen(true);
 
+  const finalizeNewProject = useCallback((
+    projectNameFromModal: string,
+    selectedMode: string,
+    profile: Msx2ProjectProfile | null = null
+  ) => {
+    setAssets([]);
+    setSelectedAssetId(null);
+    setCurrentProjectName(projectNameFromModal);
+    setCurrentEditor(EditorType.None);
+    const newProjectScreenMode = selectedMode || DEFAULT_SCREEN_MODE;
+    applyScreenModeDefaults(newProjectScreenMode);
+    setMsx2ProjectProfile(isScreen4Project(newProjectScreenMode) ? profile : null);
+    setTileBanksState([]);
+    trySetLocalStorageItem('tileBanksConfig', JSON.stringify([]));
+    setComponentDefinitionsState(filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode, profile));
+    setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode, profile));
+    setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
+    setPresentationScreenState(DEFAULT_PRESENTATION_SCREEN_CONFIG);
+    clearAllHistory();
+    setCopiedScreenBuffer(null);
+    setCopiedTileData(null);
+    setCopiedLayerBuffer(null);
+    setSelectedEffectZoneId(null);
+
+    const newProjectFiles = ["main.asm", "data/graphics.asm", "data/components.asm", "code/behaviors.asm"];
+    const formattedDate = getFormattedDate();
+    const createdAssets: ProjectAsset[] = [];
+
+    newProjectFiles.forEach(filename => {
+      const fileContent = filename === "main.asm"
+        ? generateMainAsmContent(projectNameFromModal, formattedDate)
+        : generateAsmFileHeader(projectNameFromModal, formattedDate, filename);
+      const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const newAsset: ProjectAsset = {
+        id: assetId,
+        name: filename,
+        type: 'code',
+        data: fileContent
+      };
+      createdAssets.push(newAsset);
+    });
+
+    if (profile) {
+      const starterPlayer = createDefaultMsx2PlayerDefinition(`player_${profile.profileId}_${Date.now()}`, profile.profileId);
+      createdAssets.push({
+        id: starterPlayer.id,
+        name: starterPlayer.name,
+        type: 'msx2player',
+        data: starterPlayer,
+      });
+      if (usesMsx2BitmapRoomStarter(profile)) {
+        const starterRoom = buildStarterMsx2BitmapRoomAsset(profile, projectNameFromModal);
+        createdAssets.push({
+          id: starterRoom.id,
+          name: starterRoom.name,
+          type: 'msx2bitmaproom',
+          data: starterRoom,
+        });
+        createdAssets.push({
+          id: `asset_${profile.profileId}_gameflow_${Date.now()}`,
+          name: 'Main MSX2',
+          type: 'msx2gameflow',
+          data: buildStarterMsx2GameFlowAsset(
+            profile,
+            starterRoom.id,
+            projectNameFromModal,
+            'screen4-bitmap-runtime'
+          ),
+        });
+      } else {
+        const starterScreen = buildStarterMsx2ScreenAsset(profile, projectNameFromModal);
+        createdAssets.push({
+          id: starterScreen.id,
+          name: starterScreen.name,
+          type: 'msx2screen',
+          data: starterScreen,
+        });
+        createdAssets.push({
+          id: `asset_${profile.profileId}_gameflow_${Date.now()}`,
+          name: 'Main MSX2',
+          type: 'msx2gameflow',
+          data: buildStarterMsx2GameFlowAsset(profile, starterScreen.id, projectNameFromModal),
+        });
+      }
+    }
+
+    const starterAssetType = profile && usesMsx2BitmapRoomStarter(profile) ? 'msx2bitmaproom' : 'msx2screen';
+    setAssets(createdAssets);
+    setSelectedAssetId(profile ? createdAssets.find(asset => asset.type === starterAssetType)?.id || null : null);
+    setCurrentEditor(profile
+      ? (starterAssetType === 'msx2bitmaproom' ? EditorType.Msx2BitmapRoom : EditorType.Msx2Screen)
+      : EditorType.None);
+    const profileLabel = profile ? ` (${profile.label})` : '';
+    setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}${profileLabel}.`);
+    setIsNewProjectModalOpen(false);
+    setPendingMsx2NewProject(null);
+    setIsConfirmModalOpen(false);
+  }, [
+    applyScreenModeDefaults,
+    clearAllHistory,
+    setAssets,
+    setComponentDefinitionsState,
+    setCopiedLayerBuffer,
+    setCopiedScreenBuffer,
+    setCopiedTileData,
+    setCurrentEditor,
+    setCurrentProjectName,
+    setEntityTemplatesState,
+    setIsConfirmModalOpen,
+    setIsNewProjectModalOpen,
+    setMainMenuConfigState,
+    setMsx2ProjectProfile,
+    setPendingMsx2NewProject,
+    setPresentationScreenState,
+    setSelectedAssetId,
+    setSelectedEffectZoneId,
+    setStatusBarMessage,
+    setTileBanksState,
+  ]);
+
   const handleConfirmNewProject = (projectNameFromModal: string, selectedMode: string) => {
     setConfirmModalProps({
       title: "Create New Project?",
@@ -422,51 +560,46 @@ export const useProjectHandlers = ({
           <p className="text-msx-warning mt-2">This will clear all current unsaved assets and history.</p>
         </>
       ),
-      onConfirm: () => {
-        setAssets([]);
-        setSelectedAssetId(null);
-        setCurrentProjectName(projectNameFromModal);
-        setCurrentEditor(EditorType.None);
-        const newProjectScreenMode = selectedMode || DEFAULT_SCREEN_MODE;
-        applyScreenModeDefaults(newProjectScreenMode);
-        setTileBanksState([]);
-        trySetLocalStorageItem('tileBanksConfig', JSON.stringify([]));
-        setComponentDefinitionsState(filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode));
-        setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode));
-        setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
-        setPresentationScreenState(DEFAULT_PRESENTATION_SCREEN_CONFIG);
-        clearAllHistory();
-        setCopiedScreenBuffer(null);
-        setCopiedTileData(null);
-        setCopiedLayerBuffer(null);
-        setSelectedEffectZoneId(null);
-
-        const newProjectFiles = ["main.asm", "data/graphics.asm", "data/components.asm", "code/behaviors.asm"];
-        const formattedDate = getFormattedDate();
-        const createdAssets: ProjectAsset[] = [];
-
-        newProjectFiles.forEach(filename => {
-          const fileContent = filename === "main.asm"
-            ? generateMainAsmContent(projectNameFromModal, formattedDate)
-            : generateAsmFileHeader(projectNameFromModal, formattedDate, filename);
-          const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-          const newAsset: ProjectAsset = {
-            id: assetId,
-            name: filename,
-            type: 'code',
-            data: fileContent
-          };
-          createdAssets.push(newAsset);
-        });
-
-        setAssets(createdAssets);
-        setSelectedAssetId(null);
-        setCurrentEditor(EditorType.None);
-        setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}.`);
-        setIsNewProjectModalOpen(false);
-        setIsConfirmModalOpen(false);
-      },
+      onConfirm: () => finalizeNewProject(projectNameFromModal, selectedMode, null),
       confirmText: "Create New",
+      confirmButtonVariant: 'danger'
+    });
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleRequestMsx2GameProfile = (projectNameFromModal: string, selectedMode: string) => {
+    setIsNewProjectModalOpen(false);
+    setPendingMsx2NewProject({ projectName: projectNameFromModal, screenMode: selectedMode });
+    setStatusBarMessage(`Choose an MSX2 game type for "${projectNameFromModal}".`);
+  };
+
+  const handleCancelMsx2NewProject = () => {
+    setPendingMsx2NewProject(null);
+    setIsNewProjectModalOpen(true);
+    setStatusBarMessage('New MSX2 project setup cancelled.');
+  };
+
+  const handleConfirmMsx2GameProfile = (profileId: Msx2GameProfileId) => {
+    if (!pendingMsx2NewProject) return;
+    const profile = buildMsx2ProjectProfile(profileId);
+    const { projectName, screenMode } = pendingMsx2NewProject;
+
+    setConfirmModalProps({
+      title: "Create New MSX2 Project?",
+      message: (
+        <>
+          <p>Are you sure you want to create <strong>{projectName}</strong> as an MSX2 <strong>{profile.label}</strong> project?</p>
+          <p className="text-msx-textsecondary mt-2">
+            Target screen mode: <strong>{screenMode}</strong> (cannot be changed later).
+          </p>
+          <p className="text-msx-textsecondary mt-2">
+            Asset filters and a starter {usesMsx2BitmapRoomStarter(profile) ? 'SCREEN 4 bitmap room' : 'SCREEN 4 room'} will be saved in the project JSON.
+          </p>
+          <p className="text-msx-warning mt-2">This will clear all current unsaved assets and history.</p>
+        </>
+      ),
+      onConfirm: () => finalizeNewProject(projectName, screenMode, profile),
+      confirmText: "Create MSX2 Project",
       confirmButtonVariant: 'danger'
     });
     setIsConfirmModalOpen(true);
@@ -581,6 +714,7 @@ export const useProjectHandlers = ({
     const projectData = {
       assets: sanitizedAssets,
       currentScreenMode,
+      msx2ProjectProfile: isScreen4Project(currentScreenMode) ? msx2ProjectProfile : null,
       selectedAssetId,
       currentEditor,
       tileBanks,
@@ -620,6 +754,7 @@ export const useProjectHandlers = ({
     msxFont, msxFontColorAttributes, dataOutputFormat, autosaveEnabled,
     snippetsEnabled, syntaxHighlightingEnabled, userSnippets, helpDocsData,
     currentProjectName, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen,
+    msx2ProjectProfile,
     setStatusBarMessage
   ]);
 
@@ -761,8 +896,11 @@ export const useProjectHandlers = ({
                 ...screen,
                 layers,
                 runtime: {
+                  ...screen.runtime,
                   screenKind: screen.runtime?.screenKind || 'playable',
                   screenEngine: screen.runtime?.screenEngine || 'player',
+                  movementMode: screen.runtime?.movementMode,
+                  movementModel: screen.runtime?.movementModel,
                   ...(Number.isFinite(requiredCollectibles)
                     ? { requiredCollectibles: Math.max(0, Math.min(255, Math.floor(requiredCollectibles))) }
                     : {}),
@@ -824,7 +962,12 @@ export const useProjectHandlers = ({
       }
 
       const loadedMode = projectData.currentScreenMode || projectData.screenMode || DEFAULT_SCREEN_MODE;
+      const loadedMsx2Profile = isScreen4Project(loadedMode)
+        ? normalizeMsx2ProjectProfile(projectData.msx2ProjectProfile)
+        : null;
       applyScreenModeDefaults(loadedMode);
+      setMsx2ProjectProfile(loadedMsx2Profile);
+      setPendingMsx2NewProject(null);
       const selectedAsset = loadedAssets.find(asset => asset.id === projectData.selectedAssetId);
       if (selectedAsset && isAssetTypeEnabledForProject(selectedAsset.type, loadedMode)) {
         setSelectedAssetId(projectData.selectedAssetId);
@@ -858,9 +1001,9 @@ export const useProjectHandlers = ({
         }
       }
 
-      setComponentDefinitionsState(filterComponentDefinitionsForProject(migratedComponentDefinitions, loadedMode));
+      setComponentDefinitionsState(filterComponentDefinitionsForProject(migratedComponentDefinitions, loadedMode, loadedMsx2Profile));
 
-      let templatesForSanitization: EntityTemplate[] = filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode);
+      let templatesForSanitization: EntityTemplate[] = filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode, loadedMsx2Profile);
       if (projectData.entityTemplates) {
         const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
           const cleanedComponents = template.components.map(comp => {
@@ -889,7 +1032,7 @@ export const useProjectHandlers = ({
         setEntityTemplatesState(cleanedEntityTemplates);
         templatesForSanitization = cleanedEntityTemplates;
       } else {
-        setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode));
+        setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode, loadedMsx2Profile));
       }
 
       if (loadedAssets.length > 0) {
@@ -962,6 +1105,8 @@ export const useProjectHandlers = ({
     setCopiedTileData,
     setEntityTemplatesState,
     setMainMenuConfigState,
+    setMsx2ProjectProfile,
+    setPendingMsx2NewProject,
     setPresentationScreenState,
     setSelectedAssetId,
     setSelectedEffectZoneId,
@@ -1031,6 +1176,9 @@ export const useProjectHandlers = ({
   return {
     handleOpenNewProjectModal,
     handleConfirmNewProject,
+    handleRequestMsx2GameProfile,
+    handleCancelMsx2NewProject,
+    handleConfirmMsx2GameProfile,
     handleOpenSaveAsModal,
     handleSaveProject,
     handleConfirmSaveAsProjectAs,

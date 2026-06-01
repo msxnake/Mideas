@@ -112,7 +112,8 @@ const checks = [
       msx2Generator.includes("mode === 'paddlehorizontal'") &&
       msx2Generator.includes('update_hardware_sprite_input_paddle_horizontal') &&
       msx2Generator.includes("${paddleHorizontal ? '    jp update_hardware_sprite_input_paddle_horizontal\\n' : ''}") &&
-      msx2Generator.includes("${shooterHorizontal ? '    call update_msx2_player_bullet\\n    call update_msx2_enemy_bullet\\n' : ''}"),
+      msx2Generator.includes('const shooterBulletsEnabled = shooterHorizontal || shooterVertical') &&
+      msx2Generator.includes("${shooterBulletsEnabled ? '    call update_msx2_player_bullet\\n    call update_msx2_enemy_bullet\\n' : ''}"),
   ],
   [
     'MSX2 SCREEN 4 backend owns ballBounce hazard movement',

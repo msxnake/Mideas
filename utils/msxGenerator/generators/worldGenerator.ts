@@ -6,6 +6,18 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 
 type WorldDirection = 'north' | 'south' | 'east' | 'west';
+type WorldTransitionMode =
+  | 'preserve_y_validated'
+  | 'preserve_x_validated'
+  | 'fixed_entry'
+  | 'door_entry'
+  | 'ladder_entry'
+  | 'checkpoint_entry';
+
+type DirectionTransition = {
+  targetIndex: number;
+  connection: any;
+};
 
 type ScreenActiveAreaBounds = {
   leftPx: number;
@@ -249,6 +261,21 @@ function extractConnectionDirection(conn: any, side: 'from' | 'to'): WorldDirect
   return normalizeDirection(endpoint?.direction);
 }
 
+function getConnectionTransitionMode(conn: any, direction: WorldDirection): WorldTransitionMode {
+  const rawMode = String(conn?.transitionMode || '').trim();
+  switch (rawMode) {
+    case 'preserve_y_validated':
+    case 'preserve_x_validated':
+    case 'fixed_entry':
+    case 'door_entry':
+    case 'ladder_entry':
+    case 'checkpoint_entry':
+      return rawMode;
+    default:
+      return direction === 'east' || direction === 'west' ? 'preserve_y_validated' : 'preserve_x_validated';
+  }
+}
+
 /**
  * Get the generated load_screen routine name for a screen asset id.
  */
@@ -363,6 +390,7 @@ function emitDirectionalTransitionCode(
   targetLoadRoutine: string,
   currentBounds: ScreenActiveAreaBounds,
   targetBounds: ScreenActiveAreaBounds,
+  connection: any,
   useFarCall: boolean = false
 ): string {
   const skipLabel = `check_transition_${worldLabel}_s${screenIndex}_skip_${direction}`;
@@ -370,6 +398,15 @@ function emitDirectionalTransitionCode(
 
   let conditionCode = '';
   let repositionCode = '';
+  const transitionMode = getConnectionTransitionMode(connection, direction);
+  const fixedEntry = connection?.entryPoint &&
+    Number.isFinite(Number(connection.entryPoint.x)) &&
+    Number.isFinite(Number(connection.entryPoint.y))
+    ? {
+        x: Math.max(0, Math.min(255, Math.round(Number(connection.entryPoint.x)))),
+        y: Math.max(0, Math.min(255, Math.round(Number(connection.entryPoint.y)))),
+      }
+    : null;
 
   if (direction === 'east') {
     conditionCode = `    ; East exit: X near right edge and rightward input
@@ -446,7 +483,23 @@ function emitDirectionalTransitionCode(
   const screenCallCode = useFarCall
     ? `    call ${targetLoadRoutine}_far\n`
     : `    ld a, ((${targetLoadRoutine} - #4000) / #2000)\n    ld hl, ${targetLoadRoutine}\n    call mapper_call_hl_auto\n`;
+  if (fixedEntry && (
+    transitionMode === 'fixed_entry' ||
+    transitionMode === 'door_entry' ||
+    transitionMode === 'ladder_entry' ||
+    transitionMode === 'checkpoint_entry'
+  )) {
+    repositionCode = `    ; ${transitionMode}: use fixed safe entry point
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), ${fixedEntry.x}
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), ${fixedEntry.y}
+`;
+  }
   return `${conditionCode}${applyLabel}:
+    ; Transition mode: ${transitionMode}; ifBlocked: ${connection?.ifBlocked || 'deny'}
     push de
 ${screenCallCode}    pop de
     ld a, ${targetScreenIndex}
@@ -1113,8 +1166,8 @@ check_world_screen_transition:
     const nodeIndexById = new Map<string, number>();
     nodes.forEach((node: any, idx: number) => nodeIndexById.set(node.id, idx));
 
-    // Build transition map: screen index -> direction -> target screen index
-    const transitionMap = new Map<number, Partial<Record<WorldDirection, number>>>();
+    // Build transition map: screen index -> direction -> target screen metadata
+    const transitionMap = new Map<number, Partial<Record<WorldDirection, DirectionTransition>>>();
     nodes.forEach((_: any, idx: number) => transitionMap.set(idx, {}));
 
     connections.forEach((conn: any) => {
@@ -1131,14 +1184,14 @@ check_world_screen_transition:
       if (fromDir) {
         const mapEntry = transitionMap.get(fromIndex);
         if (mapEntry && mapEntry[fromDir] === undefined) {
-          mapEntry[fromDir] = toIndex;
+          mapEntry[fromDir] = { targetIndex: toIndex, connection: conn };
         }
       }
 
       if (toDir) {
         const mapEntry = transitionMap.get(toIndex);
         if (mapEntry && mapEntry[toDir] === undefined) {
-          mapEntry[toDir] = fromIndex;
+          mapEntry[toDir] = { targetIndex: fromIndex, connection: conn };
         }
       }
     });
@@ -1165,8 +1218,9 @@ check_world_screen_transition:
       let emittedAny = false;
 
       directions.forEach((direction) => {
-        const targetIndex = transitions[direction];
-        if (targetIndex === undefined) return;
+        const transition = transitions[direction];
+        if (!transition) return;
+        const { targetIndex, connection } = transition;
         const targetNode = nodes[targetIndex];
         if (!targetNode?.screenAssetId) return;
 
@@ -1174,7 +1228,7 @@ check_world_screen_transition:
         const currentBounds = getScreenActiveAreaBounds(node.screenAssetId, analysis);
         const targetBounds = getScreenActiveAreaBounds(targetNode.screenAssetId, analysis);
         const targetGlobalScreenId = currentEdgeWorldOffset + targetIndex;
-        code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetGlobalScreenId, targetLoadRoutine, currentBounds, targetBounds, useFarCall);
+        code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetGlobalScreenId, targetLoadRoutine, currentBounds, targetBounds, connection, useFarCall);
         emittedAny = true;
       });
 

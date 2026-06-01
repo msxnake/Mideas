@@ -210,6 +210,7 @@ const entities = [
       msx2_transform: makeTransform(1, 10),
       msx2_hardware_sprite: { msx2SpriteAssetId: 'sprite_loderunner_player_msx2', frame: 0, paletteSlot: 8, visible: true },
       msx2_player_control: { controlMode: 'platform', movementMode: 'platform', jump: false, gravity: true, air: 0, disableAirTimer: true },
+      msx2_gravity: { enabled: true, strength: 64, terminalVelocity: 1024 },
       msx2_movement: { mode: 'platform', speed: 2 },
       msx2_collision: { hitboxW: 14, hitboxH: 15, offsetX: 1, offsetY: 1, solid: false, damage: 0 },
       msx2_health: { current: 3, max: 3, invincibleFrames: 45, deathAction: 'respawn' },

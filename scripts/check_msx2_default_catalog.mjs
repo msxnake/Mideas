@@ -79,6 +79,8 @@ const requiredComponents = [
   'msx2_damage',
   'msx2_spawn',
   'msx2_timer',
+  'msx2_jump',
+  'msx2_gravity',
   'msx2_projectile',
   'msx2_paddle',
   'msx2_ball',

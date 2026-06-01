@@ -1,0 +1,140 @@
+import { ProjectAnalysis } from './asmTemplateGenerator';
+import { Msx2Screen4TileScreen } from '../types';
+
+/** MSX1 ROM default: #FC00 (-1024 in 8.8 fixed-point, ~-4 px/frame initial rise). */
+export const MSX2_DEFAULT_JUMP_IMPULSE_88 = 0xfc00;
+
+/** MSX1 ROM default gravity acceleration per frame (#40 on the low byte). */
+export const MSX2_DEFAULT_GRAVITY_STRENGTH_88 = 0x0040;
+
+/** MSX1 ROM terminal fall speed cap (#0400 in 8.8). */
+export const MSX2_DEFAULT_TERMINAL_VELOCITY_88 = 0x0400;
+
+export interface Msx2PlatformPhysicsConfig {
+  jumpEnabled: boolean;
+  gravityEnabled: boolean;
+  jumpImpulse88: number;
+  gravityStrength88: number;
+  terminalVelocity88: number;
+  maxJumps: number;
+  requireKeyRelease: boolean;
+}
+
+export function clampMsx2JumpImpulse88(value: unknown): number {
+  const magnitude = Math.max(256, Math.min(2048, Math.floor(Math.abs(Number(value) || 1024))));
+  return (-magnitude) & 0xffff;
+}
+
+export function clampMsx2GravityStrength88(value: unknown): number {
+  return Math.max(16, Math.min(128, Math.floor(Number(value) || MSX2_DEFAULT_GRAVITY_STRENGTH_88)));
+}
+
+export function clampMsx2TerminalVelocity88(value: unknown): number {
+  return Math.max(256, Math.min(2048, Math.floor(Number(value) || MSX2_DEFAULT_TERMINAL_VELOCITY_88)));
+}
+
+export function resolveMsx2JumpImpulse88(jumpPower: unknown): number {
+  const numeric = Number(jumpPower);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return MSX2_DEFAULT_JUMP_IMPULSE_88;
+  }
+  if (numeric < 0) {
+    return numeric & 0xffff;
+  }
+  return clampMsx2JumpImpulse88(numeric);
+}
+
+function isMsx2ComponentEnabled(component: Record<string, any> | undefined): boolean {
+  if (!component) return false;
+  if (component.enabled === false || component.enabled === 'false') return false;
+  return true;
+}
+
+export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined): Msx2PlatformPhysicsConfig {
+  const jump = player?.components?.msx2_jump;
+  const gravity = player?.components?.msx2_gravity;
+  const control = player?.components?.msx2_player_control || {};
+  const params = player?.params || {};
+
+  const jumpEnabled = isMsx2ComponentEnabled(jump)
+    || (jump === undefined && (control.jump === true || control.jump === 'true' || params.jump === true));
+  const gravityEnabled = isMsx2ComponentEnabled(gravity)
+    || (gravity === undefined && (control.gravity === true || control.gravity === 'true' || params.gravity === true));
+
+  const jumpPower = jump?.jumpPower ?? jump?.jumpImpulse
+    ?? control.jumpPower ?? control.jumpImpulse
+    ?? params.jumpPower ?? params.jumpImpulse;
+  const gravityStrength = gravity?.strength ?? gravity?.gravityStrength
+    ?? control.gravityStrength ?? params.gravityStrength;
+  const terminalVelocity = gravity?.terminalVelocity
+    ?? control.terminalVelocity ?? params.terminalVelocity;
+
+  const maxJumps = Math.max(1, Math.min(4, Math.floor(Number(
+    jump?.maxJumps ?? params.maxJumps ?? 1
+  ) || 1)));
+  const requireKeyRelease = jump?.requireKeyRelease !== false
+    && jump?.requireKeyRelease !== 'false'
+    && control.requireKeyRelease !== false
+    && control.requireKeyRelease !== 'false';
+
+  return {
+    jumpEnabled,
+    gravityEnabled,
+    jumpImpulse88: resolveMsx2JumpImpulse88(jumpPower),
+    gravityStrength88: clampMsx2GravityStrength88(gravityStrength),
+    terminalVelocity88: clampMsx2TerminalVelocity88(terminalVelocity),
+    maxJumps,
+    requireKeyRelease,
+  };
+}
+
+export function getMsx2PlatformPhysicsFromScreen(
+  screen: Msx2Screen4TileScreen | undefined,
+  player: any | undefined
+): Msx2PlatformPhysicsConfig {
+  const base = getMsx2PlatformPhysicsFromPlayerEntity(player);
+  const runtime = screen?.runtime as unknown as Record<string, unknown> | undefined;
+  if (!runtime) return base;
+  return {
+    ...base,
+    jumpImpulse88: runtime.jumpImpulse !== undefined || runtime.jumpPower !== undefined
+      ? resolveMsx2JumpImpulse88(runtime.jumpImpulse ?? runtime.jumpPower)
+      : base.jumpImpulse88,
+    gravityStrength88: runtime.gravityStrength !== undefined
+      ? clampMsx2GravityStrength88(runtime.gravityStrength)
+      : base.gravityStrength88,
+    terminalVelocity88: runtime.terminalVelocity !== undefined
+      ? clampMsx2TerminalVelocity88(runtime.terminalVelocity)
+      : base.terminalVelocity88,
+  };
+}
+
+export function getMsx2PlatformPhysicsFromAnalysis(analysis: ProjectAnalysis): Msx2PlatformPhysicsConfig {
+  const screen = analysis.msx2Screens?.find(item => item.layers?.entities?.some(entity => entity.kind === 'player'))
+    || analysis.msx2Screens?.[0];
+  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  return getMsx2PlatformPhysicsFromScreen(screen, player);
+}
+
+export function playerHasMsx2JumpComponent(player: any | undefined): boolean {
+  return getMsx2PlatformPhysicsFromPlayerEntity(player).jumpEnabled;
+}
+
+export function playerHasMsx2GravityComponent(player: any | undefined): boolean {
+  return getMsx2PlatformPhysicsFromPlayerEntity(player).gravityEnabled;
+}
+
+export function formatAsmWord(value: number): string {
+  const word = value & 0xffff;
+  return `#${word.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+export function formatAsmByte(value: number): string {
+  const byte = value & 0xff;
+  return `#${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+}
+
+/** High byte of the 8.8 terminal cap used in the MSX1 gravity routine. */
+export function getTerminalVelocityHighByte(terminalVelocity88: number): number {
+  return (clampMsx2TerminalVelocity88(terminalVelocity88) >> 8) & 0xff;
+}

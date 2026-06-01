@@ -42,6 +42,10 @@ const App: React.FC = () => {
     setCurrentProjectName,
     currentScreenMode,
     setCurrentScreenMode,
+    msx2ProjectProfile,
+    setMsx2ProjectProfile,
+    pendingMsx2NewProject,
+    setPendingMsx2NewProject,
     statusBarMessage,
     setStatusBarMessage,
     selectedColor,
@@ -408,6 +412,7 @@ const App: React.FC = () => {
     setSelectedAssetId,
     setCurrentEditor,
     currentScreenMode,
+    msx2ProjectProfile,
     setConfirmModalProps,
     setIsConfirmModalOpen,
     setSelectedEffectZoneId,
@@ -437,6 +442,10 @@ const App: React.FC = () => {
     setIsConfirmModalOpen,
     setIsNewProjectModalOpen,
     setIsSaveAsModalOpen,
+    pendingMsx2NewProject,
+    setPendingMsx2NewProject,
+    msx2ProjectProfile,
+    setMsx2ProjectProfile,
     tileBanks,
     setTileBanksState: setTileBanks,
     componentDefinitions,
@@ -611,6 +620,9 @@ const App: React.FC = () => {
           case 'msx2bitmaproom':
             setCurrentEditor(EditorType.Msx2BitmapRoom);
             break;
+          case 'msx2player':
+            setCurrentEditor(EditorType.Msx2Player);
+            break;
           case 'msx2hudfont':
             setCurrentEditor(EditorType.Msx2HudFont);
             break;
@@ -754,6 +766,8 @@ const App: React.FC = () => {
     currentProjectName,
     setCurrentProjectName,
     currentScreenMode,
+    msx2ProjectProfile,
+    pendingMsx2NewProject,
     statusBarMessage,
     setStatusBarMessage,
     selectedColor,

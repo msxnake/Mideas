@@ -9,8 +9,10 @@ const editorPath = join(repoRoot, 'components', 'editors', 'Msx2Screen4RoomEdito
 const partsPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'Msx2Screen4EditorParts.tsx');
 const catalogPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const generatorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
+const playerBulletCharGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2PlayerBulletCharGenerator.ts');
 const bitmapRoomGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4BitmapRoomGenerator.ts');
 const entityRuntimeGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
+const box2ComponentGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Box2ComponentGenerator.ts');
 const msxGeneratorIndexPath = join(repoRoot, 'utils', 'msxGenerator', 'index.ts');
 const asmTemplateGeneratorPath = join(repoRoot, 'utils', 'asmTemplateGenerator.ts');
 const appUiPath = join(repoRoot, 'components', 'AppUI.tsx');
@@ -41,6 +43,7 @@ const loderunnerCreatorPath = join(repoRoot, 'scripts', 'create_msx2_loderunner_
 const msx2AtlasPreviewPath = join(repoRoot, 'components', 'screen_editor', 'MSX2AtlasPreviewPanel.tsx');
 const msx2ExportContractPath = join(repoRoot, 'components', 'screen_editor', 'MSX2ExportContractPanel.tsx');
 const msx2HudPlanPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'MSX2HudPlanPanel.tsx');
+const msx2TileConstraintsPath = join(repoRoot, 'utils', 'msx2Screen4TileConstraints.ts');
 const packageJsonPath = join(repoRoot, 'package.json');
 const source = [
   readFileSync(editorPath, 'utf8'),
@@ -80,8 +83,10 @@ const source = [
 ].join('\n');
 
 const generatorSource = readFileSync(generatorPath, 'utf8');
+const playerBulletCharGeneratorSource = readFileSync(playerBulletCharGeneratorPath, 'utf8');
 const bitmapRoomGeneratorSource = readFileSync(bitmapRoomGeneratorPath, 'utf8');
 const entityRuntimeSource = readFileSync(entityRuntimeGeneratorPath, 'utf8');
+const box2ComponentGeneratorSource = readFileSync(box2ComponentGeneratorPath, 'utf8');
 const msxGeneratorIndexSource = readFileSync(msxGeneratorIndexPath, 'utf8');
 const asmTemplateGeneratorSource = readFileSync(asmTemplateGeneratorPath, 'utf8');
 const appUiSource = readFileSync(appUiPath, 'utf8');
@@ -100,6 +105,7 @@ const codeExportModalSource = readFileSync(codeExportModalPath, 'utf8');
 const fileExplorerSource = readFileSync(fileExplorerPath, 'utf8');
 const propertiesPanelSource = readFileSync(propertiesPanelPath, 'utf8');
 const typesSource = readFileSync(typesPath, 'utf8');
+const msx2TileConstraintsSource = readFileSync(msx2TileConstraintsPath, 'utf8');
 const serverSource = readFileSync(serverPath, 'utf8');
 const buildScriptSource = readFileSync(buildScriptPath, 'utf8');
 const summaryExtractorSource = readFileSync(summaryExtractorPath, 'utf8');
@@ -114,7 +120,8 @@ const hardwareSpriteInit = generatorSource.match(/function buildHardwareSpriteIn
 const hardwareSpritePatternBuilder = generatorSource.match(/function buildHardwareSpritePatternForLayer[\s\S]*?return bytes;\n}/)?.[0] || '';
 const extendedVramWriters = generatorSource.match(/copy_to_vram_ext:[\s\S]*?write_vram_byte_ext:[\s\S]*?ret/)?.[0] || '';
 const effectStateRoutine = generatorSource.match(/update_msx2_effect_state:[\s\S]*?msx2_compare_collectibles_required:/)?.[0] || '';
-const verticalRoutine = generatorSource.match(/update_hardware_sprite_vertical:[\s\S]*?apply_hardware_sprite_gravity:/)?.[0] || '';
+const verticalRoutine = generatorSource.match(/update_hardware_sprite_vertical:[\s\S]*?apply_msx2_conveyor:/)?.[0] || '';
+const platformPhysicsSource = readFileSync(join(repoRoot, 'utils', 'msx2PlatformPhysics.ts'), 'utf8');
 
 const checks = [
   ['single Entity Properties panel', (source.match(/Panel title="Entity Properties"/g) || []).length === 1],
@@ -125,6 +132,16 @@ const checks = [
   ['entity creation presets include Pong and Arkanoid actors', source.includes("id: 'pong_paddle'") && source.includes("id: 'pong_ball'") && source.includes("id: 'arkanoid_brick'")],
   ['entity creation presets include Pong 2P control component', catalogSource.includes("'control_2_players'") && catalogSource.includes("id: 'pong_2p_left_paddle'") && catalogSource.includes("player1Input: 'cursors'") && catalogSource.includes("player2Input: 'joystick1'")],
   ['entity creation presets include Snake char actors', source.includes("id: 'snake_head'") && source.includes("id: 'snake_segment'") && source.includes("id: 'snake_food'") && source.includes('msx2_char_render')],
+  ['entity creation presets include Box2 Sokoban crate', catalogSource.includes("id: 'box2_crate'") && catalogSource.includes("engine: 'box2'") && catalogSource.includes('msx2_box2')],
+  ['entity creation presets include MSX2 pickup item', catalogSource.includes("id: 'pickup_item'") && catalogSource.includes("engine: 'pickupItem'") && catalogSource.includes('msx2_collectible') && catalogSource.includes('msx2_char_render')],
+  ['entity creation presets include MSX2 spike trap', catalogSource.includes("id: 'spike_trap'") && catalogSource.includes("engine: 'spike'") && catalogSource.includes('msx2_hazard') && catalogSource.includes('msx2_char_render')],
+  ['entity creation presets include MSX2 player shooter', catalogSource.includes("id: 'player_shooter'") && catalogSource.includes('msx2_shooter') && catalogSource.includes("direction: 'horizontalFacing'")],
+  ['entity creation presets include MSX2 player bullet payload', catalogSource.includes("id: 'player_bullet'") && catalogSource.includes("owner: 'player'") && catalogSource.includes('msx2_projectile')],
+  ['SCREEN 4 player shooter component enables bullet runtime outside arcade modes', generatorSource.includes('usesPlayerShooterComponent') && generatorSource.includes('playerShooterEnabled') && generatorSource.includes('shooterHorizontal || shooterVertical || playerShooterEnabled')],
+  ['SCREEN 4 player bullets render as 8x8 chars with background restore', (generatorSource + playerBulletCharGeneratorSource).includes('msx2_restore_background_char_8') && (generatorSource + playerBulletCharGeneratorSource).includes('msx2_draw_player_bullet_char_8') && (generatorSource + playerBulletCharGeneratorSource).includes('msx2_read_current_screen_name_byte') && (generatorSource + playerBulletCharGeneratorSource).includes('init_msx2_player_bullet_char')],
+  ['MSX2 entity panel can assign profile-allowed components', partsSource.includes('Add MSX2 component') && partsSource.includes('isMsx2ComponentAllowedForProfile') && partsSource.includes('aria-label="Add MSX2 component to entity"')],
+  ['SCREEN 4 effect hazards respect enemy damage cooldown', generatorSource.includes('.hazard:') && generatorSource.includes('ld a, (msx2_enemy_damage_cooldown)') && generatorSource.includes('call msx2_apply_damage_respawn')],
+  ['SCREEN 4 generator stamps char entities into name table', generatorSource.includes('if (entity?.components?.msx2_box2 || entity?.components?.msx2_push_box) continue') && generatorSource.includes('names[(nameY * SCREEN4_CHAR_COLUMNS) + nameX] = base')],
   ['MSX2 entity repertoire carries runtime and engine metadata', source.includes('MSX2_ENTITY_REPERTOIRE') && source.includes("runtime: 'MSX2'") && source.includes("engine: 'ghostMaze'") && source.includes("engine: 'patrolX'")],
   ['MSX2 player presets declare explicit SCREEN 4 movement engines', source.includes("engine: 'maze'") && source.includes("movementMode: 'maze'") && source.includes("engine: 'shooterHorizontal'") && source.includes("movementMode: 'shooterHorizontal'") && source.includes("engine: 'shooterVertical'") && source.includes("movementMode: 'shooterVertical'") && source.includes("movementMode: 'paddleHorizontal'") && source.includes("movementMode: 'snakeChar'")],
   ['MSX2 editor propagates player preset engine to screen runtime', source.includes("selectedEntityPreset.kind === 'player'") && source.includes('movementModel: movementMode') && source.includes("screenEngine: movementMode === 'maze'") && source.includes("movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'")],
@@ -170,7 +187,7 @@ const checks = [
   ['SCREEN 4 game over restart accepts SPACE trigger fallback', generatorSource.includes('msx2_game_over_idle:') && generatorSource.includes('.restart_space_check:') && generatorSource.includes('ld a, 8\n    call SNSMAT\n    bit 0, a\n    jp z, msx2_restart_game') && generatorSource.includes('ld (msx2_game_over_restart_lock), a')],
   ['SCREEN 4 final-state border is cleared on restart and continue', generatorSource.includes('reset_msx2_status_border') && (generatorSource.match(/call reset_msx2_status_border/g) || []).length >= 2 && generatorSource.includes('ld bc, #0007\n    call WRTVDP')],
   ['MSX2 component repertoire exposes Galaxian Attack Wave settings', catalogSource.includes("'msx2_attack_wave'") && catalogSource.includes('intervalFrames: 180') && catalogSource.includes('minAttackers: 1') && catalogSource.includes('maxAttackers: 3')],
-  ['MSX2 entity panel exposes Galaxian attack component controls', partsSource.includes('aria-label="Galaxian attack pattern"') && partsSource.includes('aria-label="Galaxian attack wave interval frames"') && partsSource.includes('aria-label="Galaxian attack wave maximum attackers"') && partsSource.includes('patchSelectedComponent')],
+  ['MSX2 entity panel exposes Galaxian attack component controls', catalogSource.includes('ariaLabel: \'Galaxian attack pattern\'') && catalogSource.includes('ariaLabel: \'Galaxian attack wave interval frames\'') && catalogSource.includes('ariaLabel: \'Galaxian attack wave maximum attackers\'') && partsSource.includes('patchComponentField')],
   ['SCREEN 4 Galaxian scheduler reads Attack Wave component settings', generatorSource.includes('getGalaxianAttackWaveSettingsForScreen') && generatorSource.includes('component.intervalFrames') && generatorSource.includes('component.minAttackers') && generatorSource.includes('component.maxAttackers') && generatorSource.includes('update_msx2_galaxian_attack_scheduler')],
   ['SCREEN 4 Galaxian Attack Wave is emitted per screen', generatorSource.includes('attackWaveSettingsByScreen') && generatorSource.includes('msx2_screen_attack_interval') && generatorSource.includes('msx2_screen_attack_min') && generatorSource.includes('msx2_screen_attack_max') && generatorSource.includes('msx2_screen_attack_seed')],
   ['SCREEN 4 Galaxian movement reads Attack Pattern components', generatorSource.includes('getGalaxianAttackPatterns') && generatorSource.includes('components?.msx2_attack_pattern?.pattern') && generatorSource.includes("attackPattern === 'circle'") && generatorSource.includes("attackPattern === 'zigzag'") && !generatorSource.includes('const shooterDiveMovement = slot % 3')],
@@ -232,7 +249,7 @@ const checks = [
   ['hardware 16x16 sprite pattern order is V9938 quadrant order', hardwareSpritePatternBuilder.includes('top-left, bottom-left, top-right, bottom-right') && hardwareSpritePatternBuilder.includes('layerIndex, 0, y));\n  for (let y = 8; y < 16; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 0, y));\n  for (let y = 0; y < 8; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 8, y));')],
   ['SCREEN 4 generator has no legacy bitmap load path', !generatorSource.includes('load_${label}_bitmap') && !generatorSource.includes('load_${firstScreenLabel}_bitmap') && !generatorSource.includes('buildScreen5BitmapBytes')],
   ['SCREEN 4 exports native HUD metadata without hardcoded bitmap overlay', !generatorSource.includes('false && usesInlineStatusHud(analysis)') && !generatorSource.includes('msx2_score_digit_patterns') && generatorSource.includes('msx2_screen_hud_style') && generatorSource.includes('Runtime drawing is intentionally data-driven work, not hardcoded bars')],
-  ['SCREEN 4 editor exposes atlas and export contract previews', source.includes('MSX2AtlasPreviewPanel') && source.includes('MSX2ExportContractPanel') && source.includes('MSX2 Atlas Preview') && source.includes('MSX2 Export Contract')],
+  ['SCREEN 4 editor exposes atlas preview', source.includes('MSX2AtlasPreviewPanel') && source.includes('MSX2 Atlas Preview')],
   ['SCREEN 4 HUD editor exposes per-widget export hints and templates', source.includes('Export hint') && source.includes('V9938 fill/line rectangle') && source.includes('8x8 glyph atlas copies') && source.includes('16x16 icon atlas copy') && source.includes('aria-label="MSX2 HUD widget variable name"') && source.includes('aria-label="MSX2 HUD widget icon tile"') && source.includes('clampNibble')],
   ['SCREEN 4 export contract maps HUD widgets to primitives', source.includes('v9938_fill_line_rect') && source.includes('glyph_atlas_copy_8x8') && source.includes('icon_atlas_copy_16x16') && source.includes('recordOffsetBytes') && source.includes('auxiliaryTables') && source.includes('runtimeRenderer')],
   ['SCREEN 4 generator exports HUD widget record offsets', generatorSource.includes('msx2_screen_hud_widget_record_size EQU 12') && generatorSource.includes('msx2_screen_hud_widget_offset') && generatorSource.includes('formatWords')],
@@ -250,6 +267,7 @@ const checks = [
   ['maze direction changes are grid-gated to 16 pixels', generatorSource.includes('maze_can_change_direction_16') && generatorSource.includes('and #0F\n    ret nz') && generatorSource.includes('jp z, maze_move_right') && generatorSource.includes('jp z, maze_move_left')],
   ['maze input latches requested direction', generatorSource.includes('maze_try_latched_direction') && generatorSource.includes('ld (msx2_player_sprite_frame), a') && generatorSource.includes('ld a, (msx2_player_sprite_frame)')],
   ['hardware sprite animation uses MSX2-owned frame runtime', generatorSource.includes('buildHardwareSpriteLayersForFrame') && generatorSource.includes('msx2_player_anim_counter EQU #C01D') && generatorSource.includes('msx2_player_anim_frame EQU #C01E') && generatorSource.includes('update_msx2_player_sprite_animation') && generatorSource.includes('msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}')],
+  ['platform player animation respects animateOnlyWhenMoving', generatorSource.includes('getMsx2PlayerAnimateOnlyWhenMoving') && generatorSource.includes('msx2_player_walking_flag') && generatorSource.includes('reset_player_sprite_frame_idle') && catalogSource.includes('animateOnlyWhenMoving: true')],
   ['MSX2 sprite editor exposes authored facing and mirror preview', msx2SpriteEditorSource.includes('Panel title="MSX2 Sprite Settings"') && msx2SpriteEditorSource.includes('value={facingDirection}') && msx2SpriteEditorSource.includes('mirrorPixelDataHorizontally(previewFrame)') && msx2SpriteEditorSource.includes('<option value="right">Right</option>') && msx2SpriteEditorSource.includes('<option value="left">Left</option>')],
   ['MSX2 sprite editor exposes hardware color plane diagnostics', msx2SpriteEditorSource.includes('stackedColorLineCount') && msx2SpriteEditorSource.includes('threeColorLineCount') && msx2SpriteEditorSource.includes('maxCellLayerCount') && msx2SpriteEditorSource.includes('3+ color rows') && msx2SpriteEditorSource.includes('Max cell layers')],
   ['MSX2 sprite editor exposes sprite export contract preview', msx2SpriteEditorSource.includes('spriteExportContract') && msx2SpriteEditorSource.includes('Panel title="MSX2 Sprite Export Contract"') && msx2SpriteEditorSource.includes('MSX2_SCREEN4_HARDWARE_SPRITE') && msx2SpriteEditorSource.includes('transparent_masks_plus_v9938_cc_or_color') && msx2SpriteEditorSource.includes('orColorRule')],
@@ -269,9 +287,23 @@ const checks = [
   ['MSX2 projects keep legacy MSX1 ECS offline', source.includes("target?: 'MSX1' | 'MSX2' | 'COMMON'") && source.includes('isComponentDefinitionEnabledForProject') && source.includes('isEntityTemplateEnabledForProject') && source.includes("component.target || 'MSX1'") && source.includes("template.target || 'MSX1'") && source.includes('target: projectTarget')],
   ['MSX2 entity normalization keeps projects on the MSX2 runtime', source.includes('normalizeEntityKind') && source.includes("params: { ...(entity.params || {}), runtime: 'MSX2' }")],
   ['maze world transitions bypass platform gravity', generatorSource.includes("const resumeAfterTransition = mazeMovement ? 'upload_hardware_sprite_attrs' : 'update_hardware_sprite_vertical'") && generatorSource.includes('const mazeDirectionReset = mazeMovement')],
-  ['maze vertical routine guards against gravity', verticalRoutine.includes('Maze/Pac-Man mode has no platform vertical physics') && verticalRoutine.includes('jp upload_hardware_sprite_attrs')],
+  ['maze vertical routine guards against gravity', generatorSource.includes('Maze/Pac-Man mode has no platform vertical physics') && generatorSource.includes('buildMsx2PlatformVerticalPhysicsAsm') && generatorSource.includes('jp upload_hardware_sprite_attrs')],
+  ['MSX2 jump and gravity are dedicated components', catalogSource.includes("id: 'msx2_jump'") && catalogSource.includes("id: 'msx2_gravity'") && catalogSource.includes('msx2_jump: { enabled: true, jumpPower: 1024') && catalogSource.includes('msx2_gravity: { enabled: true, strength: 64')],
+  ['MSX2 platform physics reads msx2_jump and msx2_gravity components', platformPhysicsSource.includes('msx2_jump') && platformPhysicsSource.includes('msx2_gravity') && platformPhysicsSource.includes('jumpEnabled') && platformPhysicsSource.includes('gravityEnabled')],
+  ['MSX2 platform physics uses 8.8 accumulator in ROM', generatorSource.includes('msx2_player_gravity_vel EQU #C008') && generatorSource.includes('msx2_apply_platform_gravity') && generatorSource.includes('msx2_jump + msx2_gravity components') && platformPhysicsSource.includes('MSX2_DEFAULT_JUMP_IMPULSE_88 = 0xfc00')],
+  ['MSX2 platform jump supports configurable maxJumps in ROM', generatorSource.includes('platform_jump_from_ground') && generatorSource.includes('cp ${maxJumps}') && generatorSource.includes('add a, #4')],
+  ['MSX2 platform fall probes below feet with per-pixel steps', generatorSource.includes('.platform_move_down_loop') && generatorSource.includes('add a, 16') && generatorSource.includes('inc a') && generatorSource.includes('dec d')],
+  ['MSX2 platform rise uses per-pixel steps with ceiling probe', generatorSource.includes('.platform_move_up_loop') && generatorSource.includes('dec a') && generatorSource.includes('.platform_cancel_jump')],
+  ['MSX2 platform vertical probes cover 16px player width', generatorSource.includes('add a, 15') && generatorSource.includes('.platform_check_grounded')],
+  ['MSX2 platform jump clears grounded flag and gravity runs in air', generatorSource.includes('.platform_jump_store_flags') && generatorSource.includes('and #FE') && generatorSource.includes('.platform_apply_gravity_in_air')],
+  ['MSX2 platform pixel-step loop preserves BC/DE across collision probe', generatorSource.includes('push de\n    push bc\n    call msx2_collision_at_pixel\n    pop bc\n    pop de')],
+  ['MSX2 entity panel exposes jump component controls', catalogSource.includes("msx2_jump:") && catalogSource.includes('ariaLabel: \'MSX2 max jumps\'') && catalogSource.includes('ariaLabel: \'MSX2 jump power\'') && partsSource.includes('Msx2ComponentFieldsEditor')],
+  ['MSX2 entity panel exposes editable MSX2 component fields', partsSource.includes('Msx2ComponentFieldsEditor') && partsSource.includes('MSX2_COMPONENT_FIELD_EDITORS') && partsSource.includes('<details key={component.id}')],
+  ['MSX2 entity panel exposes gravity component controls', catalogSource.includes("msx2_gravity:") && catalogSource.includes('ariaLabel: \'MSX2 gravity strength\'') && catalogSource.includes('ariaLabel: \'MSX2 terminal fall velocity\'') && partsSource.includes('Msx2ComponentFieldsEditor')],
+  ['MSX2 screen panel exposes platform physics overrides', partsSource.includes('Platform physics (screen override)') && partsSource.includes('aria-label="MSX2 screen jump power override"')],
   ['Snake char runtime is generated as SCREEN 4 name-table updates with body growth', generatorSource.includes('function usesSnakeCharMovement') && generatorSource.includes('function buildSnakeCharRuntimeAsm') && generatorSource.includes('init_msx2_snake_char') && generatorSource.includes('update_msx2_snake_char') && generatorSource.includes('msx2_snake_draw_cell_16') && generatorSource.includes('msx2_snake_append_head') && generatorSource.includes('msx2_snake_check_self_collision') && generatorSource.includes('call WRTVRM')],
   ['Snake char runtime reserves and writes 16x16 blocks across SCREEN 4 banks', generatorSource.includes('getScreen4TileBytesForEntity') && generatorSource.includes('reserveCharBlockForAllBanks') && generatorSource.includes('findFreeScreen4CharBlockBase') && generatorSource.includes('call msx2_snake_load_runtime_chars') && generatorSource.includes('ld bc, ${byteCount}') && generatorSource.includes('add a, 3')],
+  ['Box2 runtime redraws chars immediately after slide (no defer_char)', box2ComponentGeneratorSource.includes('msx2_box2_finish_slide') && box2ComponentGeneratorSource.includes('call msx2_box2_draw_chars_for_slot') && !box2ComponentGeneratorSource.includes('defer_char') && generatorSource.includes('init_msx2_box2_boxes') && generatorSource.includes('update_msx2_box2_boxes')],
   ['WorldMap ASM export accepts SCREEN 4 rooms', exportWorldMapAsmSource.includes('Msx2Screen4TileScreen') && exportWorldMapAsmSource.includes('ExportableWorldScreen') && worldMapEditorSource.includes('isMsx2Screen4TileScreen(screen)')],
   ['SCREEN 4 room labels replace old MSX2 screen wording', toolbarSource.includes('MSX2 SCREEN 4 Room (16x12)') && fileExplorerSource.includes('MSX2 SCREEN 4 Rooms') && !toolbarSource.includes('MSX2 16x16 Screen')],
   ['SCREEN 4 backend no longer rejects unused legacy screenmaps', !generatorSource.includes('addScreen(analysis.screenMaps?.[0])') && generatorSource.includes('collectReferencedTileScreens(analysis)')],
@@ -321,6 +353,11 @@ const checks = [
   ['ROM build result displays MSX2 resolver candidates', codeExportModalSource.includes('msx2BudgetResolverCandidates') && codeExportModalSource.includes('Resolver candidates:') && codeExportModalSource.includes('msx2CompileResolverCandidates') && codeExportModalSource.includes('Resolver candidate:')],
   ['ROM build result highlights MSX2 budget warning and error status', codeExportModalSource.includes('msx2BudgetStatusClass') && codeExportModalSource.includes("msx2BudgetStatus === 'error'") && codeExportModalSource.includes("msx2BudgetStatus === 'warning'") && codeExportModalSource.includes('border-red-500') && codeExportModalSource.includes('border-yellow-500') && codeExportModalSource.includes('msx2BudgetBadgeClass')],
   ['ROM build summary reports MSX2 budget resolution attempts', codeExportModalSource.includes('MSX2 budget resolution:') && codeExportModalSource.includes('MSX2 budget action:') && codeExportModalSource.includes('compileResult?.msx2BudgetResolution') && codeExportModalSource.includes('msx2BudgetResolutionAttempts.slice(-3)')],
+  ['MSX2 SCREEN 4 tile constraints util exposes 2-color row helpers', msx2TileConstraintsSource.includes('export const chooseScreen4RowColors') && msx2TileConstraintsSource.includes('export const inferLineAttributesFromPixels') && msx2TileConstraintsSource.includes('export const resolvePaintSlot') && msx2TileConstraintsSource.includes('export const analyzeTileColorLimits') && msx2TileConstraintsSource.includes('SCREEN4_PIXELS_PER_COLOR_SEGMENT')],
+  ['MSX2 SCREEN 4 tile type stores line attributes', typesSource.includes('export interface Msx2Screen4LineAttribute') && typesSource.includes('lineAttributes?: Msx2Screen4LineAttribute[][]')],
+  ['MSX2 SCREEN 4 room editor enforces feasible tile painting', readFileSync(editorPath, 'utf8').includes('resolvePaintSlot') && readFileSync(editorPath, 'utf8').includes('handleUpdateLineAttribute') && readFileSync(editorPath, 'utf8').includes('fixInvalidTilePixels') && readFileSync(editorPath, 'utf8').includes('ensureLineAttributes')],
+  ['MSX2 SCREEN 4 tile editor exposes line attribute panel and FG/BG hints', readFileSync(partsPath, 'utf8').includes('Line attributes (FG/BG per 8 px segment)') && readFileSync(partsPath, 'utf8').includes('Left click = FG, Right click = BG') && readFileSync(partsPath, 'utf8').includes('Fix invalid pixels') && readFileSync(partsPath, 'utf8').includes('isValidPixelSlot')],
+  ['MSX2 SCREEN 4 generator imports shared row color chooser', generatorSource.includes("from '../../../msx2Screen4TileConstraints'") && generatorSource.includes('chooseScreen4RowColors(row)') && !generatorSource.includes('function chooseScreen4RowColors(row: number[])')],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

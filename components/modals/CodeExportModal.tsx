@@ -1538,6 +1538,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
       setQuickValidationSummary(summary);
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7713/ingest/f5845ebd-1729-462b-91e6-85be326f773d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'64a1ab'},body:JSON.stringify({sessionId:'64a1ab',location:'CodeExportModal.tsx:runMapperPipeline',message:'mapper pipeline catch',data:{errorName:error instanceof Error?error.name:'unknown',errorMessage:String(error),launchAfterBuild},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       const failure = {
         success: false,
         message: `${launchAfterBuild ? 'Build and Run' : 'Generate + Compress + Compile + Mapper'} failed: ${error}`

@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ProjectAsset, EditorType, ContextMenuItem } from '../../types';
+import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile } from '../../types';
 import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
 import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon } from '../icons/MsxIcons';
-import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../../utils/projectTarget';
+import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
 
 /**
  * Props for the {@link FileExplorerPanel} component.
@@ -35,6 +35,8 @@ interface FileExplorerPanelProps {
   isPresentationScreenActive?: boolean;
   /** Current project screen mode used to disable incompatible asset families. */
   currentScreenMode: string;
+  /** Active MSX2 game profile used to filter profile-specific asset families. */
+  msx2ProjectProfile?: Msx2ProjectProfile | null;
   /** Whether a project is loaded or has been created. */
   hasActiveProject: boolean;
   /** Optional CSS class name for the panel. */
@@ -56,6 +58,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'msx2bitmap': return <MapIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
     case 'msx2screen': return <MapIcon className={`${iconClass} text-blue-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaproom': return <MapIcon className={`${iconClass} text-sky-200 group-hover:text-msx-accent`} />;
+    case 'msx2player': return <SpriteIcon className={`${iconClass} text-yellow-300 group-hover:text-msx-accent`} />;
     case 'msx2hudfont': return <PencilIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
     case 'msx2presentation': return <MapIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
     case 'msx2gameflow': return <GameFlowIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
@@ -89,7 +92,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2player', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -97,6 +100,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   sprite: "MSX1 Sprites",
   msx2sprite: "MSX2 Sprites",
   msx2bitmap: "Legacy MSX2 Bitmaps",
+  msx2player: "MSX2 Players",
   msx2screen: "MSX2 SCREEN 4 Rooms",
   msx2bitmaproom: "MSX2 SCREEN 4 Bitmap Rooms",
   msx2hudfont: "MSX2 HUD Fonts",
@@ -128,6 +132,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   sprite: EditorType.Sprite,
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
+  msx2player: EditorType.Msx2Player,
   msx2screen: EditorType.Msx2Screen,
   msx2bitmaproom: EditorType.Msx2BitmapRoom,
   msx2hudfont: EditorType.Msx2HudFont,
@@ -194,6 +199,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   isMainMenuActive = false,
   isPresentationScreenActive = false,
   currentScreenMode,
+  msx2ProjectProfile = null,
   hasActiveProject,
   className = '',
   onRequestCollapse,
@@ -361,7 +367,9 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
   const contextMenuItems = getContextMenuItems();
   const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
-  const isFolderEnabled = (folderType: ProjectAsset['type']) => hasActiveProject && isAssetTypeEnabledForProject(folderType, currentScreenMode);
+  const isAssetTypeVisible = (assetType: ProjectAsset['type']) =>
+    isAssetTypeEnabledForMsx2Project(assetType, currentScreenMode, msx2ProjectProfile);
+  const isFolderEnabled = (folderType: ProjectAsset['type']) => hasActiveProject && isAssetTypeVisible(folderType);
   const getDisabledTitle = (assetType: ProjectAsset['type']): string | undefined => {
     const assetTarget = getAssetTarget(assetType);
     if (!hasActiveProject) return 'Create or load a project first.';
@@ -386,8 +394,12 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
               {'<'}
             </button>
           )}
-          <button onClick={handleExpandAll} title="Expand All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><ExpandAllIcon className="w-3.5 h-3.5" /></button>
-          <button onClick={handleCollapseAll} title="Collapse All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><CollapseAllIcon className="w-3.5 h-3.5" /></button>
+          {hasActiveProject && (
+            <>
+              <button onClick={handleExpandAll} title="Expand All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><ExpandAllIcon className="w-3.5 h-3.5" /></button>
+              <button onClick={handleCollapseAll} title="Collapse All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><CollapseAllIcon className="w-3.5 h-3.5" /></button>
+            </>
+          )}
         </>
       }
     >
@@ -403,6 +415,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
       {!hasActiveProject && <p className="text-xs text-msx-textsecondary p-2">Create or load a project to enable assets.</p>}
       {(hasActiveProject && assets.length === 0 && systemTools.every(tool => !tool.isActive)) && <p className="text-xs text-msx-textsecondary p-2">No assets in project. Click 'New Asset' in the toolbar to create one.</p>}
 
+      {hasActiveProject && (
       <ul className="space-y-0.5 text-sm font-sans">
         {systemTools.map(tool => (
             <li key={tool.id}>
@@ -425,6 +438,9 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
             return null;
           }
           if (hasActiveProject && ((folderTarget !== 'COMMON' && folderTarget !== projectTarget) || (folderType === 'palette' && projectTarget !== 'MSX2'))) {
+            return null;
+          }
+          if (hasActiveProject && !isAssetTypeVisible(folderType)) {
             return null;
           }
 
@@ -581,7 +597,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                   {processedAssets.map(asset => {
                     const isSelected = selectedAssetId === asset.id;
                     const isTileSelected = folderType === 'tile' && selectedTileIds.includes(asset.id);
-                    const assetEnabled = hasActiveProject && isAssetTypeEnabledForProject(asset.type, currentScreenMode);
+                    const assetEnabled = hasActiveProject && isAssetTypeVisible(asset.type);
                     const assetDisabledTitle = getDisabledTitle(asset.type);
 
                     return (
@@ -663,6 +679,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
           );
         })}
       </ul>
+      )}
     </Panel>
   );
 };

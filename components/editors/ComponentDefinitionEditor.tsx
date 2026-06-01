@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ComponentDefinition, ComponentPropertyDefinition } from '../../types';
+import { ComponentDefinition, ComponentPropertyDefinition, Msx2ProjectProfile } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { DEFAULT_COMPONENT_DEFINITIONS } from '../../data/defaults';
-import { getProjectTargetFromScreenMode, isComponentDefinitionEnabledForProject } from '../../utils/projectTarget';
+import { getProjectTargetFromScreenMode, filterComponentDefinitionsForProject } from '../../utils/projectTarget';
 
 /**
  * Props for the ComponentDefinitionEditor component.
@@ -18,6 +18,7 @@ interface ComponentDefinitionEditorProps {
   /** Callback to update the list of component definitions. */
   onUpdateComponentDefinitions: (updatedDefinitions: ComponentDefinition[]) => void;
   currentScreenMode: string;
+  msx2ProjectProfile?: Msx2ProjectProfile | null;
 }
 
 const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
@@ -33,11 +34,14 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
   componentDefinitions,
   onUpdateComponentDefinitions,
   currentScreenMode,
+  msx2ProjectProfile = null,
 }) => {
   const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
-  const activeComponentDefinitions = useMemo(() => componentDefinitions.filter(definition =>
-    isComponentDefinitionEnabledForProject(definition, currentScreenMode)
-  ), [componentDefinitions, currentScreenMode]);
+  const activeComponentDefinitions = useMemo(() => filterComponentDefinitionsForProject(
+    componentDefinitions,
+    currentScreenMode,
+    msx2ProjectProfile
+  ), [componentDefinitions, currentScreenMode, msx2ProjectProfile]);
   const [selectedDefinitionId, setSelectedDefinitionId] = useState<string | null>(null);
   const [editingDefinition, setEditingDefinition] = useState<Partial<ComponentDefinition> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
@@ -228,11 +232,12 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
                      );
             };
 
-            const validDefinitions = importData.data.filter(isValidComponentDef)
-              .map((definition: ComponentDefinition) => ({ ...definition, target: definition.target || projectTarget }))
-              .filter((definition: ComponentDefinition) =>
-                isComponentDefinitionEnabledForProject(definition, currentScreenMode)
-              );
+            const validDefinitions = filterComponentDefinitionsForProject(
+              importData.data.filter(isValidComponentDef)
+                .map((definition: ComponentDefinition) => ({ ...definition, target: definition.target || projectTarget })),
+              currentScreenMode,
+              msx2ProjectProfile
+            );
             
             if (validDefinitions.length === 0) {
               alert('No valid component definitions found in the file.');
@@ -275,8 +280,10 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     setEditingDefinition(null);
     
     // Load default components
-    onUpdateComponentDefinitions(DEFAULT_COMPONENT_DEFINITIONS.filter(definition =>
-      isComponentDefinitionEnabledForProject(definition, currentScreenMode)
+    onUpdateComponentDefinitions(filterComponentDefinitionsForProject(
+      DEFAULT_COMPONENT_DEFINITIONS,
+      currentScreenMode,
+      msx2ProjectProfile
     ));
     
     setIsConfirmLoadDefaultsModalOpen(false);

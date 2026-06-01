@@ -1,0 +1,9 @@
+=== pushbox fix verify ===
+[BOOT] player=(32,160) box=(96,160) moving_slot=255 lives=3
+[WALK_RIGHT] player=(136,160) box=(152,160) moving_slot=255 lives=3
+[AT_BOX] player=(136,160) box=(152,160) moving_slot=255 lives=3
+[PUSHING] player=(136,160) box=(152,160) moving_slot=255 lives=3
+[AFTER_PUSH] player=(136,160) box=(152,160) moving_slot=255 lives=3
+[ON_SPIKES] player=(136,159) box=(152,160) moving_slot=255 lives=3
+[SPIKE_HIT] player=(136,159) box=(152,160) moving_slot=255 lives=3
+DONE

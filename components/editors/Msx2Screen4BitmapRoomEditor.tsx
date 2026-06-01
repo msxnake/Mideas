@@ -285,10 +285,10 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
             ))}
           </div>
           <div className="mt-3 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary space-y-1">
-            <div className="font-semibold text-msx-highlight">SCREEN 4 export contract</div>
-            <div>Authoring uses pixels, export emits PGT/PNT/CGT.</div>
-            <div>Layout: 32x24 cells, 3 banks, 256 unique chars per bank.</div>
-            <div>Limit: each 8-pixel row exports as 1 pattern byte + 1 FG/BG color byte.</div>
+            <div className="font-semibold text-msx-highlight">SCREEN 4 bitmap export contract</div>
+            <div>Authoring uses atlas + V9938 command list.</div>
+            <div>Runtime: bitmap page VRAM #0000, atlas offscreen Y≥212.</div>
+            <div>Primitives: cmd D0/98 copy, C0 fill, 70 line.</div>
           </div>
           <div className={`mt-2 rounded border p-2 text-[0.7rem] ${colorLimitDiagnostics.length ? 'border-msx-warning bg-msx-warning/10 text-msx-warning' : 'border-msx-border bg-msx-panelbg text-msx-textsecondary'}`}>
             <div className="font-semibold">{colorLimitDiagnostics.length ? 'Color rows will be reduced' : 'Color rows are SCREEN 4 safe'}</div>

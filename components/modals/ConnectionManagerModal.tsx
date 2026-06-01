@@ -33,6 +33,9 @@ export const ConnectionManagerModal: React.FC<ConnectionManagerModalProps> = ({
   onUpdateConnections,
 }) => {
   const [pendingChanges, setPendingChanges] = useState<WorldMapConnection[]>([]);
+  const defaultTransitionModeForDirection = (direction: ConnectionDirection): WorldMapConnection['transitionMode'] => (
+    direction === 'east' || direction === 'west' ? 'preserve_y_validated' : 'preserve_x_validated'
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -87,6 +90,8 @@ export const ConnectionManagerModal: React.FC<ConnectionManagerModalProps> = ({
         fromDirection: direction,
         toNodeId: adjacentNode.id,
         toDirection: { north: 'south', south: 'north', east: 'west', west: 'east' }[direction],
+        transitionMode: defaultTransitionModeForDirection(direction),
+        ifBlocked: 'deny',
       };
       setPendingChanges(prev => [...prev, newConnection]);
     }

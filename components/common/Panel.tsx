@@ -14,6 +14,8 @@ interface PanelProps {
   titleClassName?: string;
   /** An optional icon to display next to the title. */
   icon?: React.ReactNode;
+  /** Optional buttons displayed before the collapse control (next to the title). */
+  leadingHeaderButtons?: React.ReactNode;
   /** Optional buttons or other elements to display in the header. */
   headerButtons?: React.ReactNode;
   /** Optional classes for the panel body wrapper. */
@@ -33,6 +35,7 @@ export const Panel: React.FC<PanelProps> = ({
   className = '',
   titleClassName = '',
   icon,
+  leadingHeaderButtons,
   headerButtons,
   bodyClassName,
   collapsible = false,
@@ -58,6 +61,9 @@ export const Panel: React.FC<PanelProps> = ({
       <h3 className={`font-sans text-sm text-msx-textprimary p-2 border-b border-msx-border flex items-center ${titleClassName}`}> {/* Changed font and text color */}
         {icon && <span className="mr-2">{icon}</span>}
         <span className="flex-grow">{title}</span>
+        {leadingHeaderButtons && (
+          <div className="flex items-center space-x-1 mr-1">{leadingHeaderButtons}</div>
+        )}
         {collapsible && (
           <button
             type="button"

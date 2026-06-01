@@ -19,6 +19,8 @@ export type Msx2ComponentId =
   | 'msx2_inventory'
   | 'msx2_score'
   | 'msx2_timer'
+  | 'msx2_jump'
+  | 'msx2_gravity'
   | 'msx2_platform'
   | 'msx2_shooter'
   | 'msx2_projectile'
@@ -34,6 +36,9 @@ export type Msx2ComponentId =
   | 'msx2_char_render'
   | 'msx2_snake'
   | 'msx2_snake_segment'
+  | 'msx2_grid_snap'
+  | 'msx2_push_box'
+  | 'msx2_box2'
   | 'msx2_scroll';
 
 export interface Msx2ComponentDefinition {
@@ -42,6 +47,218 @@ export interface Msx2ComponentDefinition {
   description: string;
   defaults: Record<string, any>;
 }
+
+export type Msx2ComponentFieldEditorKind = 'boolean' | 'number' | 'string' | 'select' | 'tileIndex';
+
+export interface Msx2ComponentFieldEditorConfig {
+  kind?: Msx2ComponentFieldEditorKind;
+  label?: string;
+  min?: number;
+  max?: number;
+  options?: readonly string[];
+  ariaLabel?: string;
+  hidden?: boolean;
+  paramKey?: string;
+}
+
+export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Record<string, Msx2ComponentFieldEditorConfig>>> = {
+  msx2_transform: {
+    tileX: { label: 'Tile X', min: 0, max: 15, paramKey: 'tileX' },
+    tileY: { label: 'Tile Y', min: 0, max: 11, paramKey: 'tileY' },
+    pixelX: { label: 'Pixel X', min: 0, max: 255 },
+    pixelY: { label: 'Pixel Y', min: 0, max: 191 },
+    spawnX: { label: 'Spawn X', min: 0, max: 15 },
+    spawnY: { label: 'Spawn Y', min: 0, max: 11 },
+  },
+  msx2_hardware_sprite: {
+    msx2SpriteAssetId: { hidden: true },
+    frame: { label: 'Frame', min: 0, max: 7 },
+    paletteSlot: { label: 'Palette slot', min: 0, max: 15 },
+    visible: { kind: 'boolean', label: 'Visible' },
+  },
+  msx2_player_control: {
+    controlMode: { kind: 'select', options: ['platform', 'maze', 'shooterVertical', 'shooterHorizontal', 'paddleHorizontal', 'control_2_players', 'snakeChar'] },
+    movementMode: { kind: 'select', options: ['platform', 'maze', 'shooterVertical', 'shooterHorizontal', 'paddleHorizontal', 'control_2_players', 'snakeChar', 'static'] },
+    jump: { kind: 'boolean', label: 'Jump enabled' },
+    gravity: { kind: 'boolean', label: 'Gravity enabled' },
+    air: { label: 'Air timer', min: 0, max: 255 },
+    disableAirTimer: { kind: 'boolean', label: 'Disable air timer' },
+  },
+  msx2_jump: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    jumpPower: { label: 'Jump power', min: 256, max: 2048, ariaLabel: 'MSX2 jump power' },
+    maxJumps: { label: 'Max jumps', min: 1, max: 4, ariaLabel: 'MSX2 max jumps' },
+    requireKeyRelease: { kind: 'boolean', label: 'Require key release between jumps' },
+  },
+  msx2_gravity: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    strength: { label: 'Strength', min: 16, max: 128, ariaLabel: 'MSX2 gravity strength' },
+    terminalVelocity: { label: 'Terminal velocity', min: 256, max: 2048, ariaLabel: 'MSX2 terminal fall velocity' },
+  },
+  msx2_movement: {
+    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
+    speed: { label: 'Speed', min: 0, max: 15 },
+    direction: { label: 'Direction', min: -1, max: 1 },
+    minX: { label: 'Min X', min: 0, max: 255 },
+    maxX: { label: 'Max X', min: 0, max: 255 },
+    minY: { label: 'Min Y', min: 0, max: 191 },
+    maxY: { label: 'Max Y', min: 0, max: 191 },
+    boundsUnit: { kind: 'select', options: ['tile', 'px'] },
+  },
+  msx2_collision: {
+    hitboxW: { label: 'Hitbox width', min: 1, max: 32 },
+    hitboxH: { label: 'Hitbox height', min: 1, max: 32 },
+    offsetX: { label: 'Offset X', min: 0, max: 16 },
+    offsetY: { label: 'Offset Y', min: 0, max: 16 },
+    solid: { kind: 'boolean', label: 'Solid' },
+    damage: { label: 'Damage', min: 0, max: 255 },
+  },
+  msx2_collectible: {
+    value: { label: 'Value', min: 0, max: 255 },
+    requiredForExit: { kind: 'boolean', label: 'Required for exit' },
+    eraseTile: { kind: 'boolean', label: 'Erase tile on collect' },
+    persistent: { kind: 'boolean', label: 'Persistent' },
+  },
+  msx2_door_exit: {
+    targetScreenId: { label: 'Target screen ID' },
+    requiresCollectibles: { kind: 'boolean', label: 'Requires collectibles' },
+    locked: { kind: 'boolean', label: 'Locked' },
+  },
+  msx2_hazard: {
+    damage: { label: 'Damage', min: 0, max: 255 },
+    respawn: { kind: 'boolean', label: 'Respawn player' },
+    instantDeath: { kind: 'boolean', label: 'Instant death' },
+  },
+  msx2_ai: {
+    engine: { kind: 'select', options: ['patrol', 'ghostMaze'] },
+    initialDirection: { kind: 'select', options: ['right', 'left', 'up', 'down'] },
+    turnPolicy: { kind: 'select', options: ['reverse', 'random', 'towardPlayer'] },
+  },
+  msx2_animation: {
+    animation: { label: 'Animation name' },
+    frameStart: { label: 'Frame start', min: 0, max: 7 },
+    frameCount: { label: 'Frame count', min: 1, max: 8 },
+    frameDelay: { label: 'Frame delay', min: 1, max: 255 },
+    loop: { kind: 'boolean', label: 'Loop' },
+    animateOnlyWhenMoving: { kind: 'boolean', label: 'Animate only when moving' },
+  },
+  msx2_health: {
+    current: { label: 'Current HP', min: 0, max: 255 },
+    max: { label: 'Max HP', min: 1, max: 255 },
+    invincibleFrames: { label: 'Invincible frames', min: 0, max: 255 },
+    deathAction: { kind: 'select', options: ['none', 'respawn', 'gameOver', 'remove'] },
+  },
+  msx2_damage: {
+    amount: { label: 'Amount', min: 0, max: 255 },
+    mode: { kind: 'select', options: ['contact', 'trigger', 'projectile'] },
+    cooldownFrames: { label: 'Cooldown frames', min: 0, max: 255 },
+    knockback: { label: 'Knockback', min: 0, max: 255 },
+  },
+  msx2_spawn: {
+    spawnOnScreenLoad: { kind: 'boolean', label: 'Spawn on screen load' },
+    respawn: { kind: 'boolean', label: 'Respawn' },
+    respawnDelayFrames: { label: 'Respawn delay frames', min: 0, max: 255 },
+    preserveAfterCollect: { kind: 'boolean', label: 'Preserve after collect' },
+  },
+  msx2_checkpoint: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    setPlayerSpawn: { kind: 'boolean', label: 'Set player spawn' },
+    oneShot: { kind: 'boolean', label: 'One shot' },
+  },
+  msx2_screen_transition: {
+    targetScreenId: { label: 'Target screen ID' },
+    direction: { kind: 'select', options: ['auto', 'left', 'right', 'up', 'down'] },
+    requiresCollectibles: { kind: 'boolean', label: 'Requires collectibles' },
+    lockIfMissingTarget: { kind: 'boolean', label: 'Lock if missing target' },
+  },
+  msx2_inventory: {
+    itemId: { label: 'Item ID' },
+    amount: { label: 'Amount', min: 0, max: 255 },
+    consumeOnUse: { kind: 'boolean', label: 'Consume on use' },
+    requiredItemId: { label: 'Required item ID' },
+  },
+  msx2_score: {
+    points: { label: 'Points', min: 0, max: 65535 },
+    variableId: { label: 'Variable ID' },
+    addOnCollect: { kind: 'boolean', label: 'Add on collect' },
+  },
+  msx2_timer: {
+    initialValue: { label: 'Initial value', min: 0, max: 255 },
+    tickRateFrames: { label: 'Tick rate frames', min: 1, max: 255 },
+    onZero: { kind: 'select', options: ['none', 'damage', 'gameOver', 'respawn'] },
+    hud: { kind: 'boolean', label: 'Show on HUD' },
+  },
+  msx2_platform: {
+    carriesPlayer: { kind: 'boolean', label: 'Carries player' },
+    oneWay: { kind: 'boolean', label: 'One way' },
+    speed: { label: 'Speed', min: 0, max: 15 },
+    minX: { label: 'Min X', min: 0, max: 255 },
+    maxX: { label: 'Max X', min: 0, max: 255 },
+    minY: { label: 'Min Y', min: 0, max: 191 },
+    maxY: { label: 'Max Y', min: 0, max: 191 },
+  },
+  msx2_shooter: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    fireKey: { kind: 'select', options: ['space', 'button1', 'button2'] },
+    direction: { kind: 'select', options: ['horizontalFacing', 'up'], ariaLabel: 'MSX2 shooter projectile direction' },
+    cooldownFrames: { label: 'Cooldown frames', min: 0, max: 255 },
+    projectilePresetId: { label: 'Projectile preset ID' },
+    maxProjectiles: { label: 'Max projectiles', min: 1, max: 4 },
+  },
+  msx2_projectile: {
+    owner: { kind: 'select', options: ['player', 'enemy'] },
+    velocityX: { label: 'Velocity X', min: -16, max: 16 },
+    velocityY: { label: 'Velocity Y', min: -16, max: 16 },
+    damage: { label: 'Damage', min: 0, max: 255 },
+    expireOnHit: { kind: 'boolean', label: 'Expire on hit' },
+    maxDistance: { label: 'Max distance', min: 0, max: 255 },
+  },
+  msx2_attack_pattern: {
+    pattern: { kind: 'select', options: ['circle', 'zigzag', 'diagonal'], ariaLabel: 'Galaxian attack pattern', paramKey: 'attackPattern' },
+    trigger: { kind: 'select', options: ['wave', 'timer', 'manual'] },
+    triggerFrames: { label: 'Trigger frames', min: 1, max: 240, ariaLabel: 'Galaxian attack trigger frames', paramKey: 'triggerFrames' },
+    returnToFormation: { kind: 'boolean', label: 'Return to formation' },
+    fireDuringDive: { kind: 'boolean', label: 'Fire dive' },
+  },
+  msx2_attack_wave: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    intervalFrames: { label: 'Interval frames', min: 1, max: 255, ariaLabel: 'Galaxian attack wave interval frames', paramKey: 'attackIntervalFrames' },
+    minAttackers: { label: 'Min attackers', min: 1, max: 3, ariaLabel: 'Galaxian attack wave minimum attackers', paramKey: 'minAttackers' },
+    maxAttackers: { label: 'Max attackers', min: 1, max: 3, ariaLabel: 'Galaxian attack wave maximum attackers', paramKey: 'maxAttackers' },
+    randomSeed: { label: 'Random seed', min: 1, max: 255, ariaLabel: 'Galaxian attack wave random seed', paramKey: 'randomSeed' },
+  },
+  msx2_char_render: {
+    tileIndex: { kind: 'tileIndex', ariaLabel: 'Idle tile for char render', paramKey: 'tileIndex' },
+    tileId: { label: 'Tile ID' },
+    charCode: { label: 'Char code', min: 0, max: 255 },
+    paletteSlot: { label: 'Palette slot', min: 0, max: 15 },
+    clearTileId: { label: 'Clear tile ID' },
+    useHardwareSprite: { kind: 'boolean', label: 'Use hardware sprite' },
+  },
+  msx2_grid_snap: {
+    gridUnit: { label: 'Grid unit (px)', min: 8, max: 16 },
+    charWidth: { label: 'Char width (cells)', min: 1, max: 4 },
+    charHeight: { label: 'Char height (cells)', min: 1, max: 4 },
+    snapOnStop: { kind: 'boolean', label: 'Snap on stop' },
+  },
+  msx2_push_box: {
+    pushAxis: { kind: 'select', options: ['horizontal', 'vertical', 'both'], ariaLabel: 'Push box axis', paramKey: 'pushAxis' },
+    moveSpeed: { label: 'Move speed (px/frame)', min: 1, max: 4, ariaLabel: 'Push box slide speed', paramKey: 'moveSpeed' },
+    gravity: { kind: 'boolean', label: 'Gravity (falls in gaps)', ariaLabel: 'Push box gravity', paramKey: 'gravity' },
+    requiresAlignment: { kind: 'boolean', label: 'Requires alignment' },
+    blockExit: { kind: 'boolean', label: 'Block exit' },
+    pushSound: { kind: 'boolean', label: 'Push sound' },
+  },
+  msx2_box2: {
+    pushAxis: { kind: 'select', options: ['horizontal', 'vertical', 'both'], ariaLabel: 'Box2 push axis', paramKey: 'pushAxis' },
+    slideSpeed: { label: 'Slide speed (px/frame)', min: 1, max: 4, ariaLabel: 'Box2 slide speed', paramKey: 'slideSpeed' },
+    gravity: { kind: 'boolean', label: 'Gravity (falls in gaps)', ariaLabel: 'Box2 gravity', paramKey: 'gravity' },
+    requiresAlignment: { kind: 'boolean', label: 'Requires player alignment' },
+    tileIndex: { kind: 'tileIndex', ariaLabel: 'Idle tile for box2 char render', paramKey: 'tileIndex' },
+    charCode: { label: 'Char code', min: 0, max: 255 },
+    paletteSlot: { label: 'Palette slot', min: 0, max: 15 },
+  },
+};
 
 export type Msx2RuntimeEngine =
   | 'platform'
@@ -54,6 +271,8 @@ export type Msx2RuntimeEngine =
   | 'patrolY'
   | 'hazard'
   | 'collectible'
+  | 'pickupItem'
+  | 'spike'
   | 'door'
   | 'checkpoint'
   | 'control_2_players'
@@ -61,7 +280,9 @@ export type Msx2RuntimeEngine =
   | 'ballBounce'
   | 'brick'
   | 'snakeChar'
-  | 'snakeFood';
+  | 'snakeFood'
+  | 'pushBox'
+  | 'box2';
 
 export interface Msx2EntityCreatePreset {
   id: string;
@@ -92,6 +313,18 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     label: 'Player Control',
     description: 'Player-only control mode for the MSX2 runtime.',
     defaults: { controlMode: 'maze', movementMode: 'maze', jump: false, gravity: false, air: 0, disableAirTimer: true },
+  },
+  {
+    id: 'msx2_jump',
+    label: 'Jump',
+    description: 'Platform jump impulse and air-jump rules for the MSX2 SCREEN 4 runtime.',
+    defaults: { enabled: true, jumpPower: 1024, maxJumps: 2, requireKeyRelease: true },
+  },
+  {
+    id: 'msx2_gravity',
+    label: 'Gravity',
+    description: '8.8 gravity acceleration and terminal fall speed for MSX2 platform physics.',
+    defaults: { enabled: true, strength: 64, terminalVelocity: 1024 },
   },
   {
     id: 'msx2_movement',
@@ -192,8 +425,8 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   {
     id: 'msx2_shooter',
     label: 'Shooter',
-    description: 'Shooter firing metadata for MSX2 arcade runtimes.',
-    defaults: { enabled: true, fireKey: 'space', cooldownFrames: 18, projectilePresetId: 'player_laser', maxProjectiles: 1 },
+    description: 'Enables player firing (SPACE / Button 1). Works on platform and arcade MSX2 screens.',
+    defaults: { enabled: true, fireKey: 'space', direction: 'horizontalFacing', cooldownFrames: 12, projectilePresetId: 'player_bullet', maxProjectiles: 1 },
   },
   {
     id: 'msx2_projectile',
@@ -259,7 +492,7 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     id: 'msx2_char_render',
     label: 'Char Render',
     description: 'SCREEN 4 name-table character/tile render binding for low-cost MSX2 actors.',
-    defaults: { tileId: '', charCode: 0, paletteSlot: 7, clearTileId: '', useHardwareSprite: false },
+    defaults: { tileId: '', tileIndex: 0, charCode: 0, paletteSlot: 7, clearTileId: '', useHardwareSprite: false },
   },
   {
     id: 'msx2_snake',
@@ -272,6 +505,24 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     label: 'Snake Segment',
     description: 'Snake body segment metadata for ordered char/tile trail updates.',
     defaults: { segmentIndex: 0, followsHead: true, eraseTail: true, solidBody: true },
+  },
+  {
+    id: 'msx2_grid_snap',
+    label: 'Grid Snap',
+    description: 'Grid-aligned char block metadata for MSX2 actors that snap to 8px cells and render as char blocks when idle.',
+    defaults: { gridUnit: 8, charWidth: 2, charHeight: 2, snapOnStop: true },
+  },
+  {
+    id: 'msx2_push_box',
+    label: 'Push Box',
+    description: 'Pushable crate/block: slides pixel-by-pixel to 8px grid positions, hardware sprite while moving and 2x2 tile chars when idle. Optional gravity for platform gaps.',
+    defaults: { pushAxis: 'horizontal', moveSpeed: 1, gravity: true, requiresAlignment: true, blockExit: false, pushSound: true },
+  },
+  {
+    id: 'msx2_box2',
+    label: 'Box2',
+    description: 'Sokoban push block (v2): slides one grid cell at a time, hybrid char idle + hardware sprite while moving. Redraws chars immediately on stop. Optional gravity.',
+    defaults: { pushAxis: 'horizontal', slideSpeed: 2, gravity: true, requiresAlignment: true, tileIndex: 0, charCode: 9, paletteSlot: 6 },
   },
   {
     id: 'msx2_scroll',
@@ -329,6 +580,30 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_transform: {},
       msx2_hardware_sprite: {},
       msx2_player_control: { controlMode: 'platform', movementMode: 'platform', jump: true, gravity: true, air: 255, disableAirTimer: false },
+      msx2_jump: { enabled: true, jumpPower: 1024, maxJumps: 2, requireKeyRelease: true },
+      msx2_gravity: { enabled: true, strength: 64, terminalVelocity: 1024 },
+      msx2_animation: { animation: 'player_idle', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
+      msx2_health: { current: 3, max: 3, invincibleFrames: 60, deathAction: 'respawn' },
+      msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 45 },
+      msx2_timer: { initialValue: 255, tickRateFrames: 60, onZero: 'damage', hud: true },
+      msx2_collision: { solid: false, hitboxW: 14, hitboxH: 15, offsetX: 1, offsetY: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'platform', controlMode: 'platform', movementMode: 'platform' },
+  },
+  {
+    id: 'player_shooter',
+    label: 'MSX2 Player (Shooter)',
+    kind: 'player',
+    runtime: 'MSX2',
+    engine: 'platform',
+    description: 'Platform player with msx2_shooter component: fire with SPACE in the facing direction.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_player_control: { controlMode: 'platform', movementMode: 'platform', jump: true, gravity: true, air: 255, disableAirTimer: false },
+      msx2_jump: { enabled: true, jumpPower: 1024, maxJumps: 2, requireKeyRelease: true },
+      msx2_gravity: { enabled: true, strength: 64, terminalVelocity: 1024 },
+      msx2_shooter: { enabled: true, fireKey: 'space', direction: 'horizontalFacing', cooldownFrames: 12, projectilePresetId: 'player_bullet', maxProjectiles: 1 },
       msx2_animation: { animation: 'player_idle', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
       msx2_health: { current: 3, max: 3, invincibleFrames: 60, deathAction: 'respawn' },
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 45 },
@@ -434,12 +709,30 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     description: 'MSX2 hazard entity used by the SCREEN 4 collision/effects runtime.',
     components: {
       msx2_transform: {},
-      msx2_hazard: {},
-      msx2_damage: { amount: 1, mode: 'trigger', cooldownFrames: 30 },
+      msx2_char_render: { paletteSlot: 14, useHardwareSprite: false, charCode: 7, tileIndex: 1 },
+      msx2_hazard: { damage: 1, respawn: true, instantDeath: false },
+      msx2_damage: { amount: 1, mode: 'contact', cooldownFrames: 30 },
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 60 },
-      msx2_collision: { damage: 1 },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, solid: false, damage: 1 },
     },
     params: { runtime: 'MSX2', engine: 'hazard' },
+  },
+  {
+    id: 'spike_trap',
+    label: 'MSX2 Pinchos',
+    kind: 'hazard',
+    runtime: 'MSX2',
+    engine: 'spike',
+    description: 'Spike trap: touching it costs a life and respawns the player. Renders as a 16x16 char tile (non-solid).',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 14, useHardwareSprite: false, charCode: 7, tileIndex: 1 },
+      msx2_hazard: { damage: 1, respawn: true, instantDeath: false },
+      msx2_damage: { amount: 1, mode: 'contact', cooldownFrames: 0 },
+      msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 0 },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, solid: false, damage: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'spike', hazard: true },
   },
   {
     id: 'collectible',
@@ -450,12 +743,31 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     description: 'Collectible entity counted by the MSX2 SCREEN 4 runtime.',
     components: {
       msx2_transform: {},
-      msx2_collectible: {},
+      msx2_char_render: { paletteSlot: 8, useHardwareSprite: false, charCode: 5, tileIndex: 0 },
+      msx2_collectible: { value: 1, requiredForExit: false, eraseTile: true, persistent: true },
       msx2_inventory: { itemId: 'collectible', amount: 1 },
       msx2_score: { points: 10, variableId: 'score', addOnCollect: true },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, solid: false, damage: 0 },
       msx2_spawn: { spawnOnScreenLoad: true, preserveAfterCollect: true },
     },
     params: { runtime: 'MSX2', engine: 'collectible' },
+  },
+  {
+    id: 'pickup_item',
+    label: 'MSX2 Pickup Item',
+    kind: 'collectible',
+    runtime: 'MSX2',
+    engine: 'pickupItem',
+    description: 'Pickup coin/item: player walks over it to collect. Renders as a 16x16 char tile, increments score and clears on pickup.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 8, useHardwareSprite: false, charCode: 5, tileIndex: 0 },
+      msx2_collectible: { value: 1, requiredForExit: false, eraseTile: true, persistent: true },
+      msx2_score: { points: 100, variableId: 'score', addOnCollect: true },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, solid: false, damage: 0 },
+      msx2_spawn: { spawnOnScreenLoad: true, preserveAfterCollect: true },
+    },
+    params: { runtime: 'MSX2', engine: 'pickupItem', collectible: true, points: 100 },
   },
   {
     id: 'door',
@@ -546,6 +858,22 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_score: { points: 100, variableId: 'score', addOnCollect: false },
     },
     params: { runtime: 'MSX2', engine: 'patrolX', movement: 'patrolX', direction: 1, speed: 2 },
+  },
+  {
+    id: 'player_bullet',
+    label: 'MSX2 Player Bullet',
+    kind: 'hazard',
+    runtime: 'MSX2',
+    engine: 'hazard',
+    description: 'Projectile payload for platform/shooter players. Place once on the screen (any tile). Referenced by msx2_shooter.projectilePresetId.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 15, useHardwareSprite: false, charCode: 13, tileIndex: 2 },
+      msx2_projectile: { owner: 'player', velocityX: 4, velocityY: 0, damage: 1, expireOnHit: true, maxDistance: 192 },
+      msx2_collision: { hitboxW: 4, hitboxH: 4, offsetX: 6, offsetY: 6, damage: 1 },
+      msx2_damage: { amount: 1, mode: 'projectile', cooldownFrames: 0 },
+    },
+    params: { runtime: 'MSX2', engine: 'hazard', owner: 'player', projectile: true },
   },
   {
     id: 'galaxian_laser',
@@ -696,6 +1024,38 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 1, preserveAfterCollect: false },
     },
     params: { runtime: 'MSX2', engine: 'snakeFood', food: true, points: 10 },
+  },
+  {
+    id: 'push_box_crate',
+    label: 'MSX2 Push Box Crate',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'pushBox',
+    description: 'Pushable crate/block: slides pixel-by-pixel to 8px grid positions and renders as a 2x2 char tile block when idle.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 6, useHardwareSprite: false, charCode: 9, tileIndex: 0 },
+      msx2_grid_snap: { gridUnit: 8, charWidth: 2, charHeight: 2, snapOnStop: true },
+      msx2_push_box: { pushAxis: 'horizontal', moveSpeed: 1, gravity: true, requiresAlignment: true, blockExit: false },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, offsetX: 0, offsetY: 0, solid: true },
+    },
+    params: { runtime: 'MSX2', engine: 'pushBox', pushBox: true, pushAxis: 'horizontal', moveSpeed: 1, gravity: true },
+  },
+  {
+    id: 'box2_crate',
+    label: 'MSX2 Box2 Crate',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'box2',
+    description: 'Sokoban push crate (v2): one-cell slides with 2x2 char tiles when idle. Chars redraw immediately when movement stops.',
+    components: {
+      msx2_transform: {},
+      msx2_char_render: { paletteSlot: 6, useHardwareSprite: false, charCode: 9, tileIndex: 0 },
+      msx2_grid_snap: { gridUnit: 8, charWidth: 2, charHeight: 2, snapOnStop: true },
+      msx2_box2: { pushAxis: 'horizontal', slideSpeed: 2, gravity: true, requiresAlignment: true },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, offsetX: 0, offsetY: 0, solid: true },
+    },
+    params: { runtime: 'MSX2', engine: 'box2', box2: true, pushAxis: 'horizontal', slideSpeed: 2, gravity: true },
   },
 ];
 

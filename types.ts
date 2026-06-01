@@ -331,7 +331,28 @@ export interface Msx2Screen4BitmapRoom {
   effects: number[][];
   behavior: number[][];
   entities: Msx2Screen4EntityInstance[];
+  /** Dedicated player spawn/entry points. The player is not authored as a generic entity. */
+  playerEntries?: Msx2PlayerEntry[];
+  /** Optional MSX2 runtime metadata (HUD widgets, movement engine). */
+  runtime?: Msx2Screen4Runtime;
   notes?: string;
+}
+
+/** Foreground/background palette slots for one 8-pixel SCREEN 4 segment. */
+export interface Msx2Screen4LineAttribute {
+  fg: number;
+  bg: number;
+}
+
+/** MSX2 SCREEN 4 tile gameplay role used for palette filtering and auto runtime layers. */
+export type Msx2Screen4TileBehaviorKind = 'background' | 'foreground' | 'dangerous' | 'box';
+
+/** Per-tile collision/damage hitbox in pixels relative to the tile top-left corner. */
+export interface Msx2Screen4TileHitbox {
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
 }
 
 export interface Msx2Screen4Tile {
@@ -342,6 +363,12 @@ export interface Msx2Screen4Tile {
   /** Height in pixels. Must be a multiple of 8. Defaults to the screen cell size, 16. */
   height?: number;
   pixels: number[][];
+  /** Per-row, per-8px-segment fg/bg slots for SCREEN 4 hardware constraints. */
+  lineAttributes?: Msx2Screen4LineAttribute[][];
+  /** Gameplay role: background, solid foreground, hazard, or pushable box. Defaults to background. */
+  behaviorKind?: Msx2Screen4TileBehaviorKind;
+  /** Optional per-tile hitbox override for collision/hazard probes. */
+  hitbox?: Msx2Screen4TileHitbox;
 }
 
 export type Msx2ScreenKind = ScreenKind;
@@ -349,6 +376,130 @@ export type Msx2ScreenEngineKind = ScreenEngineKind;
 export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'hazard' | 'custom';
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'ghostMaze' | 'dive';
+export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
+export type Msx2PlayerRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
+export type Msx2PlayerSpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
+export type Msx2PlayerFacing = 'left' | 'right' | 'up' | 'down';
+export type Msx2PlayerEntryAnimation = 'none' | 'walkIn' | 'doorExit' | 'ladderExit' | 'fadeIn';
+
+export interface Msx2PlayerAnimation {
+  frames: number[];
+  speed: number;
+}
+
+export interface Msx2PlayerHitbox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Msx2PlayerDefinition {
+  id: string;
+  name: string;
+  target: 'MSX2';
+  gameType: Msx2PlayerGameType;
+  basedOnTemplate?: string;
+  worldCompatibility?: string[];
+  render: {
+    mode: Msx2PlayerRenderMode;
+    spriteAssetId?: string;
+    spriteSize: Msx2PlayerSpriteSize;
+    paletteAssetId?: string;
+    usesFlipX: boolean;
+  };
+  animations: Record<string, Msx2PlayerAnimation>;
+  hitboxes: {
+    body: Msx2PlayerHitbox;
+    feet?: Msx2PlayerHitbox;
+    head?: Msx2PlayerHitbox;
+    attack?: Msx2PlayerHitbox;
+    interaction?: Msx2PlayerHitbox;
+    damage?: Msx2PlayerHitbox;
+  };
+  movement: {
+    model: Msx2PlayerGameType;
+    moveSpeed: number;
+    acceleration?: number;
+    deceleration?: number;
+    gravity?: number;
+    maxFallSpeed?: number;
+    jumpPower?: number;
+    coyoteTime?: number;
+    jumpBuffer?: number;
+    airControl?: boolean;
+    diagonalAllowed?: boolean;
+    snapToGrid?: boolean;
+    screenBoundsClamp?: boolean;
+    fireRate?: number;
+    maxProjectiles?: number;
+  };
+  inputMapping: Record<string, string>;
+  health: {
+    maxHealth: number;
+    lives: number;
+    invulnerabilityFrames: number;
+    knockbackX?: number;
+    knockbackY?: number;
+  };
+  attack: {
+    type: 'none' | 'melee' | 'projectile' | 'whip' | 'swordArc' | 'shot' | 'bomb';
+    damage: number;
+    durationFrames?: number;
+    cooldownFrames?: number;
+    projectileType?: string;
+  };
+  interaction: {
+    mode: 'touch' | 'pressUp' | 'pressAction' | 'automaticTrigger';
+    box: Msx2PlayerHitbox;
+  };
+  sounds?: Record<string, string>;
+  inventoryHooks?: string[];
+  stateMachine: string[];
+  budget: {
+    cpu: number;
+    ram: number;
+    sprites: number;
+    maxProjectiles?: number;
+  };
+  requiredRoutines: string[];
+  notes?: string;
+}
+
+export interface Msx2PlayerEntry {
+  id: string;
+  x: number;
+  y: number;
+  facing: Msx2PlayerFacing;
+  state?: string;
+  playerId?: string;
+  entryAnimation?: Msx2PlayerEntryAnimation;
+  invulnerabilityFrames?: number;
+  cameraTransition?: 'instant' | 'scroll' | 'fade';
+}
+
+/** MSX2-only project template selected at new-project time. Drives asset/entity filtering. */
+export type Msx2GameProfileId = 'platform' | 'maze' | 'shooterVertical' | 'shooterHorizontal' | 'bitmapPlatform';
+
+export interface Msx2ProjectProfileFilters {
+  allowedAssetTypes: ProjectAsset['type'][];
+  allowedEntityPresetIds: string[];
+  allowedEntityEngines: string[];
+  allowedComponentIds: string[];
+  defaultEntityPresetId: string;
+  showBehaviorLayer: boolean;
+  showEffectsLayer: boolean;
+}
+
+export interface Msx2ProjectProfile {
+  version: 1;
+  profileId: Msx2GameProfileId;
+  label: string;
+  description: string;
+  screenEngine: Msx2ScreenEngineKind;
+  movementMode: Msx2PlayerMovementMode;
+  filters: Msx2ProjectProfileFilters;
+}
 
 export interface Msx2Screen4EntityInstance {
   id: string;
@@ -459,6 +610,13 @@ export interface Msx2Screen4Runtime {
   requiredCollectibles?: number;
   /** Initial air/time value for this MSX2 screen. Use 0 to disable the countdown. */
   initialAir?: number;
+  /** Platform jump impulse magnitude (1024 = MSX1 default #FC00). */
+  jumpPower?: number;
+  jumpImpulse?: number;
+  /** Platform gravity acceleration per frame in 8.8 low-byte units (64 = MSX1 default). */
+  gravityStrength?: number;
+  /** Terminal fall speed cap in 8.8 units (1024 = MSX1 default). */
+  terminalVelocity?: number;
   disableAirTimer?: boolean;
   airTimer?: boolean;
   activeAreaX: number;
@@ -495,6 +653,8 @@ export interface Msx2Screen4TileScreen {
   map: number[][];
   /** MSX2 runtime layers. Kept separate from visual tile data to avoid duplicating large bitmap payloads. */
   layers?: Msx2Screen4Layers;
+  /** Dedicated player spawn/entry points for screen links, doors, checkpoints, and respawns. */
+  playerEntries?: Msx2PlayerEntry[];
   /** Runtime role/engine metadata for MSX2 screens. */
   runtime?: Msx2Screen4Runtime;
   /** Legacy collision map retained for older projects. Prefer layers.collision for new data. */
@@ -680,10 +840,83 @@ export interface EntityTemplate {
   icon?: string;
   /** Marks this template as a player-controlled hero candidate for runtime systems. */
   isPlayer?: boolean;
+  /** Global Player Library template this project player was created from. */
+  playerTemplateId?: string;
+  /** Marks this entity template as a concrete project player definition. */
+  playerLibraryRole?: 'projectPlayer';
   /** An array of components that make up this template. */
   components: EntityTemplateComponent[];
   /** A description of the entity template. */
   description?: string;
+}
+
+export type PlayerTemplateCategory =
+  | 'platformer'
+  | 'maze'
+  | 'shooter'
+  | 'topDown'
+  | 'grid'
+  | 'dialogue';
+
+export type PlayerTemplateMovementType =
+  | 'Platformer'
+  | 'Maze4'
+  | 'Maze8'
+  | 'ShooterHorizontal'
+  | 'ShooterVertical'
+  | 'TopDown'
+  | 'Grid'
+  | 'Static';
+
+export interface PlayerTemplateBudget {
+  cpu: number;
+  ram: number;
+  sprites: number;
+}
+
+export interface PlayerTemplate {
+  templateId: string;
+  name: string;
+  category: PlayerTemplateCategory;
+  movement: {
+    type: PlayerTemplateMovementType;
+    defaults: Record<string, number | boolean | string>;
+  };
+  input: Record<string, string>;
+  stateMachine: string[];
+  respawn: {
+    mode: 'lastCheckpoint' | 'screenEntry' | 'fixed' | 'none';
+    invulnerabilityFrames: number;
+  };
+  requiredRoutines: string[];
+  budget: PlayerTemplateBudget;
+  description?: string;
+}
+
+export interface ProjectPlayerDefinition {
+  playerId: string;
+  basedOnTemplate: string;
+  name: string;
+  render?: {
+    spriteId?: string;
+    palette?: string;
+    size?: string;
+    animations?: Record<string, { frames: number[]; speed: number }>;
+  };
+  stats: {
+    maxHealth: number;
+    lives: number;
+  };
+  movementOverrides?: Record<string, number | boolean | string>;
+  sounds?: Record<string, string>;
+}
+
+export interface PlayerEntry {
+  id: string;
+  x: number;
+  y: number;
+  facing: Exclude<FacingDirection, 'neutral'>;
+  playerId?: string;
 }
 
 /**
@@ -944,6 +1177,14 @@ export interface CopiedLayerData {
 
 /** A type representing the cardinal directions for world map connections. */
 export type ConnectionDirection = 'north' | 'south' | 'east' | 'west';
+export type WorldMapTransitionMode =
+  | 'preserve_y_validated'
+  | 'preserve_x_validated'
+  | 'fixed_entry'
+  | 'door_entry'
+  | 'ladder_entry'
+  | 'checkpoint_entry';
+export type WorldMapTransitionBlockedAction = 'deny' | 'safe_entry';
 
 /**
  * Represents a single screen node in a world map graph.
@@ -975,6 +1216,14 @@ export interface WorldMapConnection {
   fromDirection: ConnectionDirection;
   /** The direction of the connection to the ending node. */
   toDirection: ConnectionDirection;
+  /** How player coordinates are resolved when moving through this connection. */
+  transitionMode?: WorldMapTransitionMode;
+  /** What to do when the resolved destination hitbox is blocked. */
+  ifBlocked?: WorldMapTransitionBlockedAction;
+  /** Optional named PlayerEntry for fixed/door/ladder/checkpoint transitions. */
+  entryId?: string;
+  /** Optional fixed entry coordinates in pixels until named PlayerEntry assets are available. */
+  entryPoint?: { x: number; y: number };
 }
 
 /**
@@ -2391,7 +2640,7 @@ export interface Msx2GameFlowConnection {
   waypoints?: Point[];
 }
 
-export type Msx2GameFlowPurpose = 'screen5-presentation' | 'screen4-runtime';
+export type Msx2GameFlowPurpose = 'screen5-presentation' | 'screen4-runtime' | 'screen4-bitmap-runtime';
 
 export interface Msx2GameFlowGraph {
   id: string;
@@ -2430,6 +2679,7 @@ export enum EditorType {
   Msx2Bitmap = "Msx2Bitmap",
   Msx2Screen = "Msx2Screen",
   Msx2BitmapRoom = "Msx2BitmapRoom",
+  Msx2Player = "Msx2Player",
   Msx2HudFont = "Msx2HudFont",
   Msx2Presentation = "Msx2Presentation",
   Msx2GameFlow = "Msx2GameFlow",
@@ -2445,9 +2695,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

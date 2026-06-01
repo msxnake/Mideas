@@ -292,6 +292,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const connections = gameFlowGraph.connections || [];
   const flowPurpose = gameFlowGraph.purpose || 'screen5-presentation';
   const isScreen5PresentationFlow = flowPurpose === 'screen5-presentation';
+  const isScreen4BitmapRuntimeFlow = flowPurpose === 'screen4-bitmap-runtime';
+  const isScreen4TileRuntimeFlow = flowPurpose === 'screen4-runtime';
   const selectedNode = nodes.find(node => node.id === selectedNodeId) || null;
   const selectedPresentationNode = selectedNode?.type === 'Screen5Presentation'
     ? selectedNode as Msx2GameFlowScreen5PresentationNode
@@ -344,9 +346,23 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     [allAssets]
   );
   const screen4Assets = useMemo(
-    () => allAssets.filter(asset => asset.type === 'msx2screen'),
+    () => allAssets.filter(asset => asset.type === 'msx2screen' || asset.type === 'msx2bitmaproom'),
     [allAssets]
   );
+  const selectedScreen4Playable = useMemo(() => {
+    if (!selectedScreen4ScreenNode?.screenAssetId) return false;
+    const screen = screen4Assets.find(asset => asset.id === selectedScreen4ScreenNode.screenAssetId)?.data as {
+      runtime?: { screenEngine?: string; screenKind?: string; movementMode?: string };
+      vdpMode?: string;
+    } | undefined;
+    if (screen?.vdpMode === 'SCREEN4_BITMAP_ROOM') return true;
+    const engine = String(screen?.runtime?.screenEngine || '').trim();
+    if (engine === 'fakePlayer') return false;
+    if (engine === 'player' || engine === 'shooter') return true;
+    if (screen?.runtime?.screenKind === 'playable') return true;
+    const movementMode = String(screen?.runtime?.movementMode || '').replace(/[\s_-]+/g, '').toLowerCase();
+    return ['platform', 'maze', 'shootervertical', 'shooterhorizontal', 'paddlehorizontal', 'snakechar', 'control2players'].includes(movementMode);
+  }, [screen4Assets, selectedScreen4ScreenNode?.screenAssetId]);
   const worldAssets = useMemo(
     () => allAssets.filter(asset => asset.type === 'worldmap'),
     [allAssets]
@@ -1365,9 +1381,16 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           <Button
             onClick={() => updateFlowPurpose('screen4-runtime')}
             size="sm"
-            variant={!isScreen5PresentationFlow ? 'primary' : 'ghost'}
+            variant={isScreen4TileRuntimeFlow ? 'primary' : 'ghost'}
           >
-            SCREEN 4 Runtime
+            SCREEN 4 Tiles
+          </Button>
+          <Button
+            onClick={() => updateFlowPurpose('screen4-bitmap-runtime')}
+            size="sm"
+            variant={isScreen4BitmapRuntimeFlow ? 'primary' : 'ghost'}
+          >
+            SCREEN 4 Bitmap
           </Button>
         </div>
         <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5PresentationFlow}>
@@ -1923,6 +1946,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   type="checkbox"
                   checked={selectedScreen4ScreenNode.waitForKey !== false}
                   onChange={event => updateSelectedScreen4Screen({ waitForKey: event.target.checked })}
+                  disabled={selectedScreen4Playable}
                 />
                 Wait for key
               </label>
@@ -1934,12 +1958,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   max={255}
                   value={selectedScreen4ScreenNode.waitFrames || 0}
                   onChange={event => updateSelectedScreen4Screen({ waitFrames: Number(event.target.value) })}
-                  disabled={selectedScreen4ScreenNode.waitForKey !== false}
+                  disabled={selectedScreen4ScreenNode.waitForKey !== false || selectedScreen4Playable}
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1 disabled:opacity-50"
                 />
               </label>
               <p className="text-xs text-msx-textsecondary">
-                SCREEN 4 export loads this room as a visual panel and then continues to the next node.
+                {selectedScreen4Playable
+                  ? 'Playable SCREEN 4 rooms enter the gameplay loop directly (same as WorldLink). No World Map is required for a single-room game.'
+                  : 'Cutscene/fake-player rooms load as a visual panel, wait, then continue to the next node.'}
               </p>
             </div>
           )}

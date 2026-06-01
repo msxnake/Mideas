@@ -147,6 +147,31 @@ function makeScreen4ScreenGuardAssets(screenNode) {
   return assets;
 }
 
+function makePlayableScreen4ScreenGuardAssets() {
+  const assets = makeScreen4ScreenGuardAssets({ screenAssetId: 'asset_screen_music_guard', waitForKey: true });
+  const screenAsset = assets.find(asset => asset.id === 'asset_screen_music_guard');
+  screenAsset.data = {
+    ...screenAsset.data,
+    runtime: {
+      screenKind: 'playable',
+      screenEngine: 'player',
+      movementMode: 'platform',
+      requiredCollectibles: 0,
+      initialAir: 255,
+    },
+    layers: {
+      ...screenAsset.data.layers,
+      entities: [{
+        id: 'entity_platform_player',
+        kind: 'player',
+        position: { x: 2, y: 10 },
+        components: { msx2_player_control: { controlMode: 'platform' } },
+      }],
+    },
+  };
+  return assets;
+}
+
 function makeTransitionGuardAssets(effect) {
   const assets = makeMusicGuardAssets({ stop: true, autoPlay: false });
   const gameFlowAsset = assets.find(asset => asset.id === 'asset_gf_music_guard');
@@ -214,6 +239,40 @@ async function runExecutableMusicGuardChecks() {
     addCheck('SCREEN 4 Screen4Screen missing room is rejected by generator', false, 'missing Screen4Screen room did not throw');
   } catch (error) {
     addCheck('SCREEN 4 Screen4Screen missing room is rejected by generator', /must reference an exportable SCREEN 4 room/.test(error?.message || String(error)));
+  }
+  try {
+    const asm = generate(makePlayableScreen4ScreenGuardAssets());
+    const screenNodeBlock = asm.match(/msx2_gf_node_1:[\s\S]*?(?=msx2_gf_node_2:|\.main_loop:)/)?.[0] || '';
+    addCheck(
+      'SCREEN 4 playable Screen4Screen enters main_loop without WorldLink',
+      screenNodeBlock.includes('call load_') &&
+        screenNodeBlock.includes('jp .main_loop') &&
+        !screenNodeBlock.includes('call wait_key') &&
+        asm.includes('update_hardware_sprite_input')
+    );
+    try {
+      fs.appendFileSync(
+        path.join(root, 'debug-f3a763.log'),
+        `${JSON.stringify({
+          sessionId: 'f3a763',
+          location: 'check_msx2_gameflow_contract.mjs:playableScreen4Screen',
+          message: 'Playable Screen4Screen ASM guard',
+          data: {
+            hasMainLoopJump: screenNodeBlock.includes('jp .main_loop'),
+            hasWaitKey: screenNodeBlock.includes('call wait_key'),
+            hasHardwareSpriteInput: asm.includes('update_hardware_sprite_input'),
+            screenNodeBlockPreview: screenNodeBlock.split('\n').slice(0, 12),
+          },
+          hypothesisId: 'H10',
+          runId: 'post-fix',
+          timestamp: Date.now(),
+        })}\n`
+      );
+    } catch (_error) {
+      // ignore log write failures in CI
+    }
+  } catch (error) {
+    addCheck('SCREEN 4 playable Screen4Screen enters main_loop without WorldLink', false, error?.message || String(error));
   }
   const transitionFailures = [];
   for (const effect of screen4TransitionEffects) {
@@ -293,7 +352,7 @@ addCheck('MSX2 GameFlow editor exposes SCREEN 4 SubMenu scaffold', editor.includ
 addCheck('MSX2 GameFlow editor validates SubMenu option connections', editor.includes('const optionIds = new Set') && editor.includes('optionConnections.length === 0') && editor.includes('has more than one outgoing connection') && editor.includes('SubMenu has an outgoing connection for an unknown option'));
 addCheck('MSX2 GameFlow editor exposes SCREEN 4 WorldLink nodes', editor.includes("addNode('WorldLink')") && editor.includes('selectedWorldLinkNode') && editor.includes('worldAssets') && editor.includes('WorldLink node must select a valid World Map asset') && editor.includes('SCREEN 4 export loads the start screen from this world'));
 addCheck('MSX2 GameFlow editor exposes low-risk control nodes', editor.includes("addNode('Waypoint')") && editor.includes("addNode('Restart')") && editor.includes("addNode('Globals')") && editor.includes("addNode('Screen4Screen')") && editor.includes("addNode('SubMenu')") && editor.includes("addNode('Controls')") && editor.includes("addNode('Text')") && editor.includes("addNode('WorldLink')") && editor.includes("addNode('IfThenElse')") && editor.includes("sourceId === 'then'") && editor.includes("sourceId === 'else'") && editor.includes('getNextExportNode'));
-addCheck('MSX2 GameFlow editor exposes SCREEN 4 screen panel node settings', types.includes('export interface Msx2GameFlowScreen4ScreenNode') && editor.includes('selectedScreen4ScreenNode') && editor.includes('updateSelectedScreen4Screen') && editor.includes('Add SCREEN 4') && editor.includes('Screen4Screen node must select a valid SCREEN 4 room') && editor.includes('SCREEN 4 export loads this room as a visual panel'));
+addCheck('MSX2 GameFlow editor exposes SCREEN 4 screen panel node settings', types.includes('export interface Msx2GameFlowScreen4ScreenNode') && editor.includes('selectedScreen4ScreenNode') && editor.includes('updateSelectedScreen4Screen') && editor.includes('Add SCREEN 4') && editor.includes('Screen4Screen node must select a valid SCREEN 4 room') && editor.includes('selectedScreen4Playable') && editor.includes('Playable SCREEN 4 rooms enter the gameplay loop directly'));
 addCheck('MSX2 GameFlow editor exposes runtime Controls node settings', types.includes('export interface Msx2GameFlowControlsNode') && editor.includes('selectedControlsNode') && editor.includes('updateSelectedControls') && editor.includes('Add Controls') && editor.includes('B1 key') && editor.includes('B2 key') && editor.includes('Action 1') && editor.includes('SCREEN 4 export draws this as a controls reference screen'));
 addCheck('MSX2 GameFlow editor exposes visual End node settings', types.includes('export interface Msx2GameFlowEndNode') && types.includes('waitFrames?: number') && editor.includes('selectedEndNode') && editor.includes('updateSelectedEnd') && editor.includes('THANKS FOR PLAYING') && editor.includes('SCREEN 4 export draws this final message'));
 addCheck('MSX2 GameFlow intro template includes terminal transition', editor.includes('applyIntroTemplate') && editor.includes("type: 'Transition'") && editor.includes("effect: 'fade_to_black'") && editor.includes('durationFrames: 30'));
@@ -354,7 +413,7 @@ addCheck('SCREEN 5 generator resolves MSX2 gameflow presentation node', screen5P
 addCheck('SCREEN 5 generator ignores SCREEN 4 runtime GameFlows', screen5PresentationGenerator.includes("candidate?.purpose !== 'screen4-runtime'"));
 addCheck('SCREEN 4 generator selects MSX2 screen4 runtime GameFlow', screen4Generator.includes('getScreen4RuntimeGameFlow') && screen4Generator.includes("flow?.purpose === 'screen4-runtime'") && screen4Generator.includes("asset?.type === gameFlowAssetType") && screen4Generator.includes("'msx2gameflow'"));
 addCheck('SCREEN 4 generator reads MSX2 visual screen ids', screen4Generator.includes('getFlowBackgroundScreenAssetId') && screen4Generator.includes('node?.backgroundScreenAssetId || node?.screenAssetId') && screen4Generator.includes('getFlowBackgroundScreenAssetId(current)'));
-addCheck('SCREEN 4 generator emits Screen4Screen panel runtime', screen4Generator.includes("case 'Screen4Screen'") && screen4Generator.includes('must reference an exportable SCREEN 4 room') && screen4Generator.includes('buildMsx2TileScreenLoadLines(label') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('djnz .${labelForNodeId(current.id)}_wait_frames') && /case 'Screen4Screen':[\s\S]*?const label = screenLoadLabelForAssetId\(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId\(current\)\);\s*if \(!label\)/.test(screen4Generator));
+addCheck('SCREEN 4 generator emits Screen4Screen panel runtime', screen4Generator.includes("case 'Screen4Screen'") && screen4Generator.includes('must reference an exportable SCREEN 4 room') && screen4Generator.includes('buildMsx2TileScreenLoadLines(label') && screen4Generator.includes('isPlayableMsx2TileScreenRuntime(tileScreen)') && screen4Generator.includes('buildMsx2EnterGameplayLoopLines') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('buildMsx2GameFlowTransitionWaitLines(labelForNodeId(current.id), frames)') && /case 'Screen4Screen':[\s\S]*?const label = screenLoadLabelForAssetId\(analysis, screenLabels, tileScreenLabels, screenAssetId\);\s*if \(!label\)/.test(screen4Generator));
 addCheck('MSX2 GameFlow editor exposes TextScroll panel controls', editor.includes("addNode('TextScroll')") && editor.includes('selectedTextScrollNode') && editor.includes('updateSelectedTextScroll') && editor.includes('SCREEN 4 export renders this as a story panel'));
 addCheck('MSX2 GameFlow editor exposes TextScrollColor panel controls', editor.includes("addNode('TextScrollColor')") && editor.includes('selectedTextScrollColorNode') && editor.includes('updateSelectedTextScrollColor') && editor.includes('colored story panel'));
 addCheck('MSX2 GameFlow editor exposes Music node controls', editor.includes("addNode('Music')") && editor.includes('selectedMusicNode') && editor.includes('updateSelectedMusic') && editor.includes('Music track playback is not wired for MSX2 SCREEN 4 export yet') && editor.includes('active track playback is blocked until the MSX2 tracker runtime is connected') && editor.includes('stop: true') && editor.includes('autoPlay: false'));
@@ -367,7 +426,7 @@ addCheck('SCREEN 4 SubMenu confirms with SPC/default jump or action', screen4Gen
 addCheck('SCREEN 4 generator rejects invalid SubMenu option edges', screen4Generator.includes('validateMsx2GameFlowSubMenuEdges') && screen4Generator.includes('connection to a missing node') && screen4Generator.includes('must include at least one option') && screen4Generator.includes('needs an outgoing connection') && screen4Generator.includes('has more than one outgoing connection') && screen4Generator.includes('unknown option') && screen4Generator.includes('validateMsx2GameFlowSubMenuEdges(graph)'));
 addCheck('SCREEN 4 generator draws visual SubMenu text and cursor', screen4Generator.includes('buildMsx2SubMenuTextData') && screen4Generator.includes('call load_msx2_hud_font') && screen4Generator.includes('call draw_${dataLabel}') && screen4Generator.includes('draw_msx2_submenu_cursor') && screen4Generator.includes('MSX2_HUD_FONT_BASE_CHAR + 38'));
 addCheck('SCREEN 4 generator allows SubMenu without background screen', screen4Generator.includes("case 'SubMenu'") && screen4Generator.includes('const backgroundLabel = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current));') && !screen4Generator.includes("case 'SubMenu': {\n        const backgroundLabel = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, getFlowBackgroundScreenAssetId(current)) || fallbackLabel;"));
-addCheck('SCREEN 4 generator draws visual Text node messages', screen4Generator.includes('buildMsx2TextNodeData') && screen4Generator.includes('wrapMsx2Screen4Text') && screen4Generator.includes('draw_${dataLabel}') && screen4Generator.includes('PRESS KEY') && screen4Generator.includes('djnz .${dataLabel}_wait_frames'));
+addCheck('SCREEN 4 generator draws visual Text node messages', screen4Generator.includes('buildMsx2TextNodeData') && screen4Generator.includes('wrapMsx2Screen4Text') && screen4Generator.includes('draw_${dataLabel}') && screen4Generator.includes('PRESS KEY') && screen4Generator.includes('buildMsx2GameFlowTransitionWaitLines(dataLabel, frames)'));
 addCheck('SCREEN 4 GameFlow key waits use Controls action mapping', screen4Generator.includes('KILBUF  EQU #0156') && screen4Generator.includes('wait_key_release:') && screen4Generator.includes('call msx2_submenu_confirm_pressed') && screen4Generator.includes('jp nz, .release_loop') && screen4Generator.includes('call KILBUF') && screen4Generator.includes('wait_key:') && screen4Generator.includes('call msx2_control_action_pressed') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('Wait for the GameFlow Controls logical action button instead of raw BIOS CHGET'));
 addCheck('SCREEN 4 generated file comments no longer promise CHGET waits', screen4Generator.includes('Controls-mapped GameFlow waits') && !screen4Generator.includes('backend uses BIOS CHGET'));
 addCheck('SCREEN 4 generator draws visual End node messages', screen4Generator.includes("case 'End'") && screen4Generator.includes('hasEndText') && screen4Generator.includes('_END') && screen4Generator.includes('call draw_${dataLabel}') && screen4Generator.includes('jp .main_loop'));

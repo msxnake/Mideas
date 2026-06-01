@@ -412,34 +412,53 @@ export function buildMsx2Shooter60HzFrameDispatchAsm(options: {
 
   endLines.push(`    ret`, '');
 
-  const helperLines: string[] = [];
-
-  if (musicTask && !options.snakeMusic) {
-    helperLines.push(
-      `update_msx2_shooter_music_tick:`,
-      `    ; Reserved PSG music tick for shooter IRQ profiles.`,
-      `    ret`,
-      '',
-    );
-  }
-
-  if (hudDirtyTask) {
-    helperLines.push(
-      `msx2_shooter_hud_dirty_task:`,
-      `    ; Burst HUD refresh hook for IRQ_HUD_DIRTY profile.`,
-      `    ret`,
-      '',
-    );
-  }
-
-  if (paletteTask) {
-    helperLines.push(
-      `msx2_shooter_palette_small_task:`,
-      `    ; Small palette flash hook for IRQ_PALETTE_FLASH profile.`,
-      `    ret`,
-      '',
-    );
-  }
-
-  return `${[...beginLines, ...endLines, ...helperLines].join('\n')}`;
+  return `${[...beginLines, ...endLines].join('\n')}`;
 };
+
+export function buildMsx2ShooterMusicTickAsm(options: { snakeMusic?: boolean } = {}): string {
+  if (options.snakeMusic) {
+    return '';
+  }
+  return `update_msx2_shooter_music_tick:
+    ; Coarse music scheduler (~10 Hz at 60 fps) for shooter IRQ budget.
+    ld a, (msx2_music_tick)
+    inc a
+    ld (msx2_music_tick), a
+    cp 6
+    ret c
+    xor a
+    ld (msx2_music_tick), a
+    ret
+
+`;
+}
+
+export function buildMsx2ShooterHudDirtyTaskAsm(options: { enabled?: boolean } = {}): string {
+  if (!options.enabled) {
+    return '';
+  }
+  return `msx2_shooter_hud_dirty_task:
+    ld a, (msx2_hud_dirty_flag)
+    or a
+    ret z
+    xor a
+    ld (msx2_hud_dirty_flag), a
+    call draw_msx2_lives_hud
+    call draw_msx2_score_hud
+    call draw_msx2_collectible_hud
+    call draw_msx2_air_hud
+    ret
+
+`;
+}
+
+export function buildMsx2ShooterPaletteSmallTaskAsm(options: { enabled?: boolean } = {}): string {
+  if (!options.enabled) {
+    return '';
+  }
+  return `msx2_shooter_palette_small_task:
+    ; Small palette flash hook for IRQ_PALETTE_FLASH profile.
+    ret
+
+`;
+}

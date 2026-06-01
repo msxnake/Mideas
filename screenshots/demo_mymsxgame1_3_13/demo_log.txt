@@ -1,0 +1,22 @@
+=== MyMSXGame1(3)13 demo v2 ===
+[BOOT] player=(32,160) box=(96,176) slot=255 gameover=0
+SNAP 01_boot rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/01_boot.png
+[WALKING] player=(86,160) box=(96,176) slot=255 gameover=0
+SNAP 02_walking_right rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/02_walking_right.png
+[AT_BOX] player=(131,160) box=(96,176) slot=255 gameover=0
+SNAP 03_at_box rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/03_at_box.png
+[PUSHING] player=(144,160) box=(96,176) slot=255 gameover=0
+SNAP 04_pushing_box rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/04_pushing_box.png
+[PUSH_RELEASE] player=(144,160) box=(96,176) slot=255 gameover=0
+SNAP 05_after_push rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/05_after_push.png
+[AFTER_JUMP] player=(144,160) box=(96,176) slot=0 gameover=0
+SNAP 06_after_jump rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/06_after_jump.png
+[SPIKE_APPROACH] player=(144,160) box=(96,176) slot=0 gameover=0
+SNAP 07_spike_approach rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/07_spike_approach.png
+[SPIKE_CONTACT] player=(144,160) box=(96,176) slot=0 gameover=0
+SNAP 08_spike_contact rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/08_spike_contact.png
+[SPIKE_JUMP] player=(144,160) box=(96,176) slot=0 gameover=0
+SNAP 09_spike_jump rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/09_spike_jump.png
+[FINAL] player=(144,160) box=(96,176) slot=0 gameover=0
+SNAP 10_final rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/demo_mymsxgame1_3_13/10_final.png
+DONE

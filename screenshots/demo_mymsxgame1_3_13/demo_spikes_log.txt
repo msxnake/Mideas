@@ -1,0 +1,14 @@
+=== spike demo ===
+[START] player=(32,160)
+SNAP 11_start rc=0
+[JUMP1] player=(32,136)
+SNAP 12_jump1 rc=0
+[RIGHT] player=(77,159)
+SNAP 13_mid_air rc=0
+[JUMP2] player=(77,159)
+SNAP 14_jump2 rc=0
+[ON_SPIKE_ROW] player=(107,159)
+SNAP 15_spike_row rc=0
+[SPIKE_WALK] player=(144,159)
+SNAP 16_spike_walk rc=0
+DONE

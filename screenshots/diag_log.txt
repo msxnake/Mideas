@@ -1,0 +1,13 @@
+=== Diagnostic TCL ===
+Tcl version: 8.6
+
+--- T=2s: attempting screenshots ---
+Test1 (no path): rc=0 out=C:/Users/salam/Documents/openMSX/screenshots/openmsx0001.png
+Test2 (basename no ext): rc=0 out=C:/Users/salam/Documents/openMSX/screenshots/diag_ss2.png
+Test3 (full path no ext): rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/diag_ss3.png
+Test4 (backslash no ext): rc=1 out=Failed to take screenshot: Error while writing PNG file "C:/Users/salam/Documents/openMSX/screenshots/C:\Users\salam\Documents\Programacion\Mideas\screenshots\diag_ss4.png": Error opening file "C:/Users/salam/Documents/openMSX/screenshots/C:\Users\salam\Documents\Programacion\Mideas\screenshots\diag_ss4.png": Invalid argument
+Test5 (full path with .png): rc=0 out=C:/Users/salam/Documents/Programacion/Mideas/screenshots/diag_ss5.png
+
+--- Checking user dir ---
+OpenMSX version: openMSX 20.0
+file_locations: N/A

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { EntityTemplate, ComponentDefinition, EntityTemplateComponent, ComponentPropertyDefinition, ProjectAsset } from '../../types';
+import { EntityTemplate, ComponentDefinition, EntityTemplateComponent, ComponentPropertyDefinition, ProjectAsset, Msx2ProjectProfile } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
@@ -7,6 +7,7 @@ import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, Ca
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { DEFAULT_ENTITY_TEMPLATES } from '../../data/defaults';
+import { GLOBAL_PLAYER_TEMPLATES, createProjectPlayerTemplate } from '../../data/playerLibrary';
 import { downloadTextFile } from '../../utils/downloadUtils';
 import { BEHAVIOR_DIRECTION_OPTIONS, BEHAVIOR_TYPE_OPTIONS, isBehaviorComponentProperty } from '../../utils/behaviorComponentOptions';
 import {
@@ -19,7 +20,10 @@ import {
   getProjectTargetFromScreenMode,
   isComponentDefinitionEnabledForProject,
   isEntityTemplateEnabledForProject,
+  filterEntityTemplatesForProject,
+  isScreen4Project,
 } from '../../utils/projectTarget';
+import { getMsx2ProfileEntityLabels } from '../../utils/msx2ProjectProfiles';
 
 /**
  * Props for the EntityTemplateEditor component.
@@ -42,6 +46,7 @@ interface EntityTemplateEditorProps {
   /** Optional status message sink. */
   setStatusBarMessage?: (message: string) => void;
   currentScreenMode: string;
+  msx2ProjectProfile?: Msx2ProjectProfile | null;
 }
 
 /**
@@ -58,14 +63,25 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   allAssets,
   setStatusBarMessage,
   currentScreenMode,
+  msx2ProjectProfile = null,
 }) => {
   const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
-  const activeEntityTemplates = useMemo(() => entityTemplates.filter(template =>
-    isEntityTemplateEnabledForProject(template, currentScreenMode)
-  ), [entityTemplates, currentScreenMode]);
+  const activeEntityTemplates = useMemo(() => filterEntityTemplatesForProject(
+    entityTemplates,
+    currentScreenMode,
+    msx2ProjectProfile
+  ), [entityTemplates, currentScreenMode, msx2ProjectProfile]);
   const activeComponentDefinitions = useMemo(() => componentDefinitions.filter(definition =>
     isComponentDefinitionEnabledForProject(definition, currentScreenMode)
   ), [componentDefinitions, currentScreenMode]);
+  const profileEntityLabels = useMemo(
+    () => (isScreen4Project(currentScreenMode) && msx2ProjectProfile ? getMsx2ProfileEntityLabels(msx2ProjectProfile) : []),
+    [currentScreenMode, msx2ProjectProfile]
+  );
+  const projectPlayers = useMemo(
+    () => activeEntityTemplates.filter(template => template.isPlayer || template.playerLibraryRole === 'projectPlayer'),
+    [activeEntityTemplates]
+  );
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<Partial<EntityTemplate> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
@@ -169,6 +185,28 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     setEditingTemplate(newTpl);
     setSelectedTemplateId(newId);
     setExpandedComponents({});
+  };
+
+  const handleCreatePlayerFromGlobalTemplate = (templateId: string) => {
+    const playerTemplate = GLOBAL_PLAYER_TEMPLATES.find(template => template.templateId === templateId);
+    if (!playerTemplate) return;
+
+    const defaultName = playerTemplate.name.replace(/\s+/g, '_');
+    const requestedName = window.prompt('Project player name:', defaultName);
+    if (requestedName === null) return;
+
+    const cleanName = requestedName.trim() || defaultName;
+    const existingIds = new Set(entityTemplates.map(template => template.id));
+    const projectPlayer = createProjectPlayerTemplate(playerTemplate, {
+      name: cleanName,
+      target: projectTarget,
+      existingIds,
+    });
+
+    onUpdateEntityTemplates([...entityTemplates, projectPlayer]);
+    setSelectedTemplateId(projectPlayer.id);
+    setEditingTemplate(projectPlayer);
+    setStatusBarMessage?.(`Created project player "${projectPlayer.name}" from "${playerTemplate.name}".`);
   };
 
   const handleTemplateChange = (
@@ -446,8 +484,10 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   };
 
   const handleConfirmLoadDefaults = () => {
-    onUpdateEntityTemplates(DEFAULT_ENTITY_TEMPLATES.filter(template =>
-      isEntityTemplateEnabledForProject(template, currentScreenMode)
+    onUpdateEntityTemplates(filterEntityTemplatesForProject(
+      DEFAULT_ENTITY_TEMPLATES,
+      currentScreenMode,
+      msx2ProjectProfile
     ));
     setSelectedTemplateId(null);
     setEditingTemplate(null);
@@ -520,6 +560,43 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
             <Button onClick={handleLoadDefaults} variant="warning" size="sm" icon={<DocumentPlusIcon />} className="w-full" title="Load default entity templates">
               Default entities
             </Button>
+          </div>
+          {profileEntityLabels.length > 0 && (
+            <p className="text-[11px] text-msx-textsecondary mb-2 leading-snug">
+              {msx2ProjectProfile?.label} profile: {profileEntityLabels.join(', ')}
+            </p>
+          )}
+
+          <div className="mb-3 border border-msx-border rounded p-2 bg-msx-bgcolor/40">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-xs font-semibold text-msx-highlight">Global Player Library</h3>
+              <span className="text-[10px] text-msx-textsecondary">{GLOBAL_PLAYER_TEMPLATES.length} templates</span>
+            </div>
+            <div className="space-y-1">
+              {GLOBAL_PLAYER_TEMPLATES.map(template => (
+                <button
+                  key={template.templateId}
+                  onClick={() => handleCreatePlayerFromGlobalTemplate(template.templateId)}
+                  className="w-full text-left px-2 py-1.5 rounded border border-msx-border/40 bg-msx-panelbg hover:bg-msx-border text-msx-textprimary"
+                  title={`${template.description || template.name}. CPU ${template.budget.cpu}, RAM ${template.budget.ram}, sprites ${template.budget.sprites}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs truncate">{template.name}</span>
+                    <span className="text-[10px] uppercase text-msx-cyan shrink-0">{template.category}</span>
+                  </div>
+                  <div className="text-[10px] text-msx-textsecondary">
+                    CPU {template.budget.cpu} | RAM {template.budget.ram} | SPR {template.budget.sprites}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-msx-textsecondary">Project Players</h3>
+              <span className="text-[10px] text-msx-textsecondary">{projectPlayers.length}</span>
+            </div>
           </div>
 
           {activeEntityTemplates.length === 0 && <p className="text-xs text-msx-textsecondary italic">No {projectTarget} templates defined.</p>}

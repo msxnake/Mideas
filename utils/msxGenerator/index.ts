@@ -129,6 +129,7 @@ function resolveMsx2GameFlowBackend(assets: ProjectAsset[] | undefined): Graphic
   const flows = assets.filter(asset => asset?.type === 'msx2gameflow');
   const flow = flows.find(asset => asset.name === 'Main MSX2') || flows[0];
   const purpose = (flow?.data as any)?.purpose;
+  if (purpose === 'screen4-bitmap-runtime') return 'msx2-screen4-bitmap-room';
   if (purpose === 'screen4-runtime') return 'msx2-screen4-pattern';
   if (purpose === 'screen5-presentation') return 'msx2-screen5-presentation';
   return undefined;

@@ -3,11 +3,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
-import { ProjectAsset, DataFormat, EditorType, ScreenKind, ExportRomMode } from '../../types';
+import { ProjectAsset, DataFormat, EditorType, ScreenKind, ExportRomMode, Msx2ProjectProfile } from '../../types';
 import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
-import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../../utils/projectTarget';
+import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
 
 
 /**
@@ -114,6 +114,8 @@ interface ToolbarProps {
   isToggleEditorDisabled: boolean;
   /** Current MSX screen mode for asset creation/rendering. */
   currentScreenMode: string;
+  /** MSX2 project profile used to filter allowed asset types. */
+  msx2ProjectProfile?: Msx2ProjectProfile | null;
   /** Whether a project is loaded or has been created. */
   hasActiveProject: boolean;
   /** Callback to load a recent project by its path. */
@@ -257,6 +259,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
+  msx2ProjectProfile = null,
   hasActiveProject,
   onOpenRecentProject
 }) => {
@@ -332,8 +335,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   /** Vertical separator between toolbar groups */
   const Sep = () => <div className="w-px h-5 bg-msx-border shrink-0 mx-0.5" />;
   const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
-  const canCreateAsset = (type: ProjectAsset['type']) => hasActiveProject && isAssetTypeEnabledForProject(type, currentScreenMode);
-  const shouldShowAssetType = (type: ProjectAsset['type']) => !hasActiveProject || isAssetTypeEnabledForProject(type, currentScreenMode);
+  const canCreateAsset = (type: ProjectAsset['type']) =>
+    hasActiveProject && isAssetTypeEnabledForMsx2Project(type, currentScreenMode, msx2ProjectProfile);
+  const shouldShowAssetType = (type: ProjectAsset['type']) =>
+    isAssetTypeEnabledForMsx2Project(type, currentScreenMode, msx2ProjectProfile);
   const shouldShowMsx1Controls = !hasActiveProject || projectTarget === 'MSX1';
   const shouldShowMsx2Controls = !hasActiveProject || projectTarget === 'MSX2';
 
@@ -412,16 +417,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onExportGameStructureJson} disabled={!hasActiveProject}>Export Game Structure (.json)</DropdownItem>
       </DropdownMenu>
 
+      {hasActiveProject && (
+        <>
       <Sep />
 
       {/* GROUP 2: Edit */}
-      <Button onClick={onUndo} variant="ghost" size="sm" icon={<ArrowUturnLeftIcon />} title="Undo (Ctrl+Z)" disabled={!hasActiveProject || isUndoDisabled}>Undo</Button>
-      <Button onClick={onRedo} variant="ghost" size="sm" icon={<ArrowUturnRightIcon />} title="Redo (Ctrl+Y)" disabled={!hasActiveProject || isRedoDisabled}>Redo</Button>
+      <Button onClick={onUndo} variant="ghost" size="sm" icon={<ArrowUturnLeftIcon />} title="Undo (Ctrl+Z)" disabled={isUndoDisabled}>Undo</Button>
+      <Button onClick={onRedo} variant="ghost" size="sm" icon={<ArrowUturnRightIcon />} title="Redo (Ctrl+Y)" disabled={isRedoDisabled}>Redo</Button>
 
       <Sep />
 
       {/* GROUP 3: New Asset */}
-      <DropdownMenu label="New Asset" disabled={!hasActiveProject}>
+      <DropdownMenu label="New Asset">
         <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon />} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white" disabled={!canCreateAsset('statemachine')}>State Machine</DropdownItem>
         <DropdownSeparator />
         {shouldShowAssetType('tile') && <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon />} colorClass="text-red-200 hover:bg-red-500 hover:text-white" disabled={!canCreateAsset('tile')}>MSX1 Tile</DropdownItem>}
@@ -429,6 +436,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {shouldShowAssetType('msx2sprite') && <DropdownItem onClick={() => onNewAsset('msx2sprite')} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2sprite')}>MSX2 Sprites</DropdownItem>}
         {shouldShowAssetType('msx2screen') && <DropdownItem onClick={() => onNewAsset('msx2screen')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-600 hover:text-white" disabled={!canCreateAsset('msx2screen')}>MSX2 SCREEN 4 Room (16x12)</DropdownItem>}
         {shouldShowAssetType('msx2bitmaproom') && <DropdownItem onClick={() => onNewAsset('msx2bitmaproom')} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2bitmaproom')}>MSX2 SCREEN 4 Bitmap Room</DropdownItem>}
+        {shouldShowAssetType('msx2player') && <DropdownItem onClick={() => onNewAsset('msx2player')} icon={<SpriteIcon />} colorClass="text-yellow-200 hover:bg-yellow-600 hover:text-white" disabled={!canCreateAsset('msx2player')}>MSX2 Player</DropdownItem>}
         {shouldShowAssetType('msx2hudfont') && <DropdownItem onClick={() => onNewAsset('msx2hudfont')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hudfont')}>MSX2 HUD Font</DropdownItem>}
         {shouldShowAssetType('msx2presentation') && <DropdownItem onClick={() => onNewAsset('msx2presentation')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white" disabled={!canCreateAsset('msx2presentation')}>MSX2 SCREEN 5 Presentation</DropdownItem>}
         {shouldShowAssetType('msx2gameflow') && <DropdownItem onClick={() => onNewAsset('msx2gameflow')} icon={<GameFlowIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2gameflow')}>MSX2 Game Flow</DropdownItem>}
@@ -443,11 +451,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('dialogue')} icon={<PencilIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white" disabled={!canCreateAsset('dialogue')}>Dialogue</DropdownItem>
         {shouldShowAssetType('portrait') && <DropdownItem onClick={() => onNewAsset('portrait')} icon={<TilesetIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white" disabled={!canCreateAsset('portrait')}>MSX1 Portrait</DropdownItem>}
         <DropdownSeparator />
-        {shouldShowMsx2Controls && <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white" disabled={!hasActiveProject}>MSX2 Palette</DropdownItem>}
+        {shouldShowMsx2Controls && <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white" disabled={!canCreateAsset('palette')}>MSX2 Palette</DropdownItem>}
         <DropdownSeparator />
         {shouldShowAssetType('tilebank') && <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon />} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white" disabled={!canCreateAsset('tilebank')}>MSX1 Tile Banks</DropdownItem>}
-        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white" disabled={!hasActiveProject}>Component Definition</DropdownItem>
-        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white" disabled={!hasActiveProject}>Entity Template</DropdownItem>
+        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
+        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white" disabled={!canCreateAsset('globalvariables')}>Global Variables</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white" disabled={!canCreateAsset('sound')}>Sound FX</DropdownItem>
@@ -459,29 +467,32 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <Sep />
 
       {/* GROUP 4: Views / Editors */}
-      <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View" disabled={!hasActiveProject}>
+      <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View">
         World View
       </Button>
       {shouldShowMsx1Controls && (
-        <Button onClick={onOpenPngMsxTool} variant="ghost" size="sm" icon={<ImageIcon />} title="MSX1 PNG a Screen 2 Chars" disabled={!hasActiveProject}>
+        <Button onClick={onOpenPngMsxTool} variant="ghost" size="sm" icon={<ImageIcon />} title="MSX1 PNG a Screen 2 Chars">
           MSX1 PNG a MSX
         </Button>
       )}
-      <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions" disabled={!hasActiveProject}>
+      <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions">
         Components
       </Button>
-      <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates" disabled={!hasActiveProject}>
+      <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates">
         Templates
       </Button>
-      <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={!hasActiveProject || isToggleEditorDisabled}>
+      <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={isToggleEditorDisabled}>
         Last Editor
       </Button>
+
+        </>
+      )}
 
       {/* Spacer pushes Configure + Help to the right */}
       <div className="flex-1" />
 
       {/* GROUP 5: Settings + Help — always far right */}
-      <DropdownMenu label="Configure" alignRight disabled={!hasActiveProject}>
+      <DropdownMenu label="Configure" alignRight>
         <DropdownItem onClick={onConfigureASM} disabled={!hasActiveProject}>Configure ASM Compiler...</DropdownItem>
         <DropdownItem onClick={onConfigureEmulator} disabled={!hasActiveProject}>Configure MSX Emulator...</DropdownItem>
         <DropdownSeparator />
@@ -511,7 +522,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onResetConfig}>Restore Default Config</DropdownItem>
       </DropdownMenu>
 
-      <DropdownMenu label="Help" disabled={!hasActiveProject}>
+      <DropdownMenu label="Help">
         <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon />}>Tutorials</DropdownItem>
         <DropdownItem onClick={onOpenAbout}>About</DropdownItem>
       </DropdownMenu>

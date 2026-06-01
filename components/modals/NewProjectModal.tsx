@@ -11,6 +11,8 @@ interface NewProjectModalProps {
   isOpen: boolean;
   /** Callback function when the user confirms the new project name and mode. */
   onConfirm: (projectName: string, screenMode: string) => void;
+  /** MSX2 projects continue to the central game-type picker before creation. */
+  onRequestMsx2GameProfile?: (projectName: string, screenMode: string) => void;
   /** Callback function to close the modal. */
   onClose: () => void;
 }
@@ -36,7 +38,7 @@ const SCREEN_MODE_OPTIONS = [
   },
 ];
 
-export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConfirm, onClose }) => {
+export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConfirm, onRequestMsx2GameProfile, onClose }) => {
   const [projectName, setProjectName] = useState('');
   const [error, setError] = useState('');
   const [selectedMode, setSelectedMode] = useState<string>(SCREEN_MODE_OPTIONS[0].value);
@@ -71,6 +73,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConf
     if (trimmedName.length > 50) {
         setError("Project name is too long (max 50 characters).");
         return;
+    }
+    if (selectedMode === 'SCREEN 4 (Graphics II)' && onRequestMsx2GameProfile) {
+      onRequestMsx2GameProfile(trimmedName, selectedMode);
+      return;
     }
     onConfirm(trimmedName, selectedMode);
   };
@@ -153,7 +159,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConf
             Cancel
           </Button>
           <Button onClick={handleSubmit} variant="primary" size="md">
-            Create Project
+            {selectedMode === 'SCREEN 4 (Graphics II)' && onRequestMsx2GameProfile ? 'Continue' : 'Create Project'}
           </Button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, ProjectAsset } from '../../types';
+import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
@@ -227,6 +227,24 @@ const oppositeDirectionMap: Record<ConnectionDirection, ConnectionDirection> = {
   west: 'east',
 };
 const ALL_DIRECTIONS: ConnectionDirection[] = ['north', 'south', 'east', 'west'];
+const TRANSITION_MODE_OPTIONS: { value: WorldMapTransitionMode; label: string }[] = [
+  { value: 'preserve_y_validated', label: 'Preserve Y' },
+  { value: 'preserve_x_validated', label: 'Preserve X' },
+  { value: 'fixed_entry', label: 'Fixed Entry' },
+  { value: 'door_entry', label: 'Door' },
+  { value: 'ladder_entry', label: 'Ladder' },
+  { value: 'checkpoint_entry', label: 'Checkpoint' },
+];
+
+const defaultTransitionModeForDirection = (direction: ConnectionDirection): WorldMapTransitionMode => (
+  direction === 'east' || direction === 'west' ? 'preserve_y_validated' : 'preserve_x_validated'
+);
+
+const withDefaultTransitionMetadata = (connection: WorldMapConnection): WorldMapConnection => ({
+  ...connection,
+  transitionMode: connection.transitionMode || defaultTransitionModeForDirection(connection.fromDirection),
+  ifBlocked: connection.ifBlocked || 'deny',
+});
 
 
 export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
@@ -251,6 +269,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const { nodes, connections, gridSize, zoomLevel, panOffset } = worldMapGraph;
+  const selectedConnection = connections.find(connection => connection.id === selectedConnectionId) || null;
   const CONNECTION_PROXIMITY_THRESHOLD = gridSize * CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR;
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
@@ -374,6 +393,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         fromDirection: linkingState.fromDirection,
         toNodeId: nodeId,
         toDirection: direction,
+        transitionMode: defaultTransitionModeForDirection(linkingState.fromDirection),
+        ifBlocked: 'deny',
       };
       onUpdate({ connections: [...worldMapGraph.connections, newConnection] });
       setLinkingState(null);
@@ -516,6 +537,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       const newConnection: WorldMapConnection = {
         id: `wmconn_auto_${Date.now()}`,
         fromNodeId, fromDirection, toNodeId, toDirection,
+        transitionMode: defaultTransitionModeForDirection(fromDirection),
+        ifBlocked: 'deny',
       };
       onUpdate({ connections: [...worldMapGraph.connections, newConnection] });
     }
@@ -592,6 +615,17 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       return;
     }
     setIsExportAsmModalOpen(true);
+  };
+
+  const handleSelectedConnectionChange = (patch: Partial<WorldMapConnection>) => {
+    if (!selectedConnectionId) return;
+    onUpdate({
+      connections: connections.map(connection =>
+        connection.id === selectedConnectionId
+          ? withDefaultTransitionMetadata({ ...connection, ...patch })
+          : connection
+      ),
+    });
   };
 
   const handleCenterGrid = () => {
@@ -817,6 +851,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               fromDirection: directions.from,
               toNodeId: neighbor.id,
               toDirection: directions.to,
+              transitionMode: defaultTransitionModeForDirection(directions.from),
+              ifBlocked: 'deny',
             });
           }
           visited.add(neighbor.id);
@@ -853,6 +889,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
                   fromDirection: directions.from,
                   toNodeId: node2.id,
                   toDirection: directions.to,
+                  transitionMode: defaultTransitionModeForDirection(directions.from),
+                  ifBlocked: 'deny',
                 });
               }
             }
@@ -1041,6 +1079,31 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         </div>
         <Button onClick={handleSetStartScreen} size="sm" disabled={!selectedNodeId} variant="secondary">Set Start</Button>
         <Button onClick={handleDeleteSelected} size="sm" disabled={!selectedNodeId && !selectedConnectionId} variant="danger" icon={<TrashIcon className="w-3 h-3" />}>Delete Sel.</Button>
+        {selectedConnection && (
+          <div className="flex items-center gap-1 border-l border-msx-border pl-2">
+            <label className="text-xs pixel-font text-msx-textsecondary">Transition:</label>
+            <select
+              value={selectedConnection.transitionMode || defaultTransitionModeForDirection(selectedConnection.fromDirection)}
+              onChange={e => handleSelectedConnectionChange({ transitionMode: e.target.value as WorldMapTransitionMode })}
+              className="p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary"
+              title="How this connection resolves the player entry coordinate"
+            >
+              {TRANSITION_MODE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <label className="text-xs pixel-font text-msx-textsecondary">Blocked:</label>
+            <select
+              value={selectedConnection.ifBlocked || 'deny'}
+              onChange={e => handleSelectedConnectionChange({ ifBlocked: e.target.value as WorldMapTransitionBlockedAction })}
+              className="p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary"
+              title="What happens if the destination entry hitbox overlaps solid tiles"
+            >
+              <option value="deny">Deny</option>
+              <option value="safe_entry">Safe entry</option>
+            </select>
+          </div>
+        )}
         <div className="flex items-center space-x-1">
           <label htmlFor="worldMapZoom" className="text-xs pixel-font text-msx-textsecondary">Zoom:</label>
           <input id="worldMapZoom" type="range" min="0.2" max="3" step="0.05" value={zoomLevel} onChange={e => onUpdate({ zoomLevel: parseFloat(e.target.value) })} className="w-20 accent-msx-accent" />

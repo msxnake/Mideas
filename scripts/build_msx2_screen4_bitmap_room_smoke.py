@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build a minimal MSX2 SCREEN 4 Bitmap Room smoke ROM.
 
-This verifies the authoring workflow where a pixel/atlas composition is exported
-as real SCREEN 4 pattern, name and color tables.
+This verifies the authoring workflow where atlas pixels and composition commands
+are exported as a V9938 bitmap-room runtime (VRAM page + command engine).
 """
 
 import argparse
@@ -131,7 +131,7 @@ def build_project() -> dict[str, object]:
                     "effects": [[0 for _x in range(16)] for _y in range(12)],
                     "behavior": [[0 for _x in range(16)] for _y in range(12)],
                     "entities": [],
-                    "notes": "Smoke for SCREEN 4 pattern-bitmap room export.",
+                    "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
                 },
             }
         ],
@@ -220,17 +220,20 @@ def extract_db_bytes(asm_text: str, label: str) -> list[int]:
     return bytes_out
 
 
-def validate_generated_asm_tables(asm_text: str) -> None:
+def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> None:
+    atlas = project["assets"][0]["data"]["atlas"]
+    atlas_packed_bytes = int(atlas["height"]) * (256 // 2)
     expected_lengths = {
         "screen4_bitmap_palette_data": 32,
-        "screen4_pattern_data": 6144,
-        "screen4_name_data": 768,
-        "screen4_color_data": 6144,
+        "bitmap_room_atlas_data": atlas_packed_bytes,
     }
     for label, expected_length in expected_lengths.items():
         actual_length = len(extract_db_bytes(asm_text, label))
         if actual_length != expected_length:
             raise RuntimeError(f"{label} has {actual_length} bytes; expected {expected_length}")
+    command_bytes = len(extract_db_bytes(asm_text, "bitmap_room_vdp_cmds"))
+    if command_bytes < 15 or command_bytes % 15 != 0:
+        raise RuntimeError(f"bitmap_room_vdp_cmds has {command_bytes} bytes; expected a multiple of 15")
 
 
 def main() -> int:
@@ -263,10 +266,16 @@ def main() -> int:
     ], cwd=project_root, timeout=180)
 
     asm_text = asm_output.read_text(encoding="utf-8")
-    for marker in ("screen4_pattern_data", "screen4_name_data", "screen4_color_data", "Mideas MSX2 SCREEN 4 pattern-bitmap room backend"):
+    for marker in (
+        "init_screen4_bitmap_vdp",
+        "compose_bitmap_room",
+        "bitmap_room_vdp_cmds",
+        "bitmap_room_atlas_data",
+        "Mideas MSX2 SCREEN 4 bitmap room backend (V9938 command engine)",
+    ):
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing marker: {marker}")
-    validate_generated_asm_tables(asm_text)
+    validate_generated_asm_tables(asm_text, project)
 
     if not args.skip_openmsx:
         run_command([

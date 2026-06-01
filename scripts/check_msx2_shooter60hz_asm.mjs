@@ -45,14 +45,20 @@ const checks = [
   [
     'Generator exposes second enemy bullet hardware slot for shooter contract',
     msx2Generator.includes('MSX2_ENEMY_BULLET_HARDWARE_SLOTS = 2') &&
-      msx2Generator.includes('update_msx2_enemy_bullet_slot_1') &&
+      msx2Generator.includes('msx2_enemy_bullet_update_slot') &&
       msx2Generator.includes('msx2_enemy_bullet_1_active EQU #C040'),
   ],
   [
     'Shooter frame dispatch uploads SAT and ticks music from active IRQ profile',
     msx2ShooterRuntime.includes('update_msx2_shooter60hz_present_frame') &&
       msx2ShooterRuntime.includes('call write_hardware_sprite_attrs') &&
-      msx2ShooterRuntime.includes('update_msx2_shooter_music_tick'),
+      msx2ShooterRuntime.includes('buildMsx2ShooterMusicTickAsm') &&
+      msx2ShooterRuntime.includes('cp 6'),
+  ],
+  [
+    'Shooter HUD dirty task can refresh score/lives when flagged',
+    msx2ShooterRuntime.includes('buildMsx2ShooterHudDirtyTaskAsm') &&
+      msx2Generator.includes("tasks.includes('hud_dirty') ? 'msx2_hud_dirty_flag EQU #C03C"),
   ],
   [
     'Vertical shooter tile scroll can enable background scroll runtime',

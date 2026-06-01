@@ -78,7 +78,17 @@ export function getMsx2EnemyHazardRuntimeSlots(
   screen: Msx2Screen4TileScreen | undefined
 ): Msx2EnemyHazardRuntimeSlot[] {
   return (screen?.layers?.entities || [])
-    .filter(entity => (entity.kind === 'enemy' || entity.kind === 'hazard') && entity.position)
+    .filter(entity =>
+      (entity.kind === 'enemy' || entity.kind === 'hazard')
+      && entity.position
+      // Push boxes are solid pushable props, not damaging enemies/hazards.
+      && !entity.components?.msx2_push_box
+      && !entity.components?.msx2_box2
+      && entity.params?.engine !== 'pushBox'
+      && entity.params?.engine !== 'box2'
+      && entity.params?.pushBox !== true
+      && entity.params?.box2 !== true
+    )
     .slice(0, MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)
     .map(entity => {
       const xTile = clampTileCoordinate(entity.position?.x, 15);
