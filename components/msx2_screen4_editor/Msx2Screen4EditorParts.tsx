@@ -639,11 +639,17 @@ const getMsx2ComponentFieldKeys = (
   return Array.from(keys);
 };
 
+const getMsx2RenderSpriteName = (assets: ProjectAsset[], spriteAssetId: string): string => {
+  if (!spriteAssetId) return 'None (uses box tile)';
+  return assets.find(asset => asset.type === 'msx2sprite' && asset.id === spriteAssetId)?.name || spriteAssetId;
+};
+
 interface Msx2ComponentFieldsEditorProps {
   componentId: Msx2ComponentId;
   componentDef: Msx2ComponentDefinition;
   values: Record<string, any> | undefined;
   tiles: Msx2Screen4Tile[];
+  allAssets?: ProjectAsset[];
   inputClassName: string;
   onPatchField: (fieldKey: string, nextValue: unknown, paramKey?: string, extraComponentPatch?: Record<string, any>) => void;
 }
@@ -653,11 +659,13 @@ const Msx2ComponentFieldsEditor: React.FC<Msx2ComponentFieldsEditorProps> = ({
   componentDef,
   values,
   tiles,
+  allAssets = [],
   inputClassName,
   onPatchField,
 }) => {
   const fieldConfigs = MSX2_COMPONENT_FIELD_EDITORS[componentId] || {};
   const fieldKeys = getMsx2ComponentFieldKeys(componentDef, values);
+  const [spritePickerField, setSpritePickerField] = useState<string | null>(null);
 
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -734,6 +742,41 @@ const Msx2ComponentFieldsEditor: React.FC<Msx2ComponentFieldsEditorProps> = ({
           );
         }
 
+        if (kind === 'msx2SpriteAsset') {
+          const spriteAssetId = String(currentValue ?? defaultValue ?? '').trim();
+          return (
+            <label key={fieldKey} className="col-span-2 space-y-1">
+              <span className="text-msx-textsecondary">{label}</span>
+              <div className="flex items-center gap-1">
+                <span
+                  className="min-w-0 flex-1 truncate rounded border border-msx-border bg-msx-panelbg px-2 py-1"
+                  title={spriteAssetId || 'None (uses box tile)'}
+                >
+                  {getMsx2RenderSpriteName(allAssets, spriteAssetId)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setSpritePickerField(fieldKey)}
+                  aria-label={ariaLabel}
+                >
+                  ...
+                </Button>
+                {spriteAssetId && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => onPatchField(fieldKey, '', undefined)}
+                    aria-label={`Clear ${label}`}
+                  >
+                    ×
+                  </Button>
+                )}
+              </div>
+            </label>
+          );
+        }
+
         if (kind === 'number') {
           const numericValue = Number(currentValue);
           const resolvedValue = Number.isFinite(numericValue) ? numericValue : Number(defaultValue) || 0;
@@ -774,17 +817,27 @@ const Msx2ComponentFieldsEditor: React.FC<Msx2ComponentFieldsEditorProps> = ({
           </label>
         );
       })}
+      {spritePickerField && (
+        <AssetPickerModal
+          isOpen={Boolean(spritePickerField)}
+          onClose={() => setSpritePickerField(null)}
+          onSelectAsset={(assetId) => {
+            if (spritePickerField) {
+              onPatchField(spritePickerField, assetId || '');
+            }
+            setSpritePickerField(null);
+          }}
+          assetTypeToPick="msx2sprite"
+          allAssets={allAssets}
+          currentSelectedId={String(values?.[spritePickerField] ?? '').trim() || null}
+        />
+      )}
     </div>
   );
 };
 
 const getMsx2RenderSpriteId = (entity: Msx2Screen4EntityInstance | null): string =>
   String(entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId || entity?.spriteAssetId || '');
-
-const getMsx2RenderSpriteName = (assets: ProjectAsset[], spriteAssetId: string): string => {
-  if (!spriteAssetId) return 'None';
-  return assets.find(asset => asset.type === 'msx2sprite' && asset.id === spriteAssetId)?.name || spriteAssetId;
-};
 
 export const Msx2Screen4EntityPanel: React.FC<Msx2Screen4EntityPanelProps> = ({
   mode,
@@ -1046,6 +1099,7 @@ export const Msx2Screen4EntityPanel: React.FC<Msx2Screen4EntityPanelProps> = ({
                         componentDef={component}
                         values={selectedEntity.components?.[component.id]}
                         tiles={tiles}
+                        allAssets={allAssets}
                         inputClassName={numberInputClass}
                         onPatchField={(fieldKey, nextValue, paramKey, extraComponentPatch) =>
                           patchComponentField(component.id, fieldKey, nextValue, paramKey, extraComponentPatch)

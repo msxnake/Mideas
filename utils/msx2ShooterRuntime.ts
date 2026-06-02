@@ -356,6 +356,7 @@ export function buildMsx2Shooter60HzFrameDispatchAsm(options: {
   scrollRowRoutine?: 'update_msx2_bg_scroll' | 'update_msx2_shooter_scroll_row';
   hardwareSprites?: boolean;
   snakeMusic?: boolean;
+  pushBoxEnabled?: boolean;
 }): string {
   const scrollRowRoutine = options.scrollRowRoutine || 'update_msx2_bg_scroll';
   const profile = options.shooter.budget.irqProfiles.find(
@@ -395,6 +396,9 @@ export function buildMsx2Shooter60HzFrameDispatchAsm(options: {
   ];
 
   if (satUploadTask) {
+    if (options.pushBoxEnabled) {
+      endLines.push(`    call update_msx2_box2_boxes`);
+    }
     endLines.push(`    call write_hardware_sprite_attrs`);
   }
 

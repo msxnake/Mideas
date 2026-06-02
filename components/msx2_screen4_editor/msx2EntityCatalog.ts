@@ -48,7 +48,7 @@ export interface Msx2ComponentDefinition {
   defaults: Record<string, any>;
 }
 
-export type Msx2ComponentFieldEditorKind = 'boolean' | 'number' | 'string' | 'select' | 'tileIndex';
+export type Msx2ComponentFieldEditorKind = 'boolean' | 'number' | 'string' | 'select' | 'tileIndex' | 'msx2SpriteAsset';
 
 export interface Msx2ComponentFieldEditorConfig {
   kind?: Msx2ComponentFieldEditorKind;
@@ -100,6 +100,9 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     pushAxis: { kind: 'select', options: ['horizontal', 'vertical', 'both'], label: 'Axis', ariaLabel: 'MSX2 PushBox axis' },
     slideSpeed: { label: 'Slide speed', min: 1, max: 4, ariaLabel: 'MSX2 PushBox slide speed' },
     gravity: { kind: 'boolean', label: 'Box gravity', ariaLabel: 'MSX2 PushBox box gravity' },
+    msx2SpriteAssetId: { kind: 'msx2SpriteAsset', label: 'Moving box sprite', ariaLabel: 'MSX2 PushBox moving hardware sprite' },
+    tileIndex: { kind: 'tileIndex', label: 'Box tile (idle / fallback)', ariaLabel: 'MSX2 PushBox idle tile', paramKey: 'boxTileIndex' },
+    paletteSlot: { label: 'Box palette', min: 1, max: 15, ariaLabel: 'MSX2 PushBox palette slot' },
   },
   msx2_movement: {
     mode: { kind: 'select', options: ['static', 'patrolX', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
@@ -326,8 +329,17 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   {
     id: 'msx2_push_box',
     label: 'PushBox',
-    description: 'Player capability for pushing map tiles marked as Caja / BOX in SCREEN 4 cell flags.',
-    defaults: { enabled: true, pushAxis: 'horizontal', slideSpeed: 1, gravity: true },
+    description: 'Player capability for pushing map tiles marked as Caja / BOX in SCREEN 4 cell flags. Configure the hardware sprite used while the box slides; the idle pose uses the box tile on the map or the tile index below.',
+    defaults: {
+      enabled: true,
+      pushAxis: 'horizontal',
+      slideSpeed: 1,
+      gravity: true,
+      msx2SpriteAssetId: '',
+      tileIndex: 0,
+      tileId: '',
+      paletteSlot: 6,
+    },
   },
   {
     id: 'msx2_movement',

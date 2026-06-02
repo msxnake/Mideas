@@ -161,6 +161,11 @@ export function buildMsx2Box2HardwareSpriteAttrWrite(options: {
     jp z, .box2_sprite_hide
     ld c, a
     ld b, 0
+    ld hl, msx2_box2_runtime_moving
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .box2_sprite_hide
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld a, (hl)
@@ -181,6 +186,13 @@ export function buildMsx2Box2HardwareSpriteAttrWrite(options: {
 .box2_sprite_hide:
     ld a, 208
     ld hl, #${options.attrAddress.toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    xor a
+    ld hl, #${(options.attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld hl, #${(options.attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld hl, #${(options.attrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
 .box2_sprite_done:
 `;
@@ -1075,6 +1087,7 @@ msx2_box2_step_slide_toward_target:
     jp msx2_box2_finish_slide
 .box2_step_continue:
     ld a, (msx2_box2_moving_slot)
+    call msx2_box2_restore_chars_for_slot
     call msx2_box2_clear_collision_for_slot
     ret
 
@@ -1219,6 +1232,8 @@ msx2_box2_update_gravity_fall:
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld (hl), a
+    ld a, (msx2_box2_moving_slot)
+    call msx2_box2_restore_chars_for_slot
     ret
 
 msx2_box2_finish_gravity_fall:

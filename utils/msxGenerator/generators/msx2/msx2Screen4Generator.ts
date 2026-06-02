@@ -21,7 +21,7 @@ import {
   MSX2_BOX2_RUNTIME_BYTES,
   usesMsx2Box2,
 } from './msx2Box2ComponentGenerator';
-import { entityHasMsx2Box2, getFirstBox2Entity, getMsx2Box2RuntimeSlotsForScreen, Msx2Box2NameLayout, usesMsx2Box2VerticalPush } from './msx2Box2RuntimeGenerator';
+import { entityHasMsx2Box2, getFirstBox2Entity, getMsx2Box2RuntimeSlotsForScreen, Msx2Box2NameLayout, playerHasMsx2PushBox, usesMsx2Box2VerticalPush } from './msx2Box2RuntimeGenerator';
 import {
   buildMsx2PlayerBulletCharCoreAsm,
   buildPlayerBulletCharSlotUpdateAsm,
@@ -3184,8 +3184,9 @@ function buildHardwareSpriteRuntimeAsm(
   const pushBoxEnabled = options.pushBoxEnabled ?? false;
   const playerPatternGroupCount = layers.length * animationFrameCount * mirrorPatternVariantCount;
   const pushBoxLayer = pushBoxEnabled
-    ? getPushBoxMovingSpriteLayer(analysis, options.tileScreens || [])
+    ? resolvePushBoxHardwareSpriteLayer(analysis, options.tileScreens || [])
     : undefined;
+  const pushBoxHardwareSpriteActive = pushBoxEnabled;
   const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
   const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
@@ -3566,10 +3567,10 @@ ${secondEnemyBullet ? `.enemy_bullet_sprite_done:
 `;
   }).join('\n');
   const pushBoxAttrAddress = hudLivesAttrBase + (hideHud ? 0 : 3 * 4);
-  const pushBoxAttrWrite = pushBoxLayer
+  const pushBoxAttrWrite = pushBoxHardwareSpriteActive
     ? buildMsx2Box2HardwareSpriteAttrWrite({ attrAddress: pushBoxAttrAddress, patternIndex: pushBoxPatternIndex })
     : '';
-  const terminatorAttrAddress = pushBoxAttrAddress + (pushBoxLayer ? 4 : 0);
+  const terminatorAttrAddress = pushBoxAttrAddress + (pushBoxHardwareSpriteActive ? 4 : 0);
   const playerAnimationRoutine = animationFrameCount > 1 ? `
 update_msx2_player_sprite_animation:
     ; Advances the player hardware sprite frame. Clobbers AF.
@@ -5999,7 +6000,7 @@ ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
     ld a, #${ballLaunchDy.toString(16).toUpperCase().padStart(2, '0')}
     ld (msx2_enemy_runtime_dy), a
 .paddle_serve_not_pending:
-` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}${pushBoxEnabled ? '    call update_msx2_box2_boxes\n' : ''}    call update_msx2_enemy_positions
+` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}${pushBoxEnabled && !options.deferSatUploadToShooterFrameDispatch ? '    call update_msx2_box2_boxes\n' : ''}    call update_msx2_enemy_positions
     call update_msx2_enemy_state
 ${options.deferSatUploadToShooterFrameDispatch ? '    ret\n' : '    call write_hardware_sprite_attrs\n    ret\n'}
 
@@ -6891,9 +6892,58 @@ function entityHasPushBoxTileRender(entity: any): boolean {
   return Boolean(tileId) || (Number.isFinite(tileIndex) && tileIndex >= 0);
 }
 
-function getPushBoxMovingSpriteLayer(
+function resolvePushBoxPaletteFromScreens(
+  tileScreens: Array<Msx2Screen4TileScreen | undefined>
+): number {
+  for (const screen of tileScreens) {
+    const player = (screen?.layers?.entities || []).find(entity => playerHasMsx2PushBox(entity));
+    const pushBox = player?.components?.msx2_push_box;
+    if (!pushBox || pushBox.enabled === false) continue;
+    return Math.max(1, Math.min(15, Number(pushBox.paletteSlot ?? 6) || 6));
+  }
+  return 6;
+}
+
+function getPushBoxMovingSpriteLayerFromPlayerPushBox(
   analysis: ProjectAnalysis,
   tileScreens: Array<Msx2Screen4TileScreen | undefined>
+): { pattern: number[]; colors: number[] } | undefined {
+  for (const screen of tileScreens) {
+    if (!screen) continue;
+    const player = (screen.layers?.entities || []).find(entity => playerHasMsx2PushBox(entity));
+    if (!player) continue;
+    const pushBox = player.components?.msx2_push_box;
+    if (!pushBox || pushBox.enabled === false) continue;
+    const spriteAssetId = String(pushBox.msx2SpriteAssetId ?? pushBox.spriteAssetId ?? '').trim();
+    if (!spriteAssetId) continue;
+    const paletteSlot = Math.max(1, Math.min(15, Number(pushBox.paletteSlot ?? 6) || 6));
+    const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
+    if (!sprite) continue;
+    const layer = buildHardwareSpriteLayersForFrame(sprite, paletteSlot, 0)[0];
+    if (layer) return { pattern: layer.pattern, colors: layer.colors };
+  }
+  return undefined;
+}
+
+function resolvePushBoxHardwareSpriteLayer(
+  analysis: ProjectAnalysis,
+  tileScreens: Array<Msx2Screen4TileScreen | undefined>
+): { pattern: number[]; colors: number[] } {
+  const fromPlayerSprite = getPushBoxMovingSpriteLayerFromPlayerPushBox(analysis, tileScreens);
+  if (fromPlayerSprite) return fromPlayerSprite;
+  const resolved = getPushBoxMovingSpriteLayer(analysis, tileScreens, resolvePushBoxPaletteFromScreens(tileScreens));
+  if (resolved) return resolved;
+  const fallbackColor = (6 << 4) | 6;
+  return {
+    pattern: buildScreen4TileHardwareSpritePattern(Array(32).fill(0xFF)),
+    colors: buildScreen4TileHardwareSpriteColors(Array(32).fill(fallbackColor), 6),
+  };
+}
+
+function getPushBoxMovingSpriteLayer(
+  analysis: ProjectAnalysis,
+  tileScreens: Array<Msx2Screen4TileScreen | undefined>,
+  mapBoxPaletteSlot = 6
 ): { pattern: number[]; colors: number[] } | undefined {
   const entity = getFirstBox2Entity(tileScreens);
   if (!entity) {
@@ -6909,7 +6959,7 @@ function getPushBoxMovingSpriteLayer(
           if (!tileBytes) continue;
           return {
             pattern: buildScreen4TileHardwareSpritePattern(tileBytes.pattern),
-            colors: buildScreen4TileHardwareSpriteColors(tileBytes.color, 6),
+            colors: buildScreen4TileHardwareSpriteColors(tileBytes.color, mapBoxPaletteSlot),
           };
         }
       }
@@ -6995,7 +7045,7 @@ function buildHardwareSpriteDataAsm(
   const playerPatternGroupCount = layers.length * animationFrameCount * mirrorPatternVariantCount;
   const pushBoxEnabled = Boolean(options.pushBoxEnabled);
   const pushBoxLayer = pushBoxEnabled
-    ? getPushBoxMovingSpriteLayer(analysis, options.tileScreens || [])
+    ? resolvePushBoxHardwareSpriteLayer(analysis, options.tileScreens || [])
     : undefined;
   const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
@@ -10351,6 +10401,7 @@ reset_msx2_status_border:
       scrollRowRoutine: shooterScrollRowRoutine,
       hardwareSprites: hasHardwareSprite(analysis),
       snakeMusic: snakeCharMovement,
+      pushBoxEnabled: pushBoxMovement,
     })
     : '';
   const shooter60HzHelperAsm = shooter60HzBudget
