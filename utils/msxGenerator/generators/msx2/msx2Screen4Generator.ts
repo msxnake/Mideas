@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE as DEFAULT_SCREEN4_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, Msx2PlayerEntry, Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -16,6 +16,7 @@ import {
   buildMsx2Box2DataTables,
   buildMsx2Box2Equates,
   buildMsx2Box2HardwareSpriteAttrWrite,
+  buildMsx2Box2HardwareSpriteSatRefreshAsm,
   buildMsx2Box2PlayerHookAsm,
   buildMsx2Box2RuntimeAsm,
   MSX2_BOX2_RUNTIME_BYTES,
@@ -1421,6 +1422,19 @@ function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> 
     for (const entity of screen.layers?.entities || []) {
       const spriteAssetId = getEntityRenderSpriteId(entity);
       if (spriteAssetId) spriteIds.add(spriteAssetId);
+      if (playerHasMsx2PushBox(entity)) {
+        const pushBox = entity.components?.msx2_push_box;
+        const pushSpriteId = String(pushBox?.msx2SpriteAssetId ?? pushBox?.spriteAssetId ?? '').trim();
+        if (pushSpriteId) spriteIds.add(pushSpriteId);
+      }
+      if (entityHasMsx2Box2(entity)) {
+        const boxSpriteId = String(
+          entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
+            ?? entity?.params?.msx2SpriteAssetId
+            ?? ''
+        ).trim();
+        if (boxSpriteId) spriteIds.add(boxSpriteId);
+      }
     }
   }
   return spriteIds;
@@ -1455,8 +1469,7 @@ function isBallBounceEntity(entity: any): boolean {
 
 function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const entity = screen?.layers?.entities?.find(candidate => candidate.kind === 'player')
-    || screen?.layers?.entities?.[0];
+  const entity = getPrimaryPlayerEntity(screen);
   const spriteAssetId = getEntityRenderSpriteId(entity);
   if (spriteAssetId) {
     const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
@@ -1506,13 +1519,127 @@ function getPrimaryRuntimeTileScreen(analysis: ProjectAnalysis): Msx2Screen4Tile
   return collectReferencedTileScreens(analysis)[0] || analysis.msx2Screens?.[0];
 }
 
-function getPlayerStartFromTileScreen(screen: Msx2Screen4TileScreen | undefined): { x: number; y: number } | undefined {
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player')
+function getPrimaryPlayerEntity(screen: Msx2Screen4TileScreen | undefined): any | undefined {
+  return screen?.layers?.entities?.find(entity => entity.kind === 'player');
+}
+
+function getPrimaryPlayerEntry(screen: Msx2Screen4TileScreen | undefined): Msx2PlayerEntry | undefined {
+  return Array.isArray(screen?.playerEntries) && screen.playerEntries.length > 0
+    ? screen.playerEntries[0]
+    : undefined;
+}
+
+function getPlayerEntryById(screen: Msx2Screen4TileScreen | undefined, id: string | undefined): Msx2PlayerEntry | undefined {
+  if (!id || !Array.isArray(screen?.playerEntries)) return undefined;
+  return screen.playerEntries.find(entry => entry.id === id);
+}
+
+function getRuntimeMovementMode(screen: Msx2Screen4TileScreen | undefined): string {
+  const runtime = (screen?.runtime || {}) as Record<string, unknown>;
+  return String(
+    runtime.movementMode
+      ?? runtime.controlMode
+      ?? runtime.playerMode
+      ?? runtime.movementModel
+      ?? runtime.screenEngine
+      ?? 'platform'
+  );
+}
+
+function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined): any | undefined {
+  const entity = getPrimaryPlayerEntity(screen);
+  if (entity) return entity;
+  const entry = getPrimaryPlayerEntry(screen);
+  if (!entry) return undefined;
+  const movementMode = getRuntimeMovementMode(screen);
+  const normalizedMode = movementMode.replace(/[\s_-]+/g, '').toLowerCase();
+  const platformLike = normalizedMode === 'platform' || normalizedMode === 'player' || normalizedMode === '';
+  return {
+    id: entry.id || 'player_entry_default',
+    name: 'Player Entry',
+    kind: 'player',
+    position: {
+      x: Math.floor(Math.max(0, Math.min(255, Number(entry.x) || 0)) / 16),
+      y: Math.floor(Math.max(0, Math.min(191, Number(entry.y) || 0)) / 16),
+    },
+    components: {
+      msx2_player_control: {
+        controlMode: movementMode,
+        movementMode,
+        jump: platformLike,
+        gravity: platformLike,
+        air: (screen?.runtime as any)?.initialAir ?? 255,
+        disableAirTimer: (screen?.runtime as any)?.disableAirTimer ?? ((screen?.runtime as any)?.initialAir === 0),
+      },
+    },
+    params: {
+      x: Math.max(0, Math.min(255, Number(entry.x) || 0)),
+      y: Math.max(0, Math.min(191, Number(entry.y) || 0)),
+      facing: entry.facing || 'right',
+      controlMode: movementMode,
+      movementMode,
+      engine: movementMode,
+      jump: platformLike,
+      gravity: platformLike,
+    },
+  };
+}
+
+function getPlayerStartFromTileScreen(screen: Msx2Screen4TileScreen | undefined, preferredEntryId = 'default'): { x: number; y: number } | undefined {
+  const entry = getPlayerEntryById(screen, preferredEntryId) || getPrimaryPlayerEntry(screen);
+  if (entry) {
+    return {
+      x: clampHardwareSpriteX(Math.max(0, Math.min(255, Math.floor(Number(entry.x) || 0)))),
+      y: clampHardwareSpriteY(Math.max(0, Math.min(191, Math.floor(Number(entry.y) || 0)))),
+    };
+  }
+  const player = getPrimaryPlayerEntity(screen)
     || screen?.layers?.entities?.[0];
   if (!player?.position) return undefined;
   return {
     x: clampHardwareSpriteX(clampTileCoordinate(player.position.x, 15) * 16),
     y: clampHardwareSpriteY(clampTileCoordinate(player.position.y, MSX2_TILE_SCREEN_HEIGHT - 1) * 16),
+  };
+}
+
+type Msx2ScreenTransitionDirection = 'west' | 'east' | 'north' | 'south';
+const MSX2_PLAYER_EDGE_ENTRY_MARGIN = 8;
+
+function getPlayerEdgeEntryId(direction: Msx2ScreenTransitionDirection): string {
+  if (direction === 'west') return 'from_right';
+  if (direction === 'east') return 'from_left';
+  if (direction === 'north') return 'from_down';
+  return 'from_up';
+}
+
+function getPlayerEdgeFallbackStart(
+  screen: Msx2Screen4TileScreen | undefined,
+  direction: Msx2ScreenTransitionDirection
+): { x: number; y: number } {
+  const runtime = screen?.runtime;
+  const minTileX = clampTileCoordinate(runtime?.activeAreaX, 15);
+  const minTileY = clampTileCoordinate(runtime?.activeAreaY, MSX2_TILE_SCREEN_HEIGHT - 1);
+  const widthTiles = Math.max(1, Math.min(16 - minTileX, Number(runtime?.activeAreaWidth) || 16));
+  const heightTiles = Math.max(1, Math.min(MSX2_TILE_SCREEN_HEIGHT - minTileY, Number(runtime?.activeAreaHeight) || MSX2_TILE_SCREEN_HEIGHT));
+  const minX = Math.max(0, minTileX * 16);
+  const minY = Math.max(0, minTileY * 16);
+  const maxX = Math.max(minX, Math.min(239, (minTileX + widthTiles) * 16 - 16));
+  const maxY = Math.max(minY, Math.min(176, (minTileY + heightTiles) * 16 - 16));
+  if (direction === 'west') return { x: Math.max(minX, maxX - MSX2_PLAYER_EDGE_ENTRY_MARGIN), y: 144 };
+  if (direction === 'east') return { x: Math.min(maxX, minX + MSX2_PLAYER_EDGE_ENTRY_MARGIN), y: 144 };
+  if (direction === 'north') return { x: 96, y: Math.max(minY, maxY - MSX2_PLAYER_EDGE_ENTRY_MARGIN) };
+  return { x: 96, y: Math.min(maxY, minY + MSX2_PLAYER_EDGE_ENTRY_MARGIN) };
+}
+
+function getPlayerTransitionEntryStartFromTileScreen(
+  screen: Msx2Screen4TileScreen | undefined,
+  direction: Msx2ScreenTransitionDirection
+): { x: number; y: number } | undefined {
+  const entry = getPlayerEntryById(screen, getPlayerEdgeEntryId(direction));
+  if (!entry) return undefined;
+  return {
+    x: clampHardwareSpriteX(Math.max(0, Math.min(255, Math.floor(Number(entry.x) || 0)))),
+    y: clampHardwareSpriteY(Math.max(0, Math.min(191, Math.floor(Number(entry.y) || 0)))),
   };
 }
 
@@ -1541,7 +1668,7 @@ function getRuntimePatrolBounds(analysis: ProjectAnalysis): { minX: number; maxX
 
 function getPaddleCollisionSettings(analysis: ProjectAnalysis): { width: number; triggerY: number; bottomY: number; missY: number } {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const width = Math.max(8, Math.min(64, Math.floor(Number(
     player?.components?.msx2_collision?.hitboxW ?? player?.params?.hitboxW ?? 32
   ) || 32)));
@@ -1557,7 +1684,7 @@ function getPaddleCollisionSettings(analysis: ProjectAnalysis): { width: number;
 
 function getMsx2PlatformPlayerEntity(analysis: ProjectAnalysis): any | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  return screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  return getPlayerRuntimeSource(screen);
 }
 
 function getMsx2PlayerAnimationSettings(player: any | undefined): { animateOnlyWhenMoving: boolean } {
@@ -1588,9 +1715,6 @@ function buildMsx2SetPlayerWalkingFlagAsm(enabled: boolean): string {
 }
 
 function usesMsx2PlatformVerticalPhysics(analysis: ProjectAnalysis): boolean {
-  // #region agent log
-  fetch('http://127.0.0.1:7713/ingest/f5845ebd-1729-462b-91e6-85be326f773d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'64a1ab'},body:JSON.stringify({sessionId:'64a1ab',location:'msx2Screen4Generator.ts:usesMsx2PlatformVerticalPhysics',message:'platform physics gate',data:{fnType:typeof (globalThis as any).getMsx2PlatformPhysicsFromPlayerEntity,importedFnType:typeof getMsx2PlatformPhysicsFromPlayerEntity},timestamp:Date.now(),hypothesisId:'H1',runId:'post-fix'})}).catch(()=>{});
-  // #endregion
   if (usesMazeMovement(analysis)
     || usesShooterHorizontalMovement(analysis)
     || usesShooterVerticalMovement(analysis)
@@ -1617,9 +1741,6 @@ function buildMsx2PlatformVerticalPhysicsAsm(
   }
 
   const physics = getMsx2PlatformPhysicsFromAnalysis(analysis);
-  // #region agent log
-  fetch('http://127.0.0.1:7713/ingest/f5845ebd-1729-462b-91e6-85be326f773d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'64a1ab'},body:JSON.stringify({sessionId:'64a1ab',location:'msx2Screen4Generator.ts:buildMsx2PlatformVerticalPhysicsAsm',message:'platform vertical collision emit',data:{feetProbeBelow:true,pixelStepLoop:true,clearGroundedOnJump:true,gravityOnlyInAir:true,terminalHigh:getTerminalVelocityHighByte(physics.terminalVelocity88)},timestamp:Date.now(),hypothesisId:'H4',runId:'grounded-fix'})}).catch(()=>{});
-  // #endregion
   const jumpImpulseHi = formatAsmByte(physics.jumpImpulse88 >> 8);
   const jumpImpulseLo = formatAsmByte(physics.jumpImpulse88);
   const gravityStrength = formatAsmByte(physics.gravityStrength88);
@@ -1851,7 +1972,7 @@ msx2_apply_platform_gravity:
 
 function getPaddleHorizontalSpeed(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const speed = Number(
     player?.components?.msx2_paddle?.speed
       ?? player?.components?.msx2_movement?.speed
@@ -1909,7 +2030,7 @@ function usesMazeMovement(analysis: ProjectAnalysis): boolean {
 function usesShooterHorizontalMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -1939,7 +2060,7 @@ function usesMsx2Screen4BackgroundScroll(analysis: ProjectAnalysis): boolean {
 function usesShooterVerticalMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, any>;
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -1984,7 +2105,7 @@ function getMsx2Shooter60HzBudgetFromAnalysis(analysis: ProjectAnalysis): Return
 function getPlayerBulletSlotCount(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const shooterBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const configured = Number(
     shooterBudget?.budget.maxPlayerShots
       ?? player?.components?.msx2_shooter?.maxProjectiles
@@ -2017,14 +2138,14 @@ function isMsx2ShooterEnabled(entity: any): boolean {
 
 function usesPlayerShooterComponent(analysis: ProjectAnalysis): boolean {
   return collectReferencedTileScreens(analysis).some(screen => {
-    const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+    const player = getPlayerRuntimeSource(screen);
     return isMsx2ShooterEnabled(player);
   });
 }
 
 function getPlayerProjectileEntity(analysis: ProjectAnalysis): any | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const projectilePresetId = player?.components?.msx2_shooter?.projectilePresetId ?? player?.params?.projectilePresetId;
   const entities = screen?.layers?.entities || [];
   if (projectilePresetId) {
@@ -2045,7 +2166,7 @@ function getPlayerProjectileEntity(analysis: ProjectAnalysis): any | undefined {
 
 function getPlayerBulletCooldownFrames(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const configured = Number(
     player?.components?.msx2_shooter?.cooldownFrames
       ?? player?.params?.cooldownFrames
@@ -2056,7 +2177,7 @@ function getPlayerBulletCooldownFrames(analysis: ProjectAnalysis): number {
 
 function getPlayerShooterDirection(analysis: ProjectAnalysis): 'up' | 'horizontalFacing' {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const configured = String(
     player?.components?.msx2_shooter?.direction
       ?? player?.params?.shotDirection
@@ -2154,7 +2275,7 @@ function getGalaxianAttackPatterns(analysis: ProjectAnalysis): GalaxianAttackPat
 function usesPaddleHorizontalMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2175,7 +2296,7 @@ function usesPaddleHorizontalMovement(analysis: ProjectAnalysis): boolean {
 function usesControl2Players(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2200,14 +2321,14 @@ function usesControl2Players(analysis: ProjectAnalysis): boolean {
 function getControl2PlayersComponent(analysis: ProjectAnalysis): Record<string, any> {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const entity = screen?.layers?.entities?.find(candidate => Boolean(candidate?.components?.control_2_players))
-    || screen?.layers?.entities?.find(candidate => candidate.kind === 'player');
+    || getPlayerRuntimeSource(screen);
   return entity?.components?.control_2_players || entity?.params || {};
 }
 
 function getControl2PlayersSpeed(analysis: ProjectAnalysis): number {
   const component = getControl2PlayersComponent(analysis);
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const speed = Number(
     component.speed
       ?? player?.components?.msx2_paddle?.speed
@@ -2233,7 +2354,7 @@ function getControl2PlayersVerticalBounds(analysis: ProjectAnalysis): { minY: nu
 function usesSnakeCharMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = getPlayerRuntimeSource(screen);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -3570,6 +3691,9 @@ ${secondEnemyBullet ? `.enemy_bullet_sprite_done:
   const pushBoxAttrWrite = pushBoxHardwareSpriteActive
     ? buildMsx2Box2HardwareSpriteAttrWrite({ attrAddress: pushBoxAttrAddress, patternIndex: pushBoxPatternIndex })
     : '';
+  const pushBoxSatRefresh = pushBoxHardwareSpriteActive
+    ? buildMsx2Box2HardwareSpriteSatRefreshAsm({ attrAddress: pushBoxAttrAddress, patternIndex: pushBoxPatternIndex })
+    : '';
   const terminatorAttrAddress = pushBoxAttrAddress + (pushBoxHardwareSpriteActive ? 4 : 0);
   const playerAnimationRoutine = animationFrameCount > 1 ? `
 update_msx2_player_sprite_animation:
@@ -3712,7 +3836,7 @@ maze_continue_current_direction:
 maze_move_up:
     ld a, (msx2_player_sprite_y)
     or a
-    jp z, maze_continue_current_direction
+    jp z, msx2_try_world_edge_transition_up
     dec a
     ld c, a
     ld a, (msx2_player_sprite_x)
@@ -3729,6 +3853,8 @@ ${setPlayerWalkingFlagAsm}    jp upload_hardware_sprite_attrs
 
 maze_move_down:
     ld a, (msx2_player_sprite_y)
+    cp 176
+    jp nc, msx2_try_world_edge_transition_down
     cp 196
     jp nc, maze_continue_current_direction
     inc a
@@ -3787,7 +3913,7 @@ ${setPlayerWalkingFlagAsm}    jp upload_hardware_sprite_attrs
 maze_continue_up:
     ld a, (msx2_player_sprite_y)
     or a
-    jp z, upload_hardware_sprite_attrs
+    jp z, msx2_try_world_edge_transition_up
     dec a
     ld c, a
     ld a, (msx2_player_sprite_x)
@@ -3802,6 +3928,8 @@ ${setPlayerWalkingFlagAsm}    jp upload_hardware_sprite_attrs
 
 maze_continue_down:
     ld a, (msx2_player_sprite_y)
+    cp 176
+    jp nc, msx2_try_world_edge_transition_down
     cp 196
     jp nc, upload_hardware_sprite_attrs
     inc a
@@ -5696,10 +5824,7 @@ move_hardware_sprite_right:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
-${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_box2_moving_slot)
-${pushBoxEnabled ? `    cp #FF
-    jp nz, .right_move_player
-` : ''}    ld a, (msx2_player_sprite_x)
+${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_player_sprite_x)
     inc a
     add a, 15
     ld b, a
@@ -5725,10 +5850,7 @@ move_hardware_sprite_left:
     cp ${patrolBounds.minX}
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
-${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_box2_moving_slot)
-${pushBoxEnabled ? `    cp #FF
-    jp nz, .left_move_player
-` : ''}    ld a, (msx2_player_sprite_x)
+${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_player_sprite_x)
     dec a
     ld b, a
     ld a, (msx2_player_sprite_y)
@@ -5964,7 +6086,7 @@ ${setPlayerWalkingFlagAsm}    ret
     ld (msx2_player_sprite_dx), a
 ${setPlayerWalkingFlagAsm}    ret
 
-${playerAnimationRoutine}write_hardware_sprite_attrs:
+${playerAnimationRoutine}${pushBoxSatRefresh}write_hardware_sprite_attrs:
     ; Writes player and enemy sprite attributes to the SCREEN 4 SAT. Clobbers AF/BC/DE/HL.
 ${attrWrites}
 ${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrWrite}${pushBoxAttrWrite}    ld a, 208
@@ -6483,42 +6605,96 @@ ${pushBoxEnabled ? `    ; Moving/idle box2 slots override packed flags so sprite
     pop bc
     cp #FF
     jr nz, .collision_box_runtime_solid
+    call msx2_cell_solid_at_pixel
+    or a
+    ret nz
     call msx2_cell_flags_at_pixel
     ld e, a
-    and MSX2_CELL_SOLID_MASK
-    ret z
-    ld a, e
     and MSX2_CELL_BEHAVIOR_MASK
     srl a
     srl a
     srl a
     cp MSX2_CELL_BEHAVIOR_BOX
     ret z
-    ld a, MSX2_CELL_SOLID_MASK
+    ld a, e
+    and MSX2_CELL_SOLID_MASK
     or a
     ret
 .collision_box_runtime_solid:
     ld a, MSX2_CELL_SOLID_MASK
     or a
     ret
-` : `    call msx2_cell_flags_at_pixel
-    and MSX2_CELL_SOLID_MASK
+` : `    call msx2_cell_solid_at_pixel
     ret
 `}
 
 msx2_effect_at_pixel:
     ; B=x pixel, C=y pixel. Returns A=effect enum 0..3 with Z set when empty.
-    ; HL points at the packed cell flags so callers may clear mutable effect bits.
+    ; HL points at the mutable effects-layer byte so callers may clear it.
     ; Clobbers AF/DE/HL. Preserves BC inputs.
-    call msx2_cell_flags_at_pixel
-    and MSX2_CELL_EFFECT_MASK
-    srl a
-    or a
+    call msx2_cell_effect_at_pixel
     ret
 
 msx2_cell_flags_at_pixel:
     ; B=x pixel, C=y pixel. Returns A=packed cell flags, Z set when zero.
-    ; HL points at the mutable packed flag cell. Clobbers AF/DE/HL. Preserves BC inputs.
+    ; HL points at the mutable packed flag cell in msx2_cell_flags_runtime_cache.
+    ; Clobbers AF/DE/HL. Preserves BC inputs.
+    ld a, c
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld a, b
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, msx2_cell_flags_runtime_cache
+    add hl, de
+    ld a, (hl)
+    or a
+    ret
+
+msx2_cell_solid_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=solid mask (#01) or 0. Preserves BC inputs.
+    ld a, c
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld a, b
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, (msx2_current_collision_ptr)
+    add hl, de
+    ld a, (hl)
+    and MSX2_CELL_SOLID_MASK
+    ret
+
+msx2_cell_effect_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=effect enum 0..3. Preserves BC inputs.
     ld a, c
     srl a
     srl a
@@ -6545,19 +6721,6 @@ msx2_cell_flags_at_pixel:
     or a
     ret
 
-msx2_cell_solid_at_pixel:
-    ; B=x pixel, C=y pixel. Returns A=solid mask (#01) or 0. Preserves BC inputs.
-    call msx2_cell_flags_at_pixel
-    and MSX2_CELL_SOLID_MASK
-    ret
-
-msx2_cell_effect_at_pixel:
-    ; B=x pixel, C=y pixel. Returns A=effect enum 0..3. Preserves BC inputs.
-    call msx2_cell_flags_at_pixel
-    and MSX2_CELL_EFFECT_MASK
-    srl a
-    ret
-
 msx2_cell_behavior_at_pixel:
     ; B=x pixel, C=y pixel. Returns A=behavior enum 0..7. Preserves BC inputs.
     call msx2_cell_flags_at_pixel
@@ -6568,10 +6731,9 @@ msx2_cell_behavior_at_pixel:
     ret
 
 msx2_clear_effect_bits_at_hl:
-    ; HL=packed cell flags. Clears only effect bits, preserving solid/behavior/zone.
+    ; HL=effects-layer cell. Clears the effect byte for collectibles/exits.
     ; Clobbers AF. Preserves HL.
-    ld a, (hl)
-    and #F9
+    xor a
     ld (hl), a
     ret
 
@@ -6617,8 +6779,6 @@ msx2_hazard_hit_at_pixel:
     ld hl, (msx2_current_effects_ptr)
     add hl, de
     ld a, (hl)
-    and MSX2_CELL_EFFECT_MASK
-    srl a
     pop de
     cp 1
     jp nz, .hazard_miss_full
@@ -8304,11 +8464,20 @@ function buildMsx2ProjectSliceJson(
     }
 
     for (const entity of screen.layers?.entities || []) {
-      if (entity.spriteAssetId) {
-        spriteIds.add(entity.spriteAssetId);
+      const referencedSpriteIds = [
+        getEntityRenderSpriteId(entity),
+        playerHasMsx2PushBox(entity)
+          ? String(entity?.components?.msx2_push_box?.msx2SpriteAssetId ?? entity?.components?.msx2_push_box?.spriteAssetId ?? '').trim()
+          : '',
+        entityHasMsx2Box2(entity)
+          ? String(entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId ?? entity?.params?.msx2SpriteAssetId ?? '').trim()
+          : '',
+      ].filter(Boolean);
+      for (const spriteAssetId of referencedSpriteIds) {
+        spriteIds.add(spriteAssetId);
         if (ownerWorldIds.length > 0) {
-          if (!spriteOwnerWorldIds.has(entity.spriteAssetId)) spriteOwnerWorldIds.set(entity.spriteAssetId, new Set());
-          for (const worldId of ownerWorldIds) spriteOwnerWorldIds.get(entity.spriteAssetId)!.add(worldId);
+          if (!spriteOwnerWorldIds.has(spriteAssetId)) spriteOwnerWorldIds.set(spriteAssetId, new Set());
+          for (const worldId of ownerWorldIds) spriteOwnerWorldIds.get(spriteAssetId)!.add(worldId);
         }
       }
       for (const componentId of Object.keys(entity.components || {})) {
@@ -10047,8 +10216,8 @@ function buildMsx2WorldTransitionAsm(
     if (screen.id) screenIndexById.set(screen.id, index);
   });
 
-  const transitions = new Map<number, { west?: number; east?: number }>();
-  const setTransition = (fromIndex: number, direction: 'west' | 'east', toIndex: number) => {
+  const transitions = new Map<number, Partial<Record<Msx2ScreenTransitionDirection, number>>>();
+  const setTransition = (fromIndex: number, direction: Msx2ScreenTransitionDirection, toIndex: number) => {
     const entry = transitions.get(fromIndex) || {};
     entry[direction] = toIndex;
     transitions.set(fromIndex, entry);
@@ -10066,15 +10235,19 @@ function buildMsx2WorldTransitionAsm(
       const fromIndex = screenIndexById.get(fromNode?.screenAssetId || fromNode?.screenId);
       const toIndex = screenIndexById.get(toNode?.screenAssetId || toNode?.screenId);
       if (fromIndex === undefined || toIndex === undefined) continue;
-      if (connection?.fromDirection === 'west' || connection?.fromDirection === 'east') {
+      if (
+        connection?.fromDirection === 'west'
+        || connection?.fromDirection === 'east'
+        || connection?.fromDirection === 'north'
+        || connection?.fromDirection === 'south'
+      ) {
         setTransition(fromIndex, connection.fromDirection, toIndex);
       }
     }
   }
 
-  const buildDirectionRoutine = (direction: 'west' | 'east'): string => {
-    const suffix = direction === 'west' ? 'left' : 'right';
-    const enterX = direction === 'west' ? 238 : 2;
+  const buildDirectionRoutine = (direction: Msx2ScreenTransitionDirection): string => {
+    const suffix = direction === 'west' ? 'left' : direction === 'east' ? 'right' : direction === 'north' ? 'up' : 'down';
     const handlers = tileScreenLoadLabels.map((_label, index) => {
       const targetIndex = transitions.get(index)?.[direction];
       return `    cp ${index}
@@ -10089,10 +10262,22 @@ function buildMsx2WorldTransitionAsm(
 `;
       }
       const targetLabel = tileScreenLoadLabels[targetIndex];
-      const targetStart = getPlayerStartFromTileScreen(tileScreens[targetIndex]);
-      const enterY = clampHardwareSpriteY(targetStart?.y ?? 144);
+      const targetScreen = tileScreens[targetIndex];
+      const targetEntryStart = getPlayerTransitionEntryStartFromTileScreen(targetScreen, direction);
+      const fallbackStart = getPlayerEdgeFallbackStart(targetScreen, direction);
+      const positionStores = targetEntryStart
+        ? `    ld a, ${clampHardwareSpriteX(targetEntryStart.x)}
+    ld (msx2_player_sprite_x), a
+    ld a, ${clampHardwareSpriteY(targetEntryStart.y)}
+    ld (msx2_player_sprite_y), a`
+        : (direction === 'west' || direction === 'east')
+          ? `    ld a, ${clampHardwareSpriteX(fallbackStart.x)}
+    ld (msx2_player_sprite_x), a`
+          : `    ld a, ${clampHardwareSpriteY(fallbackStart.y)}
+    ld (msx2_player_sprite_y), a`;
+      const directionCode = direction === 'west' ? 0 : direction === 'east' ? 1 : direction === 'north' ? 2 : 3;
       const mazeDirectionReset = mazeMovement
-        ? `    ld a, ${direction === 'west' ? 0 : 1}
+        ? `    ld a, ${directionCode}
     ld (msx2_player_sprite_dx), a
     ld (msx2_player_sprite_frame), a
 `
@@ -10106,10 +10291,7 @@ function buildMsx2WorldTransitionAsm(
     call msx2_reset_enemy_runtime_for_current_screen
     call msx2_load_current_screen_air
     call draw_msx2_air_hud
-    ld a, ${enterX}
-    ld (msx2_player_sprite_x), a
-    ld a, ${enterY}
-    ld (msx2_player_sprite_y), a
+${positionStores}
     xor a
     ld hl, msx2_player_gravity_vel
     ld (hl), a
@@ -10127,7 +10309,9 @@ ${cases}`;
   };
 
   return `${buildDirectionRoutine('west')}
-${buildDirectionRoutine('east')}`;
+${buildDirectionRoutine('east')}
+${buildDirectionRoutine('north')}
+${buildDirectionRoutine('south')}`;
 }
 
 export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen4Config): string {
@@ -10422,6 +10606,7 @@ reset_msx2_status_border:
   const pushBoxRuntimeAsm = buildMsx2Box2RuntimeAsm({
     enabled: pushBoxMovement,
     allowVerticalPush: pushBoxVerticalPush,
+    hardwareSpriteDuringMove: pushBoxMovement && hasHardwareSprite(analysis),
   });
   const box2SlotsByScreen = pushBoxMovement
     ? tileScreens.map(screen => getMsx2Box2RuntimeSlotsForScreen(
@@ -11068,6 +11253,8 @@ ${gameFlowProgram}
 ${shooter60HzBudget
   ? '    call wait_frame_busy\n    call update_msx2_shooter60hz_frame\n'
   : `${backgroundScrollEnabled ? '    call update_msx2_bg_scroll\n' : ''}`}${hasHardwareSprite(analysis) ? '    call update_hardware_sprite_input\n' : ''}
+${pushBoxMovement && hasHardwareSprite(analysis) ? '    call update_msx2_box2_boxes\n' : ''}
+${pushBoxMovement && hasHardwareSprite(analysis) ? '    call refresh_msx2_box2_hardware_sprite_sat\n' : ''}
 ${hasHardwareSprite(analysis) ? '    call update_msx2_air_timer\n' : ''}
 ${snakeCharMovement ? '    call update_msx2_snake_char\n' : ''}${snakeCharMovement && !(shooter60HzBudget && shooterActiveIrqProfile?.tasks.includes('music')) ? '    call update_msx2_snake_music\n' : ''}${shooter60HzBudget ? '    call update_msx2_shooter60hz_present_frame\n' : ''}
 ${shooter60HzBudget ? '' : '    call wait_frame_busy\n'}    jr .main_loop

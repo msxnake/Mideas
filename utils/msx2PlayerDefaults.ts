@@ -606,7 +606,9 @@ export const createDefaultMsx2PlayerDefinition = (
 export const createDefaultMsx2PlayerEntries = (): Msx2PlayerEntry[] => [
   { id: 'default', x: 32, y: 128, facing: 'right', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
   { id: 'from_left', x: 8, y: 128, facing: 'right', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
-  { id: 'from_right', x: 232, y: 128, facing: 'left', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
+  { id: 'from_right', x: 231, y: 128, facing: 'left', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
+  { id: 'from_up', x: 96, y: 8, facing: 'down', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
+  { id: 'from_down', x: 96, y: 168, facing: 'up', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
 ];
 
 export const normalizeMsx2PlayerEntries = (entries: Msx2PlayerEntry[] | undefined): Msx2PlayerEntry[] => {

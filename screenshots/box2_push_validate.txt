@@ -1,0 +1,17 @@
+=== box2 push validate ===
+[BOOT] px=32 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T6.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T7.0] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T7.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T8.0] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T8.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T9.0] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T9.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T10.0] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T10.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T11.0] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T11.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T12.0] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[T12.5] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+[RELEASE] px=36 py=160 box=(80,160) slot=255 mode=0 go=0 sat=(128,0) pat=0
+DONE

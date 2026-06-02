@@ -1,0 +1,13 @@
+=== box2 slide probe (push_example1_new.rom) ===
+idle px=32 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+pre px=32 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t7.15 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t7.30 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t7.50 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t7.70 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t8.00 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t8.30 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t8.60 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+t9.00 px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+post px=36 slot=255 mode=0 box=(80,160) sat=(128,0) pat=0
+DONE

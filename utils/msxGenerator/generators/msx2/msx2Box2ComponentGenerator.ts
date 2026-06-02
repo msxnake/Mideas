@@ -198,12 +198,52 @@ export function buildMsx2Box2HardwareSpriteAttrWrite(options: {
 `;
 }
 
+export function buildMsx2Box2HardwareSpriteSatRefreshAsm(options: {
+  attrAddress: number;
+  patternIndex: number;
+}): string {
+  const attr = options.attrAddress.toString(16).toUpperCase().padStart(4, '0');
+  return `refresh_msx2_box2_hardware_sprite_sat:
+    ; Idempotent SAT refresh for a moving box2 slot (no slide/fall step). Clobbers AF/BC/HL.
+    ld a, (msx2_box2_moving_slot)
+    cp #FF
+    ret z
+    ld c, a
+    ld b, 0
+    ld hl, msx2_box2_runtime_moving
+    add hl, bc
+    ld a, (hl)
+    or a
+    ret z
+    ld hl, msx2_box2_runtime_y
+    add hl, bc
+    ld a, (hl)
+    ld hl, #${attr}
+    call write_vram_byte_ext
+    ld hl, msx2_box2_runtime_x
+    add hl, bc
+    ld a, (hl)
+    ld hl, #${(options.attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld a, ${options.patternIndex}
+    ld hl, #${(options.attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    xor a
+    ld hl, #${(options.attrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ret
+`;
+}
+
 export function buildMsx2Box2RuntimeAsm(options: {
   enabled: boolean;
   allowVerticalPush?: boolean;
+  /** When true, sliding/falling boxes stay visible via refresh_msx2_box2_hardware_sprite_sat instead of name-table redraw. */
+  hardwareSpriteDuringMove?: boolean;
 }): string {
   if (!options.enabled) return '';
   const allowVerticalPush = options.allowVerticalPush ?? false;
+  const hardwareSpriteDuringMove = options.hardwareSpriteDuringMove ?? false;
   const verticalProbeAsm = allowVerticalPush
     ? `.box2_probe_vertical:
     ld a, (msx2_box2_try_dy)
@@ -611,11 +651,11 @@ msx2_box2_collision_index_from_bc:
 
 msx2_box2_patch_cell_flags_at_bc:
     ; B=x pixel, C=y pixel. A=0 clears box/solid bits, A=1 writes packed box (#29).
-    ; Only touches msx2_current_effects_ptr (CELL_FLAGS). Clobbers AF/DE/HL. Preserves BC.
+    ; Patches msx2_cell_flags_runtime_cache (packed CELL_FLAGS). Clobbers AF/DE/HL. Preserves BC.
     push af
     push bc
     call msx2_box2_collision_index_from_bc
-    ld hl, (msx2_current_effects_ptr)
+    ld hl, msx2_cell_flags_runtime_cache
     add hl, de
     pop bc
     pop af
@@ -942,7 +982,7 @@ msx2_box2_start_slide:
     ld (msx2_box2_moving_slot), a
     xor a
     ld (msx2_box2_move_mode), a
-    ret
+${hardwareSpriteDuringMove ? `    call refresh_msx2_box2_hardware_sprite_sat\n` : ''}    ret
 
 msx2_box2_finish_slide:
     ; Snap to 16px grid. If gravity is enabled and no support exists below,
@@ -1087,9 +1127,15 @@ msx2_box2_step_slide_toward_target:
     jp msx2_box2_finish_slide
 .box2_step_continue:
     ld a, (msx2_box2_moving_slot)
-    call msx2_box2_restore_chars_for_slot
+${hardwareSpriteDuringMove
+    ? `    call refresh_msx2_box2_hardware_sprite_sat
+    call msx2_box2_set_collision_for_slot
+    ret
+`
+    : `    call msx2_box2_restore_chars_for_slot
     call msx2_box2_clear_collision_for_slot
     ret
+`}
 
 msx2_box2_slot_has_gravity:
     ; Input: C=slot. Zero flag clear when gravity is enabled. Clobbers AF/DE/HL. Preserves BC.
@@ -1233,8 +1279,14 @@ msx2_box2_update_gravity_fall:
     add hl, bc
     ld (hl), a
     ld a, (msx2_box2_moving_slot)
-    call msx2_box2_restore_chars_for_slot
+${hardwareSpriteDuringMove
+    ? `    call refresh_msx2_box2_hardware_sprite_sat
+    call msx2_box2_set_collision_for_slot
     ret
+`
+    : `    call msx2_box2_restore_chars_for_slot
+    ret
+`}
 
 msx2_box2_finish_gravity_fall:
     ; Snap Y, draw chars immediately. Clobbers AF/BC/DE/HL.
@@ -1281,9 +1333,8 @@ msx2_try_box2_from_player:
     ld a, (msx2_box2_move_mode)
     or a
     jr nz, .box2_player_blocked
-    ; Slide already active: let the player keep moving while update_msx2_box2_boxes advances the box.
-    or a
-    ret
+    ; Horizontal slide active: block the player until the box finishes moving.
+    jp .box2_player_blocked
 .box2_try_idle:
     ld a, (msx2_player_sprite_x)
     ld b, a

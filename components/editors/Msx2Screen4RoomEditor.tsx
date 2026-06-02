@@ -46,6 +46,7 @@ import {
 } from '../msx2_screen4_editor/Msx2Screen4EditorParts';
 import { buildMsx2EntityComponents } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { Button } from '../common/Button';
+import { Panel } from '../common/Panel';
 import { MSX2AtlasPreviewPanel } from '../screen_editor/MSX2AtlasPreviewPanel';
 import { MSX2CompositionPanel } from '../screen_editor/MSX2CompositionPanel';
 import { MSX2HudPlanPanel } from '../msx2_screen4_editor/MSX2HudPlanPanel';
@@ -438,7 +439,14 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
 
   const updateSelectedPlayerEntry = (patch: Partial<Msx2PlayerEntry>) => {
     if (!selectedPlayerEntry) return;
+    if (Object.prototype.hasOwnProperty.call(patch, 'id')) {
+      setSelectedPlayerEntryId(String(patch.id || `entry_${playerEntries.indexOf(selectedPlayerEntry) + 1}`));
+    }
     updatePlayerEntries(playerEntries.map(entry => entry.id === selectedPlayerEntry.id ? { ...entry, ...patch } : entry));
+  };
+
+  const updatePlayerEntryById = (id: string, patch: Partial<Msx2PlayerEntry>) => {
+    updatePlayerEntries(playerEntries.map(entry => entry.id === id ? { ...entry, ...patch } : entry));
   };
 
   const addPlayerEntry = (x = 32, y = 128) => {
@@ -457,10 +465,22 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     setSelectedPlayerEntryId(id);
   };
 
+  const movePlayerEntry = (id: string, x: number, y: number) => {
+    setSelectedPlayerEntryId(id);
+    updatePlayerEntryById(id, {
+      x: Math.max(0, Math.min(255, Math.round(x))),
+      y: Math.max(0, Math.min(191, Math.round(y))),
+    });
+  };
+
+  const removePlayerEntry = (id: string) => {
+    updatePlayerEntries(playerEntries.filter(entry => entry.id !== id));
+    if (selectedPlayerEntryId === id) setSelectedPlayerEntryId(null);
+  };
+
   const removeSelectedPlayerEntry = () => {
     if (!selectedPlayerEntry) return;
-    updatePlayerEntries(playerEntries.filter(entry => entry.id !== selectedPlayerEntry.id));
-    setSelectedPlayerEntryId(null);
+    removePlayerEntry(selectedPlayerEntry.id);
   };
 
   const handleCellAction = ({ x, y, button }: Msx2Screen4CellAction) => {
@@ -1149,12 +1169,17 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             selectionMode={selectionMode}
             selectionRect={selectionRect}
             selectedEntityId={selectedEntityId}
+            selectedPlayerEntryId={selectedPlayerEntryId}
             showRuntimeOverlays={showRuntimeOverlays}
             compositionOverlay={compositionOverlay}
             isDrawing={isDrawing}
             onSetDrawing={setIsDrawing}
             onCellAction={handleCellAction}
             onSelectionChange={setSelectionRect}
+            onSelectPlayerEntry={setSelectedPlayerEntryId}
+            onCreatePlayerEntryAt={addPlayerEntry}
+            onMovePlayerEntry={movePlayerEntry}
+            onRemovePlayerEntry={removePlayerEntry}
           />
           )}
         </div>

@@ -1487,12 +1487,17 @@ interface Msx2Screen4GridProps {
   selectionMode: boolean;
   selectionRect: Msx2Screen4SelectionRect | null;
   selectedEntityId: string | null;
+  selectedPlayerEntryId?: string | null;
   showRuntimeOverlays: boolean;
   compositionOverlay: Msx2Screen4CompositionOverlay;
   isDrawing: boolean;
   onSetDrawing: (isDrawing: boolean) => void;
   onCellAction: (action: Msx2Screen4CellAction) => void;
   onSelectionChange: (rect: Msx2Screen4SelectionRect | null) => void;
+  onSelectPlayerEntry?: (id: string | null) => void;
+  onCreatePlayerEntryAt?: (x: number, y: number) => void;
+  onMovePlayerEntry?: (id: string, x: number, y: number) => void;
+  onRemovePlayerEntry?: (id: string) => void;
 }
 
 export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
@@ -1507,15 +1512,29 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
   selectionMode,
   selectionRect,
   selectedEntityId,
+  selectedPlayerEntryId = null,
   showRuntimeOverlays,
   compositionOverlay,
   isDrawing,
   onSetDrawing,
   onCellAction,
   onSelectionChange,
+  onSelectPlayerEntry,
+  onCreatePlayerEntryAt,
+  onMovePlayerEntry,
+  onRemovePlayerEntry,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
+  const playerDragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+
+  useEffect(() => {
+    const stopPlayerDrag = () => {
+      playerDragRef.current = null;
+    };
+    window.addEventListener('mouseup', stopPlayerDrag);
+    return () => window.removeEventListener('mouseup', stopPlayerDrag);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1782,12 +1801,13 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
           const px = Math.round(entry.x) * 2;
           const py = Math.round(entry.y) * 2;
           ctx.fillStyle = '#FFE050';
-          ctx.strokeStyle = '#111827';
-          ctx.lineWidth = 2;
+          ctx.strokeStyle = entry.id === selectedPlayerEntryId ? '#40DFFF' : '#111827';
+          ctx.lineWidth = entry.id === selectedPlayerEntryId ? 4 : 2;
           ctx.beginPath();
-          ctx.arc(px, py, 9, 0, Math.PI * 2);
+          ctx.arc(px, py, entry.id === selectedPlayerEntryId ? 11 : 9, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
+          ctx.lineWidth = 1;
           ctx.fillStyle = '#111827';
           ctx.font = 'bold 12px monospace';
           ctx.fillText('P', px - 4, py + 4);
@@ -1797,7 +1817,7 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
         }
       }
     }
-  }, [map, slots, tiles, showGrid, mode, layers, playerEntries, runtime, selectionRect, selectedEntityId, showRuntimeOverlays, compositionOverlay]);
+  }, [map, slots, tiles, showGrid, mode, layers, playerEntries, runtime, selectionRect, selectedEntityId, selectedPlayerEntryId, showRuntimeOverlays, compositionOverlay]);
 
   const getCellFromEvent = (event: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1805,6 +1825,25 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
     const y = Math.floor(((event.clientY - rect.top) / rect.height) * MAP_HEIGHT);
     if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return null;
     return { x, y };
+  };
+
+  const getPixelFromEvent = (event: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } | null => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.round(((event.clientX - rect.left) / rect.width) * MAP_PIXEL_WIDTH);
+    const y = Math.round(((event.clientY - rect.top) / rect.height) * MAP_PIXEL_HEIGHT);
+    if (x < 0 || y < 0 || x >= MAP_PIXEL_WIDTH || y >= MAP_PIXEL_HEIGHT) return null;
+    return { x, y };
+  };
+
+  const getPlayerEntryAtPixel = (point: { x: number; y: number }): Msx2PlayerEntry | null => {
+    const hitRadius = 14;
+    for (let index = playerEntries.length - 1; index >= 0; index--) {
+      const entry = playerEntries[index];
+      const dx = point.x - Number(entry.x || 0);
+      const dy = point.y - Number(entry.y || 0);
+      if ((dx * dx) + (dy * dy) <= hitRadius * hitRadius) return entry;
+    }
+    return null;
   };
 
   const buildSelectionRect = (start: { x: number; y: number }, end: { x: number; y: number }): Msx2Screen4SelectionRect => {
@@ -1825,6 +1864,29 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (mode === 'playerEntries') {
+      event.preventDefault();
+      const pixel = getPixelFromEvent(event);
+      if (!pixel) return;
+      const hit = getPlayerEntryAtPixel(pixel);
+      onSetDrawing(true);
+      if (event.button === 2) {
+        if (hit) onRemovePlayerEntry?.(hit.id);
+        return;
+      }
+      if (hit) {
+        onSelectPlayerEntry?.(hit.id);
+        playerDragRef.current = {
+          id: hit.id,
+          offsetX: Number(hit.x || 0) - pixel.x,
+          offsetY: Number(hit.y || 0) - pixel.y,
+        };
+        return;
+      }
+      onCreatePlayerEntryAt?.(pixel.x, pixel.y);
+      return;
+    }
+
     const cell = getCellFromEvent(event);
     if (!cell) return;
     onSetDrawing(true);
@@ -1837,6 +1899,16 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (mode === 'playerEntries' && playerDragRef.current) {
+      const pixel = getPixelFromEvent(event);
+      if (!pixel) return;
+      const drag = playerDragRef.current;
+      const x = Math.max(0, Math.min(MAP_PIXEL_WIDTH - 1, Math.round(pixel.x + drag.offsetX)));
+      const y = Math.max(0, Math.min(MAP_PIXEL_HEIGHT - 1, Math.round(pixel.y + drag.offsetY)));
+      onMovePlayerEntry?.(drag.id, x, y);
+      return;
+    }
+
     if (!isDrawing) return;
     const cell = getCellFromEvent(event);
     if (!cell) return;
@@ -1852,10 +1924,12 @@ export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className="border border-msx-border bg-black"
+      className={`border border-msx-border bg-black ${mode === 'playerEntries' ? 'cursor-move' : ''}`}
       style={{ width: `${MAP_PIXEL_WIDTH * 2}px`, maxWidth: '100%', height: 'auto', aspectRatio: `${MAP_PIXEL_WIDTH} / ${MAP_PIXEL_HEIGHT}` }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
+      onMouseUp={() => { playerDragRef.current = null; onSetDrawing(false); }}
+      onMouseLeave={() => { if (!playerDragRef.current) onSetDrawing(false); }}
       onContextMenu={event => event.preventDefault()}
     />
   );

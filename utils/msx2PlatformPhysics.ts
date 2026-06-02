@@ -110,9 +110,28 @@ export function getMsx2PlatformPhysicsFromScreen(
 }
 
 export function getMsx2PlatformPhysicsFromAnalysis(analysis: ProjectAnalysis): Msx2PlatformPhysicsConfig {
-  const screen = analysis.msx2Screens?.find(item => item.layers?.entities?.some(entity => entity.kind === 'player'))
+  const screen = analysis.msx2Screens?.find(item =>
+    item.layers?.entities?.some(entity => entity.kind === 'player')
+    || (Array.isArray(item.playerEntries) && item.playerEntries.length > 0)
+  )
     || analysis.msx2Screens?.[0];
-  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player');
+  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player')
+    || (
+      Array.isArray(screen?.playerEntries) && screen.playerEntries.length > 0
+        ? {
+          kind: 'player',
+          components: {
+            msx2_player_control: {
+              jump: String(screen?.runtime?.movementMode || screen?.runtime?.screenEngine || 'platform').replace(/[\s_-]+/g, '').toLowerCase() === 'platform',
+              gravity: String(screen?.runtime?.movementMode || screen?.runtime?.screenEngine || 'platform').replace(/[\s_-]+/g, '').toLowerCase() === 'platform',
+              jumpPower: screen?.runtime?.jumpPower ?? screen?.runtime?.jumpImpulse,
+              gravityStrength: screen?.runtime?.gravityStrength,
+              terminalVelocity: screen?.runtime?.terminalVelocity,
+            },
+          },
+        }
+        : undefined
+    );
   return getMsx2PlatformPhysicsFromScreen(screen, player);
 }
 

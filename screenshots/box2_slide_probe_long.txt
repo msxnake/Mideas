@@ -1,0 +1,7 @@
+=== box2 long probe push_example1_new.rom ===
+[BOOT] player=(32,160) box=(80,160) slot=255 mode=0 sat=(128,0) pat=0
+[WALK] player=(36,160) box=(80,160) slot=255 mode=0 sat=(128,0) pat=0
+[AT_BOX] player=(36,160) box=(80,160) slot=255 mode=0 sat=(128,0) pat=0
+[PUSHING] player=(36,160) box=(80,160) slot=255 mode=0 sat=(128,0) pat=0
+[AFTER] player=(36,160) box=(80,160) slot=255 mode=0 sat=(128,0) pat=0
+DONE

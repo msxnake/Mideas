@@ -231,6 +231,8 @@ function extractSpritesFromMsx2Screen(screen: any, assets: ProjectAsset[], usedA
       entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId,
       entity?.components?.msx2_render?.msx2SpriteAssetId,
       entity?.components?.msx2_render?.spriteAssetId,
+      entity?.components?.msx2_push_box?.msx2SpriteAssetId,
+      entity?.components?.msx2_push_box?.spriteAssetId,
     ];
     spriteIds.forEach(spriteId => addMsx2SpriteOrLegacySpriteAsset(spriteId, assets, usedAssets, warnings, context));
   });

@@ -2050,6 +2050,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           'For presentation screens, prefer the dedicated SCREEN 5 presentation importer.',
         ],
       },
+      [EditorType.Msx2Player]: {
+        title: 'MSX2 Player Help',
+        summary: 'Configure MSX2 player definitions used by SCREEN 4 entity presets and runtime movement profiles.',
+        tips: [
+          'Keep movement mode, sprite reference, and control settings aligned with the target room profile.',
+          'Disable air/time for arcade profiles that do not use the HUD timer.',
+          'Use SCREEN 4 player components for per-room runtime behavior.',
+        ],
+      },
       [EditorType.Msx2HudFont]: {
         title: 'MSX2 HUD Font Help',
         summary: 'Prepare SCREEN 4 text glyphs for menus, HUDs, story panels, and GameFlow runtime text.',

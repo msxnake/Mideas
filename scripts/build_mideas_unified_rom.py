@@ -2073,8 +2073,19 @@ def validate_msx2_screen4_megarom_preflight_budget(
                 "SCREEN 4 runtime layers must remain raw in world data banks and use only the current-screen RAM cache: "
                 f"{runtime_part}"
             )
+    entry_world_ids = set((project_slice.get("entryPoints") or {}).get("worldIds") or [])
+    estimated_rom_needs = project_slice.get("estimatedRomNeeds")
+    reachable_world_count = (
+        int(estimated_rom_needs.get("reachableWorldCount") or 0)
+        if isinstance(estimated_rom_needs, dict)
+        else 0
+    )
+    screen_only_data_bank = not entry_world_ids and reachable_world_count == 0
+
     world_package_summary = project_slice.get("worldPackageSummary")
-    if not isinstance(world_package_summary, list) or not world_package_summary:
+    if not isinstance(world_package_summary, list):
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no worldPackageSummary")
+    if not screen_only_data_bank and not world_package_summary:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no worldPackageSummary")
     world_bank_manifest = project_slice.get("worldBankManifest")
     if not isinstance(world_bank_manifest, dict) or world_bank_manifest.get("scope") != "msx2_screen4_world_bank_manifest":
@@ -2084,7 +2095,9 @@ def validate_msx2_screen4_megarom_preflight_budget(
     if world_bank_manifest_artifact != world_bank_manifest:
         raise RuntimeError("MSX2 MegaROM preflight failed: msx2_world_bank_manifest.json differs from project_slice.json")
     manifest_worlds = world_bank_manifest.get("worlds")
-    if not isinstance(manifest_worlds, list) or not manifest_worlds:
+    if not isinstance(manifest_worlds, list):
+        raise RuntimeError("MSX2 MegaROM preflight failed: worldBankManifest has no worlds")
+    if not screen_only_data_bank and not manifest_worlds:
         raise RuntimeError("MSX2 MegaROM preflight failed: worldBankManifest has no worlds")
     manifest_physical_banks = world_bank_manifest.get("estimatedPhysicalBanks")
     if not isinstance(manifest_physical_banks, list) or not manifest_physical_banks:
@@ -2105,14 +2118,28 @@ def validate_msx2_screen4_megarom_preflight_budget(
         if not isinstance(physical_bank.get("packages"), list) or not physical_bank.get("packages"):
             raise RuntimeError(f"MSX2 MegaROM preflight failed: worldBankManifest bank has no packages: {physical_bank}")
     manifest_world_ids = {item.get("worldId") for item in manifest_worlds if isinstance(item, dict)}
-    entry_world_ids = set((project_slice.get("entryPoints") or {}).get("worldIds") or [])
-    summary_world_ids = {item.get("worldId") for item in world_package_summary if isinstance(item, dict)}
-    missing_world_summaries = sorted(entry_world_ids - summary_world_ids)
-    if missing_world_summaries:
-        raise RuntimeError(
-            "MSX2 MegaROM preflight failed: "
-            f"worldPackageSummary missing entry point worlds: {', '.join(missing_world_summaries)}"
-        )
+    if not screen_only_data_bank:
+        summary_world_ids = {item.get("worldId") for item in world_package_summary if isinstance(item, dict)}
+        missing_world_summaries = sorted(entry_world_ids - summary_world_ids)
+        if missing_world_summaries:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"worldPackageSummary missing entry point worlds: {', '.join(missing_world_summaries)}"
+            )
+    else:
+        screen4_data_bank_plan = project_slice.get("screen4DataBankPlan")
+        if not isinstance(screen4_data_bank_plan, dict) or not screen4_data_bank_plan.get("supported"):
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                "screen-only slices must declare a supported screen4DataBankPlan"
+            )
+        screen_banks = screen4_data_bank_plan.get("screenBanks")
+        if not isinstance(screen_banks, list) or not screen_banks:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                "screen4DataBankPlan has no screenBanks for screen-only slice"
+            )
+
     for world_summary in world_package_summary:
         if not isinstance(world_summary, dict):
             raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldPackageSummary entry: {world_summary}")

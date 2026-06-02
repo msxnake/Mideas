@@ -137,6 +137,10 @@ export function playerHasMsx2PushBox(entity: any): boolean {
   return pushBox.enabled !== false;
 }
 
+function screenHasPlayerEntry(screen: Msx2Screen4TileScreen | undefined): boolean {
+  return Array.isArray(screen?.playerEntries) && screen.playerEntries.length > 0;
+}
+
 function readBox2Field(entity: any, box2Key: string, legacyKey: string, fallback: unknown): unknown {
   const box2 = entity?.components?.msx2_box2;
   if (box2 && box2[box2Key] !== undefined) return box2[box2Key];
@@ -247,7 +251,10 @@ export function usesMsx2Box2FromScreens(
 ): boolean {
   return screens.some(screen =>
     (screen?.layers?.entities || []).some(entity => entityHasMsx2Box2(entity))
-    || (screenHasMapBoxTiles(screen) && (screen?.layers?.entities || []).some(entity => playerHasMsx2PushBox(entity)))
+    || (screenHasMapBoxTiles(screen) && (
+      screenHasPlayerEntry(screen)
+      || (screen?.layers?.entities || []).some(entity => playerHasMsx2PushBox(entity))
+    ))
   );
 }
 
