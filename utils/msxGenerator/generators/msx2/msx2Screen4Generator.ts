@@ -1571,6 +1571,12 @@ function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined): any 
         air: (screen?.runtime as any)?.initialAir ?? 255,
         disableAirTimer: (screen?.runtime as any)?.disableAirTimer ?? ((screen?.runtime as any)?.initialAir === 0),
       },
+      msx2_animation: {
+        animation: platformLike ? 'player_idle' : 'player_walk',
+        frameCount: 2,
+        frameDelay: 8,
+        animateOnlyWhenMoving: true,
+      },
     },
     params: {
       x: Math.max(0, Math.min(255, Number(entry.x) || 0)),
