@@ -3,7 +3,7 @@
  * Used by Play preview and mirrored by msx2Box2ComponentGenerator ASM.
  */
 
-export const MSX2_BOX2_GRID_UNIT = 8;
+export const MSX2_BOX2_GRID_UNIT = 16;
 export const MSX2_BOX2_BLOCK_PX = 16;
 export const MSX2_MAX_BOX2_CHAIN = 3;
 export const MSX2_BOX2_ALIGN_TOLERANCE_PX = 4;
@@ -259,7 +259,10 @@ export function updateBox2Simulation(
 ): void {
   const sliding = boxes.find(box => box.state === 'sliding');
   if (sliding) {
-    stepBox2Slide(sliding);
+    const finished = stepBox2Slide(sliding);
+    if (finished && sliding.config.gravity && !box2HasSupport(sliding, boxes, collision)) {
+      sliding.state = 'falling';
+    }
     return;
   }
   const falling = boxes.find(box => box.state === 'falling');

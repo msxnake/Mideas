@@ -20,6 +20,7 @@ import { getScreenModeMetrics } from '../utils/screenModeConfig';
 import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../utils/projectTarget';
 import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
+import { buildDetailedMsx2PlayerDocument, MSX2_PLAYER_DOCUMENT_SCHEMA } from '../utils/msx2PlayerDocument';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -297,6 +298,14 @@ export const useAssetHandlers = ({
             effectiveUpdatedData = dataWithoutName;
           }
 
+          if (asset.type === 'msx2player' && effectiveUpdatedData?.schema === MSX2_PLAYER_DOCUMENT_SCHEMA) {
+            newAssetData = effectiveUpdatedData;
+            if (effectiveUpdatedData.player?.identity?.name) {
+              newAssetName = effectiveUpdatedData.player.identity.name;
+            }
+            return { ...asset, name: newAssetName, data: newAssetData };
+          }
+
           if (typeof asset.data === 'object' && asset.data !== null) {
             newAssetData = { ...asset.data, ...effectiveUpdatedData };
           } else {
@@ -525,8 +534,9 @@ export const useAssetHandlers = ({
         break;
       case 'msx2player':
         defaultName = 'Player_Main';
-        newAssetData = createDefaultMsx2PlayerDefinition(id, msx2ProjectProfile?.profileId) as Msx2PlayerDefinition;
-        newAssetData.name = defaultName;
+        newAssetData = buildDetailedMsx2PlayerDocument(createDefaultMsx2PlayerDefinition(id, msx2ProjectProfile?.profileId));
+        newAssetData.player.identity.name = defaultName;
+        (newAssetData.compact as Msx2PlayerDefinition).name = defaultName;
         newEditorType = EditorType.Msx2Player;
         break;
       case 'msx2hudfont':

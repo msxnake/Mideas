@@ -21,6 +21,7 @@ export type Msx2ComponentId =
   | 'msx2_timer'
   | 'msx2_jump'
   | 'msx2_gravity'
+  | 'msx2_push_box'
   | 'msx2_platform'
   | 'msx2_shooter'
   | 'msx2_projectile'
@@ -37,7 +38,6 @@ export type Msx2ComponentId =
   | 'msx2_snake'
   | 'msx2_snake_segment'
   | 'msx2_grid_snap'
-  | 'msx2_push_box'
   | 'msx2_box2'
   | 'msx2_scroll';
 
@@ -94,6 +94,12 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     enabled: { kind: 'boolean', label: 'Enabled' },
     strength: { label: 'Strength', min: 16, max: 128, ariaLabel: 'MSX2 gravity strength' },
     terminalVelocity: { label: 'Terminal velocity', min: 256, max: 2048, ariaLabel: 'MSX2 terminal fall velocity' },
+  },
+  msx2_push_box: {
+    enabled: { kind: 'boolean', label: 'Enabled', ariaLabel: 'MSX2 PushBox enabled' },
+    pushAxis: { kind: 'select', options: ['horizontal', 'vertical', 'both'], label: 'Axis', ariaLabel: 'MSX2 PushBox axis' },
+    slideSpeed: { label: 'Slide speed', min: 1, max: 4, ariaLabel: 'MSX2 PushBox slide speed' },
+    gravity: { kind: 'boolean', label: 'Box gravity', ariaLabel: 'MSX2 PushBox box gravity' },
   },
   msx2_movement: {
     mode: { kind: 'select', options: ['static', 'patrolX', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
@@ -241,14 +247,6 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     charHeight: { label: 'Char height (cells)', min: 1, max: 4 },
     snapOnStop: { kind: 'boolean', label: 'Snap on stop' },
   },
-  msx2_push_box: {
-    pushAxis: { kind: 'select', options: ['horizontal', 'vertical', 'both'], ariaLabel: 'Push box axis', paramKey: 'pushAxis' },
-    moveSpeed: { label: 'Move speed (px/frame)', min: 1, max: 4, ariaLabel: 'Push box slide speed', paramKey: 'moveSpeed' },
-    gravity: { kind: 'boolean', label: 'Gravity (falls in gaps)', ariaLabel: 'Push box gravity', paramKey: 'gravity' },
-    requiresAlignment: { kind: 'boolean', label: 'Requires alignment' },
-    blockExit: { kind: 'boolean', label: 'Block exit' },
-    pushSound: { kind: 'boolean', label: 'Push sound' },
-  },
   msx2_box2: {
     pushAxis: { kind: 'select', options: ['horizontal', 'vertical', 'both'], ariaLabel: 'Box2 push axis', paramKey: 'pushAxis' },
     slideSpeed: { label: 'Slide speed (px/frame)', min: 1, max: 4, ariaLabel: 'Box2 slide speed', paramKey: 'slideSpeed' },
@@ -281,7 +279,6 @@ export type Msx2RuntimeEngine =
   | 'brick'
   | 'snakeChar'
   | 'snakeFood'
-  | 'pushBox'
   | 'box2';
 
 export interface Msx2EntityCreatePreset {
@@ -325,6 +322,12 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     label: 'Gravity',
     description: '8.8 gravity acceleration and terminal fall speed for MSX2 platform physics.',
     defaults: { enabled: true, strength: 64, terminalVelocity: 1024 },
+  },
+  {
+    id: 'msx2_push_box',
+    label: 'PushBox',
+    description: 'Player capability for pushing map tiles marked as Caja / BOX in SCREEN 4 cell flags.',
+    defaults: { enabled: true, pushAxis: 'horizontal', slideSpeed: 1, gravity: true },
   },
   {
     id: 'msx2_movement',
@@ -509,20 +512,8 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   {
     id: 'msx2_grid_snap',
     label: 'Grid Snap',
-    description: 'Grid-aligned char block metadata for MSX2 actors that snap to 8px cells and render as char blocks when idle.',
-    defaults: { gridUnit: 8, charWidth: 2, charHeight: 2, snapOnStop: true },
-  },
-  {
-    id: 'msx2_push_box',
-    label: 'Push Box',
-    description: 'Pushable crate/block: slides pixel-by-pixel to 8px grid positions, hardware sprite while moving and 2x2 tile chars when idle. Optional gravity for platform gaps.',
-    defaults: { pushAxis: 'horizontal', moveSpeed: 1, gravity: true, requiresAlignment: true, blockExit: false, pushSound: true },
-  },
-  {
-    id: 'msx2_box2',
-    label: 'Box2',
-    description: 'Sokoban push block (v2): slides one grid cell at a time, hybrid char idle + hardware sprite while moving. Redraws chars immediately on stop. Optional gravity.',
-    defaults: { pushAxis: 'horizontal', slideSpeed: 2, gravity: true, requiresAlignment: true, tileIndex: 0, charCode: 9, paletteSlot: 6 },
+    description: 'Grid-aligned char block metadata for MSX2 actors that snap to 16px SCREEN 4 cells and render as char blocks when idle.',
+    defaults: { gridUnit: 16, charWidth: 2, charHeight: 2, snapOnStop: true },
   },
   {
     id: 'msx2_scroll',
@@ -582,6 +573,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_player_control: { controlMode: 'platform', movementMode: 'platform', jump: true, gravity: true, air: 255, disableAirTimer: false },
       msx2_jump: { enabled: true, jumpPower: 1024, maxJumps: 2, requireKeyRelease: true },
       msx2_gravity: { enabled: true, strength: 64, terminalVelocity: 1024 },
+      msx2_push_box: { enabled: true, pushAxis: 'horizontal', slideSpeed: 1, gravity: true },
       msx2_animation: { animation: 'player_idle', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
       msx2_health: { current: 3, max: 3, invincibleFrames: 60, deathAction: 'respawn' },
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 45 },
@@ -603,6 +595,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_player_control: { controlMode: 'platform', movementMode: 'platform', jump: true, gravity: true, air: 255, disableAirTimer: false },
       msx2_jump: { enabled: true, jumpPower: 1024, maxJumps: 2, requireKeyRelease: true },
       msx2_gravity: { enabled: true, strength: 64, terminalVelocity: 1024 },
+      msx2_push_box: { enabled: true, pushAxis: 'horizontal', slideSpeed: 1, gravity: true },
       msx2_shooter: { enabled: true, fireKey: 'space', direction: 'horizontalFacing', cooldownFrames: 12, projectilePresetId: 'player_bullet', maxProjectiles: 1 },
       msx2_animation: { animation: 'player_idle', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
       msx2_health: { current: 3, max: 3, invincibleFrames: 60, deathAction: 'respawn' },
@@ -623,6 +616,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_transform: {},
       msx2_hardware_sprite: {},
       msx2_player_control: { controlMode: 'maze', movementMode: 'maze', jump: false, gravity: false, air: 0, disableAirTimer: true },
+      msx2_push_box: { enabled: true, pushAxis: 'horizontal', slideSpeed: 1, gravity: false },
       msx2_animation: { animation: 'maze_walk', frameCount: 2, frameDelay: 6, animateOnlyWhenMoving: true },
       msx2_health: { current: 3, max: 3, invincibleFrames: 45, deathAction: 'respawn' },
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 45 },
@@ -1024,38 +1018,6 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 1, preserveAfterCollect: false },
     },
     params: { runtime: 'MSX2', engine: 'snakeFood', food: true, points: 10 },
-  },
-  {
-    id: 'push_box_crate',
-    label: 'MSX2 Push Box Crate',
-    kind: 'enemy',
-    runtime: 'MSX2',
-    engine: 'pushBox',
-    description: 'Pushable crate/block: slides pixel-by-pixel to 8px grid positions and renders as a 2x2 char tile block when idle.',
-    components: {
-      msx2_transform: {},
-      msx2_char_render: { paletteSlot: 6, useHardwareSprite: false, charCode: 9, tileIndex: 0 },
-      msx2_grid_snap: { gridUnit: 8, charWidth: 2, charHeight: 2, snapOnStop: true },
-      msx2_push_box: { pushAxis: 'horizontal', moveSpeed: 1, gravity: true, requiresAlignment: true, blockExit: false },
-      msx2_collision: { hitboxW: 16, hitboxH: 16, offsetX: 0, offsetY: 0, solid: true },
-    },
-    params: { runtime: 'MSX2', engine: 'pushBox', pushBox: true, pushAxis: 'horizontal', moveSpeed: 1, gravity: true },
-  },
-  {
-    id: 'box2_crate',
-    label: 'MSX2 Box2 Crate',
-    kind: 'enemy',
-    runtime: 'MSX2',
-    engine: 'box2',
-    description: 'Sokoban push crate (v2): one-cell slides with 2x2 char tiles when idle. Chars redraw immediately when movement stops.',
-    components: {
-      msx2_transform: {},
-      msx2_char_render: { paletteSlot: 6, useHardwareSprite: false, charCode: 9, tileIndex: 0 },
-      msx2_grid_snap: { gridUnit: 8, charWidth: 2, charHeight: 2, snapOnStop: true },
-      msx2_box2: { pushAxis: 'horizontal', slideSpeed: 2, gravity: true, requiresAlignment: true },
-      msx2_collision: { hitboxW: 16, hitboxH: 16, offsetX: 0, offsetY: 0, solid: true },
-    },
-    params: { runtime: 'MSX2', engine: 'box2', box2: true, pushAxis: 'horizontal', slideSpeed: 2, gravity: true },
   },
 ];
 

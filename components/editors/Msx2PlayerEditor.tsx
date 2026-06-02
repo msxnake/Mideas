@@ -1,9 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { MSXColorValue, Msx2PlayerDefinition, Msx2Sprite, ProjectAsset } from '../../types';
-import { normalizeMsx2PlayerDefinition } from '../../utils/msx2PlayerDefaults';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_ANIMATION_ROLES, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
+import { buildDetailedMsx2PlayerDocument, parseMsx2PlayerImport } from '../../utils/msx2PlayerDocument';
+import { StateMachine } from '../../statemachine.types';
+import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Sprite, ProjectAsset } from '../../types';
 
 interface Msx2PlayerEditorProps {
-  player: Msx2PlayerDefinition;
+  player: Msx2PlayerDefinition | Record<string, unknown>;
   onUpdate: (data: Partial<Msx2PlayerDefinition>) => void;
   allAssets: ProjectAsset[];
 }
@@ -30,11 +32,6 @@ const panelTitleClass = 'flex-shrink-0 border-b border-slate-700 px-3 py-2 text-
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
-const spriteSizeToDimensions = (size: Msx2PlayerDefinition['render']['spriteSize']) => {
-  const [width, height] = size.split('x').map(value => Number(value));
-  return { width: width || 16, height: height || 16 };
-};
-
 const Field: React.FC<{ label: string; children: React.ReactNode; suffix?: string }> = ({ label, children, suffix }) => (
   <label className="grid grid-cols-[96px_1fr_auto] items-center gap-2 text-xs text-slate-200">
     <span className="text-slate-100">{label}:</span>
@@ -57,8 +54,8 @@ const SmallNumber: React.FC<{
   />
 );
 
-const Checkbox: React.FC<{ label: string; checked: boolean; onChange: (checked: boolean) => void }> = ({ label, checked, onChange }) => (
-  <label className="flex items-center gap-2 text-xs text-slate-100">
+const Checkbox: React.FC<{ label: string; checked: boolean; onChange: (checked: boolean) => void; title?: string }> = ({ label, checked, onChange, title }) => (
+  <label className="flex items-center gap-2 text-xs text-slate-100" title={title}>
     <input
       type="checkbox"
       checked={checked}
@@ -67,6 +64,247 @@ const Checkbox: React.FC<{ label: string; checked: boolean; onChange: (checked: 
     />
     {label}
   </label>
+);
+
+const FunctionKeyField: React.FC<{
+  keyId: Msx2PlayerFunctionKeyId;
+  enabled: boolean;
+  action: Msx2PlayerFunctionKeyAction;
+  customLabel: string;
+  onEnabledChange: (enabled: boolean) => void;
+  onActionChange: (action: Msx2PlayerFunctionKeyAction) => void;
+  onCustomLabelChange: (label: string) => void;
+}> = ({ keyId, enabled, action, customLabel, onEnabledChange, onActionChange, onCustomLabelChange }) => (
+  <div className={`grid grid-cols-[20px_112px_1fr] items-center gap-2 text-xs ${enabled ? 'text-slate-200' : 'text-slate-500'}`}>
+    <input
+      type="checkbox"
+      checked={enabled}
+      onChange={event => onEnabledChange(event.target.checked)}
+      className="h-3.5 w-3.5 accent-blue-500"
+      title={enabled ? 'Disable this function key' : 'Enable this function key'}
+    />
+    <span className={enabled ? 'text-slate-100' : 'text-slate-400'}>{keyId.toUpperCase()}:</span>
+    <div className="flex min-w-0 items-center gap-2">
+      <select
+        className={`${selectClass} ${action === 'custom' ? 'w-[108px] shrink-0' : 'w-full'} ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+        value={action}
+        disabled={!enabled}
+        onChange={event => onActionChange(event.target.value as Msx2PlayerFunctionKeyAction)}
+      >
+        {MSX2_FUNCTION_KEY_ACTIONS.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+      {action === 'custom' && (
+        <input
+          className={`${inputClass} min-w-0 flex-1 ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+          value={customLabel}
+          disabled={!enabled}
+          placeholder="Type custom action"
+          onChange={event => onCustomLabelChange(event.target.value)}
+        />
+      )}
+    </div>
+  </div>
+);
+
+const SoundField: React.FC<{
+  label: string;
+  enabled: boolean;
+  triggerPreset: string;
+  triggerCustom: string;
+  soundAssetId: string;
+  soundCustom: string;
+  animationOptions: ReadonlyArray<{ value: string; label: string }>;
+  soundOptions: ReadonlyArray<{ value: string; label: string }>;
+  defaultSoundId: string;
+  onEnabledChange: (enabled: boolean) => void;
+  onTriggerPresetChange: (preset: string) => void;
+  onTriggerCustomChange: (value: string) => void;
+  onSoundAssetChange: (assetId: string) => void;
+  onSoundCustomChange: (value: string) => void;
+}> = ({
+  label,
+  enabled,
+  triggerPreset,
+  triggerCustom,
+  soundAssetId,
+  soundCustom,
+  animationOptions,
+  soundOptions,
+  defaultSoundId,
+  onEnabledChange,
+  onTriggerPresetChange,
+  onTriggerCustomChange,
+  onSoundAssetChange,
+  onSoundCustomChange,
+}) => (
+  <div className={`grid grid-cols-[20px_72px_1fr] items-start gap-2 text-xs ${enabled ? 'text-slate-200' : 'text-slate-500'}`}>
+    <input
+      type="checkbox"
+      checked={enabled}
+      onChange={event => onEnabledChange(event.target.checked)}
+      className="mt-1.5 h-3.5 w-3.5 accent-blue-500"
+      title={enabled ? `Disable ${label} sound` : `Enable ${label} sound`}
+    />
+    <span className={`mt-1.5 ${enabled ? 'text-slate-100' : 'text-slate-400'}`}>{label}:</span>
+    <div className="min-w-0 space-y-1.5">
+      <div className="grid grid-cols-[52px_1fr] items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-slate-400">Event</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <select
+            className={`${selectClass} ${triggerPreset === 'custom' ? 'w-[132px] shrink-0' : 'w-full'} ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+            value={triggerPreset}
+            disabled={!enabled}
+            onChange={event => onTriggerPresetChange(event.target.value)}
+          >
+            <option value={MSX2_PLAYER_SOUND_EVENT_DEFAULT}>Player event</option>
+            {animationOptions.length > 0 && (
+              <optgroup label="Animations">
+                {animationOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </optgroup>
+            )}
+            <option value="custom">Custom</option>
+          </select>
+          {triggerPreset === 'custom' && (
+            <input
+              className={`${inputClass} min-w-0 flex-1 ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+              value={triggerCustom}
+              disabled={!enabled}
+              placeholder="Custom event id"
+              onChange={event => onTriggerCustomChange(event.target.value)}
+            />
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-[52px_1fr] items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-slate-400">Sound</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <select
+            className={`${selectClass} ${soundAssetId === MSX2_PLAYER_SOUND_CUSTOM_ASSET ? 'w-[132px] shrink-0' : 'w-full'} ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+            value={soundAssetId || '__default__'}
+            disabled={!enabled}
+            onChange={event => onSoundAssetChange(event.target.value)}
+          >
+            <option value="__default__">{defaultSoundId}</option>
+            {soundOptions.length > 0 && (
+              <optgroup label="PSG Sound Editor">
+                {soundOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </optgroup>
+            )}
+            <option value={MSX2_PLAYER_SOUND_CUSTOM_ASSET}>Custom</option>
+          </select>
+          {soundAssetId === MSX2_PLAYER_SOUND_CUSTOM_ASSET && (
+            <input
+              className={`${inputClass} min-w-0 flex-1 ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+              value={soundCustom}
+              disabled={!enabled}
+              placeholder="Custom SFX id"
+              onChange={event => onSoundCustomChange(event.target.value)}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const DirectionKeyIcon: React.FC<{ direction: 'left' | 'right' | 'up' | 'down'; dimmed?: boolean }> = ({ direction, dimmed = false }) => {
+  const titles = {
+    left: 'Left arrow key',
+    right: 'Right arrow key',
+    up: 'Up arrow key',
+    down: 'Down arrow key',
+  };
+  const arrows: Record<'left' | 'right' | 'up' | 'down', string> = {
+    up: 'M15 8.5 L20.5 17.5 H9.5 Z',
+    down: 'M15 21.5 L9.5 12.5 H20.5 Z',
+    left: 'M8.5 15 L17.5 9.5 V20.5 Z',
+    right: 'M21.5 15 L12.5 9.5 V20.5 Z',
+  };
+  const shadowId = `key-shadow-${direction}`;
+
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      className={`block drop-shadow-sm ${dimmed ? 'opacity-40' : ''}`}
+      aria-label={titles[direction]}
+      role="img"
+    >
+      <title>{titles[direction]}</title>
+      <defs>
+        <linearGradient id={`key-face-${direction}`} x1="16" y1="2" x2="16" y2="29" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#f8fafc" />
+          <stop offset="55%" stopColor="#dde3eb" />
+          <stop offset="100%" stopColor="#c4ccd8" />
+        </linearGradient>
+        <filter id={shadowId} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1.2" stdDeviation="0.8" floodColor="#000000" floodOpacity="0.28" />
+        </filter>
+      </defs>
+      <rect x="2" y="2" width="28" height="28" rx="6" fill={`url(#key-face-${direction})`} stroke="#778090" strokeWidth="1.1" filter={`url(#${shadowId})`} />
+      <rect x="4" y="4" width="24" height="10" rx="4" fill="#ffffff" opacity="0.55" />
+      <rect x="4" y="24" width="24" height="3.5" rx="1.75" fill="#9aa3b2" opacity="0.45" />
+      <path d={arrows[direction]} fill="#10141c" />
+    </svg>
+  );
+};
+
+const ActionButtonBadge: React.FC<{ letter: 'A' | 'B'; dimmed?: boolean }> = ({ letter, dimmed = false }) => (
+  <span
+    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-black ${letter === 'A' ? 'bg-red-500' : 'bg-blue-500'} ${dimmed ? 'opacity-40' : ''}`}
+    title={`Button ${letter}`}
+    aria-label={`Button ${letter}`}
+  >
+    {letter}
+  </span>
+);
+
+const ControlField: React.FC<{
+  directionKey?: 'left' | 'right' | 'up' | 'down';
+  badge?: 'A' | 'B';
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+}> = ({ directionKey, badge, enabled, onEnabledChange, value, onValueChange, options }) => (
+  <div className={`grid grid-cols-[20px_44px_1fr] items-center gap-2 text-xs ${enabled ? 'text-slate-200' : 'text-slate-500'}`}>
+    <input
+      type="checkbox"
+      checked={enabled}
+      onChange={event => onEnabledChange(event.target.checked)}
+      className="h-3.5 w-3.5 accent-blue-500"
+      title={
+        directionKey
+          ? `${enabled ? 'Disable' : 'Enable'} ${directionKey} arrow`
+          : badge
+            ? `${enabled ? 'Disable' : 'Enable'} button ${badge}`
+            : enabled ? 'Disable this control' : 'Enable this control'
+      }
+    />
+    {directionKey ? (
+      <DirectionKeyIcon direction={directionKey} dimmed={!enabled} />
+    ) : badge ? (
+      <ActionButtonBadge letter={badge} dimmed={!enabled} />
+    ) : null}
+    <select
+      className={`${selectClass} ${enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+      value={value}
+      disabled={!enabled}
+      onChange={event => onValueChange(event.target.value)}
+    >
+      {options.map(option => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  </div>
 );
 
 const PlayerPixelArt: React.FC<{ large?: boolean }> = ({ large = false }) => (
@@ -86,18 +324,23 @@ const PlayerPixelArt: React.FC<{ large?: boolean }> = ({ large = false }) => (
 
 const SpriteFramePreview: React.FC<{
   sprite?: Msx2Sprite | null;
+  frameIndex?: number;
   large?: boolean;
+  pixelScale?: number;
   className?: string;
-}> = ({ sprite, large = false, className = '' }) => {
-  const frame = sprite?.frames?.[sprite.currentFrameIndex] || sprite?.frames?.[0];
+}> = ({ sprite, frameIndex, large = false, pixelScale, className = '' }) => {
+  const resolvedIndex = frameIndex ?? sprite?.currentFrameIndex ?? 0;
+  const frame = sprite?.frames?.[resolvedIndex] || sprite?.frames?.[0];
   const pixels = frame?.data;
   const width = sprite?.size?.width || pixels?.[0]?.length || 16;
   const height = sprite?.size?.height || pixels?.length || 16;
   const backgroundColor = String(sprite?.backgroundColor || '').toUpperCase();
-  const scale = large ? Math.min(5, Math.max(2, Math.floor(112 / Math.max(width, height)))) : Math.min(4, Math.max(2, Math.floor(84 / Math.max(width, height))));
+  const scale = pixelScale ?? (large
+    ? Math.min(5, Math.max(2, Math.floor(112 / Math.max(width, height))))
+    : Math.min(4, Math.max(2, Math.floor(84 / Math.max(width, height)))));
 
   if (!pixels?.length) {
-    return <PlayerPixelArt large={large} />;
+    return <PlayerPixelArt large={large || (pixelScale ?? 0) >= 4} />;
   }
 
   return (
@@ -127,22 +370,310 @@ const SpriteFramePreview: React.FC<{
   );
 };
 
+const PlayerSpriteHitboxPreview: React.FC<{
+  sprite?: Msx2Sprite | null;
+  frameWidth: number;
+  frameHeight: number;
+  hitbox: { x: number; y: number; w: number; h: number };
+}> = ({ sprite, frameWidth, frameHeight, hitbox }) => {
+  const spritePixelW = sprite?.size?.width || frameWidth;
+  const spritePixelH = sprite?.size?.height || frameHeight;
+  const maxStage = 168;
+  const scale = Math.max(2, Math.min(5, Math.floor(maxStage / Math.max(frameWidth, frameHeight))));
+  const stageW = frameWidth * scale;
+  const stageH = frameHeight * scale;
+  const ruler = 24;
+
+  return (
+    <div className="flex h-full min-h-[260px] flex-col overflow-hidden rounded border border-slate-700 bg-[#121820]">
+      <div className="border-b border-slate-700 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">
+        Sprite & Collision
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-5">
+        <div
+          className="grid items-end"
+          style={{
+            gridTemplateColumns: `${ruler}px ${stageW}px`,
+            gridTemplateRows: `${ruler}px ${stageH}px`,
+          }}
+        >
+          <div />
+          <div className="relative pb-1">
+            <div className="relative border-t border-emerald-400/80">
+              <span className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full px-1 text-[10px] font-medium tabular-nums text-emerald-300">
+                {frameWidth}px
+              </span>
+              <span className="absolute left-0 top-0 h-1.5 w-px bg-emerald-400/80" />
+              <span className="absolute right-0 top-0 h-1.5 w-px bg-emerald-400/80" />
+            </div>
+          </div>
+          <div className="relative flex justify-end pr-1">
+            <div className="relative h-full border-l border-emerald-400/80">
+              <span className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 pr-1.5 text-[10px] font-medium tabular-nums text-emerald-300">
+                {frameHeight}px
+              </span>
+              <span className="absolute left-0 top-0 h-px w-1.5 bg-emerald-400/80" />
+              <span className="absolute bottom-0 left-0 h-px w-1.5 bg-emerald-400/80" />
+            </div>
+          </div>
+          <div
+            className="relative overflow-hidden border border-emerald-500/70 bg-[#0a1018]"
+            style={{ width: stageW, height: stageH }}
+          >
+            <div
+              className="pointer-events-none absolute border-2 border-red-500/90 bg-red-500/10"
+              style={{
+                left: hitbox.x * scale,
+                top: hitbox.y * scale,
+                width: hitbox.w * scale,
+                height: hitbox.h * scale,
+              }}
+            />
+            <div
+              className="absolute"
+              style={{
+                left: ((frameWidth - spritePixelW) / 2) * scale,
+                bottom: 0,
+              }}
+            >
+              <SpriteFramePreview sprite={sprite} pixelScale={scale} />
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-slate-300">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-3 border border-emerald-400 bg-emerald-950/30" />
+            Sprite frame
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-3 border-2 border-red-500 bg-red-500/10" />
+            Collision box
+          </span>
+        </div>
+        <p className="mt-2 text-center text-[10px] tabular-nums text-slate-500">
+          Hitbox ({hitbox.x}, {hitbox.y}) · {hitbox.w}×{hitbox.h}px
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const clampAnimationFrames = (frames: number[], sprite?: Msx2Sprite | null): number[] => {
+  const maxIndex = Math.max(0, (sprite?.frames?.length || 1) - 1);
+  const clamped = frames.map(frame => Math.min(Math.max(0, Math.trunc(frame)), maxIndex));
+  return clamped.length ? clamped : [0];
+};
+
+const parseFrameInput = (value: string, sprite?: Msx2Sprite | null): number[] => {
+  const frames = value
+    .split(',')
+    .map(part => Math.max(0, Math.trunc(Number(part.trim()))))
+    .filter(number => Number.isFinite(number));
+  return clampAnimationFrames(frames.length ? frames : [0], sprite);
+};
+
+const AnimationFramePicker: React.FC<{
+  sprite?: Msx2Sprite | null;
+  frames: number[];
+  onChange: (frames: number[]) => void;
+}> = ({ sprite, frames, onChange }) => {
+  const frameCount = sprite?.frames?.length || 0;
+  if (!frameCount) {
+    return <div className="text-[11px] text-slate-400">Select a MSX2 sprite render to pick frames.</div>;
+  }
+
+  const toggleFrame = (frameIndex: number) => {
+    if (frames.includes(frameIndex)) {
+      const next = frames.filter(value => value !== frameIndex);
+      onChange(next.length ? next : [0]);
+      return;
+    }
+    onChange([...frames, frameIndex]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {Array.from({ length: frameCount }).map((_, frameIndex) => {
+          const selected = frames.includes(frameIndex);
+          const order = selected ? frames.indexOf(frameIndex) + 1 : null;
+          return (
+            <button
+              key={frameIndex}
+              type="button"
+              title={`Frame ${frameIndex}${selected ? ` (#${order} in animation)` : ''}`}
+              onClick={() => toggleFrame(frameIndex)}
+              className={`relative rounded border p-1 ${selected ? 'border-sky-400 bg-sky-950/40' : 'border-slate-700 bg-[#111821] hover:border-slate-500'}`}
+            >
+              <SpriteFramePreview sprite={sprite} frameIndex={frameIndex} />
+              <span className="mt-0.5 block text-center text-[10px] text-slate-300">#{frameIndex}</span>
+              {selected && order !== null && (
+                <span className="absolute right-0.5 top-0.5 rounded-full bg-sky-500 px-1 text-[9px] font-bold text-black">{order}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <input
+        className={inputClass}
+        value={frames.join(', ')}
+        placeholder="0, 1, 2"
+        onChange={event => onChange(parseFrameInput(event.target.value, sprite))}
+      />
+    </div>
+  );
+};
+
+const animationDelayMs = (speed: number): number =>
+  Math.max(32, Math.round(Math.max(1, speed) * (1000 / 60)));
+
+const usePlayerAnimationPreview = (
+  animation: Msx2PlayerAnimation | undefined,
+  animationKey: string | null,
+) => {
+  const frameIndices = useMemo(
+    () => (animation?.frames?.length ? animation.frames : [0]),
+    [animation?.frames],
+  );
+  const [playing, setPlaying] = useState(false);
+  const [slot, setSlot] = useState(0);
+  const spriteFrameIndex = frameIndices[Math.min(slot, frameIndices.length - 1)] ?? 0;
+  const delayMs = animationDelayMs(animation?.speed ?? 6);
+
+  useEffect(() => {
+    setSlot(0);
+    setPlaying(false);
+  }, [animationKey, frameIndices.join(',')]);
+
+  useEffect(() => {
+    if (!playing || frameIndices.length <= 1) return undefined;
+    const playback = animation?.playback ?? 'loop';
+    const timer = window.setInterval(() => {
+      setSlot(previous => {
+        const last = frameIndices.length - 1;
+        if (previous >= last) {
+          if (playback === 'once') {
+            setPlaying(false);
+            return last;
+          }
+          return 0;
+        }
+        return previous + 1;
+      });
+    }, delayMs);
+    return () => window.clearInterval(timer);
+  }, [playing, frameIndices, delayMs, animation?.playback]);
+
+  return {
+    playing,
+    play: () => setPlaying(true),
+    stop: () => {
+      setPlaying(false);
+      setSlot(0);
+    },
+    spriteFrameIndex,
+  };
+};
+
+const PlayerPreviewControls: React.FC<{
+  playing: boolean;
+  onPlay: () => void;
+  onStop: () => void;
+  selectedKey: string | null;
+  animationRows: ReadonlyArray<{ key: string; animation: string }>;
+  onSelectAnimation: (key: string | null) => void;
+}> = ({ playing, onPlay, onStop, selectedKey, animationRows, onSelectAnimation }) => (
+  <div className="mt-3 flex items-center gap-2">
+    <button
+      className={`h-8 w-8 rounded border text-xs ${playing ? 'border-sky-500 bg-sky-900/50' : 'border-slate-700 bg-[#242c38] hover:bg-[#2d3747]'}`}
+      type="button"
+      title="Play animation"
+      aria-label="Play animation"
+      onClick={onPlay}
+    >
+      &gt;
+    </button>
+    <button
+      className="h-8 w-8 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]"
+      type="button"
+      title="Stop animation"
+      aria-label="Stop animation"
+      onClick={onStop}
+    >
+      []
+    </button>
+    <select
+      className={`${selectClass} flex-1`}
+      value={selectedKey || ''}
+      onChange={event => onSelectAnimation(event.target.value || null)}
+    >
+      {animationRows.map(row => (
+        <option key={row.key} value={row.key}>Anim: {row.animation}</option>
+      ))}
+    </select>
+  </div>
+);
+
 export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUpdate, allAssets }) => {
   const normalized = useMemo(() => normalizeMsx2PlayerDefinition(player), [player]);
+  const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
+  const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const importRef = useRef<HTMLInputElement>(null);
   const spriteAssets = allAssets.filter(asset => asset.type === 'msx2sprite');
+  const soundAssets = allAssets.filter(asset => asset.type === 'sound');
+  const stateMachineAssets = allAssets.filter(asset => asset.type === 'statemachine');
   const paletteAssets = allAssets.filter(asset => asset.type === 'palette');
   const selectedSprite = useMemo(
     () => spriteAssets.find(asset => asset.id === normalized.render.spriteAssetId)?.data as Msx2Sprite | undefined,
     [normalized.render.spriteAssetId, spriteAssets]
   );
-  const spriteSize = spriteSizeToDimensions(normalized.render.spriteSize);
+  const resolveAnimationSpriteAssetId = (animation?: Msx2PlayerAnimation) =>
+    animation?.spriteAssetId || normalized.render.spriteAssetId;
+  const resolveAnimationSprite = (animation?: Msx2PlayerAnimation): Msx2Sprite | undefined => {
+    const assetId = resolveAnimationSpriteAssetId(animation);
+    if (!assetId) return undefined;
+    return spriteAssets.find(asset => asset.id === assetId)?.data as Msx2Sprite | undefined;
+  };
+  const labelForSpriteAsset = (assetId?: string) => {
+    if (!assetId) return 'Default';
+    return spriteAssets.find(asset => asset.id === assetId)?.name || assetId;
+  };
+  const spriteSize = parsePlayerSpriteSize(normalized.render.spriteSize);
   const body = normalized.hitboxes.body;
   const attack = normalized.hitboxes.attack || { x: 4, y: 6, w: 8, h: 12 };
+  const logic = normalized.logic || {};
+  const selectedStateMachineAsset = useMemo(
+    () => stateMachineAssets.find(asset => asset.id === normalized.stateMachineAssetId),
+    [normalized.stateMachineAssetId, stateMachineAssets],
+  );
+  const selectedStateMachine = selectedStateMachineAsset?.data as StateMachine | undefined;
   const worldCompatibility = normalized.worldCompatibility || ['all'];
 
   const updateRender = (patch: Partial<Msx2PlayerDefinition['render']>) => onUpdate({ render: { ...normalized.render, ...patch } });
+  const selectDefaultSpriteAsset = (spriteAssetId: string | undefined) => {
+    const sprite = spriteAssetId
+      ? spriteAssets.find(asset => asset.id === spriteAssetId)?.data as Msx2Sprite | undefined
+      : undefined;
+    const nextSpriteSize = spriteSizeFromMsx2Sprite(sprite);
+    updateRender({
+      spriteAssetId,
+      ...(nextSpriteSize ? { spriteSize: nextSpriteSize } : {}),
+    });
+  };
+
+  useEffect(() => {
+    if (!normalized.render.spriteAssetId || !selectedSprite?.size) return;
+    const nextSpriteSize = spriteSizeFromMsx2Sprite(selectedSprite);
+    if (nextSpriteSize && normalized.render.spriteSize !== nextSpriteSize) {
+      updateRender({ spriteSize: nextSpriteSize });
+    }
+  }, [
+    normalized.render.spriteAssetId,
+    normalized.render.spriteSize,
+    selectedSprite?.size?.width,
+    selectedSprite?.size?.height,
+  ]);
   const updateMovement = (patch: Partial<Msx2PlayerDefinition['movement']>) => onUpdate({ movement: { ...normalized.movement, ...patch } });
   const updateHealth = (patch: Partial<Msx2PlayerDefinition['health']>) => onUpdate({ health: { ...normalized.health, ...patch } });
   const updateAttack = (patch: Partial<Msx2PlayerDefinition['attack']>) => onUpdate({ attack: { ...normalized.attack, ...patch } });
@@ -154,9 +685,35 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
       : worldCompatibility.filter(value => value !== world);
     onUpdate({ worldCompatibility: next.length ? next : ['all'] });
   };
+  const updateInputEnabled = (key: string, enabled: boolean) => {
+    onUpdate({ inputEnabled: { ...normalized.inputEnabled, [key]: enabled } });
+  };
+  const updateLogic = (patch: Partial<Msx2PlayerLogicFlags>) => {
+    onUpdate({ logic: { ...logic, ...patch } });
+  };
+  const selectStateMachineAsset = (assetId: string | undefined) => {
+    onUpdate(buildPlayerStateMachinePatchFromAsset(assetId, stateMachineAssets));
+  };
+
+  const controlRows: ReadonlyArray<{
+    directionKey?: 'left' | 'right' | 'up' | 'down';
+    badge?: 'A' | 'B';
+    key: Msx2PlayerControlId;
+    binding: 'direction' | 'button';
+    fallback: string;
+  }> = [
+    { directionKey: 'left', key: 'left', binding: 'direction', fallback: 'arrows' },
+    { directionKey: 'right', key: 'right', binding: 'direction', fallback: 'arrows' },
+    { directionKey: 'up', key: 'up', binding: 'direction', fallback: 'arrows' },
+    { directionKey: 'down', key: 'down', binding: 'direction', fallback: 'arrows' },
+    { badge: 'A', key: 'jump', binding: 'button', fallback: 'spc' },
+    { badge: 'B', key: 'attack', binding: 'button', fallback: 'm' },
+  ];
+
+  const functionKeyRows: Msx2PlayerFunctionKeyId[] = ['f1', 'f2', 'f3', 'f4', 'f5'];
 
   const exportPlayer = () => {
-    const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(detailedDocument, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -170,7 +727,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        onUpdate(normalizeMsx2PlayerDefinition(JSON.parse(String(reader.result))));
+        onUpdate(parseMsx2PlayerImport(JSON.parse(String(reader.result))));
       } catch {
         window.alert('Invalid MSX2 player JSON.');
       }
@@ -178,13 +735,188 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     reader.readAsText(file);
   };
 
-  const animationRows = Object.entries(normalized.animations).map(([name, animation], index) => ({
-    id: index,
-    name,
-    type: name === 'hurt' || name === 'death' ? 'Once' : 'Loop',
-    frames: animation.frames.length,
-    speed: animation.speed,
-  }));
+  const animationOrder = normalized.animationOrder || Object.keys(normalized.animations);
+  const selectedKey = selectedAnimationKey && normalized.animations[selectedAnimationKey]
+    ? selectedAnimationKey
+    : animationOrder[0] || null;
+  const selectedAnimation = selectedKey ? normalized.animations[selectedKey] : undefined;
+  const selectedAnimationSprite = useMemo(
+    () => resolveAnimationSprite(selectedAnimation),
+    [selectedAnimation, normalized.render.spriteAssetId, spriteAssets]
+  );
+  const previewAnimationSprite = selectedAnimationSprite || selectedSprite;
+  const previewAnimation = usePlayerAnimationPreview(selectedAnimation, selectedKey);
+
+  const updateAnimations = (animations: Record<string, Msx2PlayerAnimation>, nextOrder: string[]) => {
+    onUpdate({ animations, animationOrder: nextOrder });
+  };
+
+  const updateSelectedAnimation = (patch: Partial<Msx2PlayerAnimation>) => {
+    if (!selectedKey) return;
+    updateAnimations(
+      { ...normalized.animations, [selectedKey]: { ...normalized.animations[selectedKey], ...patch } },
+      animationOrder,
+    );
+  };
+
+  const addAnimation = () => {
+    const key = `anim_${Date.now()}`;
+    updateAnimations(
+      {
+        ...normalized.animations,
+        [key]: {
+          frames: [0],
+          speed: 6,
+          role: 'custom',
+          customRole: 'Custom',
+          playback: 'loop',
+          spriteAssetId: normalized.render.spriteAssetId,
+        },
+      },
+      [...animationOrder, key],
+    );
+    setSelectedAnimationKey(key);
+  };
+
+  const deleteAnimation = () => {
+    if (!selectedKey || animationOrder.length <= 1) return;
+    const { [selectedKey]: _removed, ...rest } = normalized.animations;
+    const nextOrder = animationOrder.filter(key => key !== selectedKey);
+    updateAnimations(rest, nextOrder);
+    setSelectedAnimationKey(nextOrder[0] || null);
+  };
+
+  const duplicateAnimation = () => {
+    if (!selectedKey) return;
+    const key = `${selectedKey}_copy`;
+    updateAnimations(
+      {
+        ...normalized.animations,
+        [key]: {
+          ...normalized.animations[selectedKey],
+          frames: [...normalized.animations[selectedKey].frames],
+        },
+      },
+      [...animationOrder, key],
+    );
+    setSelectedAnimationKey(key);
+  };
+
+  const moveAnimation = (delta: -1 | 1) => {
+    if (!selectedKey) return;
+    const index = animationOrder.indexOf(selectedKey);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= animationOrder.length) return;
+    const nextOrder = [...animationOrder];
+    [nextOrder[index], nextOrder[target]] = [nextOrder[target], nextOrder[index]];
+    updateAnimations(normalized.animations, nextOrder);
+  };
+
+  const animationRows = animationOrder
+    .filter(key => normalized.animations[key])
+    .map((key, index) => {
+      const animation = normalized.animations[key];
+      return {
+        key,
+        id: index,
+        animation: labelForAnimationRole(animation),
+        render: labelForSpriteAsset(resolveAnimationSpriteAssetId(animation)),
+        type: animation.playback === 'once' ? 'Once' : 'Loop',
+        frames: animation.frames.length,
+        speed: animation.speed,
+      };
+    });
+
+  const soundAnimationOptions = useMemo(
+    () => animationOrder
+      .filter(key => normalized.animations[key])
+      .map(key => ({
+        value: `anim:${key}`,
+        label: `Anim: ${labelForAnimationRole(normalized.animations[key])}`,
+      })),
+    [animationOrder, normalized.animations],
+  );
+
+  const soundAssetOptions = useMemo(
+    () => soundAssets.map(asset => ({
+      value: asset.id,
+      label: asset.name,
+    })),
+    [soundAssets],
+  );
+
+  const updateSoundSlot = (
+    slotId: Msx2PlayerSoundSlotId,
+    patch: {
+      enabled?: boolean;
+      triggerPreset?: string;
+      triggerCustom?: string;
+      soundAssetId?: string | null;
+      soundCustom?: string;
+    },
+  ) => {
+    const slot = MSX2_PLAYER_SOUND_SLOTS.find(entry => entry.id === slotId);
+    if (!slot) return;
+
+    const soundPresets = {
+      ...(normalized.soundPresets || {}),
+      ...(patch.triggerPreset !== undefined ? { [slotId]: patch.triggerPreset } : {}),
+    };
+    const soundCustomValues = {
+      ...(normalized.soundCustomValues || {}),
+      ...(patch.triggerCustom !== undefined ? { [slotId]: patch.triggerCustom } : {}),
+    };
+    const soundAssetIds = { ...(normalized.soundAssetIds || {}) };
+    const soundAssetCustomValues = {
+      ...(normalized.soundAssetCustomValues || {}),
+      ...(patch.soundCustom !== undefined ? { [slotId]: patch.soundCustom } : {}),
+    };
+    const soundsEnabled = {
+      ...(normalized.soundsEnabled || {}),
+      ...(patch.enabled !== undefined ? { [slotId]: patch.enabled } : {}),
+    };
+
+    if (patch.soundAssetId !== undefined) {
+      if (!patch.soundAssetId || patch.soundAssetId === '__default__') {
+        delete soundAssetIds[slotId];
+      } else {
+        soundAssetIds[slotId] = patch.soundAssetId;
+      }
+    }
+
+    const selectedSoundAssetId = soundAssetIds[slotId];
+    let resolvedSound = slot.defaultPreset;
+    if (selectedSoundAssetId === MSX2_PLAYER_SOUND_CUSTOM_ASSET) {
+      resolvedSound = resolvePlayerSoundExportId(
+        MSX2_PLAYER_SOUND_CUSTOM_ASSET,
+        soundAssetCustomValues[slotId],
+        slot.defaultPreset,
+      );
+    } else if (selectedSoundAssetId) {
+      const asset = soundAssets.find(entry => entry.id === selectedSoundAssetId);
+      resolvedSound = asset?.name || asset?.id || slot.defaultPreset;
+    } else if (soundAssetCustomValues[slotId]?.trim()) {
+      resolvedSound = soundAssetCustomValues[slotId].trim();
+    } else {
+      resolvedSound = normalized.sounds?.[slotId] || slot.defaultPreset;
+    }
+
+    onUpdate({
+      soundPresets,
+      soundCustomValues,
+      soundAssetIds,
+      soundAssetCustomValues,
+      soundsEnabled,
+      sounds: {
+        ...(normalized.sounds || {}),
+        [slotId]: resolvedSound,
+      },
+    });
+  };
+
+  const importSoundsFromAnimations = () => {
+    onUpdate(buildSoundsImportFromAnimations(normalized));
+  };
 
   return (
     <div className="h-full min-h-0 overflow-hidden bg-[#11161f] text-slate-100">
@@ -194,10 +926,10 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
             <span className="text-xs font-semibold text-slate-100">Player Name:</span>
             <input className={`${inputClass} max-w-[320px]`} value={normalized.name} onChange={event => onUpdate({ name: event.target.value })} />
           </div>
-          <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={() => navigator.clipboard?.writeText(JSON.stringify(normalized, null, 2))}>Duplicate</button>
+          <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={() => navigator.clipboard?.writeText(JSON.stringify(detailedDocument, null, 2))}>Duplicate</button>
           <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={exportPlayer}>Export...</button>
           <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={() => importRef.current?.click()}>Import...</button>
-          <button className="h-8 rounded border border-blue-700 bg-blue-700 px-6 text-xs font-semibold hover:bg-blue-600" type="button" onClick={() => onUpdate(normalized)}>Save</button>
+          <button className="h-8 rounded border border-blue-700 bg-blue-700 px-6 text-xs font-semibold hover:bg-blue-600" type="button" onClick={() => onUpdate(detailedDocument as unknown as Partial<Msx2PlayerDefinition>)}>Save</button>
           <input ref={importRef} type="file" accept=".json,.player.json,application/json" className="hidden" onChange={event => importPlayer(event.target.files?.[0])} />
         </div>
 
@@ -225,19 +957,21 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                 <div className="relative h-[220px] overflow-hidden rounded border border-slate-700 bg-[linear-gradient(45deg,#1a202b_25%,transparent_25%),linear-gradient(-45deg,#1a202b_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1a202b_75%),linear-gradient(-45deg,transparent_75%,#1a202b_75%)] bg-[length:20px_20px] bg-[#141923]">
                   <div className="absolute bottom-0 left-0 right-0 h-12 bg-[linear-gradient(#48b548_0_35%,#7b5127_35%)]" />
                   <div className="absolute bottom-12 left-1/2 -translate-x-1/2">
-                    <SpriteFramePreview sprite={selectedSprite} large />
+                    <SpriteFramePreview
+                      sprite={previewAnimationSprite}
+                      frameIndex={previewAnimation.spriteFrameIndex}
+                      large
+                    />
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <button className="h-8 w-8 rounded border border-slate-700 bg-[#242c38] text-xs" type="button">&gt;</button>
-                  <button className="h-8 w-8 rounded border border-slate-700 bg-[#242c38] text-xs" type="button">[]</button>
-                  <select className={`${selectClass} flex-1`} value="idle" onChange={() => undefined}>
-                    <option value="idle">Anim: Idle Down</option>
-                    <option value="walk">Anim: Walk Right</option>
-                    <option value="jump">Anim: Jump</option>
-                    <option value="hurt">Anim: Hurt</option>
-                  </select>
-                </div>
+                <PlayerPreviewControls
+                  playing={previewAnimation.playing}
+                  onPlay={previewAnimation.play}
+                  onStop={previewAnimation.stop}
+                  selectedKey={selectedKey}
+                  animationRows={animationRows}
+                  onSelectAnimation={setSelectedAnimationKey}
+                />
               </div>
             </section>
           </aside>
@@ -289,7 +1023,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
 
               <section className={`${panelClass} ${activeSection === 'Physics & Movement' ? 'absolute inset-0' : 'hidden'}`}>
                 <div className={panelTitleClass}>Physics & Movement</div>
-                <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,1fr)_270px] gap-3 overflow-hidden p-3">
+                <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,1fr)_minmax(220px,280px)] gap-3 overflow-hidden p-3">
                   <div className="min-h-0 space-y-2 overflow-auto pr-1">
                     <Field label="Max Speed" suffix="px/frame"><SmallNumber step={0.01} value={numberValue(normalized.movement.moveSpeed, 2)} onChange={value => updateMovement({ moveSpeed: value })} /></Field>
                     <Field label="Acceleration"><SmallNumber step={0.01} value={numberValue(normalized.movement.acceleration, 0.2)} onChange={value => updateMovement({ acceleration: value })} /></Field>
@@ -305,26 +1039,12 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                       <Checkbox label="Can Climb Ladders" checked={true} onChange={() => undefined} />
                     </div>
                   </div>
-                  <div className="relative min-h-[220px] overflow-hidden rounded border border-slate-700 bg-[#141a24] p-3">
-                    <div className="absolute left-16 top-5 h-px w-16 bg-green-300" />
-                    <div className="absolute left-[88px] top-3 text-xs text-green-200">{spriteSize.width}</div>
-                    <div className="absolute right-10 top-14 h-24 w-px bg-green-300" />
-                    <div className="absolute right-12 top-[82px] text-xs text-green-200">{spriteSize.height}</div>
-                    <div className="absolute left-16 top-10 h-24 w-16 border border-green-500/70">
-                      <div className="flex h-full w-full items-center justify-center">
-                        <SpriteFramePreview sprite={selectedSprite} />
-                      </div>
-                    </div>
-                    <div className="absolute bottom-12 left-16 h-20 w-16 border border-red-500/80">
-                      <div className="flex h-full w-full items-center justify-center">
-                        <SpriteFramePreview sprite={selectedSprite} />
-                      </div>
-                    </div>
-                    <div className="absolute bottom-6 right-4 space-y-2 text-xs">
-                      <div className="flex items-center gap-2"><span className="h-3 w-3 border border-green-400" />Sprite Size</div>
-                      <div className="flex items-center gap-2"><span className="h-3 w-3 border border-red-500" />Collision Box</div>
-                    </div>
-                  </div>
+                  <PlayerSpriteHitboxPreview
+                    sprite={selectedSprite}
+                    frameWidth={spriteSize.width}
+                    frameHeight={spriteSize.height}
+                    hitbox={body}
+                  />
                 </div>
               </section>
             </div>
@@ -334,9 +1054,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                 <div className={panelTitleClass}>Graphics & Animations</div>
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,1fr)_72px] gap-3 overflow-hidden p-3">
                   <div className="min-h-0 space-y-2 overflow-hidden">
-                    <Field label="Sprite Set">
-                      <select className={selectClass} value={normalized.render.spriteAssetId || ''} onChange={event => updateRender({ spriteAssetId: event.target.value || undefined })}>
-                        <option value="">hero_set_01.chr</option>
+                    <Field label="Default Sprite Set">
+                      <select className={selectClass} value={normalized.render.spriteAssetId || ''} onChange={event => selectDefaultSpriteAsset(event.target.value || undefined)}>
+                        <option value="">(none)</option>
                         {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                       </select>
                     </Field>
@@ -346,26 +1066,110 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                         {paletteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                       </select>
                     </Field>
-                    <Field label="Animations"><SmallNumber value={animationRows.length} onChange={() => undefined} /></Field>
                     <div className="max-h-[150px] overflow-auto rounded border border-slate-800">
                       <table className="w-full text-left text-xs">
                         <thead className="sticky top-0 bg-[#151b25] text-slate-200">
-                          <tr><th className="px-2 py-1">ID</th><th>Name</th><th>Type</th><th>Frames</th><th>Speed</th></tr>
+                          <tr><th className="px-2 py-1">ID</th><th>Animation</th><th>Render</th><th>Type</th><th>Frames</th><th>Speed</th></tr>
                         </thead>
                         <tbody>
                           {animationRows.map(row => (
-                            <tr key={row.name} className="border-t border-slate-800">
-                              <td className="px-2 py-1">{row.id}</td><td>{row.name}</td><td>{row.type}</td><td>{row.frames}</td><td>{row.speed}</td>
+                            <tr
+                              key={row.key}
+                              className={`cursor-pointer border-t border-slate-800 ${selectedKey === row.key ? 'bg-blue-900/40' : 'hover:bg-slate-800/60'}`}
+                              onClick={() => setSelectedAnimationKey(row.key)}
+                            >
+                              <td className="px-2 py-1">{row.id}</td>
+                              <td>{row.animation}</td>
+                              <td className="max-w-[96px] truncate" title={row.render}>{row.render}</td>
+                              <td>{row.type}</td>
+                              <td>{row.frames}</td>
+                              <td>{row.speed}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                    {selectedAnimation && selectedKey && (
+                      <div className="space-y-2 rounded border border-slate-700 bg-[#151b25] p-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">Edit Animation</div>
+                        <Field label="Animation">
+                          <select
+                            className={selectClass}
+                            value={selectedAnimation.role || 'custom'}
+                            onChange={event => updateSelectedAnimation({ role: event.target.value as Msx2PlayerAnimationRole })}
+                          >
+                            {MSX2_PLAYER_ANIMATION_ROLES.map(option => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        {selectedAnimation.role === 'custom' && (
+                          <Field label="Custom">
+                            <input
+                              className={inputClass}
+                              value={selectedAnimation.customRole || ''}
+                              placeholder="Custom animation name"
+                              onChange={event => updateSelectedAnimation({ customRole: event.target.value })}
+                            />
+                          </Field>
+                        )}
+                        <Field label="Render">
+                          <select
+                            className={selectClass}
+                            value={selectedAnimation.spriteAssetId || ''}
+                            onChange={event => {
+                              const spriteAssetId = event.target.value || undefined;
+                              const sprite = spriteAssetId
+                                ? spriteAssets.find(asset => asset.id === spriteAssetId)?.data as Msx2Sprite | undefined
+                                : resolveAnimationSprite({ ...selectedAnimation, spriteAssetId: undefined });
+                              updateSelectedAnimation({
+                                spriteAssetId,
+                                frames: clampAnimationFrames(selectedAnimation.frames, sprite),
+                              });
+                            }}
+                          >
+                            <option value="">Use default sprite set</option>
+                            {spriteAssets.map(asset => (
+                              <option key={asset.id} value={asset.id}>{asset.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Type">
+                          <select
+                            className={selectClass}
+                            value={selectedAnimation.playback || 'loop'}
+                            onChange={event => updateSelectedAnimation({ playback: event.target.value as Msx2PlayerAnimationPlayback })}
+                          >
+                            <option value="loop">Loop</option>
+                            <option value="once">Once</option>
+                          </select>
+                        </Field>
+                        <Field label="Frames">
+                          <AnimationFramePicker
+                            sprite={selectedAnimationSprite}
+                            frames={selectedAnimation.frames}
+                            onChange={frames => updateSelectedAnimation({ frames })}
+                          />
+                        </Field>
+                        <Field label="Speed">
+                          <SmallNumber value={selectedAnimation.speed} onChange={value => updateSelectedAnimation({ speed: value })} />
+                        </Field>
+                        <div className="text-[11px] text-slate-400">
+                          Internal key: {selectedKey}
+                          {' · '}
+                          Render: {labelForSpriteAsset(resolveAnimationSpriteAssetId(selectedAnimation))}
+                          {selectedAnimationSprite ? ` (${selectedAnimationSprite.frames.length} frames)` : ''}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2">
-                    {['Add', 'Edit', 'Duplicate', 'Delete', 'Up', 'Down'].map(label => (
-                      <button key={label} type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]">{label}</button>
-                    ))}
+                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={addAnimation}>Add</button>
+                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={() => selectedKey && setSelectedAnimationKey(selectedKey)}>Edit</button>
+                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={duplicateAnimation}>Duplicate</button>
+                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={deleteAnimation}>Delete</button>
+                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={() => moveAnimation(-1)}>Up</button>
+                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={() => moveAnimation(1)}>Down</button>
                   </div>
                 </div>
               </section>
@@ -373,27 +1177,56 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
               <section className={`${panelClass} ${activeSection === 'Controls' ? 'absolute inset-0' : 'hidden'}`}>
                 <div className={panelTitleClass}>Controls</div>
                 <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-                  {[
-                    ['Left', 'left', 'Left Arrow'],
-                    ['Right', 'right', 'Right Arrow'],
-                    ['Up', 'up', 'Up Arrow / Z'],
-                    ['Down / Crouch', 'down', 'Down Arrow'],
-                    ['Jump', 'jump', 'Space / X'],
-                    ['Attack', 'attack', 'Ctrl / C'],
-                    ['Use / Action', 'interact', 'Enter / V'],
-                  ].map(([label, key, fallback]) => (
-                    <Field key={key} label={label}>
-                      <select
-                        className={selectClass}
-                        value={normalized.inputMapping[key] || fallback}
-                        onChange={event => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: event.target.value } })}
-                      >
-                        <option>{fallback}</option>
-                        <option>Joystick</option>
-                        <option>Keyboard</option>
-                      </select>
-                    </Field>
-                  ))}
+                  <p className="text-[11px] text-slate-400">
+                    Directions use Arrows or Joystick 1/2. Buttons A and B map to any MSX key or joystick trigger.
+                  </p>
+                  {controlRows.map(({ directionKey, badge, key, binding, fallback }) => {
+                    const enabled = normalized.inputEnabled?.[key] !== false;
+                    const value = normalized.inputMapping[key] || fallback;
+                    const options = binding === 'button' ? MSX2_PLAYER_BUTTON_BINDINGS : MSX2_PLAYER_INPUT_SOURCES;
+                    return (
+                      <ControlField
+                        key={key}
+                        directionKey={directionKey}
+                        badge={badge}
+                        enabled={enabled}
+                        onEnabledChange={checked => updateInputEnabled(key, checked)}
+                        value={value}
+                        onValueChange={nextValue => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: nextValue } })}
+                        options={options}
+                      />
+                    );
+                  })}
+                  <div className="border-t border-slate-800 pt-2">
+                    <p className="mb-2 text-[11px] text-slate-400">
+                      Function keys keep their MSX key (F1-F5). Pick a preset or choose Custom to type your own action.
+                    </p>
+                    {functionKeyRows.map(keyId => {
+                      const enabled = normalized.inputEnabled?.[keyId] === true;
+                      const action = (normalized.inputMapping[keyId] as Msx2PlayerFunctionKeyAction) || 'none';
+                      const customLabel = normalized.functionKeyCustomActions?.[keyId] || '';
+                      return (
+                        <FunctionKeyField
+                          key={keyId}
+                          keyId={keyId}
+                          enabled={enabled}
+                          action={action}
+                          customLabel={customLabel}
+                          onEnabledChange={checked => updateInputEnabled(keyId, checked)}
+                          onActionChange={value => onUpdate({
+                            inputMapping: { ...normalized.inputMapping, [keyId]: value },
+                            ...(value === 'custom'
+                              ? { functionKeyCustomActions: { ...normalized.functionKeyCustomActions, [keyId]: customLabel } }
+                              : {}),
+                          })}
+                          onCustomLabelChange={label => onUpdate({
+                            inputMapping: { ...normalized.inputMapping, [keyId]: 'custom' },
+                            functionKeyCustomActions: { ...normalized.functionKeyCustomActions, [keyId]: label },
+                          })}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
               </section>
 
@@ -431,15 +1264,77 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
               </section>
               <section className={`${panelClass} ${activeSection === 'States & Logic' ? 'absolute inset-0' : 'hidden'}`}>
                 <div className={panelTitleClass}>States & Logic</div>
-                <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-                  <Field label="State Machine"><input className={inputClass} value={normalized.basedOnTemplate || 'default_player.fsm'} onChange={event => onUpdate({ basedOnTemplate: event.target.value })} /></Field>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Checkbox label="Is Player" checked={true} onChange={() => undefined} />
-                    <Checkbox label="Blocks Projectiles" checked={true} onChange={() => undefined} />
-                    <Checkbox label="Affects Enemies" checked={true} onChange={() => undefined} />
-                    <Checkbox label="Pushable" checked={false} onChange={() => undefined} />
-                    <Checkbox label="Triggers Events" checked={true} onChange={() => undefined} />
-                    <Checkbox label="Can Die" checked={true} onChange={() => undefined} />
+                <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
+                  <Field label="State Machine">
+                    <select
+                      className={selectClass}
+                      value={normalized.stateMachineAssetId || ''}
+                      onChange={event => selectStateMachineAsset(event.target.value || undefined)}
+                    >
+                      <option value="">(none)</option>
+                      {stateMachineAssets.map(asset => (
+                        <option key={asset.id} value={asset.id}>{asset.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="rounded border border-slate-700 bg-[#121820] p-3">
+                    {selectedStateMachine ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-semibold text-slate-100">{selectedStateMachineAsset?.name || selectedStateMachine.name}</div>
+                            <div className="text-[11px] text-slate-400">
+                              Initial: {selectedStateMachine.initialStateId || '—'}
+                              {' · '}
+                              {selectedStateMachine.states.length} states
+                              {' · '}
+                              {selectedStateMachine.transitions.length} transitions
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedStateMachine.states.map(state => (
+                            <span
+                              key={state.id}
+                              className={`rounded border px-2 py-0.5 text-[10px] ${
+                                state.id === selectedStateMachine.initialStateId
+                                  ? 'border-sky-500 bg-sky-950/40 text-sky-200'
+                                  : 'border-slate-700 bg-[#151b25] text-slate-300'
+                              }`}
+                            >
+                              {state.name || state.id}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-[11px] text-slate-400">
+                          Select a State Machine asset from the project, or use the built-in template states below.
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {normalized.stateMachine.map(stateName => (
+                            <span key={stateName} className="rounded border border-slate-700 bg-[#151b25] px-2 py-0.5 text-[10px] text-slate-300">
+                              {stateName}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <Field label="Game Template">
+                    <input className={inputClass} readOnly value={normalized.basedOnTemplate || 'platformer_basic'} />
+                  </Field>
+                  <div>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">Logic Flags</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Checkbox label="Is Player" checked={logic.isPlayer !== false} onChange={checked => updateLogic({ isPlayer: checked })} />
+                      <Checkbox label="Blocks Projectiles" checked={logic.blocksProjectiles !== false} onChange={checked => updateLogic({ blocksProjectiles: checked })} />
+                      <Checkbox label="Affects Enemies" checked={logic.affectsEnemies !== false} onChange={checked => updateLogic({ affectsEnemies: checked })} />
+                      <Checkbox label="Pushable" checked={logic.pushable === true} onChange={checked => updateLogic({ pushable: checked })} />
+                      <Checkbox label="Triggers Events" checked={logic.triggersEvents !== false} onChange={checked => updateLogic({ triggersEvents: checked })} />
+                      <Checkbox label="Can Die" checked={logic.canDie !== false} onChange={checked => updateLogic({ canDie: checked })} />
+                    </div>
                   </div>
                 </div>
               </section>
@@ -462,22 +1357,45 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
             </div>
             <section className={`${panelClass} ${activeSection === 'Sounds' ? 'absolute inset-0' : 'hidden'}`}>
               <div className={panelTitleClass}>Sounds</div>
-              <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-                {[
-                  ['Jump', 'onJump', 'sfx_jump'],
-                  ['Hit', 'onHit', 'sfx_player_hit'],
-                  ['Death', 'onDeath', 'sfx_death'],
-                  ['Attack', 'onAttack', 'sfx_attack'],
-                  ['Land', 'onLand', 'sfx_land'],
-                ].map(([label, key, fallback]) => (
-                  <Field key={key} label={label}>
-                    <input
-                      className={inputClass}
-                      value={normalized.sounds?.[key] || fallback}
-                      onChange={event => onUpdate({ sounds: { ...(normalized.sounds || {}), [key]: event.target.value } })}
+              <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-slate-400">
+                    Link player events to animations and pick MSX2 PSG sound assets for each slot.
+                  </p>
+                  <button
+                    type="button"
+                    className="h-7 shrink-0 rounded border border-sky-700 bg-sky-950/40 px-3 text-xs text-sky-200 hover:bg-sky-900/50"
+                    onClick={importSoundsFromAnimations}
+                  >
+                    Import from Animations
+                  </button>
+                </div>
+                {MSX2_PLAYER_SOUND_SLOTS.map(slot => {
+                  const triggerPreset = normalized.soundPresets?.[slot.id] || MSX2_PLAYER_SOUND_EVENT_DEFAULT;
+                  const triggerCustom = normalized.soundCustomValues?.[slot.id] || '';
+                  const soundAssetId = normalized.soundAssetIds?.[slot.id] || '';
+                  const soundCustom = normalized.soundAssetCustomValues?.[slot.id] || '';
+                  const enabled = normalized.soundsEnabled?.[slot.id] !== false;
+                  return (
+                    <SoundField
+                      key={slot.id}
+                      label={slot.label}
+                      enabled={enabled}
+                      triggerPreset={triggerPreset}
+                      triggerCustom={triggerCustom}
+                      soundAssetId={soundAssetId}
+                      soundCustom={soundCustom}
+                      animationOptions={soundAnimationOptions}
+                      soundOptions={soundAssetOptions}
+                      defaultSoundId={slot.defaultPreset}
+                      onEnabledChange={checked => updateSoundSlot(slot.id, { enabled: checked })}
+                      onTriggerPresetChange={value => updateSoundSlot(slot.id, { triggerPreset: value })}
+                      onTriggerCustomChange={value => updateSoundSlot(slot.id, { triggerCustom: value, triggerPreset: 'custom' })}
+                      onSoundAssetChange={value => updateSoundSlot(slot.id, { soundAssetId: value })}
+                      onSoundCustomChange={value => updateSoundSlot(slot.id, { soundCustom: value, soundAssetId: MSX2_PLAYER_SOUND_CUSTOM_ASSET })}
                     />
-                  </Field>
-                ))}
+                  );
+                })}
               </div>
             </section>
             <section className={`${panelClass} ${activeSection === 'Preview' ? 'absolute inset-0' : 'hidden'}`}>
@@ -486,9 +1404,21 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                 <div className="relative h-full min-h-[360px] overflow-hidden rounded border border-slate-700 bg-[linear-gradient(45deg,#1a202b_25%,transparent_25%),linear-gradient(-45deg,#1a202b_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1a202b_75%),linear-gradient(-45deg,transparent_75%,#1a202b_75%)] bg-[length:24px_24px] bg-[#141923]">
                   <div className="absolute bottom-0 left-0 right-0 h-20 bg-[linear-gradient(#48b548_0_35%,#7b5127_35%)]" />
                   <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
-                    <SpriteFramePreview sprite={selectedSprite} large />
+                    <SpriteFramePreview
+                      sprite={previewAnimationSprite}
+                      frameIndex={previewAnimation.spriteFrameIndex}
+                      large
+                    />
                   </div>
                 </div>
+                <PlayerPreviewControls
+                  playing={previewAnimation.playing}
+                  onPlay={previewAnimation.play}
+                  onStop={previewAnimation.stop}
+                  selectedKey={selectedKey}
+                  animationRows={animationRows}
+                  onSelectAnimation={setSelectedAnimationKey}
+                />
               </div>
             </section>
           </main>

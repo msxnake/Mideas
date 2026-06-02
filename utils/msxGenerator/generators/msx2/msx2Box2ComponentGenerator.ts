@@ -137,8 +137,8 @@ ${formatBytes('msx2_screen_box2_restore_names', tables.restoreNameBytes.length ?
 }
 
 export function buildMsx2Box2PlayerHookAsm(direction: 'right' | 'left' | 'up' | 'down'): string {
-  const dx = direction === 'right' ? 0x08 : direction === 'left' ? 0xF8 : 0;
-  const dy = direction === 'down' ? 0x08 : direction === 'up' ? 0xF8 : 0;
+  const dx = direction === 'right' ? 0x10 : direction === 'left' ? 0xF0 : 0;
+  const dy = direction === 'down' ? 0x10 : direction === 'up' ? 0xF0 : 0;
   const blockedLabel = direction === 'right' || direction === 'left'
     ? `.${direction}_blocked`
     : '.box2_vertical_blocked';
@@ -347,22 +347,11 @@ msx2_box2_draw_chars_for_slot:
     ret
 
 msx2_box2_restore_chars_for_slot:
-    ; Clear or restore the 2x2 name-table block under slot A before sliding. Clobbers AF/BC/DE/HL.
+    ; Clears the 2x2 name-table block under slot A before sprite movement.
+    ; Map-origin boxes are the tile itself, so restoring their source quad would duplicate the box.
+    ; Clobbers AF/BC/DE/HL.
     ld c, a
     ld b, 0
-    push bc
-    call msx2_box2_screen_base
-    pop bc
-    push bc
-    push de
-    ld hl, msx2_screen_box2_map_origin
-    add hl, de
-    add hl, bc
-    ld a, (hl)
-    pop de
-    pop bc
-    or a
-    jp nz, msx2_box2_restore_map_underlay_for_slot
     ld hl, msx2_box2_runtime_x
     add hl, bc
     ld d, (hl)
@@ -403,16 +392,28 @@ msx2_box2_restore_map_underlay_for_slot:
     call screen4_name_cell_from_bc
     pop bc
     ld a, (de)
+    push hl
+    push de
     call WRTVRM
+    pop de
+    pop hl
     inc hl
     inc de
     ld a, (de)
+    push hl
+    push de
     call WRTVRM
+    pop de
+    pop hl
     ld bc, 31
     add hl, bc
     inc de
     ld a, (de)
+    push hl
+    push de
     call WRTVRM
+    pop de
+    pop hl
     inc hl
     inc de
     ld a, (de)
@@ -596,6 +597,7 @@ msx2_box2_collision_index_from_bc:
 
 msx2_box2_patch_collision_value_for_slot:
     ; Input: A=slot, B=collision byte (0=clear, 1=solid). Clobbers AF/BC/DE/HL.
+    ; Mirrors the same solid/box bits into the packed CELL_FLAGS runtime layer.
     ld c, a
     ld a, b
     push af
@@ -610,6 +612,21 @@ msx2_box2_patch_collision_value_for_slot:
     pop af
     ld hl, (msx2_current_collision_ptr)
     add hl, de
+    ld (hl), a
+    push af
+    ld hl, (msx2_current_effects_ptr)
+    add hl, de
+    pop af
+    or a
+    jr z, .box2_clear_cell_box
+    ld a, (hl)
+    and #C6
+    or #29
+    ld (hl), a
+    ret
+.box2_clear_cell_box:
+    ld a, (hl)
+    and #C6
     ld (hl), a
     ret
 
@@ -700,19 +717,39 @@ msx2_box2_can_move_slot:
     ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
-    ld d, (hl)
+    ld a, (hl)
+    ld d, a
     ld hl, msx2_box2_runtime_y
     add hl, bc
-    ld e, (hl)
+    ld a, (hl)
+    ld e, a
     ld a, (msx2_box2_try_dx)
     or a
     jr z, .box2_move_vert
-    add a, d
+    ; Horizontal probe: one SCREEN 4 logical tile (16px).
+    cp #80
+    jr nc, .box2_move_left
+    ld a, d
+    add a, 16
+    ld d, a
+    jr .box2_move_check
+.box2_move_left:
+    ld a, d
+    sub 16
     ld d, a
     jr .box2_move_check
 .box2_move_vert:
     ld a, (msx2_box2_try_dy)
-    add a, e
+    ; Vertical probe: one SCREEN 4 logical tile (16px).
+    cp #80
+    jr nc, .box2_move_up
+    ld a, e
+    add a, 16
+    ld e, a
+    jr .box2_move_check
+.box2_move_up:
+    ld a, e
+    sub 16
     ld e, a
 .box2_move_check:
     ld a, d
@@ -744,10 +781,28 @@ msx2_box2_can_move_slot:
     pop de
     jr nz, .box2_move_blocked
     push de
+    ld a, d
+    add a, 15
+    ld b, a
+    ld c, e
+    call msx2_collision_at_pixel
+    pop de
+    jr nz, .box2_move_blocked
+    push de
     ld a, e
     add a, 15
     ld c, a
     ld b, d
+    call msx2_collision_at_pixel
+    pop de
+    jr nz, .box2_move_blocked
+    push de
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, e
+    add a, 15
+    ld c, a
     call msx2_collision_at_pixel
     pop de
     jr nz, .box2_move_blocked
@@ -772,7 +827,13 @@ msx2_box2_start_slide:
     push bc
     ld a, c
     call msx2_box2_clear_collision_for_slot
+    pop bc
+    push bc
+    ; Erase box at current position before moving
+    ld a, c
     call msx2_box2_restore_chars_for_slot
+    pop bc
+    push bc
     ld a, c
     call msx2_box2_maybe_clear_map_visual_for_slot
     pop bc
@@ -788,12 +849,30 @@ msx2_box2_start_slide:
     ld a, (msx2_box2_try_dx)
     or a
     jr z, .box2_target_vert
-    add a, d
+    ; Horizontal push: move exactly one SCREEN 4 logical tile (16px).
+    cp #80
+    jr nc, .box2_target_left
+    ld a, d
+    add a, 16
+    ld d, a
+    jr .box2_target_store
+.box2_target_left:
+    ld a, d
+    sub 16
     ld d, a
     jr .box2_target_store
 .box2_target_vert:
     ld a, (msx2_box2_try_dy)
-    add a, e
+    ; Vertical push: move exactly one SCREEN 4 logical tile (16px).
+    cp #80
+    jr nc, .box2_target_up
+    ld a, e
+    add a, 16
+    ld e, a
+    jr .box2_target_store
+.box2_target_up:
+    ld a, e
+    sub 16
     ld e, a
 .box2_target_store:
     ld hl, msx2_box2_runtime_target_x
@@ -816,7 +895,9 @@ msx2_box2_start_slide:
     ret
 
 msx2_box2_finish_slide:
-    ; Snap to 8px grid, draw chars immediately, hide sprite. Clobbers AF/BC/DE/HL.
+    ; Snap to 16px grid. If gravity is enabled and no support exists below,
+    ; keep the box as a sprite and continue directly into fall mode.
+    ; Clobbers AF/BC/DE/HL.
     ld a, (msx2_box2_moving_slot)
     cp #FF
     ret z
@@ -825,28 +906,42 @@ msx2_box2_finish_slide:
     ld hl, msx2_box2_runtime_x
     add hl, bc
     ld a, (hl)
-    and #F8
+    and #F0
     ld (hl), a
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld a, (hl)
-    and #F8
+    and #F0
     ld (hl), a
     ld hl, msx2_box2_runtime_target_x
     add hl, bc
     ld a, (hl)
-    and #F8
+    and #F0
     ld (hl), a
     ld hl, msx2_box2_runtime_target_y
     add hl, bc
     ld a, (hl)
-    and #F8
+    and #F0
     ld (hl), a
-    ld a, c
+    call msx2_box2_slot_has_gravity
+    jp z, .box2_finish_draw_chars
+    ld a, (msx2_box2_moving_slot)
+    ld (msx2_box2_active), a
+    call msx2_box2_slot_has_support
+    jp c, .box2_finish_draw_chars
+    ld a, 1
+    ld (msx2_box2_move_mode), a
+    ret
+.box2_finish_draw_chars:
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_draw_chars_for_slot
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_set_collision_for_slot
-    ld a, c
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_maybe_restore_map_visual_for_slot
+    ld a, (msx2_box2_moving_slot)
+    ld c, a
+    ld b, 0
     ld hl, msx2_box2_runtime_moving
     add hl, bc
     xor a
@@ -873,19 +968,19 @@ msx2_box2_step_slide_toward_target:
     ld a, (hl)
     cp e
     jr z, .box2_step_y_axis
-    jr c, .box2_step_x_forward
-    ld a, e
-    sub d
-    cp (hl)
-    jr nc, .box2_step_x_write
-    ld a, (hl)
-    jr .box2_step_x_write
-.box2_step_x_forward:
+    jr c, .box2_step_x_backward
     ld a, e
     add a, d
     cp (hl)
     jr c, .box2_step_x_write
     jr z, .box2_step_x_write
+    ld a, (hl)
+    jr .box2_step_x_write
+.box2_step_x_backward:
+    ld a, e
+    sub d
+    cp (hl)
+    jr nc, .box2_step_x_write
     ld a, (hl)
 .box2_step_x_write:
     ld hl, msx2_box2_runtime_x
@@ -900,19 +995,19 @@ msx2_box2_step_slide_toward_target:
     ld a, (hl)
     cp e
     jr z, .box2_step_done_check
-    jr c, .box2_step_y_forward
-    ld a, e
-    sub d
-    cp (hl)
-    jr nc, .box2_step_y_write
-    ld a, (hl)
-    jr .box2_step_y_write
-.box2_step_y_forward:
+    jr c, .box2_step_y_backward
     ld a, e
     add a, d
     cp (hl)
     jr c, .box2_step_y_write
     jr z, .box2_step_y_write
+    ld a, (hl)
+    jr .box2_step_y_write
+.box2_step_y_backward:
+    ld a, e
+    sub d
+    cp (hl)
+    jr nc, .box2_step_y_write
     ld a, (hl)
 .box2_step_y_write:
     ld hl, msx2_box2_runtime_y
@@ -957,7 +1052,8 @@ msx2_box2_slot_has_gravity:
 
 msx2_box2_slot_has_support:
     ; Input: (msx2_box2_active)=slot. Carry SET when supported below.
-    ; Probes the bottom row (y+15) and the row below (y+16) for solid collision.
+    ; Probes only the row below (y+16). The box's own 16px collision cell
+    ; may still be solid while idle, so y+15 would make it support itself.
     ; Clobbers AF/BC/DE/HL. BC probe inputs survive msx2_collision_at_pixel; DE does not.
     ld a, (msx2_box2_active)
     ld c, a
@@ -968,7 +1064,7 @@ msx2_box2_slot_has_support:
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld a, (hl)
-    add a, 15
+    add a, 16
     ld e, a
     push de
     ld b, d
@@ -977,28 +1073,10 @@ msx2_box2_slot_has_support:
     pop de
     jr nz, .box2_supported
     push de
-    ld b, d
-    ld a, e
-    inc a
-    ld c, a
-    call msx2_collision_at_pixel
-    pop de
-    jr nz, .box2_supported
-    push de
     ld a, d
     add a, 15
     ld b, a
     ld c, e
-    call msx2_collision_at_pixel
-    pop de
-    jr nz, .box2_supported
-    push de
-    ld a, d
-    add a, 15
-    ld b, a
-    ld a, e
-    inc a
-    ld c, a
     call msx2_collision_at_pixel
     pop de
     jr nz, .box2_supported
@@ -1011,7 +1089,7 @@ msx2_box2_slot_has_support:
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld a, (hl)
-    add a, 15
+    add a, 16
     ld c, a
     call msx2_box2_find_at_pixel
     cp #FF
@@ -1060,7 +1138,14 @@ msx2_box2_start_gravity_fall:
     push bc
     ld a, c
     call msx2_box2_clear_collision_for_slot
+    pop bc
+    push bc
+    ld a, c
     call msx2_box2_restore_chars_for_slot
+    pop bc
+    push bc
+    ld a, c
+    call msx2_box2_maybe_clear_map_visual_for_slot
     pop bc
     ld hl, msx2_box2_runtime_moving
     add hl, bc
@@ -1104,11 +1189,17 @@ msx2_box2_finish_gravity_fall:
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld a, (hl)
-    and #F8
+    and #F0
     ld (hl), a
     ld a, c
     call msx2_box2_draw_chars_for_slot
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_set_collision_for_slot
+    ld a, (msx2_box2_moving_slot)
+    call msx2_box2_maybe_restore_map_visual_for_slot
+    ld a, (msx2_box2_moving_slot)
+    ld c, a
+    ld b, 0
     ld hl, msx2_box2_runtime_moving
     add hl, bc
     xor a

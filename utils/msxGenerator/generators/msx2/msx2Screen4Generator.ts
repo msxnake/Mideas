@@ -31,6 +31,7 @@ import {
 import { getMsx2CharStampDimensions } from './msx2GridSnapComponentGenerator';
 import { chooseScreen4RowColors } from '../../../msx2Screen4TileConstraints';
 import { getMsx2TileBehaviorKind, buildMsx2TileHazardHitboxBytes, buildMsx2TileVisualMapBytes } from '../../../msx2Screen4TileBehavior';
+import { buildMsx2CellFlagBytes } from '../../../msx2CellFlags';
 import {
   formatAsmByte,
   formatAsmWord,
@@ -307,6 +308,14 @@ function countTileScreenEffectCode(screen: Msx2Screen4TileScreen | undefined, co
   return buildTileScreenLayerBytes(screen, 'effects').filter(value => value === code).length;
 }
 
+function buildTileScreenCellFlagBytes(screen: Msx2Screen4TileScreen | undefined): number[] {
+  return buildMsx2CellFlagBytes(screen, {
+    collision: buildTileScreenLayerBytes(screen, 'collision'),
+    effects: buildTileScreenLayerBytes(screen, 'effects'),
+    behavior: buildTileScreenLayerBytes(screen, 'behavior'),
+  });
+}
+
 function getTileScreenRequiredCollectibles(screen: Msx2Screen4TileScreen | undefined): number {
   const configured = Number(screen?.runtime?.requiredCollectibles);
   if (Number.isFinite(configured)) {
@@ -522,12 +531,26 @@ function buildScreen4ScreenData(screen: Msx2Screen4TileScreen | undefined): { na
   };
   const reserveCharBlockForAllBanks = (baseCharCode: number, pattern: number[], color: number[]): void => {
     if (baseCharCode < 0 || baseCharCode > 252) return;
+    reserveCharBlockForBanks([0, 1, 2], baseCharCode, pattern, color);
+  };
+  const reserveCharBlockForBanks = (banks: number[], baseCharCode: number, pattern: number[], color: number[]): void => {
+    if (baseCharCode < 0 || baseCharCode > 252) return;
     for (let quadrant = 0; quadrant < 4; quadrant++) {
-      reserveCharForAllBanks(
-        baseCharCode + quadrant,
-        pattern.slice(quadrant * 8, quadrant * 8 + 8),
-        color.slice(quadrant * 8, quadrant * 8 + 8)
-      );
+      const charCode = baseCharCode + quadrant;
+      for (const bank of banks) {
+        if (bank < 0 || bank > 2) continue;
+        while (bankDefs[bank].length <= charCode) {
+          const reservedCode = bankDefs[bank].length;
+          const emptyPattern = Array(CELL_SIZE).fill(0);
+          const emptyColor = Array(CELL_SIZE).fill(0);
+          bankDefs[bank].push({ bank, charCode: reservedCode, pattern: emptyPattern, color: emptyColor });
+          bankCharByKey[bank].set(`${emptyPattern.join(',')}|${emptyColor.join(',')}|reserved:${reservedCode}`, reservedCode);
+        }
+        const charPattern = pattern.slice(quadrant * 8, quadrant * 8 + 8);
+        const charColor = color.slice(quadrant * 8, quadrant * 8 + 8);
+        bankDefs[bank][charCode] = { bank, charCode, pattern: charPattern, color: charColor };
+        bankCharByKey[bank].set(`${charPattern.join(',')}|${charColor.join(',')}`, charCode);
+      }
     }
   };
   const charForBytes = (bank: number, pattern: number[], color: number[]): number => {
@@ -576,7 +599,24 @@ function buildScreen4ScreenData(screen: Msx2Screen4TileScreen | undefined): { na
     return base;
   };
   for (const entity of screen?.layers?.entities || []) {
-    if (entity?.components?.msx2_box2 || entity?.components?.msx2_push_box) continue;
+    if (entityHasMsx2Box2(entity)) {
+      const charCode = Number(entity?.components?.msx2_char_render?.charCode ?? entity?.params?.charCode ?? 9);
+      const bytes = getScreen4TileBytesForEntity(screen, entity);
+      if (Number.isFinite(charCode) && bytes) {
+        const base = reserveBaseForCharBlock(charCode);
+        const pixelY = Number(entity?.components?.msx2_transform?.pixelY ?? (Number(entity?.position?.y) || 0) * 16);
+        const startBank = Math.max(0, Math.min(2, Math.floor(pixelY / 64)));
+        const axis = String(entity?.components?.msx2_box2?.pushAxis ?? entity?.params?.pushAxis ?? 'horizontal');
+        const gravity = entity?.components?.msx2_box2?.gravity ?? entity?.params?.gravity ?? true;
+        const banks = axis === 'vertical' || axis === 'both'
+          ? [0, 1, 2]
+          : gravity === false
+            ? [startBank]
+            : Array.from({ length: 3 - startBank }, (_unused, index) => startBank + index);
+        reserveCharBlockForBanks(banks, base, bytes.pattern, bytes.color);
+      }
+      continue;
+    }
     const charCode = Number(entity?.components?.msx2_char_render?.charCode ?? entity?.params?.charCode);
     if (!Number.isFinite(charCode)) continue;
     const bytes = getScreen4TileBytesForEntity(screen, entity);
@@ -796,6 +836,8 @@ function buildTileScreenCollectedVisualsRoutine(
     const keepLabel = `keep_${label}_collectible_${collectibleCells.length}`;
     collectibleCells.push(`    ld hl, #${runtimeAddress.toString(16).toUpperCase().padStart(4, '0')}
     ld a, (hl)
+    and MSX2_CELL_EFFECT_MASK
+    srl a
     cp 3
     jp z, ${keepLabel}
     ld hl, #${nameAddress.toString(16).toUpperCase().padStart(4, '0')}
@@ -820,15 +862,15 @@ function buildInitEffectBuffersRoutine(
   const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
   const copies = tileScreenLoadLabels.map((label, index) => {
     const destination = effectRuntimeBase + (index * layerSize);
-    const effectPayloadLabel = `${label}_EFFECTS`;
-    const effectBankConstant = payloadDataBankConstants?.get(effectPayloadLabel) || `${label}_DATA_BANK`;
+    const cellFlagsPayloadLabel = `${label}_CELL_FLAGS`;
+    const cellFlagsBankConstant = payloadDataBankConstants?.get(cellFlagsPayloadLabel) || `${label}_DATA_BANK`;
     const enterDataBank = useKonamiDataBank
-      ? `    ld a, ${effectBankConstant}
+      ? `    ld a, ${cellFlagsBankConstant}
     call msx2_screen4_data_bank_enter_selected
 `
       : '';
     const leaveDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : '';
-    return `${enterDataBank}    ld hl, ${label}_EFFECTS
+    return `${enterDataBank}    ld hl, ${label}_CELL_FLAGS
     ld de, #${destination.toString(16).toUpperCase().padStart(4, '0')}
     ld bc, msx2_layer_size
     ldir
@@ -836,7 +878,7 @@ ${leaveDataBank}`;
   });
 
   return `init_msx2_effect_buffers:
-    ; Restores each msx2screen mutable effect layer from ROM into persistent RAM.
+    ; Restores each msx2screen mutable packed cell flag layer from ROM into persistent RAM.
     ; Clobbers AF/BC/DE/HL.
 ${copies.length ? copies.join('\n') : '    ; No native MSX2 tile screens.'}
     ret
@@ -850,7 +892,8 @@ function estimateMsx2RuntimeRamEnd(tileScreenCount: number, hazardHitboxCacheSiz
   const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
   const collisionRuntimeCacheBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
   const behaviorRuntimeCacheBase = (collisionRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
-  const visualMapCacheBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const cellFlagsRuntimeCacheBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const visualMapCacheBase = (cellFlagsRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
   const hazardHitboxCacheBase = (visualMapCacheBase + layerSize + 0x0f) & 0xfff0;
   const hazardProbeScratchBase = hazardHitboxCacheBase + hazardHitboxCacheSize;
   const enemyRuntimeBase = (hazardProbeScratchBase + 4 + 0x0f) & 0xfff0;
@@ -879,7 +922,8 @@ function buildMsx2RamBudget(
   const effectScratchBase = Math.max(0xC200, (effectRuntimeEnd + 0x0f) & 0xfff0);
   const collisionRuntimeCacheBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
   const behaviorRuntimeCacheBase = (collisionRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
-  const visualMapCacheBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const cellFlagsRuntimeCacheBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const visualMapCacheBase = (cellFlagsRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
   const hazardHitboxCacheBase = (visualMapCacheBase + layerSize + 0x0f) & 0xfff0;
   const hazardProbeScratchBase = hazardHitboxCacheBase + hazardHitboxCacheSize;
   const enemyRuntimeBase = (hazardProbeScratchBase + 4 + 0x0f) & 0xfff0;
@@ -940,6 +984,14 @@ function buildMsx2RamBudget(
       bytes: layerSize,
       mutable: true,
       reason: 'Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks.',
+    },
+    {
+      id: 'runtime.cell_flags_current_cache',
+      start: formatHexWord(cellFlagsRuntimeCacheBase),
+      end: formatHexWord(cellFlagsRuntimeCacheBase + layerSize),
+      bytes: layerSize,
+      mutable: true,
+      reason: 'Packed current SCREEN 4 solid/effect/behavior flags, staged for the unified runtime layer contract.',
     },
     {
       id: 'runtime.visual_map_cache',
@@ -3208,16 +3260,16 @@ function buildHardwareSpriteRuntimeAsm(
     ld c, a
     call msx2_restore_background_char_8
     pop hl
+    call msx2_clear_effect_bits_at_hl
     xor a
-    ld (hl), a
     ld (msx2_player_bullet_active), a
     pop bc
     call clear_msx2_effect_visual_at_pixel
     call msx2_sfx_hit
     ret`
     : `.player_bullet_effect_hit:
+    call msx2_clear_effect_bits_at_hl
     xor a
-    ld (hl), a
     ld (msx2_player_bullet_active), a
     pop bc
     call clear_msx2_effect_visual_at_pixel
@@ -3232,16 +3284,16 @@ function buildHardwareSpriteRuntimeAsm(
     ld c, a
     call msx2_restore_background_char_8
     pop hl
+    call msx2_clear_effect_bits_at_hl
     xor a
-    ld (hl), a
     ld (msx2_player_bullet_1_active), a
     pop bc
     call clear_msx2_effect_visual_at_pixel
     call msx2_sfx_hit
     ret`
     : `.player_bullet_1_effect_hit:
+    call msx2_clear_effect_bits_at_hl
     xor a
-    ld (hl), a
     ld (msx2_player_bullet_1_active), a
     pop bc
     call clear_msx2_effect_visual_at_pixel
@@ -4594,8 +4646,7 @@ ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     pop bc
     ret
 .enemy_slot_${slot}_ball_break_brick:
-    xor a
-    ld (hl), a
+    call msx2_clear_effect_bits_at_hl
     pop bc
     call clear_msx2_effect_visual_at_pixel
 ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
@@ -5108,8 +5159,7 @@ control_2_players_ball_check_item:
     pop bc
     ret
 control_2_players_ball_collect_item:
-    xor a
-    ld (hl), a
+    call msx2_clear_effect_bits_at_hl
     pop bc
     call clear_msx2_effect_visual_at_pixel
     ld hl, msx2_enemy_runtime_dy + 1
@@ -5525,8 +5575,7 @@ msx2_enemy_bullet_check_effect_collision_hl:
     pop hl
     ret
 .enemy_bullet_effect_hit_hl:
-    xor a
-    ld (hl), a
+    call msx2_clear_effect_bits_at_hl
     pop bc
     pop hl
     xor a
@@ -6263,8 +6312,7 @@ update_msx2_effect_state:
     ld a, (msx2_collectible_latch)
     or a
     ret nz
-    xor a
-    ld (hl), a
+    call msx2_clear_effect_bits_at_hl
     call clear_msx2_collectible_visual
     ld a, 1
     ld (msx2_collectible_latch), a
@@ -6424,38 +6472,52 @@ screen4_name_cell_from_bc:
     ret
 
 msx2_collision_at_pixel:
-    ; B=x pixel, C=y pixel. Returns A=collision byte with Z set when empty.
+    ; B=x pixel, C=y pixel. Returns A=solid mask with Z set when empty.
     ; Clobbers AF/DE/HL. Preserves BC inputs.
-    ld a, c
-    srl a
-    srl a
-    srl a
-    srl a
-    and #0F
-    add a, a
-    add a, a
-    add a, a
-    add a, a
+${pushBoxEnabled ? `    call msx2_cell_flags_at_pixel
     ld e, a
-    ld a, b
+    and MSX2_CELL_SOLID_MASK
+    jr z, .collision_check_runtime_box
+    ld a, e
+    and MSX2_CELL_BEHAVIOR_MASK
     srl a
     srl a
     srl a
+    cp MSX2_CELL_BEHAVIOR_BOX
+    jr z, .collision_check_runtime_box
+    ld a, MSX2_CELL_SOLID_MASK
+    or a
+    ret
+.collision_check_runtime_box:
+    ld d, b
+    ld e, c
+    call msx2_box2_find_at_pixel
+    cp #FF
+    jr z, .collision_empty
+    ld a, MSX2_CELL_SOLID_MASK
+    or a
+    ret
+.collision_empty:
+    xor a
+    ret
+` : `    call msx2_cell_flags_at_pixel
+    and MSX2_CELL_SOLID_MASK
+    ret
+`}
+
+msx2_effect_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=effect enum 0..3 with Z set when empty.
+    ; HL points at the packed cell flags so callers may clear mutable effect bits.
+    ; Clobbers AF/DE/HL. Preserves BC inputs.
+    call msx2_cell_flags_at_pixel
+    and MSX2_CELL_EFFECT_MASK
     srl a
-    and #0F
-    add a, e
-    ld e, a
-    ld d, 0
-    ld hl, (msx2_current_collision_ptr)
-    add hl, de
-    ld a, (hl)
     or a
     ret
 
-msx2_effect_at_pixel:
-    ; B=x pixel, C=y pixel. Returns A=effect byte with Z set when empty.
-    ; HL points at the effect cell so callers may clear mutable RAM effects.
-    ; Clobbers AF/DE/HL. Preserves BC inputs.
+msx2_cell_flags_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=packed cell flags, Z set when zero.
+    ; HL points at the mutable packed flag cell. Clobbers AF/DE/HL. Preserves BC inputs.
     ld a, c
     srl a
     srl a
@@ -6480,6 +6542,36 @@ msx2_effect_at_pixel:
     add hl, de
     ld a, (hl)
     or a
+    ret
+
+msx2_cell_solid_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=solid mask (#01) or 0. Preserves BC inputs.
+    call msx2_cell_flags_at_pixel
+    and MSX2_CELL_SOLID_MASK
+    ret
+
+msx2_cell_effect_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=effect enum 0..3. Preserves BC inputs.
+    call msx2_cell_flags_at_pixel
+    and MSX2_CELL_EFFECT_MASK
+    srl a
+    ret
+
+msx2_cell_behavior_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=behavior enum 0..7. Preserves BC inputs.
+    call msx2_cell_flags_at_pixel
+    and MSX2_CELL_BEHAVIOR_MASK
+    srl a
+    srl a
+    srl a
+    ret
+
+msx2_clear_effect_bits_at_hl:
+    ; HL=packed cell flags. Clears only effect bits, preserving solid/behavior/zone.
+    ; Clobbers AF. Preserves HL.
+    ld a, (hl)
+    and #F9
+    ld (hl), a
     ret
 
 msx2_hazard_hit_at_pixel:
@@ -6524,6 +6616,8 @@ msx2_hazard_hit_at_pixel:
     ld hl, (msx2_current_effects_ptr)
     add hl, de
     ld a, (hl)
+    and MSX2_CELL_EFFECT_MASK
+    srl a
     pop de
     cp 1
     jp nz, .hazard_miss_full
@@ -6663,29 +6757,11 @@ msx2_probe_player_hazard_hit:
 msx2_behavior_at_pixel:
     ; B=x pixel, C=y pixel. Returns A=behavior byte with Z set when empty.
     ; Clobbers AF/BC/DE/HL.
-    ld a, c
+    call msx2_cell_flags_at_pixel
+    and MSX2_CELL_BEHAVIOR_MASK
     srl a
     srl a
     srl a
-    srl a
-    and #0F
-    add a, a
-    add a, a
-    add a, a
-    add a, a
-    ld e, a
-    ld a, b
-    srl a
-    srl a
-    srl a
-    srl a
-    and #0F
-    add a, e
-    ld e, a
-    ld d, 0
-    ld hl, (msx2_current_behavior_ptr)
-    add hl, de
-    ld a, (hl)
     or a
     ret
 
@@ -6820,7 +6896,26 @@ function getPushBoxMovingSpriteLayer(
   tileScreens: Array<Msx2Screen4TileScreen | undefined>
 ): { pattern: number[]; colors: number[] } | undefined {
   const entity = getFirstBox2Entity(tileScreens);
-  if (!entity) return undefined;
+  if (!entity) {
+    for (const screen of tileScreens) {
+      const tiles = screen?.tiles || [];
+      const map = screen?.map || [];
+      for (let tileY = 0; tileY < map.length; tileY++) {
+        for (let tileX = 0; tileX < (map[tileY]?.length || 0); tileX++) {
+          const tileIndex = Math.max(0, Math.min(tiles.length - 1, Number(map[tileY]?.[tileX]) || 0));
+          const tile = tiles[tileIndex];
+          if (getMsx2TileBehaviorKind(tile) !== 'box') continue;
+          const tileBytes = getScreen4TileBytesForEntity(screen, { params: { tileIndex } });
+          if (!tileBytes) continue;
+          return {
+            pattern: buildScreen4TileHardwareSpritePattern(tileBytes.pattern),
+            colors: buildScreen4TileHardwareSpriteColors(tileBytes.color, 6),
+          };
+        }
+      }
+    }
+    return undefined;
+  }
   const paletteSlot = Math.max(1, Math.min(15, Number(
     entity?.components?.msx2_hardware_sprite?.paletteSlot
     ?? entity?.components?.msx2_char_render?.paletteSlot
@@ -7202,9 +7297,10 @@ function estimateMsx2ScreenStoragePolicy(screen: Msx2Screen4TileScreen): Record<
   const collisionBytes = buildTileScreenLayerBytes(screen, 'collision').length;
   const effectsBytes = buildTileScreenLayerBytes(screen, 'effects').length;
   const behaviorBytes = buildTileScreenLayerBytes(screen, 'behavior').length;
+  const cellFlagBytes = buildTileScreenCellFlagBytes(screen).length;
   const spawnBytes = (screen.layers?.entities?.length || 0) * 8;
   const graphicsBytes = nameBytes + patternBytes + colorBytes;
-  const runtimeReadBytes = collisionBytes + effectsBytes + behaviorBytes + spawnBytes;
+  const runtimeReadBytes = collisionBytes + effectsBytes + behaviorBytes + cellFlagBytes + spawnBytes;
   const rawBytes = graphicsBytes + runtimeReadBytes;
   return {
     rawBytes,
@@ -7333,8 +7429,9 @@ function buildMsx2AssetStoragePolicy(
         { label: `${screenLabel}_COLLISION`, kind: 'screen4_collision', rawBytes: buildTileScreenLayerBytes(screenById.get(entry.id), 'collision').length, loadOrder: 30 },
         { label: `${screenLabel}_EFFECTS`, kind: 'screen4_effects', rawBytes: buildTileScreenLayerBytes(screenById.get(entry.id), 'effects').length, loadOrder: 31 },
         { label: `${screenLabel}_BEHAVIOR`, kind: 'screen4_behavior', rawBytes: buildTileScreenLayerBytes(screenById.get(entry.id), 'behavior').length, loadOrder: 32 },
-        { label: `${screenLabel}_VISUAL_MAP`, kind: 'screen4_visual_map', rawBytes: buildMsx2TileVisualMapBytes(screenById.get(entry.id)).length, loadOrder: 33 },
-        { label: `${screenLabel}_TILE_HAZ_HIT`, kind: 'screen4_hazard_hitbox', rawBytes: buildMsx2TileHazardHitboxBytes(screenById.get(entry.id)).length, loadOrder: 34 },
+        { label: `${screenLabel}_CELL_FLAGS`, kind: 'screen4_cell_flags', rawBytes: buildTileScreenCellFlagBytes(screenById.get(entry.id)).length, loadOrder: 33 },
+        { label: `${screenLabel}_VISUAL_MAP`, kind: 'screen4_visual_map', rawBytes: buildMsx2TileVisualMapBytes(screenById.get(entry.id)).length, loadOrder: 34 },
+        { label: `${screenLabel}_TILE_HAZ_HIT`, kind: 'screen4_hazard_hitbox', rawBytes: buildMsx2TileHazardHitboxBytes(screenById.get(entry.id)).length, loadOrder: 35 },
       ].filter(part => part.rawBytes > 0);
       policy.screenLabel = screenLabel;
       policy.payloadParts = payloadParts;
@@ -7535,7 +7632,8 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     || /_NAMES$/.test(label)
     || /_COLLISION$/.test(label)
     || /_BEHAVIOR$/.test(label)
-    || /_EFFECTS$/.test(label);
+    || /_EFFECTS$/.test(label)
+    || /_CELL_FLAGS$/.test(label);
   const splitChunkManifest = splitPackages.map(entry => {
     const splitIndex = Number((entry as any).splitIndex || 0);
     const splitCount = Number((entry as any).splitCount || 1);
@@ -10007,7 +10105,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
     return label;
   });
   const tileScreenIndexByLabel = new Map<string, number>();
-  const runtimeLayerLabels = new Map<string, { collision: string; effects: string; behavior: string }>();
+  const runtimeLayerLabels = new Map<string, { collision: string; effects: string; behavior: string; cellFlags: string }>();
   tileScreens.forEach((screen, index) => {
     const label = tileScreenLoadLabels[index];
     tileScreenLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
@@ -10016,6 +10114,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
       collision: `${label}_COLLISION`,
       effects: `${label}_EFFECTS`,
       behavior: `${label}_BEHAVIOR`,
+      cellFlags: `${label}_CELL_FLAGS`,
     });
   });
   const maxTileCount = Math.max(1, ...tileScreens.map(screen => (screen.tiles || []).length));
@@ -10026,6 +10125,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
       useKonamiDataBank ? '' : formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, 16x12 bytes`),
       useKonamiDataBank ? '' : formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x12 bytes`),
       useKonamiDataBank ? '' : formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x12 bytes`),
+      useKonamiDataBank ? '' : formatBytes(`${label}_CELL_FLAGS`, buildTileScreenCellFlagBytes(screen), `${screen?.name || `MSX2 Tile Screen ${index}`} packed cell flags (solid/effect/behavior), 16x12 bytes`),
       useKonamiDataBank ? '' : formatBytes(`${label}_VISUAL_MAP`, buildMsx2TileVisualMapBytes(screen), `${screen?.name || `MSX2 Tile Screen ${index}`} visual tile index map, 16x12 bytes`),
       useKonamiDataBank ? '' : formatBytes(`${label}_TILE_HAZ_HIT`, buildMsx2TileHazardHitboxBytes(screen, maxTileCount), `${screen?.name || `MSX2 Tile Screen ${index}`} per-tile hazard hitboxes (ox, oy, w, h)`),
     ].filter(Boolean).join('\n');
@@ -10035,6 +10135,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
       formatBytes('screen4_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 collision layer, 16x12 cells'),
       formatBytes('screen4_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 effects layer, 16x12 cells'),
       formatBytes('screen4_empty_behavior_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 behavior layer, 16x12 cells'),
+      formatBytes('screen4_empty_cell_flags', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 packed cell flags, 16x12 cells'),
       formatBytes('screen4_empty_visual_map', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 visual tile map, 16x12 cells'),
       formatBytes('screen4_empty_hazard_hitbox', Array(Math.max(4, hazardHitboxCacheSize)).fill(0), 'Default empty MSX2 SCREEN 4 hazard hitbox table'),
     ].join('\n')
@@ -10117,7 +10218,8 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
   const collisionRuntimeCacheBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
   const behaviorRuntimeCacheBase = (collisionRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
-  const visualMapCacheBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const cellFlagsRuntimeCacheBase = (behaviorRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
+  const visualMapCacheBase = (cellFlagsRuntimeCacheBase + layerSize + 0x0f) & 0xfff0;
   const hazardHitboxCacheBase = (visualMapCacheBase + layerSize + 0x0f) & 0xfff0;
   const hazardProbeScratchBase = hazardHitboxCacheBase + hazardHitboxCacheSize;
   const enemyRuntimeBase = (hazardProbeScratchBase + 4 + 0x0f) & 0xfff0;
@@ -10341,6 +10443,16 @@ reset_msx2_status_border:
       asm: formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, copied from cold ROM to current RAM cache on screen load`),
     };
   });
+  const tileScreenCellFlagBlocks = tileScreens.map((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    const bankIndex = screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0;
+    return {
+      label,
+      bankIndex,
+      payloadLabel: `${label}_CELL_FLAGS`,
+      asm: formatBytes(`${label}_CELL_FLAGS`, buildTileScreenCellFlagBytes(screen), `${screen?.name || `MSX2 Tile Screen ${index}`} packed cell flags (solid/effect/behavior), copied from cold ROM to current RAM cache on screen load`),
+    };
+  });
   const tileScreenVisualMapBlocks = tileScreens.map((screen, index) => {
     const label = tileScreenLoadLabels[index];
     const bankIndex = screen4DataBankPlan.screenBankIndexByLabel.get(label) ?? 0;
@@ -10401,8 +10513,8 @@ reset_msx2_status_border:
   const loadRuntimeLayerPointers = (label: string, screenIndex?: number, payloadDataBankConstants?: Map<string, string>): string => {
     const runtimeLabels = runtimeLayerLabels.get(label);
     const collisionLabel = runtimeLabels?.collision || 'screen4_empty_collision_layer';
-    const effectsLabel = runtimeLabels?.effects || 'screen4_empty_effects_layer';
     const behaviorLabel = runtimeLabels?.behavior || 'screen4_empty_behavior_layer';
+    const cellFlagsLabel = runtimeLabels?.cellFlags || 'screen4_empty_cell_flags';
     const splitAwareCollisionBehavior = Boolean(useKonamiDataBank && runtimeLabels && payloadDataBankConstants);
     const copyRuntimeLayerFromBank = (payloadLabel: string, destinationLabel: string): string => {
       const bankConstant = payloadDataBankConstants?.get(payloadLabel) || `${label}_DATA_BANK`;
@@ -10438,13 +10550,21 @@ reset_msx2_status_border:
     ld hl, msx2_behavior_runtime_cache
     ld (msx2_current_behavior_ptr), hl
 `
+        : pushBoxMovement
+          ? `    ld hl, ${collisionLabel}
+    ld de, msx2_collision_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
+    ld hl, msx2_collision_runtime_cache
+    ld (msx2_current_collision_ptr), hl
+    ld hl, ${behaviorLabel}
+    ld (msx2_current_behavior_ptr), hl
+`
         : `    ld hl, ${collisionLabel}
     ld (msx2_current_collision_ptr), hl
     ld hl, ${behaviorLabel}
     ld (msx2_current_behavior_ptr), hl
 `;
-    const visualMapLabel = runtimeLabels ? `${label}_VISUAL_MAP` : 'screen4_empty_visual_map';
-    const hazardHitboxLabel = runtimeLabels ? `${label}_TILE_HAZ_HIT` : 'screen4_empty_hazard_hitbox';
     const copyRuntimeBytesFromBank = (payloadLabel: string, destinationLabel: string, bytes: number | string): string => {
       const bankConstant = payloadDataBankConstants?.get(payloadLabel) || `${label}_DATA_BANK`;
       const bcValue = typeof bytes === 'number' ? String(bytes) : bytes;
@@ -10457,6 +10577,24 @@ reset_msx2_status_border:
     call msx2_screen4_data_bank_leave
 `;
     };
+    const loadCellFlagsCache = splitAwareCollisionBehavior
+      ? copyRuntimeBytesFromBank(cellFlagsLabel, 'msx2_cell_flags_runtime_cache', 'msx2_layer_size')
+      : useKonamiDataBank && runtimeLabels
+        ? `    ld a, ${label}_DATA_BANK
+    call msx2_screen4_data_bank_enter_selected
+    ld hl, ${cellFlagsLabel}
+    ld de, msx2_cell_flags_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
+    call msx2_screen4_data_bank_leave
+`
+        : `    ld hl, ${cellFlagsLabel}
+    ld de, msx2_cell_flags_runtime_cache
+    ld bc, msx2_layer_size
+    ldir
+`;
+    const visualMapLabel = runtimeLabels ? `${label}_VISUAL_MAP` : 'screen4_empty_visual_map';
+    const hazardHitboxLabel = runtimeLabels ? `${label}_TILE_HAZ_HIT` : 'screen4_empty_hazard_hitbox';
     const loadHazardMetadata = splitAwareCollisionBehavior
       ? `${copyRuntimeBytesFromBank(visualMapLabel, 'msx2_visual_map_cache', 'msx2_layer_size')}${copyRuntimeBytesFromBank(hazardHitboxLabel, 'msx2_hazard_hitbox_cache', 'msx2_hazard_hitbox_cache_bytes')}`
       : useKonamiDataBank && runtimeLabels
@@ -10485,7 +10623,7 @@ reset_msx2_status_border:
       ? undefined
       : effectRuntimeBase + (screenIndex * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT);
     const loadEffectsPointer = runtimeEffectsAddress === undefined
-      ? `    ld hl, ${effectsLabel}
+      ? `    ld hl, ${cellFlagsLabel}
     ld de, msx2_effects_runtime_scratch
     ld bc, msx2_layer_size
     ldir
@@ -10495,7 +10633,7 @@ reset_msx2_status_border:
       : `    ld hl, #${runtimeEffectsAddress.toString(16).toUpperCase().padStart(4, '0')}
     ld (msx2_current_effects_ptr), hl
 `;
-    return `${loadCollisionBehaviorPointers}${loadHazardMetadata}${loadEffectsPointer}`;
+    return `${loadCollisionBehaviorPointers}${loadCellFlagsCache}${loadHazardMetadata}${loadEffectsPointer}`;
   };
   const tileScreenAfterPatternLoad = snakeCharMovement ? '    call msx2_snake_load_runtime_chars\n' : '';
   const tileScreenLoadRoutines = tileScreens.map((screen, index) =>
@@ -10585,6 +10723,11 @@ reset_msx2_status_border:
     bankIndex: block.bankIndex,
     asm: block.asm,
   }));
+  tileScreenCellFlagBlocks.forEach(block => coldPayloadBlocks.set(block.payloadLabel, {
+    label: block.payloadLabel,
+    bankIndex: block.bankIndex,
+    asm: block.asm,
+  }));
   tileScreenVisualMapBlocks.forEach(block => coldPayloadBlocks.set(block.payloadLabel, {
     label: block.payloadLabel,
     bankIndex: block.bankIndex,
@@ -10631,6 +10774,9 @@ ${dataEndLabel}:`;
           .filter(block => block.bankIndex === bankIndex && !chunkPayloadLabelSet.has(block.payloadLabel))
           .map(block => block.asm))
         .concat(tileScreenBehaviorBlocks
+          .filter(block => block.bankIndex === bankIndex && !chunkPayloadLabelSet.has(block.payloadLabel))
+          .map(block => block.asm))
+        .concat(tileScreenCellFlagBlocks
           .filter(block => block.bankIndex === bankIndex && !chunkPayloadLabelSet.has(block.payloadLabel))
           .map(block => block.asm))
         .concat(tileScreenVisualMapBlocks
@@ -10707,6 +10853,14 @@ BDRCLR  EQU #F3EA
 VDP_PALETTE_PORT EQU #9A
 VDP_DATA_PORT EQU #98
 VDP_CTRL_PORT EQU #99
+MSX2_CELL_SOLID_MASK EQU #01
+MSX2_CELL_EFFECT_MASK EQU #06
+MSX2_CELL_BEHAVIOR_MASK EQU #38
+MSX2_CELL_BEHAVIOR_LADDER EQU #01
+MSX2_CELL_BEHAVIOR_CONVEYOR_RIGHT EQU #02
+MSX2_CELL_BEHAVIOR_CONVEYOR_LEFT EQU #03
+MSX2_CELL_BEHAVIOR_ROPE EQU #04
+MSX2_CELL_BEHAVIOR_BOX EQU #05
 SCREEN4_PATTERN_VRAM EQU ${SCREEN4_PATTERN_VRAM}
 SCREEN4_NAME_VRAM EQU ${SCREEN4_NAME_VRAM}
 SCREEN4_COLOR_VRAM EQU ${SCREEN4_COLOR_VRAM}
@@ -10787,6 +10941,7 @@ ${snakeCharMovement ? `msx2_snake_body_cells EQU ${formatHexWord(MSX2_SNAKE_BODY
 msx2_effects_runtime_scratch EQU ${formatHexWord(effectScratchBase)}
 msx2_collision_runtime_cache EQU ${formatHexWord(collisionRuntimeCacheBase)}
 msx2_behavior_runtime_cache EQU ${formatHexWord(behaviorRuntimeCacheBase)}
+msx2_cell_flags_runtime_cache EQU ${formatHexWord(cellFlagsRuntimeCacheBase)}
 msx2_visual_map_cache EQU ${formatHexWord(visualMapCacheBase)}
 msx2_hazard_hitbox_cache EQU ${formatHexWord(hazardHitboxCacheBase)}
 msx2_hazard_hitbox_count EQU ${maxTileCount}

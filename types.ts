@@ -377,14 +377,31 @@ export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'haza
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'ghostMaze' | 'dive';
 export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
+export type Msx2PlayerFunctionKeyAction = 'none' | 'inventory' | 'pause' | 'map' | 'status' | 'save' | 'load' | 'magic' | 'custom';
+export type Msx2PlayerFunctionKeyId = 'f1' | 'f2' | 'f3' | 'f4' | 'f5';
+export type Msx2PlayerInputSource = 'arrows' | 'joystick1' | 'joystick2';
+export type Msx2PlayerButtonBinding = 'upArrow' | 'spc' | 'n' | 'm' | 'joyA' | 'joyB';
+/** @deprecated Use Msx2PlayerButtonBinding */
+export type Msx2PlayerJumpBinding = Msx2PlayerButtonBinding;
+export type Msx2PlayerControlId = 'left' | 'right' | 'up' | 'down' | 'jump' | 'attack';
 export type Msx2PlayerRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type Msx2PlayerSpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
 export type Msx2PlayerFacing = 'left' | 'right' | 'up' | 'down';
 export type Msx2PlayerEntryAnimation = 'none' | 'walkIn' | 'doorExit' | 'ladderExit' | 'fadeIn';
 
+export type Msx2PlayerAnimationRole = 'idle' | 'walk' | 'run' | 'dash' | 'jump' | 'dead' | 'attack' | 'defend' | 'custom';
+export type Msx2PlayerAnimationPlayback = 'loop' | 'once';
+
 export interface Msx2PlayerAnimation {
   frames: number[];
   speed: number;
+  /** MSX2 Sprite Editor asset used to render this animation. Falls back to player.render.spriteAssetId. */
+  spriteAssetId?: string;
+  /** Generic animation role used by gameplay/state machines and MSX export. */
+  role?: Msx2PlayerAnimationRole;
+  /** Free label when role is custom. */
+  customRole?: string;
+  playback?: Msx2PlayerAnimationPlayback;
 }
 
 export interface Msx2PlayerHitbox {
@@ -392,6 +409,15 @@ export interface Msx2PlayerHitbox {
   y: number;
   w: number;
   h: number;
+}
+
+export interface Msx2PlayerLogicFlags {
+  isPlayer?: boolean;
+  blocksProjectiles?: boolean;
+  affectsEnemies?: boolean;
+  pushable?: boolean;
+  triggersEvents?: boolean;
+  canDie?: boolean;
 }
 
 export interface Msx2PlayerDefinition {
@@ -409,6 +435,8 @@ export interface Msx2PlayerDefinition {
     usesFlipX: boolean;
   };
   animations: Record<string, Msx2PlayerAnimation>;
+  /** Stable row order for the animation table and MSX export. */
+  animationOrder?: string[];
   hitboxes: {
     body: Msx2PlayerHitbox;
     feet?: Msx2PlayerHitbox;
@@ -435,6 +463,10 @@ export interface Msx2PlayerDefinition {
     maxProjectiles?: number;
   };
   inputMapping: Record<string, string>;
+  /** When false, the action is omitted from runtime input handling. Omitted keys default to enabled. */
+  inputEnabled?: Partial<Record<'left' | 'right' | 'up' | 'down' | 'jump' | 'attack' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'inventory' | 'pause', boolean>>;
+  /** Label used when the matching function key action is set to custom. */
+  functionKeyCustomActions?: Partial<Record<Msx2PlayerFunctionKeyId, string>>;
   health: {
     maxHealth: number;
     lives: number;
@@ -454,7 +486,21 @@ export interface Msx2PlayerDefinition {
     box: Msx2PlayerHitbox;
   };
   sounds?: Record<string, string>;
+  /** Enable/disable each player sound slot. */
+  soundsEnabled?: Record<string, boolean>;
+  /** Event trigger preset: event:default, anim:key, or custom. */
+  soundPresets?: Record<string, string>;
+  /** Custom event id when soundPresets[slot] is custom. */
+  soundCustomValues?: Record<string, string>;
+  /** MSX2 PSG Sound Editor asset id for each slot. */
+  soundAssetIds?: Record<string, string>;
+  /** Custom SFX id when soundAssetIds[slot] is __custom__. */
+  soundAssetCustomValues?: Record<string, string>;
   inventoryHooks?: string[];
+  /** Project State Machine asset id used by this MSX2 player. */
+  stateMachineAssetId?: string;
+  /** Runtime/logic flags for screen placement and ECS behavior. */
+  logic?: Msx2PlayerLogicFlags;
   stateMachine: string[];
   budget: {
     cpu: number;

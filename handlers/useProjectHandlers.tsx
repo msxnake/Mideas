@@ -28,6 +28,7 @@ import {
   usesMsx2BitmapRoomStarter,
 } from '../utils/msx2ProjectProfiles';
 import { createDefaultMsx2PlayerDefinition } from '../utils/msx2PlayerDefaults';
+import { buildDetailedMsx2PlayerDocument } from '../utils/msx2PlayerDocument';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -471,10 +472,10 @@ export const useProjectHandlers = ({
     });
 
     if (profile) {
-      const starterPlayer = createDefaultMsx2PlayerDefinition(`player_${profile.profileId}_${Date.now()}`, profile.profileId);
+      const starterPlayer = buildDetailedMsx2PlayerDocument(createDefaultMsx2PlayerDefinition(`player_${profile.profileId}_${Date.now()}`, profile.profileId));
       createdAssets.push({
-        id: starterPlayer.id,
-        name: starterPlayer.name,
+        id: starterPlayer.compact.id,
+        name: starterPlayer.player.identity.name,
         type: 'msx2player',
         data: starterPlayer,
       });

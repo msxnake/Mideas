@@ -30,7 +30,7 @@ try {
     await page.screenshot({ path: join(outDir, '03_entities_mode.png'), fullPage: true });
   }
 
-  const pushBoxEntity = page.getByText('MSX2 Push Box Crate 2', { exact: false }).first();
+  const pushBoxEntity = page.getByText('MSX2 Box2 Crate 2', { exact: false }).first();
   if (await pushBoxEntity.count()) {
     await pushBoxEntity.click();
     await page.waitForTimeout(800);

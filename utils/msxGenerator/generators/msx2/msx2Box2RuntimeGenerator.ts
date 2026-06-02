@@ -1,6 +1,6 @@
 import { Msx2Screen4TileScreen } from '../../../../types';
 import { getMsx2TileBehaviorKind } from '../../../msx2Screen4TileBehavior';
-import { normalizeBox2Axis, normalizeBox2Gravity, MSX2_BOX2_AXIS_HORIZONTAL } from '../../../msx2Box2Runtime';
+import { normalizeBox2Axis, normalizeBox2Gravity } from '../../../msx2Box2Runtime';
 import {
   getComponentValue,
   getMsx2GridSnapCharBlockFromEntity,
@@ -74,6 +74,10 @@ function buildMapBoxTileSlots(
   const map = screen.map || [];
   const height = screen.heightTiles || MSX2_BOX2_SCREEN_TILE_HEIGHT;
   const width = screen.widthTiles || MSX2_BOX2_SCREEN_TILE_WIDTH;
+  const playerPushBox = (screen.layers?.entities || []).find(entity => playerHasMsx2PushBox(entity))?.components?.msx2_push_box || {};
+  const pushAxis = normalizeBox2Axis(playerPushBox.pushAxis ?? 'horizontal');
+  const slideSpeed = Math.max(1, Math.min(4, Number(playerPushBox.slideSpeed ?? 1) || 1));
+  const gravity = normalizeBox2Gravity(playerPushBox.gravity, true) ? 1 : 0;
   const slots: Msx2Box2RuntimeSlot[] = [];
   for (let tileY = 0; tileY < height; tileY++) {
     for (let tileX = 0; tileX < width; tileX++) {
@@ -89,11 +93,11 @@ function buildMapBoxTileSlots(
         x: tileX * 16,
         y: tileY * 16,
         charBase: nameLayout.charBaseAtTile(tileX, tileY),
-        pushAxis: MSX2_BOX2_AXIS_HORIZONTAL,
-        slideSpeed: 1,
-        gravity: 1,
+        pushAxis,
+        slideSpeed,
+        gravity,
         requiresAlignment: 1,
-        gridUnit: 8,
+        gridUnit: 16,
         charWidth: 2,
         charHeight: 2,
         spriteAssetId: '',
@@ -119,14 +123,18 @@ const clampHardwareSpriteCoord = (value: number, max: number): number =>
 
 /** True for msx2_box2 and legacy msx2_push_box entities. */
 export function entityHasMsx2Box2(entity: any): boolean {
+  if (entity?.kind === 'player') return false;
   if (entity?.components?.msx2_box2) return true;
   if (entity?.components?.msx2_push_box) return true;
   const engine = String(entity?.params?.engine || '').replace(/[\s_-]+/g, '').toLowerCase();
   return engine === 'box2' || engine === 'pushbox' || entity?.params?.pushBox === true || entity?.params?.box2 === true;
 }
 
-export function entityUsesLegacyPushBox(entity: any): boolean {
-  return Boolean(entity?.components?.msx2_push_box) && !entity?.components?.msx2_box2;
+export function playerHasMsx2PushBox(entity: any): boolean {
+  if (entity?.kind !== 'player') return false;
+  const pushBox = entity?.components?.msx2_push_box;
+  if (!pushBox) return false;
+  return pushBox.enabled !== false;
 }
 
 function readBox2Field(entity: any, box2Key: string, legacyKey: string, fallback: unknown): unknown {
@@ -239,7 +247,7 @@ export function usesMsx2Box2FromScreens(
 ): boolean {
   return screens.some(screen =>
     (screen?.layers?.entities || []).some(entity => entityHasMsx2Box2(entity))
-    || screenHasMapBoxTiles(screen)
+    || (screenHasMapBoxTiles(screen) && (screen?.layers?.entities || []).some(entity => playerHasMsx2PushBox(entity)))
   );
 }
 
