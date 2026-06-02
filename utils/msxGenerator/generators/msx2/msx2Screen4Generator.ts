@@ -6474,31 +6474,31 @@ screen4_name_cell_from_bc:
 msx2_collision_at_pixel:
     ; B=x pixel, C=y pixel. Returns A=solid mask with Z set when empty.
     ; Clobbers AF/DE/HL. Preserves BC inputs.
-${pushBoxEnabled ? `    call msx2_cell_flags_at_pixel
+${pushBoxEnabled ? `    ; Moving/idle box2 slots override packed flags so sprite motion stays collidable.
+    push bc
+    ld d, b
+    ld e, c
+    call msx2_box2_find_at_pixel
+    pop bc
+    cp #FF
+    jr nz, .collision_box_runtime_solid
+    call msx2_cell_flags_at_pixel
     ld e, a
     and MSX2_CELL_SOLID_MASK
-    jr z, .collision_check_runtime_box
+    ret z
     ld a, e
     and MSX2_CELL_BEHAVIOR_MASK
     srl a
     srl a
     srl a
     cp MSX2_CELL_BEHAVIOR_BOX
-    jr z, .collision_check_runtime_box
+    ret z
     ld a, MSX2_CELL_SOLID_MASK
     or a
     ret
-.collision_check_runtime_box:
-    ld d, b
-    ld e, c
-    call msx2_box2_find_at_pixel
-    cp #FF
-    jr z, .collision_empty
+.collision_box_runtime_solid:
     ld a, MSX2_CELL_SOLID_MASK
     or a
-    ret
-.collision_empty:
-    xor a
     ret
 ` : `    call msx2_cell_flags_at_pixel
     and MSX2_CELL_SOLID_MASK
@@ -10856,6 +10856,7 @@ VDP_CTRL_PORT EQU #99
 MSX2_CELL_SOLID_MASK EQU #01
 MSX2_CELL_EFFECT_MASK EQU #06
 MSX2_CELL_BEHAVIOR_MASK EQU #38
+MSX2_CELL_ZONE_MASK EQU #C0
 MSX2_CELL_BEHAVIOR_LADDER EQU #01
 MSX2_CELL_BEHAVIOR_CONVEYOR_RIGHT EQU #02
 MSX2_CELL_BEHAVIOR_CONVEYOR_LEFT EQU #03

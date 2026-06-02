@@ -231,8 +231,8 @@ export function tryBox2PushFromPlayer(
   collision: Msx2Box2CollisionProbe
 ): boolean {
   if (boxes.some(box => box.state !== 'idle')) return false;
-  const probeX = playerX + (dx !== 0 ? (dx > 0 ? MSX2_BOX2_BLOCK_PX : -MSX2_BOX2_BLOCK_PX) : 0);
-  const probeY = playerY + 8 + (dy !== 0 ? (dy > 0 ? MSX2_BOX2_BLOCK_PX : -MSX2_BOX2_BLOCK_PX) : 0);
+  const probeX = playerX + (dx > 0 ? MSX2_BOX2_BLOCK_PX : dx < 0 ? -1 : 0);
+  const probeY = playerY + 8 + (dy > 0 ? MSX2_BOX2_BLOCK_PX : dy < 0 ? -1 : 0);
   const box = findBox2AtPixel(boxes, probeX, probeY);
   if (!box) return false;
   if (!axisAllowsBox2Push(box.config.pushAxis, dx, dy)) return false;

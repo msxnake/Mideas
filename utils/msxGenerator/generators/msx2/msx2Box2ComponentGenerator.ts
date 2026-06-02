@@ -201,8 +201,10 @@ export function buildMsx2Box2RuntimeAsm(options: {
     ld c, a
     jr .box2_probe_ready
 .box2_probe_up:
+    ; Leading top edge (player_y - 1), not one tile above center.
     ld a, c
     sub 8
+    dec a
     ld c, a
     jr .box2_probe_ready
 `
@@ -595,10 +597,40 @@ msx2_box2_collision_index_from_bc:
     ex de, hl
     ret
 
+msx2_box2_patch_cell_flags_at_bc:
+    ; B=x pixel, C=y pixel. A=0 clears box/solid bits, A=1 writes packed box (#29).
+    ; Only touches msx2_current_effects_ptr (CELL_FLAGS). Clobbers AF/DE/HL. Preserves BC.
+    push af
+    push bc
+    call msx2_box2_collision_index_from_bc
+    ld hl, (msx2_current_effects_ptr)
+    add hl, de
+    pop bc
+    pop af
+    or a
+    jr nz, .box2_set_cell_box_at_hl
+    ld a, (hl)
+    and MSX2_CELL_BEHAVIOR_MASK
+    srl a
+    srl a
+    srl a
+    cp MSX2_CELL_BEHAVIOR_BOX
+    jr nz, .box2_patch_cell_flags_done
+    ld a, (hl)
+    and MSX2_CELL_ZONE_MASK
+    ld (hl), a
+    ret
+.box2_set_cell_box_at_hl:
+    ld a, (hl)
+    and MSX2_CELL_ZONE_MASK
+    or #29
+    ld (hl), a
+.box2_patch_cell_flags_done:
+    ret
+
 msx2_box2_patch_collision_value_for_slot:
-    ; Input: A=slot, B=collision byte (0=clear, 1=solid). Clobbers AF/BC/DE/HL.
-    ; Mirrors the same solid/box bits into the packed CELL_FLAGS runtime layer.
-    ld c, a
+    ; Input: C=slot, B=0 clear or 1 set packed box at the slot runtime cell.
+    ; Clobbers AF/BC/DE/HL.
     ld a, b
     push af
     ld b, 0
@@ -608,38 +640,44 @@ msx2_box2_patch_collision_value_for_slot:
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld c, (hl)
-    call msx2_box2_collision_index_from_bc
     pop af
-    ld hl, (msx2_current_collision_ptr)
+    jp msx2_box2_patch_cell_flags_at_bc
+
+msx2_box2_clear_static_origin_cell_for_slot:
+    ; Input: A=slot. Clears packed box bits at the static spawn cell for this slot.
+    ; Clobbers AF/BC/DE/HL.
+    push bc
+    ld c, a
+    call msx2_box2_screen_base
+    pop bc
+    push bc
+    push de
+    ld hl, msx2_screen_box2_x
     add hl, de
-    ld (hl), a
-    push af
-    ld hl, (msx2_current_effects_ptr)
+    add hl, bc
+    ld b, (hl)
+    ld hl, msx2_screen_box2_y
     add hl, de
-    pop af
-    or a
-    jr z, .box2_clear_cell_box
-    ld a, (hl)
-    and #C6
-    or #29
-    ld (hl), a
-    ret
-.box2_clear_cell_box:
-    ld a, (hl)
-    and #C6
-    ld (hl), a
+    add hl, bc
+    ld c, (hl)
+    xor a
+    call msx2_box2_patch_cell_flags_at_bc
+    pop de
+    pop bc
     ret
 
 msx2_box2_set_collision_for_slot:
-    ; Input: A=slot. Marks the runtime box cell solid in the mutable collision cache.
+    ; Input: A=slot. Writes idle box (#29) into CELL_FLAGS at the runtime cell.
     ; Clobbers AF/BC/DE/HL.
+    ld c, a
     ld b, 1
     jr msx2_box2_patch_collision_value_for_slot
 
 msx2_box2_clear_collision_for_slot:
-    ; Input: A=slot. Clears the runtime box cell in the mutable collision cache.
+    ; Input: A=slot. Clears packed box bits at the runtime cell (if marked as box).
     ; Clobbers AF/BC/DE/HL.
-    ld b, 0
+    ld c, a
+    xor a
     jr msx2_box2_patch_collision_value_for_slot
 
 msx2_box2_slot_allows_axis:
@@ -934,6 +972,8 @@ msx2_box2_finish_slide:
     ret
 .box2_finish_draw_chars:
     ld a, (msx2_box2_moving_slot)
+    call msx2_box2_clear_static_origin_cell_for_slot
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_draw_chars_for_slot
     ld a, (msx2_box2_moving_slot)
     call msx2_box2_set_collision_for_slot
@@ -1034,6 +1074,8 @@ msx2_box2_step_slide_toward_target:
     jr nz, .box2_step_continue
     jp msx2_box2_finish_slide
 .box2_step_continue:
+    ld a, (msx2_box2_moving_slot)
+    call msx2_box2_clear_collision_for_slot
     ret
 
 msx2_box2_slot_has_gravity:
@@ -1191,7 +1233,9 @@ msx2_box2_finish_gravity_fall:
     ld a, (hl)
     and #F0
     ld (hl), a
-    ld a, c
+    ld a, (msx2_box2_moving_slot)
+    call msx2_box2_clear_static_origin_cell_for_slot
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_draw_chars_for_slot
     ld a, (msx2_box2_moving_slot)
     call msx2_box2_set_collision_for_slot
@@ -1245,8 +1289,9 @@ msx2_try_box2_from_player:
     ld b, a
     jr .box2_probe_ready
 .box2_probe_left:
+    ; Leading left edge (same probe as move_hardware_sprite_left), not one tile away.
     ld a, b
-    sub 16
+    dec a
     ld b, a
     jr .box2_probe_ready
 .box2_probe_vert_setup:
