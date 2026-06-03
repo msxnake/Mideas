@@ -7,6 +7,7 @@ export const jump: SkillDef = {
   label: 'Base jump',
   required: true,
   cycles: 80,
+  controlIcon: 'jump',
   addsStates: ['jumping'],
   transitions: [
     { from: ['grounded', 'running'], to: 'jumping', condition: 'jump_key_pressed AND grounded' },
@@ -51,6 +52,7 @@ export const doubleJump: SkillDef = {
   label: 'Second jump in mid-air',
   required: false,
   cycles: 120,
+  controlIcon: 'jump',
   addsStates: ['double_jumping'],
   transitions: [
     { from: ['jumping', 'falling'], to: 'double_jumping', condition: 'jump_key_pressed AND jump_count < 2' },
@@ -63,6 +65,7 @@ export const slash: SkillDef = {
   label: 'Melee slash in facing direction',
   required: false,
   cycles: 200,
+  controlIcon: 'attack',
   addsStates: ['slashing'],
   transitions: [
     { from: ['grounded', 'running', 'jumping', 'falling'], to: 'slashing', condition: 'attack_key_pressed AND slash_cooldown = 0' },
@@ -98,6 +101,7 @@ export const block: SkillDef = {
   label: 'Reduce damage while held',
   required: false,
   cycles: 60,
+  controlIcon: 'attack',
   addsStates: ['blocking'],
   transitions: [
     { from: ['grounded', 'running'], to: 'blocking', condition: 'block_key_held' },
@@ -110,6 +114,7 @@ export const teleport: SkillDef = {
   label: 'Instant shift to target position',
   required: false,
   cycles: 300,
+  controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
@@ -119,6 +124,7 @@ export const pickUp: SkillDef = {
   label: 'Pick up carried objects',
   required: false,
   cycles: 100,
+  controlIcon: 'attack',
   addsStates: ['carrying'],
   transitions: [
     { from: ['grounded', 'running'], to: 'carrying', condition: 'pick_key_pressed AND pickup_nearby' },
@@ -132,6 +138,7 @@ export const magicBall: SkillDef = {
   label: 'Fire magic projectile',
   required: false,
   cycles: 250,
+  controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
@@ -141,6 +148,7 @@ export const reverse: SkillDef = {
   label: 'Invert gravity direction',
   required: false,
   cycles: 80,
+  controlIcon: 'attack',
   addsStates: ['reversed'],
   transitions: [
     { from: ['grounded', 'running', 'jumping', 'falling'], to: 'reversed', condition: 'reverse_key_pressed' },
@@ -153,6 +161,7 @@ export const swim: SkillDef = {
   label: 'Buoyant movement in water',
   required: false,
   cycles: 180,
+  controlIcon: 'jump',
   addsStates: ['swimming', 'sinking'],
   transitions: [
     { from: ['grounded', 'running', 'jumping', 'falling'], to: 'swimming', condition: 'zone = water AND swim_key_held' },
@@ -167,6 +176,7 @@ export const shoot: SkillDef = {
   label: 'Fire bullet in facing direction',
   required: false,
   cycles: 200,
+  controlIcon: 'attack',
   addsStates: ['shooting'],
   transitions: [
     { from: ['grounded', 'running', 'jumping', 'falling'], to: 'shooting', condition: 'shoot_key_pressed AND shoot_cooldown = 0' },

@@ -5,6 +5,8 @@ import { StateMachine } from '../../statemachine.types';
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
+import { getAllSkills } from '../../utils/msxGenerator/skills/registry';
+import type { SkillControlIcon } from '../../utils/msxGenerator/skills/types';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
@@ -1470,23 +1472,41 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                   <p className="text-[11px] text-slate-400">
                     Directions use Arrows or Joystick 1/2. Buttons A and B map to any MSX key or joystick trigger.
                   </p>
-                  {controlRows.map(({ directionKey, badge, key, binding, fallback }) => {
-                    const enabled = normalized.inputEnabled?.[key] !== false;
-                    const value = normalized.inputMapping[key] || fallback;
-                    const options = binding === 'button' ? MSX2_PLAYER_BUTTON_BINDINGS : MSX2_PLAYER_INPUT_SOURCES;
-                    return (
-                      <ControlField
-                        key={key}
-                        directionKey={directionKey}
-                        badge={badge}
-                        enabled={enabled}
-                        onEnabledChange={checked => updateInputEnabled(key, checked)}
-                        value={value}
-                        onValueChange={nextValue => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: nextValue } })}
-                        options={options}
-                      />
-                    );
-                  })}
+                  {(() => {
+                    const skillByIcon = new Map<string, string[]>();
+                    for (const s of getAllSkills()) {
+                      if (!s.controlIcon) continue;
+                      const arr = skillByIcon.get(s.controlIcon) ?? [];
+                      arr.push(s.label);
+                      skillByIcon.set(s.controlIcon, arr);
+                    }
+                    return controlRows.map(({ directionKey, badge, key, binding, fallback }) => {
+                      const enabled = normalized.inputEnabled?.[key] !== false;
+                      const value = normalized.inputMapping[key] || fallback;
+                      const options = binding === 'button' ? MSX2_PLAYER_BUTTON_BINDINGS : MSX2_PLAYER_INPUT_SOURCES;
+                      const skillLabels = skillByIcon.get(key) ?? [];
+                      return (
+                        <div key={key}>
+                          <ControlField
+                            directionKey={directionKey}
+                            badge={badge}
+                            enabled={enabled}
+                            onEnabledChange={checked => updateInputEnabled(key, checked)}
+                            value={value}
+                            onValueChange={nextValue => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: nextValue } })}
+                            options={options}
+                          />
+                          {skillLabels.length > 0 && (
+                            <div className="ml-[68px] mt-[1px] flex flex-wrap gap-x-2 gap-y-[1px] text-[10px] text-slate-500">
+                              {skillLabels.map(label => (
+                                <span key={label} className="text-[10px]">{label}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                   <div className="border-t border-slate-800 pt-2">
                     <p className="mb-2 text-[11px] text-slate-400">
                       Function keys keep their MSX key (F1-F5). Pick a preset or choose Custom to type your own action.
