@@ -112,6 +112,7 @@ export interface Msx2PlayerDocument {
     }>;
     inventoryHooks: string[];
     logic: NonNullable<Msx2PlayerDefinition['logic']>;
+    components: NonNullable<Msx2PlayerDefinition['components']>;
     stateMachine: {
       template?: string;
       assetId?: string;
@@ -294,6 +295,7 @@ export const buildDetailedMsx2PlayerDocument = (
       soundsConfig: buildSoundsSection(normalized),
       inventoryHooks: normalized.inventoryHooks || [],
       logic: normalized.logic || {},
+      components: normalized.components || {},
       stateMachine: buildStateMachineSection(normalized),
       runtime: {
         budget: normalized.budget,
@@ -397,6 +399,7 @@ const flattenDetailedPlayerPayload = (
     soundAssetCustomValues: player.soundAssetCustomValues,
     inventoryHooks: player.inventoryHooks,
     logic: player.logic,
+    components: player.components,
     stateMachineAssetId: player.stateMachine?.assetId,
     stateMachine: player.stateMachine?.states,
     budget: player.runtime?.budget,
@@ -471,6 +474,7 @@ export const mergeMsx2PlayerUpdate = (
     animations: partialPatch.animations !== undefined ? partialPatch.animations : base.animations,
     animationOrder: partialPatch.animationOrder !== undefined ? partialPatch.animationOrder : base.animationOrder,
     logic: partialPatch.logic ? { ...base.logic, ...partialPatch.logic } : base.logic,
+    components: partialPatch.components ? { ...(base.components || {}), ...partialPatch.components } : base.components,
     stateMachineAssetId: partialPatch.stateMachineAssetId !== undefined
       ? partialPatch.stateMachineAssetId
       : base.stateMachineAssetId,

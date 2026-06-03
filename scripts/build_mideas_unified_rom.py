@@ -3610,12 +3610,13 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
         raise RuntimeError("MSX2 Konami8K validation failed: missing init_msx2_effect_buffers routine")
     init_effects_body = init_effects_match.group(1) if init_effects_match else ""
     for label in sorted(data_bank_labels):
-        if f"{label}_EFFECTS" not in asm_text:
+        target_suffix = "CELL_FLAGS" if f"{label}_CELL_FLAGS" in asm_text else "EFFECTS"
+        if f"{label}_{target_suffix}" not in asm_text:
             continue
         expected_sequence = [
             f"ld a, {label}_DATA_BANK",
             "call msx2_screen4_data_bank_enter_selected",
-            f"ld hl, {label}_EFFECTS",
+            f"ld hl, {label}_{target_suffix}",
             "ld de, #",
             "ld bc, msx2_layer_size",
             "ldir",
@@ -3625,7 +3626,7 @@ def validate_msx2_screen4_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
         if missing_sequence:
             raise RuntimeError(
                 "MSX2 Konami8K validation failed: init_msx2_effect_buffers does not restore "
-                f"{label}_EFFECTS through its selected data bank; missing {', '.join(missing_sequence)}"
+                f"{label}_{target_suffix} through its selected data bank; missing {', '.join(missing_sequence)}"
             )
 
     required_boot_patterns = [

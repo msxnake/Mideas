@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_ANIMATION_ROLES, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, parseMsx2PlayerImport } from '../../utils/msx2PlayerDocument';
 import { StateMachine } from '../../statemachine.types';
-import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Sprite, ProjectAsset } from '../../types';
+import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
+import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
+import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
@@ -65,6 +67,268 @@ const Checkbox: React.FC<{ label: string; checked: boolean; onChange: (checked: 
     {label}
   </label>
 );
+
+const PLAYER_NATIVE_COMPONENT_IDS: Msx2ComponentId[] = [
+  'msx2_hardware_sprite',
+  'msx2_player_control',
+  'msx2_jump',
+  'msx2_gravity',
+  'msx2_push_box',
+];
+
+const formatComponentFieldLabel = (key: string): string =>
+  key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, value => value.toUpperCase());
+
+interface PlayerBoxTileOption {
+  screenId: string;
+  screenName: string;
+  tile: Msx2Screen4Tile;
+  tileIndex: number;
+  palette: Screen5PaletteSlot[];
+}
+
+const getBoxTilePixelWidth = (tile: Msx2Screen4Tile | undefined): number =>
+  Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16) || 16));
+
+const getBoxTilePixelHeight = (tile: Msx2Screen4Tile | undefined): number =>
+  Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? 16) || 16));
+
+const buildPlayerBoxTileOptions = (assets: ProjectAsset[]): PlayerBoxTileOption[] => {
+  const options: PlayerBoxTileOption[] = [];
+  const seen = new Set<string>();
+
+  assets.forEach(asset => {
+    if (asset.type !== 'msx2screen') return;
+    const screen = asset.data as Msx2Screen4TileScreen | undefined;
+    if (!screen?.tiles?.length) return;
+    screen.tiles.forEach((tile, tileIndex) => {
+      if (getMsx2TileBehaviorKind(tile) !== 'box') return;
+      const dedupeKey = tile.id ? `${asset.id}:${tile.id}` : `${asset.id}:tile:${tileIndex}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+      options.push({
+        screenId: asset.id,
+        screenName: asset.name || screen.name || asset.id,
+        tile,
+        tileIndex,
+        palette: screen.palette || [],
+      });
+    });
+  });
+
+  return options;
+};
+
+const PlayerBoxTilePreview: React.FC<{ option: PlayerBoxTileOption }> = ({ option }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const width = getBoxTilePixelWidth(option.tile);
+    const height = getBoxTilePixelHeight(option.tile);
+    canvas.width = width;
+    canvas.height = height;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#05070b';
+    ctx.fillRect(0, 0, width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const slot = Number(option.tile.pixels?.[y]?.[x]) || 0;
+        const hex = option.palette[slot]?.hex || (slot === 0 ? '#05070b' : '#ffffff');
+        ctx.fillStyle = hex.toLowerCase() === 'transparent' ? '#05070b' : hex;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }, [option]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="h-12 w-12 flex-none rounded border border-slate-700 bg-black"
+      style={{ imageRendering: 'pixelated' }}
+      aria-hidden
+    />
+  );
+};
+
+const PlayerComponentsDialog: React.FC<{
+  components: Record<string, Record<string, any>>;
+  spriteAssets: ProjectAsset[];
+  boxTileOptions: PlayerBoxTileOption[];
+  onPatchComponent: (componentId: Msx2ComponentId, patch: Record<string, any>) => void;
+  onClose: () => void;
+}> = ({ components, spriteAssets, boxTileOptions, onPatchComponent, onClose }) => {
+  const componentDefs = PLAYER_NATIVE_COMPONENT_IDS
+    .map(id => MSX2_COMPONENT_REPERTOIRE.find(component => component.id === id))
+    .filter(Boolean) as NonNullable<(typeof MSX2_COMPONENT_REPERTOIRE)[number]>[];
+
+  const renderField = (componentId: Msx2ComponentId, key: string, values: Record<string, any>, defaults: Record<string, any>) => {
+    const config = MSX2_COMPONENT_FIELD_EDITORS[componentId]?.[key];
+    if (componentId === 'msx2_push_box' && key === 'tileId') return null;
+    if (config?.hidden) return null;
+    const value = values[key] ?? defaults[key];
+    const label = config?.label || formatComponentFieldLabel(key);
+    const patch = (nextValue: unknown) => onPatchComponent(componentId, { [key]: nextValue });
+
+    if (config?.kind === 'boolean' || typeof value === 'boolean') {
+      return (
+        <label key={key} className="flex items-center gap-2 rounded border border-slate-700 bg-[#111821] px-2 py-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={value !== false}
+            onChange={event => patch(event.target.checked)}
+            className="h-3.5 w-3.5 accent-blue-500"
+          />
+          <span>{label}</span>
+        </label>
+      );
+    }
+
+    if (config?.kind === 'select') {
+      const options = config.options || [];
+      return (
+        <label key={key} className="space-y-1 text-xs text-slate-200">
+          <span>{label}</span>
+          <select className={selectClass} value={String(value ?? options[0] ?? '')} onChange={event => patch(event.target.value)}>
+            {options.map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+      );
+    }
+
+    if (config?.kind === 'msx2SpriteAsset') {
+      return (
+        <label key={key} className="space-y-1 text-xs text-slate-200">
+          <span>{label}</span>
+          <select className={selectClass} value={String(value || '')} onChange={event => patch(event.target.value)}>
+            <option value="">None (use box tile)</option>
+            {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+          </select>
+        </label>
+      );
+    }
+
+    if (componentId === 'msx2_push_box' && config?.kind === 'tileIndex') {
+      const selectedTileId = String(values.tileId || '').trim();
+      const selectedTileIndex = Number.isFinite(Number(value)) ? Number(value) : 0;
+      return (
+        <div key={key} className="col-span-2 space-y-2 text-xs text-slate-200">
+          <div className="flex items-center justify-between gap-2">
+            <span>{label}</span>
+            <span className="text-[10px] text-slate-400">Filtrado: Caja / BOX</span>
+          </div>
+          {boxTileOptions.length === 0 ? (
+            <div className="rounded border border-amber-700/60 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100">
+              No hay tiles marcados como Caja en las pantallas SCREEN 4/5.
+            </div>
+          ) : (
+            <div className="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2 overflow-auto rounded border border-slate-700 bg-[#111821] p-2">
+              {boxTileOptions.map(option => {
+                const optionTileId = String(option.tile.id || '').trim();
+                const selected = selectedTileId
+                  ? optionTileId === selectedTileId
+                  : option.tileIndex === selectedTileIndex;
+                return (
+                  <button
+                    key={`${option.screenId}:${optionTileId || option.tileIndex}`}
+                    type="button"
+                    className={`flex min-w-0 items-center gap-2 rounded border p-2 text-left hover:border-sky-500 ${
+                      selected ? 'border-sky-400 bg-sky-950/40' : 'border-slate-700 bg-[#1d2430]'
+                    }`}
+                    title={`${option.screenName} - tile ${option.tileIndex}${optionTileId ? ` - ${optionTileId}` : ''}`}
+                    onClick={() => onPatchComponent(componentId, {
+                      tileIndex: option.tileIndex,
+                      tileId: optionTileId,
+                      boxTileIndex: option.tileIndex,
+                    })}
+                  >
+                    <PlayerBoxTilePreview option={option} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-100">
+                        {option.tileIndex}: {option.tile.name || optionTileId || 'Box tile'}
+                      </span>
+                      <span className="block truncate text-[10px] text-slate-400">{option.screenName}</span>
+                      {optionTileId && <span className="block truncate text-[10px] text-slate-500">{optionTileId}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const numeric = config?.kind === 'tileIndex' || typeof value === 'number' || config?.min !== undefined || config?.max !== undefined;
+    if (numeric) {
+      return (
+        <label key={key} className="space-y-1 text-xs text-slate-200">
+          <span>{label}</span>
+          <input
+            type="number"
+            min={config?.min}
+            max={config?.max}
+            className={inputClass}
+            value={Number.isFinite(Number(value)) ? Number(value) : 0}
+            onChange={event => {
+              let nextValue = Number(event.target.value);
+              if (!Number.isFinite(nextValue)) nextValue = Number(defaults[key]) || 0;
+              if (config?.min !== undefined) nextValue = Math.max(config.min, nextValue);
+              if (config?.max !== undefined) nextValue = Math.min(config.max, nextValue);
+              patch(nextValue);
+            }}
+          />
+        </label>
+      );
+    }
+
+    return (
+      <label key={key} className="space-y-1 text-xs text-slate-200">
+        <span>{label}</span>
+        <input className={inputClass} value={String(value ?? '')} onChange={event => patch(event.target.value)} />
+      </label>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={event => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <div className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded border border-slate-700 bg-[#151a23] shadow-xl">
+        <div className="flex h-11 items-center justify-between border-b border-slate-700 px-4">
+          <h3 className="text-sm font-semibold text-slate-100">Player Components</h3>
+          <button type="button" className="h-7 rounded border border-slate-700 px-3 text-xs hover:bg-slate-800" onClick={onClose}>Close</button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="grid gap-3">
+            {componentDefs.map(component => {
+              const defaults = component.defaults || {};
+              const values = { ...defaults, ...(components[component.id] || {}) };
+              const fieldKeys = Array.from(new Set([
+                ...Object.keys(defaults),
+                ...Object.keys(MSX2_COMPONENT_FIELD_EDITORS[component.id] || {}),
+                ...Object.keys(components[component.id] || {}),
+              ]));
+              return (
+                <section key={component.id} className="rounded border border-slate-700 bg-[#1d2430]">
+                  <div className="border-b border-slate-700 px-3 py-2">
+                    <div className="text-xs font-bold uppercase tracking-wide text-sky-300">{component.label}</div>
+                    <div className="mt-0.5 text-[11px] text-slate-400">{component.description}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 p-3">
+                    {fieldKeys.map(key => renderField(component.id, key, values, defaults))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const FunctionKeyField: React.FC<{
   keyId: Msx2PlayerFunctionKeyId;
@@ -619,11 +883,13 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
   const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
+  const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const spriteAssets = allAssets.filter(asset => asset.type === 'msx2sprite');
   const soundAssets = allAssets.filter(asset => asset.type === 'sound');
   const stateMachineAssets = allAssets.filter(asset => asset.type === 'statemachine');
   const paletteAssets = allAssets.filter(asset => asset.type === 'palette');
+  const boxTileOptions = useMemo(() => buildPlayerBoxTileOptions(allAssets), [allAssets]);
   const selectedSprite = useMemo(
     () => spriteAssets.find(asset => asset.id === normalized.render.spriteAssetId)?.data as Msx2Sprite | undefined,
     [normalized.render.spriteAssetId, spriteAssets]
@@ -690,6 +956,20 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
   };
   const updateLogic = (patch: Partial<Msx2PlayerLogicFlags>) => {
     onUpdate({ logic: { ...logic, ...patch } });
+  };
+  const updateNativeComponent = (componentId: Msx2ComponentId, patch: Record<string, any>) => {
+    const def = MSX2_COMPONENT_REPERTOIRE.find(component => component.id === componentId);
+    const defaults = def?.defaults || {};
+    onUpdate({
+      components: {
+        ...(normalized.components || {}),
+        [componentId]: {
+          ...defaults,
+          ...(normalized.components?.[componentId] || {}),
+          ...patch,
+        },
+      },
+    });
   };
   const selectStateMachineAsset = (assetId: string | undefined) => {
     onUpdate(buildPlayerStateMachinePatchFromAsset(assetId, stateMachineAssets));
@@ -927,6 +1207,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
             <input className={`${inputClass} max-w-[320px]`} value={normalized.name} onChange={event => onUpdate({ name: event.target.value })} />
           </div>
           <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={() => navigator.clipboard?.writeText(JSON.stringify(detailedDocument, null, 2))}>Duplicate</button>
+          <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={() => setIsComponentsDialogOpen(true)}>Components...</button>
           <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={exportPlayer}>Export...</button>
           <button className="h-8 rounded border border-slate-700 bg-[#242c38] px-5 text-xs hover:bg-[#2d3747]" type="button" onClick={() => importRef.current?.click()}>Import...</button>
           <button className="h-8 rounded border border-blue-700 bg-blue-700 px-6 text-xs font-semibold hover:bg-blue-600" type="button" onClick={() => onUpdate(detailedDocument as unknown as Partial<Msx2PlayerDefinition>)}>Save</button>
@@ -937,6 +1218,15 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
           <aside className="grid min-h-0 grid-rows-[1fr_330px] gap-2">
             <section className={panelClass}>
               <div className={panelTitleClass}>Player Config</div>
+              <div className="border-b border-slate-800 p-2">
+                <button
+                  type="button"
+                  className="h-8 w-full rounded border border-sky-700 bg-sky-950/40 px-3 text-left text-xs font-semibold text-sky-200 hover:bg-sky-900/50"
+                  onClick={() => setIsComponentsDialogOpen(true)}
+                >
+                  Components...
+                </button>
+              </div>
               <div className="min-h-0 flex-1 overflow-auto py-1">
                 {navItems.map(item => (
                   <button
@@ -1423,6 +1713,15 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
             </section>
           </main>
         </div>
+        {isComponentsDialogOpen && (
+          <PlayerComponentsDialog
+            components={normalized.components || {}}
+            spriteAssets={spriteAssets}
+            boxTileOptions={boxTileOptions}
+            onPatchComponent={updateNativeComponent}
+            onClose={() => setIsComponentsDialogOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

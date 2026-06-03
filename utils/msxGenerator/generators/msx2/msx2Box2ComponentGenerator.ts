@@ -171,6 +171,8 @@ export function buildMsx2Box2HardwareSpriteAttrWrite(options: {
     ld a, (hl)
     ld hl, #${options.attrAddress.toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
+    ; write_vram_byte_ext clobbers B, so rebuild BC before indexing by slot again.
+    ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
     ld a, (hl)
@@ -220,6 +222,8 @@ export function buildMsx2Box2HardwareSpriteSatRefreshAsm(options: {
     ld a, (hl)
     ld hl, #${attr}
     call write_vram_byte_ext
+    ; write_vram_byte_ext clobbers B, so rebuild BC before indexing by slot again.
+    ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
     ld a, (hl)
@@ -278,7 +282,9 @@ init_msx2_box2_boxes:
     push af
     call msx2_box2_draw_chars_for_slot
     pop af
+    push af
     call msx2_box2_set_collision_for_slot
+    pop af
     pop bc
     inc a
     djnz .box2_init_loop
@@ -405,6 +411,10 @@ msx2_box2_restore_chars_for_slot:
     ; Map-origin boxes are the tile itself, so restoring their source quad would duplicate the box.
     ; Clobbers AF/BC/DE/HL.
     ld c, a
+    call msx2_box2_slot_is_map_origin
+    or a
+    jp nz, msx2_box2_restore_map_underlay_for_slot
+    ld a, c
     ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
@@ -416,6 +426,11 @@ msx2_box2_restore_chars_for_slot:
     ld c, e
     call screen4_name_cell_from_bc
     jp clear_screen4_name_cell_16
+
+msx2_box2_draw_source_tile_for_slot:
+    ; Input: A=slot. Draws the tile quad that represents this box at its runtime position.
+    ; Clobbers AF/BC/DE/HL.
+    jp msx2_box2_draw_chars_for_slot
 
 msx2_box2_restore_map_underlay_for_slot:
     ; Input: C=slot. Restores the painted background name quad for a map-origin box.
@@ -436,15 +451,19 @@ msx2_box2_restore_map_underlay_for_slot:
     ex de, hl
     pop hl
     pop bc
-    push bc
+    ; DE = restore_names source quad pointer. screen4_name_cell_from_bc clobbers DE,
+    ; so preserve the source pointer on the stack across the cell computation.
+    push de
+    ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
-    ld b, (hl)
+    ld a, (hl)
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld c, (hl)
+    ld b, a
     call screen4_name_cell_from_bc
-    pop bc
+    pop de
     ld a, (de)
     push hl
     push de
@@ -494,10 +513,8 @@ msx2_box2_slot_is_map_origin:
 msx2_box2_maybe_clear_map_visual_for_slot:
     ; Input: A=slot. Clears visual map cell when slot is map-origin.
     ; Clobbers AF/BC/DE/HL.
-    push bc
     ld c, a
     call msx2_box2_slot_is_map_origin
-    pop bc
     or a
     ret z
     ld a, c
@@ -507,10 +524,8 @@ msx2_box2_maybe_clear_map_visual_for_slot:
 msx2_box2_maybe_restore_map_visual_for_slot:
     ; Input: A=slot. Restores visual map cell when slot is map-origin.
     ; Clobbers AF/BC/DE/HL.
-    push bc
     ld c, a
     call msx2_box2_slot_is_map_origin
-    pop bc
     or a
     ret z
     ld a, c
@@ -688,30 +703,33 @@ msx2_box2_patch_collision_value_for_slot:
     ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
-    ld b, (hl)
+    ld d, (hl)
     ld hl, msx2_box2_runtime_y
     add hl, bc
-    ld c, (hl)
+    ld e, (hl)
+    ld b, d
+    ld c, e
     pop af
     jp msx2_box2_patch_cell_flags_at_bc
 
 msx2_box2_clear_static_origin_cell_for_slot:
     ; Input: A=slot. Clears packed box bits at the static spawn cell for this slot.
     ; Clobbers AF/BC/DE/HL.
-    push bc
     ld c, a
+    ld b, 0
     call msx2_box2_screen_base
-    pop bc
     push bc
     push de
     ld hl, msx2_screen_box2_x
     add hl, de
     add hl, bc
-    ld b, (hl)
+    ld d, (hl)
     ld hl, msx2_screen_box2_y
     add hl, de
     add hl, bc
-    ld c, (hl)
+    ld e, (hl)
+    ld b, d
+    ld c, e
     xor a
     call msx2_box2_patch_cell_flags_at_bc
     pop de
@@ -848,18 +866,17 @@ msx2_box2_can_move_slot:
     ld a, e
     cp 177
     jr nc, .box2_move_blocked
+    push bc
     push de
     ld b, d
     ld c, e
     call msx2_box2_find_at_pixel
     pop de
+    pop bc
     cp #FF
     jr z, .box2_move_check_collision
-    ld b, a
-    ld a, c
-    cp b
+    cp c
     jr z, .box2_move_free
-    ld a, b
     ld (msx2_box2_active), a
     call msx2_box2_can_move_slot
     ret
@@ -1026,7 +1043,7 @@ msx2_box2_finish_slide:
     ld a, (msx2_box2_moving_slot)
     call msx2_box2_clear_static_origin_cell_for_slot
     ld a, (msx2_box2_moving_slot)
-    call msx2_box2_draw_chars_for_slot
+    call msx2_box2_draw_source_tile_for_slot
     ld a, (msx2_box2_moving_slot)
     call msx2_box2_set_collision_for_slot
     ld a, (msx2_box2_moving_slot)
@@ -1129,10 +1146,10 @@ msx2_box2_step_slide_toward_target:
     ld a, (msx2_box2_moving_slot)
 ${hardwareSpriteDuringMove
     ? `    call refresh_msx2_box2_hardware_sprite_sat
-    call msx2_box2_set_collision_for_slot
     ret
 `
     : `    call msx2_box2_restore_chars_for_slot
+    ld a, (msx2_box2_moving_slot)
     call msx2_box2_clear_collision_for_slot
     ret
 `}
@@ -1186,10 +1203,11 @@ msx2_box2_slot_has_support:
     ld b, 0
     ld hl, msx2_box2_runtime_x
     add hl, bc
-    ld b, (hl)
+    ld d, (hl)
     ld hl, msx2_box2_runtime_y
     add hl, bc
     ld a, (hl)
+    ld b, d
     add a, 16
     ld c, a
     call msx2_box2_find_at_pixel
@@ -1281,7 +1299,6 @@ msx2_box2_update_gravity_fall:
     ld a, (msx2_box2_moving_slot)
 ${hardwareSpriteDuringMove
     ? `    call refresh_msx2_box2_hardware_sprite_sat
-    call msx2_box2_set_collision_for_slot
     ret
 `
     : `    call msx2_box2_restore_chars_for_slot
@@ -1303,7 +1320,7 @@ msx2_box2_finish_gravity_fall:
     ld a, (msx2_box2_moving_slot)
     call msx2_box2_clear_static_origin_cell_for_slot
     ld a, (msx2_box2_moving_slot)
-    call msx2_box2_draw_chars_for_slot
+    call msx2_box2_draw_source_tile_for_slot
     ld a, (msx2_box2_moving_slot)
     call msx2_box2_set_collision_for_slot
     ld a, (msx2_box2_moving_slot)

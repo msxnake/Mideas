@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE as DEFAULT_SCREEN4_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, Msx2PlayerEntry, Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -36,7 +36,7 @@ import { buildMsx2CellFlagBytes } from '../../../msx2CellFlags';
 import {
   formatAsmByte,
   formatAsmWord,
-  getMsx2PlatformPhysicsFromAnalysis,
+  getMsx2PlatformPhysicsFromScreen,
   getMsx2PlatformPhysicsFromPlayerEntity,
   getTerminalVelocityHighByte,
 } from '../../../msx2PlatformPhysics';
@@ -516,6 +516,19 @@ function buildScreen4ScreenData(screen: Msx2Screen4TileScreen | undefined): { na
   const bankCharByKey = Array.from({ length: 3 }, () => new Map<string, number>());
   const bankDefs: Screen4CharDefinition[][] = Array.from({ length: 3 }, () => []);
   const names = Array(SCREEN4_NAME_BYTES).fill(0);
+
+  const claimedCharBlocks: number[] = [];
+  const reserveBaseForCharBlock = (requestedBase: number): number => {
+    let base = Math.max(0, Math.min(252, Math.floor(requestedBase)));
+    while (claimedCharBlocks.some(existing => existing !== base && Math.abs(existing - base) < 4)) {
+      base += 4;
+      if (base > 252) base = 1;
+      if (claimedCharBlocks.length >= 63) break;
+    }
+    if (!claimedCharBlocks.includes(base)) claimedCharBlocks.push(base);
+    return base;
+  };
+
   const reserveCharForAllBanks = (charCode: number, pattern: number[], color: number[]): void => {
     if (charCode < 0 || charCode > 255) return;
     for (let bank = 0; bank < 3; bank++) {
@@ -567,18 +580,46 @@ function buildScreen4ScreenData(screen: Msx2Screen4TileScreen | undefined): { na
     return charCode;
   };
 
+  // Find all unique tiles on the map that have behaviorKind === 'box'
+  const mapBoxTileIndexes = new Set<number>();
+  for (let tileY = 0; tileY < MSX2_TILE_SCREEN_HEIGHT; tileY++) {
+    for (let tileX = 0; tileX < MSX2_TILE_SCREEN_WIDTH; tileX++) {
+      const tileIndex = Math.max(0, Math.min(maxTileIndex, Number(map[tileY]?.[tileX]) || 0));
+      const tile = tiles[tileIndex];
+      if (getMsx2TileBehaviorKind(tile as any) === 'box') {
+        mapBoxTileIndexes.add(tileIndex);
+      }
+    }
+  }
+
+  const mapBoxTileBases = new Map<number, number>();
+  for (const tileIndex of mapBoxTileIndexes) {
+    const bytes = tileBytes[tileIndex];
+    if (bytes) {
+      const base = reserveBaseForCharBlock(9);
+      mapBoxTileBases.set(tileIndex, base);
+      reserveCharBlockForAllBanks(base, bytes.pattern, bytes.color);
+    }
+  }
+
   for (let tileY = 0; tileY < MSX2_TILE_SCREEN_HEIGHT; tileY++) {
     const bank = Math.floor(tileY / 4);
     for (let tileX = 0; tileX < MSX2_TILE_SCREEN_WIDTH; tileX++) {
       const tileIndex = Math.max(0, Math.min(maxTileIndex, Number(map[tileY]?.[tileX]) || 0));
       const bytes = tileBytes[tileIndex];
-      const charCodes = Array.from({ length: 4 }, (_unused, quadrant) =>
-        charForBytes(
-          bank,
-          bytes.pattern.slice(quadrant * 8, quadrant * 8 + 8),
-          bytes.color.slice(quadrant * 8, quadrant * 8 + 8)
-        )
-      );
+      let charCodes: number[];
+      const reservedBase = mapBoxTileBases.get(tileIndex);
+      if (reservedBase !== undefined) {
+        charCodes = [reservedBase, reservedBase + 1, reservedBase + 2, reservedBase + 3];
+      } else {
+        charCodes = Array.from({ length: 4 }, (_unused, quadrant) =>
+          charForBytes(
+            bank,
+            bytes.pattern.slice(quadrant * 8, quadrant * 8 + 8),
+            bytes.color.slice(quadrant * 8, quadrant * 8 + 8)
+          )
+        );
+      }
       const nameX = tileX * 2;
       const nameY = tileY * 2;
       names[(nameY * SCREEN4_CHAR_COLUMNS) + nameX] = charCodes[0];
@@ -587,18 +628,6 @@ function buildScreen4ScreenData(screen: Msx2Screen4TileScreen | undefined): { na
       names[((nameY + 1) * SCREEN4_CHAR_COLUMNS) + nameX + 1] = charCodes[3];
     }
   }
-
-  const claimedCharBlocks: number[] = [];
-  const reserveBaseForCharBlock = (requestedBase: number): number => {
-    let base = Math.max(0, Math.min(252, Math.floor(requestedBase)));
-    while (claimedCharBlocks.some(existing => existing !== base && Math.abs(existing - base) < 4)) {
-      base += 4;
-      if (base > 252) base = 1;
-      if (claimedCharBlocks.length >= 63) break;
-    }
-    if (!claimedCharBlocks.includes(base)) claimedCharBlocks.push(base);
-    return base;
-  };
   for (const entity of screen?.layers?.entities || []) {
     if (entityHasMsx2Box2(entity)) {
       const charCode = Number(entity?.components?.msx2_char_render?.charCode ?? entity?.params?.charCode ?? 9);
@@ -1416,6 +1445,172 @@ function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string 
   return analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
 }
 
+function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | undefined {
+  if (!data) return undefined;
+  if (data.compact) return data.compact as Partial<Msx2PlayerDefinition>;
+  if (data.schema && data.player) {
+    return {
+      id: data.player.identity?.id,
+      name: data.player.identity?.name,
+      render: data.player.render,
+      components: data.player.components,
+    } as Partial<Msx2PlayerDefinition>;
+  }
+  return data as Partial<Msx2PlayerDefinition>;
+}
+
+function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
+  assetId: string;
+  playerId: string;
+  name: string;
+  player: Partial<Msx2PlayerDefinition>;
+}> {
+  return (analysis.assets || [])
+    .filter(asset => asset.type === 'msx2player')
+    .map(asset => {
+      const player = unwrapMsx2PlayerAssetData(asset.data);
+      if (!player) return undefined;
+      return {
+        assetId: asset.id,
+        playerId: String(player.id || asset.id || '').trim(),
+        name: String(player.name || asset.name || asset.id || '').trim(),
+        player,
+      };
+    })
+    .filter((entry): entry is { assetId: string; playerId: string; name: string; player: Partial<Msx2PlayerDefinition> } => Boolean(entry));
+}
+
+function getMsx2PlayerAssetPushBox(player: Partial<Msx2PlayerDefinition> | undefined): any | undefined {
+  const pushBox = player?.components?.msx2_push_box;
+  if (!pushBox || pushBox.enabled === false) return undefined;
+  return pushBox;
+}
+
+function getScreenPlayerReferenceIds(screen: Msx2Screen4TileScreen | undefined): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of screen?.playerEntries || []) {
+    const playerId = String(entry?.playerId || '').trim();
+    if (playerId) ids.add(playerId);
+  }
+  for (const entity of screen?.layers?.entities || []) {
+    if (entity.kind !== 'player') continue;
+    const playerEntity = entity as any;
+    [
+      playerEntity?.playerId,
+      playerEntity?.playerAssetId,
+      playerEntity?.params?.playerId,
+      playerEntity?.params?.playerAssetId,
+      playerEntity?.components?.msx2_player_ref?.playerId,
+      playerEntity?.components?.msx2_player_ref?.playerAssetId,
+    ].forEach(value => {
+      const id = String(value || '').trim();
+      if (id) ids.add(id);
+    });
+  }
+  return ids;
+}
+
+function getPushBoxComponentsForScreen(
+  analysis: ProjectAnalysis,
+  screen: Msx2Screen4TileScreen | undefined
+): any[] {
+  const components: any[] = [];
+  for (const entity of screen?.layers?.entities || []) {
+    if (!playerHasMsx2PushBox(entity)) continue;
+    const pushBox = entity.components?.msx2_push_box;
+    if (pushBox && pushBox.enabled !== false) components.push(pushBox);
+  }
+
+  const playerRecords = getMsx2PlayerAssetRecords(analysis);
+  const referenceIds = getScreenPlayerReferenceIds(screen);
+  const referenced = referenceIds.size
+    ? playerRecords.filter(record => referenceIds.has(record.assetId) || referenceIds.has(record.playerId) || referenceIds.has(record.name))
+    : [];
+  for (const record of referenced) {
+    const pushBox = getMsx2PlayerAssetPushBox(record.player);
+    if (pushBox) components.push(pushBox);
+  }
+  if (referenced.length) return components;
+
+  for (const record of playerRecords) {
+    const pushBox = getMsx2PlayerAssetPushBox(record.player);
+    if (pushBox) components.push(pushBox);
+  }
+  return components;
+}
+
+function getMsx2PlayerAssetForScreen(
+  analysis: ProjectAnalysis,
+  screen: Msx2Screen4TileScreen | undefined
+): Partial<Msx2PlayerDefinition> | undefined {
+  const playerRecords = getMsx2PlayerAssetRecords(analysis);
+  if (!playerRecords.length) return undefined;
+  const referenceIds = getScreenPlayerReferenceIds(screen);
+  if (referenceIds.size) {
+    const referenced = playerRecords.find(record =>
+      referenceIds.has(record.assetId) || referenceIds.has(record.playerId) || referenceIds.has(record.name)
+    );
+    if (referenced) return referenced.player;
+  }
+  return playerRecords.length === 1 ? playerRecords[0].player : undefined;
+}
+
+function isBlankPlayerComponentValue(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
+}
+
+function mergePlayerComponentBag(
+  assetComponents: Record<string, Record<string, any>> | undefined,
+  entityComponents: Record<string, Record<string, any>> | undefined
+): Record<string, Record<string, any>> {
+  const result: Record<string, Record<string, any>> = {};
+  const componentIds = new Set([
+    ...Object.keys(assetComponents || {}),
+    ...Object.keys(entityComponents || {}),
+  ]);
+  componentIds.forEach(componentId => {
+    const base = assetComponents?.[componentId] || {};
+    const override = entityComponents?.[componentId] || {};
+    const merged = { ...base };
+    Object.entries(override).forEach(([key, value]) => {
+      if (isBlankPlayerComponentValue(value) && !isBlankPlayerComponentValue(merged[key])) return;
+      merged[key] = value;
+    });
+    result[componentId] = merged;
+  });
+  return result;
+}
+
+function mergePlayerAssetIntoRuntimeEntity(
+  entity: any | undefined,
+  playerAsset: Partial<Msx2PlayerDefinition> | undefined
+): any | undefined {
+  if (!entity && !playerAsset) return undefined;
+  const assetSpriteId = String(playerAsset?.render?.spriteAssetId || '').trim();
+  const assetHardwareSprite = {
+    ...(playerAsset?.components?.msx2_hardware_sprite || {}),
+    ...(assetSpriteId ? { msx2SpriteAssetId: assetSpriteId } : {}),
+  };
+  const assetComponents = {
+    ...(playerAsset?.components || {}),
+    ...(Object.keys(assetHardwareSprite).length ? { msx2_hardware_sprite: assetHardwareSprite } : {}),
+  };
+  const mergedComponents = mergePlayerComponentBag(
+    assetComponents as Record<string, Record<string, any>>,
+    entity?.components
+  );
+  return {
+    ...(playerAsset || {}),
+    ...(entity || {}),
+    spriteAssetId: entity?.spriteAssetId || assetSpriteId || playerAsset?.render?.spriteAssetId,
+    components: mergedComponents,
+    params: {
+      ...(playerAsset as any)?.params,
+      ...(entity?.params || {}),
+    },
+  };
+}
+
 function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> {
   const spriteIds = new Set<string>();
   for (const screen of collectReferencedTileScreens(analysis)) {
@@ -1435,6 +1630,10 @@ function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> 
         ).trim();
         if (boxSpriteId) spriteIds.add(boxSpriteId);
       }
+    }
+    for (const pushBox of getPushBoxComponentsForScreen(analysis, screen)) {
+      const pushSpriteId = String(pushBox?.msx2SpriteAssetId ?? pushBox?.spriteAssetId ?? '').trim();
+      if (pushSpriteId) spriteIds.add(pushSpriteId);
     }
   }
   return spriteIds;
@@ -1469,7 +1668,7 @@ function isBallBounceEntity(entity: any): boolean {
 
 function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const entity = getPrimaryPlayerEntity(screen);
+  const entity = getPlayerRuntimeSource(screen, analysis);
   const spriteAssetId = getEntityRenderSpriteId(entity);
   if (spriteAssetId) {
     const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
@@ -1546,15 +1745,16 @@ function getRuntimeMovementMode(screen: Msx2Screen4TileScreen | undefined): stri
   );
 }
 
-function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined): any | undefined {
+function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined, analysis?: ProjectAnalysis): any | undefined {
+  const playerAsset = analysis ? getMsx2PlayerAssetForScreen(analysis, screen) : undefined;
   const entity = getPrimaryPlayerEntity(screen);
-  if (entity) return entity;
+  if (entity) return mergePlayerAssetIntoRuntimeEntity(entity, playerAsset);
   const entry = getPrimaryPlayerEntry(screen);
-  if (!entry) return undefined;
+  if (!entry) return mergePlayerAssetIntoRuntimeEntity(undefined, playerAsset);
   const movementMode = getRuntimeMovementMode(screen);
   const normalizedMode = movementMode.replace(/[\s_-]+/g, '').toLowerCase();
   const platformLike = normalizedMode === 'platform' || normalizedMode === 'player' || normalizedMode === '';
-  return {
+  return mergePlayerAssetIntoRuntimeEntity({
     id: entry.id || 'player_entry_default',
     name: 'Player Entry',
     kind: 'player',
@@ -1588,7 +1788,7 @@ function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined): any 
       jump: platformLike,
       gravity: platformLike,
     },
-  };
+  }, playerAsset);
 }
 
 function getPlayerStartFromTileScreen(screen: Msx2Screen4TileScreen | undefined, preferredEntryId = 'default'): { x: number; y: number } | undefined {
@@ -1652,13 +1852,24 @@ function getPlayerTransitionEntryStartFromTileScreen(
 function getHardwareSpriteRuntimeSettings(
   analysis: ProjectAnalysis,
   sprite: Msx2Sprite
-): { x: number; y: number; color: number; patternIndex: number } {
+): { x: number; y: number; color: number; patternIndex: number; initialFrame: number; visible: boolean } {
   const settings = getHardwareSpriteSettings(sprite);
-  const start = getPlayerStartFromTileScreen(getPrimaryRuntimeTileScreen(analysis));
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const player = getPlayerRuntimeSource(screen, analysis);
+  const hardware = player?.components?.msx2_hardware_sprite || {};
+  const start = getPlayerStartFromTileScreen(screen);
+  const frameCount = Math.max(1, sprite.frames?.length || 1);
+  const initialFrame = Math.max(0, Math.min(frameCount - 1, Math.floor(Number(
+    hardware.frame ?? sprite.currentFrameIndex ?? 0
+  ) || 0)));
   return {
     ...settings,
     x: start?.x ?? settings.x,
     y: start?.y ?? settings.y,
+    color: Math.max(1, Math.min(15, Math.floor(Number(hardware.paletteSlot ?? settings.color) || settings.color))),
+    patternIndex: Math.max(0, Math.min(252, Math.floor(Number(hardware.patternIndex ?? settings.patternIndex) || settings.patternIndex))),
+    initialFrame,
+    visible: hardware.visible !== false && hardware.visible !== 'false',
   };
 }
 
@@ -1674,7 +1885,7 @@ function getRuntimePatrolBounds(analysis: ProjectAnalysis): { minX: number; maxX
 
 function getPaddleCollisionSettings(analysis: ProjectAnalysis): { width: number; triggerY: number; bottomY: number; missY: number } {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const width = Math.max(8, Math.min(64, Math.floor(Number(
     player?.components?.msx2_collision?.hitboxW ?? player?.params?.hitboxW ?? 32
   ) || 32)));
@@ -1690,7 +1901,7 @@ function getPaddleCollisionSettings(analysis: ProjectAnalysis): { width: number;
 
 function getMsx2PlatformPlayerEntity(analysis: ProjectAnalysis): any | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  return getPlayerRuntimeSource(screen);
+  return getPlayerRuntimeSource(screen, analysis);
 }
 
 function getMsx2PlayerAnimationSettings(player: any | undefined): { animateOnlyWhenMoving: boolean } {
@@ -1746,7 +1957,8 @@ function buildMsx2PlatformVerticalPhysicsAsm(
 `}`;
   }
 
-  const physics = getMsx2PlatformPhysicsFromAnalysis(analysis);
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const physics = getMsx2PlatformPhysicsFromScreen(screen, getMsx2PlatformPlayerEntity(analysis));
   const jumpImpulseHi = formatAsmByte(physics.jumpImpulse88 >> 8);
   const jumpImpulseLo = formatAsmByte(physics.jumpImpulse88);
   const gravityStrength = formatAsmByte(physics.gravityStrength88);
@@ -1978,7 +2190,7 @@ msx2_apply_platform_gravity:
 
 function getPaddleHorizontalSpeed(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const speed = Number(
     player?.components?.msx2_paddle?.speed
       ?? player?.components?.msx2_movement?.speed
@@ -2036,7 +2248,7 @@ function usesMazeMovement(analysis: ProjectAnalysis): boolean {
 function usesShooterHorizontalMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2066,7 +2278,7 @@ function usesMsx2Screen4BackgroundScroll(analysis: ProjectAnalysis): boolean {
 function usesShooterVerticalMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, any>;
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2111,7 +2323,7 @@ function getMsx2Shooter60HzBudgetFromAnalysis(analysis: ProjectAnalysis): Return
 function getPlayerBulletSlotCount(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const shooterBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const configured = Number(
     shooterBudget?.budget.maxPlayerShots
       ?? player?.components?.msx2_shooter?.maxProjectiles
@@ -2144,14 +2356,14 @@ function isMsx2ShooterEnabled(entity: any): boolean {
 
 function usesPlayerShooterComponent(analysis: ProjectAnalysis): boolean {
   return collectReferencedTileScreens(analysis).some(screen => {
-    const player = getPlayerRuntimeSource(screen);
+    const player = getPlayerRuntimeSource(screen, analysis);
     return isMsx2ShooterEnabled(player);
   });
 }
 
 function getPlayerProjectileEntity(analysis: ProjectAnalysis): any | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const projectilePresetId = player?.components?.msx2_shooter?.projectilePresetId ?? player?.params?.projectilePresetId;
   const entities = screen?.layers?.entities || [];
   if (projectilePresetId) {
@@ -2172,7 +2384,7 @@ function getPlayerProjectileEntity(analysis: ProjectAnalysis): any | undefined {
 
 function getPlayerBulletCooldownFrames(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const configured = Number(
     player?.components?.msx2_shooter?.cooldownFrames
       ?? player?.params?.cooldownFrames
@@ -2183,7 +2395,7 @@ function getPlayerBulletCooldownFrames(analysis: ProjectAnalysis): number {
 
 function getPlayerShooterDirection(analysis: ProjectAnalysis): 'up' | 'horizontalFacing' {
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const configured = String(
     player?.components?.msx2_shooter?.direction
       ?? player?.params?.shotDirection
@@ -2281,7 +2493,7 @@ function getGalaxianAttackPatterns(analysis: ProjectAnalysis): GalaxianAttackPat
 function usesPaddleHorizontalMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2302,7 +2514,7 @@ function usesPaddleHorizontalMovement(analysis: ProjectAnalysis): boolean {
 function usesControl2Players(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2327,14 +2539,14 @@ function usesControl2Players(analysis: ProjectAnalysis): boolean {
 function getControl2PlayersComponent(analysis: ProjectAnalysis): Record<string, any> {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const entity = screen?.layers?.entities?.find(candidate => Boolean(candidate?.components?.control_2_players))
-    || getPlayerRuntimeSource(screen);
+    || getPlayerRuntimeSource(screen, analysis);
   return entity?.components?.control_2_players || entity?.params || {};
 }
 
 function getControl2PlayersSpeed(analysis: ProjectAnalysis): number {
   const component = getControl2PlayersComponent(analysis);
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const speed = Number(
     component.speed
       ?? player?.components?.msx2_paddle?.speed
@@ -2360,7 +2572,7 @@ function getControl2PlayersVerticalBounds(analysis: ProjectAnalysis): { minY: nu
 function usesSnakeCharMovement(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  const player = getPlayerRuntimeSource(screen);
+  const player = getPlayerRuntimeSource(screen, analysis);
   const mode = String(
     runtime.movementMode
       ?? runtime.controlMode
@@ -2867,9 +3079,9 @@ ${leaveDataBank}
     ld (msx2_player_sprite_y), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
-${usesMazeMovement(analysis) ? '    ld (msx2_player_sprite_frame), a\n' : ''}
+    ld a, ${settings.initialFrame}
+    ld (msx2_player_sprite_frame), a
     xor a
-${usesMazeMovement(analysis) ? '' : '    ld (msx2_player_sprite_frame), a\n'}
     ld hl, msx2_player_gravity_vel
     ld (hl), a
     inc hl
@@ -3291,7 +3503,7 @@ function buildHardwareSpriteRuntimeAsm(
 ): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
-  const settings = getHardwareSpriteSettings(sprite);
+  const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
   const color = Math.max(1, Math.min(15, settings.color));
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
@@ -3321,6 +3533,7 @@ function buildHardwareSpriteRuntimeAsm(
   const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * 4);
   const enemyBulletPatternIndex = playerBulletPatternIndex + 4;
   const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
+  const playerHardwareVisible = settings.visible;
   const patrolBounds = getRuntimePatrolBounds(analysis);
   const paddleCollision = getPaddleCollisionSettings(analysis);
   const mazeMovement = usesMazeMovement(analysis);
@@ -3438,8 +3651,10 @@ function buildHardwareSpriteRuntimeAsm(
   const attrWrites = layers.map((layer, layerIndex) => {
     const attrAddress = 0x1E00 + (layerIndex * 4);
     return `    ; Sprite layer ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}
-    ld a, (msx2_player_sprite_y)
-${addImmediateToA(layer.yOffset)}    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
+${playerHardwareVisible
+      ? `    ld a, (msx2_player_sprite_y)
+${addImmediateToA(layer.yOffset)}`
+      : '    ld a, 208\n'}    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
     ld a, (msx2_player_sprite_x)
 ${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
@@ -7059,12 +7274,12 @@ function entityHasPushBoxTileRender(entity: any): boolean {
 }
 
 function resolvePushBoxPaletteFromScreens(
+  analysis: ProjectAnalysis,
   tileScreens: Array<Msx2Screen4TileScreen | undefined>
 ): number {
   for (const screen of tileScreens) {
-    const player = (screen?.layers?.entities || []).find(entity => playerHasMsx2PushBox(entity));
-    const pushBox = player?.components?.msx2_push_box;
-    if (!pushBox || pushBox.enabled === false) continue;
+    const pushBox = getPushBoxComponentsForScreen(analysis, screen)[0];
+    if (!pushBox) continue;
     return Math.max(1, Math.min(15, Number(pushBox.paletteSlot ?? 6) || 6));
   }
   return 6;
@@ -7076,17 +7291,15 @@ function getPushBoxMovingSpriteLayerFromPlayerPushBox(
 ): { pattern: number[]; colors: number[] } | undefined {
   for (const screen of tileScreens) {
     if (!screen) continue;
-    const player = (screen.layers?.entities || []).find(entity => playerHasMsx2PushBox(entity));
-    if (!player) continue;
-    const pushBox = player.components?.msx2_push_box;
-    if (!pushBox || pushBox.enabled === false) continue;
-    const spriteAssetId = String(pushBox.msx2SpriteAssetId ?? pushBox.spriteAssetId ?? '').trim();
-    if (!spriteAssetId) continue;
-    const paletteSlot = Math.max(1, Math.min(15, Number(pushBox.paletteSlot ?? 6) || 6));
-    const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
-    if (!sprite) continue;
-    const layer = buildHardwareSpriteLayersForFrame(sprite, paletteSlot, 0)[0];
-    if (layer) return { pattern: layer.pattern, colors: layer.colors };
+    for (const pushBox of getPushBoxComponentsForScreen(analysis, screen)) {
+      const spriteAssetId = String(pushBox.msx2SpriteAssetId ?? pushBox.spriteAssetId ?? '').trim();
+      if (!spriteAssetId) continue;
+      const paletteSlot = Math.max(1, Math.min(15, Number(pushBox.paletteSlot ?? 6) || 6));
+      const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
+      if (!sprite) continue;
+      const layer = buildHardwareSpriteLayersForFrame(sprite, paletteSlot, 0)[0];
+      if (layer) return { pattern: layer.pattern, colors: layer.colors };
+    }
   }
   return undefined;
 }
@@ -7097,7 +7310,7 @@ function resolvePushBoxHardwareSpriteLayer(
 ): { pattern: number[]; colors: number[] } {
   const fromPlayerSprite = getPushBoxMovingSpriteLayerFromPlayerPushBox(analysis, tileScreens);
   if (fromPlayerSprite) return fromPlayerSprite;
-  const resolved = getPushBoxMovingSpriteLayer(analysis, tileScreens, resolvePushBoxPaletteFromScreens(tileScreens));
+  const resolved = getPushBoxMovingSpriteLayer(analysis, tileScreens, resolvePushBoxPaletteFromScreens(analysis, tileScreens));
   if (resolved) return resolved;
   const fallbackColor = (6 << 4) | 6;
   return {
@@ -7220,7 +7433,7 @@ function buildHardwareSpriteDataAsm(
   const enemyBulletPatternIndex = playerBulletPatternIndex + 4;
   const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
   const visibleAttributes = layers.flatMap((layer, layerIndex) => [
-    clampHardwareSpriteY(y + layer.yOffset),
+    settings.visible ? clampHardwareSpriteY(y + layer.yOffset) : 208,
     clampHardwareSpriteX(x + layer.xOffset),
     basePatternIndex + (layerIndex * 4),
     0,
@@ -7242,7 +7455,7 @@ msx2_hw_sprite_patterns:
 ${frameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}`, layer.pattern, `Hardware metasprite frame ${frameIndex} part ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')).join('')}${mirroredFrameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_mirror_pattern_${layerIndex}`, layer.pattern, `Mirrored hardware metasprite frame ${frameIndex} part ${layerIndex}: authored ${horizontalFacing}`)).join('')).join('')}${formatBytes('msx2_hw_enemy_sprite_pattern', enemySpriteLayer?.pattern || MSX2_ENEMY_SPRITE_PATTERN, enemySpriteLayer ? 'Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 enemy/hazard hardware sprite pattern')}${enemyMirroredPattern ? formatBytes('msx2_hw_enemy_sprite_mirror_pattern', enemyMirroredPattern, `Mirrored shared enemy/hazard hardware sprite pattern: authored ${enemyHorizontalFacing}`) : ''}${formatBytes('msx2_hw_player_bullet_pattern', control2Players ? (pongBallSpriteLayer?.pattern || MSX2_PONG_BALL_PATTERN) : MSX2_PLAYER_BULLET_PATTERN, control2Players ? (pongBallSpriteLayer ? 'Shared 16x16 Pong ball hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 Pong ball hardware sprite pattern') : 'Shared 16x16 player bullet hardware sprite pattern')}${formatBytes('msx2_hw_enemy_bullet_pattern', MSX2_ENEMY_BULLET_PATTERN, 'Shared 16x16 enemy bullet hardware sprite pattern')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_pattern', pushBoxLayer.pattern, 'Push box moving hardware sprite pattern from entity Render or Tile') : ''}msx2_hw_sprite_patterns_end:
 
 msx2_hw_sprite_colors:
-${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}${formatBytes('msx2_hw_player_bullet_colors', control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), control2Players ? (pongBallSpriteLayer ? 'Line colors for Pong ball hardware sprite slot from MSX2 entity sprite asset' : 'Line colors for Pong ball hardware sprite slot') : 'Line colors for player bullet hardware sprite slot')}${formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors') : ''}${hideHud ? '' : Array.from({ length: 3 }, (_unused, index) => formatBytes(`msx2_hw_hud_life_colors_${index}`, Array(16).fill(10), `Line colors for HUD life marker ${index + 1}`)).join('')}msx2_hw_sprite_colors_end:
+${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}${Array.from({ length: playerBulletSlotCount }, (_unused, index) => formatBytes(`msx2_hw_player_bullet_colors${index === 0 ? '' : `_${index}`}`, control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), control2Players ? (pongBallSpriteLayer ? `Line colors for Pong ball hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for Pong ball hardware sprite slot ${index}`) : `Line colors for player bullet hardware sprite slot ${index}`)).join('')}${formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors') : ''}${hideHud ? '' : Array.from({ length: 3 }, (_unused, index) => formatBytes(`msx2_hw_hud_life_colors_${index}`, Array(16).fill(10), `Line colors for HUD life marker ${index + 1}`)).join('')}msx2_hw_sprite_colors_end:
 
 ${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardware sprite(s), ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} enemy/hazard sprite slots, ${playerBulletSlotCount} player bullet slot, ${MSX2_ENEMY_BULLET_HARDWARE_SLOTS} enemy bullet slot${hideHud ? '' : ', 3 HUD life slots'}; next Y=208 terminates the SAT`)}
 `;
@@ -7666,6 +7879,15 @@ function buildMsx2AssetStoragePolicy(
         decision: 'INHERIT_OWNER_SCREEN_POLICY',
         reason: 'Tile bytes are emitted as part of the reachable SCREEN 4 room graphics.',
       };
+    } else if (entry.type === 'msx2player') {
+      policy = {
+        rawBytes: 0,
+        storedBytesEstimate: 0,
+        accessPattern: 'compile_time_player_definition',
+        mutable: false,
+        decision: 'COMPILED_INTO_RUNTIME_CONSTANTS',
+        reason: 'MSX2 Player editor documents are compile-time configuration only; runtime sprites and maps are budgeted as their referenced assets.',
+      };
     } else {
       const asset = assetByKey.get(assetKey(entry.type, entry.id));
       const rawBytes = estimateSerializedByteSize(asset?.data ?? asset);
@@ -7726,7 +7948,7 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     );
   };
   const originalPackages = assetStoragePolicy
-    .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
+    .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY' && Number(policy.storedBytesEstimate || 0) > 0)
     .map(policy => {
       const usedBytes = Number(policy.storedBytesEstimate) || 0;
       const canSplit = policy.type === 'msx2screen' || policy.type === 'msx2sprite';
@@ -8107,12 +8329,13 @@ function buildMsx2WorldPackageSummary(includedAssets: any[], assetStoragePolicy:
 
   for (const policy of assetStoragePolicy) {
     if (policy.decision === 'INHERIT_OWNER_SCREEN_POLICY') continue;
+    const storedBytes = Number(policy.storedBytesEstimate) || 0;
+    if (storedBytes <= 0) continue;
     const included = includedByKey.get(assetKey(policy.type, policy.id));
     const ownerWorldIds = policy.type === 'worldmap'
       ? [policy.id]
       : (Array.isArray(included?.ownerWorldIds) ? included.ownerWorldIds : []);
     if (ownerWorldIds.length === 0) continue;
-    const storedBytes = Number(policy.storedBytesEstimate) || 0;
     const bankClass = policy.type === 'msx2screen'
       ? 'world.screen'
       : policy.type === 'msx2sprite'
@@ -8200,6 +8423,7 @@ function buildMsx2WorldBankManifest(
 
   for (const policy of assetStoragePolicy) {
     if (!policy || policy.decision === 'INHERIT_OWNER_SCREEN_POLICY') continue;
+    if ((Number(policy.storedBytesEstimate) || 0) <= 0) continue;
     const included = includedByKey.get(assetKey(policy.type, policy.id));
     const ownerWorldIds = policy.type === 'worldmap'
       ? [policy.id]
@@ -8367,6 +8591,7 @@ function buildMsx2ProjectSliceJson(
   const screenIds = new Set(tileScreens.map(screen => screen.id).filter(Boolean));
   const screenOwnerWorldIds = new Map<string, Set<string>>();
   const spriteOwnerWorldIds = new Map<string, Set<string>>();
+  const playerRecords = getMsx2PlayerAssetRecords(analysis);
   const shooter60HzScreens = tileScreens
     .filter(screen => screen.runtime?.screenEngine === 'shooter' || Boolean((screen.runtime as any)?.shooter))
     .map(screen => {
@@ -8405,6 +8630,15 @@ function buildMsx2ProjectSliceJson(
     if (!id) return;
     const asset = assets.find(candidate => candidate?.type === type && (candidate.id === id || candidate.data?.id === id));
     if (asset) addIncludedAsset(included, asset, reason, extra);
+  };
+  const addReferencedSpriteId = (spriteAssetId: string | undefined, ownerWorldIds: string[]) => {
+    const id = String(spriteAssetId || '').trim();
+    if (!id) return;
+    spriteIds.add(id);
+    if (ownerWorldIds.length > 0) {
+      if (!spriteOwnerWorldIds.has(id)) spriteOwnerWorldIds.set(id, new Set());
+      for (const worldId of ownerWorldIds) spriteOwnerWorldIds.get(id)!.add(worldId);
+    }
   };
 
   for (const node of screen4RuntimeFlow?.nodes || []) {
@@ -8456,6 +8690,24 @@ function buildMsx2ProjectSliceJson(
   for (const screen of tileScreens) {
     const ownerWorldIds = Array.from(screenOwnerWorldIds.get(screen.id) || []).sort();
     includeByTypeAndId('msx2screen', screen.id, 'Reachable native MSX2 screen', { ownerWorldIds });
+    const screenPlayerIds = getScreenPlayerReferenceIds(screen);
+    const referencedPlayers = screenPlayerIds.size
+      ? playerRecords.filter(record => screenPlayerIds.has(record.assetId) || screenPlayerIds.has(record.playerId) || screenPlayerIds.has(record.name))
+      : playerRecords.length === 1 ? [playerRecords[0]] : [];
+    for (const record of referencedPlayers) {
+      includeByTypeAndId('msx2player', record.assetId, 'Referenced by reachable native MSX2 player source', { ownerWorldIds });
+      for (const componentId of Object.keys(record.player.components || {})) componentIds.add(componentId);
+      addReferencedSpriteId(
+        String(
+          record.player.components?.msx2_hardware_sprite?.msx2SpriteAssetId
+            ?? record.player.render?.spriteAssetId
+            ?? ''
+        ),
+        ownerWorldIds
+      );
+      const pushBox = getMsx2PlayerAssetPushBox(record.player);
+      addReferencedSpriteId(String(pushBox?.msx2SpriteAssetId ?? pushBox?.spriteAssetId ?? ''), ownerWorldIds);
+    }
     for (const tile of screen.tiles || []) {
       if (tile?.id) {
         included.set(assetKey('msx2screen_tile', `${screen.id}:${tile.id}`), {
@@ -8480,11 +8732,7 @@ function buildMsx2ProjectSliceJson(
           : '',
       ].filter(Boolean);
       for (const spriteAssetId of referencedSpriteIds) {
-        spriteIds.add(spriteAssetId);
-        if (ownerWorldIds.length > 0) {
-          if (!spriteOwnerWorldIds.has(spriteAssetId)) spriteOwnerWorldIds.set(spriteAssetId, new Set());
-          for (const worldId of ownerWorldIds) spriteOwnerWorldIds.get(spriteAssetId)!.add(worldId);
-        }
+        addReferencedSpriteId(spriteAssetId, ownerWorldIds);
       }
       for (const componentId of Object.keys(entity.components || {})) {
         componentIds.add(componentId);
@@ -10249,6 +10497,14 @@ function buildMsx2WorldTransitionAsm(
       ) {
         setTransition(fromIndex, connection.fromDirection, toIndex);
       }
+      if (
+        connection?.toDirection === 'west'
+        || connection?.toDirection === 'east'
+        || connection?.toDirection === 'north'
+        || connection?.toDirection === 'south'
+      ) {
+        setTransition(toIndex, connection.toDirection, fromIndex);
+      }
     }
   }
 
@@ -11827,3 +12083,4 @@ export function generateMsx2Screen4Files(
     'unitedFiles.asm': unitedFiles,
   };
 }
+

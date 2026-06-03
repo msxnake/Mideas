@@ -225,14 +225,14 @@ export const buildPlayerStateMachinePatchFromAsset = (
   stateMachineAssets: ReadonlyArray<{ id: string; data?: unknown }>,
 ): Pick<Msx2PlayerDefinition, 'stateMachineAssetId' | 'stateMachine'> => {
   if (!assetId) {
-    return { stateMachineAssetId: undefined };
+    return { stateMachineAssetId: undefined, stateMachine: [] };
   }
   const asset = stateMachineAssets.find(entry => entry.id === assetId);
   const stateMachine = asset?.data as StateMachine | undefined;
   const stateNames = stateNamesFromStateMachineAsset(stateMachine);
   return {
     stateMachineAssetId: assetId,
-    ...(stateNames.length ? { stateMachine: stateNames } : {}),
+    stateMachine: stateNames,
   };
 };
 
@@ -675,6 +675,10 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
     logic: {
       ...defaults.logic,
       ...(parsed?.logic || {}),
+    },
+    components: {
+      ...(defaults.components || {}),
+      ...(parsed?.components || {}),
     },
     inputMapping: {
       ...defaults.inputMapping,

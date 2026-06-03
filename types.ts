@@ -501,6 +501,8 @@ export interface Msx2PlayerDefinition {
   stateMachineAssetId?: string;
   /** Runtime/logic flags for screen placement and ECS behavior. */
   logic?: Msx2PlayerLogicFlags;
+  /** Native MSX2 component bag used by SCREEN 4/5 player-specific capabilities. */
+  components?: Record<string, Record<string, any>>;
   stateMachine: string[];
   budget: {
     cpu: number;
