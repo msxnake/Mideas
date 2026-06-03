@@ -1599,6 +1599,19 @@ function mergePlayerAssetIntoRuntimeEntity(
     assetComponents as Record<string, Record<string, any>>,
     entity?.components
   );
+  const bodyHitbox = playerAsset?.hitboxes?.body;
+  if (bodyHitbox && Number.isFinite(bodyHitbox.w) && Number.isFinite(bodyHitbox.h)) {
+    const existingCollision = mergedComponents.msx2_collision || {};
+    mergedComponents.msx2_collision = {
+      hitboxW: bodyHitbox.w,
+      hitboxH: bodyHitbox.h,
+      offsetX: bodyHitbox.x ?? existingCollision.offsetX ?? 0,
+      offsetY: bodyHitbox.y ?? existingCollision.offsetY ?? 0,
+      ...existingCollision,
+      hitboxW: bodyHitbox.w,
+      hitboxH: bodyHitbox.h,
+    };
+  }
   return {
     ...(playerAsset || {}),
     ...(entity || {}),
@@ -1609,6 +1622,22 @@ function mergePlayerAssetIntoRuntimeEntity(
       ...(entity?.params || {}),
     },
   };
+}
+
+interface ResolvedPlayerHitbox {
+  offsetX: number;
+  offsetY: number;
+  w: number;
+  h: number;
+}
+
+function resolvePlayerHitbox(player: any): ResolvedPlayerHitbox {
+  const collision = player?.components?.msx2_collision || {};
+  const ox = Math.max(0, Math.min(64, Math.floor(Number(collision.offsetX) || 0)));
+  const oy = Math.max(0, Math.min(64, Math.floor(Number(collision.offsetY) || 0)));
+  const w = Math.max(1, Math.min(64, Math.floor(Number(collision.hitboxW) || 16)));
+  const h = Math.max(1, Math.min(64, Math.floor(Number(collision.hitboxH) || 16)));
+  return { offsetX: ox, offsetY: oy, w, h };
 }
 
 function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> {
@@ -2031,6 +2060,12 @@ ${physics.requireKeyRelease ? `    or #2
 `
     : '';
 
+  const player = getPlayerRuntimeSource(screen, analysis);
+  const hitbox = resolvePlayerHitbox(player);
+  const hbFeet = hitbox.offsetY + hitbox.h;
+  const hbRight = hitbox.offsetX + hitbox.w - 1;
+  const hbLeft = hitbox.offsetX;
+
   return `    ; MSX2 platform vertical physics (msx2_jump + msx2_gravity components, 8.8).
 ${jumpInputBlock}.platform_after_jump_input:
     call msx2_rope_at_player_center
@@ -2047,9 +2082,10 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     ld d, a
 .platform_move_down_loop:
     ld a, (msx2_player_sprite_x)
+    add a, ${hbLeft}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 16
+    add a, ${hbFeet}
     inc a
     ld c, a
     push de
@@ -2059,7 +2095,7 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     pop de
     jp nz, .platform_land
     ld a, (msx2_player_sprite_x)
-    add a, 15
+    add a, ${hbRight}
     ld b, a
     push de
     push bc
@@ -2088,6 +2124,7 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     dec a
     ld c, a
     ld a, (msx2_player_sprite_x)
+    add a, ${hbLeft}
     ld b, a
     ld a, c
     ld c, a
@@ -2098,7 +2135,7 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     pop de
     jp nz, .platform_cancel_jump
     ld a, (msx2_player_sprite_x)
-    add a, 15
+    add a, ${hbRight}
     ld b, a
     push de
     push bc
@@ -2132,17 +2169,18 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     jp upload_hardware_sprite_attrs
 .platform_check_grounded:
     ld a, (msx2_player_sprite_x)
+    add a, ${hbLeft}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 16
+    add a, ${hbFeet}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .platform_land
     ld a, (msx2_player_sprite_x)
-    add a, 15
+    add a, ${hbRight}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 16
+    add a, ${hbFeet}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .platform_land
@@ -3504,6 +3542,13 @@ function buildHardwareSpriteRuntimeAsm(
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
+  const hbPlayer = getPlayerRuntimeSource(getPrimaryRuntimeTileScreen(analysis), analysis);
+  const hb = resolvePlayerHitbox(hbPlayer);
+  const hbFeet = hb.offsetY + hb.h;
+  const hbRight = hb.offsetX + hb.w - 1;
+  const hbLeft = hb.offsetX;
+  const hbCenterX = hb.offsetX + Math.floor(hb.w / 2);
+  const hbCenterY = hb.offsetY + Math.floor(hb.h / 2);
   const color = Math.max(1, Math.min(15, settings.color));
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
@@ -4058,10 +4103,10 @@ maze_move_up:
     ld a, (msx2_player_sprite_y)
     or a
     jp z, msx2_try_world_edge_transition_up
-    dec a
+    add a, ${hb.offsetY - 1}
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4078,11 +4123,10 @@ maze_move_down:
     jp nc, msx2_try_world_edge_transition_down
     cp 196
     jp nc, maze_continue_current_direction
-    inc a
-    add a, 15
+    add a, ${hb.offsetY + hb.h}
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4097,11 +4141,10 @@ maze_move_right:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
-    inc a
-    add a, 15
+    add a, ${hb.offsetX + hb.w}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4117,10 +4160,10 @@ maze_move_left:
     cp ${patrolBounds.minX}
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
-    dec a
+    add a, ${hb.offsetX - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4135,10 +4178,10 @@ maze_continue_up:
     ld a, (msx2_player_sprite_y)
     or a
     jp z, msx2_try_world_edge_transition_up
-    dec a
+    add a, ${hb.offsetY - 1}
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4153,11 +4196,10 @@ maze_continue_down:
     jp nc, msx2_try_world_edge_transition_down
     cp 196
     jp nc, upload_hardware_sprite_attrs
-    inc a
-    add a, 15
+    add a, ${hb.offsetY + hb.h}
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4170,11 +4212,10 @@ maze_continue_right:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
-    inc a
-    add a, 15
+    add a, ${hb.offsetX + hb.w}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4188,10 +4229,10 @@ maze_continue_left:
     cp ${patrolBounds.minX}
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
-    dec a
+    add a, ${hb.offsetX - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4333,7 +4374,7 @@ ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld c, a
     ld a, c
     cp b
@@ -4346,7 +4387,7 @@ ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     ld a, c
     cp b
@@ -5335,7 +5376,7 @@ control_2_players_ball_left:
     jp c, control_2_players_ball_reset_right
     ld b, a
     ld a, (msx2_player_sprite_x)
-    add a, 16
+    add a, ${hb.offsetX + hb.w}
     ld e, a
     ld a, b
     cp e
@@ -5345,15 +5386,15 @@ control_2_players_ball_left:
     add a, 8
     ld c, a
     ld a, (msx2_player_sprite_y)
-    sub 4
+    add a, ${hb.offsetY - 4}
     cp c
     jp nc, control_2_players_ball_store_x
     ld a, (msx2_player_sprite_y)
-    add a, 20
+    add a, ${hb.offsetY + hb.h + 4}
     cp c
     jp c, control_2_players_ball_store_x
     ld a, (msx2_player_sprite_x)
-    add a, 16
+    add a, ${hb.offsetX + hb.w}
     ld b, a
     ld hl, msx2_enemy_runtime_x + 1
     ld (hl), b
@@ -5873,12 +5914,13 @@ msx2_enemy_bullet_check_player_collision_hl:
     add a, 4
     ld c, a
     ld a, (msx2_player_sprite_y)
+    add a, ${hb.offsetY}
     ld b, a
     ld a, c
     cp b
     jp c, .enemy_bullet_player_miss_pop
     ld a, b
-    add a, 15
+    add a, ${hb.h - 1}
     cp c
     jp c, .enemy_bullet_player_miss_pop
     dec hl
@@ -5886,12 +5928,13 @@ msx2_enemy_bullet_check_player_collision_hl:
     add a, 4
     ld c, a
     ld a, (msx2_player_sprite_x)
+    add a, ${hb.offsetX}
     ld b, a
     ld a, c
     cp b
     jp c, .enemy_bullet_player_miss_pop
     ld a, b
-    add a, 15
+    add a, ${hb.w - 1}
     cp c
     jp c, .enemy_bullet_player_miss_pop
     pop hl
@@ -6046,11 +6089,10 @@ move_hardware_sprite_right:
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
 ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_player_sprite_x)
-    inc a
-    add a, 15
+    add a, ${hb.offsetX + hb.w}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .right_blocked
@@ -6072,10 +6114,10 @@ move_hardware_sprite_left:
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
 ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_player_sprite_x)
-    dec a
+    add a, ${hb.offsetX - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .left_blocked
@@ -6087,7 +6129,7 @@ ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_playe
     ld (msx2_player_sprite_dx), a
 ${setPlayerWalkingFlagAsm}    jp finish_msx2_horizontal_move
 .left_blocked:
-    ld a, 1
+    xor a
     ld (msx2_player_sprite_dx), a
     jp finish_msx2_horizontal_move
 
@@ -6274,11 +6316,10 @@ apply_msx2_conveyor:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     ret nc
-    inc a
-    add a, 15
+    add a, ${hb.offsetX + hb.w}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     ret nz
@@ -6293,10 +6334,10 @@ ${setPlayerWalkingFlagAsm}    ret
     cp ${patrolBounds.minX}
     ret z
     ret c
-    dec a
+    add a, ${hb.offsetX - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_collision_at_pixel
     ret nz
@@ -6582,28 +6623,28 @@ update_msx2_effect_state:
     or a
     jp nz, .hazard
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_effect_at_pixel
     or a
     jp nz, .effect_dispatch
     ld a, (msx2_player_sprite_x)
-    add a, 4
+    add a, ${hb.offsetX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 15
+    add a, ${hb.offsetY + hb.h - 1}
     ld c, a
     call msx2_effect_at_pixel
     or a
     jp nz, .effect_dispatch
     ld a, (msx2_player_sprite_x)
-    add a, 12
+    add a, ${hb.offsetX + hb.w - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 15
+    add a, ${hb.offsetY + hb.h - 1}
     ld c, a
     call msx2_effect_at_pixel
     or a
@@ -6755,7 +6796,7 @@ screen4_name_cell_from_player:
     ; Returns HL=top-left name-table address for the player's 16x16 cell.
     ; Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     srl a
     srl a
     srl a
@@ -6770,7 +6811,7 @@ screen4_name_cell_from_player:
     add hl, hl
     add hl, hl
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     srl a
     srl a
     srl a
@@ -7074,64 +7115,64 @@ msx2_probe_player_hazard_hit:
     ; Returns A=1 when any player body probe overlaps a tile hazard hitbox.
     ; Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    inc a
+    add a, ${hb.offsetX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 15
+    add a, ${hb.offsetY + hb.h - 1}
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, 14
+    add a, ${hb.offsetX + hb.w - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 15
+    add a, ${hb.offsetY + hb.h - 1}
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    inc a
+    add a, ${hb.offsetX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    inc a
+    add a, ${hb.offsetY}
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, 14
+    add a, ${hb.offsetX + hb.w - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    inc a
+    add a, ${hb.offsetY}
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    inc a
+    add a, ${hb.offsetX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, 14
+    add a, ${hb.offsetX + hb.w - 1}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_hazard_hit_at_pixel
     ret
@@ -7150,10 +7191,10 @@ msx2_behavior_at_pixel:
 msx2_ladder_at_player_center:
     ; Returns Z when the player center is on behavior code 1 (ladder). Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_behavior_at_pixel
     cp 1
@@ -7162,10 +7203,10 @@ msx2_ladder_at_player_center:
 msx2_ladder_below_player_center:
     ; Returns Z when the lower center is on behavior code 1 (ladder). Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 10
+    add a, ${hb.offsetY + hb.h - 1}
     ld c, a
     call msx2_behavior_at_pixel
     cp 1
@@ -7174,10 +7215,10 @@ msx2_ladder_below_player_center:
 msx2_rope_at_player_center:
     ; Returns Z when the player center is on behavior code 4 (rope). Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 8
+    add a, ${hbCenterY}
     ld c, a
     call msx2_behavior_at_pixel
     cp 4
@@ -7186,10 +7227,10 @@ msx2_rope_at_player_center:
 msx2_behavior_below_player_center:
     ; Returns the behavior byte under the player feet. Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, 8
+    add a, ${hbCenterX}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, 16
+    add a, ${hb.offsetY + hb.h}
     ld c, a
     call msx2_behavior_at_pixel
     ret
@@ -10615,6 +10656,8 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   });
   const maxTileCount = Math.max(1, ...tileScreens.map(screen => (screen.tiles || []).length));
   const hazardHitboxCacheSize = ((maxTileCount * 4 + 0x0f) & ~0x0f);
+  const hbPlayer = getPlayerRuntimeSource(getPrimaryRuntimeTileScreen(analysis), analysis);
+  const hbHitbox = resolvePlayerHitbox(hbPlayer);
   const tileScreenRuntimeBlocks = tileScreens.map((screen, index) => {
     const label = tileScreenLoadLabels[index];
     return [
@@ -11366,6 +11409,10 @@ SCREEN4_COLOR_VRAM EQU ${SCREEN4_COLOR_VRAM}
 SCREEN4_PATTERN_SIZE EQU ${SCREEN4_PATTERN_BYTES}
 SCREEN4_COLOR_SIZE EQU ${SCREEN4_COLOR_BYTES}
 SCREEN4_NAME_SIZE EQU ${SCREEN4_NAME_BYTES}
+PLAYER_HITBOX_X EQU ${hbHitbox.offsetX}
+PLAYER_HITBOX_Y EQU ${hbHitbox.offsetY}
+PLAYER_HITBOX_W EQU ${hbHitbox.w}
+PLAYER_HITBOX_H EQU ${hbHitbox.h}
 msx2_player_sprite_x EQU #C000
 msx2_player_sprite_y EQU #C001
 msx2_player_sprite_dx EQU #C002
