@@ -46,36 +46,22 @@ function buildStateEnum(activeIds: string[]): string {
   return lines.join('\n');
 }
 
-function buildDispatcher(activeIds: string[]): string {
-  const coreJumps = [
-    `    cp PLAYER_STATE_GROUNDED`,
-    `    jp z, msx2_player_state_grounded`,
-    `    cp PLAYER_STATE_RUNNING`,
-    `    jp z, msx2_player_state_grounded`,
-    `    cp PLAYER_STATE_JUMPING`,
-    `    jp z, msx2_player_state_jumping`,
-    `    cp PLAYER_STATE_FALLING`,
-    `    jp z, msx2_player_state_falling`,
-  ];
-  const optionalSkills = getAllSkills().filter(s => !s.required);
-  for (const skill of optionalSkills) {
-    if (activeIds.includes(skill.id)) {
-      for (const state of skill.addsStates) {
-        const label = `PLAYER_STATE_${state.toUpperCase().replace(/ /g, '_')}`;
-        coreJumps.push(`    cp ${label}`);
-        coreJumps.push(`    jp z, msx2_player_state_${state}`);
-      }
-    }
-  }
-  coreJumps.push(`    ; fallback: default to grounded`);
-  coreJumps.push(`    xor a`);
-  coreJumps.push(`    ld (msx2_player_state), a`);
-  coreJumps.push(`    jp msx2_player_state_grounded`);
-  return [
-    'msx2_player_state_machine_tick:',
-    `    ld a, (msx2_player_state)`,
-    ...coreJumps,
-  ].join('\n    ');
+function buildDispatcher(): string {
+  return `
+    ld a, (msx2_player_state)
+    cp PLAYER_STATE_GROUNDED
+    jp z, msx2_player_state_grounded
+    cp PLAYER_STATE_RUNNING
+    jp z, msx2_player_state_grounded
+    cp PLAYER_STATE_JUMPING
+    jp z, msx2_player_state_jumping
+    cp PLAYER_STATE_FALLING
+    jp z, msx2_player_state_falling
+    ; fallback: default to grounded
+    xor a
+    ld (msx2_player_state), a
+    jp msx2_player_state_grounded
+`;
 }
 
 function buildOptionalStates(activeIds: string[]): string {
@@ -87,7 +73,9 @@ function buildOptionalStates(activeIds: string[]): string {
         blocks.push(`msx2_player_state_${state}:`);
         blocks.push(`    ; ${skill.label} — ${state}`);
         blocks.push(`    ; handler not yet implemented`);
-        blocks.push(`    ret`);
+        blocks.push(`    ld a, PLAYER_STATE_GROUNDED`);
+        blocks.push(`    ld (msx2_player_state), a`);
+        blocks.push(`    jp msx2_state_machine_exit`);
         blocks.push(``);
       }
     }
@@ -99,7 +87,6 @@ function buildGroundedState(o: StateMachineOptions): string {
   return `
 msx2_player_state_grounded:
     ; --- GROUNDED ---
-    ; apply horizontal input
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
     or a
@@ -108,11 +95,15 @@ ${o.setPlayerWalkingFlagAsm}    jp .grounded_check_transitions
 .grounded_idle:
 ${o.clearPlayerWalkingFlagAsm}
 .grounded_check_transitions:
-    ; transition: jump key pressed
 ${o.jumpEnabled ? `    call msx2_control_jump_pressed
     or a
-    jp nz, msx2_player_state_jumping` : ''}
-    ; transition: no ground below
+    jp z, .grounded_check_ground
+    ld a, PLAYER_STATE_JUMPING
+    ld (msx2_player_state), a
+    jp msx2_player_state_jumping
+.grounded_check_ground:
+` : ''}
+    ; check ground below left foot
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -120,11 +111,8 @@ ${o.jumpEnabled ? `    call msx2_control_jump_pressed
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp z, .grounded_check_right_foot
-    ; hit solid below → stay grounded
-    call msx2_set_grounded_flag
-    jp upload_hardware_sprite_attrs
-.grounded_check_right_foot:
+    jp nz, .grounded_stay
+    ; check ground below right foot
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -132,36 +120,41 @@ ${o.jumpEnabled ? `    call msx2_control_jump_pressed
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, msx2_land_player
-    ; no ground → fall
+    jp nz, .grounded_stay
+    ; no ground below → fall
     call msx2_clear_grounded_flag
     ld a, PLAYER_STATE_FALLING
     ld (msx2_player_state), a
-    jp upload_hardware_sprite_attrs
+    jp msx2_player_state_falling
+.grounded_stay:
+    call msx2_set_grounded_flag
+    jp msx2_state_machine_exit
 `;
 }
 
 function buildJumpingState(o: StateMachineOptions): string {
   const doubleJumpCheck = hasSkill('double_jump', o.activeSkillIds) ? `
-    ; double_jump: allow second jump in mid-air
     ld a, (msx2_player_jump_count)
     cp 1
     jp nz, .jumping_no_double
+    push bc
     call msx2_control_jump_pressed
+    pop bc
     or a
     jp z, .jumping_no_double
     ld a, 2
     ld (msx2_player_jump_count), a
+    ld a, PLAYER_STATE_DOUBLE_JUMPING
+    ld (msx2_player_state), a
     jp msx2_player_state_double_jumping
 .jumping_no_double:` : '';
 
   return `
 msx2_player_state_jumping:
     ; --- JUMPING ---
-    ; save previous state for first-frame detection
     ld a, (msx2_player_state)
     ld (msx2_player_state_prev), a
-    ; apply initial impulse if not already jumping
+    ; first-frame impulse if gravity_vel is zero
     ld hl, msx2_player_gravity_vel
     ld a, (hl)
     or a
@@ -170,30 +163,25 @@ msx2_player_state_jumping:
     ld a, (hl)
     or a
     jp nz, .jumping_apply_gravity
-    ; first frame: set impulse
     ld hl, msx2_player_gravity_vel
     ld (hl), ${o.jumpImpulseLo}
     inc hl
     ld (hl), ${o.jumpImpulseHi}
 .jumping_apply_gravity:
-${o.gravityEnabled ? `    ; apply gravity
-    call msx2_apply_platform_gravity
+${o.gravityEnabled ? `    call msx2_apply_platform_gravity
 ` : ''}
-    ; apply horizontal input
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
 ${doubleJumpCheck}
-    ; move up using gravity vel
-    ld hl, msx2_player_gravity_vel
-    ld a, (hl)
-    or a
-    jp nz, .jumping_move
-    inc hl
+    ; read gravity vel hi-byte for ascent check
+    ld hl, msx2_player_gravity_vel + 1
     ld a, (hl)
     or a
     jp z, .jumping_falling
+    bit 7, a
+    jp nz, .jumping_falling
 .jumping_move:
-    ; check collision above
+    ; check collision above (left)
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -202,6 +190,7 @@ ${doubleJumpCheck}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .jumping_hit_head
+    ; check collision above (right)
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -210,19 +199,20 @@ ${doubleJumpCheck}
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .jumping_hit_head
-    ; move up
+    ; move up one pixel
     ld a, (msx2_player_sprite_y)
     or a
-    jp z, upload_hardware_sprite_attrs
+    jp z, .jumping_done
     dec a
     ld (msx2_player_sprite_y), a
-    jp upload_hardware_sprite_attrs
+.jumping_done:
+    jp msx2_state_machine_exit
 .jumping_hit_head:
     call msx2_clear_vertical_velocity
 .jumping_falling:
     ld a, PLAYER_STATE_FALLING
     ld (msx2_player_state), a
-    jp upload_hardware_sprite_attrs
+    jp msx2_player_state_falling
 `;
 }
 
@@ -230,15 +220,12 @@ function buildFallingState(o: StateMachineOptions): string {
   return `
 msx2_player_state_falling:
     ; --- FALLING ---
-${o.gravityEnabled ? `    ; apply gravity
-    call msx2_apply_platform_gravity
+${o.gravityEnabled ? `    call msx2_apply_platform_gravity
 ` : ''}
-    ; apply horizontal input
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
-    ; move down using gravity vel
-    ld hl, msx2_player_gravity_vel
-    inc hl
+    ; read gravity vel hi-byte for fall speed
+    ld hl, msx2_player_gravity_vel + 1
     ld a, (hl)
     or a
     jp z, .falling_check_grounded
@@ -246,6 +233,7 @@ ${o.gravityEnabled ? `    ; apply gravity
     jp nz, .falling_check_grounded
     ld d, a
 .falling_loop:
+    ; check collision below (left)
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -255,6 +243,7 @@ ${o.gravityEnabled ? `    ; apply gravity
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .falling_land
+    ; check collision below (right)
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -264,17 +253,19 @@ ${o.gravityEnabled ? `    ; apply gravity
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .falling_land
+    ; move down
     ld a, (msx2_player_sprite_y)
     inc a
     cp 196
-    jp nc, upload_hardware_sprite_attrs
+    jp nc, .falling_done
     ld (msx2_player_sprite_y), a
     dec d
     ld a, d
     or a
     jp nz, .falling_loop
-    jp upload_hardware_sprite_attrs
+    jp .falling_done
 .falling_check_grounded:
+    ; check ground at feet (before gravity pull)
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -290,13 +281,19 @@ ${o.gravityEnabled ? `    ; apply gravity
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp z, upload_hardware_sprite_attrs
+    jp z, .falling_done
 .falling_land:
-    call msx2_land_player
-    call apply_msx2_conveyor
+    xor a
+    ld hl, msx2_player_gravity_vel
+    ld (hl), a
+    inc hl
+    ld (hl), a
+    ld a, #01
+    ld (msx2_player_flags), a
     ld a, PLAYER_STATE_GROUNDED
     ld (msx2_player_state), a
-    jp upload_hardware_sprite_attrs
+.falling_done:
+    jp msx2_state_machine_exit
 `;
 }
 
@@ -304,7 +301,6 @@ function buildHelpers(o: StateMachineOptions): string {
   return `
 ; --- State machine helpers ---
 msx2_read_player_horizontal_input:
-    ; Returns A=0 (idle), 1 (right), or #FF (left). Clobbers AF/BC/HL.
     push bc
     xor a
     call GTSTCK
@@ -331,7 +327,6 @@ msx2_read_player_horizontal_input:
     ret
 
 msx2_set_grounded_flag:
-msx2_set_grounded_flag:
     ld a, (msx2_player_flags)
     or #01
     ld (msx2_player_flags), a
@@ -351,18 +346,7 @@ msx2_clear_vertical_velocity:
     ld (hl), a
     ret
 
-msx2_land_player:
-    xor a
-    ld hl, msx2_player_gravity_vel
-    ld (hl), a
-    inc hl
-    ld (hl), a
-    ld a, #01
-    ld (msx2_player_flags), a
-    ret
-
 msx2_apply_platform_gravity:
-    ; 8.8 fixed-point gravity: adds configured strength to accumulator. Clobbers AF/DE/HL.
     ld hl, msx2_player_gravity_vel
     ld e, (hl)
     inc hl
@@ -375,11 +359,11 @@ msx2_apply_platform_gravity:
     ld d, a
     ld a, d
     bit 7, a
-    jp nz, .store_gravity_vel
+    jp nz, .store
     cp ${o.terminalHigh}
-    jp c, .store_gravity_vel
+    jp c, .store
     ld de, ${o.terminalWord}
-.store_gravity_vel:
+.store:
     ld hl, msx2_player_gravity_vel
     ld (hl), e
     inc hl
@@ -393,7 +377,8 @@ export function buildPlayerStateMachineAsm(o: StateMachineOptions): string {
   lines.push('; --- Player State Machine ---');
   lines.push(buildStateEnum(o.activeSkillIds));
   lines.push('');
-  lines.push(buildDispatcher(o.activeSkillIds));
+  lines.push('msx2_player_state_machine_tick:');
+  lines.push(buildDispatcher());
   lines.push('');
   lines.push(buildGroundedState(o));
   lines.push(buildJumpingState(o));
@@ -405,6 +390,9 @@ export function buildPlayerStateMachineAsm(o: StateMachineOptions): string {
       lines.push(opt);
     }
   }
+  lines.push('msx2_state_machine_exit:');
+  lines.push('    jp apply_msx2_conveyor');
+  lines.push('');
   lines.push(buildHelpers(o));
   return lines.join('\n');
 }
