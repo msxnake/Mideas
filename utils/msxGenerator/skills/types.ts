@@ -15,8 +15,8 @@ export interface SkillDef {
   cycles: number;
   addsStates: PlayerState[];
   transitions: StateTransition[];
-  /** Which control icon this skill responds to (undefined = automatic/no input needed). */
-  controlIcon?: SkillControlIcon;
+  /** Which control icon(s) this skill responds to. `['down', 'jump']` = Down + A. undefined = automatic. */
+  controlIcon?: SkillControlIcon | SkillControlIcon[];
 }
 
 export interface PlayerStateMachine {

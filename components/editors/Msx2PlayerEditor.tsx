@@ -1473,18 +1473,31 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                     Directions use Arrows or Joystick 1/2. Buttons A and B map to any MSX key or joystick trigger.
                   </p>
                   {(() => {
-                    const skillByIcon = new Map<string, string[]>();
+                    // Group skills by each icon they reference (including combos).
+                    const skillsByIcon = new Map<string, { label: string; combo?: string }[]>();
+                    const addSkill = (icon: string, label: string, combo?: string) => {
+                      const arr = skillsByIcon.get(icon) ?? [];
+                      arr.push(combo ? { label, combo } : { label });
+                      skillsByIcon.set(icon, arr);
+                    };
                     for (const s of getAllSkills()) {
-                      if (!s.controlIcon) continue;
-                      const arr = skillByIcon.get(s.controlIcon) ?? [];
-                      arr.push(s.label);
-                      skillByIcon.set(s.controlIcon, arr);
+                      const icon = s.controlIcon;
+                      if (!icon) continue;
+                      const icons = Array.isArray(icon) ? icon : [icon];
+                      if (icons.length > 1) {
+                        const comboKey = icons.join('+');
+                        for (const i of icons) {
+                          addSkill(i, s.label, comboKey);
+                        }
+                      } else {
+                        addSkill(icons[0], s.label);
+                      }
                     }
                     return controlRows.map(({ directionKey, badge, key, binding, fallback }) => {
                       const enabled = normalized.inputEnabled?.[key] !== false;
                       const value = normalized.inputMapping[key] || fallback;
                       const options = binding === 'button' ? MSX2_PLAYER_BUTTON_BINDINGS : MSX2_PLAYER_INPUT_SOURCES;
-                      const skillLabels = skillByIcon.get(key) ?? [];
+                      const entries = skillsByIcon.get(key) ?? [];
                       return (
                         <div key={key}>
                           <ControlField
@@ -1496,10 +1509,12 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                             onValueChange={nextValue => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: nextValue } })}
                             options={options}
                           />
-                          {skillLabels.length > 0 && (
+                          {entries.length > 0 && (
                             <div className="ml-[68px] mt-[1px] flex flex-wrap gap-x-2 gap-y-[1px] text-[10px] text-slate-500">
-                              {skillLabels.map(label => (
-                                <span key={label} className="text-[10px]">{label}</span>
+                              {entries.map((entry, idx) => (
+                                <span key={idx} className="text-[10px]">
+                                  {entry.combo ? `${entry.label} (${entry.combo})` : entry.label}
+                                </span>
                               ))}
                             </div>
                           )}
