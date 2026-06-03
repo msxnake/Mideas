@@ -303,6 +303,34 @@ ${o.gravityEnabled ? `    ; apply gravity
 function buildHelpers(o: StateMachineOptions): string {
   return `
 ; --- State machine helpers ---
+msx2_read_player_horizontal_input:
+    ; Returns A=0 (idle), 1 (right), or #FF (left). Clobbers AF/BC/HL.
+    push bc
+    xor a
+    call GTSTCK
+    pop bc
+    cp 3
+    jp z, .right
+    cp 4
+    jp z, .right
+    cp 2
+    jp z, .right
+    cp 7
+    jp z, .left
+    cp 8
+    jp z, .left
+    cp 6
+    jp z, .left
+    xor a
+    ret
+.right:
+    ld a, 1
+    ret
+.left:
+    ld a, #FF
+    ret
+
+msx2_set_grounded_flag:
 msx2_set_grounded_flag:
     ld a, (msx2_player_flags)
     or #01
