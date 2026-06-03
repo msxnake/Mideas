@@ -54,7 +54,7 @@ import { Msx2Screen4TileStudio } from '../msx2_screen4_editor/Msx2Screen4TileStu
 
 interface Msx2Screen4RoomEditorProps {
   screen: Msx2Screen4TileScreen;
-  onUpdate: (data: Partial<Msx2Screen4TileScreen>) => void;
+  onUpdate: (data: Partial<Msx2Screen4TileScreen>, newAssets?: ProjectAsset[]) => void;
   selectedColor: MSXColorValue;
   allAssets: ProjectAsset[];
   msx2ProjectProfile?: Msx2ProjectProfile | null;
@@ -1134,6 +1134,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
               onDuplicateTile={duplicateTile}
               onClearTile={clearTile}
               onClose={() => setTileStudioOpen(false)}
+              onUpdate={onUpdate}
               activeSlot={activeSlot}
               paintTool={tilePaintTool}
               dimensionOptions={MSX2_TILE_DIMENSION_OPTIONS}

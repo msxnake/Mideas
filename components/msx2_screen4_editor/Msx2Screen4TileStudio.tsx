@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Msx2Screen4Tile, Screen5PaletteSlot } from '../../types';
+import { MSXColorValue, Msx2Screen4Tile, Msx2Sprite, Msx2SuperSpritePart, PixelData, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import {
   MSX2_TILE_BEHAVIOR_KINDS,
   MSX2_TILE_BEHAVIOR_LABELS,
@@ -22,6 +22,49 @@ const getTilePixelWidth = (tile: Msx2Screen4Tile | undefined): number =>
 const getTilePixelHeight = (tile: Msx2Screen4Tile | undefined): number =>
   Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? TILE_SIZE) || TILE_SIZE));
 
+const countDistinctSpriteColors = (tile: Msx2Screen4Tile): number => {
+  const used = new Set<number>();
+  const h = getTilePixelHeight(tile);
+  const w = getTilePixelWidth(tile);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = tile.pixels?.[y]?.[x] ?? 0;
+      if (v > 0) used.add(v);
+    }
+  }
+  return used.size;
+};
+
+const buildSpriteParts = (w: number, h: number): { layout: 'single16' | 'stackVertical' | 'stackHorizontal' | 'block2x2'; parts: Msx2SuperSpritePart[] } => {
+  if (w <= 16 && h <= 16) return {
+    layout: 'single16',
+    parts: [{ id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 }],
+  };
+  if (w <= 16 && h <= 32) return {
+    layout: 'stackVertical',
+    parts: [
+      { id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_b', label: 'B', offsetX: 0, offsetY: 16, width: 16, height: 16 },
+    ],
+  };
+  if (w <= 32 && h <= 16) return {
+    layout: 'stackHorizontal',
+    parts: [
+      { id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_b', label: 'B', offsetX: 16, offsetY: 0, width: 16, height: 16 },
+    ],
+  };
+  return {
+    layout: 'block2x2',
+    parts: [
+      { id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_b', label: 'B', offsetX: 16, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_c', label: 'C', offsetX: 0, offsetY: 16, width: 16, height: 16 },
+      { id: 'part_d', label: 'D', offsetX: 16, offsetY: 16, width: 16, height: 16 },
+    ],
+  };
+};
+
 type Msx2Screen4TileStudioProps = Omit<Msx2Screen4TileEditorPanelProps, 'layout' | 'canvasZoom'> & {
   tiles: Msx2Screen4Tile[];
   onSelectTileIndex: (index: number) => void;
@@ -29,6 +72,7 @@ type Msx2Screen4TileStudioProps = Omit<Msx2Screen4TileEditorPanelProps, 'layout'
   onDuplicateTile: () => void;
   onClearTile: () => void;
   onClose: () => void;
+  onUpdate: (data: object, newAssets?: ProjectAsset[]) => void;
 };
 
 const Msx2TileStudioPreview: React.FC<{ tile: Msx2Screen4Tile; slots: Screen5PaletteSlot[] }> = ({ tile, slots }) => {
@@ -74,6 +118,7 @@ export const Msx2Screen4TileStudio: React.FC<Msx2Screen4TileStudioProps> = ({
   onDuplicateTile,
   onClearTile,
   onClose,
+  onUpdate,
   ...editorProps
 }) => {
   const [behaviorFilter, setBehaviorFilter] = useState<Msx2Screen4TileBehaviorFilter>('all');
@@ -82,6 +127,54 @@ export const Msx2Screen4TileStudio: React.FC<Msx2Screen4TileStudioProps> = ({
     [tiles, behaviorFilter]
   );
   const behaviorCounts = useMemo(() => countMsx2TilesByBehavior(tiles), [tiles]);
+
+  const handleExportToSprite = () => {
+    const tile = editorProps.selectedTile;
+    if (!tile) return;
+
+    const numColors = countDistinctSpriteColors(tile);
+    if (numColors > 2) {
+      alert(`El tile usa ${numColors} colores distintos. Para exportar a sprite MSX2 debe usar 1 o 2 colores (monocromo).`);
+      return;
+    }
+
+    const width = getTilePixelWidth(tile);
+    const height = getTilePixelHeight(tile);
+    const spriteId = `msx2sprite_${Date.now()}`;
+    const frameId = `frame_${Date.now()}`;
+    const pixelData: PixelData = tile.pixels.map(row =>
+      row.map(slotIndex => {
+        const hex = slots[slotIndex]?.hex;
+        return (hex || slots[0]?.hex || '#000000') as MSXColorValue;
+      })
+    );
+    const { layout, parts } = buildSpriteParts(width, height);
+
+    const sprite: Msx2Sprite = {
+      id: spriteId,
+      name: tile.name + ' (sprite)',
+      target: 'MSX2',
+      vdpMode: 'SCREEN4',
+      size: { width, height },
+      superSpriteLayout: layout,
+      superSpriteParts: parts,
+      palette: slots.map(s => ({ ...s })),
+      backgroundColor: slots[0]?.hex || '#000000',
+      frames: [{ id: frameId, data: pixelData }],
+      currentFrameIndex: 0,
+      facingDirection: 'right',
+      hardware: { x: 72, y: 102, color: 5, patternIndex: 0, useOrColor: true },
+    };
+
+    const newAsset: ProjectAsset = {
+      id: spriteId,
+      name: tile.name + ' (sprite)',
+      type: 'msx2sprite',
+      data: sprite,
+    };
+
+    onUpdate({}, [newAsset]);
+  };
 
   return (
     <div className="flex flex-col w-full h-full min-h-0 bg-msx-panelbg border border-msx-border rounded-md shadow-lg">
@@ -92,9 +185,14 @@ export const Msx2Screen4TileStudio: React.FC<Msx2Screen4TileStudioProps> = ({
             Edita forma, colores, comportamiento e hitbox de todos los tiles del proyecto.
           </p>
         </div>
-        <Button size="sm" variant="secondary" onClick={onClose} aria-label="Volver al mapa">
-          Volver al mapa
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={handleExportToSprite} aria-label="Exportar tile a sprite">
+            Export a Sprite
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onClose} aria-label="Volver al mapa">
+            Volver al mapa
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 min-h-0 gap-2 p-2">
