@@ -193,3 +193,17 @@ export const wallBreak: SkillDef = {
   addsStates: [],
   transitions: [],
 };
+
+export const grab: SkillDef = {
+  id: 'grab',
+  label: 'Wall grab and wall jump',
+  required: false,
+  cycles: 180,
+  controlIcon: 'jump',
+  addsStates: ['grabbing'],
+  transitions: [
+    { from: ['jumping', 'falling'], to: 'grabbing', condition: 'wall_next_to_player AND grab_key_held' },
+    { from: ['grabbing'], to: 'jumping', condition: 'jump_key_pressed' },
+    { from: ['grabbing'], to: 'falling', condition: 'NOT wall_next_to_player OR NOT grab_key_held' },
+  ],
+};
