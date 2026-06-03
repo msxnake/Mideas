@@ -1564,7 +1564,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                           {bindableSkills.map(skill => {
                             const binding = resolveBinding(skill.id);
                             return (
-                              <div key={skill.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 text-xs">
+                              <div key={skill.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-xs">
                                 <span className="text-slate-200 truncate">{skill.label}</span>
                                 <select
                                   className="w-12 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
@@ -1575,7 +1575,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                                 </select>
                                 <span className="text-slate-500">+</span>
                                 <select
-                                  className="w-16 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
+                                  className="w-12 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
                                   value={binding.secondary}
                                   onChange={e => updateBinding(skill.id, 'secondary', e.target.value)}
                                 >
