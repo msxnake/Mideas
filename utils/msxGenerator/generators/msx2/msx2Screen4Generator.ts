@@ -3552,7 +3552,7 @@ function buildHardwareSpriteRuntimeAsm(
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const physics = getMsx2PlatformPhysicsFromScreen(screen, getMsx2PlatformPlayerEntity(analysis));
   const color = Math.max(1, Math.min(15, settings.color));
-  const activeSkillIds = (hbPlayer?.params?.activeSkills as string[]) ?? [];
+  const activeSkillIds = (hbPlayer?.activeSkills as string[]) ?? (hbPlayer?.params?.activeSkills as string[]) ?? [];
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
   const animationDelayFrames = getHardwareSpriteAnimationDelayFrames(sprite);

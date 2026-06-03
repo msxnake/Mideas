@@ -1616,10 +1616,42 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
               <section className={`${panelClass} ${activeSection === 'Abilities & Items' ? 'absolute inset-0' : 'hidden'}`}>
                 <div className={panelTitleClass}>Abilities & Items</div>
                 <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-                  <Field label="Start Items"><input className={inputClass} value={(normalized.inventoryHooks || []).join(', ') || 'Sword, Shield'} onChange={event => onUpdate({ inventoryHooks: event.target.value.split(',').map(value => value.trim()).filter(Boolean) })} /></Field>
-                  <Field label="Max Items"><SmallNumber value={6} onChange={() => undefined} /></Field>
-                  <Checkbox label="Can Use Items" checked={true} onChange={() => undefined} />
-                  <Checkbox label="Can Use Magic" checked={true} onChange={() => undefined} />
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold text-slate-300">Active Skills</p>
+                    <p className="mb-2 text-[11px] text-slate-400">Core skills (jump, gravity, air resistance, item collection) are always active.</p>
+                    <div className="space-y-1">
+                      {getAllSkills().filter(s => !s.required).map(skill => {
+                        const active = normalized.activeSkills?.includes(skill.id) ?? false;
+                        return (
+                          <div key={skill.id} className="grid grid-cols-[1fr_auto] items-center gap-2 text-xs">
+                            <span className="text-slate-200">{skill.label}</span>
+                            <label className="flex cursor-pointer items-center gap-1.5 text-slate-400">
+                              <input
+                                type="checkbox"
+                                checked={active}
+                                onChange={e => {
+                                  const current = normalized.activeSkills ?? [];
+                                  const next = e.target.checked
+                                    ? [...current, skill.id]
+                                    : current.filter(id => id !== skill.id);
+                                  onUpdate({ activeSkills: next });
+                                }}
+                                className="h-3.5 w-3.5 accent-blue-500"
+                              />
+                              <span className="text-[10px]">{active ? 'On' : 'Off'}</span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="border-t border-slate-800 pt-2">
+                    <p className="mb-2 text-[11px] font-semibold text-slate-300">Inventory</p>
+                    <Field label="Start Items"><input className={inputClass} value={(normalized.inventoryHooks || []).join(', ') || 'Sword, Shield'} onChange={event => onUpdate({ inventoryHooks: event.target.value.split(',').map(value => value.trim()).filter(Boolean) })} /></Field>
+                    <Field label="Max Items"><SmallNumber value={6} onChange={() => undefined} /></Field>
+                    <Checkbox label="Can Use Items" checked={true} onChange={() => undefined} />
+                    <Checkbox label="Can Use Magic" checked={true} onChange={() => undefined} />
+                  </div>
                 </div>
               </section>
               <section className={`${panelClass} ${activeSection === 'States & Logic' ? 'absolute inset-0' : 'hidden'}`}>

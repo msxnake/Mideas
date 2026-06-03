@@ -595,6 +595,7 @@ export const createDefaultMsx2PlayerDefinition = (
       maxProjectiles: isShooter ? 2 : 0,
     },
     skillBindings: {},
+    activeSkills: [],
     requiredRoutines: isShooter
       ? ['Player_ReadInput', 'Player_UpdateShooter', 'Player_ClampToScreen', 'Player_FireProjectile', 'Player_RenderHardwareSprite']
       : isMaze
@@ -698,5 +699,6 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
       ...(defaults.skillBindings || {}),
       ...(parsed?.skillBindings || {}),
     },
+    activeSkills: parsed?.activeSkills ?? defaults.activeSkills,
   };
 };

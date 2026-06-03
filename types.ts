@@ -477,6 +477,8 @@ export interface Msx2PlayerDefinition {
   functionKeyCustomActions?: Partial<Record<Msx2PlayerFunctionKeyId, string>>;
   /** Skill-to-control binding overrides. Key = skill id. Falls back to SkillDef.controlIcon defaults. */
   skillBindings?: Record<string, Msx2PlayerSkillBinding>;
+  /** Optional skill ids that are active for this player. Omitted = use defaults from SkillDef. */
+  activeSkills?: string[];
   health: {
     maxHealth: number;
     lives: number;
