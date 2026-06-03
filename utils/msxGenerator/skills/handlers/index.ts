@@ -92,6 +92,7 @@ export const hitAttack: SkillDef = {
   label: 'Contact damage on collision',
   required: false,
   cycles: 60,
+  controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
@@ -190,6 +191,7 @@ export const wallBreak: SkillDef = {
   label: 'Destroy breakable tiles on contact',
   required: false,
   cycles: 150,
+  controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
