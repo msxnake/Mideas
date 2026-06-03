@@ -112,10 +112,9 @@ export const block: SkillDef = {
 
 export const teleport: SkillDef = {
   id: 'teleport',
-  label: 'Instant shift to target position',
+  label: 'Teleport via portal',
   required: false,
   cycles: 300,
-  controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
