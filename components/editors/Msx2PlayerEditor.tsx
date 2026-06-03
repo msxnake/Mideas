@@ -1538,7 +1538,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                         ...CONTROL_OPTIONS,
                       ];
                       const skillBindings = normalized.skillBindings ?? {};
-                      const bindableSkills = getAllSkills().filter(s => s.controlIcon && !s.required);
+                      const activeIds = new Set(normalized.activeSkills ?? []);
+                      const bindableSkills = getAllSkills().filter(s => s.controlIcon && !s.required && activeIds.has(s.id));
                       const resolveBinding = (skillId: string): { primary: string; secondary: string } => {
                         const override = skillBindings[skillId];
                         if (override) return { primary: override.primary, secondary: override.secondary ?? 'none' };
