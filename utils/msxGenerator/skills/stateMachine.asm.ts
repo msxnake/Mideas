@@ -144,6 +144,62 @@ function buildDispatcher(): string {
 `;
 }
 
+function buildSlashState(o: StateMachineOptions, stateName: string): string {
+  const maxSlots = 8;
+  const slotChecks = Array.from({ length: maxSlots }, (_, slot) => {
+    const xOff = slot === 0 ? '' : ` + ${slot}`;
+    const yOff = slot === 0 ? '' : ` + ${slot}`;
+    return `
+    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_count
+    add hl, de
+    ld a, (hl)
+    cp ${slot + 1}
+    jp c, .sn_${slot}
+    ld a, (msx2_player_sprite_x)
+    add a, ${o.hbCenterX}
+    ld b, a
+    ld a, (msx2_enemy_runtime_x${xOff})
+    cp b
+    jp nc, .sn_${slot}
+    add a, 15
+    cp b
+    jp c, .sn_${slot}
+    ld a, (msx2_player_sprite_y)
+    add a, ${o.hbCenterY}
+    ld b, a
+    ld a, (msx2_enemy_runtime_y${yOff})
+    cp b
+    jp nc, .sn_${slot}
+    add a, 15
+    cp b
+    jp c, .sn_${slot}
+    ld a, 240
+    ld (msx2_enemy_runtime_y${yOff}), a
+    call msx2_sfx_hit
+.sn_${slot}:`;
+  }).join('');
+  return `
+msx2_player_state_${stateName}:
+    ; --- SLASHING ---
+    ld hl, msx2_player_slash_timer
+    ld a, (hl)
+    or a
+    jp nz, .slash_decrement
+    ld (hl), 10
+${slotChecks}
+    jp msx2_state_machine_exit
+.slash_decrement:
+    dec (hl)
+    jp nz, msx2_state_machine_exit
+    ld a, PLAYER_STATE_GROUNDED
+    ld (msx2_player_state), a
+    jp msx2_state_machine_exit
+`;
+}
+
 function buildDoubleJumpState(o: StateMachineOptions, stateName: string): string {
   return `
 msx2_player_state_${stateName}:
@@ -216,6 +272,9 @@ function buildOptionalStates(o: StateMachineOptions): string {
       switch (skill.id) {
         case 'double_jump':
           blocks.push(buildDoubleJumpState(o, state));
+          break;
+        case 'slash':
+          blocks.push(buildSlashState(o, state));
           break;
         default:
           blocks.push(`msx2_player_state_${state}:`);
