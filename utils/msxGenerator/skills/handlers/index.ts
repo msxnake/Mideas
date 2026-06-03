@@ -146,10 +146,9 @@ export const magicBall: SkillDef = {
 
 export const reverse: SkillDef = {
   id: 'reverse',
-  label: 'Invert gravity direction',
+  label: 'Reverse movement direction',
   required: false,
   cycles: 80,
-  controlIcon: 'attack',
   addsStates: ['reversed'],
   transitions: [
     { from: ['grounded', 'running', 'jumping', 'falling'], to: 'reversed', condition: 'reverse_key_pressed' },
