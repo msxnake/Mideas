@@ -1,6 +1,11 @@
 import { getSkill, getAllSkills } from './registry';
 import { SkillDef } from './types';
 
+export interface SkillBindingEntry {
+  primary: string;
+  secondary?: string;
+}
+
 export interface StateMachineOptions {
   jumpImpulseLo: string;
   jumpImpulseHi: string;
@@ -19,10 +24,83 @@ export interface StateMachineOptions {
   setPlayerWalkingFlagAsm: string;
   clearPlayerWalkingFlagAsm: string;
   activeSkillIds: string[];
+  skillBindings: Record<string, SkillBindingEntry>;
 }
 
 function hasSkill(id: string, activeIds: string[]): boolean {
   return activeIds.includes(id);
+}
+
+function getControlIdFromBinding(binding: SkillBindingEntry): string {
+  return binding.primary;
+}
+
+/** Map a binding primary/secondary to the ASM input check routine name. */
+function bindingToCheckRoutine(ctrl: string): string | null {
+  switch (ctrl) {
+    case 'jump': return 'msx2_control_jump_pressed';
+    case 'attack': return 'msx2_control_action_pressed';
+    default: return null; // directions handled inline
+  }
+}
+
+/** Map a binding to an inline ASM condition that tests whether that direction is pressed.
+ *  Returns null if not a direction binding. */
+function bindingToDirectionInline(ctrl: string): string | null {
+  switch (ctrl) {
+    case 'left':
+      return [
+        '    call msx2_read_player_horizontal_input',
+        '    cp #FF',
+      ].join('\n');
+    case 'right':
+      return [
+        '    call msx2_read_player_horizontal_input',
+        '    cp 1',
+      ].join('\n');
+    case 'up':
+      return [
+        '    call msx2_read_player_vertical_input',
+        '    cp #FF',
+      ].join('\n');
+    case 'down':
+      return [
+        '    call msx2_read_player_vertical_input',
+        '    cp 1',
+      ].join('\n');
+    default: return null;
+  }
+}
+
+/**
+ * Returns ASM that checks a single control id.
+ * Assumes A=0/non-zero is accessible after the check; uses `jp z, failLabel` / `jp nz, successLabel`.
+ * Sets Z flag appropriately.
+ */
+function buildControlCheck(ctrl: string, failLabel: string): string {
+  const routine = bindingToCheckRoutine(ctrl);
+  if (routine) {
+    return [
+      `    call ${routine}`,
+      `    or a`,
+      `    jp z, ${failLabel}`,
+    ].join('\n');
+  }
+  const dirInline = bindingToDirectionInline(ctrl);
+  if (dirInline) {
+    return `${dirInline}\n    jp nz, ${failLabel}`;
+  }
+  return `    ; unknown control "${ctrl}" — skipping\n    jp ${failLabel}`;
+}
+
+/** Build a combined check that tests ALL required controls (combo). Falls to failLabel if ANY fails. */
+function buildComboCheck(binding: SkillBindingEntry, failLabel: string): string {
+  const checks: string[] = [];
+  checks.push(buildControlCheck(binding.primary, failLabel));
+  if (binding.secondary && binding.secondary !== 'none') {
+    checks.push(buildControlCheck(binding.secondary, failLabel));
+  }
+  return checks.join('\n');
 }
 
 function buildStateEnum(activeIds: string[]): string {
@@ -83,6 +161,36 @@ function buildOptionalStates(activeIds: string[]): string {
   return blocks.join('\n');
 }
 
+/**
+ * Build input-dispatch checks for optional skills in the grounded handler.
+ * Checks each active skill's binding; on match transitions to that skill's first state.
+ */
+function buildOptionalSkillDispatches(o: StateMachineOptions): string {
+  const optionalSkills = getAllSkills().filter(s => !s.required);
+  const blocks: string[] = [];
+  let labelIdx = 0;
+
+  for (const skill of optionalSkills) {
+    if (!o.activeSkillIds.includes(skill.id)) continue;
+    if (skill.addsStates.length === 0) continue;
+
+    const binding = o.skillBindings[skill.id];
+    if (!binding) continue;
+
+    const failLabel = `.skill_no_${labelIdx}`;
+    const stateEnum = `PLAYER_STATE_${skill.addsStates[0].toUpperCase().replace(/ /g, '_')}`;
+
+    blocks.push(buildComboCheck(binding, failLabel));
+    blocks.push(`    ld a, ${stateEnum}`);
+    blocks.push(`    ld (msx2_player_state), a`);
+    blocks.push(`    jp msx2_player_state_${skill.addsStates[0]}`);
+    blocks.push(`${failLabel}:`);
+    labelIdx++;
+  }
+
+  return blocks.join('\n');
+}
+
 function buildGroundedState(o: StateMachineOptions): string {
   return `
 msx2_player_state_grounded:
@@ -90,20 +198,23 @@ msx2_player_state_grounded:
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
     or a
-    jp z, .grounded_idle
-${o.setPlayerWalkingFlagAsm}    jp .grounded_check_transitions
-.grounded_idle:
+    jp z, .gnd_idle
+${o.setPlayerWalkingFlagAsm}    jp .gnd_check
+.gnd_idle:
 ${o.clearPlayerWalkingFlagAsm}
-.grounded_check_transitions:
+.gnd_check:
+    ; --- optional skill input dispatch ---
+${buildOptionalSkillDispatches(o)}
+    ; --- core jump transition ---
 ${o.jumpEnabled ? `    call msx2_control_jump_pressed
     or a
-    jp z, .grounded_check_ground
+    jp z, .gnd_check_ground
     ld a, PLAYER_STATE_JUMPING
     ld (msx2_player_state), a
     jp msx2_player_state_jumping
-.grounded_check_ground:
+.gnd_check_ground:
 ` : ''}
-    ; check ground below left foot
+    ; check ground below
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -111,8 +222,7 @@ ${o.jumpEnabled ? `    call msx2_control_jump_pressed
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .grounded_stay
-    ; check ground below right foot
+    jp nz, .gnd_stay
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -120,13 +230,12 @@ ${o.jumpEnabled ? `    call msx2_control_jump_pressed
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .grounded_stay
-    ; no ground below → fall
+    jp nz, .gnd_stay
     call msx2_clear_grounded_flag
     ld a, PLAYER_STATE_FALLING
     ld (msx2_player_state), a
     jp msx2_player_state_falling
-.grounded_stay:
+.gnd_stay:
     call msx2_set_grounded_flag
     jp msx2_state_machine_exit
 `;
@@ -136,52 +245,49 @@ function buildJumpingState(o: StateMachineOptions): string {
   const doubleJumpCheck = hasSkill('double_jump', o.activeSkillIds) ? `
     ld a, (msx2_player_jump_count)
     cp 1
-    jp nz, .jumping_no_double
+    jp nz, .jmp_no_double
     push bc
     call msx2_control_jump_pressed
     pop bc
     or a
-    jp z, .jumping_no_double
+    jp z, .jmp_no_double
     ld a, 2
     ld (msx2_player_jump_count), a
     ld a, PLAYER_STATE_DOUBLE_JUMPING
     ld (msx2_player_state), a
     jp msx2_player_state_double_jumping
-.jumping_no_double:` : '';
+.jmp_no_double:` : '';
 
   return `
 msx2_player_state_jumping:
     ; --- JUMPING ---
     ld a, (msx2_player_state)
     ld (msx2_player_state_prev), a
-    ; first-frame impulse if gravity_vel is zero
     ld hl, msx2_player_gravity_vel
     ld a, (hl)
     or a
-    jp nz, .jumping_apply_gravity
+    jp nz, .jmp_grav
     inc hl
     ld a, (hl)
     or a
-    jp nz, .jumping_apply_gravity
+    jp nz, .jmp_grav
     ld hl, msx2_player_gravity_vel
     ld (hl), ${o.jumpImpulseLo}
     inc hl
     ld (hl), ${o.jumpImpulseHi}
-.jumping_apply_gravity:
+.jmp_grav:
 ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
 ` : ''}
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
 ${doubleJumpCheck}
-    ; read gravity vel hi-byte for ascent check
     ld hl, msx2_player_gravity_vel + 1
     ld a, (hl)
     or a
-    jp z, .jumping_falling
+    jp z, .jmp_fall
     bit 7, a
-    jp nz, .jumping_falling
-.jumping_move:
-    ; check collision above (left)
+    jp nz, .jmp_fall
+.jmp_move:
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -189,8 +295,7 @@ ${doubleJumpCheck}
     dec a
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .jumping_hit_head
-    ; check collision above (right)
+    jp nz, .jmp_head
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -198,18 +303,17 @@ ${doubleJumpCheck}
     dec a
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .jumping_hit_head
-    ; move up one pixel
+    jp nz, .jmp_head
     ld a, (msx2_player_sprite_y)
     or a
-    jp z, .jumping_done
+    jp z, .jmp_done
     dec a
     ld (msx2_player_sprite_y), a
-.jumping_done:
+.jmp_done:
     jp msx2_state_machine_exit
-.jumping_hit_head:
+.jmp_head:
     call msx2_clear_vertical_velocity
-.jumping_falling:
+.jmp_fall:
     ld a, PLAYER_STATE_FALLING
     ld (msx2_player_state), a
     jp msx2_player_state_falling
@@ -224,16 +328,14 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
 ` : ''}
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
-    ; read gravity vel hi-byte for fall speed
     ld hl, msx2_player_gravity_vel + 1
     ld a, (hl)
     or a
-    jp z, .falling_check_grounded
+    jp z, .fal_chk
     bit 7, a
-    jp nz, .falling_check_grounded
+    jp nz, .fal_chk
     ld d, a
-.falling_loop:
-    ; check collision below (left)
+.fal_loop:
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -242,8 +344,7 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
     inc a
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .falling_land
-    ; check collision below (right)
+    jp nz, .fal_land
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -252,20 +353,18 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
     inc a
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .falling_land
-    ; move down
+    jp nz, .fal_land
     ld a, (msx2_player_sprite_y)
     inc a
     cp 196
-    jp nc, .falling_done
+    jp nc, .fal_done
     ld (msx2_player_sprite_y), a
     dec d
     ld a, d
     or a
-    jp nz, .falling_loop
-    jp .falling_done
-.falling_check_grounded:
-    ; check ground at feet (before gravity pull)
+    jp nz, .fal_loop
+    jp .fal_done
+.fal_chk:
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbLeft}
     ld b, a
@@ -273,7 +372,7 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp nz, .falling_land
+    jp nz, .fal_land
     ld a, (msx2_player_sprite_x)
     add a, ${o.hbRight}
     ld b, a
@@ -281,8 +380,8 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
     add a, ${o.hbFeet}
     ld c, a
     call msx2_collision_at_pixel
-    jp z, .falling_done
-.falling_land:
+    jp z, .fal_done
+.fal_land:
     xor a
     ld hl, msx2_player_gravity_vel
     ld (hl), a
@@ -292,7 +391,7 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
     ld (msx2_player_flags), a
     ld a, PLAYER_STATE_GROUNDED
     ld (msx2_player_state), a
-.falling_done:
+.fal_done:
     jp msx2_state_machine_exit
 `;
 }
@@ -306,24 +405,50 @@ msx2_read_player_horizontal_input:
     call GTSTCK
     pop bc
     cp 3
-    jp z, .right
+    jp z, .hr
     cp 4
-    jp z, .right
+    jp z, .hr
     cp 2
-    jp z, .right
+    jp z, .hr
     cp 7
-    jp z, .left
+    jp z, .hl
     cp 8
-    jp z, .left
+    jp z, .hl
     cp 6
-    jp z, .left
+    jp z, .hl
     xor a
     ret
-.right:
+.hr:
     ld a, 1
     ret
-.left:
+.hl:
     ld a, #FF
+    ret
+
+msx2_read_player_vertical_input:
+    push bc
+    xor a
+    call GTSTCK
+    pop bc
+    cp 1
+    jp z, .vu
+    cp 2
+    jp z, .vu
+    cp 8
+    jp z, .vu
+    cp 5
+    jp z, .vd
+    cp 4
+    jp z, .vd
+    cp 6
+    jp z, .vd
+    xor a
+    ret
+.vu:
+    ld a, #FF
+    ret
+.vd:
+    ld a, 1
     ret
 
 msx2_set_grounded_flag:

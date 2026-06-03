@@ -6305,7 +6305,10 @@ auto_patrol_hardware_sprite:
 update_hardware_sprite_vertical:
     ; Player state machine (platform mode with skills).
     ; Clobbers AF/BC/DE/HL.
-${usesMsx2PlatformVerticalPhysics(analysis) ? buildPlayerStateMachineAsm({
+${usesMsx2PlatformVerticalPhysics(analysis) ? (() => {
+    const playerAssetForBindings = getMsx2PlayerAssetForScreen(analysis, screen);
+    const skillBindings = (playerAssetForBindings?.skillBindings ?? {}) as Record<string, { primary: string; secondary?: string }>;
+    return buildPlayerStateMachineAsm({
     jumpImpulseLo: formatAsmByte(physics.jumpImpulse88 >> 8),
     jumpImpulseHi: formatAsmByte(physics.jumpImpulse88),
     gravityStrength: formatAsmByte(physics.gravityStrength88),
@@ -6318,7 +6321,9 @@ ${usesMsx2PlatformVerticalPhysics(analysis) ? buildPlayerStateMachineAsm({
     hbLeft, hbFeet, hbRight, hbCenterX, hbCenterY,
     setPlayerWalkingFlagAsm, clearPlayerWalkingFlagAsm,
     activeSkillIds,
-  }) : `${mazeMovement ? `    ; Maze mode: skip vertical physics.
+    skillBindings,
+  });
+  })() : `${mazeMovement ? `    ; Maze mode: skip vertical physics.
     jp upload_hardware_sprite_attrs
 ` : `    ; Non-platform mode: skip vertical physics.
     jp upload_hardware_sprite_attrs
