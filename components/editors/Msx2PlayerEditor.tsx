@@ -5,7 +5,7 @@ import { StateMachine } from '../../statemachine.types';
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
-import { getAllSkills } from '../../utils/msxGenerator/skills/registry';
+import { getAllSkills } from '../../utils/msxGenerator/skills/index';
 import type { SkillControlIcon } from '../../utils/msxGenerator/skills/types';
 
 interface Msx2PlayerEditorProps {
