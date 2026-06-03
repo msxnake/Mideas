@@ -594,6 +594,7 @@ export const createDefaultMsx2PlayerDefinition = (
       sprites: isShooter ? 1 : 4,
       maxProjectiles: isShooter ? 2 : 0,
     },
+    skillBindings: {},
     requiredRoutines: isShooter
       ? ['Player_ReadInput', 'Player_UpdateShooter', 'Player_ClampToScreen', 'Player_FireProjectile', 'Player_RenderHardwareSprite']
       : isMaze
@@ -693,5 +694,9 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
       f2: parsed?.inputEnabled?.f2 ?? parsed?.inputEnabled?.pause ?? defaults.inputEnabled.f2,
     },
     functionKeyCustomActions,
+    skillBindings: {
+      ...(defaults.skillBindings || {}),
+      ...(parsed?.skillBindings || {}),
+    },
   };
 };

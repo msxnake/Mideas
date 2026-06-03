@@ -384,6 +384,14 @@ export type Msx2PlayerButtonBinding = 'upArrow' | 'spc' | 'n' | 'm' | 'joyA' | '
 /** @deprecated Use Msx2PlayerButtonBinding */
 export type Msx2PlayerJumpBinding = Msx2PlayerButtonBinding;
 export type Msx2PlayerControlId = 'left' | 'right' | 'up' | 'down' | 'jump' | 'attack';
+
+/** Per-skill control binding used by the state machine skill system. */
+export interface Msx2PlayerSkillBinding {
+  /** Primary icon. Never 'none' — if a skill has a binding, primary is required. */
+  primary: Msx2PlayerControlId;
+  /** Secondary icon for combo activations. 'none' = no second button needed. */
+  secondary?: Msx2PlayerControlId | 'none';
+}
 export type Msx2PlayerRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type Msx2PlayerSpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
 export type Msx2PlayerFacing = 'left' | 'right' | 'up' | 'down';
@@ -467,6 +475,8 @@ export interface Msx2PlayerDefinition {
   inputEnabled?: Partial<Record<'left' | 'right' | 'up' | 'down' | 'jump' | 'attack' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'inventory' | 'pause', boolean>>;
   /** Label used when the matching function key action is set to custom. */
   functionKeyCustomActions?: Partial<Record<Msx2PlayerFunctionKeyId, string>>;
+  /** Skill-to-control binding overrides. Key = skill id. Falls back to SkillDef.controlIcon defaults. */
+  skillBindings?: Record<string, Msx2PlayerSkillBinding>;
   health: {
     maxHealth: number;
     lives: number;

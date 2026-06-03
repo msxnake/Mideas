@@ -1472,56 +1472,24 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                   <p className="text-[11px] text-slate-400">
                     Directions use Arrows or Joystick 1/2. Buttons A and B map to any MSX key or joystick trigger.
                   </p>
-                  {(() => {
-                    // Group skills by each icon they reference (including combos).
-                    const skillsByIcon = new Map<string, { label: string; combo?: string }[]>();
-                    const addSkill = (icon: string, label: string, combo?: string) => {
-                      const arr = skillsByIcon.get(icon) ?? [];
-                      arr.push(combo ? { label, combo } : { label });
-                      skillsByIcon.set(icon, arr);
-                    };
-                    for (const s of getAllSkills()) {
-                      const icon = s.controlIcon;
-                      if (!icon) continue;
-                      const icons = Array.isArray(icon) ? icon : [icon];
-                      if (icons.length > 1) {
-                        const comboKey = icons.join('+');
-                        for (const i of icons) {
-                          addSkill(i, s.label, comboKey);
-                        }
-                      } else {
-                        addSkill(icons[0], s.label);
-                      }
-                    }
-                    return controlRows.map(({ directionKey, badge, key, binding, fallback }) => {
-                      const enabled = normalized.inputEnabled?.[key] !== false;
-                      const value = normalized.inputMapping[key] || fallback;
-                      const options = binding === 'button' ? MSX2_PLAYER_BUTTON_BINDINGS : MSX2_PLAYER_INPUT_SOURCES;
-                      const entries = skillsByIcon.get(key) ?? [];
-                      return (
-                        <div key={key}>
-                          <ControlField
-                            directionKey={directionKey}
-                            badge={badge}
-                            enabled={enabled}
-                            onEnabledChange={checked => updateInputEnabled(key, checked)}
-                            value={value}
-                            onValueChange={nextValue => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: nextValue } })}
-                            options={options}
-                          />
-                          {entries.length > 0 && (
-                            <div className="ml-[68px] mt-[1px] flex flex-wrap gap-x-2 gap-y-[1px] text-[10px] text-slate-500">
-                              {entries.map((entry, idx) => (
-                                <span key={idx} className="text-[10px]">
-                                  {entry.combo ? `${entry.label} (${entry.combo})` : entry.label}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
+                  {controlRows.map(({ directionKey, badge, key, binding, fallback }) => {
+                    const enabled = normalized.inputEnabled?.[key] !== false;
+                    const value = normalized.inputMapping[key] || fallback;
+                    const options = binding === 'button' ? MSX2_PLAYER_BUTTON_BINDINGS : MSX2_PLAYER_INPUT_SOURCES;
+                    return (
+                      <div key={key}>
+                        <ControlField
+                          directionKey={directionKey}
+                          badge={badge}
+                          enabled={enabled}
+                          onEnabledChange={checked => updateInputEnabled(key, checked)}
+                          value={value}
+                          onValueChange={nextValue => onUpdate({ inputMapping: { ...normalized.inputMapping, [key]: nextValue } })}
+                          options={options}
+                        />
+                      </div>
+                    );
+                  })}
                   <div className="border-t border-slate-800 pt-2">
                     <p className="mb-2 text-[11px] text-slate-400">
                       Function keys keep their MSX key (F1-F5). Pick a preset or choose Custom to type your own action.
@@ -1551,6 +1519,73 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                         />
                       );
                     })}
+                  </div>
+                  <div className="border-t border-slate-800 pt-2 mt-2">
+                    <p className="mb-2 text-[11px] text-slate-400">
+                      Skill button bindings. Primary is always required; set secondary to None for single-button activation.
+                    </p>
+                    {(() => {
+                      const CONTROL_OPTIONS = [
+                        { value: 'left', label: '←' },
+                        { value: 'right', label: '→' },
+                        { value: 'up', label: '↑' },
+                        { value: 'down', label: '↓' },
+                        { value: 'jump', label: 'A' },
+                        { value: 'attack', label: 'B' },
+                      ];
+                      const CONTROL_OPTIONS_WITH_NONE = [
+                        { value: 'none', label: 'None' },
+                        ...CONTROL_OPTIONS,
+                      ];
+                      const skillBindings = normalized.skillBindings ?? {};
+                      const bindableSkills = getAllSkills().filter(s => s.controlIcon && !s.required);
+                      const resolveBinding = (skillId: string): { primary: string; secondary: string } => {
+                        const override = skillBindings[skillId];
+                        if (override) return { primary: override.primary, secondary: override.secondary ?? 'none' };
+                        const def = getAllSkills().find(s => s.id === skillId);
+                        if (!def || !def.controlIcon) return { primary: 'attack', secondary: 'none' };
+                        const icons = Array.isArray(def.controlIcon) ? def.controlIcon : [def.controlIcon];
+                        return { primary: icons[0] || 'attack', secondary: icons[1] || 'none' };
+                      };
+                      const updateBinding = (skillId: string, field: 'primary' | 'secondary', value: string) => {
+                        const current = resolveBinding(skillId);
+                        const next: Record<string, any> = { ...current, [field]: value === 'none' && field === 'secondary' ? 'none' : value };
+                        if (field === 'secondary' && value === 'none') delete next.secondary;
+                        onUpdate({
+                          skillBindings: {
+                            ...skillBindings,
+                            [skillId]: { primary: next.primary, ...(next.secondary && next.secondary !== 'none' ? { secondary: next.secondary } : {}) },
+                          },
+                        });
+                      };
+                      return (
+                        <div className="space-y-1">
+                          {bindableSkills.map(skill => {
+                            const binding = resolveBinding(skill.id);
+                            return (
+                              <div key={skill.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 text-xs">
+                                <span className="text-slate-200 truncate">{skill.label}</span>
+                                <select
+                                  className="w-12 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
+                                  value={binding.primary}
+                                  onChange={e => updateBinding(skill.id, 'primary', e.target.value)}
+                                >
+                                  {CONTROL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                                <span className="text-slate-500">+</span>
+                                <select
+                                  className="w-16 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
+                                  value={binding.secondary}
+                                  onChange={e => updateBinding(skill.id, 'secondary', e.target.value)}
+                                >
+                                  {CONTROL_OPTIONS_WITH_NONE.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </section>
