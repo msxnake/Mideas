@@ -6308,9 +6308,12 @@ update_hardware_sprite_vertical:
 ${usesMsx2PlatformVerticalPhysics(analysis) ? (() => {
     const playerAssetForBindings = getMsx2PlayerAssetForScreen(analysis, screen);
     const skillBindings = (playerAssetForBindings?.skillBindings ?? {}) as Record<string, { primary: string; secondary?: string }>;
+    const djImpulse = Math.round(physics.jumpImpulse88 * 0.7);
     return buildPlayerStateMachineAsm({
     jumpImpulseLo: formatAsmByte(physics.jumpImpulse88 >> 8),
     jumpImpulseHi: formatAsmByte(physics.jumpImpulse88),
+    doubleJumpImpulseLo: formatAsmByte(djImpulse >> 8),
+    doubleJumpImpulseHi: formatAsmByte(djImpulse),
     gravityStrength: formatAsmByte(physics.gravityStrength88),
     terminalHigh: formatAsmByte(getTerminalVelocityHighByte(physics.terminalVelocity88)),
     terminalWord: formatAsmWord(physics.terminalVelocity88),

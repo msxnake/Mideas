@@ -9,6 +9,8 @@ export interface SkillBindingEntry {
 export interface StateMachineOptions {
   jumpImpulseLo: string;
   jumpImpulseHi: string;
+  doubleJumpImpulseLo: string;
+  doubleJumpImpulseHi: string;
   gravityStrength: string;
   terminalHigh: string;
   terminalWord: string;
@@ -142,19 +144,87 @@ function buildDispatcher(): string {
 `;
 }
 
-function buildOptionalStates(activeIds: string[]): string {
+function buildDoubleJumpState(o: StateMachineOptions, stateName: string): string {
+  return `
+msx2_player_state_${stateName}:
+    ; --- DOUBLE JUMPING ---
+    call msx2_apply_platform_gravity
+    call msx2_read_player_horizontal_input
+    ld (msx2_player_sprite_dx), a
+    ; first-frame impulse if gravity_vel is zero
+    ld hl, msx2_player_gravity_vel
+    ld a, (hl)
+    or a
+    jp nz, .dj_grav
+    inc hl
+    ld a, (hl)
+    or a
+    jp nz, .dj_grav
+    ld hl, msx2_player_gravity_vel
+    ld (hl), ${o.doubleJumpImpulseLo}
+    inc hl
+    ld (hl), ${o.doubleJumpImpulseHi}
+.dj_grav:
+    ld hl, msx2_player_gravity_vel + 1
+    ld a, (hl)
+    or a
+    jp z, .dj_fall
+    bit 7, a
+    jp nz, .dj_fall
+.dj_move:
+    ; check collision above (left)
+    ld a, (msx2_player_sprite_x)
+    add a, ${o.hbLeft}
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    dec a
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, .dj_head
+    ; check collision above (right)
+    ld a, (msx2_player_sprite_x)
+    add a, ${o.hbRight}
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    dec a
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, .dj_head
+    ; move up one pixel
+    ld a, (msx2_player_sprite_y)
+    or a
+    jp z, .dj_done
+    dec a
+    ld (msx2_player_sprite_y), a
+.dj_done:
+    jp msx2_state_machine_exit
+.dj_head:
+    call msx2_clear_vertical_velocity
+.dj_fall:
+    ld a, PLAYER_STATE_FALLING
+    ld (msx2_player_state), a
+    jp msx2_player_state_falling
+`;
+}
+
+function buildOptionalStates(o: StateMachineOptions): string {
   const optionalSkills = getAllSkills().filter(s => !s.required);
   const blocks: string[] = [];
   for (const skill of optionalSkills) {
-    if (activeIds.includes(skill.id)) {
-      for (const state of skill.addsStates) {
-        blocks.push(`msx2_player_state_${state}:`);
-        blocks.push(`    ; ${skill.label} — ${state}`);
-        blocks.push(`    ; handler not yet implemented`);
-        blocks.push(`    ld a, PLAYER_STATE_GROUNDED`);
-        blocks.push(`    ld (msx2_player_state), a`);
-        blocks.push(`    jp msx2_state_machine_exit`);
-        blocks.push(``);
+    if (!o.activeSkillIds.includes(skill.id)) continue;
+    for (const state of skill.addsStates) {
+      switch (skill.id) {
+        case 'double_jump':
+          blocks.push(buildDoubleJumpState(o, state));
+          break;
+        default:
+          blocks.push(`msx2_player_state_${state}:`);
+          blocks.push(`    ; ${skill.label} — ${state}`);
+          blocks.push(`    ; handler not yet implemented`);
+          blocks.push(`    ld a, PLAYER_STATE_GROUNDED`);
+          blocks.push(`    ld (msx2_player_state), a`);
+          blocks.push(`    jp msx2_state_machine_exit`);
+          blocks.push(``);
       }
     }
   }
@@ -509,7 +579,7 @@ export function buildPlayerStateMachineAsm(o: StateMachineOptions): string {
   lines.push(buildJumpingState(o));
   lines.push(buildFallingState(o));
   if (o.activeSkillIds.length > 0) {
-    const opt = buildOptionalStates(o.activeSkillIds);
+    const opt = buildOptionalStates(o);
     if (opt.trim()) {
       lines.push('; --- Optional skill states ---');
       lines.push(opt);
