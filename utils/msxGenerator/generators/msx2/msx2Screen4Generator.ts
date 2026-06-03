@@ -3549,7 +3549,10 @@ function buildHardwareSpriteRuntimeAsm(
   const hbLeft = hb.offsetX;
   const hbCenterX = hb.offsetX + Math.floor(hb.w / 2);
   const hbCenterY = hb.offsetY + Math.floor(hb.h / 2);
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const physics = getMsx2PlatformPhysicsFromScreen(screen, getMsx2PlatformPlayerEntity(analysis));
   const color = Math.max(1, Math.min(15, settings.color));
+  const activeSkillIds = (hbPlayer?.params?.activeSkills as string[]) ?? [];
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
   const animationDelayFrames = getHardwareSpriteAnimationDelayFrames(sprite);
@@ -6300,9 +6303,26 @@ auto_patrol_hardware_sprite:
     jp move_hardware_sprite_right
 
 update_hardware_sprite_vertical:
-    ; Platform jump/gravity uses MSX1-style 8.8 physics (msx2_jump + msx2_gravity components).
+    ; Player state machine (platform mode with skills).
     ; Clobbers AF/BC/DE/HL.
-${buildMsx2PlatformVerticalPhysicsAsm(analysis, { mazeMovement, shooterHorizontal })}
+${usesMsx2PlatformVerticalPhysics(analysis) ? buildPlayerStateMachineAsm({
+    jumpImpulseLo: formatAsmByte(physics.jumpImpulse88 >> 8),
+    jumpImpulseHi: formatAsmByte(physics.jumpImpulse88),
+    gravityStrength: formatAsmByte(physics.gravityStrength88),
+    terminalHigh: formatAsmByte(getTerminalVelocityHighByte(physics.terminalVelocity88)),
+    terminalWord: formatAsmWord(physics.terminalVelocity88),
+    maxJumps: physics.maxJumps,
+    requireKeyRelease: physics.requireKeyRelease,
+    jumpEnabled: physics.jumpEnabled,
+    gravityEnabled: physics.gravityEnabled,
+    hbLeft, hbFeet, hbRight, hbCenterX, hbCenterY,
+    setPlayerWalkingFlagAsm, clearPlayerWalkingFlagAsm,
+    activeSkillIds,
+  }) : `${mazeMovement ? `    ; Maze mode: skip vertical physics.
+    jp upload_hardware_sprite_attrs
+` : `    ; Non-platform mode: skip vertical physics.
+    jp upload_hardware_sprite_attrs
+`}`}
 
 apply_msx2_conveyor:
     ; Behavior code 2 pushes right, code 3 pushes left. Clobbers AF/BC/DE/HL.
@@ -11451,6 +11471,19 @@ msx2_runtime_frame_counter EQU #C026
 msx2_enemy_bullet_1_active EQU #C040
 msx2_enemy_bullet_1_x EQU #C041
 msx2_enemy_bullet_1_y EQU #C042
+msx2_player_state EQU #C043
+msx2_player_state_prev EQU #C044
+msx2_player_jump_count EQU #C045
+msx2_player_slash_timer EQU #C046
+msx2_player_shoot_cooldown EQU #C047
+msx2_player_carrying_flag EQU #C048
+msx2_player_dash_timer EQU #C049
+msx2_player_shield_timer EQU #C04A
+msx2_player_gravity_dir EQU #C04B
+msx2_player_zone EQU #C04C
+msx2_player_teleport_target_x EQU #C04D
+msx2_player_teleport_target_y EQU #C04E
+msx2_player_magic_ball_active EQU #C04F
 msx2_enemy_bullet_active EQU #C027
 msx2_enemy_bullet_x EQU #C028
 msx2_enemy_bullet_y EQU #C029

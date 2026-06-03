@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "cpu": "Z80@3.58MHz",
+  "targetHz": 60,
+  "budgetPerFrame": 19968,
+  "tiers": {
+    "critical": "Every frame. Must never exceed budget.",
+    "distributed": "Across frames via round-robin or cooldown."
+  },
+  "features": {
+    "player_input": {
+      "label": "Joystick/keyboard scan",
+      "cycles": 160,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "platform_physics": {
+      "label": "Jump/gravity 8.8 fixed point + grounded check",
+      "cycles": 500,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "horizontal_collision": {
+      "label": "Wall collision probe (right + left + conveyor)",
+      "cycles": 500,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "hazard_probe": {
+      "label": "7-point hazard tile probe",
+      "cycles": 900,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "ladder_rope": {
+      "label": "Ladder / rope / behavior detection",
+      "cycles": 300,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "effect_probe": {
+      "label": "Effect tile probe (3 points)",
+      "cycles": 450,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "player_sat_upload": {
+      "label": "Upload sprite attributes to VRAM SAT",
+      "cycles": 600,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "pt3_player": {
+      "label": "PT3 music player tick",
+      "cycles": 800,
+      "tier": "critical",
+      "perFrame": true
+    },
+    "air_timer": {
+      "label": "Air timer countdown",
+      "cycles": 80,
+      "tier": "critical",
+      "perFrame": false,
+      "intervalFrames": 60
+    },
+    "enemy_ai": {
+      "label": "Enemy movement AI (per slot, distribute across frames)",
+      "cycles": 400,
+      "tier": "distributed",
+      "perSlot": true,
+      "maxSlots": 12
+    },
+    "enemy_collision": {
+      "label": "Player vs enemy AABB check",
+      "cycles": 1200,
+      "tier": "distributed"
+    },
+    "enemy_bullet_collision": {
+      "label": "Enemy bullet vs player",
+      "cycles": 400,
+      "tier": "distributed"
+    },
+    "enemy_bullet_spawn": {
+      "label": "Enemy bullet spawn logic",
+      "cycles": 300,
+      "tier": "distributed"
+    },
+    "enemy_sat_upload": {
+      "label": "Upload enemy sprite attributes to VRAM SAT",
+      "cycles": 1200,
+      "tier": "distributed"
+    },
+    "screen_scroll": {
+      "label": "Background horizontal scroll update",
+      "cycles": 600,
+      "tier": "distributed"
+    },
+    "snake_char": {
+      "label": "Snake char grid engine",
+      "cycles": 2000,
+      "tier": "distributed"
+    }
+  }
+}
