@@ -33,6 +33,7 @@ import { getMsx2CharStampDimensions } from './msx2GridSnapComponentGenerator';
 import { chooseScreen4RowColors } from '../../../msx2Screen4TileConstraints';
 import { getMsx2TileBehaviorKind, buildMsx2TileHazardHitboxBytes, buildMsx2TileVisualMapBytes } from '../../../msx2Screen4TileBehavior';
 import { buildMsx2CellFlagBytes } from '../../../msx2CellFlags';
+import { buildPlayerStateMachineAsm } from '../../skills/stateMachine.asm';
 import {
   formatAsmByte,
   formatAsmWord,
@@ -3076,10 +3077,10 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis, useKonamiDataBank
   return `init_hardware_sprites:
     ; SCREEN 4 hardware sprite runtime. Clobbers AF/BC/DE/HL.
     ; Preserve the SCREEN 4 mode bits set by CHGMOD; only select 16x16, non-magnified sprites.
-    ld a, (#F3E0)
+    ld a, (RG1SAV)
     or #02
     and #FE
-    ld (#F3E0), a
+    ld (RG1SAV), a
     ld b, a
     ld c, #01
     call WRTVDP
@@ -3171,7 +3172,10 @@ ${leaveDataBank}
     ret
 
 copy_to_vram_ext:
-    ; HL=RAM/ROM source, DE=absolute VRAM destination, BC=length. Clobbers AF/BC/DE/HL.
+    ; HL=RAM/ROM source, DE=absolute VRAM destination, BC=length.
+    ; Disables IRQ while R#14/VRAM address are being changed through direct VDP ports.
+    ; Clobbers AF/BC/DE/HL. Preserves IX/IY. RAM impact: none.
+    di
     ld a, d
     and #C0
     rlca
@@ -3204,6 +3208,7 @@ copy_to_vram_ext:
     out (VDP_CTRL_PORT), a
     ld a, #8E
     out (VDP_CTRL_PORT), a
+    ei
     ret
 
 `;
@@ -3211,7 +3216,10 @@ copy_to_vram_ext:
 
 function buildMsx2VramByteWriteAsm(): string {
   return `write_vram_byte_ext:
-    ; A=data, HL=absolute VRAM destination. Clobbers AF/B.
+    ; A=data, HL=absolute VRAM destination.
+    ; Disables IRQ while R#14/VRAM address are being changed through direct VDP ports.
+    ; Clobbers AF/B. Preserves C/DE/HL/IX/IY. RAM impact: none.
+    di
     ld b, a
     ld a, h
     and #C0
@@ -3239,6 +3247,7 @@ function buildMsx2VramByteWriteAsm(): string {
     out (VDP_CTRL_PORT), a
     ld a, #8E
     out (VDP_CTRL_PORT), a
+    ei
     ret
 
 `;
@@ -6018,12 +6027,12 @@ ${shooterHorizontal ? '    jp update_hardware_sprite_input_shooter_horizontal\n'
     jp z, move_hardware_sprite_left
     cp 8
     jp z, move_hardware_sprite_left
-    jp update_hardware_sprite_vertical
+    jp msx2_update_hardware_sprite_vertical
 
 try_msx2_ladder_up:
     call msx2_ladder_at_player_center
     jp z, move_msx2_ladder_up
-    jp update_hardware_sprite_vertical
+    jp msx2_update_hardware_sprite_vertical
 
 try_msx2_ladder_up_or_right:
     call msx2_ladder_at_player_center
@@ -6038,7 +6047,7 @@ try_msx2_ladder_up_or_left:
 try_msx2_ladder_down:
     call msx2_ladder_below_player_center
     jp z, move_msx2_ladder_down
-    jp update_hardware_sprite_vertical
+    jp msx2_update_hardware_sprite_vertical
 
 try_msx2_ladder_down_or_right:
     call msx2_ladder_below_player_center
@@ -6139,7 +6148,7 @@ ${setPlayerWalkingFlagAsm}    jp finish_msx2_horizontal_move
 finish_msx2_horizontal_move:
     call msx2_rope_at_player_center
     jp z, hold_msx2_rope
-    jp update_hardware_sprite_vertical
+    jp msx2_update_hardware_sprite_vertical
 
 msx2_game_over_idle:
     ld a, (msx2_game_over_restart_lock)
@@ -6296,15 +6305,16 @@ auto_patrol_hardware_sprite:
     inc a
     and 3
     ld (msx2_player_sprite_frame), a
-    jp nz, update_hardware_sprite_vertical
+    jp nz, msx2_update_hardware_sprite_vertical
     ld a, (msx2_player_sprite_dx)
     or a
     jp z, move_hardware_sprite_left
     jp move_hardware_sprite_right
 
-update_hardware_sprite_vertical:
+msx2_update_hardware_sprite_vertical:
     ; Player state machine (platform mode with skills).
     ; Clobbers AF/BC/DE/HL.
+${usesMsx2PlatformVerticalPhysics(analysis) ? '    jp msx2_player_state_machine_tick\n' : ''}
 ${usesMsx2PlatformVerticalPhysics(analysis) ? (() => {
     const playerAssetForBindings = getMsx2PlayerAssetForScreen(analysis, screen);
     const skillBindings = (playerAssetForBindings?.skillBindings ?? {}) as Record<string, { primary: string; secondary?: string }>;
@@ -9591,9 +9601,9 @@ function buildScreen4BackgroundScrollAsm(
     ld b, 128
     ld c, 19
     call WRTVDP
-    ld a, (#F3DF)
+    ld a, (RG0SAV)
     or #10
-    ld (#F3DF), a
+    ld (RG0SAV), a
     ld b, a
     ld c, 0
     call WRTVDP
@@ -10613,7 +10623,7 @@ function buildMsx2WorldTransitionAsm(
     ld (msx2_player_sprite_frame), a
 `
         : '';
-      const resumeAfterTransition = mazeMovement ? 'upload_hardware_sprite_attrs' : 'update_hardware_sprite_vertical';
+      const resumeAfterTransition = mazeMovement ? 'upload_hardware_sprite_attrs' : 'msx2_update_hardware_sprite_vertical';
       return `.${suffix}_screen_${index}:
     ld a, ${targetIndex}
     ld (msx2_current_screen_index), a
@@ -11413,9 +11423,16 @@ GTTRIG  EQU #00D8
 SNSMAT  EQU #0141
 RSLREG  EQU #0138
 ENASLT  EQU #0024
-HKEY    EQU #F3DB
 HKEYI   EQU #FD9A
-CLIKSW  EQU #F3DC
+CLIKSW  EQU #F3DB
+RG0SAV  EQU #F3DF
+RG1SAV  EQU #F3E0
+RG2SAV  EQU #F3E1
+RG3SAV  EQU #F3E2
+RG4SAV  EQU #F3E3
+RG5SAV  EQU #F3E4
+RG6SAV  EQU #F3E5
+RG7SAV  EQU #F3E6
 BAKCLR  EQU #F3E9
 BDRCLR  EQU #F3EA
 
@@ -11569,8 +11586,6 @@ init_rom:
     call map_page2_to_cart_primary
     call init_konami8k_fixed_bank0_banks
 
-    ld a, #C9
-    ld (HKEY), a
     xor a
     ld (CLIKSW), a
 
