@@ -1,7 +1,7 @@
 import { ProjectAnalysis } from '../../../../asmTemplateGenerator';
 import { V2Options, V2Output, SpriteLayout, RoleLayout } from './types';
 import { resolvePhysicsConfig } from './physicsUtils';
-import { generateSpriteData } from './dataGen';
+import { generateSpriteData, rolePatternSlotCount } from './dataGen';
 import { generateInit } from './generators/initGen';
 import { generateInput } from './generators/inputGen';
 import { generateMovement } from './generators/movementGen';
@@ -66,7 +66,26 @@ export function buildPlayerRuntimeAsmV2(
     ? layers.length * frameCount * mirrorPatternVariantCount - (layers.length * frameCount)
     : 0;
 
-  const playerPatternCount = layers.length * frameCount * mirrorPatternVariantCount;
+  // --- Role data (idle / walk) ---
+  let idle: RoleLayout | null = null;
+  let walk: RoleLayout | null = null;
+  let playerPatternCount = layers.length * frameCount * mirrorPatternVariantCount;
+
+  if (hasRoles) {
+    let patternOffset = 0;
+    const idleRole = roles!['idle'];
+    const walkRole = roles!['walk'];
+
+    if (idleRole) {
+      idle = buildRoleLayout('idle', idleRole, color, fallbackPlayerFacing, playerUsesFlipX, patternOffset);
+      patternOffset += idle.patternSlotCount;
+    }
+    if (walkRole) {
+      walk = buildRoleLayout('walk', walkRole, color, fallbackPlayerFacing, playerUsesFlipX, patternOffset);
+      patternOffset += walk.patternSlotCount;
+    }
+    playerPatternCount = patternOffset;
+  }
 
   // --- Enemy/bullet pattern indices ---
   const enemySprite = getEnemyHardwareSpriteSource(analysis);
@@ -78,22 +97,6 @@ export function buildPlayerRuntimeAsmV2(
   const playerBulletPatternIndex = enemyPatternIndex + enemyPatternVariantCount;
   const enemyBulletPatternIndex = playerBulletPatternIndex + 1;
   const pushBoxPatternIndex = enemyBulletPatternIndex + 1;
-
-  // --- Role data (idle / walk) ---
-  let idle: RoleLayout | null = null;
-  let walk: RoleLayout | null = null;
-
-  if (hasRoles) {
-    const idleRole = roles!['idle'];
-    const walkRole = roles!['walk'];
-
-    if (idleRole) {
-      idle = buildRoleLayout('idle', idleRole, color, fallbackPlayerFacing, playerUsesFlipX, frameCount);
-    }
-    if (walkRole) {
-      walk = buildRoleLayout('walk', walkRole, color, fallbackPlayerFacing, playerUsesFlipX, frameCount);
-    }
-  }
 
   // --- Hitbox offsets ---
   const hb = resolvePlayerHitbox(hbPlayer);
@@ -178,22 +181,24 @@ function buildRoleLayout(
   color: number,
   fallbackFacing: 'left' | 'right' | undefined,
   playerUsesFlipX: boolean,
-  mainSpriteFrameCount: number
+  patternOffset: number
 ): RoleLayout {
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(role.sprite, color))
     .slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const uniqueFrameIndices = Array.from(new Set<number>(role.frames));
   const effectiveFacing = getEffectivePlayerRoleFacing(role, fallbackFacing, playerUsesFlipX);
-  const mirrorPatternVariantCount = effectiveFacing ? 2 : 1;
   const uniqueFrameCount = uniqueFrameIndices.length;
+  const patternSlotCount = rolePatternSlotCount(uniqueFrameCount, layers.length, Boolean(effectiveFacing));
   const mirrorPatternOffset = effectiveFacing
-    ? layers.length * mainSpriteFrameCount
+    ? layers.length * uniqueFrameCount
     : 0;
 
   return {
-    basePatternIndex: 0,
+    sprite: role.sprite,
+    basePatternIndex: patternOffset,
     frameStride: layers.length,
     mirrorPatternOffset,
+    patternSlotCount,
     layers,
     frameCount: role.frames.length,
     delay: role.speed,

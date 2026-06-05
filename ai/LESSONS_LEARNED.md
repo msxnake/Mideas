@@ -112,18 +112,18 @@ Si una UI deja de ser fuente de verdad para un dato, el generador tambien debe d
 
 ---
 
-## Bug Resuelto: frame map V2 desalineado con orden de patrones
+## Bug Resuelto: roles MSX2 con sprites distintos por animacion
 
 Fecha: 2026-06-05
 
 Problema:
-Roles idle/walk con frames no contiguos (p. ej. 3,4,5) mostraban patrones incorrectos en MSX2 hardware sprite.
+Idle/walk mostraban graficos incorrectos cuando cada rol apuntaba a un asset MSX2 Sprite distinto (p. ej. `hero_idle` vs `hero_walk`).
 
 Causa:
-`playerRuntime_v2` guarda patrones por frame del sprite principal (0..N-1), pero el frame map y el runtime SAT seguian indexando por posicion dentro del set unico del rol (0,1,2). Ademas, en `v2PatternMode`, walk reutiliza el mismo blob de patrones pero el runtime antiguo sumaba offsets por rol.
+`playerRuntime_v2/dataGen` emitia patrones solo del sprite principal (`render.spriteAssetId`), pero cada rol anima frames de su propio asset. Walk leia indices sobre patrones de idle en VRAM.
 
 Solucion:
-Emitir `DB` con `rl.frames` (indice real del sprite). Usar `mainSpriteFrameCount` para `mirrorPatternOffset`. En `buildHardwareSpriteRuntimeAsm`, cuando `v2PatternMode`, idle/walk comparten `basePatternIndex` y el mirror offset usa `animationFrameCount`.
+Con roles activos, generar patrones por rol desde `role.sprite`, frame maps con indice unico dentro del blob del rol, y `basePatternIndex` separado para walk. Respetar `anim.frames` y `anim.speed` del player al resolver roles.
 
 Leccion:
-Frame map y layout de patrones VRAM deben usar la misma convencion de indice. Si los datos pasan a orden global del sprite, el runtime no puede seguir asumiendo orden compacto por rol.
+Un rol no es solo una secuencia de indices sobre un mismo asset: si el Player asigna otro MSX2 Sprite al rol, el generador debe empaquetar y direccionar patrones por asset, no por el render principal unico.

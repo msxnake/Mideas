@@ -1768,11 +1768,18 @@ export function getPlayerAnimRoles(analysis: ProjectAnalysis): Record<string, Pl
     if (!assetId) continue;
     const sprite = resolveMsx2SpriteById(analysis, assetId);
     if (!sprite) continue;
-    const renderFrames = (sprite.frames || [])
+    const spriteFrameIndices = (sprite.frames || [])
       .map((_frame, index) => index)
       .filter(index => Array.isArray(sprite.frames?.[index]?.data) && sprite.frames[index].data.length > 0);
-    const frames = renderFrames.length ? renderFrames : [0];
-    const speed = getHardwareSpriteAnimationDelayFrames(sprite);
+    const authoredFrames = Array.isArray(anim.frames) && anim.frames.length
+      ? anim.frames
+        .map((frame: unknown) => Number(frame))
+        .filter((index: number) => Number.isFinite(index) && index >= 0 && index < (sprite.frames?.length || 0))
+      : spriteFrameIndices;
+    const frames = authoredFrames.length ? authoredFrames : (spriteFrameIndices.length ? spriteFrameIndices : [0]);
+    const speed = Number.isFinite(Number(anim.speed)) && Number(anim.speed) > 0
+      ? Math.max(1, Math.min(255, Math.floor(Number(anim.speed))))
+      : getHardwareSpriteAnimationDelayFrames(sprite);
     roles[name] = { sprite, frames, speed, facing: getHorizontalFacingDirection(sprite) };
   }
   return Object.keys(roles).length ? roles : undefined;
@@ -3857,8 +3864,7 @@ ${buildHardwareSpritePatternIndexAsm(basePatternIndex, framePatternStride, layer
   if (hasPlayerAnimRoles) {
     if (idleLayers.length > 0) {
       idleFrameStride = idleLayers.length * patternMul;
-      const idlePatternSpan = v2PatternMode ? animationFrameCount : roleIdleUniqueCount;
-      idleMirrorPatternOffset = idleFacingDirection ? idleLayers.length * idlePatternSpan * patternMul : 0;
+      idleMirrorPatternOffset = idleFacingDirection ? idleLayers.length * roleIdleUniqueCount * patternMul : 0;
       idleAttrWrites = idleLayers.map((layer, layerIndex) => {
         const attrAddress = 0x1E00 + (layerIndex * 4);
         return `    ; Sprite layer ${layerIndex} (idle): x+${layer.xOffset}, y+${layer.yOffset}
@@ -3878,14 +3884,11 @@ ${buildHardwareSpritePatternIndexAsm(idleBaseTile, idleFrameStride, layerIndex *
     call write_vram_byte_ext
 `;
       }).join('\n');
-      walkBaseTile = v2PatternMode
-        ? basePatternIndex
-        : basePatternIndex + roleIdleUniqueCount * idleLayers.length * patternMul * (idleFacingDirection ? 2 : 1);
+      walkBaseTile = basePatternIndex + roleIdleUniqueCount * idleLayers.length * patternMul * (idleFacingDirection ? 2 : 1);
     }
     if (walkLayers.length > 0) {
       walkFrameStride = walkLayers.length * patternMul;
-      const walkPatternSpan = v2PatternMode ? animationFrameCount : roleWalkUniqueCount;
-      walkMirrorPatternOffset = walkFacingDirection ? walkLayers.length * walkPatternSpan * patternMul : 0;
+      walkMirrorPatternOffset = walkFacingDirection ? walkLayers.length * roleWalkUniqueCount * patternMul : 0;
       walkAttrWrites = walkLayers.map((layer, layerIndex) => {
         const attrAddress = 0x1E00 + (layerIndex * 4);
         return `    ; Sprite layer ${layerIndex} (walk): x+${layer.xOffset}, y+${layer.yOffset}

@@ -1,4 +1,5 @@
 import { Msx2HardwareLayer, PlayerAnimRole } from '../msx2Screen4Generator';
+import type { Msx2Sprite } from '../../../../../types';
 import { Msx2PlatformPhysicsConfig } from '../../../../msx2PlatformPhysics';
 import { Msx2Screen4TileScreen } from '../../../../../types';
 
@@ -18,9 +19,11 @@ export interface V2Output {
 }
 
 export interface RoleLayout {
+  sprite: Msx2Sprite;
   basePatternIndex: number;
   frameStride: number;
   mirrorPatternOffset: number;
+  patternSlotCount: number;
   layers: Msx2HardwareLayer[];
   frameCount: number;
   delay: number;
