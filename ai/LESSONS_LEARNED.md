@@ -91,3 +91,21 @@ Separar la orientacion visual en msx2_player_facing_dx y usarla para mirror de i
 
 Leccion:
 No reutilizar variables de movimiento transitorio como estado visual persistente. Para sprites hardware MSX2, validar siempre que los indices SAT apuntan a patrones 16x16 completos: grupo N => pattern index N*4.
+
+---
+
+## Bug Resuelto: configuracion oculta seguia controlando animacion
+
+Fecha: 2026-06-05
+
+Problema:
+Player Config ya solo debia asignar el Render MSX2, pero la animacion seguia saliendo mal.
+
+Causa:
+El editor oculto/retirado ya no mostraba frames y velocidad, pero el runtime/generador seguia usando los frames/speed antiguos guardados dentro del Player en vez de derivarlos del MSX2 Sprite Render asignado.
+
+Solucion:
+Al asignar Render, sincronizar frames/speed/playback desde el MSX2 Sprite. En el generador MSX2, ignorar la secuencia vieja del Player y construir los mapas de frame desde los frames reales del Render.
+
+Leccion:
+Si una UI deja de ser fuente de verdad para un dato, el generador tambien debe dejar de consumir ese dato antiguo. Ocultar controles sin cambiar la fuente de datos deja bugs persistentes en proyectos ya guardados.

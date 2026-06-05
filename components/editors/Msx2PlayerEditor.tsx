@@ -727,6 +727,19 @@ const PlayerSpriteHitboxPreview: React.FC<{
 const animationDelayMs = (speed: number): number =>
   Math.max(32, Math.round(Math.max(1, speed) * (1000 / 60)));
 
+const playerAnimationFromRender = (
+  animation: Msx2PlayerAnimation,
+  sprite?: Msx2Sprite,
+): Msx2PlayerAnimation => {
+  if (!sprite?.frames?.length) return animation;
+  return {
+    ...animation,
+    frames: sprite.frames.map((_, index) => index),
+    speed: Math.max(1, Math.round((Number(sprite.animationSpeedMs) || 150) / (1000 / 60))),
+    playback: sprite.loops === false ? 'once' : 'loop',
+  };
+};
+
 const usePlayerAnimationPreview = (
   animation: Msx2PlayerAnimation | undefined,
   animationKey: string | null,
@@ -858,9 +871,21 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
       ? spriteAssets.find(asset => asset.id === spriteAssetId)?.data as Msx2Sprite | undefined
       : undefined;
     const nextSpriteSize = spriteSizeFromMsx2Sprite(sprite);
-    updateRender({
-      spriteAssetId,
-      ...(nextSpriteSize ? { spriteSize: nextSpriteSize } : {}),
+    const defaultRenderAnimations = Object.fromEntries(
+      Object.entries(normalized.animations).map(([key, animation]) => [
+        key,
+        animation.spriteAssetId
+          ? animation
+          : playerAnimationFromRender(animation, sprite),
+      ]),
+    ) as Record<string, Msx2PlayerAnimation>;
+    onUpdate({
+      render: {
+        ...normalized.render,
+        spriteAssetId,
+        ...(nextSpriteSize ? { spriteSize: nextSpriteSize } : {}),
+      },
+      animations: defaultRenderAnimations,
     });
   };
 
@@ -970,11 +995,14 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
   const updateSelectedAnimationRender = (spriteAssetId: string | undefined) => {
     if (!selectedKey) return;
     const selected = normalized.animations[selectedKey];
+    const sprite = spriteAssetId
+      ? spriteAssets.find(asset => asset.id === spriteAssetId)?.data as Msx2Sprite | undefined
+      : selectedSprite;
     updateAnimations(
       {
         ...normalized.animations,
         [selectedKey]: {
-          ...selected,
+          ...playerAnimationFromRender(selected, sprite),
           spriteAssetId,
         },
       },

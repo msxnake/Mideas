@@ -1767,9 +1767,11 @@ function getPlayerAnimRoles(analysis: ProjectAnalysis): Record<string, PlayerAni
     if (!assetId) continue;
     const sprite = resolveMsx2SpriteById(analysis, assetId);
     if (!sprite) continue;
-    const frames = Array.isArray(anim.frames) && anim.frames.length ? anim.frames : [0];
-    const rawSpeed = Number(anim.speed);
-    const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? Math.max(1, Math.min(255, Math.round(rawSpeed))) : 8;
+    const renderFrames = (sprite.frames || [])
+      .map((_frame, index) => index)
+      .filter(index => Array.isArray(sprite.frames?.[index]?.data) && sprite.frames[index].data.length > 0);
+    const frames = renderFrames.length ? renderFrames : [0];
+    const speed = getHardwareSpriteAnimationDelayFrames(sprite);
     roles[name] = { sprite, frames, speed, facing: getHorizontalFacingDirection(sprite) };
   }
   return Object.keys(roles).length ? roles : undefined;
