@@ -207,6 +207,10 @@ msx2_player_state_${stateName}:
     call msx2_apply_platform_gravity
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
+    or a
+    jp z, .dj_no_facing_update
+    ld (msx2_player_facing_dx), a
+.dj_no_facing_update:
     ; first-frame impulse if gravity_vel is zero
     ld hl, msx2_player_gravity_vel
     ld a, (hl)
@@ -328,6 +332,7 @@ msx2_player_state_grounded:
     ld (msx2_player_sprite_dx), a
     or a
     jp z, .gnd_idle
+    ld (msx2_player_facing_dx), a
 ${o.setPlayerWalkingFlagAsm}    jp .gnd_check
 .gnd_idle:
 ${o.clearPlayerWalkingFlagAsm}
@@ -409,6 +414,10 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
 ` : ''}
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
+    or a
+    jp z, .jmp_no_facing_update
+    ld (msx2_player_facing_dx), a
+.jmp_no_facing_update:
 ${doubleJumpCheck}
     ld hl, msx2_player_gravity_vel + 1
     ld a, (hl)
@@ -457,6 +466,10 @@ ${o.gravityEnabled ? `    call msx2_apply_platform_gravity
 ` : ''}
     call msx2_read_player_horizontal_input
     ld (msx2_player_sprite_dx), a
+    or a
+    jp z, .fal_no_facing_update
+    ld (msx2_player_facing_dx), a
+.fal_no_facing_update:
     ld hl, msx2_player_gravity_vel + 1
     ld a, (hl)
     or a
@@ -645,7 +658,8 @@ export function buildPlayerStateMachineAsm(o: StateMachineOptions): string {
     }
   }
   lines.push('msx2_state_machine_exit:');
-  lines.push('    jp apply_msx2_conveyor');
+  lines.push('    call apply_msx2_conveyor');
+  lines.push('    jp upload_hardware_sprite_attrs');
   lines.push('');
   lines.push(buildHelpers(o));
   return lines.join('\n');
