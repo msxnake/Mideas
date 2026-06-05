@@ -1453,6 +1453,7 @@ function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | u
     return {
       id: data.player.identity?.id,
       name: data.player.identity?.name,
+      defaultFacing: data.player.identity?.defaultFacing,
       render: data.player.render,
       components: data.player.components,
     } as Partial<Msx2PlayerDefinition>;
@@ -1725,8 +1726,10 @@ function getPlayerInitialFacingDx(analysis: ProjectAnalysis): number {
   const facing = String(
     player?.params?.facing
       ?? getPrimaryPlayerEntry(screen)?.facing
+      ?? player?.defaultFacing
       ?? 'right'
   ).toLowerCase();
+  // Neutral/front-facing starts from the authored sprite pose: no mirror.
   return facing === 'left' ? 0 : 1;
 }
 

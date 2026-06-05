@@ -42,6 +42,7 @@ export interface Msx2PlayerDocument {
       name: string;
       target: 'MSX2';
       gameType: Msx2PlayerDefinition['gameType'];
+      defaultFacing?: Msx2PlayerDefinition['defaultFacing'];
       basedOnTemplate?: string;
       worldCompatibility: string[];
       notes?: string;
@@ -270,6 +271,7 @@ export const buildDetailedMsx2PlayerDocument = (
         name: normalized.name,
         target: normalized.target,
         gameType: normalized.gameType,
+        defaultFacing: normalized.defaultFacing,
         basedOnTemplate: normalized.basedOnTemplate,
         worldCompatibility: normalized.worldCompatibility || ['all'],
         notes: normalized.notes,
@@ -361,6 +363,7 @@ const flattenDetailedPlayerPayload = (
     name: identity.name,
     target: identity.target,
     gameType: identity.gameType,
+    defaultFacing: identity.defaultFacing,
     basedOnTemplate: identity.basedOnTemplate ?? player.stateMachine?.template,
     worldCompatibility: identity.worldCompatibility,
     notes: identity.notes,

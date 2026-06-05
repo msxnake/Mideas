@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_ANIMATION_ROLES, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
+import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_ANIMATION_ROLES, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_FACING_OPTIONS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, parseMsx2PlayerImport } from '../../utils/msx2PlayerDocument';
 import { StateMachine } from '../../statemachine.types';
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
@@ -1287,11 +1287,10 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                   <Field label="Max Health"><SmallNumber value={normalized.health.maxHealth} onChange={value => updateHealth({ maxHealth: value })} /></Field>
                   <Field label="Initial Lives"><SmallNumber value={normalized.health.lives} onChange={value => updateHealth({ lives: value })} /></Field>
                   <Field label="Default Facing">
-                    <select className={selectClass} value="right" onChange={() => undefined}>
-                      <option>Right</option>
-                      <option>Left</option>
-                      <option>Up</option>
-                      <option>Down</option>
+                    <select className={selectClass} value={normalized.defaultFacing || 'right'} onChange={event => onUpdate({ defaultFacing: event.target.value as Msx2PlayerDefinition['defaultFacing'] })}>
+                      {MSX2_PLAYER_FACING_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
                     </select>
                   </Field>
                   <div className="grid grid-cols-[96px_1fr] items-center gap-2 text-xs">

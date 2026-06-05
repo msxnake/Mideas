@@ -394,7 +394,7 @@ export interface Msx2PlayerSkillBinding {
 }
 export type Msx2PlayerRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type Msx2PlayerSpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
-export type Msx2PlayerFacing = 'left' | 'right' | 'up' | 'down';
+export type Msx2PlayerFacing = 'neutral' | 'left' | 'right' | 'up' | 'down';
 export type Msx2PlayerEntryAnimation = 'none' | 'walkIn' | 'doorExit' | 'ladderExit' | 'fadeIn';
 
 export type Msx2PlayerAnimationRole = 'idle' | 'walk' | 'run' | 'dash' | 'jump' | 'dead' | 'attack' | 'defend' | 'custom';
@@ -433,6 +433,8 @@ export interface Msx2PlayerDefinition {
   name: string;
   target: 'MSX2';
   gameType: Msx2PlayerGameType;
+  /** Default world-facing direction used when a screen entry does not override it. */
+  defaultFacing?: Msx2PlayerFacing;
   basedOnTemplate?: string;
   worldCompatibility?: string[];
   render: {

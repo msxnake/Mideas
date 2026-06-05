@@ -1048,6 +1048,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
                   <label className="block space-y-1">
                     <span className="text-msx-textsecondary">Facing</span>
                     <select className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.facing} onChange={event => updateSelectedPlayerEntry({ facing: event.target.value as Msx2PlayerEntry['facing'] })}>
+                      <option value="neutral">Neutral</option>
                       <option value="right">Right</option>
                       <option value="left">Left</option>
                       <option value="up">Up</option>

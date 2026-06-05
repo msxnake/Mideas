@@ -1,8 +1,27 @@
-import { Msx2GameProfileId, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerGameType, Msx2PlayerInputSource, Msx2PlayerSpriteSize, Msx2Sprite } from '../types';
+import { Msx2GameProfileId, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerGameType, Msx2PlayerInputSource, Msx2PlayerSpriteSize, Msx2Sprite } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { parseMsx2PlayerImport } from './msx2PlayerDocument';
 
 const MSX2_PLAYER_SPRITE_SIZE_PRESETS: Msx2PlayerSpriteSize[] = ['16x16', '16x32', '32x16', '32x32'];
+export const MSX2_PLAYER_FACING_OPTIONS: ReadonlyArray<{ value: Msx2PlayerFacing; label: string }> = [
+  { value: 'neutral', label: 'Neutral' },
+  { value: 'right', label: 'Right' },
+  { value: 'left', label: 'Left' },
+  { value: 'up', label: 'Up' },
+  { value: 'down', label: 'Down' },
+];
+
+const MSX2_PLAYER_FACING_IDS = MSX2_PLAYER_FACING_OPTIONS.map(option => option.value);
+
+export const normalizeMsx2PlayerFacing = (
+  raw: unknown,
+  fallback: Msx2PlayerFacing = 'right',
+): Msx2PlayerFacing => {
+  const value = String(raw || '').trim().toLowerCase();
+  return MSX2_PLAYER_FACING_IDS.includes(value as Msx2PlayerFacing)
+    ? value as Msx2PlayerFacing
+    : fallback;
+};
 
 export const parsePlayerSpriteSize = (
   size: Msx2PlayerSpriteSize | string | undefined,
@@ -452,6 +471,7 @@ export const createDefaultMsx2PlayerDefinition = (
     name: 'Player_Main',
     target: 'MSX2',
     gameType,
+    defaultFacing: 'right',
     basedOnTemplate: isShooter ? 'shooter_basic' : isMaze ? 'maze_4_direction' : 'platformer_basic',
     worldCompatibility: ['all'],
     render: {
@@ -619,7 +639,7 @@ export const normalizeMsx2PlayerEntries = (entries: Msx2PlayerEntry[] | undefine
     id: String(entry.id || `entry_${index + 1}`),
     x: Math.max(0, Math.min(255, Math.round(Number(entry.x) || 0))),
     y: Math.max(0, Math.min(191, Math.round(Number(entry.y) || 0))),
-    facing: entry.facing || 'right',
+    facing: normalizeMsx2PlayerFacing(entry.facing, 'right'),
     state: entry.state || 'IDLE',
     playerId: entry.playerId,
     entryAnimation: entry.entryAnimation || 'none',
@@ -646,6 +666,7 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
   return {
     ...defaults,
     ...(parsed || {}),
+    defaultFacing: normalizeMsx2PlayerFacing(parsed?.defaultFacing, defaults.defaultFacing),
     render: {
       ...defaults.render,
       ...(parsed?.render || {}),
