@@ -109,3 +109,21 @@ Al asignar Render, sincronizar frames/speed/playback desde el MSX2 Sprite. En el
 
 Leccion:
 Si una UI deja de ser fuente de verdad para un dato, el generador tambien debe dejar de consumir ese dato antiguo. Ocultar controles sin cambiar la fuente de datos deja bugs persistentes en proyectos ya guardados.
+
+---
+
+## Bug Resuelto: frame map V2 desalineado con orden de patrones
+
+Fecha: 2026-06-05
+
+Problema:
+Roles idle/walk con frames no contiguos (p. ej. 3,4,5) mostraban patrones incorrectos en MSX2 hardware sprite.
+
+Causa:
+`playerRuntime_v2` guarda patrones por frame del sprite principal (0..N-1), pero el frame map y el runtime SAT seguian indexando por posicion dentro del set unico del rol (0,1,2). Ademas, en `v2PatternMode`, walk reutiliza el mismo blob de patrones pero el runtime antiguo sumaba offsets por rol.
+
+Solucion:
+Emitir `DB` con `rl.frames` (indice real del sprite). Usar `mainSpriteFrameCount` para `mirrorPatternOffset`. En `buildHardwareSpriteRuntimeAsm`, cuando `v2PatternMode`, idle/walk comparten `basePatternIndex` y el mirror offset usa `animationFrameCount`.
+
+Leccion:
+Frame map y layout de patrones VRAM deben usar la misma convencion de indice. Si los datos pasan a orden global del sprite, el runtime no puede seguir asumiendo orden compacto por rol.
