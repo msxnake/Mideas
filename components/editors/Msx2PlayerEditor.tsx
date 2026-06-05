@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_ANIMATION_ROLES, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_FACING_OPTIONS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
+import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_FACING_OPTIONS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, parseMsx2PlayerImport } from '../../utils/msx2PlayerDocument';
 import { StateMachine } from '../../statemachine.types';
-import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
+import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { getAllSkills } from '../../utils/msxGenerator/skills/index';
@@ -16,7 +16,7 @@ interface Msx2PlayerEditorProps {
 
 const navItems = [
   'General',
-  'Graphics & Animations',
+  'Graphics & Render',
   'Physics & Movement',
   'Controls',
   'Combat & Damage',
@@ -724,72 +724,6 @@ const PlayerSpriteHitboxPreview: React.FC<{
   );
 };
 
-const clampAnimationFrames = (frames: number[], sprite?: Msx2Sprite | null): number[] => {
-  const maxIndex = Math.max(0, (sprite?.frames?.length || 1) - 1);
-  const clamped = frames.map(frame => Math.min(Math.max(0, Math.trunc(frame)), maxIndex));
-  return clamped.length ? clamped : [0];
-};
-
-const parseFrameInput = (value: string, sprite?: Msx2Sprite | null): number[] => {
-  const frames = value
-    .split(',')
-    .map(part => Math.max(0, Math.trunc(Number(part.trim()))))
-    .filter(number => Number.isFinite(number));
-  return clampAnimationFrames(frames.length ? frames : [0], sprite);
-};
-
-const AnimationFramePicker: React.FC<{
-  sprite?: Msx2Sprite | null;
-  frames: number[];
-  onChange: (frames: number[]) => void;
-}> = ({ sprite, frames, onChange }) => {
-  const frameCount = sprite?.frames?.length || 0;
-  if (!frameCount) {
-    return <div className="text-[11px] text-slate-400">Select a MSX2 sprite render to pick frames.</div>;
-  }
-
-  const toggleFrame = (frameIndex: number) => {
-    if (frames.includes(frameIndex)) {
-      const next = frames.filter(value => value !== frameIndex);
-      onChange(next.length ? next : [0]);
-      return;
-    }
-    onChange([...frames, frameIndex]);
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: frameCount }).map((_, frameIndex) => {
-          const selected = frames.includes(frameIndex);
-          const order = selected ? frames.indexOf(frameIndex) + 1 : null;
-          return (
-            <button
-              key={frameIndex}
-              type="button"
-              title={`Frame ${frameIndex}${selected ? ` (#${order} in animation)` : ''}`}
-              onClick={() => toggleFrame(frameIndex)}
-              className={`relative rounded border p-1 ${selected ? 'border-sky-400 bg-sky-950/40' : 'border-slate-700 bg-[#111821] hover:border-slate-500'}`}
-            >
-              <SpriteFramePreview sprite={sprite} frameIndex={frameIndex} />
-              <span className="mt-0.5 block text-center text-[10px] text-slate-300">#{frameIndex}</span>
-              {selected && order !== null && (
-                <span className="absolute right-0.5 top-0.5 rounded-full bg-sky-500 px-1 text-[9px] font-bold text-black">{order}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-      <input
-        className={inputClass}
-        value={frames.join(', ')}
-        placeholder="0, 1, 2"
-        onChange={event => onChange(parseFrameInput(event.target.value, sprite))}
-      />
-    </div>
-  );
-};
-
 const animationDelayMs = (speed: number): number =>
   Math.max(32, Math.round(Math.max(1, speed) * (1000 / 60)));
 
@@ -1033,79 +967,32 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     onUpdate({ animations, animationOrder: nextOrder });
   };
 
-  const updateSelectedAnimation = (patch: Partial<Msx2PlayerAnimation>) => {
+  const updateSelectedAnimationRender = (spriteAssetId: string | undefined) => {
     if (!selectedKey) return;
+    const selected = normalized.animations[selectedKey];
     updateAnimations(
-      { ...normalized.animations, [selectedKey]: { ...normalized.animations[selectedKey], ...patch } },
+      {
+        ...normalized.animations,
+        [selectedKey]: {
+          ...selected,
+          spriteAssetId,
+        },
+      },
       animationOrder,
     );
-  };
-
-  const addAnimation = () => {
-    const key = `anim_${Date.now()}`;
-    updateAnimations(
-      {
-        ...normalized.animations,
-        [key]: {
-          frames: [0],
-          speed: 6,
-          role: 'custom',
-          customRole: 'Custom',
-          playback: 'loop',
-          spriteAssetId: normalized.render.spriteAssetId,
-        },
-      },
-      [...animationOrder, key],
-    );
-    setSelectedAnimationKey(key);
-  };
-
-  const deleteAnimation = () => {
-    if (!selectedKey || animationOrder.length <= 1) return;
-    const { [selectedKey]: _removed, ...rest } = normalized.animations;
-    const nextOrder = animationOrder.filter(key => key !== selectedKey);
-    updateAnimations(rest, nextOrder);
-    setSelectedAnimationKey(nextOrder[0] || null);
-  };
-
-  const duplicateAnimation = () => {
-    if (!selectedKey) return;
-    const key = `${selectedKey}_copy`;
-    updateAnimations(
-      {
-        ...normalized.animations,
-        [key]: {
-          ...normalized.animations[selectedKey],
-          frames: [...normalized.animations[selectedKey].frames],
-        },
-      },
-      [...animationOrder, key],
-    );
-    setSelectedAnimationKey(key);
-  };
-
-  const moveAnimation = (delta: -1 | 1) => {
-    if (!selectedKey) return;
-    const index = animationOrder.indexOf(selectedKey);
-    const target = index + delta;
-    if (index < 0 || target < 0 || target >= animationOrder.length) return;
-    const nextOrder = [...animationOrder];
-    [nextOrder[index], nextOrder[target]] = [nextOrder[target], nextOrder[index]];
-    updateAnimations(normalized.animations, nextOrder);
   };
 
   const animationRows = animationOrder
     .filter(key => normalized.animations[key])
     .map((key, index) => {
       const animation = normalized.animations[key];
+      const renderSprite = resolveAnimationSprite(animation);
       return {
         key,
         id: index,
         animation: labelForAnimationRole(animation),
         render: labelForSpriteAsset(resolveAnimationSpriteAssetId(animation)),
-        type: animation.playback === 'once' ? 'Once' : 'Loop',
-        frames: animation.frames.length,
-        speed: animation.speed,
+        renderFrames: renderSprite?.frames?.length || 0,
       };
     });
 
@@ -1341,9 +1228,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
             </div>
 
             <div className="grid min-h-0 grid-cols-[1.15fr_0.72fr_0.78fr] gap-2">
-              <section className={`${panelClass} ${activeSection === 'Graphics & Animations' ? 'absolute inset-0' : 'hidden'}`}>
-                <div className={panelTitleClass}>Graphics & Animations</div>
-                <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,1fr)_72px] gap-3 overflow-hidden p-3">
+              <section className={`${panelClass} ${activeSection === 'Graphics & Render' ? 'absolute inset-0' : 'hidden'}`}>
+                <div className={panelTitleClass}>Graphics & Render</div>
+                <div className="min-h-0 flex-1 overflow-hidden p-3">
                   <div className="min-h-0 space-y-2 overflow-hidden">
                     <Field label="Default Sprite Set">
                       <select className={selectClass} value={normalized.render.spriteAssetId || ''} onChange={event => selectDefaultSpriteAsset(event.target.value || undefined)}>
@@ -1360,7 +1247,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                     <div className="max-h-[150px] overflow-auto rounded border border-slate-800">
                       <table className="w-full text-left text-xs">
                         <thead className="sticky top-0 bg-[#151b25] text-slate-200">
-                          <tr><th className="px-2 py-1">ID</th><th>Animation</th><th>Render</th><th>Type</th><th>Frames</th><th>Speed</th></tr>
+                          <tr><th className="px-2 py-1">ID</th><th>Role</th><th>Assigned Render</th><th>Render Frames</th></tr>
                         </thead>
                         <tbody>
                           {animationRows.map(row => (
@@ -1372,9 +1259,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                               <td className="px-2 py-1">{row.id}</td>
                               <td>{row.animation}</td>
                               <td className="max-w-[96px] truncate" title={row.render}>{row.render}</td>
-                              <td>{row.type}</td>
-                              <td>{row.frames}</td>
-                              <td>{row.speed}</td>
+                              <td>{row.renderFrames || '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1382,68 +1267,21 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                     </div>
                     {selectedAnimation && selectedKey && (
                       <div className="space-y-2 rounded border border-slate-700 bg-[#151b25] p-2">
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">Edit Animation</div>
-                        <Field label="Animation">
-                          <select
-                            className={selectClass}
-                            value={selectedAnimation.role || 'custom'}
-                            onChange={event => updateSelectedAnimation({ role: event.target.value as Msx2PlayerAnimationRole })}
-                          >
-                            {MSX2_PLAYER_ANIMATION_ROLES.map(option => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </select>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">Assign Render</div>
+                        <Field label="Role">
+                          <input className={inputClass} readOnly value={labelForAnimationRole(selectedAnimation)} />
                         </Field>
-                        {selectedAnimation.role === 'custom' && (
-                          <Field label="Custom">
-                            <input
-                              className={inputClass}
-                              value={selectedAnimation.customRole || ''}
-                              placeholder="Custom animation name"
-                              onChange={event => updateSelectedAnimation({ customRole: event.target.value })}
-                            />
-                          </Field>
-                        )}
                         <Field label="Render">
                           <select
                             className={selectClass}
                             value={selectedAnimation.spriteAssetId || ''}
-                            onChange={event => {
-                              const spriteAssetId = event.target.value || undefined;
-                              const sprite = spriteAssetId
-                                ? spriteAssets.find(asset => asset.id === spriteAssetId)?.data as Msx2Sprite | undefined
-                                : resolveAnimationSprite({ ...selectedAnimation, spriteAssetId: undefined });
-                              updateSelectedAnimation({
-                                spriteAssetId,
-                                frames: clampAnimationFrames(selectedAnimation.frames, sprite),
-                              });
-                            }}
+                            onChange={event => updateSelectedAnimationRender(event.target.value || undefined)}
                           >
                             <option value="">Use default sprite set</option>
                             {spriteAssets.map(asset => (
                               <option key={asset.id} value={asset.id}>{asset.name}</option>
                             ))}
                           </select>
-                        </Field>
-                        <Field label="Type">
-                          <select
-                            className={selectClass}
-                            value={selectedAnimation.playback || 'loop'}
-                            onChange={event => updateSelectedAnimation({ playback: event.target.value as Msx2PlayerAnimationPlayback })}
-                          >
-                            <option value="loop">Loop</option>
-                            <option value="once">Once</option>
-                          </select>
-                        </Field>
-                        <Field label="Frames">
-                          <AnimationFramePicker
-                            sprite={selectedAnimationSprite}
-                            frames={selectedAnimation.frames}
-                            onChange={frames => updateSelectedAnimation({ frames })}
-                          />
-                        </Field>
-                        <Field label="Speed">
-                          <SmallNumber value={selectedAnimation.speed} onChange={value => updateSelectedAnimation({ speed: value })} />
                         </Field>
                         <div className="text-[11px] text-slate-400">
                           Internal key: {selectedKey}
@@ -1453,14 +1291,6 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                         </div>
                       </div>
                     )}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={addAnimation}>Add</button>
-                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={() => selectedKey && setSelectedAnimationKey(selectedKey)}>Edit</button>
-                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={duplicateAnimation}>Duplicate</button>
-                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={deleteAnimation}>Delete</button>
-                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={() => moveAnimation(-1)}>Up</button>
-                    <button type="button" className="h-7 rounded border border-slate-700 bg-[#242c38] text-xs hover:bg-[#2d3747]" onClick={() => moveAnimation(1)}>Down</button>
                   </div>
                 </div>
               </section>
