@@ -29,8 +29,20 @@ export function clampMsx2GravityStrength88(value: unknown): number {
   return Math.max(16, Math.min(128, Math.floor(Number(value) || MSX2_DEFAULT_GRAVITY_STRENGTH_88)));
 }
 
+export function clampMsx2GravityStrength88Px(valuePx: unknown): number {
+  const px = Number(valuePx);
+  const magnitude88 = Math.max(16, Math.min(128, Math.floor(Math.abs(px || 0) * 256)));
+  return magnitude88;
+}
+
 export function clampMsx2TerminalVelocity88(value: unknown): number {
   return Math.max(256, Math.min(2048, Math.floor(Number(value) || MSX2_DEFAULT_TERMINAL_VELOCITY_88)));
+}
+
+export function clampMsx2TerminalVelocity88Px(valuePx: unknown): number {
+  const px = Number(valuePx);
+  const magnitude88 = Math.max(256, Math.min(2048, Math.floor(Math.abs(px || 0) * 256)));
+  return magnitude88;
 }
 
 export function resolveMsx2JumpImpulse88(jumpPower: unknown): number {
@@ -44,6 +56,15 @@ export function resolveMsx2JumpImpulse88(jumpPower: unknown): number {
   return clampMsx2JumpImpulse88(numeric);
 }
 
+export function resolveMsx2JumpImpulse88Px(jumpPowerPx: unknown): number {
+  const px = Number(jumpPowerPx);
+  if (!Number.isFinite(px) || px === 0) {
+    return MSX2_DEFAULT_JUMP_IMPULSE_88;
+  }
+  const magnitude88 = Math.max(256, Math.min(2048, Math.floor(Math.abs(px) * 256)));
+  return (-magnitude88) & 0xffff;
+}
+
 function isMsx2ComponentEnabled(component: Record<string, any> | undefined): boolean {
   if (!component) return false;
   if (component.enabled === false || component.enabled === 'false') return false;
@@ -55,19 +76,33 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
   const gravity = player?.components?.msx2_gravity;
   const control = player?.components?.msx2_player_control || {};
   const params = player?.params || {};
+  const movement = player?.movement || {};
 
   const jumpEnabled = isMsx2ComponentEnabled(jump)
     || (jump === undefined && (control.jump === true || control.jump === 'true' || params.jump === true));
   const gravityEnabled = isMsx2ComponentEnabled(gravity)
     || (gravity === undefined && (control.gravity === true || control.gravity === 'true' || params.gravity === true));
 
-  const jumpPower = jump?.jumpPower ?? jump?.jumpImpulse
-    ?? control.jumpPower ?? control.jumpImpulse
-    ?? params.jumpPower ?? params.jumpImpulse;
-  const gravityStrength = gravity?.strength ?? gravity?.gravityStrength
-    ?? control.gravityStrength ?? params.gravityStrength;
-  const terminalVelocity = gravity?.terminalVelocity
-    ?? control.terminalVelocity ?? params.terminalVelocity;
+  const hasMovementPhysics = movement.jumpPower !== undefined
+    || movement.gravity !== undefined
+    || movement.maxFallSpeed !== undefined;
+
+  let jumpPower: unknown;
+  let gravityStrength: unknown;
+  let terminalVelocity: unknown;
+  if (hasMovementPhysics) {
+    jumpPower = movement.jumpPower ?? movement.jumpImpulse;
+    gravityStrength = movement.gravity;
+    terminalVelocity = movement.maxFallSpeed;
+  } else {
+    jumpPower = jump?.jumpPower ?? jump?.jumpImpulse
+      ?? control.jumpPower ?? control.jumpImpulse
+      ?? params.jumpPower ?? params.jumpImpulse;
+    gravityStrength = gravity?.strength ?? gravity?.gravityStrength
+      ?? control.gravityStrength ?? params.gravityStrength;
+    terminalVelocity = gravity?.terminalVelocity
+      ?? control.terminalVelocity ?? params.terminalVelocity;
+  }
 
   const maxJumps = Math.max(1, Math.min(4, Math.floor(Number(
     jump?.maxJumps ?? params.maxJumps ?? 1
@@ -80,9 +115,15 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
   return {
     jumpEnabled,
     gravityEnabled,
-    jumpImpulse88: resolveMsx2JumpImpulse88(jumpPower),
-    gravityStrength88: clampMsx2GravityStrength88(gravityStrength),
-    terminalVelocity88: clampMsx2TerminalVelocity88(terminalVelocity),
+    jumpImpulse88: hasMovementPhysics
+      ? resolveMsx2JumpImpulse88Px(jumpPower)
+      : resolveMsx2JumpImpulse88(jumpPower),
+    gravityStrength88: hasMovementPhysics
+      ? clampMsx2GravityStrength88Px(gravityStrength)
+      : clampMsx2GravityStrength88(gravityStrength),
+    terminalVelocity88: hasMovementPhysics
+      ? clampMsx2TerminalVelocity88Px(terminalVelocity)
+      : clampMsx2TerminalVelocity88(terminalVelocity),
     maxJumps,
     requireKeyRelease,
   };

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import {
   ProjectAsset, HistoryState, HistoryAction, HistoryActionType,
   TileBank, MSXFont, MSXFontColorAttributes, ComponentDefinition,
-  EntityTemplate, MainMenuConfig, PresentationScreenConfig
+  EntityTemplate, EnemyDefinition, MainMenuConfig, PresentationScreenConfig
 } from '../types';
 import { MAX_HISTORY_LENGTH } from '../constants';
 
@@ -13,6 +13,7 @@ interface HistoryHandlersProps {
   setMsxFontColorAttributesState: (colors: MSXFontColorAttributes) => void;
   setComponentDefinitionsState: (defs: ComponentDefinition[]) => void;
   setEntityTemplatesState: (templates: EntityTemplate[]) => void;
+  setEnemyDefinitionsState: (definitions: EnemyDefinition[]) => void;
   setMainMenuConfigState: (config: MainMenuConfig) => void;
   setPresentationScreenState: (config: PresentationScreenConfig) => void;
   setStatusBarMessage: (message: string) => void;
@@ -25,6 +26,7 @@ export const useHistoryHandlers = ({
   setMsxFontColorAttributesState,
   setComponentDefinitionsState,
   setEntityTemplatesState,
+  setEnemyDefinitionsState,
   setMainMenuConfigState,
   setPresentationScreenState,
   setStatusBarMessage
@@ -115,6 +117,16 @@ export const useHistoryHandlers = ({
     });
   }, [pushToHistory, setEntityTemplatesState]);
 
+  const setEnemyDefinitions = useCallback((updater: EnemyDefinition[] | ((prev: EnemyDefinition[]) => EnemyDefinition[])) => {
+    setEnemyDefinitionsState(prevDefinitions => {
+      const newDefinitions = typeof updater === 'function'
+        ? (updater as (prev: EnemyDefinition[]) => EnemyDefinition[])(prevDefinitions)
+        : updater;
+      pushToHistory('ENEMY_DEFINITIONS_UPDATE', prevDefinitions, newDefinitions);
+      return newDefinitions;
+    });
+  }, [pushToHistory, setEnemyDefinitionsState]);
+
   const setMainMenuConfig = useCallback((updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => {
     setMainMenuConfigState(prevConfig => {
       const newConfig = typeof updater === 'function' ?
@@ -163,6 +175,9 @@ export const useHistoryHandlers = ({
       case 'ENTITY_TEMPLATES_UPDATE':
         setEntityTemplatesState(payload.before);
         break;
+      case 'ENEMY_DEFINITIONS_UPDATE':
+        setEnemyDefinitionsState(payload.before);
+        break;
       case 'MAIN_MENU_UPDATE':
         setMainMenuConfigState(payload.before);
         break;
@@ -185,6 +200,7 @@ export const useHistoryHandlers = ({
     setMsxFontColorAttributesState,
     setComponentDefinitionsState,
     setEntityTemplatesState,
+    setEnemyDefinitionsState,
     setMainMenuConfigState,
     setPresentationScreenState,
     setStatusBarMessage
@@ -219,6 +235,9 @@ export const useHistoryHandlers = ({
       case 'ENTITY_TEMPLATES_UPDATE':
         setEntityTemplatesState(payload.after);
         break;
+      case 'ENEMY_DEFINITIONS_UPDATE':
+        setEnemyDefinitionsState(payload.after);
+        break;
       case 'MAIN_MENU_UPDATE':
         setMainMenuConfigState(payload.after);
         break;
@@ -241,6 +260,7 @@ export const useHistoryHandlers = ({
     setMsxFontColorAttributesState,
     setComponentDefinitionsState,
     setEntityTemplatesState,
+    setEnemyDefinitionsState,
     setMainMenuConfigState,
     setPresentationScreenState,
     setStatusBarMessage
@@ -257,6 +277,7 @@ export const useHistoryHandlers = ({
     setMsxFontColorAttributes,
     setComponentDefinitions,
     setEntityTemplates,
+    setEnemyDefinitions,
     setMainMenuConfig,
     setPresentationScreen,
     handleUndo,

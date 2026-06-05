@@ -37,7 +37,7 @@
 ; Bank 11 [#6000-#8000]: sprites (9015/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 12 [#6000-#8000]: entities (8875/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 13 [#6000-#8000]: components_autocontrol (8441/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 14 [#6000-#8000]: worlds (6103/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 14 [#6000-#8000]: worlds (6205/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 15 [#6000-#8000]: screens_code (5925/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 16 [#6000-#8000]: gameflow_aux (5866/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 17 [#6000-#8000]: font (3695/8192 bytes est.) [FAR — accessed via trampoline]
@@ -45,15 +45,14 @@
 ; Bank 19 [#6000-#8000]: scroll (2389/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 20 [#6000-#8000]: patterns_code (1070/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 21 [#6000-#8000]: colors_code (1024/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 22 [#6000-#8000]: bosses (331/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 23 [#6000-#8000]: hud (114/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 22 [#6000-#8000]: hud (114/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 3+ (data) [#A000+]: DATA mapped through P3/A000 before far code banks
 ; ------------------------------------------------------------------
-; Far code banks: bank9(screen_loaders) bank10(sound) bank11(sprites) bank12(entities) bank13(components_autocontrol) bank14(worlds) bank15(screens_code) bank16(gameflow_aux) bank17(font) bank18(animtiles) bank19(scroll) bank20(patterns_code) bank21(colors_code) bank22(bosses) bank23(hud)
+; Far code banks: bank9(screen_loaders) bank10(sound) bank11(sprites) bank12(entities) bank13(components_autocontrol) bank14(worlds) bank15(screens_code) bank16(gameflow_aux) bank17(font) bank18(animtiles) bank19(scroll) bank20(patterns_code) bank21(colors_code) bank22(hud)
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 182185
+; Estimated payload bytes: 182287
 ; Estimated banks used: 23
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -72,29 +71,29 @@
 ; BANK 10 @#0000 : components.asm part 11/10 (612 bytes)
 ; BANK 10 @#0264 : entities.asm part 1/2 (7580 bytes)
 ; BANK 11 @#0000 : entities.asm part 2/2 (1295 bytes)
-; BANK 11 @#050F : worlds.asm (6103 bytes)
-; BANK 11 @#1CE6 : screens.asm part 1/3 (794 bytes)
+; BANK 11 @#050F : worlds.asm (6205 bytes)
+; BANK 11 @#1D4C : screens.asm part 1/3 (692 bytes)
 ; BANK 12 @#0000 : screens.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : screens.asm part 3/3 (7880 bytes)
-; BANK 13 @#1EC8 : sprites.asm part 1/2 (312 bytes)
+; BANK 13 @#0000 : screens.asm part 3/3 (7982 bytes)
+; BANK 13 @#1F2E : sprites.asm part 1/2 (210 bytes)
 ; BANK 14 @#0000 : sprites.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : sprites.asm part 3/2 (511 bytes)
-; BANK 15 @#01FF : font.asm (3695 bytes)
-; BANK 15 @#106E : hud.asm (114 bytes)
-; BANK 15 @#10E0 : menus.asm (219 bytes)
-; BANK 15 @#11BB : sound.asm part 1/2 (3653 bytes)
-; BANK 16 @#0000 : sound.asm part 2/2 (6587 bytes)
-; BANK 16 @#19BB : scroll.asm (1605 bytes)
-; BANK 17 @#0000 : scroll.asm (784 bytes)
-; BANK 17 @#0310 : animtiles.asm (2640 bytes)
-; BANK 17 @#0D60 : bosses.asm (331 bytes)
-; BANK 17 @#0EAB : statemachine.asm part 1/3 (4437 bytes)
+; BANK 15 @#0000 : sprites.asm part 3/2 (613 bytes)
+; BANK 15 @#0265 : font.asm (3695 bytes)
+; BANK 15 @#10D4 : hud.asm (114 bytes)
+; BANK 15 @#1146 : menus.asm (219 bytes)
+; BANK 15 @#1221 : sound.asm part 1/2 (3551 bytes)
+; BANK 16 @#0000 : sound.asm part 2/2 (6689 bytes)
+; BANK 16 @#1A21 : scroll.asm (1503 bytes)
+; BANK 17 @#0000 : scroll.asm (886 bytes)
+; BANK 17 @#0376 : animtiles.asm (2640 bytes)
+; BANK 17 @#0DC6 : bosses.asm (331 bytes)
+; BANK 17 @#0F11 : statemachine.asm part 1/3 (4335 bytes)
 ; BANK 18 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 19 @#0000 : statemachine.asm part 3/3 (4566 bytes)
-; BANK 19 @#11D6 : gameflow.asm part 1/3 (3626 bytes)
+; BANK 19 @#0000 : statemachine.asm part 3/3 (4668 bytes)
+; BANK 19 @#123C : gameflow.asm part 1/3 (3524 bytes)
 ; BANK 20 @#0000 : gameflow.asm part 2/3 (8192 bytes)
 ; BANK 21 @#0000 : gameflow.asm part 3/3 (8192 bytes)
-; BANK 22 @#0000 : gameflow.asm part 4/3 (1961 bytes); ==================================================================
+; BANK 22 @#0000 : gameflow.asm part 4/3 (2063 bytes); ==================================================================
 
 ; [[[MIDEAS_ARTIFACT:resource_ids.asm:BEGIN]]]
 ; ; ==================================================================
@@ -19078,12 +19077,11 @@
 ; [[[MIDEAS_ARTIFACT:unused_report.txt:BEGIN]]]
 ; MIDEAS UNUSED MODULE REPORT
 ; Scope: konami8k_megarom_resident_modules
-; Candidate unused modules: 3
-; Estimated removable bytes: 2834
+; Candidate unused modules: 2
+; Estimated removable bytes: 2503
 ;
 ; Candidates:
 ; - scroll: 2389 estimated bytes
-; - bosses: 331 estimated bytes
 ; - hud: 114 estimated bytes
 ;
 ; Retained modules:
@@ -19102,7 +19100,7 @@
 ; - sound: 10240 estimated bytes
 ; - sprites: 9015 estimated bytes
 ; - statemachine: 17158 estimated bytes
-; - worlds: 6103 estimated bytes
+; - worlds: 6205 estimated bytes
 ;
 ; Note: report-only; module removal is a later pipeline step.
 ;
@@ -19304,14 +19302,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 6103,
-;       "estimatedFreeBytes": 2089,
+;       "estimatedUsedBytes": 6205,
+;       "estimatedFreeBytes": 1987,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
 ;           "key": "worlds",
 ;           "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks; module worlds is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 6103
+;           "estimatedBytes": 6205
 ;         }
 ;       ]
 ;     },
@@ -19456,32 +19454,13 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 22; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 331,
-;       "estimatedFreeBytes": 7861,
-;       "estimatedOverBudget": false,
-;       "modules": [
-;         {
-;           "key": "bosses",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 22; executes through P1/#6000 after reserved asset-data banks; module bosses is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 331
-;         }
-;       ]
-;     },
-;     {
-;       "bank": 23,
-;       "role": "far_code",
-;       "segmentSize": 8192,
-;       "page": 1,
-;       "orgAddress": 24576,
-;       "endAddress": 32768,
-;       "placementReason": "far-call module; sorted by estimated size at overlay index 15; physical bank 23; executes through P1/#6000 after reserved asset-data banks",
 ;       "estimatedUsedBytes": 114,
 ;       "estimatedFreeBytes": 8078,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
 ;           "key": "hud",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 15; physical bank 23; executes through P1/#6000 after reserved asset-data banks; module hud is callable only through bank-0 far trampolines",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 22; executes through P1/#6000 after reserved asset-data banks; module hud is callable only through bank-0 far trampolines",
 ;           "estimatedBytes": 114
 ;         }
 ;       ]
@@ -26231,96 +26210,6 @@ load_tilebank_tilebank_1778059819923_colors_to_vram_far:
 ; --- Far bank 22 [#6000, window P1] trampolines ---
 FAR_BANK_22 EQU 22
 
-; @mideas:block id=runtime.far_trampoline.init_boss_system_far kind=trampoline owner=far-call preserve=true
-init_boss_system_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_22
-    call mapper_set_bank_p1
-    call init_boss_system
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .init_boss_system_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .init_boss_system_far_irq_done
-    ei
-.init_boss_system_far_irq_done:
-    pop af
-    ret
-; @mideas:endblock id=runtime.far_trampoline.init_boss_system_far
-
-; @mideas:block id=runtime.far_trampoline.init_screen_boss_from_current_screen_far kind=trampoline owner=far-call preserve=true
-init_screen_boss_from_current_screen_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_22
-    call mapper_set_bank_p1
-    call init_screen_boss_from_current_screen
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .init_screen_boss_from_current_screen_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .init_screen_boss_from_current_screen_far_irq_done
-    ei
-.init_screen_boss_from_current_screen_far_irq_done:
-    pop af
-    ret
-; @mideas:endblock id=runtime.far_trampoline.init_screen_boss_from_current_screen_far
-
-; @mideas:block id=runtime.far_trampoline.update_boss_system_far kind=trampoline owner=far-call preserve=true
-update_boss_system_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_22
-    call mapper_set_bank_p1
-    call update_boss_system
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .update_boss_system_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .update_boss_system_far_irq_done
-    ei
-.update_boss_system_far_irq_done:
-    pop af
-    ret
-; @mideas:endblock id=runtime.far_trampoline.update_boss_system_far
-
-; --- Far bank 23 [#6000, window P1] trampolines ---
-FAR_BANK_23 EQU 23
-
 render_hud_far:
     push af
     di
@@ -26329,7 +26218,7 @@ render_hud_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_23
+    ld a, FAR_BANK_22
     call mapper_set_bank_p1
     call render_hud
     pop af
@@ -26356,7 +26245,7 @@ force_render_hud_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_23
+    ld a, FAR_BANK_22
     call mapper_set_bank_p1
     call force_render_hud
     pop af
@@ -26604,65 +26493,7 @@ call_update_animated_tiles_resident:
 call_update_animated_tiles_vram_resident:
     jp update_animated_tiles_vram_far
 
-; @mideas:block id=runtime.boss.resident.init kind=routine owner=bosses preserve=true roots=call_init_boss_system_resident
-call_init_boss_system_resident:
-    jp init_boss_system_far
-; @mideas:endblock id=runtime.boss.resident.init
 
-; @mideas:block id=runtime.boss.resident.init_screen kind=routine owner=bosses preserve=true roots=call_init_screen_boss_from_current_screen_resident
-call_init_screen_boss_from_current_screen_resident:
-    jp init_screen_boss_from_current_screen_far
-; @mideas:endblock id=runtime.boss.resident.init_screen
-
-; @mideas:block id=runtime.boss.resident.update kind=routine owner=bosses preserve=true roots=call_update_boss_system_resident
-call_update_boss_system_resident:
-    jp update_boss_system_far
-; @mideas:endblock id=runtime.boss.resident.update
-
-; @mideas:block id=runtime.boss.resident.update_projectile kind=routine owner=bosses preserve=true roots=call_update_boss_projectile_runtime_resident
-call_update_boss_projectile_runtime_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.update_projectile
-
-; @mideas:block id=runtime.boss.resident.draw_attack kind=routine owner=bosses preserve=true roots=call_draw_boss_attack_resident
-call_draw_boss_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_attack
-
-; @mideas:block id=runtime.boss.resident.draw_meteor kind=routine owner=bosses preserve=true roots=call_draw_boss_meteor_attack_resident
-call_draw_boss_meteor_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_meteor
-
-; @mideas:block id=runtime.boss.resident.draw_bomb kind=routine owner=bosses preserve=true roots=call_draw_boss_bomb_attack_resident
-call_draw_boss_bomb_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_bomb
-
-; @mideas:block id=runtime.boss.resident.draw_boomerang kind=routine owner=bosses preserve=true roots=call_draw_boss_boomerang_attack_resident
-call_draw_boss_boomerang_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_boomerang
-
-; @mideas:block id=runtime.boss.resident.draw_rock kind=routine owner=bosses preserve=true roots=call_draw_boss_rock_attack_resident
-call_draw_boss_rock_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_rock
-
-; @mideas:block id=runtime.boss.resident.draw_laser kind=routine owner=bosses preserve=true roots=call_draw_boss_laser_attack_resident
-call_draw_boss_laser_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_laser
-
-; @mideas:block id=runtime.boss.resident.draw_sine_wave kind=routine owner=bosses preserve=true roots=call_draw_boss_sine_wave_attack_resident
-call_draw_boss_sine_wave_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_sine_wave
-
-; @mideas:block id=runtime.boss.resident.draw_homing_missile kind=routine owner=bosses preserve=true roots=call_draw_boss_homing_missile_attack_resident
-call_draw_boss_homing_missile_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_homing_missile
 
 call_load_colors_to_vram_resident:
     jp load_colors_to_vram_far
@@ -48111,6 +47942,7 @@ check_transition_worldmap_1778070705501_screen_0:
     cp 240
     jp c, check_transition_worldmap_1778070705501_s0_skip_east
 check_transition_worldmap_1778070705501_s0_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
     push de
     call load_screen_pantalla2_778230236021_far
     pop de
@@ -48164,6 +47996,7 @@ check_transition_worldmap_1778070705501_screen_1:
     cp 240
     jp c, check_transition_worldmap_1778070705501_s1_skip_east
 check_transition_worldmap_1778070705501_s1_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
     push de
     call load_screen_pantalla3_778230684484_far
     pop de
@@ -48214,6 +48047,7 @@ check_transition_worldmap_1778070705501_s1_skip_east:
     cp 2
     jp nc, check_transition_worldmap_1778070705501_s1_skip_west
 check_transition_worldmap_1778070705501_s1_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
     push de
     call load_screen_pantalla1_778062394614_far
     pop de
@@ -48267,6 +48101,7 @@ check_transition_worldmap_1778070705501_screen_2:
     cp 240
     jp c, check_transition_worldmap_1778070705501_s2_skip_east
 check_transition_worldmap_1778070705501_s2_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
     push de
     call load_screen_pantalla4_779051476854_far
     pop de
@@ -48317,6 +48152,7 @@ check_transition_worldmap_1778070705501_s2_skip_east:
     cp 2
     jp nc, check_transition_worldmap_1778070705501_s2_skip_west
 check_transition_worldmap_1778070705501_s2_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
     push de
     call load_screen_pantalla2_778230236021_far
     pop de
@@ -48370,6 +48206,7 @@ check_transition_worldmap_1778070705501_screen_3:
     cp 2
     jp nc, check_transition_worldmap_1778070705501_s3_skip_west
 check_transition_worldmap_1778070705501_s3_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
     push de
     call load_screen_pantalla3_778230684484_far
     pop de
@@ -51273,7 +51110,7 @@ BANK_21_USED_END:
     org FAR_BANK_21_ROM_START + #2000
 
 ; ##################################################################
-; FAR BANK 22 — [#6000h-#8000h] FAR CODE: bosses
+; FAR BANK 22 — [#6000h-#8000h] FAR CODE: hud
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
 ; At runtime: bank0 saves P1, maps bank22 to P1,
 ; calls routine, then restores P1.
@@ -51281,71 +51118,6 @@ BANK_21_USED_END:
 ;       primary banks (1-2). No far-to-far calls allowed.
 ; ##################################################################
 FAR_BANK_22_ROM_START:
-
-    org #6000
-
-; ==================================================================
-; BOSSES
-; No boss assets in this project.
-; ==================================================================
-
-BOSS_COUNT EQU 0
-BOSS_DIR_LEFT EQU 0
-BOSS_DIR_RIGHT EQU 1
-BOSS_DIR_UP EQU 2
-BOSS_DIR_DOWN EQU 3
-BOSS_ATTACK_PROJECTILE EQU 0
-BOSS_ATTACK_MELEE EQU 1
-BOSS_ATTACK_SPECIAL EQU 2
-BOSS_ATTACK_PATTERN EQU 3
-BOSS_ATTACK_METEOR EQU 4
-BOSS_ATTACK_BOMB EQU 5
-BOSS_ATTACK_BOOMERANG EQU 6
-BOSS_ATTACK_ROCK EQU 7
-BOSS_ATTACK_LASER EQU 8
-BOSS_ATTACK_SINE_WAVE EQU 9
-BOSS_ATTACK_HOMING_MISSILE EQU 10
-BOSS_ATTACK_SLAM_ROCKS EQU 11
-BOSS_ATTACK_FALLING_BLOCKS EQU 12
-
-; @mideas:block id=runtime.boss.entry kind=routine owner=bosses roots=init_boss_system,update_boss_system
-init_boss_system:
-    xor a
-    ld (boss_runtime_tick), a
-    ld (boss_active), a
-    ld (boss_health_lo), a
-    ld (boss_health_hi), a
-    ld (boss_hit_cooldown), a
-    ld (boss_update_timer), a
-    ld (boss_falling_blocks_active), a
-    ld a, #FF
-    ld (boss_data_bank), a
-    ld a, 1
-    ld (boss_update_interval), a
-    ret
-
-update_boss_system:
-    ret
-
-init_screen_boss_from_current_screen:
-    ret
-; @mideas:endblock id=runtime.boss.entry
-
-
-; --- End of Far Bank 22 — pad to 8KB boundary ---
-BANK_22_USED_END:
-    ds #8000 - $, #FF
-    org FAR_BANK_22_ROM_START + #2000
-
-; ##################################################################
-; FAR BANK 23 — [#6000h-#8000h] FAR CODE: hud
-; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
-; At runtime: bank0 saves P1, maps bank23 to P1,
-; calls routine, then restores P1.
-; NOTE: routines in this bank MUST only call code in bank 0 or
-;       primary banks (1-2). No far-to-far calls allowed.
-; ##################################################################
-FAR_BANK_23_ROM_START:
 
     org #6000
 
@@ -51364,8 +51136,8 @@ update_hud_lives:
 ; @mideas:endblock id=runtime.hud.empty_update_stubs
 
 
-; --- End of Far Bank 23 — pad to 8KB boundary ---
-BANK_23_USED_END:
+; --- End of Far Bank 22 — pad to 8KB boundary ---
+BANK_22_USED_END:
     ds #8000 - $, #FF
-    org FAR_BANK_23_ROM_START + #2000
+    org FAR_BANK_22_ROM_START + #2000
     end                 ; End of assembly

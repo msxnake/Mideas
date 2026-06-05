@@ -6546,10 +6546,10 @@ ${usesMsx2PlatformVerticalPhysics(analysis) ? (() => {
     const skillBindings = (playerAssetForBindings?.skillBindings ?? {}) as Record<string, { primary: string; secondary?: string }>;
     const djImpulse = Math.round(physics.jumpImpulse88 * 0.7);
     return buildPlayerStateMachineAsm({
-    jumpImpulseLo: formatAsmByte(physics.jumpImpulse88 >> 8),
-    jumpImpulseHi: formatAsmByte(physics.jumpImpulse88),
-    doubleJumpImpulseLo: formatAsmByte(djImpulse >> 8),
-    doubleJumpImpulseHi: formatAsmByte(djImpulse),
+    jumpImpulseLo: formatAsmByte(physics.jumpImpulse88),
+    jumpImpulseHi: formatAsmByte(physics.jumpImpulse88 >> 8),
+    doubleJumpImpulseLo: formatAsmByte(djImpulse),
+    doubleJumpImpulseHi: formatAsmByte(djImpulse >> 8),
     gravityStrength: formatAsmByte(physics.gravityStrength88),
     terminalHigh: formatAsmByte(getTerminalVelocityHighByte(physics.terminalVelocity88)),
     terminalWord: formatAsmWord(physics.terminalVelocity88),

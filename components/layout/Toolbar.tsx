@@ -94,6 +94,8 @@ interface ToolbarProps {
   onOpenComponentDefEditor: () => void;
   /** Callback to open the entity template editor. */
   onOpenEntityTemplateEditor: () => void;
+  /** Callback to open the MSX2 enemy library editor. */
+  onOpenEnemyLibrary: () => void;
   /** Callback to open the world view editor. */
   onOpenWorldView: () => void;
   /** Callback to open the PNG to MSX conversion tool. */
@@ -255,7 +257,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -437,6 +439,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {shouldShowAssetType('msx2screen') && <DropdownItem onClick={() => onNewAsset('msx2screen')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-600 hover:text-white" disabled={!canCreateAsset('msx2screen')}>MSX2 SCREEN 4 Room (16x12)</DropdownItem>}
         {shouldShowAssetType('msx2bitmaproom') && <DropdownItem onClick={() => onNewAsset('msx2bitmaproom')} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2bitmaproom')}>MSX2 SCREEN 4 Bitmap Room</DropdownItem>}
         {shouldShowAssetType('msx2player') && <DropdownItem onClick={() => onNewAsset('msx2player')} icon={<SpriteIcon />} colorClass="text-yellow-200 hover:bg-yellow-600 hover:text-white" disabled={!canCreateAsset('msx2player')}>MSX2 Player</DropdownItem>}
+        {shouldShowAssetType('msx2enemy') && <DropdownItem onClick={() => onNewAsset('msx2enemy')} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white" disabled={!canCreateAsset('msx2enemy')}>MSX2 Enemy</DropdownItem>}
         {shouldShowAssetType('msx2hudfont') && <DropdownItem onClick={() => onNewAsset('msx2hudfont')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hudfont')}>MSX2 HUD Font</DropdownItem>}
         {shouldShowAssetType('msx2presentation') && <DropdownItem onClick={() => onNewAsset('msx2presentation')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white" disabled={!canCreateAsset('msx2presentation')}>MSX2 SCREEN 5 Presentation</DropdownItem>}
         {shouldShowAssetType('msx2gameflow') && <DropdownItem onClick={() => onNewAsset('msx2gameflow')} icon={<GameFlowIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2gameflow')}>MSX2 Game Flow</DropdownItem>}
@@ -456,6 +459,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {shouldShowAssetType('tilebank') && <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon />} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white" disabled={!canCreateAsset('tilebank')}>MSX1 Tile Banks</DropdownItem>}
         <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
         <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
+        {shouldShowMsx2Controls && <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">MSX2 Enemy Library</DropdownItem>}
         <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white" disabled={!canCreateAsset('globalvariables')}>Global Variables</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white" disabled={!canCreateAsset('sound')}>Sound FX</DropdownItem>
@@ -481,6 +485,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates">
         Templates
       </Button>
+      {shouldShowMsx2Controls && (
+        <Button onClick={onOpenEnemyLibrary} variant="ghost" size="sm" icon={<BugIcon />} title="MSX2 Enemy Library">
+          Enemies
+        </Button>
+      )}
       <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={isToggleEditorDisabled}>
         Last Editor
       </Button>

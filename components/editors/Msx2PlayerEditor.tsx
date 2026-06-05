@@ -890,7 +890,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
   };
 
   useEffect(() => {
-    if (!normalized.render.spriteAssetId || !selectedSprite?.size) return;
+    if (!normalized.render.spriteAssetId) return;
+    if (!selectedSprite?.size) return;
     const nextSpriteSize = spriteSizeFromMsx2Sprite(selectedSprite);
     if (nextSpriteSize && normalized.render.spriteSize !== nextSpriteSize) {
       updateRender({ spriteSize: nextSpriteSize });
@@ -1211,8 +1212,18 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                   <div className="grid grid-cols-[96px_1fr] items-center gap-2 text-xs">
                     <span>Size (px):</span>
                     <div className="grid grid-cols-4 items-center gap-2">
-                      <span>Width:</span><input className={inputClass} readOnly value={spriteSize.width} />
-                      <span>Height:</span><input className={inputClass} readOnly value={spriteSize.height} />
+                      <span>Width:</span><input
+                        className={`${inputClass} ${!selectedSprite?.size ? 'text-red-500' : ''}`}
+                        readOnly
+                        value={selectedSprite?.size?.width ?? spriteSize.width}
+                        title={selectedSprite?.size ? 'Auto-derived from sprite asset' : 'Sprite asset not found — value from JSON'}
+                      />
+                      <span>Height:</span><input
+                        className={`${inputClass} ${!selectedSprite?.size ? 'text-red-500' : ''}`}
+                        readOnly
+                        value={selectedSprite?.size?.height ?? spriteSize.height}
+                        title={selectedSprite?.size ? 'Auto-derived from sprite asset' : 'Sprite asset not found — value from JSON'}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-[96px_1fr] items-center gap-2 text-xs">

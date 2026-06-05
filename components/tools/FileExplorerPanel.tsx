@@ -33,6 +33,8 @@ interface FileExplorerPanelProps {
   isMainMenuActive?: boolean;
   /** Whether the Presentation Screen system editor is active. */
   isPresentationScreenActive?: boolean;
+  /** Whether the MSX2 Enemy Library system editor is active. */
+  isEnemyLibraryActive?: boolean;
   /** Current project screen mode used to disable incompatible asset families. */
   currentScreenMode: string;
   /** Active MSX2 game profile used to filter profile-specific asset families. */
@@ -49,7 +51,7 @@ interface FileExplorerPanelProps {
  * A component that displays an icon corresponding to a given asset type.
  * @internal
  */
-const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow' | 'mainmenu' | 'presentationscreen'}> = ({ type }) => {
+const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'enemylibrary' | 'worldview' | 'gameflow' | 'mainmenu' | 'presentationscreen'}> = ({ type }) => {
   const iconClass = "w-4 h-4 mr-2";
   switch (type) {
     case 'tile': return <TilesetIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -59,6 +61,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'msx2screen': return <MapIcon className={`${iconClass} text-blue-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaproom': return <MapIcon className={`${iconClass} text-sky-200 group-hover:text-msx-accent`} />;
     case 'msx2player': return <SpriteIcon className={`${iconClass} text-yellow-300 group-hover:text-msx-accent`} />;
+    case 'msx2enemy': return <BugIcon className={`${iconClass} text-red-300 group-hover:text-msx-accent`} />;
     case 'msx2hudfont': return <PencilIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
     case 'msx2presentation': return <MapIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
     case 'msx2gameflow': return <GameFlowIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
@@ -84,6 +87,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'helpdocs': return <QuestionMarkCircleIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'componentdefinitioneditor': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'entitytemplateeditor': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'enemylibrary': return <BugIcon className={`${iconClass} text-red-300 group-hover:text-msx-accent`} />;
     case 'worldview': return <WorldViewIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'mainmenu': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'presentationscreen': return <MapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -92,7 +96,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2player', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -101,6 +105,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   msx2sprite: "MSX2 Sprites",
   msx2bitmap: "Legacy MSX2 Bitmaps",
   msx2player: "MSX2 Players",
+  msx2enemy: "MSX2 Enemies",
   msx2screen: "MSX2 SCREEN 4 Rooms",
   msx2bitmaproom: "MSX2 SCREEN 4 Bitmap Rooms",
   msx2hudfont: "MSX2 HUD Fonts",
@@ -133,6 +138,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
   msx2player: EditorType.Msx2Player,
+  msx2enemy: EditorType.Msx2Enemy,
   msx2screen: EditorType.Msx2Screen,
   msx2bitmaproom: EditorType.Msx2BitmapRoom,
   msx2hudfont: EditorType.Msx2HudFont,
@@ -175,6 +181,8 @@ export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
 export const GLOBAL_VARIABLES_SYSTEM_ASSET_ID = "GLOBAL_VARIABLES_SYSTEM_ASSET_ID";
 /** System asset ID for the Presentation Screen editor. @constant */
 export const PRESENTATION_SCREEN_SYSTEM_ASSET_ID = "PRESENTATION_SCREEN_SYSTEM_ASSET_ID";
+/** System asset ID for the MSX2 Enemy Library. */
+export const ENEMY_LIBRARY_SYSTEM_ASSET_ID = "ENEMY_LIBRARY_SYSTEM_ASSET_ID";
 
 
 /**
@@ -198,6 +206,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   onRequestSaveSelectedTiles,
   isMainMenuActive = false,
   isPresentationScreenActive = false,
+  isEnemyLibraryActive = false,
   currentScreenMode,
   msx2ProjectProfile = null,
   hasActiveProject,
@@ -314,15 +323,23 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const inactiveItemClass = "text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary";
   const disabledItemClass = "text-msx-textsecondary/25 opacity-35 grayscale cursor-not-allowed line-through decoration-red-500 decoration-2 decoration-solid";
   const selectedTileClass = "bg-msx-highlight text-white";
+  const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
 
   const systemTools: Array<{
     id: string;
     name: string;
     title: string;
     editorType: EditorType;
-    iconType: 'mainmenu' | 'presentationscreen';
+    iconType: 'mainmenu' | 'presentationscreen' | 'enemylibrary';
     isActive: boolean;
-  }> = [];
+  }> = projectTarget === 'MSX2' ? [{
+    id: ENEMY_LIBRARY_SYSTEM_ASSET_ID,
+    name: 'Enemy Library',
+    title: 'Open MSX2 Enemy Library',
+    editorType: EditorType.EnemyLibrary,
+    iconType: 'enemylibrary',
+    isActive: isEnemyLibraryActive,
+  }] : [];
 
 
   const getContextMenuItems = (): ContextMenuItem[] => {
@@ -366,7 +383,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   };
 
   const contextMenuItems = getContextMenuItems();
-  const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
   const isAssetTypeVisible = (assetType: ProjectAsset['type']) =>
     isAssetTypeEnabledForMsx2Project(assetType, currentScreenMode, msx2ProjectProfile);
   const isFolderEnabled = (folderType: ProjectAsset['type']) => hasActiveProject && isAssetTypeVisible(folderType);

@@ -1415,6 +1415,9 @@ interface AnimatedEntity {
         stateStartTime: number;
         hasExecutedOnEnter: boolean;
     };
+    slashData?: {
+        cooldownFrames: number;
+    };
     wallCollisionLogged?: boolean;
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
     isOnGround: boolean; // Track if entity is touching the ground (for jump and gravity)
@@ -2885,6 +2888,53 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                                 }
                             }
                         }
+                    }
+                });
+
+                // --- Slash Attack (player melee, same logic as ASM buildSlashState) ---
+                entitiesRef.current.forEach(entity => {
+                    const isPlayer = entity.template.components.some(c => c.definitionId === 'comp_cursors');
+                    if (!isPlayer) return;
+
+                    if (!entity.slashData) {
+                        entity.slashData = { cooldownFrames: 0 };
+                    }
+
+                    const attackPressed = currentPressedKeys.has('KeyX');
+                    if (entity.slashData.cooldownFrames > 0) {
+                        entity.slashData.cooldownFrames--;
+                    } else if (attackPressed) {
+                        entity.slashData.cooldownFrames = 10;
+
+                        const hitbox = entity.sprite?.hitbox;
+                        const hw = hitbox?.width ?? 12;
+                        const hh = hitbox?.height ?? 12;
+                        const ox = hitbox?.offsetX ?? 2;
+                        const oy = hitbox?.offsetY ?? 2;
+
+                        const playerCenterX = entity.x + ox + Math.floor(hw / 2);
+                        const playerCenterY = entity.y + oy + Math.floor(hh / 2);
+
+                        entitiesRef.current.forEach(target => {
+                            if (target.instance.id === entity.instance.id) return;
+                            if (target.markedForDestruction) return;
+
+                            const th = target.sprite?.hitbox;
+                            const tw = th?.width ?? 12;
+                            const tH = th?.height ?? 12;
+                            const tox = th?.offsetX ?? 2;
+                            const toy = th?.offsetY ?? 2;
+
+                            const targetCenterX = target.x + tox + Math.floor(tw / 2);
+                            const targetCenterY = target.y + toy + Math.floor(tH / 2);
+
+                            const dx = Math.abs(playerCenterX - targetCenterX);
+                            const dy = Math.abs(playerCenterY - targetCenterY);
+
+                            if (dx < 15 && dy < 15) {
+                                target.markedForDestruction = true;
+                            }
+                        });
                     }
                 });
 

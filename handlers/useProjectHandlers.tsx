@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset, Msx2GameProfileId, Msx2ProjectProfile } from '../types';
+import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, EnemyDefinition, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset, Msx2GameProfileId, Msx2ProjectProfile } from '../types';
 import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
@@ -58,6 +58,8 @@ interface ProjectHandlersProps {
   setComponentDefinitionsState: (defs: ComponentDefinition[]) => void;
   entityTemplates: EntityTemplate[];
   setEntityTemplatesState: (templates: EntityTemplate[]) => void;
+  enemyDefinitions: EnemyDefinition[];
+  setEnemyDefinitionsState: (definitions: EnemyDefinition[]) => void;
   mainMenuConfig: MainMenuConfig;
   setMainMenuConfigState: (config: MainMenuConfig) => void;
   presentationScreen: PresentationScreenConfig;
@@ -398,6 +400,8 @@ export const useProjectHandlers = ({
   setComponentDefinitionsState,
   entityTemplates,
   setEntityTemplatesState,
+  enemyDefinitions,
+  setEnemyDefinitionsState,
   mainMenuConfig,
   setMainMenuConfigState,
   presentationScreen,
@@ -445,6 +449,7 @@ export const useProjectHandlers = ({
     trySetLocalStorageItem('tileBanksConfig', JSON.stringify([]));
     setComponentDefinitionsState(filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode, profile));
     setEntityTemplatesState(filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode, profile));
+    setEnemyDefinitionsState([]);
     setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
     setPresentationScreenState(DEFAULT_PRESENTATION_SCREEN_CONFIG);
     clearAllHistory();
@@ -536,6 +541,7 @@ export const useProjectHandlers = ({
     setCopiedTileData,
     setCurrentEditor,
     setCurrentProjectName,
+    setEnemyDefinitionsState,
     setEntityTemplatesState,
     setIsConfirmModalOpen,
     setIsNewProjectModalOpen,
@@ -727,6 +733,7 @@ export const useProjectHandlers = ({
       currentProjectName,
       componentDefinitions: cleanedComponents,
       entityTemplates: cleanedTemplates,
+      enemyDefinitions,
       mainMenuConfig,
       presentationScreen,
       selectedEntityInstanceId: null,
@@ -754,7 +761,7 @@ export const useProjectHandlers = ({
     assets, currentScreenMode, selectedAssetId, currentEditor, tileBanks,
     msxFont, msxFontColorAttributes, dataOutputFormat, autosaveEnabled,
     snippetsEnabled, syntaxHighlightingEnabled, userSnippets, helpDocsData,
-    currentProjectName, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen,
+    currentProjectName, componentDefinitions, entityTemplates, enemyDefinitions, mainMenuConfig, presentationScreen,
     msx2ProjectProfile,
     setStatusBarMessage
   ]);
@@ -1042,6 +1049,7 @@ export const useProjectHandlers = ({
       }
 
       if (projectData.mainMenuConfig) setMainMenuConfigState(projectData.mainMenuConfig);
+      setEnemyDefinitionsState(Array.isArray(projectData.enemyDefinitions) ? projectData.enemyDefinitions : []);
       const mergedPS = mergePresentationScreenConfig(projectData.presentationScreen);
       setPresentationScreenState(mergedPS);
 
@@ -1069,6 +1077,7 @@ export const useProjectHandlers = ({
         assets: loadedAssets.length > 0 ? loadedAssets : projectData.assets,
         componentDefinitions: migratedComponentDefinitions,
         entityTemplates: templatesForSanitization,
+        enemyDefinitions: Array.isArray(projectData.enemyDefinitions) ? projectData.enemyDefinitions : [],
       };
       const cachedData = JSON.stringify(cachedProjectData);
       addRecentProject(finalProjectName, sourcePath || finalProjectName, cachedData);
@@ -1105,6 +1114,7 @@ export const useProjectHandlers = ({
     setCopiedScreenBuffer,
     setCopiedTileData,
     setEntityTemplatesState,
+    setEnemyDefinitionsState,
     setMainMenuConfigState,
     setMsx2ProjectProfile,
     setPendingMsx2NewProject,

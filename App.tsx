@@ -70,6 +70,8 @@ const App: React.FC = () => {
     setComponentDefinitionsState,
     entityTemplates,
     setEntityTemplatesState,
+    enemyDefinitions,
+    setEnemyDefinitionsState,
     mainMenuConfig,
     setMainMenuConfigState,
     presentationScreen,
@@ -259,6 +261,7 @@ const App: React.FC = () => {
     setMsxFontColorAttributesState: () => {}, // Will be implemented
     setComponentDefinitionsState,
     setEntityTemplatesState,
+    setEnemyDefinitionsState,
     setMainMenuConfigState,
     setPresentationScreenState,
     setStatusBarMessage
@@ -274,6 +277,7 @@ const App: React.FC = () => {
     setMsxFontColorAttributes: setMsxFontColorAttributesWithHistory,
     setComponentDefinitions: setComponentDefinitionsWithHistory,
     setEntityTemplates: setEntityTemplatesWithHistory,
+    setEnemyDefinitions: setEnemyDefinitionsWithHistory,
     setMainMenuConfig: setMainMenuConfigWithHistory,
     setPresentationScreen,
     handleUndo,
@@ -452,6 +456,8 @@ const App: React.FC = () => {
     setComponentDefinitionsState,
     entityTemplates,
     setEntityTemplatesState,
+    enemyDefinitions,
+    setEnemyDefinitionsState,
     mainMenuConfig,
     setMainMenuConfigState,
     presentationScreen,
@@ -623,6 +629,9 @@ const App: React.FC = () => {
           case 'msx2player':
             setCurrentEditor(EditorType.Msx2Player);
             break;
+          case 'msx2enemy':
+            setCurrentEditor(EditorType.Msx2Enemy);
+            break;
           case 'msx2hudfont':
             setCurrentEditor(EditorType.Msx2HudFont);
             break;
@@ -784,6 +793,8 @@ const App: React.FC = () => {
     setComponentDefinitions: setComponentDefinitionsWithCleanup,
     entityTemplates,
     setEntityTemplates: setEntityTemplatesWithCleanup,
+    enemyDefinitions,
+    setEnemyDefinitions: setEnemyDefinitionsWithHistory,
     mainMenuConfig,
     onUpdateMainMenuConfig: setMainMenuConfigWithHistory,
     presentationScreen,

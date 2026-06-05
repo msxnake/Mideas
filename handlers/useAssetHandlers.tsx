@@ -21,6 +21,7 @@ import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../utils/projectTarget';
 import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, MSX2_PLAYER_DOCUMENT_SCHEMA } from '../utils/msx2PlayerDocument';
+import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../data/enemyLibrary';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -538,6 +539,17 @@ export const useAssetHandlers = ({
         newAssetData.player.identity.name = defaultName;
         (newAssetData.compact as Msx2PlayerDefinition).name = defaultName;
         newEditorType = EditorType.Msx2Player;
+        break;
+      case 'msx2enemy':
+        defaultName = 'Bat_Enemy';
+        newAssetData = {
+          ...createEnemyFromTemplate(GLOBAL_ENEMY_TEMPLATES.find(template => template.templateId === 'bat_enemy_basic') || GLOBAL_ENEMY_TEMPLATES[0], {
+            name: defaultName,
+            existingIds: new Set(assets.filter(asset => asset.type === 'msx2enemy').map(asset => (asset.data as any)?.enemyId || asset.id)),
+          }),
+          assetId: id,
+        };
+        newEditorType = EditorType.Msx2Enemy;
         break;
       case 'msx2hudfont':
         defaultName = 'New MSX2 HUD Font';

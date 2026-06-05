@@ -23,6 +23,7 @@ const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'msx2sprite',
   'msx2screen',
   'msx2player',
+  'msx2enemy',
   'msx2presentation',
   'msx2gameflow',
   'worldmap',

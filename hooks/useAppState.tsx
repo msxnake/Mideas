@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import {
   EditorType, ProjectAsset, MSXColorValue, ScreenEditorLayerName,
   ComponentDefinition, EntityTemplate, MainMenuConfig, EntityInstance,
+  EnemyDefinition,
   HUDConfiguration, TileBank, MSXFont, MSXFontColorAttributes,
   MSXFontAsset, DataFormat, ExportRomMode, Snippet, HistoryState, HistoryAction,
   CopiedScreenData, CopiedLayerData, CopiedTileData, WaypointPickerState,
@@ -55,6 +56,7 @@ export const useAppState = () => {
   // Entity & Component state
   const [componentDefinitions, setComponentDefinitionsState] = useState<ComponentDefinition[]>(DEFAULT_PROJECT_COMPONENT_DEFINITIONS);
   const [entityTemplates, setEntityTemplatesState] = useState<EntityTemplate[]>(DEFAULT_PROJECT_ENTITY_TEMPLATES);
+  const [enemyDefinitions, setEnemyDefinitionsState] = useState<EnemyDefinition[]>([]);
   const [mainMenuConfig, setMainMenuConfigState] = useState<MainMenuConfig>(DEFAULT_MAIN_MENU_CONFIG);
   const [presentationScreen, setPresentationScreenState] = useState<PresentationScreenConfig>(DEFAULT_PRESENTATION_SCREEN_CONFIG);
   const [currentEntityTypeToPlace, setCurrentEntityTypeToPlace] = useState<EntityTemplate | null>(null);
@@ -396,6 +398,8 @@ export const useAppState = () => {
     setComponentDefinitionsState,
     entityTemplates,
     setEntityTemplatesState,
+    enemyDefinitions,
+    setEnemyDefinitionsState,
     mainMenuConfig,
     setMainMenuConfigState,
     presentationScreen,

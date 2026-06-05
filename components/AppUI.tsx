@@ -6,7 +6,7 @@ import {
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
-  ComponentDefinition, EntityTemplate, ContextMenuItem,
+  ComponentDefinition, EntityTemplate, EnemyDefinition, ContextMenuItem,
   Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId
 } from '../types';
 import { 
@@ -26,6 +26,7 @@ import { Msx2BitmapEditor } from './editors/Msx2BitmapEditor';
 import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
 import { Msx2Screen4BitmapRoomEditor } from './editors/Msx2Screen4BitmapRoomEditor';
 import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
+import { Msx2EnemyEditor } from './editors/Msx2EnemyEditor';
 import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils/msx2PlayerDocument';
 import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
 import { Msx2Screen5PresentationEditor } from './editors/Msx2Screen5PresentationEditor';
@@ -44,6 +45,7 @@ import { SpriteSheetReorderModal } from './modals/SpriteSheetReorderModal';
 import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
 import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
+import { EnemyLibraryView } from './editors/EnemyLibraryView';
 import { GlobalVariablesEditor } from './editors/GlobalVariablesEditor';
 import { PaletteEditor } from './editors/PaletteEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
@@ -100,6 +102,7 @@ interface AppUIProps {
   currentScreenEditorActiveLayer: ScreenEditorLayerName;
   componentDefinitions: ComponentDefinition[];
   entityTemplates: EntityTemplate[];
+  enemyDefinitions: EnemyDefinition[];
   mainMenuConfig: MainMenuConfig;
   presentationScreen: PresentationScreenConfig;
   currentEntityTypeToPlace: EntityTemplate | null;
@@ -171,6 +174,7 @@ interface AppUIProps {
   setCurrentScreenEditorActiveLayer: React.Dispatch<React.SetStateAction<ScreenEditorLayerName>>;
   setComponentDefinitions: (updater: ComponentDefinition[] | ((prev: ComponentDefinition[]) => ComponentDefinition[])) => void;
   setEntityTemplates: (updater: EntityTemplate[] | ((prev: EntityTemplate[]) => EntityTemplate[])) => void;
+  setEnemyDefinitions: (updater: EnemyDefinition[] | ((prev: EnemyDefinition[]) => EnemyDefinition[])) => void;
   setCurrentEntityTypeToPlace: React.Dispatch<React.SetStateAction<EntityTemplate | null>>;
   setSelectedEntityInstanceId: React.Dispatch<React.SetStateAction<string | null>>;
   setSelectedEffectZoneId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -269,9 +273,9 @@ interface AppUIProps {
  */
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
-        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, msx2ProjectProfile, pendingMsx2NewProject, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isCodeExportModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, defaultExportRomMode, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,
+        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, msx2ProjectProfile, pendingMsx2NewProject, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, enemyDefinitions, mainMenuConfig, presentationScreen, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isCodeExportModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, defaultExportRomMode, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,
         
-        setCopiedBossPhase, setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setSelectedGameFlowNodeId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsCodeExportModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, onUpdatePresentationScreen, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleReorderSpriteFrames, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleRequestMsx2GameProfile, handleCancelMsx2NewProject, handleConfirmMsx2GameProfile, handleNewAsset, handleSpriteImported, onSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, handleOpenRecentProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleExportIntermediateGameJson, handleCopyTileData, handleGenerateTemplatesAsm,
+        setCopiedBossPhase, setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setSelectedGameFlowNodeId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsCodeExportModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, setEnemyDefinitions, onUpdateMainMenuConfig, onUpdatePresentationScreen, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleReorderSpriteFrames, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleRequestMsx2GameProfile, handleCancelMsx2NewProject, handleConfirmMsx2GameProfile, handleNewAsset, handleSpriteImported, onSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, handleOpenRecentProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleExportIntermediateGameJson, handleCopyTileData, handleGenerateTemplatesAsm,
         isToggleEditorDisabled, onToggleEditor, bossEditorZoom, setBossEditorZoom, tileEditorZoom, setTileEditorZoom, screenEditorZoom, setScreenEditorZoom, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, showSectorLines, setShowSectorLines, saveSectorLines, setSaveSectorLines, setDefaultExportRomMode,
         onRequestSaveTile, onRequestSaveTrack, onImportTrack, handleImportBossPackageFile, onRequestLoadTile, onRequestSaveSelectedTiles
     } = props;
@@ -316,7 +320,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
 
 
-  const nonAssetEditorTypes = [EditorType.HelpDocs, EditorType.WorldView, EditorType.PngMsxChars];
+  const nonAssetEditorTypes = [EditorType.HelpDocs, EditorType.WorldView, EditorType.PngMsxChars, EditorType.EnemyLibrary];
   const isUndoDisabled = history.undoStack.length === 0 || nonAssetEditorTypes.includes(currentEditor);
   const isRedoDisabled = history.redoStack.length === 0 || nonAssetEditorTypes.includes(currentEditor);
 
@@ -597,6 +601,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenAbout={() => setIsAboutModalOpen(true)}
         onOpenComponentDefEditor={() => onSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => onSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
+        onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
         onOpenPngMsxTool={() => {
           onSelectAsset(null, EditorType.PngMsxChars);
@@ -636,6 +641,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onRequestRename={memoizedOnRequestRename} 
             isMainMenuActive={currentEditor === EditorType.MainMenu}
             isPresentationScreenActive={currentEditor === EditorType.PresentationScreen}
+            isEnemyLibraryActive={currentEditor === EditorType.EnemyLibrary}
             onRequestDelete={handleDeleteAsset}
             onRequestSaveTile={onRequestSaveTile}
             onRequestSaveTrack={onRequestSaveTrack}
@@ -712,6 +718,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && ( <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} onUpdate={(patch) => handleUpdateAsset(activeAsset.id, buildDetailedMsx2PlayerDocument(mergeMsx2PlayerUpdate(activeAsset.data, patch)))} allAssets={assets} />)}
+          {currentEditor === EditorType.Msx2Enemy && activeAsset?.type === 'msx2enemy' && ( <Msx2EnemyEditor enemy={activeAsset.data as EnemyDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
             <Msx2HudFontEditor
               font={activeAsset.data as Msx2HudFontAsset}
@@ -797,6 +804,14 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               setStatusBarMessage={setStatusBarMessage}
               currentScreenMode={currentScreenMode}
               msx2ProjectProfile={msx2ProjectProfile}
+            />
+           )}
+           {currentEditor === EditorType.EnemyLibrary && (
+            <EnemyLibraryView
+              enemyDefinitions={enemyDefinitions}
+              onUpdateEnemyDefinitions={setEnemyDefinitions}
+              allAssets={assets}
+              setStatusBarMessage={setStatusBarMessage}
             />
            )}
            {currentEditor === EditorType.GlobalVariables && activeAsset && activeAsset.type === 'globalvariables' && (
@@ -885,7 +900,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             </div>
             {renderRightPanelContent()}
             <PropertiesPanel 
-            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || (currentEditor === EditorType.PresentationScreen && activeAsset?.type !== 'presentationscreen') ? undefined : activeAsset}
+            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || currentEditor === EditorType.EnemyLibrary || (currentEditor === EditorType.PresentationScreen && activeAsset?.type !== 'presentationscreen') ? undefined : activeAsset}
             entityInstance={selectedEntityInstance}
             effectZone={selectedEffectZone}
             gameFlowNode={selectedGameFlowNode}

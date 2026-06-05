@@ -580,6 +580,7 @@ export interface Msx2Screen4Layers {
   /** MSX2-only behavior cells. 1 = ladder, 2 = conveyor right, 3 = conveyor left. Kept separate from collision/effects. */
   behavior?: number[][];
   entities: Msx2Screen4EntityInstance[];
+  enemySpawns?: EnemySpawn[];
 }
 
 export type Msx2HudWidgetKind = 'bar' | 'counter' | 'icon' | 'text';
@@ -973,6 +974,102 @@ export interface ProjectPlayerDefinition {
   sounds?: Record<string, string>;
 }
 
+export type EnemyCategory = 'simpleEnemy' | 'boss' | 'hazard' | 'projectileLike';
+export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'ChaseHorizontal' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
+export type EnemyAttackType = 'None' | 'DamageOnTouch' | 'ShooterStatic' | 'ProjectileEmitter' | 'MeleeBox' | 'ExplosionOnTouch';
+export type EnemyRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
+export type EnemySpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
+export type EnemyLibraryScope = 'common' | 'perWorld' | 'boss';
+export type SpawnParamSchemaType = 'byte' | 'int' | 'enum' | 'boolean';
+export type SpawnParamExportSlot = 'p0' | 'p1' | 'p2' | 'p3';
+
+export interface SpawnParamSchemaItem {
+  name: string;
+  label?: string;
+  type: SpawnParamSchemaType;
+  default: number | string | boolean;
+  min?: number;
+  max?: number;
+  values?: string[];
+  exportParam: SpawnParamExportSlot;
+}
+
+export interface EnemyTemplate {
+  templateId: string;
+  name: string;
+  category: EnemyCategory;
+  behavior: { type: EnemyBehaviorType; requiresRoutine?: string };
+  attack: { type: EnemyAttackType };
+  spawnParamsSchema: SpawnParamSchemaItem[];
+  requiredRoutines: string[];
+  budget: { cpu: number; ram: number; sprites: number };
+  renderPlaceholder?: { spriteSize: EnemySpriteSize; defaultAnimation: string };
+  description?: string;
+}
+
+export interface EnemyAnimationDefinition {
+  frames: number[];
+  speed: number;
+  loop: boolean;
+}
+
+export interface EnemyRenderConfig {
+  renderMode: EnemyRenderMode;
+  spriteId: string;
+  palette: string;
+  size: EnemySpriteSize;
+  animations: Record<string, EnemyAnimationDefinition>;
+}
+
+export interface EnemyHitboxRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface EnemyHitboxes {
+  body: EnemyHitboxRect;
+  damage: EnemyHitboxRect;
+  weak?: EnemyHitboxRect;
+}
+
+export interface EnemyDefinition {
+  enemyId: string;
+  basedOnTemplate?: string;
+  name: string;
+  world: string | 'common';
+  behaviorGroup: string;
+  category: EnemyCategory;
+  scope: EnemyLibraryScope;
+  behavior: { type: EnemyBehaviorType; customRoutine?: string };
+  attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number };
+  render: EnemyRenderConfig;
+  hitboxes: EnemyHitboxes;
+  stats: { hp: number; damage: number; invulnerabilityFrames?: number; knockback?: number };
+  sound: Record<string, string | null>;
+  spawnParamsSchema: SpawnParamSchemaItem[];
+  requiredRoutines: string[];
+  budget: {
+    cpu: number;
+    sprites: number;
+    ram: number;
+    codePackage: string;
+    graphicsPackage?: string;
+    graphicsBank?: string;
+    ramPackage?: string;
+  };
+  notes?: string;
+}
+
+export interface EnemySpawn {
+  id: string;
+  enemyId: string;
+  x: number;
+  y: number;
+  params: Record<string, number | string | boolean>;
+}
+
 export interface PlayerEntry {
   id: string;
   x: number;
@@ -1155,6 +1252,7 @@ export interface ScreenMap {
     collision: ScreenLayerData;
     effects: ScreenLayerData;
     entities: EntityInstance[];
+    enemySpawns?: EnemySpawn[];
   };
   /** Optional build-time export optimization settings. */
   blockOptimization?: ScreenBlockOptimization;
@@ -1189,7 +1287,7 @@ export interface ScreenMap {
 }
 
 /** A type representing the possible layer names in the screen editor. */
-export type ScreenEditorLayerName = keyof ScreenMap['layers'] | 'entities' | 'effects' | 'bosses';
+export type ScreenEditorLayerName = keyof ScreenMap['layers'] | 'entities' | 'enemySpawns' | 'effects' | 'bosses';
 
 /**
  * Represents the data copied to the buffer when cloning a screen grid.
@@ -2727,6 +2825,7 @@ export enum EditorType {
   BehaviorEditor = "BehaviorEditor",
   ComponentDefinitionEditor = "ComponentDefinitionEditor",
   EntityTemplateEditor = "EntityTemplateEditor",
+  EnemyLibrary = "EnemyLibrary",
   Boss = "Boss",
   WorldView = "WorldView",
   GameFlow = "GameFlow",
@@ -2742,6 +2841,7 @@ export enum EditorType {
   Msx2Screen = "Msx2Screen",
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2Player = "Msx2Player",
+  Msx2Enemy = "Msx2Enemy",
   Msx2HudFont = "Msx2HudFont",
   Msx2Presentation = "Msx2Presentation",
   Msx2GameFlow = "Msx2GameFlow",
@@ -2757,9 +2857,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
@@ -3029,7 +3129,7 @@ export interface WaypointPickerState {
 }
 
 // --- Centralized History System ---
-export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'MAIN_MENU_UPDATE' | 'PRESENTATION_SCREEN_UPDATE';
+export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'ENEMY_DEFINITIONS_UPDATE' | 'MAIN_MENU_UPDATE' | 'PRESENTATION_SCREEN_UPDATE';
 
 export interface HistoryAction {
   type: HistoryActionType;
