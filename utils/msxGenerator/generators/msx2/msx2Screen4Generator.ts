@@ -33,9 +33,6 @@ import { getMsx2CharStampDimensions } from './msx2GridSnapComponentGenerator';
 import { chooseScreen4RowColors } from '../../../msx2Screen4TileConstraints';
 import { getMsx2TileBehaviorKind, buildMsx2TileHazardHitboxBytes, buildMsx2TileVisualMapBytes } from '../../../msx2Screen4TileBehavior';
 import { buildMsx2CellFlagBytes } from '../../../msx2CellFlags';
-import { buildPlayerStateMachineAsm } from '../../skills/stateMachine.asm';
-import { parseMsx2PlayerImport } from '../../../msx2PlayerDocument';
-import { buildPlayerRuntimeAsmV2 } from './playerRuntime_v2/index';
 import {
   formatAsmByte,
   formatAsmWord,
@@ -72,35 +69,35 @@ const MSX2_ZX_FONT_ASCII_FIRST = 0x20;
 const MSX2_TILE_SCREEN_WIDTH = 16;
 const MSX2_TILE_SCREEN_HEIGHT = 12;
 const MSX2_PLAYER_BULLET_HARDWARE_SLOTS = 2;
-export const MSX2_ENEMY_BULLET_HARDWARE_SLOTS = 2;
-export const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - MSX2_PLAYER_BULLET_HARDWARE_SLOTS - MSX2_ENEMY_BULLET_HARDWARE_SLOTS - 1;
+const MSX2_ENEMY_BULLET_HARDWARE_SLOTS = 2;
+const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - MSX2_PLAYER_BULLET_HARDWARE_SLOTS - MSX2_ENEMY_BULLET_HARDWARE_SLOTS - 1;
 const MSX2_ENEMY_RUNTIME_BYTES = MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7;
-export const MSX2_ENEMY_SPRITE_COLOR = 13;
+const MSX2_ENEMY_SPRITE_COLOR = 13;
 const MSX2_RUNTIME_RAM_START = 0xC000;
 const MSX2_RUNTIME_RAM_LIMIT = 0xF300;
 const MSX2_SNAKE_MAX_BODY_CELLS = 32;
 const MSX2_CONTROLS_RAM_BASE = 0xC043;
 const MSX2_SNAKE_BODY_BASE = 0xC047;
 const MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2);
-export const MSX2_ENEMY_SPRITE_PATTERN = [
+const MSX2_ENEMY_SPRITE_PATTERN = [
   0x07, 0x1F, 0x3F, 0x7F, 0x67, 0xE7, 0xFF, 0xFF,
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xEE, 0xC6, 0x80,
   0xE0, 0xF8, 0xFC, 0xFE, 0x9E, 0x9F, 0xFF, 0xFF,
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xEF, 0x31, 0x01,
 ];
-export const MSX2_PLAYER_BULLET_PATTERN = [
+const MSX2_PLAYER_BULLET_PATTERN = [
   0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18,
   0x18, 0x18, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-export const MSX2_PONG_BALL_PATTERN = [
+const MSX2_PONG_BALL_PATTERN = [
   0x00, 0x00, 0x07, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F,
   0x0F, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0xE0, 0xF0, 0xF8, 0xF8, 0xF8, 0xF8,
   0xF0, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-export const MSX2_ENEMY_BULLET_PATTERN = [
+const MSX2_ENEMY_BULLET_PATTERN = [
   0x00, 0x00, 0x18, 0x18, 0x3C, 0x3C, 0x18, 0x18,
   0x18, 0x18, 0x3C, 0x3C, 0x18, 0x18, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1136,7 +1133,7 @@ function buildPaletteBytes(slots: Screen4PaletteSlot[]): number[] {
   return bytes;
 }
 
-export function formatBytes(label: string, bytes: number[], comment?: string): string {
+function formatBytes(label: string, bytes: number[], comment?: string): string {
   const lines: string[] = [];
   if (comment) lines.push(`; ${comment}`);
   lines.push(`${label}:`);
@@ -1438,7 +1435,6 @@ function getEntityRenderSpriteId(entity: any): string {
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
       ?? entity?.components?.msx2_render?.msx2SpriteAssetId
       ?? entity?.components?.msx2_render?.spriteAssetId
-      ?? entity?.render?.spriteAssetId
       ?? entity?.spriteAssetId
       ?? ''
   ).trim();
@@ -1451,8 +1447,16 @@ function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string 
 
 function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | undefined {
   if (!data) return undefined;
-  const parsed = parseMsx2PlayerImport(data);
-  return Object.keys(parsed).length ? parsed : undefined;
+  if (data.compact) return data.compact as Partial<Msx2PlayerDefinition>;
+  if (data.schema && data.player) {
+    return {
+      id: data.player.identity?.id,
+      name: data.player.identity?.name,
+      render: data.player.render,
+      components: data.player.components,
+    } as Partial<Msx2PlayerDefinition>;
+  }
+  return data as Partial<Msx2PlayerDefinition>;
 }
 
 function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
@@ -1595,55 +1599,16 @@ function mergePlayerAssetIntoRuntimeEntity(
     assetComponents as Record<string, Record<string, any>>,
     entity?.components
   );
-  const bodyHitbox = playerAsset?.hitboxes?.body;
-  if (bodyHitbox && Number.isFinite(bodyHitbox.w) && Number.isFinite(bodyHitbox.h)) {
-    const existingCollision = mergedComponents.msx2_collision || {};
-    mergedComponents.msx2_collision = {
-      ...existingCollision,
-      hitboxW: bodyHitbox.w,
-      hitboxH: bodyHitbox.h,
-      offsetX: bodyHitbox.x ?? existingCollision.offsetX ?? 0,
-      offsetY: bodyHitbox.y ?? existingCollision.offsetY ?? 0,
-    };
-  }
-  const entityAnimations = entity?.animations as Record<string, unknown> | undefined;
-  const playerAnimations = playerAsset?.animations as Record<string, unknown> | undefined;
   return {
     ...(playerAsset || {}),
     ...(entity || {}),
     spriteAssetId: entity?.spriteAssetId || assetSpriteId || playerAsset?.render?.spriteAssetId,
-    render: {
-      ...(playerAsset?.render || {}),
-      ...(entity?.render || {}),
-    },
-    animations: entityAnimations && Object.keys(entityAnimations).length
-      ? entityAnimations
-      : playerAnimations,
-    animationOrder: Array.isArray(entity?.animationOrder) && entity.animationOrder.length
-      ? entity.animationOrder
-      : playerAsset?.animationOrder,
     components: mergedComponents,
     params: {
       ...(playerAsset as any)?.params,
       ...(entity?.params || {}),
     },
   };
-}
-
-interface ResolvedPlayerHitbox {
-  offsetX: number;
-  offsetY: number;
-  w: number;
-  h: number;
-}
-
-export function resolvePlayerHitbox(player: any): ResolvedPlayerHitbox {
-  const collision = player?.components?.msx2_collision || {};
-  const ox = Math.max(0, Math.min(64, Math.floor(Number(collision.offsetX) || 0)));
-  const oy = Math.max(0, Math.min(64, Math.floor(Number(collision.offsetY) || 0)));
-  const w = Math.max(1, Math.min(64, Math.floor(Number(collision.hitboxW) || 16)));
-  const h = Math.max(1, Math.min(64, Math.floor(Number(collision.hitboxH) || 16)));
-  return { offsetX: ox, offsetY: oy, w, h };
 }
 
 function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> {
@@ -1701,7 +1666,7 @@ function isBallBounceEntity(entity: any): boolean {
     || mode === 'arkanoidball';
 }
 
-export function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const entity = getPlayerRuntimeSource(screen, analysis);
   const spriteAssetId = getEntityRenderSpriteId(entity);
@@ -1712,94 +1677,7 @@ export function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite |
   return getFirstReferencedMsx2Sprite(analysis);
 }
 
-export interface PlayerAnimRole {
-  sprite: Msx2Sprite;
-  frames: number[];
-  speed: number;
-  facing: 'left' | 'right' | undefined;
-}
-
-export function getMsx2PlayerUsesFlipX(analysis: ProjectAnalysis): boolean {
-  const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen, analysis);
-  const value = player?.render?.usesFlipX;
-  return value === true || value === 'true';
-}
-
-function getPlayerInitialFacingDx(analysis: ProjectAnalysis): number {
-  const screen = getPrimaryRuntimeTileScreen(analysis);
-  const player = getPlayerRuntimeSource(screen, analysis);
-  const facing = String(
-    player?.params?.facing
-      ?? getPrimaryPlayerEntry(screen)?.facing
-      ?? player?.defaultFacing
-      ?? 'right'
-  ).toLowerCase();
-  // Neutral/front-facing starts from the authored sprite pose: no mirror.
-  return facing === 'left' ? 0 : 1;
-}
-
-export function getFallbackPlayerHorizontalFacing(
-  roles: Record<string, PlayerAnimRole> | undefined,
-  sprite: Msx2Sprite
-): 'left' | 'right' | undefined {
-  const preferredRoleNames = ['walk', 'run', 'dash', 'idle', 'jump', 'attack'];
-  for (const roleName of preferredRoleNames) {
-    const facing = roles?.[roleName]?.facing;
-    if (facing) return facing;
-  }
-  for (const role of Object.values(roles || {})) {
-    if (role.facing) return role.facing;
-  }
-  return getHorizontalFacingDirection(sprite);
-}
-
-export function getEffectivePlayerRoleFacing(
-  role: PlayerAnimRole | undefined,
-  fallbackFacing: 'left' | 'right' | undefined,
-  usesFlipX: boolean
-): 'left' | 'right' | undefined {
-  return role?.facing ?? (usesFlipX ? fallbackFacing : undefined);
-}
-
-export function getPlayerAnimRoles(analysis: ProjectAnalysis): Record<string, PlayerAnimRole> | undefined {
-  const screen = getPrimaryRuntimeTileScreen(analysis);
-  const entity = getPlayerRuntimeSource(screen, analysis);
-  const defaultRenderSpriteId = String(entity?.render?.spriteAssetId || entity?.spriteAssetId || '').trim();
-  const animations = entity?.animations as Record<string, any> | undefined;
-  const roles: Record<string, PlayerAnimRole> = {};
-
-  const addRole = (name: string, anim: any | undefined, fallbackSpriteId?: string) => {
-    const assetId = String(
-      anim?.spriteAssetId
-        ?? anim?.renderLink?.spriteAssetId
-        ?? fallbackSpriteId
-        ?? defaultRenderSpriteId
-        ?? ''
-    ).trim();
-    if (!assetId) return;
-    const sprite = resolveMsx2SpriteById(analysis, assetId);
-    if (!sprite) return;
-    roles[name] = {
-      sprite,
-      frames: getMsx2SpriteHardwareFrameIndices(sprite),
-      speed: getHardwareSpriteAnimationDelayFrames(sprite),
-      facing: getHorizontalFacingDirection(sprite),
-    };
-  };
-
-  if (animations && Object.keys(animations).length > 0) {
-    for (const [name, anim] of Object.entries(animations)) {
-      addRole(name, anim);
-    }
-  } else if (defaultRenderSpriteId) {
-    addRole('idle', undefined, defaultRenderSpriteId);
-  }
-
-  return Object.keys(roles).length ? roles : undefined;
-}
-
-export function getEnemyHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+function getEnemyHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const entity = screen?.layers?.entities?.find(candidate =>
     (candidate.kind === 'enemy' || candidate.kind === 'hazard') &&
@@ -1811,7 +1689,7 @@ export function getEnemyHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Spr
   return resolveMsx2SpriteById(analysis, spriteAssetId);
 }
 
-export function getPongBallHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+function getPongBallHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const entity = screen?.layers?.entities?.find(candidate =>
     (candidate.components?.msx2_ball || isBallBounceEntity(candidate)) &&
@@ -1836,7 +1714,7 @@ function clampTileCoordinate(value: unknown, max: number): number {
   return Math.max(0, Math.min(max, Number(value) || 0));
 }
 
-export function getPrimaryRuntimeTileScreen(analysis: ProjectAnalysis): Msx2Screen4TileScreen | undefined {
+function getPrimaryRuntimeTileScreen(analysis: ProjectAnalysis): Msx2Screen4TileScreen | undefined {
   return collectReferencedTileScreens(analysis)[0] || analysis.msx2Screens?.[0];
 }
 
@@ -1844,7 +1722,7 @@ function getPrimaryPlayerEntity(screen: Msx2Screen4TileScreen | undefined): any 
   return screen?.layers?.entities?.find(entity => entity.kind === 'player');
 }
 
-export function getPrimaryPlayerEntry(screen: Msx2Screen4TileScreen | undefined): Msx2PlayerEntry | undefined {
+function getPrimaryPlayerEntry(screen: Msx2Screen4TileScreen | undefined): Msx2PlayerEntry | undefined {
   return Array.isArray(screen?.playerEntries) && screen.playerEntries.length > 0
     ? screen.playerEntries[0]
     : undefined;
@@ -1867,7 +1745,7 @@ function getRuntimeMovementMode(screen: Msx2Screen4TileScreen | undefined): stri
   );
 }
 
-export function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined, analysis?: ProjectAnalysis): any | undefined {
+function getPlayerRuntimeSource(screen: Msx2Screen4TileScreen | undefined, analysis?: ProjectAnalysis): any | undefined {
   const playerAsset = analysis ? getMsx2PlayerAssetForScreen(analysis, screen) : undefined;
   const entity = getPrimaryPlayerEntity(screen);
   if (entity) return mergePlayerAssetIntoRuntimeEntity(entity, playerAsset);
@@ -1971,7 +1849,7 @@ function getPlayerTransitionEntryStartFromTileScreen(
   };
 }
 
-export function getHardwareSpriteRuntimeSettings(
+function getHardwareSpriteRuntimeSettings(
   analysis: ProjectAnalysis,
   sprite: Msx2Sprite
 ): { x: number; y: number; color: number; patternIndex: number; initialFrame: number; visible: boolean } {
@@ -1995,7 +1873,7 @@ export function getHardwareSpriteRuntimeSettings(
   };
 }
 
-export function getRuntimePatrolBounds(analysis: ProjectAnalysis): { minX: number; maxX: number } {
+function getRuntimePatrolBounds(analysis: ProjectAnalysis): { minX: number; maxX: number } {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = screen?.runtime;
   const minTileX = clampTileCoordinate(runtime?.activeAreaX, 15);
@@ -2021,7 +1899,7 @@ function getPaddleCollisionSettings(analysis: ProjectAnalysis): { width: number;
   };
 }
 
-export function getMsx2PlatformPlayerEntity(analysis: ProjectAnalysis): any | undefined {
+function getMsx2PlatformPlayerEntity(analysis: ProjectAnalysis): any | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   return getPlayerRuntimeSource(screen, analysis);
 }
@@ -2033,7 +1911,7 @@ function getMsx2PlayerAnimationSettings(player: any | undefined): { animateOnlyW
   };
 }
 
-export function getMsx2PlayerAnimateOnlyWhenMoving(analysis: ProjectAnalysis): boolean {
+function getMsx2PlayerAnimateOnlyWhenMoving(analysis: ProjectAnalysis): boolean {
   return getMsx2PlayerAnimationSettings(getMsx2PlatformPlayerEntity(analysis)).animateOnlyWhenMoving;
 }
 
@@ -2153,12 +2031,6 @@ ${physics.requireKeyRelease ? `    or #2
 `
     : '';
 
-  const player = getPlayerRuntimeSource(screen, analysis);
-  const hitbox = resolvePlayerHitbox(player);
-  const hbFeet = hitbox.offsetY + hitbox.h;
-  const hbRight = hitbox.offsetX + hitbox.w - 1;
-  const hbLeft = hitbox.offsetX;
-
   return `    ; MSX2 platform vertical physics (msx2_jump + msx2_gravity components, 8.8).
 ${jumpInputBlock}.platform_after_jump_input:
     call msx2_rope_at_player_center
@@ -2175,10 +2047,9 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     ld d, a
 .platform_move_down_loop:
     ld a, (msx2_player_sprite_x)
-    add a, ${hbLeft}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbFeet}
+    add a, 16
     inc a
     ld c, a
     push de
@@ -2188,7 +2059,7 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     pop de
     jp nz, .platform_land
     ld a, (msx2_player_sprite_x)
-    add a, ${hbRight}
+    add a, 15
     ld b, a
     push de
     push bc
@@ -2217,7 +2088,6 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     dec a
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hbLeft}
     ld b, a
     ld a, c
     ld c, a
@@ -2228,7 +2098,7 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     pop de
     jp nz, .platform_cancel_jump
     ld a, (msx2_player_sprite_x)
-    add a, ${hbRight}
+    add a, 15
     ld b, a
     push de
     push bc
@@ -2262,18 +2132,17 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     jp upload_hardware_sprite_attrs
 .platform_check_grounded:
     ld a, (msx2_player_sprite_x)
-    add a, ${hbLeft}
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbFeet}
+    add a, 16
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .platform_land
     ld a, (msx2_player_sprite_x)
-    add a, ${hbRight}
+    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbFeet}
+    add a, 16
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .platform_land
@@ -2426,7 +2295,7 @@ function usesShooterVerticalMovement(analysis: ProjectAnalysis): boolean {
     || mode === 'gradiusstyle';
 }
 
-export function isRuntimeHudHidden(analysis: ProjectAnalysis): boolean {
+function isRuntimeHudHidden(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
   return runtime.hideHud === true;
@@ -2451,7 +2320,7 @@ function getMsx2Shooter60HzBudgetFromAnalysis(analysis: ProjectAnalysis): Return
   );
 }
 
-export function getPlayerBulletSlotCount(analysis: ProjectAnalysis): number {
+function getPlayerBulletSlotCount(analysis: ProjectAnalysis): number {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const shooterBudget = getMsx2Shooter60HzBudgetFromAnalysis(analysis);
   const player = getPlayerRuntimeSource(screen, analysis);
@@ -2642,7 +2511,7 @@ function usesPaddleHorizontalMovement(analysis: ProjectAnalysis): boolean {
     || mode === 'breakout';
 }
 
-export function usesControl2Players(analysis: ProjectAnalysis): boolean {
+function usesControl2Players(analysis: ProjectAnalysis): boolean {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const runtime = (screen?.runtime || {}) as Record<string, unknown>;
   const player = getPlayerRuntimeSource(screen, analysis);
@@ -2892,7 +2761,7 @@ function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite)
   return normalized === normalizeColor(sprite.backgroundColor);
 }
 
-export interface Msx2HardwareLayer {
+interface Msx2HardwareLayer {
   pattern: number[];
   colors: number[];
   xOffset: number;
@@ -2941,7 +2810,7 @@ function reverseSpritePatternByte(value: number): number {
   return result;
 }
 
-export function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
+function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
   const topLeft = pattern.slice(0, 8);
   const bottomLeft = pattern.slice(8, 16);
   const topRight = pattern.slice(16, 24);
@@ -2954,7 +2823,7 @@ export function mirrorHardwareSpritePatternHorizontally(pattern: number[]): numb
   ];
 }
 
-export function getHorizontalFacingDirection(sprite: Msx2Sprite): 'left' | 'right' | undefined {
+function getHorizontalFacingDirection(sprite: Msx2Sprite): 'left' | 'right' | undefined {
   return sprite.facingDirection === 'left' || sprite.facingDirection === 'right'
     ? sprite.facingDirection
     : undefined;
@@ -3029,7 +2898,7 @@ function buildCellRowComposition(slots: number[], useOrColor: boolean): RowLayer
   return { masks, colors };
 }
 
-export function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
+function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
   const frame = sprite.frames?.[frameIndex] || sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
   const useOrColor = sprite.hardware?.useOrColor !== false;
   const cellColumns = Math.max(1, Math.ceil((sprite.size?.width || 16) / 16));
@@ -3069,27 +2938,20 @@ export function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackCo
   }];
 }
 
-export function buildHardwareSpriteLayers(sprite: Msx2Sprite, fallbackColor: number): Msx2HardwareLayer[] {
+function buildHardwareSpriteLayers(sprite: Msx2Sprite, fallbackColor: number): Msx2HardwareLayer[] {
   return buildHardwareSpriteLayersForFrame(sprite, fallbackColor, sprite.currentFrameIndex || 0);
 }
 
-export function getHardwareSpriteAnimationFrameCount(sprite: Msx2Sprite, layerCount: number): number {
+function getHardwareSpriteAnimationFrameCount(sprite: Msx2Sprite, layerCount: number): number {
   const authoredFrameCount = (sprite.frames || []).filter(frame => Array.isArray(frame?.data) && frame.data.length > 0).length;
   const maxFramesByPatternSpace = Math.max(1, Math.floor((64 - 1) / Math.max(1, layerCount)));
   return Math.max(1, Math.min(authoredFrameCount || 1, maxFramesByPatternSpace, 8));
 }
 
-export function getHardwareSpriteAnimationDelayFrames(sprite: Msx2Sprite): number {
+function getHardwareSpriteAnimationDelayFrames(sprite: Msx2Sprite): number {
   const speedMs = Number(sprite.animationSpeedMs);
   if (!Number.isFinite(speedMs) || speedMs <= 0) return 8;
   return Math.max(1, Math.min(255, Math.round(speedMs / (1000 / 60))));
-}
-
-export function getMsx2SpriteHardwareFrameIndices(sprite: Msx2Sprite): number[] {
-  const indices = (sprite.frames || [])
-    .map((_frame, index) => index)
-    .filter(index => Array.isArray(sprite.frames?.[index]?.data) && sprite.frames[index].data.length > 0);
-  return indices.length ? indices : [0];
 }
 
 function multiplyABySmallConstant(multiplier: number): string {
@@ -3117,37 +2979,27 @@ function buildHardwareSpritePatternIndexAsm(
   frameCount: number,
   mirrorPatternOffset = 0,
   authoredFacing?: 'left' | 'right',
-  labelSuffix = '0',
-  frameMapLabel?: string
+  labelSuffix = '0'
 ): string {
   const constantPatternIndex = basePatternIndex + layerPatternOffset;
   const basePatternIndexAsm = frameCount <= 1 || framePatternStride <= 0
     ? `    ld a, ${constantPatternIndex}`
-    : frameMapLabel
-      ? `    ld a, (msx2_player_anim_frame)
-    ld hl, ${frameMapLabel}
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-${multiplyABySmallConstant(framePatternStride)}    add a, ${constantPatternIndex}`
-      : `    ld a, (msx2_player_anim_frame)
+    : `    ld a, (msx2_player_anim_frame)
 ${multiplyABySmallConstant(framePatternStride)}    add a, ${constantPatternIndex}`;
   if (!mirrorPatternOffset || !authoredFacing) {
     return basePatternIndexAsm;
   }
-  // authoredFacing: which direction the BASE sprite faces.
-  // RIGHT: base faces right → mirror when NOT dx=1 (dx=0 or #FF = left)
-  // LEFT:  base faces left  → mirror when dx=1 (right)
-  // Both use cp 1 but with different jump conditions. This handles
-  // dx=0 (from direct input) and dx=#FF (from state machine) correctly.
-  const jumpToBase = authoredFacing === 'right' ? 'z' : 'nz';
+  const mirrorCondition = authoredFacing === 'right'
+    ? `    ld a, (msx2_player_sprite_dx)
+    or a
+`
+    : `    ld a, (msx2_player_sprite_dx)
+    cp 1
+`;
   return `${basePatternIndexAsm}
     ld b, a
-    ld a, (msx2_player_facing_dx)
-    cp 1
-    ld a, b
-    jp ${jumpToBase}, .msx2_player_pattern_base_${labelSuffix}
+${mirrorCondition}    ld a, b
+    jp nz, .msx2_player_pattern_base_${labelSuffix}
     add a, ${mirrorPatternOffset}
 .msx2_player_pattern_base_${labelSuffix}:`;
 }
@@ -3160,18 +3012,17 @@ function clampHardwareSpriteX(value: number): number {
   return Math.max(0, Math.min(255, value));
 }
 
-function clampBasePatternIndex(patternIndex: number, spriteCount: number, v2PatternMode = false): number {
-  const mul = v2PatternMode ? 1 : 4;
-  const aligned = Math.max(0, patternIndex) & (v2PatternMode ? 0xFF : 0xFC);
-  const maxBase = Math.max(0, 252 - (Math.max(1, spriteCount) - 1) * mul);
-  return Math.min(aligned, maxBase & (v2PatternMode ? 0xFF : 0xFC));
+function clampBasePatternIndex(patternIndex: number, spriteCount: number): number {
+  const aligned = Math.max(0, patternIndex) & 0xFC;
+  const maxBase = Math.max(0, 252 - (Math.max(1, spriteCount) - 1) * 4);
+  return Math.min(aligned, maxBase & 0xFC);
 }
 
-export function clampHardwareSpriteCount(layers: Msx2HardwareLayer[]): Msx2HardwareLayer[] {
+function clampHardwareSpriteCount(layers: Msx2HardwareLayer[]): Msx2HardwareLayer[] {
   return layers.slice(0, 32);
 }
 
-export function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
+function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
   const sprite = getHardwareSpriteSource(analysis);
   return Boolean(sprite?.frames?.[0]?.data);
 }
@@ -3182,16 +3033,15 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis, useKonamiDataBank
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
   const x = clampHardwareSpriteX(settings.x);
   const y = clampHardwareSpriteY(settings.y);
-  const initialFacingDx = getPlayerInitialFacingDx(analysis);
   const enterDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : '';
   const leaveDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_leave\n' : '';
   return `init_hardware_sprites:
     ; SCREEN 4 hardware sprite runtime. Clobbers AF/BC/DE/HL.
     ; Preserve the SCREEN 4 mode bits set by CHGMOD; only select 16x16, non-magnified sprites.
-    ld a, (RG1SAV)
+    ld a, (#F3E0)
     or #02
     and #FE
-    ld (RG1SAV), a
+    ld (#F3E0), a
     ld b, a
     ld c, #01
     call WRTVDP
@@ -3227,9 +3077,8 @@ ${leaveDataBank}
     ld (msx2_player_sprite_x), a
     ld a, ${y}
     ld (msx2_player_sprite_y), a
-    ld a, ${initialFacingDx}
+    ld a, 1
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
     ld a, ${settings.initialFrame}
     ld (msx2_player_sprite_frame), a
     xor a
@@ -3284,10 +3133,7 @@ ${leaveDataBank}
     ret
 
 copy_to_vram_ext:
-    ; HL=RAM/ROM source, DE=absolute VRAM destination, BC=length.
-    ; Disables IRQ while R#14/VRAM address are being changed through direct VDP ports.
-    ; Clobbers AF/BC/DE/HL. Preserves IX/IY. RAM impact: none.
-    di
+    ; HL=RAM/ROM source, DE=absolute VRAM destination, BC=length. Clobbers AF/BC/DE/HL.
     ld a, d
     and #C0
     rlca
@@ -3320,7 +3166,6 @@ copy_to_vram_ext:
     out (VDP_CTRL_PORT), a
     ld a, #8E
     out (VDP_CTRL_PORT), a
-    ei
     ret
 
 `;
@@ -3328,10 +3173,7 @@ copy_to_vram_ext:
 
 function buildMsx2VramByteWriteAsm(): string {
   return `write_vram_byte_ext:
-    ; A=data, HL=absolute VRAM destination.
-    ; Disables IRQ while R#14/VRAM address are being changed through direct VDP ports.
-    ; Clobbers AF/B. Preserves C/DE/HL/IX/IY. RAM impact: none.
-    di
+    ; A=data, HL=absolute VRAM destination. Clobbers AF/B.
     ld b, a
     ld a, h
     and #C0
@@ -3359,13 +3201,12 @@ function buildMsx2VramByteWriteAsm(): string {
     out (VDP_CTRL_PORT), a
     ld a, #8E
     out (VDP_CTRL_PORT), a
-    ei
     ret
 
 `;
 }
 
-export function addImmediateToA(value: number): string {
+function addImmediateToA(value: number): string {
   if (!value) return '';
   return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
 }
@@ -3658,90 +3499,40 @@ function buildHardwareSpriteRuntimeAsm(
   restartScreenLabel: string,
   restartScreenIndex: number,
   tileScreenCount = 1,
-  options: { deferSatUploadToShooterFrameDispatch?: boolean; pushBoxEnabled?: boolean; tileScreens?: Array<Msx2Screen4TileScreen | undefined> } = {},
-  v2PatternMode = false
+  options: { deferSatUploadToShooterFrameDispatch?: boolean; pushBoxEnabled?: boolean; tileScreens?: Array<Msx2Screen4TileScreen | undefined> } = {}
 ): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
-  const hbPlayer = getPlayerRuntimeSource(getPrimaryRuntimeTileScreen(analysis), analysis);
-  const hb = resolvePlayerHitbox(hbPlayer);
-  const hbFeet = hb.offsetY + hb.h;
-  const hbRight = hb.offsetX + hb.w - 1;
-  const hbLeft = hb.offsetX;
-  const hbCenterX = hb.offsetX + Math.floor(hb.w / 2);
-  const hbCenterY = hb.offsetY + Math.floor(hb.h / 2);
-  const screen = getPrimaryRuntimeTileScreen(analysis);
-  const physics = getMsx2PlatformPhysicsFromScreen(screen, getMsx2PlatformPlayerEntity(analysis));
   const color = Math.max(1, Math.min(15, settings.color));
-  const activeSkillIds = (hbPlayer?.activeSkills as string[]) ?? (hbPlayer?.params?.activeSkills as string[]) ?? [];
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
   const animationDelayFrames = getHardwareSpriteAnimationDelayFrames(sprite);
   const animateOnlyWhenMoving = getMsx2PlayerAnimateOnlyWhenMoving(analysis);
   const usePlayerWalkingFlag = animateOnlyWhenMoving && !usesSnakeGrowth(analysis);
-  const playerAnimRoles = getPlayerAnimRoles(analysis);
-  const hasPlayerAnimRoles = playerAnimRoles && Object.keys(playerAnimRoles).length >= 2;
-  const walkingFlagManaged = usePlayerWalkingFlag || hasPlayerAnimRoles;
-  const clearPlayerWalkingFlagAsm = buildMsx2ClearPlayerWalkingFlagAsm(walkingFlagManaged);
-  const setPlayerWalkingFlagAsm = buildMsx2SetPlayerWalkingFlagAsm(walkingFlagManaged);
-  const patternMul = v2PatternMode ? 1 : 4;
-  const framePatternStride = layers.length * patternMul;
+  const clearPlayerWalkingFlagAsm = buildMsx2ClearPlayerWalkingFlagAsm(usePlayerWalkingFlag);
+  const setPlayerWalkingFlagAsm = buildMsx2SetPlayerWalkingFlagAsm(usePlayerWalkingFlag);
+  const framePatternStride = layers.length * 4;
   const control2Players = usesControl2Players(analysis);
   const horizontalFacing = getHorizontalFacingDirection(sprite);
   const mirrorPatternVariantCount = horizontalFacing ? 2 : 1;
-  const mirrorPatternOffset = horizontalFacing ? layers.length * animationFrameCount * patternMul : 0;
-  const playerUsesFlipX = getMsx2PlayerUsesFlipX(analysis);
-  const fallbackPlayerFacing = getFallbackPlayerHorizontalFacing(playerAnimRoles, sprite);
-  let idleAttrWrites = '';
-  let walkAttrWrites = '';
-  let idleLayers: Msx2HardwareLayer[] = [];
-  let walkLayers: Msx2HardwareLayer[] = [];
-  let idleFrameCount = 0;
-  let walkFrameCount = 0;
-  let idleDelay = 0;
-  let walkDelay = 0;
-  let idleFacingDirection: 'left' | 'right' | undefined;
-  let walkFacingDirection: 'left' | 'right' | undefined;
-  let roleIdleUniqueCount = 0;
-  let roleWalkUniqueCount = 0;
-  if (hasPlayerAnimRoles) {
-    const idleRole = playerAnimRoles!['idle'];
-    const walkRole = playerAnimRoles!['walk'];
-    if (idleRole) {
-      idleLayers = clampHardwareSpriteCount(buildHardwareSpriteLayers(idleRole.sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
-      idleFrameCount = idleRole.frames.length;
-      idleDelay = idleRole.speed;
-      idleFacingDirection = getEffectivePlayerRoleFacing(idleRole, fallbackPlayerFacing, playerUsesFlipX);
-      roleIdleUniqueCount = [...new Set(idleRole.frames)].length;
-    }
-    if (walkRole) {
-      walkLayers = clampHardwareSpriteCount(buildHardwareSpriteLayers(walkRole.sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
-      walkFrameCount = walkRole.frames.length;
-      walkDelay = walkRole.speed;
-      walkFacingDirection = getEffectivePlayerRoleFacing(walkRole, fallbackPlayerFacing, playerUsesFlipX);
-      roleWalkUniqueCount = [...new Set(walkRole.frames)].length;
-    }
-  }
+  const mirrorPatternOffset = horizontalFacing ? layers.length * animationFrameCount * 4 : 0;
   const enemySprite = getEnemyHardwareSpriteSource(analysis);
   const enemyHorizontalFacing = !control2Players && enemySprite ? getHorizontalFacingDirection(enemySprite) : undefined;
   const enemyPatternVariantCount = enemyHorizontalFacing ? 2 : 1;
   const pushBoxEnabled = options.pushBoxEnabled ?? false;
-  const playerPatternGroupCount = hasPlayerAnimRoles
-    ? (roleIdleUniqueCount * idleLayers.length * (idleFacingDirection ? 2 : 1))
-      + (roleWalkUniqueCount * walkLayers.length * (walkFacingDirection ? 2 : 1))
-    : layers.length * animationFrameCount * mirrorPatternVariantCount;
+  const playerPatternGroupCount = layers.length * animationFrameCount * mirrorPatternVariantCount;
   const pushBoxLayer = pushBoxEnabled
     ? resolvePushBoxHardwareSpriteLayer(analysis, options.tileScreens || [])
     : undefined;
   const pushBoxHardwareSpriteActive = pushBoxEnabled;
   const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
-  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups, v2PatternMode);
-  const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * patternMul);
-  const enemyMirrorPatternIndex = enemyPatternIndex + patternMul;
-  const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * patternMul);
-  const enemyBulletPatternIndex = playerBulletPatternIndex + patternMul;
-  const pushBoxPatternIndex = enemyBulletPatternIndex + patternMul;
+  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
+  const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
+  const enemyMirrorPatternIndex = enemyPatternIndex + 4;
+  const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * 4);
+  const enemyBulletPatternIndex = playerBulletPatternIndex + 4;
+  const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
   const playerHardwareVisible = settings.visible;
   const patrolBounds = getRuntimePatrolBounds(analysis);
   const paddleCollision = getPaddleCollisionSettings(analysis);
@@ -3868,7 +3659,7 @@ ${addImmediateToA(layer.yOffset)}`
     ld a, (msx2_player_sprite_x)
 ${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
-${buildHardwareSpritePatternIndexAsm(basePatternIndex, framePatternStride, layerIndex * patternMul, animationFrameCount, mirrorPatternOffset, horizontalFacing, String(layerIndex))}
+${buildHardwareSpritePatternIndexAsm(basePatternIndex, framePatternStride, layerIndex * 4, animationFrameCount, mirrorPatternOffset, horizontalFacing, String(layerIndex))}
     ld hl, #${(attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
     xor a
@@ -3876,61 +3667,6 @@ ${buildHardwareSpritePatternIndexAsm(basePatternIndex, framePatternStride, layer
     call write_vram_byte_ext
 `;
   }).join('\n');
-  let idleBaseTile = basePatternIndex;
-  let walkBaseTile = basePatternIndex;
-  let idleFrameStride = 0;
-  let idleMirrorPatternOffset = 0;
-  let walkFrameStride = 0;
-  let walkMirrorPatternOffset = 0;
-  if (hasPlayerAnimRoles) {
-    if (idleLayers.length > 0) {
-      idleFrameStride = idleLayers.length * patternMul;
-      idleMirrorPatternOffset = idleFacingDirection ? idleLayers.length * roleIdleUniqueCount * patternMul : 0;
-      idleAttrWrites = idleLayers.map((layer, layerIndex) => {
-        const attrAddress = 0x1E00 + (layerIndex * 4);
-        return `    ; Sprite layer ${layerIndex} (idle): x+${layer.xOffset}, y+${layer.yOffset}
-${playerHardwareVisible
-      ? `    ld a, (msx2_player_sprite_y)
-${addImmediateToA(layer.yOffset)}`
-      : '    ld a, 208\n'}    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-    ld a, (msx2_player_sprite_x)
-${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-${buildHardwareSpritePatternIndexAsm(idleBaseTile, idleFrameStride, layerIndex * patternMul, idleFrameCount, idleMirrorPatternOffset, idleFacingDirection, `idle_${layerIndex}`, 'msx2_hw_idle_frame_map')}
-    ld hl, #${(attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-    xor a
-    ld hl, #${(attrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-`;
-      }).join('\n');
-      walkBaseTile = basePatternIndex + roleIdleUniqueCount * idleLayers.length * patternMul * (idleFacingDirection ? 2 : 1);
-    }
-    if (walkLayers.length > 0) {
-      walkFrameStride = walkLayers.length * patternMul;
-      walkMirrorPatternOffset = walkFacingDirection ? walkLayers.length * roleWalkUniqueCount * patternMul : 0;
-      walkAttrWrites = walkLayers.map((layer, layerIndex) => {
-        const attrAddress = 0x1E00 + (layerIndex * 4);
-        return `    ; Sprite layer ${layerIndex} (walk): x+${layer.xOffset}, y+${layer.yOffset}
-${playerHardwareVisible
-      ? `    ld a, (msx2_player_sprite_y)
-${addImmediateToA(layer.yOffset)}`
-      : '    ld a, 208\n'}    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-    ld a, (msx2_player_sprite_x)
-${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-${buildHardwareSpritePatternIndexAsm(walkBaseTile, walkFrameStride, layerIndex * patternMul, walkFrameCount, walkMirrorPatternOffset, walkFacingDirection, `walk_${layerIndex}`, 'msx2_hw_walk_frame_map')}
-    ld hl, #${(attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-    xor a
-    ld hl, #${(attrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
-    call write_vram_byte_ext
-`;
-      }).join('\n');
-    }
-  }
   const enemyAttrSlotAddress = (base: string, slot: number): string => slot
     ? `    ld hl, ${base}
     ld de, ${slot}
@@ -3940,12 +3676,14 @@ ${buildHardwareSpritePatternIndexAsm(walkBaseTile, walkFrameStride, layerIndex *
 `;
   const buildEnemyPatternIndexAsm = (slot: number): string => {
     if (!enemyHorizontalFacing) return `    ld a, ${enemyPatternIndex}`;
-    // Mirror condition handles both dx=0 (direct) and dx=#FF (state machine) for left.
-    const jumpToBase = enemyHorizontalFacing === 'right' ? 'z' : 'nz';
+    const mirrorCondition = enemyHorizontalFacing === 'right'
+      ? `    cp #FF
+`
+      : `    cp 1
+`;
     return `${enemyAttrSlotAddress('msx2_enemy_runtime_dx', slot)}    ld a, (hl)
-    cp 1
-    ld a, ${enemyPatternIndex}
-    jp ${jumpToBase}, .enemy_sprite_${slot}_base_pattern
+${mirrorCondition}    ld a, ${enemyPatternIndex}
+    jp nz, .enemy_sprite_${slot}_base_pattern
     ld a, ${enemyMirrorPatternIndex}
 .enemy_sprite_${slot}_base_pattern:`;
   };
@@ -4178,52 +3916,7 @@ ${secondEnemyBullet ? `.enemy_bullet_sprite_done:
     ? buildMsx2Box2HardwareSpriteSatRefreshAsm({ attrAddress: pushBoxAttrAddress, patternIndex: pushBoxPatternIndex })
     : '';
   const terminatorAttrAddress = pushBoxAttrAddress + (pushBoxHardwareSpriteActive ? 4 : 0);
-  const playerAnimationRoutine = hasPlayerAnimRoles ? `
-update_msx2_player_sprite_animation:
-    ; Multi-role player animation. Clobbers AF.
-    ld a, (msx2_player_walking_flag)
-    or a
-    jp nz, .advance_walk_frame_anim
-${usePlayerWalkingFlag ? `    ; Idle: freeze at frame 0
-    xor a
-    ld (msx2_player_anim_counter), a
-    ld (msx2_player_anim_frame), a
-    ret
-` : `    ; Idle animation cycle
-    ld a, (msx2_player_anim_counter)
-    inc a
-    cp ${idleDelay}
-    jp nc, .advance_idle_frame_anim
-    ld (msx2_player_anim_counter), a
-    ret
-.advance_idle_frame_anim:
-    xor a
-    ld (msx2_player_anim_counter), a
-    ld a, (msx2_player_anim_frame)
-    inc a
-    cp ${idleFrameCount}
-    jp c, msx2_player_sprite_anim_store
-    xor a
-    jp msx2_player_sprite_anim_store
-`}.advance_walk_frame_anim:
-    ld a, (msx2_player_anim_counter)
-    inc a
-    cp ${walkDelay}
-    jp nc, .advance_walk_frame_step
-    ld (msx2_player_anim_counter), a
-    ret
-.advance_walk_frame_step:
-    xor a
-    ld (msx2_player_anim_counter), a
-    ld a, (msx2_player_anim_frame)
-    inc a
-    cp ${walkFrameCount}
-    jp c, msx2_player_sprite_anim_store
-    xor a
-msx2_player_sprite_anim_store:
-    ld (msx2_player_anim_frame), a
-    ret
-` : (animationFrameCount > 1 ? `
+  const playerAnimationRoutine = animationFrameCount > 1 ? `
 update_msx2_player_sprite_animation:
     ; Advances the player hardware sprite frame. Clobbers AF.
 ${usePlayerWalkingFlag ? `    ld a, (msx2_player_walking_flag)
@@ -4251,7 +3944,7 @@ ${usePlayerWalkingFlag ? `.reset_player_sprite_frame_idle:
     ld (msx2_player_anim_counter), a
     ld (msx2_player_anim_frame), a
     ret
-` : ''}` : '');
+` : ''}` : '';
   const mazeMovementInputAsm = mazeMovement ? `
 update_hardware_sprite_input_maze:
     ; Four-direction maze movement: no gravity, no jump. Clobbers AF/BC/DE/HL.
@@ -4365,10 +4058,10 @@ maze_move_up:
     ld a, (msx2_player_sprite_y)
     or a
     jp z, msx2_try_world_edge_transition_up
-    add a, ${hb.offsetY - 1}
+    dec a
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4385,10 +4078,11 @@ maze_move_down:
     jp nc, msx2_try_world_edge_transition_down
     cp 196
     jp nc, maze_continue_current_direction
-    add a, ${hb.offsetY + hb.h}
+    inc a
+    add a, 15
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4403,10 +4097,11 @@ maze_move_right:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
-    add a, ${hb.offsetX + hb.w}
+    inc a
+    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4415,7 +4110,6 @@ maze_move_right:
     ld (msx2_player_sprite_x), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
 ${setPlayerWalkingFlagAsm}    jp upload_hardware_sprite_attrs
 
 maze_move_left:
@@ -4423,10 +4117,10 @@ maze_move_left:
     cp ${patrolBounds.minX}
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
-    add a, ${hb.offsetX - 1}
+    dec a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     jp nz, maze_continue_current_direction
@@ -4435,17 +4129,16 @@ maze_move_left:
     ld (msx2_player_sprite_x), a
     xor a
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
 ${setPlayerWalkingFlagAsm}    jp upload_hardware_sprite_attrs
 
 maze_continue_up:
     ld a, (msx2_player_sprite_y)
     or a
     jp z, msx2_try_world_edge_transition_up
-    add a, ${hb.offsetY - 1}
+    dec a
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4460,10 +4153,11 @@ maze_continue_down:
     jp nc, msx2_try_world_edge_transition_down
     cp 196
     jp nc, upload_hardware_sprite_attrs
-    add a, ${hb.offsetY + hb.h}
+    inc a
+    add a, 15
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4476,10 +4170,11 @@ maze_continue_right:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
-    add a, ${hb.offsetX + hb.w}
+    inc a
+    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4493,10 +4188,10 @@ maze_continue_left:
     cp ${patrolBounds.minX}
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
-    add a, ${hb.offsetX - 1}
+    dec a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     jp nz, upload_hardware_sprite_attrs
@@ -4638,7 +4333,7 @@ ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld c, a
     ld a, c
     cp b
@@ -4651,7 +4346,7 @@ ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     ld a, c
     cp b
@@ -5640,7 +5335,7 @@ control_2_players_ball_left:
     jp c, control_2_players_ball_reset_right
     ld b, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w}
+    add a, 16
     ld e, a
     ld a, b
     cp e
@@ -5650,15 +5345,15 @@ control_2_players_ball_left:
     add a, 8
     ld c, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY - 4}
+    sub 4
     cp c
     jp nc, control_2_players_ball_store_x
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h + 4}
+    add a, 20
     cp c
     jp c, control_2_players_ball_store_x
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w}
+    add a, 16
     ld b, a
     ld hl, msx2_enemy_runtime_x + 1
     ld (hl), b
@@ -6024,7 +5719,6 @@ ${paddleHorizontal || shooterHorizontal ? `    add a, ${horizontalMoveSpeed}
     ld (msx2_player_sprite_x), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
     jp upload_hardware_sprite_attrs
 
 move_hardware_sprite_left_flat:
@@ -6046,7 +5740,6 @@ ${paddleHorizontal || shooterHorizontal ? `    sub ${horizontalMoveSpeed}
     ld (msx2_player_sprite_x), a
     xor a
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
     jp upload_hardware_sprite_attrs
 
 ${playerBulletRuntimeAsm}
@@ -6180,13 +5873,12 @@ msx2_enemy_bullet_check_player_collision_hl:
     add a, 4
     ld c, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY}
     ld b, a
     ld a, c
     cp b
     jp c, .enemy_bullet_player_miss_pop
     ld a, b
-    add a, ${hb.h - 1}
+    add a, 15
     cp c
     jp c, .enemy_bullet_player_miss_pop
     dec hl
@@ -6194,13 +5886,12 @@ msx2_enemy_bullet_check_player_collision_hl:
     add a, 4
     ld c, a
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX}
     ld b, a
     ld a, c
     cp b
     jp c, .enemy_bullet_player_miss_pop
     ld a, b
-    add a, ${hb.w - 1}
+    add a, 15
     cp c
     jp c, .enemy_bullet_player_miss_pop
     pop hl
@@ -6281,12 +5972,12 @@ ${shooterHorizontal ? '    jp update_hardware_sprite_input_shooter_horizontal\n'
     jp z, move_hardware_sprite_left
     cp 8
     jp z, move_hardware_sprite_left
-    jp msx2_update_hardware_sprite_vertical
+    jp update_hardware_sprite_vertical
 
 try_msx2_ladder_up:
     call msx2_ladder_at_player_center
     jp z, move_msx2_ladder_up
-    jp msx2_update_hardware_sprite_vertical
+    jp update_hardware_sprite_vertical
 
 try_msx2_ladder_up_or_right:
     call msx2_ladder_at_player_center
@@ -6301,7 +5992,7 @@ try_msx2_ladder_up_or_left:
 try_msx2_ladder_down:
     call msx2_ladder_below_player_center
     jp z, move_msx2_ladder_down
-    jp msx2_update_hardware_sprite_vertical
+    jp update_hardware_sprite_vertical
 
 try_msx2_ladder_down_or_right:
     call msx2_ladder_below_player_center
@@ -6355,10 +6046,11 @@ move_hardware_sprite_right:
     cp ${patrolBounds.maxX}
     jp nc, msx2_try_world_edge_transition_right
 ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w}
+    inc a
+    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .right_blocked
@@ -6368,12 +6060,10 @@ ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_play
     ld (msx2_player_sprite_x), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
 ${setPlayerWalkingFlagAsm}    jp finish_msx2_horizontal_move
 .right_blocked:
-    ld a, 1
+    xor a
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
     jp finish_msx2_horizontal_move
 
 move_hardware_sprite_left:
@@ -6382,10 +6072,10 @@ move_hardware_sprite_left:
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
 ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX - 1}
+    dec a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     jp nz, .left_blocked
@@ -6395,18 +6085,16 @@ ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_playe
     ld (msx2_player_sprite_x), a
     xor a
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
 ${setPlayerWalkingFlagAsm}    jp finish_msx2_horizontal_move
 .left_blocked:
-    xor a
+    ld a, 1
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
     jp finish_msx2_horizontal_move
 
 finish_msx2_horizontal_move:
     call msx2_rope_at_player_center
     jp z, hold_msx2_rope
-    jp msx2_update_hardware_sprite_vertical
+    jp update_hardware_sprite_vertical
 
 msx2_game_over_idle:
     ld a, (msx2_game_over_restart_lock)
@@ -6563,42 +6251,16 @@ auto_patrol_hardware_sprite:
     inc a
     and 3
     ld (msx2_player_sprite_frame), a
-    jp nz, msx2_update_hardware_sprite_vertical
+    jp nz, update_hardware_sprite_vertical
     ld a, (msx2_player_sprite_dx)
     or a
     jp z, move_hardware_sprite_left
     jp move_hardware_sprite_right
 
-msx2_update_hardware_sprite_vertical:
-    ; Player state machine (platform mode with skills).
+update_hardware_sprite_vertical:
+    ; Platform jump/gravity uses MSX1-style 8.8 physics (msx2_jump + msx2_gravity components).
     ; Clobbers AF/BC/DE/HL.
-${usesMsx2PlatformVerticalPhysics(analysis) ? '    jp msx2_player_state_machine_tick\n' : ''}
-${usesMsx2PlatformVerticalPhysics(analysis) ? (() => {
-    const playerAssetForBindings = getMsx2PlayerAssetForScreen(analysis, screen);
-    const skillBindings = (playerAssetForBindings?.skillBindings ?? {}) as Record<string, { primary: string; secondary?: string }>;
-    const djImpulse = Math.round(physics.jumpImpulse88 * 0.7);
-    return buildPlayerStateMachineAsm({
-    jumpImpulseLo: formatAsmByte(physics.jumpImpulse88),
-    jumpImpulseHi: formatAsmByte(physics.jumpImpulse88 >> 8),
-    doubleJumpImpulseLo: formatAsmByte(djImpulse),
-    doubleJumpImpulseHi: formatAsmByte(djImpulse >> 8),
-    gravityStrength: formatAsmByte(physics.gravityStrength88),
-    terminalHigh: formatAsmByte(getTerminalVelocityHighByte(physics.terminalVelocity88)),
-    terminalWord: formatAsmWord(physics.terminalVelocity88),
-    maxJumps: physics.maxJumps,
-    requireKeyRelease: physics.requireKeyRelease,
-    jumpEnabled: physics.jumpEnabled,
-    gravityEnabled: physics.gravityEnabled,
-    hbLeft, hbFeet, hbRight, hbCenterX, hbCenterY,
-    setPlayerWalkingFlagAsm, clearPlayerWalkingFlagAsm,
-    activeSkillIds,
-    skillBindings,
-  });
-  })() : `${mazeMovement ? `    ; Maze mode: skip vertical physics.
-    jp upload_hardware_sprite_attrs
-` : `    ; Non-platform mode: skip vertical physics.
-    jp upload_hardware_sprite_attrs
-`}`}
+${buildMsx2PlatformVerticalPhysicsAsm(analysis, { mazeMovement, shooterHorizontal })}
 
 apply_msx2_conveyor:
     ; Behavior code 2 pushes right, code 3 pushes left. Clobbers AF/BC/DE/HL.
@@ -6612,10 +6274,11 @@ apply_msx2_conveyor:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.maxX}
     ret nc
-    add a, ${hb.offsetX + hb.w}
+    inc a
+    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     ret nz
@@ -6624,17 +6287,16 @@ apply_msx2_conveyor:
     ld (msx2_player_sprite_x), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
 ${setPlayerWalkingFlagAsm}    ret
 .conveyor_left:
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.minX}
     ret z
     ret c
-    add a, ${hb.offsetX - 1}
+    dec a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_collision_at_pixel
     ret nz
@@ -6643,25 +6305,18 @@ ${setPlayerWalkingFlagAsm}    ret
     ld (msx2_player_sprite_x), a
     xor a
     ld (msx2_player_sprite_dx), a
-    ld (msx2_player_facing_dx), a
 ${setPlayerWalkingFlagAsm}    ret
 
 ${playerAnimationRoutine}${pushBoxSatRefresh}write_hardware_sprite_attrs:
     ; Writes player and enemy sprite attributes to the SCREEN 4 SAT. Clobbers AF/BC/DE/HL.
-${hasPlayerAnimRoles ? `    ld a, (msx2_player_walking_flag)
-    or a
-    jp nz, .write_walk_player
-${idleAttrWrites}    jp .write_common_player
-.write_walk_player:
-${walkAttrWrites}
-.write_common_player:` : attrWrites}
+${attrWrites}
 ${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrWrite}${pushBoxAttrWrite}    ld a, 208
     ld hl, #${terminatorAttrAddress.toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
     ret
 
 upload_hardware_sprite_attrs:
-${hasPlayerAnimRoles || animationFrameCount > 1 ? '    call update_msx2_player_sprite_animation\n' : ''}${shooterBulletsEnabled ? '    call update_msx2_player_bullet\n' : ''}${enemyBulletsEnabled ? '    call update_msx2_enemy_bullet\n' : ''}
+${animationFrameCount > 1 ? '    call update_msx2_player_sprite_animation\n' : ''}${shooterBulletsEnabled ? '    call update_msx2_player_bullet\n' : ''}${enemyBulletsEnabled ? '    call update_msx2_enemy_bullet\n' : ''}
     call update_msx2_effect_state
 ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
     or a
@@ -6927,28 +6582,28 @@ update_msx2_effect_state:
     or a
     jp nz, .hazard
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_effect_at_pixel
     or a
     jp nz, .effect_dispatch
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX}
+    add a, 4
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h - 1}
+    add a, 15
     ld c, a
     call msx2_effect_at_pixel
     or a
     jp nz, .effect_dispatch
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w - 1}
+    add a, 12
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h - 1}
+    add a, 15
     ld c, a
     call msx2_effect_at_pixel
     or a
@@ -7100,7 +6755,7 @@ screen4_name_cell_from_player:
     ; Returns HL=top-left name-table address for the player's 16x16 cell.
     ; Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     srl a
     srl a
     srl a
@@ -7115,7 +6770,7 @@ screen4_name_cell_from_player:
     add hl, hl
     add hl, hl
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     srl a
     srl a
     srl a
@@ -7419,64 +7074,64 @@ msx2_probe_player_hazard_hit:
     ; Returns A=1 when any player body probe overlaps a tile hazard hitbox.
     ; Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX}
+    inc a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h - 1}
+    add a, 15
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w - 1}
+    add a, 14
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h - 1}
+    add a, 15
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX}
+    inc a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY}
+    inc a
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w - 1}
+    add a, 14
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY}
+    inc a
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX}
+    inc a
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_hazard_hit_at_pixel
     or a
     ret nz
     ld a, (msx2_player_sprite_x)
-    add a, ${hb.offsetX + hb.w - 1}
+    add a, 14
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_hazard_hit_at_pixel
     ret
@@ -7495,10 +7150,10 @@ msx2_behavior_at_pixel:
 msx2_ladder_at_player_center:
     ; Returns Z when the player center is on behavior code 1 (ladder). Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_behavior_at_pixel
     cp 1
@@ -7507,10 +7162,10 @@ msx2_ladder_at_player_center:
 msx2_ladder_below_player_center:
     ; Returns Z when the lower center is on behavior code 1 (ladder). Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h - 1}
+    add a, 10
     ld c, a
     call msx2_behavior_at_pixel
     cp 1
@@ -7519,10 +7174,10 @@ msx2_ladder_below_player_center:
 msx2_rope_at_player_center:
     ; Returns Z when the player center is on behavior code 4 (rope). Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hbCenterY}
+    add a, 8
     ld c, a
     call msx2_behavior_at_pixel
     cp 4
@@ -7531,10 +7186,10 @@ msx2_rope_at_player_center:
 msx2_behavior_below_player_center:
     ; Returns the behavior byte under the player feet. Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    add a, ${hbCenterX}
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
-    add a, ${hb.offsetY + hb.h}
+    add a, 16
     ld c, a
     call msx2_behavior_at_pixel
     ret
@@ -7649,7 +7304,7 @@ function getPushBoxMovingSpriteLayerFromPlayerPushBox(
   return undefined;
 }
 
-export function resolvePushBoxHardwareSpriteLayer(
+function resolvePushBoxHardwareSpriteLayer(
   analysis: ProjectAnalysis,
   tileScreens: Array<Msx2Screen4TileScreen | undefined>
 ): { pattern: number[]; colors: number[] } {
@@ -7734,10 +7389,7 @@ function buildHardwareSpriteDataAsm(
   const y = clampHardwareSpriteY(settings.y);
   const x = clampHardwareSpriteX(settings.x);
   const color = Math.max(1, Math.min(15, settings.color));
-  const roles = getPlayerAnimRoles(analysis);
-  const hasRoles = roles && Object.keys(roles).length >= 2;
-  const playerUsesFlipX = getMsx2PlayerUsesFlipX(analysis);
-  const fallbackPlayerFacing = getFallbackPlayerHorizontalFacing(roles, sprite);
+  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const enemySprite = getEnemyHardwareSpriteSource(analysis);
   const enemySpriteLayer = enemySprite
     ? buildHardwareSpriteLayersForFrame(enemySprite, MSX2_ENEMY_SPRITE_COLOR, 0)[0]
@@ -7747,204 +7399,51 @@ function buildHardwareSpriteDataAsm(
   const enemyMirroredPattern = enemyHorizontalFacing && enemySpriteLayer
     ? mirrorHardwareSpritePatternHorizontally(enemySpriteLayer.pattern)
     : undefined;
+  // Pong reuses the player-bullet hardware slot for the ball, so pull its
+  // pattern/colors from the ball asset when the project provides one.
   const pongBallSprite = control2Players ? getPongBallHardwareSpriteSource(analysis) : undefined;
   const pongBallSpriteLayer = pongBallSprite
     ? buildHardwareSpriteLayersForFrame(pongBallSprite, color, 0)[0]
     : undefined;
   const hideHud = isRuntimeHudHidden(analysis);
   const playerBulletSlotCount = getPlayerBulletSlotCount(analysis);
+  const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
+  const frameLayerSets = Array.from({ length: animationFrameCount }, (_unused, frameIndex) => {
+    const frameLayers = clampHardwareSpriteCount(buildHardwareSpriteLayersForFrame(sprite, color, frameIndex)).slice(0, layers.length);
+    return layers.map((fallbackLayer, layerIndex) => frameLayers[layerIndex] || fallbackLayer);
+  });
+  const horizontalFacing = getHorizontalFacingDirection(sprite);
+  const mirrorPatternVariantCount = horizontalFacing ? 2 : 1;
+  const enemyPatternVariantCount = enemyHorizontalFacing ? 2 : 1;
+  const mirroredFrameLayerSets = horizontalFacing
+    ? frameLayerSets.map(frameLayers => frameLayers.map(layer => ({
+        ...layer,
+        pattern: mirrorHardwareSpritePatternHorizontally(layer.pattern),
+      })))
+    : [];
+  const playerPatternGroupCount = layers.length * animationFrameCount * mirrorPatternVariantCount;
   const pushBoxEnabled = Boolean(options.pushBoxEnabled);
   const pushBoxLayer = pushBoxEnabled
     ? resolvePushBoxHardwareSpriteLayer(analysis, options.tileScreens || [])
     : undefined;
-
-  if (!hasRoles) {
-    // --- Single-sprite path (original behavior) ---
-    const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
-    const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
-    const frameLayerSets = Array.from({ length: animationFrameCount }, (_unused, frameIndex) => {
-      const frameLayers = clampHardwareSpriteCount(buildHardwareSpriteLayersForFrame(sprite, color, frameIndex)).slice(0, layers.length);
-      return layers.map((fallbackLayer, layerIndex) => frameLayers[layerIndex] || fallbackLayer);
-    });
-    const horizontalFacing = getHorizontalFacingDirection(sprite);
-    const mirrorPatternVariantCount = horizontalFacing ? 2 : 1;
-    const enemyPatternVariantCount = enemyHorizontalFacing ? 2 : 1;
-    const mirroredFrameLayerSets = horizontalFacing
-      ? frameLayerSets.map(frameLayers => frameLayers.map(layer => ({
-          ...layer,
-          pattern: mirrorHardwareSpritePatternHorizontally(layer.pattern),
-        })))
-      : [];
-    const playerPatternGroupCount = layers.length * animationFrameCount * mirrorPatternVariantCount;
-    const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
-    const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
-    const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
-    const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * 4);
-    const enemyBulletPatternIndex = playerBulletPatternIndex + 4;
-    const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
-    const visibleAttributes = layers.flatMap((layer, layerIndex) => [
-      settings.visible ? clampHardwareSpriteY(y + layer.yOffset) : 208,
-      clampHardwareSpriteX(x + layer.xOffset),
-      basePatternIndex + (layerIndex * 4),
-       0,
-     ]);
-     const enemyAttributes = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, () => [208, 0, enemyPatternIndex, 0]).flat();
-     const playerBulletAttributes = Array.from({ length: playerBulletSlotCount }, () => [208, 0, playerBulletPatternIndex, 0]).flat();
-     const enemyBulletAttributes = [208, 0, enemyBulletPatternIndex, 0];
-    const hudLifeAttributes = hideHud ? [] : Array.from({ length: 3 }, (_unused, index) => [208, 8 + (index * 10), enemyBulletPatternIndex, 0]).flat();
-    const terminator = [208, 0, 0, 0];
-    const attributes = [...visibleAttributes, ...enemyAttributes, ...playerBulletAttributes, ...enemyBulletAttributes, ...hudLifeAttributes, ...terminator, ...Array(Math.max(0, 128 - visibleAttributes.length - enemyAttributes.length - playerBulletAttributes.length - enemyBulletAttributes.length - hudLifeAttributes.length - terminator.length)).fill(0)];
-
-    return `
-msx2_hw_sprite_patterns:
-${frameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}`, layer.pattern, `Hardware metasprite frame ${frameIndex} part ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')).join('')}${mirroredFrameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_mirror_pattern_${layerIndex}`, layer.pattern, `Mirrored hardware metasprite frame ${frameIndex} part ${layerIndex}: authored ${horizontalFacing}`)).join('')).join('')}${formatBytes('msx2_hw_enemy_sprite_pattern', enemySpriteLayer?.pattern || MSX2_ENEMY_SPRITE_PATTERN, enemySpriteLayer ? 'Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 enemy/hazard hardware sprite pattern')}${enemyMirroredPattern ? formatBytes('msx2_hw_enemy_sprite_mirror_pattern', enemyMirroredPattern, `Mirrored shared enemy/hazard hardware sprite pattern: authored ${enemyHorizontalFacing}`) : ''}${formatBytes('msx2_hw_player_bullet_pattern', control2Players ? (pongBallSpriteLayer?.pattern || MSX2_PONG_BALL_PATTERN) : MSX2_PLAYER_BULLET_PATTERN, control2Players ? (pongBallSpriteLayer ? 'Shared 16x16 Pong ball hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 Pong ball hardware sprite pattern') : 'Shared 16x16 player bullet hardware sprite pattern')}${formatBytes('msx2_hw_enemy_bullet_pattern', MSX2_ENEMY_BULLET_PATTERN, 'Shared 16x16 enemy bullet hardware sprite pattern')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_pattern', pushBoxLayer.pattern, 'Push box moving hardware sprite pattern from entity Render or Tile') : ''}msx2_hw_sprite_patterns_end:
-
-msx2_hw_sprite_colors:
-${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}${Array.from({ length: playerBulletSlotCount }, (_unused, index) => formatBytes(`msx2_hw_player_bullet_colors${index === 0 ? '' : `_${index}`}`, control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), control2Players ? (pongBallSpriteLayer ? `Line colors for Pong ball hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for Pong ball hardware sprite slot ${index}`) : `Line colors for player bullet hardware sprite slot ${index}`)).join('')}${formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors') : ''}${hideHud ? '' : Array.from({ length: 3 }, (_unused, index) => formatBytes(`msx2_hw_hud_life_colors_${index}`, Array(16).fill(10), `Line colors for HUD life marker ${index + 1}`)).join('')}msx2_hw_sprite_colors_end:
-
-${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardware sprite(s), ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} enemy/hazard sprite slots, ${playerBulletSlotCount} player bullet slot, ${MSX2_ENEMY_BULLET_HARDWARE_SLOTS} enemy bullet slot${hideHud ? '' : ', 3 HUD life slots'}; next Y=208 terminates the SAT`)}
-`;
-  }
-
-  // --- Multi-role path (idle + walk) ---
-  const roleList = ['idle', 'walk'].filter(r => roles[r]).map(r => roles[r]);
-  const primaryRole = roleList[0];
-  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(primaryRole.sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
-  const frameTilesPerFrame = layers.length * 4;
-
-  // Build per-role pattern data: for each role, get unique frames
-  interface RoleData {
-    role: PlayerAnimRole;
-    effectiveFacing: 'left' | 'right' | undefined;
-    uniqueFrameIndices: number[];
-    frameLayerSets: Array<Array<Msx2HardwareLayer>>;
-    mirrorLayerSets: Array<Array<Msx2HardwareLayer>>;
-    totalTiles: number; // unique frames * frameTilesPerFrame
-  }
-  const roleDataList: RoleData[] = roleList.map(r => {
-    const effectiveFacing = getEffectivePlayerRoleFacing(r, fallbackPlayerFacing, playerUsesFlipX);
-    const uniqueFrameIndices = [...new Set(r.frames)];
-    const frameLayerSets = uniqueFrameIndices.map(fi => {
-      const fl = clampHardwareSpriteCount(buildHardwareSpriteLayersForFrame(r.sprite, color, fi)).slice(0, layers.length);
-      return layers.map((fallback, li) => fl[li] || fallback);
-    });
-    const mirrorLayerSets = effectiveFacing ? frameLayerSets.map(fls => fls.map(l => ({
-      ...l,
-      pattern: mirrorHardwareSpritePatternHorizontally(l.pattern),
-    }))) : [];
-    const perRoleLayers = frameLayerSets.length > 0 ? frameLayerSets[0].length : layers.length;
-    return {
-      role: r,
-      effectiveFacing,
-      uniqueFrameIndices,
-      frameLayerSets,
-      mirrorLayerSets,
-      totalTiles: uniqueFrameIndices.length * perRoleLayers * 4,
-    };
-  });
-
-  // Compute total tile usage per role (including mirror variants)
-  let currentTileOffset = 0;
-  const roleTileBase: Record<string, number> = {};
-  for (const rd of roleDataList) {
-    const roleName = Object.keys(roles).find(k => roles[k] === rd.role) || '';
-    roleTileBase[roleName] = currentTileOffset;
-    currentTileOffset += rd.totalTiles;
-    if (rd.effectiveFacing) currentTileOffset += rd.totalTiles; // mirror
-  }
-  const playerPatternGroupCount = currentTileOffset / 4;
-  const enemyPatternVariantCount = enemyHorizontalFacing ? 2 : 1;
   const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
-
-  // Per-role base tile indices (after clamping)
-  const rolePatternBases: Record<string, { base: number }> = {};
-  for (const [roleName, tileOffset] of Object.entries(roleTileBase)) {
-    rolePatternBases[roleName] = { base: basePatternIndex + tileOffset };
-  }
-
-  // Emit pattern data
-  let patternAsm = '';
-  for (let ri = 0; ri < roleDataList.length; ri++) {
-    const rd = roleDataList[ri];
-    const roleLabel = Object.keys(roles).find(k => roles[k] === rd.role) || `role_${ri}`;
-    for (let fi = 0; fi < rd.frameLayerSets.length; fi++) {
-      const spriteFrameIndex = rd.uniqueFrameIndices[fi];
-      for (let li = 0; li < rd.frameLayerSets[fi].length; li++) {
-        patternAsm += formatBytes(
-          `msx2_hw_${roleLabel}_f${spriteFrameIndex}_l${li}`,
-          rd.frameLayerSets[fi][li].pattern,
-          `${roleLabel} sprite frame ${spriteFrameIndex} part ${li}`
-        );
-      }
-    }
-    if (rd.mirrorLayerSets.length) {
-      for (let fi = 0; fi < rd.mirrorLayerSets.length; fi++) {
-        const spriteFrameIndex = rd.uniqueFrameIndices[fi];
-        for (let li = 0; li < rd.mirrorLayerSets[fi].length; li++) {
-          patternAsm += formatBytes(
-            `msx2_hw_${roleLabel}_mirror_f${spriteFrameIndex}_l${li}`,
-            rd.mirrorLayerSets[fi][li].pattern,
-            `Mirrored ${roleLabel} sprite frame ${spriteFrameIndex} part ${li}`
-          );
-        }
-      }
-    }
-  }
-
-  const enemyPatternIndex = basePatternIndex + currentTileOffset;
+  const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
   const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * 4);
   const enemyBulletPatternIndex = playerBulletPatternIndex + 4;
   const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
-
-  patternAsm += formatBytes('msx2_hw_enemy_sprite_pattern', enemySpriteLayer?.pattern || MSX2_ENEMY_SPRITE_PATTERN, enemySpriteLayer ? 'Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 enemy/hazard hardware sprite pattern');
-  if (enemyMirroredPattern) patternAsm += formatBytes('msx2_hw_enemy_sprite_mirror_pattern', enemyMirroredPattern, `Mirrored shared enemy/hazard hardware sprite pattern: authored ${enemyHorizontalFacing}`);
-  patternAsm += formatBytes('msx2_hw_player_bullet_pattern', control2Players ? (pongBallSpriteLayer?.pattern || MSX2_PONG_BALL_PATTERN) : MSX2_PLAYER_BULLET_PATTERN, 'Shared 16x16 player bullet hardware sprite pattern');
-  patternAsm += formatBytes('msx2_hw_enemy_bullet_pattern', MSX2_ENEMY_BULLET_PATTERN, 'Shared 16x16 enemy bullet hardware sprite pattern');
-  if (pushBoxLayer) patternAsm += formatBytes('msx2_hw_push_box_sprite_pattern', pushBoxLayer.pattern, 'Push box moving hardware sprite pattern from entity Render or Tile');
-
-  // Emit frame mapping tables (physical indices, not authored indices)
-  const roleToUniqueIdx = new Map<PlayerAnimRole, number[]>();
-  for (const rd of roleDataList) roleToUniqueIdx.set(rd.role, rd.uniqueFrameIndices);
-  let mapTablesAsm = '';
-  for (const [roleName, role] of Object.entries(roles)) {
-    const uniqueIdx = roleToUniqueIdx.get(role) || [];
-    const physicalFrames = role.frames.map(f => uniqueIdx.indexOf(f));
-    const label = `msx2_hw_${roleName}_frame_map`;
-    mapTablesAsm += `${label}:\n    DB ${physicalFrames.join(', ')}\n`;
-  }
-
-  // Colors from primary role
-  const colorAsm = layers.map((layer, index) =>
-    formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)
-  ).join('');
-
-  // Enemy/bullet colors
-  let colorAsmExt = '';
-  for (let i = 0; i < MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN; i++) {
-    colorAsmExt += formatBytes(`msx2_hw_enemy_sprite_colors_${i}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${i} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${i}`);
-  }
-  for (let i = 0; i < playerBulletSlotCount; i++) {
-    colorAsmExt += formatBytes(`msx2_hw_player_bullet_colors${i === 0 ? '' : `_${i}`}`, control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), `Line colors for player bullet hardware sprite slot ${i}`);
-  }
-  colorAsmExt += formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot');
-  if (pushBoxLayer) colorAsmExt += formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors');
-  if (!hideHud) {
-    for (let i = 0; i < 3; i++) {
-      colorAsmExt += formatBytes(`msx2_hw_hud_life_colors_${i}`, Array(16).fill(10), `Line colors for HUD life marker ${i + 1}`);
-    }
-  }
-
-  // Initial SAT attributes (show idle role)
-  const idleRoleData = roles.idle;
-  const idleBase = rolePatternBases.idle?.base ?? basePatternIndex;
   const visibleAttributes = layers.flatMap((layer, layerIndex) => [
     settings.visible ? clampHardwareSpriteY(y + layer.yOffset) : 208,
     clampHardwareSpriteX(x + layer.xOffset),
-    idleBase + (layerIndex * 4),
+    basePatternIndex + (layerIndex * 4),
     0,
   ]);
-  const enemyAttributes = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, () => [208, 0, enemyPatternIndex, 0]).flat();
+  const enemyAttributes = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, () => [
+    208,
+    0,
+    enemyPatternIndex,
+    0,
+  ]).flat();
   const playerBulletAttributes = Array.from({ length: playerBulletSlotCount }, () => [208, 0, playerBulletPatternIndex, 0]).flat();
   const enemyBulletAttributes = [208, 0, enemyBulletPatternIndex, 0];
   const hudLifeAttributes = hideHud ? [] : Array.from({ length: 3 }, (_unused, index) => [208, 8 + (index * 10), enemyBulletPatternIndex, 0]).flat();
@@ -7953,11 +7452,10 @@ ${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardw
 
   return `
 msx2_hw_sprite_patterns:
-${patternAsm}msx2_hw_sprite_patterns_end:
+${frameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}`, layer.pattern, `Hardware metasprite frame ${frameIndex} part ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')).join('')}${mirroredFrameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_mirror_pattern_${layerIndex}`, layer.pattern, `Mirrored hardware metasprite frame ${frameIndex} part ${layerIndex}: authored ${horizontalFacing}`)).join('')).join('')}${formatBytes('msx2_hw_enemy_sprite_pattern', enemySpriteLayer?.pattern || MSX2_ENEMY_SPRITE_PATTERN, enemySpriteLayer ? 'Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 enemy/hazard hardware sprite pattern')}${enemyMirroredPattern ? formatBytes('msx2_hw_enemy_sprite_mirror_pattern', enemyMirroredPattern, `Mirrored shared enemy/hazard hardware sprite pattern: authored ${enemyHorizontalFacing}`) : ''}${formatBytes('msx2_hw_player_bullet_pattern', control2Players ? (pongBallSpriteLayer?.pattern || MSX2_PONG_BALL_PATTERN) : MSX2_PLAYER_BULLET_PATTERN, control2Players ? (pongBallSpriteLayer ? 'Shared 16x16 Pong ball hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 Pong ball hardware sprite pattern') : 'Shared 16x16 player bullet hardware sprite pattern')}${formatBytes('msx2_hw_enemy_bullet_pattern', MSX2_ENEMY_BULLET_PATTERN, 'Shared 16x16 enemy bullet hardware sprite pattern')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_pattern', pushBoxLayer.pattern, 'Push box moving hardware sprite pattern from entity Render or Tile') : ''}msx2_hw_sprite_patterns_end:
 
-${mapTablesAsm}
 msx2_hw_sprite_colors:
-${colorAsm}${colorAsmExt}msx2_hw_sprite_colors_end:
+${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}${Array.from({ length: playerBulletSlotCount }, (_unused, index) => formatBytes(`msx2_hw_player_bullet_colors${index === 0 ? '' : `_${index}`}`, control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), control2Players ? (pongBallSpriteLayer ? `Line colors for Pong ball hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for Pong ball hardware sprite slot ${index}`) : `Line colors for player bullet hardware sprite slot ${index}`)).join('')}${formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors') : ''}${hideHud ? '' : Array.from({ length: 3 }, (_unused, index) => formatBytes(`msx2_hw_hud_life_colors_${index}`, Array(16).fill(10), `Line colors for HUD life marker ${index + 1}`)).join('')}msx2_hw_sprite_colors_end:
 
 ${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardware sprite(s), ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} enemy/hazard sprite slots, ${playerBulletSlotCount} player bullet slot, ${MSX2_ENEMY_BULLET_HARDWARE_SLOTS} enemy bullet slot${hideHud ? '' : ', 3 HUD life slots'}; next Y=208 terminates the SAT`)}
 `;
@@ -10024,9 +9522,9 @@ function buildScreen4BackgroundScrollAsm(
     ld b, 128
     ld c, 19
     call WRTVDP
-    ld a, (RG0SAV)
+    ld a, (#F3DF)
     or #10
-    ld (RG0SAV), a
+    ld (#F3DF), a
     ld b, a
     ld c, 0
     call WRTVDP
@@ -11046,7 +10544,7 @@ function buildMsx2WorldTransitionAsm(
     ld (msx2_player_sprite_frame), a
 `
         : '';
-      const resumeAfterTransition = mazeMovement ? 'upload_hardware_sprite_attrs' : 'msx2_update_hardware_sprite_vertical';
+      const resumeAfterTransition = mazeMovement ? 'upload_hardware_sprite_attrs' : 'update_hardware_sprite_vertical';
       return `.${suffix}_screen_${index}:
     ld a, ${targetIndex}
     ld (msx2_current_screen_index), a
@@ -11117,8 +10615,6 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   });
   const maxTileCount = Math.max(1, ...tileScreens.map(screen => (screen.tiles || []).length));
   const hazardHitboxCacheSize = ((maxTileCount * 4 + 0x0f) & ~0x0f);
-  const hbPlayer = getPlayerRuntimeSource(getPrimaryRuntimeTileScreen(analysis), analysis);
-  const hbHitbox = resolvePlayerHitbox(hbPlayer);
   const tileScreenRuntimeBlocks = tileScreens.map((screen, index) => {
     const label = tileScreenLoadLabels[index];
     return [
@@ -11143,9 +10639,8 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   const firstScreenLabel = tileScreenLoadLabels[0];
   const pushBoxMovement = usesMsx2Box2(analysis, tileScreens);
   const pushBoxVerticalPush = usesMsx2Box2VerticalPush(tileScreens);
-  const v2Runtime = buildPlayerRuntimeAsmV2(analysis, { useKonamiDataBank, pushBoxEnabled: pushBoxMovement, tileScreens, deferSatUploadToShooterFrameDispatch: false });
-  const hardwareSpriteInitAsm = v2Runtime.init;
-  const hardwareSpriteDataAsm = v2Runtime.data;
+  const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis, useKonamiDataBank);
+  const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis, { pushBoxEnabled: pushBoxMovement, tileScreens });
   const requiredCollectiblesByScreen = tileScreens.map(screen => getTileScreenRequiredCollectibles(screen));
   const requiredCollectibles = Math.min(255, Math.max(0, ...requiredCollectiblesByScreen));
   const initialAirByScreen = tileScreens.map(screen => getTileScreenInitialAir(screen));
@@ -11309,8 +10804,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
       firstScreenLabel,
       firstScreenIndex ?? 0,
       tileScreens.length,
-      { deferSatUploadToShooterFrameDispatch: shooterSatUploadInFrameDispatch, pushBoxEnabled: pushBoxMovement, tileScreens },
-      true
+      { deferSatUploadToShooterFrameDispatch: shooterSatUploadInFrameDispatch, pushBoxEnabled: pushBoxMovement, tileScreens }
     )
     : `upload_hardware_sprite_attrs:
 write_hardware_sprite_attrs:
@@ -11848,16 +11342,9 @@ GTTRIG  EQU #00D8
 SNSMAT  EQU #0141
 RSLREG  EQU #0138
 ENASLT  EQU #0024
+HKEY    EQU #F3DB
 HKEYI   EQU #FD9A
-CLIKSW  EQU #F3DB
-RG0SAV  EQU #F3DF
-RG1SAV  EQU #F3E0
-RG2SAV  EQU #F3E1
-RG3SAV  EQU #F3E2
-RG4SAV  EQU #F3E3
-RG5SAV  EQU #F3E4
-RG6SAV  EQU #F3E5
-RG7SAV  EQU #F3E6
+CLIKSW  EQU #F3DC
 BAKCLR  EQU #F3E9
 BDRCLR  EQU #F3EA
 
@@ -11879,10 +11366,6 @@ SCREEN4_COLOR_VRAM EQU ${SCREEN4_COLOR_VRAM}
 SCREEN4_PATTERN_SIZE EQU ${SCREEN4_PATTERN_BYTES}
 SCREEN4_COLOR_SIZE EQU ${SCREEN4_COLOR_BYTES}
 SCREEN4_NAME_SIZE EQU ${SCREEN4_NAME_BYTES}
-PLAYER_HITBOX_X EQU ${hbHitbox.offsetX}
-PLAYER_HITBOX_Y EQU ${hbHitbox.offsetY}
-PLAYER_HITBOX_W EQU ${hbHitbox.w}
-PLAYER_HITBOX_H EQU ${hbHitbox.h}
 msx2_player_sprite_x EQU #C000
 msx2_player_sprite_y EQU #C001
 msx2_player_sprite_dx EQU #C002
@@ -11921,20 +11404,6 @@ msx2_runtime_frame_counter EQU #C026
 msx2_enemy_bullet_1_active EQU #C040
 msx2_enemy_bullet_1_x EQU #C041
 msx2_enemy_bullet_1_y EQU #C042
-msx2_player_state EQU #C043
-msx2_player_state_prev EQU #C044
-msx2_player_jump_count EQU #C045
-msx2_player_slash_timer EQU #C046
-msx2_player_shoot_cooldown EQU #C047
-msx2_player_carrying_flag EQU #C048
-msx2_player_dash_timer EQU #C049
-msx2_player_shield_timer EQU #C04A
-msx2_player_gravity_dir EQU #C04B
-msx2_player_zone EQU #C04C
-msx2_player_teleport_target_x EQU #C04D
-msx2_player_teleport_target_y EQU #C04E
-msx2_player_magic_ball_active EQU #C04F
-msx2_player_facing_dx EQU #C050
 msx2_enemy_bullet_active EQU #C027
 msx2_enemy_bullet_x EQU #C028
 msx2_enemy_bullet_y EQU #C029
@@ -12012,6 +11481,8 @@ init_rom:
     call map_page2_to_cart_primary
     call init_konami8k_fixed_bank0_banks
 
+    ld a, #C9
+    ld (HKEY), a
     xor a
     ld (CLIKSW), a
 

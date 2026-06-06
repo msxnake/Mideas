@@ -127,3 +127,21 @@ Con roles activos, generar patrones por rol desde `role.sprite`, frame maps con 
 
 Leccion:
 Un rol no es solo una secuencia de indices sobre un mismo asset: si el Player asigna otro MSX2 Sprite al rol, el generador debe empaquetar y direccionar patrones por asset, no por el render principal unico. La fuente de verdad de la animacion es el MSX2 Sprite enlazado; el Player solo elige que asset usa cada rol.
+
+---
+
+## Bug Resuelto: sincronizacion React no idempotente
+
+Fecha: 2026-06-06
+
+Problema:
+Al abrir Player Config, React avisaba `Maximum update depth exceeded`.
+
+Causa:
+Un `useEffect` sincronizaba animaciones del Player desde sprites enlazados y llamaba `onUpdate` repetidamente cuando React recreaba dependencias de objeto entre renders.
+
+Solucion:
+Guardar una firma de la sincronizacion aplicada y no reemitir el mismo `onUpdate` si el parche ya fue enviado.
+
+Leccion:
+Toda sincronizacion `useEffect -> onUpdate/setState` debe ser idempotente. Si depende de objetos normalizados o derivados, comparar una firma estable antes de escribir estado.

@@ -828,10 +828,11 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-  const spriteAssets = allAssets.filter(asset => asset.type === 'msx2sprite');
-  const soundAssets = allAssets.filter(asset => asset.type === 'sound');
-  const stateMachineAssets = allAssets.filter(asset => asset.type === 'statemachine');
-  const paletteAssets = allAssets.filter(asset => asset.type === 'palette');
+  const lastAnimationSyncSignatureRef = useRef<string | null>(null);
+  const spriteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2sprite'), [allAssets]);
+  const soundAssets = useMemo(() => allAssets.filter(asset => asset.type === 'sound'), [allAssets]);
+  const stateMachineAssets = useMemo(() => allAssets.filter(asset => asset.type === 'statemachine'), [allAssets]);
+  const paletteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'palette'), [allAssets]);
   const boxTileOptions = useMemo(() => buildPlayerBoxTileOptions(allAssets), [allAssets]);
   const selectedSprite = useMemo(
     () => spriteAssets.find(asset => asset.id === normalized.render.spriteAssetId)?.data as Msx2Sprite | undefined,
@@ -901,9 +902,13 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     if (!spriteAssets.length) return;
     const { animations, changed } = syncPlayerAnimationsFromLinkedSprites(normalized, spriteAssets);
     if (!changed) return;
+    const animationOrder = normalized.animationOrder || Object.keys(animations);
+    const syncSignature = JSON.stringify({ animations, animationOrder });
+    if (lastAnimationSyncSignatureRef.current === syncSignature) return;
+    lastAnimationSyncSignatureRef.current = syncSignature;
     onUpdate({
       animations,
-      animationOrder: normalized.animationOrder || Object.keys(animations),
+      animationOrder,
     });
   }, [normalized, spriteAssets]);
   const updateMovement = (patch: Partial<Msx2PlayerDefinition['movement']>) => onUpdate({ movement: { ...normalized.movement, ...patch } });
