@@ -123,7 +123,7 @@ Causa:
 `playerRuntime_v2/dataGen` emitia patrones solo del sprite principal (`render.spriteAssetId`), pero cada rol anima frames de su propio asset. Walk leia indices sobre patrones de idle en VRAM.
 
 Solucion:
-Con roles activos, generar patrones por rol desde `role.sprite`, frame maps con indice unico dentro del blob del rol, y `basePatternIndex` separado para walk. Respetar `anim.frames` y `anim.speed` del player al resolver roles.
+Con roles activos, generar patrones por rol desde `role.sprite`, frame maps con indice unico dentro del blob del rol, y `basePatternIndex` separado para walk. Resolver frames y velocidad desde el MSX2 Sprite (`frames[]`, `animationSpeedMs`), no desde `animations.*.frames/speed` obsoletos del Player. Importar el Player con `parseMsx2PlayerImport` para no perder `animations` en exports `schema.player`.
 
 Leccion:
-Un rol no es solo una secuencia de indices sobre un mismo asset: si el Player asigna otro MSX2 Sprite al rol, el generador debe empaquetar y direccionar patrones por asset, no por el render principal unico.
+Un rol no es solo una secuencia de indices sobre un mismo asset: si el Player asigna otro MSX2 Sprite al rol, el generador debe empaquetar y direccionar patrones por asset, no por el render principal unico. La fuente de verdad de la animacion es el MSX2 Sprite enlazado; el Player solo elige que asset usa cada rol.

@@ -17,6 +17,7 @@ import {
   normalizePlayerSoundTriggerPreset,
   resolvePlayerSoundExportId,
 } from './msx2PlayerDefaults';
+import { parseMsx2PlayerImport } from './msx2PlayerImport';
 
 export const MSX2_PLAYER_DOCUMENT_SCHEMA = 'mideas.msx2.player' as const;
 export const MSX2_PLAYER_DOCUMENT_VERSION = 1;
@@ -308,131 +309,7 @@ export const buildDetailedMsx2PlayerDocument = (
   };
 };
 
-const flattenControlsFromDocument = (
-  controls: Msx2PlayerDocument['player']['controls'] | undefined,
-): Partial<Msx2PlayerDefinition> => {
-  if (!controls) return {};
-
-  const inputMapping: Record<string, string> = {};
-  const inputEnabled: NonNullable<Msx2PlayerDefinition['inputEnabled']> = {};
-  const functionKeyCustomActions: NonNullable<Msx2PlayerDefinition['functionKeyCustomActions']> = {};
-
-  DIRECTION_IDS.forEach(direction => {
-    const entry = controls.directions?.[direction];
-    if (!entry) return;
-    inputMapping[direction] = entry.inputSource;
-    inputEnabled[direction] = entry.enabled;
-  });
-
-  if (controls.buttons?.A) {
-    inputMapping.jump = controls.buttons.A.binding;
-    inputEnabled.jump = controls.buttons.A.enabled;
-  }
-  if (controls.buttons?.B) {
-    inputMapping.attack = controls.buttons.B.binding;
-    inputEnabled.attack = controls.buttons.B.enabled;
-  }
-
-  FUNCTION_KEY_IDS.forEach(keyId => {
-    const label = FUNCTION_KEY_LABELS[keyId];
-    const entry = controls.functionKeys?.[label];
-    if (!entry) return;
-    inputMapping[keyId] = entry.action;
-    inputEnabled[keyId] = entry.enabled;
-    if (entry.action === 'custom' && entry.customText) {
-      functionKeyCustomActions[keyId] = entry.customText;
-    }
-  });
-
-  return {
-    inputMapping,
-    inputEnabled,
-    functionKeyCustomActions,
-  };
-};
-
-const flattenDetailedPlayerPayload = (
-  payload: Msx2PlayerDocument['player'] | Record<string, unknown>,
-): Partial<Msx2PlayerDefinition> => {
-  const player = payload as Msx2PlayerDocument['player'];
-  const identity = player.identity || ({} as Msx2PlayerDocument['player']['identity']);
-  const controlsPatch = flattenControlsFromDocument(player.controls);
-
-  return {
-    id: identity.id,
-    name: identity.name,
-    target: identity.target,
-    gameType: identity.gameType,
-    defaultFacing: identity.defaultFacing,
-    basedOnTemplate: identity.basedOnTemplate ?? player.stateMachine?.template,
-    worldCompatibility: identity.worldCompatibility,
-    notes: identity.notes,
-    render: player.render,
-    animations: player.animations
-      ? Object.entries(player.animations).reduce((result, [name, animation]) => {
-        const {
-          frameCount: _frameCount,
-          roleLabel: _roleLabel,
-          playback: _playback,
-          renderLink: _renderLink,
-          ...rest
-        } = animation as Msx2PlayerDefinition['animations'][string] & {
-          frameCount?: number;
-          roleLabel?: string;
-          playback?: Msx2PlayerAnimationPlayback;
-          renderLink?: unknown;
-        };
-        result[name] = rest;
-        return result;
-      }, {} as Msx2PlayerDefinition['animations'])
-      : undefined,
-    animationOrder: Array.isArray((player as Msx2PlayerDocument['player']).animationOrder)
-      ? (player as Msx2PlayerDocument['player']).animationOrder
-      : undefined,
-    hitboxes: player.hitboxes,
-    movement: player.movement,
-    health: player.health,
-    attack: player.combat?.attack ?? (player as unknown as { attack?: Msx2PlayerDefinition['attack'] }).attack,
-    interaction: player.interaction,
-    sounds: player.sounds,
-    soundsEnabled: player.soundsEnabled,
-    soundPresets: player.soundPresets,
-    soundCustomValues: player.soundCustomValues,
-    soundAssetIds: player.soundAssetIds,
-    soundAssetCustomValues: player.soundAssetCustomValues,
-    inventoryHooks: player.inventoryHooks,
-    logic: player.logic,
-    components: player.components,
-    stateMachineAssetId: player.stateMachine?.assetId,
-    stateMachine: player.stateMachine?.states,
-    budget: player.runtime?.budget,
-    requiredRoutines: player.runtime?.requiredRoutines,
-    ...controlsPatch,
-  };
-};
-
-export const parseMsx2PlayerImport = (raw: unknown): Partial<Msx2PlayerDefinition> => {
-  if (!raw || typeof raw !== 'object') return {};
-
-  const doc = raw as Record<string, unknown>;
-
-  if (doc.compact && typeof doc.compact === 'object') {
-    return {
-      ...(doc.compact as Partial<Msx2PlayerDefinition>),
-      ...flattenDetailedPlayerPayload((doc.player as Msx2PlayerDocument['player']) || {}),
-    };
-  }
-
-  if (doc.schema === MSX2_PLAYER_DOCUMENT_SCHEMA && doc.player && typeof doc.player === 'object') {
-    return flattenDetailedPlayerPayload(doc.player as Msx2PlayerDocument['player']);
-  }
-
-  if (doc.player && typeof doc.player === 'object') {
-    return flattenDetailedPlayerPayload(doc.player as Msx2PlayerDocument['player']);
-  }
-
-  return doc as Partial<Msx2PlayerDefinition>;
-};
+export { parseMsx2PlayerImport };
 
 export const mergeMsx2PlayerUpdate = (
   current: unknown,

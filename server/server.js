@@ -12,7 +12,7 @@ const execAsync = util.promisify(exec);
 const execFileAsync = util.promisify(execFile);
 const path = require('path');
 const { serializeAsset } = require('./assetSerializer');
-const { buildMsx2Shooter60HzSuggestedFixes } = require('../utils/msx2ShooterBudgetFixes.js');
+const { buildMsx2Shooter60HzSuggestedFixes } = require('../utils/msx2ShooterBudgetFixes.cjs');
 
 const app = express();
 const port = 3001;

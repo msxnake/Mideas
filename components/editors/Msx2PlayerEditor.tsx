@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MSX2_FUNCTION_KEY_ACTIONS, MSX2_PLAYER_BUTTON_BINDINGS, MSX2_PLAYER_FACING_OPTIONS, MSX2_PLAYER_INPUT_SOURCES, MSX2_PLAYER_SOUND_CUSTOM_ASSET, MSX2_PLAYER_SOUND_EVENT_DEFAULT, MSX2_PLAYER_SOUND_SLOTS, buildPlayerStateMachinePatchFromAsset, buildSoundsImportFromAnimations, dimensionsToPlayerSpriteSize, labelForAnimationRole, normalizeMsx2PlayerDefinition, parsePlayerSpriteSize, resolvePlayerSoundExportId, spriteSizeFromMsx2Sprite } from '../../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, parseMsx2PlayerImport } from '../../utils/msx2PlayerDocument';
+import {
+  playerAnimationFromMsx2Sprite,
+  playerAnimationPreviewTiming,
+  syncPlayerAnimationsFromLinkedSprites,
+} from '../../utils/msx2SpriteAnimation';
 import { StateMachine } from '../../statemachine.types';
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
@@ -727,31 +732,20 @@ const PlayerSpriteHitboxPreview: React.FC<{
 const animationDelayMs = (speed: number): number =>
   Math.max(32, Math.round(Math.max(1, speed) * (1000 / 60)));
 
-const playerAnimationFromRender = (
-  animation: Msx2PlayerAnimation,
-  sprite?: Msx2Sprite,
-): Msx2PlayerAnimation => {
-  if (!sprite?.frames?.length) return animation;
-  return {
-    ...animation,
-    frames: sprite.frames.map((_, index) => index),
-    speed: Math.max(1, Math.round((Number(sprite.animationSpeedMs) || 150) / (1000 / 60))),
-    playback: sprite.loops === false ? 'once' : 'loop',
-  };
-};
-
 const usePlayerAnimationPreview = (
   animation: Msx2PlayerAnimation | undefined,
   animationKey: string | null,
+  sprite?: Msx2Sprite,
 ) => {
-  const frameIndices = useMemo(
-    () => (animation?.frames?.length ? animation.frames : [0]),
-    [animation?.frames],
+  const previewTiming = useMemo(
+    () => playerAnimationPreviewTiming(animation, sprite),
+    [animation, sprite],
   );
+  const frameIndices = previewTiming.frameIndices;
   const [playing, setPlaying] = useState(false);
   const [slot, setSlot] = useState(0);
   const spriteFrameIndex = frameIndices[Math.min(slot, frameIndices.length - 1)] ?? 0;
-  const delayMs = animationDelayMs(animation?.speed ?? 6);
+  const delayMs = animationDelayMs(previewTiming.speedFrames);
 
   useEffect(() => {
     setSlot(0);
@@ -760,7 +754,7 @@ const usePlayerAnimationPreview = (
 
   useEffect(() => {
     if (!playing || frameIndices.length <= 1) return undefined;
-    const playback = animation?.playback ?? 'loop';
+    const playback = previewTiming.playback ?? 'loop';
     const timer = window.setInterval(() => {
       setSlot(previous => {
         const last = frameIndices.length - 1;
@@ -775,7 +769,7 @@ const usePlayerAnimationPreview = (
       });
     }, delayMs);
     return () => window.clearInterval(timer);
-  }, [playing, frameIndices, delayMs, animation?.playback]);
+  }, [playing, frameIndices, delayMs, previewTiming.playback]);
 
   return {
     playing,
@@ -876,7 +870,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
         key,
         animation.spriteAssetId
           ? animation
-          : playerAnimationFromRender(animation, sprite),
+          : playerAnimationFromMsx2Sprite(animation, sprite),
       ]),
     ) as Record<string, Msx2PlayerAnimation>;
     onUpdate({
@@ -902,6 +896,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     selectedSprite?.size?.width,
     selectedSprite?.size?.height,
   ]);
+
+  useEffect(() => {
+    if (!spriteAssets.length) return;
+    const { animations, changed } = syncPlayerAnimationsFromLinkedSprites(normalized, spriteAssets);
+    if (!changed) return;
+    onUpdate({
+      animations,
+      animationOrder: normalized.animationOrder || Object.keys(animations),
+    });
+  }, [normalized, spriteAssets]);
   const updateMovement = (patch: Partial<Msx2PlayerDefinition['movement']>) => onUpdate({ movement: { ...normalized.movement, ...patch } });
   const updateHealth = (patch: Partial<Msx2PlayerDefinition['health']>) => onUpdate({ health: { ...normalized.health, ...patch } });
   const updateAttack = (patch: Partial<Msx2PlayerDefinition['attack']>) => onUpdate({ attack: { ...normalized.attack, ...patch } });
@@ -986,8 +990,12 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     () => resolveAnimationSprite(selectedAnimation),
     [selectedAnimation, normalized.render.spriteAssetId, spriteAssets]
   );
+  const selectedAnimationTiming = useMemo(
+    () => playerAnimationPreviewTiming(selectedAnimation, selectedAnimationSprite),
+    [selectedAnimation, selectedAnimationSprite],
+  );
   const previewAnimationSprite = selectedAnimationSprite || selectedSprite;
-  const previewAnimation = usePlayerAnimationPreview(selectedAnimation, selectedKey);
+  const previewAnimation = usePlayerAnimationPreview(selectedAnimation, selectedKey, previewAnimationSprite);
 
   const updateAnimations = (animations: Record<string, Msx2PlayerAnimation>, nextOrder: string[]) => {
     onUpdate({ animations, animationOrder: nextOrder });
@@ -1003,7 +1011,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
       {
         ...normalized.animations,
         [selectedKey]: {
-          ...playerAnimationFromRender(selected, sprite),
+          ...playerAnimationFromMsx2Sprite(selected, sprite),
           spriteAssetId,
         },
       },
@@ -1326,7 +1334,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                           Internal key: {selectedKey}
                           {' · '}
                           Render: {labelForSpriteAsset(resolveAnimationSpriteAssetId(selectedAnimation))}
-                          {selectedAnimationSprite ? ` (${selectedAnimationSprite.frames.length} frames)` : ''}
+                          {selectedAnimationSprite
+                            ? ` (${selectedAnimationTiming.frameIndices.length} anim frames @ ${selectedAnimationTiming.speedFrames}f)`
+                            : ''}
                         </div>
                       </div>
                     )}

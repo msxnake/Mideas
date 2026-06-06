@@ -1,6 +1,6 @@
 import { Msx2GameProfileId, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerGameType, Msx2PlayerInputSource, Msx2PlayerSpriteSize, Msx2Sprite } from '../types';
 import { StateMachine } from '../statemachine.types';
-import { parseMsx2PlayerImport } from './msx2PlayerDocument';
+import { parseMsx2PlayerImport } from './msx2PlayerImport';
 
 const MSX2_PLAYER_SPRITE_SIZE_PRESETS: Msx2PlayerSpriteSize[] = ['16x16', '16x32', '32x16', '32x32'];
 export const MSX2_PLAYER_FACING_OPTIONS: ReadonlyArray<{ value: Msx2PlayerFacing; label: string }> = [

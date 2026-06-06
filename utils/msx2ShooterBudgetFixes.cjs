@@ -1,3 +1,5 @@
+'use strict';
+
 const DEFAULT_SHOOTER_60HZ_FIX_ACTION =
   'Reduce shooter pools, switch IRQ profile, or defer this profile until OpenMSX profiling confirms spare frame time.';
 
@@ -22,7 +24,7 @@ const SHOOTER_60HZ_FIX_ACTIONS = {
     'Keep targetHz at 60; the MSX2 shooter runtime is locked to 60 frames/second on 60 Hz machines.',
 };
 
-export function buildMsx2Shooter60HzSuggestedFix(item) {
+function buildMsx2Shooter60HzSuggestedFix(item) {
   const code = String(item?.code || '');
   return {
     severity: item?.severity || 'warning',
@@ -32,8 +34,13 @@ export function buildMsx2Shooter60HzSuggestedFix(item) {
   };
 }
 
-export function buildMsx2Shooter60HzSuggestedFixes(items) {
+function buildMsx2Shooter60HzSuggestedFixes(items) {
   return (Array.isArray(items) ? items : [])
     .filter(Boolean)
     .map(item => buildMsx2Shooter60HzSuggestedFix(item));
 }
+
+module.exports = {
+  buildMsx2Shooter60HzSuggestedFix,
+  buildMsx2Shooter60HzSuggestedFixes,
+};

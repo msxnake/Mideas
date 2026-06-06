@@ -34,6 +34,7 @@ import { chooseScreen4RowColors } from '../../../msx2Screen4TileConstraints';
 import { getMsx2TileBehaviorKind, buildMsx2TileHazardHitboxBytes, buildMsx2TileVisualMapBytes } from '../../../msx2Screen4TileBehavior';
 import { buildMsx2CellFlagBytes } from '../../../msx2CellFlags';
 import { buildPlayerStateMachineAsm } from '../../skills/stateMachine.asm';
+import { parseMsx2PlayerImport } from '../../../msx2PlayerDocument';
 import { buildPlayerRuntimeAsmV2 } from './playerRuntime_v2/index';
 import {
   formatAsmByte,
@@ -1437,6 +1438,7 @@ function getEntityRenderSpriteId(entity: any): string {
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
       ?? entity?.components?.msx2_render?.msx2SpriteAssetId
       ?? entity?.components?.msx2_render?.spriteAssetId
+      ?? entity?.render?.spriteAssetId
       ?? entity?.spriteAssetId
       ?? ''
   ).trim();
@@ -1449,17 +1451,8 @@ function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string 
 
 function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | undefined {
   if (!data) return undefined;
-  if (data.compact) return data.compact as Partial<Msx2PlayerDefinition>;
-  if (data.schema && data.player) {
-    return {
-      id: data.player.identity?.id,
-      name: data.player.identity?.name,
-      defaultFacing: data.player.identity?.defaultFacing,
-      render: data.player.render,
-      components: data.player.components,
-    } as Partial<Msx2PlayerDefinition>;
-  }
-  return data as Partial<Msx2PlayerDefinition>;
+  const parsed = parseMsx2PlayerImport(data);
+  return Object.keys(parsed).length ? parsed : undefined;
 }
 
 function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
@@ -1613,10 +1606,22 @@ function mergePlayerAssetIntoRuntimeEntity(
       offsetY: bodyHitbox.y ?? existingCollision.offsetY ?? 0,
     };
   }
+  const entityAnimations = entity?.animations as Record<string, unknown> | undefined;
+  const playerAnimations = playerAsset?.animations as Record<string, unknown> | undefined;
   return {
     ...(playerAsset || {}),
     ...(entity || {}),
     spriteAssetId: entity?.spriteAssetId || assetSpriteId || playerAsset?.render?.spriteAssetId,
+    render: {
+      ...(playerAsset?.render || {}),
+      ...(entity?.render || {}),
+    },
+    animations: entityAnimations && Object.keys(entityAnimations).length
+      ? entityAnimations
+      : playerAnimations,
+    animationOrder: Array.isArray(entity?.animationOrder) && entity.animationOrder.length
+      ? entity.animationOrder
+      : playerAsset?.animationOrder,
     components: mergedComponents,
     params: {
       ...(playerAsset as any)?.params,
@@ -1760,28 +1765,37 @@ export function getEffectivePlayerRoleFacing(
 export function getPlayerAnimRoles(analysis: ProjectAnalysis): Record<string, PlayerAnimRole> | undefined {
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const entity = getPlayerRuntimeSource(screen, analysis);
+  const defaultRenderSpriteId = String(entity?.render?.spriteAssetId || entity?.spriteAssetId || '').trim();
   const animations = entity?.animations as Record<string, any> | undefined;
-  if (!animations) return undefined;
   const roles: Record<string, PlayerAnimRole> = {};
-  for (const [name, anim] of Object.entries(animations)) {
-    const assetId = anim?.spriteAssetId;
-    if (!assetId) continue;
+
+  const addRole = (name: string, anim: any | undefined, fallbackSpriteId?: string) => {
+    const assetId = String(
+      anim?.spriteAssetId
+        ?? anim?.renderLink?.spriteAssetId
+        ?? fallbackSpriteId
+        ?? defaultRenderSpriteId
+        ?? ''
+    ).trim();
+    if (!assetId) return;
     const sprite = resolveMsx2SpriteById(analysis, assetId);
-    if (!sprite) continue;
-    const spriteFrameIndices = (sprite.frames || [])
-      .map((_frame, index) => index)
-      .filter(index => Array.isArray(sprite.frames?.[index]?.data) && sprite.frames[index].data.length > 0);
-    const authoredFrames = Array.isArray(anim.frames) && anim.frames.length
-      ? anim.frames
-        .map((frame: unknown) => Number(frame))
-        .filter((index: number) => Number.isFinite(index) && index >= 0 && index < (sprite.frames?.length || 0))
-      : spriteFrameIndices;
-    const frames = authoredFrames.length ? authoredFrames : (spriteFrameIndices.length ? spriteFrameIndices : [0]);
-    const speed = Number.isFinite(Number(anim.speed)) && Number(anim.speed) > 0
-      ? Math.max(1, Math.min(255, Math.floor(Number(anim.speed))))
-      : getHardwareSpriteAnimationDelayFrames(sprite);
-    roles[name] = { sprite, frames, speed, facing: getHorizontalFacingDirection(sprite) };
+    if (!sprite) return;
+    roles[name] = {
+      sprite,
+      frames: getMsx2SpriteHardwareFrameIndices(sprite),
+      speed: getHardwareSpriteAnimationDelayFrames(sprite),
+      facing: getHorizontalFacingDirection(sprite),
+    };
+  };
+
+  if (animations && Object.keys(animations).length > 0) {
+    for (const [name, anim] of Object.entries(animations)) {
+      addRole(name, anim);
+    }
+  } else if (defaultRenderSpriteId) {
+    addRole('idle', undefined, defaultRenderSpriteId);
   }
+
   return Object.keys(roles).length ? roles : undefined;
 }
 
@@ -3069,6 +3083,13 @@ export function getHardwareSpriteAnimationDelayFrames(sprite: Msx2Sprite): numbe
   const speedMs = Number(sprite.animationSpeedMs);
   if (!Number.isFinite(speedMs) || speedMs <= 0) return 8;
   return Math.max(1, Math.min(255, Math.round(speedMs / (1000 / 60))));
+}
+
+export function getMsx2SpriteHardwareFrameIndices(sprite: Msx2Sprite): number[] {
+  const indices = (sprite.frames || [])
+    .map((_frame, index) => index)
+    .filter(index => Array.isArray(sprite.frames?.[index]?.data) && sprite.frames[index].data.length > 0);
+  return indices.length ? indices : [0];
 }
 
 function multiplyABySmallConstant(multiplier: number): string {

@@ -49,6 +49,8 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './'),  // @/components/... ahora funciona
       },
+      // Prefer authored TypeScript over stale CommonJS .js siblings from tsc output.
+      extensions: ['.mjs', '.mts', '.ts', '.tsx', '.js', '.jsx', '.json'],
     },
 
     build: {

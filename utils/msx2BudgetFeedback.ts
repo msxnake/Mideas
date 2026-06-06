@@ -1,4 +1,4 @@
-﻿import { buildMsx2Shooter60HzSuggestedFixes } from './msx2ShooterBudgetFixes.js';
+﻿import { buildMsx2Shooter60HzSuggestedFixes } from './msx2ShooterBudgetFixes';
 
 export interface Msx2BudgetFeedback {
   scope: 'msx2_screen4_ide_budget_feedback';
