@@ -1943,6 +1943,31 @@ function usesMsx2PlatformVerticalPhysics(analysis: ProjectAnalysis): boolean {
   return physics.jumpEnabled || physics.gravityEnabled;
 }
 
+function clampMsx2PlatformHitboxByte(value: unknown, fallback: number): number {
+  return Math.max(0, Math.min(255, Math.floor(Number(value) || fallback)));
+}
+
+function clampMsx2PlatformHitboxSigned(value: unknown, fallback: number): number {
+  return Math.max(-128, Math.min(127, Math.floor(Number(value) || fallback)));
+}
+
+function getMsx2PlatformPlayerBodyHitbox(player: any | undefined): { x: number; y: number; w: number; h: number } {
+  const body = player?.hitboxes?.body || player?.components?.msx2_collision || player?.params || {};
+  const x = clampMsx2PlatformHitboxSigned(body.x ?? body.offsetX ?? body.hitboxX, 0);
+  const y = clampMsx2PlatformHitboxSigned(body.y ?? body.offsetY ?? body.hitboxY, 0);
+  const w = Math.max(1, Math.min(32, clampMsx2PlatformHitboxByte(body.w ?? body.width ?? body.hitboxW, 16)));
+  const h = Math.max(1, Math.min(32, clampMsx2PlatformHitboxByte(body.h ?? body.height ?? body.hitboxH, 16)));
+  return { x, y, w, h };
+}
+
+function formatSignedPixelAdd(target: 'b' | 'c', baseRamLabel: string, offset: number): string {
+  const load = `    ld a, (${baseRamLabel})\n`;
+  const store = `    ld ${target}, a\n`;
+  if (offset > 0) return `${load}    add a, ${formatAsmByte(offset)}\n${store}`;
+  if (offset < 0) return `${load}    sub ${formatAsmByte(Math.abs(offset))}\n${store}`;
+  return `${load}${store}`;
+}
+
 function buildMsx2PlatformVerticalPhysicsAsm(
   analysis: ProjectAnalysis,
   options: { mazeMovement: boolean; shooterHorizontal: boolean }
@@ -1958,7 +1983,16 @@ function buildMsx2PlatformVerticalPhysicsAsm(
   }
 
   const screen = getPrimaryRuntimeTileScreen(analysis);
-  const physics = getMsx2PlatformPhysicsFromScreen(screen, getMsx2PlatformPlayerEntity(analysis));
+  const player = getMsx2PlatformPlayerEntity(analysis);
+  const physics = getMsx2PlatformPhysicsFromScreen(screen, player);
+  const bodyHitbox = getMsx2PlatformPlayerBodyHitbox(player);
+  const probeInset = Math.max(0, Math.min(2, Math.floor((bodyHitbox.w - 1) / 2)));
+  const probeLeftOffset = bodyHitbox.x + probeInset;
+  const probeRightOffset = bodyHitbox.x + bodyHitbox.w - 1 - probeInset;
+  const topProbeOffset = bodyHitbox.y;
+  const bottomProbeOffset = bodyHitbox.y + bodyHitbox.h;
+  const hitboxTopOffset = bodyHitbox.y;
+  const hitboxHeight = bodyHitbox.h;
   const jumpImpulseHi = formatAsmByte(physics.jumpImpulse88 >> 8);
   const jumpImpulseLo = formatAsmByte(physics.jumpImpulse88);
   const gravityStrength = formatAsmByte(physics.gravityStrength88);
@@ -2032,6 +2066,7 @@ ${physics.requireKeyRelease ? `    or #2
     : '';
 
   return `    ; MSX2 platform vertical physics (msx2_jump + msx2_gravity components, 8.8).
+    ; Body hitbox: x=${bodyHitbox.x}, y=${bodyHitbox.y}, w=${bodyHitbox.w}, h=${bodyHitbox.h}. Vertical probes use inset ${probeInset}.
 ${jumpInputBlock}.platform_after_jump_input:
     call msx2_rope_at_player_center
     jp z, .platform_hold_rope
@@ -2046,21 +2081,14 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     jp nz, .platform_move_up_once
     ld d, a
 .platform_move_down_loop:
-    ld a, (msx2_player_sprite_x)
-    ld b, a
-    ld a, (msx2_player_sprite_y)
-    add a, 16
-    inc a
-    ld c, a
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    ld e, c
     push de
     push bc
     call msx2_collision_at_pixel
     pop bc
     pop de
     jp nz, .platform_land
-    ld a, (msx2_player_sprite_x)
-    add a, 15
-    ld b, a
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, e
     push de
     push bc
     call msx2_collision_at_pixel
@@ -2086,34 +2114,32 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     or a
     jp z, upload_hardware_sprite_attrs
     dec a
-    ld c, a
-    ld a, (msx2_player_sprite_x)
-    ld b, a
-    ld a, c
-    ld c, a
-    push de
-    push bc
-    call msx2_collision_at_pixel
-    pop bc
-    pop de
-    jp nz, .platform_cancel_jump
-    ld a, (msx2_player_sprite_x)
-    add a, 15
-    ld b, a
-    push de
-    push bc
-    call msx2_collision_at_pixel
-    pop bc
-    pop de
-    jp nz, .platform_cancel_jump
-    ld a, c
     ld (msx2_player_sprite_y), a
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', topProbeOffset)}    ld e, c
+    push de
+    push bc
+    call msx2_collision_at_pixel
+    pop bc
+    pop de
+    jp nz, .platform_cancel_jump
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, e
+    push de
+    push bc
+    call msx2_collision_at_pixel
+    pop bc
+    pop de
+    jp nz, .platform_cancel_jump
     dec d
     ld a, d
     or a
     jp nz, .platform_move_up_loop
     jp upload_hardware_sprite_attrs
 .platform_cancel_jump:
+    ld a, e
+    and #F0
+    add a, #10
+    sub ${formatAsmByte(Math.max(0, hitboxTopOffset))}
+    ld (msx2_player_sprite_y), a
     ld hl, msx2_player_gravity_vel
     xor a
     ld (hl), a
@@ -2121,6 +2147,10 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     ld (hl), a
     jp upload_hardware_sprite_attrs
 .platform_land:
+    ld a, e
+    and #F0
+    sub ${formatAsmByte(Math.max(0, hitboxTopOffset + hitboxHeight))}
+    ld (msx2_player_sprite_y), a
     ld hl, msx2_player_gravity_vel
     xor a
     ld (hl), a
@@ -2131,20 +2161,19 @@ ${gravityAccelBlock}    jp .platform_apply_vertical_delta
     call apply_msx2_conveyor
     jp upload_hardware_sprite_attrs
 .platform_check_grounded:
-    ld a, (msx2_player_sprite_x)
-    ld b, a
-    ld a, (msx2_player_sprite_y)
-    add a, 16
-    ld c, a
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    ld e, c
+    push de
+    push bc
     call msx2_collision_at_pixel
+    pop bc
+    pop de
     jp nz, .platform_land
-    ld a, (msx2_player_sprite_x)
-    add a, 15
-    ld b, a
-    ld a, (msx2_player_sprite_y)
-    add a, 16
-    ld c, a
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, e
+    push de
+    push bc
     call msx2_collision_at_pixel
+    pop bc
+    pop de
     jp nz, .platform_land
     ld a, (msx2_player_flags)
     and #FE

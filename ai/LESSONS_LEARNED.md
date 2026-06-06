@@ -145,3 +145,21 @@ Guardar una firma de la sincronizacion aplicada y no reemitir el mismo `onUpdate
 
 Leccion:
 Toda sincronizacion `useEffect -> onUpdate/setState` debe ser idempotente. Si depende de objetos normalizados o derivados, comparar una firma estable antes de escribir estado.
+
+---
+
+## Bug Resuelto: salto MSX2 con probes fijos de 16x16
+
+Fecha: 2026-06-06
+
+Problema:
+Durante el salto de plataforma MSX2, el player podia filtrarse parcialmente en tiles solidos.
+
+Causa:
+La fisica vertical MSX2 movia pixel a pixel, pero las colisiones seguian usando probes fijos de sprite 16x16 (`x`, `x+15`, `y+16`) en vez de la hitbox real definida por Player Config. Con hitboxes desplazadas o mas altas que 16 px, los probes podian quedar fuera del cuerpo efectivo.
+
+Solucion:
+Generar probes verticales desde `hitboxes.body`, con inset interno y snap al borde de celda SCREEN 4 al aterrizar o golpear techo. Mantener `msx2_collision_at_pixel` como rutina compartida y respetar su contrato de registros.
+
+Leccion:
+En MSX2, no asumir 16x16 para fisica de plataforma si el Player Config ya define hitbox. El movimiento pixel a pixel evita tunelado por velocidad, pero no corrige probes mal colocados.
