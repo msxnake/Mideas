@@ -786,7 +786,7 @@ const PlayerSpriteHitboxPreview: React.FC<{
               <SpriteFramePreview sprite={sprite} pixelScale={scale} />
             </div>
             <div
-              className="pointer-events-none absolute border-2 border-white bg-white/10"
+              className="pointer-events-none absolute border-2 border-dashed border-white bg-white/10 outline outline-1 outline-dashed outline-black"
               style={{
                 left: hitbox.x * scale,
                 top: hitbox.y * scale,
@@ -797,7 +797,7 @@ const PlayerSpriteHitboxPreview: React.FC<{
             />
             {attackHitbox && (
               <div
-                className="pointer-events-none absolute border-2 border-red-500/90 bg-red-500/10"
+                className="pointer-events-none absolute border-2 border-dashed border-red-500/90 bg-red-500/10 outline outline-1 outline-dashed outline-black"
                 style={{
                   left: attackHitbox.x * scale,
                   top: attackHitbox.y * scale,
@@ -815,12 +815,12 @@ const PlayerSpriteHitboxPreview: React.FC<{
             Sprite frame
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 border-2 border-white bg-white/10" />
+            <span className="h-3 w-3 border-2 border-dashed border-white bg-white/10 outline outline-1 outline-dashed outline-black" />
             Body
           </span>
           {attackHitbox && (
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-3 border-2 border-red-500 bg-red-500/10" />
+              <span className="h-3 w-3 border-2 border-dashed border-red-500 bg-red-500/10 outline outline-1 outline-dashed outline-black" />
               Attack
             </span>
           )}
