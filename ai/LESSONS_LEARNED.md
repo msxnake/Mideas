@@ -195,7 +195,7 @@ Causa:
 La rutina usaba un nombre/id global fijo para una accion ejecutada desde un asset concreto, sin respetar primero `stateMachineAssetId` ni aislar por owner.
 
 Solucion:
-Priorizar la state machine ya linkada al Player. Si no existe link, crear un asset provisional con el siguiente nombre libre en la secuencia `player_sm`, `player_sm2`, `player_sm3...`.
+Priorizar la state machine ya linkada al Player. Si no existe link, crear un asset provisional con el nombre del asset Player activo mas `_sm` (por ejemplo `aphorita_sm`) y anadir sufijo numerico solo si hay colision.
 
 Leccion:
-Cuando un editor crea assets auxiliares, debe actualizar primero el link explicito existente. Para nuevas creaciones, usar nombres provisionales no colisionantes y enlazar el asset creado al owner.
+Cuando un editor crea assets auxiliares, debe actualizar primero el link explicito existente. Para nuevas creaciones, derivar el nombre del asset owner visible y enlazar el asset creado sin modificar el owner.

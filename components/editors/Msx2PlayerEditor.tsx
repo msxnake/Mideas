@@ -15,6 +15,7 @@ import type { SkillControlIcon } from '../../utils/msxGenerator/skills/types';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
+  playerAssetName?: string;
   onUpdate: (data: Partial<Msx2PlayerDefinition>) => void;
   allAssets: ProjectAsset[];
   onUpsertStateMachineAsset?: (asset: ProjectAsset) => void;
@@ -41,16 +42,24 @@ const panelClass = 'flex min-h-0 flex-col overflow-hidden rounded border border-
 const panelTitleClass = 'flex-shrink-0 border-b border-slate-700 px-3 py-2 text-xs font-bold uppercase tracking-wide text-sky-300';
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
-const PLAYER_STATE_MACHINE_ASSET_ID = 'player_sm';
-const PLAYER_STATE_MACHINE_ASSET_NAME = 'Player_sm';
 
-const nextPlayerStateMachineAssetIdentity = (stateMachineAssets: ProjectAsset[]): { id: string; name: string } => {
+const sanitizePlayerStateMachineAssetName = (value: string): string => {
+  const sanitized = value
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return sanitized || 'Player';
+};
+
+const nextPlayerStateMachineAssetIdentity = (stateMachineAssets: ProjectAsset[], playerAssetName: string): { id: string; name: string } => {
+  const baseName = `${sanitizePlayerStateMachineAssetName(playerAssetName)}_sm`;
+  const baseId = baseName.toLowerCase();
   const existingIds = new Set(stateMachineAssets.map(asset => asset.id.toLowerCase()));
   const existingNames = new Set(stateMachineAssets.map(asset => asset.name.toLowerCase()));
   let suffix = 1;
   while (true) {
-    const id = suffix === 1 ? PLAYER_STATE_MACHINE_ASSET_ID : `${PLAYER_STATE_MACHINE_ASSET_ID}${suffix}`;
-    const name = suffix === 1 ? PLAYER_STATE_MACHINE_ASSET_NAME : `${PLAYER_STATE_MACHINE_ASSET_NAME}${suffix}`;
+    const id = suffix === 1 ? baseId : `${baseId}${suffix}`;
+    const name = suffix === 1 ? baseName : `${baseName}${suffix}`;
     if (!existingIds.has(id.toLowerCase()) && !existingNames.has(name.toLowerCase())) {
       return { id, name };
     }
@@ -865,7 +874,7 @@ const PlayerPreviewControls: React.FC<{
   </div>
 );
 
-export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
+export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, playerAssetName, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
   const normalized = useMemo(() => normalizeMsx2PlayerDefinition(player), [player]);
   const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
@@ -1117,8 +1126,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     ? stateMachineAssets.find(asset => asset.id === normalized.stateMachineAssetId)
     : undefined;
   const nextPlayerStateMachineAsset = useMemo(
-    () => nextPlayerStateMachineAssetIdentity(stateMachineAssets),
-    [stateMachineAssets],
+    () => nextPlayerStateMachineAssetIdentity(stateMachineAssets, playerAssetName || normalized.id || 'Player'),
+    [stateMachineAssets, playerAssetName, normalized.id],
   );
   const targetPlayerStateMachineAssetId = linkedPlayerStateMachineAsset?.id
     || nextPlayerStateMachineAsset.id;
