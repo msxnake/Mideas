@@ -728,7 +728,10 @@ const PlayerSpriteHitboxPreview: React.FC<{
   frameWidth: number;
   frameHeight: number;
   hitbox: { x: number; y: number; w: number; h: number };
-}> = ({ sprite, frameWidth, frameHeight, hitbox }) => {
+  attackHitbox?: { x: number; y: number; w: number; h: number };
+  title?: string;
+  className?: string;
+}> = ({ sprite, frameWidth, frameHeight, hitbox, attackHitbox, title = 'Sprite & Collision', className = '' }) => {
   const spritePixelW = sprite?.size?.width || frameWidth;
   const spritePixelH = sprite?.size?.height || frameHeight;
   const maxStage = 168;
@@ -738,9 +741,9 @@ const PlayerSpriteHitboxPreview: React.FC<{
   const ruler = 24;
 
   return (
-    <div className="flex h-full min-h-[260px] flex-col overflow-hidden rounded border border-slate-700 bg-[#121820]">
+    <div className={`flex h-full min-h-[220px] flex-col overflow-hidden rounded border border-slate-700 bg-[#121820] ${className}`}>
       <div className="border-b border-slate-700 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">
-        Sprite & Collision
+        {title}
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-5">
         <div
@@ -774,15 +777,6 @@ const PlayerSpriteHitboxPreview: React.FC<{
             style={{ width: stageW, height: stageH }}
           >
             <div
-              className="pointer-events-none absolute border-2 border-red-500/90 bg-red-500/10"
-              style={{
-                left: hitbox.x * scale,
-                top: hitbox.y * scale,
-                width: hitbox.w * scale,
-                height: hitbox.h * scale,
-              }}
-            />
-            <div
               className="absolute"
               style={{
                 left: ((frameWidth - spritePixelW) / 2) * scale,
@@ -791,6 +785,28 @@ const PlayerSpriteHitboxPreview: React.FC<{
             >
               <SpriteFramePreview sprite={sprite} pixelScale={scale} />
             </div>
+            <div
+              className="pointer-events-none absolute border-2 border-white bg-white/10"
+              style={{
+                left: hitbox.x * scale,
+                top: hitbox.y * scale,
+                width: hitbox.w * scale,
+                height: hitbox.h * scale,
+              }}
+              title={`Body: ${hitbox.x},${hitbox.y} ${hitbox.w}x${hitbox.h}px`}
+            />
+            {attackHitbox && (
+              <div
+                className="pointer-events-none absolute border-2 border-red-500/90 bg-red-500/10"
+                style={{
+                  left: attackHitbox.x * scale,
+                  top: attackHitbox.y * scale,
+                  width: attackHitbox.w * scale,
+                  height: attackHitbox.h * scale,
+                }}
+                title={`Attack: ${attackHitbox.x},${attackHitbox.y} ${attackHitbox.w}x${attackHitbox.h}px`}
+              />
+            )}
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-slate-300">
@@ -799,9 +815,15 @@ const PlayerSpriteHitboxPreview: React.FC<{
             Sprite frame
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 border-2 border-red-500 bg-red-500/10" />
-            Collision box
+            <span className="h-3 w-3 border-2 border-white bg-white/10" />
+            Body
           </span>
+          {attackHitbox && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 border-2 border-red-500 bg-red-500/10" />
+              Attack
+            </span>
+          )}
         </div>
         <p className="mt-2 text-center text-[10px] tabular-nums text-slate-500">
           Hitbox ({hitbox.x}, {hitbox.y}) · {hitbox.w}×{hitbox.h}px
@@ -1492,6 +1514,18 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       <span>Height</span><SmallNumber value={body.h} onChange={value => updateBodyHitbox({ h: value })} />
                     </div>
                   </div>
+                  <div className="grid grid-cols-[96px_1fr] gap-2 text-xs">
+                    <span className="pt-2 text-slate-300">Hitbox View:</span>
+                    <PlayerSpriteHitboxPreview
+                      sprite={selectedSprite}
+                      frameWidth={spriteSize.width}
+                      frameHeight={spriteSize.height}
+                      hitbox={body}
+                      attackHitbox={attack}
+                      title="Sprite & Hitboxes"
+                      className="min-h-[250px]"
+                    />
+                  </div>
                 </div>
               </section>
 
@@ -1518,6 +1552,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     frameWidth={spriteSize.width}
                     frameHeight={spriteSize.height}
                     hitbox={body}
+                    attackHitbox={attack}
                   />
                 </div>
               </section>
