@@ -114,6 +114,15 @@ const friendlyStateLabelFromId = (stateId: string): string => {
     .replace(/\b\w/g, value => value.toUpperCase());
 };
 
+const stateMachineStateFromId = (stateId: string, index: number): StateMachineState => ({
+  id: stateId,
+  name: friendlyStateLabelFromId(stateId) as StateMachineStateName,
+  position: {
+    x: 120 + (index % 4) * 180,
+    y: 80 + Math.floor(index / 4) * 120,
+  },
+});
+
 const Field: React.FC<{ label: string; children: React.ReactNode; suffix?: string }> = ({ label, children, suffix }) => (
   <label className="grid grid-cols-[96px_1fr_auto] items-center gap-2 text-xs text-slate-200">
     <span className="text-slate-100">{label}:</span>
@@ -900,6 +909,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
+  const [newStateName, setNewStateName] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const lastAnimationSyncSignatureRef = useRef<string | null>(null);
   const spriteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2sprite'), [allAssets]);
@@ -1229,6 +1239,64 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     });
   };
 
+  const addPlayerStateMachineState = () => {
+    if (!onUpsertStateMachineAsset) return;
+    const label = newStateName.trim();
+    if (!label) return;
+    const newStateId = sanitizePlayerStateId(label);
+    const existingAsset = linkedPlayerStateMachineAsset;
+    const existingMachine = existingAsset?.data as StateMachine | undefined;
+    const seedStates = existingMachine?.states?.length
+      ? existingMachine.states
+      : normalized.stateMachine.map((stateId, index) => stateMachineStateFromId(stateId, index));
+    const matchingState = seedStates.find(state =>
+      state.id.toLowerCase() === newStateId.toLowerCase()
+      || String(state.name || '').trim().toLowerCase() === label.toLowerCase()
+    );
+    const states = matchingState
+      ? seedStates
+      : [
+        ...seedStates,
+        {
+          id: newStateId,
+          name: label as StateMachineStateName,
+          position: {
+            x: 120 + (seedStates.length % 4) * 180,
+            y: 80 + Math.floor(seedStates.length / 4) * 120,
+          },
+        },
+      ];
+    const validStateIds = new Set(states.map(state => state.id));
+    const transitions = (existingMachine?.transitions || []).filter(transition =>
+      validStateIds.has(transition.fromStateId) && validStateIds.has(transition.toStateId)
+    );
+    const assetId = existingAsset?.id || targetPlayerStateMachineAssetId;
+    const assetName = existingAsset?.name || targetPlayerStateMachineAssetName;
+    const initialStateId = existingMachine?.initialStateId && validStateIds.has(existingMachine.initialStateId)
+      ? existingMachine.initialStateId
+      : states[0]?.id || null;
+    const stateMachine: StateMachine = {
+      id: assetId,
+      name: assetName,
+      states,
+      events: existingMachine?.events || [],
+      transitions,
+      initialStateId,
+    };
+
+    onUpsertStateMachineAsset({
+      id: assetId,
+      name: assetName,
+      type: 'statemachine',
+      data: stateMachine,
+    });
+    onUpdate({
+      stateMachineAssetId: assetId,
+      stateMachine: states.map(state => state.id),
+    });
+    setNewStateName('');
+  };
+
   const soundAnimationOptions = useMemo(
     () => animationOrder
       .filter(key => normalized.animations[key])
@@ -1538,6 +1606,31 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                               <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                           </select>
+                        </Field>
+                        <Field label="New State">
+                          <div className="grid grid-cols-[1fr_auto] gap-2">
+                            <input
+                              className={inputClass}
+                              value={newStateName}
+                              placeholder="Attacking"
+                              onChange={event => setNewStateName(event.target.value)}
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  addPlayerStateMachineState();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="rounded border border-slate-600 bg-[#242c38] px-3 py-1 text-xs font-semibold text-slate-100 hover:bg-[#2d3747] disabled:cursor-not-allowed disabled:opacity-50"
+                              onClick={addPlayerStateMachineState}
+                              disabled={!onUpsertStateMachineAsset || !newStateName.trim()}
+                              title={`Add a State to ${targetPlayerStateMachineAssetName}`}
+                            >
+                              Add State
+                            </button>
+                          </div>
                         </Field>
                         <div className="text-[11px] text-slate-400">
                           Internal key: {selectedKey}
