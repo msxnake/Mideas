@@ -54,3 +54,13 @@ Mideas
 - OpenMSX debe usarse como herramienta de debug/validación visual cuando haya dudas de runtime MSX2.
 - Nueva convención deseada: “modo noche” cuando el usuario diga `paramos sesion`, `adios`, `hasta mañana`, etc.; guardar memoria compacta por fecha, bugs esenciales y estado Git, sin llenar memoria con datos irrelevantes.
 - Decisión de transparencia: no guardar conclusiones ocultas, codificadas o "solo para la IA". Cualquier memoria interna operativa debe ser visible, auditable y corregible por el usuario.
+
+## Sesión 2026-06-07 - Player Config declarativo y pantallas MSX2
+- Rama activa: `codex/msx2-shooter-world-runtime`.
+- En Player Config, `Graphics & Render` queda orientado a enlaces declarativos: las animaciones no se crean ahí; se linkan roles del Player con renders MSX2 y estados de State Machine.
+- Commits relevantes: `efedaa03`, `565d0a53`, `7f85c92b`, `02ce5d80`, `d4298dce`, `42493e7b`, `fd3fc7d1`, `792be814`.
+- State Machines de Player: crear/actualizar solo desde estados explícitamente linkados; el asset auxiliar se nombra desde el Player owner visible (`<PlayerName>_sm`) y no debe renombrar el asset Player.
+- UI de estados: mostrar nombres humanos (`Attacking`, `Walking`, etc.) y reservar ids internos para persistencia/debug.
+- Nuevo selector en pantallas MSX2: `Player Entries` permite elegir el asset `MSX2 Player` por entrada usando `playerId`; commit `64e1bb06 Add MSX2 screen player asset selector`.
+- Verificación final UI: `npm run build`, `git diff --check`, preview Vite con Playwright sin errores de consola.
+- Pendiente: los cambios generados en `dist/*`, `server/temp/unitedCompressedFiles.asm` y `server/temp/codex_head_compare` siguen fuera de commits y no deben mezclarse con cambios funcionales.
