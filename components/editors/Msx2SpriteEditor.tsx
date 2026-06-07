@@ -376,8 +376,6 @@ const Msx2PixelGrid: React.FC<{
   onionSkinOpacity: number;
   prevFrame?: PixelData;
   nextFrame?: PixelData;
-  showHitbox: boolean;
-  hitbox: { width: number; height: number; offsetX: number; offsetY: number };
   metaSpriteParts?: Msx2SuperSpritePart[];
 }> = ({
   frame,
@@ -390,8 +388,6 @@ const Msx2PixelGrid: React.FC<{
   onionSkinOpacity,
   prevFrame,
   nextFrame,
-  showHitbox,
-  hitbox,
   metaSpriteParts = [],
 }) => {
   const [dragState, setDragState] = useState<{ active: boolean; right: boolean }>({ active: false, right: false });
@@ -462,17 +458,6 @@ const Msx2PixelGrid: React.FC<{
           />
         )))}
       </div>
-      {showHitbox && (
-        <div
-          className="absolute border border-dashed border-msx-highlight pointer-events-none"
-          style={{
-            left: hitbox.offsetX * zoom,
-            top: hitbox.offsetY * zoom,
-            width: hitbox.width * zoom,
-            height: hitbox.height * zoom,
-          }}
-        />
-      )}
       {metaSpriteParts.map(part => (
         <div
           key={part.id}
@@ -507,11 +492,9 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [previewFrameIndex, setPreviewFrameIndex] = useState(sprite.currentFrameIndex || 0);
   const [onionSkinEnabled, setOnionSkinEnabled] = useState(true);
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
-  const [showHitbox, setShowHitbox] = useState(false);
   const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
-  const resolvedHitbox = sprite.hitbox || { width: sprite.size.width, height: sprite.size.height, offsetX: 0, offsetY: 0 };
   const animationSpeedMs = sprite.animationSpeedMs || 150;
   const useOrColor = sprite.hardware?.useOrColor !== false;
   const orPalettePairs = useMemo<HardwareOrColorPalettePair[]>(() => {
@@ -750,10 +733,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     if (toolMode === 'erase') setToolMode('draw');
   };
 
-  const setHitbox = (field: keyof NonNullable<Msx2Sprite['hitbox']>, value: number) => {
-    onUpdate({ hitbox: { ...resolvedHitbox, [field]: value } });
-  };
-
   const applyMetaSpriteLayout = (layout: Exclude<Msx2SuperSpriteLayout, 'custom'>) => {
     const preset = MSX2_METASPRITE_PRESETS.find(candidate => candidate.id === layout);
     if (!preset) return;
@@ -767,27 +746,12 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       nextHeight,
       sprite.backgroundColor
     );
-    const oldHitboxWasFullSprite =
-      !sprite.hitbox ||
-      (resolvedHitbox.offsetX === 0 &&
-        resolvedHitbox.offsetY === 0 &&
-        resolvedHitbox.width === sprite.size.width &&
-        resolvedHitbox.height === sprite.size.height);
     onUpdate({
       size: { width: nextWidth, height: nextHeight },
       frames: resizedFrames,
       currentFrameIndex: Math.min(sprite.currentFrameIndex || 0, resizedFrames.length - 1),
       superSpriteLayout: layout,
       superSpriteParts: preset.parts.map(part => ({ ...part })),
-      hitbox: oldHitboxWasFullSprite
-        ? { width: nextWidth, height: nextHeight, offsetX: 0, offsetY: 0 }
-        : {
-          ...resolvedHitbox,
-          width: Math.min(resolvedHitbox.width, nextWidth),
-          height: Math.min(resolvedHitbox.height, nextHeight),
-          offsetX: Math.min(resolvedHitbox.offsetX, Math.max(0, nextWidth - 1)),
-          offsetY: Math.min(resolvedHitbox.offsetY, Math.max(0, nextHeight - 1)),
-        },
     });
   };
 
@@ -1054,8 +1018,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               onionSkinOpacity={onionSkinOpacity}
               prevFrame={prevFrame}
               nextFrame={nextFrame}
-              showHitbox={showHitbox}
-              hitbox={resolvedHitbox}
               metaSpriteParts={superSpriteParts}
             />
           )}
@@ -1085,8 +1047,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                     onPixel={() => undefined}
                     onionSkinEnabled={false}
                     onionSkinOpacity={0}
-                    showHitbox={false}
-                    hitbox={resolvedHitbox}
                   />
                   <div className="text-center text-[10px] text-msx-textsecondary">Base</div>
                 </div>
@@ -1101,8 +1061,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                       onPixel={() => undefined}
                       onionSkinEnabled={false}
                       onionSkinOpacity={0}
-                      showHitbox={false}
-                      hitbox={resolvedHitbox}
                     />
                     <div className="text-center text-[10px] text-msx-textsecondary">Mirror</div>
                   </div>
@@ -1289,19 +1247,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           <pre className="m-0 max-h-44 overflow-auto p-3 text-[10px] leading-relaxed text-msx-textsecondary whitespace-pre-wrap">
             {JSON.stringify(spriteExportContract, null, 2)}
           </pre>
-        </Panel>
-
-        <Panel title="Hitbox Settings" collapsible>
-          <div className="p-3 space-y-2 text-xs">
-            <Button size="sm" variant="ghost" onClick={() => onUpdate({ hitbox: { width: sprite.size.width, height: sprite.size.height, offsetX: 0, offsetY: 0 } })}>Fit Sprite</Button>
-            <div className="grid grid-cols-2 gap-2">
-              <label>Width<input type="number" min={1} max={sprite.size.width} value={resolvedHitbox.width} onChange={e => setHitbox('width', Number(e.target.value) || sprite.size.width)} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
-              <label>Height<input type="number" min={1} max={sprite.size.height} value={resolvedHitbox.height} onChange={e => setHitbox('height', Number(e.target.value) || sprite.size.height)} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
-              <label>Offset X<input type="number" value={resolvedHitbox.offsetX} onChange={e => setHitbox('offsetX', Number(e.target.value) || 0)} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
-              <label>Offset Y<input type="number" value={resolvedHitbox.offsetY} onChange={e => setHitbox('offsetY', Number(e.target.value) || 0)} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
-            </div>
-            <label className="flex items-center justify-between gap-2">Show Hitbox<input type="checkbox" checked={showHitbox} onChange={e => setShowHitbox(e.target.checked)} /></label>
-          </div>
         </Panel>
 
         <Panel title="MSX2 Pattern Bytes" collapsible>
