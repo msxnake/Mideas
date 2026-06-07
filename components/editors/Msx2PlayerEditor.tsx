@@ -742,9 +742,24 @@ const PlayerSpriteHitboxPreview: React.FC<{
   const spritePixelW = sprite?.size?.width || frameWidth;
   const spritePixelH = sprite?.size?.height || frameHeight;
   const maxStage = 168;
-  const scale = Math.max(2, Math.min(5, Math.floor(maxStage / Math.max(frameWidth, frameHeight))));
-  const stageW = frameWidth * scale;
-  const stageH = frameHeight * scale;
+  const bounds = [
+    { x: 0, y: 0, w: frameWidth, h: frameHeight },
+    hitbox,
+    ...(attackHitbox ? [attackHitbox] : []),
+  ];
+  const minX = Math.min(...bounds.map(rect => rect.x));
+  const minY = Math.min(...bounds.map(rect => rect.y));
+  const maxX = Math.max(...bounds.map(rect => rect.x + rect.w));
+  const maxY = Math.max(...bounds.map(rect => rect.y + rect.h));
+  const previewWidth = Math.max(1, maxX - minX);
+  const previewHeight = Math.max(1, maxY - minY);
+  const originX = -minX;
+  const originY = -minY;
+  const scale = Math.max(2, Math.min(5, Math.floor(maxStage / Math.max(previewWidth, previewHeight))));
+  const stageW = previewWidth * scale;
+  const stageH = previewHeight * scale;
+  const spriteFrameLeft = originX * scale;
+  const spriteFrameTop = originY * scale;
   const ruler = 24;
 
   return (
@@ -764,7 +779,7 @@ const PlayerSpriteHitboxPreview: React.FC<{
           <div className="relative pb-1">
             <div className="relative border-t border-emerald-400/80">
               <span className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full px-1 text-[10px] font-medium tabular-nums text-emerald-300">
-                {frameWidth}px
+                {previewWidth}px
               </span>
               <span className="absolute left-0 top-0 h-1.5 w-px bg-emerald-400/80" />
               <span className="absolute right-0 top-0 h-1.5 w-px bg-emerald-400/80" />
@@ -773,21 +788,30 @@ const PlayerSpriteHitboxPreview: React.FC<{
           <div className="relative flex justify-end pr-1">
             <div className="relative h-full border-l border-emerald-400/80">
               <span className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 pr-1.5 text-[10px] font-medium tabular-nums text-emerald-300">
-                {frameHeight}px
+                {previewHeight}px
               </span>
               <span className="absolute left-0 top-0 h-px w-1.5 bg-emerald-400/80" />
               <span className="absolute bottom-0 left-0 h-px w-1.5 bg-emerald-400/80" />
             </div>
           </div>
           <div
-            className="relative overflow-hidden border border-emerald-500/70 bg-[#0a1018]"
+            className="relative overflow-visible border border-emerald-500/70 bg-[#0a1018]"
             style={{ width: stageW, height: stageH }}
           >
             <div
+              className="pointer-events-none absolute border border-emerald-500/70"
+              style={{
+                left: spriteFrameLeft,
+                top: spriteFrameTop,
+                width: frameWidth * scale,
+                height: frameHeight * scale,
+              }}
+            />
+            <div
               className="absolute"
               style={{
-                left: ((frameWidth - spritePixelW) / 2) * scale,
-                bottom: 0,
+                left: spriteFrameLeft + ((frameWidth - spritePixelW) / 2) * scale,
+                top: spriteFrameTop + (frameHeight - spritePixelH) * scale,
               }}
             >
               <SpriteFramePreview sprite={sprite} pixelScale={scale} />
@@ -795,8 +819,8 @@ const PlayerSpriteHitboxPreview: React.FC<{
             <div
               className="pointer-events-none absolute border-2 border-dashed border-white bg-white/10 outline outline-1 outline-dashed outline-black"
               style={{
-                left: hitbox.x * scale,
-                top: hitbox.y * scale,
+                left: (originX + hitbox.x) * scale,
+                top: (originY + hitbox.y) * scale,
                 width: hitbox.w * scale,
                 height: hitbox.h * scale,
               }}
@@ -806,8 +830,8 @@ const PlayerSpriteHitboxPreview: React.FC<{
               <div
                 className="pointer-events-none absolute border-2 border-dashed border-red-500/90 bg-red-500/10 outline outline-1 outline-dashed outline-black"
                 style={{
-                  left: attackHitbox.x * scale,
-                  top: attackHitbox.y * scale,
+                  left: (originX + attackHitbox.x) * scale,
+                  top: (originY + attackHitbox.y) * scale,
                   width: attackHitbox.w * scale,
                   height: attackHitbox.h * scale,
                 }}
@@ -819,7 +843,7 @@ const PlayerSpriteHitboxPreview: React.FC<{
         <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-slate-300">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-3 w-3 border border-emerald-400 bg-emerald-950/30" />
-            Sprite frame
+            Sprite 16x16
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="h-3 w-3 border-2 border-dashed border-white bg-white/10 outline outline-1 outline-dashed outline-black" />
