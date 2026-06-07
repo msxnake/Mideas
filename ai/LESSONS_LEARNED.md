@@ -199,3 +199,21 @@ Priorizar la state machine ya linkada al Player. Si no existe link, crear un ass
 
 Leccion:
 Cuando un editor crea assets auxiliares, debe actualizar primero el link explicito existente. Para nuevas creaciones, derivar el nombre del asset owner visible y enlazar el asset creado sin modificar el owner.
+
+---
+
+## Bug Resuelto: edicion interna renombraba asset Player
+
+Fecha: 2026-06-07
+
+Problema:
+Al modificar enlaces de State en Graphics & Render, el asset visible de Player Config se renombraba a `Player_Main`.
+
+Causa:
+Las ediciones internas del Player Config guardaban un documento normalizado completo. El handler de assets copia `player.identity.name` al nombre visible del asset, y el normalizador podia restaurar el default `Player_Main`.
+
+Solucion:
+Al guardar ediciones internas del Player Config, preservar `activeAsset.name` dentro del documento generado antes de llamar a `handleUpdateAsset`.
+
+Leccion:
+Los nombres visibles de assets deben cambiar solo por acciones explicitas de rename. Los normalizadores de datos internos no deben sobreescribir identidad visible durante ediciones parciales.
