@@ -94,6 +94,26 @@ const playerStateNameFromLabel = (label: string): StateMachineStateName => {
   return (mapped[trimmed] || trimmed || 'Idle') as StateMachineStateName;
 };
 
+const friendlyStateLabelFromId = (stateId: string): string => {
+  const trimmed = stateId.trim();
+  const mapped: Record<string, string> = {
+    IDLE: 'Idle',
+    WALK: 'Walking',
+    RUN: 'Running',
+    DASH: 'Dashing',
+    JUMP: 'Jumping',
+    FALL: 'Falling',
+    ATTACK: 'Attacking',
+    DEFEND: 'Defending',
+    DEAD: 'Dead',
+    HURT: 'Hurt',
+  };
+  if (mapped[trimmed.toUpperCase()]) return mapped[trimmed.toUpperCase()];
+  return trimmed
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, value => value.toUpperCase());
+};
+
 const Field: React.FC<{ label: string; children: React.ReactNode; suffix?: string }> = ({ label, children, suffix }) => (
   <label className="grid grid-cols-[96px_1fr_auto] items-center gap-2 text-xs text-slate-200">
     <span className="text-slate-100">{label}:</span>
@@ -1093,21 +1113,6 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     );
   };
 
-  const animationRows = animationOrder
-    .filter(key => normalized.animations[key])
-    .map((key, index) => {
-      const animation = normalized.animations[key];
-      const renderSprite = resolveAnimationSprite(animation);
-      return {
-        key,
-        id: index,
-        animation: labelForAnimationRole(animation),
-        stateMachineState: animation.stateMachineState || '',
-        render: labelForSpriteAsset(resolveAnimationSpriteAssetId(animation)),
-        renderFrames: renderSprite?.frames?.length || 0,
-      };
-    });
-
   const stateMachineStateOptions = useMemo(() => {
     const fromAsset = selectedStateMachine?.states?.map(state => ({
       value: String(state.id || state.name || '').trim(),
@@ -1115,12 +1120,36 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     })) || [];
     const fromTemplate = normalized.stateMachine.map(stateName => ({
       value: stateName,
-      label: stateName,
+      label: friendlyStateLabelFromId(stateName),
     }));
     const seen = new Set<string>();
     return [...fromAsset, ...fromTemplate]
       .filter(option => option.value && !seen.has(option.value) && seen.add(option.value));
   }, [selectedStateMachine, normalized.stateMachine]);
+
+  const stateMachineStateLabelByValue = useMemo(
+    () => new Map(stateMachineStateOptions.map(option => [option.value, option.label])),
+    [stateMachineStateOptions],
+  );
+
+  const animationRows = animationOrder
+    .filter(key => normalized.animations[key])
+    .map((key, index) => {
+      const animation = normalized.animations[key];
+      const renderSprite = resolveAnimationSprite(animation);
+      const stateMachineState = animation.stateMachineState || '';
+      return {
+        key,
+        id: index,
+        animation: labelForAnimationRole(animation),
+        stateMachineState,
+        stateMachineStateLabel: stateMachineState
+          ? stateMachineStateLabelByValue.get(stateMachineState) || friendlyStateLabelFromId(stateMachineState)
+          : '',
+        render: labelForSpriteAsset(resolveAnimationSpriteAssetId(animation)),
+        renderFrames: renderSprite?.frames?.length || 0,
+      };
+    });
 
   const linkedPlayerStateMachineAsset = normalized.stateMachineAssetId
     ? stateMachineAssets.find(asset => asset.id === normalized.stateMachineAssetId)
@@ -1472,7 +1501,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                             >
                               <td className="px-2 py-1">{row.id}</td>
                               <td>{row.animation}</td>
-                              <td className="max-w-[96px] truncate text-slate-300" title={row.stateMachineState || 'Unlinked'}>{row.stateMachineState || '-'}</td>
+                              <td className="max-w-[96px] truncate text-slate-300" title={row.stateMachineState || 'Unlinked'}>{row.stateMachineStateLabel || '-'}</td>
                               <td className="max-w-[96px] truncate" title={row.render}>{row.render}</td>
                               <td>{row.renderFrames || '-'}</td>
                             </tr>

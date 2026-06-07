@@ -217,3 +217,21 @@ Al guardar ediciones internas del Player Config, preservar `activeAsset.name` de
 
 Leccion:
 Los nombres visibles de assets deben cambiar solo por acciones explicitas de rename. Los normalizadores de datos internos no deben sobreescribir identidad visible durante ediciones parciales.
+
+---
+
+## Bug Resuelto: UI mostraba ids de estado como nombres
+
+Fecha: 2026-06-07
+
+Problema:
+La columna State mostraba ids internos en mayusculas como `ATTACK`, mientras el selector podia mostrar nombres humanos como `Attacking`, causando confusion.
+
+Causa:
+La tabla renderizaba directamente `animation.stateMachineState`, que es el id estable del estado, no su etiqueta visible.
+
+Solucion:
+Resolver la etiqueta visible desde el State Machine enlazado o, si no existe, desde un mapeo amigable de ids conocidos (`ATTACK` -> `Attacking`).
+
+Leccion:
+En UI declarativa, distinguir siempre entre id interno estable y nombre visible. Mostrar ids tecnicos solo como tooltip/debug, no como etiqueta principal.
