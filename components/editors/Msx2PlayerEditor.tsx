@@ -1101,7 +1101,10 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
 
   const createOrUpdatePlayerStateMachine = () => {
     if (!onUpsertStateMachineAsset) return;
-    const orderedAnimationKeys = animationOrder.filter(key => normalized.animations[key]);
+    const orderedAnimationKeys = animationOrder.filter(key => {
+      const animation = normalized.animations[key];
+      return animation && String(animation.stateMachineState || '').trim();
+    });
     if (!orderedAnimationKeys.length) return;
 
     const existingAsset = stateMachineAssets.find(asset =>
@@ -1109,24 +1112,19 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     );
     const existingMachine = existingAsset?.data as StateMachine | undefined;
     const existingStatesById = new Map((existingMachine?.states || []).map(state => [state.id, state]));
+    const stateSources: Array<{ key: string; animation: Msx2PlayerAnimation; stateId: string }> = [];
     const usedStateIds = new Set<string>();
-    const nextAnimations: Record<string, Msx2PlayerAnimation> = { ...normalized.animations };
 
-    const states: StateMachineState[] = orderedAnimationKeys.map((key, index) => {
+    orderedAnimationKeys.forEach(key => {
       const animation = normalized.animations[key];
-      const label = labelForAnimationRole(animation);
-      const baseStateId = sanitizePlayerStateId(animation.stateMachineState || label || key);
-      let stateId = baseStateId;
-      let suffix = 2;
-      while (usedStateIds.has(stateId)) {
-        stateId = `${baseStateId}_${suffix}`;
-        suffix += 1;
-      }
+      const stateId = sanitizePlayerStateId(animation.stateMachineState || key);
+      if (usedStateIds.has(stateId)) return;
       usedStateIds.add(stateId);
-      nextAnimations[key] = {
-        ...animation,
-        stateMachineState: stateId,
-      };
+      stateSources.push({ key, animation, stateId });
+    });
+
+    const states: StateMachineState[] = stateSources.map(({ animation, stateId }, index) => {
+      const label = labelForAnimationRole(animation);
       const existingState = existingStatesById.get(stateId);
       return {
         ...existingState,
@@ -1165,8 +1163,6 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     onUpdate({
       stateMachineAssetId: assetId,
       stateMachine: states.map(state => state.id),
-      animations: nextAnimations,
-      animationOrder,
     });
   };
 
@@ -1493,8 +1489,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                             type="button"
                             className="rounded border border-sky-700 bg-sky-900/50 px-3 py-1.5 text-xs font-semibold text-sky-100 hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={createOrUpdatePlayerStateMachine}
-                            disabled={!onUpsertStateMachineAsset || animationRows.length === 0}
-                            title="Create or update Player_sm from these animation state links"
+                            disabled={!onUpsertStateMachineAsset || !animationRows.some(row => row.stateMachineState)}
+                            title="Create or update Player_sm from explicitly linked State rows"
                           >
                             Create/Update Player_sm
                           </button>

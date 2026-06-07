@@ -163,3 +163,21 @@ Generar probes verticales desde `hitboxes.body`, con inset interno y snap al bor
 
 Leccion:
 En MSX2, no asumir 16x16 para fisica de plataforma si el Player Config ya define hitbox. El movimiento pixel a pixel evita tunelado por velocidad, pero no corrige probes mal colocados.
+
+---
+
+## Bug Resuelto: boton declarativo creaba estados no linkados
+
+Fecha: 2026-06-07
+
+Problema:
+El boton de Player Config para crear `Player_sm` generaba estados para animaciones como Attack o Fall aunque el usuario no las habia linkado en la columna State.
+
+Causa:
+La rutina de UI tomaba todas las filas de animacion como fuente de estados, mezclando "animacion existente" con "estado explicitamente linkado".
+
+Solucion:
+Crear/actualizar `Player_sm` solo desde filas con `stateMachineState` ya definido y no modificar los links de animacion de forma automatica.
+
+Leccion:
+En herramientas declarativas, una accion de sincronizacion debe respetar solo enlaces explicitos. No inferir ni crear relaciones nuevas desde datos presentes pero no linkados por el usuario.
