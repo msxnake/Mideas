@@ -15,6 +15,8 @@ import type { SkillControlIcon } from '../../utils/msxGenerator/skills/types';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
+  playerAssetId?: string;
+  playerAssetName?: string;
   onUpdate: (data: Partial<Msx2PlayerDefinition>) => void;
   allAssets: ProjectAsset[];
   onUpsertStateMachineAsset?: (asset: ProjectAsset) => void;
@@ -43,6 +45,23 @@ const panelTitleClass = 'flex-shrink-0 border-b border-slate-700 px-3 py-2 text-
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const PLAYER_STATE_MACHINE_ASSET_ID = 'player_sm';
 const PLAYER_STATE_MACHINE_ASSET_NAME = 'Player_sm';
+
+const sanitizePlayerAssetToken = (value: string): string => {
+  const sanitized = value
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  return sanitized || 'player';
+};
+
+const sanitizePlayerAssetLabel = (value: string): string => {
+  const sanitized = value
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return sanitized || 'Player';
+};
 
 const sanitizePlayerStateId = (value: string): string => {
   const sanitized = value
@@ -851,7 +870,7 @@ const PlayerPreviewControls: React.FC<{
   </div>
 );
 
-export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
+export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, playerAssetId, playerAssetName, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
   const normalized = useMemo(() => normalizeMsx2PlayerDefinition(player), [player]);
   const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
@@ -862,6 +881,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
   const spriteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2sprite'), [allAssets]);
   const soundAssets = useMemo(() => allAssets.filter(asset => asset.type === 'sound'), [allAssets]);
   const stateMachineAssets = useMemo(() => allAssets.filter(asset => asset.type === 'statemachine'), [allAssets]);
+  const hasMultiplePlayerAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2player').length > 1, [allAssets]);
   const paletteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'palette'), [allAssets]);
   const boxTileOptions = useMemo(() => buildPlayerBoxTileOptions(allAssets), [allAssets]);
   const selectedSprite = useMemo(
@@ -1099,6 +1119,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
       .filter(option => option.value && !seen.has(option.value) && seen.add(option.value));
   }, [selectedStateMachine, normalized.stateMachine]);
 
+  const linkedPlayerStateMachineAsset = normalized.stateMachineAssetId
+    ? stateMachineAssets.find(asset => asset.id === normalized.stateMachineAssetId)
+    : undefined;
+  const playerStateMachineOwnerToken = sanitizePlayerAssetToken(playerAssetId || normalized.id || playerAssetName || 'player');
+  const playerStateMachineOwnerLabel = sanitizePlayerAssetLabel(playerAssetName || normalized.id || 'Player');
+  const targetPlayerStateMachineAssetId = linkedPlayerStateMachineAsset?.id
+    || (hasMultiplePlayerAssets ? `${playerStateMachineOwnerToken}_sm` : PLAYER_STATE_MACHINE_ASSET_ID);
+  const targetPlayerStateMachineAssetName = linkedPlayerStateMachineAsset?.name
+    || (hasMultiplePlayerAssets ? `${playerStateMachineOwnerLabel}_sm` : PLAYER_STATE_MACHINE_ASSET_NAME);
+
   const createOrUpdatePlayerStateMachine = () => {
     if (!onUpsertStateMachineAsset) return;
     const orderedAnimationKeys = animationOrder.filter(key => {
@@ -1107,9 +1137,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     });
     if (!orderedAnimationKeys.length) return;
 
-    const existingAsset = stateMachineAssets.find(asset =>
-      asset.name === PLAYER_STATE_MACHINE_ASSET_NAME || asset.id === PLAYER_STATE_MACHINE_ASSET_ID
-    );
+    const existingAsset = linkedPlayerStateMachineAsset || stateMachineAssets.find(asset => asset.id === targetPlayerStateMachineAssetId);
     const existingMachine = existingAsset?.data as StateMachine | undefined;
     const existingStatesById = new Map((existingMachine?.states || []).map(state => [state.id, state]));
     const stateSources: Array<{ key: string; animation: Msx2PlayerAnimation; stateId: string }> = [];
@@ -1144,10 +1172,11 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     const initialStateId = existingMachine?.initialStateId && validStateIds.has(existingMachine.initialStateId)
       ? existingMachine.initialStateId
       : states[0]?.id || null;
-    const assetId = existingAsset?.id || PLAYER_STATE_MACHINE_ASSET_ID;
+    const assetId = existingAsset?.id || targetPlayerStateMachineAssetId;
+    const assetName = existingAsset?.name || targetPlayerStateMachineAssetName;
     const stateMachine: StateMachine = {
       id: assetId,
-      name: PLAYER_STATE_MACHINE_ASSET_NAME,
+      name: assetName,
       states,
       events: existingMachine?.events || [],
       transitions,
@@ -1156,7 +1185,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
 
     onUpsertStateMachineAsset({
       id: assetId,
-      name: PLAYER_STATE_MACHINE_ASSET_NAME,
+      name: assetName,
       type: 'statemachine',
       data: stateMachine,
     });
@@ -1490,9 +1519,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                             className="rounded border border-sky-700 bg-sky-900/50 px-3 py-1.5 text-xs font-semibold text-sky-100 hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={createOrUpdatePlayerStateMachine}
                             disabled={!onUpsertStateMachineAsset || !animationRows.some(row => row.stateMachineState)}
-                            title="Create or update Player_sm from explicitly linked State rows"
+                            title={`Create or update ${targetPlayerStateMachineAssetName} from explicitly linked State rows`}
                           >
-                            Create/Update Player_sm
+                            Create/Update {targetPlayerStateMachineAssetName}
                           </button>
                         </div>
                       </div>

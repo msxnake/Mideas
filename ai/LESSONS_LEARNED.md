@@ -181,3 +181,21 @@ Crear/actualizar `Player_sm` solo desde filas con `stateMachineState` ya definid
 
 Leccion:
 En herramientas declarativas, una accion de sincronizacion debe respetar solo enlaces explicitos. No inferir ni crear relaciones nuevas desde datos presentes pero no linkados por el usuario.
+
+---
+
+## Bug Resuelto: asset global compartido entre multiples Players
+
+Fecha: 2026-06-07
+
+Problema:
+El boton de Player Config para crear `Player_sm` podia pisar o mezclar la state machine si el proyecto tenia dos o mas assets de Player.
+
+Causa:
+La rutina usaba un nombre/id global fijo para una accion ejecutada desde un asset concreto, sin respetar primero `stateMachineAssetId` ni aislar por owner.
+
+Solucion:
+Priorizar la state machine ya linkada al Player. Si no existe link, mantener `Player_sm` solo cuando hay un unico Player; con varios Players, crear un asset `*_sm` derivado del asset Player actual y actualizar por id.
+
+Leccion:
+Cuando un editor crea assets auxiliares, el asset creado debe tener owner claro o usar un link explicito existente. Los nombres globales solo son seguros para recursos realmente singleton.
