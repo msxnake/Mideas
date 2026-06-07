@@ -717,7 +717,13 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && ( <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
-          {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} onUpdate={(patch) => handleUpdateAsset(activeAsset.id, buildDetailedMsx2PlayerDocument(mergeMsx2PlayerUpdate(activeAsset.data, patch)))} allAssets={assets} />)}
+          {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} onUpdate={(patch) => handleUpdateAsset(activeAsset.id, buildDetailedMsx2PlayerDocument(mergeMsx2PlayerUpdate(activeAsset.data, patch)))} allAssets={assets} onUpsertStateMachineAsset={(stateMachineAsset) => setAssetsWithHistory(prev => {
+            const existing = prev.find(asset => asset.type === 'statemachine' && (asset.id === stateMachineAsset.id || asset.name === stateMachineAsset.name));
+            if (existing) {
+              return prev.map(asset => asset.id === existing.id ? { ...asset, ...stateMachineAsset, id: existing.id } : asset);
+            }
+            return [...prev, stateMachineAsset];
+          })} />)}
           {currentEditor === EditorType.Msx2Enemy && activeAsset?.type === 'msx2enemy' && ( <Msx2EnemyEditor enemy={activeAsset.data as EnemyDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
             <Msx2HudFontEditor

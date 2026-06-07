@@ -6,7 +6,7 @@ import {
   playerAnimationPreviewTiming,
   syncPlayerAnimationsFromLinkedSprites,
 } from '../../utils/msx2SpriteAnimation';
-import { StateMachine } from '../../statemachine.types';
+import { StateMachine, StateMachineState, StateMachineStateName } from '../../statemachine.types';
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
@@ -17,6 +17,7 @@ interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
   onUpdate: (data: Partial<Msx2PlayerDefinition>) => void;
   allAssets: ProjectAsset[];
+  onUpsertStateMachineAsset?: (asset: ProjectAsset) => void;
 }
 
 const navItems = [
@@ -40,6 +41,35 @@ const panelClass = 'flex min-h-0 flex-col overflow-hidden rounded border border-
 const panelTitleClass = 'flex-shrink-0 border-b border-slate-700 px-3 py-2 text-xs font-bold uppercase tracking-wide text-sky-300';
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const PLAYER_STATE_MACHINE_ASSET_ID = 'player_sm';
+const PLAYER_STATE_MACHINE_ASSET_NAME = 'Player_sm';
+
+const sanitizePlayerStateId = (value: string): string => {
+  const sanitized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+  return sanitized || 'STATE';
+};
+
+const playerStateNameFromLabel = (label: string): StateMachineStateName => {
+  const trimmed = label.trim();
+  const mapped: Record<string, StateMachineStateName> = {
+    Idle: 'Idle',
+    Walk: 'Walking',
+    Run: 'Running',
+    Dash: 'Dashing',
+    Jump: 'Jumping',
+    Fall: 'Falling',
+    Attack: 'Attacking',
+    Defend: 'Defending',
+    Dead: 'Dead',
+    Hurt: 'Hurt',
+  };
+  return (mapped[trimmed] || trimmed || 'Idle') as StateMachineStateName;
+};
 
 const Field: React.FC<{ label: string; children: React.ReactNode; suffix?: string }> = ({ label, children, suffix }) => (
   <label className="grid grid-cols-[96px_1fr_auto] items-center gap-2 text-xs text-slate-200">
@@ -821,7 +851,7 @@ const PlayerPreviewControls: React.FC<{
   </div>
 );
 
-export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUpdate, allAssets }) => {
+export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
   const normalized = useMemo(() => normalizeMsx2PlayerDefinition(player), [player]);
   const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
@@ -1068,6 +1098,77 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
     return [...fromAsset, ...fromTemplate]
       .filter(option => option.value && !seen.has(option.value) && seen.add(option.value));
   }, [selectedStateMachine, normalized.stateMachine]);
+
+  const createOrUpdatePlayerStateMachine = () => {
+    if (!onUpsertStateMachineAsset) return;
+    const orderedAnimationKeys = animationOrder.filter(key => normalized.animations[key]);
+    if (!orderedAnimationKeys.length) return;
+
+    const existingAsset = stateMachineAssets.find(asset =>
+      asset.name === PLAYER_STATE_MACHINE_ASSET_NAME || asset.id === PLAYER_STATE_MACHINE_ASSET_ID
+    );
+    const existingMachine = existingAsset?.data as StateMachine | undefined;
+    const existingStatesById = new Map((existingMachine?.states || []).map(state => [state.id, state]));
+    const usedStateIds = new Set<string>();
+    const nextAnimations: Record<string, Msx2PlayerAnimation> = { ...normalized.animations };
+
+    const states: StateMachineState[] = orderedAnimationKeys.map((key, index) => {
+      const animation = normalized.animations[key];
+      const label = labelForAnimationRole(animation);
+      const baseStateId = sanitizePlayerStateId(animation.stateMachineState || label || key);
+      let stateId = baseStateId;
+      let suffix = 2;
+      while (usedStateIds.has(stateId)) {
+        stateId = `${baseStateId}_${suffix}`;
+        suffix += 1;
+      }
+      usedStateIds.add(stateId);
+      nextAnimations[key] = {
+        ...animation,
+        stateMachineState: stateId,
+      };
+      const existingState = existingStatesById.get(stateId);
+      return {
+        ...existingState,
+        id: stateId,
+        name: existingState?.name || playerStateNameFromLabel(label),
+        position: existingState?.position || {
+          x: 120 + (index % 4) * 180,
+          y: 80 + Math.floor(index / 4) * 120,
+        },
+      };
+    });
+
+    const validStateIds = new Set(states.map(state => state.id));
+    const transitions = (existingMachine?.transitions || []).filter(transition =>
+      validStateIds.has(transition.fromStateId) && validStateIds.has(transition.toStateId)
+    );
+    const initialStateId = existingMachine?.initialStateId && validStateIds.has(existingMachine.initialStateId)
+      ? existingMachine.initialStateId
+      : states[0]?.id || null;
+    const assetId = existingAsset?.id || PLAYER_STATE_MACHINE_ASSET_ID;
+    const stateMachine: StateMachine = {
+      id: assetId,
+      name: PLAYER_STATE_MACHINE_ASSET_NAME,
+      states,
+      events: existingMachine?.events || [],
+      transitions,
+      initialStateId,
+    };
+
+    onUpsertStateMachineAsset({
+      id: assetId,
+      name: PLAYER_STATE_MACHINE_ASSET_NAME,
+      type: 'statemachine',
+      data: stateMachine,
+    });
+    onUpdate({
+      stateMachineAssetId: assetId,
+      stateMachine: states.map(state => state.id),
+      animations: nextAnimations,
+      animationOrder,
+    });
+  };
 
   const soundAnimationOptions = useMemo(
     () => animationOrder
@@ -1386,6 +1487,17 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                           {selectedAnimationSprite
                             ? ` (${selectedAnimationTiming.frameIndices.length} anim frames @ ${selectedAnimationTiming.speedFrames}f)`
                             : ''}
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            className="rounded border border-sky-700 bg-sky-900/50 px-3 py-1.5 text-xs font-semibold text-sky-100 hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={createOrUpdatePlayerStateMachine}
+                            disabled={!onUpsertStateMachineAsset || animationRows.length === 0}
+                            title="Create or update Player_sm from these animation state links"
+                          >
+                            Create/Update Player_sm
+                          </button>
                         </div>
                       </div>
                     )}
