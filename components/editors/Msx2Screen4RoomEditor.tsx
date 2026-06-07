@@ -272,6 +272,8 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   const map = useMemo(() => normalizeMap(screen.map, tiles.length), [screen.map, tiles.length]);
   const layers = useMemo(() => normalizeLayers(screen, map, tiles), [screen, map, tiles]);
   const playerEntries = useMemo(() => normalizeMsx2PlayerEntries(screen.playerEntries), [screen.playerEntries]);
+  const playerAssetOptions = useMemo(() => allAssets.filter(asset => asset.type === 'msx2player'), [allAssets]);
+  const defaultPlayerAssetId = playerAssetOptions[0]?.id;
   const runtime = useMemo(() => normalizeRuntime(screen.runtime), [screen.runtime]);
   const selectedTile = tiles[Math.max(0, Math.min(tiles.length - 1, selectedTileIndex))];
   const selectedEntity = useMemo(
@@ -282,6 +284,10 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     () => playerEntries.find(entry => entry.id === selectedPlayerEntryId) || playerEntries[0] || null,
     [playerEntries, selectedPlayerEntryId]
   );
+  const getPlayerEntryAssetLabel = (playerId?: string) => {
+    if (!playerId) return 'Default player';
+    return playerAssetOptions.find(asset => asset.id === playerId)?.name || 'Missing player';
+  };
   const entityPresets = useMemo(
     () => filterMsx2EntityPresetsForProfile(MSX2_ENTITY_REPERTOIRE, msx2ProjectProfile),
     [msx2ProjectProfile]
@@ -455,6 +461,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
       id,
       x,
       y,
+      ...(defaultPlayerAssetId ? { playerId: defaultPlayerAssetId } : {}),
       facing: 'right',
       state: 'IDLE',
       entryAnimation: 'none',
@@ -1025,12 +1032,25 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
                     onClick={() => setSelectedPlayerEntryId(entry.id)}
                   >
                     <span className="block font-mono">{entry.id}</span>
-                    <span className="block text-[10px] text-msx-textsecondary">{entry.x},{entry.y} {entry.facing}</span>
+                    <span className="block text-[10px] text-msx-textsecondary">{entry.x},{entry.y} {entry.facing} - {getPlayerEntryAssetLabel(entry.playerId)}</span>
                   </button>
                 ))}
               </div>
               {selectedPlayerEntry && (
                 <div className="space-y-2 border-t border-msx-border pt-2">
+                  <label className="block space-y-1">
+                    <span className="text-msx-textsecondary">Player Asset</span>
+                    <select
+                      className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded"
+                      value={selectedPlayerEntry.playerId || ''}
+                      onChange={event => updateSelectedPlayerEntry({ playerId: event.target.value || undefined })}
+                    >
+                      <option value="">Default player</option>
+                      {playerAssetOptions.map(asset => (
+                        <option key={asset.id} value={asset.id}>{asset.name}</option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="block space-y-1">
                     <span className="text-msx-textsecondary">Entry ID</span>
                     <input className="w-full px-2 py-1 bg-msx-bgcolor border border-msx-border rounded" value={selectedPlayerEntry.id} onChange={event => updateSelectedPlayerEntry({ id: event.target.value })} />
