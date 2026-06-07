@@ -7,7 +7,7 @@ import {
   syncPlayerAnimationsFromLinkedSprites,
 } from '../../utils/msx2SpriteAnimation';
 import { StateMachine, StateMachineState, StateMachineStateName } from '../../statemachine.types';
-import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
+import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { getAllSkills } from '../../utils/msxGenerator/skills/index';
@@ -35,11 +35,18 @@ const navItems = [
 ] as const;
 
 type PlayerConfigSection = typeof navItems[number];
+type PlayerAttackFacing = Exclude<Msx2PlayerFacing, 'neutral'>;
 
 const inputClass = 'h-7 w-full rounded border border-slate-700 bg-[#111821] px-2 text-xs text-slate-100 outline-none focus:border-blue-500';
 const selectClass = `${inputClass} pr-6`;
 const panelClass = 'flex min-h-0 flex-col overflow-hidden rounded border border-slate-700 bg-[#1d2430] shadow-sm';
 const panelTitleClass = 'flex-shrink-0 border-b border-slate-700 px-3 py-2 text-xs font-bold uppercase tracking-wide text-sky-300';
+const PLAYER_ATTACK_FACING_OPTIONS: ReadonlyArray<{ value: PlayerAttackFacing; label: string }> = [
+  { value: 'right', label: 'Right' },
+  { value: 'left', label: 'Left' },
+  { value: 'up', label: 'Up' },
+  { value: 'down', label: 'Down' },
+];
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
@@ -931,6 +938,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
+  const [selectedAttackFacing, setSelectedAttackFacing] = useState<PlayerAttackFacing>('right');
   const [newStateName, setNewStateName] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const lastAnimationSyncSignatureRef = useRef<string | null>(null);
@@ -957,6 +965,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const spriteSize = parsePlayerSpriteSize(normalized.render.spriteSize);
   const body = normalized.hitboxes.body;
   const attack = normalized.hitboxes.attack || { x: 4, y: 6, w: 8, h: 12 };
+  const attackByFacing = normalized.hitboxes.attackByFacing || {};
+  const selectedAttackHitbox = attackByFacing[selectedAttackFacing] || attack;
   const logic = normalized.logic || {};
   const selectedStateMachineAsset = useMemo(
     () => stateMachineAssets.find(asset => asset.id === normalized.stateMachineAssetId),
@@ -1019,7 +1029,19 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const updateHealth = (patch: Partial<Msx2PlayerDefinition['health']>) => onUpdate({ health: { ...normalized.health, ...patch } });
   const updateAttack = (patch: Partial<Msx2PlayerDefinition['attack']>) => onUpdate({ attack: { ...normalized.attack, ...patch } });
   const updateBodyHitbox = (patch: Partial<typeof body>) => onUpdate({ hitboxes: { ...normalized.hitboxes, body: { ...body, ...patch } } });
-  const updateAttackHitbox = (patch: Partial<typeof attack>) => onUpdate({ hitboxes: { ...normalized.hitboxes, attack: { ...attack, ...patch } } });
+  const updateAttackHitboxForFacing = (patch: Partial<typeof selectedAttackHitbox>) => {
+    const nextHitbox = { ...selectedAttackHitbox, ...patch };
+    onUpdate({
+      hitboxes: {
+        ...normalized.hitboxes,
+        attack: selectedAttackFacing === 'right' ? nextHitbox : attack,
+        attackByFacing: {
+          ...attackByFacing,
+          [selectedAttackFacing]: nextHitbox,
+        },
+      },
+    });
+  };
   const updateInputEnabled = (key: string, enabled: boolean) => {
     onUpdate({ inputEnabled: { ...normalized.inputEnabled, [key]: enabled } });
   };
@@ -1514,6 +1536,25 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       <span>Height</span><SmallNumber value={body.h} onChange={value => updateBodyHitbox({ h: value })} />
                     </div>
                   </div>
+                  <div className="grid grid-cols-[96px_1fr] items-center gap-2 text-xs">
+                    <span>Attack Box:</span>
+                    <div className="grid grid-cols-[120px_repeat(8,minmax(0,1fr))] items-center gap-2">
+                      <select
+                        className={selectClass}
+                        value={selectedAttackFacing}
+                        onChange={event => setSelectedAttackFacing(event.target.value as PlayerAttackFacing)}
+                        title="Attack box orientation"
+                      >
+                        {PLAYER_ATTACK_FACING_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <span>Left</span><SmallNumber value={selectedAttackHitbox.x} onChange={value => updateAttackHitboxForFacing({ x: value })} />
+                      <span>Top</span><SmallNumber value={selectedAttackHitbox.y} onChange={value => updateAttackHitboxForFacing({ y: value })} />
+                      <span>Width</span><SmallNumber value={selectedAttackHitbox.w} onChange={value => updateAttackHitboxForFacing({ w: value })} />
+                      <span>Height</span><SmallNumber value={selectedAttackHitbox.h} onChange={value => updateAttackHitboxForFacing({ h: value })} />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-[96px_1fr] gap-2 text-xs">
                     <span className="pt-2 text-slate-300">Hitbox View:</span>
                     <PlayerSpriteHitboxPreview
@@ -1521,7 +1562,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       frameWidth={spriteSize.width}
                       frameHeight={spriteSize.height}
                       hitbox={body}
-                      attackHitbox={attack}
+                      attackHitbox={selectedAttackHitbox}
                       title="Sprite & Hitboxes"
                       className="min-h-[250px]"
                     />
@@ -1552,7 +1593,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     frameWidth={spriteSize.width}
                     frameHeight={spriteSize.height}
                     hitbox={body}
-                    attackHitbox={attack}
+                    attackHitbox={selectedAttackHitbox}
                   />
                 </div>
               </section>
@@ -1811,12 +1852,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       <option value="none">None</option><option value="melee">Melee</option><option value="projectile">Projectile</option><option value="whip">Whip</option><option value="swordArc">Sword Arc</option><option value="shot">Shot</option><option value="bomb">Bomb</option>
                     </select>
                   </Field>
-                  <div className="grid grid-cols-4 items-center gap-2 text-xs">
-                    <span>Hit Box:</span><span>Left</span><SmallNumber value={attack.x} onChange={value => updateAttackHitbox({ x: value })} /><span />
-                    <span /><span>Top</span><SmallNumber value={attack.y} onChange={value => updateAttackHitbox({ y: value })} /><span />
-                    <span /><span>Width</span><SmallNumber value={attack.w} onChange={value => updateAttackHitbox({ w: value })} /><span />
-                    <span /><span>Height</span><SmallNumber value={attack.h} onChange={value => updateAttackHitbox({ h: value })} /><span />
-                  </div>
+                  <p className="rounded border border-slate-700 bg-[#151b25] px-3 py-2 text-[11px] text-slate-400">
+                    Directional Attack Boxes are edited in General and stored as JSON metadata for future ASM attack routines.
+                  </p>
                   <Field label="I-Time" suffix="frames"><SmallNumber value={normalized.health.invulnerabilityFrames} onChange={value => updateHealth({ invulnerabilityFrames: value })} /></Field>
                   <Field label="Knockback"><SmallNumber step={0.01} value={numberValue(normalized.health.knockbackX, 1)} onChange={value => updateHealth({ knockbackX: value })} /></Field>
                   <Checkbox label="Can Take Damage" checked={true} onChange={() => undefined} />

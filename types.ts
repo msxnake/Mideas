@@ -453,6 +453,7 @@ export interface Msx2PlayerDefinition {
     feet?: Msx2PlayerHitbox;
     head?: Msx2PlayerHitbox;
     attack?: Msx2PlayerHitbox;
+    attackByFacing?: Partial<Record<Exclude<Msx2PlayerFacing, 'neutral'>, Msx2PlayerHitbox>>;
     interaction?: Msx2PlayerHitbox;
     damage?: Msx2PlayerHitbox;
   };

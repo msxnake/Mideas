@@ -507,6 +507,12 @@ export const createDefaultMsx2PlayerDefinition = (
       body: isShooter ? { x: 2, y: 2, w: 12, h: 12 } : { x: 3, y: 4, w: 10, h: 27 },
       feet: isShooter ? undefined : { x: 3, y: 30, w: 10, h: 2 },
       attack: { x: 14, y: 8, w: 10, h: 8 },
+      attackByFacing: {
+        right: { x: 14, y: 8, w: 10, h: 8 },
+        left: { x: -8, y: 8, w: 10, h: 8 },
+        up: { x: 4, y: -8, w: 8, h: 10 },
+        down: { x: 4, y: 24, w: 8, h: 10 },
+      },
       interaction: { x: -4, y: 4, w: 24, h: 24 },
     },
     movement: {
