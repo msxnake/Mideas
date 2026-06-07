@@ -1016,8 +1016,24 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
       {
         ...normalized.animations,
         [selectedKey]: {
+          ...selected,
           ...playerAnimationFromMsx2Sprite(selected, sprite),
           spriteAssetId,
+        },
+      },
+      animationOrder,
+    );
+  };
+
+  const updateSelectedAnimationState = (stateMachineState: string | undefined) => {
+    if (!selectedKey) return;
+    const selected = normalized.animations[selectedKey];
+    updateAnimations(
+      {
+        ...normalized.animations,
+        [selectedKey]: {
+          ...selected,
+          stateMachineState: stateMachineState || undefined,
         },
       },
       animationOrder,
@@ -1033,10 +1049,25 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
         key,
         id: index,
         animation: labelForAnimationRole(animation),
+        stateMachineState: animation.stateMachineState || '',
         render: labelForSpriteAsset(resolveAnimationSpriteAssetId(animation)),
         renderFrames: renderSprite?.frames?.length || 0,
       };
     });
+
+  const stateMachineStateOptions = useMemo(() => {
+    const fromAsset = selectedStateMachine?.states?.map(state => ({
+      value: String(state.id || state.name || '').trim(),
+      label: String(state.name || state.id || '').trim(),
+    })) || [];
+    const fromTemplate = normalized.stateMachine.map(stateName => ({
+      value: stateName,
+      label: stateName,
+    }));
+    const seen = new Set<string>();
+    return [...fromAsset, ...fromTemplate]
+      .filter(option => option.value && !seen.has(option.value) && seen.add(option.value));
+  }, [selectedStateMachine, normalized.stateMachine]);
 
   const soundAnimationOptions = useMemo(
     () => animationOrder
@@ -1299,7 +1330,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                     <div className="max-h-[150px] overflow-auto rounded border border-slate-800">
                       <table className="w-full text-left text-xs">
                         <thead className="sticky top-0 bg-[#151b25] text-slate-200">
-                          <tr><th className="px-2 py-1">ID</th><th>Role</th><th>Assigned Render</th><th>Render Frames</th></tr>
+                          <tr><th className="px-2 py-1">ID</th><th>Role</th><th>State</th><th>Assigned Render</th><th>Render Frames</th></tr>
                         </thead>
                         <tbody>
                           {animationRows.map(row => (
@@ -1310,6 +1341,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                             >
                               <td className="px-2 py-1">{row.id}</td>
                               <td>{row.animation}</td>
+                              <td className="max-w-[96px] truncate text-slate-300" title={row.stateMachineState || 'Unlinked'}>{row.stateMachineState || '-'}</td>
                               <td className="max-w-[96px] truncate" title={row.render}>{row.render}</td>
                               <td>{row.renderFrames || '-'}</td>
                             </tr>
@@ -1332,6 +1364,18 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, onUp
                             <option value="">Use default sprite set</option>
                             {spriteAssets.map(asset => (
                               <option key={asset.id} value={asset.id}>{asset.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="State">
+                          <select
+                            className={selectClass}
+                            value={selectedAnimation.stateMachineState || ''}
+                            onChange={event => updateSelectedAnimationState(event.target.value || undefined)}
+                          >
+                            <option value="">Unlinked (declarative only)</option>
+                            {stateMachineStateOptions.map(option => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                           </select>
                         </Field>

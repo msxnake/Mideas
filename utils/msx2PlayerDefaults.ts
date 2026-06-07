@@ -295,11 +295,13 @@ export const normalizePlayerAnimation = (
     ? animation.role
     : inferAnimationRoleFromKey(key);
   const spriteAssetId = String(animation?.spriteAssetId || '').trim();
+  const stateMachineState = String(animation?.stateMachineState || '').trim();
   return {
     frames,
     speed: Math.max(1, Math.trunc(Number(animation?.speed) || 6)),
     spriteAssetId: spriteAssetId || undefined,
     role,
+    stateMachineState: stateMachineState || undefined,
     customRole: role === 'custom' ? String(animation?.customRole || key).trim() : animation?.customRole?.trim(),
     playback: inferAnimationPlayback(key, animation),
   };

@@ -407,6 +407,8 @@ export interface Msx2PlayerAnimation {
   spriteAssetId?: string;
   /** Generic animation role used by gameplay/state machines and MSX export. */
   role?: Msx2PlayerAnimationRole;
+  /** Declarative State Machine state linked to this animation. Does not drive runtime ASM yet. */
+  stateMachineState?: string;
   /** Free label when role is custom. */
   customRole?: string;
   playback?: Msx2PlayerAnimationPlayback;
