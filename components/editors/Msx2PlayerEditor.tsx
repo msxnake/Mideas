@@ -941,7 +941,6 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     [normalized.stateMachineAssetId, stateMachineAssets],
   );
   const selectedStateMachine = selectedStateMachineAsset?.data as StateMachine | undefined;
-  const worldCompatibility = normalized.worldCompatibility || ['all'];
 
   const updateRender = (patch: Partial<Msx2PlayerDefinition['render']>) => onUpdate({ render: { ...normalized.render, ...patch } });
   const selectDefaultSpriteAsset = (spriteAssetId: string | undefined) => {
@@ -999,12 +998,6 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const updateAttack = (patch: Partial<Msx2PlayerDefinition['attack']>) => onUpdate({ attack: { ...normalized.attack, ...patch } });
   const updateBodyHitbox = (patch: Partial<typeof body>) => onUpdate({ hitboxes: { ...normalized.hitboxes, body: { ...body, ...patch } } });
   const updateAttackHitbox = (patch: Partial<typeof attack>) => onUpdate({ hitboxes: { ...normalized.hitboxes, attack: { ...attack, ...patch } } });
-  const updateWorld = (world: string, checked: boolean) => {
-    const next = checked
-      ? Array.from(new Set([...worldCompatibility.filter(value => value !== 'all'), world]))
-      : worldCompatibility.filter(value => value !== world);
-    onUpdate({ worldCompatibility: next.length ? next : ['all'] });
-  };
   const updateInputEnabled = (key: string, enabled: boolean) => {
     onUpdate({ inputEnabled: { ...normalized.inputEnabled, [key]: enabled } });
   };
@@ -1463,14 +1456,6 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                 <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
                   <Field label="Player ID"><input className={inputClass} value={normalized.id} onChange={event => onUpdate({ id: event.target.value })} /></Field>
                   <Field label="Description"><input className={inputClass} value={normalized.notes || 'Main player character'} onChange={event => onUpdate({ notes: event.target.value })} /></Field>
-                  <div className="grid grid-cols-[96px_1fr] items-center gap-2 text-xs">
-                    <span>Worlds:</span>
-                    <div className="grid grid-cols-4 gap-2">
-                      {['World 1', 'World 2', 'World 3', 'World 4'].map(world => (
-                        <Checkbox key={world} label={world} checked={worldCompatibility.includes(world) || worldCompatibility.includes('all')} onChange={checked => updateWorld(world, checked)} />
-                      ))}
-                    </div>
-                  </div>
                   <Field label="Initial Health"><SmallNumber value={normalized.health.maxHealth} onChange={value => updateHealth({ maxHealth: value })} /></Field>
                   <Field label="Max Health"><SmallNumber value={normalized.health.maxHealth} onChange={value => updateHealth({ maxHealth: value })} /></Field>
                   <Field label="Initial Lives"><SmallNumber value={normalized.health.lives} onChange={value => updateHealth({ lives: value })} /></Field>
@@ -1935,7 +1920,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
               </section>
               <section className="hidden min-h-0 overflow-auto rounded border border-amber-300 bg-[#fff2b8] p-4 text-xs leading-relaxed text-slate-900">
                 <div className="mb-2 font-bold uppercase">Info</div>
-                <p>Define all properties of the player character here. The player will be available in the Screen Editor for the selected worlds.</p>
+                <p>Define all properties of the player character here. The player can be selected from MSX2 screen player entries.</p>
                 <p className="mt-3">Changes can be tested in the preview at any time.</p>
               </section>
             </div>

@@ -438,7 +438,6 @@ export interface Msx2PlayerDefinition {
   /** Default world-facing direction used when a screen entry does not override it. */
   defaultFacing?: Msx2PlayerFacing;
   basedOnTemplate?: string;
-  worldCompatibility?: string[];
   render: {
     mode: Msx2PlayerRenderMode;
     spriteAssetId?: string;

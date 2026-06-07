@@ -45,7 +45,6 @@ export interface Msx2PlayerDocument {
       gameType: Msx2PlayerDefinition['gameType'];
       defaultFacing?: Msx2PlayerDefinition['defaultFacing'];
       basedOnTemplate?: string;
-      worldCompatibility: string[];
       notes?: string;
     };
     render: Msx2PlayerDefinition['render'];
@@ -274,7 +273,6 @@ export const buildDetailedMsx2PlayerDocument = (
         gameType: normalized.gameType,
         defaultFacing: normalized.defaultFacing,
         basedOnTemplate: normalized.basedOnTemplate,
-        worldCompatibility: normalized.worldCompatibility || ['all'],
         notes: normalized.notes,
       },
       render: normalized.render,

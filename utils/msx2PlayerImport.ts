@@ -74,7 +74,6 @@ const flattenDetailedPlayerPayload = (
     gameType: identity.gameType,
     defaultFacing: identity.defaultFacing,
     basedOnTemplate: identity.basedOnTemplate ?? player.stateMachine?.template,
-    worldCompatibility: identity.worldCompatibility,
     notes: identity.notes,
     render: player.render,
     animations: player.animations

@@ -475,7 +475,6 @@ export const createDefaultMsx2PlayerDefinition = (
     gameType,
     defaultFacing: 'right',
     basedOnTemplate: isShooter ? 'shooter_basic' : isMaze ? 'maze_4_direction' : 'platformer_basic',
-    worldCompatibility: ['all'],
     render: {
       mode: 'hardwareSprite',
       spriteSize: isShooter ? '16x16' : '16x32',
