@@ -2503,13 +2503,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                 <div className={panelTitleClass}>Abilities & Items</div>
                 <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
                   <div>
-                    <p className="mb-2 text-[11px] font-semibold text-slate-300">Active Skills</p>
-                    <p className="mb-2 text-[11px] text-slate-400">Core skills (jump, gravity, air resistance, item collection) are always active.</p>
+                    <p className="mb-2 text-[11px] font-semibold text-slate-300">Skill Parameters</p>
+                    <p className="mb-2 text-[11px] text-slate-400">Click a skill to edit its parameters. Core skills (jump, gravity, air resistance, item collection) are always active.</p>
                     <div className="space-y-1">
-                      {getAllSkills().filter(s => !s.required).map(skill => {
+                      {getAllSkills().filter(s => s.parameters && s.parameters.length > 0).map(skill => {
                         const active = normalized.activeSkills?.includes(skill.id) ?? false;
                         const hasParameters = Boolean(skill.parameters && skill.parameters.length > 0);
-                        const canOpenDialog = active && hasParameters;
+                        // Core skills are always on by construction; their parameters dialog is always available.
+                        // Optional skills only expose the dialog when the user activated them.
+                        const isCore = skill.required;
+                        const canOpenDialog = (isCore || active) && hasParameters;
                         return (
                           <div key={skill.id} className="grid grid-cols-[1fr_auto] items-center gap-2 text-xs">
                             {canOpenDialog ? (
@@ -2529,21 +2532,25 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                 {hasParameters && <span className="ml-1 text-[10px] text-slate-500" title="Activate the skill to edit parameters">(inactive)</span>}
                               </span>
                             )}
-                            <label className="flex cursor-pointer items-center gap-1.5 text-slate-400">
-                              <input
-                                type="checkbox"
-                                checked={active}
-                                onChange={e => {
-                                  const current = normalized.activeSkills ?? [];
-                                  const next = e.target.checked
-                                    ? [...current, skill.id]
-                                    : current.filter(id => id !== skill.id);
-                                  onUpdate({ activeSkills: next });
-                                }}
-                                className="h-3.5 w-3.5 accent-blue-500"
-                              />
-                              <span className="text-[10px]">{active ? 'On' : 'Off'}</span>
-                            </label>
+                            {isCore ? (
+                              <span className="text-[10px] text-slate-500" title="Core skill, always active">core</span>
+                            ) : (
+                              <label className="flex cursor-pointer items-center gap-1.5 text-slate-400">
+                                <input
+                                  type="checkbox"
+                                  checked={active}
+                                  onChange={e => {
+                                    const current = normalized.activeSkills ?? [];
+                                    const next = e.target.checked
+                                      ? [...current, skill.id]
+                                      : current.filter(id => id !== skill.id);
+                                    onUpdate({ activeSkills: next });
+                                  }}
+                                  className="h-3.5 w-3.5 accent-blue-500"
+                                />
+                                <span className="text-[10px]">{active ? 'On' : 'Off'}</span>
+                              </label>
+                            )}
                           </div>
                         );
                       })}

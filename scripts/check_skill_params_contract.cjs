@@ -72,4 +72,31 @@ assert(editorCode.includes('updateSkillParameter'), 'updateSkillParameter handle
 assert(editorCode.includes('setOpenSkillDialogId(skill.id)'), 'row click opens the dialog');
 assert(editorCode.includes('aria-haspopup="dialog"'), 'clickable row has dialog aria');
 
-console.log('\nAll 11 plumbing checks passed.');
+// 12) First_Jump (core skill 'jump') has parameters wired
+assert(handlersCode.includes('export const firstJumpParameters: SkillParameterDef[]'),
+  'firstJumpParameters is exported from skills handlers');
+assert(handlersCode.includes('label: \'Jump\''),
+  'jump core skill is relabelled to "Jump"');
+assert(handlersCode.includes('parameters: firstJumpParameters'),
+  'jump core skill wires its parameters array');
+assert(handlersCode.includes("key: 'enabled'") && handlersCode.includes("key: 'jumpPower'") && handlersCode.includes("key: 'requireKeyRelease'"),
+  'firstJumpParameters has enabled/jumpPower/requireKeyRelease keys');
+assert(handlersCode.includes('default: 1024') && handlersCode.includes('min: 256') && handlersCode.includes('max: 2048'),
+  'firstJumpParameters jumpPower has min=256 max=2048 default=1024 (matches msx2_jump component)');
+// Keys must match the legacy component for future generator migration (1:1 mapping).
+assert(handlersCode.includes("key: 'jumpPower'") && handlersCode.includes("key: 'requireKeyRelease'"),
+  'firstJumpParameters keys align with components[\'msx2_jump\'] for future migration');
+
+// 13) UI lists skills with parameters (not just optional ones)
+assert(editorCode.includes('filter(s => s.parameters && s.parameters.length > 0)'),
+  'editor filters skills by parameters presence, not by !s.required');
+assert(editorCode.includes('const isCore = skill.required;'),
+  'editor distinguishes core vs optional skills for the parameters dialog');
+
+// 14) Registry still treats jump as required (no architectural change)
+const registryCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'skills', 'registry.ts'), 'utf8');
+assert(registryCode.includes('s.required'), 'registry still uses required flag for core/optional split');
+assert(/required:\s*true,\s*cycles:\s*80,\s*controlIcon:\s*'jump'/.test(handlersCode),
+  'jump core skill keeps required: true (no architectural change)');
+
+console.log('\nAll 14 plumbing checks passed.');

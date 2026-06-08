@@ -3,9 +3,36 @@ import type { SkillParameterDef } from '../types';
 
 // ── core (always present) ──
 
+export const firstJumpParameters: SkillParameterDef[] = [
+  {
+    key: 'enabled',
+    label: 'Jump enabled',
+    type: 'boolean',
+    default: true,
+    help: 'Master switch for the first jump. When disabled, the player cannot leave the ground.',
+  },
+  {
+    key: 'jumpPower',
+    label: 'Jump power',
+    type: 'number',
+    default: 1024,
+    min: 256,
+    max: 2048,
+    step: 1,
+    help: 'Initial vertical impulse in 8.8 fixed point. 1024 = ~4 px/frame (~ -1 px per msx2_jump unit).',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between jumps',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release the jump key before triggering another jump. Prevents accidental hold-to-fly when chained with double_jump.',
+  },
+];
+
 export const jump: SkillDef = {
   id: 'jump',
-  label: 'Base jump',
+  label: 'Jump',
   required: true,
   cycles: 80,
   controlIcon: 'jump',
@@ -14,6 +41,7 @@ export const jump: SkillDef = {
     { from: ['grounded', 'running'], to: 'jumping', condition: 'jump_key_pressed AND grounded' },
     { from: ['jumping'], to: 'falling', condition: 'gravity_vel > 0' },
   ],
+  parameters: firstJumpParameters,
 };
 
 export const gravity: SkillDef = {
