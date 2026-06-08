@@ -842,7 +842,7 @@ const PlayerSpriteHitboxPreview: React.FC<{
   const ruler = 24;
   const rightAttack = attackHitboxes?.right || attackHitbox;
   const mirroredAttack = rightAttack ? { ...rightAttack, x: frameWidth - rightAttack.x - rightAttack.w } : undefined;
-  const leftAttack = attackHitboxes?.left || mirroredAttack;
+  const leftAttack = mirroredAttack;
   const previews = rightAttack || leftAttack
     ? [
       { label: 'Right', attack: rightAttack, mirrorSprite: false },
