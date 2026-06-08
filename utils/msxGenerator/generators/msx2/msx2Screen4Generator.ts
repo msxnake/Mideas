@@ -11474,9 +11474,9 @@ msx2_player_sprite_y EQU #C001
 msx2_player_sprite_dx EQU #C002
 msx2_player_sprite_frame EQU #C003
 msx2_current_collision_ptr EQU #C004
-msx2_player_coyote_timer EQU #C005
 msx2_current_effects_ptr EQU #C006
-msx2_player_jump_buffer_timer EQU #C007
+msx2_player_coyote_timer EQU #C047
+msx2_player_jump_buffer_timer EQU #C048
 msx2_player_gravity_vel EQU #C008
 msx2_player_flags EQU #C00A
 msx2_current_screen_index EQU #C00B

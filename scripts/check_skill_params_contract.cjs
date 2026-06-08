@@ -120,16 +120,59 @@ assert(physicsCode.includes('clampMsx2CoyoteFrames') && physicsCode.includes('cl
 assert(handlersCode.includes('parameters: firstJumpParameters'),
   'jump core skill wires its parameters array');
 const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8');
-assert(/msx2_player_coyote_timer\s+EQU\s+#C005/.test(genCode),
-  'EQU msx2_player_coyote_timer is at #C005');
-assert(/msx2_player_jump_buffer_timer\s+EQU\s+#C007/.test(genCode),
-  'EQU msx2_player_jump_buffer_timer is at #C007');
+assert(/msx2_player_coyote_timer\s+EQU\s+#C047/.test(genCode),
+  'EQU msx2_player_coyote_timer is at #C047 (post-lesson fix; #C005 collided with collision_ptr HI byte)');
+assert(/msx2_player_jump_buffer_timer\s+EQU\s+#C048/.test(genCode),
+  'EQU msx2_player_jump_buffer_timer is at #C048 (post-lesson fix; #C007 collided with effects_ptr HI byte)');
 assert(/coyoteTime\s*>\s*0/.test(genCode) && /jumpBuffer\s*>\s*0/.test(genCode),
   'Generator gates coyote/buffer blocks on the corresponding skill value');
 assert(genCode.includes('.platform_coyote_blocked') && genCode.includes('.platform_land_settle'),
   'Generator emits coyote/buffer labels in the platform vertical physics routine');
 assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes('ld (msx2_player_jump_buffer_timer), a'),
   'Generator writes both timers (arming and clearing paths)');
+
+// 17b) Regression guard: the new EQUs must not share their address with any
+// other EQU in the file. (Lesson 2026-06-08: #C005/#C007 collided with
+// pointer HI bytes; do not reintroduce that bug.)
+const allEquLines = (genCode.match(/^\s*msx2_\w+\s+EQU\s+#C0[0-9A-Fa-f]+/gm) || []);
+const addressToNames = new Map();
+for (const line of allEquLines) {
+  const m = line.match(/(msx2_\w+)\s+EQU\s+(#C0[0-9A-Fa-f]+)/);
+  if (!m) continue;
+  const name = m[1];
+  const addr = m[2].toUpperCase();
+  if (!addressToNames.has(addr)) addressToNames.set(addr, []);
+  addressToNames.get(addr).push(name);
+}
+for (const addr of ['#C047', '#C048']) {
+  const names = addressToNames.get(addr) || [];
+  assert(names.length === 1, `address ${addr} holds exactly one EQU (got: ${names.join(', ')})`);
+  assert(names[0] === `msx2_player_${addr === '#C047' ? 'coyote' : 'jump_buffer'}_timer`,
+    `address ${addr} holds the expected timer EQU`);
+}
+
+// 17c) Regression guard: known 16-bit little-endian pointer pairs must not
+// be split. If a new EQU is added inside any of these ranges, the runtime
+// breaks. The known pairs are: collision_ptr #C004-#C005, effects_ptr
+// #C006-#C007, gravity_vel #C008-#C009, current_behavior_ptr #C01A-#C01B.
+const forbiddenRanges = [
+  { start: 0xC004, end: 0xC005, name: 'msx2_current_collision_ptr (16-bit ptr)' },
+  { start: 0xC006, end: 0xC007, name: 'msx2_current_effects_ptr (16-bit ptr)' },
+  { start: 0xC008, end: 0xC009, name: 'msx2_player_gravity_vel (16-bit)' },
+  { start: 0xC01A, end: 0xC01B, name: 'msx2_current_behavior_ptr (16-bit ptr)' },
+];
+for (const line of allEquLines) {
+  const m = line.match(/(msx2_\w+)\s+EQU\s+#C0([0-9A-Fa-f]{2})/);
+  if (!m) continue;
+  const name = m[1];
+  const addr = parseInt(m[2], 16);
+  for (const range of forbiddenRanges) {
+    if (addr >= range.start && addr <= range.end) {
+      assert(false, `EQU ${name} at #${m[2].toUpperCase()} collides with ${range.name}`);
+    }
+  }
+}
+assert(true, 'no EQU collides with the known 16-bit pointer HI bytes');
 
 // 18) Normalizer (R1-A): core skills do NOT auto-seed defaults so legacy projects keep their physics
 const defaultsCode = fs.readFileSync(path.join(ROOT, 'utils', 'msx2PlayerDefaults.ts'), 'utf8');

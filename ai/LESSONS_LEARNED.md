@@ -235,3 +235,156 @@ Resolver la etiqueta visible desde el State Machine enlazado o, si no existe, de
 
 Leccion:
 En UI declarativa, distinguir siempre entre id interno estable y nombre visible. Mostrar ids tecnicos solo como tooltip/debug, no como etiqueta principal.
+
+---
+
+## Bug Resuelto: cambio en ASM runtime MSX sin smoke automatizable congela el player
+
+Fecha: 2026-06-08
+
+Problema:
+Un commit (a6f2a38c, después revertado en c82503da) que conectaba los parámetros
+de la skill core `jump` (`enabled`, `jumpPower`, `requireKeyRelease`, mas los
+nuevos `coyoteTime` y `jumpBuffer`) al ASM runtime del salto en MSX2 congeló al
+player en un proyecto de prueba (`downloads/push_example21.json`) sin que el
+usuario hubiera tocado nada: la ROM arrancaba, el player se renderizaba, pero
+no respondía a las teclas (ni movimiento ni salto).
+
+Causa:
+Dos fallos compuestos:
+
+1. **R1-A incompleto**: el plan era que proyectos legacy sin `skillParameters.jump`
+   poblada en el JSON cayesen al fallback de `movement.*` / `components['msx2_jump']`
+   con ASM bit-identical al pre-cambio. La mitad del fallback estaba bien
+   (campos nuevos como `coyoteTime`/`jumpBuffer` se leían de `movement.*` legacy,
+   que ya estaba en el JSON aunque el ASM no los usaba antes), pero la otra
+   mitad NO: el generador `getMsx2PlatformPhysicsFromPlayerEntity` empezó a
+   propagar `coyoteTime=4` y `jumpBuffer=4` desde `movement.*` legacy, y el
+   generador ASM emitió bloques nuevos (EQU #C005, #C007, decremento por
+   frame, lógica de coyote/buffer en `jumpInputBlock`/`.platform_land`/`.platform_check_grounded`)
+   para un proyecto que ya tenía esos campos en el JSON. La ASM dejó de ser
+   bit-identical, y se introdujeron rutas de código no probadas en runtime.
+
+2. **Bug lógico probable en la ASM nueva**: aún revisando con cuidado el flujo
+   del salto, la nueva lógica de coyote/buffer (`.platform_coyote_blocked`,
+   `.platform_land_settle`, decremento de timers en `.platform_after_jump_input`)
+   no se pudo verificar end-to-end sin OpenMSX Debug, porque no hay forma
+   automatizada desde la sesión de la IA de:
+     - Construir un `ProjectAnalysis` mínimo que active el path
+       `usesMsx2PlatformVerticalPhysics`.
+     - Invocar el generador ASM con ese analysis y obtener el ASM.
+     - Compilar el ASM con `glass.jar` vía `/compile` (el endpoint recibe ASM,
+       no JSON; la conversión JSON→ASM vive en la IDE cliente, no en el
+       servidor).
+     - Cargar la ROM en OpenMSX con breakpoints/watchpoints.
+
+   El smoke test que pasó (`test:msx2-skill-params-contract`, 18/18) validaba
+   la presencia de strings/funciones en el código TypeScript, no el resultado
+   runtime. Es un test estructural, no funcional.
+
+Solucion:
+1. Revert inmediato con `git revert a6f2a38c --no-edit` (commit c82503da).
+   El proyecto vuelve a compilar y funcionar como antes.
+2. Decisión de no reintentar el commit de coyote/buffer en ASM hasta tener un
+   mecanismo de smoke que la IA pueda ejecutar offline.
+
+Leccion:
+**No modificar runtime ASM MSX sin smoke automatizable end-to-end.** El flujo
+"compilar ROM con un JSON real, cargar en OpenMSX Debug, probar mecánicas"
+vive en la IDE y no es invocable desde la sesión de la IA. Un test que solo
+valida strings/funciones en TypeScript (como `check_skill_params_contract.cjs`)
+es estructural, no funcional: confirma que el código ESTA, pero no que el
+código CORRE bien.
+
+Variantes de esta lección:
+- Para cambios en runtime ASM, el smoke debe hacerlo el humano en la IDE.
+  El commit debe declarar explícitamente que el smoke OpenMSX está pendiente
+  y ser revertido si el humano reporta regresiones.
+- Para coyote/jumpBuffer y otras mecánicas de física opcionales, considerar
+  implementarlas en el Player JS (modo Play del navegador) en vez de en el
+  ROM. La IA sí puede validar el Player JS con tests estándar.
+- Antes de tocar ASM, construir primero un test que invoque el generador
+  con un `ProjectAnalysis` sintético y compare snapshots de la ASM
+  (golden files). Si la ASM cambia, el diff obliga a justificar cada línea.
+  Esto es verificable offline.
+
+---
+
+## Bug Resuelto: EQU nueva pisa byte alto de puntero 16-bit y corrompe runtime
+
+Fecha: 2026-06-08
+
+Problema:
+Para añadir las variables `msx2_player_coyote_timer` y
+`msx2_player_jump_buffer_timer` en el bloque de EQUs del player MSX2
+(`msx2Screen4Generator.ts`), elegí las direcciones `#C005` y `#C007`
+porque "parecían huecos" entre EQUs de 1 byte. El player se congeló:
+la ROM arrancaba pero no respondía a input.
+
+Causa:
+`#C005` es el byte alto del puntero 16-bit little-endian
+`msx2_current_collision_ptr EQU #C004` (ocupa #C004-#C005). `#C007` es
+el byte alto de `msx2_current_effects_ptr EQU #C006` (ocupa #C006-#C007).
+Mi verificación inicial buscaba EQUs de 1 byte en esas direcciones
+(`Select-String -Pattern "#C005|#C007|#C009"`) y no encontró nada, pero
+ESAS DIRECCIONES SÍ ESTÁN OCUPADAS como parte de punteros 16-bit.
+
+Cuando se ejecuta `msx2_restart_game`, mi inicialización
+`xor a; ld (msx2_player_coyote_timer), a; ld (msx2_player_jump_buffer_timer), a`
+escribe 0 en #C005 y #C007, **sobrescribiendo los bytes altos de los
+punteros** y dejándolos con valores como `#C004-#C000` (collision_ptr apunta
+a #C000 en vez de a la dirección real) y `#C006-#C000` (effects_ptr igual).
+El runtime no puede calcular colisiones, las rutinas de input leen
+estados rotos y el player deja de responder a las teclas.
+
+Múltiples lugares escriben 16-bit a estos punteros en cada frame de juego
+(grep `ld \(msx2_current_collision_ptr\), hl` y
+`ld \(msx2_current_effects_ptr\), hl` confirmó 6 sitios).
+
+Solucion:
+Mover las EQUs nuevas a direcciones que sean realmente de 1 byte y no
+parte de ningún puntero 16-bit. Usé `#C047` y `#C048`, que están
+después de `MSX2_CONTROLS_RAM_BASE` (que termina en #C046) y antes de
+las EQUs dinámicas de runtime. Verifiqué con:
+
+```bash
+Select-String -Path utils/msxGenerator/generators/msx2/msx2Screen4Generator.ts \
+  -Pattern "EQU.*#C04[7-9A-F]"
+# (sin resultados: ningún EQU en ese rango)
+```
+
+Adicionalmente, añadí un check de regresión en
+`scripts/check_skill_params_contract.cjs` que verifica que las nuevas
+EQUs NO caen en direcciones que ya tienen un EQU de 1 byte
+(`#C047` y `#C048` deben ser únicas) y NO están en el rango
+`#C004-#C045` que contiene los punteros 16-bit y las variables del player.
+
+Leccion:
+**Cuando añadas una nueva EQU de RAM en `msx2Screen4Generator.ts`, verifica
+que la dirección NO sea parte de un puntero 16-bit little-endian.** Una
+verificación con `Select-String` por EQUs de 1 byte en esa dirección NO
+es suficiente: el byte puede estar libre como EQU de 1 byte pero
+ocupado como byte alto/bajo de un puntero de 2 bytes adyacente.
+
+Reglas concretas para elegir direcciones RAM nuevas en este archivo:
+1. Listar TODAS las EQUs (`Select-String -Pattern "EQU #C0"`) y ordenarlas.
+2. Para cada hueco entre EQUs adyacentes, comprobar si las dos EQUs
+   implicadas son la parte baja y alta de un mismo puntero 16-bit
+   (mismo prefijo, direcciones consecutivas como #C004-#C005,
+   #C006-#C007, #C008-#C009, #C01A-#C01B, #C023-#C024, etc.).
+3. Si el hueco está entre dos punteros 16-bit consecutivos, está
+   Ocupado. Si está entre dos variables de 1 byte, está Libre.
+4. Como red de seguridad, AÑADIR un test automatizado en
+   `check_skill_params_contract.cjs` que:
+     a) Verifique que cada nueva EQU tiene un check único
+        (`msx2_player_coyote_timer EQU #C047` no debe chocar con
+        `msx2_*_something_else EQU #C047`).
+     b) Verifique que la dirección no cae en ningún rango conocido
+        de punteros 16-bit del archivo.
+
+Síntomas típicos de este bug en runtime: ROM arranca, player visible,
+no responde a input (ni movimiento, ni salto, ni disparo). A veces el
+HUD se actualiza pero la física está congelada. El OpenMSX Debug
+mostraría el `msx2_current_collision_ptr` o `msx2_current_effects_ptr`
+apuntando a una dirección absurda (#C000, #C001, etc.) en vez de a la
+zona de colisiones del runtime.
