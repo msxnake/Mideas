@@ -20,12 +20,6 @@ const coerceSkillParameterValue = (param: SkillParameterDef, raw: unknown): numb
 const buildSkillParametersDefaults = (): Record<string, Record<string, number | boolean>> => {
   const result: Record<string, Record<string, number | boolean>> = {};
   for (const skill of getAllSkills() as SkillDef[]) {
-    // R1-A: only seed defaults for optional skills. Core skills (jump, gravity, ...)
-    // stay opt-in: the legacy movement.* / components['msx2_jump'] runtime path is
-    // preserved until the user explicitly opens the skill dialog and edits it.
-    // This avoids breaking legacy projects whose physics values would otherwise be
-    // overwritten by 8.8 fixed-point defaults from the skill registry.
-    if (skill.required) continue;
     if (!skill.parameters?.length) continue;
     result[skill.id] = skill.parameters.reduce<Record<string, number | boolean>>((acc, param) => {
       acc[param.key] = param.default;

@@ -28,26 +28,6 @@ export const firstJumpParameters: SkillParameterDef[] = [
     default: true,
     help: 'Player must release the jump key before triggering another jump. Prevents accidental hold-to-fly when chained with double_jump.',
   },
-  {
-    key: 'coyoteTime',
-    label: 'Coyote time (frames)',
-    type: 'number',
-    default: 0,
-    min: 0,
-    max: 16,
-    step: 1,
-    help: 'Frames after leaving a platform during which the player can still jump. 0 = disabled. Typical: 4-8 frames (~67-133 ms at 60 Hz).',
-  },
-  {
-    key: 'jumpBuffer',
-    label: 'Jump buffer (frames)',
-    type: 'number',
-    default: 0,
-    min: 0,
-    max: 16,
-    step: 1,
-    help: 'Frames before landing during which a jump press is remembered and executed on touchdown. 0 = disabled. Typical: 4-8 frames.',
-  },
 ];
 
 export const jump: SkillDef = {

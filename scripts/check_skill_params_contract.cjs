@@ -99,41 +99,4 @@ assert(registryCode.includes('s.required'), 'registry still uses required flag f
 assert(/required:\s*true,\s*cycles:\s*80,\s*controlIcon:\s*'jump'/.test(handlersCode),
   'jump core skill keeps required: true (no architectural change)');
 
-// 15) Jump skill exposes coyoteTime and jumpBuffer parameters
-assert(handlersCode.includes("key: 'coyoteTime'") && handlersCode.includes("key: 'jumpBuffer'"),
-  'firstJumpParameters exposes coyoteTime and jumpBuffer');
-assert(/coyoteTime[\s\S]+?min:\s*0[\s\S]+?max:\s*16/.test(handlersCode),
-  'coyoteTime parameter has min:0 max:16 range');
-assert(/jumpBuffer[\s\S]+?min:\s*0[\s\S]+?max:\s*16/.test(handlersCode),
-  'jumpBuffer parameter has min:0 max:16 range');
-
-// 16) msx2PlatformPhysics reads skillParameters.jump with priority A
-const physicsCode = fs.readFileSync(path.join(ROOT, 'utils', 'msx2PlatformPhysics.ts'), 'utf8');
-assert(physicsCode.includes('player?.skillParameters?.jump'),
-  'msx2PlatformPhysics reads player.skillParameters.jump');
-assert(physicsCode.includes('coyoteTime') && physicsCode.includes('jumpBuffer'),
-  'Msx2PlatformPhysicsConfig exposes coyoteTime and jumpBuffer');
-assert(physicsCode.includes('clampMsx2CoyoteFrames') && physicsCode.includes('clampMsx2JumpBufferFrames'),
-  'msx2PlatformPhysics has clamp helpers for coyote/buffer frames');
-
-// 17) msx2Screen4Generator wires the EQU + decrement + coyote/buffer logic
-assert(handlersCode.includes('parameters: firstJumpParameters'),
-  'jump core skill wires its parameters array');
-const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8');
-assert(/msx2_player_coyote_timer\s+EQU\s+#C005/.test(genCode),
-  'EQU msx2_player_coyote_timer is at #C005');
-assert(/msx2_player_jump_buffer_timer\s+EQU\s+#C007/.test(genCode),
-  'EQU msx2_player_jump_buffer_timer is at #C007');
-assert(/coyoteTime\s*>\s*0/.test(genCode) && /jumpBuffer\s*>\s*0/.test(genCode),
-  'Generator gates coyote/buffer blocks on the corresponding skill value');
-assert(genCode.includes('.platform_coyote_blocked') && genCode.includes('.platform_land_settle'),
-  'Generator emits coyote/buffer labels in the platform vertical physics routine');
-assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes('ld (msx2_player_jump_buffer_timer), a'),
-  'Generator writes both timers (arming and clearing paths)');
-
-// 18) Normalizer (R1-A): core skills do NOT auto-seed defaults so legacy projects keep their physics
-const defaultsCode = fs.readFileSync(path.join(ROOT, 'utils', 'msx2PlayerDefaults.ts'), 'utf8');
-assert(/buildSkillParametersDefaults[\s\S]+?if\s*\(\s*skill\.required\s*\)\s*continue;/.test(defaultsCode),
-  'buildSkillParametersDefaults skips required (core) skills (R1-A)');
-
-console.log('\nAll 18 plumbing checks passed.');
+console.log('\nAll 14 plumbing checks passed.');
