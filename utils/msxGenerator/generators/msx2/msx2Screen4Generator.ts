@@ -1999,12 +1999,36 @@ function buildMsx2PlatformVerticalPhysicsAsm(
   const terminalHigh = formatAsmByte(getTerminalVelocityHighByte(physics.terminalVelocity88));
   const terminalWord = formatAsmWord(physics.terminalVelocity88);
   const maxJumps = formatAsmByte(physics.maxJumps);
+  const coyoteFrames = formatAsmByte(physics.coyoteTime);
+  const jumpBufferFrames = formatAsmByte(physics.jumpBuffer);
   const jumpLockGate = physics.requireKeyRelease
     ? `    ld a, (msx2_player_flags)
     and #2
     jp nz, .platform_after_jump_input
 `
     : '';
+
+  // Coyote helper: if not grounded and coyote timer is active, force grounded for jump eligibility.
+  // The condition is tested BEFORE incrementing the jump counter so a coyote jump counts as jump #1.
+  // When the player presses jump while airborne, set buffer = jumpBuffer so the next landing fires it.
+  const coyoteAirGate = physics.coyoteTime > 0
+    ? `    ld a, (msx2_player_coyote_timer)
+    or a
+    jp z, .platform_coyote_blocked
+    ; coyote window active: count as grounded
+    ld a, (msx2_player_flags)
+    or #1
+    jp .platform_apply_jump_impulse
+.platform_coyote_blocked:
+    ; coyote expired: record jump press as buffer if enabled
+${physics.jumpBuffer > 0 ? `    ld a, ${jumpBufferFrames}
+    ld (msx2_player_jump_buffer_timer), a
+` : '    ; jump buffer disabled\n'}`
+    : (physics.jumpBuffer > 0
+      ? `    ld a, ${jumpBufferFrames}
+    ld (msx2_player_jump_buffer_timer), a
+`
+      : '');
 
   const jumpInputBlock = physics.jumpEnabled
     ? `    call msx2_control_jump_pressed
@@ -2013,7 +2037,8 @@ function buildMsx2PlatformVerticalPhysicsAsm(
 ${jumpLockGate}    ld a, (msx2_player_flags)
     bit 0, a
     jp nz, .platform_jump_from_ground
-    ld a, (msx2_player_flags)
+    ; Airborne: check coyote / buffer
+${coyoteAirGate}    ld a, (msx2_player_flags)
     rra
     rra
     and #7
@@ -2065,10 +2090,29 @@ ${physics.requireKeyRelease ? `    or #2
 `
     : '';
 
+  // Per-frame timer decrements for coyote / jump buffer. Generated as inline
+  // blocks that are only emitted when the corresponding skill parameter is
+  // non-zero, so legacy projects pay no cost.
+  const timerDecrementBlock = (physics.coyoteTime > 0 || physics.jumpBuffer > 0)
+    ? `    ld hl, msx2_player_coyote_timer
+    ld a, (hl)
+    or a
+    jr z, .${(physics.jumpBuffer > 0 ? 'skip_coyote_dec' : 'skip_all_dec')}
+    dec (hl)
+.skip_coyote_dec:
+${physics.jumpBuffer > 0 ? `    ld hl, msx2_player_jump_buffer_timer
+    ld a, (hl)
+    or a
+    jr z, .skip_all_dec
+    dec (hl)
+` : ''}.skip_all_dec:
+`
+    : '';
+
   return `    ; MSX2 platform vertical physics (msx2_jump + msx2_gravity components, 8.8).
     ; Body hitbox: x=${bodyHitbox.x}, y=${bodyHitbox.y}, w=${bodyHitbox.w}, h=${bodyHitbox.h}. Vertical probes use inset ${probeInset}.
 ${jumpInputBlock}.platform_after_jump_input:
-    call msx2_rope_at_player_center
+${timerDecrementBlock}    call msx2_rope_at_player_center
     jp z, .platform_hold_rope
 ${gravityAccelBlock}    jp .platform_apply_vertical_delta
 .platform_apply_vertical_delta:
@@ -2156,9 +2200,29 @@ ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, 
     ld (hl), a
     inc hl
     ld (hl), a
-    ld a, #1
+${(physics.jumpBuffer > 0) ? `    ; jump buffer: if a press is pending, fire it as the first jump
+    ld a, (msx2_player_jump_buffer_timer)
+    or a
+    jp z, .platform_land_settle
+    xor a
+    ld (msx2_player_jump_buffer_timer), a
+    ld a, (msx2_player_flags)
+    and #FA
+    or #4
+${physics.requireKeyRelease ? `    or #2
+` : ''}    ld (msx2_player_flags), a
+    ld hl, msx2_player_gravity_vel
+    ld (hl), ${jumpImpulseLo}
+    inc hl
+    ld (hl), ${jumpImpulseHi}
+    jp upload_hardware_sprite_attrs
+.platform_land_settle:
+` : ''}    ld a, #1
     ld (msx2_player_flags), a
-    call apply_msx2_conveyor
+${(physics.coyoteTime > 0) ? `    ; landing clears any stale coyote timer
+    xor a
+    ld (msx2_player_coyote_timer), a
+` : ''}    call apply_msx2_conveyor
     jp upload_hardware_sprite_attrs
 .platform_check_grounded:
 ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    ld e, c
@@ -2178,7 +2242,14 @@ ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, 
     ld a, (msx2_player_flags)
     and #FE
     ld (msx2_player_flags), a
-    jp upload_hardware_sprite_attrs
+${(physics.coyoteTime > 0) ? `    ; left ground: arm coyote timer if not already armed
+    ld a, (msx2_player_coyote_timer)
+    or a
+    jr nz, .platform_coyote_skip_arm
+    ld a, ${coyoteFrames}
+    ld (msx2_player_coyote_timer), a
+.platform_coyote_skip_arm:
+` : ''}    jp upload_hardware_sprite_attrs
 .platform_hold_rope:
     ld hl, msx2_player_gravity_vel
     xor a
@@ -6271,6 +6342,9 @@ msx2_restart_game:
     call msx2_respawn_current_screen
     ld a, #02
     ld (msx2_player_flags), a
+    xor a
+    ld (msx2_player_coyote_timer), a
+    ld (msx2_player_jump_buffer_timer), a
     call write_hardware_sprite_attrs
     ret
 
@@ -11400,7 +11474,9 @@ msx2_player_sprite_y EQU #C001
 msx2_player_sprite_dx EQU #C002
 msx2_player_sprite_frame EQU #C003
 msx2_current_collision_ptr EQU #C004
+msx2_player_coyote_timer EQU #C005
 msx2_current_effects_ptr EQU #C006
+msx2_player_jump_buffer_timer EQU #C007
 msx2_player_gravity_vel EQU #C008
 msx2_player_flags EQU #C00A
 msx2_current_screen_index EQU #C00B
