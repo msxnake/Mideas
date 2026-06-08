@@ -364,5 +364,8 @@ export const mergeMsx2PlayerUpdate = (
       : base.stateMachineAssetId,
     stateMachine: partialPatch.stateMachine !== undefined ? partialPatch.stateMachine : base.stateMachine,
     budget: partialPatch.budget ? { ...base.budget, ...partialPatch.budget } : base.budget,
+    skillParameters: partialPatch.skillParameters
+      ? { ...(base.skillParameters || {}), ...partialPatch.skillParameters }
+      : base.skillParameters,
   });
 };

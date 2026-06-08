@@ -11,7 +11,7 @@ import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefi
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { getAllSkills } from '../../utils/msxGenerator/skills/index';
-import type { SkillControlIcon } from '../../utils/msxGenerator/skills/types';
+import type { SkillControlIcon, SkillDef, SkillParameterDef } from '../../utils/msxGenerator/skills/types';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
@@ -468,6 +468,99 @@ const PlayerComponentsDialog: React.FC<{
               );
             })}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SkillParametersDialog: React.FC<{
+  skill: SkillDef;
+  values: Record<string, number | boolean>;
+  onPatch: (key: string, value: number | boolean) => void;
+  onClose: () => void;
+}> = ({ skill, values, onPatch, onClose }) => {
+  const parameters = skill.parameters || [];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${skill.label} parameters`}
+    >
+      <div className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded border border-slate-700 bg-[#151a23] shadow-xl">
+        <div className="flex h-11 items-center justify-between border-b border-slate-700 px-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">{skill.label}</h3>
+            <div className="text-[11px] text-slate-400">Skill parameters · changes apply immediately</div>
+          </div>
+          <button
+            type="button"
+            className="h-7 rounded border border-slate-700 px-3 text-xs hover:bg-slate-800"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-2 gap-3">
+            {parameters.map((param: SkillParameterDef) => {
+              const raw = values[param.key];
+              const fallback = param.default;
+              if (param.type === 'boolean') {
+                const checked = raw === undefined ? Boolean(fallback) : Boolean(raw);
+                return (
+                  <label
+                    key={param.key}
+                    className="col-span-2 flex items-start gap-2 rounded border border-slate-700 bg-[#111821] px-2 py-1.5 text-xs text-slate-100"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={event => onPatch(param.key, event.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 accent-blue-500"
+                    />
+                    <span className="space-y-0.5">
+                      <span className="block font-medium">{param.label}</span>
+                      {param.help && <span className="block text-[10px] text-slate-400">{param.help}</span>}
+                    </span>
+                  </label>
+                );
+              }
+              const numValue = Number(raw);
+              const safeValue = Number.isFinite(numValue) ? numValue : Number(fallback) || 0;
+              return (
+                <div key={param.key} className="space-y-1 text-xs text-slate-200">
+                  <label className="flex items-center justify-between gap-2">
+                    <span>{param.label}</span>
+                    <span className="text-[10px] text-slate-400">{safeValue}</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={param.min}
+                    max={param.max}
+                    step={param.step ?? 1}
+                    className={inputClass}
+                    value={safeValue}
+                    onChange={event => {
+                      let next = Number(event.target.value);
+                      if (!Number.isFinite(next)) next = Number(fallback) || 0;
+                      if (typeof param.min === 'number') next = Math.max(param.min, next);
+                      if (typeof param.max === 'number') next = Math.min(param.max, next);
+                      onPatch(param.key, next);
+                    }}
+                  />
+                  {param.help && <p className="text-[10px] text-slate-400">{param.help}</p>}
+                </div>
+              );
+            })}
+          </div>
+          {parameters.length === 0 && (
+            <div className="text-[11px] text-slate-400">This skill has no editable parameters yet.</div>
+          )}
         </div>
       </div>
     </div>
@@ -1081,6 +1174,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
+  const [openSkillDialogId, setOpenSkillDialogId] = useState<string | null>(null);
   const [selectedAttackFacing, setSelectedAttackFacing] = useState<PlayerAttackFacing>('right');
   const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [newStateName, setNewStateName] = useState('');
@@ -1191,6 +1285,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     onUpdate({
       weapons: nextWeapons,
       equippedWeaponId: nextEquippedWeaponId || '',
+    });
+  };
+  const updateSkillParameter = (skillId: string, key: string, value: number | boolean) => {
+    const current = normalized.skillParameters || {};
+    const skillEntry = { ...(current[skillId] || {}), [key]: value };
+    onUpdate({
+      skillParameters: {
+        ...current,
+        [skillId]: skillEntry,
+      },
     });
   };
   const addWeapon = () => {
@@ -2404,9 +2508,27 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     <div className="space-y-1">
                       {getAllSkills().filter(s => !s.required).map(skill => {
                         const active = normalized.activeSkills?.includes(skill.id) ?? false;
+                        const hasParameters = Boolean(skill.parameters && skill.parameters.length > 0);
+                        const canOpenDialog = active && hasParameters;
                         return (
                           <div key={skill.id} className="grid grid-cols-[1fr_auto] items-center gap-2 text-xs">
-                            <span className="text-slate-200">{skill.label}</span>
+                            {canOpenDialog ? (
+                              <button
+                                type="button"
+                                onClick={() => setOpenSkillDialogId(skill.id)}
+                                className="truncate rounded border border-transparent px-1 py-0.5 text-left text-slate-200 hover:border-sky-700 hover:bg-sky-950/30 hover:text-sky-100"
+                                title={`Edit ${skill.label} parameters`}
+                                aria-haspopup="dialog"
+                              >
+                                {skill.label}
+                                <span className="ml-1 text-[10px] text-sky-400">⚙</span>
+                              </button>
+                            ) : (
+                              <span className={`text-slate-200 ${hasParameters ? 'opacity-80' : ''}`}>
+                                {skill.label}
+                                {hasParameters && <span className="ml-1 text-[10px] text-slate-500" title="Activate the skill to edit parameters">(inactive)</span>}
+                              </span>
+                            )}
                             <label className="flex cursor-pointer items-center gap-1.5 text-slate-400">
                               <input
                                 type="checkbox"
@@ -2606,6 +2728,19 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
             onClose={() => setIsComponentsDialogOpen(false)}
           />
         )}
+        {openSkillDialogId && (() => {
+          const skill = (getAllSkills() as SkillDef[]).find(s => s.id === openSkillDialogId);
+          if (!skill || !skill.parameters?.length) return null;
+          const skillValues = normalized.skillParameters?.[skill.id] || {};
+          return (
+            <SkillParametersDialog
+              skill={skill}
+              values={skillValues}
+              onPatch={(key, value) => updateSkillParameter(skill.id, key, value)}
+              onClose={() => setOpenSkillDialogId(null)}
+            />
+          );
+        })()}
       </div>
     </div>
   );

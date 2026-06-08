@@ -1,4 +1,5 @@
 import { SkillDef } from '../types';
+import type { SkillParameterDef } from '../types';
 
 // ── core (always present) ──
 
@@ -47,6 +48,26 @@ export const itemCollection: SkillDef = {
 
 // ── optional skills ──
 
+export const doubleJumpParameters: SkillParameterDef[] = [
+  {
+    key: 'maxJumps',
+    label: 'Max jumps in air',
+    type: 'number',
+    default: 2,
+    min: 1,
+    max: 4,
+    step: 1,
+    help: 'Total jumps allowed before landing (1 = single jump, 2 = classic double jump, etc.).',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between jumps',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release the jump key before triggering the second jump. Prevents accidental hold-to-fly.',
+  },
+];
+
 export const doubleJump: SkillDef = {
   id: 'double_jump',
   label: 'Second jump in mid-air',
@@ -58,6 +79,7 @@ export const doubleJump: SkillDef = {
     { from: ['jumping', 'falling'], to: 'double_jumping', condition: 'jump_key_pressed AND jump_count < 2' },
     { from: ['double_jumping'], to: 'falling', condition: 'gravity_vel > 0' },
   ],
+  parameters: doubleJumpParameters,
 };
 
 export const slash: SkillDef = {

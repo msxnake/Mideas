@@ -534,6 +534,12 @@ export interface Msx2PlayerDefinition {
   skillBindings?: Record<string, Msx2PlayerSkillBinding>;
   /** Optional skill ids that are active for this player. Omitted = use defaults from SkillDef. */
   activeSkills?: string[];
+  /**
+   * Per-skill parameter values keyed by skill id and parameter key.
+   * Populated by the normalizer from SkillDef.parameters defaults when the skill
+   * is active. Not consumed by the MSX2 ASM generator yet.
+   */
+  skillParameters?: Record<string, Record<string, number | boolean>>;
   health: {
     maxHealth: number;
     lives: number;

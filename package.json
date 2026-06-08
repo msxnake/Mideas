@@ -10,6 +10,7 @@
     "test:msx1-runtime-guard": "node scripts/check_msx1_runtime_guard.mjs",
     "test:msx2-default-catalog": "node scripts/check_msx2_default_catalog.mjs",
     "test:msx2-editor-contract": "node scripts/check_msx2_entity_editor_contract.mjs",
+    "test:msx2-skill-params-contract": "node scripts/check_skill_params_contract.cjs",
     "test:msx2-screen5-presentation": "node scripts/check_msx2_screen5_presentation_contract.mjs",
     "test:msx2-gameflow": "node scripts/check_msx2_gameflow_contract.mjs",
     "test:msx2-budget-feedback": "node scripts/check_msx2_budget_feedback_helper.mjs",

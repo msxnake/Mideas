@@ -1,6 +1,54 @@
 import { Msx2GameProfileId, Msx2PlayerAnimation, Msx2PlayerAnimationPlayback, Msx2PlayerAnimationRole, Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerGameType, Msx2PlayerInputSource, Msx2PlayerSpriteSize, Msx2Sprite } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { parseMsx2PlayerImport } from './msx2PlayerImport';
+import { getAllSkills } from './msxGenerator/skills/index';
+import type { SkillDef, SkillParameterDef } from './msxGenerator/skills/types';
+
+const coerceSkillParameterValue = (param: SkillParameterDef, raw: unknown): number | boolean => {
+  if (param.type === 'boolean') {
+    return Boolean(raw);
+  }
+  const num = Number(raw);
+  if (!Number.isFinite(num)) {
+    return Number(param.default) || 0;
+  }
+  const min = typeof param.min === 'number' ? param.min : num;
+  const max = typeof param.max === 'number' ? param.max : num;
+  return Math.max(min, Math.min(max, num));
+};
+
+const buildSkillParametersDefaults = (): Record<string, Record<string, number | boolean>> => {
+  const result: Record<string, Record<string, number | boolean>> = {};
+  for (const skill of getAllSkills() as SkillDef[]) {
+    if (!skill.parameters?.length) continue;
+    result[skill.id] = skill.parameters.reduce<Record<string, number | boolean>>((acc, param) => {
+      acc[param.key] = param.default;
+      return acc;
+    }, {});
+  }
+  return result;
+};
+
+const mergeSkillParameters = (
+  playerSkillParameters: Record<string, Record<string, number | boolean>> | undefined,
+): Record<string, Record<string, number | boolean>> => {
+  const defaults = buildSkillParametersDefaults();
+  const raw = playerSkillParameters && typeof playerSkillParameters === 'object' ? playerSkillParameters : {};
+  const merged: Record<string, Record<string, number | boolean>> = {};
+  const knownSkillIds = new Set<string>([...Object.keys(defaults), ...Object.keys(raw)]);
+  for (const skillId of knownSkillIds) {
+    const defParams = defaults[skillId] || {};
+    const fromRaw = raw[skillId] && typeof raw[skillId] === 'object' ? raw[skillId] : {};
+    const skillDef = (getAllSkills() as SkillDef[]).find(s => s.id === skillId);
+    const paramDefs: SkillParameterDef[] = skillDef?.parameters || [];
+    const skillMerged: Record<string, number | boolean> = { ...defParams, ...fromRaw };
+    for (const param of paramDefs) {
+      skillMerged[param.key] = coerceSkillParameterValue(param, skillMerged[param.key]);
+    }
+    merged[skillId] = skillMerged;
+  }
+  return merged;
+};
 
 const MSX2_PLAYER_SPRITE_SIZE_PRESETS: Msx2PlayerSpriteSize[] = ['16x16', '16x32', '32x16', '32x32'];
 export const MSX2_PLAYER_FACING_OPTIONS: ReadonlyArray<{ value: Msx2PlayerFacing; label: string }> = [
@@ -660,6 +708,7 @@ export const createDefaultMsx2PlayerDefinition = (
     },
     skillBindings: {},
     activeSkills: [],
+    skillParameters: buildSkillParametersDefaults(),
     requiredRoutines: isShooter
       ? ['Player_ReadInput', 'Player_UpdateShooter', 'Player_ClampToScreen', 'Player_FireProjectile', 'Player_RenderHardwareSprite']
       : isMaze
@@ -769,5 +818,6 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
       ...(parsed?.skillBindings || {}),
     },
     activeSkills: parsed?.activeSkills ?? defaults.activeSkills,
+    skillParameters: mergeSkillParameters(parsed?.skillParameters),
   };
 };
