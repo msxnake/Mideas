@@ -421,6 +421,28 @@ export interface Msx2PlayerHitbox {
   h: number;
 }
 
+export type Msx2PlayerWeaponType = 'melee' | 'projectile' | 'arc' | 'bomb' | 'magic';
+export type Msx2PlayerWeaponButton = 'a' | 'b';
+export type Msx2PlayerWeaponHitboxSource = 'attackByFacing' | 'custom' | 'none';
+
+export interface Msx2PlayerWeaponDefinition {
+  id: string;
+  name: string;
+  type: Msx2PlayerWeaponType;
+  button: Msx2PlayerWeaponButton;
+  state?: string;
+  animationRole?: Msx2PlayerAnimationRole;
+  damage: number;
+  cooldownFrames: number;
+  activeFrames: {
+    start: number;
+    end: number;
+  };
+  hitboxSource: Msx2PlayerWeaponHitboxSource;
+  projectileAssetId?: string;
+  notes?: string;
+}
+
 export interface Msx2PlayerLogicFlags {
   isPlayer?: boolean;
   blocksProjectiles?: boolean;
@@ -490,6 +512,9 @@ export interface Msx2PlayerDefinition {
     knockbackX?: number;
     knockbackY?: number;
   };
+  /** Declarative weapon definitions. Not consumed by MSX2 ASM yet. */
+  weapons?: Msx2PlayerWeaponDefinition[];
+  equippedWeaponId?: string;
   attack: {
     type: 'none' | 'melee' | 'projectile' | 'whip' | 'swordArc' | 'shot' | 'bomb';
     damage: number;

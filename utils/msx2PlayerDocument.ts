@@ -89,6 +89,8 @@ export interface Msx2PlayerDocument {
       }>;
     };
     health: Msx2PlayerDefinition['health'];
+    weapons?: Msx2PlayerDefinition['weapons'];
+    equippedWeaponId?: string;
     combat: {
       attack: Msx2PlayerDefinition['attack'];
       attackHitbox?: Msx2PlayerDefinition['hitboxes']['attack'];
@@ -282,6 +284,8 @@ export const buildDetailedMsx2PlayerDocument = (
       movement: normalized.movement,
       controls: buildControlsSection(normalized),
       health: normalized.health,
+      weapons: normalized.weapons || [],
+      equippedWeaponId: normalized.equippedWeaponId,
       combat: {
         attack: normalized.attack,
         attackHitbox: normalized.hitboxes.attack,
@@ -326,6 +330,8 @@ export const mergeMsx2PlayerUpdate = (
     hitboxes: partialPatch.hitboxes ? { ...base.hitboxes, ...partialPatch.hitboxes } : base.hitboxes,
     movement: partialPatch.movement ? { ...base.movement, ...partialPatch.movement } : base.movement,
     health: partialPatch.health ? { ...base.health, ...partialPatch.health } : base.health,
+    weapons: partialPatch.weapons ?? base.weapons,
+    equippedWeaponId: partialPatch.equippedWeaponId ?? base.equippedWeaponId,
     attack: partialPatch.attack ? { ...base.attack, ...partialPatch.attack } : base.attack,
     interaction: partialPatch.interaction ? { ...base.interaction, ...partialPatch.interaction } : base.interaction,
     sounds: partialPatch.sounds ? { ...(base.sounds || {}), ...partialPatch.sounds } : base.sounds,

@@ -27,6 +27,7 @@ const navItems = [
   'Physics & Movement',
   'Controls',
   'Combat & Damage',
+  'Weapons',
   'Abilities & Items',
   'States & Logic',
   'Sounds',
@@ -36,6 +37,10 @@ const navItems = [
 
 type PlayerConfigSection = typeof navItems[number];
 type PlayerAttackFacing = Exclude<Msx2PlayerFacing, 'neutral'>;
+type PlayerWeaponDefinition = NonNullable<Msx2PlayerDefinition['weapons']>[number];
+type PlayerWeaponType = PlayerWeaponDefinition['type'];
+type PlayerWeaponButton = PlayerWeaponDefinition['button'];
+type PlayerWeaponHitboxSource = PlayerWeaponDefinition['hitboxSource'];
 
 const inputClass = 'h-7 w-full rounded border border-slate-700 bg-[#111821] px-2 text-xs text-slate-100 outline-none focus:border-blue-500';
 const selectClass = `${inputClass} pr-6`;
@@ -47,8 +52,33 @@ const PLAYER_ATTACK_FACING_OPTIONS: ReadonlyArray<{ value: PlayerAttackFacing; l
   { value: 'up', label: 'Up' },
   { value: 'down', label: 'Down' },
 ];
+const PLAYER_WEAPON_TYPE_OPTIONS: ReadonlyArray<{ value: PlayerWeaponType; label: string }> = [
+  { value: 'melee', label: 'Melee' },
+  { value: 'projectile', label: 'Projectile' },
+  { value: 'arc', label: 'Arc' },
+  { value: 'bomb', label: 'Bomb' },
+  { value: 'magic', label: 'Magic' },
+];
+const PLAYER_WEAPON_BUTTON_OPTIONS: ReadonlyArray<{ value: PlayerWeaponButton; label: string }> = [
+  { value: 'a', label: 'A' },
+  { value: 'b', label: 'B' },
+];
+const PLAYER_WEAPON_HITBOX_SOURCE_OPTIONS: ReadonlyArray<{ value: PlayerWeaponHitboxSource; label: string }> = [
+  { value: 'attackByFacing', label: 'Directional Attack Box' },
+  { value: 'custom', label: 'Custom / future' },
+  { value: 'none', label: 'None' },
+];
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
+
+const sanitizeWeaponId = (value: string): string => {
+  const sanitized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return sanitized || 'weapon';
+};
 
 const sanitizePlayerStateMachineAssetName = (value: string): string => {
   const sanitized = value
@@ -626,6 +656,54 @@ const ActionButtonBadge: React.FC<{ letter: 'A' | 'B'; dimmed?: boolean }> = ({ 
   </span>
 );
 
+const WeaponIcon: React.FC<{ type: PlayerWeaponType; selected?: boolean }> = ({ type, selected = false }) => {
+  const stroke = selected ? '#7dd3fc' : '#cbd5e1';
+  const accent = selected ? '#38bdf8' : '#64748b';
+  const fill = selected ? '#0f2d42' : '#151b25';
+  return (
+    <span className={`inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded border ${selected ? 'border-sky-500 bg-sky-950/50' : 'border-slate-700 bg-[#111821]'}`}>
+      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+        <rect x="2" y="2" width="28" height="28" rx="5" fill={fill} opacity="0.9" />
+        {type === 'melee' && (
+          <>
+            <path d="M22 4l4 4-10.5 11-4-4L22 4z" fill={accent} stroke={stroke} strokeWidth="1.4" />
+            <path d="M10 16l6 6" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+            <path d="M7 19l6 6" stroke={accent} strokeWidth="3" strokeLinecap="round" />
+          </>
+        )}
+        {type === 'projectile' && (
+          <>
+            <path d="M5 16h17" stroke={stroke} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M19 9l7 7-7 7" fill="none" stroke={accent} strokeWidth="2.4" strokeLinejoin="round" />
+            <path d="M7 11h6M7 21h6" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
+          </>
+        )}
+        {type === 'arc' && (
+          <>
+            <path d="M9 23c10-2 15-8 15-18" fill="none" stroke={stroke} strokeWidth="2.4" strokeLinecap="round" />
+            <path d="M8 8c6 3 10 8 10 17" fill="none" stroke={accent} strokeWidth="2.1" strokeLinecap="round" />
+            <path d="M5 18l6 6" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+          </>
+        )}
+        {type === 'bomb' && (
+          <>
+            <circle cx="15" cy="18" r="7" fill={accent} stroke={stroke} strokeWidth="1.5" />
+            <path d="M18 11l4-5" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+            <path d="M22 5l3 2M23 4l1 4" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" />
+          </>
+        )}
+        {type === 'magic' && (
+          <>
+            <path d="M16 5l2.5 7 7.5 1-5.5 5 1.5 7-6-3.5-6 3.5 1.5-7-5.5-5 7.5-1L16 5z" fill={accent} stroke={stroke} strokeWidth="1.3" />
+            <circle cx="8" cy="7" r="1.2" fill="#f8fafc" />
+            <circle cx="25" cy="23" r="1.1" fill="#f8fafc" />
+          </>
+        )}
+      </svg>
+    </span>
+  );
+};
+
 const ControlField: React.FC<{
   directionKey?: 'left' | 'right' | 'up' | 'down';
   badge?: 'A' | 'B';
@@ -963,6 +1041,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
   const [selectedAttackFacing, setSelectedAttackFacing] = useState<PlayerAttackFacing>('right');
+  const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [newStateName, setNewStateName] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const lastAnimationSyncSignatureRef = useRef<string | null>(null);
@@ -997,6 +1076,22 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     [normalized.stateMachineAssetId, stateMachineAssets],
   );
   const selectedStateMachine = selectedStateMachineAsset?.data as StateMachine | undefined;
+  const weapons = normalized.weapons || [];
+  const equippedWeaponId = normalized.equippedWeaponId || weapons[0]?.id || '';
+  const selectedWeapon =
+    weapons.find(weapon => weapon.id === selectedWeaponId)
+    || weapons.find(weapon => weapon.id === equippedWeaponId)
+    || weapons[0]
+    || null;
+  const weaponStateOptions = useMemo(() => {
+    const names = selectedStateMachine
+      ? selectedStateMachine.states.map(state => state.name || state.id)
+      : normalized.stateMachine;
+    return Array.from(new Set(names.filter(Boolean)));
+  }, [normalized.stateMachine, selectedStateMachine]);
+  const weaponAnimationRoles = normalized.animationOrder?.length
+    ? normalized.animationOrder
+    : Object.keys(normalized.animations || {});
 
   const updateRender = (patch: Partial<Msx2PlayerDefinition['render']>) => onUpdate({ render: { ...normalized.render, ...patch } });
   const selectDefaultSpriteAsset = (spriteAssetId: string | undefined) => {
@@ -1052,6 +1147,86 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const updateMovement = (patch: Partial<Msx2PlayerDefinition['movement']>) => onUpdate({ movement: { ...normalized.movement, ...patch } });
   const updateHealth = (patch: Partial<Msx2PlayerDefinition['health']>) => onUpdate({ health: { ...normalized.health, ...patch } });
   const updateAttack = (patch: Partial<Msx2PlayerDefinition['attack']>) => onUpdate({ attack: { ...normalized.attack, ...patch } });
+  const updateWeapons = (nextWeapons: PlayerWeaponDefinition[], nextEquippedWeaponId = normalized.equippedWeaponId) => {
+    onUpdate({
+      weapons: nextWeapons,
+      equippedWeaponId: nextEquippedWeaponId || nextWeapons[0]?.id || '',
+    });
+  };
+  const addWeapon = () => {
+    const existingIds = new Set(weapons.map(weapon => weapon.id));
+    const baseId = 'weapon';
+    let index = weapons.length + 1;
+    let id = `${baseId}_${index}`;
+    while (existingIds.has(id)) {
+      index += 1;
+      id = `${baseId}_${index}`;
+    }
+    const nextWeapon: PlayerWeaponDefinition = {
+      id,
+      name: `Weapon ${index}`,
+      type: 'melee',
+      button: 'a',
+      state: weaponStateOptions[0] || 'Attacking',
+      animationRole: 'attack',
+      damage: 1,
+      cooldownFrames: 15,
+      activeFrames: { start: 2, end: 6 },
+      hitboxSource: 'attackByFacing',
+      notes: 'Declarative weapon metadata. ASM runtime support pending.',
+    };
+    updateWeapons([...weapons, nextWeapon], equippedWeaponId || id);
+    setSelectedWeaponId(id);
+  };
+  const updateSelectedWeapon = (patch: Partial<PlayerWeaponDefinition>) => {
+    if (!selectedWeapon) return;
+    const nextWeapon = {
+      ...selectedWeapon,
+      ...patch,
+      activeFrames: {
+        ...selectedWeapon.activeFrames,
+        ...(patch.activeFrames || {}),
+      },
+    };
+    const nextWeapons = weapons.map(weapon => weapon.id === selectedWeapon.id ? nextWeapon : weapon);
+    const nextEquippedWeaponId = equippedWeaponId === selectedWeapon.id ? nextWeapon.id : equippedWeaponId;
+    updateWeapons(nextWeapons, nextEquippedWeaponId);
+    if (patch.id) {
+      setSelectedWeaponId(nextWeapon.id);
+    }
+  };
+  const renameSelectedWeaponId = (value: string) => {
+    if (!selectedWeapon) return;
+    const id = sanitizeWeaponId(value);
+    if (!id || id === selectedWeapon.id) return;
+    if (weapons.some(weapon => weapon.id === id)) return;
+    updateSelectedWeapon({ id });
+  };
+  const duplicateSelectedWeapon = () => {
+    if (!selectedWeapon) return;
+    const baseId = sanitizeWeaponId(`${selectedWeapon.id}_copy`);
+    const existingIds = new Set(weapons.map(weapon => weapon.id));
+    let id = baseId;
+    let suffix = 2;
+    while (existingIds.has(id)) {
+      id = `${baseId}_${suffix}`;
+      suffix += 1;
+    }
+    const duplicate = {
+      ...selectedWeapon,
+      id,
+      name: `${selectedWeapon.name} Copy`,
+    };
+    updateWeapons([...weapons, duplicate], equippedWeaponId);
+    setSelectedWeaponId(id);
+  };
+  const removeSelectedWeapon = () => {
+    if (!selectedWeapon) return;
+    const nextWeapons = weapons.filter(weapon => weapon.id !== selectedWeapon.id);
+    const nextEquippedWeaponId = equippedWeaponId === selectedWeapon.id ? nextWeapons[0]?.id || '' : equippedWeaponId;
+    updateWeapons(nextWeapons, nextEquippedWeaponId);
+    setSelectedWeaponId(nextEquippedWeaponId || nextWeapons[0]?.id || null);
+  };
   const updateBodyHitbox = (patch: Partial<typeof body>) => onUpdate({ hitboxes: { ...normalized.hitboxes, body: { ...body, ...patch } } });
   const updateAttackHitboxForFacing = (patch: Partial<typeof selectedAttackHitbox>) => {
     const nextHitbox = { ...selectedAttackHitbox, ...patch };
@@ -1882,6 +2057,197 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                   <Field label="I-Time" suffix="frames"><SmallNumber value={normalized.health.invulnerabilityFrames} onChange={value => updateHealth({ invulnerabilityFrames: value })} /></Field>
                   <Field label="Knockback"><SmallNumber step={0.01} value={numberValue(normalized.health.knockbackX, 1)} onChange={value => updateHealth({ knockbackX: value })} /></Field>
                   <Checkbox label="Can Take Damage" checked={true} onChange={() => undefined} />
+                </div>
+              </section>
+
+              <section className={`${panelClass} ${activeSection === 'Weapons' ? 'absolute inset-0' : 'hidden'}`}>
+                <div className={`${panelTitleClass} flex items-center justify-between gap-2`}>
+                  <span>Weapons</span>
+                  <span className="text-[10px] font-semibold normal-case tracking-normal text-slate-400">Declarative JSON only</span>
+                </div>
+                <div className="grid min-h-0 flex-1 grid-cols-[minmax(250px,0.72fr)_minmax(420px,1.28fr)] gap-3 overflow-hidden p-3">
+                  <div className="flex min-h-0 flex-col rounded border border-slate-700 bg-[#151b25]">
+                    <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Arsenal</div>
+                        <div className="text-[10px] text-slate-500">{weapons.length} weapon{weapons.length === 1 ? '' : 's'}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded border border-sky-600 bg-sky-900/40 px-2 py-1 text-[11px] font-semibold text-sky-100 hover:bg-sky-800/60"
+                        onClick={addWeapon}
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
+                      {weapons.length === 0 ? (
+                        <div className="rounded border border-dashed border-slate-600 bg-[#111821] p-4 text-center text-[11px] text-slate-400">
+                          No weapons defined yet.
+                        </div>
+                      ) : weapons.map(weapon => {
+                        const selected = selectedWeapon?.id === weapon.id;
+                        const equipped = equippedWeaponId === weapon.id;
+                        return (
+                          <button
+                            key={weapon.id}
+                            type="button"
+                            className={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 rounded border px-2 py-2 text-left transition ${
+                              selected
+                                ? 'border-sky-500 bg-sky-950/45'
+                                : 'border-slate-700 bg-[#111821] hover:border-slate-500 hover:bg-[#18202c]'
+                            }`}
+                            onClick={() => setSelectedWeaponId(weapon.id)}
+                          >
+                            <WeaponIcon type={weapon.type} selected={selected} />
+                            <span className="min-w-0">
+                              <span className="block truncate text-xs font-semibold text-slate-100">{weapon.name || weapon.id}</span>
+                              <span className="block truncate text-[10px] text-slate-400">
+                                {weapon.type} / Button {weapon.button.toUpperCase()} / {weapon.state || 'No state'}
+                              </span>
+                            </span>
+                            <span className={`rounded border px-1.5 py-0.5 text-[10px] ${equipped ? 'border-emerald-500 bg-emerald-950/40 text-emerald-200' : 'border-slate-700 text-slate-500'}`}>
+                              {equipped ? 'Equipped' : 'Slot'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 border-t border-slate-700 p-2">
+                      <button type="button" className="rounded border border-slate-700 bg-[#202938] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#2b3545]" onClick={duplicateSelectedWeapon} disabled={!selectedWeapon}>
+                        Duplicate
+                      </button>
+                      <button type="button" className="rounded border border-emerald-700 bg-emerald-950/30 px-2 py-1 text-[11px] text-emerald-200 hover:bg-emerald-900/40" onClick={() => selectedWeapon && updateWeapons(weapons, selectedWeapon.id)} disabled={!selectedWeapon}>
+                        Equip
+                      </button>
+                      <button type="button" className="rounded border border-red-900/80 bg-red-950/30 px-2 py-1 text-[11px] text-red-200 hover:bg-red-900/40" onClick={removeSelectedWeapon} disabled={!selectedWeapon}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 overflow-auto rounded border border-slate-700 bg-[#151b25]">
+                    {selectedWeapon ? (
+                      <div className="space-y-3 p-3">
+                        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded border border-slate-700 bg-[#111821] p-3">
+                          <WeaponIcon type={selectedWeapon.type} selected />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-slate-100">{selectedWeapon.name || selectedWeapon.id}</div>
+                            <div className="text-[11px] text-slate-400">
+                              Runtime link: {selectedWeapon.hitboxSource === 'attackByFacing' ? 'Directional Attack Box' : selectedWeapon.hitboxSource}
+                            </div>
+                          </div>
+                          <ActionButtonBadge letter={selectedWeapon.button.toUpperCase() as 'A' | 'B'} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-300">Identity</div>
+                            <div className="space-y-2">
+                              <Field label="Name"><input className={inputClass} value={selectedWeapon.name} onChange={event => updateSelectedWeapon({ name: event.target.value })} /></Field>
+                              <Field label="ID">
+                                <input
+                                  className={inputClass}
+                                  value={selectedWeapon.id}
+                                  onChange={event => updateSelectedWeapon({ id: event.target.value })}
+                                  onBlur={event => renameSelectedWeaponId(event.target.value)}
+                                />
+                              </Field>
+                              <Field label="Type">
+                                <select className={selectClass} value={selectedWeapon.type} onChange={event => updateSelectedWeapon({ type: event.target.value as PlayerWeaponType })}>
+                                  {PLAYER_WEAPON_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </Field>
+                            </div>
+                          </div>
+
+                          <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-300">Input & State</div>
+                            <div className="space-y-2">
+                              <Field label="Button">
+                                <select className={selectClass} value={selectedWeapon.button} onChange={event => updateSelectedWeapon({ button: event.target.value as PlayerWeaponButton })}>
+                                  {PLAYER_WEAPON_BUTTON_OPTIONS.map(option => <option key={option.value} value={option.value}>Button {option.label}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="State">
+                                <select className={selectClass} value={selectedWeapon.state || ''} onChange={event => updateSelectedWeapon({ state: event.target.value || undefined })}>
+                                  <option value="">Unlinked</option>
+                                  {weaponStateOptions.map(stateName => <option key={stateName} value={stateName}>{stateName}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Anim Role">
+                                <select className={selectClass} value={selectedWeapon.animationRole || ''} onChange={event => updateSelectedWeapon({ animationRole: (event.target.value || undefined) as PlayerWeaponDefinition['animationRole'] })}>
+                                  <option value="">Unlinked</option>
+                                  {weaponAnimationRoles.map(role => <option key={role} value={role}>{labelForAnimationRole(role as any)}</option>)}
+                                </select>
+                              </Field>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-[0.9fr_1.1fr] gap-3">
+                          <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-300">Timing</div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Field label="Damage"><SmallNumber value={selectedWeapon.damage} onChange={value => updateSelectedWeapon({ damage: value })} /></Field>
+                              <Field label="Cooldown" suffix="frames"><SmallNumber value={selectedWeapon.cooldownFrames} onChange={value => updateSelectedWeapon({ cooldownFrames: value })} /></Field>
+                              <Field label="Active Start" suffix="frame"><SmallNumber value={selectedWeapon.activeFrames.start} onChange={value => updateSelectedWeapon({ activeFrames: { start: value, end: selectedWeapon.activeFrames.end } })} /></Field>
+                              <Field label="Active End" suffix="frame"><SmallNumber value={selectedWeapon.activeFrames.end} onChange={value => updateSelectedWeapon({ activeFrames: { start: selectedWeapon.activeFrames.start, end: value } })} /></Field>
+                            </div>
+                          </div>
+
+                          <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-300">Runtime Link</div>
+                            <div className="space-y-2">
+                              <Field label="Hitbox">
+                                <select className={selectClass} value={selectedWeapon.hitboxSource} onChange={event => updateSelectedWeapon({ hitboxSource: event.target.value as PlayerWeaponHitboxSource })}>
+                                  {PLAYER_WEAPON_HITBOX_SOURCE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Projectile Asset">
+                                <input
+                                  className={inputClass}
+                                  value={selectedWeapon.projectileAssetId || ''}
+                                  onChange={event => updateSelectedWeapon({ projectileAssetId: event.target.value || undefined })}
+                                  placeholder="Optional projectile asset id"
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                          <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-300">Notes</div>
+                          <textarea
+                            className="min-h-[70px] w-full resize-none rounded border border-slate-700 bg-[#0f141c] px-2 py-2 text-xs text-slate-100 outline-none focus:border-blue-500"
+                            value={selectedWeapon.notes || ''}
+                            onChange={event => updateSelectedWeapon({ notes: event.target.value })}
+                          />
+                          <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] text-slate-400">
+                            <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Button: {selectedWeapon.button.toUpperCase()}</div>
+                            <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">State: {selectedWeapon.state || '-'}</div>
+                            <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Active: {selectedWeapon.activeFrames.start}-{selectedWeapon.activeFrames.end}</div>
+                            <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Hitbox: {selectedWeapon.hitboxSource}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full min-h-[260px] items-center justify-center p-6">
+                        <div className="max-w-sm rounded border border-dashed border-slate-600 bg-[#111821] p-5 text-center">
+                          <div className="mb-3 flex justify-center"><WeaponIcon type="melee" /></div>
+                          <div className="text-sm font-semibold text-slate-100">No weapon selected</div>
+                          <div className="mt-1 text-[11px] text-slate-400">Create a weapon to link attack input, state, animation role and hitbox metadata.</div>
+                          <button
+                            type="button"
+                            className="mt-4 rounded border border-sky-600 bg-sky-900/40 px-3 py-1.5 text-xs font-semibold text-sky-100 hover:bg-sky-800/60"
+                            onClick={addWeapon}
+                          >
+                            Add Weapon
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </section>
             </div>

@@ -76,6 +76,8 @@ const flattenDetailedPlayerPayload = (
     basedOnTemplate: identity.basedOnTemplate ?? player.stateMachine?.template,
     notes: identity.notes,
     render: player.render,
+    weapons: player.weapons,
+    equippedWeaponId: player.equippedWeaponId,
     animations: player.animations
       ? Object.entries(player.animations).reduce((result, [name, animation]) => {
         const {
