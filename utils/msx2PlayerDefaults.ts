@@ -706,7 +706,9 @@ export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefiniti
       ...(parsed?.health || {}),
     },
     weapons: Array.isArray(parsed?.weapons) ? parsed.weapons : defaults.weapons,
-    equippedWeaponId: parsed?.equippedWeaponId || defaults.equippedWeaponId,
+    equippedWeaponId: Object.prototype.hasOwnProperty.call(parsed || {}, 'equippedWeaponId')
+      ? parsed?.equippedWeaponId
+      : defaults.equippedWeaponId,
     attack: {
       ...defaults.attack,
       ...(parsed?.attack || {}),

@@ -1077,10 +1077,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   );
   const selectedStateMachine = selectedStateMachineAsset?.data as StateMachine | undefined;
   const weapons = normalized.weapons || [];
-  const equippedWeaponId = normalized.equippedWeaponId || weapons[0]?.id || '';
+  const equippedWeaponId = normalized.equippedWeaponId || '';
   const selectedWeapon =
     weapons.find(weapon => weapon.id === selectedWeaponId)
-    || weapons.find(weapon => weapon.id === equippedWeaponId)
     || weapons[0]
     || null;
   const weaponStateOptions = useMemo(() => {
@@ -1150,7 +1149,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const updateWeapons = (nextWeapons: PlayerWeaponDefinition[], nextEquippedWeaponId = normalized.equippedWeaponId) => {
     onUpdate({
       weapons: nextWeapons,
-      equippedWeaponId: nextEquippedWeaponId || nextWeapons[0]?.id || '',
+      equippedWeaponId: nextEquippedWeaponId || '',
     });
   };
   const addWeapon = () => {
@@ -1175,7 +1174,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       hitboxSource: 'attackByFacing',
       notes: 'Declarative weapon metadata. ASM runtime support pending.',
     };
-    updateWeapons([...weapons, nextWeapon], equippedWeaponId || id);
+    updateWeapons([...weapons, nextWeapon], equippedWeaponId);
     setSelectedWeaponId(id);
   };
   const updateSelectedWeapon = (patch: Partial<PlayerWeaponDefinition>) => {
@@ -1223,9 +1222,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const removeSelectedWeapon = () => {
     if (!selectedWeapon) return;
     const nextWeapons = weapons.filter(weapon => weapon.id !== selectedWeapon.id);
-    const nextEquippedWeaponId = equippedWeaponId === selectedWeapon.id ? nextWeapons[0]?.id || '' : equippedWeaponId;
+    const nextEquippedWeaponId = equippedWeaponId === selectedWeapon.id ? '' : equippedWeaponId;
     updateWeapons(nextWeapons, nextEquippedWeaponId);
-    setSelectedWeaponId(nextEquippedWeaponId || nextWeapons[0]?.id || null);
+    setSelectedWeaponId(nextWeapons[0]?.id || null);
   };
   const updateBodyHitbox = (patch: Partial<typeof body>) => onUpdate({ hitboxes: { ...normalized.hitboxes, body: { ...body, ...patch } } });
   const updateAttackHitboxForFacing = (patch: Partial<typeof selectedAttackHitbox>) => {
@@ -2070,7 +2069,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
                       <div>
                         <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Arsenal</div>
-                        <div className="text-[10px] text-slate-500">{weapons.length} weapon{weapons.length === 1 ? '' : 's'}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {weapons.length} weapon{weapons.length === 1 ? '' : 's'} / {equippedWeaponId ? 'one equipped' : 'none equipped'}
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -2107,18 +2108,21 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                               </span>
                             </span>
                             <span className={`rounded border px-1.5 py-0.5 text-[10px] ${equipped ? 'border-emerald-500 bg-emerald-950/40 text-emerald-200' : 'border-slate-700 text-slate-500'}`}>
-                              {equipped ? 'Equipped' : 'Slot'}
+                              {equipped ? 'Equipped' : 'Stored'}
                             </span>
                           </button>
                         );
                       })}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 border-t border-slate-700 p-2">
+                    <div className="grid grid-cols-4 gap-2 border-t border-slate-700 p-2">
                       <button type="button" className="rounded border border-slate-700 bg-[#202938] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#2b3545]" onClick={duplicateSelectedWeapon} disabled={!selectedWeapon}>
                         Duplicate
                       </button>
                       <button type="button" className="rounded border border-emerald-700 bg-emerald-950/30 px-2 py-1 text-[11px] text-emerald-200 hover:bg-emerald-900/40" onClick={() => selectedWeapon && updateWeapons(weapons, selectedWeapon.id)} disabled={!selectedWeapon}>
                         Equip
+                      </button>
+                      <button type="button" className="rounded border border-slate-600 bg-[#111821] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#202938]" onClick={() => updateWeapons(weapons, '')} disabled={!equippedWeaponId}>
+                        Unequip
                       </button>
                       <button type="button" className="rounded border border-red-900/80 bg-red-950/30 px-2 py-1 text-[11px] text-red-200 hover:bg-red-900/40" onClick={removeSelectedWeapon} disabled={!selectedWeapon}>
                         Delete
