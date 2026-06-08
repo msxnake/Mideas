@@ -832,38 +832,47 @@ const PlayerSpriteHitboxPreview: React.FC<{
   frameHeight: number;
   hitbox: { x: number; y: number; w: number; h: number };
   attackHitbox?: { x: number; y: number; w: number; h: number };
+  attackHitboxes?: Partial<Record<PlayerAttackFacing, { x: number; y: number; w: number; h: number }>>;
   title?: string;
   className?: string;
-}> = ({ sprite, frameWidth, frameHeight, hitbox, attackHitbox, title = 'Sprite & Collision', className = '' }) => {
+}> = ({ sprite, frameWidth, frameHeight, hitbox, attackHitbox, attackHitboxes, title = 'Sprite & Collision', className = '' }) => {
   const spritePixelW = sprite?.size?.width || frameWidth;
   const spritePixelH = sprite?.size?.height || frameHeight;
   const maxStage = 168;
-  const bounds = [
-    { x: 0, y: 0, w: frameWidth, h: frameHeight },
-    hitbox,
-    ...(attackHitbox ? [attackHitbox] : []),
-  ];
-  const minX = Math.min(...bounds.map(rect => rect.x));
-  const minY = Math.min(...bounds.map(rect => rect.y));
-  const maxX = Math.max(...bounds.map(rect => rect.x + rect.w));
-  const maxY = Math.max(...bounds.map(rect => rect.y + rect.h));
-  const previewWidth = Math.max(1, maxX - minX);
-  const previewHeight = Math.max(1, maxY - minY);
-  const originX = -minX;
-  const originY = -minY;
-  const scale = Math.max(2, Math.min(5, Math.floor(maxStage / Math.max(previewWidth, previewHeight))));
-  const stageW = previewWidth * scale;
-  const stageH = previewHeight * scale;
-  const spriteFrameLeft = originX * scale;
-  const spriteFrameTop = originY * scale;
   const ruler = 24;
+  const rightAttack = attackHitboxes?.right || attackHitbox;
+  const mirroredAttack = rightAttack ? { ...rightAttack, x: frameWidth - rightAttack.x - rightAttack.w } : undefined;
+  const leftAttack = attackHitboxes?.left || mirroredAttack;
+  const previews = rightAttack || leftAttack
+    ? [
+      { label: 'Right', attack: rightAttack, mirrorSprite: false },
+      { label: 'Left mirror', attack: leftAttack, mirrorSprite: true },
+    ]
+    : [{ label: 'Sprite', attack: undefined, mirrorSprite: false }];
 
-  return (
-    <div className={`flex h-full min-h-[220px] flex-col overflow-hidden rounded border border-slate-700 bg-[#121820] ${className}`}>
-      <div className="border-b border-slate-700 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">
-        {title}
-      </div>
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-5">
+  const renderPreview = (label: string, previewAttack: typeof attackHitbox, mirrorSprite: boolean) => {
+    const bounds = [
+      { x: 0, y: 0, w: frameWidth, h: frameHeight },
+      hitbox,
+      ...(previewAttack ? [previewAttack] : []),
+    ];
+    const minX = Math.min(...bounds.map(rect => rect.x));
+    const minY = Math.min(...bounds.map(rect => rect.y));
+    const maxX = Math.max(...bounds.map(rect => rect.x + rect.w));
+    const maxY = Math.max(...bounds.map(rect => rect.y + rect.h));
+    const previewWidth = Math.max(1, maxX - minX);
+    const previewHeight = Math.max(1, maxY - minY);
+    const originX = -minX;
+    const originY = -minY;
+    const scale = Math.max(2, Math.min(5, Math.floor(maxStage / Math.max(previewWidth, previewHeight))));
+    const stageW = previewWidth * scale;
+    const stageH = previewHeight * scale;
+    const spriteFrameLeft = originX * scale;
+    const spriteFrameTop = originY * scale;
+
+    return (
+      <div key={label} className="flex min-w-[220px] flex-col items-center">
+        <div className="mb-2 text-[11px] font-semibold text-slate-300">{label}</div>
         <div
           className="grid items-end"
           style={{
@@ -908,6 +917,8 @@ const PlayerSpriteHitboxPreview: React.FC<{
               style={{
                 left: spriteFrameLeft + ((frameWidth - spritePixelW) / 2) * scale,
                 top: spriteFrameTop + (frameHeight - spritePixelH) * scale,
+                transform: mirrorSprite ? 'scaleX(-1)' : undefined,
+                transformOrigin: 'center',
               }}
             >
               <SpriteFramePreview sprite={sprite} pixelScale={scale} />
@@ -922,19 +933,32 @@ const PlayerSpriteHitboxPreview: React.FC<{
               }}
               title={`Body: ${hitbox.x},${hitbox.y} ${hitbox.w}x${hitbox.h}px`}
             />
-            {attackHitbox && (
+            {previewAttack && (
               <div
                 className="pointer-events-none absolute border-2 border-dashed border-red-500/90 bg-red-500/10 outline outline-1 outline-dashed outline-black"
                 style={{
-                  left: (originX + attackHitbox.x) * scale,
-                  top: (originY + attackHitbox.y) * scale,
-                  width: attackHitbox.w * scale,
-                  height: attackHitbox.h * scale,
+                  left: (originX + previewAttack.x) * scale,
+                  top: (originY + previewAttack.y) * scale,
+                  width: previewAttack.w * scale,
+                  height: previewAttack.h * scale,
                 }}
-                title={`Attack: ${attackHitbox.x},${attackHitbox.y} ${attackHitbox.w}x${attackHitbox.h}px`}
+                title={`Attack: ${previewAttack.x},${previewAttack.y} ${previewAttack.w}x${previewAttack.h}px`}
               />
             )}
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`flex h-full min-h-[220px] flex-col overflow-hidden rounded border border-slate-700 bg-[#121820] ${className}`}>
+      <div className="border-b border-slate-700 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-sky-300">
+        {title}
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center overflow-auto px-4 py-5">
+        <div className="flex max-w-full flex-wrap items-start justify-center gap-8">
+          {previews.map(({ label, attack, mirrorSprite }) => renderPreview(label, attack, mirrorSprite))}
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-slate-300">
           <span className="inline-flex items-center gap-1.5">
@@ -945,7 +969,7 @@ const PlayerSpriteHitboxPreview: React.FC<{
             <span className="h-3 w-3 border-2 border-dashed border-white bg-white/10 outline outline-1 outline-dashed outline-black" />
             Body
           </span>
-          {attackHitbox && (
+          {(rightAttack || leftAttack) && (
             <span className="inline-flex items-center gap-1.5">
               <span className="h-3 w-3 border-2 border-dashed border-red-500 bg-red-500/10 outline outline-1 outline-dashed outline-black" />
               Attack
@@ -953,13 +977,12 @@ const PlayerSpriteHitboxPreview: React.FC<{
           )}
         </div>
         <p className="mt-2 text-center text-[10px] tabular-nums text-slate-500">
-          Hitbox ({hitbox.x}, {hitbox.y}) · {hitbox.w}×{hitbox.h}px
+          Hitbox ({hitbox.x}, {hitbox.y}) / {hitbox.w}x{hitbox.h}px
         </p>
       </div>
     </div>
   );
 };
-
 const animationDelayMs = (speed: number): number =>
   Math.max(32, Math.round(Math.max(1, speed) * (1000 / 60)));
 
@@ -1783,6 +1806,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       frameHeight={spriteSize.height}
                       hitbox={body}
                       attackHitbox={selectedAttackHitbox}
+                      attackHitboxes={attackByFacing}
                       title="Sprite & Hitboxes"
                       className="min-h-[250px]"
                     />
@@ -1814,6 +1838,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     frameHeight={spriteSize.height}
                     hitbox={body}
                     attackHitbox={selectedAttackHitbox}
+                    attackHitboxes={attackByFacing}
                   />
                 </div>
               </section>
