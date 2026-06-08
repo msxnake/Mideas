@@ -18,6 +18,10 @@ export interface Msx2PlatformPhysicsConfig {
   terminalVelocity88: number;
   maxJumps: number;
   requireKeyRelease: boolean;
+  /** Coyote time in frames. 0 = disabled. Counts down each frame after leaving a platform. */
+  coyoteTime: number;
+  /** Jump buffer in frames. 0 = disabled. Counts down after a jump press in the air, fires on landing. */
+  jumpBuffer: number;
 }
 
 export function clampMsx2JumpImpulse88(value: unknown): number {
@@ -43,6 +47,18 @@ export function clampMsx2TerminalVelocity88Px(valuePx: unknown): number {
   const px = Number(valuePx);
   const magnitude88 = Math.max(256, Math.min(2048, Math.floor(Math.abs(px || 0) * 256)));
   return magnitude88;
+}
+
+export function clampMsx2CoyoteFrames(value: unknown): number {
+  const n = Math.floor(Number(value) || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.max(0, Math.min(16, n));
+}
+
+export function clampMsx2JumpBufferFrames(value: unknown): number {
+  const n = Math.floor(Number(value) || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.max(0, Math.min(16, n));
 }
 
 export function resolveMsx2JumpImpulse88(jumpPower: unknown): number {
@@ -77,47 +93,70 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
   const control = player?.components?.msx2_player_control || {};
   const params = player?.params || {};
   const movement = player?.movement || {};
+  // New declarative source: skillParameters.jump from Player Config Abilities & Items dialog.
+  // Wins when present (per AI Charter 2026-06-08: Player Config is the human-facing source of truth).
+  const skillJump = player?.skillParameters?.jump;
 
-  const jumpEnabled = isMsx2ComponentEnabled(jump)
-    || (jump === undefined && (control.jump === true || control.jump === 'true' || params.jump === true));
+  const hasSkillJump = skillJump && typeof skillJump === 'object';
+
+  const jumpEnabled = hasSkillJump
+    ? skillJump.enabled !== false && skillJump.enabled !== 'false'
+    : isMsx2ComponentEnabled(jump)
+      || (jump === undefined && (control.jump === true || control.jump === 'true' || params.jump === true));
   const gravityEnabled = isMsx2ComponentEnabled(gravity)
     || (gravity === undefined && (control.gravity === true || control.gravity === 'true' || params.gravity === true));
 
-  const hasMovementPhysics = movement.jumpPower !== undefined
+  // Skill wins when present, else fall back to movement.* (px), else components/control/params (8.8).
+  const hasMovementPhysics = !hasSkillJump && (
+    movement.jumpPower !== undefined
     || movement.gravity !== undefined
-    || movement.maxFallSpeed !== undefined;
+    || movement.maxFallSpeed !== undefined
+  );
 
   let jumpPower: unknown;
   let gravityStrength: unknown;
   let terminalVelocity: unknown;
-  if (hasMovementPhysics) {
+  if (hasSkillJump && skillJump.jumpPower !== undefined) {
+    jumpPower = skillJump.jumpPower;
+  } else if (hasMovementPhysics) {
     jumpPower = movement.jumpPower ?? movement.jumpImpulse;
-    gravityStrength = movement.gravity;
-    terminalVelocity = movement.maxFallSpeed;
   } else {
     jumpPower = jump?.jumpPower ?? jump?.jumpImpulse
       ?? control.jumpPower ?? control.jumpImpulse
       ?? params.jumpPower ?? params.jumpImpulse;
-    gravityStrength = gravity?.strength ?? gravity?.gravityStrength
-      ?? control.gravityStrength ?? params.gravityStrength;
-    terminalVelocity = gravity?.terminalVelocity
-      ?? control.terminalVelocity ?? params.terminalVelocity;
   }
+  gravityStrength = gravity?.strength ?? gravity?.gravityStrength
+    ?? control.gravityStrength ?? params.gravityStrength;
+  terminalVelocity = gravity?.terminalVelocity
+    ?? control.terminalVelocity ?? params.terminalVelocity;
 
   const maxJumps = Math.max(1, Math.min(4, Math.floor(Number(
     jump?.maxJumps ?? params.maxJumps ?? 1
   ) || 1)));
-  const requireKeyRelease = jump?.requireKeyRelease !== false
-    && jump?.requireKeyRelease !== 'false'
-    && control.requireKeyRelease !== false
-    && control.requireKeyRelease !== 'false';
+  const requireKeyRelease = hasSkillJump
+    ? (skillJump.requireKeyRelease !== false && skillJump.requireKeyRelease !== 'false')
+    : (jump?.requireKeyRelease !== false
+      && jump?.requireKeyRelease !== 'false'
+      && control.requireKeyRelease !== false
+      && control.requireKeyRelease !== 'false');
+
+  // Coyote / jumpBuffer: skill wins, else read legacy movement.* (which had the same fields declared
+  // but unused by the runtime), else 0.
+  const coyoteTime = clampMsx2CoyoteFrames(
+    hasSkillJump ? skillJump.coyoteTime : movement.coyoteTime,
+  );
+  const jumpBuffer = clampMsx2JumpBufferFrames(
+    hasSkillJump ? skillJump.jumpBuffer : movement.jumpBuffer,
+  );
 
   return {
     jumpEnabled,
     gravityEnabled,
-    jumpImpulse88: hasMovementPhysics
-      ? resolveMsx2JumpImpulse88Px(jumpPower)
-      : resolveMsx2JumpImpulse88(jumpPower),
+    jumpImpulse88: hasSkillJump
+      ? resolveMsx2JumpImpulse88(jumpPower)
+      : hasMovementPhysics
+        ? resolveMsx2JumpImpulse88Px(jumpPower)
+        : resolveMsx2JumpImpulse88(jumpPower),
     gravityStrength88: hasMovementPhysics
       ? clampMsx2GravityStrength88Px(gravityStrength)
       : clampMsx2GravityStrength88(gravityStrength),
@@ -126,6 +165,8 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
       : clampMsx2TerminalVelocity88(terminalVelocity),
     maxJumps,
     requireKeyRelease,
+    coyoteTime,
+    jumpBuffer,
   };
 }
 
