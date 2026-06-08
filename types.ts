@@ -424,11 +424,38 @@ export interface Msx2PlayerHitbox {
 export type Msx2PlayerWeaponType = 'melee' | 'projectile' | 'arc' | 'bomb' | 'magic';
 export type Msx2PlayerWeaponButton = 'a' | 'b';
 export type Msx2PlayerWeaponHitboxSource = 'attackByFacing' | 'custom' | 'none';
+export type Msx2PlayerWeaponAvailability = 'owned' | 'pickup' | 'locked';
+export type Msx2PlayerWeaponEmptyBehavior = 'block' | 'unequip' | 'switchState';
+export type Msx2PlayerWeaponBreakBehavior = 'unequip' | 'remove' | 'keepBroken';
+
+export interface Msx2PlayerWeaponAmmo {
+  enabled: boolean;
+  initial: number;
+  max: number;
+  consumePerUse: number;
+  refillItemId?: string;
+  refillAmount?: number;
+  emptyBehavior?: Msx2PlayerWeaponEmptyBehavior;
+  emptyState?: string;
+}
+
+export interface Msx2PlayerWeaponDurability {
+  enabled: boolean;
+  initial: number;
+  max: number;
+  consumePerUse: number;
+  repairItemId?: string;
+  repairAmount?: number;
+  breakBehavior?: Msx2PlayerWeaponBreakBehavior;
+  brokenState?: string;
+}
 
 export interface Msx2PlayerWeaponDefinition {
   id: string;
   name: string;
   type: Msx2PlayerWeaponType;
+  availability?: Msx2PlayerWeaponAvailability;
+  pickupItemId?: string;
   button: Msx2PlayerWeaponButton;
   state?: string;
   animationRole?: Msx2PlayerAnimationRole;
@@ -440,6 +467,8 @@ export interface Msx2PlayerWeaponDefinition {
   };
   hitboxSource: Msx2PlayerWeaponHitboxSource;
   projectileAssetId?: string;
+  ammo?: Msx2PlayerWeaponAmmo;
+  durability?: Msx2PlayerWeaponDurability;
   notes?: string;
 }
 

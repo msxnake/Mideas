@@ -41,6 +41,9 @@ type PlayerWeaponDefinition = NonNullable<Msx2PlayerDefinition['weapons']>[numbe
 type PlayerWeaponType = PlayerWeaponDefinition['type'];
 type PlayerWeaponButton = PlayerWeaponDefinition['button'];
 type PlayerWeaponHitboxSource = PlayerWeaponDefinition['hitboxSource'];
+type PlayerWeaponAvailability = NonNullable<PlayerWeaponDefinition['availability']>;
+type PlayerWeaponEmptyBehavior = NonNullable<NonNullable<PlayerWeaponDefinition['ammo']>['emptyBehavior']>;
+type PlayerWeaponBreakBehavior = NonNullable<NonNullable<PlayerWeaponDefinition['durability']>['breakBehavior']>;
 
 const inputClass = 'h-7 w-full rounded border border-slate-700 bg-[#111821] px-2 text-xs text-slate-100 outline-none focus:border-blue-500';
 const selectClass = `${inputClass} pr-6`;
@@ -67,6 +70,21 @@ const PLAYER_WEAPON_HITBOX_SOURCE_OPTIONS: ReadonlyArray<{ value: PlayerWeaponHi
   { value: 'attackByFacing', label: 'Directional Attack Box' },
   { value: 'custom', label: 'Custom / future' },
   { value: 'none', label: 'None' },
+];
+const PLAYER_WEAPON_AVAILABILITY_OPTIONS: ReadonlyArray<{ value: PlayerWeaponAvailability; label: string }> = [
+  { value: 'owned', label: 'Owned at start' },
+  { value: 'pickup', label: 'Pickup required' },
+  { value: 'locked', label: 'Locked / scripted' },
+];
+const PLAYER_WEAPON_EMPTY_BEHAVIOR_OPTIONS: ReadonlyArray<{ value: PlayerWeaponEmptyBehavior; label: string }> = [
+  { value: 'block', label: 'Block use' },
+  { value: 'unequip', label: 'Unequip' },
+  { value: 'switchState', label: 'Switch state' },
+];
+const PLAYER_WEAPON_BREAK_BEHAVIOR_OPTIONS: ReadonlyArray<{ value: PlayerWeaponBreakBehavior; label: string }> = [
+  { value: 'unequip', label: 'Unequip' },
+  { value: 'remove', label: 'Remove weapon' },
+  { value: 'keepBroken', label: 'Keep broken' },
 ];
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -1165,6 +1183,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       id,
       name: `Weapon ${index}`,
       type: 'melee',
+      availability: 'pickup',
+      pickupItemId: `pickup_${id}`,
       button: 'a',
       state: weaponStateOptions[0] || 'Attacking',
       animationRole: 'attack',
@@ -1172,6 +1192,8 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       cooldownFrames: 15,
       activeFrames: { start: 2, end: 6 },
       hitboxSource: 'attackByFacing',
+      ammo: { enabled: false, initial: 0, max: 0, consumePerUse: 0, refillAmount: 0, emptyBehavior: 'block' },
+      durability: { enabled: false, initial: 0, max: 0, consumePerUse: 0, repairAmount: 0, breakBehavior: 'unequip' },
       notes: 'Declarative weapon metadata. ASM runtime support pending.',
     };
     updateWeapons([...weapons, nextWeapon], equippedWeaponId);
@@ -2162,6 +2184,19 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                   {PLAYER_WEAPON_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                                 </select>
                               </Field>
+                              <Field label="Availability">
+                                <select className={selectClass} value={selectedWeapon.availability || 'owned'} onChange={event => updateSelectedWeapon({ availability: event.target.value as PlayerWeaponAvailability })}>
+                                  {PLAYER_WEAPON_AVAILABILITY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Pickup Item">
+                                <input
+                                  className={inputClass}
+                                  value={selectedWeapon.pickupItemId || ''}
+                                  onChange={event => updateSelectedWeapon({ pickupItemId: event.target.value || undefined })}
+                                  placeholder="msx2_inventory itemId"
+                                />
+                              </Field>
                             </div>
                           </div>
 
@@ -2220,6 +2255,84 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                           </div>
                         </div>
 
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Ammo</div>
+                              <label className="flex items-center gap-1 text-[10px] text-slate-300">
+                                <input
+                                  type="checkbox"
+                                  className="h-3.5 w-3.5 accent-blue-500"
+                                  checked={selectedWeapon.ammo?.enabled || false}
+                                  onChange={event => updateSelectedWeapon({
+                                    ammo: {
+                                      enabled: event.target.checked,
+                                      initial: selectedWeapon.ammo?.initial || 0,
+                                      max: selectedWeapon.ammo?.max || 0,
+                                      consumePerUse: selectedWeapon.ammo?.consumePerUse || 1,
+                                      refillItemId: selectedWeapon.ammo?.refillItemId,
+                                      refillAmount: selectedWeapon.ammo?.refillAmount || 0,
+                                      emptyBehavior: selectedWeapon.ammo?.emptyBehavior || 'block',
+                                      emptyState: selectedWeapon.ammo?.emptyState,
+                                    },
+                                  })}
+                                />
+                                Enabled
+                              </label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Field label="Initial"><SmallNumber value={selectedWeapon.ammo?.initial || 0} onChange={value => updateSelectedWeapon({ ammo: { enabled: selectedWeapon.ammo?.enabled || false, initial: value, max: selectedWeapon.ammo?.max || 0, consumePerUse: selectedWeapon.ammo?.consumePerUse || 1, refillItemId: selectedWeapon.ammo?.refillItemId, refillAmount: selectedWeapon.ammo?.refillAmount || 0, emptyBehavior: selectedWeapon.ammo?.emptyBehavior || 'block', emptyState: selectedWeapon.ammo?.emptyState } })} /></Field>
+                              <Field label="Max"><SmallNumber value={selectedWeapon.ammo?.max || 0} onChange={value => updateSelectedWeapon({ ammo: { enabled: selectedWeapon.ammo?.enabled || false, initial: selectedWeapon.ammo?.initial || 0, max: value, consumePerUse: selectedWeapon.ammo?.consumePerUse || 1, refillItemId: selectedWeapon.ammo?.refillItemId, refillAmount: selectedWeapon.ammo?.refillAmount || 0, emptyBehavior: selectedWeapon.ammo?.emptyBehavior || 'block', emptyState: selectedWeapon.ammo?.emptyState } })} /></Field>
+                              <Field label="Per Use"><SmallNumber value={selectedWeapon.ammo?.consumePerUse || 0} onChange={value => updateSelectedWeapon({ ammo: { enabled: selectedWeapon.ammo?.enabled || false, initial: selectedWeapon.ammo?.initial || 0, max: selectedWeapon.ammo?.max || 0, consumePerUse: value, refillItemId: selectedWeapon.ammo?.refillItemId, refillAmount: selectedWeapon.ammo?.refillAmount || 0, emptyBehavior: selectedWeapon.ammo?.emptyBehavior || 'block', emptyState: selectedWeapon.ammo?.emptyState } })} /></Field>
+                              <Field label="Refill Amt"><SmallNumber value={selectedWeapon.ammo?.refillAmount || 0} onChange={value => updateSelectedWeapon({ ammo: { enabled: selectedWeapon.ammo?.enabled || false, initial: selectedWeapon.ammo?.initial || 0, max: selectedWeapon.ammo?.max || 0, consumePerUse: selectedWeapon.ammo?.consumePerUse || 1, refillItemId: selectedWeapon.ammo?.refillItemId, refillAmount: value, emptyBehavior: selectedWeapon.ammo?.emptyBehavior || 'block', emptyState: selectedWeapon.ammo?.emptyState } })} /></Field>
+                              <Field label="Refill Item"><input className={inputClass} value={selectedWeapon.ammo?.refillItemId || ''} onChange={event => updateSelectedWeapon({ ammo: { enabled: selectedWeapon.ammo?.enabled || false, initial: selectedWeapon.ammo?.initial || 0, max: selectedWeapon.ammo?.max || 0, consumePerUse: selectedWeapon.ammo?.consumePerUse || 1, refillItemId: event.target.value || undefined, refillAmount: selectedWeapon.ammo?.refillAmount || 0, emptyBehavior: selectedWeapon.ammo?.emptyBehavior || 'block', emptyState: selectedWeapon.ammo?.emptyState } })} /></Field>
+                              <Field label="On Empty">
+                                <select className={selectClass} value={selectedWeapon.ammo?.emptyBehavior || 'block'} onChange={event => updateSelectedWeapon({ ammo: { enabled: selectedWeapon.ammo?.enabled || false, initial: selectedWeapon.ammo?.initial || 0, max: selectedWeapon.ammo?.max || 0, consumePerUse: selectedWeapon.ammo?.consumePerUse || 1, refillItemId: selectedWeapon.ammo?.refillItemId, refillAmount: selectedWeapon.ammo?.refillAmount || 0, emptyBehavior: event.target.value as PlayerWeaponEmptyBehavior, emptyState: selectedWeapon.ammo?.emptyState } })}>
+                                  {PLAYER_WEAPON_EMPTY_BEHAVIOR_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </Field>
+                            </div>
+                          </div>
+
+                          <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Durability</div>
+                              <label className="flex items-center gap-1 text-[10px] text-slate-300">
+                                <input
+                                  type="checkbox"
+                                  className="h-3.5 w-3.5 accent-blue-500"
+                                  checked={selectedWeapon.durability?.enabled || false}
+                                  onChange={event => updateSelectedWeapon({
+                                    durability: {
+                                      enabled: event.target.checked,
+                                      initial: selectedWeapon.durability?.initial || 0,
+                                      max: selectedWeapon.durability?.max || 0,
+                                      consumePerUse: selectedWeapon.durability?.consumePerUse || 1,
+                                      repairItemId: selectedWeapon.durability?.repairItemId,
+                                      repairAmount: selectedWeapon.durability?.repairAmount || 0,
+                                      breakBehavior: selectedWeapon.durability?.breakBehavior || 'unequip',
+                                      brokenState: selectedWeapon.durability?.brokenState,
+                                    },
+                                  })}
+                                />
+                                Enabled
+                              </label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Field label="Initial"><SmallNumber value={selectedWeapon.durability?.initial || 0} onChange={value => updateSelectedWeapon({ durability: { enabled: selectedWeapon.durability?.enabled || false, initial: value, max: selectedWeapon.durability?.max || 0, consumePerUse: selectedWeapon.durability?.consumePerUse || 1, repairItemId: selectedWeapon.durability?.repairItemId, repairAmount: selectedWeapon.durability?.repairAmount || 0, breakBehavior: selectedWeapon.durability?.breakBehavior || 'unequip', brokenState: selectedWeapon.durability?.brokenState } })} /></Field>
+                              <Field label="Max"><SmallNumber value={selectedWeapon.durability?.max || 0} onChange={value => updateSelectedWeapon({ durability: { enabled: selectedWeapon.durability?.enabled || false, initial: selectedWeapon.durability?.initial || 0, max: value, consumePerUse: selectedWeapon.durability?.consumePerUse || 1, repairItemId: selectedWeapon.durability?.repairItemId, repairAmount: selectedWeapon.durability?.repairAmount || 0, breakBehavior: selectedWeapon.durability?.breakBehavior || 'unequip', brokenState: selectedWeapon.durability?.brokenState } })} /></Field>
+                              <Field label="Per Use"><SmallNumber value={selectedWeapon.durability?.consumePerUse || 0} onChange={value => updateSelectedWeapon({ durability: { enabled: selectedWeapon.durability?.enabled || false, initial: selectedWeapon.durability?.initial || 0, max: selectedWeapon.durability?.max || 0, consumePerUse: value, repairItemId: selectedWeapon.durability?.repairItemId, repairAmount: selectedWeapon.durability?.repairAmount || 0, breakBehavior: selectedWeapon.durability?.breakBehavior || 'unequip', brokenState: selectedWeapon.durability?.brokenState } })} /></Field>
+                              <Field label="Repair Amt"><SmallNumber value={selectedWeapon.durability?.repairAmount || 0} onChange={value => updateSelectedWeapon({ durability: { enabled: selectedWeapon.durability?.enabled || false, initial: selectedWeapon.durability?.initial || 0, max: selectedWeapon.durability?.max || 0, consumePerUse: selectedWeapon.durability?.consumePerUse || 1, repairItemId: selectedWeapon.durability?.repairItemId, repairAmount: value, breakBehavior: selectedWeapon.durability?.breakBehavior || 'unequip', brokenState: selectedWeapon.durability?.brokenState } })} /></Field>
+                              <Field label="Repair Item"><input className={inputClass} value={selectedWeapon.durability?.repairItemId || ''} onChange={event => updateSelectedWeapon({ durability: { enabled: selectedWeapon.durability?.enabled || false, initial: selectedWeapon.durability?.initial || 0, max: selectedWeapon.durability?.max || 0, consumePerUse: selectedWeapon.durability?.consumePerUse || 1, repairItemId: event.target.value || undefined, repairAmount: selectedWeapon.durability?.repairAmount || 0, breakBehavior: selectedWeapon.durability?.breakBehavior || 'unequip', brokenState: selectedWeapon.durability?.brokenState } })} /></Field>
+                              <Field label="On Break">
+                                <select className={selectClass} value={selectedWeapon.durability?.breakBehavior || 'unequip'} onChange={event => updateSelectedWeapon({ durability: { enabled: selectedWeapon.durability?.enabled || false, initial: selectedWeapon.durability?.initial || 0, max: selectedWeapon.durability?.max || 0, consumePerUse: selectedWeapon.durability?.consumePerUse || 1, repairItemId: selectedWeapon.durability?.repairItemId, repairAmount: selectedWeapon.durability?.repairAmount || 0, breakBehavior: event.target.value as PlayerWeaponBreakBehavior, brokenState: selectedWeapon.durability?.brokenState } })}>
+                                  {PLAYER_WEAPON_BREAK_BEHAVIOR_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </Field>
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="rounded border border-slate-700 bg-[#111821] p-3">
                           <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-sky-300">Notes</div>
                           <textarea
@@ -2231,7 +2344,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                             <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Button: {selectedWeapon.button.toUpperCase()}</div>
                             <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">State: {selectedWeapon.state || '-'}</div>
                             <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Active: {selectedWeapon.activeFrames.start}-{selectedWeapon.activeFrames.end}</div>
-                            <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Hitbox: {selectedWeapon.hitboxSource}</div>
+                            <div className="rounded border border-slate-700 bg-[#151b25] px-2 py-1">Stock: {selectedWeapon.availability || 'owned'}</div>
                           </div>
                         </div>
                       </div>
