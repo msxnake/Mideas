@@ -68,3 +68,13 @@ Mideas
 - Hitboxes UI: el Collision Box real vive en `msx2player.hitboxes.body`. El `MSX2 Sprite Editor` ya no muestra ni edita `Hitbox Settings` para evitar confusión; commit `5471719c`.
 - Player Config muestra preview de sprite + hitboxes con body blanco/negro y attack rojo/negro punteados; commits `9ed6010d`, `f4e79506`, `4bae395e`.
 - Attack Box es direccional 2D por facing (`hitboxes.attackByFacing.right/left/up/down`) y `hitboxes.attack` queda como fallback compatible con right; commit `9ceadcab`.
+
+## Sesion 2026-06-08 - Player Config Weapons y hitbox mirror
+- Rama activa: `codex/msx2-shooter-world-runtime`.
+- Weapons en Player Config MSX2 queda como contrato declarativo JSON para futuro ASM: `weapons[]`, `equippedWeaponId`, disponibilidad inicial (`owned`, `pickup`, `locked`), `pickupItemId`, municion, durabilidad, comportamiento al quedarse sin balas o romperse.
+- `equippedWeaponId` puede estar vacio: representa player sin arma equipada. No se debe autoequipar la primera arma si el usuario quiere empezar sin arma.
+- Commits relevantes: `29ba0f41`, `a226fcb7`, `1885015d`.
+- Preview de hitboxes muestra facing mirror: dibujo Right y Left mirror. El Left mirror debe ser espejo matematico del Right para que el attack box tenga el mismo tamano; commits `63722290`, `27cf7c0e`.
+- Analisis MSX2 Player Components vs Player Config: el generador SCREEN 4 mezcla Player asset + entidad de pantalla. Los componentes `msx2_player_control`, `msx2_jump`, `msx2_gravity` controlan activacion/capacidades, pero si Player Config define `movement.jumpPower`, `movement.gravity` o `movement.maxFallSpeed`, esos valores numericos ganan y se convierten a 8.8 para ASM. `screen.runtime` puede sobreescribir jump/gravity/terminal por pantalla.
+- Recomendacion de diseno: mantener Player Config como fuente humana principal y componentes como vista avanzada/sincronizada, para evitar contradicciones entre `movement.*` y `msx2_jump/msx2_gravity`.
+- Ideas futuras discutidas: `slash` como weapon action declarativa consumida por State Machine/ASM; `dash` como ability de movimiento, no como weapon.
