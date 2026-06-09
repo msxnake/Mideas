@@ -494,6 +494,7 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   carry_object: { icon: '📦', category: 'utility', description: 'Pick up, carry and throw objects' },
   teleport_a_b: { icon: '🌀', category: 'movement', description: 'Teleport between two saved positions' },
   carry_and_throw: { icon: '🏋️', category: 'utility', description: 'Lift objects and throw them through gaps' },
+  power_stomp: { icon: '💥', category: 'attack', description: 'Fall with impact, break tiles and damage enemies' },
 };
 
 const categoryColors: Record<string, string> = {
