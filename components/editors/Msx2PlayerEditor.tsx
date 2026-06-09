@@ -2560,8 +2560,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     <p className="mb-2 text-[11px] font-semibold text-slate-300">Inventory</p>
                     <Field label="Start Items"><input className={inputClass} value={(normalized.inventoryHooks || []).join(', ') || 'Sword, Shield'} onChange={event => onUpdate({ inventoryHooks: event.target.value.split(',').map(value => value.trim()).filter(Boolean) })} /></Field>
                     <Field label="Max Items"><SmallNumber value={6} onChange={() => undefined} /></Field>
-                    <Checkbox label="Can Use Items" checked={true} onChange={() => undefined} />
-                    <Checkbox label="Can Use Magic" checked={true} onChange={() => undefined} />
+                    <Checkbox
+                      label="Can Use Items"
+                      checked={normalized.logic?.canUseItems !== false}
+                      onChange={checked => updateLogic({ canUseItems: checked })}
+                    />
+                    <Checkbox
+                      label="Can Use Magic"
+                      checked={normalized.logic?.canUseMagic !== false}
+                      onChange={checked => updateLogic({ canUseMagic: checked })}
+                    />
                   </div>
                 </div>
               </section>

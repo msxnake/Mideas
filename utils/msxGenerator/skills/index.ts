@@ -2,13 +2,13 @@ import { registerSkill } from './registry';
 import {
   jump, gravity, airResistance, itemCollection,
   doubleJump, slash, pushBox, hitAttack, block, teleport, pickUp,
-  magicBall, reverse, swim, shoot, wallBreak, grab,
+  magicBall, reverse, swim, shoot, wallBreak, grab, dash,
 } from './handlers/index';
 
 for (const skill of [
   jump, gravity, airResistance, itemCollection,
   doubleJump, slash, pushBox, hitAttack, block, teleport, pickUp,
-  magicBall, reverse, swim, shoot, wallBreak, grab,
+  magicBall, reverse, swim, shoot, wallBreak, grab, dash,
 ]) {
   registerSkill(skill);
 }
@@ -21,5 +21,5 @@ export type { SkillDef, StateTransition, PlayerStateMachine, PlayerState, SkillC
 export {
   jump, gravity, airResistance, itemCollection,
   doubleJump, slash, pushBox, hitAttack, block, teleport, pickUp,
-  magicBall, reverse, swim, shoot, wallBreak, grab,
+  magicBall, reverse, swim, shoot, wallBreak, grab, dash,
 } from './handlers/index';

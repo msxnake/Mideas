@@ -277,3 +277,72 @@ export const grab: SkillDef = {
     { from: ['grabbing'], to: 'falling', condition: 'NOT wall_next_to_player OR NOT grab_key_held' },
   ],
 };
+
+export const dashParameters: SkillParameterDef[] = [
+  {
+    key: 'dashSpeed',
+    label: 'Dash speed (px/frame)',
+    type: 'number',
+    default: 8,
+    min: 2,
+    max: 24,
+    step: 1,
+    help: 'Horizontal speed during dash in pixels per frame. Typical: 8-16.',
+  },
+  {
+    key: 'dashDuration',
+    label: 'Dash duration (frames)',
+    type: 'number',
+    default: 8,
+    min: 3,
+    max: 30,
+    step: 1,
+    help: 'How many frames the dash lasts. Typical: 6-12 frames.',
+  },
+  {
+    key: 'dashCooldown',
+    label: 'Dash cooldown (frames)',
+    type: 'number',
+    default: 30,
+    min: 10,
+    max: 120,
+    step: 1,
+    help: 'Frames before dash can be used again. Typical: 20-60.',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between dashes',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release the dash key before triggering another dash.',
+  },
+  {
+    key: 'directional',
+    label: 'Directional (face movement direction)',
+    type: 'boolean',
+    default: true,
+    help: 'If true, dash follows facing direction. If false, dash goes toward movement input.',
+  },
+  {
+    key: 'invulnerable',
+    label: 'Invulnerable during dash',
+    type: 'boolean',
+    default: true,
+    help: 'Player takes no damage during dash animation.',
+  },
+];
+
+export const dash: SkillDef = {
+  id: 'dash',
+  label: 'Quick dash movement',
+  required: false,
+  cycles: 140,
+  controlIcon: 'jump',
+  addsStates: ['dashing'],
+  transitions: [
+    { from: ['grounded', 'running', 'jumping', 'falling'], to: 'dashing', condition: 'dash_key_pressed AND dash_cooldown = 0' },
+    { from: ['dashing'], to: 'grounded', condition: 'dash_timer_expired AND grounded' },
+    { from: ['dashing'], to: 'falling', condition: 'dash_timer_expired AND NOT grounded' },
+  ],
+  parameters: dashParameters,
+};

@@ -479,6 +479,8 @@ export interface Msx2PlayerLogicFlags {
   pushable?: boolean;
   triggersEvents?: boolean;
   canDie?: boolean;
+  canUseItems?: boolean;
+  canUseMagic?: boolean;
 }
 
 export interface Msx2PlayerDefinition {

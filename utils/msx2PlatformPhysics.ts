@@ -106,7 +106,10 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
   const gravityEnabled = isMsx2ComponentEnabled(gravity)
     || (gravity === undefined && (control.gravity === true || control.gravity === 'true' || params.gravity === true));
 
-  // Skill wins when present, else fall back to movement.* (px), else components/control/params (8.8).
+  // Skill wins when present. For legacy projects (no skillParameters.jump), use movement.*
+  // for physics values (jumpPower, gravity, maxFallSpeed) as these were the intended pixel values.
+  // Do NOT use movement.coyoteTime/movement.jumpBuffer for legacy projects - those were never
+  // used by the ASM runtime and would introduce new untested code paths.
   const hasMovementPhysics = !hasSkillJump && (
     movement.jumpPower !== undefined
     || movement.gravity !== undefined
@@ -120,15 +123,17 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
     jumpPower = skillJump.jumpPower;
   } else if (hasMovementPhysics) {
     jumpPower = movement.jumpPower ?? movement.jumpImpulse;
+    gravityStrength = movement.gravity;
+    terminalVelocity = movement.maxFallSpeed;
   } else {
     jumpPower = jump?.jumpPower ?? jump?.jumpImpulse
       ?? control.jumpPower ?? control.jumpImpulse
       ?? params.jumpPower ?? params.jumpImpulse;
+    gravityStrength = gravity?.strength ?? gravity?.gravityStrength
+      ?? control.gravityStrength ?? params.gravityStrength;
+    terminalVelocity = gravity?.terminalVelocity
+      ?? control.terminalVelocity ?? params.terminalVelocity;
   }
-  gravityStrength = gravity?.strength ?? gravity?.gravityStrength
-    ?? control.gravityStrength ?? params.gravityStrength;
-  terminalVelocity = gravity?.terminalVelocity
-    ?? control.terminalVelocity ?? params.terminalVelocity;
 
   const maxJumps = Math.max(1, Math.min(4, Math.floor(Number(
     jump?.maxJumps ?? params.maxJumps ?? 1
@@ -140,14 +145,17 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
       && control.requireKeyRelease !== false
       && control.requireKeyRelease !== 'false');
 
-  // Coyote / jumpBuffer: skill wins, else read legacy movement.* (which had the same fields declared
-  // but unused by the runtime), else 0.
-  const coyoteTime = clampMsx2CoyoteFrames(
-    hasSkillJump ? skillJump.coyoteTime : movement.coyoteTime,
-  );
-  const jumpBuffer = clampMsx2JumpBufferFrames(
-    hasSkillJump ? skillJump.jumpBuffer : movement.jumpBuffer,
-  );
+  // Coyote / jumpBuffer: ONLY enabled when explicitly configured via skillParameters.jump.
+  // Legacy projects may have movement.coyoteTime/movement.jumpBuffer in JSON but they were
+  // NEVER used by the ASM runtime. Reading them would introduce new untested code paths
+  // (coyote/jump buffer logic) breaking backward compatibility.
+  // See ai/LESSONS_LEARNED.md: "Bug Resuelto: cambio en ASM runtime MSX sin smoke automatizable"
+  const coyoteTime = hasSkillJump
+    ? clampMsx2CoyoteFrames(skillJump.coyoteTime)
+    : 0;
+  const jumpBuffer = hasSkillJump
+    ? clampMsx2JumpBufferFrames(skillJump.jumpBuffer)
+    : 0;
 
   return {
     jumpEnabled,
