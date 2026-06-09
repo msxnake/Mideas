@@ -1,0 +1,47 @@
+{
+  "id": "push_door",
+  "label": "Push Door",
+  "description": "Open doors by pushing or using keys",
+  "required": false,
+  "cycles": 100,
+  "controlIcon": "up",
+  "addsStates": ["opening_door"],
+  "icon": "🚪",
+  "category": "puzzle",
+  "parameters": [
+    {
+      "key": "doorType",
+      "label": "Door type",
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "max": 3,
+      "step": 1,
+      "help": "0=All doors, 1=Wooden, 2=Iron, 3=Locked."
+    },
+    {
+      "key": "openSpeed",
+      "label": "Open speed (frames)",
+      "type": "number",
+      "default": 20,
+      "min": 5,
+      "max": 60,
+      "step": 1,
+      "help": "Frames to fully open the door."
+    },
+    {
+      "key": "requiresKey",
+      "label": "Requires key to open",
+      "type": "boolean",
+      "default": false,
+      "help": "If true, player must have a key to open locked doors."
+    },
+    {
+      "key": "keyConsumed",
+      "label": "Key is consumed on use",
+      "type": "boolean",
+      "default": true,
+      "help": "If true, key is used up when opening door."
+    }
+  ]
+}

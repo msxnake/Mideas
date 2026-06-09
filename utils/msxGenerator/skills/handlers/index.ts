@@ -879,3 +879,215 @@ export const highJump: SkillDef = {
   ],
   parameters: highJumpParameters,
 };
+
+export const collectorGemsParameters: SkillParameterDef[] = [
+  {
+    key: 'gemValue',
+    label: 'Points per gem',
+    type: 'number',
+    default: 100,
+    min: 1,
+    max: 1000,
+    step: 10,
+    help: 'Score points awarded for each gem collected.',
+  },
+  {
+    key: 'gemRespawn',
+    label: 'Respawn time (frames)',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 3600,
+    step: 60,
+    help: 'Frames before gem respawns. 0 = no respawn.',
+  },
+  {
+    key: 'gemType',
+    label: 'Gem type',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 3,
+    step: 1,
+    help: '0=All, 1=Red, 2=Blue, 3=Green gems.',
+  },
+  {
+    key: 'collectSound',
+    label: 'Play collect sound',
+    type: 'boolean',
+    default: true,
+    help: 'Play sound effect when gem is collected.',
+  },
+];
+
+export const collectorGems: SkillDef = {
+  id: 'collector_gems',
+  label: 'Collector Gems',
+  required: false,
+  cycles: 60,
+  controlIcon: 'attack',
+  addsStates: [],
+  transitions: [],
+  parameters: collectorGemsParameters,
+};
+
+export const collectorItemsParameters: SkillParameterDef[] = [
+  {
+    key: 'itemTypes',
+    label: 'Item types collected',
+    type: 'number',
+    default: 7,
+    min: 1,
+    max: 31,
+    step: 1,
+    help: 'Bitmask: 1=Coins, 2=Keys, 4=Potions, 8=Gems, 16=Scrolls.',
+  },
+  {
+    key: 'coinValue',
+    label: 'Coin value',
+    type: 'number',
+    default: 10,
+    min: 1,
+    max: 100,
+    step: 1,
+    help: 'Points per coin collected.',
+  },
+  {
+    key: 'maxCoins',
+    label: 'Max coins stored',
+    type: 'number',
+    default: 99,
+    min: 1,
+    max: 999,
+    step: 1,
+    help: 'Maximum coins that can be stored.',
+  },
+  {
+    key: 'keyRequired',
+    label: 'Key opens doors',
+    type: 'boolean',
+    default: true,
+    help: 'Collected keys are used to open locked doors.',
+  },
+];
+
+export const collectorItems: SkillDef = {
+  id: 'collector_items',
+  label: 'Collector Items',
+  required: false,
+  cycles: 80,
+  controlIcon: 'attack',
+  addsStates: [],
+  transitions: [],
+  parameters: collectorItemsParameters,
+};
+
+export const pushWallParameters: SkillParameterDef[] = [
+  {
+    key: 'pushSpeed',
+    label: 'Push speed (px/frame)',
+    type: 'number',
+    default: 1,
+    min: 1,
+    max: 4,
+    step: 1,
+    help: 'How fast the wall moves when pushed.',
+  },
+  {
+    key: 'pushResistance',
+    label: 'Push resistance (frames)',
+    type: 'number',
+    default: 5,
+    min: 1,
+    max: 20,
+    step: 1,
+    help: 'Frames required to start pushing the wall.',
+  },
+  {
+    key: 'maxPushDistance',
+    label: 'Max push distance (tiles)',
+    type: 'number',
+    default: 3,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Maximum tiles the wall can be pushed.',
+  },
+  {
+    key: 'wallType',
+    label: 'Wall type',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 2,
+    step: 1,
+    help: '0=All pushable walls, 1=Crates only, 2=Boulders only.',
+  },
+];
+
+export const pushWall: SkillDef = {
+  id: 'push_wall',
+  label: 'Push Wall',
+  required: false,
+  cycles: 120,
+  controlIcon: 'right',
+  addsStates: ['pushing'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'pushing', condition: 'move_key_toward_pushable AND pushable_ahead' },
+    { from: ['pushing'], to: 'grounded', condition: 'NOT pushable_ahead OR push_distance >= max' },
+    { from: ['pushing'], to: 'running', condition: 'NOT move_key_toward_pushable' },
+  ],
+  parameters: pushWallParameters,
+};
+
+export const pushDoorParameters: SkillParameterDef[] = [
+  {
+    key: 'doorType',
+    label: 'Door type',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 3,
+    step: 1,
+    help: '0=All doors, 1=Wooden, 2=Iron, 3=Locked.',
+  },
+  {
+    key: 'openSpeed',
+    label: 'Open speed (frames)',
+    type: 'number',
+    default: 20,
+    min: 5,
+    max: 60,
+    step: 1,
+    help: 'Frames to fully open the door.',
+  },
+  {
+    key: 'requiresKey',
+    label: 'Requires key to open',
+    type: 'boolean',
+    default: false,
+    help: 'If true, player must have a key to open locked doors.',
+  },
+  {
+    key: 'keyConsumed',
+    label: 'Key is consumed on use',
+    type: 'boolean',
+    default: true,
+    help: 'If true, key is used up when opening door.',
+  },
+];
+
+export const pushDoor: SkillDef = {
+  id: 'push_door',
+  label: 'Push Door',
+  required: false,
+  cycles: 100,
+  controlIcon: 'up',
+  addsStates: ['opening_door'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'opening_door', condition: 'up_key_toward_door AND door_ahead' },
+    { from: ['opening_door'], to: 'grounded', condition: 'door_open_complete' },
+    { from: ['opening_door'], to: 'grounded', condition: 'door_locked AND NOT has_key' },
+  ],
+  parameters: pushDoorParameters,
+};

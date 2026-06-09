@@ -487,12 +487,18 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   crouch: { icon: '⬇️', category: 'movement', description: 'Duck under obstacles' },
   climb: { icon: '🪜', category: 'movement', description: 'Climb ladders and ropes' },
   high_jump: { icon: '⬆️', category: 'movement', description: 'Hold jump for higher leap' },
+  collector_gems: { icon: '💎', category: 'collection', description: 'Collect gems and crystals' },
+  collector_items: { icon: '🪙', category: 'collection', description: 'Pick up coins, keys and power-ups' },
+  push_wall: { icon: '🧱', category: 'puzzle', description: 'Push moveable walls to create paths' },
+  push_door: { icon: '🚪', category: 'puzzle', description: 'Open doors by pushing or using keys' },
 };
 
 const categoryColors: Record<string, string> = {
   movement: 'text-emerald-400',
   attack: 'text-red-400',
   defense: 'text-blue-400',
+  collection: 'text-amber-400',
+  puzzle: 'text-purple-400',
   utility: 'text-yellow-400',
 };
 

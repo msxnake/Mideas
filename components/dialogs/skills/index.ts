@@ -9,3 +9,7 @@ export { ParryDialog } from './ParryDialog';
 export { CrouchDialog } from './CrouchDialog';
 export { ClimbDialog } from './ClimbDialog';
 export { HighJumpDialog } from './HighJumpDialog';
+export { CollectorGemsDialog } from './CollectorGemsDialog';
+export { CollectorItemsDialog } from './CollectorItemsDialog';
+export { PushWallDialog } from './PushWallDialog';
+export { PushDoorDialog } from './PushDoorDialog';

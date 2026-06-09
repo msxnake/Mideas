@@ -1,0 +1,50 @@
+{
+  "id": "collector_items",
+  "label": "Collector Items",
+  "description": "Pick up collectible items like coins, keys, and power-ups",
+  "required": false,
+  "cycles": 80,
+  "controlIcon": "attack",
+  "addsStates": [],
+  "icon": "🪙",
+  "category": "collection",
+  "parameters": [
+    {
+      "key": "itemTypes",
+      "label": "Item types collected",
+      "type": "number",
+      "default": 7,
+      "min": 1,
+      "max": 31,
+      "step": 1,
+      "help": "Bitmask: 1=Coins, 2=Keys, 4=Potions, 8=Gems, 16=Scrolls."
+    },
+    {
+      "key": "coinValue",
+      "label": "Coin value",
+      "type": "number",
+      "default": 10,
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "help": "Points per coin collected."
+    },
+    {
+      "key": "maxCoins",
+      "label": "Max coins stored",
+      "type": "number",
+      "default": 99,
+      "min": 1,
+      "max": 999,
+      "step": 1,
+      "help": "Maximum coins that can be stored."
+    },
+    {
+      "key": "keyRequired",
+      "label": "Key opens doors",
+      "type": "boolean",
+      "default": true,
+      "help": "Collected keys are used to open locked doors."
+    }
+  ]
+}
