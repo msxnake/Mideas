@@ -1,0 +1,30 @@
+import React from 'react';
+import { SkillDialog } from './SkillDialog';
+
+const data = {
+  id: 'teleport_a_b',
+  label: 'Teleport A-B',
+  description: 'Teleport between two saved positions',
+  icon: '🌀',
+  category: 'movement',
+  parameters: [
+    { key: 'teleportCooldown', label: 'Teleport cooldown (frames)', type: 'number', default: 60, min: 10, max: 180, step: 5, help: 'Frames before teleport can be used again.' },
+    { key: 'teleportDelay', label: 'Teleport delay (frames)', type: 'number', default: 15, min: 5, max: 60, step: 1, help: 'Frames of invulnerability during teleport.' },
+    { key: 'savePointA', label: 'Save point A on trigger', type: 'boolean', default: true, help: 'Save current position as Point A when pressing the button.' },
+    { key: 'useHorizontal', label: 'Allow horizontal teleport', type: 'boolean', default: true, help: 'If true, can teleport to a point on the same level.' },
+    { key: 'useVertical', label: 'Allow vertical teleport', type: 'boolean', default: true, help: 'If true, can teleport to a point on a different vertical level.' },
+    { key: 'maxDistance', label: 'Max distance (tiles)', type: 'number', default: 10, min: 1, max: 50, step: 1, help: 'Maximum distance between points A and B in tiles.' },
+  ],
+};
+
+interface TeleportABDialogProps {
+  values: Record<string, number | boolean>;
+  onPatch: (key: string, value: number | boolean) => void;
+  onClose: () => void;
+}
+
+export const TeleportABDialog: React.FC<TeleportABDialogProps> = ({ values, onPatch, onClose }) => (
+  <SkillDialog {...data} values={values} onPatch={onPatch} onClose={onClose} />
+);
+
+export default TeleportABDialog;

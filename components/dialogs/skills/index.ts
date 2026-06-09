@@ -13,3 +13,5 @@ export { CollectorGemsDialog } from './CollectorGemsDialog';
 export { CollectorItemsDialog } from './CollectorItemsDialog';
 export { PushWallDialog } from './PushWallDialog';
 export { PushDoorDialog } from './PushDoorDialog';
+export { CarryObjectDialog } from './CarryObjectDialog';
+export { TeleportABDialog } from './TeleportABDialog';

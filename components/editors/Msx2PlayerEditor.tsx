@@ -491,6 +491,8 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   collector_items: { icon: '🪙', category: 'collection', description: 'Pick up coins, keys and power-ups' },
   push_wall: { icon: '🧱', category: 'puzzle', description: 'Push moveable walls to create paths' },
   push_door: { icon: '🚪', category: 'puzzle', description: 'Open doors by pushing or using keys' },
+  carry_object: { icon: '📦', category: 'utility', description: 'Pick up, carry and throw objects' },
+  teleport_a_b: { icon: '🌀', category: 'movement', description: 'Teleport between two saved positions' },
 };
 
 const categoryColors: Record<string, string> = {
