@@ -1,0 +1,43 @@
+{
+  "id": "glide",
+  "label": "Glide",
+  "description": "Slow your fall and control horizontal movement",
+  "required": false,
+  "cycles": 60,
+  "controlIcon": "jump",
+  "addsStates": ["gliding"],
+  "icon": "🦅",
+  "category": "movement",
+  "parameters": [
+    {
+      "key": "glideSpeed",
+      "label": "Glide fall speed (px/frame)",
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "max": 4,
+      "step": 1,
+      "help": "Max vertical speed while gliding. 0 = float in place."
+    },
+    {
+      "key": "glideHorizontalSpeed",
+      "label": "Horizontal control (px/frame)",
+      "type": "number",
+      "default": 2,
+      "min": 0,
+      "max": 6,
+      "step": 1,
+      "help": "Horizontal movement allowed while gliding."
+    },
+    {
+      "key": "glideBoostCost",
+      "label": "Stamina cost per boost",
+      "type": "number",
+      "default": 5,
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "help": "Stamina consumed per boost. 0 = infinite glide."
+    }
+  ]
+}

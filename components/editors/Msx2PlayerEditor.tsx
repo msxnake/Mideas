@@ -474,6 +474,28 @@ const PlayerComponentsDialog: React.FC<{
   );
 };
 
+const skillMeta: Record<string, { icon: string; category: string; description: string }> = {
+  dash: { icon: '💨', category: 'movement', description: 'Quick dash in facing direction' },
+  double_jump: { icon: '🦘', category: 'movement', description: 'Jump again in mid-air' },
+  wall_jump: { icon: '🧱', category: 'movement', description: 'Jump off walls' },
+  ground_pound: { icon: '⬇️', category: 'attack', description: 'Slam downward from air' },
+  air_dash: { icon: '💨', category: 'movement', description: 'Dash while in mid-air' },
+  charge_attack: { icon: '⚡', category: 'attack', description: 'Hold to charge, release to attack' },
+  glide: { icon: '🦅', category: 'movement', description: 'Slow fall with horizontal control' },
+  spin_attack: { icon: '🔄', category: 'attack', description: 'Rotating melee attack' },
+  parry: { icon: '🛡️', category: 'defense', description: 'Deflect enemy attacks' },
+  crouch: { icon: '⬇️', category: 'movement', description: 'Duck under obstacles' },
+  climb: { icon: '🪜', category: 'movement', description: 'Climb ladders and ropes' },
+  high_jump: { icon: '⬆️', category: 'movement', description: 'Hold jump for higher leap' },
+};
+
+const categoryColors: Record<string, string> = {
+  movement: 'text-emerald-400',
+  attack: 'text-red-400',
+  defense: 'text-blue-400',
+  utility: 'text-yellow-400',
+};
+
 const SkillParametersDialog: React.FC<{
   skill: SkillDef;
   values: Record<string, number | boolean>;
@@ -481,6 +503,7 @@ const SkillParametersDialog: React.FC<{
   onClose: () => void;
 }> = ({ skill, values, onPatch, onClose }) => {
   const parameters = skill.parameters || [];
+  const meta = skillMeta[skill.id] || { icon: '⚙️', category: 'utility', description: 'Skill parameters' };
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -491,15 +514,24 @@ const SkillParametersDialog: React.FC<{
       aria-modal="true"
       aria-label={`${skill.label} parameters`}
     >
-      <div className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded border border-slate-700 bg-[#151a23] shadow-xl">
-        <div className="flex h-11 items-center justify-between border-b border-slate-700 px-4">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-100">{skill.label}</h3>
-            <div className="text-[11px] text-slate-400">Skill parameters · changes apply immediately</div>
+      <div className="flex max-h-[86vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-slate-700 bg-[#151a23] shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{meta.icon}</span>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100">{skill.label}</h3>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-medium ${categoryColors[meta.category]}`}>
+                  {meta.category.toUpperCase()}
+                </span>
+                <span className="text-[10px] text-slate-500">·</span>
+                <span className="text-[10px] text-slate-400">{meta.description}</span>
+              </div>
+            </div>
           </div>
           <button
             type="button"
-            className="h-7 rounded border border-slate-700 px-3 text-xs hover:bg-slate-800"
+            className="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100"
             onClick={onClose}
           >
             Close
@@ -515,17 +547,17 @@ const SkillParametersDialog: React.FC<{
                 return (
                   <label
                     key={param.key}
-                    className="col-span-2 flex items-start gap-2 rounded border border-slate-700 bg-[#111821] px-2 py-1.5 text-xs text-slate-100"
+                    className="col-span-2 flex items-start gap-3 rounded border border-slate-700 bg-[#111821] px-3 py-2.5 text-xs text-slate-100"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={event => onPatch(param.key, event.target.checked)}
-                      className="mt-0.5 h-3.5 w-3.5 accent-blue-500"
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-sky-500"
                     />
                     <span className="space-y-0.5">
                       <span className="block font-medium">{param.label}</span>
-                      {param.help && <span className="block text-[10px] text-slate-400">{param.help}</span>}
+                      {param.help && <span className="block text-[10px] leading-relaxed text-slate-400">{param.help}</span>}
                     </span>
                   </label>
                 );
@@ -533,10 +565,12 @@ const SkillParametersDialog: React.FC<{
               const numValue = Number(raw);
               const safeValue = Number.isFinite(numValue) ? numValue : Number(fallback) || 0;
               return (
-                <div key={param.key} className="space-y-1 text-xs text-slate-200">
+                <div key={param.key} className="space-y-1.5 text-xs text-slate-200">
                   <label className="flex items-center justify-between gap-2">
-                    <span>{param.label}</span>
-                    <span className="text-[10px] text-slate-400">{safeValue}</span>
+                    <span className="text-slate-300">{param.label}</span>
+                    <span className="min-w-[40px] rounded bg-slate-800 px-1.5 py-0.5 text-center text-[10px] text-sky-400">
+                      {safeValue}
+                    </span>
                   </label>
                   <input
                     type="number"
@@ -553,14 +587,19 @@ const SkillParametersDialog: React.FC<{
                       onPatch(param.key, next);
                     }}
                   />
-                  {param.help && <p className="text-[10px] text-slate-400">{param.help}</p>}
+                  {param.help && <p className="text-[10px] leading-relaxed text-slate-400">{param.help}</p>}
                 </div>
               );
             })}
           </div>
           {parameters.length === 0 && (
-            <div className="text-[11px] text-slate-400">This skill has no editable parameters yet.</div>
+            <div className="py-8 text-center text-[11px] text-slate-400">
+              This skill has no editable parameters yet.
+            </div>
           )}
+        </div>
+        <div className="border-t border-slate-700 px-4 py-2">
+          <p className="text-[10px] text-slate-500">Changes apply immediately · Skill ID: {skill.id}</p>
         </div>
       </div>
     </div>
@@ -2509,47 +2548,45 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       {getAllSkills().filter(s => s.parameters && s.parameters.length > 0).map(skill => {
                         const active = normalized.activeSkills?.includes(skill.id) ?? false;
                         const hasParameters = Boolean(skill.parameters && skill.parameters.length > 0);
-                        // Core skills are always on by construction; their parameters dialog is always available.
-                        // Optional skills only expose the dialog when the user activated them.
                         const isCore = skill.required;
                         const canOpenDialog = (isCore || active) && hasParameters;
                         return (
-                          <div key={skill.id} className="grid grid-cols-[1fr_auto] items-center gap-2 text-xs">
+                          <div key={skill.id} className="flex items-center gap-2 text-xs">
+                            {!isCore && (
+                              <input
+                                type="checkbox"
+                                checked={active}
+                                onChange={e => {
+                                  const current = normalized.activeSkills ?? [];
+                                  const next = e.target.checked
+                                    ? [...current, skill.id]
+                                    : current.filter(id => id !== skill.id);
+                                  onUpdate({ activeSkills: next });
+                                }}
+                                className="h-3.5 w-3.5 shrink-0 accent-blue-500"
+                                title={active ? 'Disable skill' : 'Enable skill'}
+                              />
+                            )}
+                            {isCore && <span className="h-3.5 w-3.5 shrink-0 rounded bg-slate-600" />}
                             {canOpenDialog ? (
                               <button
                                 type="button"
                                 onClick={() => setOpenSkillDialogId(skill.id)}
-                                className="truncate rounded border border-transparent px-1 py-0.5 text-left text-slate-200 hover:border-sky-700 hover:bg-sky-950/30 hover:text-sky-100"
+                                className="flex items-center gap-1 truncate rounded border border-transparent px-1 py-0.5 text-slate-200 hover:border-sky-700 hover:bg-sky-950/30 hover:text-sky-100"
                                 title={`Edit ${skill.label} parameters`}
                                 aria-haspopup="dialog"
                               >
                                 {skill.label}
-                                <span className="ml-1 text-[10px] text-sky-400">⚙</span>
+                                <span className="text-[10px] text-sky-400">⚙</span>
                               </button>
                             ) : (
                               <span className={`text-slate-200 ${hasParameters ? 'opacity-80' : ''}`}>
                                 {skill.label}
-                                {hasParameters && <span className="ml-1 text-[10px] text-slate-500" title="Activate the skill to edit parameters">(inactive)</span>}
+                                {hasParameters && !isCore && <span className="ml-1 text-[10px] text-slate-500">(inactive)</span>}
                               </span>
                             )}
-                            {isCore ? (
-                              <span className="text-[10px] text-slate-500" title="Core skill, always active">core</span>
-                            ) : (
-                              <label className="flex cursor-pointer items-center gap-1.5 text-slate-400">
-                                <input
-                                  type="checkbox"
-                                  checked={active}
-                                  onChange={e => {
-                                    const current = normalized.activeSkills ?? [];
-                                    const next = e.target.checked
-                                      ? [...current, skill.id]
-                                      : current.filter(id => id !== skill.id);
-                                    onUpdate({ activeSkills: next });
-                                  }}
-                                  className="h-3.5 w-3.5 accent-blue-500"
-                                />
-                                <span className="text-[10px]">{active ? 'On' : 'Off'}</span>
-                              </label>
+                            {isCore && (
+                              <span className="ml-1 text-[10px] text-slate-500">core</span>
                             )}
                           </div>
                         );

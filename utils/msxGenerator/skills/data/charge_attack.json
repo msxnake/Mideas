@@ -1,0 +1,50 @@
+{
+  "id": "charge_attack",
+  "label": "Charge Attack",
+  "description": "Hold to charge, release for a powerful attack",
+  "required": false,
+  "cycles": 250,
+  "controlIcon": "attack",
+  "addsStates": ["charging", "charged_attack"],
+  "icon": "⚡",
+  "category": "attack",
+  "parameters": [
+    {
+      "key": "minChargeFrames",
+      "label": "Min charge time (frames)",
+      "type": "number",
+      "default": 20,
+      "min": 5,
+      "max": 60,
+      "step": 1,
+      "help": "Minimum frames to hold before attack releases."
+    },
+    {
+      "key": "maxChargeFrames",
+      "label": "Max charge time (frames)",
+      "type": "number",
+      "default": 60,
+      "min": 20,
+      "max": 120,
+      "step": 1,
+      "help": "Frames to hold for maximum charge."
+    },
+    {
+      "key": "chargeMultiplier",
+      "label": "Max charge damage multiplier",
+      "type": "number",
+      "default": 3,
+      "min": 1,
+      "max": 8,
+      "step": 1,
+      "help": "Damage multiplier at full charge (1 = no bonus)."
+    },
+    {
+      "key": "releaseOnJump",
+      "label": "Release charge on jump",
+      "type": "boolean",
+      "default": false,
+      "help": "If true, releasing jump key fires the charged attack."
+    }
+  ]
+}
