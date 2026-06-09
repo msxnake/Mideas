@@ -493,6 +493,7 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   push_door: { icon: '🚪', category: 'puzzle', description: 'Open doors by pushing or using keys' },
   carry_object: { icon: '📦', category: 'utility', description: 'Pick up, carry and throw objects' },
   teleport_a_b: { icon: '🌀', category: 'movement', description: 'Teleport between two saved positions' },
+  carry_and_throw: { icon: '🏋️', category: 'utility', description: 'Lift objects and throw them through gaps' },
 };
 
 const categoryColors: Record<string, string> = {
