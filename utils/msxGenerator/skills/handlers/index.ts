@@ -346,3 +346,536 @@ export const dash: SkillDef = {
   ],
   parameters: dashParameters,
 };
+
+// ── additional optional skills ──
+
+export const wallJumpParameters: SkillParameterDef[] = [
+  {
+    key: 'wallJumpPower',
+    label: 'Wall jump power',
+    type: 'number',
+    default: 1024,
+    min: 256,
+    max: 2048,
+    step: 1,
+    help: 'Vertical impulse when jumping from wall in 8.8 fixed point.',
+  },
+  {
+    key: 'wallJumpHorizontal',
+    label: 'Horizontal push (px/frame)',
+    type: 'number',
+    default: 4,
+    min: 1,
+    max: 12,
+    step: 1,
+    help: 'Horizontal velocity away from wall after wall jump.',
+  },
+  {
+    key: 'wallSlideSpeed',
+    label: 'Wall slide speed (px/frame)',
+    type: 'number',
+    default: 1,
+    min: 0,
+    max: 4,
+    step: 1,
+    help: 'Max fall speed while clinging to wall. 0 = instant drop.',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between wall jumps',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release jump key before triggering another wall jump.',
+  },
+];
+
+export const wallJump: SkillDef = {
+  id: 'wall_jump',
+  label: 'Wall jump',
+  required: false,
+  cycles: 100,
+  controlIcon: 'jump',
+  addsStates: ['wall_sliding', 'wall_jumping'],
+  transitions: [
+    { from: ['falling'], to: 'wall_sliding', condition: 'wall_contact AND (left_held OR right_held)' },
+    { from: ['wall_sliding'], to: 'wall_jumping', condition: 'jump_key_pressed' },
+    { from: ['wall_jumping'], to: 'falling', condition: 'gravity_vel > 0' },
+    { from: ['wall_sliding'], to: 'falling', condition: 'NOT wall_contact OR (NOT left_held AND NOT right_held)' },
+  ],
+  parameters: wallJumpParameters,
+};
+
+export const groundPoundParameters: SkillParameterDef[] = [
+  {
+    key: 'poundSpeed',
+    label: 'Pound speed (px/frame)',
+    type: 'number',
+    default: 12,
+    min: 4,
+    max: 24,
+    step: 1,
+    help: 'Vertical speed when ground pounding.',
+  },
+  {
+    key: 'poundCooldown',
+    label: 'Pound cooldown (frames)',
+    type: 'number',
+    default: 15,
+    min: 5,
+    max: 60,
+    step: 1,
+    help: 'Frames before you can move after landing from a pound.',
+  },
+  {
+    key: 'poundDamage',
+    label: 'Damage on impact',
+    type: 'number',
+    default: 1,
+    min: 0,
+    max: 10,
+    step: 1,
+    help: 'Damage dealt to enemies when landing. 0 = no damage.',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between pounds',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release down key before triggering another pound.',
+  },
+];
+
+export const groundPound: SkillDef = {
+  id: 'ground_pound',
+  label: 'Ground pound',
+  required: false,
+  cycles: 120,
+  controlIcon: 'down',
+  addsStates: ['ground_pounding'],
+  transitions: [
+    { from: ['jumping', 'falling'], to: 'ground_pounding', condition: 'down_key_pressed AND pound_cooldown = 0 AND NOT grounded' },
+    { from: ['ground_pounding'], to: 'grounded', condition: 'feet_collision' },
+  ],
+  parameters: groundPoundParameters,
+};
+
+export const airDashParameters: SkillParameterDef[] = [
+  {
+    key: 'airDashSpeed',
+    label: 'Air dash speed (px/frame)',
+    type: 'number',
+    default: 6,
+    min: 2,
+    max: 16,
+    step: 1,
+    help: 'Horizontal speed during air dash.',
+  },
+  {
+    key: 'airDashDuration',
+    label: 'Air dash duration (frames)',
+    type: 'number',
+    default: 6,
+    min: 2,
+    max: 20,
+    step: 1,
+    help: 'How many frames the air dash lasts.',
+  },
+  {
+    key: 'airDashCooldown',
+    label: 'Air dash cooldown (frames)',
+    type: 'number',
+    default: 20,
+    min: 5,
+    max: 60,
+    step: 1,
+    help: 'Frames before air dash can be used again.',
+  },
+  {
+    key: 'allowDoubleJumpCancel',
+    label: 'Cancel double jump into air dash',
+    type: 'boolean',
+    default: false,
+    help: 'If true, air dash can be triggered after a double jump (uses double jump).',
+  },
+];
+
+export const airDash: SkillDef = {
+  id: 'air_dash',
+  label: 'Air dash',
+  required: false,
+  cycles: 100,
+  controlIcon: 'jump',
+  addsStates: ['air_dashing'],
+  transitions: [
+    { from: ['jumping', 'falling', 'double_jumping'], to: 'air_dashing', condition: 'dash_key_pressed AND air_dash_cooldown = 0 AND NOT grounded' },
+    { from: ['air_dashing'], to: 'falling', condition: 'air_dash_timer_expired' },
+  ],
+  parameters: airDashParameters,
+};
+
+export const chargeAttackParameters: SkillParameterDef[] = [
+  {
+    key: 'minChargeFrames',
+    label: 'Min charge time (frames)',
+    type: 'number',
+    default: 20,
+    min: 5,
+    max: 60,
+    step: 1,
+    help: 'Minimum frames to hold before attack releases.',
+  },
+  {
+    key: 'maxChargeFrames',
+    label: 'Max charge time (frames)',
+    type: 'number',
+    default: 60,
+    min: 20,
+    max: 120,
+    step: 1,
+    help: 'Frames to hold for maximum charge.',
+  },
+  {
+    key: 'chargeMultiplier',
+    label: 'Max charge damage multiplier',
+    type: 'number',
+    default: 3,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Damage multiplier at full charge (1 = no bonus).',
+  },
+  {
+    key: 'releaseOnJump',
+    label: 'Release charge on jump',
+    type: 'boolean',
+    default: false,
+    help: 'If true, releasing jump key fires the charged attack.',
+  },
+];
+
+export const chargeAttack: SkillDef = {
+  id: 'charge_attack',
+  label: 'Charge attack',
+  required: false,
+  cycles: 250,
+  controlIcon: 'attack',
+  addsStates: ['charging', 'charged_attack'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'charging', condition: 'attack_key_held AND charge_cooldown = 0' },
+    { from: ['charging'], to: 'charged_attack', condition: 'attack_key_released AND charge_level >= min' },
+    { from: ['charged_attack'], to: 'grounded', condition: 'charged_attack_done AND grounded' },
+    { from: ['charging'], to: 'grounded', condition: 'attack_key_released AND charge_level < min' },
+  ],
+  parameters: chargeAttackParameters,
+};
+
+export const glideParameters: SkillParameterDef[] = [
+  {
+    key: 'glideSpeed',
+    label: 'Glide fall speed (px/frame)',
+    type: 'number',
+    default: 1,
+    min: 0,
+    max: 4,
+    step: 1,
+    help: 'Max vertical speed while gliding. 0 = float in place.',
+  },
+  {
+    key: 'glideHorizontalSpeed',
+    label: 'Horizontal control (px/frame)',
+    type: 'number',
+    default: 2,
+    min: 0,
+    max: 6,
+    step: 1,
+    help: 'Horizontal movement allowed while gliding.',
+  },
+  {
+    key: 'glideBoostCost',
+    label: 'Stamina cost per boost',
+    type: 'number',
+    default: 5,
+    min: 0,
+    max: 20,
+    step: 1,
+    help: 'Stamina consumed per boost. 0 = infinite glide.',
+  },
+];
+
+export const glide: SkillDef = {
+  id: 'glide',
+  label: 'Glide',
+  required: false,
+  cycles: 60,
+  controlIcon: 'jump',
+  addsStates: ['gliding'],
+  transitions: [
+    { from: ['falling'], to: 'gliding', condition: 'jump_key_held AND glide_cooldown = 0 AND NOT grounded' },
+    { from: ['gliding'], to: 'falling', condition: 'NOT jump_key_held OR stamina = 0' },
+  ],
+  parameters: glideParameters,
+};
+
+export const spinAttackParameters: SkillParameterDef[] = [
+  {
+    key: 'spinDuration',
+    label: 'Spin duration (frames)',
+    type: 'number',
+    default: 30,
+    min: 10,
+    max: 60,
+    step: 1,
+    help: 'How long the spin attack lasts.',
+  },
+  {
+    key: 'spinDamage',
+    label: 'Damage per hit',
+    type: 'number',
+    default: 1,
+    min: 1,
+    max: 5,
+    step: 1,
+    help: 'Damage dealt to enemies per spin hit.',
+  },
+  {
+    key: 'spinCooldown',
+    label: 'Spin cooldown (frames)',
+    type: 'number',
+    default: 40,
+    min: 10,
+    max: 120,
+    step: 1,
+    help: 'Frames before spin can be used again.',
+  },
+  {
+    key: 'spinKnockback',
+    label: 'Knockback force',
+    type: 'number',
+    default: 4,
+    min: 0,
+    max: 8,
+    step: 1,
+    help: 'How far enemies are pushed away.',
+  },
+];
+
+export const spinAttack: SkillDef = {
+  id: 'spin_attack',
+  label: 'Spin attack',
+  required: false,
+  cycles: 200,
+  controlIcon: 'attack',
+  addsStates: ['spinning'],
+  transitions: [
+    { from: ['grounded', 'running', 'jumping', 'falling'], to: 'spinning', condition: 'attack_key_pressed AND spin_cooldown = 0' },
+    { from: ['spinning'], to: 'grounded', condition: 'spin_timer_expired AND grounded' },
+    { from: ['spinning'], to: 'falling', condition: 'spin_timer_expired AND NOT grounded' },
+  ],
+  parameters: spinAttackParameters,
+};
+
+export const parryParameters: SkillParameterDef[] = [
+  {
+    key: 'parryWindow',
+    label: 'Parry window (frames)',
+    type: 'number',
+    default: 8,
+    min: 2,
+    max: 20,
+    step: 1,
+    help: 'Frames during which a perfect block registers. Typical: 4-12.',
+  },
+  {
+    key: 'parryStun',
+    label: 'Enemy stun duration (frames)',
+    type: 'number',
+    default: 30,
+    min: 10,
+    max: 60,
+    step: 1,
+    help: 'How long enemies are stunned after being parried.',
+  },
+  {
+    key: 'parryCooldown',
+    label: 'Parry cooldown (frames)',
+    type: 'number',
+    default: 20,
+    min: 5,
+    max: 60,
+    step: 1,
+    help: 'Frames before parry can be used again.',
+  },
+  {
+    key: 'parryKnockback',
+    label: 'Knockback force',
+    type: 'number',
+    default: 6,
+    min: 0,
+    max: 12,
+    step: 1,
+    help: 'How far enemies are pushed after parry.',
+  },
+];
+
+export const parry: SkillDef = {
+  id: 'parry',
+  label: 'Parry',
+  required: false,
+  cycles: 80,
+  controlIcon: 'attack',
+  addsStates: ['parrying'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'parrying', condition: 'attack_key_pressed AND parry_cooldown = 0' },
+    { from: ['parrying'], to: 'grounded', condition: 'parry_window_expired OR parry_success' },
+    { from: ['parrying'], to: 'blocking', condition: 'parry_miss AND block_key_held' },
+  ],
+  parameters: parryParameters,
+};
+
+export const crouchParameters: SkillParameterDef[] = [
+  {
+    key: 'crouchSpeed',
+    label: 'Crouch move speed (px/frame)',
+    type: 'number',
+    default: 1,
+    min: 0,
+    max: 4,
+    step: 1,
+    help: 'Horizontal movement speed while crouching. 0 = immobile.',
+  },
+  {
+    key: 'crouchHitboxHeight',
+    label: 'Crouch hitbox height (pixels)',
+    type: 'number',
+    default: 8,
+    min: 4,
+    max: 12,
+    step: 1,
+    help: 'Height of player hitbox when crouching.',
+  },
+  {
+    key: 'slideDistance',
+    label: 'Slide distance on release (px)',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 16,
+    step: 1,
+    help: 'Momentum slide when releasing crouch. 0 = no slide.',
+  },
+];
+
+export const crouch: SkillDef = {
+  id: 'crouch',
+  label: 'Crouch',
+  required: false,
+  cycles: 40,
+  controlIcon: 'down',
+  addsStates: ['crouching', 'sliding'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'crouching', condition: 'down_key_held' },
+    { from: ['crouching'], to: 'grounded', condition: 'NOT down_key_held' },
+    { from: ['crouching'], to: 'sliding', condition: 'left_or_right_held AND slide_distance > 0' },
+    { from: ['sliding'], to: 'grounded', condition: 'slide_timer_expired' },
+  ],
+  parameters: crouchParameters,
+};
+
+export const climbParameters: SkillParameterDef[] = [
+  {
+    key: 'climbSpeed',
+    label: 'Climb speed (px/frame)',
+    type: 'number',
+    default: 2,
+    min: 1,
+    max: 6,
+    step: 1,
+    help: 'Vertical speed while climbing.',
+  },
+  {
+    key: 'ladderDetectionRange',
+    label: 'Ladder detection (pixels)',
+    type: 'number',
+    default: 8,
+    min: 4,
+    max: 16,
+    step: 1,
+    help: 'How far player can reach to grab a ladder.',
+  },
+  {
+    key: 'dismountJumpBoost',
+    label: 'Jump boost on dismount',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 8,
+    step: 1,
+    help: 'Additional jump velocity when jumping off ladder.',
+  },
+];
+
+export const climb: SkillDef = {
+  id: 'climb',
+  label: 'Climb ladders',
+  required: false,
+  cycles: 80,
+  controlIcon: 'up',
+  addsStates: ['climbing', 'on_ladder'],
+  transitions: [
+    { from: ['grounded'], to: 'on_ladder', condition: 'up_key_pressed AND ladder_nearby' },
+    { from: ['on_ladder'], to: 'climbing', condition: 'up_key_held OR down_key_held' },
+    { from: ['climbing'], to: 'on_ladder', condition: 'NOT up_key_held AND NOT down_key_held' },
+    { from: ['on_ladder'], to: 'jumping', condition: 'jump_key_pressed' },
+    { from: ['on_ladder'], to: 'grounded', condition: 'feet_collision AND grounded' },
+    { from: ['climbing'], to: 'grounded', condition: 'feet_collision AND grounded' },
+  ],
+  parameters: climbParameters,
+};
+
+export const highJumpParameters: SkillParameterDef[] = [
+  {
+    key: 'highJumpPower',
+    label: 'High jump power',
+    type: 'number',
+    default: 1536,
+    min: 512,
+    max: 3072,
+    step: 1,
+    help: 'Vertical impulse for high jump in 8.8 fixed point. 1536 = ~6 px/frame.',
+  },
+  {
+    key: 'highJumpRequired',
+    label: 'Hold time for high jump (frames)',
+    type: 'number',
+    default: 10,
+    min: 5,
+    max: 30,
+    step: 1,
+    help: 'Frames jump key must be held to trigger high jump.',
+  },
+  {
+    key: 'highJumpKnockback',
+    label: 'Horizontal knockback on high jump',
+    type: 'number',
+    default: 2,
+    min: 0,
+    max: 6,
+    step: 1,
+    help: 'Horizontal velocity added during high jump.',
+  },
+];
+
+export const highJump: SkillDef = {
+  id: 'high_jump',
+  label: 'High jump',
+  required: false,
+  cycles: 100,
+  controlIcon: 'jump',
+  addsStates: ['high_jumping'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'high_jumping', condition: 'jump_key_pressed AND jump_hold_frames >= required' },
+    { from: ['jumping'], to: 'high_jumping', condition: 'jump_key_held AND jump_hold_frames >= required AND NOT grounded' },
+    { from: ['high_jumping'], to: 'falling', condition: 'gravity_vel > 0' },
+  ],
+  parameters: highJumpParameters,
+};
