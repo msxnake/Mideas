@@ -118,6 +118,15 @@ const flattenDetailedPlayerPayload = (
     soundAssetCustomValues: player.soundAssetCustomValues,
     inventoryHooks: player.inventoryHooks,
     logic: player.logic,
+    ...(Array.isArray((player as { activeSkills?: string[] }).activeSkills)
+      ? { activeSkills: (player as { activeSkills?: string[] }).activeSkills }
+      : {}),
+    ...((player as { skillBindings?: Msx2PlayerDefinition['skillBindings'] }).skillBindings
+      ? { skillBindings: (player as { skillBindings?: Msx2PlayerDefinition['skillBindings'] }).skillBindings }
+      : {}),
+    ...((player as { skillParameters?: Msx2PlayerDefinition['skillParameters'] }).skillParameters
+      ? { skillParameters: (player as { skillParameters?: Msx2PlayerDefinition['skillParameters'] }).skillParameters }
+      : {}),
     components: player.components,
     stateMachineAssetId: player.stateMachine?.assetId,
     stateMachine: player.stateMachine?.states,
@@ -133,9 +142,14 @@ export const parseMsx2PlayerImport = (raw: unknown): Partial<Msx2PlayerDefinitio
   const doc = raw as Record<string, unknown>;
 
   if (doc.compact && typeof doc.compact === 'object') {
+    const compact = doc.compact as Partial<Msx2PlayerDefinition>;
+    const detailed = flattenDetailedPlayerPayload((doc.player as Msx2PlayerDocument['player']) || {});
     return {
-      ...(doc.compact as Partial<Msx2PlayerDefinition>),
-      ...flattenDetailedPlayerPayload((doc.player as Msx2PlayerDocument['player']) || {}),
+      ...compact,
+      ...detailed,
+      activeSkills: detailed.activeSkills ?? compact.activeSkills,
+      skillBindings: detailed.skillBindings ?? compact.skillBindings,
+      skillParameters: detailed.skillParameters ?? compact.skillParameters,
     };
   }
 

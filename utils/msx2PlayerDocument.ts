@@ -115,6 +115,9 @@ export interface Msx2PlayerDocument {
     }>;
     inventoryHooks: string[];
     logic: NonNullable<Msx2PlayerDefinition['logic']>;
+    activeSkills: string[];
+    skillBindings: NonNullable<Msx2PlayerDefinition['skillBindings']>;
+    skillParameters: NonNullable<Msx2PlayerDefinition['skillParameters']>;
     components: NonNullable<Msx2PlayerDefinition['components']>;
     stateMachine: {
       template?: string;
@@ -300,6 +303,9 @@ export const buildDetailedMsx2PlayerDocument = (
       soundsConfig: buildSoundsSection(normalized),
       inventoryHooks: normalized.inventoryHooks || [],
       logic: normalized.logic || {},
+      activeSkills: normalized.activeSkills || [],
+      skillBindings: normalized.skillBindings || {},
+      skillParameters: normalized.skillParameters || {},
       components: normalized.components || {},
       stateMachine: buildStateMachineSection(normalized),
       runtime: {
@@ -367,5 +373,7 @@ export const mergeMsx2PlayerUpdate = (
     skillParameters: partialPatch.skillParameters
       ? { ...(base.skillParameters || {}), ...partialPatch.skillParameters }
       : base.skillParameters,
+    activeSkills: partialPatch.activeSkills !== undefined ? partialPatch.activeSkills : base.activeSkills,
+    skillBindings: partialPatch.skillBindings !== undefined ? partialPatch.skillBindings : base.skillBindings,
   });
 };

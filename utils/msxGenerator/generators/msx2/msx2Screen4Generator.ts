@@ -36,10 +36,48 @@ import { buildMsx2CellFlagBytes } from '../../../msx2CellFlags';
 import {
   formatAsmByte,
   formatAsmWord,
+  getMsx2DashConfigFromPlayerEntity,
+  getMsx2GlideConfigFromPlayerEntity,
+  getMsx2TeleportABConfigFromPlayerEntity,
   getMsx2PlatformPhysicsFromScreen,
   getMsx2PlatformPhysicsFromPlayerEntity,
   getTerminalVelocityHighByte,
 } from '../../../msx2PlatformPhysics';
+import {
+  buildMsx2DashActiveFrameAsm,
+  buildMsx2DashDamageSkipAsm,
+  buildMsx2DashEquates,
+  buildMsx2DashHazardSkipAsm,
+  buildMsx2DashInitClearAsm,
+  buildMsx2DashInputGateAsm,
+  buildMsx2DashRuntimeAsm,
+  resolveMsx2DashRamBase,
+} from './msx2DashGenerator';
+import {
+  MSX2_GLIDE_RAM_BYTES,
+  buildMsx2GlideEquates,
+  buildMsx2GlideGravityHookAsm,
+  buildMsx2GlideInitAsm,
+  buildMsx2GlideInitClearAsm,
+  buildMsx2GlideLandRefillAsm,
+  buildMsx2GlideRuntimeAsm,
+  resolveMsx2GlideRamBase,
+} from './msx2GlideGenerator';
+import {
+  assertMsx2SkillRamWithinLimit,
+  buildMsx2SkillRamOptions,
+  resolveMsx2PlayerTimersRamBase,
+} from './msx2SkillRamLayout';
+import {
+  buildMsx2TeleportABDamageSkipAsm,
+  buildMsx2TeleportABEquates,
+  buildMsx2TeleportABHazardSkipAsm,
+  buildMsx2TeleportABInitClearAsm,
+  buildMsx2TeleportABInputGateAsm,
+  buildMsx2TeleportABRuntimeAsm,
+  resolveMsx2TeleportABRamBase,
+} from './msx2TeleportABGenerator';
+import { parseMsx2PlayerImport } from '../../../msx2PlayerImport';
 
 export interface Msx2Screen4Config {
   screenMode: 'SCREEN 4 (Graphics II)' | 'SCREEN 5 (Graphics III)';
@@ -1447,16 +1485,8 @@ function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string 
 
 function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | undefined {
   if (!data) return undefined;
-  if (data.compact) return data.compact as Partial<Msx2PlayerDefinition>;
-  if (data.schema && data.player) {
-    return {
-      id: data.player.identity?.id,
-      name: data.player.identity?.name,
-      render: data.player.render,
-      components: data.player.components,
-    } as Partial<Msx2PlayerDefinition>;
-  }
-  return data as Partial<Msx2PlayerDefinition>;
+  const parsed = parseMsx2PlayerImport(data);
+  return Object.keys(parsed).length ? parsed : undefined;
 }
 
 function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
@@ -1602,6 +1632,9 @@ function mergePlayerAssetIntoRuntimeEntity(
   return {
     ...(playerAsset || {}),
     ...(entity || {}),
+    activeSkills: entity?.activeSkills ?? playerAsset?.activeSkills,
+    skillBindings: entity?.skillBindings ?? playerAsset?.skillBindings,
+    skillParameters: entity?.skillParameters ?? playerAsset?.skillParameters,
     spriteAssetId: entity?.spriteAssetId || assetSpriteId || playerAsset?.render?.spriteAssetId,
     components: mergedComponents,
     params: {
@@ -1904,6 +1937,14 @@ function getMsx2PlatformPlayerEntity(analysis: ProjectAnalysis): any | undefined
   return getPlayerRuntimeSource(screen, analysis);
 }
 
+function getMsx2PlayerHealthSettings(analysis: ProjectAnalysis): { lives: number; invincibleFrames: number } {
+  const player = getMsx2PlatformPlayerEntity(analysis);
+  const health = player?.health || player?.components?.msx2_health || {};
+  const lives = Math.max(1, Math.min(9, Math.floor(Number(health.lives ?? health.max ?? 3) || 3)));
+  const invincibleFrames = Math.max(15, Math.min(255, Math.floor(Number(health.invincibleFrames ?? 60) || 60)));
+  return { lives, invincibleFrames };
+}
+
 function getMsx2PlayerAnimationSettings(player: any | undefined): { animateOnlyWhenMoving: boolean } {
   const anim = player?.components?.msx2_animation ?? {};
   return {
@@ -1985,6 +2026,9 @@ function buildMsx2PlatformVerticalPhysicsAsm(
   const screen = getPrimaryRuntimeTileScreen(analysis);
   const player = getMsx2PlatformPlayerEntity(analysis);
   const physics = getMsx2PlatformPhysicsFromScreen(screen, player);
+  const glideConfig = getMsx2GlideConfigFromPlayerEntity(player);
+  const glideGravityHookAsm = buildMsx2GlideGravityHookAsm(glideConfig);
+  const glideLandRefillAsm = buildMsx2GlideLandRefillAsm(glideConfig);
   const bodyHitbox = getMsx2PlatformPlayerBodyHitbox(player);
   const probeInset = Math.max(0, Math.min(2, Math.floor((bodyHitbox.w - 1) / 2)));
   const probeLeftOffset = bodyHitbox.x + probeInset;
@@ -1995,6 +2039,8 @@ function buildMsx2PlatformVerticalPhysicsAsm(
   const hitboxHeight = bodyHitbox.h;
   const jumpImpulseHi = formatAsmByte(physics.jumpImpulse88 >> 8);
   const jumpImpulseLo = formatAsmByte(physics.jumpImpulse88);
+  const airJumpImpulseHi = formatAsmByte(physics.airJumpImpulse88 >> 8);
+  const airJumpImpulseLo = formatAsmByte(physics.airJumpImpulse88);
   const gravityStrength = formatAsmByte(physics.gravityStrength88);
   const terminalHigh = formatAsmByte(getTerminalVelocityHighByte(physics.terminalVelocity88));
   const terminalWord = formatAsmWord(physics.terminalVelocity88);
@@ -2036,7 +2082,7 @@ ${physics.jumpBuffer > 0 ? `    ld a, ${jumpBufferFrames}
     jp z, .platform_jump_space_released
 ${jumpLockGate}    ld a, (msx2_player_flags)
     bit 0, a
-    jp nz, .platform_jump_from_ground
+    jp nz, .platform_jump_grounded
     ; Airborne: check coyote / buffer
 ${coyoteAirGate}    ld a, (msx2_player_flags)
     rra
@@ -2044,16 +2090,28 @@ ${coyoteAirGate}    ld a, (msx2_player_flags)
     and #7
     cp ${maxJumps}
     jp nc, .platform_after_jump_input
-.platform_jump_from_ground:
-    ld a, (msx2_player_flags)
-    bit 0, a
-    jp z, .platform_after_jump_input
+    jp .platform_apply_jump_impulse
+.platform_jump_grounded:
+    jp .platform_apply_jump_impulse
 .platform_apply_jump_impulse:
+    ld hl, msx2_player_gravity_vel
+${physics.doubleJumpEnabled ? `    ld a, (msx2_player_flags)
+    bit 0, a
+    jr nz, .platform_jump_full_impulse
+    ld (hl), ${airJumpImpulseLo}
+    inc hl
+    ld (hl), ${airJumpImpulseHi}
+    jr .platform_jump_impulse_done
+.platform_jump_full_impulse:
     ld hl, msx2_player_gravity_vel
     ld (hl), ${jumpImpulseLo}
     inc hl
     ld (hl), ${jumpImpulseHi}
-    ld a, (msx2_player_flags)
+.platform_jump_impulse_done:
+` : `    ld (hl), ${jumpImpulseLo}
+    inc hl
+    ld (hl), ${jumpImpulseHi}
+`}    ld a, (msx2_player_flags)
     bit 0, a
     jr nz, .platform_jump_set_count_one
     ld a, (msx2_player_flags)
@@ -2087,7 +2145,7 @@ ${physics.requireKeyRelease ? `    or #2
     jp .platform_apply_vertical_delta
 .platform_apply_gravity_in_air:
     call msx2_apply_platform_gravity
-`
+${glideGravityHookAsm}`
     : '';
 
   // Per-frame timer decrements for coyote / jump buffer. Generated as inline
@@ -2217,7 +2275,7 @@ ${physics.requireKeyRelease ? `    or #2
     ld (hl), ${jumpImpulseHi}
     jp upload_hardware_sprite_attrs
 .platform_land_settle:
-` : ''}    ld a, #1
+` : ''}${glideLandRefillAsm}    ld a, #1
     ld (msx2_player_flags), a
 ${(physics.coyoteTime > 0) ? `    ; landing clears any stale coyote timer
     xor a
@@ -2299,6 +2357,18 @@ function getPaddleHorizontalSpeed(analysis: ProjectAnalysis): number {
       ?? 1
   );
   return Math.max(1, Math.min(16, Math.floor(speed) || 1));
+}
+
+function getPlatformHorizontalSpeed(analysis: ProjectAnalysis): number {
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const player = getPlayerRuntimeSource(screen, analysis);
+  const speed = Number(
+    player?.components?.msx2_movement?.speed
+      ?? player?.components?.msx2_player_control?.speed
+      ?? player?.params?.speed
+      ?? 2
+  );
+  return Math.max(1, Math.min(16, Math.floor(speed) || 2));
 }
 
 function getPrimaryBallEntity(analysis: ProjectAnalysis): any | undefined {
@@ -3131,6 +3201,16 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis, useKonamiDataBank
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
+  const playerHealth = getMsx2PlayerHealthSettings(analysis);
+  const platformPlayer = getMsx2PlatformPlayerEntity(analysis);
+  const dashConfig = getMsx2DashConfigFromPlayerEntity(platformPlayer);
+  const teleportConfig = getMsx2TeleportABConfigFromPlayerEntity(platformPlayer);
+  const glideConfig = getMsx2GlideConfigFromPlayerEntity(platformPlayer);
+  const dashInitClearAsm = dashConfig.enabled ? buildMsx2DashInitClearAsm() : '';
+  const teleportInitClearAsm = teleportConfig.enabled ? buildMsx2TeleportABInitClearAsm() : '';
+  const glideInitClearAsm = glideConfig.enabled ? buildMsx2GlideInitClearAsm() : '';
+  const glideInitAsm = buildMsx2GlideInitAsm(glideConfig);
+  const initialLivesByte = formatAsmByte(playerHealth.lives);
   const x = clampHardwareSpriteX(settings.x);
   const y = clampHardwareSpriteY(settings.y);
   const enterDataBank = useKonamiDataBank ? '    call msx2_screen4_data_bank_enter\n' : '';
@@ -3219,9 +3299,9 @@ ${leaveDataBank}
     ld (msx2_score_hi), a
     ld (msx2_runtime_frame_counter), a
     call msx2_load_current_screen_air
-    ld a, 3
+    ld a, ${initialLivesByte}
     ld (msx2_lives), a
-    call draw_msx2_lives_hud
+${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${glideInitAsm}    call draw_msx2_lives_hud
     call draw_msx2_score_hud
     call draw_msx2_collectible_hud
     call draw_msx2_air_hud
@@ -3609,6 +3689,9 @@ function buildHardwareSpriteRuntimeAsm(
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
   const animationDelayFrames = getHardwareSpriteAnimationDelayFrames(sprite);
   const animateOnlyWhenMoving = getMsx2PlayerAnimateOnlyWhenMoving(analysis);
+  const playerHealth = getMsx2PlayerHealthSettings(analysis);
+  const initialLivesByte = formatAsmByte(playerHealth.lives);
+  const invincibleFramesByte = formatAsmByte(playerHealth.invincibleFrames);
   const usePlayerWalkingFlag = animateOnlyWhenMoving && !usesSnakeGrowth(analysis);
   const clearPlayerWalkingFlagAsm = buildMsx2ClearPlayerWalkingFlagAsm(usePlayerWalkingFlag);
   const setPlayerWalkingFlagAsm = buildMsx2SetPlayerWalkingFlagAsm(usePlayerWalkingFlag);
@@ -3635,6 +3718,29 @@ function buildHardwareSpriteRuntimeAsm(
   const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
   const playerHardwareVisible = settings.visible;
   const patrolBounds = getRuntimePatrolBounds(analysis);
+  const platformPlayer = getMsx2PlatformPlayerEntity(analysis);
+  const dashConfig = getMsx2DashConfigFromPlayerEntity(platformPlayer);
+  const teleportConfig = getMsx2TeleportABConfigFromPlayerEntity(platformPlayer);
+  const glideConfig = getMsx2GlideConfigFromPlayerEntity(platformPlayer);
+  // Dash never pushes boxes: box2 cells stay solid through the
+  // msx2_collision_at_pixel runtime override, so a dash stops at them.
+  // (The old box2 player hooks emitted `jp c, .right_blocked` labels that
+  // do not exist inside msx2_step_dash_movement and broke the Glass build.)
+  const dashRuntimeAsm = buildMsx2DashRuntimeAsm(dashConfig, patrolBounds, {
+    setPlayerWalkingFlagAsm,
+  });
+  const dashInputGateAsm = buildMsx2DashInputGateAsm(dashConfig);
+  const dashActiveFrameAsm = buildMsx2DashActiveFrameAsm(dashConfig);
+  const dashHazardSkipAsm = buildMsx2DashHazardSkipAsm(dashConfig);
+  const dashDamageSkipAsm = buildMsx2DashDamageSkipAsm(dashConfig);
+  const dashInitClearAsm = dashConfig.enabled ? buildMsx2DashInitClearAsm() : '';
+  const teleportRuntimeAsm = buildMsx2TeleportABRuntimeAsm(teleportConfig);
+  const teleportInputGateAsm = buildMsx2TeleportABInputGateAsm(teleportConfig);
+  const teleportHazardSkipAsm = buildMsx2TeleportABHazardSkipAsm(teleportConfig);
+  const teleportDamageSkipAsm = buildMsx2TeleportABDamageSkipAsm(teleportConfig);
+  const teleportInitClearAsm = teleportConfig.enabled ? buildMsx2TeleportABInitClearAsm() : '';
+  const glideRuntimeAsm = buildMsx2GlideRuntimeAsm(glideConfig);
+  const glideInitClearAsm = glideConfig.enabled ? buildMsx2GlideInitClearAsm() : '';
   const paddleCollision = getPaddleCollisionSettings(analysis);
   const mazeMovement = usesMazeMovement(analysis);
   const shooterHorizontal = usesShooterHorizontalMovement(analysis);
@@ -3741,6 +3847,7 @@ function buildHardwareSpriteRuntimeAsm(
     call msx2_sfx_hit
     ret`;
   const horizontalMoveSpeed = (paddleHorizontal || shooterHorizontal) ? getPaddleHorizontalSpeed(analysis) : 1;
+  const platformMoveSpeed = getPlatformHorizontalSpeed(analysis);
   const control2PlayersSpeed = control2Players ? getControl2PlayersSpeed(analysis) : 1;
   const control2PlayersBounds = getControl2PlayersVerticalBounds(analysis);
   const ballSpeedX = (paddleHorizontal || control2Players) ? getPrimaryBallSpeedByte(analysis, 'x') : 1;
@@ -6046,7 +6153,7 @@ ${shooterHorizontal ? '    jp update_hardware_sprite_input_shooter_horizontal\n'
     ld a, (msx2_game_over_flag)
     or a
     jp nz, msx2_game_over_idle
-    xor a
+${teleportInputGateAsm}${dashInputGateAsm}    xor a
     call GTSTCK
     cp 1
     jp z, try_msx2_ladder_up
@@ -6072,7 +6179,7 @@ ${shooterHorizontal ? '    jp update_hardware_sprite_input_shooter_horizontal\n'
     jp z, move_hardware_sprite_left
     cp 8
     jp z, move_hardware_sprite_left
-    jp update_hardware_sprite_vertical
+${dashActiveFrameAsm}    jp update_hardware_sprite_vertical
 
 try_msx2_ladder_up:
     call msx2_ladder_at_player_center
@@ -6142,12 +6249,12 @@ hold_msx2_rope:
     jp upload_hardware_sprite_attrs
 
 move_hardware_sprite_right:
+    ; Moves platformMoveSpeed pixels right per frame. Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
-    cp ${patrolBounds.maxX}
+    add a, ${platformMoveSpeed}
+    cp ${patrolBounds.maxX + 1}
     jp nc, msx2_try_world_edge_transition_right
-${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_player_sprite_x)
-    inc a
-    add a, 15
+${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
     add a, 8
@@ -6156,7 +6263,7 @@ ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    ld a, (msx2_play
     jp nz, .right_blocked
 .right_move_player:
     ld a, (msx2_player_sprite_x)
-    inc a
+    add a, ${platformMoveSpeed}
     ld (msx2_player_sprite_x), a
     ld a, 1
     ld (msx2_player_sprite_dx), a
@@ -6167,12 +6274,21 @@ ${setPlayerWalkingFlagAsm}    jp finish_msx2_horizontal_move
     jp finish_msx2_horizontal_move
 
 move_hardware_sprite_left:
+    ; Moves platformMoveSpeed pixels left per frame. Clobbers AF/BC/DE/HL.
     ld a, (msx2_player_sprite_x)
     cp ${patrolBounds.minX}
     jp z, msx2_try_world_edge_transition_left
     jp c, msx2_try_world_edge_transition_left
 ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_player_sprite_x)
-    dec a
+    sub ${platformMoveSpeed}
+    jp nc, .left_clamp_min
+    ld a, ${patrolBounds.minX}
+    jp .left_do_collision
+.left_clamp_min:
+    cp ${patrolBounds.minX}
+    jp nc, .left_do_collision
+    ld a, ${patrolBounds.minX}
+.left_do_collision:
     ld b, a
     ld a, (msx2_player_sprite_y)
     add a, 8
@@ -6181,7 +6297,15 @@ ${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('left') : ''}    ld a, (msx2_playe
     jp nz, .left_blocked
 .left_move_player:
     ld a, (msx2_player_sprite_x)
-    dec a
+    sub ${platformMoveSpeed}
+    jp nc, .left_store_min
+    ld a, ${patrolBounds.minX}
+    jp .left_store
+.left_store_min:
+    cp ${patrolBounds.minX}
+    jp nc, .left_store
+    ld a, ${patrolBounds.minX}
+.left_store:
     ld (msx2_player_sprite_x), a
     xor a
     ld (msx2_player_sprite_dx), a
@@ -6282,7 +6406,7 @@ msx2_continue_after_level_complete:
     call draw_msx2_collectible_hud
     call draw_msx2_air_hud
     call msx2_respawn_current_screen
-    ld a, #02
+    ld a, #01
     ld (msx2_player_flags), a
     call write_hardware_sprite_attrs
     ret
@@ -6334,18 +6458,18 @@ msx2_restart_game:
     ld (msx2_runtime_frame_counter), a
     call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
-    ld a, 3
+    ld a, ${initialLivesByte}
     ld (msx2_lives), a
     call draw_msx2_lives_hud
     call draw_msx2_collectible_hud
     call draw_msx2_air_hud
     call msx2_respawn_current_screen
-    ld a, #02
+    ld a, #01
     ld (msx2_player_flags), a
-    xor a
+${usesMsx2PlatformVerticalPhysics(analysis) ? `    xor a
     ld (msx2_player_coyote_timer), a
     ld (msx2_player_jump_buffer_timer), a
-    call write_hardware_sprite_attrs
+` : ''}${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}    call write_hardware_sprite_attrs
     ret
 
 auto_patrol_hardware_sprite:
@@ -6631,7 +6755,8 @@ msx2_apply_damage_respawn:
     jp z, .damage_game_over
     dec a
     ld (msx2_lives), a
-    jp nz, .damage_after_lives
+    jp z, .damage_game_over
+    jp .damage_after_lives
 .damage_game_over:
     ld a, 1
     ld (msx2_game_over_flag), a
@@ -6642,7 +6767,11 @@ msx2_apply_damage_respawn:
     call msx2_respawn_current_screen
     ld a, (msx2_game_over_flag)
     or a
-    ret z
+    jp nz, .damage_show_game_over
+    xor a
+    ld (msx2_player_dead_flag), a
+    ret
+.damage_show_game_over:
     call draw_msx2_game_over_banner
     ret
 
@@ -6664,9 +6793,9 @@ update_msx2_enemy_state:
 .enemy_cooldown_ready:
 ${enemySlotCollisionChecks}    ret
 .enemy_damage:
-    ld a, 1
+${teleportDamageSkipAsm}${dashDamageSkipAsm}    ld a, 1
     ld (msx2_enemy_hit_flag), a
-    ld a, 255
+    ld a, ${invincibleFramesByte}
     ld (msx2_enemy_damage_cooldown), a
     call msx2_apply_damage_respawn
     call write_hardware_sprite_attrs
@@ -6727,12 +6856,12 @@ update_msx2_effect_state:
     ld (msx2_collectible_latch), a
     ret
 .hazard:
-    ld a, (msx2_enemy_damage_cooldown)
+${teleportHazardSkipAsm}${dashHazardSkipAsm}    ld a, (msx2_enemy_damage_cooldown)
     or a
     ret nz
     xor a
     ld (msx2_collectible_latch), a
-    ld a, 255
+    ld a, ${invincibleFramesByte}
     ld (msx2_enemy_damage_cooldown), a
     call msx2_apply_damage_respawn
     call write_hardware_sprite_attrs
@@ -7336,14 +7465,17 @@ msx2_respawn_current_screen:
     ld (msx2_enemy_bullet_1_y), a
     ld (msx2_player_anim_counter), a
     ld (msx2_player_anim_frame), a
-    ld a, #02
+    ld a, #01
     ld (msx2_player_flags), a
-${mazeMovement ? `    ld a, #01
+${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${mazeMovement ? `    ld a, #01
     ld (msx2_player_sprite_dx), a
     ld (msx2_player_sprite_frame), a
 ` : ''}
     ret
 
+${dashRuntimeAsm}
+${teleportRuntimeAsm}
+${glideRuntimeAsm}
 ${playerBulletCharCoreAsm}
 ${playerBulletCharPatternAsm}
 `;
@@ -10741,6 +10873,34 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
     : '';
   const firstScreenLabel = tileScreenLoadLabels[0];
   const pushBoxMovement = usesMsx2Box2(analysis, tileScreens);
+  const platformPlayer = getMsx2PlatformPlayerEntity(analysis);
+  const dashConfig = getMsx2DashConfigFromPlayerEntity(platformPlayer);
+  const teleportConfig = getMsx2TeleportABConfigFromPlayerEntity(platformPlayer);
+  const glideConfig = getMsx2GlideConfigFromPlayerEntity(platformPlayer);
+  const skillRamOptions = buildMsx2SkillRamOptions(
+    pushBoxMovement,
+    dashConfig.enabled,
+    teleportConfig.enabled,
+  );
+  // Player timers (coyote / jump buffer) live at the head of the skill RAM
+  // chain so they can never overlap the box2 runtime (#C047+) again.
+  const playerTimersRamBase = resolveMsx2PlayerTimersRamBase(pushBoxMovement);
+  const playerTimerEquatesAsm = `msx2_player_coyote_timer EQU ${formatHexWord(playerTimersRamBase)}
+msx2_player_jump_buffer_timer EQU ${formatHexWord(playerTimersRamBase + 1)}
+`;
+  const dashEquatesAsm = dashConfig.enabled
+    ? buildMsx2DashEquates(resolveMsx2DashRamBase(pushBoxMovement))
+    : '';
+  const teleportEquatesAsm = teleportConfig.enabled
+    ? buildMsx2TeleportABEquates(resolveMsx2TeleportABRamBase(pushBoxMovement, dashConfig.enabled))
+    : '';
+  const glideEquatesAsm = glideConfig.enabled
+    ? buildMsx2GlideEquates(resolveMsx2GlideRamBase(skillRamOptions))
+    : '';
+  assertMsx2SkillRamWithinLimit(
+    resolveMsx2GlideRamBase(skillRamOptions) + (glideConfig.enabled ? MSX2_GLIDE_RAM_BYTES : 0),
+    'player timers + dash/teleport/glide skill RAM chain',
+  );
   const pushBoxVerticalPush = usesMsx2Box2VerticalPush(tileScreens);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis, useKonamiDataBank);
   const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis, { pushBoxEnabled: pushBoxMovement, tileScreens });
@@ -11475,9 +11635,7 @@ msx2_player_sprite_dx EQU #C002
 msx2_player_sprite_frame EQU #C003
 msx2_current_collision_ptr EQU #C004
 msx2_current_effects_ptr EQU #C006
-msx2_player_coyote_timer EQU #C047
-msx2_player_jump_buffer_timer EQU #C048
-msx2_player_gravity_vel EQU #C008
+${playerTimerEquatesAsm}${dashEquatesAsm}${teleportEquatesAsm}${glideEquatesAsm}msx2_player_gravity_vel EQU #C008
 msx2_player_flags EQU #C00A
 msx2_current_screen_index EQU #C00B
 msx2_player_dead_flag EQU #C00C

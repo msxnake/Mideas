@@ -1,5 +1,6 @@
 import { ProjectAnalysis } from './asmTemplateGenerator';
-import { Msx2Screen4TileScreen } from '../types';
+import { Msx2PlayerControlId, Msx2Screen4TileScreen } from '../types';
+import { getSkill } from './msxGenerator/skills';
 
 /** MSX1 ROM default: #FC00 (-1024 in 8.8 fixed-point, ~-4 px/frame initial rise). */
 export const MSX2_DEFAULT_JUMP_IMPULSE_88 = 0xfc00;
@@ -10,13 +11,50 @@ export const MSX2_DEFAULT_GRAVITY_STRENGTH_88 = 0x0040;
 /** MSX1 ROM terminal fall speed cap (#0400 in 8.8). */
 export const MSX2_DEFAULT_TERMINAL_VELOCITY_88 = 0x0400;
 
+/** Mid-air jump impulse scale when the optional double_jump skill is active. */
+export const MSX2_DOUBLE_JUMP_IMPULSE_SCALE = 0.7;
+
+export interface Msx2GlideConfig {
+  enabled: boolean;
+  glideSpeed: number;
+  glideHorizontalSpeed: number;
+  glideBoostCost: number;
+}
+
+export interface Msx2TeleportABConfig {
+  enabled: boolean;
+  teleportCooldown: number;
+  teleportDelay: number;
+  savePointA: boolean;
+  useHorizontal: boolean;
+  useVertical: boolean;
+  maxDistance: number;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
+export interface Msx2DashConfig {
+  enabled: boolean;
+  dashSpeed: number;
+  dashDuration: number;
+  dashCooldown: number;
+  requireKeyRelease: boolean;
+  directional: boolean;
+  invulnerable: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
 export interface Msx2PlatformPhysicsConfig {
   jumpEnabled: boolean;
   gravityEnabled: boolean;
   jumpImpulse88: number;
+  /** Mid-air jump impulse (double_jump skill). Equals jumpImpulse88 when skill is off. */
+  airJumpImpulse88: number;
   gravityStrength88: number;
   terminalVelocity88: number;
   maxJumps: number;
+  doubleJumpEnabled: boolean;
   requireKeyRelease: boolean;
   /** Coyote time in frames. 0 = disabled. Counts down each frame after leaving a platform. */
   coyoteTime: number;
@@ -87,6 +125,268 @@ function isMsx2ComponentEnabled(component: Record<string, any> | undefined): boo
   return true;
 }
 
+function readPlayerActiveSkills(player: any | undefined): string[] {
+  if (!Array.isArray(player?.activeSkills)) return [];
+  return player.activeSkills.map((id: unknown) => String(id || '').trim()).filter(Boolean);
+}
+
+function resolveSkillNumberParam(
+  params: Record<string, number | boolean>,
+  skillId: string,
+  key: string,
+  fallback: number,
+): number {
+  const raw = params[key];
+  if (raw !== undefined && Number.isFinite(Number(raw))) {
+    return Math.floor(Number(raw));
+  }
+  const def = getSkill(skillId)?.parameters?.find((param) => param.key === key);
+  if (def?.type === 'number' && def.default !== undefined && Number.isFinite(Number(def.default))) {
+    return Math.floor(Number(def.default));
+  }
+  return fallback;
+}
+
+function pickSkillNumberParam(
+  params: Record<string, number | boolean>,
+  skillId: string,
+  keys: string[],
+  fallback: number,
+): number {
+  for (const key of keys) {
+    const raw = params[key];
+    if (raw !== undefined && Number.isFinite(Number(raw))) {
+      return Math.floor(Number(raw));
+    }
+  }
+  return resolveSkillNumberParam(params, skillId, keys[0], fallback);
+}
+
+const MSX2_JUMP_KEY_ALIASES: Record<string, string[]> = {
+  spc: [' '],
+  space: [' '],
+  m: ['m', 'M'],
+  z: ['z', 'Z', 'KeyZ'],
+  x: ['x', 'X', 'KeyX'],
+  a: ['a', 'A', 'KeyA'],
+};
+
+const MSX2_DASH_KEY_ALIASES: Record<string, string[]> = {
+  attack: ['x', 'X', 'KeyX', 'z', 'Z', 'KeyZ', 'n', 'N', 'KeyN'],
+  jump: [' ', 'a', 'A', 'KeyA'],
+};
+
+export interface Msx2PreviewControlSettings {
+  keyboardButton1?: string;
+  keyboardButton2?: string;
+  jumpActionButton?: 'button1' | 'button2';
+  actionButton?: 'button1' | 'button2';
+}
+
+function aliasesForMsx2KeyboardButton(key: string | undefined): string[] {
+  const normalized = String(key || '').trim().toUpperCase();
+  if (normalized === 'SPC' || normalized === 'SPACE') return [' '];
+  if (normalized === 'M') return ['m', 'M'];
+  if (normalized === 'N') return ['n', 'N', 'KeyN'];
+  if (normalized === 'CTRL' || normalized === 'CONTROL') return ['Control'];
+  if (normalized === 'Z') return ['z', 'Z', 'KeyZ'];
+  if (normalized === 'X') return ['x', 'X', 'KeyX'];
+  return [];
+}
+
+function aliasesForMsx2LogicalButton(
+  settings: Msx2PreviewControlSettings | undefined,
+  button: 'button1' | 'button2',
+): string[] {
+  if (!settings) return [];
+  const key = button === 'button1' ? settings.keyboardButton1 : settings.keyboardButton2;
+  return aliasesForMsx2KeyboardButton(key);
+}
+
+export function isMsx2PlayerControlPressed(
+  pressedKeys: ReadonlySet<string>,
+  control: Msx2PlayerControlId,
+  settings?: Msx2PreviewControlSettings,
+): boolean {
+  if (control === 'right') {
+    return pressedKeys.has('ArrowRight') || pressedKeys.has('d') || pressedKeys.has('D');
+  }
+  if (control === 'left') {
+    return pressedKeys.has('ArrowLeft') || pressedKeys.has('a') || pressedKeys.has('A');
+  }
+  if (control === 'up') {
+    return pressedKeys.has('ArrowUp') || pressedKeys.has('w') || pressedKeys.has('W');
+  }
+  if (control === 'down') {
+    return pressedKeys.has('ArrowDown') || pressedKeys.has('s') || pressedKeys.has('S');
+  }
+  if (control === 'jump') {
+    const logicalButton = settings?.jumpActionButton === 'button2' ? 'button2' : 'button1';
+    const logicalAliases = aliasesForMsx2LogicalButton(settings, logicalButton);
+    const fallbackAliases = MSX2_JUMP_KEY_ALIASES.jump;
+    return [...logicalAliases, ...fallbackAliases].some((key) => pressedKeys.has(key));
+  }
+  if (control === 'attack') {
+    const logicalButton = settings?.actionButton === 'button1' ? 'button1' : 'button2';
+    const logicalAliases = aliasesForMsx2LogicalButton(settings, logicalButton);
+    const fallbackAliases = MSX2_DASH_KEY_ALIASES.attack;
+    return [...logicalAliases, ...fallbackAliases].some((key) => pressedKeys.has(key));
+  }
+  return false;
+}
+
+export function isMsx2DashKeyPressed(
+  pressedKeys: ReadonlySet<string>,
+  primaryControl: Msx2PlayerControlId,
+  secondaryControl: Msx2PlayerControlId | 'none' = 'none',
+  settings?: Msx2PreviewControlSettings,
+): boolean {
+  if (settings) {
+    if (!isMsx2PlayerControlPressed(pressedKeys, primaryControl, settings)) return false;
+    if (secondaryControl === 'none') return true;
+    return isMsx2PlayerControlPressed(pressedKeys, secondaryControl, settings);
+  }
+  const primaryAliases = MSX2_DASH_KEY_ALIASES[primaryControl]
+    || MSX2_JUMP_KEY_ALIASES[primaryControl]
+    || MSX2_DASH_KEY_ALIASES.attack;
+  const primaryDown = primaryAliases.some((key) => pressedKeys.has(key));
+  if (!primaryDown) return false;
+  if (secondaryControl === 'none') return true;
+  const secondaryAliases = MSX2_DASH_KEY_ALIASES[secondaryControl]
+    || MSX2_JUMP_KEY_ALIASES[secondaryControl]
+    || [];
+  return secondaryAliases.some((key) => pressedKeys.has(key));
+}
+
+export function isMsx2JumpKeyPressed(
+  pressedKeys: ReadonlySet<string>,
+  inputMapping?: { jump?: string },
+): boolean {
+  if (pressedKeys.has(' ')) return true;
+  const jump = String(inputMapping?.jump || 'spc').trim().toLowerCase();
+  const aliases = MSX2_JUMP_KEY_ALIASES[jump] || MSX2_JUMP_KEY_ALIASES.spc;
+  return aliases.some((key) => pressedKeys.has(key));
+}
+
+export function applyMsx2JumpImpulseToEntity(entity: {
+  gravityVel: number;
+  vy: number;
+}, impulse88: number): void {
+  entity.gravityVel = impulse88 & 0xffff;
+  const hi = (entity.gravityVel >> 8) & 0xff;
+  entity.vy = hi >= 0x80 ? hi - 0x100 : hi;
+}
+
+export function scaleMsx2JumpImpulse88(impulse88: number, scale: number): number {
+  const word = impulse88 & 0xffff;
+  const signed = word >= 0x8000 ? word - 0x10000 : word;
+  const scaled = Math.round(signed * scale);
+  return scaled & 0xffff;
+}
+
+function resolveMsx2SkillBinding(
+  player: any | undefined,
+  skillId: string,
+): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  const binding = player?.skillBindings?.[skillId];
+  if (binding?.primary) {
+    return {
+      primary: binding.primary as Msx2PlayerControlId,
+      secondary: (binding.secondary ?? 'none') as Msx2PlayerControlId | 'none',
+    };
+  }
+  const def = getSkill(skillId);
+  const icons = def?.controlIcon
+    ? (Array.isArray(def.controlIcon) ? def.controlIcon : [def.controlIcon])
+    : ['attack'];
+  return {
+    primary: (icons[0] || 'attack') as Msx2PlayerControlId,
+    secondary: (icons[1] ?? 'none') as Msx2PlayerControlId | 'none',
+  };
+}
+
+function resolveDashSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'dash');
+}
+
+function resolveTeleportABSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'teleport_a_b');
+}
+
+export function isMsx2TeleportKeyPressed(
+  pressedKeys: ReadonlySet<string>,
+  primaryControl: Msx2PlayerControlId,
+  secondaryControl: Msx2PlayerControlId | 'none' = 'none',
+): boolean {
+  return isMsx2DashKeyPressed(pressedKeys, primaryControl, secondaryControl);
+}
+
+export function getMsx2GlideConfigFromPlayerEntity(player: any | undefined): Msx2GlideConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('glide');
+  const params = (player?.skillParameters?.glide || {}) as Record<string, number | boolean>;
+  return {
+    enabled,
+    glideSpeed: Math.max(0, Math.min(4, Math.floor(Number(params.glideSpeed ?? 1) || 1))),
+    glideHorizontalSpeed: Math.max(0, Math.min(6, Math.floor(Number(params.glideHorizontalSpeed ?? 2) || 2))),
+    glideBoostCost: Math.max(0, Math.min(20, Math.floor(Number(params.glideBoostCost ?? 5) || 5))),
+  };
+}
+
+export function getMsx2TeleportABConfigFromPlayerEntity(player: any | undefined): Msx2TeleportABConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('teleport_a_b');
+  const params = (player?.skillParameters?.teleport_a_b || {}) as Record<string, number | boolean>;
+  const binding = resolveTeleportABSkillBinding(player);
+  return {
+    enabled,
+    teleportCooldown: Math.max(10, Math.min(180, Math.floor(Number(params.teleportCooldown ?? 60) || 60))),
+    teleportDelay: Math.max(5, Math.min(60, Math.floor(Number(params.teleportDelay ?? 15) || 15))),
+    savePointA: params.savePointA !== false,
+    useHorizontal: params.useHorizontal !== false,
+    useVertical: params.useVertical !== false,
+    maxDistance: Math.max(1, Math.min(50, Math.floor(Number(params.maxDistance ?? 10) || 10))),
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2DashConfigFromPlayerEntity(player: any | undefined): Msx2DashConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('dash');
+  const params = (player?.skillParameters?.dash || {}) as Record<string, number | boolean>;
+  const binding = resolveDashSkillBinding(player);
+  const dashSpeed = pickSkillNumberParam(params, 'dash', ['dashSpeed'], 8);
+  const dashDuration = pickSkillNumberParam(params, 'dash', ['dashDuration', 'dashDurationFrames'], 8);
+  const dashCooldown = pickSkillNumberParam(params, 'dash', ['dashCooldown', 'dashCooldownFrames'], 30);
+  return {
+    enabled,
+    dashSpeed: Math.max(1, Math.min(24, dashSpeed || 8)),
+    dashDuration: Math.max(1, Math.min(30, dashDuration || 8)),
+    dashCooldown: Math.max(0, Math.min(120, dashCooldown || 30)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    directional: params.directional !== false,
+    invulnerable: params.invulnerable !== false,
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+function resolveDoubleJumpMaxJumps(
+  doubleJumpParams: Record<string, number | boolean> | undefined,
+): number {
+  return Math.max(1, Math.min(4, Math.floor(Number(doubleJumpParams?.maxJumps ?? 2) || 2)));
+}
+
 export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined): Msx2PlatformPhysicsConfig {
   const jump = player?.components?.msx2_jump;
   const gravity = player?.components?.msx2_gravity;
@@ -135,15 +435,22 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
       ?? control.terminalVelocity ?? params.terminalVelocity;
   }
 
-  const maxJumps = Math.max(1, Math.min(4, Math.floor(Number(
-    jump?.maxJumps ?? params.maxJumps ?? 1
-  ) || 1)));
-  const requireKeyRelease = hasSkillJump
-    ? (skillJump.requireKeyRelease !== false && skillJump.requireKeyRelease !== 'false')
-    : (jump?.requireKeyRelease !== false
-      && jump?.requireKeyRelease !== 'false'
-      && control.requireKeyRelease !== false
-      && control.requireKeyRelease !== 'false');
+  const activeSkills = readPlayerActiveSkills(player);
+  const doubleJumpEnabled = activeSkills.includes('double_jump');
+  const doubleJumpParams = player?.skillParameters?.double_jump as Record<string, number | boolean> | undefined;
+  const maxJumps = doubleJumpEnabled
+    ? resolveDoubleJumpMaxJumps(doubleJumpParams)
+    : Math.max(1, Math.min(4, Math.floor(Number(
+      jump?.maxJumps ?? params.maxJumps ?? 1
+    ) || 1)));
+  const requireKeyRelease = doubleJumpEnabled
+    ? doubleJumpParams?.requireKeyRelease !== false
+    : hasSkillJump
+      ? (skillJump.requireKeyRelease !== false && skillJump.requireKeyRelease !== 'false')
+      : (jump?.requireKeyRelease !== false
+        && jump?.requireKeyRelease !== 'false'
+        && control.requireKeyRelease !== false
+        && control.requireKeyRelease !== 'false');
 
   // Coyote / jumpBuffer: ONLY enabled when explicitly configured via skillParameters.jump.
   // Legacy projects may have movement.coyoteTime/movement.jumpBuffer in JSON but they were
@@ -157,14 +464,20 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
     ? clampMsx2JumpBufferFrames(skillJump.jumpBuffer)
     : 0;
 
+  const jumpImpulse88 = hasSkillJump
+    ? resolveMsx2JumpImpulse88(jumpPower)
+    : hasMovementPhysics
+      ? resolveMsx2JumpImpulse88Px(jumpPower)
+      : resolveMsx2JumpImpulse88(jumpPower);
+  const airJumpImpulse88 = doubleJumpEnabled
+    ? scaleMsx2JumpImpulse88(jumpImpulse88, MSX2_DOUBLE_JUMP_IMPULSE_SCALE)
+    : jumpImpulse88;
+
   return {
     jumpEnabled,
     gravityEnabled,
-    jumpImpulse88: hasSkillJump
-      ? resolveMsx2JumpImpulse88(jumpPower)
-      : hasMovementPhysics
-        ? resolveMsx2JumpImpulse88Px(jumpPower)
-        : resolveMsx2JumpImpulse88(jumpPower),
+    jumpImpulse88,
+    airJumpImpulse88,
     gravityStrength88: hasMovementPhysics
       ? clampMsx2GravityStrength88Px(gravityStrength)
       : clampMsx2GravityStrength88(gravityStrength),
@@ -172,6 +485,7 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
       ? clampMsx2TerminalVelocity88Px(terminalVelocity)
       : clampMsx2TerminalVelocity88(terminalVelocity),
     maxJumps,
+    doubleJumpEnabled,
     requireKeyRelease,
     coyoteTime,
     jumpBuffer,

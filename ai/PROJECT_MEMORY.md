@@ -78,3 +78,13 @@ Mideas
 - Analisis MSX2 Player Components vs Player Config: el generador SCREEN 4 mezcla Player asset + entidad de pantalla. Los componentes `msx2_player_control`, `msx2_jump`, `msx2_gravity` controlan activacion/capacidades, pero si Player Config define `movement.jumpPower`, `movement.gravity` o `movement.maxFallSpeed`, esos valores numericos ganan y se convierten a 8.8 para ASM. `screen.runtime` puede sobreescribir jump/gravity/terminal por pantalla.
 - Recomendacion de diseno: mantener Player Config como fuente humana principal y componentes como vista avanzada/sincronizada, para evitar contradicciones entre `movement.*` y `msx2_jump/msx2_gravity`.
 - Ideas futuras discutidas: `slash` como weapon action declarativa consumida por State Machine/ASM; `dash` como ability de movimiento, no como weapon.
+
+## Sesion 2026-06-10 - Fix skills MSX2 (dash/teleport/glide) y colision RAM coyote/box2
+- Rama: `codex/msx2-shooter-world-runtime`.
+- 6 fixes aplicados: (A) coyote/jump_buffer movidos de #C047/#C048 (eran msx2_box2_count/try_dx) al chain de msx2SkillRamLayout.ts con assert de limite #C087; (B) dash preserva E con push/pop alrededor de msx2_collision_at_pixel; (C) dash sin hooks box2 (labels inexistentes, no compilaba); (D) teleport abs usa el carry del SUB + check de colision en destino; (E) checks direccionales de skills corregidos (antes siempre "pulsado") y extraidos a msx2SkillControlsGenerator.ts; (F) glide cap invertido (jp nc -> jp c).
+- Dash default binding cambiado de 'jump' a 'attack' (decision del usuario): compartir boton hacia que cada salto disparara dash.
+- Verificacion: check_skill_params_contract 18/18, tsc limpio, test/verify_skills_fix.cjs (checks estructurales sobre ASM generado), compilacion glass (megarom konami, 40KB), smoke OpenMSX automatizado con C-BIOS_MSX2+ (-romtype Konami obligatorio): arranque + movimiento + salto + dash (27->59, para en solido) + teleport ida/vuelta con delta negativo + box2_count estable en salto con coyoteTime=8.
+- Smoke automatizable nuevo: openmsx -script con after time + keymatrixdown/up + debug read memory permite probar mecanicas sin humano (supera la limitacion de la leccion 2026-06-08). Scripts en test/smoke_*.tcl.
+- ROMs de evidencia: test/v22m_asis.rom (push_example22 coyote+pushBox), test/v21m_skills.rom (dash+teleport+glide). Screenshots test/smoke_*.png.
+- Pendiente usuario: smoke manual en IDE/OpenMSX de sus proyectos reales; push_example22 NO cabe en simple32k (overflow ~2KB, previo a esta sesion) -> usar megarom konami.
+- Fuera del commit: GameFlowPreviewModal.tsx, debug log, server/temp, downloads/*.json, gen_push21.py, test_fix.cjs (WIP previo no verificado en esta sesion).

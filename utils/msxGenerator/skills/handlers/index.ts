@@ -337,7 +337,10 @@ export const dash: SkillDef = {
   label: 'Quick dash movement',
   required: false,
   cycles: 140,
-  controlIcon: 'jump',
+  // Default binding is 'attack': sharing the jump button made every jump
+  // also trigger a dash (and the dash gate swallows directional input).
+  // Projects can still rebind via player.skillBindings.dash.
+  controlIcon: 'attack',
   addsStates: ['dashing'],
   transitions: [
     { from: ['grounded', 'running', 'jumping', 'falling'], to: 'dashing', condition: 'dash_key_pressed AND dash_cooldown = 0' },

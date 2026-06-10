@@ -388,3 +388,85 @@ HUD se actualiza pero la física está congelada. El OpenMSX Debug
 mostraría el `msx2_current_collision_ptr` o `msx2_current_effects_ptr`
 apuntando a una dirección absurda (#C000, #C001, etc.) en vez de a la
 zona de colisiones del runtime.
+
+---
+
+## Bug Resuelto: base RAM definida como const TS invisible para grep de EQUs
+
+Fecha: 2026-06-10
+
+Problema:
+push_example22 (pushBox + coyoteTime=8) iba a tirones y las cajas se corrompian:
+el coyote timer en #C047 ERA msx2_box2_count. Al armar el coyote en el aire
+aparecian 8 cajas fantasma y el decremento por frame borraba las reales.
+
+Causa:
+La verificacion de la leccion 2026-06-08 busco "EQU #C047" en el fuente, pero
+la base del runtime box2 es una constante TypeScript (MSX2_BOX2_RAM_BASE =
+0xC047) que nunca aparece como literal EQU: las direcciones se generan con
+formatHexWord en runtime.
+
+Solucion:
+Centralizar el layout en msx2SkillRamLayout.ts: timers (2) -> dash (4) ->
+teleport (8) -> glide (2), con base dependiente de pushBox (#C049 o
+#C047+48=#C077) y assert en generacion contra el limite #C087
+(msx2_effects_runtime_buffers). Prohibido hardcodear EQUs de esa zona;
+check automatizado en check_skill_params_contract.cjs.
+
+Leccion:
+Para validar una direccion RAM nueva no basta grepear EQUs literales: hay que
+revisar las constantes TS que generan EQUs dinamicos (formatHexWord/template).
+Toda region RAM compartida debe tener UN modulo de layout como fuente unica.
+
+---
+
+## Bug Resuelto: skills MSX2 confiaban en registros/flags a traves de calls
+
+Fecha: 2026-06-10
+
+Problema:
+Dash: player invisible durante el dash y aparecia desplazado de golpe.
+Teleport: fallaba siempre que el destino estaba a la derecha o abajo.
+
+Causa:
+1) Dash guardaba la X destino en E y llamaba msx2_collision_at_pixel, que
+   documenta "Clobbers AF/DE/HL": E volvia con el indice de celda del mapa
+   y se escribia como nueva X del player.
+2) msx2_teleport_abs_tiles hacia "or a" antes de "jp nc": el or a borra el
+   carry del SUB del caller, la rama de negacion era codigo muerto y todo
+   delta negativo se leia como ~30 tiles -> rechazado por maxDistance.
+
+Solucion:
+1) push de / pop de alrededor de cada probe de colision del dash.
+2) Branch directo sobre el carry del SUB (call preserva flags) documentando
+   el carry como INPUT del contrato. Anadido check de colision en destino.
+
+Leccion:
+Confirma la regla del charter: primera hipotesis, registros no preservados.
+Variante nueva: los FLAGS tambien son estado fragil; cualquier instruccion
+logica (or a) los destruye. Si una rutina depende de flags del caller,
+documentarlo como INPUT explicito o recalcular dentro.
+
+---
+
+## Bug Resuelto: fragmento ASM generado referenciaba labels de otro scope
+
+Fecha: 2026-06-10
+
+Problema:
+Dash + pushBox no compilaba: el hook buildMsx2Box2PlayerHookAsm emite
+"jp c, .right_blocked", label local que solo existe dentro de
+move_hardware_sprite_right, no en msx2_step_dash_movement.
+
+Causa:
+Reutilizar un fragmento ASM generado fuera de la rutina para la que se
+diseno. Glass scopa labels locales (.x) a la label global anterior.
+
+Solucion:
+Eliminar los hooks del dash: las cajas siguen siendo solidas via el override
+de msx2_collision_at_pixel, asi que el dash se detiene en ellas sin hook.
+
+Leccion:
+Un builder de fragmentos ASM con labels locales debe declarar en que rutina
+es valido insertarlo. Antes de reutilizarlo, verificar que todas las labels
+que referencia existen en el scope de insercion.

@@ -38,8 +38,8 @@ export interface SkillDef {
   controlIcon?: SkillControlIcon | SkillControlIcon[];
   /**
    * Declarative parameter schema surfaced in the Player Config "Abilities & Items"
-   * dialog. Runtime source of truth for the UI. The MSX2 ASM generator is not
-   * migrated yet: the legacy `components['msx2_jump']` mirror is still read.
+   * dialog. Optional skills with parameters (e.g. double_jump) are read by the
+   * MSX2 ASM generator when listed in `activeSkills`.
    */
   parameters?: SkillParameterDef[];
 }

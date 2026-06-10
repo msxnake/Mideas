@@ -120,10 +120,18 @@ assert(physicsCode.includes('clampMsx2CoyoteFrames') && physicsCode.includes('cl
 assert(handlersCode.includes('parameters: firstJumpParameters'),
   'jump core skill wires its parameters array');
 const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8');
-assert(/msx2_player_coyote_timer\s+EQU\s+#C047/.test(genCode),
-  'EQU msx2_player_coyote_timer is at #C047 (post-lesson fix; #C005 collided with collision_ptr HI byte)');
-assert(/msx2_player_jump_buffer_timer\s+EQU\s+#C048/.test(genCode),
-  'EQU msx2_player_jump_buffer_timer is at #C048 (post-lesson fix; #C007 collided with effects_ptr HI byte)');
+// Lesson 2026-06-08 + fix 2026-06-10: the timers were hardcoded at #C047/#C048,
+// which IS msx2_box2_count/msx2_box2_try_dx in pushBox projects (the box2 RAM
+// base is a TS const, invisible to an "EQU #C047" grep). They now resolve
+// through msx2SkillRamLayout so they can never overlap box2 again.
+assert(!/msx2_player_coyote_timer\s+EQU\s+#C0/.test(genCode),
+  'msx2_player_coyote_timer must NOT be hardcoded (it collided with msx2_box2_count at #C047)');
+assert(!/msx2_player_jump_buffer_timer\s+EQU\s+#C0/.test(genCode),
+  'msx2_player_jump_buffer_timer must NOT be hardcoded (it collided with msx2_box2_try_dx at #C048)');
+assert(genCode.includes('resolveMsx2PlayerTimersRamBase'),
+  'msx2Screen4Generator resolves the timer addresses via msx2SkillRamLayout');
+assert(genCode.includes('assertMsx2SkillRamWithinLimit'),
+  'msx2Screen4Generator asserts the skill RAM chain stays below msx2_effects_runtime_buffers');
 assert(/coyoteTime\s*>\s*0/.test(genCode) && /jumpBuffer\s*>\s*0/.test(genCode),
   'Generator gates coyote/buffer blocks on the corresponding skill value');
 assert(genCode.includes('.platform_coyote_blocked') && genCode.includes('.platform_land_settle'),
@@ -131,24 +139,23 @@ assert(genCode.includes('.platform_coyote_blocked') && genCode.includes('.platfo
 assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes('ld (msx2_player_jump_buffer_timer), a'),
   'Generator writes both timers (arming and clearing paths)');
 
-// 17b) Regression guard: the new EQUs must not share their address with any
-// other EQU in the file. (Lesson 2026-06-08: #C005/#C007 collided with
-// pointer HI bytes; do not reintroduce that bug.)
+// 17b) Regression guard: the skill RAM layout module chains the regions in
+// order (timers -> dash -> teleport -> glide) and enforces the #C087 limit.
+const layoutCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2SkillRamLayout.ts'), 'utf8');
+assert(layoutCode.includes('MSX2_PLAYER_TIMER_RAM_BYTES = 2'),
+  'msx2SkillRamLayout reserves 2 bytes for the player coyote/jump-buffer timers');
+assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC087'),
+  'msx2SkillRamLayout caps the chain at #C087 (msx2_effects_runtime_buffers)');
+assert(layoutCode.includes('MSX2_BOX2_RUNTIME_BYTES'),
+  'msx2SkillRamLayout offsets the chain past the box2 runtime in pushBox projects');
+// No EQU in the generator may land on the box2 runtime head (#C047/#C048):
 const allEquLines = (genCode.match(/^\s*msx2_\w+\s+EQU\s+#C0[0-9A-Fa-f]+/gm) || []);
-const addressToNames = new Map();
 for (const line of allEquLines) {
   const m = line.match(/(msx2_\w+)\s+EQU\s+(#C0[0-9A-Fa-f]+)/);
   if (!m) continue;
-  const name = m[1];
-  const addr = m[2].toUpperCase();
-  if (!addressToNames.has(addr)) addressToNames.set(addr, []);
-  addressToNames.get(addr).push(name);
-}
-for (const addr of ['#C047', '#C048']) {
-  const names = addressToNames.get(addr) || [];
-  assert(names.length === 1, `address ${addr} holds exactly one EQU (got: ${names.join(', ')})`);
-  assert(names[0] === `msx2_player_${addr === '#C047' ? 'coyote' : 'jump_buffer'}_timer`,
-    `address ${addr} holds the expected timer EQU`);
+  const addr = parseInt(m[2].slice(1), 16);
+  assert(!(addr === 0xC047 || addr === 0xC048),
+    `${m[1]} must not be hardcoded at ${m[2]} (box2 runtime head in pushBox projects)`);
 }
 
 // 17c) Regression guard: known 16-bit little-endian pointer pairs must not
