@@ -244,10 +244,18 @@ export function buildMsx2Box2RuntimeAsm(options: {
   allowVerticalPush?: boolean;
   /** When true, sliding/falling boxes stay visible via refresh_msx2_box2_hardware_sprite_sat instead of name-table redraw. */
   hardwareSpriteDuringMove?: boolean;
+  /**
+   * Player horizontal speed in px/frame. The horizontal box probes must hit the
+   * SAME pixel as the movement collision probe (x+speed+15 right, x-speed left);
+   * with speed > 1 the player stops 1..speed-1 px short of the box edge, so the
+   * old speed-1 probes (x+16 / x-1) missed the box and pushing never triggered.
+   */
+  playerMoveSpeed?: number;
 }): string {
   if (!options.enabled) return '';
   const allowVerticalPush = options.allowVerticalPush ?? false;
   const hardwareSpriteDuringMove = options.hardwareSpriteDuringMove ?? false;
+  const playerMoveSpeed = Math.max(1, Math.min(16, Math.floor(options.playerMoveSpeed ?? 1)));
   const verticalProbeAsm = allowVerticalPush
     ? `.box2_probe_vertical:
     ld a, (msx2_box2_try_dy)
@@ -1367,14 +1375,17 @@ msx2_try_box2_from_player:
     pop af
     cp #80
     jp nc, .box2_probe_left
+    ; Leading right edge at the movement target (x + speed + 15), same pixel
+    ; as move_hardware_sprite_right's collision probe.
     ld a, b
-    add a, 16
+    add a, ${15 + playerMoveSpeed}
     ld b, a
     jr .box2_probe_ready
 .box2_probe_left:
-    ; Leading left edge (same probe as move_hardware_sprite_left), not one tile away.
+    ; Leading left edge at the movement target (x - speed), same pixel as
+    ; move_hardware_sprite_left's collision probe.
     ld a, b
-    dec a
+    sub ${playerMoveSpeed}
     ld b, a
     jr .box2_probe_ready
 .box2_probe_vert_setup:

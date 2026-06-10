@@ -6254,7 +6254,10 @@ move_hardware_sprite_right:
     add a, ${platformMoveSpeed}
     cp ${patrolBounds.maxX + 1}
     jp nc, msx2_try_world_edge_transition_right
-${pushBoxEnabled ? buildMsx2Box2PlayerHookAsm('right') : ''}    add a, 15
+${pushBoxEnabled ? `${buildMsx2Box2PlayerHookAsm('right')}    ; msx2_try_box2_from_player clobbers A: rebuild the probe X from RAM.
+    ld a, (msx2_player_sprite_x)
+    add a, ${platformMoveSpeed}
+` : ''}    add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
     add a, 8
@@ -11132,6 +11135,7 @@ reset_msx2_status_border:
     enabled: pushBoxMovement,
     allowVerticalPush: pushBoxVerticalPush,
     hardwareSpriteDuringMove: pushBoxMovement && hasHardwareSprite(analysis),
+    playerMoveSpeed: getPlatformHorizontalSpeed(analysis),
   });
   const box2SlotsByScreen = pushBoxMovement
     ? tileScreens.map(screen => getMsx2Box2RuntimeSlotsForScreen(

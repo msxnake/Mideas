@@ -40,6 +40,15 @@ import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getScreenTileLogicalProperties, normalizeTileInteractionType } from '../utils/screenUtils';
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
+import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
+import {
+    applyMsx2JumpImpulseToEntity,
+    getMsx2DashConfigFromPlayerEntity,
+    getMsx2GlideConfigFromPlayerEntity,
+    getMsx2PlatformPhysicsFromPlayerEntity,
+    isMsx2DashKeyPressed,
+    isMsx2JumpKeyPressed,
+} from '../../utils/msx2PlatformPhysics';
 import { renderBossInstancesToCanvas } from '../utils/bossRenderUtils';
 import { drawPresentationScreenPreview } from '../utils/presentationScreenUtils';
 import type { PresentationScreenConfig } from '../../types';
@@ -248,6 +257,15 @@ interface AnimatedEntity {
     screenAssetId?: string | null; // Screen where this runtime entity was created
     // Carry mechanics
     carriedBox?: AnimatedEntity | null; // Reference to the box currently carried (only meaningful for hero)
+    msx2JumpCount?: number; // Mid-air jumps used this flight (MSX2 platformer parity)
+    msx2DashTimer?: number;
+    msx2DashCooldown?: number;
+    msx2DashLock?: boolean;
+    msx2DashDirection?: number; // 0=left, 1=right
+    msx2GlideStamina?: number;
+    msx2GlideActive?: boolean;
+    msx2Lives?: number;
+    msx2InvincibilityFrames?: number;
     // Box persistence
     ownerScreenId?: string | null; // For Box entities: which screen this box belongs to (null if being carried)
     // Timer/Wait system
@@ -5256,7 +5274,9 @@ useEffect(() => {
 
     const entityHasDeadlyTilesComponent = (entity: AnimatedEntity) =>
         entity.template.components?.some(c => c.definitionId === DEADLY_TILES_COMPONENT_ID) ||
-        !!entity.instance.componentOverrides?.[DEADLY_TILES_COMPONENT_ID];
+        !!entity.instance.componentOverrides?.[DEADLY_TILES_COMPONENT_ID] ||
+        entity.template.components?.some(c => c.definitionId === 'msx2_player_control') ||
+        entity.template.components?.some(c => c.definitionId === 'msx2_health');
 
     const entityHasInWaterComponent = (entity: AnimatedEntity) =>
         entity.template.components?.some(c => c.definitionId === IN_WATER_COMPONENT_ID) ||
@@ -7574,6 +7594,21 @@ useEffect(() => {
             } else {
                 entityA.isOnGround = false;
             }
+            if (entityA.isOnGround) {
+                entityA.msx2JumpCount = 0;
+                if (entityA === heroRef.current) {
+                    const msx2PlayerAsset = allAssets.find((asset) => asset.type === 'msx2player');
+                    if (msx2PlayerAsset) {
+                        const glideConfig = getMsx2GlideConfigFromPlayerEntity(
+                            parseMsx2PlayerImport(msx2PlayerAsset.data),
+                        );
+                        if (glideConfig.enabled && glideConfig.glideBoostCost > 0) {
+                            entityA.msx2GlideStamina = 100;
+                        }
+                    }
+                }
+                entityA.msx2GlideActive = false;
+            }
 
             // --- Handle Landing (Revert Jump Sprite) ---
             const wasJumping = entityA.instance.componentOverrides?.['comp_jump']?.isJumping;
@@ -7692,8 +7727,89 @@ useEffect(() => {
                         && !entityA.isOnLadder
                         && !entityA.isOnGround;
 
+                    let msx2DashBlocksHorizontal = false;
+                    const hasMsx2PlayerControl = entityA.template.components.some(
+                        (component) => component.definitionId === 'msx2_player_control',
+                    );
+                    if (hasMsx2PlayerControl && entityA === heroRef.current && screenMapToRender) {
+                        const msx2PlayerAsset = allAssets.find((asset) => asset.type === 'msx2player');
+                        if (msx2PlayerAsset) {
+                            const msx2Player = parseMsx2PlayerImport(msx2PlayerAsset.data);
+                            const dashConfig = getMsx2DashConfigFromPlayerEntity(msx2Player);
+                            if (dashConfig.enabled && hasGravity && !entityA.isOnLadder) {
+                                if ((entityA.msx2DashCooldown ?? 0) > 0) {
+                                    entityA.msx2DashCooldown = (entityA.msx2DashCooldown ?? 0) - 1;
+                                }
+                                const dashPressed = isMsx2DashKeyPressed(
+                                    pressedKeys.current,
+                                    dashConfig.primaryControl,
+                                    dashConfig.secondaryControl,
+                                    previewControlSettings,
+                                );
+                                if (!dashPressed && dashConfig.requireKeyRelease) {
+                                    entityA.msx2DashLock = false;
+                                }
+                                if ((entityA.msx2DashTimer ?? 0) > 0) {
+                                    msx2DashBlocksHorizontal = true;
+                                    const direction = entityA.msx2DashDirection ?? 1;
+                                    const spriteWidth = entityA.sprite.size.width;
+                                    const spriteHeight = entityA.sprite.size.height;
+                                    const probeY1 = entityA.y + Math.floor(spriteHeight / 3);
+                                    const probeY2 = entityA.y + Math.floor((2 * spriteHeight) / 3);
+                                    const delta = direction ? dashConfig.dashSpeed : -dashConfig.dashSpeed;
+                                    let nextX = entityA.x + delta;
+                                    if (nextX < 0) nextX = 0;
+                                    if (nextX + spriteWidth > PREVIEW_WIDTH) nextX = PREVIEW_WIDTH - spriteWidth;
+                                    const probeX = direction ? nextX + spriteWidth - 1 : nextX;
+                                    const dashBlocked = checkCollisionAt(probeX, probeY1, screenMapToRender, { ignoreTopSolid: true })
+                                        || checkCollisionAt(probeX, probeY2, screenMapToRender, { ignoreTopSolid: true });
+                                    if (!dashBlocked) {
+                                        entityA.x = nextX;
+                                    }
+                                    entityA.vx = 0;
+                                    entityA.msx2DashTimer = (entityA.msx2DashTimer ?? 0) - 1;
+                                } else {
+                                    const canStartDash = dashPressed
+                                        && (entityA.msx2DashCooldown ?? 0) === 0
+                                        && (!dashConfig.requireKeyRelease || !entityA.msx2DashLock);
+                                    if (canStartDash) {
+                                        let direction = entityA.msx2DashDirection ?? 1;
+                                        if (dashConfig.directional) {
+                                            const facingDefaultRight = entityA.sprite.facingDirection === 'right';
+                                            const facingDefaultLeft = entityA.sprite.facingDirection === 'left';
+                                            if (facingDefaultRight || facingDefaultLeft) {
+                                                const facingLeft = (facingDefaultRight && entityA.isFacingMirrored)
+                                                    || (facingDefaultLeft && !entityA.isFacingMirrored);
+                                                direction = facingLeft ? 0 : 1;
+                                            } else if (entityA.vx < 0) {
+                                                direction = 0;
+                                            } else if (entityA.vx > 0) {
+                                                direction = 1;
+                                            }
+                                        } else {
+                                            const leftPressed = pressedKeys.current.has('ArrowLeft')
+                                                || pressedKeys.current.has('a')
+                                                || pressedKeys.current.has('A');
+                                            const rightPressed = pressedKeys.current.has('ArrowRight')
+                                                || pressedKeys.current.has('d')
+                                                || pressedKeys.current.has('D');
+                                            if (leftPressed && !rightPressed) direction = 0;
+                                            else if (rightPressed && !leftPressed) direction = 1;
+                                        }
+                                        entityA.msx2DashDirection = direction;
+                                        entityA.msx2DashTimer = dashConfig.dashDuration;
+                                        entityA.msx2DashCooldown = dashConfig.dashCooldown;
+                                        if (dashConfig.requireKeyRelease) {
+                                            entityA.msx2DashLock = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Horizontal Movement
-                    if (cursorsComp && !airControlLocked) {
+                    if (cursorsComp && !airControlLocked && !msx2DashBlocksHorizontal) {
                         const cursorsProps = {
                             ...cursorsComp.defaultValues,
                             ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
@@ -7820,6 +7936,49 @@ useEffect(() => {
                         // Match Z80 edge-triggered jump: releasing the key rearms it immediately.
                         if (!spacePressed) {
                             jumpKeyProcessed.current = false;
+                        }
+                    }
+
+                    if (hasMsx2PlayerControl && entityA === heroRef.current) {
+                        const msx2PlayerAsset = allAssets.find((asset) => asset.type === 'msx2player');
+                        if (msx2PlayerAsset) {
+                            const msx2Player = parseMsx2PlayerImport(msx2PlayerAsset.data);
+                            const msx2Physics = getMsx2PlatformPhysicsFromPlayerEntity(msx2Player);
+                            const jumpPressed = isMsx2JumpKeyPressed(
+                                pressedKeys.current,
+                                msx2Player.inputMapping,
+                            );
+                            if (msx2Physics.jumpEnabled && hasGravity && !entityA.isOnLadder) {
+                                const jumpCount = entityA.msx2JumpCount ?? 0;
+                                const canJump = !msx2Physics.requireKeyRelease || !jumpKeyProcessed.current;
+                                const onGround = entityA.isOnGround;
+                                const canGroundJump = onGround && jumpCount === 0;
+                                const canAirJump = !onGround
+                                    && msx2Physics.doubleJumpEnabled
+                                    && jumpCount > 0
+                                    && jumpCount < msx2Physics.maxJumps;
+
+                                if (jumpPressed && canJump && (canGroundJump || canAirJump)) {
+                                    let impulse88 = msx2Physics.jumpImpulse88;
+                                    if (!onGround) {
+                                        impulse88 = msx2Physics.airJumpImpulse88;
+                                    }
+                                    if (entityA.carriedBox) {
+                                        impulse88 = Math.round(
+                                            (impulse88 >= 0x8000 ? impulse88 - 0x10000 : impulse88) * 0.75,
+                                        ) & 0xffff;
+                                    }
+                                    applyMsx2JumpImpulseToEntity(entityA, impulse88);
+                                    entityA.msx2JumpCount = onGround ? 1 : jumpCount + 1;
+                                    entityA.platformUnderneath = null;
+                                    entityA.isOnGround = false;
+                                    jumpKeyProcessed.current = true;
+                                }
+
+                                if (!jumpPressed) {
+                                    jumpKeyProcessed.current = false;
+                                }
+                            }
                         }
                     }
 
@@ -8095,6 +8254,44 @@ useEffect(() => {
                     // vel_y = high byte (integer part) of gravityVel, sign-extended
                     const hi = (entityA.gravityVel >> 8) & 0xFF;
                     entityA.vy = hi >= 0x80 ? hi - 0x100 : hi;
+
+                    if (
+                        entityA === heroRef.current
+                        && entityA.template.components.some((component) => component.definitionId === 'msx2_player_control')
+                    ) {
+                        const msx2PlayerAsset = allAssets.find((asset) => asset.type === 'msx2player');
+                        if (msx2PlayerAsset) {
+                            const msx2Player = parseMsx2PlayerImport(msx2PlayerAsset.data);
+                            const glideConfig = getMsx2GlideConfigFromPlayerEntity(msx2Player);
+                            const jumpPressed = isMsx2JumpKeyPressed(
+                                pressedKeys.current,
+                                msx2Player.inputMapping,
+                            );
+                            if (glideConfig.enabled && jumpPressed && !entityA.isOnLadder) {
+                                const stamina = entityA.msx2GlideStamina ?? 100;
+                                if (glideConfig.glideBoostCost <= 0 || stamina > 0) {
+                                    const signedVy = entityA.vy;
+                                    if (signedVy > 0) {
+                                        if (glideConfig.glideBoostCost > 0) {
+                                            entityA.msx2GlideStamina = Math.max(0, stamina - 1);
+                                        }
+                                        if (glideConfig.glideSpeed === 0) {
+                                            entityA.gravityVel = 0;
+                                            entityA.vy = 0;
+                                        } else if (signedVy > glideConfig.glideSpeed) {
+                                            entityA.gravityVel = (glideConfig.glideSpeed << 8) & 0xffff;
+                                            entityA.vy = glideConfig.glideSpeed;
+                                        }
+                                        entityA.msx2GlideActive = true;
+                                    }
+                                } else {
+                                    entityA.msx2GlideActive = false;
+                                }
+                            } else {
+                                entityA.msx2GlideActive = false;
+                            }
+                        }
+                    }
                 } else if (!skipPhysics && gravityEnabled && entityA.isOnGround) {
                     // Z80: gravity_grounded resets gravity_vel to 0
                     entityA.gravityVel = 0;
@@ -8384,6 +8581,55 @@ useEffect(() => {
 
             updateInWaterFlagForEntity(entityA, screenMapToRender ?? null);
             updateDeadlyTileFlagForEntity(entityA, screenMapToRender ?? null);
+
+            if ((entityA.msx2InvincibilityFrames ?? 0) > 0) {
+                entityA.msx2InvincibilityFrames = (entityA.msx2InvincibilityFrames ?? 0) - 1;
+            } else if (
+                entityA === heroRef.current
+                && entityA.hasDangerousTileCollision
+                && entityA.template.components.some((component) => component.definitionId === 'msx2_player_control')
+            ) {
+                const msx2PlayerAsset = allAssets.find((asset) => asset.type === 'msx2player');
+                const msx2Player = msx2PlayerAsset ? parseMsx2PlayerImport(msx2PlayerAsset.data) : null;
+                const dashConfig = getMsx2DashConfigFromPlayerEntity(msx2Player);
+                const dashInvulnerable = dashConfig.enabled
+                    && dashConfig.invulnerable
+                    && (entityA.msx2DashTimer ?? 0) > 0;
+                if (dashInvulnerable) {
+                    entityA.hasDangerousTileCollision = false;
+                } else {
+                const health = msx2Player?.health || msx2Player?.components?.msx2_health || {};
+                const maxLives = Math.max(1, Math.floor(Number(health.lives ?? health.max ?? 3) || 3));
+                const invincibleFrames = Math.max(15, Math.floor(Number(health.invincibleFrames ?? 60) || 60));
+                const currentLives = entityA.msx2Lives ?? maxLives;
+                const nextLives = Math.max(0, currentLives - 1);
+                entityA.msx2Lives = nextLives;
+                entityA.hasDangerousTileCollision = false;
+                entityA.msx2InvincibilityFrames = invincibleFrames;
+
+                const msx2Screen = getMsx2PreviewSource(screenMapToRender);
+                const playerEntry = msx2Screen?.playerEntries?.find((entry) => entry.id === 'default')
+                    || msx2Screen?.playerEntries?.[0];
+                const respawnX = playerEntry?.x ?? gameGlobalVariablesRef.current.playerCheckpointX ?? entityA.x;
+                const respawnY = playerEntry?.y ?? gameGlobalVariablesRef.current.playerCheckpointY ?? entityA.y;
+                entityA.x = Number(respawnX) || entityA.x;
+                entityA.y = Number(respawnY) || entityA.y;
+                entityA.vx = 0;
+                entityA.vy = 0;
+                entityA.gravityVel = 0;
+                entityA.msx2JumpCount = 0;
+                entityA.msx2DashTimer = 0;
+                entityA.msx2DashCooldown = 0;
+                entityA.msx2DashLock = false;
+                entityA.platformUnderneath = null;
+                entityA.isOnGround = false;
+                jumpKeyProcessed.current = false;
+
+                if (nextLives <= 0) {
+                    entityA.msx2Lives = maxLives;
+                }
+                }
+            }
 
             // --- 2b. Tile interaction (collect interactable tiles, matching Z80 step 8e) ---
             checkTileInteraction(entityA, screenMapToRender ?? null);
