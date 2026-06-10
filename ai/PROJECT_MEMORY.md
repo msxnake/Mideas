@@ -88,3 +88,13 @@ Mideas
 - ROMs de evidencia: test/v22m_asis.rom (push_example22 coyote+pushBox), test/v21m_skills.rom (dash+teleport+glide). Screenshots test/smoke_*.png.
 - Pendiente usuario: smoke manual en IDE/OpenMSX de sus proyectos reales; push_example22 NO cabe en simple32k (overflow ~2KB, previo a esta sesion) -> usar megarom konami.
 - Fuera del commit: GameFlowPreviewModal.tsx, debug log, server/temp, downloads/*.json, gen_push21.py, test_fix.cjs (WIP previo no verificado en esta sesion).
+
+## Sesion 2026-06-10 (continuacion) - wall_jump skill MSX2
+- Rama: `codex/msx2-shooter-world-runtime`.
+- Implementada skill `wall_jump` siguiendo el patrón de `dash`: TypeScript contract (`Msx2WallJumpConfig` + `getMsx2WallJumpConfigFromPlayerEntity` en `utils/msx2PlatformPhysics.ts`), ASM generator (`msx2WallJumpGenerator.ts` con 11 builders), integración en `msx2Screen4Generator.ts` (15 puntos de inyección), JS parity en `GameFlowPreviewModal.tsx`.
+- RAM: 4 bytes para wall_jump (`msx2_wall_slide_side`, `msx2_wall_jump_lock_timer`, `msx2_wall_jump_lock_vx`, `msx2_wall_jump_key_lock`). Límite de skill chain movido de #C087 a #C08C (+4B wall_jump + 1B defensive gap).
+- Bugfix crítico: `MSX2_GLIDE_RAM_BYTES` faltaba en `Msx2SkillRamOptions` y en `resolveMsx2SkillExtensionRamBase` — glide y wall_jump calculaban direcciones RAM incorrectas (wall_jump se posicionaba donde debía ir glide y viceversa).
+- Bugfix init: `buildMsx2WallJumpInitClearAsm` ponía `wall_slide_side=0` (left wall) en vez de `MSX2_WALL_SLIDE_NONE` (0xFF).
+- Reset en screen transition incluye wall_jump y dash vars (fix latente #4).
+- Verificación: 22/22 checks en `check_skill_params_contract.cjs`, esbuild syntax clean.
+- Pendiente: smoke OpenMSX end-to-end (manual o automatizado).

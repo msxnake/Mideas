@@ -470,3 +470,80 @@ Leccion:
 Un builder de fragmentos ASM con labels locales debe declarar en que rutina
 es valido insertarlo. Antes de reutilizarlo, verificar que todas las labels
 que referencia existen en el scope de insercion.
+
+---
+
+## Bug Resuelto: backticks en comentarios ASM dentro de template literals TS
+
+Fecha: 2026-06-10
+
+Problema:
+esbuild se quejaba de sintaxis invalida en msx2WallJumpGenerator.ts. La linea
+`;   \`move_hardware_sprite_left/right\`. To "lock vx" during the` tenia
+backticks que esbuild interpretaba como cierre del template literal TS.
+
+Causa:
+Los comentarios ASM usan backticks (\`) para enfatizar nombres de funciones,
+pero el codigo TypeScript que genera el ASM usa template literals (`` ` ``) y
+los backticks anidados rompen el parseo. Glass no se ve afectado porque lee el
+ASM ya generado, pero el toolchain TS/esbuild falla al compilar.
+
+Solucion:
+Reemplazar los backticks de los comentarios ASM por comillas simples (').
+
+Leccion:
+En generadores ASM dentro de template literals TS, evitar backticks en
+cualquier string interior. Usar comillas simples o dobles para enfatizar
+nombres en comentarios.
+
+---
+
+## Bug Resuelto: glideEnabled faltaba en Msx2SkillRamOptions
+
+Fecha: 2026-06-10
+
+Problema:
+La funcion resolveMsx2SkillExtensionRamBase no tenia la opcion glideEnabled,
+por lo que glide no se incluy en la cadena de calculo de direcciones RAM.
+Esto causaba que:
+- glide calculaba su base incluyendo wall_jump (4 bytes que debian ir DESPUES)
+- wall_jump calculaba su base SIN incluir glide (2 bytes que debian ir ANTES)
+
+Causa:
+Al anadir wall_jump a Msx2SkillRamOptions se omitio glideEnabled, rompiendo
+el orden de la cadena: timers -> dash -> teleport -> glide -> wall_jump.
+
+Solucion:
+Anadir glideEnabled: boolean a Msx2SkillRamOptions, MSX2_GLIDE_RAM_BYTES al
+import, y if (options.glideEnabled) en el orden correcto de la cadena.
+Actualizar buildMsx2SkillRamOptions a 5 parametros y todos sus call sites.
+
+Leccion:
+Toda skill anadida a la cadena de RAM debe incluirse en Msx2SkillRamOptions Y
+en resolveMsx2SkillExtensionRamBase en el orden correcto. No asumir que solo
+la skill nueva necesita cambios: verificar que skills intermedias (como glide)
+sigan en la cadena.
+
+---
+
+## Bug Resuelto: init clear de wall_slide_side usaba 0 en vez de 0xFF
+
+Fecha: 2026-06-10
+
+Problema:
+buildMsx2WallJumpInitClearAsm hacia `xor a; ld (msx2_wall_slide_side), a`,
+dejando wall_slide_side=0 al iniciar. Pero 0 es el valor "wall left in
+contact", no "no wall". Al empezar la partida, el runtime detectaba
+incorrectamente que el player estaba tocando una pared izquierda.
+
+Causa:
+La funcion de init usaba `xor a` (generico para cero) sin considerar que
+wall_slide_side usa 0xFF como centinela de "no wall in contact".
+
+Solucion:
+Cambiar el init a `ld a, MSX2_WALL_SLIDE_NONE; ld (msx2_wall_slide_side), a`
+seguido de `xor a` para los demas campos.
+
+Leccion:
+Para variables de estado con centinela (valores especiales que significan
+"inactivo"), el init clear debe usar el centinela, no cero generico.

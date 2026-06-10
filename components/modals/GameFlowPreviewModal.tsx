@@ -46,6 +46,7 @@ import {
     getMsx2DashConfigFromPlayerEntity,
     getMsx2GlideConfigFromPlayerEntity,
     getMsx2PlatformPhysicsFromPlayerEntity,
+    getMsx2WallJumpConfigFromPlayerEntity,
     isMsx2DashKeyPressed,
     isMsx2JumpKeyPressed,
 } from '../../utils/msx2PlatformPhysics';
@@ -8437,79 +8438,76 @@ useEffect(() => {
                     entityA.wallGrabLockout = false;
                 }
 
-                // --- Wall Jump / Wall Slide ---
-                const wallJumpComp = entityA.template.components.find(c => c.definitionId === 'comp_wall_jump');
-                if (!skipPhysics && wallJumpComp) {
-                    const wallJumpProps = {
-                        ...wallJumpComp.defaultValues,
-                        ...(entityA.instance.componentOverrides?.['comp_wall_jump'] || {})
-                    };
-                    const wallJumpEnabled = wallJumpProps.isEnabled !== false && wallJumpProps.isEnabled !== 'false';
-                    if (!entityA.wallJumpData) {
-                        entityA.wallJumpData = { lockFramesRemaining: 0, lockedVx: 0 };
-                    }
+                // --- Wall Jump / Wall Slide (skill-parameter-based) ---
+                if (!skipPhysics
+                    && entityA === heroRef.current
+                    && entityA.template.components.some((component) => component.definitionId === 'msx2_player_control')
+                ) {
+                    const msx2PlayerAsset = allAssets.find((asset) => asset.type === 'msx2player');
+                    if (msx2PlayerAsset) {
+                        const msx2Player = parseMsx2PlayerImport(msx2PlayerAsset.data);
+                        const wallJumpConfig = getMsx2WallJumpConfigFromPlayerEntity(msx2Player);
+                        if (wallJumpConfig.enabled && hasGravity && !entityA.isOnLadder) {
+                            const onGroundNow = !!entityA.isOnGround;
+                            const touchingLeft = !!entityA.isTouchingWallLeft;
+                            const touchingRight = !!entityA.isTouchingWallRight;
+                            const touchingWall = touchingLeft || touchingRight;
+                            if (!entityA.wallJumpData) {
+                                entityA.wallJumpData = { lockFramesRemaining: 0, lockedVx: 0 };
+                            }
 
-                    if (wallJumpEnabled) {
-                        const onGroundNow = !!entityA.isOnGround;
-                        const touchingLeft = !!entityA.isTouchingWallLeft;
-                        const touchingRight = !!entityA.isTouchingWallRight;
-                        const touchingWall = touchingLeft || touchingRight;
-                        const slideFallSpeed = Math.max(0, Number(wallJumpProps.slideFallSpeed ?? 2) || 0);
-                        const spacePressed = pressedKeys.current.has(' ');
-
-                        if (onGroundNow || entityA.isOnLadder) {
-                            entityA.wallJumpData.lockFramesRemaining = 0;
-                            entityA.wallJumpData.lockedVx = 0;
-                        } else if (entityA.wallJumpData.lockedVx !== 0) {
-                            if (entityA.vy < 0) {
-                                entityA.vx = entityA.wallJumpData.lockedVx;
-                                if (entityA.wallJumpData.lockFramesRemaining > 0) {
-                                    entityA.wallJumpData.lockFramesRemaining--;
-                                }
-                            } else {
+                            // Landing clears wall slide and lock state
+                            if (onGroundNow) {
                                 entityA.wallJumpData.lockFramesRemaining = 0;
                                 entityA.wallJumpData.lockedVx = 0;
                             }
-                        }
 
-                        if (gravityEnabled && !onGroundNow && !entityA.isOnLadder && touchingWall && slideFallSpeed > 0 && entityA.vy > slideFallSpeed) {
-                            entityA.vy = slideFallSpeed;
-                            entityA.gravityVel = (slideFallSpeed << 8) & 0xFFFF;
-                        }
-
-                        const canWallJump = gravityEnabled && !onGroundNow && !entityA.isOnLadder && touchingWall && spacePressed && !jumpKeyProcessed.current;
-                        if (canWallJump) {
-                            const leftPressed = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('a') || pressedKeys.current.has('A');
-                            const rightPressed = pressedKeys.current.has('ArrowRight') || pressedKeys.current.has('d') || pressedKeys.current.has('D');
-                            const requireAway = wallJumpProps.requirePressAwayFromWall === true || wallJumpProps.requirePressAwayFromWall === 'true';
-                            let jumpFromLeftWall = false;
-                            let jumpFromRightWall = false;
-
-                            if (requireAway) {
-                                jumpFromLeftWall = touchingLeft && rightPressed;
-                                jumpFromRightWall = touchingRight && leftPressed;
-                            } else {
-                                jumpFromLeftWall = touchingLeft && (!touchingRight || rightPressed || !leftPressed);
-                                jumpFromRightWall = !jumpFromLeftWall && touchingRight;
+                            // Wall slide clamp: cap vy to wallSlideSpeed when sliding
+                            if (!onGroundNow && touchingWall && entityA.vy > wallJumpConfig.wallSlideSpeed) {
+                                entityA.vy = wallJumpConfig.wallSlideSpeed;
+                                entityA.gravityVel = (wallJumpConfig.wallSlideSpeed << 8) & 0xFFFF;
                             }
 
-                            if (jumpFromLeftWall || jumpFromRightWall) {
-                                const horizontalPush = Math.max(1, Number(wallJumpProps.horizontalPush ?? 3) || 3);
-                                const verticalMagnitude = Math.max(1, Number(wallJumpProps.verticalImpulse ?? 1024) || 1024);
-                                const jumpImpulse = ((0x10000 - verticalMagnitude) & 0xFFFF) >>> 0;
-                                const jumpVx = jumpFromLeftWall ? horizontalPush : -horizontalPush;
-                                const lockFrames = Math.max(0, Number(wallJumpProps.lockFrames ?? 8) || 0);
-                                const hi = (jumpImpulse >> 8) & 0xFF;
+                            // Lock step: while lock active, force vx = lockedVx and decrement
+                            if (entityA.wallJumpData.lockedVx !== 0) {
+                                entityA.vx = entityA.wallJumpData.lockedVx;
+                                if (entityA.wallJumpData.lockFramesRemaining > 0) {
+                                    entityA.wallJumpData.lockFramesRemaining--;
+                                } else {
+                                    entityA.wallJumpData.lockedVx = 0;
+                                }
+                            }
 
+                            // Wall jump kick trigger
+                            const jumpPressed = isMsx2JumpKeyPressed(
+                                pressedKeys.current,
+                                msx2Player.inputMapping,
+                            );
+                            const jumpUnlocked = !wallJumpConfig.requireKeyRelease || !entityA.msx2WallJumpKeyLock;
+                            if (!onGroundNow && touchingWall && jumpPressed && !jumpKeyProcessed.current && jumpUnlocked) {
+                                const wallJumpPower = (wallJumpConfig.wallJumpPower88 >> 8) & 0xFF;
+                                const signedWallJumpPower = wallJumpPower >= 0x80 ? wallJumpPower - 0x100 : wallJumpPower;
+                                const horizontal = Math.max(1, wallJumpConfig.wallJumpHorizontal);
+                                const lockFrames = Math.max(4, Math.min(16, Math.floor(horizontal * 2) || 8));
+                                const jumpVx = touchingLeft ? horizontal : -horizontal;
+
+                                entityA.gravityVel = wallJumpConfig.wallJumpPower88 & 0xFFFF;
+                                entityA.vy = signedWallJumpPower;
                                 entityA.vx = jumpVx;
                                 entityA.wallJumpData.lockedVx = jumpVx;
                                 entityA.wallJumpData.lockFramesRemaining = lockFrames;
-                                entityA.gravityVel = jumpImpulse;
-                                entityA.vy = hi >= 0x80 ? hi - 0x100 : hi;
+                                if (wallJumpConfig.requireKeyRelease) {
+                                    entityA.msx2WallJumpKeyLock = true;
+                                }
                                 entityA.x += Math.sign(jumpVx);
                                 entityA.isOnGround = false;
                                 entityA.platformUnderneath = null;
                                 jumpKeyProcessed.current = true;
+                            }
+
+                            // Key release gate
+                            if (!jumpPressed && wallJumpConfig.requireKeyRelease) {
+                                entityA.msx2WallJumpKeyLock = false;
                             }
                         }
                     }
@@ -8595,7 +8593,11 @@ useEffect(() => {
                 const dashInvulnerable = dashConfig.enabled
                     && dashConfig.invulnerable
                     && (entityA.msx2DashTimer ?? 0) > 0;
-                if (dashInvulnerable) {
+                const wallJumpConfig = getMsx2WallJumpConfigFromPlayerEntity(msx2Player);
+                const wallJumpInvulnerable = wallJumpConfig.enabled
+                    && wallJumpConfig.requireKeyRelease
+                    && (entityA.wallJumpData?.lockFramesRemaining ?? 0) > 0;
+                if (dashInvulnerable || wallJumpInvulnerable) {
                     entityA.hasDangerousTileCollision = false;
                 } else {
                 const health = msx2Player?.health || msx2Player?.components?.msx2_health || {};

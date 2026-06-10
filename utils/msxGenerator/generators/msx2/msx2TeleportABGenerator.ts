@@ -16,7 +16,7 @@ function formatAsmWord(value: number): string {
 
 export function resolveMsx2TeleportABRamBase(pushBoxMovement: boolean, dashEnabled: boolean): number {
   return resolveMsx2SkillExtensionRamBase(
-    buildMsx2SkillRamOptions(pushBoxMovement, dashEnabled, false),
+    buildMsx2SkillRamOptions(pushBoxMovement, dashEnabled, false, false, false),
   );
 }
 

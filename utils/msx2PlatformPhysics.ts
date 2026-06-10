@@ -45,6 +45,31 @@ export interface Msx2DashConfig {
   secondaryControl: Msx2PlayerControlId | 'none';
 }
 
+/**
+ * Wall jump skill config (MSX2 platformer).
+ *
+ * Two sub-behaviours share the same 4 bytes of RAM (see msx2WallJumpGenerator):
+ *  - `wall_slide`: detected via touching-wall probe; caps gravityVel to wallSlideSpeed.
+ *  - `wall_jump_kick`: triggered from wall_slide when jump key fires; applies
+ *    `wallJumpPower88` (8.8, sign-extended negative) and locks vx to
+ *    `±wallJumpHorizontal` for internally-computed `lockFrames` frames.
+ *
+ * Both require the player to hold the direction key into the wall (Celeste-style).
+ */
+export interface Msx2WallJumpConfig {
+  enabled: boolean;
+  /** Vertical impulse 8.8 (sign-extended negative: -1024 = 1024 px/sec up). Range 256..2048. */
+  wallJumpPower88: number;
+  /** Horizontal push away from wall, px/frame. Range 1..12. Sign chosen by detected wall side. */
+  wallJumpHorizontal: number;
+  /** Cap of gravityVel while wall_slide is active. 0 = total cling (gravityVel=0). Range 0..4. */
+  wallSlideSpeed: number;
+  /** When true, the player must release jump key between wall jumps (Celeste-style). */
+  requireKeyRelease: boolean;
+  /** Jump key used to trigger wall_jump kick from wall_slide. */
+  primaryControl: Msx2PlayerControlId;
+}
+
 export interface Msx2PlatformPhysicsConfig {
   jumpEnabled: boolean;
   gravityEnabled: boolean;
@@ -322,6 +347,13 @@ function resolveTeleportABSkillBinding(player: any | undefined): {
   return resolveMsx2SkillBinding(player, 'teleport_a_b');
 }
 
+function resolveWallJumpSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'wall_jump');
+}
+
 export function isMsx2TeleportKeyPressed(
   pressedKeys: ReadonlySet<string>,
   primaryControl: Msx2PlayerControlId,
@@ -378,6 +410,32 @@ export function getMsx2DashConfigFromPlayerEntity(player: any | undefined): Msx2
     invulnerable: params.invulnerable !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+  };
+}
+
+/**
+ * Returns the resolved wall_jump skill config for the given player.
+ *
+ * Reads `player.skillParameters.wall_jump` and clamps every numeric field to
+ * the range declared in `wallJumpParameters` (handlers/index.ts). The
+ * `wallJumpPower88` is sign-extended negative to align with `clampMsx2JumpImpulse88`
+ * (vertical impulse convention: -y = up).
+ */
+export function getMsx2WallJumpConfigFromPlayerEntity(player: any | undefined): Msx2WallJumpConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('wall_jump');
+  const params = (player?.skillParameters?.wall_jump || {}) as Record<string, number | boolean>;
+  const binding = resolveWallJumpSkillBinding(player);
+  const wallJumpPower = pickSkillNumberParam(params, 'wall_jump', ['wallJumpPower'], 1024);
+  const wallJumpHorizontal = pickSkillNumberParam(params, 'wall_jump', ['wallJumpHorizontal'], 4);
+  const wallSlideSpeed = pickSkillNumberParam(params, 'wall_jump', ['wallSlideSpeed'], 1);
+  return {
+    enabled,
+    wallJumpPower88: clampMsx2JumpImpulse88(wallJumpPower),
+    wallJumpHorizontal: Math.max(1, Math.min(12, wallJumpHorizontal || 4)),
+    wallSlideSpeed: Math.max(0, Math.min(4, wallSlideSpeed || 1)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    primaryControl: binding.primary,
   };
 }
 

@@ -140,12 +140,12 @@ assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes(
   'Generator writes both timers (arming and clearing paths)');
 
 // 17b) Regression guard: the skill RAM layout module chains the regions in
-// order (timers -> dash -> teleport -> glide) and enforces the #C087 limit.
+// order (timers -> dash -> teleport -> glide -> wall_jump) and enforces the #C08C limit.
 const layoutCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2SkillRamLayout.ts'), 'utf8');
 assert(layoutCode.includes('MSX2_PLAYER_TIMER_RAM_BYTES = 2'),
   'msx2SkillRamLayout reserves 2 bytes for the player coyote/jump-buffer timers');
-assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC087'),
-  'msx2SkillRamLayout caps the chain at #C087 (msx2_effects_runtime_buffers)');
+assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC08C'),
+    'msx2SkillRamLayout caps the chain at #C08C (msx2_effects_runtime_buffers)');
 assert(layoutCode.includes('MSX2_BOX2_RUNTIME_BYTES'),
   'msx2SkillRamLayout offsets the chain past the box2 runtime in pushBox projects');
 // No EQU in the generator may land on the box2 runtime head (#C047/#C048):
@@ -186,4 +186,38 @@ const defaultsCode = fs.readFileSync(path.join(ROOT, 'utils', 'msx2PlayerDefault
 assert(/buildSkillParametersDefaults[\s\S]+?if\s*\(\s*skill\.required\s*\)\s*continue;/.test(defaultsCode),
   'buildSkillParametersDefaults skips required (core) skills (R1-A)');
 
-console.log('\nAll 18 plumbing checks passed.');
+// 19) wall_jump skill is registered in handlers/index.ts
+assert(handlersCode.includes("id: 'wall_jump'"),
+  'handlers/index.ts registers wall_jump skill');
+assert(handlersCode.includes('parameters: wallJumpParameters') || handlersCode.includes('parameters: wall_jump_parameters'),
+  'wall_jump wires its parameters array');
+assert(handlersCode.includes("key: 'wallJumpPower'") && handlersCode.includes("key: 'wallJumpHorizontal'") && handlersCode.includes("key: 'wallSlideSpeed'"),
+  'wallJumpParameters has wallJumpPower/wallJumpHorizontal/wallSlideSpeed keys');
+assert(handlersCode.includes("key: 'requireKeyRelease'"),
+  'wallJumpParameters includes requireKeyRelease');
+assert(handlersCode.includes('default: 768') || handlersCode.includes('min: 256') || handlersCode.includes('max: 2048'),
+  'wallJumpParameters wallJumpPower has a reasonable range (768 seems typical)');
+
+// 20) msx2Screen4Generator wires wall_jump config
+assert(genCode.includes('getMsx2WallJumpConfigFromPlayerEntity'),
+  'msx2Screen4Generator reads wall_jump config');
+assert(genCode.includes('buildMsx2WallJumpRuntimeAsm'),
+  'msx2Screen4Generator builds wall_jump runtime ASM');
+assert(genCode.includes('wallJumpInitClearAsm') || genCode.includes('buildMsx2WallJumpInitClearAsm'),
+  'msx2Screen4Generator clears wall_jump RAM on init');
+assert(genCode.includes('wallJumpEquatesAsm') || genCode.includes('buildMsx2WallJumpEquates'),
+  'msx2Screen4Generator emits wall_jump EQUs');
+assert(genCode.includes('resolveMsx2WallJumpRamBase') || genCode.includes('resolveMsx2SkillExtensionRamBase'),
+  'msx2Screen4Generator resolves wall_jump RAM base via msx2SkillRamLayout');
+
+// 21) wall_jump has its own generator reference in the EQUs block
+assert(genCode.includes('${wallJumpEquatesAsm}'),
+  'wall_jump EQUs are injected in the EQU block');
+
+// 22) msx2PlatformPhysics has Msx2WallJumpConfig
+assert(physicsCode.includes('Msx2WallJumpConfig'),
+  'msx2PlatformPhysics exports Msx2WallJumpConfig');
+assert(physicsCode.includes('getMsx2WallJumpConfigFromPlayerEntity'),
+  'msx2PlatformPhysics has getMsx2WallJumpConfigFromPlayerEntity');
+
+console.log('\nAll 22 plumbing checks passed.');
