@@ -6,8 +6,10 @@
  *    `gravityVel` to `wallSlideSpeed` while the player holds the direction
  *    key into the wall. Reset on landing.
  *  - `wall_jump_kick`: triggered from `wall_slide` when jump key fires;
- *    applies `wallJumpPower88` (8.8, sign-extended negative) and locks vx
- *    to `±wallJumpHorizontal` for `lockFrames` frames.
+ *    applies `wallJumpPower88` (8.8, sign-extended negative) and commits a
+ *    horizontal translation of `±wallJumpHorizontal` px/frame that runs
+ *    until wall contact (flush rest -> nested kick), patrol bound or
+ *    landing. Directional input stays disabled until landing.
  *
  * The runtime follows the same conventions as `msx2DashGenerator.ts`:
  *  - All `msx2_collision_at_pixel` calls are wrapped in `push de / ... / pop de`
@@ -49,16 +51,6 @@ function formatAsmWord(value: number): string {
   return `#${word.toString(16).toUpperCase().padStart(4, '0')}`;
 }
 
-/**
- * Computes the lock duration (in frames) for the wall_jump kick.
- *
- * Rule: lock = max(4, horizontal * 2), capped at 16. This guarantees the
- * player crosses at least 8 px away from the wall before regaining control
- * (4 px/frame * 2 frames = 8 px at minimum), and never more than 32 px.
- */
-function computeWallJumpLockFrames(horizontalPx: number): number {
-  return Math.max(4, Math.min(16, Math.floor(horizontalPx * 2) || 8));
-}
 
 /**
  * Resolves the base address of the wall_jump RAM block (4 bytes) given the
@@ -266,14 +258,18 @@ function buildWallJumpSlideClampAsm(config: Msx2WallJumpConfig): string {
  * buildMsx2WallJumpGravityHookAsm. The detect-contact + lock-step happen
  * once per frame from the input gate.
  */
-function buildWallJumpKickAndStepAsm(config: Msx2WallJumpConfig): string {
+function buildWallJumpKickAndStepAsm(
+  config: Msx2WallJumpConfig,
+  patrolBounds: { minX: number; maxX: number },
+): string {
+  const minXPlusOne = formatAsmByte(patrolBounds.minX + 1);
+  const maxXPlusOne = formatAsmByte(patrolBounds.maxX + 1);
   // wallJumpPower88 is 8.8, sign-extended negative (clampMsx2JumpImpulse88
   // returns a 16-bit value). The high byte is the signed magnitude; we
   // write it directly into the high byte of msx2_player_gravity_vel
   // (matching `applyMsx2JumpImpulseToEntity` in the JS parity layer).
   const wallJumpPowerSignedHi = formatAsmByte((config.wallJumpPower88 >> 8) & 0xff);
   const wallJumpHorizontal = formatAsmByte(config.wallJumpHorizontal);
-  const lockFrames = formatAsmByte(computeWallJumpLockFrames(config.wallJumpHorizontal));
   const requireKeyRelease = config.requireKeyRelease;
 
   const keyReleaseGate = requireKeyRelease
@@ -352,7 +348,8 @@ ${keyReleaseGate}    ; Apply wall_jump kick.
     ld a, ${wallJumpHorizontal}
 .wall_kick_store_vx:
     ld (msx2_wall_jump_lock_vx), a
-    ld a, ${lockFrames}
+    ; Arm the committed translation: #FF = moving until wall/bound/landing.
+    ld a, #FF
     ld (msx2_wall_jump_lock_timer), a
 ${requireKeyRelease ? `    ld a, 1
     ld (msx2_wall_jump_key_lock), a
@@ -366,24 +363,26 @@ ${requireKeyRelease ? `    ld a, 1
 msx2_step_wall_jump_lock:
     ; ------------------------------------------------------------
     ; FUNCTION: msx2_step_wall_jump_lock
-    ; PURPOSE: While lock_timer > 0, advance sprite_x by lock_vx (which
-    ;   is stored SIGNED: +N for right motion, 0x100-N for left motion)
-    ;   and decrement the timer. When the timer reaches 0, clear
-    ;   lock_vx to avoid stale data leaking.
-    ; NOTES: The MSX2 player runtime does not store a persistent vx
-    ;   variable; horizontal motion is applied directly to sprite_x by
-    ;   'move_hardware_sprite_left/right'. To "lock vx" during the
-    ;   wall_jump kick, we re-implement the motion here (same approach
-    ;   as dash in msx2_step_dash_movement).
-    ;   'lock_vx' is signed: +wallJumpHorizontal for right kick,
-    ;   0x100-wallJumpHorizontal for left kick. 'add a, (lock_vx)' with
-    ;   a "negative" lock_vx (>= 0x80) automatically subtracts because
-    ;   the carry is discarded and the 2's-complement representation
-    ;   wraps modulo 256.
-    ; INPUT: msx2_wall_jump_lock_timer, msx2_wall_jump_lock_vx.
-    ; OUTPUT: msx2_player_sprite_x advanced, dx synced with kick dir.
-    ; DESTROYS: AF, B, HL.
-    ; PRESERVES: C, D, E, IX, IY.
+    ; PURPOSE: Committed wall-jump translation. While lock_timer != 0,
+    ;   advance sprite_x by |lock_vx| px per frame, PIXEL BY PIXEL with a
+    ;   leading-edge collision probe per pixel. The motion does NOT expire
+    ;   by time: it continues until (a) a wall blocks the next pixel - the
+    ;   player rests FLUSH against it so msx2_wall_jump_detect_contact
+    ;   fires and a nested kick becomes possible -, (b) the patrol bound
+    ;   is reached, or (c) landing clears the whole lock state.
+    ; NOTES: lock_vx is NOT cleared here: it persists as the air-control
+    ;   lock marker (directional input disabled) until the landing path
+    ;   (buildMsx2WallJumpLandClearAsm) or init/reset clears it. Pixel
+    ;   stepping (not vx-sized steps) is what guarantees the flush rest
+    ;   position; a 4px step left the player up to 3px off the wall, the
+    ;   contact probe missed it and chained wall jumps never triggered.
+    ;   Each probe wraps msx2_collision_at_pixel in push bc/de pairs as
+    ;   needed (it clobbers AF/DE/HL - LESSONS_LEARNED 2026-06-10).
+    ; INPUT: msx2_wall_jump_lock_timer (0=idle, #FF=moving),
+    ;   msx2_wall_jump_lock_vx (signed: +N right, 0x100-N left).
+    ; OUTPUT: msx2_player_sprite_x advanced or stopped flush, dx synced.
+    ; DESTROYS: AF, BC, DE, HL.
+    ; PRESERVES: IX, IY.
     ; ------------------------------------------------------------
     ld a, (msx2_wall_jump_lock_timer)
     or a
@@ -396,31 +395,78 @@ msx2_step_wall_jump_lock:
     inc a
 .wall_lock_face_left:
     ld (msx2_player_sprite_dx), a
-    ; sprite_x += lock_vx (signed via 2's-complement wrap).
-    ; NOTE: add a, (nnnn) is NOT a valid Z80 instruction; we load lock_vx through HL.
-    ld hl, msx2_wall_jump_lock_vx
+    ld a, (msx2_wall_jump_lock_vx)
+    bit 7, a
+    jr nz, .wall_lock_left_setup
+.wall_lock_right_setup:
+    ld b, a
+.wall_lock_right_loop:
+    push bc
     ld a, (msx2_player_sprite_x)
-    add a, (hl)
+    inc a
+    cp ${maxXPlusOne}
+    jp nc, .wall_lock_stop_pop
+    ld e, a
+    add a, 15
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    push de
+    call msx2_collision_at_pixel
+    pop de
+    jp nz, .wall_lock_stop_pop
+    ld a, e
     ld (msx2_player_sprite_x), a
-    ; Decrement lock_timer and clear lock_vx if it just hit 0.
-    ld a, (msx2_wall_jump_lock_timer)
+    pop bc
+    djnz .wall_lock_right_loop
+    ret
+.wall_lock_left_setup:
+    ; A = |lock_vx| (two's complement negate)
+    cpl
+    inc a
+    ld b, a
+.wall_lock_left_loop:
+    push bc
+    ld a, (msx2_player_sprite_x)
+    cp ${minXPlusOne}
+    jp c, .wall_lock_stop_pop
     dec a
-    ld (msx2_wall_jump_lock_timer), a
-    or a
-    ret nz
+    ld e, a
+    ld b, e
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    push de
+    call msx2_collision_at_pixel
+    pop de
+    jp nz, .wall_lock_stop_pop
+    ld a, e
+    ld (msx2_player_sprite_x), a
+    pop bc
+    djnz .wall_lock_left_loop
+    ret
+.wall_lock_stop_pop:
+    pop bc
+    ; Wall/bound reached: stop the translation (flush rest) but KEEP
+    ; lock_vx armed as the air-control lock until landing clears it.
     xor a
-    ld (msx2_wall_jump_lock_vx), a
+    ld (msx2_wall_jump_lock_timer), a
     ret
 `;
 }
 
-export function buildMsx2WallJumpRuntimeAsm(config: Msx2WallJumpConfig, platformMoveSpeed: number): string {
+export function buildMsx2WallJumpRuntimeAsm(
+  config: Msx2WallJumpConfig,
+  platformMoveSpeed: number,
+  patrolBounds: { minX: number; maxX: number },
+): string {
   if (!config.enabled) return '';
 
   return `${buildWallJumpPressedRoutine(config)}
 ${buildWallJumpDetectContactAsm(platformMoveSpeed)}
 ${buildWallJumpSlideClampAsm(config)}
-${buildWallJumpKickAndStepAsm(config)}
+${buildWallJumpKickAndStepAsm(config, patrolBounds)}
 `;
 }
 
@@ -440,6 +486,12 @@ export function buildMsx2WallJumpInputGateAsm(config: Msx2WallJumpConfig): strin
 ${config.requireKeyRelease ? `    call msx2_wall_jump_release_lock
 ` : ''}    call msx2_try_wall_jump_kick
     call msx2_step_wall_jump_lock
+    ; Air-control lock: while lock_vx is armed (cleared only by landing),
+    ; directional input is disabled - skip the GTSTCK dispatch entirely.
+    ; Detect/kick above keep running, so chaining wall-to-wall kicks works.
+    ld a, (msx2_wall_jump_lock_vx)
+    or a
+    jp nz, update_hardware_sprite_vertical
 `;
 }
 

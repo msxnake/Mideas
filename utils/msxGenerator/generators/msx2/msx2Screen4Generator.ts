@@ -3771,7 +3771,7 @@ function buildHardwareSpriteRuntimeAsm(
   const teleportInitClearAsm = teleportConfig.enabled ? buildMsx2TeleportABInitClearAsm() : '';
   const glideRuntimeAsm = buildMsx2GlideRuntimeAsm(glideConfig);
   const glideInitClearAsm = glideConfig.enabled ? buildMsx2GlideInitClearAsm() : '';
-  const wallJumpRuntimeAsm = buildMsx2WallJumpRuntimeAsm(wallJumpConfig, getPlatformHorizontalSpeed(analysis));
+  const wallJumpRuntimeAsm = buildMsx2WallJumpRuntimeAsm(wallJumpConfig, getPlatformHorizontalSpeed(analysis), patrolBounds);
   const wallJumpInputGateAsm = buildMsx2WallJumpInputGateAsm(wallJumpConfig);
   const wallJumpGravityHookAsm = buildMsx2WallJumpGravityHookAsm(wallJumpConfig);
   const wallJumpLandClearAsm = buildMsx2WallJumpLandClearAsm(wallJumpConfig);
