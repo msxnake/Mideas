@@ -195,6 +195,15 @@ assert(handlersCode.includes("key: 'wallJumpPower'") && handlersCode.includes("k
   'wallJumpParameters has wallJumpPower/wallJumpHorizontal/wallSlideSpeed keys');
 assert(handlersCode.includes("key: 'requireKeyRelease'"),
   'wallJumpParameters includes requireKeyRelease');
+// 19b) wallJumpVertical: human-facing px/frame field. It must exist in the
+// dialog AND the physics resolver must apply it ONLY when explicitly present
+// (a pickSkillNumberParam fallback would override every custom wallJumpPower).
+assert(handlersCode.includes("key: 'wallJumpVertical'"),
+  'wallJumpParameters includes wallJumpVertical (px/frame vertical force)');
+assert(physicsCode.includes('wallJumpVerticalRaw !== undefined'),
+  'physics resolver applies wallJumpVertical only when explicitly set');
+assert(physicsCode.includes('resolveMsx2JumpImpulse88Px(Math.max(1, Math.min(8,'),
+  'wallJumpVertical clamps to 1-8 px/frame before 8.8 conversion');
 assert(handlersCode.includes('default: 768') || handlersCode.includes('min: 256') || handlersCode.includes('max: 2048'),
   'wallJumpParameters wallJumpPower has a reasonable range (768 seems typical)');
 

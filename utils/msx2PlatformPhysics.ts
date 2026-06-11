@@ -429,9 +429,21 @@ export function getMsx2WallJumpConfigFromPlayerEntity(player: any | undefined): 
   const wallJumpPower = pickSkillNumberParam(params, 'wall_jump', ['wallJumpPower'], 1024);
   const wallJumpHorizontal = pickSkillNumberParam(params, 'wall_jump', ['wallJumpHorizontal'], 4);
   const wallSlideSpeed = pickSkillNumberParam(params, 'wall_jump', ['wallSlideSpeed'], 1);
+  // wallJumpVertical (px/frame) is the human-facing vertical force field.
+  // Precedence: it wins ONLY when explicitly present in the project params,
+  // so legacy projects that tuned the 8.8 wallJumpPower keep their value
+  // (do NOT use pickSkillNumberParam here: its skill-def default would
+  // silently override every custom wallJumpPower with 4 px/f).
+  const wallJumpVerticalRaw = params.wallJumpVertical;
+  const hasWallJumpVertical = wallJumpVerticalRaw !== undefined
+    && Number.isFinite(Number(wallJumpVerticalRaw))
+    && Number(wallJumpVerticalRaw) > 0;
+  const wallJumpPower88 = hasWallJumpVertical
+    ? resolveMsx2JumpImpulse88Px(Math.max(1, Math.min(8, Math.floor(Number(wallJumpVerticalRaw)))))
+    : clampMsx2JumpImpulse88(wallJumpPower);
   return {
     enabled,
-    wallJumpPower88: clampMsx2JumpImpulse88(wallJumpPower),
+    wallJumpPower88,
     wallJumpHorizontal: Math.max(1, Math.min(12, wallJumpHorizontal || 4)),
     wallSlideSpeed: Math.max(0, Math.min(4, wallSlideSpeed || 1)),
     requireKeyRelease: params.requireKeyRelease !== false,

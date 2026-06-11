@@ -354,6 +354,16 @@ export const dash: SkillDef = {
 
 export const wallJumpParameters: SkillParameterDef[] = [
   {
+    key: 'wallJumpVertical',
+    label: 'Vertical push (px/frame)',
+    type: 'number',
+    default: 4,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Upward force of the wall jump kick in pixels per frame. When set, it overrides the legacy 8.8 Wall jump power below.',
+  },
+  {
     key: 'wallJumpPower',
     label: 'Wall jump power',
     type: 'number',
@@ -361,7 +371,7 @@ export const wallJumpParameters: SkillParameterDef[] = [
     min: 256,
     max: 2048,
     step: 1,
-    help: 'Vertical impulse when jumping from wall in 8.8 fixed point.',
+    help: 'Legacy vertical impulse in 8.8 fixed point (256-2048). Ignored when Vertical push is set.',
   },
   {
     key: 'wallJumpHorizontal',

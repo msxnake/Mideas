@@ -113,3 +113,11 @@ Mideas
 - Verificado visualmente con downloads/push.json (mapa con chimenea col13 de 16px entre torres col12/col14): escalada anidada ~14px/kick con taps rapidos de N, x clavada en 208 (cero empotramiento con 0px de margen), friccion exacta 1px/f, salida natural por arriba donde acaba la torre corta, vuelo comprometido ignorando cursores, control restaurado al aterrizar (incluso sobre una caja). Screenshots test/wj_*.png, ROM test/push_wj_64k.rom.
 - Nota tuning: el ritmo de escalada depende de la cadencia de pulsacion y de wallJumpPower vs gravedad del proyecto (con la gravedad de push.json el rise por kick es ~16px).
 - Tecnica nueva: dump del grid de colision 16x12 por TCL (leer ptr #C004/05) para disenar tests sobre el mapa real.
+
+## Sesion 2026-06-11 (noche) - Campo "Vertical push" en wall_jump
+- Nuevo parametro `wallJumpVertical` (px/frame, 1-8, default 4) en el dialog de wall_jump, simetrico a Horizontal push y mas intuitivo que el 8.8.
+- Precedencia: solo manda si esta EXPLICITO en skillParameters.wall_jump (check raw, no pickSkillNumberParam: su fallback al default habria pisado todo wallJumpPower custom con 4px/f). Sin el campo -> path legacy wallJumpPower intacto (bit-identical: #FC).
+- Resuelto dentro de getMsx2WallJumpConfigFromPlayerEntity -> wallJumpPower88: ASM y preview JS (GameFlowPreviewModal) en paridad automatica sin tocar ASM.
+- Archivos: msx2PlatformPhysics.ts, skills/handlers/index.ts, skills/data/wall_jump.json, components/dialogs/skills/WallJumpDialog.tsx (las 3 copias de la definicion del parametro), contrato.
+- Verificado: contrato 22/22, tsc limpio, impulso #FC legacy / #F8 con vertical=8, smoke visual en chimenea de push.json: ~60px de subida por kick con vertical=8 (vs ~14px con default). ROM test/push_wjv8_64k.rom.
+- Regla recordada: la definicion de un skill param vive en TRES sitios (handlers/index.ts, data/<skill>.json, components/dialogs/skills/<Skill>Dialog.tsx) - mantener las tres sincronizadas.
