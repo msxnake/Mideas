@@ -140,6 +140,8 @@ assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes(
   'Generator writes both timers (arming and clearing paths)');
 assert(genCode.includes('Jump accepts the cached grounded flag') && genCode.includes('fall back to a direct foot probe'),
   'Jump grounded gate supports settled idle jumps and stale-cache fallback probing');
+assert(genCode.includes('probeCenterOffset') && genCode.includes('bodyHitbox.x + Math.floor((bodyHitbox.w - 1) / 2)'),
+  'MSX2 jump/grounded probes include a center foot sample for idle false negatives');
 
 // 17b) Regression guard: the skill RAM layout module chains the regions in
 // order (timers -> dash -> teleport -> glide -> wall_jump -> power_stomp ->
@@ -281,8 +283,16 @@ assert(genCode.includes('buildMsx2AirDashRuntimeAsm') && genCode.includes('${air
   'msx2Screen4Generator builds and injects air_dash runtime ASM');
 assert(genCode.includes('${airDashInputGateAsm}${dashInputGateAsm}'),
   'air_dash input gate runs before ground dash gate');
-assert(genCode.includes('${airDashActiveFrameAsm}${dashActiveFrameAsm}'),
-  'air_dash active frame runs before ground dash active frame');
+// The air dash active block must sit AFTER the dispatch's final
+// "jp update_hardware_sprite_vertical" (reachable only from its gate):
+// its tail is "jp upload_hardware_sprite_attrs", which SKIPS vertical
+// physics, so placing it in the idle fallthrough froze gravity and jump
+// (bug fixed 2026-06-12). The ground dash block stays in the fallthrough
+// because its tail jumps to vertical physics (transparent for idle).
+assert(genCode.includes('${dashActiveFrameAsm}    jp update_hardware_sprite_vertical' + String.fromCharCode(10) + '${airDashActiveFrameAsm}'),
+  'air_dash active block is emitted after the final vertical-physics jp (never in the idle fallthrough)');
+assert(!genCode.includes('${airDashActiveFrameAsm}${dashActiveFrameAsm}'),
+  'air_dash active block must not precede the dispatch fallthrough (froze idle physics)');
 assert(genCode.includes('${airDashEquatesAsm}'),
   'air_dash EQUs are injected in the EQU block');
 assert(layoutCode.includes('MSX2_AIR_DASH_RAM_BYTES') && layoutCode.includes('airDashEnabled'),
@@ -290,8 +300,8 @@ assert(layoutCode.includes('MSX2_AIR_DASH_RAM_BYTES') && layoutCode.includes('ai
 const airDashGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2AirDashGenerator.ts'), 'utf8');
 assert(airDashGenCode.includes('MSX2_AIR_DASH_RAM_BYTES = 4'),
   'msx2AirDashGenerator declares MSX2_AIR_DASH_RAM_BYTES = 4');
-assert(airDashGenCode.includes('msx2_air_dash_player_grounded') && airDashGenCode.includes('jp nz, .air_dash_start_blocked'),
-  'air_dash starts only when the direct foot probe says the player is not grounded');
+assert(airDashGenCode.includes('msx2_air_dash_player_grounded') && airDashGenCode.includes('ld a, (msx2_player_flags)') && airDashGenCode.includes('add a, 8'),
+  'air_dash grounded gate honors cached grounded flag and includes center foot probe');
 assert(airDashGenCode.includes('lockGroundDashOnStart') && airDashGenCode.includes('ld (msx2_dash_lock), a'),
   'air_dash can lock ground dash so one held input does not trigger both skills');
 const dashGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2DashGenerator.ts'), 'utf8');
