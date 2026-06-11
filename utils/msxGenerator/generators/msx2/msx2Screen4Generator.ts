@@ -2138,8 +2138,12 @@ ${physics.jumpBuffer > 0 ? `    ld a, ${jumpBufferFrames}
     ? `    call msx2_control_jump_pressed
     or a
     jp z, .platform_jump_space_released
-${jumpLockGate}    ; Grounded probe for jump must be direct: msx2_player_flags can be stale
-    ; before this vertical-physics pass refreshes it.
+${jumpLockGate}    ; Jump accepts the cached grounded flag when the player is already settled.
+    ; If the cache is clear/stale, fall back to a direct foot probe before
+    ; treating the input as airborne.
+    ld a, (msx2_player_flags)
+    bit 0, a
+    jp nz, .platform_jump_grounded
 ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    push bc
     call msx2_collision_at_pixel
     pop bc

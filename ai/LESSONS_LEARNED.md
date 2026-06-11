@@ -650,7 +650,10 @@ autoritaria para una decision de input en ese punto del frame.
 
 Solucion:
 Usar un probe fisico directo bajo los pies con `msx2_collision_at_pixel`
-para decidir si `dash`, `air_dash` o el salto normal pueden arrancar. Ademas, cuando
+para decidir si `dash`, `air_dash` o el salto normal pueden arrancar. En el
+salto normal, aceptar tambien el flag grounded cacheado cuando ya esta
+asentado, porque depender solo del probe previo a la fisica vertical puede
+bloquear el salto en reposo. Ademas, cuando
 `air_dash` empieza con el mismo boton que `dash`, activar tambien
 `msx2_dash_lock` para que una pulsacion mantenida no encadene ambas skills.
 
