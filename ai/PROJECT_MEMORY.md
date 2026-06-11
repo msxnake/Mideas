@@ -132,3 +132,10 @@ Mideas
 - Verificacion OpenMSX: arranque OK (flags=1, player visible), salto+stomp (active=1, caida), aterrizaje dispara shake (shake=4, r18 oscila y centra). No-regresion: push.json sin stomp = 0 refs shake, arranca flags=1. Contrato 26/26, tsc limpio.
 - Fase 2 pendiente (documentada como TODO en msx2_stomp_on_land): dano a enemigos / romper tiles dentro de impactRadius (params stompDamage, breakableTiles, impactRadius, ricochetOnMiss ya existen en UI pero sin runtime).
 - Tecnica de debug clave: breakpoints openMSX (debug set_bp ADDR 1 {incr hits}) + reg PC. input_gate_hits=0 + PC en BIOS = cuelgue en init/gameflow, no en runtime del player.
+
+## Sesion 2026-06-12 - Fix salto roto con air_dash activo
+- Sintoma: con air_dash activado el salto normal moria en idle (flags=0, sin gravedad); andando funcionaba. Los commits 223da143/61bdf557 parcheaban sintoma.
+- Causa raiz: `${airDashActiveFrameAsm}` insertado en el fallthrough del dispatch GTSTCK; su `jp upload_hardware_sprite_attrs` saltaba la fisica vertical todos los frames idle.
+- Fix (1 linea, msx2Screen4Generator ~6303): bloque air dash movido tras el `jp update_hardware_sprite_vertical` final, alcanzable solo desde su gate.
+- Verificado OpenMSX (push.json + air_dash, megarom konami): salto idle apex=76 = baseline, 3 saltos repetidos OK, air dash +36px burst, salto post-dash OK. ROM test/ad2_64k.rom.
+- Incluye WIP previo verificado junto: probes centrales de grounded (jump block + check_grounded + land) y fast-path de flags en msx2_air_dash_player_grounded.

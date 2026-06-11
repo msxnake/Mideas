@@ -662,3 +662,70 @@ Para gates de skills sensibles al orden del frame, no confiar en flags
 cacheados si se actualizan mas tarde en el loop. Usar estado recien calculado
 o un probe directo. Si dos skills comparten boton por contexto, revisar locks
 cruzados: una pulsacion no debe disparar dos mecanicas consecutivas.
+
+## 2026-06-11 - MSX2: salto en reposo puede fallar por probes de pie estrechos
+
+Causa:
+El salto y el refresco de grounded dependian de dos probes bajo los pies con
+inset lateral. En algunas posiciones iniciales o alineaciones contra tiles,
+ambos probes podian caer justo fuera del solido aunque el sprite pareciera
+estar apoyado. Al moverse horizontalmente, la X cambiaba y el probe volvia a
+tocar suelo, por eso el salto funcionaba en movimiento.
+
+Solucion:
+Mantener los probes izquierdo/derecho y anadir un probe central bajo el cuerpo
+para el gate de salto, la caida y el chequeo grounded sin velocidad vertical.
+
+Leccion:
+Para grounded en plataforma, dos muestras estrechas pueden crear falsos
+negativos en reposo. Usar al menos izquierda/centro/derecha cuando el resultado
+alimenta input critico como salto.
+
+## 2026-06-11 - MSX2: air_dash puede robar el input de salto en suelo
+
+Causa:
+`air_dash` se ejecuta antes del salto normal. Su gate de "solo en aire" usaba
+solo probes directos bajo los pies; si esos probes fallaban en reposo, arrancaba
+air dash estando en suelo y el frame activo saltaba la fisica vertical donde se
+aplica el impulso de salto.
+
+Solucion:
+En `msx2_air_dash_player_grounded`, aceptar primero `msx2_player_flags` bit 0
+cuando ya esta marcado como grounded, y usar probes izquierda/centro/derecha
+solo como respaldo si el flag esta limpio o desfasado.
+
+Leccion:
+Las skills que corren antes del salto no deben consumir el boton si hay una
+evidencia fuerte de grounded cacheado. Si una skill contextual se evalua antes
+que la mecanica base, sus falsos positivos son mas peligrosos que sus falsos
+negativos.
+
+---
+
+## Bug Resuelto: bloque activo de skill envenena el fallthrough idle del input
+
+Fecha: 2026-06-12
+
+Problema:
+Con air_dash activado, el salto normal moria por completo estando el player
+quieto (flags=0 permanente, sin gravedad). Dos commits previos de "fix jump
+gate" parchearon el sintoma (probes de pies en el salto) sin ver la causa.
+
+Causa:
+El bloque ".air_dash_active_input" se inserto en el FALLTHROUGH del dispatch
+GTSTCK de update_hardware_sprite_input. Sin direccion pulsada, el flujo caia
+dentro del bloque, cuyo final es "jp upload_hardware_sprite_attrs" (salta la
+fisica vertical a proposito durante el burst). Resultado: la fisica vertical
+no corria NUNCA en idle. El ground dash en esa misma posicion era benigno
+por casualidad: su bloque termina en "jp update_hardware_sprite_vertical".
+
+Solucion:
+Mover el bloque activo del air dash DETRAS del "jp update_hardware_sprite_vertical"
+final (alcanzable solo via los jp del gate), dentro del mismo scope de labels.
+
+Leccion:
+Todo bloque con label local insertado en el camino de fallthrough de una
+rutina DEBE ser transparente para ese camino (terminar saltando a donde el
+fallthrough iba). Si el bloque desvia el flujo (como un burst que salta la
+fisica), colocarlo fuera del camino, tras el salto final. Sintoma tipico:
+mecanicas que funcionan en movimiento pero mueren en idle.

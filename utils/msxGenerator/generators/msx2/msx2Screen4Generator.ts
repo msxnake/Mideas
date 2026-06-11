@@ -2090,6 +2090,7 @@ function buildMsx2PlatformVerticalPhysicsAsm(
   const bodyHitbox = getMsx2PlatformPlayerBodyHitbox(player);
   const probeInset = Math.max(0, Math.min(2, Math.floor((bodyHitbox.w - 1) / 2)));
   const probeLeftOffset = bodyHitbox.x + probeInset;
+  const probeCenterOffset = bodyHitbox.x + Math.floor((bodyHitbox.w - 1) / 2);
   const probeRightOffset = bodyHitbox.x + bodyHitbox.w - 1 - probeInset;
   const topProbeOffset = bodyHitbox.y;
   const bottomProbeOffset = bodyHitbox.y + bodyHitbox.h;
@@ -2147,6 +2148,9 @@ ${jumpLockGate}    ; Jump accepts the cached grounded flag when the player is al
 ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    push bc
     call msx2_collision_at_pixel
     pop bc
+    or a
+    jp nz, .platform_jump_grounded
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeCenterOffset)}    call msx2_collision_at_pixel
     or a
     jp nz, .platform_jump_grounded
 ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    call msx2_collision_at_pixel
@@ -2259,6 +2263,13 @@ ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSig
     pop bc
     pop de
     jp nz, .platform_land
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeCenterOffset)}    ld c, e
+    push de
+    push bc
+    call msx2_collision_at_pixel
+    pop bc
+    pop de
+    jp nz, .platform_land
 ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, e
     push de
     push bc
@@ -2353,6 +2364,13 @@ ${(physics.coyoteTime > 0) ? `    ; landing clears any stale coyote timer
     jp upload_hardware_sprite_attrs
 .platform_check_grounded:
 ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    ld e, c
+    push de
+    push bc
+    call msx2_collision_at_pixel
+    pop bc
+    pop de
+    jp nz, .platform_land
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeCenterOffset)}    ld c, e
     push de
     push bc
     call msx2_collision_at_pixel
@@ -6282,8 +6300,8 @@ ${teleportInputGateAsm}${airDashInputGateAsm}${dashInputGateAsm}${wallJumpInputG
     jp z, move_hardware_sprite_left
     cp 8
     jp z, move_hardware_sprite_left
-${airDashActiveFrameAsm}${dashActiveFrameAsm}    jp update_hardware_sprite_vertical
-
+${dashActiveFrameAsm}    jp update_hardware_sprite_vertical
+${airDashActiveFrameAsm}
 try_msx2_ladder_up:
     call msx2_ladder_at_player_center
     jp z, move_msx2_ladder_up

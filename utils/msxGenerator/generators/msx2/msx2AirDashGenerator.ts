@@ -92,11 +92,23 @@ msx2_air_dash_player_grounded:
     ; PRESERVES: IX, IY.
     ; CALLS: msx2_collision_at_pixel.
     ; SIDE EFFECTS: none.
-    ; NOTES: Uses direct foot probes instead of msx2_player_flags because that
-    ;   flag can be stale before the vertical physics pass refreshes it.
+    ; NOTES: The cached grounded flag is authoritative when already set; if it
+    ;   is clear/stale, direct foot probes avoid missing newly landed frames.
     ; ------------------------------------------------------------
+    ld a, (msx2_player_flags)
+    bit 0, a
+    jp nz, .air_dash_grounded_yes
     ld a, (msx2_player_sprite_x)
     add a, 4
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 16
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    jp nz, .air_dash_grounded_yes
+    ld a, (msx2_player_sprite_x)
+    add a, 8
     ld b, a
     ld a, (msx2_player_sprite_y)
     add a, 16
