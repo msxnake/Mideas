@@ -547,3 +547,49 @@ seguido de `xor a` para los demas campos.
 Leccion:
 Para variables de estado con centinela (valores especiales que significan
 "inactivo"), el init clear debe usar el centinela, no cero generico.
+
+---
+
+## Bug Resuelto: key_lock de skill sin rutina de release
+
+Fecha: 2026-06-11
+
+Problema:
+Wall_jump solo funcionaba UNA vez por vida. El smoke OpenMSX mostro
+keylock=1 permanente tras el primer kick.
+
+Causa:
+msx2_try_wall_jump_kick ponia msx2_wall_jump_key_lock=1 (requireKeyRelease)
+pero ninguna rutina lo limpiaba al soltar la tecla. El dash tiene
+msx2_dash_release_lock; wall_jump no tenia equivalente.
+
+Solucion:
+Anadir msx2_wall_jump_release_lock (mismo patron que dash) y llamarla en el
+input gate antes de try_kick.
+
+Leccion:
+Todo flag de tipo lock necesita su par set/clear verificado: si una skill
+usa requireKeyRelease, debe existir y llamarse cada frame una rutina de
+release. Al copiar el patron de una skill existente, copiar el ciclo de
+vida COMPLETO de cada variable, no solo el arm.
+
+---
+
+## Tecnica: smoke determinista inyectando paredes en la cache de colision
+
+Fecha: 2026-06-11
+
+Problema:
+Verificar wall_jump en mapas pushbox era no determinista: todas las
+"paredes" eran cajas empujables que se alejaban al acercarse, y habia
+transiciones de pantalla.
+
+Solucion:
+Desde el script TCL de openMSX: leer msx2_current_collision_ptr (#C004/05),
+escribir #01 (solid) en celdas (fila*16+col) para crear una pared estatica,
+y reubicar cajas escribiendo msx2_box2_runtime_x + limpiando su celda.
+Luego keymatrixdown/up + lecturas de RAM dan un escenario reproducible.
+
+Leccion:
+Para smokes de mecanicas dependientes del mapa, inyectar el terreno por
+debug en la cache RAM es mas fiable que depender del layout del fixture.

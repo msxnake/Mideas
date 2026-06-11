@@ -148,29 +148,35 @@ export function buildMsx2WallJumpLandClearAsm(config: Msx2WallJumpConfig): strin
  * DESTROYS: AF, B, C, DE, HL (clobbers via msx2_collision_at_pixel).
  * PRESERVES: IX, IY.
  */
-function buildWallJumpDetectContactAsm(): string {
+function buildWallJumpDetectContactAsm(platformMoveSpeed: number): string {
+  const speedByte = formatAsmByte(platformMoveSpeed);
   return `msx2_wall_jump_detect_contact:
     ; ------------------------------------------------------------
     ; FUNCTION: msx2_wall_jump_detect_contact
-    ; PURPOSE: Probes left and right sprite edges for solid contact.
+    ; PURPOSE: Probes left and right for solid wall contact using the
+    ;   same probe offsets as move_hardware_sprite_left/right. This
+    ;   ensures detection fires when the player is blocked by a wall
+    ;   (the movement code stops the player platformMoveSpeed pixels
+    ;   short, so the exact sprite edge is never inside a solid cell).
     ;   Returns A=0 if left wall, A=1 if right wall, A=0xFF if none.
     ; NOTES: msx2_collision_at_pixel clobbers AF/DE/HL. BC inputs survive.
-    ;   The push/pop preserves the previous contact side in E so callers
-    ;   can use it for change-detection.
     ; ------------------------------------------------------------
     push de
-    ; Left edge probe (B = X, C = Y + 8)
+    ; Left probe: same X as move_hardware_sprite_left (X - speed)
     ld a, (msx2_player_sprite_x)
+    sub ${speedByte}
+    jp c, .left_probe_skip
     ld b, a
     ld a, (msx2_player_sprite_y)
     add a, 8
     ld c, a
     call msx2_collision_at_pixel
-    ; A=0 means empty (no contact), NZ means solid. A holds the solid mask.
     or a
     jr nz, .wall_contact_left
-    ; Right edge probe (B = X + 15, C = Y + 8)
+.left_probe_skip:
+    ; Right probe: same X as move_hardware_sprite_right (X + speed + 15)
     ld a, (msx2_player_sprite_x)
+    add a, ${speedByte}
     add a, 15
     ld b, a
     ld a, (msx2_player_sprite_y)
@@ -277,7 +283,29 @@ function buildWallJumpKickAndStepAsm(config: Msx2WallJumpConfig): string {
 `
     : '';
 
-  return `msx2_try_wall_jump_kick:
+  const releaseLockRoutine = requireKeyRelease
+    ? `msx2_wall_jump_release_lock:
+    ; ------------------------------------------------------------
+    ; FUNCTION: msx2_wall_jump_release_lock
+    ; PURPOSE: Clears the wall_jump key lock once the jump input is
+    ;   released. Without this the key_lock set by the first kick stays
+    ;   1 forever and only ONE wall jump is possible per life (bug found
+    ;   in the 2026-06-11 OpenMSX smoke; same pattern as
+    ;   msx2_dash_release_lock).
+    ; INPUT: none. OUTPUT: none.
+    ; DESTROYS: AF, BC, DE (via msx2_control_wall_jump_pressed). PRESERVES: HL.
+    ; ------------------------------------------------------------
+    call msx2_control_wall_jump_pressed
+    or a
+    ret nz
+    xor a
+    ld (msx2_wall_jump_key_lock), a
+    ret
+
+`
+    : '';
+
+  return `${releaseLockRoutine}msx2_try_wall_jump_kick:
     ; ------------------------------------------------------------
     ; FUNCTION: msx2_try_wall_jump_kick
     ; PURPOSE: If wall_slide is active and the jump key is pressed
@@ -386,11 +414,11 @@ msx2_step_wall_jump_lock:
 `;
 }
 
-export function buildMsx2WallJumpRuntimeAsm(config: Msx2WallJumpConfig): string {
+export function buildMsx2WallJumpRuntimeAsm(config: Msx2WallJumpConfig, platformMoveSpeed: number): string {
   if (!config.enabled) return '';
 
   return `${buildWallJumpPressedRoutine(config)}
-${buildWallJumpDetectContactAsm()}
+${buildWallJumpDetectContactAsm(platformMoveSpeed)}
 ${buildWallJumpSlideClampAsm(config)}
 ${buildWallJumpKickAndStepAsm(config)}
 `;
@@ -406,10 +434,11 @@ ${buildWallJumpKickAndStepAsm(config)}
  */
 export function buildMsx2WallJumpInputGateAsm(config: Msx2WallJumpConfig): string {
   if (!config.enabled) return '';
-  return `    ; wall_jump: detect contact, try kick, step horizontal lock.
+  return `    ; wall_jump: detect contact, release key lock, try kick, step horizontal lock.
     call msx2_wall_jump_detect_contact
     ld (msx2_wall_slide_side), a
-    call msx2_try_wall_jump_kick
+${config.requireKeyRelease ? `    call msx2_wall_jump_release_lock
+` : ''}    call msx2_try_wall_jump_kick
     call msx2_step_wall_jump_lock
 `;
 }

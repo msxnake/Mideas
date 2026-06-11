@@ -98,3 +98,11 @@ Mideas
 - Reset en screen transition incluye wall_jump y dash vars (fix latente #4).
 - Verificación: 22/22 checks en `check_skill_params_contract.cjs`, esbuild syntax clean.
 - Pendiente: smoke OpenMSX end-to-end (manual o automatizado).
+
+## Sesion 2026-06-11 - Regeneracion coyote + verificacion wall_jump
+- Rama: `codex/msx2-shooter-world-runtime` (HEAD 901b8b04 wall_jump Fase 0-7).
+- ROM coyote regenerada (push_example22, megarom konami): push de cajas OK ambas direcciones, box2_count estable. ROMs: test/v22coyote.rom y _64k.rom.
+- 3 fixes a wall_jump/WIP: (1) TS error platformMoveSpeed usado antes de declarar (TDZ) en msx2Screen4Generator:3774; (2) buildMsx2WallJumpResetAsm() emitido incondicionalmente -> ROM sin wall_jump no compilaba (Symbol not found); (3) key_lock sin release -> solo un wall jump por vida; anadida msx2_wall_jump_release_lock (patron dash) y llamada en el gate.
+- Verificacion wall_jump end-to-end (test/v22walljump_64k.rom, smoke determinista con pared inyectada en cache de colision): bloqueo en x=49, kick de 32px exactos (4px x 8 frames) con impulso vertical, lock decrementando, keylock armado/limpiado, SEGUNDO kick identico. Layout RAM: side #C079, timer #C07A, vx #C07B, keylock #C07C; coyote #C077; box2 #C047 intactos.
+- Limitaciones conocidas wall_jump (sin tocar, decision pendiente): step_lock no comprueba colision (el kick puede empotrar al player); el mismo press de salto en suelo junto a pared dispara core jump + kick 1 frame despues; el input direccional no se suprime durante el lock (mantener hacia la pared reduce el escape a la mitad).
+- Checks: contrato 22/22, verify_skills_fix OK, tsc limpio.

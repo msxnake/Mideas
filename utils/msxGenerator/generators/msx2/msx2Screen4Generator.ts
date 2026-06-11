@@ -3771,13 +3771,13 @@ function buildHardwareSpriteRuntimeAsm(
   const teleportInitClearAsm = teleportConfig.enabled ? buildMsx2TeleportABInitClearAsm() : '';
   const glideRuntimeAsm = buildMsx2GlideRuntimeAsm(glideConfig);
   const glideInitClearAsm = glideConfig.enabled ? buildMsx2GlideInitClearAsm() : '';
-  const wallJumpRuntimeAsm = buildMsx2WallJumpRuntimeAsm(wallJumpConfig);
+  const wallJumpRuntimeAsm = buildMsx2WallJumpRuntimeAsm(wallJumpConfig, getPlatformHorizontalSpeed(analysis));
   const wallJumpInputGateAsm = buildMsx2WallJumpInputGateAsm(wallJumpConfig);
   const wallJumpGravityHookAsm = buildMsx2WallJumpGravityHookAsm(wallJumpConfig);
   const wallJumpLandClearAsm = buildMsx2WallJumpLandClearAsm(wallJumpConfig);
   const wallJumpDamageSkipAsm = buildMsx2WallJumpDamageSkipAsm(wallJumpConfig);
   const wallJumpHazardSkipAsm = buildMsx2WallJumpHazardSkipAsm(wallJumpConfig);
-  const wallJumpResetAsm = buildMsx2WallJumpResetAsm();
+  const wallJumpResetAsm = wallJumpConfig.enabled ? buildMsx2WallJumpResetAsm() : '';
   const wallJumpInitClearAsm = wallJumpConfig.enabled ? buildMsx2WallJumpInitClearAsm() : '';
   const paddleCollision = getPaddleCollisionSettings(analysis);
   const mazeMovement = usesMazeMovement(analysis);
