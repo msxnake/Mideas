@@ -5,6 +5,7 @@ import { MSX2_GLIDE_RAM_BYTES } from './msx2GlideGenerator';
 import { MSX2_WALL_JUMP_RAM_BYTES } from './msx2WallJumpGenerator';
 import { MSX2_POWER_STOMP_RAM_BYTES } from './msx2PowerStompGenerator';
 import { MSX2_SCREEN_SHAKE_RAM_BYTES } from './msx2ScreenShakeGenerator';
+import { MSX2_AIR_DASH_RAM_BYTES } from './msx2AirDashGenerator';
 
 const MSX2_SNAKE_BODY_BASE = 0xC047;
 const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
@@ -13,7 +14,7 @@ const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
  * First byte reserved for the player-timer + skill extension chain.
  *
  * The chain is `timers (2) -> dash (4) -> teleport (8) -> glide (2) -> wall_jump (4)`,
- * with the worst-case end (pushBox + all skills) at #C08B. After that byte
+ * then `power_stomp (2) -> screen_shake (1) -> air_dash (4)`. After that byte
  * `msx2_effects_runtime_buffers` starts (anchored to `max(0xC200, ...)` so the
  * 4 bytes we added for wall_jump are invisible to the runtime RAM budget — see
  * `estimateMsx2RuntimeRamEnd` in msx2Screen4Generator.ts).
@@ -25,10 +26,11 @@ const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
  * in 2026-06-10 to make room for the wall_jump skill (4 bytes) plus 1 byte
  * of defensive padding. Moved to 0xC094 in 2026-06-11 to make room for the
  * power_stomp skill (2 bytes) and the reusable screen-shake module (1 byte),
- * plus defensive padding. Bumping further (e.g. for new skills) is safe as
- * long as it stays below 0xC200.
+ * plus defensive padding. Moved to 0xC098 in 2026-06-11 to add the distinct
+ * air_dash skill (4 bytes). Bumping further is safe as long as it stays below
+ * 0xC200.
  */
-export const MSX2_SKILL_RAM_LIMIT = 0xC094;
+export const MSX2_SKILL_RAM_LIMIT = 0xC098;
 
 /** msx2_player_coyote_timer (1) + msx2_player_jump_buffer_timer (1). */
 export const MSX2_PLAYER_TIMER_RAM_BYTES = 2;
@@ -41,6 +43,7 @@ export interface Msx2SkillRamOptions {
   wallJumpEnabled: boolean;
   powerStompEnabled: boolean;
   screenShakeEnabled: boolean;
+  airDashEnabled: boolean;
 }
 
 /**
@@ -65,7 +68,9 @@ export function resolveMsx2PlayerTimersRamBase(pushBoxMovement: boolean): number
 
 /**
  * Base address for the next skill extension block. Layout (in order):
- * timers (always reserved, 2 bytes) -> dash (4) -> teleport (8) -> glide (2) -> wall_jump (4).
+ * timers (always reserved, 2 bytes) -> dash (4) -> teleport (8) ->
+ * glide (2) -> wall_jump (4) -> power_stomp (2) -> screen_shake (1) ->
+ * air_dash (4).
  * Each skill resolves its own base by passing the skills that precede it.
  *
  * NOTE: the chain is `options` driven so the layout module owns the ordering.
@@ -81,6 +86,7 @@ export function resolveMsx2SkillExtensionRamBase(options: Msx2SkillRamOptions): 
   if (options.wallJumpEnabled) base += MSX2_WALL_JUMP_RAM_BYTES;
   if (options.powerStompEnabled) base += MSX2_POWER_STOMP_RAM_BYTES;
   if (options.screenShakeEnabled) base += MSX2_SCREEN_SHAKE_RAM_BYTES;
+  if (options.airDashEnabled) base += MSX2_AIR_DASH_RAM_BYTES;
   return base;
 }
 
@@ -92,6 +98,7 @@ export function buildMsx2SkillRamOptions(
   wallJumpEnabled: boolean,
   powerStompEnabled: boolean = false,
   screenShakeEnabled: boolean = false,
+  airDashEnabled: boolean = false,
 ): Msx2SkillRamOptions {
   return {
     pushBoxMovement,
@@ -101,6 +108,7 @@ export function buildMsx2SkillRamOptions(
     wallJumpEnabled,
     powerStompEnabled,
     screenShakeEnabled,
+    airDashEnabled,
   };
 }
 

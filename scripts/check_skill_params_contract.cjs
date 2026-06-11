@@ -141,12 +141,12 @@ assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes(
 
 // 17b) Regression guard: the skill RAM layout module chains the regions in
 // order (timers -> dash -> teleport -> glide -> wall_jump -> power_stomp ->
-// screen_shake) and enforces the #C094 limit.
+// screen_shake -> air_dash) and enforces the #C098 limit.
 const layoutCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2SkillRamLayout.ts'), 'utf8');
 assert(layoutCode.includes('MSX2_PLAYER_TIMER_RAM_BYTES = 2'),
   'msx2SkillRamLayout reserves 2 bytes for the player coyote/jump-buffer timers');
-assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC094'),
-    'msx2SkillRamLayout caps the chain at #C094 (msx2_effects_runtime_buffers)');
+assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC098'),
+    'msx2SkillRamLayout caps the chain at #C098 (msx2_effects_runtime_buffers)');
 assert(layoutCode.includes('MSX2_BOX2_RUNTIME_BYTES'),
   'msx2SkillRamLayout offsets the chain past the box2 runtime in pushBox projects');
 // No EQU in the generator may land on the box2 runtime head (#C047/#C048):
@@ -268,4 +268,32 @@ const shakeGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'g
 assert(shakeGenCode.includes('MSX2_SCREEN_SHAKE_RAM_BYTES = 1'),
   'msx2ScreenShakeGenerator declares MSX2_SCREEN_SHAKE_RAM_BYTES = 1');
 
-console.log('\nAll 26 plumbing checks passed.');
+// 27) air_dash is distinct from ground dash and has its own runtime/RAM.
+assert(handlersCode.includes("id: 'air_dash'") && /controlIcon:\s*'attack'/.test(handlersCode),
+  'air_dash is registered as a separate attack-button skill');
+assert(handlersCode.includes("key: 'requireKeyRelease'") && handlersCode.includes("key: 'invulnerable'"),
+  'air_dash exposes lock and invulnerability parameters');
+assert(physicsCode.includes('Msx2AirDashConfig') && physicsCode.includes('getMsx2AirDashConfigFromPlayerEntity'),
+  'msx2PlatformPhysics exports air_dash config resolver');
+assert(genCode.includes('buildMsx2AirDashRuntimeAsm') && genCode.includes('${airDashRuntimeAsm}'),
+  'msx2Screen4Generator builds and injects air_dash runtime ASM');
+assert(genCode.includes('${airDashInputGateAsm}${dashInputGateAsm}'),
+  'air_dash input gate runs before ground dash gate');
+assert(genCode.includes('${airDashActiveFrameAsm}${dashActiveFrameAsm}'),
+  'air_dash active frame runs before ground dash active frame');
+assert(genCode.includes('${airDashEquatesAsm}'),
+  'air_dash EQUs are injected in the EQU block');
+assert(layoutCode.includes('MSX2_AIR_DASH_RAM_BYTES') && layoutCode.includes('airDashEnabled'),
+  'msx2SkillRamLayout chains MSX2_AIR_DASH_RAM_BYTES');
+const airDashGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2AirDashGenerator.ts'), 'utf8');
+assert(airDashGenCode.includes('MSX2_AIR_DASH_RAM_BYTES = 4'),
+  'msx2AirDashGenerator declares MSX2_AIR_DASH_RAM_BYTES = 4');
+assert(airDashGenCode.includes('msx2_air_dash_player_grounded') && airDashGenCode.includes('jp nz, .air_dash_start_blocked'),
+  'air_dash starts only when the direct foot probe says the player is not grounded');
+assert(airDashGenCode.includes('lockGroundDashOnStart') && airDashGenCode.includes('ld (msx2_dash_lock), a'),
+  'air_dash can lock ground dash so one held input does not trigger both skills');
+const dashGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2DashGenerator.ts'), 'utf8');
+assert(dashGenCode.includes('msx2_dash_player_grounded') && dashGenCode.includes('jp z, .dash_start_blocked'),
+  'ground dash starts only when the direct foot probe says the player is grounded');
+
+console.log('\nAll 27 plumbing checks passed.');

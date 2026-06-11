@@ -4,7 +4,7 @@
   "description": "Quick horizontal dash while in mid-air",
   "required": false,
   "cycles": 100,
-  "controlIcon": "jump",
+  "controlIcon": "attack",
   "addsStates": ["air_dashing"],
   "icon": "💨",
   "category": "movement",
@@ -38,6 +38,20 @@
       "max": 60,
       "step": 1,
       "help": "Frames before air dash can be used again."
+    },
+    {
+      "key": "requireKeyRelease",
+      "label": "Require key release between air dashes",
+      "type": "boolean",
+      "default": true,
+      "help": "Player must release the air dash key before triggering another air dash."
+    },
+    {
+      "key": "invulnerable",
+      "label": "Invulnerable during air dash",
+      "type": "boolean",
+      "default": true,
+      "help": "Player takes no damage during the air dash burst."
     },
     {
       "key": "allowDoubleJumpCancel",

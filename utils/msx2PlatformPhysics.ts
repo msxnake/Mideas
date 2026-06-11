@@ -45,6 +45,17 @@ export interface Msx2DashConfig {
   secondaryControl: Msx2PlayerControlId | 'none';
 }
 
+export interface Msx2AirDashConfig {
+  enabled: boolean;
+  airDashSpeed: number;
+  airDashDuration: number;
+  airDashCooldown: number;
+  requireKeyRelease: boolean;
+  invulnerable: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
 /**
  * Wall jump skill config (MSX2 platformer).
  *
@@ -363,6 +374,13 @@ function resolveDashSkillBinding(player: any | undefined): {
   return resolveMsx2SkillBinding(player, 'dash');
 }
 
+function resolveAirDashSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'air_dash');
+}
+
 function resolveTeleportABSkillBinding(player: any | undefined): {
   primary: Msx2PlayerControlId;
   secondary: Msx2PlayerControlId | 'none';
@@ -437,6 +455,26 @@ export function getMsx2DashConfigFromPlayerEntity(player: any | undefined): Msx2
     dashCooldown: Math.max(0, Math.min(120, dashCooldown || 30)),
     requireKeyRelease: params.requireKeyRelease !== false,
     directional: params.directional !== false,
+    invulnerable: params.invulnerable !== false,
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2AirDashConfigFromPlayerEntity(player: any | undefined): Msx2AirDashConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('air_dash');
+  const params = (player?.skillParameters?.air_dash || {}) as Record<string, number | boolean>;
+  const binding = resolveAirDashSkillBinding(player);
+  const airDashSpeed = pickSkillNumberParam(params, 'air_dash', ['airDashSpeed'], 6);
+  const airDashDuration = pickSkillNumberParam(params, 'air_dash', ['airDashDuration'], 6);
+  const airDashCooldown = pickSkillNumberParam(params, 'air_dash', ['airDashCooldown'], 20);
+  return {
+    enabled,
+    airDashSpeed: Math.max(1, Math.min(24, airDashSpeed || 6)),
+    airDashDuration: Math.max(1, Math.min(30, airDashDuration || 6)),
+    airDashCooldown: Math.max(0, Math.min(120, airDashCooldown || 20)),
+    requireKeyRelease: params.requireKeyRelease !== false,
     invulnerable: params.invulnerable !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,

@@ -629,3 +629,33 @@ Variante de proceso: cuando un agente escribe ASM, revisar a mano TODA
 constante combinada `ld rr,#nnnn` usada con BIOS que dependa del orden de
 bytes (WRTVDP, WRTPSG, etc.). El smoke OpenMSX por PC/breakpoints localiza
 estos cuelgues de init en minutos (input_gate_hits=0 + PC en BIOS).
+
+---
+
+## Bug Resuelto: gate de skill basado en flag stale
+
+Fecha: 2026-06-11
+
+Problema:
+Al separar `dash` (suelo) y `air_dash` (aire), el primer intento uso
+`msx2_player_flags` bit 0 para decidir grounded/airborne. En OpenMSX,
+tras boot el player estaba visualmente apoyado, pero el flag aun podia estar
+a 0 antes de que la fisica vertical lo refrescara. Resultado: `air_dash`
+se podia activar en suelo.
+
+Causa:
+El gate de input corria antes de la pasada vertical que recalcula el flag de
+suelo. El estado RAM era valido como cache de fisica, pero no como fuente
+autoritaria para una decision de input en ese punto del frame.
+
+Solucion:
+Usar un probe fisico directo bajo los pies con `msx2_collision_at_pixel`
+para decidir si `dash` o `air_dash` pueden arrancar. Ademas, cuando
+`air_dash` empieza con el mismo boton que `dash`, activar tambien
+`msx2_dash_lock` para que una pulsacion mantenida no encadene ambas skills.
+
+Leccion:
+Para gates de skills sensibles al orden del frame, no confiar en flags
+cacheados si se actualizan mas tarde en el loop. Usar estado recien calculado
+o un probe directo. Si dos skills comparten boton por contexto, revisar locks
+cruzados: una pulsacion no debe disparar dos mecanicas consecutivas.

@@ -11,6 +11,8 @@ const data = {
     { key: 'airDashSpeed', label: 'Air dash speed (px/frame)', type: 'number', default: 6, min: 2, max: 16, step: 1, help: 'Horizontal speed during air dash.' },
     { key: 'airDashDuration', label: 'Air dash duration (frames)', type: 'number', default: 6, min: 2, max: 20, step: 1, help: 'How many frames the air dash lasts.' },
     { key: 'airDashCooldown', label: 'Air dash cooldown (frames)', type: 'number', default: 20, min: 5, max: 60, step: 1, help: 'Frames before air dash can be used again.' },
+    { key: 'requireKeyRelease', label: 'Require key release between air dashes', type: 'boolean', default: true, help: 'Player must release the air dash key before triggering another air dash.' },
+    { key: 'invulnerable', label: 'Invulnerable during air dash', type: 'boolean', default: true, help: 'Player takes no damage during the air dash burst.' },
     { key: 'allowDoubleJumpCancel', label: 'Cancel double jump into air dash', type: 'boolean', default: false, help: 'If true, air dash can be triggered after a double jump (uses double jump).' },
   ],
 };

@@ -98,6 +98,43 @@ export function buildMsx2DashRuntimeAsm(
   const setWalkingFlag = options.setPlayerWalkingFlagAsm || '';
 
   return `${buildDashPressedRoutine(config)}
+msx2_dash_player_grounded:
+    ; ------------------------------------------------------------
+    ; FUNCTION: msx2_dash_player_grounded
+    ; PURPOSE: Detects whether a solid cell is directly below the player feet.
+    ; INPUT: none.
+    ; OUTPUT: A=1 grounded, A=0 airborne.
+    ; DESTROYS: AF, BC, DE, HL.
+    ; PRESERVES: IX, IY.
+    ; CALLS: msx2_collision_at_pixel.
+    ; SIDE EFFECTS: none.
+    ; NOTES: Uses direct foot probes instead of msx2_player_flags because that
+    ;   flag can be stale before the vertical physics pass refreshes it.
+    ; ------------------------------------------------------------
+    ld a, (msx2_player_sprite_x)
+    add a, 4
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 16
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    jp nz, .dash_grounded_yes
+    ld a, (msx2_player_sprite_x)
+    add a, 12
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 16
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    jp nz, .dash_grounded_yes
+    xor a
+    ret
+.dash_grounded_yes:
+    ld a, 1
+    ret
+
 msx2_tick_dash_cooldown:
     ; ------------------------------------------------------------
     ; FUNCTION: msx2_tick_dash_cooldown
@@ -129,16 +166,24 @@ msx2_dash_release_lock:
 msx2_try_start_dash:
     ; ------------------------------------------------------------
     ; FUNCTION: msx2_try_start_dash
-    ; PURPOSE: Starts a dash when input, cooldown and key lock allow it.
+    ; PURPOSE: Starts a ground dash when input, cooldown and key lock allow it.
     ;   Resolves dash direction and arms msx2_dash_timer/cooldown/lock.
     ; INPUT: none. OUTPUT: msx2_dash_timer > 0 when a dash started.
     ; DESTROYS: AF, BC, DE, HL.
+    ; PRESERVES: IX, IY.
+    ; CALLS: msx2_tick_dash_cooldown, msx2_dash_release_lock,
+    ;   msx2_control_dash_pressed.
+    ; SIDE EFFECTS: Updates dash timer/cooldown/lock/direction in RAM.
+    ; NOTES: Grounded is bit 0 of msx2_player_flags; air_dash owns airborne dashes.
     ; ------------------------------------------------------------
     call msx2_tick_dash_cooldown
     ld a, (msx2_dash_timer)
     or a
     ret nz
     call msx2_dash_release_lock
+    call msx2_dash_player_grounded
+    or a
+    jp z, .dash_start_blocked
     call msx2_control_dash_pressed
     or a
     jp z, .dash_start_blocked

@@ -343,7 +343,7 @@ export const dash: SkillDef = {
   controlIcon: 'attack',
   addsStates: ['dashing'],
   transitions: [
-    { from: ['grounded', 'running', 'jumping', 'falling'], to: 'dashing', condition: 'dash_key_pressed AND dash_cooldown = 0' },
+    { from: ['grounded', 'running'], to: 'dashing', condition: 'dash_key_pressed AND dash_cooldown = 0 AND grounded' },
     { from: ['dashing'], to: 'grounded', condition: 'dash_timer_expired AND grounded' },
     { from: ['dashing'], to: 'falling', condition: 'dash_timer_expired AND NOT grounded' },
   ],
@@ -450,6 +450,20 @@ export const airDashParameters: SkillParameterDef[] = [
     help: 'Frames before air dash can be used again.',
   },
   {
+    key: 'requireKeyRelease',
+    label: 'Require key release between air dashes',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release the air dash key before triggering another air dash.',
+  },
+  {
+    key: 'invulnerable',
+    label: 'Invulnerable during air dash',
+    type: 'boolean',
+    default: true,
+    help: 'Player takes no damage during the air dash burst.',
+  },
+  {
     key: 'allowDoubleJumpCancel',
     label: 'Cancel double jump into air dash',
     type: 'boolean',
@@ -463,7 +477,7 @@ export const airDash: SkillDef = {
   label: 'Air dash',
   required: false,
   cycles: 100,
-  controlIcon: 'jump',
+  controlIcon: 'attack',
   addsStates: ['air_dashing'],
   transitions: [
     { from: ['jumping', 'falling', 'double_jumping'], to: 'air_dashing', condition: 'dash_key_pressed AND air_dash_cooldown = 0 AND NOT grounded' },
