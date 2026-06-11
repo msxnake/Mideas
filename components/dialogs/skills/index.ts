@@ -1,6 +1,5 @@
 export { SkillDialog } from './SkillDialog';
 export { WallJumpDialog } from './WallJumpDialog';
-export { GroundPoundDialog } from './GroundPoundDialog';
 export { AirDashDialog } from './AirDashDialog';
 export { ChargeAttackDialog } from './ChargeAttackDialog';
 export { GlideDialog } from './GlideDialog';

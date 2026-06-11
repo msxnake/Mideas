@@ -478,7 +478,6 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   dash: { icon: '💨', category: 'movement', description: 'Quick dash in facing direction' },
   double_jump: { icon: '🦘', category: 'movement', description: 'Jump again in mid-air' },
   wall_jump: { icon: '🧱', category: 'movement', description: 'Jump off walls' },
-  ground_pound: { icon: '⬇️', category: 'attack', description: 'Slam downward from air' },
   air_dash: { icon: '💨', category: 'movement', description: 'Dash while in mid-air' },
   charge_attack: { icon: '⚡', category: 'attack', description: 'Hold to charge, release to attack' },
   glide: { icon: '🦅', category: 'movement', description: 'Slow fall with horizontal control' },
