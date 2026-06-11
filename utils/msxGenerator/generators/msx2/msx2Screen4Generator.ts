@@ -2138,8 +2138,15 @@ ${physics.jumpBuffer > 0 ? `    ld a, ${jumpBufferFrames}
     ? `    call msx2_control_jump_pressed
     or a
     jp z, .platform_jump_space_released
-${jumpLockGate}    ld a, (msx2_player_flags)
-    bit 0, a
+${jumpLockGate}    ; Grounded probe for jump must be direct: msx2_player_flags can be stale
+    ; before this vertical-physics pass refreshes it.
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeLeftOffset)}${formatSignedPixelAdd('c', 'msx2_player_sprite_y', bottomProbeOffset)}    push bc
+    call msx2_collision_at_pixel
+    pop bc
+    or a
+    jp nz, .platform_jump_grounded
+${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    call msx2_collision_at_pixel
+    or a
     jp nz, .platform_jump_grounded
     ; Airborne: check coyote / buffer
 ${coyoteAirGate}    ld a, (msx2_player_flags)

@@ -138,6 +138,8 @@ assert(genCode.includes('.platform_coyote_blocked') && genCode.includes('.platfo
   'Generator emits coyote/buffer labels in the platform vertical physics routine');
 assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes('ld (msx2_player_jump_buffer_timer), a'),
   'Generator writes both timers (arming and clearing paths)');
+assert(genCode.includes('Grounded probe for jump must be direct') && genCode.includes('.platform_jump_grounded'),
+  'Jump grounded gate uses a direct foot probe instead of stale msx2_player_flags');
 
 // 17b) Regression guard: the skill RAM layout module chains the regions in
 // order (timers -> dash -> teleport -> glide -> wall_jump -> power_stomp ->
