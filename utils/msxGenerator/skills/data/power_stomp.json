@@ -4,7 +4,7 @@
   "description": "Fall with impact and break tiles or damage enemies",
   "required": false,
   "cycles": 120,
-  "controlIcon": "down",
+  "controlIcon": ["down", "attack"],
   "addsStates": ["stomp_charging", "stomp_falling", "stomp_impact"],
   "icon": "💥",
   "category": "attack",
@@ -79,6 +79,13 @@
       "type": "boolean",
       "default": false,
       "help": "If true, player bounces off ground if no enemy was hit."
+    },
+    {
+      "key": "screenShake",
+      "label": "Screen shake on impact (VDP)",
+      "type": "boolean",
+      "default": true,
+      "help": "Shake the whole SCREEN 4 display (V9938 R#18) when the stomp hits the ground."
     }
   ]
 }

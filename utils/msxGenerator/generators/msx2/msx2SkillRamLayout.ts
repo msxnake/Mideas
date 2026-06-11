@@ -3,6 +3,8 @@ import { MSX2_DASH_RAM_BYTES } from './msx2DashGenerator';
 import { MSX2_TELEPORT_AB_RAM_BYTES } from './msx2TeleportABGenerator';
 import { MSX2_GLIDE_RAM_BYTES } from './msx2GlideGenerator';
 import { MSX2_WALL_JUMP_RAM_BYTES } from './msx2WallJumpGenerator';
+import { MSX2_POWER_STOMP_RAM_BYTES } from './msx2PowerStompGenerator';
+import { MSX2_SCREEN_SHAKE_RAM_BYTES } from './msx2ScreenShakeGenerator';
 
 const MSX2_SNAKE_BODY_BASE = 0xC047;
 const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
@@ -21,10 +23,12 @@ const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
  *
  * History: 0xC087 was the original limit (snake-body end). Moved to 0xC08C
  * in 2026-06-10 to make room for the wall_jump skill (4 bytes) plus 1 byte
- * of defensive padding. Bumping further (e.g. for new skills) is safe as
+ * of defensive padding. Moved to 0xC094 in 2026-06-11 to make room for the
+ * power_stomp skill (2 bytes) and the reusable screen-shake module (1 byte),
+ * plus defensive padding. Bumping further (e.g. for new skills) is safe as
  * long as it stays below 0xC200.
  */
-export const MSX2_SKILL_RAM_LIMIT = 0xC08C;
+export const MSX2_SKILL_RAM_LIMIT = 0xC094;
 
 /** msx2_player_coyote_timer (1) + msx2_player_jump_buffer_timer (1). */
 export const MSX2_PLAYER_TIMER_RAM_BYTES = 2;
@@ -35,6 +39,8 @@ export interface Msx2SkillRamOptions {
   teleportEnabled: boolean;
   glideEnabled: boolean;
   wallJumpEnabled: boolean;
+  powerStompEnabled: boolean;
+  screenShakeEnabled: boolean;
 }
 
 /**
@@ -73,6 +79,8 @@ export function resolveMsx2SkillExtensionRamBase(options: Msx2SkillRamOptions): 
   if (options.teleportEnabled) base += MSX2_TELEPORT_AB_RAM_BYTES;
   if (options.glideEnabled) base += MSX2_GLIDE_RAM_BYTES;
   if (options.wallJumpEnabled) base += MSX2_WALL_JUMP_RAM_BYTES;
+  if (options.powerStompEnabled) base += MSX2_POWER_STOMP_RAM_BYTES;
+  if (options.screenShakeEnabled) base += MSX2_SCREEN_SHAKE_RAM_BYTES;
   return base;
 }
 
@@ -82,8 +90,18 @@ export function buildMsx2SkillRamOptions(
   teleportEnabled: boolean,
   glideEnabled: boolean,
   wallJumpEnabled: boolean,
+  powerStompEnabled: boolean = false,
+  screenShakeEnabled: boolean = false,
 ): Msx2SkillRamOptions {
-  return { pushBoxMovement, dashEnabled, teleportEnabled, glideEnabled, wallJumpEnabled };
+  return {
+    pushBoxMovement,
+    dashEnabled,
+    teleportEnabled,
+    glideEnabled,
+    wallJumpEnabled,
+    powerStompEnabled,
+    screenShakeEnabled,
+  };
 }
 
 /**

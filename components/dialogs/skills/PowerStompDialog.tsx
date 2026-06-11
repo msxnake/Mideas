@@ -16,6 +16,7 @@ const data = {
     { key: 'stompCooldown', label: 'Stomp cooldown (frames)', type: 'number', default: 30, min: 10, max: 120, step: 5, help: 'Frames before stomp can be used again.' },
     { key: 'chargeRequired', label: 'Requires charge in air', type: 'boolean', default: false, help: 'If true, must hold down in air before stomp activates.' },
     { key: 'ricochetOnMiss', label: 'Ricochet if no enemy hit', type: 'boolean', default: false, help: 'If true, player bounces off ground if no enemy was hit.' },
+    { key: 'screenShake', label: 'Screen shake on impact (VDP)', type: 'boolean', default: true, help: 'Shake the whole SCREEN 4 display (V9938 R#18) when the stomp hits the ground.' },
   ],
 };
 

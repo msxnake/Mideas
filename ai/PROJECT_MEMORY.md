@@ -121,3 +121,14 @@ Mideas
 - Archivos: msx2PlatformPhysics.ts, skills/handlers/index.ts, skills/data/wall_jump.json, components/dialogs/skills/WallJumpDialog.tsx (las 3 copias de la definicion del parametro), contrato.
 - Verificado: contrato 22/22, tsc limpio, impulso #FC legacy / #F8 con vertical=8, smoke visual en chimenea de push.json: ~60px de subida por kick con vertical=8 (vs ~14px con default). ROM test/push_wjv8_64k.rom.
 - Regla recordada: la definicion de un skill param vive en TRES sitios (handlers/index.ts, data/<skill>.json, components/dialogs/skills/<Skill>Dialog.tsx) - mantener las tres sincronizadas.
+
+## Sesion 2026-06-11 (madrugada) - Power Stomp + terremoto VDP R#18
+- Nuevo skill runtime Power Stomp (antes solo UI) + efecto reusable de screen shake via V9938 R#18. Implementado con agente, verificado y depurado por mi en OpenMSX.
+- Disparo: DOWN+B en el aire (controlIcon power_stomp = ['down','attack']). Caida rapida (stompSpeed, pin gravity_vel), deteccion al aterrizar, shake si checkbox screenShake.
+- Archivos nuevos: msx2ScreenShakeGenerator.ts (1 byte RAM, reusable), msx2PowerStompGenerator.ts (2 bytes: active+cooldown). Modificados: msx2PlatformPhysics.ts (Msx2PowerStompConfig + getMsx2PowerStompConfigFromPlayerEntity + msx2PlayerWantsScreenShake), msx2SkillRamLayout.ts (chain +powerStomp +screenShake, limite #C08C->#C094), msx2Screen4Generator.ts (wiring ~8 puntos espejo de wall_jump), skills/handlers/index.ts + data/power_stomp.json + PowerStompDialog.tsx (checkbox screenShake), check_skill_params_contract.cjs (22->26).
+- RAM chain con wall_jump+stomp: coyote#C077 jbuf#C078 / wall_jump #C079-7C / stomp_active#C07D cooldown#C07E / shake_timer#C07F. Sin pushBox baja a #C049+. Sin solapes.
+- BUG critico encontrado y corregido (ver LESSONS_LEARNED): init-clear del shake usaba `ld bc,#1200` (bytes invertidos) -> escribia R#0 en vez de R#18 -> VDP roto, cuelgue en GameFlow antes del main loop. Fix: `ld bc,#0012`.
+- Tabla shake R#18: db #00,#F0,#10,#F0,#20 (se reproduce timer 5->1 = #20,#F0,#10,#F0,#00), oscilacion vertical que termina centrada. Verificado: r18 oscila 32->16->0.
+- Verificacion OpenMSX: arranque OK (flags=1, player visible), salto+stomp (active=1, caida), aterrizaje dispara shake (shake=4, r18 oscila y centra). No-regresion: push.json sin stomp = 0 refs shake, arranca flags=1. Contrato 26/26, tsc limpio.
+- Fase 2 pendiente (documentada como TODO en msx2_stomp_on_land): dano a enemigos / romper tiles dentro de impactRadius (params stompDamage, breakableTiles, impactRadius, ricochetOnMiss ya existen en UI pero sin runtime).
+- Tecnica de debug clave: breakpoints openMSX (debug set_bp ADDR 1 {incr hits}) + reg PC. input_gate_hits=0 + PC en BIOS = cuelgue en init/gameflow, no en runtime del player.

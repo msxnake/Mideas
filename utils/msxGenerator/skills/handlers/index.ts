@@ -1408,6 +1408,13 @@ export const powerStompParameters: SkillParameterDef[] = [
     default: false,
     help: 'If true, player bounces off ground if no enemy was hit.',
   },
+  {
+    key: 'screenShake',
+    label: 'Screen shake on impact (VDP)',
+    type: 'boolean',
+    default: true,
+    help: 'Shake the whole SCREEN 4 display (V9938 R#18) when the stomp hits the ground.',
+  },
 ];
 
 export const powerStomp: SkillDef = {
@@ -1415,7 +1422,7 @@ export const powerStomp: SkillDef = {
   label: 'Power Stomp',
   required: false,
   cycles: 120,
-  controlIcon: 'down',
+  controlIcon: ['down', 'attack'],
   addsStates: ['stomp_charging', 'stomp_falling', 'stomp_impact'],
   transitions: [
     { from: ['jumping', 'falling'], to: 'stomp_charging', condition: 'down_key_held AND stomp_cooldown = 0 AND NOT grounded' },

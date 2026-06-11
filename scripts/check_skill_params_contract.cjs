@@ -140,12 +140,13 @@ assert(genCode.includes('ld (msx2_player_coyote_timer), a') && genCode.includes(
   'Generator writes both timers (arming and clearing paths)');
 
 // 17b) Regression guard: the skill RAM layout module chains the regions in
-// order (timers -> dash -> teleport -> glide -> wall_jump) and enforces the #C08C limit.
+// order (timers -> dash -> teleport -> glide -> wall_jump -> power_stomp ->
+// screen_shake) and enforces the #C094 limit.
 const layoutCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2SkillRamLayout.ts'), 'utf8');
 assert(layoutCode.includes('MSX2_PLAYER_TIMER_RAM_BYTES = 2'),
   'msx2SkillRamLayout reserves 2 bytes for the player coyote/jump-buffer timers');
-assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC08C'),
-    'msx2SkillRamLayout caps the chain at #C08C (msx2_effects_runtime_buffers)');
+assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC094'),
+    'msx2SkillRamLayout caps the chain at #C094 (msx2_effects_runtime_buffers)');
 assert(layoutCode.includes('MSX2_BOX2_RUNTIME_BYTES'),
   'msx2SkillRamLayout offsets the chain past the box2 runtime in pushBox projects');
 // No EQU in the generator may land on the box2 runtime head (#C047/#C048):
@@ -229,4 +230,42 @@ assert(physicsCode.includes('Msx2WallJumpConfig'),
 assert(physicsCode.includes('getMsx2WallJumpConfigFromPlayerEntity'),
   'msx2PlatformPhysics has getMsx2WallJumpConfigFromPlayerEntity');
 
-console.log('\nAll 22 plumbing checks passed.');
+// 23) power_stomp skill exposes the screenShake param and DOWN+B binding
+assert(handlersCode.includes("key: 'screenShake'"),
+  'power_stomp (handlers) exposes the screenShake parameter');
+assert(/controlIcon:\s*\['down',\s*'attack'\]/.test(handlersCode),
+  "power_stomp controlIcon is ['down', 'attack'] (DOWN+B default binding)");
+
+// 24) physics resolver + screen-shake gate for power_stomp
+assert(physicsCode.includes('getMsx2PowerStompConfigFromPlayerEntity'),
+  'msx2PlatformPhysics has getMsx2PowerStompConfigFromPlayerEntity');
+assert(physicsCode.includes('msx2PlayerWantsScreenShake'),
+  'msx2PlatformPhysics exports msx2PlayerWantsScreenShake');
+assert(physicsCode.includes('Msx2PowerStompConfig'),
+  'msx2PlatformPhysics exports Msx2PowerStompConfig');
+
+// 25) generator wires power_stomp + screen_shake runtimes
+assert(genCode.includes('buildMsx2PowerStompRuntimeAsm'),
+  'msx2Screen4Generator builds power_stomp runtime ASM');
+assert(genCode.includes('buildMsx2ScreenShakeRuntimeAsm'),
+  'msx2Screen4Generator builds screen_shake runtime ASM');
+assert(genCode.includes('${powerStompRuntimeAsm}') && genCode.includes('${screenShakeRuntimeAsm}'),
+  'power_stomp + screen_shake runtimes are injected in the runtime block');
+assert(genCode.includes('${powerStompInputGateAsm}'),
+  'power_stomp input gate is injected before the GTSTCK dispatch');
+assert(genCode.includes('${powerStompLandHookAsm}'),
+  'power_stomp landing hook is injected at the platform settle');
+
+// 26) layout module declares the new RAM byte constants
+assert(layoutCode.includes('MSX2_POWER_STOMP_RAM_BYTES'),
+  'msx2SkillRamLayout chains MSX2_POWER_STOMP_RAM_BYTES');
+assert(layoutCode.includes('MSX2_SCREEN_SHAKE_RAM_BYTES'),
+  'msx2SkillRamLayout chains MSX2_SCREEN_SHAKE_RAM_BYTES');
+const stompGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2PowerStompGenerator.ts'), 'utf8');
+assert(stompGenCode.includes('MSX2_POWER_STOMP_RAM_BYTES = 2'),
+  'msx2PowerStompGenerator declares MSX2_POWER_STOMP_RAM_BYTES = 2');
+const shakeGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2ScreenShakeGenerator.ts'), 'utf8');
+assert(shakeGenCode.includes('MSX2_SCREEN_SHAKE_RAM_BYTES = 1'),
+  'msx2ScreenShakeGenerator declares MSX2_SCREEN_SHAKE_RAM_BYTES = 1');
+
+console.log('\nAll 26 plumbing checks passed.');

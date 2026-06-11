@@ -593,3 +593,39 @@ Luego keymatrixdown/up + lecturas de RAM dan un escenario reproducible.
 Leccion:
 Para smokes de mecanicas dependientes del mapa, inyectar el terreno por
 debug en la cache RAM es mas fiable que depender del layout del fixture.
+
+---
+
+## Bug Resuelto: ld bc,#nnnn con bytes invertidos escribe al registro VDP equivocado
+
+Fecha: 2026-06-11
+
+Problema:
+Al activar el skill power_stomp (con screenShake), la ROM compilaba pero el
+juego se colgaba en el GameFlow ANTES del main loop: player invisible,
+congelado, flags=0, sin responder a teclas. PC atascado en BIOS (#19A6).
+
+Causa:
+La init-clear del screen shake reseteaba R#18 (display adjust) con
+`ld bc, #1200` creyendo que cargaba B=#00 (valor), C=#12 (registro 18).
+Pero `ld bc, #1200` carga B=#12, C=#00. WRTVDP (BIOS) toma valor en B,
+registro en C -> escribia #12 al registro R#0, cambiando el modo de pantalla
+y habilitando la interrupcion de linea (IE1). El VDP quedaba en un estado
+roto durante el init y el arranque nunca alcanzaba el main loop.
+
+Solucion:
+`ld bc, #0012` (B=#00 valor, C=#12 registro 18). Verificado en OpenMSX:
+arranque correcto, stomp + shake (R#18 oscila #20->#10->#00 y centra).
+
+Leccion:
+En `ld bc, #nnnn` el byte ALTO va a B y el byte BAJO a C. Para WRTVDP
+(valor en B, registro en C) la constante combinada es
+`#(valor)(registro)` -> registro 18 con valor 0 = `#0012`, NO `#1200`.
+Sintoma de un WRTVDP a registro equivocado: el VDP/modo se rompe en el
+init y el juego se cuelga antes del primer frame jugable. Preferir
+`ld b,valor / ld c,registro` separados cuando haya duda del orden.
+
+Variante de proceso: cuando un agente escribe ASM, revisar a mano TODA
+constante combinada `ld rr,#nnnn` usada con BIOS que dependa del orden de
+bytes (WRTVDP, WRTPSG, etc.). El smoke OpenMSX por PC/breakpoints localiza
+estos cuelgues de init en minutos (input_gate_hits=0 + PC en BIOS).

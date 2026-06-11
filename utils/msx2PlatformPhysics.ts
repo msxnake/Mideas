@@ -70,6 +70,29 @@ export interface Msx2WallJumpConfig {
   primaryControl: Msx2PlayerControlId;
 }
 
+/**
+ * Power stomp skill config (MSX2 platformer).
+ *
+ * Triggered by DOWN+B (down + attack) while airborne. On trigger the player's
+ * gravityVel is pinned to a fast constant downward fall (`stompSpeed` px/frame,
+ * 8.8 high byte) so the player slams to the ground. On landing, if
+ * `screenShake` is on, a V9938 R#18 (display adjust) earthquake is triggered.
+ *
+ * Uses 2 bytes of RAM (active flag + cooldown). The screen shake effect lives
+ * in its own reusable module (`msx2ScreenShakeGenerator`) and is independent.
+ */
+export interface Msx2PowerStompConfig {
+  enabled: boolean;
+  /** Constant downward fall speed while stomping, px/frame (written to gravityVel hi). Range 4..32. */
+  stompSpeed: number;
+  /** Frames before the stomp can be used again. Range 10..120. */
+  stompCooldown: number;
+  /** When true, trigger the VDP R#18 screen shake on impact. */
+  screenShake: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
 export interface Msx2PlatformPhysicsConfig {
   jumpEnabled: boolean;
   gravityEnabled: boolean;
@@ -354,6 +377,13 @@ function resolveWallJumpSkillBinding(player: any | undefined): {
   return resolveMsx2SkillBinding(player, 'wall_jump');
 }
 
+function resolvePowerStompSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'power_stomp');
+}
+
 export function isMsx2TeleportKeyPressed(
   pressedKeys: ReadonlySet<string>,
   primaryControl: Msx2PlayerControlId,
@@ -449,6 +479,40 @@ export function getMsx2WallJumpConfigFromPlayerEntity(player: any | undefined): 
     requireKeyRelease: params.requireKeyRelease !== false,
     primaryControl: binding.primary,
   };
+}
+
+/**
+ * Returns the resolved power_stomp skill config for the given player.
+ *
+ * Reads `player.skillParameters.power_stomp` and clamps every numeric field to
+ * the range declared in `powerStompParameters` (handlers/index.ts). The default
+ * binding is DOWN+B (down + attack) — see `controlIcon: ['down','attack']`.
+ */
+export function getMsx2PowerStompConfigFromPlayerEntity(player: any | undefined): Msx2PowerStompConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('power_stomp');
+  const params = (player?.skillParameters?.power_stomp || {}) as Record<string, number | boolean>;
+  const binding = resolvePowerStompSkillBinding(player);
+  const stompSpeed = pickSkillNumberParam(params, 'power_stomp', ['stompSpeed'], 16);
+  const stompCooldown = pickSkillNumberParam(params, 'power_stomp', ['stompCooldown'], 30);
+  return {
+    enabled,
+    stompSpeed: Math.max(4, Math.min(32, stompSpeed || 16)),
+    stompCooldown: Math.max(10, Math.min(120, stompCooldown || 30)),
+    screenShake: params.screenShake !== false,
+    primaryControl: binding.primary || 'down',
+    secondaryControl: binding.secondary ?? 'attack',
+  };
+}
+
+/**
+ * True when the player has power_stomp enabled AND its screenShake flag is on.
+ * The generator uses this to decide whether to include the reusable VDP R#18
+ * screen-shake module (`msx2ScreenShakeGenerator`).
+ */
+export function msx2PlayerWantsScreenShake(player: any | undefined): boolean {
+  const config = getMsx2PowerStompConfigFromPlayerEntity(player);
+  return config.enabled && config.screenShake;
 }
 
 function resolveDoubleJumpMaxJumps(
