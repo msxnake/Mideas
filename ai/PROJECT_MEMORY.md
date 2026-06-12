@@ -152,3 +152,10 @@ Mideas
 - Activacion por entidades de pantalla con `msx2_movement.mode = "jumper"`/`"jumping"`/`"verticalJump"`. Aun no conecta `EnemyDefinition` automaticamente.
 - RAM: 0 bytes nuevos; reutiliza runtime compacto de enemigos. CPU: actualiza pausa y Y; sin llamadas externas ni VRAM/VDP nuevas.
 - Nota: un intento de meter Hopper horizontal unrolled por slot produjo overflow residente en Glass; el `Jumper` final usa `msx2_enemy_jumper_shared` con stub por slot. `HopperTowardsPlayer` debe seguir este patron compartido o un diseno de slot indirecto, no duplicar movimiento X/Y por los 12 slots.
+
+## Sesion 2026-06-12 - Fix overflow residente FlyerSine/Jumper MSX2
+- Bug: proyectos MSX2 SCREEN 4 MegaROM podian fallar con `Resident SCREEN 4 code/data crossed #C000` despues de anadir comportamientos complejos de enemigo.
+- Causa raiz: `FlyerSine` seguia duplicado por slot; el diagnostico podia apuntar a tablas pequenas (`msx2_screen_enemy_*`, `box2_restore_names`), pero el ahorro real estaba en eliminar codigo residente unrolled.
+- Fix: `FlyerSine` pasa a `msx2_enemy_flyer_sine_shared` con stubs por slot, y `Jumper` usa el helper compartido `msx2_enemy_screen_slot_offset_from_b` para calcular offsets sin clobberar `B`.
+- RAM: 0 bytes nuevos. CPU: algo mas de coste por `jp/call` al handler compartido, compensado por mucho menos ROM residente. Sin mover mundos ni tablas completas a RAM.
+- Verificacion: `npm run build`, `node scripts/check_skill_params_contract.cjs`, Glass con `server/temp/loderunner_flyer_sine_project.json` y `server/temp/loderunner_jumper_project.json`; ROMs de 65536 bytes (`loderunner_flyer_sine_shared.rom`, `loderunner_jumper_shared.rom`). OpenMSX screenshots OK: `server/temp/loderunner_flyer_sine_shared_smoke.png`, `server/temp/loderunner_jumper_shared_smoke.png`.

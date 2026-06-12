@@ -729,3 +729,32 @@ rutina DEBE ser transparente para ese camino (terminar saltando a donde el
 fallthrough iba). Si el bloque desvia el flujo (como un burst que salta la
 fisica), colocarlo fuera del camino, tras el salto final. Sintoma tipico:
 mecanicas que funcionan en movimiento pero mueren en idle.
+
+---
+
+## Bug Resuelto: overflow residente por rutinas de enemigo unrolled
+
+Fecha: 2026-06-12
+
+Problema:
+El generador MSX2 SCREEN 4 podia fallar con `Resident SCREEN 4 code/data crossed #C000`
+tras anadir comportamientos complejos de enemigo.
+
+Causa:
+`FlyerSine` emitia la logica completa duplicada por cada slot de enemigo. En
+proyectos con varios comportamientos, el residente crecia mas rapido que el
+espacio fijo disponible y el diagnostico podia senalar tablas frias pequenas,
+aunque el peso real venia de codigo repetido.
+
+Solucion:
+Convertir `FlyerSine` a una rutina compartida llamada desde cada slot, y usar
+un helper documentado para calcular `screen*slots+slot` preservando `BC`.
+Aplicar el mismo helper a `Jumper` para evitar clobber accidental del registro
+`B` que transporta el slot.
+
+Leccion:
+En SCREEN 4 MegaROM, los comportamientos complejos de enemigos no deben
+duplicarse por slot. Usar stubs por slot + handler compartido. Si aparece un
+overflow residente, medir primero codigo unrolled antes de mover tablas a bancos
+frios o aumentar RAM; mover datos que el runtime lee por frame sin cachearlos
+puede crear bugs de banco.

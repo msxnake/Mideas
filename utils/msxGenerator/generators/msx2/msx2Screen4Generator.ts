@@ -5223,134 +5223,8 @@ ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
     ret
 
 .enemy_slot_${slot}_flyer_sine:
-    ; FlyerSine local branch.
-    ; INPUT: current screen index in RAM, slot-local runtime dx/dy/min/max tables.
-    ; OUTPUT: updates slot runtime X/Y.
-    ; DESTROYS: AF/BC/DE/HL. PRESERVES: IX/IY. STACK: balanced push/pop around offset lookup.
-${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
-    ld a, (hl)
-    or a
-    jp z, .enemy_slot_${slot}_flyer_sine_y
-    bit 7, a
-    jp nz, .enemy_slot_${slot}_flyer_sine_left
-.enemy_slot_${slot}_flyer_sine_right:
-    ld c, a
-${enemySlotAddress('msx2_enemy_runtime_x', slot)}
-    ld a, (hl)
-    add a, c
-    ld b, a
-    push bc
-${buildEnemyScreenSlotOffsetAsm(slot)}
-    ld hl, msx2_screen_enemy_max_x
-    add hl, de
-    pop bc
-    ld a, b
-    cp (hl)
-    jp nc, .enemy_slot_${slot}_flyer_sine_turn_left
-${enemySlotAddress('msx2_enemy_runtime_x', slot)}
-    ld (hl), b
-    jp .enemy_slot_${slot}_flyer_sine_y
-.enemy_slot_${slot}_flyer_sine_turn_left:
-    ld b, (hl)
-${enemySlotAddress('msx2_enemy_runtime_x', slot)}
-    ld (hl), b
-    ld a, c
-    neg
-${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
-    ld (hl), a
-    jp .enemy_slot_${slot}_flyer_sine_y
-.enemy_slot_${slot}_flyer_sine_left:
-    neg
-    ld c, a
-${enemySlotAddress('msx2_enemy_runtime_x', slot)}
-    ld a, (hl)
-    sub c
-    jp c, .enemy_slot_${slot}_flyer_sine_turn_right
-    ld b, a
-    push bc
-${buildEnemyScreenSlotOffsetAsm(slot)}
-    ld hl, msx2_screen_enemy_min_x
-    add hl, de
-    pop bc
-    ld a, b
-    cp (hl)
-    jp c, .enemy_slot_${slot}_flyer_sine_turn_right
-${enemySlotAddress('msx2_enemy_runtime_x', slot)}
-    ld (hl), b
-    jp .enemy_slot_${slot}_flyer_sine_y
-.enemy_slot_${slot}_flyer_sine_turn_right:
-${buildEnemyScreenSlotOffsetAsm(slot)}
-    ld hl, msx2_screen_enemy_min_x
-    add hl, de
-    ld b, (hl)
-${enemySlotAddress('msx2_enemy_runtime_x', slot)}
-    ld (hl), b
-    ld a, c
-${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
-    ld (hl), a
-.enemy_slot_${slot}_flyer_sine_y:
-${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
-    ld a, (hl)
-    or a
-    ret z
-    bit 7, a
-    jp nz, .enemy_slot_${slot}_flyer_sine_up
-.enemy_slot_${slot}_flyer_sine_down:
-    ld c, a
-${enemySlotAddress('msx2_enemy_runtime_y', slot)}
-    ld a, (hl)
-    add a, c
-    ld b, a
-    push bc
-${buildEnemyScreenSlotOffsetAsm(slot)}
-    ld hl, msx2_screen_enemy_max_y
-    add hl, de
-    pop bc
-    ld a, b
-    cp (hl)
-    jp nc, .enemy_slot_${slot}_flyer_sine_turn_up
-${enemySlotAddress('msx2_enemy_runtime_y', slot)}
-    ld (hl), b
-    ret
-.enemy_slot_${slot}_flyer_sine_turn_up:
-    ld b, (hl)
-${enemySlotAddress('msx2_enemy_runtime_y', slot)}
-    ld (hl), b
-    ld a, c
-    neg
-${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
-    ld (hl), a
-    ret
-.enemy_slot_${slot}_flyer_sine_up:
-    neg
-    ld c, a
-${enemySlotAddress('msx2_enemy_runtime_y', slot)}
-    ld a, (hl)
-    sub c
-    jp c, .enemy_slot_${slot}_flyer_sine_turn_down
-    ld b, a
-    push bc
-${buildEnemyScreenSlotOffsetAsm(slot)}
-    ld hl, msx2_screen_enemy_min_y
-    add hl, de
-    pop bc
-    ld a, b
-    cp (hl)
-    jp c, .enemy_slot_${slot}_flyer_sine_turn_down
-${enemySlotAddress('msx2_enemy_runtime_y', slot)}
-    ld (hl), b
-    ret
-.enemy_slot_${slot}_flyer_sine_turn_down:
-${buildEnemyScreenSlotOffsetAsm(slot)}
-    ld hl, msx2_screen_enemy_min_y
-    add hl, de
-    ld b, (hl)
-${enemySlotAddress('msx2_enemy_runtime_y', slot)}
-    ld (hl), b
-    ld a, c
-${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
-    ld (hl), a
-    ret
+    ld b, ${slot}
+    jp msx2_enemy_flyer_sine_shared
 
 .enemy_slot_${slot}_jumper:
     ld b, ${slot}
@@ -5834,6 +5708,211 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
 `;
   }).join('');
   const enemyJumperSharedHandler = control2Players ? '' : `
+msx2_enemy_screen_slot_offset_from_b:
+    ; Computes the static table offset for the current screen and enemy slot.
+    ; INPUT: B=slot index.
+    ; OUTPUT: DE=current_screen_index*MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN+B.
+    ; DESTROYS: AF/DE.
+    ; PRESERVES: BC/HL/IX/IY.
+    ; CALLS: none.
+    ; SIDE EFFECTS: none.
+    ; NOTES: Keeps B intact for shared movement routines that carry the slot in B.
+    push bc
+    ld a, (msx2_current_screen_index)
+${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    pop bc
+    add a, b
+    ld e, a
+    ld d, 0
+    ret
+
+msx2_enemy_flyer_sine_shared:
+    ; Shared FlyerSine movement for enemy/hazard slots.
+    ; INPUT: B=slot index.
+    ; OUTPUT: runtime X/Y and dx/dy updated for that slot.
+    ; DESTROYS: AF/BC/DE/HL.
+    ; PRESERVES: IX/IY.
+    ; CALLS: msx2_enemy_screen_slot_offset_from_b.
+    ; SIDE EFFECTS: updates msx2_enemy_runtime_x/y/dx/dy for one slot.
+    ; NOTES: Signed dx controls horizontal speed; signed dy controls vertical speed.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dx
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .flyer_sine_shared_y
+    bit 7, a
+    jp nz, .flyer_sine_shared_left
+.flyer_sine_shared_right:
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    add a, c
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_max_x
+    add hl, de
+    pop af
+    cp (hl)
+    jp nc, .flyer_sine_shared_turn_left
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld (hl), a
+    jp .flyer_sine_shared_y
+.flyer_sine_shared_turn_left:
+    ld a, (hl)
+    push af
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    pop af
+    ld (hl), a
+    ld a, c
+    neg
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dx
+    add hl, de
+    ld (hl), a
+    jp .flyer_sine_shared_y
+.flyer_sine_shared_left:
+    neg
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    sub c
+    jp c, .flyer_sine_shared_turn_right
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    pop af
+    cp (hl)
+    jp c, .flyer_sine_shared_turn_right
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld (hl), a
+    jp .flyer_sine_shared_y
+.flyer_sine_shared_turn_right:
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    ld a, (hl)
+    push af
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    pop af
+    ld (hl), a
+    ld a, c
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dx
+    add hl, de
+    ld (hl), a
+.flyer_sine_shared_y:
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+    bit 7, a
+    jp nz, .flyer_sine_shared_up
+.flyer_sine_shared_down:
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, c
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_max_y
+    add hl, de
+    pop af
+    cp (hl)
+    jp nc, .flyer_sine_shared_turn_up
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld (hl), a
+    ret
+.flyer_sine_shared_turn_up:
+    ld a, (hl)
+    push af
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    pop af
+    ld (hl), a
+    ld a, c
+    neg
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld (hl), a
+    ret
+.flyer_sine_shared_up:
+    neg
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    sub c
+    jp c, .flyer_sine_shared_turn_down
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    pop af
+    cp (hl)
+    jp c, .flyer_sine_shared_turn_down
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld (hl), a
+    ret
+.flyer_sine_shared_turn_down:
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    ld a, (hl)
+    push af
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    pop af
+    ld (hl), a
+    ld a, c
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld (hl), a
+    ret
+
 msx2_enemy_jumper_shared:
     ; Shared vertical Jumper movement for enemy/hazard slots.
     ; INPUT: B=slot index. OUTPUT: runtime Y/tick/dy updated for that slot.
@@ -5867,10 +5946,7 @@ msx2_enemy_jumper_shared:
     ld a, (hl)
     add a, c
     push af
-    ld a, (msx2_current_screen_index)
-${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
-    ld e, a
-    ld d, 0
+    call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_max_y
     add hl, de
     pop af
@@ -5896,10 +5972,7 @@ ${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
     ld hl, msx2_enemy_runtime_dy
     add hl, de
     ld (hl), a
-    ld a, (msx2_current_screen_index)
-${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
-    ld e, a
-    ld d, 0
+    call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_speed
     add hl, de
     ld a, (hl)
@@ -5920,10 +5993,7 @@ ${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
     sub c
     jp c, .jumper_shared_apex
     push af
-    ld a, (msx2_current_screen_index)
-${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
-    ld e, a
-    ld d, 0
+    call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_min_y
     add hl, de
     pop af
@@ -5936,10 +6006,7 @@ ${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
     ld (hl), a
     ret
 .jumper_shared_apex:
-    ld a, (msx2_current_screen_index)
-${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
-    ld e, a
-    ld d, 0
+    call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_min_y
     add hl, de
     ld a, (hl)
