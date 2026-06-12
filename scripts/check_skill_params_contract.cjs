@@ -387,4 +387,29 @@ assert(genCode.includes('FlyerSine local branch') && genCode.includes('DESTROYS:
 assert(!layoutCode.includes('FLYER_SINE'),
   'FlyerSine uses existing enemy runtime RAM and does not extend the skill RAM layout');
 
-console.log('\nAll 30 plumbing checks passed.');
+// 31) MSX2 enemy runtime supports vertical Jumper as the second complex
+// Enemy Library bridge. It reuses enemy slot dy/tick bytes: dy is signed
+// vertical speed, tick is landing pause. HopperTowardsPlayer needs a shared
+// non-unrolled routine and is intentionally not mapped here.
+assert(entityRuntimeCode.includes('MSX2_ENEMY_MOVEMENT_JUMPER = 6'),
+  'msx2EntityRuntimeGenerator declares the Jumper movement mode');
+assert(entityRuntimeCode.includes('hasJumper') && entityRuntimeCode.includes("movement === 'jumper'") && entityRuntimeCode.includes("movement === 'verticaljump'"),
+  'entity runtime normalizes jumper movement names');
+assert(!entityRuntimeCode.includes("movement === 'hopper'"),
+  'HopperTowardsPlayer is not silently mapped to the simpler vertical Jumper runtime');
+assert(entityRuntimeCode.includes("getComponentValue(entity, 'msx2_movement', 'jumpHeight'"),
+  'Jumper reads jumpHeight from the msx2_movement component/params');
+assert(entityRuntimeCode.includes('jumperSpeedY') && entityRuntimeCode.includes('jumperPauseFrames'),
+  'Jumper encodes vertical speed and landing pause into existing dy/tick runtime bytes');
+assert(genCode.includes('MSX2_ENEMY_MOVEMENT_JUMPER'),
+  'msx2Screen4Generator imports the Jumper movement mode');
+assert(genCode.includes('cp ${MSX2_ENEMY_MOVEMENT_JUMPER}') && genCode.includes('.enemy_slot_${slot}_jumper'),
+  'enemy slot dispatch reaches the Jumper ASM branch');
+assert(genCode.includes('jp msx2_enemy_jumper_shared') && genCode.includes('${enemySlotMovementHandlers}${enemyJumperSharedHandler}'),
+  'Jumper slot branch jumps to one shared handler instead of unrolling movement per slot');
+assert(genCode.includes('Shared vertical Jumper movement') && genCode.includes('INPUT: B=slot index') && genCode.includes('STACK: balanced push/pop'),
+  'Jumper shared ASM routine documents its register/stack contract');
+assert(!layoutCode.includes('JUMPER'),
+  'Jumper uses existing enemy runtime RAM and does not extend the skill RAM layout');
+
+console.log('\nAll 31 plumbing checks passed.');

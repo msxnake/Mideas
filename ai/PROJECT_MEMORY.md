@@ -146,3 +146,9 @@ Mideas
 - RAM: 0 bytes nuevos. Se reutilizan tablas existentes `msx2_enemy_runtime_x/y/dx/dy/mode` y limites `msx2_screen_enemy_min/max`.
 - CPU: coste por enemigo FlyerSine superior a patrol simple por mover X e Y en el mismo frame y consultar dos limites; sin llamadas BIOS/VDP nuevas.
 - Verificacion: `node scripts/check_skill_params_contract.cjs`, `npm run build`, Glass ROM smoke con `server/temp/loderunner_flyer_sine_project.json` -> `server/temp/loderunner_flyer_sine.rom` 65536 bytes. ASM contiene `msx2_screen_enemy_mode: DB #05...` y `.enemy_slot_0_flyer_sine`.
+
+## Sesion 2026-06-12 - Segundo puente Enemy Library -> runtime MSX2: Jumper
+- Implementado `Jumper` vertical como modo `msx2_movement` en slots de enemigos: `mode=6`, `dy` firmado para salto/caida y `tick/speed` para pausa al aterrizar.
+- Activacion por entidades de pantalla con `msx2_movement.mode = "jumper"`/`"jumping"`/`"verticalJump"`. Aun no conecta `EnemyDefinition` automaticamente.
+- RAM: 0 bytes nuevos; reutiliza runtime compacto de enemigos. CPU: actualiza pausa y Y; sin llamadas externas ni VRAM/VDP nuevas.
+- Nota: un intento de meter Hopper horizontal unrolled por slot produjo overflow residente en Glass; el `Jumper` final usa `msx2_enemy_jumper_shared` con stub por slot. `HopperTowardsPlayer` debe seguir este patron compartido o un diseno de slot indirecto, no duplicar movimiento X/Y por los 12 slots.

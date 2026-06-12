@@ -7,6 +7,7 @@ export const MSX2_ENEMY_MOVEMENT_GHOST_MAZE = 2;
 export const MSX2_ENEMY_MOVEMENT_DIVE = 3;
 export const MSX2_ENEMY_MOVEMENT_BALL_BOUNCE = 4;
 export const MSX2_ENEMY_MOVEMENT_FLYER_SINE = 5;
+export const MSX2_ENEMY_MOVEMENT_JUMPER = 6;
 
 export interface Msx2EnemyHazardRuntimeSlot {
   x: number;
@@ -109,6 +110,9 @@ export function getMsx2EnemyHazardRuntimeSlots(
         || movement === 'sinewave'
         || movement === 'sine'
         || movement === 'flyer';
+      const hasJumper = movement === 'jumper'
+        || movement === 'jumping'
+        || movement === 'verticaljump';
       const hasGhostMaze = movement === 'ghostmaze'
         || movement === 'mazeghost'
         || movement === 'ghost'
@@ -129,10 +133,12 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const sineBaseY = clampHardwareSpriteY(yTile * 16);
       const sineMinY = clampHardwareSpriteY(sineBaseY - sineAmplitude);
       const sineMaxY = clampHardwareSpriteY(sineBaseY + sineAmplitude);
-      const minX = hasPatrolX || hasBallBounce || hasFlyerSine ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
-      const maxX = hasPatrolX || hasBallBounce || hasFlyerSine ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
-      const minY = hasFlyerSine ? sineMinY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
-      const maxY = hasFlyerSine ? sineMaxY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'maxY', 11, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
+      const jumperHeight = Math.max(1, Math.min(64, Math.floor(Number(
+        getComponentValue(entity, 'msx2_movement', 'jumpHeight', entity.params?.jumpHeight ?? entity.params?.height ?? entity.params?.amplitude ?? 32)
+      ) || 32)));
+      const jumperBaseY = clampHardwareSpriteY(yTile * 16);
+      const jumperMinY = clampHardwareSpriteY(jumperBaseY - jumperHeight);
+      const jumperMaxY = jumperBaseY;
       const direction = Number(getComponentValue(entity, 'msx2_movement', 'direction', getEntityParamNumber(entity.params, 'direction', 1))) < 0 ? -1 : 1;
       const flyerSpeedX = Math.max(1, Math.min(4, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'speedX', entity.params?.speedX ?? entity.params?.speed ?? 1)
@@ -143,6 +149,16 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const flyerPhase = Math.max(0, Math.min(31, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'phase', entity.params?.phase ?? 0)
       ) || 0)));
+      const jumperSpeedY = Math.max(1, Math.min(8, Math.floor(Number(
+        getComponentValue(entity, 'msx2_movement', 'jumpSpeed', entity.params?.jumpSpeed ?? entity.params?.speedY ?? entity.params?.verticalSpeed ?? 2)
+      ) || 2)));
+      const jumperPauseFrames = Math.max(0, Math.min(60, Math.floor(Number(
+        getComponentValue(entity, 'msx2_movement', 'pauseFrames', entity.params?.pauseFrames ?? entity.params?.pauseOnGround ?? 0)
+      ) || 0)));
+      const minX = hasPatrolX || hasBallBounce || hasFlyerSine ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
+      const maxX = hasPatrolX || hasBallBounce || hasFlyerSine ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
+      const minY = hasFlyerSine ? sineMinY : hasJumper ? jumperMinY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
+      const maxY = hasFlyerSine ? sineMaxY : hasJumper ? jumperMaxY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'maxY', 11, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
       const ballSpeed = Math.max(1, Math.min(6, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'speed', entity.params?.speed ?? 2)
       ) || 2)));
@@ -160,6 +176,8 @@ export function getMsx2EnemyHazardRuntimeSlots(
         ? Math.max(16, Math.min(240, triggerFrames))
         : hasFlyerSine
           ? flyerPhase
+          : hasJumper
+            ? jumperPauseFrames
         : Math.max(1, Math.min(15, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'speed', entity.params?.speed ?? entity.params?.frameStep ?? 2)
       ) || 2)));
@@ -174,8 +192,8 @@ export function getMsx2EnemyHazardRuntimeSlots(
         minY: Math.min(minY, maxY),
         maxY: Math.max(minY, maxY),
         dx: hasBallBounce ? signedByte(ballSpeedX) : hasFlyerSine ? signedByte(direction * flyerSpeedX) : hasGhostMaze ? ghostDx : hasPatrolX ? direction : 0,
-        dy: hasBallBounce ? signedByte(ballSpeedY) : hasFlyerSine ? signedByte(flyerPhase >= 16 ? -flyerFrequency : flyerFrequency) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
-        mode: hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : MSX2_ENEMY_MOVEMENT_PATROL,
+        dy: hasBallBounce ? signedByte(ballSpeedY) : hasFlyerSine ? signedByte(flyerPhase >= 16 ? -flyerFrequency : flyerFrequency) : hasJumper ? signedByte(-jumperSpeedY) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
+        mode: hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : MSX2_ENEMY_MOVEMENT_PATROL,
         speed,
         score,
       };

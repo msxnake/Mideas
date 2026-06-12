@@ -11,6 +11,7 @@ import {
   MSX2_ENEMY_MOVEMENT_DIVE,
   MSX2_ENEMY_MOVEMENT_FLYER_SINE,
   MSX2_ENEMY_MOVEMENT_GHOST_MAZE,
+  MSX2_ENEMY_MOVEMENT_JUMPER,
   getMsx2EnemyHazardRuntimeSlots,
 } from './msx2EntityRuntimeGenerator';
 import {
@@ -5129,6 +5130,8 @@ ${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
     jp z, .enemy_slot_${slot}_ghost_maze
     cp ${MSX2_ENEMY_MOVEMENT_FLYER_SINE}
     jp z, .enemy_slot_${slot}_flyer_sine
+    cp ${MSX2_ENEMY_MOVEMENT_JUMPER}
+    jp z, .enemy_slot_${slot}_jumper
 ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
     ld a, (hl)
     or a
@@ -5348,6 +5351,10 @@ ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
 ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
     ld (hl), a
     ret
+
+.enemy_slot_${slot}_jumper:
+    ld b, ${slot}
+    jp msx2_enemy_jumper_shared
 
 .enemy_slot_${slot}_ball_bounce:
     ; Pong/Arkanoid ball movement. Runtime dx/dy are signed bytes. Clobbers AF/BC/DE/HL.
@@ -5826,6 +5833,129 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
 
 `;
   }).join('');
+  const enemyJumperSharedHandler = control2Players ? '' : `
+msx2_enemy_jumper_shared:
+    ; Shared vertical Jumper movement for enemy/hazard slots.
+    ; INPUT: B=slot index. OUTPUT: runtime Y/tick/dy updated for that slot.
+    ; DESTROYS: AF/BC/DE/HL. PRESERVES: IX/IY. STACK: balanced push/pop for candidate Y.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_tick
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .jumper_shared_y
+    dec a
+    ld (hl), a
+    ret
+.jumper_shared_y:
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+    bit 7, a
+    jp nz, .jumper_shared_up
+.jumper_shared_down:
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, c
+    push af
+    ld a, (msx2_current_screen_index)
+${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_max_y
+    add hl, de
+    pop af
+    cp (hl)
+    jp nc, .jumper_shared_land
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld (hl), a
+    ret
+.jumper_shared_land:
+    ld a, (hl)
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld (hl), a
+    ld a, c
+    neg
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld (hl), a
+    ld a, (msx2_current_screen_index)
+${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_speed
+    add hl, de
+    ld a, (hl)
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_tick
+    add hl, de
+    ld (hl), a
+    ret
+.jumper_shared_up:
+    neg
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    sub c
+    jp c, .jumper_shared_apex
+    push af
+    ld a, (msx2_current_screen_index)
+${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    pop af
+    cp (hl)
+    jp c, .jumper_shared_apex
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld (hl), a
+    ret
+.jumper_shared_apex:
+    ld a, (msx2_current_screen_index)
+${multiplyABySmallConstant(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)}    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    ld a, (hl)
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld (hl), a
+    ld a, c
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld (hl), a
+    ret
+`;
 
   const control2PlayersBallAsm = control2Players ? `
 update_control_2_players_ball:
@@ -7088,7 +7218,7 @@ msx2_activate_galaxian_attack_slot:
     ret
 
 ` : ''}
-${enemySlotMovementHandlers}
+${enemySlotMovementHandlers}${enemyJumperSharedHandler}
 
 msx2_apply_damage_respawn:
     ; Shared damage path for effect hazards and entity enemies.
