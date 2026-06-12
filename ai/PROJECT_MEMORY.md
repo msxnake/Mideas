@@ -3,6 +3,9 @@
 ## Proyecto
 Mideas
 
+## Regla operativa de archivos
+- Si un proyecto Mideas solicitado no aparece en el workspace, `server/temp` o rutas obvias del repo, buscar primero en `C:\Users\salam\Downloads`. El usuario suele dejar ahi los `.json` recientes de proyectos Mideas.
+
 ## Estado Actual
 - Exportación ASM
 - Exportación ROM
