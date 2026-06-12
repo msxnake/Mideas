@@ -37,6 +37,8 @@ import {
   formatAsmByte,
   formatAsmWord,
   getMsx2AirDashConfigFromPlayerEntity,
+  getMsx2CarryObjectConfigFromPlayerEntity,
+  getMsx2CollectorGemsConfigFromPlayerEntity,
   getMsx2DashConfigFromPlayerEntity,
   getMsx2GlideConfigFromPlayerEntity,
   getMsx2TeleportABConfigFromPlayerEntity,
@@ -67,6 +69,23 @@ import {
   buildMsx2AirDashRuntimeAsm,
   resolveMsx2AirDashRamBase,
 } from './msx2AirDashGenerator';
+import {
+  buildMsx2CollectorGemsCollectHookAsm,
+  buildMsx2CollectorGemsSfxAsm,
+} from './msx2CollectorGemsGenerator';
+import {
+  MSX2_CARRY_DEFAULT_COLOR,
+  MSX2_CARRY_DEFAULT_PATTERN,
+  MSX2_MAX_CARRYABLES_PER_SCREEN,
+  buildMsx2CarryObjectAttrWritesAsm,
+  buildMsx2CarryObjectDataTablesAsm,
+  buildMsx2CarryObjectEquates,
+  buildMsx2CarryObjectInitClearAsm,
+  buildMsx2CarryObjectRuntimeAsm,
+  getMsx2CarryableRuntimeSlots,
+  isMsx2CarryableEntity,
+  resolveMsx2CarryObjectRamBase,
+} from './msx2CarryObjectGenerator';
 import {
   MSX2_GLIDE_RAM_BYTES,
   buildMsx2GlideEquates,
@@ -160,14 +179,18 @@ const MSX2_CONTROLS_RAM_BASE = 0xC043;
 const MSX2_SNAKE_BODY_BASE = 0xC047;
 /**
  * Effect runtime base = snake-body end (32 cells * 2 bytes) + worst-case skill
- * chain reserved bytes (4 for wall_jump) + 1 byte of defensive padding to
- * keep skills from ever touching effect buffers. With pushBox + all skills +
- * wall_jump, the skill chain end is at #C08B, so the effect runtime starts at
- * #C08C. The real effect runtime is anchored to `max(0xC200, ...)` (see
- * `estimateMsx2RuntimeRamEnd`) so the +5 byte bump is invisible to the
- * runtime RAM budget.
+ * chain reserved bytes + defensive padding to keep skills from ever touching
+ * effect buffers. The reserve must keep MSX2_EFFECT_RUNTIME_BASE at or above
+ * MSX2_SKILL_RAM_LIMIT (msx2SkillRamLayout.ts), which is what
+ * `assertMsx2SkillRamWithinLimit` actually guards. History: the reserve was
+ * 5 bytes while the limit grew to #C098 (air_dash), leaving a latent overlap
+ * window between #C08C and #C098; fixed 2026-06-12 when carry_object moved
+ * the limit to #C0A8 — the reserve now anchors the effect base exactly there
+ * (#C087 + 33 = #C0A8). The effect scratch stays anchored to `max(0xC200, ...)`
+ * (see `estimateMsx2RuntimeRamEnd`), so small reserve bumps are invisible to
+ * the runtime RAM budget for multi-screen projects.
  */
-const MSX2_SKILL_CHAIN_RESERVED_BYTES = 5;
+const MSX2_SKILL_CHAIN_RESERVED_BYTES = 33;
 const MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2) + MSX2_SKILL_CHAIN_RESERVED_BYTES;
 const MSX2_ENEMY_SPRITE_PATTERN = [
   0x07, 0x1F, 0x3F, 0x7F, 0x67, 0xE7, 0xFF, 0xFF,
@@ -1767,11 +1790,55 @@ function getEnemyHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | u
   const entity = screen?.layers?.entities?.find(candidate =>
     (candidate.kind === 'enemy' || candidate.kind === 'hazard') &&
     !entityHasMsx2Box2(candidate) &&
+    !isMsx2CarryableEntity(candidate) &&
     getEntityRenderSpriteId(candidate)
   );
   const spriteAssetId = getEntityRenderSpriteId(entity);
   if (!spriteAssetId) return undefined;
   return resolveMsx2SpriteById(analysis, spriteAssetId);
+}
+
+interface Msx2CarryableSpriteSet {
+  /** Unique sprite asset ids in first-appearance order; '' = default rock. */
+  uniqueIds: string[];
+  patternById: Map<string, number[]>;
+  colorsById: Map<string, number[]>;
+}
+
+/**
+ * Resolves the unique carryable sprite assets referenced by the carryable
+ * entities across all tile screens. The order is deterministic
+ * (first appearance, screens in order) and MUST be shared between the
+ * pattern data emission, the per-screen sprite-index tables and the color
+ * row pool — they all index into this set.
+ */
+function resolveMsx2CarryableSpriteSet(
+  analysis: ProjectAnalysis,
+  tileScreens: Array<Msx2Screen4TileScreen | undefined>,
+): Msx2CarryableSpriteSet {
+  const uniqueIds: string[] = [];
+  const patternById = new Map<string, number[]>();
+  const colorsById = new Map<string, number[]>();
+  for (const screen of tileScreens) {
+    for (const slot of getMsx2CarryableRuntimeSlots(screen)) {
+      const id = slot.spriteId || '';
+      if (patternById.has(id)) continue;
+      if (uniqueIds.length >= 4) continue;
+      const sprite = id ? resolveMsx2SpriteById(analysis, id) : undefined;
+      const layer = sprite
+        ? buildHardwareSpriteLayersForFrame(sprite, MSX2_CARRY_DEFAULT_COLOR, 0)[0]
+        : undefined;
+      uniqueIds.push(id);
+      patternById.set(id, layer?.pattern || MSX2_CARRY_DEFAULT_PATTERN);
+      colorsById.set(id, layer?.colors || Array(16).fill(MSX2_CARRY_DEFAULT_COLOR));
+    }
+  }
+  if (uniqueIds.length === 0) {
+    uniqueIds.push('');
+    patternById.set('', MSX2_CARRY_DEFAULT_PATTERN);
+    colorsById.set('', Array(16).fill(MSX2_CARRY_DEFAULT_COLOR));
+  }
+  return { uniqueIds, patternById, colorsById };
 }
 
 function getPongBallHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
@@ -3297,8 +3364,10 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis, useKonamiDataBank
   const wallJumpConfig = getMsx2WallJumpConfigFromPlayerEntity(platformPlayer);
   const powerStompConfig = getMsx2PowerStompConfigFromPlayerEntity(platformPlayer);
   const screenShakeEnabled = msx2PlayerWantsScreenShake(platformPlayer);
+  const carryObjectConfig = getMsx2CarryObjectConfigFromPlayerEntity(platformPlayer);
   const dashInitClearAsm = dashConfig.enabled ? buildMsx2DashInitClearAsm() : '';
   const airDashInitClearAsm = airDashConfig.enabled ? buildMsx2AirDashInitClearAsm() : '';
+  const carryObjectInitClearAsm = carryObjectConfig.enabled ? buildMsx2CarryObjectInitClearAsm() : '';
   const teleportInitClearAsm = teleportConfig.enabled ? buildMsx2TeleportABInitClearAsm() : '';
   const glideInitClearAsm = glideConfig.enabled ? buildMsx2GlideInitClearAsm() : '';
   const wallJumpInitClearAsm = wallJumpConfig.enabled ? buildMsx2WallJumpInitClearAsm() : '';
@@ -3396,7 +3465,7 @@ ${leaveDataBank}
     call msx2_load_current_screen_air
     ld a, ${initialLivesByte}
     ld (msx2_lives), a
-${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${wallJumpInitClearAsm}${powerStompInitClearAsm}${screenShakeInitClearAsm}${airDashInitClearAsm}${glideInitAsm}    call draw_msx2_lives_hud
+${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${wallJumpInitClearAsm}${powerStompInitClearAsm}${screenShakeInitClearAsm}${airDashInitClearAsm}${carryObjectInitClearAsm}${glideInitAsm}    call draw_msx2_lives_hud
     call draw_msx2_score_hud
     call draw_msx2_collectible_hud
     call draw_msx2_air_hud
@@ -3804,13 +3873,18 @@ function buildHardwareSpriteRuntimeAsm(
     ? resolvePushBoxHardwareSpriteLayer(analysis, options.tileScreens || [])
     : undefined;
   const pushBoxHardwareSpriteActive = pushBoxEnabled;
-  const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
+  const carryConfig = getMsx2CarryObjectConfigFromPlayerEntity(getMsx2PlatformPlayerEntity(analysis));
+  const carryTileScreens = options.tileScreens?.length ? options.tileScreens : collectReferencedTileScreens(analysis);
+  const carrySpriteSet = carryConfig.enabled ? resolveMsx2CarryableSpriteSet(analysis, carryTileScreens) : undefined;
+  const carryPatternGroupCount = carrySpriteSet ? carrySpriteSet.uniqueIds.length : 0;
+  const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0) + carryPatternGroupCount;
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
   const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
   const enemyMirrorPatternIndex = enemyPatternIndex + 4;
   const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * 4);
   const enemyBulletPatternIndex = playerBulletPatternIndex + 4;
   const pushBoxPatternIndex = enemyBulletPatternIndex + 4;
+  const carryPatternIndexBase = pushBoxPatternIndex + (pushBoxLayer ? 4 : 0);
   const playerHardwareVisible = settings.visible;
   const patrolBounds = getRuntimePatrolBounds(analysis);
   const platformPlayer = getMsx2PlatformPlayerEntity(analysis);
@@ -3839,6 +3913,9 @@ function buildHardwareSpriteRuntimeAsm(
   const airDashHazardSkipAsm = buildMsx2AirDashHazardSkipAsm(airDashConfig);
   const airDashDamageSkipAsm = buildMsx2AirDashDamageSkipAsm(airDashConfig);
   const airDashInitClearAsm = airDashConfig.enabled ? buildMsx2AirDashInitClearAsm() : '';
+  const collectorGemsConfig = getMsx2CollectorGemsConfigFromPlayerEntity(platformPlayer);
+  const collectorGemsCollectHookAsm = buildMsx2CollectorGemsCollectHookAsm(collectorGemsConfig);
+  const collectorGemsSfxAsm = buildMsx2CollectorGemsSfxAsm(collectorGemsConfig);
   const teleportRuntimeAsm = buildMsx2TeleportABRuntimeAsm(teleportConfig);
   const teleportInputGateAsm = buildMsx2TeleportABInputGateAsm(teleportConfig);
   const teleportHazardSkipAsm = buildMsx2TeleportABHazardSkipAsm(teleportConfig);
@@ -4243,7 +4320,18 @@ ${secondEnemyBullet ? `.enemy_bullet_sprite_done:
   const pushBoxSatRefresh = pushBoxHardwareSpriteActive
     ? buildMsx2Box2HardwareSpriteSatRefreshAsm({ attrAddress: pushBoxAttrAddress, patternIndex: pushBoxPatternIndex })
     : '';
-  const terminatorAttrAddress = pushBoxAttrAddress + (pushBoxHardwareSpriteActive ? 4 : 0);
+  const carryAttrBase = pushBoxAttrAddress + (pushBoxHardwareSpriteActive ? 4 : 0);
+  const carrySatSlotBase = (carryAttrBase - 0x1E00) / 4;
+  const carryAttrWrites = carryConfig.enabled
+    ? buildMsx2CarryObjectAttrWritesAsm(carryAttrBase, carryPatternIndexBase)
+    : '';
+  const carryObjectRuntimeAsm = carryConfig.enabled
+    ? buildMsx2CarryObjectRuntimeAsm(carryConfig, { satSlotBase: carrySatSlotBase })
+    : '';
+  const carryInitClearAsm = carryConfig.enabled ? buildMsx2CarryObjectInitClearAsm() : '';
+  const carryUpdateCallAsm = carryConfig.enabled ? '    call update_msx2_carry_objects\n' : '';
+  const carryResetCallAsm = carryConfig.enabled ? '    call msx2_reset_carry_runtime_for_current_screen\n' : '';
+  const terminatorAttrAddress = carryAttrBase + (carryConfig.enabled ? MSX2_MAX_CARRYABLES_PER_SCREEN * 4 : 0);
   const playerAnimationRoutine = animationFrameCount > 1 ? `
 update_msx2_player_sprite_animation:
     ; Advances the player hardware sprite frame. Clobbers AF.
@@ -6098,7 +6186,7 @@ msx2_sfx_fire_data:
 msx2_sfx_hit_data:
     db 7,#37,6,#12,11,#70,12,#00,8,#10,13,#00
 
-msx2_check_enemy_wave_complete:
+${collectorGemsSfxAsm}msx2_check_enemy_wave_complete:
     ; Completes Galaxian-style screens when every active enemy slot is hidden. Clobbers AF/BC/DE/HL.
     ld a, (msx2_current_screen_index)
     ld e, a
@@ -6661,7 +6749,7 @@ ${setPlayerWalkingFlagAsm}    ret
 ${playerAnimationRoutine}${pushBoxSatRefresh}write_hardware_sprite_attrs:
     ; Writes player and enemy sprite attributes to the SCREEN 4 SAT. Clobbers AF/BC/DE/HL.
 ${attrWrites}
-${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrWrite}${pushBoxAttrWrite}    ld a, 208
+${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrWrite}${pushBoxAttrWrite}${carryAttrWrites}    ld a, 208
     ld hl, #${terminatorAttrAddress.toString(16).toUpperCase().padStart(4, '0')}
     call write_vram_byte_ext
     ret
@@ -6694,7 +6782,7 @@ ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
     ld a, #${ballLaunchDy.toString(16).toUpperCase().padStart(2, '0')}
     ld (msx2_enemy_runtime_dy), a
 .paddle_serve_not_pending:
-` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}${pushBoxEnabled && !options.deferSatUploadToShooterFrameDispatch ? '    call update_msx2_box2_boxes\n' : ''}    call update_msx2_enemy_positions
+` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}${pushBoxEnabled && !options.deferSatUploadToShooterFrameDispatch ? '    call update_msx2_box2_boxes\n' : ''}${carryUpdateCallAsm}    call update_msx2_enemy_positions
     call update_msx2_enemy_state
 ${options.deferSatUploadToShooterFrameDispatch ? '    ret\n' : '    call write_hardware_sprite_attrs\n    ret\n'}
 
@@ -6743,7 +6831,7 @@ ${buildEnemyScreenSlotOffsetAsm()}
     ld de, msx2_enemy_runtime_tick
     ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
     ldir
-${shooterHorizontal ? '    call msx2_init_galaxian_attack_runtime\n' : ''}${pushBoxEnabled ? '    call init_msx2_box2_boxes\n' : ''}    ret
+${shooterHorizontal ? '    call msx2_init_galaxian_attack_runtime\n' : ''}${pushBoxEnabled ? '    call init_msx2_box2_boxes\n' : ''}${carryResetCallAsm}    ret
 
 update_msx2_enemy_positions:
     ; Move active enemy/hazard runtime slots before collision checks.
@@ -7016,7 +7104,7 @@ ${teleportHazardSkipAsm}${airDashHazardSkipAsm}${dashHazardSkipAsm}${wallJumpHaz
     call clear_msx2_collectible_visual
     ld a, 1
     ld (msx2_collectible_latch), a
-    call msx2_compare_collectibles_required
+${collectorGemsCollectHookAsm}    call msx2_compare_collectibles_required
     ret nc
     ld a, (msx2_collectible_count)
     inc a
@@ -7591,7 +7679,7 @@ msx2_respawn_current_screen:
     ld (msx2_player_anim_frame), a
     ld a, #01
     ld (msx2_player_flags), a
-${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${wallJumpInitClearAsm}${powerStompInitClearAsm}${screenShakeInitClearAsm}${airDashInitClearAsm}${mazeMovement ? `    ld a, #01
+${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${wallJumpInitClearAsm}${powerStompInitClearAsm}${screenShakeInitClearAsm}${airDashInitClearAsm}${carryInitClearAsm}${mazeMovement ? `    ld a, #01
     ld (msx2_player_sprite_dx), a
     ld (msx2_player_sprite_frame), a
 ` : ''}
@@ -7599,6 +7687,7 @@ ${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${wallJumpInitClea
 
 ${dashRuntimeAsm}
 ${airDashRuntimeAsm}
+${carryObjectRuntimeAsm}
 ${teleportRuntimeAsm}
 ${glideRuntimeAsm}
 ${wallJumpRuntimeAsm}
@@ -7789,7 +7878,13 @@ function buildHardwareSpriteDataAsm(
   const pushBoxLayer = pushBoxEnabled
     ? resolvePushBoxHardwareSpriteLayer(analysis, options.tileScreens || [])
     : undefined;
-  const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0);
+  // carry_object pattern groups: MUST mirror buildHardwareSpriteRuntimeAsm
+  // (same sprite set + same group count) so basePatternIndex clamps equally.
+  const carryConfig = getMsx2CarryObjectConfigFromPlayerEntity(getMsx2PlatformPlayerEntity(analysis));
+  const carryTileScreens = options.tileScreens?.length ? options.tileScreens : collectReferencedTileScreens(analysis);
+  const carrySpriteSet = carryConfig.enabled ? resolveMsx2CarryableSpriteSet(analysis, carryTileScreens) : undefined;
+  const carryPatternGroupCount = carrySpriteSet ? carrySpriteSet.uniqueIds.length : 0;
+  const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternVariantCount + 2 + (pushBoxLayer ? 1 : 0) + carryPatternGroupCount;
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
   const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
   const playerBulletPatternIndex = enemyPatternIndex + (enemyPatternVariantCount * 4);
@@ -7815,7 +7910,7 @@ function buildHardwareSpriteDataAsm(
 
   return `
 msx2_hw_sprite_patterns:
-${frameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}`, layer.pattern, `Hardware metasprite frame ${frameIndex} part ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')).join('')}${mirroredFrameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_mirror_pattern_${layerIndex}`, layer.pattern, `Mirrored hardware metasprite frame ${frameIndex} part ${layerIndex}: authored ${horizontalFacing}`)).join('')).join('')}${formatBytes('msx2_hw_enemy_sprite_pattern', enemySpriteLayer?.pattern || MSX2_ENEMY_SPRITE_PATTERN, enemySpriteLayer ? 'Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 enemy/hazard hardware sprite pattern')}${enemyMirroredPattern ? formatBytes('msx2_hw_enemy_sprite_mirror_pattern', enemyMirroredPattern, `Mirrored shared enemy/hazard hardware sprite pattern: authored ${enemyHorizontalFacing}`) : ''}${formatBytes('msx2_hw_player_bullet_pattern', control2Players ? (pongBallSpriteLayer?.pattern || MSX2_PONG_BALL_PATTERN) : MSX2_PLAYER_BULLET_PATTERN, control2Players ? (pongBallSpriteLayer ? 'Shared 16x16 Pong ball hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 Pong ball hardware sprite pattern') : 'Shared 16x16 player bullet hardware sprite pattern')}${formatBytes('msx2_hw_enemy_bullet_pattern', MSX2_ENEMY_BULLET_PATTERN, 'Shared 16x16 enemy bullet hardware sprite pattern')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_pattern', pushBoxLayer.pattern, 'Push box moving hardware sprite pattern from entity Render or Tile') : ''}msx2_hw_sprite_patterns_end:
+${frameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}`, layer.pattern, `Hardware metasprite frame ${frameIndex} part ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')).join('')}${mirroredFrameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => formatBytes(`msx2_hw_sprite_frame_${frameIndex}_mirror_pattern_${layerIndex}`, layer.pattern, `Mirrored hardware metasprite frame ${frameIndex} part ${layerIndex}: authored ${horizontalFacing}`)).join('')).join('')}${formatBytes('msx2_hw_enemy_sprite_pattern', enemySpriteLayer?.pattern || MSX2_ENEMY_SPRITE_PATTERN, enemySpriteLayer ? 'Shared 16x16 enemy/hazard hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 enemy/hazard hardware sprite pattern')}${enemyMirroredPattern ? formatBytes('msx2_hw_enemy_sprite_mirror_pattern', enemyMirroredPattern, `Mirrored shared enemy/hazard hardware sprite pattern: authored ${enemyHorizontalFacing}`) : ''}${formatBytes('msx2_hw_player_bullet_pattern', control2Players ? (pongBallSpriteLayer?.pattern || MSX2_PONG_BALL_PATTERN) : MSX2_PLAYER_BULLET_PATTERN, control2Players ? (pongBallSpriteLayer ? 'Shared 16x16 Pong ball hardware sprite pattern from MSX2 entity sprite asset' : 'Shared 16x16 Pong ball hardware sprite pattern') : 'Shared 16x16 player bullet hardware sprite pattern')}${formatBytes('msx2_hw_enemy_bullet_pattern', MSX2_ENEMY_BULLET_PATTERN, 'Shared 16x16 enemy bullet hardware sprite pattern')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_pattern', pushBoxLayer.pattern, 'Push box moving hardware sprite pattern from entity Render or Tile') : ''}${carrySpriteSet ? carrySpriteSet.uniqueIds.map((id, index) => formatBytes(`msx2_hw_carry_sprite_pattern_${index}`, carrySpriteSet.patternById.get(id) || MSX2_CARRY_DEFAULT_PATTERN, `Carryable object hardware sprite pattern ${index}${id ? ` from msx2sprite ${id}` : ' (default rock)'}`)).join('') : ''}msx2_hw_sprite_patterns_end:
 
 msx2_hw_sprite_colors:
 ${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}${Array.from({ length: playerBulletSlotCount }, (_unused, index) => formatBytes(`msx2_hw_player_bullet_colors${index === 0 ? '' : `_${index}`}`, control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), control2Players ? (pongBallSpriteLayer ? `Line colors for Pong ball hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for Pong ball hardware sprite slot ${index}`) : `Line colors for player bullet hardware sprite slot ${index}`)).join('')}${formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors') : ''}${hideHud ? '' : Array.from({ length: 3 }, (_unused, index) => formatBytes(`msx2_hw_hud_life_colors_${index}`, Array(16).fill(10), `Line colors for HUD life marker ${index + 1}`)).join('')}msx2_hw_sprite_colors_end:
@@ -11009,6 +11104,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
   const wallJumpConfig = getMsx2WallJumpConfigFromPlayerEntity(platformPlayer);
   const powerStompConfig = getMsx2PowerStompConfigFromPlayerEntity(platformPlayer);
   const screenShakeEnabled = msx2PlayerWantsScreenShake(platformPlayer);
+  const carryObjectConfig = getMsx2CarryObjectConfigFromPlayerEntity(platformPlayer);
   const skillRamOptions = buildMsx2SkillRamOptions(
     pushBoxMovement,
     dashConfig.enabled,
@@ -11018,6 +11114,7 @@ export function generateMsx2Screen4UnitedFiles(projectName: string, analysis: Pr
     powerStompConfig.enabled,
     screenShakeEnabled,
     airDashConfig.enabled,
+    carryObjectConfig.enabled,
   );
   // Player timers (coyote / jump buffer) live at the head of the skill RAM
   // chain so they can never overlap the box2 runtime (#C047+) again.
@@ -11072,9 +11169,20 @@ msx2_player_jump_buffer_timer EQU ${formatHexWord(playerTimersRamBase + 1)}
         ),
       ))
     : '';
+  // carry_object comes after air_dash: pass airDashEnabled but NOT
+  // carryObjectEnabled (the base is "where carry_object starts").
+  const carryObjectEquatesAsm = carryObjectConfig.enabled
+    ? buildMsx2CarryObjectEquates(resolveMsx2CarryObjectRamBase(
+        buildMsx2SkillRamOptions(
+          pushBoxMovement, dashConfig.enabled, teleportConfig.enabled,
+          glideConfig.enabled, wallJumpConfig.enabled, powerStompConfig.enabled,
+          screenShakeEnabled, airDashConfig.enabled, false,
+        ),
+      ))
+    : '';
   assertMsx2SkillRamWithinLimit(
     resolveMsx2SkillExtensionRamBase(skillRamOptions),
-    'player timers + dash/teleport/glide/wall_jump/power_stomp/screen_shake/air_dash skill RAM chain',
+    'player timers + dash/teleport/glide/wall_jump/power_stomp/screen_shake/air_dash/carry_object skill RAM chain',
   );
   const pushBoxVerticalPush = usesMsx2Box2VerticalPush(tileScreens);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis, useKonamiDataBank);
@@ -11213,6 +11321,34 @@ msx2_player_jump_buffer_timer EQU ${formatHexWord(playerTimersRamBase + 1)}
   const enemyScoreBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(255, enemies[index]?.score ?? 1)))
   );
+  // carry_object per-screen ROM tables. The unique sprite set MUST be the
+  // same one used by buildHardwareSpriteRuntimeAsm/buildHardwareSpriteDataAsm
+  // (resolveMsx2CarryableSpriteSet is deterministic over the same screens).
+  const carrySpriteSetForTables = carryObjectConfig.enabled
+    ? resolveMsx2CarryableSpriteSet(analysis, tileScreens)
+    : undefined;
+  const carrySlotsByScreen = tileScreens.map(screen => getMsx2CarryableRuntimeSlots(screen));
+  const carryObjectDataTablesAsm = carryObjectConfig.enabled && carrySpriteSetForTables
+    ? buildMsx2CarryObjectDataTablesAsm({
+      countByScreen: carrySlotsByScreen.map(slots => Math.min(MSX2_MAX_CARRYABLES_PER_SCREEN, slots.length)),
+      xBytes: carrySlotsByScreen.flatMap(slots =>
+        Array.from({ length: MSX2_MAX_CARRYABLES_PER_SCREEN }, (_unused, index) => clampHardwareSpriteX(slots[index]?.x ?? 0))
+      ),
+      yBytes: carrySlotsByScreen.flatMap(slots =>
+        Array.from({ length: MSX2_MAX_CARRYABLES_PER_SCREEN }, (_unused, index) => clampHardwareSpriteY(slots[index]?.y ?? 0))
+      ),
+      spriteIdxBytes: carrySlotsByScreen.flatMap(slots =>
+        Array.from({ length: MSX2_MAX_CARRYABLES_PER_SCREEN }, (_unused, index) => {
+          const id = slots[index]?.spriteId || '';
+          const uniqueIndex = carrySpriteSetForTables.uniqueIds.indexOf(id);
+          return uniqueIndex >= 0 ? uniqueIndex : 0;
+        })
+      ),
+      colorRows: carrySpriteSetForTables.uniqueIds.flatMap(id =>
+        carrySpriteSetForTables.colorsById.get(id) || Array(16).fill(MSX2_CARRY_DEFAULT_COLOR)
+      ),
+    })
+    : '';
   const worldTransitionAsm = buildMsx2WorldTransitionAsm(analysis, tileScreens, tileScreenLoadLabels);
   const screen4GameFlow = getScreen4RuntimeGameFlow(analysis);
   const includeGameFlowTransitionHelpers = Boolean(screen4GameFlow?.nodes?.some((node: any) => node?.type === 'Transition'));
@@ -11811,7 +11947,7 @@ msx2_player_sprite_dx EQU #C002
 msx2_player_sprite_frame EQU #C003
 msx2_current_collision_ptr EQU #C004
 msx2_current_effects_ptr EQU #C006
-${playerTimerEquatesAsm}${dashEquatesAsm}${teleportEquatesAsm}${glideEquatesAsm}${wallJumpEquatesAsm}${powerStompEquatesAsm}${screenShakeEquatesAsm}${airDashEquatesAsm}msx2_player_gravity_vel EQU #C008
+${playerTimerEquatesAsm}${dashEquatesAsm}${teleportEquatesAsm}${glideEquatesAsm}${wallJumpEquatesAsm}${powerStompEquatesAsm}${screenShakeEquatesAsm}${airDashEquatesAsm}${carryObjectEquatesAsm}msx2_player_gravity_vel EQU #C008
 msx2_player_flags EQU #C00A
 msx2_current_screen_index EQU #C00B
 msx2_player_dead_flag EQU #C00C
@@ -12463,6 +12599,7 @@ ${formatBytes('msx2_screen_enemy_mode', enemyModeBytes.length ? enemyModeBytes :
 ${formatBytes('msx2_screen_enemy_speed', enemySpeedBytes.length ? enemySpeedBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(2), `Per-msx2screen enemy/hazard movement component frame delay, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_score', enemyScoreBytes.length ? enemyScoreBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(1), `Per-msx2screen enemy/hazard score value, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${pushBoxDataTablesAsm}
+${carryObjectDataTablesAsm}
 ${emptyRuntimeLayerBlocks}
 ${stageBannerEnabled ? formatBytes('msx2_stage_font_patterns', [
   0x3E,0x60,0x60,0x3C,0x06,0x06,0x7C,0x00,

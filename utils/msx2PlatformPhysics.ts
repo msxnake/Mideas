@@ -57,6 +57,52 @@ export interface Msx2AirDashConfig {
 }
 
 /**
+ * Carry object skill config (MSX2 platformer).
+ *
+ * Carryable objects are screen entities flagged with the `msx2_carryable`
+ * component (or `params.carryable === true`, or `kind === 'carryable'`).
+ * They render as dedicated hardware sprites. Pressing the bound key next to
+ * an idle object picks it up (it follows above the player's head); pressing
+ * again throws it in the facing direction: it flies `throwPower` px/frame
+ * with a shallow drop until it hits a wall or ground, then settles.
+ *
+ * NOTE: the skill definition also declares `carrySpeed`, `throwVertical` and
+ * `objectTypes`. They are intentionally NOT implemented in the MSX2 runtime
+ * v1: carryables have no type byte, and the throw arc is cell-based, not
+ * ballistic.
+ */
+export interface Msx2CarryObjectConfig {
+  enabled: boolean;
+  /** Horizontal flight speed of a thrown object, px/frame. Range 2..16. */
+  throwPower: number;
+  /** Frames before another pick-up/throw is accepted. Range 5..60. */
+  throwCooldown: number;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
+/**
+ * Collector gems skill config (MSX2 platformer).
+ *
+ * Passive skill: it owns no input binding and no skill RAM. When enabled,
+ * every effect-3 cell (collectible) picked up by the player adds `gemValue`
+ * points to the shared 16-bit score (msx2_score_lo/hi) and optionally plays
+ * a short PSG blip.
+ *
+ * NOTE: the skill definition also declares `gemRespawn` and `gemType`.
+ * They are intentionally NOT implemented in the MSX2 runtime: respawn
+ * conflicts with the per-screen collected-visuals persistence, and the
+ * SCREEN 4 effects layer has no per-collectible type information.
+ */
+export interface Msx2CollectorGemsConfig {
+  enabled: boolean;
+  /** Points added to the score per collected gem. Range 1..1000. */
+  gemValue: number;
+  /** When true, play a short PSG blip on collect. */
+  collectSound: boolean;
+}
+
+/**
  * Wall jump skill config (MSX2 platformer).
  *
  * Two sub-behaviours share the same 4 bytes of RAM (see msx2WallJumpGenerator):
@@ -478,6 +524,48 @@ export function getMsx2AirDashConfigFromPlayerEntity(player: any | undefined): M
     invulnerable: params.invulnerable !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+  };
+}
+
+/**
+ * Returns the resolved carry_object skill config for the given player.
+ *
+ * Reads `player.skillParameters.carry_object` and clamps every numeric field
+ * to the range declared in `carryObjectParameters` (handlers/index.ts).
+ * Default binding follows the skill's controlIcon ('attack').
+ */
+export function getMsx2CarryObjectConfigFromPlayerEntity(player: any | undefined): Msx2CarryObjectConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('carry_object');
+  const params = (player?.skillParameters?.carry_object || {}) as Record<string, number | boolean>;
+  const binding = resolveMsx2SkillBinding(player, 'carry_object');
+  const throwPower = pickSkillNumberParam(params, 'carry_object', ['throwPower'], 8);
+  const throwCooldown = pickSkillNumberParam(params, 'carry_object', ['throwCooldown'], 20);
+  return {
+    enabled,
+    throwPower: Math.max(2, Math.min(16, throwPower || 8)),
+    throwCooldown: Math.max(5, Math.min(60, throwCooldown || 20)),
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+/**
+ * Returns the resolved collector_gems skill config for the given player.
+ *
+ * Reads `player.skillParameters.collector_gems` and clamps `gemValue` to the
+ * range declared in `collectorGemsParameters` (handlers/index.ts). The skill
+ * is passive (no control binding): it only augments the collectible pickup.
+ */
+export function getMsx2CollectorGemsConfigFromPlayerEntity(player: any | undefined): Msx2CollectorGemsConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('collector_gems');
+  const params = (player?.skillParameters?.collector_gems || {}) as Record<string, number | boolean>;
+  const gemValue = pickSkillNumberParam(params, 'collector_gems', ['gemValue'], 100);
+  return {
+    enabled,
+    gemValue: Math.max(1, Math.min(1000, gemValue || 100)),
+    collectSound: params.collectSound !== false,
   };
 }
 

@@ -6,6 +6,7 @@ import { MSX2_WALL_JUMP_RAM_BYTES } from './msx2WallJumpGenerator';
 import { MSX2_POWER_STOMP_RAM_BYTES } from './msx2PowerStompGenerator';
 import { MSX2_SCREEN_SHAKE_RAM_BYTES } from './msx2ScreenShakeGenerator';
 import { MSX2_AIR_DASH_RAM_BYTES } from './msx2AirDashGenerator';
+import { MSX2_CARRY_OBJECT_RAM_BYTES } from './msx2CarryObjectGenerator';
 
 const MSX2_SNAKE_BODY_BASE = 0xC047;
 const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
@@ -27,10 +28,11 @@ const MSX2_SKILL_RAM_BASE_NO_PUSHBOX = 0xC049;
  * of defensive padding. Moved to 0xC094 in 2026-06-11 to make room for the
  * power_stomp skill (2 bytes) and the reusable screen-shake module (1 byte),
  * plus defensive padding. Moved to 0xC098 in 2026-06-11 to add the distinct
- * air_dash skill (4 bytes). Bumping further is safe as long as it stays below
- * 0xC200.
+ * air_dash skill (4 bytes). Moved to 0xC0A8 in 2026-06-12 to add the
+ * carry_object skill (14 bytes) plus padding. Bumping further is safe as
+ * long as it stays below 0xC200.
  */
-export const MSX2_SKILL_RAM_LIMIT = 0xC098;
+export const MSX2_SKILL_RAM_LIMIT = 0xC0A8;
 
 /** msx2_player_coyote_timer (1) + msx2_player_jump_buffer_timer (1). */
 export const MSX2_PLAYER_TIMER_RAM_BYTES = 2;
@@ -44,6 +46,7 @@ export interface Msx2SkillRamOptions {
   powerStompEnabled: boolean;
   screenShakeEnabled: boolean;
   airDashEnabled: boolean;
+  carryObjectEnabled: boolean;
 }
 
 /**
@@ -70,7 +73,7 @@ export function resolveMsx2PlayerTimersRamBase(pushBoxMovement: boolean): number
  * Base address for the next skill extension block. Layout (in order):
  * timers (always reserved, 2 bytes) -> dash (4) -> teleport (8) ->
  * glide (2) -> wall_jump (4) -> power_stomp (2) -> screen_shake (1) ->
- * air_dash (4).
+ * air_dash (4) -> carry_object (14).
  * Each skill resolves its own base by passing the skills that precede it.
  *
  * NOTE: the chain is `options` driven so the layout module owns the ordering.
@@ -87,6 +90,7 @@ export function resolveMsx2SkillExtensionRamBase(options: Msx2SkillRamOptions): 
   if (options.powerStompEnabled) base += MSX2_POWER_STOMP_RAM_BYTES;
   if (options.screenShakeEnabled) base += MSX2_SCREEN_SHAKE_RAM_BYTES;
   if (options.airDashEnabled) base += MSX2_AIR_DASH_RAM_BYTES;
+  if (options.carryObjectEnabled) base += MSX2_CARRY_OBJECT_RAM_BYTES;
   return base;
 }
 
@@ -99,6 +103,7 @@ export function buildMsx2SkillRamOptions(
   powerStompEnabled: boolean = false,
   screenShakeEnabled: boolean = false,
   airDashEnabled: boolean = false,
+  carryObjectEnabled: boolean = false,
 ): Msx2SkillRamOptions {
   return {
     pushBoxMovement,
@@ -109,6 +114,7 @@ export function buildMsx2SkillRamOptions(
     powerStompEnabled,
     screenShakeEnabled,
     airDashEnabled,
+    carryObjectEnabled,
   };
 }
 

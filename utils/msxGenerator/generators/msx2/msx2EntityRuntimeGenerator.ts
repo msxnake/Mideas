@@ -1,4 +1,5 @@
 import { Msx2Screen4TileScreen } from '../../../../types';
+import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 
 export const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 12;
 export const MSX2_ENEMY_MOVEMENT_PATROL = 0;
@@ -88,6 +89,9 @@ export function getMsx2EnemyHazardRuntimeSlots(
       && entity.params?.engine !== 'box2'
       && entity.params?.pushBox !== true
       && entity.params?.box2 !== true
+      // Carryable objects (carry_object skill) are harmless props with
+      // their own dedicated sprite slots, never enemy/hazard bodies.
+      && !isMsx2CarryableEntity(entity)
     )
     .slice(0, MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)
     .map(entity => {

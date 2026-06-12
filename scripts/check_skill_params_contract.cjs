@@ -149,8 +149,12 @@ assert(genCode.includes('probeCenterOffset') && genCode.includes('bodyHitbox.x +
 const layoutCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2SkillRamLayout.ts'), 'utf8');
 assert(layoutCode.includes('MSX2_PLAYER_TIMER_RAM_BYTES = 2'),
   'msx2SkillRamLayout reserves 2 bytes for the player coyote/jump-buffer timers');
-assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC098'),
-    'msx2SkillRamLayout caps the chain at #C098 (msx2_effects_runtime_buffers)');
+assert(layoutCode.includes('MSX2_SKILL_RAM_LIMIT = 0xC0A8'),
+    'msx2SkillRamLayout caps the chain at #C0A8 (msx2_effects_runtime_buffers)');
+// The effect runtime base must match the skill RAM limit, otherwise the
+// assertMsx2SkillRamWithinLimit guard lies (latent overlap bug fixed 2026-06-12).
+assert(genCode.includes('MSX2_SKILL_CHAIN_RESERVED_BYTES = 33'),
+  'msx2Screen4Generator reserves 33 skill-chain bytes so the effect base sits at #C0A8');
 assert(layoutCode.includes('MSX2_BOX2_RUNTIME_BYTES'),
   'msx2SkillRamLayout offsets the chain past the box2 runtime in pushBox projects');
 // No EQU in the generator may land on the box2 runtime head (#C047/#C048):
@@ -308,4 +312,59 @@ const dashGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'ge
 assert(dashGenCode.includes('msx2_dash_player_grounded') && dashGenCode.includes('jp z, .dash_start_blocked'),
   'ground dash starts only when the direct foot probe says the player is grounded');
 
-console.log('\nAll 27 plumbing checks passed.');
+// 28) collector_gems is a passive skill: score hook + optional PSG blip,
+// no skill RAM (score/latch live in the base runtime, so it must NOT be
+// chained in msx2SkillRamLayout).
+assert(handlersCode.includes("id: 'collector_gems'") && handlersCode.includes('parameters: collectorGemsParameters'),
+  'collector_gems is registered with its parameters array');
+assert(handlersCode.includes("key: 'gemValue'") && handlersCode.includes("key: 'collectSound'"),
+  'collectorGemsParameters expose gemValue and collectSound');
+assert(physicsCode.includes('Msx2CollectorGemsConfig') && physicsCode.includes('getMsx2CollectorGemsConfigFromPlayerEntity'),
+  'msx2PlatformPhysics exports collector_gems config resolver');
+assert(physicsCode.includes('Math.min(1000, gemValue'),
+  'collector_gems gemValue clamps to the 1..1000 range from the skill def');
+const collectorGemsGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2CollectorGemsGenerator.ts'), 'utf8');
+assert(collectorGemsGenCode.includes('MSX2_COLLECTOR_GEMS_RAM_BYTES = 0'),
+  'msx2CollectorGemsGenerator declares zero skill RAM');
+assert(!layoutCode.includes('COLLECTOR_GEMS'),
+  'collector_gems must NOT be chained in msx2SkillRamLayout (it owns no RAM)');
+assert(collectorGemsGenCode.includes('adc a,') && collectorGemsGenCode.includes('msx2_score_hi'),
+  'collector_gems score add is 16-bit (add lo + adc hi)');
+assert(genCode.includes('buildMsx2CollectorGemsCollectHookAsm') && genCode.includes('buildMsx2CollectorGemsSfxAsm'),
+  'msx2Screen4Generator builds collector_gems hook + sfx ASM');
+assert(genCode.includes('ld (msx2_collectible_latch), a\n${collectorGemsCollectHookAsm}    call msx2_compare_collectibles_required'),
+  'collector_gems hook is injected after the latch set and before the required-collectibles compare (every gem scores)');
+assert(genCode.includes('${collectorGemsSfxAsm}msx2_check_enemy_wave_complete:'),
+  'collector_gems sfx routine is emitted next to the shared PSG sfx tables');
+
+// 29) carry_object: carryable entities (msx2_carryable component / carryable
+// flag / kind) get dedicated sprite slots; the skill chains 14 RAM bytes
+// after air_dash and excludes carryables from enemy/hazard slots.
+assert(handlersCode.includes("id: 'carry_object'") && handlersCode.includes('parameters: carryObjectParameters'),
+  'carry_object is registered with its parameters array');
+assert(physicsCode.includes('Msx2CarryObjectConfig') && physicsCode.includes('getMsx2CarryObjectConfigFromPlayerEntity'),
+  'msx2PlatformPhysics exports carry_object config resolver');
+const carryGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2CarryObjectGenerator.ts'), 'utf8');
+assert(carryGenCode.includes('MSX2_CARRY_OBJECT_RAM_BYTES = 6 + MSX2_MAX_CARRYABLES_PER_SCREEN * 4'),
+  'msx2CarryObjectGenerator declares its RAM bytes from the slot count');
+assert(layoutCode.includes('MSX2_CARRY_OBJECT_RAM_BYTES') && layoutCode.includes('carryObjectEnabled'),
+  'msx2SkillRamLayout chains MSX2_CARRY_OBJECT_RAM_BYTES');
+assert(carryGenCode.includes('msx2_carry_phase_step') && carryGenCode.includes('msx2_carry_pickup_probe'),
+  'carry_object slot phases/probes are shared IX-indexed routines (ROM size: do NOT unroll per slot)');
+const entityRuntimeCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts'), 'utf8');
+assert(entityRuntimeCode.includes('!isMsx2CarryableEntity(entity)'),
+  'enemy/hazard slot extraction excludes carryable entities');
+assert(genCode.includes('isMsx2CarryableEntity(candidate)'),
+  'enemy hardware sprite source skips carryable entities');
+assert(genCode.includes('${pushBoxAttrWrite}${carryAttrWrites}'),
+  'carry SAT writes are emitted after push box, before the terminator');
+assert(genCode.includes('${carryResetCallAsm}    ret'),
+  'carry runtime reset is chained at the enemy runtime reset tail');
+assert(genCode.includes('${carryUpdateCallAsm}    call update_msx2_enemy_positions'),
+  'carry update runs in the upload chain before enemy positions');
+assert(genCode.includes('${carryObjectEquatesAsm}') && genCode.includes('${carryObjectDataTablesAsm}'),
+  'carry equates + per-screen data tables are injected');
+assert(genCode.includes('+ carryPatternGroupCount'),
+  'carry sprite pattern groups are counted in the hardware pattern budget');
+
+console.log('\nAll 29 plumbing checks passed.');
