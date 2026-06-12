@@ -9,6 +9,7 @@ import {
   MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN,
   MSX2_ENEMY_MOVEMENT_BALL_BOUNCE,
   MSX2_ENEMY_MOVEMENT_DIVE,
+  MSX2_ENEMY_MOVEMENT_FLYER_SINE,
   MSX2_ENEMY_MOVEMENT_GHOST_MAZE,
   getMsx2EnemyHazardRuntimeSlots,
 } from './msx2EntityRuntimeGenerator';
@@ -5126,6 +5127,8 @@ ${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
     jp z, .enemy_slot_${slot}_dive
     cp ${MSX2_ENEMY_MOVEMENT_GHOST_MAZE}
     jp z, .enemy_slot_${slot}_ghost_maze
+    cp ${MSX2_ENEMY_MOVEMENT_FLYER_SINE}
+    jp z, .enemy_slot_${slot}_flyer_sine
 ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
     ld a, (hl)
     or a
@@ -5214,6 +5217,136 @@ ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
 .enemy_slot_${slot}_turn_down:
 ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
     ld (hl), 1
+    ret
+
+.enemy_slot_${slot}_flyer_sine:
+    ; FlyerSine local branch.
+    ; INPUT: current screen index in RAM, slot-local runtime dx/dy/min/max tables.
+    ; OUTPUT: updates slot runtime X/Y.
+    ; DESTROYS: AF/BC/DE/HL. PRESERVES: IX/IY. STACK: balanced push/pop around offset lookup.
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld a, (hl)
+    or a
+    jp z, .enemy_slot_${slot}_flyer_sine_y
+    bit 7, a
+    jp nz, .enemy_slot_${slot}_flyer_sine_left
+.enemy_slot_${slot}_flyer_sine_right:
+    ld c, a
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    add a, c
+    ld b, a
+    push bc
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_max_x
+    add hl, de
+    pop bc
+    ld a, b
+    cp (hl)
+    jp nc, .enemy_slot_${slot}_flyer_sine_turn_left
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld (hl), b
+    jp .enemy_slot_${slot}_flyer_sine_y
+.enemy_slot_${slot}_flyer_sine_turn_left:
+    ld b, (hl)
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld (hl), b
+    ld a, c
+    neg
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), a
+    jp .enemy_slot_${slot}_flyer_sine_y
+.enemy_slot_${slot}_flyer_sine_left:
+    neg
+    ld c, a
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    sub c
+    jp c, .enemy_slot_${slot}_flyer_sine_turn_right
+    ld b, a
+    push bc
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    pop bc
+    ld a, b
+    cp (hl)
+    jp c, .enemy_slot_${slot}_flyer_sine_turn_right
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld (hl), b
+    jp .enemy_slot_${slot}_flyer_sine_y
+.enemy_slot_${slot}_flyer_sine_turn_right:
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    ld b, (hl)
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld (hl), b
+    ld a, c
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), a
+.enemy_slot_${slot}_flyer_sine_y:
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld a, (hl)
+    or a
+    ret z
+    bit 7, a
+    jp nz, .enemy_slot_${slot}_flyer_sine_up
+.enemy_slot_${slot}_flyer_sine_down:
+    ld c, a
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    add a, c
+    ld b, a
+    push bc
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_max_y
+    add hl, de
+    pop bc
+    ld a, b
+    cp (hl)
+    jp nc, .enemy_slot_${slot}_flyer_sine_turn_up
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld (hl), b
+    ret
+.enemy_slot_${slot}_flyer_sine_turn_up:
+    ld b, (hl)
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld (hl), b
+    ld a, c
+    neg
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), a
+    ret
+.enemy_slot_${slot}_flyer_sine_up:
+    neg
+    ld c, a
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    sub c
+    jp c, .enemy_slot_${slot}_flyer_sine_turn_down
+    ld b, a
+    push bc
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    pop bc
+    ld a, b
+    cp (hl)
+    jp c, .enemy_slot_${slot}_flyer_sine_turn_down
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld (hl), b
+    ret
+.enemy_slot_${slot}_flyer_sine_turn_down:
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    ld b, (hl)
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld (hl), b
+    ld a, c
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), a
     ret
 
 .enemy_slot_${slot}_ball_bounce:

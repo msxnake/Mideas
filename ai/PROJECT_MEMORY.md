@@ -139,3 +139,10 @@ Mideas
 - Fix (1 linea, msx2Screen4Generator ~6303): bloque air dash movido tras el `jp update_hardware_sprite_vertical` final, alcanzable solo desde su gate.
 - Verificado OpenMSX (push.json + air_dash, megarom konami): salto idle apex=76 = baseline, 3 saltos repetidos OK, air dash +36px burst, salto post-dash OK. ROM test/ad2_64k.rom.
 - Incluye WIP previo verificado junto: probes centrales de grounded (jump block + check_grounded + land) y fast-path de flags en msx2_air_dash_player_grounded.
+
+## Sesion 2026-06-12 - Primer puente Enemy Library -> runtime MSX2: FlyerSine
+- Implementado `FlyerSine` como modo `msx2_movement` en los slots compactos de enemigos/hazards existentes: `mode=5`, `dx` firmado para velocidad horizontal, `dy` firmado para frecuencia vertical, `minY/maxY` como amplitud.
+- No se ha conectado aun `EnemyDefinition -> Screen entity -> ROM`; por ahora se activa desde entidades de pantalla con `msx2_movement.mode = "flyerSine"`/`"sine"`/`"sineWave"`/`"flyer"`.
+- RAM: 0 bytes nuevos. Se reutilizan tablas existentes `msx2_enemy_runtime_x/y/dx/dy/mode` y limites `msx2_screen_enemy_min/max`.
+- CPU: coste por enemigo FlyerSine superior a patrol simple por mover X e Y en el mismo frame y consultar dos limites; sin llamadas BIOS/VDP nuevas.
+- Verificacion: `node scripts/check_skill_params_contract.cjs`, `npm run build`, Glass ROM smoke con `server/temp/loderunner_flyer_sine_project.json` -> `server/temp/loderunner_flyer_sine.rom` 65536 bytes. ASM contiene `msx2_screen_enemy_mode: DB #05...` y `.enemy_slot_0_flyer_sine`.

@@ -367,4 +367,24 @@ assert(genCode.includes('${carryObjectEquatesAsm}') && genCode.includes('${carry
 assert(genCode.includes('+ carryPatternGroupCount'),
   'carry sprite pattern groups are counted in the hardware pattern budget');
 
-console.log('\nAll 29 plumbing checks passed.');
+// 30) MSX2 enemy runtime supports the first complex Enemy Library movement
+// bridge: FlyerSine. This is intentionally mapped through the existing compact
+// enemy/hazard slot tables, so it must not allocate new RAM.
+assert(entityRuntimeCode.includes('MSX2_ENEMY_MOVEMENT_FLYER_SINE = 5'),
+  'msx2EntityRuntimeGenerator declares the FlyerSine movement mode');
+assert(entityRuntimeCode.includes('hasFlyerSine') && entityRuntimeCode.includes("movement === 'flyersine'"),
+  'entity runtime normalizes flyerSine/sine movement names');
+assert(entityRuntimeCode.includes("getComponentValue(entity, 'msx2_movement', 'amplitude'"),
+  'FlyerSine reads amplitude from the msx2_movement component/params');
+assert(entityRuntimeCode.includes('signedByte(direction * flyerSpeedX)') && entityRuntimeCode.includes('flyerFrequency'),
+  'FlyerSine encodes speedX/frequency into existing dx/dy runtime bytes');
+assert(genCode.includes('MSX2_ENEMY_MOVEMENT_FLYER_SINE'),
+  'msx2Screen4Generator imports the FlyerSine movement mode');
+assert(genCode.includes('cp ${MSX2_ENEMY_MOVEMENT_FLYER_SINE}') && genCode.includes('.enemy_slot_${slot}_flyer_sine'),
+  'enemy slot dispatch reaches the FlyerSine ASM branch');
+assert(genCode.includes('FlyerSine local branch') && genCode.includes('DESTROYS: AF/BC/DE/HL') && genCode.includes('STACK: balanced push/pop'),
+  'FlyerSine emitted ASM branch documents its register/stack contract');
+assert(!layoutCode.includes('FLYER_SINE'),
+  'FlyerSine uses existing enemy runtime RAM and does not extend the skill RAM layout');
+
+console.log('\nAll 30 plumbing checks passed.');
