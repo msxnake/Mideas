@@ -59,6 +59,8 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'hazard',
         'spike_trap',
         'player_bullet',
+        'carryable_object',
+        'custom_entity',
       ],
       allowedEntityEngines: [
         'platform',
@@ -99,6 +101,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'msx2_grid_snap',
         'msx2_shooter',
         'msx2_projectile',
+        'msx2_carryable',
       ],
       defaultEntityPresetId: 'player',
       showBehaviorLayer: true,
@@ -120,6 +123,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'pickup_item',
         'spike_trap',
         'door',
+        'custom_entity',
       ],
       allowedEntityEngines: [
         'maze',
@@ -168,6 +172,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'patrol_y',
         'hazard',
         'collectible',
+        'custom_entity',
       ],
       allowedEntityEngines: [
         'shooterVertical',
@@ -218,6 +223,8 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'hazard',
         'spike_trap',
         'player_bullet',
+        'carryable_object',
+        'custom_entity',
       ],
       allowedEntityEngines: [
         'platform',
@@ -256,6 +263,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'msx2_platform',
         'msx2_shooter',
         'msx2_projectile',
+        'msx2_carryable',
       ],
       defaultEntityPresetId: 'player',
       showBehaviorLayer: true,
@@ -277,6 +285,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'galaxian_wave_controller',
         'enemy_static',
         'hazard',
+        'custom_entity',
       ],
       allowedEntityEngines: [
         'shooterHorizontal',

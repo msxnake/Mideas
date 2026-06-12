@@ -325,6 +325,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const selectedTileClass = "bg-msx-highlight text-white";
   const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
 
+  // The MSX2 Enemy Library is reached from the toolbar ("Enemies" button),
+  // not from the Project Assets sidebar, so no system tools are listed here.
   const systemTools: Array<{
     id: string;
     name: string;
@@ -332,14 +334,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     editorType: EditorType;
     iconType: 'mainmenu' | 'presentationscreen' | 'enemylibrary';
     isActive: boolean;
-  }> = projectTarget === 'MSX2' ? [{
-    id: ENEMY_LIBRARY_SYSTEM_ASSET_ID,
-    name: 'Enemy Library',
-    title: 'Open MSX2 Enemy Library',
-    editorType: EditorType.EnemyLibrary,
-    iconType: 'enemylibrary',
-    isActive: isEnemyLibraryActive,
-  }] : [];
+  }> = [];
 
 
   const getContextMenuItems = (): ContextMenuItem[] => {

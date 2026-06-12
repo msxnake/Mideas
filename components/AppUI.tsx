@@ -42,6 +42,8 @@ import { HelpDocsViewer } from './editors/HelpDocsViewer';
 import { BehaviorEditor } from './editors/BehaviorEditor';
 import { BossEditor } from './editors/BossEditor';
 import { SpriteSheetReorderModal } from './modals/SpriteSheetReorderModal';
+import { Msx2EntityLibraryModal } from './modals/Msx2EntityLibraryModal';
+import { Msx2SpriteLibraryModal } from './modals/Msx2SpriteLibraryModal';
 import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
 import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
@@ -362,6 +364,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
   const [isAsmCompilerHelpOpen, setIsAsmCompilerHelpOpen] = React.useState(false);
   const [isMsxEmulatorHelpOpen, setIsMsxEmulatorHelpOpen] = React.useState(false);
+  const [isMsx2EntityLibraryOpen, setIsMsx2EntityLibraryOpen] = useState(false);
+  const [isMsx2SpriteLibraryOpen, setIsMsx2SpriteLibraryOpen] = useState(false);
   const [selectedScreenCatalogBlock, setSelectedScreenCatalogBlock] = useState<TileStamp | null>(null);
 
   const handleEditGeneratedFile = React.useCallback((filename: string, content: string) => {
@@ -601,6 +605,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenAbout={() => setIsAboutModalOpen(true)}
         onOpenComponentDefEditor={() => onSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => onSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
+        onOpenMsx2EntityLibrary={() => setIsMsx2EntityLibraryOpen(true)}
+        onOpenMsx2SpriteLibrary={() => setIsMsx2SpriteLibraryOpen(true)}
         onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
         onOpenPngMsxTool={() => {
@@ -1027,6 +1033,36 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             allAssets={assets}
             currentScreenMode={currentScreenMode}
             onOpenFramesModal={handleOpenSpriteFramesModal}
+        />
+      )}
+      {isMsx2EntityLibraryOpen && (
+        <Msx2EntityLibraryModal
+            isOpen={isMsx2EntityLibraryOpen}
+            onClose={() => setIsMsx2EntityLibraryOpen(false)}
+            setStatusBarMessage={setStatusBarMessage}
+            onImportEntity={(template) => {
+              // Mirror "Save as Preset": append a project entitytemplate asset
+              // (target MSX2) so it appears in the Create MSX2 Entity palette
+              // and is serialized with the project JSON.
+              const name = (template.name || 'Entity').trim() || 'Entity';
+              const assetId = `tpl_msx2_lib_import_${Date.now()}`;
+              handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'entitytemplate', data: { ...template, id: assetId } }]);
+            }}
+        />
+      )}
+      {isMsx2SpriteLibraryOpen && (
+        <Msx2SpriteLibraryModal
+            isOpen={isMsx2SpriteLibraryOpen}
+            onClose={() => setIsMsx2SpriteLibraryOpen(false)}
+            setStatusBarMessage={setStatusBarMessage}
+            onNewSprite={() => { setIsMsx2SpriteLibraryOpen(false); handleNewAsset('msx2sprite'); }}
+            onImportSprite={(sprite) => {
+              // Append a new msx2sprite asset with the library payload, so it
+              // is serialized with the project JSON and editable like any sprite.
+              const name = (sprite.name || 'Sprite').trim() || 'Sprite';
+              const assetId = `msx2sprite_lib_import_${Date.now()}`;
+              handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'msx2sprite', data: { ...sprite, id: assetId } }]);
+            }}
         />
       )}
       {isSpriteFramesModalOpen && (

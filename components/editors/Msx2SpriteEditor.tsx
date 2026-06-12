@@ -4,6 +4,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { addEntryToMsx2SpriteLibrary } from '../../utils/msx2SpriteLibrary';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import {
   ArrowDownIcon,
@@ -816,6 +817,11 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     updateFrameData(next);
   };
 
+  const exportToLibrary = () => {
+    const entry = addEntryToMsx2SpriteLibrary(sprite, sprite.name);
+    alert(`Exported "${entry.name}" to the global MSX2 Sprites Library.`);
+  };
+
   const exportPng = () => {
     const canvas = document.createElement('canvas');
     canvas.width = sprite.size.width * sprite.frames.length;
@@ -964,6 +970,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={exportToLibrary} title="Export this sprite to the global MSX2 Sprites Library (persists across projects). Reusable via Libraries > Sprites.">Export to Library</Button>
             <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
             <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => importFileRef.current?.click()}>MSX2 Import PNG</Button>
             <Button size="sm" variant={showSeparatedLayers ? 'primary' : 'secondary'} onClick={() => setShowSeparatedLayers(value => !value)}>

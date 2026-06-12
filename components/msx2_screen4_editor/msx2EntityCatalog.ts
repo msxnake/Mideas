@@ -1,4 +1,4 @@
-import { Msx2EntityKind } from '../../types';
+import { EntityTemplate, Msx2EntityKind, Msx2Screen4EntityInstance } from '../../types';
 
 export type Msx2ComponentId =
   | 'msx2_transform'
@@ -39,6 +39,7 @@ export type Msx2ComponentId =
   | 'msx2_snake_segment'
   | 'msx2_grid_snap'
   | 'msx2_box2'
+  | 'msx2_carryable'
   | 'msx2_scroll';
 
 export interface Msx2ComponentDefinition {
@@ -259,6 +260,9 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     charCode: { label: 'Char code', min: 0, max: 255 },
     paletteSlot: { label: 'Palette slot', min: 0, max: 15 },
   },
+  msx2_carryable: {
+    enabled: { kind: 'boolean', label: 'Enabled', ariaLabel: 'MSX2 Carryable enabled' },
+  },
 };
 
 export type Msx2RuntimeEngine =
@@ -287,7 +291,7 @@ export type Msx2RuntimeEngine =
 export interface Msx2EntityCreatePreset {
   id: string;
   label: string;
-  kind: Exclude<Msx2EntityKind, 'custom'>;
+  kind: Msx2EntityKind;
   runtime: 'MSX2';
   engine: Msx2RuntimeEngine;
   description: string;
@@ -528,6 +532,12 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     defaults: { gridUnit: 16, charWidth: 2, charHeight: 2, snapOnStop: true },
   },
   {
+    id: 'msx2_carryable',
+    label: 'Carryable',
+    description: 'Marks this entity (rock, key, ball...) as a carryable object for the player carry_object skill: pick it up with the attack key, carry it above the head and throw it. Uses the Render hardware sprite; max 2 carryables per screen.',
+    defaults: { enabled: true },
+  },
+  {
     id: 'msx2_scroll',
     label: 'Scroll',
     description: 'Conditional MSX2 scroll contract: vertical can use V9938 R#23, horizontal must be tile, software, VDP-copy, R#18 adjustment, or hybrid and pass visual/performance checks.',
@@ -549,12 +559,15 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   },
 ];
 
-export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Exclude<Msx2EntityKind, 'custom'>; label: string }> = [
+export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Msx2EntityKind; label: string }> = [
   { value: 'player', label: 'Player' },
   { value: 'enemy', label: 'Enemy' },
   { value: 'hazard', label: 'Hazard' },
   { value: 'collectible', label: 'Collectible' },
   { value: 'door', label: 'Door' },
+  // Component-driven entities: the runtime derives behavior from the
+  // attached components (Carryable, Collectible...), not from the kind.
+  { value: 'custom', label: 'Custom' },
 ];
 
 export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
@@ -982,6 +995,33 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     params: { runtime: 'MSX2', engine: 'brick', brick: true, points: 10 },
   },
   {
+    id: 'custom_entity',
+    label: 'MSX2 Custom',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'staticEnemy',
+    description: 'Blank component-driven entity: starts with Position + Render only. Add the components you need (Carryable, Collectible...) from the entity inspector. NOTE: with no role component it does not render in the ROM; switch the kind to Enemy/Hazard if you need enemy-slot behavior.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+    },
+    params: { runtime: 'MSX2', custom: true },
+  },
+  {
+    id: 'carryable_object',
+    label: 'MSX2 Carryable Object',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'staticEnemy',
+    description: 'Harmless prop (rock, key, ball...) the player can pick up and throw with the carry_object skill. Renders as a hardware sprite; never damages the player and never joins the enemy slots.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: { paletteSlot: 9 },
+      msx2_carryable: { enabled: true },
+    },
+    params: { runtime: 'MSX2', engine: 'staticEnemy', carryable: true },
+  },
+  {
     id: 'snake_head',
     label: 'MSX2 Snake Head',
     kind: 'player',
@@ -1034,6 +1074,63 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
 ];
 
 export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS = MSX2_ENTITY_REPERTOIRE;
+
+const MSX2_VALID_ENTITY_KINDS = new Set(MSX2_ENTITY_KIND_OPTIONS.map(option => option.value));
+
+/**
+ * Converts an edited MSX2 screen entity into a project EntityTemplate asset
+ * (target MSX2) so it persists in the project JSON and can be re-inserted
+ * from the Create MSX2 Entity palette. Transform values are kept but the
+ * placement click overrides position (see buildMsx2EntityComponents).
+ */
+export function buildEntityTemplateFromMsx2Entity(
+  entity: Msx2Screen4EntityInstance,
+  templateId: string,
+  name: string,
+): EntityTemplate {
+  return {
+    id: templateId,
+    name,
+    target: 'MSX2',
+    components: Object.entries(entity.components || {}).map(([definitionId, defaultValues]) => ({
+      definitionId,
+      defaultValues: { ...(defaultValues || {}) },
+    })),
+    description: `Custom MSX2 entity preset saved from the room editor (kind: ${entity.kind}).`,
+    msx2Kind: entity.kind,
+    msx2Params: { ...(entity.params || {}) },
+  };
+}
+
+/**
+ * Converts a project EntityTemplate (target MSX2) back into a palette
+ * preset. Returns null for non-MSX2 or component-less templates so legacy
+ * MSX1 ECS templates never leak into the MSX2 palette.
+ */
+export function buildMsx2PresetFromEntityTemplate(
+  template: EntityTemplate | undefined | null,
+): Msx2EntityCreatePreset | null {
+  if (!template || template.target !== 'MSX2' || !Array.isArray(template.components)) return null;
+  const components: Partial<Record<Msx2ComponentId, Record<string, any>>> = {};
+  for (const component of template.components) {
+    if (!component?.definitionId) continue;
+    components[component.definitionId as Msx2ComponentId] = { ...(component.defaultValues || {}) };
+  }
+  if (Object.keys(components).length === 0) return null;
+  const kind = template.msx2Kind && MSX2_VALID_ENTITY_KINDS.has(template.msx2Kind)
+    ? template.msx2Kind
+    : 'custom';
+  return {
+    id: template.id,
+    label: template.name || template.id,
+    kind,
+    runtime: 'MSX2',
+    engine: 'staticEnemy',
+    description: template.description || 'Custom project entity preset.',
+    components,
+    params: { runtime: 'MSX2', ...(template.msx2Params || {}) },
+  };
+}
 
 const defaultsByComponent = new Map(MSX2_COMPONENT_REPERTOIRE.map(component => [component.id, component.defaults]));
 

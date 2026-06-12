@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MSXColorValue, Msx2HudWidget, Msx2PlayerEntry, Msx2ProjectProfile, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4LineAttribute, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
+import { EntityTemplate, MSXColorValue, Msx2HudWidget, Msx2PlayerEntry, Msx2ProjectProfile, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4LineAttribute, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
 import { filterMsx2EntityPresetsForProfile, getMsx2LockedRuntimeMode } from '../../utils/msx2ProjectProfiles';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { normalizeMsx2ShooterRuntimeConfig } from '../../utils/msx2ShooterRuntime';
@@ -44,7 +44,12 @@ import {
   Msx2Screen4Toolbar,
   TILE_SIZE,
 } from '../msx2_screen4_editor/Msx2Screen4EditorParts';
-import { buildMsx2EntityComponents } from '../msx2_screen4_editor/msx2EntityCatalog';
+import {
+  buildEntityTemplateFromMsx2Entity,
+  buildMsx2EntityComponents,
+  buildMsx2PresetFromEntityTemplate,
+} from '../msx2_screen4_editor/msx2EntityCatalog';
+import { addEntryToMsx2EntityLibrary } from '../../utils/msx2EntityLibrary';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { MSX2AtlasPreviewPanel } from '../screen_editor/MSX2AtlasPreviewPanel';
@@ -288,9 +293,21 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     if (!playerId) return 'Default player';
     return playerAssetOptions.find(asset => asset.id === playerId)?.name || 'Missing player';
   };
+  // Custom presets saved from the entity inspector live in the project as
+  // entitytemplate assets with target MSX2 (persisted in the project JSON).
+  const customEntityPresets = useMemo(
+    () => allAssets
+      .filter(asset => asset.type === 'entitytemplate')
+      .map(asset => buildMsx2PresetFromEntityTemplate(asset.data as EntityTemplate))
+      .filter((preset): preset is Msx2EntityCreatePreset => preset !== null),
+    [allAssets]
+  );
   const entityPresets = useMemo(
-    () => filterMsx2EntityPresetsForProfile(MSX2_ENTITY_REPERTOIRE, msx2ProjectProfile),
-    [msx2ProjectProfile]
+    () => [
+      ...filterMsx2EntityPresetsForProfile(MSX2_ENTITY_REPERTOIRE, msx2ProjectProfile),
+      ...customEntityPresets,
+    ],
+    [msx2ProjectProfile, customEntityPresets]
   );
   const lockedRuntimeMode = useMemo(
     () => getMsx2LockedRuntimeMode(msx2ProjectProfile),
@@ -437,6 +454,23 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     if (!selectedEntity) return;
     updateLayers({ ...layers, entities: layers.entities.filter(entity => entity.id !== selectedEntity.id) });
     setSelectedEntityId(null);
+  };
+
+  const saveEntityAsPreset = (entity: Msx2Screen4EntityInstance) => {
+    const name = (entity.name || '').trim() || 'Custom Entity';
+    const templateId = `tpl_msx2_custom_${Date.now()}`;
+    const template = buildEntityTemplateFromMsx2Entity(entity, templateId, name);
+    // Empty data patch: handleUpdateAsset only appends the new asset, which
+    // is then serialized with the rest of the project JSON on save.
+    onUpdate({}, [{ id: templateId, name, type: 'entitytemplate', data: template }]);
+    setSelectedEntityPresetId(templateId);
+  };
+
+  const exportEntityToLibrary = (entity: Msx2Screen4EntityInstance) => {
+    const name = (entity.name || '').trim() || 'Custom Entity';
+    const template = buildEntityTemplateFromMsx2Entity(entity, `tpl_msx2_lib_${Date.now()}`, name);
+    const entry = addEntryToMsx2EntityLibrary(template, name);
+    alert(`Exported "${entry.name}" to the global MSX2 Entities Library.`);
   };
 
   const updatePlayerEntries = (nextEntries: Msx2PlayerEntry[]) => {
@@ -1107,6 +1141,8 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             onUpdateSelectedEntity={updateSelectedEntity}
             onUpdateSelectedEntityParams={updateSelectedEntityParams}
             onRemoveSelectedEntity={removeSelectedEntity}
+            onSaveEntityAsPreset={saveEntityAsPreset}
+            onExportEntityToLibrary={exportEntityToLibrary}
             msx2ProjectProfile={msx2ProjectProfile}
           />
           <Msx2Screen4EntityPalettePanel

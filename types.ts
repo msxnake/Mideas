@@ -975,6 +975,10 @@ export interface EntityTemplate {
   components: EntityTemplateComponent[];
   /** A description of the entity template. */
   description?: string;
+  /** MSX2 entity kind captured when saved from the MSX2 room editor (target MSX2). */
+  msx2Kind?: Msx2EntityKind;
+  /** MSX2 entity params captured when saved from the MSX2 room editor (target MSX2). */
+  msx2Params?: Record<string, any>;
 }
 
 export type PlayerTemplateCategory =

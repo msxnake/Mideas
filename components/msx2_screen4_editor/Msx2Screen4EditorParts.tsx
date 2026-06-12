@@ -588,6 +588,8 @@ interface Msx2Screen4EntityPanelProps {
   onUpdateSelectedEntity: (patch: Partial<Msx2Screen4EntityInstance>) => void;
   onUpdateSelectedEntityParams: (patch: Record<string, any>) => void;
   onRemoveSelectedEntity: () => void;
+  onSaveEntityAsPreset?: (entity: Msx2Screen4EntityInstance) => void;
+  onExportEntityToLibrary?: (entity: Msx2Screen4EntityInstance) => void;
   msx2ProjectProfile?: Msx2ProjectProfile | null;
 }
 
@@ -847,6 +849,8 @@ export const Msx2Screen4EntityPanel: React.FC<Msx2Screen4EntityPanelProps> = ({
   onUpdateSelectedEntity,
   onUpdateSelectedEntityParams,
   onRemoveSelectedEntity,
+  onSaveEntityAsPreset,
+  onExportEntityToLibrary,
   msx2ProjectProfile = null,
 }) => {
   const [isRenderPickerOpen, setIsRenderPickerOpen] = useState(false);
@@ -1259,7 +1263,29 @@ export const Msx2Screen4EntityPanel: React.FC<Msx2Screen4EntityPanelProps> = ({
                 </select>
               </>
             )}
-            <Button size="sm" variant="danger" onClick={onRemoveSelectedEntity}>Delete Entity</Button>
+            <div className="flex flex-wrap gap-2">
+              {onSaveEntityAsPreset && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => onSaveEntityAsPreset(selectedEntity)}
+                  title="Save this entity (name, kind, components, params) as a reusable preset in the Create MSX2 Entity palette. Stored as an MSX2 entity template asset in the project JSON."
+                >
+                  Save as Preset
+                </Button>
+              )}
+              {onExportEntityToLibrary && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => onExportEntityToLibrary(selectedEntity)}
+                  title="Export this entity to the global MSX2 Entities Library (persists across projects). Reusable from any project via Libraries > Entities."
+                >
+                  Export to Library
+                </Button>
+              )}
+              <Button size="sm" variant="danger" onClick={onRemoveSelectedEntity}>Delete Entity</Button>
+            </div>
             {isRenderPickerOpen && (
               <AssetPickerModal
                 isOpen={isRenderPickerOpen}

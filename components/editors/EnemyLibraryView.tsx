@@ -3,8 +3,10 @@ import { EnemyAttackType, EnemyBehaviorType, EnemyDefinition, EnemyLibraryScope,
 import { GLOBAL_ENEMY_TEMPLATES, createEmptyEnemyDefinition, createEnemyFromTemplate } from '../../data/enemyLibrary';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
-import { PlusCircleIcon, SaveIcon, LoadIcon, TrashIcon, SpriteIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, SaveIcon, LoadIcon, TrashIcon, SpriteIcon, PuzzlePieceIcon } from '../icons/MsxIcons';
 import { downloadTextFile } from '../../utils/downloadUtils';
+import { addEntryToMsx2EnemyLibrary } from '../../utils/msx2EnemyLibrary';
+import { Msx2EnemyLibraryModal } from '../modals/Msx2EnemyLibraryModal';
 
 interface EnemyLibraryViewProps {
   enemyDefinitions: EnemyDefinition[];
@@ -96,6 +98,7 @@ export const EnemyLibraryView: React.FC<EnemyLibraryViewProps> = ({
   const [search, setSearch] = useState('');
   const [worldFilter, setWorldFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [isGlobalLibraryOpen, setIsGlobalLibraryOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const selectedEnemy = enemyDefinitions.find(enemy => enemy.enemyId === selectedEnemyId) || null;
@@ -194,7 +197,24 @@ export const EnemyLibraryView: React.FC<EnemyLibraryViewProps> = ({
     downloadTextFile('mideas_enemy_library.json', JSON.stringify(enemyDefinitions, null, 2), 'application/json');
   };
 
+  const exportSelectedToLibrary = () => {
+    if (!selectedEnemy) return;
+    const entry = addEntryToMsx2EnemyLibrary(selectedEnemy, selectedEnemy.name);
+    setStatusBarMessage?.(`Exported "${entry.name}" to the global MSX2 Enemies Library.`);
+    alert(`Exported "${entry.name}" to the global MSX2 Enemies Library.`);
+  };
+
+  const importFromLibrary = (enemy: EnemyDefinition) => {
+    const next = cloneEnemy(enemy);
+    if (!next.enemyId || enemyDefinitions.some(item => item.enemyId === next.enemyId)) {
+      next.enemyId = uniqueEnemyId(next.name || 'imported_enemy', enemyDefinitions);
+    }
+    onUpdateEnemyDefinitions([...enemyDefinitions, next]);
+    setSelectedEnemyId(next.enemyId);
+  };
+
   return (
+    <>
     <div className="h-full min-h-0 flex gap-2 p-2 overflow-hidden">
       <Panel title="Enemy Library MSX2" icon={<SpriteIcon />} className="w-[34rem] flex-shrink-0" bodyClassName="p-2 overflow-auto">
         <div className="flex gap-1 mb-2 flex-wrap">
@@ -205,6 +225,8 @@ export const EnemyLibraryView: React.FC<EnemyLibraryViewProps> = ({
           <Button size="sm" variant="ghost" icon={<SaveIcon />} onClick={exportAll} disabled={enemyDefinitions.length === 0}>Export All</Button>
           <input ref={importInputRef} type="file" accept=".json" className="hidden" onChange={importEnemies} />
           <Button size="sm" variant="ghost" icon={<LoadIcon />} onClick={() => importInputRef.current?.click()}>Import</Button>
+          <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportSelectedToLibrary} disabled={!selectedEnemy} title="Save the selected enemy to the global MSX2 Enemies Library (persists across projects).">Export to Library</Button>
+          <Button size="sm" variant="primary" icon={<PuzzlePieceIcon />} onClick={() => setIsGlobalLibraryOpen(true)} title="Open the global MSX2 Enemies Library to import enemies into this project.">Library</Button>
         </div>
 
         <div className="grid grid-cols-3 gap-2 mb-2">
@@ -377,5 +399,14 @@ export const EnemyLibraryView: React.FC<EnemyLibraryViewProps> = ({
         )}
       </Panel>
     </div>
+    {isGlobalLibraryOpen && (
+      <Msx2EnemyLibraryModal
+        isOpen={isGlobalLibraryOpen}
+        onClose={() => setIsGlobalLibraryOpen(false)}
+        setStatusBarMessage={setStatusBarMessage}
+        onImportEnemy={importFromLibrary}
+      />
+    )}
+    </>
   );
 };

@@ -94,6 +94,10 @@ interface ToolbarProps {
   onOpenComponentDefEditor: () => void;
   /** Callback to open the entity template editor. */
   onOpenEntityTemplateEditor: () => void;
+  /** Callback to open the global MSX2 entities library dialog. */
+  onOpenMsx2EntityLibrary: () => void;
+  /** Callback to open the global MSX2 sprites library dialog. */
+  onOpenMsx2SpriteLibrary: () => void;
   /** Callback to open the MSX2 enemy library editor. */
   onOpenEnemyLibrary: () => void;
   /** Callback to open the world view editor. */
@@ -257,7 +261,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -457,8 +461,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {shouldShowMsx2Controls && <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white" disabled={!canCreateAsset('palette')}>MSX2 Palette</DropdownItem>}
         <DropdownSeparator />
         {shouldShowAssetType('tilebank') && <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon />} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white" disabled={!canCreateAsset('tilebank')}>MSX1 Tile Banks</DropdownItem>}
-        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
-        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
+        {/* MSX2 uses the msx2_* component catalog and creates entities via the
+            SCREEN 4 room editor + Entities Library, so the legacy MSX1 ECS
+            Component Definition / Entity Template items are hidden in MSX2. */}
+        {shouldShowMsx1Controls && <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>}
+        {shouldShowMsx1Controls && <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>}
         {shouldShowMsx2Controls && <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">MSX2 Enemy Library</DropdownItem>}
         <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white" disabled={!canCreateAsset('globalvariables')}>Global Variables</DropdownItem>
         <DropdownSeparator />
@@ -479,26 +486,57 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           MSX1 PNG a MSX
         </Button>
       )}
-      <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions">
-        Components
-      </Button>
-      <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates">
-        Templates
-      </Button>
-      {shouldShowMsx2Controls && (
-        <Button onClick={onOpenEnemyLibrary} variant="ghost" size="sm" icon={<BugIcon />} title="MSX2 Enemy Library">
-          Enemies
+      {/* MSX1 keeps the standalone Components/Templates nav buttons. In MSX2
+          these legacy ECS editors are consolidated under a single "Libraries"
+          dropdown (Components / Entities / Enemies) so the top bar stays
+          minimal: New Asset, World View, Libraries. */}
+      {shouldShowMsx1Controls && (
+        <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions">
+          Components
         </Button>
       )}
-      <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={isToggleEditorDisabled}>
-        Last Editor
-      </Button>
+      {shouldShowMsx1Controls && (
+        <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates">
+          Templates
+        </Button>
+      )}
+      {shouldShowMsx2Controls && (
+        <DropdownMenu label="Libraries">
+          <DropdownItem onClick={onOpenMsx2SpriteLibrary} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white">Sprites</DropdownItem>
+          <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Components</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2EntityLibrary} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entities</DropdownItem>
+          <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">Enemies</DropdownItem>
+        </DropdownMenu>
+      )}
+      {/* MSX1 Last Editor stays inline; MSX2 renders a violet, right-justified
+          Last Editor after the spacer (see GROUP 5 area below). */}
+      {shouldShowMsx1Controls && (
+        <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={isToggleEditorDisabled}>
+          Last Editor
+        </Button>
+      )}
 
         </>
       )}
 
       {/* Spacer pushes Configure + Help to the right */}
       <div className="flex-1" />
+
+      {/* MSX2: Last Editor is right-justified and violet (sits just left of
+          Configure/Help). MSX1 renders it inline in GROUP 4 above. */}
+      {hasActiveProject && shouldShowMsx2Controls && (
+        <Button
+          onClick={onToggleEditor}
+          variant="ghost"
+          size="sm"
+          icon={<SwapHorizIcon />}
+          title="Toggle Last Editor"
+          disabled={isToggleEditorDisabled}
+          className="!text-violet-300 hover:!bg-violet-600 hover:!text-white focus:!ring-violet-500"
+        >
+          Last Editor
+        </Button>
+      )}
 
       {/* GROUP 5: Settings + Help — always far right */}
       <DropdownMenu label="Configure" alignRight>
