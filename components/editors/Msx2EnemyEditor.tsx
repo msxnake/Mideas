@@ -6,6 +6,7 @@ import {
   EnemyDefinition,
   EnemyHitboxRect,
   EnemyLibraryScope,
+  EnemyRenderRoleBinding,
   EnemyRenderMode,
   EnemySpriteSize,
   ProjectAsset,
@@ -13,6 +14,7 @@ import {
   SpawnParamSchemaType,
 } from '../../types';
 import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../../data/enemyLibrary';
+import { addEntryToMsx2EnemyLibrary } from '../../utils/msx2EnemyLibrary';
 
 interface Msx2EnemyEditorProps {
   enemy: EnemyDefinition;
@@ -41,6 +43,16 @@ const RENDER_MODE_OPTIONS: EnemyRenderMode[] = ['hardwareSprite', 'softwareSprit
 const SPRITE_SIZE_OPTIONS: EnemySpriteSize[] = ['16x16', '16x32', '32x16', '32x32'];
 const PARAM_TYPE_OPTIONS: SpawnParamSchemaType[] = ['byte', 'int', 'enum', 'boolean'];
 const SOUND_EVENTS = ['onSpawn', 'onAttack', 'onHit', 'onDeath', 'onBounce', 'onDespawn'];
+const ROLE_PRESETS = [
+  { id: 'idle', label: 'Idle', state: 'Idle' },
+  { id: 'patrol', label: 'Patrol', state: 'Patrol' },
+  { id: 'attack', label: 'Attack', state: 'Attacking' },
+  { id: 'melee', label: 'Melee', state: 'MeleeAttack' },
+  { id: 'shoot', label: 'Shoot', state: 'Shooting' },
+  { id: 'hurt', label: 'Hurt', state: 'Damaged' },
+  { id: 'death', label: 'Death', state: 'Dying' },
+] as const;
+const STATE_OPTIONS = ['Idle', 'Patrol', 'Walking', 'Flying', 'Jumping', 'Falling', 'Attacking', 'MeleeAttack', 'Shooting', 'Damaged', 'Dying', 'Dead', 'Custom'];
 
 const inputClass = 'h-7 w-full rounded border border-slate-700 bg-[#111821] px-2 text-xs text-slate-100 outline-none focus:border-red-500';
 const selectClass = `${inputClass} pr-6`;
@@ -53,6 +65,54 @@ const slugify = (value: string): string =>
   value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'enemy';
 
 const formatAsmSymbol = (value: string): string => slugify(value).toUpperCase();
+
+const parseFrameList = (value: string): number[] => {
+  const frames = value
+    .split(',')
+    .map(part => Number(part.trim()))
+    .filter(Number.isFinite)
+    .map(frame => Math.max(0, Math.min(255, Math.floor(frame))));
+  return frames.length ? frames : [0];
+};
+
+const getAssetFrameCount = (asset?: ProjectAsset | null): number => {
+  const frames = (asset?.data as any)?.frames;
+  return Array.isArray(frames) ? Math.max(1, frames.length) : 1;
+};
+
+const rangeFramesForAsset = (asset?: ProjectAsset | null): number[] =>
+  Array.from({ length: Math.min(8, getAssetFrameCount(asset)) }, (_unused, index) => index);
+
+const buildRenderRoles = (enemy: EnemyDefinition): EnemyRenderRoleBinding[] => {
+  const roles = enemy.render.roles;
+  if (Array.isArray(roles) && roles.length > 0) {
+    return roles.map((role, index) => ({
+      id: role.id || `role_${index + 1}`,
+      label: role.label || role.id || `Role ${index + 1}`,
+      state: role.state || role.label || role.id || '',
+      behavior: role.behavior || 'Any',
+      attack: role.attack || 'Any',
+      spriteId: role.spriteId || enemy.render.spriteId || '',
+      animation: role.animation || role.id || `role_${index + 1}`,
+      frames: Array.isArray(role.frames) && role.frames.length ? role.frames : [0],
+      speed: numberValue(role.speed, 4),
+      loop: role.loop ?? true,
+      notes: role.notes || '',
+    }));
+  }
+  return Object.entries(enemy.render.animations || {}).map(([id, animation], index) => ({
+    id,
+    label: id.charAt(0).toUpperCase() + id.slice(1),
+    state: id.charAt(0).toUpperCase() + id.slice(1),
+    behavior: index === 0 ? enemy.behavior.type : 'Any',
+    attack: index === 0 && enemy.attack.type !== 'None' ? enemy.attack.type : 'Any',
+    spriteId: enemy.render.spriteId || '',
+    animation: id,
+    frames: animation.frames?.length ? animation.frames : [0],
+    speed: numberValue(animation.speed, 4),
+    loop: animation.loop ?? true,
+  }));
+};
 
 const Field: React.FC<{ label: string; children: React.ReactNode; suffix?: string }> = ({ label, children, suffix }) => (
   <label className="grid grid-cols-[112px_1fr_auto] items-center gap-2 text-xs text-slate-200">
@@ -171,6 +231,11 @@ const buildEnemyAsmPreview = (enemy: EnemyDefinition): string => {
     `    db ${enemy.budget.cpu}, ${enemy.budget.sprites}, ${enemy.budget.ram}`,
     `    dw ${formatAsmSymbol(enemy.render.spriteId || 'missing_sprite')}_SPR`,
     '',
+    `; Render roles:`,
+    ...buildRenderRoles(enemy).map(role =>
+      `;   ${formatAsmSymbol(role.id)} state=${role.state || '-'} behavior=${role.behavior || 'Any'} attack=${role.attack || 'Any'} sprite=${role.spriteId || enemy.render.spriteId || 'default'} frames=${role.frames.join(',')} speed=${role.speed}`
+    ),
+    '',
     `; Spawn: enemyId, x, y, p0, p1, p2, p3`,
     `    db ${enemySymbol}, 80, 64${params.length ? `, ${params.join(', ')}` : ''}`,
     `    db $FF`,
@@ -184,6 +249,10 @@ const validateEnemy = (enemy: EnemyDefinition, allAssets: ProjectAsset[]): strin
   if (!enemy.render.spriteId) issues.push('Sprite is not assigned.');
   if (enemy.render.spriteId && !allAssets.some(asset => asset.id === enemy.render.spriteId)) issues.push('Assigned sprite was not found.');
   if (Object.keys(enemy.render.animations || {}).length === 0) issues.push('At least one animation is recommended.');
+  const roles = buildRenderRoles(enemy);
+  if (roles.length === 0) issues.push('At least one render role is recommended.');
+  if (roles.some(role => role.spriteId && !allAssets.some(asset => asset.id === role.spriteId))) issues.push('A render role references a missing sprite.');
+  if (roles.some(role => role.frames.length === 0)) issues.push('Every render role needs at least one frame.');
   if (enemy.hitboxes.body.w <= 0 || enemy.hitboxes.body.h <= 0) issues.push('Body hitbox must have width and height.');
   if (enemy.budget.sprites > 4) issues.push('Sprite budget is high for MSX2 hardware sprites.');
   return issues;
@@ -196,6 +265,7 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
   setStatusBarMessage,
 }) => {
   const [activeSection, setActiveSection] = useState<EnemyConfigSection>('General');
+  const [selectedRoleIndex, setSelectedRoleIndex] = useState(0);
   const selectedSprite = useMemo(
     () => allAssets.find(asset => asset.id === enemy.render.spriteId) || null,
     [allAssets, enemy.render.spriteId]
@@ -204,12 +274,16 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
   const soundAssets = allAssets.filter(asset => asset.type === 'sound');
   const issues = validateEnemy(enemy, allAssets);
   const animationEntries = Object.entries(enemy.render.animations || {});
+  const renderRoles = buildRenderRoles(enemy);
+  const selectedRole = renderRoles[Math.min(selectedRoleIndex, Math.max(0, renderRoles.length - 1))];
+  const selectedRoleSprite = allAssets.find(asset => asset.id === selectedRole?.spriteId) || selectedSprite;
 
   const patch = (next: Partial<EnemyDefinition>) => onUpdate({ ...enemy, ...next });
   const patchRender = (next: Partial<EnemyDefinition['render']>) => patch({ render: { ...enemy.render, ...next } });
   const patchStats = (next: Partial<EnemyDefinition['stats']>) => patch({ stats: { ...enemy.stats, ...next } });
   const patchBudget = (next: Partial<EnemyDefinition['budget']>) => patch({ budget: { ...enemy.budget, ...next } });
   const patchSound = (eventId: string, soundAssetId: string) => patch({ sound: { ...enemy.sound, [eventId]: soundAssetId || null } });
+  const patchRoles = (roles: EnemyRenderRoleBinding[]) => patchRender({ roles });
 
   const applyTemplate = (templateId: string) => {
     const template = GLOBAL_ENEMY_TEMPLATES.find(item => item.templateId === templateId);
@@ -265,6 +339,54 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
     patchRender({ animations: nextAnimations });
   };
 
+  const updateRenderRole = (index: number, next: Partial<EnemyRenderRoleBinding>) => {
+    const roles = renderRoles.map((role, roleIndex) => (
+      roleIndex === index ? { ...role, ...next } : role
+    ));
+    patchRoles(roles);
+  };
+
+  const addRenderRole = (preset = ROLE_PRESETS[0]) => {
+    const usedIds = new Set(renderRoles.map(role => role.id));
+    let id = preset.id;
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${preset.id}_${suffix++}`;
+    const spriteId = enemy.render.spriteId || spriteAssets[0]?.id || '';
+    const sprite = allAssets.find(asset => asset.id === spriteId) || null;
+    const frames = rangeFramesForAsset(sprite);
+    const role: EnemyRenderRoleBinding = {
+      id,
+      label: preset.label,
+      state: preset.state,
+      behavior: preset.id === 'patrol' ? enemy.behavior.type : 'Any',
+      attack: preset.id === 'attack' || preset.id === 'melee' || preset.id === 'shoot' ? enemy.attack.type : 'Any',
+      spriteId,
+      animation: id,
+      frames,
+      speed: 4,
+      loop: preset.id !== 'death',
+    };
+    patchRoles([...renderRoles, role]);
+    setSelectedRoleIndex(renderRoles.length);
+  };
+
+  const duplicateRenderRole = (index: number) => {
+    const source = renderRoles[index];
+    if (!source) return;
+    const usedIds = new Set(renderRoles.map(role => role.id));
+    let id = `${source.id}_copy`;
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${source.id}_copy_${suffix++}`;
+    patchRoles([...renderRoles, { ...source, id, label: `${source.label} Copy`, animation: id }]);
+    setSelectedRoleIndex(renderRoles.length);
+  };
+
+  const removeRenderRole = (index: number) => {
+    const nextRoles = renderRoles.filter((_role, roleIndex) => roleIndex !== index);
+    patchRoles(nextRoles);
+    setSelectedRoleIndex(Math.max(0, Math.min(index, nextRoles.length - 1)));
+  };
+
   const updateSpawnParam = (index: number, next: Partial<SpawnParamSchemaItem>) => {
     patch({
       spawnParamsSchema: enemy.spawnParamsSchema.map((param, paramIndex) => (
@@ -302,6 +424,18 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
               <option key={template.templateId} value={template.templateId}>{template.name}</option>
             ))}
           </select>
+          <button
+            type="button"
+            className="h-8 rounded border border-emerald-700 bg-emerald-900/30 px-3 text-xs text-emerald-100 hover:bg-emerald-800/50"
+            title="Save this enemy to the global MSX2 Enemies Library (persists across projects, reusable via Libraries > Enemies)."
+            onClick={() => {
+              const entry = addEntryToMsx2EnemyLibrary(enemy, enemy.name);
+              setStatusBarMessage?.(`Exported "${entry.name}" to the global MSX2 Enemies Library.`);
+              alert(`Exported "${entry.name}" to the global MSX2 Enemies Library.`);
+            }}
+          >
+            Export to Library
+          </button>
           <button type="button" className="h-8 rounded border border-red-700 bg-red-900/30 px-3 text-xs text-red-100 hover:bg-red-800/50" onClick={() => applyTemplate('bat_enemy_basic')}>
             Bat Enemy
           </button>
@@ -351,33 +485,147 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
           <section className={`${panelClass} ${activeSection === 'Graphics & Animations' ? 'absolute inset-0' : 'hidden'}`}>
             <div className={panelTitleClass}>Graphics & Animations</div>
             <div className="space-y-4 overflow-auto p-4">
-              <Field label="Render Mode">
-                <select className={selectClass} value={enemy.render.renderMode} onChange={event => patchRender({ renderMode: event.target.value as EnemyRenderMode })}>
-                  {RENDER_MODE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </Field>
-              <Field label="Sprite">
-                <select className={selectClass} value={enemy.render.spriteId} onChange={event => patchRender({ spriteId: event.target.value })}>
-                  <option value="">None</option>
-                  {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Size">
-                <select className={selectClass} value={enemy.render.size} onChange={event => patchRender({ size: event.target.value as EnemySpriteSize })}>
-                  {SPRITE_SIZE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </Field>
-              <Field label="Palette"><input className={inputClass} value={enemy.render.palette} onChange={event => patchRender({ palette: event.target.value })} /></Field>
+              <div className="rounded border border-slate-700 bg-[#111821]">
+                <div className="grid grid-cols-2 gap-3 border-b border-slate-700 p-3">
+                  <Field label="Default Sprite">
+                    <select className={selectClass} value={enemy.render.spriteId} onChange={event => patchRender({ spriteId: event.target.value })}>
+                      <option value="">None</option>
+                      {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Render Mode">
+                    <select className={selectClass} value={enemy.render.renderMode} onChange={event => patchRender({ renderMode: event.target.value as EnemyRenderMode })}>
+                      {RENDER_MODE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Size">
+                    <select className={selectClass} value={enemy.render.size} onChange={event => patchRender({ size: event.target.value as EnemySpriteSize })}>
+                      {SPRITE_SIZE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Palette"><input className={inputClass} value={enemy.render.palette} onChange={event => patchRender({ palette: event.target.value })} /></Field>
+                </div>
 
-              <div className="space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
+                  <div>
+                    <div className="text-xs font-bold uppercase text-red-300">Role Render Links</div>
+                    <div className="text-[11px] text-slate-400">Declarative links: state/behavior to sprite render and frames.</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="h-7 rounded border border-slate-700 bg-[#0b1118] px-2 text-xs text-slate-100 outline-none focus:border-red-500"
+                      defaultValue=""
+                      onChange={event => {
+                        const preset = ROLE_PRESETS.find(item => item.id === event.target.value);
+                        if (preset) addRenderRole(preset);
+                        event.currentTarget.value = '';
+                      }}
+                    >
+                      <option value="">Add role...</option>
+                      {ROLE_PRESETS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                    </select>
+                    <button type="button" className="h-7 rounded border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800" onClick={() => duplicateRenderRole(Math.min(selectedRoleIndex, Math.max(0, renderRoles.length - 1)))}>Duplicate</button>
+                  </div>
+                </div>
+
+                <div className="min-h-[150px] overflow-auto">
+                  <table className="w-full table-fixed text-xs">
+                    <thead className="bg-[#141b25] text-left text-slate-300">
+                      <tr>
+                        <th className="w-12 px-3 py-2">ID</th>
+                        <th className="w-28 px-3 py-2">Role</th>
+                        <th className="w-32 px-3 py-2">State</th>
+                        <th className="w-36 px-3 py-2">Behavior</th>
+                        <th className="w-36 px-3 py-2">Attack</th>
+                        <th className="px-3 py-2">Sprite</th>
+                        <th className="w-24 px-3 py-2">Frames</th>
+                        <th className="w-20 px-3 py-2">Speed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {renderRoles.map((role, index) => {
+                        const roleSprite = allAssets.find(asset => asset.id === role.spriteId);
+                        return (
+                          <tr
+                            key={`${role.id}_${index}`}
+                            className={`cursor-pointer border-t border-slate-800 ${index === selectedRoleIndex ? 'bg-red-950/40 text-white' : 'text-slate-100 hover:bg-slate-800/60'}`}
+                            onClick={() => setSelectedRoleIndex(index)}
+                          >
+                            <td className="px-3 py-2 text-slate-300">{index}</td>
+                            <td className="truncate px-3 py-2 font-semibold">{role.label}</td>
+                            <td className="truncate px-3 py-2">{role.state || '-'}</td>
+                            <td className="truncate px-3 py-2">{role.behavior || 'Any'}</td>
+                            <td className="truncate px-3 py-2">{role.attack || 'Any'}</td>
+                            <td className="truncate px-3 py-2">{roleSprite?.name || (role.spriteId ? 'Missing sprite' : 'Default')}</td>
+                            <td className="truncate px-3 py-2">{role.frames.join(',')}</td>
+                            <td className="px-3 py-2">{role.speed}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {selectedRole && (
+                <div className="grid grid-cols-[180px_1fr] gap-3 rounded border border-slate-700 bg-[#111821] p-3">
+                  <div className="flex flex-col items-center justify-center rounded border border-slate-700 bg-[#0b1118] p-3">
+                    <SpritePreview asset={selectedRoleSprite} size={enemy.render.size} />
+                    <div className="mt-2 max-w-full truncate text-xs text-slate-300">{selectedRoleSprite?.name || 'Default sprite'}</div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Role ID"><input className={inputClass} value={selectedRole.id} onChange={event => updateRenderRole(selectedRoleIndex, { id: slugify(event.target.value), animation: slugify(event.target.value) })} /></Field>
+                      <Field label="Label"><input className={inputClass} value={selectedRole.label} onChange={event => updateRenderRole(selectedRoleIndex, { label: event.target.value })} /></Field>
+                      <Field label="State">
+                        <select className={selectClass} value={selectedRole.state || ''} onChange={event => updateRenderRole(selectedRoleIndex, { state: event.target.value })}>
+                          <option value="">Unlinked</option>
+                          {STATE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Sprite">
+                        <select className={selectClass} value={selectedRole.spriteId || ''} onChange={event => updateRenderRole(selectedRoleIndex, { spriteId: event.target.value, frames: rangeFramesForAsset(allAssets.find(asset => asset.id === event.target.value)) })}>
+                          <option value="">Use default sprite</option>
+                          {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Behavior">
+                        <select className={selectClass} value={selectedRole.behavior || 'Any'} onChange={event => updateRenderRole(selectedRoleIndex, { behavior: event.target.value as EnemyRenderRoleBinding['behavior'] })}>
+                          <option value="Any">Any</option>
+                          {BEHAVIOR_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Attack">
+                        <select className={selectClass} value={selectedRole.attack || 'Any'} onChange={event => updateRenderRole(selectedRoleIndex, { attack: event.target.value as EnemyRenderRoleBinding['attack'] })}>
+                          <option value="Any">Any</option>
+                          {ATTACK_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Frames"><input className={inputClass} value={selectedRole.frames.join(',')} onChange={event => updateRenderRole(selectedRoleIndex, { frames: parseFrameList(event.target.value) })} /></Field>
+                      <Field label="Speed"><SmallNumber value={selectedRole.speed} min={1} max={255} onChange={value => updateRenderRole(selectedRoleIndex, { speed: value })} /></Field>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                      <input className={inputClass} value={selectedRole.notes || ''} placeholder="Notes for this render role" onChange={event => updateRenderRole(selectedRoleIndex, { notes: event.target.value })} />
+                      <Checkbox label="Loop" checked={selectedRole.loop} onChange={checked => updateRenderRole(selectedRoleIndex, { loop: checked })} />
+                      <button type="button" className="h-7 rounded border border-red-700 bg-red-950/30 px-3 text-xs text-red-100 hover:bg-red-900/50" onClick={() => removeRenderRole(selectedRoleIndex)}>Delete</button>
+                    </div>
+                    <div className="text-[11px] text-slate-400">Internal key: {selectedRole.id} - Animation: {selectedRole.animation} - Frames: {selectedRole.frames.join(', ')}</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 rounded border border-slate-700 bg-[#111821] p-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">Animations</div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-300">Animation Clips</div>
+                    <div className="text-[11px] text-slate-500">Compatibility clips. Runtime role links above choose the sprite and frame set.</div>
+                  </div>
                   <button type="button" className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={() => updateAnimation(`anim_${animationEntries.length + 1}`, { frames: [0], speed: 4, loop: true })}>Add</button>
                 </div>
                 {animationEntries.map(([name, animation]) => (
-                  <div key={name} className="grid grid-cols-[120px_1fr_72px_72px_auto] items-center gap-2 rounded border border-slate-700 bg-[#111821] p-2">
+                  <div key={name} className="grid grid-cols-[120px_1fr_72px_72px_auto] items-center gap-2 rounded border border-slate-700 bg-[#0b1118] p-2">
                     <input className={inputClass} value={name} onChange={event => renameAnimation(name, event.target.value)} />
-                    <input className={inputClass} value={animation.frames.join(',')} onChange={event => updateAnimation(name, { frames: event.target.value.split(',').map(value => Number(value.trim())).filter(Number.isFinite) })} />
+                    <input className={inputClass} value={animation.frames.join(',')} onChange={event => updateAnimation(name, { frames: parseFrameList(event.target.value) })} />
                     <SmallNumber value={animation.speed} min={1} onChange={value => updateAnimation(name, { speed: value })} />
                     <Checkbox label="Loop" checked={animation.loop} onChange={checked => updateAnimation(name, { loop: checked })} />
                     <button type="button" className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={() => removeAnimation(name)}>Remove</button>

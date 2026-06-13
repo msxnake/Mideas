@@ -758,3 +758,31 @@ duplicarse por slot. Usar stubs por slot + handler compartido. Si aparece un
 overflow residente, medir primero codigo unrolled antes de mover tablas a bancos
 frios o aumentar RAM; mover datos que el runtime lee por frame sin cachearlos
 puede crear bugs de banco.
+
+---
+
+## Bug Resuelto: enemigo MSX2 con sprite multi-frame congelado en frame 0
+
+Fecha: 2026-06-13
+
+Problema:
+Un enemigo colocado desde la libreria en `push10.json` se movia, pero no
+animaba su sprite en ASM MSX2.
+
+Causa:
+El runtime de SCREEN 4 usaba un unico sprite hardware compartido para
+enemigos/hazards, pero el generador solo emitia `msx2_hw_enemy_sprite_pattern`
+del frame 0 y escribia siempre el mismo indice SAT. Los frames reales del
+Sprite Editor MSX2 nunca llegaban a VRAM ni al SAT.
+
+Solucion:
+Emitir todos los frames del sprite enemigo compartido (y sus mirror frames si
+aplica), anadir 2 bytes RAM de contador/frame global, y hacer que el SAT use
+`msx2_enemy_anim_frame`. El puente de Enemy Library ahora puede snapshotear
+`msx2_animation.frameList/frameDelay` desde roles declarativos.
+
+Leccion:
+Si un asset visual se anima en el editor pero no en ROM, verificar primero si
+el generador esta empaquetando todos los frames y si el SAT cambia de grupo de
+patron. En sprites hardware 16x16 MSX2, animar significa cambiar indices de
+patron en saltos de 4; no basta con que el JSON tenga `animations`.

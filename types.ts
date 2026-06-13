@@ -1081,12 +1081,27 @@ export interface EnemyAnimationDefinition {
   loop: boolean;
 }
 
+export interface EnemyRenderRoleBinding {
+  id: string;
+  label: string;
+  state?: string;
+  behavior?: EnemyBehaviorType | 'Any';
+  attack?: EnemyAttackType | 'Any';
+  spriteId: string;
+  animation: string;
+  frames: number[];
+  speed: number;
+  loop: boolean;
+  notes?: string;
+}
+
 export interface EnemyRenderConfig {
   renderMode: EnemyRenderMode;
   spriteId: string;
   palette: string;
   size: EnemySpriteSize;
   animations: Record<string, EnemyAnimationDefinition>;
+  roles?: EnemyRenderRoleBinding[];
 }
 
 export interface EnemyHitboxRect {

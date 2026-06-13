@@ -1,4 +1,4 @@
-import { EnemyBehaviorType, EnemyDefinition, EntityTemplate, Msx2EntityKind, Msx2Screen4EntityInstance, ProjectAsset } from '../../types';
+import { EnemyBehaviorType, EnemyDefinition, EnemyRenderRoleBinding, EntityTemplate, Msx2EntityKind, Msx2Screen4EntityInstance, ProjectAsset } from '../../types';
 
 export type Msx2ComponentId =
   | 'msx2_transform'
@@ -1101,6 +1101,25 @@ export function mapEnemyBehaviorToMovementMode(
   }
 }
 
+function selectEnemyRenderRole(def: EnemyDefinition): EnemyRenderRoleBinding | undefined {
+  const roles = Array.isArray(def.render?.roles) ? def.render.roles : [];
+  if (roles.length === 0) return undefined;
+  const behavior = def.behavior?.type || 'None';
+  const attack = def.attack?.type || 'None';
+  const scored = roles.map((role, index) => {
+    let score = 0;
+    if (role.behavior === behavior) score += 4;
+    else if (!role.behavior || role.behavior === 'Any') score += 1;
+    if (role.attack === attack) score += 3;
+    else if (!role.attack || role.attack === 'Any') score += 1;
+    if (role.state && String(role.state).toLowerCase().includes(String(behavior).toLowerCase())) score += 1;
+    if (role.spriteId) score += 1;
+    return { role, index, score };
+  });
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return scored[0]?.role;
+}
+
 /**
  * Builds a placed MSX2 screen enemy entity from a library `msx2enemy` asset
  * (snapshot at placement). The generator reads msx2_movement.mode for movement
@@ -1114,7 +1133,9 @@ export function buildMsx2EnemyEntityFromAsset(
 ): Msx2Screen4EntityInstance {
   const def = (asset.data || {}) as EnemyDefinition;
   const { movementName } = mapEnemyBehaviorToMovementMode(def.behavior?.type);
-  const spriteId = def.render?.spriteId || '';
+  const renderRole = selectEnemyRenderRole(def);
+  const roleFrames = Array.isArray(renderRole?.frames) && renderRole.frames.length ? renderRole.frames : [0];
+  const spriteId = renderRole?.spriteId || def.render?.spriteId || '';
   return {
     id: `msx2_enemy_${Date.now()}`,
     name: def.name || asset.name || 'Enemy',
@@ -1125,9 +1146,24 @@ export function buildMsx2EnemyEntityFromAsset(
       msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
       msx2_movement: { mode: movementName, direction: 1, speed: 2 },
       msx2_hardware_sprite: { msx2SpriteAssetId: spriteId, frame: 0, paletteSlot: 10, visible: Boolean(spriteId) },
+      msx2_animation: {
+        animation: renderRole?.animation || renderRole?.id || 'enemy',
+        frameStart: roleFrames[0] || 0,
+        frameCount: roleFrames.length,
+        frameDelay: Math.max(1, Number(renderRole?.speed) || 8),
+        frameList: roleFrames,
+        loop: renderRole?.loop ?? true,
+      },
       msx2_collision: { hitboxW: 16, hitboxH: 16, offsetX: 0, offsetY: 0, solid: false, damage: 1 },
     },
-    params: { runtime: 'MSX2', engine: 'staticEnemy', movement: movementName, enemyAssetId: asset.id },
+    params: {
+      runtime: 'MSX2',
+      engine: 'staticEnemy',
+      movement: movementName,
+      enemyAssetId: asset.id,
+      enemyRenderRoleId: renderRole?.id || '',
+      enemyRenderState: renderRole?.state || '',
+    },
   };
 }
 

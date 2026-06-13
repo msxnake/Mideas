@@ -135,6 +135,7 @@ export const createEnemyFromTemplate = (
   }
 
   const defaultAnimation = template.renderPlaceholder?.defaultAnimation || 'move';
+  const defaultRoleId = defaultAnimation === 'fly' ? 'patrol' : defaultAnimation;
   return {
     enemyId,
     basedOnTemplate: template.templateId,
@@ -153,6 +154,20 @@ export const createEnemyFromTemplate = (
       animations: {
         [defaultAnimation]: { frames: [0], speed: 4, loop: true },
       },
+      roles: [
+        {
+          id: defaultRoleId,
+          label: defaultRoleId.charAt(0).toUpperCase() + defaultRoleId.slice(1),
+          state: template.behavior.type === 'None' ? 'Idle' : template.behavior.type,
+          behavior: template.behavior.type,
+          attack: template.attack.type === 'None' ? 'Any' : template.attack.type,
+          spriteId: '',
+          animation: defaultAnimation,
+          frames: [0],
+          speed: 4,
+          loop: true,
+        },
+      ],
     },
     hitboxes: {
       body: defaultHitbox(2, 2, 12, 12),

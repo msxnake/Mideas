@@ -187,3 +187,10 @@ Mideas
 - 'chase' a secas sigue siendo ghost-maze; ChaseHorizontal usa nombres explicitos para no colisionar.
 - RAM: 0 bytes. CPU: 1 lectura player X + compare + 1 probe + 1 move por chaser/frame.
 - Verificacion: contrato 52/52, Glass MegaROM Konami 40KB (`test/chase_smoke.rom`), OpenMSX: enemigo en x=200 sigue al player a la izquierda (->129) y luego a la derecha (->207). Behaviors con runtime: patrol/ghost/dive/ball/flyerSine/jumper/walkerEdge/chaseH. Faltan Hopper/DropFromCeiling/EmergeFromGround.
+
+## Sesion 2026-06-13 - Enemy render roles + animacion hardware compartida
+- Bug de `C:\Users\salam\Downloads\push10.json`: `Bat_Enemy` usaba `mosquit_spr` con 3 frames, pero el ASM MSX2 emitia solo `msx2_hw_enemy_sprite_pattern` frame 0 y el SAT escribia siempre el mismo patron. Resultado: enemigo sin animacion aunque el movimiento funcionase.
+- Fix generador: el sprite hardware compartido de enemigos ahora reserva frames completos (y mirror si aplica), anade `msx2_enemy_anim_counter/frame` al final del pool de enemigos (+2 bytes RAM), y `write_hardware_sprite_attrs` usa `msx2_enemy_anim_frame` con stride 4 para 16x16.
+- UI/JSON Enemy Config: `render.roles[]` declara links por rol/estado/comportamiento/ataque -> sprite -> frames/speed/loop. El editor conserva `render.spriteId` y `render.animations` como fallback compatible.
+- Puente autoría->ASM: al colocar un `msx2enemy` desde la libreria, `buildMsx2EnemyEntityFromAsset` elige el rol que mejor coincide con behavior/attack y snapshottea `msx2_animation.frameList/frameDelay`; el generador consume esos frames. Limitacion vigente: runtime dinamico por estado (Patrol->Melee en gameplay) aun no implementado; hoy se selecciona el rol al colocar/generar el enemigo compartido de pantalla.
+- Verificacion: contrato 60/60, `npm run build`, Glass MegaROM Konami con `push10_enemy_anim_roles.rom`, screenshot OpenMSX `server/temp/push10_enemy_anim_roles.png`. RAM preflight: used=1638, free=11418, status ok.

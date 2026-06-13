@@ -465,4 +465,24 @@ assert(genCode.includes('MSX2_ENEMY_MOVEMENT_CHASE_H') && genCode.includes('.ene
 assert(genCode.includes('FUNCTION: msx2_enemy_chase_h_shared') && genCode.includes('msx2_player_sprite_x'),
   'ChaseHorizontal shared handler documents its contract and reads the player X');
 
-console.log('\nAll 52 plumbing checks passed.');
+// Shared MSX2 enemy hardware sprite animation: the current runtime still uses
+// one shared enemy sprite per screen, but that shared sprite must consume all
+// authored MSX2 Sprite frames instead of freezing on frame 0.
+assert(genCode.includes('MSX2_ENEMY_ANIM_RUNTIME_BYTES = 2') && genCode.includes('msx2_enemy_anim_counter') && genCode.includes('msx2_enemy_anim_frame'),
+  'enemy hardware sprite animation reserves exactly 2 bytes in the enemy runtime pool');
+assert(genCode.includes('enemyPatternGroupCount = enemyAnimationFrameCount * enemyPatternVariantCount'),
+  'hardware pattern budget accounts for every enemy animation frame and mirror variant');
+assert(genCode.includes('FUNCTION: update_msx2_enemy_sprite_animation') && genCode.includes('DESTROYS:\n;   AF') && genCode.includes('PRESERVES:\n;   BC, DE, HL, IX, IY'),
+  'enemy sprite animation routine has the mandatory ASM contract');
+assert(genCode.includes('call update_msx2_enemy_sprite_animation') && genCode.includes('msx2_hw_enemy_sprite_frame_${frameIndex}_pattern'),
+  'upload path advances enemy animation and data emission writes additional frame patterns');
+assert(genCode.includes('frameIndex === 0 ? \'msx2_hw_enemy_sprite_pattern\'') && genCode.includes('frameIndex === 0 ? \'msx2_hw_enemy_sprite_mirror_pattern\''),
+  'enemy animation preserves the historical frame-0 labels used by smoke scripts');
+assert(typesCode.includes('export interface EnemyRenderRoleBinding') && typesCode.includes('roles?: EnemyRenderRoleBinding[]'),
+  'EnemyDefinition render config supports declarative state/behavior render roles');
+assert(catalogCode.includes('selectEnemyRenderRole') && catalogCode.includes('frameList: roleFrames'),
+  'Enemy Library placement snapshots the selected render role into msx2_animation.frameList');
+assert(genCode.includes('parseEnemyFrameList') && genCode.includes('anim.frameList') && genCode.includes('enemyAnimationSettings.frameIndices.map'),
+  'MSX2 generator consumes enemy msx2_animation.frameList when emitting shared enemy sprite frames');
+
+console.log('\nAll 60 plumbing checks passed.');
