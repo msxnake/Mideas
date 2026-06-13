@@ -1093,9 +1093,10 @@ export function mapEnemyBehaviorToMovementMode(
     case 'FlyerSine': return { movementName: 'flyerSine', implemented: true };
     case 'Jumper': return { movementName: 'jumper', implemented: true };
     case 'BounceDiagonal': return { movementName: 'ballBounce', implemented: true };
+    case 'ChaseHorizontal': return { movementName: 'chaseH', implemented: true };
     case 'None': return { movementName: 'static', implemented: true };
-    // HopperTowardsPlayer / ChaseHorizontal / DropFromCeiling / EmergeFromGround /
-    // ShooterStatic / CustomBehavior: no runtime movement yet -> stationary fallback.
+    // HopperTowardsPlayer / DropFromCeiling / EmergeFromGround / ShooterStatic /
+    // CustomBehavior: no runtime movement yet -> stationary fallback.
     default: return { movementName: 'static', implemented: false };
   }
 }

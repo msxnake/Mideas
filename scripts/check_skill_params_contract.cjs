@@ -453,4 +453,16 @@ assert(roomEditorCode.includes('selectedEnemyAssetId') && roomEditorCode.include
 assert(roomEditorCode.includes("asset.type === 'msx2enemy'"),
   'room editor lists msx2enemy assets for placement');
 
-console.log('\nAll 47 plumbing checks passed.');
+// ChaseHorizontal (mode 8): enemy steps toward the player's X.
+assert(entityRuntimeCode.includes('MSX2_ENEMY_MOVEMENT_CHASE_H = 8'),
+  'entity runtime defines ChaseHorizontal as movement mode 8');
+assert(entityRuntimeCode.includes('hasChaseH') && entityRuntimeCode.includes("movement === 'chasehorizontal'"),
+  'entity runtime normalizes ChaseHorizontal movement names');
+assert(catalogCode.includes("case 'ChaseHorizontal': return { movementName: 'chaseH'"),
+  'behavior mapping wires ChaseHorizontal -> chaseH (implemented)');
+assert(genCode.includes('MSX2_ENEMY_MOVEMENT_CHASE_H') && genCode.includes('.enemy_slot_${slot}_chase_h') && genCode.includes('jp msx2_enemy_chase_h_shared'),
+  'enemy slot dispatch reaches the ChaseHorizontal shared handler');
+assert(genCode.includes('FUNCTION: msx2_enemy_chase_h_shared') && genCode.includes('msx2_player_sprite_x'),
+  'ChaseHorizontal shared handler documents its contract and reads the player X');
+
+console.log('\nAll 52 plumbing checks passed.');

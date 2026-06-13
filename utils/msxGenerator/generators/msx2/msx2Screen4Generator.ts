@@ -13,6 +13,7 @@ import {
   MSX2_ENEMY_MOVEMENT_GHOST_MAZE,
   MSX2_ENEMY_MOVEMENT_JUMPER,
   MSX2_ENEMY_MOVEMENT_WALKER_EDGE,
+  MSX2_ENEMY_MOVEMENT_CHASE_H,
   getMsx2EnemyHazardRuntimeSlots,
 } from './msx2EntityRuntimeGenerator';
 import {
@@ -5135,6 +5136,8 @@ ${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
     jp z, .enemy_slot_${slot}_jumper
     cp ${MSX2_ENEMY_MOVEMENT_WALKER_EDGE}
     jp z, .enemy_slot_${slot}_walker_edge
+    cp ${MSX2_ENEMY_MOVEMENT_CHASE_H}
+    jp z, .enemy_slot_${slot}_chase_h
 ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
     ld a, (hl)
     or a
@@ -5236,6 +5239,10 @@ ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
 .enemy_slot_${slot}_walker_edge:
     ld b, ${slot}
     jp msx2_enemy_walker_edge_shared
+
+.enemy_slot_${slot}_chase_h:
+    ld b, ${slot}
+    jp msx2_enemy_chase_h_shared
 
 .enemy_slot_${slot}_ball_bounce:
     ; Pong/Arkanoid ball movement. Runtime dx/dy are signed bytes. Clobbers AF/BC/DE/HL.
@@ -6201,6 +6208,138 @@ msx2_enemy_walker_edge_shared:
     add hl, de
     ld a, (hl)
     neg
+    ld (hl), a
+    ret
+
+msx2_enemy_chase_h_shared:
+    ; ------------------------------------------------------------
+    ; FUNCTION: msx2_enemy_chase_h_shared
+    ; ------------------------------------------------------------
+    ; PURPOSE:
+    ;   Shared "ChaseHorizontal" movement for one enemy/hazard slot: steps the
+    ;   enemy 1px toward the player's X each frame, blocked by solid walls ahead
+    ;   and clamped to the slot's min_x/max_x patrol bounds.
+    ;
+    ; INPUT:
+    ;   B = slot index.
+    ;
+    ; OUTPUT:
+    ;   msx2_enemy_runtime_x[slot] moved 1px toward the player (or unchanged when
+    ;   aligned / blocked by a wall / at a bound).
+    ;
+    ; DESTROYS:
+    ;   AF, BC, DE, HL.
+    ;
+    ; PRESERVES:
+    ;   IX, IY.
+    ;
+    ; CALLS:
+    ;   msx2_enemy_screen_slot_offset_from_b (preserves BC/HL),
+    ;   msx2_collision_at_pixel (B=x, C=y; A=solid mask, Z when empty; preserves BC).
+    ;
+    ; SIDE EFFECTS:
+    ;   Updates msx2_enemy_runtime_x for one slot.
+    ;
+    ; NOTES:
+    ;   - Reads the live player X (msx2_player_sprite_x). When player X == enemy X
+    ;     the enemy holds position (no 1px jitter).
+    ;   - The slot index lives in B; msx2_collision_at_pixel needs B=x, so the slot
+    ;     is saved with PUSH BC / restored with POP BC around the probe (the routine
+    ;     preserves BC, so the POP balances its PUSH).
+    ; ------------------------------------------------------------
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    ld c, a
+    ld a, (msx2_player_sprite_x)
+    cp c
+    ret z
+    jp c, .chase_h_left
+.chase_h_right:
+    ; frontX = x + 16; wall probe at (frontX, y+8): solid -> hold.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    add a, 16
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    push bc
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    ret nz
+    ; advance right, clamped to max_x.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    inc a
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_max_x
+    add hl, de
+    pop af
+    cp (hl)
+    ret nc
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld (hl), a
+    ret
+.chase_h_left:
+    ; frontX = x - 1; wall probe at (frontX, y+8): solid -> hold.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    dec a
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    push bc
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    ret nz
+    ; advance left, clamped to min_x.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    dec a
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    pop af
+    cp (hl)
+    ret c
+    ret z
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
     ld (hl), a
     ret
 `;
