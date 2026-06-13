@@ -1,4 +1,4 @@
-import { EntityTemplate, Msx2EntityKind, Msx2Screen4EntityInstance } from '../../types';
+import { EnemyBehaviorType, EnemyDefinition, EntityTemplate, Msx2EntityKind, Msx2Screen4EntityInstance, ProjectAsset } from '../../types';
 
 export type Msx2ComponentId =
   | 'msx2_transform'
@@ -1074,6 +1074,61 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
 ];
 
 export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS = MSX2_ENTITY_REPERTOIRE;
+
+/**
+ * Enemy Library bridge (authoring side): maps a library EnemyDefinition behavior
+ * to the screen-entity movement-mode name understood by the MSX2 SCREEN 4
+ * generator (getMsx2EnemyHazardRuntimeSlots). The placement snapshot writes this
+ * name into the entity's msx2_movement.mode, so the generator path is unchanged.
+ * Behaviors without a runtime movement implementation map to 'static' (a
+ * stationary enemy that still damages the player on contact); `implemented:false`
+ * lets the UI warn the user.
+ */
+export function mapEnemyBehaviorToMovementMode(
+  behavior: EnemyBehaviorType | undefined,
+): { movementName: string; implemented: boolean } {
+  switch (behavior) {
+    case 'PatrolHorizontal': return { movementName: 'patrolX', implemented: true };
+    case 'WalkerTurnOnEdge': return { movementName: 'walkerEdge', implemented: true };
+    case 'FlyerSine': return { movementName: 'flyerSine', implemented: true };
+    case 'Jumper': return { movementName: 'jumper', implemented: true };
+    case 'BounceDiagonal': return { movementName: 'ballBounce', implemented: true };
+    case 'None': return { movementName: 'static', implemented: true };
+    // HopperTowardsPlayer / ChaseHorizontal / DropFromCeiling / EmergeFromGround /
+    // ShooterStatic / CustomBehavior: no runtime movement yet -> stationary fallback.
+    default: return { movementName: 'static', implemented: false };
+  }
+}
+
+/**
+ * Builds a placed MSX2 screen enemy entity from a library `msx2enemy` asset
+ * (snapshot at placement). The generator reads msx2_movement.mode for movement
+ * and the Render sprite id for the shared enemy pattern; `params.enemyAssetId`
+ * keeps the link for a future "Refresh from library". `x`/`y` are tile coords.
+ */
+export function buildMsx2EnemyEntityFromAsset(
+  asset: ProjectAsset,
+  x: number,
+  y: number,
+): Msx2Screen4EntityInstance {
+  const def = (asset.data || {}) as EnemyDefinition;
+  const { movementName } = mapEnemyBehaviorToMovementMode(def.behavior?.type);
+  const spriteId = def.render?.spriteId || '';
+  return {
+    id: `msx2_enemy_${Date.now()}`,
+    name: def.name || asset.name || 'Enemy',
+    kind: 'enemy',
+    position: { x, y },
+    spriteAssetId: spriteId || undefined,
+    components: {
+      msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
+      msx2_movement: { mode: movementName, direction: 1, speed: 2 },
+      msx2_hardware_sprite: { msx2SpriteAssetId: spriteId, frame: 0, paletteSlot: 10, visible: Boolean(spriteId) },
+      msx2_collision: { hitboxW: 16, hitboxH: 16, offsetX: 0, offsetY: 0, solid: false, damage: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'staticEnemy', movement: movementName, enemyAssetId: asset.id },
+  };
+}
 
 const MSX2_VALID_ENTITY_KINDS = new Set(MSX2_ENTITY_KIND_OPTIONS.map(option => option.value));
 

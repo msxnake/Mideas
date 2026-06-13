@@ -46,6 +46,7 @@ import {
 } from '../msx2_screen4_editor/Msx2Screen4EditorParts';
 import {
   buildEntityTemplateFromMsx2Entity,
+  buildMsx2EnemyEntityFromAsset,
   buildMsx2EntityComponents,
   buildMsx2PresetFromEntityTemplate,
 } from '../msx2_screen4_editor/msx2EntityCatalog';
@@ -261,6 +262,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [selectedPlayerEntryId, setSelectedPlayerEntryId] = useState<string | null>(null);
   const [selectedEntityPresetId, setSelectedEntityPresetId] = useState(MSX2_ENTITY_REPERTOIRE[0].id);
+  const [selectedEnemyAssetId, setSelectedEnemyAssetId] = useState('');
   const [showGrid, setShowGrid] = useState(true);
   const [showRuntimeOverlays, setShowRuntimeOverlays] = useState(false);
   const [compositionOverlay, setCompositionOverlay] = useState<Msx2Screen4CompositionOverlay>('off');
@@ -587,6 +589,17 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
       if (existing) {
         setSelectedEntityId(existing.id);
         return;
+      }
+      // Enemy Library bridge: when an msx2enemy asset is selected, stamp a
+      // placed enemy snapshot (movement+sprite from the EnemyDefinition).
+      if (selectedEnemyAssetId) {
+        const enemyAsset = allAssets.find(asset => asset.id === selectedEnemyAssetId && asset.type === 'msx2enemy');
+        if (enemyAsset) {
+          const enemyEntity = buildMsx2EnemyEntityFromAsset(enemyAsset, x, y);
+          updateLayers({ ...layers, entities: [...layers.entities, enemyEntity] });
+          setSelectedEntityId(enemyEntity.id);
+          return;
+        }
       }
       const id = `msx2_entity_${Date.now()}`;
       const presetParams = { ...(selectedEntityPreset.params || {}) };
@@ -1149,7 +1162,10 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             mode={mode}
             presets={entityPresets}
             selectedPresetId={selectedEntityPresetId}
-            onSelectPresetId={setSelectedEntityPresetId}
+            onSelectPresetId={(id) => { setSelectedEntityPresetId(id); setSelectedEnemyAssetId(''); }}
+            enemyAssets={allAssets.filter(asset => asset.type === 'msx2enemy')}
+            selectedEnemyAssetId={selectedEnemyAssetId}
+            onSelectEnemyAssetId={setSelectedEnemyAssetId}
           />
           <Msx2Screen4SelectionPanel
             selectionMode={selectionMode}

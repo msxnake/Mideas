@@ -1323,6 +1323,11 @@ interface Msx2Screen4EntityPalettePanelProps {
   presets: Msx2EntityCreatePreset[];
   selectedPresetId: string;
   onSelectPresetId: (presetId: string) => void;
+  /** Project msx2enemy assets placeable from the Enemy Library. */
+  enemyAssets?: ProjectAsset[];
+  /** Currently selected enemy asset id (non-empty = enemy placement mode). */
+  selectedEnemyAssetId?: string;
+  onSelectEnemyAssetId?: (enemyAssetId: string) => void;
 }
 
 export const Msx2Screen4EntityPalettePanel: React.FC<Msx2Screen4EntityPalettePanelProps> = ({
@@ -1330,6 +1335,9 @@ export const Msx2Screen4EntityPalettePanel: React.FC<Msx2Screen4EntityPalettePan
   presets,
   selectedPresetId,
   onSelectPresetId,
+  enemyAssets = [],
+  selectedEnemyAssetId = '',
+  onSelectEnemyAssetId,
 }) => {
   if (mode !== 'entities') return null;
 
@@ -1340,7 +1348,7 @@ export const Msx2Screen4EntityPalettePanel: React.FC<Msx2Screen4EntityPalettePan
           <Button
             key={preset.id}
             size="sm"
-            variant={preset.id === selectedPresetId ? 'primary' : 'secondary'}
+            variant={!selectedEnemyAssetId && preset.id === selectedPresetId ? 'primary' : 'secondary'}
             onClick={() => onSelectPresetId(preset.id)}
             title={preset.description}
           >
@@ -1348,6 +1356,24 @@ export const Msx2Screen4EntityPalettePanel: React.FC<Msx2Screen4EntityPalettePan
           </Button>
         ))}
       </div>
+      {onSelectEnemyAssetId && enemyAssets.length > 0 && (
+        <div className="p-2 border-t border-msx-border">
+          <div className="text-[0.65rem] uppercase tracking-wide text-msx-textsecondary mb-1">Place Enemy (from Library)</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {enemyAssets.map(asset => (
+              <Button
+                key={asset.id}
+                size="sm"
+                variant={asset.id === selectedEnemyAssetId ? 'primary' : 'secondary'}
+                onClick={() => onSelectEnemyAssetId(asset.id === selectedEnemyAssetId ? '' : asset.id)}
+                title={`Place the "${asset.name}" enemy on the screen (snapshot of its Enemy Library behavior + sprite).`}
+              >
+                {asset.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
     </Panel>
   );
 };

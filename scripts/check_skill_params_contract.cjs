@@ -432,4 +432,25 @@ assert(genCode.includes('msx2_collision_at_pixel') && genCode.includes('.walker_
 assert(!layoutCode.includes('WALKER'),
   'WalkerTurnOnEdge uses existing enemy runtime RAM and does not extend the skill RAM layout');
 
-console.log('\nAll 39 plumbing checks passed.');
+// Enemy Library -> screen bridge (snapshot at placement; generator stays pristine).
+const catalogCode = fs.readFileSync(path.join(ROOT, 'components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts'), 'utf8');
+assert(catalogCode.includes('export function mapEnemyBehaviorToMovementMode'),
+  'msx2EntityCatalog exports the enemy behavior -> movement-mode mapping');
+assert(catalogCode.includes("case 'WalkerTurnOnEdge': return { movementName: 'walkerEdge'") && catalogCode.includes("case 'PatrolHorizontal': return { movementName: 'patrolX'"),
+  'behavior mapping covers implemented behaviors (patrolX/walkerEdge/...)');
+assert(catalogCode.includes("default: return { movementName: 'static', implemented: false }"),
+  'unimplemented behaviors fall back to a stationary enemy (implemented:false)');
+assert(catalogCode.includes('export function buildMsx2EnemyEntityFromAsset'),
+  'msx2EntityCatalog exports the placed-enemy entity builder');
+assert(catalogCode.includes("kind: 'enemy'") && catalogCode.includes('enemyAssetId: asset.id') && catalogCode.includes('msx2SpriteAssetId: spriteId'),
+  'placed enemy snapshots kind/enemyAssetId link/render sprite');
+// Generator must NOT have been modified for the bridge (snapshot approach -> no-regression).
+assert(/getMsx2EnemyHazardRuntimeSlots\(\s*screen: Msx2Screen4TileScreen \| undefined\s*\)/.test(entityRuntimeCode),
+  'getMsx2EnemyHazardRuntimeSlots keeps its screen-only signature (no gen-time enemy resolver)');
+const roomEditorCode = fs.readFileSync(path.join(ROOT, 'components', 'editors', 'Msx2Screen4RoomEditor.tsx'), 'utf8');
+assert(roomEditorCode.includes('selectedEnemyAssetId') && roomEditorCode.includes('buildMsx2EnemyEntityFromAsset'),
+  'room editor places enemies from the library via buildMsx2EnemyEntityFromAsset');
+assert(roomEditorCode.includes("asset.type === 'msx2enemy'"),
+  'room editor lists msx2enemy assets for placement');
+
+console.log('\nAll 47 plumbing checks passed.');
