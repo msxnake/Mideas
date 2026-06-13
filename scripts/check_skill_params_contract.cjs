@@ -414,4 +414,22 @@ assert(genCode.includes('Shared vertical Jumper movement') && genCode.includes('
 assert(!layoutCode.includes('JUMPER'),
   'Jumper uses existing enemy runtime RAM and does not extend the skill RAM layout');
 
-console.log('\nAll 31 plumbing checks passed.');
+// WalkerTurnOnEdge (mode 7): horizontal patrol that turns at walls/ledges.
+assert(entityRuntimeCode.includes('MSX2_ENEMY_MOVEMENT_WALKER_EDGE = 7'),
+  'entity runtime defines WalkerTurnOnEdge as movement mode 7');
+assert(entityRuntimeCode.includes('hasWalkerEdge') && entityRuntimeCode.includes("movement === 'walkerturnonedge'") && entityRuntimeCode.includes("movement === 'walker'"),
+  'entity runtime normalizes WalkerTurnOnEdge movement names');
+assert(genCode.includes('MSX2_ENEMY_MOVEMENT_WALKER_EDGE'),
+  'msx2Screen4Generator imports the WalkerTurnOnEdge movement mode');
+assert(genCode.includes('cp ${MSX2_ENEMY_MOVEMENT_WALKER_EDGE}') && genCode.includes('.enemy_slot_${slot}_walker_edge'),
+  'enemy slot dispatch reaches the WalkerTurnOnEdge ASM branch');
+assert(genCode.includes('jp msx2_enemy_walker_edge_shared'),
+  'WalkerTurnOnEdge slot branch jumps to one shared handler instead of unrolling movement per slot');
+assert(genCode.includes('FUNCTION: msx2_enemy_walker_edge_shared') && genCode.includes('INPUT:\n    ;   B = slot index'),
+  'WalkerTurnOnEdge shared ASM routine carries the mandatory header with INPUT B=slot');
+assert(genCode.includes('msx2_collision_at_pixel') && genCode.includes('.walker_edge_turn'),
+  'WalkerTurnOnEdge probes collision and has a turn path');
+assert(!layoutCode.includes('WALKER'),
+  'WalkerTurnOnEdge uses existing enemy runtime RAM and does not extend the skill RAM layout');
+
+console.log('\nAll 39 plumbing checks passed.');

@@ -12,6 +12,7 @@ import {
   MSX2_ENEMY_MOVEMENT_FLYER_SINE,
   MSX2_ENEMY_MOVEMENT_GHOST_MAZE,
   MSX2_ENEMY_MOVEMENT_JUMPER,
+  MSX2_ENEMY_MOVEMENT_WALKER_EDGE,
   getMsx2EnemyHazardRuntimeSlots,
 } from './msx2EntityRuntimeGenerator';
 import {
@@ -5132,6 +5133,8 @@ ${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
     jp z, .enemy_slot_${slot}_flyer_sine
     cp ${MSX2_ENEMY_MOVEMENT_JUMPER}
     jp z, .enemy_slot_${slot}_jumper
+    cp ${MSX2_ENEMY_MOVEMENT_WALKER_EDGE}
+    jp z, .enemy_slot_${slot}_walker_edge
 ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
     ld a, (hl)
     or a
@@ -5229,6 +5232,10 @@ ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
 .enemy_slot_${slot}_jumper:
     ld b, ${slot}
     jp msx2_enemy_jumper_shared
+
+.enemy_slot_${slot}_walker_edge:
+    ld b, ${slot}
+    jp msx2_enemy_walker_edge_shared
 
 .enemy_slot_${slot}_ball_bounce:
     ; Pong/Arkanoid ball movement. Runtime dx/dy are signed bytes. Clobbers AF/BC/DE/HL.
@@ -6020,6 +6027,180 @@ msx2_enemy_jumper_shared:
     ld d, 0
     ld hl, msx2_enemy_runtime_dy
     add hl, de
+    ld (hl), a
+    ret
+
+msx2_enemy_walker_edge_shared:
+    ; ------------------------------------------------------------
+    ; FUNCTION: msx2_enemy_walker_edge_shared
+    ; ------------------------------------------------------------
+    ; PURPOSE:
+    ;   Shared "WalkerTurnOnEdge" movement for one enemy/hazard slot:
+    ;   horizontal patrol that reverses direction when a solid wall is
+    ;   ahead OR when there is no ground ahead (platform ledge). Falls
+    ;   back to the static min_x/max_x patrol bounds as a safety net.
+    ;
+    ; INPUT:
+    ;   B = slot index (0..MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN-1).
+    ;
+    ; OUTPUT:
+    ;   msx2_enemy_runtime_x[slot] advanced by 1px, or
+    ;   msx2_enemy_runtime_dx[slot] negated (turn) when blocked/at a ledge.
+    ;
+    ; DESTROYS:
+    ;   AF, BC, DE, HL.
+    ;
+    ; PRESERVES:
+    ;   IX, IY.
+    ;
+    ; CALLS:
+    ;   msx2_enemy_screen_slot_offset_from_b (preserves BC/HL),
+    ;   msx2_collision_at_pixel (B=x, C=y; A=solid mask, Z when empty;
+    ;   preserves BC).
+    ;
+    ; SIDE EFFECTS:
+    ;   Updates msx2_enemy_runtime_x or msx2_enemy_runtime_dx for one slot.
+    ;
+    ; NOTES:
+    ;   - Intended for ground walkers on a 16x16 grid. On a floating enemy
+    ;     the ledge probe (y+16 empty) is always true and the enemy jitters
+    ;     each frame: place it on solid ground.
+    ;   - The slot index lives in B; msx2_collision_at_pixel needs B=x, so the
+    ;     slot is saved with PUSH BC / restored with POP BC around every probe
+    ;     (msx2_collision_at_pixel preserves BC, so each POP balances its PUSH).
+    ;   - dx is the signed byte 1 (right) or #FF (left); NEG flips it.
+    ; ------------------------------------------------------------
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dx
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jp nz, .walker_edge_left
+.walker_edge_right:
+    ; frontX = x + 16 (cell the enemy is about to enter on the right).
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    add a, 16
+    ld c, a
+    ; wall probe at (frontX, y+8): solid -> turn.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    push bc
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp nz, .walker_edge_turn
+    ; ground probe at (frontX, y+16): empty -> ledge -> turn.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 16
+    push bc
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp z, .walker_edge_turn
+    ; advance right, clamped to max_x (turn when reaching the bound).
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    inc a
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_max_x
+    add hl, de
+    pop af
+    cp (hl)
+    jp nc, .walker_edge_turn
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld (hl), a
+    ret
+.walker_edge_left:
+    ; frontX = x - 1 (cell to the left of the body).
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    dec a
+    ld c, a
+    ; wall probe at (frontX, y+8): solid -> turn.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    push bc
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp nz, .walker_edge_turn
+    ; ground probe at (frontX, y+16): empty -> ledge -> turn.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 16
+    push bc
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp z, .walker_edge_turn
+    ; advance left, clamped to min_x (turn when reaching the bound).
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    dec a
+    push af
+    call msx2_enemy_screen_slot_offset_from_b
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    pop af
+    cp (hl)
+    jp c, .walker_edge_turn
+    jp z, .walker_edge_turn
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld (hl), a
+    ret
+.walker_edge_turn:
+    ; Flip direction: 1 (right) <-> #FF (left). NEG keeps the body in place
+    ; this frame so it never steps into the wall or off the ledge.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dx
+    add hl, de
+    ld a, (hl)
+    neg
     ld (hl), a
     ret
 `;
