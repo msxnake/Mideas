@@ -28,6 +28,7 @@ export interface Msx2EnemyHazardRuntimeSlot {
   stateFarMode: number;
   stateRangeX: number;
   stateRangeY: number;
+  dropBombOnPlayerX: boolean;
 }
 
 const clampTileCoordinate = (value: unknown, max: number): number =>
@@ -130,6 +131,9 @@ export function getMsx2EnemyHazardRuntimeSlots(
         getComponentValue(entity, 'msx2_ai', 'farMode', entity.params?.enemyFarMode || entity.params?.farMode || movement)
       );
       const rawStateSwitch = getComponentValue(entity, 'msx2_ai', 'stateSwitchEnabled', entity.params?.enemyStateSwitch ?? entity.params?.stateSwitchEnabled ?? false);
+      const dropBombOnPlayerX = truthyConfigValue(
+        getComponentValue(entity, 'msx2_ai', 'dropBombOnPlayerX', entity.params?.enemyDropBombOnPlayerX ?? entity.params?.dropBombOnPlayerX ?? false)
+      );
       const stateRangeX = Math.max(0, Math.min(255, Math.floor(Number(
         getComponentValue(entity, 'msx2_ai', 'rangeX', entity.params?.enemyStateRangeX ?? entity.params?.stateRangeX ?? 0)
       ) || 0)));
@@ -252,6 +256,7 @@ export function getMsx2EnemyHazardRuntimeSlots(
         stateFarMode,
         stateRangeX,
         stateRangeY,
+        dropBombOnPlayerX,
       };
     });
 }

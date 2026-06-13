@@ -762,6 +762,16 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                   {ATTACK_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
               </Field>
+              <div className="rounded border border-slate-700 bg-[#111821] p-3">
+                <Checkbox
+                  label="Drop bomb when aligned with player X"
+                  checked={Boolean(enemy.attack.dropBombOnPlayerX)}
+                  onChange={checked => patch({ attack: { ...enemy.attack, dropBombOnPlayerX: checked } })}
+                />
+                <div className="mt-1 text-[11px] text-slate-500">
+                  Optional. When active, the enemy drops a falling bullet whenever its X lines up with the player (±8px). Uses the shared enemy-bullet pool with a ~1s cooldown. Best paired with FlyerSine (Bat).
+                </div>
+              </div>
               <div className="grid grid-cols-4 gap-3">
                 <Field label="HP"><SmallNumber value={enemy.stats.hp} min={0} onChange={value => patchStats({ hp: value })} /></Field>
                 <Field label="Damage"><SmallNumber value={enemy.stats.damage} min={0} onChange={value => patchStats({ damage: value })} /></Field>

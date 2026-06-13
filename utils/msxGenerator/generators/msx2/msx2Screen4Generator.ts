@@ -3927,6 +3927,7 @@ function buildHardwareSpriteRuntimeAsm(
   const carryPatternGroupCount = carrySpriteSet ? carrySpriteSet.uniqueIds.length : 0;
   const runtimeEnemyHazards = (options.tileScreens?.length ? options.tileScreens : collectReferencedTileScreens(analysis)).map(screen => getMsx2EnemyHazardRuntimeSlots(screen));
   const enemyBehaviorStateSwitchEnabled = runtimeEnemyHazards.some(slots => slots.some(slot => slot.stateSwitch));
+  const enemyDropBombEnabled = runtimeEnemyHazards.some(slots => slots.some(slot => slot.dropBombOnPlayerX));
   const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternGroupCount + 2 + (pushBoxLayer ? 1 : 0) + carryPatternGroupCount;
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
   const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
@@ -3995,7 +3996,11 @@ function buildHardwareSpriteRuntimeAsm(
   const shooterVertical = usesShooterVerticalMovement(analysis);
   const playerShooterEnabled = usesPlayerShooterComponent(analysis);
   const shooterBulletsEnabled = shooterHorizontal || shooterVertical || playerShooterEnabled;
-  const enemyBulletsEnabled = shooterHorizontal || shooterVertical;
+  // Bat "drop bomb when aligned with player X" reuses the enemy bullet pool.
+  // When no shooter mode is active, the per-slot spawn is gated by the
+  // msx2_screen_enemy_drop_bomb flag plus an X-alignment check (see below).
+  const batBombGated = enemyDropBombEnabled && !(shooterHorizontal || shooterVertical);
+  const enemyBulletsEnabled = shooterHorizontal || shooterVertical || enemyDropBombEnabled;
   const playerBulletHorizontal = playerShooterEnabled && !shooterVertical && getPlayerShooterDirection(analysis) === 'horizontalFacing';
   const paddleHorizontal = usesPaddleHorizontalMovement(analysis);
   const stageBannerEnabled = shooterHorizontal;
@@ -5103,7 +5108,22 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld a, (hl)
     cp ${slot + 1}
     jp c, .enemy_bullet_no_spawn_${slot}
-    ld a, (msx2_enemy_bullet_active)
+${batBombGated ? `    ; Bat bomb gate: only flagged enemies, and only when this enemy's X is
+    ; aligned with the player's X within +-8px. B = enemy X, A = |player.x - enemy.x|.
+${buildEnemyScreenSlotOffsetAsm(slot)}    ld hl, msx2_screen_enemy_drop_bomb
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .enemy_bullet_no_spawn_${slot}
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}    ld b, (hl)
+    ld a, (msx2_player_sprite_x)
+    sub b
+    jp nc, .enemy_bomb_aligned_pos_${slot}
+    neg
+.enemy_bomb_aligned_pos_${slot}:
+    cp 9
+    jp nc, .enemy_bullet_no_spawn_${slot}
+` : ''}    ld a, (msx2_enemy_bullet_active)
     or a
     jp z, .enemy_bullet_spawn_slot_0_${slot}
 ${secondEnemyBullet ? `    ld a, (msx2_enemy_bullet_1_active)
@@ -5983,6 +6003,29 @@ msx2_enemy_flyer_sine_shared:
     add hl, de
     ld a, (hl)
     add a, c
+    ; foreground wall probe at (candidateX+15, y+8): solid -> reverse dx.
+    push bc
+    add a, 15
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp nz, .flyer_sine_shared_wall_turn
+    ; no wall: recompute candidate X and clamp to max_x bound.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    add a, c
     push af
     call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_max_x
@@ -6023,6 +6066,28 @@ msx2_enemy_flyer_sine_shared:
     ld a, (hl)
     sub c
     jp c, .flyer_sine_shared_turn_right
+    ; foreground wall probe at (candidateX, y+8): solid -> reverse dx.
+    push bc
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, c
+    ld c, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp nz, .flyer_sine_shared_wall_turn
+    ; no wall: recompute candidate X and clamp to min_x bound.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    sub c
     push af
     call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_min_x
@@ -6072,6 +6137,28 @@ msx2_enemy_flyer_sine_shared:
     add hl, de
     ld a, (hl)
     add a, c
+    ; foreground floor probe at (x+8, candidateY+15): solid -> reverse dy.
+    push bc
+    add a, 15
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp nz, .flyer_sine_shared_floor_turn
+    ; no floor: recompute candidate Y and clamp to max_y bound.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    add a, c
     push af
     call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_max_y
@@ -6112,6 +6199,27 @@ msx2_enemy_flyer_sine_shared:
     ld a, (hl)
     sub c
     jp c, .flyer_sine_shared_turn_down
+    ; foreground ceiling probe at (x+8, candidateY): solid -> reverse dy.
+    push bc
+    ld c, a
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_x
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    or a
+    pop bc
+    jp nz, .flyer_sine_shared_floor_turn
+    ; no ceiling: recompute candidate Y and clamp to min_y bound.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_y
+    add hl, de
+    ld a, (hl)
+    sub c
     push af
     call msx2_enemy_screen_slot_offset_from_b
     ld hl, msx2_screen_enemy_min_y
@@ -6142,6 +6250,27 @@ msx2_enemy_flyer_sine_shared:
     ld d, 0
     ld hl, msx2_enemy_runtime_dy
     add hl, de
+    ld (hl), a
+    ret
+.flyer_sine_shared_wall_turn:
+    ; Solid foreground ahead: negate dx (keep X this frame) and keep
+    ; processing the vertical sine so the bob never stalls.
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dx
+    add hl, de
+    ld a, (hl)
+    neg
+    ld (hl), a
+    jp .flyer_sine_shared_y
+.flyer_sine_shared_floor_turn:
+    ; Solid foreground above/below: negate dy (keep Y this frame).
+    ld e, b
+    ld d, 0
+    ld hl, msx2_enemy_runtime_dy
+    add hl, de
+    ld a, (hl)
+    neg
     ld (hl), a
     ret
 
@@ -12224,6 +12353,12 @@ msx2_player_jump_buffer_timer EQU ${formatHexWord(playerTimersRamBase + 1)}
   const enemyScoreBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(255, enemies[index]?.score ?? 1)))
   );
+  const enemyDropBombBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => enemies[index]?.dropBombOnPlayerX ? 1 : 0)
+  );
+  const enemyDropBombTableAsm = enemyDropBombBytes.some(byte => byte !== 0)
+    ? formatBytes('msx2_screen_enemy_drop_bomb', enemyDropBombBytes, `Per-msx2screen "drop bomb when aligned with player X" flag, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)
+    : '';
   const enemyStateSwitchBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => enemies[index]?.stateSwitch ? 1 : 0)
   );
@@ -13524,6 +13659,7 @@ ${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array
 ${formatBytes('msx2_screen_enemy_mode', enemyModeBytes.length ? enemyModeBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard movement component mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_speed', enemySpeedBytes.length ? enemySpeedBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(2), `Per-msx2screen enemy/hazard movement component frame delay, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_score', enemyScoreBytes.length ? enemyScoreBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(1), `Per-msx2screen enemy/hazard score value, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${enemyDropBombTableAsm}
 ${enemyStateSwitchTablesAsm}
 ${pushBoxDataTablesAsm}
 ${carryObjectDataTablesAsm}

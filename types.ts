@@ -1138,7 +1138,7 @@ export interface EnemyDefinition {
   category: EnemyCategory;
   scope: EnemyLibraryScope;
   behavior: { type: EnemyBehaviorType; customRoutine?: string; stateTransitions?: EnemyBehaviorStateTransition[] };
-  attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number };
+  attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number; dropBombOnPlayerX?: boolean };
   render: EnemyRenderConfig;
   hitboxes: EnemyHitboxes;
   stats: { hp: number; damage: number; invulnerabilityFrames?: number; knockback?: number };

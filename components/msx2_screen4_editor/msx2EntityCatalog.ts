@@ -1154,14 +1154,18 @@ export function buildMsx2EnemyEntityFromAsset(
   const stateSwitch = selectEnemyBehaviorStateSwitch(def);
   const roleFrames = Array.isArray(renderRole?.frames) && renderRole.frames.length ? renderRole.frames : [0];
   const spriteId = renderRole?.spriteId || def.render?.spriteId || '';
-  const aiComponent = stateSwitch ? {
-    engine: 'stateSwitch',
-    trigger: 'playerNear',
-    stateSwitchEnabled: true,
-    nearMode: stateSwitch.nearMode,
-    farMode: stateSwitch.farMode,
-    rangeX: stateSwitch.rangeX,
-    rangeY: stateSwitch.rangeY,
+  const dropBombOnPlayerX = Boolean(def.attack?.dropBombOnPlayerX);
+  const aiComponent = (stateSwitch || dropBombOnPlayerX) ? {
+    ...(stateSwitch ? {
+      engine: 'stateSwitch',
+      trigger: 'playerNear',
+      stateSwitchEnabled: true,
+      nearMode: stateSwitch.nearMode,
+      farMode: stateSwitch.farMode,
+      rangeX: stateSwitch.rangeX,
+      rangeY: stateSwitch.rangeY,
+    } : {}),
+    ...(dropBombOnPlayerX ? { dropBombOnPlayerX: true } : {}),
   } : undefined;
   return {
     id: `msx2_enemy_${Date.now()}`,
@@ -1198,6 +1202,7 @@ export function buildMsx2EnemyEntityFromAsset(
         enemyStateRangeX: stateSwitch.rangeX,
         enemyStateRangeY: stateSwitch.rangeY,
       } : {}),
+      ...(dropBombOnPlayerX ? { enemyDropBombOnPlayerX: true } : {}),
     },
   };
 }
