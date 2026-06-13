@@ -1050,6 +1050,18 @@ export type EnemySpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
 export type EnemyLibraryScope = 'common' | 'perWorld' | 'boss';
 export type SpawnParamSchemaType = 'byte' | 'int' | 'enum' | 'boolean';
 export type SpawnParamExportSlot = 'p0' | 'p1' | 'p2' | 'p3';
+export type EnemyBehaviorTransitionCondition = 'PlayerNear';
+
+export interface EnemyBehaviorStateTransition {
+  id: string;
+  label?: string;
+  condition: EnemyBehaviorTransitionCondition;
+  toBehavior: EnemyBehaviorType;
+  fromBehavior?: EnemyBehaviorType | 'Any';
+  returnBehavior?: EnemyBehaviorType;
+  rangeX: number;
+  rangeY: number;
+}
 
 export interface SpawnParamSchemaItem {
   name: string;
@@ -1125,7 +1137,7 @@ export interface EnemyDefinition {
   behaviorGroup: string;
   category: EnemyCategory;
   scope: EnemyLibraryScope;
-  behavior: { type: EnemyBehaviorType; customRoutine?: string };
+  behavior: { type: EnemyBehaviorType; customRoutine?: string; stateTransitions?: EnemyBehaviorStateTransition[] };
   attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number };
   render: EnemyRenderConfig;
   hitboxes: EnemyHitboxes;

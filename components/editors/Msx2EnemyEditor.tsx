@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   EnemyAttackType,
+  EnemyBehaviorStateTransition,
   EnemyBehaviorType,
   EnemyCategory,
   EnemyDefinition,
@@ -113,6 +114,21 @@ const buildRenderRoles = (enemy: EnemyDefinition): EnemyRenderRoleBinding[] => {
     loop: animation.loop ?? true,
   }));
 };
+
+const buildBehaviorTransitions = (enemy: EnemyDefinition): EnemyBehaviorStateTransition[] => (
+  Array.isArray(enemy.behavior.stateTransitions)
+    ? enemy.behavior.stateTransitions.map((transition, index) => ({
+        id: transition.id || `transition_${index + 1}`,
+        label: transition.label || transition.id || `Transition ${index + 1}`,
+        condition: transition.condition || 'PlayerNear',
+        toBehavior: transition.toBehavior || 'ChaseHorizontal',
+        fromBehavior: transition.fromBehavior || enemy.behavior.type || 'Any',
+        returnBehavior: transition.returnBehavior || enemy.behavior.type || 'None',
+        rangeX: Math.max(1, Math.min(255, numberValue(transition.rangeX, 48))),
+        rangeY: Math.max(1, Math.min(191, numberValue(transition.rangeY, 32))),
+      }))
+    : []
+);
 
 const Field: React.FC<{ label: string; children: React.ReactNode; suffix?: string }> = ({ label, children, suffix }) => (
   <label className="grid grid-cols-[112px_1fr_auto] items-center gap-2 text-xs text-slate-200">
@@ -275,6 +291,7 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
   const issues = validateEnemy(enemy, allAssets);
   const animationEntries = Object.entries(enemy.render.animations || {});
   const renderRoles = buildRenderRoles(enemy);
+  const behaviorTransitions = buildBehaviorTransitions(enemy);
   const selectedRole = renderRoles[Math.min(selectedRoleIndex, Math.max(0, renderRoles.length - 1))];
   const selectedRoleSprite = allAssets.find(asset => asset.id === selectedRole?.spriteId) || selectedSprite;
 
@@ -284,6 +301,9 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
   const patchBudget = (next: Partial<EnemyDefinition['budget']>) => patch({ budget: { ...enemy.budget, ...next } });
   const patchSound = (eventId: string, soundAssetId: string) => patch({ sound: { ...enemy.sound, [eventId]: soundAssetId || null } });
   const patchRoles = (roles: EnemyRenderRoleBinding[]) => patchRender({ roles });
+  const patchBehaviorTransitions = (stateTransitions: EnemyBehaviorStateTransition[]) => patch({
+    behavior: { ...enemy.behavior, stateTransitions },
+  });
 
   const applyTemplate = (templateId: string) => {
     const template = GLOBAL_ENEMY_TEMPLATES.find(item => item.templateId === templateId);
@@ -385,6 +405,36 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
     const nextRoles = renderRoles.filter((_role, roleIndex) => roleIndex !== index);
     patchRoles(nextRoles);
     setSelectedRoleIndex(Math.max(0, Math.min(index, nextRoles.length - 1)));
+  };
+
+  const updateBehaviorTransition = (index: number, next: Partial<EnemyBehaviorStateTransition>) => {
+    patchBehaviorTransitions(behaviorTransitions.map((transition, transitionIndex) => (
+      transitionIndex === index ? { ...transition, ...next } : transition
+    )));
+  };
+
+  const addBehaviorTransition = () => {
+    const usedIds = new Set(behaviorTransitions.map(transition => transition.id));
+    let id = 'player_near_chase';
+    let suffix = 2;
+    while (usedIds.has(id)) id = `player_near_chase_${suffix++}`;
+    patchBehaviorTransitions([
+      ...behaviorTransitions,
+      {
+        id,
+        label: 'Player Near Chase',
+        condition: 'PlayerNear',
+        fromBehavior: enemy.behavior.type || 'Any',
+        toBehavior: 'ChaseHorizontal',
+        returnBehavior: enemy.behavior.type || 'None',
+        rangeX: 48,
+        rangeY: 32,
+      },
+    ]);
+  };
+
+  const removeBehaviorTransition = (index: number) => {
+    patchBehaviorTransitions(behaviorTransitions.filter((_transition, transitionIndex) => transitionIndex !== index));
   };
 
   const updateSpawnParam = (index: number, next: Partial<SpawnParamSchemaItem>) => {
@@ -646,6 +696,52 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
               <Field label="Custom Routine"><input className={inputClass} value={enemy.behavior.customRoutine || ''} onChange={event => patch({ behavior: { ...enemy.behavior, customRoutine: event.target.value } })} /></Field>
               <div className="rounded border border-slate-700 bg-[#111821] p-3 text-xs text-slate-300">
                 `FlyerSine` is the recommended movement for Bat Enemy. `PatrolHorizontal` and `WalkerTurnOnEdge` are cheaper for ground enemies.
+              </div>
+              <div className="space-y-2 rounded border border-slate-700 bg-[#111821] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime State Switches</div>
+                    <div className="text-[11px] text-slate-500">Compact MSX2 behavior changes. Render roles remain declarative until per-slot render is implemented.</div>
+                  </div>
+                  <button type="button" className="h-7 rounded border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800" onClick={addBehaviorTransition}>Add Player Near</button>
+                </div>
+                {behaviorTransitions.length === 0 ? (
+                  <div className="rounded border border-slate-800 bg-[#0b1118] p-2 text-xs text-slate-400">No runtime behavior transition. Enemy keeps its base movement.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {behaviorTransitions.map((transition, index) => (
+                      <div key={`${transition.id}_${index}`} className="grid grid-cols-[120px_130px_130px_86px_86px_auto] items-end gap-2 rounded border border-slate-700 bg-[#0b1118] p-2">
+                        <label className="space-y-1 text-xs text-slate-200">
+                          <span className="text-slate-400">Condition</span>
+                          <select className={selectClass} value={transition.condition} onChange={event => updateBehaviorTransition(index, { condition: event.target.value as EnemyBehaviorStateTransition['condition'] })}>
+                            <option value="PlayerNear">PlayerNear</option>
+                          </select>
+                        </label>
+                        <label className="space-y-1 text-xs text-slate-200">
+                          <span className="text-slate-400">Near behavior</span>
+                          <select className={selectClass} value={transition.toBehavior} onChange={event => updateBehaviorTransition(index, { toBehavior: event.target.value as EnemyBehaviorType })}>
+                            {BEHAVIOR_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                          </select>
+                        </label>
+                        <label className="space-y-1 text-xs text-slate-200">
+                          <span className="text-slate-400">Return behavior</span>
+                          <select className={selectClass} value={transition.returnBehavior || enemy.behavior.type} onChange={event => updateBehaviorTransition(index, { returnBehavior: event.target.value as EnemyBehaviorType })}>
+                            {BEHAVIOR_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                          </select>
+                        </label>
+                        <label className="space-y-1 text-xs text-slate-200">
+                          <span className="text-slate-400">Range X</span>
+                          <SmallNumber value={transition.rangeX} min={1} max={255} onChange={value => updateBehaviorTransition(index, { rangeX: value })} />
+                        </label>
+                        <label className="space-y-1 text-xs text-slate-200">
+                          <span className="text-slate-400">Range Y</span>
+                          <SmallNumber value={transition.rangeY} min={1} max={191} onChange={value => updateBehaviorTransition(index, { rangeY: value })} />
+                        </label>
+                        <button type="button" className="h-7 rounded border border-red-700 bg-red-950/30 px-3 text-xs text-red-100 hover:bg-red-900/50" onClick={() => removeBehaviorTransition(index)}>Delete</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <label className="block space-y-1 text-xs text-slate-200">
                 <span>Required Routines</span>

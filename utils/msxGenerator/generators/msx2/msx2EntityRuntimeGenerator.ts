@@ -23,6 +23,11 @@ export interface Msx2EnemyHazardRuntimeSlot {
   mode: number;
   speed: number;
   score: number;
+  stateSwitch: boolean;
+  stateNearMode: number;
+  stateFarMode: number;
+  stateRangeX: number;
+  stateRangeY: number;
 }
 
 const clampTileCoordinate = (value: unknown, max: number): number =>
@@ -74,10 +79,24 @@ const normalizeMovementMode = (value: unknown): string => String(value || '')
   .replace(/[\s_-]+/g, '')
   .toLowerCase();
 
+const movementModeToRuntimeByte = (movement: string): number => {
+  const normalized = normalizeMovementMode(movement);
+  if (normalized === 'ballbounce' || normalized === 'ball' || normalized === 'pongball' || normalized === 'arkanoidball') return MSX2_ENEMY_MOVEMENT_BALL_BOUNCE;
+  if (normalized === 'flyersine' || normalized === 'sineflyer' || normalized === 'sinewave' || normalized === 'sine' || normalized === 'flyer') return MSX2_ENEMY_MOVEMENT_FLYER_SINE;
+  if (normalized === 'jumper' || normalized === 'jumping' || normalized === 'verticaljump') return MSX2_ENEMY_MOVEMENT_JUMPER;
+  if (normalized === 'walkerturnonedge' || normalized === 'walker' || normalized === 'walkeredge' || normalized === 'turnonedge' || normalized === 'edgewalker') return MSX2_ENEMY_MOVEMENT_WALKER_EDGE;
+  if (normalized === 'chaseh' || normalized === 'chasehorizontal' || normalized === 'chasex' || normalized === 'followx') return MSX2_ENEMY_MOVEMENT_CHASE_H;
+  if (normalized === 'ghostmaze' || normalized === 'mazeghost' || normalized === 'ghost' || normalized === 'pacmanghost' || normalized === 'puckghost' || normalized === 'chase') return MSX2_ENEMY_MOVEMENT_GHOST_MAZE;
+  return MSX2_ENEMY_MOVEMENT_PATROL;
+};
+
 const signedByte = (value: number): number => {
   const clamped = Math.max(-15, Math.min(15, Math.floor(value) || 0));
   return clamped < 0 ? 0x100 + clamped : clamped;
 };
+
+const truthyConfigValue = (value: unknown): boolean =>
+  value === true || value === 1 || String(value).trim().toLowerCase() === 'true' || String(value).trim() === '1';
 
 export function getMsx2EnemyHazardRuntimeSlots(
   screen: Msx2Screen4TileScreen | undefined
@@ -104,6 +123,19 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const movement = normalizeMovementMode(
         getComponentValue(entity, 'msx2_movement', 'mode', entity.params?.movement || entity.params?.motion || '')
       );
+      const stateNearMovement = normalizeMovementMode(
+        getComponentValue(entity, 'msx2_ai', 'nearMode', entity.params?.enemyNearMode || entity.params?.nearMode || '')
+      );
+      const stateFarMovement = normalizeMovementMode(
+        getComponentValue(entity, 'msx2_ai', 'farMode', entity.params?.enemyFarMode || entity.params?.farMode || movement)
+      );
+      const rawStateSwitch = getComponentValue(entity, 'msx2_ai', 'stateSwitchEnabled', entity.params?.enemyStateSwitch ?? entity.params?.stateSwitchEnabled ?? false);
+      const stateRangeX = Math.max(0, Math.min(255, Math.floor(Number(
+        getComponentValue(entity, 'msx2_ai', 'rangeX', entity.params?.enemyStateRangeX ?? entity.params?.stateRangeX ?? 0)
+      ) || 0)));
+      const stateRangeY = Math.max(0, Math.min(191, Math.floor(Number(
+        getComponentValue(entity, 'msx2_ai', 'rangeY', entity.params?.enemyStateRangeY ?? entity.params?.stateRangeY ?? 0)
+      ) || 0)));
       const hasPatrolX = movement === 'patrolx' || movement === 'horizontal';
       const hasPatrolY = movement === 'patroly' || movement === 'vertical';
       const hasBallBounce = movement === 'ballbounce' || movement === 'ball' || movement === 'pongball' || movement === 'arkanoidball';
@@ -125,6 +157,12 @@ export function getMsx2EnemyHazardRuntimeSlots(
         || movement === 'chasehorizontal'
         || movement === 'chasex'
         || movement === 'followx';
+      const stateNearMode = movementModeToRuntimeByte(stateNearMovement);
+      const stateFarMode = movementModeToRuntimeByte(stateFarMovement || movement);
+      const stateSwitch = truthyConfigValue(rawStateSwitch)
+        && stateRangeX > 0
+        && stateRangeY > 0
+        && stateNearMode !== stateFarMode;
       const hasGhostMaze = movement === 'ghostmaze'
         || movement === 'mazeghost'
         || movement === 'ghost'
@@ -167,8 +205,9 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const jumperPauseFrames = Math.max(0, Math.min(60, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'pauseFrames', entity.params?.pauseFrames ?? entity.params?.pauseOnGround ?? 0)
       ) || 0)));
-      const minX = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasChaseH ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
-      const maxX = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasChaseH ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
+      const usesHorizontalBounds = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasChaseH || stateSwitch;
+      const minX = usesHorizontalBounds ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
+      const maxX = usesHorizontalBounds ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
       const minY = hasFlyerSine ? sineMinY : hasJumper ? jumperMinY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
       const maxY = hasFlyerSine ? sineMaxY : hasJumper ? jumperMaxY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'maxY', 11, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
       const ballSpeed = Math.max(1, Math.min(6, Math.floor(Number(
@@ -208,6 +247,11 @@ export function getMsx2EnemyHazardRuntimeSlots(
         mode: hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : hasWalkerEdge ? MSX2_ENEMY_MOVEMENT_WALKER_EDGE : hasChaseH ? MSX2_ENEMY_MOVEMENT_CHASE_H : MSX2_ENEMY_MOVEMENT_PATROL,
         speed,
         score,
+        stateSwitch,
+        stateNearMode,
+        stateFarMode,
+        stateRangeX,
+        stateRangeY,
       };
     });
 }

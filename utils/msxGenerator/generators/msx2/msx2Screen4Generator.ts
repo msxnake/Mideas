@@ -3925,6 +3925,8 @@ function buildHardwareSpriteRuntimeAsm(
   const carryTileScreens = options.tileScreens?.length ? options.tileScreens : collectReferencedTileScreens(analysis);
   const carrySpriteSet = carryConfig.enabled ? resolveMsx2CarryableSpriteSet(analysis, carryTileScreens) : undefined;
   const carryPatternGroupCount = carrySpriteSet ? carrySpriteSet.uniqueIds.length : 0;
+  const runtimeEnemyHazards = (options.tileScreens?.length ? options.tileScreens : collectReferencedTileScreens(analysis)).map(screen => getMsx2EnemyHazardRuntimeSlots(screen));
+  const enemyBehaviorStateSwitchEnabled = runtimeEnemyHazards.some(slots => slots.some(slot => slot.stateSwitch));
   const totalHardwarePatternGroups = playerPatternGroupCount + enemyPatternGroupCount + 2 + (pushBoxLayer ? 1 : 0) + carryPatternGroupCount;
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, totalHardwarePatternGroups);
   const enemyPatternIndex = basePatternIndex + (playerPatternGroupCount * 4);
@@ -5120,6 +5122,123 @@ ${spawnSlot1}
     return `    call update_msx2_enemy_position_slot_${slot}
 `;
   }).join('');
+  const enemyBehaviorStateSlotRoutines = enemyBehaviorStateSwitchEnabled ? Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => `    call update_msx2_enemy_behavior_state_slot_${slot}
+`).join('') : '';
+  const enemyBehaviorStateSlotHandlers = enemyBehaviorStateSwitchEnabled ? Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => `update_msx2_enemy_behavior_state_slot_${slot}:
+    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_count
+    add hl, de
+    ld a, (hl)
+    cp ${slot + 1}
+    ret c
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_state_switch
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld b, (hl)
+    ld a, (msx2_player_sprite_x)
+    cp b
+    jp nc, .enemy_behavior_slot_${slot}_x_player_right
+    ld c, a
+    ld a, b
+    sub c
+    jp .enemy_behavior_slot_${slot}_x_dist_ready
+.enemy_behavior_slot_${slot}_x_player_right:
+    sub b
+.enemy_behavior_slot_${slot}_x_dist_ready:
+    ld c, a
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_state_range_x
+    add hl, de
+    ld a, (hl)
+    cp c
+    jp c, .enemy_behavior_slot_${slot}_far
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld b, (hl)
+    ld a, (msx2_player_sprite_y)
+    cp b
+    jp nc, .enemy_behavior_slot_${slot}_y_player_below
+    ld c, a
+    ld a, b
+    sub c
+    jp .enemy_behavior_slot_${slot}_y_dist_ready
+.enemy_behavior_slot_${slot}_y_player_below:
+    sub b
+.enemy_behavior_slot_${slot}_y_dist_ready:
+    ld c, a
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_state_range_y
+    add hl, de
+    ld a, (hl)
+    cp c
+    jp c, .enemy_behavior_slot_${slot}_far
+.enemy_behavior_slot_${slot}_near:
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_state_near_mode
+    add hl, de
+    ld a, (hl)
+    jp .enemy_behavior_slot_${slot}_store_mode
+.enemy_behavior_slot_${slot}_far:
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_state_far_mode
+    add hl, de
+    ld a, (hl)
+.enemy_behavior_slot_${slot}_store_mode:
+${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
+    ld (hl), a
+    ret
+`).join('\n') : '';
+  const enemyBehaviorStateRuntimeAsm = enemyBehaviorStateSwitchEnabled ? `
+; ------------------------------------------------------------
+; FUNCTION: update_msx2_enemy_behavior_states
+; ------------------------------------------------------------
+; PURPOSE:
+;   Evaluates compact enemy behavior transitions for the active SCREEN 4 room.
+;   A PlayerNear transition writes either the near movement mode or the return
+;   movement mode into msx2_enemy_runtime_mode[slot]. Movement handlers dispatch
+;   from that mutable byte later in the same frame.
+;
+; INPUT:
+;   msx2_current_screen_index = active room.
+;   msx2_player_sprite_x/y = player position.
+;   msx2_enemy_runtime_x/y = live enemy positions.
+;   msx2_screen_enemy_state_* = per-screen transition tables.
+;
+; OUTPUT:
+;   msx2_enemy_runtime_mode[slot] may be changed for active transition slots.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   update_msx2_enemy_behavior_state_slot_N generated stubs.
+;
+; SIDE EFFECTS:
+;   Modifies RAM only: msx2_enemy_runtime_mode.
+;
+; NOTES:
+;   This is behavior-only switching. Per-slot render/animation state is not
+;   changed here because enemy hardware sprite animation is still shared by the
+;   current screen.
+; ------------------------------------------------------------
+update_msx2_enemy_behavior_states:
+    ld a, (msx2_game_over_flag)
+    or a
+    ret nz
+    ld a, (msx2_level_complete_flag)
+    or a
+    ret nz
+${enemyBehaviorStateSlotRoutines}    ret
+
+${enemyBehaviorStateSlotHandlers}` : '';
   const enemySlotMovementHandlers = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
     const addSlot = slot ? `    add a, ${slot}\n` : '';
     if (control2Players) {
@@ -7533,7 +7652,7 @@ ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
     ld a, #${ballLaunchDy.toString(16).toUpperCase().padStart(2, '0')}
     ld (msx2_enemy_runtime_dy), a
 .paddle_serve_not_pending:
-` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}${pushBoxEnabled && !options.deferSatUploadToShooterFrameDispatch ? '    call update_msx2_box2_boxes\n' : ''}${carryUpdateCallAsm}    call update_msx2_enemy_positions
+` : ''}${usesSnakeGrowth(analysis) ? '    call msx2_try_stamp_snake_growth\n' : ''}${pushBoxEnabled && !options.deferSatUploadToShooterFrameDispatch ? '    call update_msx2_box2_boxes\n' : ''}${carryUpdateCallAsm}${enemyBehaviorStateSwitchEnabled ? '    call update_msx2_enemy_behavior_states\n' : ''}    call update_msx2_enemy_positions
     call update_msx2_enemy_state
 ${options.deferSatUploadToShooterFrameDispatch ? '    ret\n' : '    call write_hardware_sprite_attrs\n    ret\n'}
 
@@ -7709,7 +7828,7 @@ msx2_activate_galaxian_attack_slot:
     ret
 
 ` : ''}
-${enemySlotMovementHandlers}${enemyJumperSharedHandler}
+${enemyBehaviorStateRuntimeAsm}${enemySlotMovementHandlers}${enemyJumperSharedHandler}
 
 msx2_apply_damage_respawn:
     ; Shared damage path for effect hazards and entity enemies.
@@ -12105,6 +12224,27 @@ msx2_player_jump_buffer_timer EQU ${formatHexWord(playerTimersRamBase + 1)}
   const enemyScoreBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(255, enemies[index]?.score ?? 1)))
   );
+  const enemyStateSwitchBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => enemies[index]?.stateSwitch ? 1 : 0)
+  );
+  const enemyStateNearModeBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(0, Math.min(255, enemies[index]?.stateNearMode ?? 0)))
+  );
+  const enemyStateFarModeBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(0, Math.min(255, enemies[index]?.stateFarMode ?? enemies[index]?.mode ?? 0)))
+  );
+  const enemyStateRangeXBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(0, Math.min(255, enemies[index]?.stateRangeX ?? 0)))
+  );
+  const enemyStateRangeYBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(0, Math.min(191, enemies[index]?.stateRangeY ?? 0)))
+  );
+  const enemyStateSwitchTablesAsm = enemyStateSwitchBytes.some(byte => byte !== 0) ? `${formatBytes('msx2_screen_enemy_state_switch', enemyStateSwitchBytes, `Per-msx2screen enemy behavior state-switch flag, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_state_near_mode', enemyStateNearModeBytes, `Per-msx2screen enemy PlayerNear target movement mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_state_far_mode', enemyStateFarModeBytes, `Per-msx2screen enemy return movement mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_state_range_x', enemyStateRangeXBytes, `Per-msx2screen enemy PlayerNear horizontal range in pixels, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_state_range_y', enemyStateRangeYBytes, `Per-msx2screen enemy PlayerNear vertical range in pixels, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+` : '';
   // carry_object per-screen ROM tables. The unique sprite set MUST be the
   // same one used by buildHardwareSpriteRuntimeAsm/buildHardwareSpriteDataAsm
   // (resolveMsx2CarryableSpriteSet is deterministic over the same screens).
@@ -13384,6 +13524,7 @@ ${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array
 ${formatBytes('msx2_screen_enemy_mode', enemyModeBytes.length ? enemyModeBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard movement component mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_speed', enemySpeedBytes.length ? enemySpeedBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(2), `Per-msx2screen enemy/hazard movement component frame delay, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_score', enemyScoreBytes.length ? enemyScoreBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(1), `Per-msx2screen enemy/hazard score value, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${enemyStateSwitchTablesAsm}
 ${pushBoxDataTablesAsm}
 ${carryObjectDataTablesAsm}
 ${emptyRuntimeLayerBlocks}

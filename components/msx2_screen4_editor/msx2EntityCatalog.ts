@@ -1120,6 +1120,23 @@ function selectEnemyRenderRole(def: EnemyDefinition): EnemyRenderRoleBinding | u
   return scored[0]?.role;
 }
 
+function selectEnemyBehaviorStateSwitch(def: EnemyDefinition): {
+  nearMode: string;
+  farMode: string;
+  rangeX: number;
+  rangeY: number;
+} | undefined {
+  const transitions = Array.isArray(def.behavior?.stateTransitions) ? def.behavior.stateTransitions : [];
+  const transition = transitions.find(item => item?.condition === 'PlayerNear');
+  if (!transition) return undefined;
+  const near = mapEnemyBehaviorToMovementMode(transition.toBehavior);
+  const far = mapEnemyBehaviorToMovementMode(transition.returnBehavior || def.behavior?.type);
+  if (!near.implemented || !far.implemented || near.movementName === far.movementName) return undefined;
+  const rangeX = Math.max(1, Math.min(255, Math.floor(Number(transition.rangeX) || 0)));
+  const rangeY = Math.max(1, Math.min(191, Math.floor(Number(transition.rangeY) || 0)));
+  return { nearMode: near.movementName, farMode: far.movementName, rangeX, rangeY };
+}
+
 /**
  * Builds a placed MSX2 screen enemy entity from a library `msx2enemy` asset
  * (snapshot at placement). The generator reads msx2_movement.mode for movement
@@ -1134,8 +1151,18 @@ export function buildMsx2EnemyEntityFromAsset(
   const def = (asset.data || {}) as EnemyDefinition;
   const { movementName } = mapEnemyBehaviorToMovementMode(def.behavior?.type);
   const renderRole = selectEnemyRenderRole(def);
+  const stateSwitch = selectEnemyBehaviorStateSwitch(def);
   const roleFrames = Array.isArray(renderRole?.frames) && renderRole.frames.length ? renderRole.frames : [0];
   const spriteId = renderRole?.spriteId || def.render?.spriteId || '';
+  const aiComponent = stateSwitch ? {
+    engine: 'stateSwitch',
+    trigger: 'playerNear',
+    stateSwitchEnabled: true,
+    nearMode: stateSwitch.nearMode,
+    farMode: stateSwitch.farMode,
+    rangeX: stateSwitch.rangeX,
+    rangeY: stateSwitch.rangeY,
+  } : undefined;
   return {
     id: `msx2_enemy_${Date.now()}`,
     name: def.name || asset.name || 'Enemy',
@@ -1146,6 +1173,7 @@ export function buildMsx2EnemyEntityFromAsset(
       msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
       msx2_movement: { mode: movementName, direction: 1, speed: 2 },
       msx2_hardware_sprite: { msx2SpriteAssetId: spriteId, frame: 0, paletteSlot: 10, visible: Boolean(spriteId) },
+      ...(aiComponent ? { msx2_ai: aiComponent } : {}),
       msx2_animation: {
         animation: renderRole?.animation || renderRole?.id || 'enemy',
         frameStart: roleFrames[0] || 0,
@@ -1163,6 +1191,13 @@ export function buildMsx2EnemyEntityFromAsset(
       enemyAssetId: asset.id,
       enemyRenderRoleId: renderRole?.id || '',
       enemyRenderState: renderRole?.state || '',
+      ...(stateSwitch ? {
+        enemyStateSwitch: true,
+        enemyNearMode: stateSwitch.nearMode,
+        enemyFarMode: stateSwitch.farMode,
+        enemyStateRangeX: stateSwitch.rangeX,
+        enemyStateRangeY: stateSwitch.rangeY,
+      } : {}),
     },
   };
 }

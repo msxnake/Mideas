@@ -360,8 +360,8 @@ assert(genCode.includes('${pushBoxAttrWrite}${carryAttrWrites}'),
   'carry SAT writes are emitted after push box, before the terminator');
 assert(genCode.includes('${carryResetCallAsm}    ret'),
   'carry runtime reset is chained at the enemy runtime reset tail');
-assert(genCode.includes('${carryUpdateCallAsm}    call update_msx2_enemy_positions'),
-  'carry update runs in the upload chain before enemy positions');
+assert(genCode.includes('${carryUpdateCallAsm}${enemyBehaviorStateSwitchEnabled ? \'    call update_msx2_enemy_behavior_states\\n\' : \'\'}    call update_msx2_enemy_positions'),
+  'carry update runs before optional enemy behavior state switching and enemy positions');
 assert(genCode.includes('${carryObjectEquatesAsm}') && genCode.includes('${carryObjectDataTablesAsm}'),
   'carry equates + per-screen data tables are injected');
 assert(genCode.includes('+ carryPatternGroupCount'),
@@ -444,7 +444,11 @@ assert(catalogCode.includes('export function buildMsx2EnemyEntityFromAsset'),
   'msx2EntityCatalog exports the placed-enemy entity builder');
 assert(catalogCode.includes("kind: 'enemy'") && catalogCode.includes('enemyAssetId: asset.id') && catalogCode.includes('msx2SpriteAssetId: spriteId'),
   'placed enemy snapshots kind/enemyAssetId link/render sprite');
-// Generator must NOT have been modified for the bridge (snapshot approach -> no-regression).
+assert(typesCode.includes('export interface EnemyBehaviorStateTransition') && typesCode.includes("condition: EnemyBehaviorTransitionCondition"),
+  'EnemyDefinition supports compact declarative behavior state transitions');
+assert(catalogCode.includes('selectEnemyBehaviorStateSwitch') && catalogCode.includes("stateSwitchEnabled: true") && catalogCode.includes('enemyNearMode'),
+  'Enemy Library placement snapshots PlayerNear behavior transitions into msx2_ai');
+// Generator still consumes the placed screen entity snapshot instead of resolving enemy assets at compile time.
 assert(/getMsx2EnemyHazardRuntimeSlots\(\s*screen: Msx2Screen4TileScreen \| undefined\s*\)/.test(entityRuntimeCode),
   'getMsx2EnemyHazardRuntimeSlots keeps its screen-only signature (no gen-time enemy resolver)');
 const roomEditorCode = fs.readFileSync(path.join(ROOT, 'components', 'editors', 'Msx2Screen4RoomEditor.tsx'), 'utf8');
@@ -464,6 +468,14 @@ assert(genCode.includes('MSX2_ENEMY_MOVEMENT_CHASE_H') && genCode.includes('.ene
   'enemy slot dispatch reaches the ChaseHorizontal shared handler');
 assert(genCode.includes('FUNCTION: msx2_enemy_chase_h_shared') && genCode.includes('msx2_player_sprite_x'),
   'ChaseHorizontal shared handler documents its contract and reads the player X');
+assert(entityRuntimeCode.includes('stateSwitch: boolean') && entityRuntimeCode.includes('stateNearMode') && entityRuntimeCode.includes('stateRangeX'),
+  'enemy runtime slots carry compact behavior switch table fields without new RAM');
+assert(genCode.includes('FUNCTION: update_msx2_enemy_behavior_states') && genCode.includes('msx2_enemy_runtime_mode') && genCode.includes('msx2_screen_enemy_state_near_mode'),
+  'MSX2 generator emits documented enemy behavior state switch runtime');
+assert(genCode.includes("call update_msx2_enemy_behavior_states\\n' : ''}    call update_msx2_enemy_positions"),
+  'enemy behavior state switch runs before enemy movement dispatch');
+assert(genCode.includes('msx2_screen_enemy_state_switch') && genCode.includes('msx2_screen_enemy_state_range_y'),
+  'MSX2 generator emits behavior state switch ROM tables');
 
 // Shared MSX2 enemy hardware sprite animation: the current runtime still uses
 // one shared enemy sprite per screen, but that shared sprite must consume all
@@ -485,4 +497,4 @@ assert(catalogCode.includes('selectEnemyRenderRole') && catalogCode.includes('fr
 assert(genCode.includes('parseEnemyFrameList') && genCode.includes('anim.frameList') && genCode.includes('enemyAnimationSettings.frameIndices.map'),
   'MSX2 generator consumes enemy msx2_animation.frameList when emitting shared enemy sprite frames');
 
-console.log('\nAll 60 plumbing checks passed.');
+console.log('\nAll 65 plumbing checks passed.');
