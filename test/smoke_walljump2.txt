@@ -1,0 +1,9 @@
+at_wall1 x=159 y=144 side=255 keylock=0
+kick1 x=159 y=127 side=255 keylock=0
+settle1 x=159 y=144 side=255 keylock=0
+at_wall2 x=92 y=160 side=255 keylock=0
+kick2 x=92 y=130 side=255 keylock=0
+settle2 x=92 y=160 side=255 keylock=0
+at_wall3 x=238 y=160 side=255 keylock=0
+kick3 x=238 y=128 side=255 keylock=0
+settle3 x=238 y=160 side=255 keylock=0

@@ -384,6 +384,14 @@ assert(genCode.includes('cp ${MSX2_ENEMY_MOVEMENT_FLYER_SINE}') && genCode.inclu
   'enemy slot dispatch reaches the FlyerSine ASM branch');
 assert(genCode.includes('msx2_enemy_flyer_sine_shared:') && genCode.includes('Shared FlyerSine movement') && genCode.includes('DESTROYS: AF/BC/DE/HL'),
   'FlyerSine emitted shared ASM routine documents its register contract');
+assert(genCode.includes('foreground wall probe at (candidateX+15, y+8): solid -> reverse dx.')
+  && genCode.includes('foreground wall probe at (candidateX, y+8): solid -> reverse dx.')
+  && genCode.includes('foreground floor probe at (x+8, candidateY+15): solid -> reverse dy.')
+  && genCode.includes('foreground ceiling probe at (x+8, candidateY): solid -> reverse dy.')
+  && genCode.includes('.flyer_sine_shared_wall_turn:')
+  && genCode.includes('.flyer_sine_shared_floor_turn:')
+  && genCode.includes('call msx2_collision_at_pixel'),
+  'FlyerSine probes foreground solids on each movement axis and reverses movement on contact');
 assert(genCode.includes('msx2_enemy_screen_slot_offset_from_b:') && genCode.includes('PRESERVES: BC/HL/IX/IY'),
   'shared enemy offset helper documents its preserve contract');
 assert(!layoutCode.includes('FLYER_SINE'),

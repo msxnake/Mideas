@@ -157,7 +157,18 @@
       "Bash(wc -l \"C:/Users/salam/Downloads/unitedCompressedFiles\\(106\\).asm\")",
       "Bash(cd:*)",
       "Bash(npx esbuild:*)",
-      "Bash(head -10 grep -n \"render_menu\\\\|init_menu_system\" /c/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/gameFlowGenerator.js)"
+      "Bash(head -10 grep -n \"render_menu\\\\|init_menu_system\" /c/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/gameFlowGenerator.js)",
+      "Bash(SMOKE_OUT=test/smoke_ref.txt SMOKE_PNG=test/smoke_ref.png \"/c/Program Files/openMSX/openmsx.exe\" -machine \"C-BIOS_MSX2+\" -carta test/push_example21.rom -script test/smoke_boot2.tcl)",
+      "Bash(SMOKE_OUT=test/smoke_v22m_kon.txt SMOKE_PNG=test/smoke_v22m_kon.png \"/c/Program Files/openMSX/openmsx.exe\" -machine \"C-BIOS_MSX2+\" -carta test/v22m_asis.rom -romtype Konami -script test/smoke_boot2.tcl)",
+      "Bash(SMOKE_OUT=test/smoke_push_21new.txt \"/c/Program Files/openMSX/openmsx.exe\" -machine \"C-BIOS_MSX2+\" -carta test/v21m_asis_64k.rom -script test/smoke_push.tcl)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc utils/msxGenerator/index.ts --outDir C:/temp/mideas_tsbuild --module commonjs --target es2020 --esModuleInterop --skipLibCheck --resolveJsonModule)",
+      "Bash(sed -n '/export const powerStompParameters/,/^];/p' utils/msxGenerator/skills/handlers/index.ts)",
+      "Bash(sed -n '/export const powerStomp:/,/^};/p' utils/msxGenerator/skills/handlers/index.ts)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(gh pr *)",
+      "Bash(export NODE_OPTIONS=--max-old-space-size=8192)",
+      "Bash(rm -rf test/ts_build_bmp)"
     ],
     "deny": [],
     "ask": []

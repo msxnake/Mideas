@@ -1,0 +1,2 @@
+pc=AE90
+shot=test/wj_x.png

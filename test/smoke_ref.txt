@@ -1,0 +1,2 @@
+pc=AA07
+shot=test/smoke_ref.png

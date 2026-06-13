@@ -1,0 +1,13 @@
+ptr=49872 px=71 py=112
+row00 y=0 ...X........X...
+row01 y=16 ...X........X.X.
+row02 y=32 ...X........X.X.
+row03 y=48 ...X........X.X.
+row04 y=64 ...X........X.X.
+row05 y=80 ...X........X.X.
+row06 y=96 X..X..........X.
+row07 y=112 XXXX..........X.
+row08 y=128 ...XXXXXXXXXXXX.
+row09 y=144 ................
+row10 y=160 ..........XX....
+row11 y=176 XXXXXXXXXXXXXXXX

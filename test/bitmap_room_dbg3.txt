@@ -1,0 +1,3 @@
+boot x=48 frame=219 marker=170 gtstck=255
+right1 x=48 frame=181 gtstck=255
+right2 x=48 frame=143 gtstck=255

@@ -1,0 +1,7 @@
+boot y=112 flags=1
+jump0 apex=76 yend=112 flags=1
+jump1 apex=76 yend=112 flags=1
+jump2 apex=76 yend=112 flags=1
+dash adt=0 x=107 y=78
+landed y=112 flags=1
+jump4 apex=76 yend=112 flags=1

@@ -1,0 +1,10 @@
+tap1 x=208 y=63 side=0 vx=4
+tap2 x=208 y=49 side=0 vx=4
+tap3 x=208 y=35 side=0 vx=4
+tap4 x=208 y=20 side=0 vx=4
+B_at_tower x=175 y=112 side=255 vx=0
+B_kick_holding_right x=139 y=60 side=255 vx=252
+B_flight1 x=103 y=96 side=255 vx=0
+B_flight2 x=139 y=112 side=255 vx=0
+B_landed x=207 y=112 side=255 vx=0
+B_ground_right x=207 y=112 side=255 vx=0

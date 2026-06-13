@@ -1,0 +1,7 @@
+x_after_left=9
+x_pre_dash=27 dx=1
+dash_timer=0
+x_post_dash=59
+teleA_x=59 tele_flags=1
+x_moved_away=1
+x_after_teleport=59 tele_flags=7

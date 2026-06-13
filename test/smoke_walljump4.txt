@@ -1,0 +1,9 @@
+setup ptr=49872 x=71 y=112 side=255 lock=0 keylock=0
+at_wall1 x=49 y=160 side=255 lock=0 keylock=0
+during1 x=69 y=144 side=255 lock=3 keylock=1
+kick1 x=81 y=144 side=255 lock=0 keylock=1
+settle1 x=81 y=160 side=255 lock=0 keylock=0
+at_wall2 x=49 y=160 side=255 lock=0 keylock=0
+during2 x=69 y=144 side=255 lock=3 keylock=1
+kick2 x=81 y=144 side=255 lock=0 keylock=1
+final x=81 y=160 side=255 lock=0 keylock=0

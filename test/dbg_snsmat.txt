@@ -1,0 +1,4 @@
+boot x=48 snsmat=255 mask=0
+r0.3 x=0 snsmat=127 mask=128
+r0.6 x=0 snsmat=127 mask=128
+r1.2 x=0

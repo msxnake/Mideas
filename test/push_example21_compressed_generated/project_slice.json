@@ -1,0 +1,1769 @@
+{
+  "scope": "msx2_screen4_project_slice",
+  "projectName": "push_example21",
+  "backend": "msx2-screen4-pattern",
+  "screenMode": "SCREEN 4 (Graphics II)",
+  "romMode": "megarom",
+  "mapper": "konami",
+  "entryPoints": {
+    "gameFlowId": "gf_platform_mymsxgame",
+    "gameFlowName": "Main MSX2",
+    "worldIds": [
+      "worldmap_1780415077651"
+    ],
+    "screenIds": [
+      "msx2screen_1780415045987",
+      "screen_platform_mymsxgame"
+    ]
+  },
+  "includedAssets": [
+    {
+      "type": "msx2player",
+      "id": "msx2player_1780388067666",
+      "name": "Player_Main",
+      "reason": "Referenced by reachable native MSX2 player source",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ]
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "screen_platform_mymsxgame_tile_0",
+      "name": "Blank",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "reason": "Tile used by reachable native MSX2 screen"
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "screen_platform_mymsxgame_tile_1",
+      "name": "Solid",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "reason": "Tile used by reachable native MSX2 screen"
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780001908330",
+      "name": "caja",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "reason": "Tile used by reachable native MSX2 screen"
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780093534882",
+      "name": "pinchos",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "reason": "Tile used by reachable native MSX2 screen"
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780415045987_0",
+      "name": "Blank",
+      "ownerScreenId": "msx2screen_1780415045987",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "reason": "Tile used by reachable native MSX2 screen"
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780415045987_1",
+      "name": "Platform",
+      "ownerScreenId": "msx2screen_1780415045987",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "reason": "Tile used by reachable native MSX2 screen"
+    },
+    {
+      "type": "msx2screen",
+      "id": "msx2screen_1780415045987",
+      "name": "pantalla2",
+      "reason": "Referenced by world worldmap_1780415077651",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ]
+    },
+    {
+      "type": "msx2screen",
+      "id": "screen_platform_mymsxgame",
+      "name": "pantalla1",
+      "reason": "Referenced by world worldmap_1780415077651",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ]
+    },
+    {
+      "type": "msx2sprite",
+      "id": "msx2sprite_1779969383977",
+      "name": "player_spr",
+      "reason": "Referenced by reachable MSX2 entity or sprite fallback",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ]
+    },
+    {
+      "type": "msx2sprite",
+      "id": "msx2sprite_1780501897203",
+      "name": "caja (sprite)",
+      "reason": "Referenced by reachable MSX2 entity or sprite fallback",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ]
+    },
+    {
+      "type": "worldmap",
+      "id": "worldmap_1780415077651",
+      "name": "New Worldmap",
+      "reason": "GameFlow WorldLink node msx2_gf_worldlink_1780415155491"
+    }
+  ],
+  "excludedAssets": [
+    {
+      "type": "code",
+      "id": "code_new_MyMSXGame_main_1779969301603_locff",
+      "name": "main.asm",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "code",
+      "id": "code_new_MyMSXGame_data_graphics_1779969301603_v4xc5",
+      "name": "data/graphics.asm",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "code",
+      "id": "code_new_MyMSXGame_data_components_1779969301603_6fka7",
+      "name": "data/components.asm",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "code",
+      "id": "code_new_MyMSXGame_code_behaviors_1779969301603_1uy72",
+      "name": "code/behaviors.asm",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "msx2gameflow",
+      "id": "asset_platform_gameflow_1779969301603",
+      "name": "Main MSX2",
+      "reason": "Not reachable from active MSX2 GameFlow/world slice"
+    },
+    {
+      "type": "msx2sprite",
+      "id": "msx2sprite_1780002158610",
+      "name": "box_spr",
+      "reason": "Not reachable from active MSX2 GameFlow/world slice"
+    },
+    {
+      "type": "font",
+      "id": "__project_font__",
+      "name": "Project Font",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_transform",
+      "name": "MSX2 Position",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_hardware_sprite",
+      "name": "MSX2 Render",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_player_control",
+      "name": "MSX2 Player Control",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_jump",
+      "name": "MSX2 Jump",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_gravity",
+      "name": "MSX2 Gravity",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_movement",
+      "name": "MSX2 Movement",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_collision",
+      "name": "MSX2 Collision",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_collectible",
+      "name": "MSX2 Collectible",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_door_exit",
+      "name": "MSX2 Door Exit",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_hazard",
+      "name": "MSX2 Hazard",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_animation",
+      "name": "MSX2 Animation",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_health",
+      "name": "MSX2 Health",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_damage",
+      "name": "MSX2 Damage",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_spawn",
+      "name": "MSX2 Spawn",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_checkpoint",
+      "name": "MSX2 Checkpoint",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_screen_transition",
+      "name": "MSX2 Screen Transition",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_inventory",
+      "name": "MSX2 Inventory",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_score",
+      "name": "MSX2 Score",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "componentdefinition",
+      "id": "msx2_timer",
+      "name": "MSX2 Timer",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_player",
+      "name": "MSX2 Player Platform",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_enemy_static",
+      "name": "MSX2 Enemy",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_patrol_x",
+      "name": "MSX2 Patrol X",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_patrol_y",
+      "name": "MSX2 Patrol Y",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_hazard",
+      "name": "MSX2 Hazard",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_collectible",
+      "name": "MSX2 Collectible",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_door",
+      "name": "MSX2 Door",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    },
+    {
+      "type": "entitytemplate",
+      "id": "tpl_msx2_checkpoint",
+      "name": "MSX2 Checkpoint",
+      "reason": "Not used by native MSX2 SCREEN 4 backend"
+    }
+  ],
+  "includedRuntimeModules": [
+    "runtime.msx2.boot",
+    "runtime.msx2.screen4.vdp",
+    "runtime.msx2.input",
+    "runtime.msx2.screen_loader",
+    "runtime.msx2.layers.collision",
+    "runtime.msx2.layers.effects",
+    "runtime.msx2.layers.behavior",
+    "runtime.msx2.hardware_sprites",
+    "runtime.msx2.box2",
+    "runtime.msx2.mapper.konami8k"
+  ],
+  "includedRuntimeModuleDetails": [
+    {
+      "id": "runtime.msx2.boot",
+      "placement": "resident",
+      "reason": "Required by every native MSX2 SCREEN 4 build"
+    },
+    {
+      "id": "runtime.msx2.screen4.vdp",
+      "placement": "resident",
+      "reason": "Required by every native MSX2 SCREEN 4 build"
+    },
+    {
+      "id": "runtime.msx2.input",
+      "placement": "resident",
+      "reason": "Required by current MSX2 gameplay loop"
+    },
+    {
+      "id": "runtime.msx2.screen_loader",
+      "placement": "resident",
+      "reason": "Required to load reachable native MSX2 screens"
+    },
+    {
+      "id": "runtime.msx2.layers.collision",
+      "placement": "resident",
+      "reason": "Collision reader stays resident; current screen data is cached in RAM from world data banks"
+    },
+    {
+      "id": "runtime.msx2.layers.effects",
+      "placement": "resident",
+      "reason": "Effects layer runtime buffers are part of the current runtime contract"
+    },
+    {
+      "id": "runtime.msx2.layers.behavior",
+      "placement": "resident",
+      "reason": "Behavior reader stays resident; current screen data is cached in RAM from world data banks"
+    },
+    {
+      "id": "runtime.msx2.hardware_sprites",
+      "placement": "resident",
+      "reason": "Enabled only when a reachable MSX2 sprite source exists"
+    },
+    {
+      "id": "runtime.msx2.box2",
+      "placement": "resident",
+      "reason": "Enabled when reachable screens contain msx2_box2 or legacy msx2_push_box entities"
+    },
+    {
+      "id": "runtime.msx2.mapper.konami8k",
+      "placement": "resident",
+      "reason": "Enabled by Konami MegaROM data-bank mode"
+    }
+  ],
+  "excludedRuntimeModules": [
+    {
+      "id": "runtime.msx2.projectiles",
+      "placement": "resident",
+      "reason": "Enabled by shooter-horizontal movement or player msx2_shooter component"
+    },
+    {
+      "id": "runtime.msx2.shooter60hz.contract",
+      "placement": "metadata",
+      "reason": "Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles"
+    },
+    {
+      "id": "runtime.msx2.stage_banner",
+      "placement": "resident",
+      "reason": "Enabled only by shooter wave flow"
+    },
+    {
+      "id": "runtime.msx2.scroll.vertical",
+      "placement": "resident",
+      "reason": "Enabled only when reachable screens request scroll"
+    },
+    {
+      "id": "runtime.msx2.snake_char",
+      "placement": "resident",
+      "reason": "Enabled only by snake-char movement"
+    }
+  ],
+  "runtimeModuleDetails": [
+    {
+      "id": "runtime.msx2.boot",
+      "included": true,
+      "placement": "resident",
+      "reason": "Required by every native MSX2 SCREEN 4 build"
+    },
+    {
+      "id": "runtime.msx2.screen4.vdp",
+      "included": true,
+      "placement": "resident",
+      "reason": "Required by every native MSX2 SCREEN 4 build"
+    },
+    {
+      "id": "runtime.msx2.input",
+      "included": true,
+      "placement": "resident",
+      "reason": "Required by current MSX2 gameplay loop"
+    },
+    {
+      "id": "runtime.msx2.screen_loader",
+      "included": true,
+      "placement": "resident",
+      "reason": "Required to load reachable native MSX2 screens"
+    },
+    {
+      "id": "runtime.msx2.layers.collision",
+      "included": true,
+      "placement": "resident",
+      "reason": "Collision reader stays resident; current screen data is cached in RAM from world data banks"
+    },
+    {
+      "id": "runtime.msx2.layers.effects",
+      "included": true,
+      "placement": "resident",
+      "reason": "Effects layer runtime buffers are part of the current runtime contract"
+    },
+    {
+      "id": "runtime.msx2.layers.behavior",
+      "included": true,
+      "placement": "resident",
+      "reason": "Behavior reader stays resident; current screen data is cached in RAM from world data banks"
+    },
+    {
+      "id": "runtime.msx2.hardware_sprites",
+      "included": true,
+      "placement": "resident",
+      "reason": "Enabled only when a reachable MSX2 sprite source exists"
+    },
+    {
+      "id": "runtime.msx2.projectiles",
+      "included": false,
+      "placement": "resident",
+      "reason": "Enabled by shooter-horizontal movement or player msx2_shooter component"
+    },
+    {
+      "id": "runtime.msx2.shooter60hz.contract",
+      "included": false,
+      "placement": "metadata",
+      "reason": "Enabled when reachable SCREEN 4 screens declare shooter 60Hz budgets and IRQ profiles"
+    },
+    {
+      "id": "runtime.msx2.stage_banner",
+      "included": false,
+      "placement": "resident",
+      "reason": "Enabled only by shooter wave flow"
+    },
+    {
+      "id": "runtime.msx2.scroll.vertical",
+      "included": false,
+      "placement": "resident",
+      "reason": "Enabled only when reachable screens request scroll"
+    },
+    {
+      "id": "runtime.msx2.snake_char",
+      "included": false,
+      "placement": "resident",
+      "reason": "Enabled only by snake-char movement"
+    },
+    {
+      "id": "runtime.msx2.box2",
+      "included": true,
+      "placement": "resident",
+      "reason": "Enabled when reachable screens contain msx2_box2 or legacy msx2_push_box entities"
+    },
+    {
+      "id": "runtime.msx2.mapper.konami8k",
+      "included": true,
+      "placement": "resident",
+      "reason": "Enabled by Konami MegaROM data-bank mode"
+    }
+  ],
+  "worldPackageSummary": [
+    {
+      "worldId": "worldmap_1780415077651",
+      "assetCount": 5,
+      "screenCount": 2,
+      "estimatedBytes": 4905,
+      "estimated8kBanks": 1,
+      "bankClassBytes": [
+        {
+          "id": "world.screen",
+          "usedBytes": 3920
+        },
+        {
+          "id": "world.manifest",
+          "usedBytes": 649
+        },
+        {
+          "id": "world.graphics.sprite",
+          "usedBytes": 336
+        }
+      ]
+    }
+  ],
+  "worldBankManifest": {
+    "scope": "msx2_screen4_world_bank_manifest",
+    "mapper": "konami",
+    "bankSizeBytes": 8192,
+    "dataWindowAddress": "#8000",
+    "estimatedPhysicalBanks": [
+      {
+        "bankIndex": 0,
+        "windowAddress": "#8000",
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
+        "usedBytes": 4905,
+        "freeBytes": 3287,
+        "usedPercent": 59.88,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "status": "ok",
+        "packages": [
+          {
+            "id": "msx2screen.screen_platform_mymsxgame",
+            "usedBytes": 2304,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "msx2screen.msx2screen_1780415045987",
+            "usedBytes": 1616,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "worldmap.worldmap_1780415077651",
+            "usedBytes": 649,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "msx2sprite.msx2sprite_1779969383977",
+            "usedBytes": 288,
+            "recommendedBankClass": "world.graphics.sprite"
+          },
+          {
+            "id": "msx2sprite.msx2sprite_1780501897203",
+            "usedBytes": 48,
+            "recommendedBankClass": "world.graphics.sprite"
+          }
+        ]
+      }
+    ],
+    "worlds": [
+      {
+        "worldId": "worldmap_1780415077651",
+        "estimatedBytes": 4905,
+        "estimated8kBanks": 1,
+        "packages": [
+          {
+            "packageId": "msx2screen.msx2screen_1780415045987",
+            "type": "msx2screen",
+            "sourceId": "msx2screen_1780415045987",
+            "logicalSection": "world screens",
+            "recommendedBankClass": "world.screen",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 1616,
+            "storedBytes": 1616,
+            "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "msx2screen.screen_platform_mymsxgame",
+            "type": "msx2screen",
+            "sourceId": "screen_platform_mymsxgame",
+            "logicalSection": "world screens",
+            "recommendedBankClass": "world.screen",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 2304,
+            "storedBytes": 2304,
+            "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "msx2sprite.msx2sprite_1779969383977",
+            "type": "msx2sprite",
+            "sourceId": "msx2sprite_1779969383977",
+            "logicalSection": "world graphics",
+            "recommendedBankClass": "world.graphics.sprite",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 288,
+            "storedBytes": 288,
+            "decision": "ROM_RAW_TO_VRAM",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "msx2sprite.msx2sprite_1780501897203",
+            "type": "msx2sprite",
+            "sourceId": "msx2sprite_1780501897203",
+            "logicalSection": "world graphics",
+            "recommendedBankClass": "world.graphics.sprite",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 48,
+            "storedBytes": 48,
+            "decision": "ROM_RAW_TO_VRAM",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          },
+          {
+            "packageId": "worldmap.worldmap_1780415077651",
+            "type": "worldmap",
+            "sourceId": "worldmap_1780415077651",
+            "logicalSection": "world manifest",
+            "recommendedBankClass": "world.manifest",
+            "physicalBankIndex": 0,
+            "windowAddress": "#8000",
+            "bankSizeBytes": 8192,
+            "rawBytes": 649,
+            "storedBytes": 649,
+            "decision": "ROM_RAW",
+            "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+          }
+        ]
+      }
+    ],
+    "note": "Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression."
+  },
+  "screen4RuntimeLayerPolicy": {
+    "collision": {
+      "definitionPlacement": "world_data_bank",
+      "runtimePlacement": "ram_cache",
+      "cacheScope": "current_screen",
+      "bytesPerScreen": 192
+    },
+    "behavior": {
+      "definitionPlacement": "world_data_bank",
+      "runtimePlacement": "ram_cache",
+      "cacheScope": "current_screen",
+      "bytesPerScreen": 192
+    },
+    "effects": {
+      "definitionPlacement": "world_data_bank",
+      "runtimePlacement": "persistent_ram",
+      "cacheScope": "per_screen",
+      "bytesPerScreen": 192
+    }
+  },
+  "shooter60Hz": {
+    "targetHz": 60,
+    "frameBudget": null,
+    "screens": [],
+    "screenCount": 0,
+    "warnings": [],
+    "errors": []
+  },
+  "assetStoragePolicy": [
+    {
+      "type": "msx2player",
+      "id": "msx2player_1780388067666",
+      "name": "Player_Main",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 0,
+      "storedBytesEstimate": 0,
+      "accessPattern": "compile_time_player_definition",
+      "mutable": false,
+      "decision": "COMPILED_INTO_RUNTIME_CONSTANTS",
+      "reason": "MSX2 Player editor documents are compile-time configuration only; runtime sprites and maps are budgeted as their referenced assets."
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "screen_platform_mymsxgame_tile_0",
+      "name": "Blank",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 64,
+      "storedBytesEstimate": 64,
+      "accessPattern": "compiled_into_owner_screen",
+      "mutable": false,
+      "decision": "INHERIT_OWNER_SCREEN_POLICY",
+      "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "screen_platform_mymsxgame_tile_1",
+      "name": "Solid",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 64,
+      "storedBytesEstimate": 64,
+      "accessPattern": "compiled_into_owner_screen",
+      "mutable": false,
+      "decision": "INHERIT_OWNER_SCREEN_POLICY",
+      "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780001908330",
+      "name": "caja",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 64,
+      "storedBytesEstimate": 64,
+      "accessPattern": "compiled_into_owner_screen",
+      "mutable": false,
+      "decision": "INHERIT_OWNER_SCREEN_POLICY",
+      "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780093534882",
+      "name": "pinchos",
+      "ownerScreenId": "screen_platform_mymsxgame",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 64,
+      "storedBytesEstimate": 64,
+      "accessPattern": "compiled_into_owner_screen",
+      "mutable": false,
+      "decision": "INHERIT_OWNER_SCREEN_POLICY",
+      "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780415045987_0",
+      "name": "Blank",
+      "ownerScreenId": "msx2screen_1780415045987",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 64,
+      "storedBytesEstimate": 64,
+      "accessPattern": "compiled_into_owner_screen",
+      "mutable": false,
+      "decision": "INHERIT_OWNER_SCREEN_POLICY",
+      "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+    },
+    {
+      "type": "msx2screen_tile",
+      "id": "tile_1780415045987_1",
+      "name": "Platform",
+      "ownerScreenId": "msx2screen_1780415045987",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 64,
+      "storedBytesEstimate": 64,
+      "accessPattern": "compiled_into_owner_screen",
+      "mutable": false,
+      "decision": "INHERIT_OWNER_SCREEN_POLICY",
+      "reason": "Tile bytes are emitted as part of the reachable SCREEN 4 room graphics."
+    },
+    {
+      "type": "msx2screen",
+      "id": "msx2screen_1780415045987",
+      "name": "pantalla2",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 1616,
+      "storedBytesEstimate": 1616,
+      "accessPattern": "mixed_load_to_vram_and_runtime_read",
+      "mutable": false,
+      "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+      "reason": "Reachable SCREEN 4 room: graphics are loaded to VRAM; layers/spawns stay as ROM/runtime data.",
+      "parts": [
+        {
+          "name": "nameTable",
+          "rawBytes": 768,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+        },
+        {
+          "name": "patterns",
+          "rawBytes": 40,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        },
+        {
+          "name": "colors",
+          "rawBytes": 40,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        },
+        {
+          "name": "runtimeLayersAndSpawns",
+          "rawBytes": 768,
+          "accessPattern": "runtime_read",
+          "decision": "ROM_RAW",
+          "placement": "world_data_bank",
+          "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
+        }
+      ],
+      "screenLabel": "PANTALLA2",
+      "payloadParts": [
+        {
+          "label": "PANTALLA2_NAMES",
+          "kind": "screen4_names",
+          "rawBytes": 768,
+          "loadOrder": 20
+        },
+        {
+          "label": "PANTALLA2_BANK_0_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 8,
+          "loadOrder": 0
+        },
+        {
+          "label": "PANTALLA2_BANK_0_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 8,
+          "loadOrder": 1
+        },
+        {
+          "label": "PANTALLA2_BANK_1_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 8,
+          "loadOrder": 2
+        },
+        {
+          "label": "PANTALLA2_BANK_1_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 8,
+          "loadOrder": 3
+        },
+        {
+          "label": "PANTALLA2_BANK_2_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 24,
+          "loadOrder": 4
+        },
+        {
+          "label": "PANTALLA2_BANK_2_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 24,
+          "loadOrder": 5
+        },
+        {
+          "label": "PANTALLA2_COLLISION",
+          "kind": "screen4_collision",
+          "rawBytes": 192,
+          "loadOrder": 30
+        },
+        {
+          "label": "PANTALLA2_EFFECTS",
+          "kind": "screen4_effects",
+          "rawBytes": 192,
+          "loadOrder": 31
+        },
+        {
+          "label": "PANTALLA2_BEHAVIOR",
+          "kind": "screen4_behavior",
+          "rawBytes": 192,
+          "loadOrder": 32
+        },
+        {
+          "label": "PANTALLA2_CELL_FLAGS",
+          "kind": "screen4_cell_flags",
+          "rawBytes": 192,
+          "loadOrder": 33
+        },
+        {
+          "label": "PANTALLA2_VISUAL_MAP",
+          "kind": "screen4_visual_map",
+          "rawBytes": 192,
+          "loadOrder": 34
+        },
+        {
+          "label": "PANTALLA2_TILE_HAZ_HIT",
+          "kind": "screen4_hazard_hitbox",
+          "rawBytes": 8,
+          "loadOrder": 35
+        }
+      ],
+      "payloadLabels": [
+        "PANTALLA2_NAMES",
+        "PANTALLA2_BANK_0_PATTERNS",
+        "PANTALLA2_BANK_0_COLORS",
+        "PANTALLA2_BANK_1_PATTERNS",
+        "PANTALLA2_BANK_1_COLORS",
+        "PANTALLA2_BANK_2_PATTERNS",
+        "PANTALLA2_BANK_2_COLORS",
+        "PANTALLA2_COLLISION",
+        "PANTALLA2_EFFECTS",
+        "PANTALLA2_BEHAVIOR",
+        "PANTALLA2_CELL_FLAGS",
+        "PANTALLA2_VISUAL_MAP",
+        "PANTALLA2_TILE_HAZ_HIT"
+      ]
+    },
+    {
+      "type": "msx2screen",
+      "id": "screen_platform_mymsxgame",
+      "name": "pantalla1",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 2304,
+      "storedBytesEstimate": 2304,
+      "accessPattern": "mixed_load_to_vram_and_runtime_read",
+      "mutable": false,
+      "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+      "reason": "Reachable SCREEN 4 room: graphics are loaded to VRAM; layers/spawns stay as ROM/runtime data.",
+      "parts": [
+        {
+          "name": "nameTable",
+          "rawBytes": 768,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_ZX0_CANDIDATE_TO_VRAM"
+        },
+        {
+          "name": "patterns",
+          "rawBytes": 384,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        },
+        {
+          "name": "colors",
+          "rawBytes": 384,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        },
+        {
+          "name": "runtimeLayersAndSpawns",
+          "rawBytes": 768,
+          "accessPattern": "runtime_read",
+          "decision": "ROM_RAW",
+          "placement": "world_data_bank",
+          "runtimePlacement": "ram_cache_for_collision_behavior_and_persistent_ram_for_effects"
+        }
+      ],
+      "screenLabel": "PANTALLA1",
+      "payloadParts": [
+        {
+          "label": "PANTALLA1_NAMES",
+          "kind": "screen4_names",
+          "rawBytes": 768,
+          "loadOrder": 20
+        },
+        {
+          "label": "PANTALLA1_BANK_0_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 112,
+          "loadOrder": 0
+        },
+        {
+          "label": "PANTALLA1_BANK_0_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 112,
+          "loadOrder": 1
+        },
+        {
+          "label": "PANTALLA1_BANK_1_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 144,
+          "loadOrder": 2
+        },
+        {
+          "label": "PANTALLA1_BANK_1_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 144,
+          "loadOrder": 3
+        },
+        {
+          "label": "PANTALLA1_BANK_2_PATTERNS",
+          "kind": "screen4_patterns",
+          "rawBytes": 128,
+          "loadOrder": 4
+        },
+        {
+          "label": "PANTALLA1_BANK_2_COLORS",
+          "kind": "screen4_colors",
+          "rawBytes": 128,
+          "loadOrder": 5
+        },
+        {
+          "label": "PANTALLA1_COLLISION",
+          "kind": "screen4_collision",
+          "rawBytes": 192,
+          "loadOrder": 30
+        },
+        {
+          "label": "PANTALLA1_EFFECTS",
+          "kind": "screen4_effects",
+          "rawBytes": 192,
+          "loadOrder": 31
+        },
+        {
+          "label": "PANTALLA1_BEHAVIOR",
+          "kind": "screen4_behavior",
+          "rawBytes": 192,
+          "loadOrder": 32
+        },
+        {
+          "label": "PANTALLA1_CELL_FLAGS",
+          "kind": "screen4_cell_flags",
+          "rawBytes": 192,
+          "loadOrder": 33
+        },
+        {
+          "label": "PANTALLA1_VISUAL_MAP",
+          "kind": "screen4_visual_map",
+          "rawBytes": 192,
+          "loadOrder": 34
+        },
+        {
+          "label": "PANTALLA1_TILE_HAZ_HIT",
+          "kind": "screen4_hazard_hitbox",
+          "rawBytes": 16,
+          "loadOrder": 35
+        }
+      ],
+      "payloadLabels": [
+        "PANTALLA1_NAMES",
+        "PANTALLA1_BANK_0_PATTERNS",
+        "PANTALLA1_BANK_0_COLORS",
+        "PANTALLA1_BANK_1_PATTERNS",
+        "PANTALLA1_BANK_1_COLORS",
+        "PANTALLA1_BANK_2_PATTERNS",
+        "PANTALLA1_BANK_2_COLORS",
+        "PANTALLA1_COLLISION",
+        "PANTALLA1_EFFECTS",
+        "PANTALLA1_BEHAVIOR",
+        "PANTALLA1_CELL_FLAGS",
+        "PANTALLA1_VISUAL_MAP",
+        "PANTALLA1_TILE_HAZ_HIT"
+      ]
+    },
+    {
+      "type": "msx2sprite",
+      "id": "msx2sprite_1779969383977",
+      "name": "player_spr",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 288,
+      "storedBytesEstimate": 288,
+      "accessPattern": "load_to_vram",
+      "mutable": false,
+      "decision": "ROM_RAW_TO_VRAM",
+      "reason": "Referenced MSX2 hardware sprite source; sprite patterns/colors are loaded to VRAM/SAT data.",
+      "superSpriteLayout": "single16",
+      "superSpriteParts": [
+        {
+          "label": "A",
+          "offsetX": 0,
+          "offsetY": 0,
+          "width": 16,
+          "height": 16
+        }
+      ],
+      "metaspriteCells": {
+        "columns": 1,
+        "rows": 1,
+        "count": 1
+      },
+      "hardwareLayerCount": 2,
+      "emittedHardwareLayerCount": 2,
+      "worstScanlineHardwareSprites": 2,
+      "scanlineLimit": 15,
+      "overScanlineLimit": false,
+      "parts": [
+        {
+          "name": "patterns",
+          "rawBytes": 256,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        },
+        {
+          "name": "lineColors",
+          "rawBytes": 32,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        }
+      ]
+    },
+    {
+      "type": "msx2sprite",
+      "id": "msx2sprite_1780501897203",
+      "name": "caja (sprite)",
+      "ownerWorldIds": [
+        "worldmap_1780415077651"
+      ],
+      "rawBytes": 48,
+      "storedBytesEstimate": 48,
+      "accessPattern": "load_to_vram",
+      "mutable": false,
+      "decision": "ROM_RAW_TO_VRAM",
+      "reason": "Referenced MSX2 hardware sprite source; sprite patterns/colors are loaded to VRAM/SAT data.",
+      "superSpriteLayout": "single16",
+      "superSpriteParts": [
+        {
+          "label": "A",
+          "offsetX": 0,
+          "offsetY": 0,
+          "width": 16,
+          "height": 16
+        }
+      ],
+      "metaspriteCells": {
+        "columns": 1,
+        "rows": 1,
+        "count": 1
+      },
+      "hardwareLayerCount": 1,
+      "emittedHardwareLayerCount": 1,
+      "worstScanlineHardwareSprites": 1,
+      "scanlineLimit": 15,
+      "overScanlineLimit": false,
+      "parts": [
+        {
+          "name": "patterns",
+          "rawBytes": 32,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        },
+        {
+          "name": "lineColors",
+          "rawBytes": 16,
+          "accessPattern": "load_to_vram",
+          "decision": "ROM_RAW_TO_VRAM"
+        }
+      ]
+    },
+    {
+      "type": "worldmap",
+      "id": "worldmap_1780415077651",
+      "name": "New Worldmap",
+      "rawBytes": 649,
+      "storedBytesEstimate": 649,
+      "accessPattern": "manifest_read",
+      "mutable": false,
+      "decision": "ROM_RAW",
+      "reason": "Included by the active MSX2 project slice; precise backend packing remains allocator-owned."
+    }
+  ],
+  "logicalBankBudget": {
+    "bankSizeBytes": 8192,
+    "warningThresholdBytes": 7372,
+    "totalPayloadBytes": 4905,
+    "estimatedMinimumBanks": 1,
+    "estimatedPackedBankCount": 1,
+    "estimatedPackedBanks": [
+      {
+        "bankIndex": 0,
+        "bankSizeBytes": 8192,
+        "warningThresholdBytes": 7372,
+        "usedBytes": 4905,
+        "freeBytes": 3287,
+        "usedPercent": 59.88,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "status": "ok",
+        "packages": [
+          {
+            "id": "msx2screen.screen_platform_mymsxgame",
+            "usedBytes": 2304,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "msx2screen.msx2screen_1780415045987",
+            "usedBytes": 1616,
+            "recommendedBankClass": "world.screen"
+          },
+          {
+            "id": "worldmap.worldmap_1780415077651",
+            "usedBytes": 649,
+            "recommendedBankClass": "world.manifest"
+          },
+          {
+            "id": "msx2sprite.msx2sprite_1779969383977",
+            "usedBytes": 288,
+            "recommendedBankClass": "world.graphics.sprite"
+          },
+          {
+            "id": "msx2sprite.msx2sprite_1780501897203",
+            "usedBytes": 48,
+            "recommendedBankClass": "world.graphics.sprite"
+          }
+        ]
+      }
+    ],
+    "overBudgetPackages": [],
+    "warningPackages": [],
+    "warningPackedBanks": [],
+    "bankClassSummary": [
+      {
+        "id": "world.screen",
+        "packageCount": 2,
+        "usedBytes": 3920,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2screen.screen_platform_mymsxgame",
+          "usedBytes": 2304
+        }
+      },
+      {
+        "id": "world.manifest",
+        "packageCount": 1,
+        "usedBytes": 649,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "worldmap.worldmap_1780415077651",
+          "usedBytes": 649
+        }
+      },
+      {
+        "id": "world.graphics.sprite",
+        "packageCount": 2,
+        "usedBytes": 336,
+        "estimatedMinimumBanks": 1,
+        "warningPackageCount": 0,
+        "overBudgetPackageCount": 0,
+        "largestPackage": {
+          "id": "msx2sprite.msx2sprite_1779969383977",
+          "usedBytes": 288
+        }
+      }
+    ],
+    "recoveryRecommendations": [
+      {
+        "severity": "ok",
+        "target": "logicalBankBudget",
+        "reason": "All estimated packages fit below warning threshold.",
+        "action": "No recovery needed before the final allocator pass."
+      }
+    ],
+    "recoveryPlan": [
+      {
+        "order": 1,
+        "id": "repack_final_sizes",
+        "status": "not_needed",
+        "trigger": "estimated packed bank reaches warning threshold or any package is over one 8 KB window",
+        "appliesTo": [],
+        "action": "Re-run first-fit-decreasing with final stored sizes after ZX0 policy decisions."
+      },
+      {
+        "order": 2,
+        "id": "split_world_packages",
+        "status": "not_needed",
+        "trigger": "independently addressable world/screen/sprite package is too large or near the bank limit",
+        "appliesTo": [],
+        "action": "Split the logical world package across additional physical world data banks."
+      },
+      {
+        "order": 3,
+        "id": "move_cold_readonly_data",
+        "status": "not_needed",
+        "trigger": "resident or manifest data creates bank pressure",
+        "appliesTo": [],
+        "action": "Move cold read-only tables out of resident/core placement and into world data banks."
+      },
+      {
+        "order": 4,
+        "id": "selective_zx0",
+        "status": "not_needed",
+        "trigger": "large load-to-VRAM screen, pattern, color, tilemap, or sprite data creates pressure",
+        "appliesTo": [],
+        "action": "Try ZX0 only for large load-to-VRAM resources; keep runtime lookup data raw."
+      },
+      {
+        "order": 5,
+        "id": "keep_hot_runtime_raw",
+        "status": "enforced",
+        "trigger": "runtime table is tiny, mutable, or accessed in hot loops",
+        "appliesTo": [
+          "runtime lookup tables",
+          "entity instances",
+          "state-machine runtime state"
+        ],
+        "action": "Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables."
+      },
+      {
+        "order": 6,
+        "id": "world_special_code_bank",
+        "status": "not_needed",
+        "trigger": "rare behavior or boss-specific code contributes to resident pressure",
+        "appliesTo": [],
+        "action": "Move rare behavior behind a world special-code bank and far-call boundary."
+      },
+      {
+        "order": 7,
+        "id": "split_large_payload_chunks",
+        "status": "not_needed",
+        "trigger": "single screen/graphics payload cannot fit one mapper window as a unit",
+        "appliesTo": [],
+        "action": "Split large screen or graphics payloads into loader-addressable chunks only when each chunk is independently referenced."
+      },
+      {
+        "order": 8,
+        "id": "fail_actionable_report",
+        "status": "ready",
+        "trigger": "all deterministic recovery attempts still leave an over-budget unit",
+        "appliesTo": [],
+        "action": "Fail before Glass with largest contributors and concrete authoring changes."
+      }
+    ],
+    "packages": [
+      {
+        "id": "msx2screen.msx2screen_1780415045987",
+        "type": "msx2screen",
+        "sourceId": "msx2screen_1780415045987",
+        "recommendedBankClass": "world.screen",
+        "usedBytes": 1616,
+        "freeBytesIfAlone": 6576,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "canSplit": true,
+        "screenLabel": "PANTALLA2",
+        "payloadParts": [
+          {
+            "label": "PANTALLA2_NAMES",
+            "kind": "screen4_names",
+            "rawBytes": 768,
+            "loadOrder": 20
+          },
+          {
+            "label": "PANTALLA2_BANK_0_PATTERNS",
+            "kind": "screen4_patterns",
+            "rawBytes": 8,
+            "loadOrder": 0
+          },
+          {
+            "label": "PANTALLA2_BANK_0_COLORS",
+            "kind": "screen4_colors",
+            "rawBytes": 8,
+            "loadOrder": 1
+          },
+          {
+            "label": "PANTALLA2_BANK_1_PATTERNS",
+            "kind": "screen4_patterns",
+            "rawBytes": 8,
+            "loadOrder": 2
+          },
+          {
+            "label": "PANTALLA2_BANK_1_COLORS",
+            "kind": "screen4_colors",
+            "rawBytes": 8,
+            "loadOrder": 3
+          },
+          {
+            "label": "PANTALLA2_BANK_2_PATTERNS",
+            "kind": "screen4_patterns",
+            "rawBytes": 24,
+            "loadOrder": 4
+          },
+          {
+            "label": "PANTALLA2_BANK_2_COLORS",
+            "kind": "screen4_colors",
+            "rawBytes": 24,
+            "loadOrder": 5
+          },
+          {
+            "label": "PANTALLA2_COLLISION",
+            "kind": "screen4_collision",
+            "rawBytes": 192,
+            "loadOrder": 30
+          },
+          {
+            "label": "PANTALLA2_EFFECTS",
+            "kind": "screen4_effects",
+            "rawBytes": 192,
+            "loadOrder": 31
+          },
+          {
+            "label": "PANTALLA2_BEHAVIOR",
+            "kind": "screen4_behavior",
+            "rawBytes": 192,
+            "loadOrder": 32
+          },
+          {
+            "label": "PANTALLA2_CELL_FLAGS",
+            "kind": "screen4_cell_flags",
+            "rawBytes": 192,
+            "loadOrder": 33
+          },
+          {
+            "label": "PANTALLA2_VISUAL_MAP",
+            "kind": "screen4_visual_map",
+            "rawBytes": 192,
+            "loadOrder": 34
+          },
+          {
+            "label": "PANTALLA2_TILE_HAZ_HIT",
+            "kind": "screen4_hazard_hitbox",
+            "rawBytes": 8,
+            "loadOrder": 35
+          }
+        ],
+        "payloadLabels": [
+          "PANTALLA2_NAMES",
+          "PANTALLA2_BANK_0_PATTERNS",
+          "PANTALLA2_BANK_0_COLORS",
+          "PANTALLA2_BANK_1_PATTERNS",
+          "PANTALLA2_BANK_1_COLORS",
+          "PANTALLA2_BANK_2_PATTERNS",
+          "PANTALLA2_BANK_2_COLORS",
+          "PANTALLA2_COLLISION",
+          "PANTALLA2_EFFECTS",
+          "PANTALLA2_BEHAVIOR",
+          "PANTALLA2_CELL_FLAGS",
+          "PANTALLA2_VISUAL_MAP",
+          "PANTALLA2_TILE_HAZ_HIT"
+        ]
+      },
+      {
+        "id": "msx2screen.screen_platform_mymsxgame",
+        "type": "msx2screen",
+        "sourceId": "screen_platform_mymsxgame",
+        "recommendedBankClass": "world.screen",
+        "usedBytes": 2304,
+        "freeBytesIfAlone": 5888,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "canSplit": true,
+        "screenLabel": "PANTALLA1",
+        "payloadParts": [
+          {
+            "label": "PANTALLA1_NAMES",
+            "kind": "screen4_names",
+            "rawBytes": 768,
+            "loadOrder": 20
+          },
+          {
+            "label": "PANTALLA1_BANK_0_PATTERNS",
+            "kind": "screen4_patterns",
+            "rawBytes": 112,
+            "loadOrder": 0
+          },
+          {
+            "label": "PANTALLA1_BANK_0_COLORS",
+            "kind": "screen4_colors",
+            "rawBytes": 112,
+            "loadOrder": 1
+          },
+          {
+            "label": "PANTALLA1_BANK_1_PATTERNS",
+            "kind": "screen4_patterns",
+            "rawBytes": 144,
+            "loadOrder": 2
+          },
+          {
+            "label": "PANTALLA1_BANK_1_COLORS",
+            "kind": "screen4_colors",
+            "rawBytes": 144,
+            "loadOrder": 3
+          },
+          {
+            "label": "PANTALLA1_BANK_2_PATTERNS",
+            "kind": "screen4_patterns",
+            "rawBytes": 128,
+            "loadOrder": 4
+          },
+          {
+            "label": "PANTALLA1_BANK_2_COLORS",
+            "kind": "screen4_colors",
+            "rawBytes": 128,
+            "loadOrder": 5
+          },
+          {
+            "label": "PANTALLA1_COLLISION",
+            "kind": "screen4_collision",
+            "rawBytes": 192,
+            "loadOrder": 30
+          },
+          {
+            "label": "PANTALLA1_EFFECTS",
+            "kind": "screen4_effects",
+            "rawBytes": 192,
+            "loadOrder": 31
+          },
+          {
+            "label": "PANTALLA1_BEHAVIOR",
+            "kind": "screen4_behavior",
+            "rawBytes": 192,
+            "loadOrder": 32
+          },
+          {
+            "label": "PANTALLA1_CELL_FLAGS",
+            "kind": "screen4_cell_flags",
+            "rawBytes": 192,
+            "loadOrder": 33
+          },
+          {
+            "label": "PANTALLA1_VISUAL_MAP",
+            "kind": "screen4_visual_map",
+            "rawBytes": 192,
+            "loadOrder": 34
+          },
+          {
+            "label": "PANTALLA1_TILE_HAZ_HIT",
+            "kind": "screen4_hazard_hitbox",
+            "rawBytes": 16,
+            "loadOrder": 35
+          }
+        ],
+        "payloadLabels": [
+          "PANTALLA1_NAMES",
+          "PANTALLA1_BANK_0_PATTERNS",
+          "PANTALLA1_BANK_0_COLORS",
+          "PANTALLA1_BANK_1_PATTERNS",
+          "PANTALLA1_BANK_1_COLORS",
+          "PANTALLA1_BANK_2_PATTERNS",
+          "PANTALLA1_BANK_2_COLORS",
+          "PANTALLA1_COLLISION",
+          "PANTALLA1_EFFECTS",
+          "PANTALLA1_BEHAVIOR",
+          "PANTALLA1_CELL_FLAGS",
+          "PANTALLA1_VISUAL_MAP",
+          "PANTALLA1_TILE_HAZ_HIT"
+        ]
+      },
+      {
+        "id": "msx2sprite.msx2sprite_1779969383977",
+        "type": "msx2sprite",
+        "sourceId": "msx2sprite_1779969383977",
+        "recommendedBankClass": "world.graphics.sprite",
+        "usedBytes": 288,
+        "freeBytesIfAlone": 7904,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "canSplit": true,
+        "payloadParts": [],
+        "payloadLabels": []
+      },
+      {
+        "id": "msx2sprite.msx2sprite_1780501897203",
+        "type": "msx2sprite",
+        "sourceId": "msx2sprite_1780501897203",
+        "recommendedBankClass": "world.graphics.sprite",
+        "usedBytes": 48,
+        "freeBytesIfAlone": 8144,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "canSplit": true,
+        "payloadParts": [],
+        "payloadLabels": []
+      },
+      {
+        "id": "worldmap.worldmap_1780415077651",
+        "type": "worldmap",
+        "sourceId": "worldmap_1780415077651",
+        "recommendedBankClass": "world.manifest",
+        "usedBytes": 649,
+        "freeBytesIfAlone": 7543,
+        "warning": false,
+        "overBudgetBytes": 0,
+        "canSplit": false,
+        "payloadParts": [],
+        "payloadLabels": []
+      }
+    ],
+    "splitPackages": [],
+    "splitChunkManifest": [],
+    "splitSourcePackages": [],
+    "note": "Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression."
+  },
+  "ramBudget": {
+    "scope": "msx2_screen4_ram_budget",
+    "start": "#C000",
+    "end": "#C644",
+    "limit": "#F300",
+    "usableBytes": 13056,
+    "usedBytes": 1604,
+    "freeBytes": 11452,
+    "warningThresholdBytes": 11097,
+    "maxPersistentScreens": 60,
+    "reachableScreens": 2,
+    "status": "ok",
+    "sections": [
+      {
+        "id": "runtime.globals_player_input",
+        "start": "#C000",
+        "end": "#C047",
+        "bytes": 71,
+        "mutable": true,
+        "reason": "Fixed hot runtime state for player/input/global counters."
+      },
+      {
+        "id": "runtime.snake_body_cache",
+        "start": "#C047",
+        "end": "#C087",
+        "bytes": 64,
+        "mutable": true,
+        "reason": "Fixed-size cache reserved only for snake-char body state."
+      },
+      {
+        "id": "runtime.persistent_effect_layers",
+        "start": "#C087",
+        "end": "#C207",
+        "bytes": 384,
+        "mutable": true,
+        "count": 2,
+        "bytesPerScreen": 192,
+        "reason": "One mutable effects layer per reachable SCREEN 4 room."
+      },
+      {
+        "id": "runtime.effects_scratch",
+        "start": "#C210",
+        "end": "#C2D0",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
+      },
+      {
+        "id": "runtime.collision_current_cache",
+        "start": "#C2D0",
+        "end": "#C390",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Hot cache for the current SCREEN 4 collision layer copied from ROM data banks."
+      },
+      {
+        "id": "runtime.behavior_current_cache",
+        "start": "#C390",
+        "end": "#C450",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks."
+      },
+      {
+        "id": "runtime.cell_flags_current_cache",
+        "start": "#C450",
+        "end": "#C510",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Packed current SCREEN 4 solid/effect/behavior flags, staged for the unified runtime layer contract."
+      },
+      {
+        "id": "runtime.visual_map_cache",
+        "start": "#C510",
+        "end": "#C5D0",
+        "bytes": 192,
+        "mutable": true,
+        "reason": "Current SCREEN 4 visual tile index map used for per-tile hazard hitbox lookup."
+      },
+      {
+        "id": "runtime.hazard_hitbox_cache",
+        "start": "#C5D0",
+        "end": "#C6D0",
+        "bytes": 256,
+        "mutable": true,
+        "reason": "Current SCREEN 4 per-tile hazard hitbox table (ox, oy, w, h bytes)."
+      },
+      {
+        "id": "runtime.enemy_pool",
+        "start": "#C6E0",
+        "end": "#C734",
+        "bytes": 84,
+        "mutable": true,
+        "slots": 12,
+        "reason": "Active enemy/hazard runtime arrays; ROM keeps enemy templates."
+      }
+    ],
+    "recommendations": [
+      {
+        "severity": "ok",
+        "target": "runtimeRam",
+        "reason": "Estimated runtime RAM fits below warning threshold.",
+        "action": "No RAM recovery needed for this project slice."
+      }
+    ],
+    "note": "RAM budget reports mutable runtime state only. ROM and VRAM storage are reported separately."
+  },
+  "includedComponents": [
+    "msx2_player_control",
+    "msx2_push_box"
+  ],
+  "includedMovementProfiles": [],
+  "includedAttackProfiles": [],
+  "includedStateMachines": [],
+  "estimatedRamNeeds": {
+    "start": "#C000",
+    "end": "#C644",
+    "limit": "#F300",
+    "usedBytes": 1604,
+    "freeBytes": 11452,
+    "persistentEffectBytes": 384,
+    "enemyRuntimeBytes": 84,
+    "ramBudgetStatus": "ok"
+  },
+  "estimatedRomNeeds": {
+    "reachableMsx2ScreenCount": 2,
+    "reachableMsx2SpriteCount": 2,
+    "reachableWorldCount": 1,
+    "usesKonamiDataBank": true,
+    "romPayloadBytesEstimate": 4905,
+    "estimated8kBanksForPayload": 1,
+    "warningThresholdBytesPerBank": 7372,
+    "note": "Slice reports reachability and storage policy estimates; final bank placement remains allocator-owned."
+  },
+  "screen4DataBankPlan": {
+    "supported": true,
+    "bankCount": 1,
+    "dataWindowAddress": "#8000",
+    "unsupportedReason": null,
+    "splitChunkCount": 0,
+    "splitChunkManifest": [],
+    "screenBanks": [
+      {
+        "label": "PANTALLA1",
+        "packageId": "msx2screen.screen_platform_mymsxgame",
+        "bankIndex": 0,
+        "physicalBank": 4
+      },
+      {
+        "label": "PANTALLA2",
+        "packageId": "msx2screen.msx2screen_1780415045987",
+        "bankIndex": 0,
+        "physicalBank": 4
+      }
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+setup mode0=8 enemyx=200 playerx=16
+afterLeft enemyx=129 playerx=40
+afterRight enemyx=207 playerx=230

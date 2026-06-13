@@ -19,7 +19,7 @@ const VDP_CMD_PORT = '#9B';
 const VDP_PALETTE_PORT = '#9A';
 
 const CMD_COPY_8 = 0xD0;
-const CMD_COPY_16 = 0x98;
+const CMD_COPY_16 = 0xD0;
 const CMD_FILL = 0xC0;
 const CMD_LINE = 0x70;
 
@@ -73,10 +73,12 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
       source: room?.composition?.source || 'authored',
       commands: room?.composition?.commands || [],
     },
+    visibleFramebuffer: room?.visibleFramebuffer,
     collision: room?.collision || [],
     effects: room?.effects || [],
     behavior: room?.behavior || [],
     entities: room?.entities || [],
+    playerEntries: room?.playerEntries || [],
     notes: room?.notes,
   };
 }
@@ -168,6 +170,15 @@ function packAtlasPixels(room: Msx2Screen4BitmapRoom): number[] {
   return packBitmapPixels(rows);
 }
 
+function normalizeVisibleFramebuffer(room: Msx2Screen4BitmapRoom): number[][] | undefined {
+  const pixels = room.visibleFramebuffer?.pixels;
+  if (!Array.isArray(pixels)) return undefined;
+  const height = room.height || SCREEN_HEIGHT_DEFAULT;
+  return Array.from({ length: height }, (_unused, y) =>
+    Array.from({ length: SCREEN_WIDTH }, (_unused2, x) => clampByte(pixels[y]?.[x], 0) & 0x0f)
+  );
+}
+
 interface CommandRecord {
   op: number;
   sx: number;
@@ -248,6 +259,9 @@ function buildVdpCommandBlock(record: CommandRecord): number[] {
     record.op === OP_COPY_16 ? CMD_COPY_16 :
     record.op === OP_COPY_8 ? CMD_COPY_8 :
     CMD_FILL;
+  const color = record.op === OP_FILL || record.op === OP_LINE_H || record.op === OP_LINE_V
+    ? ((record.color & 0x0f) << 4) | (record.color & 0x0f)
+    : 0;
   return [
     record.sx & 0xff,
     (record.sx >> 8) & 0xff,
@@ -261,7 +275,7 @@ function buildVdpCommandBlock(record: CommandRecord): number[] {
     (record.nx >> 8) & 0xff,
     record.ny & 0xff,
     (record.ny >> 8) & 0xff,
-    record.op === OP_FILL || record.op === OP_LINE_H || record.op === OP_LINE_V ? (record.color & 0x0f) : 0,
+    color,
     0,
     commandByte,
   ];
@@ -352,85 +366,51 @@ vdp_reinit_cmd_pointer:
     ; Point indirect writes at R#32 with auto-increment. Clobbers AF.
     ld a, #20
     ld e, a
-    ld a, #17
+    ld a, #11
     jp vdp_write_register
 
 read_vdp_status_2:
     ; Returns S#2 in A. Clobbers AF.
+    ld a, #02
+    out (${VDP_CTRL_PORT}), a
     ld a, #8F
     out (${VDP_CTRL_PORT}), a
     in a, (${VDP_CTRL_PORT})
     ret
 
 vdp_wait_cmd_ready:
-    ; Wait until CE (bit 0) is set. Clobbers AF.
+    ; Wait while CE (bit 0) is set. Clobbers AF.
 .wait_loop:
     call read_vdp_status_2
     bit 0, a
-    jp z, .wait_loop
+    jp nz, .wait_loop
     ret
 
 init_screen4_bitmap_vdp:
-    ; MSX2 bitmap mode registers observed in Vampire Killer gameplay.
-    ld a, #00
-    ld e, #06
-    call vdp_write_register
-    ld a, #01
-    ld e, #62
-    call vdp_write_register
-    ld a, #02
-    ld e, #1F
-    call vdp_write_register
-    ld a, #03
-    ld e, #80
-    call vdp_write_register
-    ld a, #04
-    ld e, #00
-    call vdp_write_register
+    ; This backend composes 4bpp bitmap pages with V9938 commands (128 bytes per
+    ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The editor
+    ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
+    ld a, #05
+    call CHGMOD
+    ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
     ld a, #05
     ld e, #EF
     call vdp_write_register
     ld a, #06
     ld e, #1F
     call vdp_write_register
-    ld a, #07
-    ld e, #00
-    call vdp_write_register
-    ld a, #08
-    ld e, #08
-    call vdp_write_register
-    ld a, #09
-    ld e, #80
-    call vdp_write_register
-    ld a, #11
+    ld a, #0B
     ld e, #01
     call vdp_write_register
-    ld a, #14
-    ld e, #03
-    call vdp_write_register
-    ld a, #17
+    ; Point indirect writes at command register R#32.
+    ld a, #11
     ld e, #20
     call vdp_write_register
     ret
 
 compose_bitmap_room:
-    ; Streams prepacked R#32-R#46 blocks to port #9B. Clobbers AF/BC/HL.
-    ld hl, bitmap_room_vdp_cmds
-    ld b, ${commandCount}
-.command_loop:
-    push bc
-    call vdp_reinit_cmd_pointer
-    ld c, #${VDP_CMD_BLOCK_SIZE}
-.cmd_bytes:
-    ld a, (hl)
-    out (${VDP_CMD_PORT}), a
-    inc hl
-    dec c
-    jp nz, .cmd_bytes
-    call vdp_wait_cmd_ready
-    pop bc
-    dec b
-    jp nz, .command_loop
+    ; Deprecated command-stream path. Current bitmap-room smoke uploads a
+    ; pre-rendered framebuffer for deterministic full-screen composition.
     ret
 
 load_screen4_bitmap_palette:
@@ -458,11 +438,14 @@ load_screen4_bitmap_palette:
     ret
 
 upload_bitmap_atlas:
-    ld hl, bitmap_room_atlas_data
-    ld de, ${hexWord(atlasVramBase)}
-    ld bc, bitmap_room_atlas_data_end - bitmap_room_atlas_data
-    call copy_to_vram_ext
+    ; Deprecated atlas path; kept as a stable label for older smoke contracts.
     ret
+
+upload_bitmap_framebuffer:
+    ld hl, bitmap_room_framebuffer_data
+    ld de, #0000
+    ld bc, bitmap_room_framebuffer_data_end - bitmap_room_framebuffer_data
+    jp copy_to_vram_ext
 
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
@@ -478,14 +461,146 @@ init_hardware_sprite_tables:
     ld de, #F800
     ld bc, bitmap_room_sprite_patterns_end - bitmap_room_sprite_patterns
     jp copy_to_vram_ext
+
+bitmap_wait_vblank:
+    ; Poll VDP status S#0 until the frame flag (bit 7) is set: a 60 Hz tick that
+    ; does NOT depend on BIOS frame interrupts (the VK-style VDP init does not
+    ; enable a BIOS-compatible vblank IRQ). Assumes R#15 = 0. Clobbers AF.
+.wv_loop:
+    in a, (VDP_CTRL_PORT)
+    bit 7, a
+    jp z, .wv_loop
+    ret
+
+update_player_movement:
+    ; Cursor movement (1px/frame) with 16x16-cell collision. Reads keyboard
+    ; row 8 directly via SNSMAT (a 0 bit means pressed): bit7=right, bit6=down,
+    ; bit5=up, bit4=left. SNSMAT works without frame interrupts, unlike GTSTCK.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, 8
+    call SNSMAT
+    cpl                     ; now a set bit means that key is pressed
+    ld c, a                 ; C = pressed mask for keyboard row 8
+bitmap_stick_dx:
+    bit 7, c
+    jp z, .not_right
+    ld a, 1
+    push bc
+    call bitmap_try_move_x
+    pop bc
+    jp .check_vert
+.not_right:
+    bit 4, c
+    jp z, .check_vert
+    ld a, #FF
+    push bc
+    call bitmap_try_move_x
+    pop bc
+.check_vert:
+    bit 6, c
+    jp z, .not_down
+    ld a, 1
+    jp bitmap_try_move_y
+.not_down:
+    bit 5, c
+    ret z
+    ld a, #FF
+    jp bitmap_try_move_y
+
+bitmap_try_move_x:
+    ; A = signed dx (#01 right, #FF left). Commits player_x when the leading
+    ; edge (probed at vertical centre y+8) is not a solid cell. The candidate is
+    ; kept on the stack because bitmap_probe_solid clobbers DE (keeps only BC).
+    ld b, a
+    ld a, (player_x)
+    add a, b                ; A = candidate X (top-left)
+    push af                 ; save candidate across the probe
+    bit 7, b
+    jp nz, .left_edge
+    add a, 15               ; moving right: probe the right edge
+.left_edge:
+    ld b, a                 ; B = probe X (left edge keeps the candidate X)
+    ld a, (player_y)
+    add a, 8
+    ld c, a                 ; C = probe Y (vertical centre)
+    call bitmap_probe_solid
+    jp nz, .x_blocked
+    pop af                  ; A = candidate X
+    ld (player_x), a
+    ret
+.x_blocked:
+    pop af
+    ret
+
+bitmap_try_move_y:
+    ; A = signed dy (#01 down, #FF up). Commits player_y when the leading edge
+    ; (probed at horizontal centre x+8) is not a solid cell. Candidate kept on
+    ; the stack (bitmap_probe_solid clobbers DE).
+    ld b, a
+    ld a, (player_y)
+    add a, b                ; A = candidate Y (top-left)
+    push af
+    bit 7, b
+    jp nz, .up_edge
+    add a, 15               ; moving down: probe the bottom edge
+.up_edge:
+    ld c, a                 ; C = probe Y (top edge keeps the candidate Y)
+    ld a, (player_x)
+    add a, 8
+    ld b, a                 ; B = probe X (horizontal centre)
+    call bitmap_probe_solid
+    jp nz, .y_blocked
+    pop af                  ; A = candidate Y
+    ld (player_y), a
+    ret
+.y_blocked:
+    pop af
+    ret
+
+bitmap_probe_solid:
+    ; B = pixel X, C = pixel Y. Returns A = collision cell value with Z set
+    ; when empty. Index = (Y & #F0) + (X >> 4) into the 16x12 grid. Because a
+    ; cell is 16 px, (Y >> 4) * 16 == (Y & #F0). Clobbers AF/DE/HL; keeps BC.
+    ld a, c
+    cp 192
+    jp c, .probe_y_visible
+    ld a, 1                 ; outside visible Y range is solid
+    or a
+    ret
+.probe_y_visible:
+    ld a, c
+    and #F0
+    ld l, a
+    ld a, b
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, l
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de
+    ld a, (hl)
+    or a
+    ret
+
+bitmap_update_sprite_sat:
+    ; Copy the 4-byte player SAT image (player_y,player_x,pattern,EC at #C000)
+    ; into sprite 0's SAT slot at VRAM #F600. Clobbers AF/BC/DE/HL.
+    ld hl, player_y
+    ld de, #F600
+    ld bc, 4
+    jp copy_to_vram_ext
 `;
 }
 
 function buildSpriteTables(): { colors: number[]; attrs: number[]; patterns: number[] } {
   const colors = Array.from({ length: 16 }, () => 0x01);
   const attrs = [
-    0x90, 0x80, 0x08, 0x00,
-    0xA0, 0x80, 0x00, 0x00,
+    0x60, 0x80, 0x00, 0x00, // sprite 0: player (Y,X overwritten each frame), pattern 0
+    0xD8, 0x00, 0x00, 0x00, // Y=#D8 stops sprite processing, so only sprite 0 shows
     0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00,
   ];
@@ -502,14 +617,64 @@ function buildSpriteTables(): { colors: number[]; attrs: number[]; patterns: num
   return { colors, attrs, patterns };
 }
 
+const COLLISION_COLS = 16;
+const COLLISION_ROWS = 12;
+
+function buildCollisionTableBytes(room: Msx2Screen4BitmapRoom): number[] {
+  const bytes: number[] = [];
+  for (let y = 0; y < COLLISION_ROWS; y++) {
+    for (let x = 0; x < COLLISION_COLS; x++) {
+      bytes.push(clampByte(room.collision?.[y]?.[x], 0));
+    }
+  }
+  return bytes;
+}
+
+function resolvePlayerSpawnPixels(room: Msx2Screen4BitmapRoom): { x: number; y: number; visible: boolean } {
+  const entry = (room.playerEntries || [])[0];
+  if (!entry) return { x: 0, y: 0xD8, visible: false };
+  const tileX = clampInt(entry?.x, 0, COLLISION_COLS - 1, 1);
+  const tileY = clampInt(entry?.y, 0, COLLISION_ROWS - 1, 1);
+  return { x: tileX * 16, y: tileY * 16, visible: true };
+}
+
+function appendRectBytes(bytes: number[], x: number, y: number, w: number, h: number, color: number): void {
+  const x0 = clampInt(x, 0, SCREEN_WIDTH, 0);
+  const y0 = clampInt(y, 0, SCREEN_HEIGHT_DEFAULT, 0);
+  const x1 = clampInt(x + Math.max(0, w), 0, SCREEN_WIDTH, 0);
+  const y1 = clampInt(y + Math.max(0, h), 0, SCREEN_HEIGHT_DEFAULT, 0);
+  if (x1 <= x0 || y1 <= y0) return;
+  const byteX = Math.floor(x0 / 2);
+  const byteX1 = Math.ceil(x1 / 2);
+  const widthBytes = byteX1 - byteX;
+  const height = y1 - y0;
+  const address = y0 * ROW_BYTES + byteX;
+  const nibble = clampByte(color, 0) & 0x0f;
+  bytes.push(address & 0xff, (address >> 8) & 0xff, widthBytes & 0xff, height & 0xff, (nibble << 4) | nibble);
+}
+
+function buildVisibleRectBytes(room: Msx2Screen4BitmapRoom): number[] {
+  const bytes: number[] = [];
+  for (const command of room.composition.commands || []) {
+    if (command.op === 'fill') {
+      appendRectBytes(bytes, command.x, command.y, command.w, command.h, command.color);
+    } else if (command.op === 'lineH') {
+      appendRectBytes(bytes, command.x, command.y, command.length, 1, command.color);
+    } else if (command.op === 'lineV') {
+      appendRectBytes(bytes, command.x, command.y, 1, command.length, command.color);
+    }
+  }
+  return bytes;
+}
+
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2BitmapRoomConfig): string {
   const room = normalizeRoom(firstBitmapRoom(analysis));
-  const commandRecords = buildCommandRecords(room);
-  const commandBytes = commandRecordsToVdpBlocks(commandRecords);
+  const collisionBytes = buildCollisionTableBytes(room);
+  const spawn = resolvePlayerSpawnPixels(room);
   const paletteBytes = buildPaletteBytes(room.palette);
-  const atlasBytes = packAtlasPixels(room);
+  const framebufferBytes = packBitmapPixels(normalizeVisibleFramebuffer(room) || renderRoomToPixels(room));
   const spriteTables = buildSpriteTables();
-  const runtimeAsm = buildRuntimeAsm(room, commandRecords.length);
+  const runtimeAsm = buildRuntimeAsm(room, 0);
   const visibleHeight = room.height || SCREEN_HEIGHT_DEFAULT;
 
   return `; File: unitedFiles.asm
@@ -520,16 +685,23 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Screen mode: ${config.screenMode}
 ; Backend: msx2-screen4-bitmap-room
 ; Visible page: VRAM #0000, ${ROW_BYTES} bytes/row, ${visibleHeight} lines
-; Atlas VRAM base: ${hexWord((room.atlas.offscreenBaseY || 320) * ROW_BYTES)} (offscreen Y=${room.atlas.offscreenBaseY || 320})
-; Commands: ${commandRecords.length}
+; Framebuffer bytes: ${framebufferBytes.length}
 ; ==================================================================
 
 CHGMOD  EQU #005F
 GTSTCK  EQU #00DC
+SNSMAT  EQU #0141
 VDP_CTRL_PORT EQU ${VDP_CTRL_PORT}
 VDP_DATA_PORT EQU ${VDP_DATA_PORT}
 VDP_CMD_PORT EQU ${VDP_CMD_PORT}
 VDP_PALETTE_PORT EQU ${VDP_PALETTE_PORT}
+
+; Player SAT image in RAM (kept contiguous so the 4 bytes copy straight to the
+; sprite 0 SAT slot at VRAM #F600): Y, X, pattern number, early-clock byte.
+player_y   EQU #C000
+player_x   EQU #C001
+player_pat EQU #C002
+player_ec  EQU #C003
 
     org #4000
 
@@ -546,25 +718,34 @@ init_rom:
     di
     call init_screen4_bitmap_vdp
     call load_screen4_bitmap_palette
-    call upload_bitmap_atlas
-    call compose_bitmap_room
+    call upload_bitmap_framebuffer
     call init_hardware_sprite_tables
+    ; Place the player at the room spawn point.
+    ld a, ${spawn.y}
+    ld (player_y), a
+    ld a, ${spawn.x}
+    ld (player_x), a
+    xor a
+    ld (player_pat), a
+    ld (player_ec), a
+    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+    ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
+    ; by polling the frame flag, so it does not depend on BIOS frame interrupts.
+    ld a, #0F
+    ld e, #00
+    call vdp_write_register
     ei
 .main_loop:
-    halt
-    call GTSTCK
-    bit 0, a
-    jp nz, init_rom
+    call bitmap_wait_vblank
+    call update_player_movement
+    call bitmap_update_sprite_sat
     jp .main_loop
 
 ${runtimeAsm}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-${formatBytes('bitmap_room_atlas_data', atlasBytes, `Offscreen atlas 4bpp bitmap (${room.atlas.width}x${room.atlas.height})`)}
-bitmap_room_atlas_data_end:
-
-${formatBytes('bitmap_room_vdp_cmds', commandBytes, `V9938 command blocks (${VDP_CMD_BLOCK_SIZE} bytes each)`)}
-bitmap_room_vdp_cmds_end:
+${formatBytes('bitmap_room_framebuffer_data', framebufferBytes, `Visible ${SCREEN_WIDTH}x${visibleHeight} framebuffer, packed 4bpp`)}
+bitmap_room_framebuffer_data_end:
 
 ${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, 'Sprite color table sample (slot 1)')}
 bitmap_room_sprite_colors_end:
@@ -575,7 +756,9 @@ bitmap_room_sprite_attrs_end:
 ${formatBytes('bitmap_room_sprite_patterns', spriteTables.patterns, 'Sprite patterns for sample player placeholder')}
 bitmap_room_sprite_patterns_end:
 
-    ds #8000 - $, #FF
+${formatBytes('bitmap_room_collision_map', collisionBytes, `${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}
+
+    ds #C000 - $, #FF
     end
 `;
 }

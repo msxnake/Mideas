@@ -68,27 +68,155 @@ def default_palette() -> list[dict[str, object]]:
     ]
 
 
-def build_atlas_pixels(width: int = 64, height: int = 32) -> list[list[int]]:
+BRICK_VARIANTS = [
+    ("brick_red", 8),
+    ("brick_orange", 9),
+    ("brick_yellow", 10),
+    ("brick_green", 12),
+    ("brick_cyan", 7),
+    ("brick_blue", 5),
+    ("brick_magenta", 13),
+    ("brick_white", 15),
+]
+
+
+def build_atlas_pixels(width: int = 128, height: int = 16) -> list[list[int]]:
     pixels = [[0 for _x in range(width)] for _y in range(height)]
 
-    for y in range(16):
-        for x in range(16):
-            if x in (0, 15) or y in (0, 15):
-                pixels[y][x] = 4
-            elif (x + y) % 2 == 0:
-                pixels[y][x] = 4
-            else:
-                pixels[y][x] = 5
-
-    for y in range(16):
-        for x in range(16, 32):
-            pixels[y][x] = 13 if y < 6 else 10 if y < 10 else 11
+    mortar = 1
+    for variant_index, (_brick_id, color) in enumerate(BRICK_VARIANTS):
+        x0 = variant_index * 16
+        for y in range(16):
+            for x in range(16):
+                split = 8 if y < 8 else 0
+                is_mortar = y in (0, 8, 15) or x in (0, 15) or x == split
+                pixels[y][x0 + x] = mortar if is_mortar else color
 
     return pixels
 
 
+def build_brick_entries() -> list[dict[str, object]]:
+    return [
+        {"id": brick_id, "name": brick_id.replace("_", " ").title(), "sx": index * 16, "sy": 0, "w": 16, "h": 16}
+        for index, (brick_id, _color) in enumerate(BRICK_VARIANTS)
+    ]
+
+
+def build_castle_commands() -> list[dict[str, object]]:
+    commands: list[dict[str, object]] = []
+
+    def rect(id_: str, x: int, y: int, w: int, h: int, color: int) -> None:
+        commands.append({"id": id_, "op": "fill", "x": x, "y": y, "w": w, "h": h, "color": color})
+
+    def brick_area(id_: str, x: int, y: int, w: int, h: int, color: int, highlight: int, shadow: int) -> None:
+        rect(f"{id_}_base", x, y, w, h, color)
+        for yy in range(y, y + h, 8):
+            row_h = min(8, y + h - yy)
+            rect(f"{id_}_hi_{yy}", x, yy, w, 2, highlight)
+            if row_h >= 7:
+                rect(f"{id_}_sh_{yy}", x, yy + 6, w, 2, shadow)
+            rect(f"{id_}_mortar_h_{yy}", x, yy, w, 1, 1)
+        for xx in range(x + 16, x + w, 16):
+            rect(f"{id_}_mortar_v_{xx}", xx, y, 1, h, 1)
+
+    def platform(id_: str, x: int, y: int, w: int) -> None:
+        rect(f"{id_}_shadow", x, y + 5, w, 3, 4)
+        rect(f"{id_}_top", x, y, w, 3, 15)
+
+    def ladder(id_: str, x: int, y: int, h: int) -> None:
+        rect(f"{id_}_left", x, y, 2, h, 6)
+        rect(f"{id_}_right", x + 8, y, 2, h, 6)
+        for yy in range(y + 4, y + h, 8):
+            rect(f"{id_}_rung_{yy}", x, yy, 10, 2, 10)
+
+    def window(id_: str, x: int, y: int) -> None:
+        rect(f"{id_}_outline", x, y + 6, 15, 28, 7)
+        rect(f"{id_}_void", x + 2, y + 8, 11, 24, 1)
+        rect(f"{id_}_cap1", x + 3, y + 3, 9, 4, 7)
+        rect(f"{id_}_cap2", x + 5, y, 5, 3, 7)
+        rect(f"{id_}_bars", x + 7, y + 7, 1, 25, 5)
+
+    def barrel(id_: str, x: int, y: int) -> None:
+        rect(f"{id_}_body", x, y, 12, 17, 6)
+        rect(f"{id_}_dark", x + 2, y + 2, 8, 13, 1)
+        rect(f"{id_}_slat1", x + 4, y + 2, 2, 13, 9)
+        rect(f"{id_}_slat2", x + 8, y + 2, 2, 13, 9)
+        rect(f"{id_}_band1", x + 1, y + 5, 10, 1, 15)
+        rect(f"{id_}_band2", x + 1, y + 11, 10, 1, 15)
+
+    def torch(id_: str, x: int, y: int) -> None:
+        rect(f"{id_}_pole", x + 4, y + 8, 2, 25, 10)
+        rect(f"{id_}_base", x, y + 31, 10, 2, 15)
+        rect(f"{id_}_flame1", x + 2, y + 2, 6, 6, 10)
+        rect(f"{id_}_flame2", x + 4, y, 3, 10, 8)
+        rect(f"{id_}_wick", x + 4, y + 6, 2, 5, 15)
+
+    # Dark brick hall.
+    brick_area("back_wall", 0, 0, 256, 192, 4, 7, 5)
+    brick_area("left_tower", 0, 80, 64, 112, 7, 15, 5)
+    brick_area("left_column", 0, 0, 17, 82, 7, 15, 5)
+    brick_area("floor", 64, 154, 118, 38, 7, 15, 5)
+    brick_area("right_lower", 176, 160, 64, 32, 4, 7, 5)
+    brick_area("right_wall", 220, 78, 36, 82, 7, 15, 5)
+    brick_area("mid_block", 144, 58, 32, 32, 7, 15, 5)
+    brick_area("top_trim", 144, 0, 112, 8, 7, 15, 5)
+
+    platform("left_platform", 16, 77, 64)
+    platform("left_mid_platform", 50, 104, 32)
+    platform("center_floor", 84, 146, 96)
+    platform("mid_platform", 144, 54, 32)
+    platform("right_platform", 176, 48, 80)
+
+    ladder("left_ladder", 17, 0, 80)
+    ladder("right_ladder", 232, 74, 86)
+
+    window("window_a", 66, 22)
+    window("window_b", 114, 22)
+    barrel("barrel_left", 50, 92)
+    barrel("barrel_top", 210, 51)
+    barrel("barrel_bottom", 178, 162)
+    torch("torch_left", 112, 122)
+    torch("torch_right", 178, 122)
+    rect("small_bat_left", 43, 66, 9, 5, 1)
+    rect("small_bat_right", 199, 88, 9, 5, 14)
+    rect("barrel_blue", 232, 166, 12, 24, 5)
+    rect("curtain_red", 248, 166, 8, 26, 8)
+    return commands
+
+
 def build_project() -> dict[str, object]:
     atlas_pixels = build_atlas_pixels()
+    commands = build_castle_commands()
+    room_data = {
+        "id": "bitmap_room_smoke",
+        "name": "Bitmap Room Smoke",
+        "target": "MSX2",
+        "vdpMode": "SCREEN4_BITMAP_ROOM",
+        "width": 256,
+        "height": 192,
+        "palette": default_palette(),
+        "atlas": {
+            "width": 128,
+            "height": 16,
+            "offscreenBaseY": 320,
+            "pixels": atlas_pixels,
+            "entries": build_brick_entries(),
+        },
+        "composition": {
+            "source": "authored",
+            "commands": commands,
+        },
+        "collision": [[0 for _x in range(16)] for _y in range(12)],
+        "effects": [[0 for _x in range(16)] for _y in range(12)],
+        "behavior": [[0 for _x in range(16)] for _y in range(12)],
+        "entities": [],
+        "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
+    }
+    room_data["visibleFramebuffer"] = {
+        "source": "pre-rendered",
+        "pixels": render_smoke_room_data(room_data),
+    }
+    room_data["composition"] = {"source": "authored", "commands": []}
     return {
         "name": "msx2_bitmap_room_smoke",
         "currentScreenMode": "SCREEN 4 (Graphics II)",
@@ -99,47 +227,51 @@ def build_project() -> dict[str, object]:
                 "id": "bitmap_room_smoke",
                 "name": "Bitmap Room Smoke",
                 "type": "msx2bitmaproom",
-                "data": {
-                    "id": "bitmap_room_smoke",
-                    "name": "Bitmap Room Smoke",
-                    "target": "MSX2",
-                    "vdpMode": "SCREEN4_BITMAP_ROOM",
-                    "width": 256,
-                    "height": 192,
-                    "palette": default_palette(),
-                    "atlas": {
-                        "width": 64,
-                        "height": 32,
-                        "offscreenBaseY": 320,
-                        "pixels": atlas_pixels,
-                        "entries": [
-                            {"id": "blue_checker", "name": "Blue Checker 16x16", "sx": 0, "sy": 0, "w": 16, "h": 16},
-                            {"id": "stripe_block", "name": "Stripe Block 16x16", "sx": 16, "sy": 0, "w": 16, "h": 16},
-                        ],
-                    },
-                    "composition": {
-                        "source": "authored",
-                        "commands": [
-                            {"id": "fill_backdrop", "op": "fill", "x": 0, "y": 0, "w": 256, "h": 192, "color": 1},
-                            {"id": "checker_a", "op": "copy", "atlasEntryId": "blue_checker", "dx": 32, "dy": 32, "w": 16, "h": 16},
-                            {"id": "stripe", "op": "copy", "atlasEntryId": "stripe_block", "dx": 56, "dy": 32, "w": 16, "h": 16},
-                            {"id": "checker_b", "op": "copy", "atlasEntryId": "blue_checker", "dx": 80, "dy": 32, "w": 16, "h": 16},
-                            {"id": "floor", "op": "lineH", "x": 0, "y": 191, "length": 256, "color": 15},
-                        ],
-                    },
-                    "collision": [[0 for _x in range(16)] for _y in range(12)],
-                    "effects": [[0 for _x in range(16)] for _y in range(12)],
-                    "behavior": [[0 for _x in range(16)] for _y in range(12)],
-                    "entities": [],
-                    "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
-                },
+                "data": room_data,
             }
         ],
     }
 
 
+def render_smoke_room_data(room: dict[str, object]) -> list[list[int]]:
+    width = int(room["width"])
+    height = int(room["height"])
+    pixels = [[0 for _x in range(width)] for _y in range(height)]
+    for command in room["composition"]["commands"]:
+        op = command["op"]
+        if op == "fill":
+            color = int(command.get("color", 0)) & 0x0F
+            x0 = int(command.get("x", 0))
+            y0 = int(command.get("y", 0))
+            w = int(command.get("w", 0))
+            h = int(command.get("h", 0))
+            for y in range(max(0, y0), min(height, y0 + h)):
+                for x in range(max(0, x0), min(width, x0 + w)):
+                    pixels[y][x] = color
+        elif op == "lineH":
+            color = int(command.get("color", 0)) & 0x0F
+            y = int(command.get("y", 0))
+            if 0 <= y < height:
+                x0 = int(command.get("x", 0))
+                length = int(command.get("length", 0))
+                for x in range(max(0, x0), min(width, x0 + length)):
+                    pixels[y][x] = color
+        elif op == "lineV":
+            color = int(command.get("color", 0)) & 0x0F
+            x = int(command.get("x", 0))
+            if 0 <= x < width:
+                y0 = int(command.get("y", 0))
+                length = int(command.get("length", 0))
+                for y in range(max(0, y0), min(height, y0 + length)):
+                    pixels[y][x] = color
+    return pixels
+
+
 def render_smoke_bitmap_room(project: dict[str, object]) -> list[list[int]]:
     room = project["assets"][0]["data"]
+    framebuffer = room.get("visibleFramebuffer")
+    if isinstance(framebuffer, dict) and isinstance(framebuffer.get("pixels"), list):
+        return framebuffer["pixels"]
     width = int(room["width"])
     height = int(room["height"])
     pixels = [[0 for _x in range(width)] for _y in range(height)]
@@ -190,14 +322,11 @@ def render_smoke_bitmap_room(project: dict[str, object]) -> list[list[int]]:
     return pixels
 
 
-def validate_screen4_color_rows(pixels: list[list[int]]) -> None:
+def validate_bitmap_palette_indices(pixels: list[list[int]]) -> None:
     for y, row in enumerate(pixels):
-        for x in range(0, len(row), 8):
-            colors = sorted(set(row[x:x + 8]))
-            if len(colors) > 2:
-                raise RuntimeError(
-                    f"SCREEN 4 Bitmap Room smoke fixture exceeds 2 colors at y={y}, x={x}: {colors}"
-                )
+        for x, color in enumerate(row):
+            if not 0 <= int(color) <= 15:
+                raise RuntimeError(f"Bitmap Room smoke fixture has invalid palette index at y={y}, x={x}: {color}")
 
 
 def extract_db_bytes(asm_text: str, label: str) -> list[int]:
@@ -221,19 +350,14 @@ def extract_db_bytes(asm_text: str, label: str) -> list[int]:
 
 
 def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> None:
-    atlas = project["assets"][0]["data"]["atlas"]
-    atlas_packed_bytes = int(atlas["height"]) * (256 // 2)
     expected_lengths = {
         "screen4_bitmap_palette_data": 32,
-        "bitmap_room_atlas_data": atlas_packed_bytes,
+        "bitmap_room_framebuffer_data": 256 * 192 // 2,
     }
     for label, expected_length in expected_lengths.items():
         actual_length = len(extract_db_bytes(asm_text, label))
         if actual_length != expected_length:
             raise RuntimeError(f"{label} has {actual_length} bytes; expected {expected_length}")
-    command_bytes = len(extract_db_bytes(asm_text, "bitmap_room_vdp_cmds"))
-    if command_bytes < 15 or command_bytes % 15 != 0:
-        raise RuntimeError(f"bitmap_room_vdp_cmds has {command_bytes} bytes; expected a multiple of 15")
 
 
 def main() -> int:
@@ -245,7 +369,7 @@ def main() -> int:
     screenshot_output = Path(args.screenshot_output).resolve()
 
     project = build_project()
-    validate_screen4_color_rows(render_smoke_bitmap_room(project))
+    validate_bitmap_palette_indices(render_smoke_bitmap_room(project))
 
     json_output.parent.mkdir(parents=True, exist_ok=True)
     json_output.write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
@@ -268,9 +392,8 @@ def main() -> int:
     asm_text = asm_output.read_text(encoding="utf-8")
     for marker in (
         "init_screen4_bitmap_vdp",
-        "compose_bitmap_room",
-        "bitmap_room_vdp_cmds",
-        "bitmap_room_atlas_data",
+        "upload_bitmap_framebuffer",
+        "bitmap_room_framebuffer_data",
         "Mideas MSX2 SCREEN 4 bitmap room backend (V9938 command engine)",
     ):
         if marker not in asm_text:

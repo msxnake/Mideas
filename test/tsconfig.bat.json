@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "noEmit": false,
+    "noEmitOnError": false,
+    "declaration": false,
+    "sourceMap": false,
+    "rootDir": "..",
+    "outDir": "./ts_build_bat"
+  },
+  "files": ["../utils/msxGenerator/index.ts"]
+}

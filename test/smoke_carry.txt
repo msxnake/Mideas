@@ -1,0 +1,4 @@
+boot count=1 st0=0 x0=64 y0=144 px=96 py=144 dx=1 lives=3
+pickup carried=0 st0=1 x0=64 y0=128 py=144 lives=3
+fly carried=255 st0=2 x0=88 y0=136 dir=1 lives=3
+settle st0=0 x0=112 y0=144 carried=255 px=64 lives=3

@@ -327,6 +327,10 @@ export interface Msx2Screen4BitmapRoom {
     source: 'authored' | 'generated-from-cells';
     commands: Msx2BitmapRoomCommand[];
   };
+  visibleFramebuffer?: {
+    source: 'pre-rendered';
+    pixels: number[][];
+  };
   collision: number[][];
   effects: number[][];
   behavior: number[][];

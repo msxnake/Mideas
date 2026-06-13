@@ -1,0 +1,5 @@
+boot x=48 y=80
+right_1s x=98
+right_2s x=112
+right_3s x=112
+left_3s x=16
