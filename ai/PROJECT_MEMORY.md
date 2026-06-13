@@ -180,3 +180,10 @@ Mideas
 - RAM: 0 bytes nuevos. CPU: 0 coste runtime (el enemigo corre igual que uno colocado a mano).
 - Verificacion: contrato 47/47, Glass MegaROM Konami 40KB (`test/enemy_bridge_smoke.rom`), smoke OpenMSX: un WalkerTurnOnEdge de la libreria colocado en pantalla -> mode 7, recorre plataforma (span 64, 3 giros) y hace dano al player al contacto (lives 3->2, hit=1). Generadores byte-identicos (no-regresion).
 - Limitacion v1 (documentada): todos los enemigos de una pantalla comparten 1 patron de sprite (el primero). Sprites distintos por enemigo + matar con bala/score = Fase 2 pendiente.
+
+## Sesion 2026-06-13 - Cuarto comportamiento: ChaseHorizontal (mode 8)
+- `ChaseHorizontal` (mode 8): el enemigo da 1px/frame hacia la X del player. Activacion `msx2_movement.mode = "chaseHorizontal"` (alias chaseH/chaseX/followX) y desde el puente Enemy Library (behavior ChaseHorizontal -> chaseH). Commit `3c3ae0ce`.
+- Handler compartido `msx2_enemy_chase_h_shared` + stub por slot. Lee `msx2_player_sprite_x`, compara con enemy X (si igual -> no mueve, sin jitter), probe de pared en (frontX,y+8) (si solido -> no mueve), acotado a min_x/max_x. Slot en B con PUSH BC/POP BC alrededor del probe (push=pop=4).
+- 'chase' a secas sigue siendo ghost-maze; ChaseHorizontal usa nombres explicitos para no colisionar.
+- RAM: 0 bytes. CPU: 1 lectura player X + compare + 1 probe + 1 move por chaser/frame.
+- Verificacion: contrato 52/52, Glass MegaROM Konami 40KB (`test/chase_smoke.rom`), OpenMSX: enemigo en x=200 sigue al player a la izquierda (->129) y luego a la derecha (->207). Behaviors con runtime: patrol/ghost/dive/ball/flyerSine/jumper/walkerEdge/chaseH. Faltan Hopper/DropFromCeiling/EmergeFromGround.
