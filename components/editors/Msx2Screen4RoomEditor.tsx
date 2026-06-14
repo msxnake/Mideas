@@ -1,9 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { EntityTemplate, MSXColorValue, Msx2HudWidget, Msx2PlayerEntry, Msx2ProjectProfile, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4LineAttribute, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { EntityTemplate, MSXColorValue, Msx2HudWidget, Msx2PlayerDefinition, Msx2PlayerEntry, Msx2ProjectProfile, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4LineAttribute, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
 import { filterMsx2EntityPresetsForProfile, getMsx2LockedRuntimeMode } from '../../utils/msx2ProjectProfiles';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { normalizeMsx2ShooterRuntimeConfig } from '../../utils/msx2ShooterRuntime';
 import { normalizeMsx2PlayerEntries } from '../../utils/msx2PlayerDefaults';
+import {
+  collectMsx2PaletteCompatibilityIssues,
+  Msx2PaletteCompatibilityIssue,
+  resolveMsx2EntitySpriteIds,
+  resolveMsx2PlayerSpriteIds,
+} from '../../utils/msx2PaletteCompatibility';
 import {
   createDefaultLineAttributes,
   ensureLineAttributes,
@@ -53,6 +59,7 @@ import {
 import { addEntryToMsx2EntityLibrary } from '../../utils/msx2EntityLibrary';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { MSX2AtlasPreviewPanel } from '../screen_editor/MSX2AtlasPreviewPanel';
 import { MSX2CompositionPanel } from '../screen_editor/MSX2CompositionPanel';
 import { MSX2HudPlanPanel } from '../msx2_screen4_editor/MSX2HudPlanPanel';
@@ -273,6 +280,8 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
   const [paintSlot, setPaintSlot] = useState(0);
   const [tilePaintTool, setTilePaintTool] = useState<Msx2Screen4TilePaintTool>('pencil');
   const [copiedLineAttribute, setCopiedLineAttribute] = useState<Msx2Screen4LineAttribute | null>(null);
+  const [paletteWarningIssues, setPaletteWarningIssues] = useState<Msx2PaletteCompatibilityIssue[] | null>(null);
+  const pendingPaletteActionRef = useRef<(() => void) | null>(null);
 
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(screen.palette), [screen.palette]);
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
@@ -348,6 +357,52 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     return typeof exact === 'number' ? exact : 0;
   }, [selectedColor, slots]);
   const activeSlot = Math.max(0, Math.min(15, paintSlot));
+
+  const runWithPaletteCompatibilityWarning = (
+    ownerLabel: string,
+    spriteAssetIds: string[],
+    action: () => void,
+  ) => {
+    const issues = collectMsx2PaletteCompatibilityIssues(slots, allAssets, spriteAssetIds, ownerLabel);
+    if (issues.length === 0) {
+      action();
+      return;
+    }
+    pendingPaletteActionRef.current = action;
+    setPaletteWarningIssues(issues);
+  };
+
+  const runWithPlayerPaletteWarning = (
+    playerAssetId: string | undefined,
+    fallbackLabel: string,
+    action: () => void,
+  ) => {
+    const resolvedPlayerId = String(playerAssetId || defaultPlayerAssetId || '').trim();
+    const playerAsset = resolvedPlayerId
+      ? allAssets.find(asset => asset.type === 'msx2player' && asset.id === resolvedPlayerId)
+      : null;
+    const spriteIds = resolveMsx2PlayerSpriteIds(playerAsset?.data as Msx2PlayerDefinition | undefined);
+    runWithPaletteCompatibilityWarning(playerAsset?.name || fallbackLabel, spriteIds, action);
+  };
+
+  const runWithEntityPaletteWarning = (
+    entity: Msx2Screen4EntityInstance,
+    action: () => void,
+  ) => {
+    runWithPaletteCompatibilityWarning(entity.name || entity.id, resolveMsx2EntitySpriteIds(entity), action);
+  };
+
+  const cancelPaletteWarning = () => {
+    pendingPaletteActionRef.current = null;
+    setPaletteWarningIssues(null);
+  };
+
+  const confirmPaletteWarning = () => {
+    const action = pendingPaletteActionRef.current;
+    pendingPaletteActionRef.current = null;
+    setPaletteWarningIssues(null);
+    action?.();
+  };
 
   useEffect(() => {
     if (changed) onUpdate({ palette: slots.map(slot => ({ ...slot })) });
@@ -425,6 +480,23 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     });
   };
 
+  const updateSelectedEntityWithPaletteWarning = (patch: Partial<Msx2Screen4EntityInstance>) => {
+    if (!selectedEntity) return;
+    const beforeSpriteIds = resolveMsx2EntitySpriteIds(selectedEntity).join('|');
+    const previewEntity: Msx2Screen4EntityInstance = {
+      ...selectedEntity,
+      ...patch,
+      components: patch.components ?? selectedEntity.components,
+      params: patch.params ?? selectedEntity.params,
+    };
+    const afterSpriteIds = resolveMsx2EntitySpriteIds(previewEntity).join('|');
+    if (beforeSpriteIds !== afterSpriteIds) {
+      runWithEntityPaletteWarning(previewEntity, () => updateSelectedEntity(patch));
+      return;
+    }
+    updateSelectedEntity(patch);
+  };
+
   const updateSelectedEntityParams = (patch: Record<string, any>) => {
     if (!selectedEntity) return;
     const componentPatch: Record<string, Record<string, any>> = { ...(selectedEntity.components || {}) };
@@ -479,12 +551,25 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     onUpdate({ playerEntries: normalizeMsx2PlayerEntries(nextEntries) });
   };
 
-  const updateSelectedPlayerEntry = (patch: Partial<Msx2PlayerEntry>) => {
+  const commitSelectedPlayerEntryUpdate = (patch: Partial<Msx2PlayerEntry>) => {
     if (!selectedPlayerEntry) return;
     if (Object.prototype.hasOwnProperty.call(patch, 'id')) {
       setSelectedPlayerEntryId(String(patch.id || `entry_${playerEntries.indexOf(selectedPlayerEntry) + 1}`));
     }
     updatePlayerEntries(playerEntries.map(entry => entry.id === selectedPlayerEntry.id ? { ...entry, ...patch } : entry));
+  };
+
+  const updateSelectedPlayerEntry = (patch: Partial<Msx2PlayerEntry>) => {
+    if (!selectedPlayerEntry) return;
+    if (Object.prototype.hasOwnProperty.call(patch, 'playerId')) {
+      runWithPlayerPaletteWarning(
+        patch.playerId,
+        patch.playerId ? 'Player Asset' : 'Default player',
+        () => commitSelectedPlayerEntryUpdate(patch),
+      );
+      return;
+    }
+    commitSelectedPlayerEntryUpdate(patch);
   };
 
   const updatePlayerEntryById = (id: string, patch: Partial<Msx2PlayerEntry>) => {
@@ -504,8 +589,10 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
       invulnerabilityFrames: 0,
       cameraTransition: 'instant',
     };
-    updatePlayerEntries([...playerEntries, nextEntry]);
-    setSelectedPlayerEntryId(id);
+    runWithPlayerPaletteWarning(nextEntry.playerId, 'Default player', () => {
+      updatePlayerEntries([...playerEntries, nextEntry]);
+      setSelectedPlayerEntryId(id);
+    });
   };
 
   const movePlayerEntry = (id: string, x: number, y: number) => {
@@ -596,8 +683,10 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
         const enemyAsset = allAssets.find(asset => asset.id === selectedEnemyAssetId && asset.type === 'msx2enemy');
         if (enemyAsset) {
           const enemyEntity = buildMsx2EnemyEntityFromAsset(enemyAsset, x, y);
-          updateLayers({ ...layers, entities: [...layers.entities, enemyEntity] });
-          setSelectedEntityId(enemyEntity.id);
+          runWithEntityPaletteWarning(enemyEntity, () => {
+            updateLayers({ ...layers, entities: [...layers.entities, enemyEntity] });
+            setSelectedEntityId(enemyEntity.id);
+          });
           return;
         }
       }
@@ -638,36 +727,39 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
         params: presetParams,
       };
       const nextLayers = { ...layers, entities: [...layers.entities, nextEntity] };
-      if (selectedEntityPreset.kind === 'player') {
-        const movementMode = presetParams.movementMode || presetParams.controlMode || presetParams.movement;
-        const nextRuntime: Msx2Screen4Runtime = {
-          ...runtime,
-          screenKind: 'playable',
-          screenEngine: movementMode === 'maze'
-            ? 'maze'
-            : movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'
-              ? 'shooter'
-              : 'player',
-          ...(movementMode ? { movementMode, movementModel: movementMode } : {}),
-          ...(movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'
-            ? {
-              shooter: normalizeMsx2ShooterRuntimeConfig({
-                direction: movementMode === 'shooterHorizontal' ? 'horizontal' : 'vertical',
-                scrollMode: movementMode === 'shooterHorizontal' ? 'none' : 'tileVertical',
-              }),
-            }
-            : {}),
-          ...(presetParams.disableAirTimer ? { initialAir: 0, disableAirTimer: true, airTimer: false } : {}),
-        };
-        onUpdate({
-          layers: nextLayers,
-          collisionMap: nextLayers.collision,
-          runtime: nextRuntime,
-        });
-      } else {
-        updateLayers(nextLayers);
-      }
-      setSelectedEntityId(id);
+      const commitEntityPlacement = () => {
+        if (selectedEntityPreset.kind === 'player') {
+          const movementMode = presetParams.movementMode || presetParams.controlMode || presetParams.movement;
+          const nextRuntime: Msx2Screen4Runtime = {
+            ...runtime,
+            screenKind: 'playable',
+            screenEngine: movementMode === 'maze'
+              ? 'maze'
+              : movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'
+                ? 'shooter'
+                : 'player',
+            ...(movementMode ? { movementMode, movementModel: movementMode } : {}),
+            ...(movementMode === 'shooterHorizontal' || movementMode === 'shooterVertical'
+              ? {
+                shooter: normalizeMsx2ShooterRuntimeConfig({
+                  direction: movementMode === 'shooterHorizontal' ? 'horizontal' : 'vertical',
+                  scrollMode: movementMode === 'shooterHorizontal' ? 'none' : 'tileVertical',
+                }),
+              }
+              : {}),
+            ...(presetParams.disableAirTimer ? { initialAir: 0, disableAirTimer: true, airTimer: false } : {}),
+          };
+          onUpdate({
+            layers: nextLayers,
+            collisionMap: nextLayers.collision,
+            runtime: nextRuntime,
+          });
+        } else {
+          updateLayers(nextLayers);
+        }
+        setSelectedEntityId(id);
+      };
+      runWithEntityPaletteWarning(nextEntity, commitEntityPlacement);
     }
   };
 
@@ -1151,7 +1243,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
             selectedEntity={selectedEntity}
             tiles={tiles}
             allAssets={allAssets}
-            onUpdateSelectedEntity={updateSelectedEntity}
+            onUpdateSelectedEntity={updateSelectedEntityWithPaletteWarning}
             onUpdateSelectedEntityParams={updateSelectedEntityParams}
             onRemoveSelectedEntity={removeSelectedEntity}
             onSaveEntityAsPreset={saveEntityAsPreset}
@@ -1341,6 +1433,46 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
         layers={layers}
         runtime={runtime}
         selectionRect={selectionRect}
+      />
+      <ConfirmationModal
+        isOpen={!!paletteWarningIssues}
+        title="MSX2 palette mismatch"
+        cancelText="Cancelar"
+        confirmText="Añadir de todos modos"
+        confirmButtonVariant="primary"
+        onCancel={cancelPaletteWarning}
+        onConfirm={confirmPaletteWarning}
+        message={(
+          <div className="space-y-3 text-xs leading-relaxed">
+            <p>
+              Esta pantalla SCREEN 4 solo puede cargar una paleta MSX2 activa. El asset usa colores distintos en
+              algunos slots; en ROM/OpenMSX se verán los colores de la pantalla, no los del sprite.
+            </p>
+            <div className="max-h-48 overflow-auto rounded border border-msx-border bg-msx-bgcolor/80">
+              {(paletteWarningIssues || []).map(issue => (
+                <div key={`${issue.spriteAssetId}:${issue.ownerLabel}`} className="border-b border-msx-border/70 p-2 last:border-b-0">
+                  <div className="mb-1 text-msx-highlight">{issue.ownerLabel} - {issue.spriteName}</div>
+                  <div className="space-y-1 font-mono text-[11px]">
+                    {issue.mismatches.slice(0, 6).map(mismatch => (
+                      <div key={`${issue.spriteAssetId}:${mismatch.slotIndex}`} className="flex items-center justify-between gap-2">
+                        <span>S{mismatch.slotIndex}</span>
+                        <span className="text-msx-textsecondary">asset {mismatch.assetHex}</span>
+                        <span className="text-msx-warning">pantalla {mismatch.screenHex}</span>
+                      </div>
+                    ))}
+                    {issue.mismatches.length > 6 && (
+                      <div className="text-msx-textsecondary">+{issue.mismatches.length - 6} slots mas</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-msx-textsecondary">
+              Solucion recomendada: sincroniza la paleta de la pantalla con la paleta del asset o reconvierte el
+              sprite usando la paleta cargada en esta pantalla.
+            </p>
+          </div>
+        )}
       />
     </div>
   );

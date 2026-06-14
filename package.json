@@ -17,6 +17,7 @@
     "test:msx2-shooter60hz-asm": "node scripts/check_msx2_shooter60hz_asm.mjs",
     "test:msx2-megarom-preflight": "python -B scripts/check_msx2_megarom_preflight_budget.py",
     "test:msx2-runtime-separation": "node scripts/check_msx2_runtime_separation.mjs",
+    "test:msx2-palette-compatibility": "node scripts/check_msx2_palette_compatibility.mjs",
     "test:msx2-project-profiles": "node scripts/check_msx2_project_profiles.mjs",
     "create:msx2-galaxian": "node scripts/create_msx2_galaxian_clone.mjs",
     "create:msx2-screen5-presentation": "python scripts/create_msx2_screen5_presentation_from_png.py",
