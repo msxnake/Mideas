@@ -25,6 +25,7 @@ import {
   SaveIcon,
   SphereIcon,
   StopIcon,
+  SwapHorizIcon,
   TrashIcon,
 } from '../icons/MsxIcons';
 
@@ -507,6 +508,8 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
   const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
   const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
+  const [replaceFromSlot, setReplaceFromSlot] = useState(1);
+  const [replaceToSlot, setReplaceToSlot] = useState(0);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
@@ -738,6 +741,19 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     return () => window.clearInterval(timer);
   }, [isAnimationPlaying, animationSpeedMs, sprite.frames.length, sprite.currentFrameIndex, sprite.loops]);
 
+  const replaceFromPaletteSlot = palette.find(slot => slot.slotIndex === replaceFromSlot) || palette[0];
+  const replaceToPaletteSlot = palette.find(slot => slot.slotIndex === replaceToSlot) || palette[0];
+  const replaceSourcePixelCount = useMemo(() => {
+    if (!replaceFromPaletteSlot) return 0;
+    const source = normalizeColor(replaceFromPaletteSlot.hex);
+    return sprite.frames.reduce((total, spriteFrame) => {
+      const frameData = spriteFrame.data || [];
+      return total + frameData.reduce((frameTotal, row) =>
+        frameTotal + row.reduce((rowTotal, color) =>
+          rowTotal + (normalizeColor(String(color || '')) === source ? 1 : 0), 0), 0);
+    }, 0);
+  }, [replaceFromPaletteSlot, sprite.frames]);
+
   const updateFrameData = (data: PixelData) => {
     const frames = sprite.frames.length > 0 ? [...sprite.frames] : [{ id: `frame_${Date.now()}`, data }];
     const frameIndex = Math.max(0, Math.min(sprite.currentFrameIndex || 0, frames.length - 1));
@@ -761,6 +777,31 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       }
     }
     updateFrameData(next);
+  };
+
+  const replaceSpriteColor = () => {
+    if (!replaceFromPaletteSlot || !replaceToPaletteSlot || replaceFromSlot === replaceToSlot) return;
+    const source = normalizeColor(replaceFromPaletteSlot.hex);
+    const target = replaceToPaletteSlot.hex as MSXColorValue;
+    let changed = false;
+    const sourceFrames = sprite.frames.length
+      ? sprite.frames
+      : [{ id: `frame_${Date.now()}`, data: createPixels(sprite.size.width, sprite.size.height, sprite.backgroundColor) }];
+    const frames = sourceFrames.map(spriteFrame => ({
+      ...spriteFrame,
+      data: (spriteFrame.data || createPixels(sprite.size.width, sprite.size.height, sprite.backgroundColor)).map(row =>
+        row.map(color => {
+          if (normalizeColor(String(color || '')) !== source) return color;
+          changed = true;
+          return target;
+        })
+      ),
+    }));
+    if (!changed) return;
+    onUpdate({
+      frames,
+      currentFrameIndex: Math.max(0, Math.min(sprite.currentFrameIndex || 0, frames.length - 1)),
+    });
   };
 
   const handlePixel = (point: Point, isRightClick: boolean) => {
@@ -1045,6 +1086,59 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                 </button>
               );
             })}
+          </div>
+        </Panel>
+
+        <Panel title="Replace Color" collapsible>
+          <div className="space-y-2 p-2 text-xs text-msx-textsecondary">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+              <label className="space-y-1">
+                <span className="block">From</span>
+                <select
+                  value={replaceFromSlot}
+                  onChange={event => setReplaceFromSlot(Number(event.target.value))}
+                  className="w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                  aria-label="Replace source color slot"
+                >
+                  {palette.map(slot => (
+                    <option key={slot.slotIndex} value={slot.slotIndex}>
+                      {`S${slot.slotIndex}${slot.slotIndex === 0 ? ' T' : ''} ${slot.hex}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <SwapHorizIcon className="mb-1 h-4 w-4 text-msx-highlight" />
+              <label className="space-y-1">
+                <span className="block">To</span>
+                <select
+                  value={replaceToSlot}
+                  onChange={event => setReplaceToSlot(Number(event.target.value))}
+                  className="w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                  aria-label="Replace target color slot"
+                >
+                  {palette.map(slot => (
+                    <option key={slot.slotIndex} value={slot.slotIndex}>
+                      {`S${slot.slotIndex}${slot.slotIndex === 0 ? ' T' : ''} ${slot.hex}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <Button
+              onClick={replaceSpriteColor}
+              variant="secondary"
+              size="sm"
+              icon={<SwapHorizIcon />}
+              className="w-full"
+              justify="center"
+              disabled={replaceFromSlot === replaceToSlot || replaceSourcePixelCount === 0}
+              title={`Replace ${replaceSourcePixelCount} pixels across all frames`}
+            >
+              Replace Color
+            </Button>
+            <div className="text-[11px] text-msx-textsecondary">
+              {replaceSourcePixelCount} px in all frames
+            </div>
           </div>
         </Panel>
 
