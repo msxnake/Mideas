@@ -192,6 +192,13 @@ const visibleRowColors = (row: MSXColorValue[] | undefined, backgroundColor: MSX
 const paletteSlotForColor = (color: string, palette: { slotIndex: number; hex: string }[]): number | undefined =>
   palette.find(slot => normalizeColor(slot.hex) === normalizeColor(color))?.slotIndex;
 
+const paletteSlotForSpritePixel = (color: string, palette: { slotIndex: number; hex: string }[]): number | undefined => {
+  const normalized = normalizeColor(color);
+  if (!normalized) return undefined;
+  if (normalized === normalizeColor(TRANSPARENT_HEX)) return 0;
+  return paletteSlotForColor(normalized, palette);
+};
+
 interface HardwareOrColorPair {
   base: number;
   overlay: number;
@@ -570,16 +577,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     const orBaseSlots = new Set<number>();
     const orOverlaySlots = new Set<number>();
     const orResultSlots = new Set<number>();
-    const bg = normalizeColor(sprite.backgroundColor);
 
     sprite.frames.forEach(spriteFrame => {
       const data = spriteFrame.data || [];
       data.forEach(row => {
         row.forEach(color => {
-          const normalized = normalizeColor(String(color || ''));
-          if (!normalized || normalized === bg || normalized === normalizeColor(TRANSPARENT_HEX)) return;
-          const slot = paletteSlotForColor(normalized, palette);
-          if (typeof slot === 'number' && slot > 0) usedSlots.add(slot);
+          const slot = paletteSlotForSpritePixel(String(color || ''), palette);
+          if (typeof slot === 'number') usedSlots.add(slot);
         });
       });
 
@@ -589,9 +593,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           const row = data[y] || [];
           const rowSlots = row.slice(xOffset, xOffset + 16)
             .map(color => {
-              const normalized = normalizeColor(String(color || ''));
-              if (!normalized || normalized === bg || normalized === normalizeColor(TRANSPARENT_HEX)) return 0;
-              return paletteSlotForColor(normalized, palette) || 0;
+              return paletteSlotForSpritePixel(String(color || ''), palette) || 0;
             })
             .filter(slot => slot > 0);
           const orPair = useOrColor ? findHardwareOrColorPair(rowSlots) : undefined;
@@ -604,7 +606,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     });
 
     return { usedSlots, orBaseSlots, orOverlaySlots, orResultSlots };
-  }, [cellColumns, palette, sprite.backgroundColor, sprite.frames, sprite.size.height, useOrColor]);
+  }, [cellColumns, palette, sprite.frames, sprite.size.height, useOrColor]);
   const invalidLineCount = rowDiagnostics.filter(row => row.invalid).length;
   const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
   const stackedColorLineCount = rowDiagnostics.filter(row => row.layerCount > 1).length;
@@ -997,12 +999,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         <Panel title="Active Brush" collapsible>
           <div className="grid grid-cols-2 gap-2 p-2">
             {palette.map(slot => {
+              const isTransparentSlot = slot.slotIndex === 0;
               const isUsed = spritePaletteUsage.usedSlots.has(slot.slotIndex);
               const isOrBase = spritePaletteUsage.orBaseSlots.has(slot.slotIndex);
               const isOrOverlay = spritePaletteUsage.orOverlaySlots.has(slot.slotIndex);
               const isOrResult = spritePaletteUsage.orResultSlots.has(slot.slotIndex);
               const usageTitle = [
-                isUsed ? 'used' : '',
+                isUsed ? (isTransparentSlot ? 'transparent used' : 'used') : '',
                 isOrBase ? 'OR base' : '',
                 isOrOverlay ? 'OR overlay' : '',
                 isOrResult ? 'OR result' : '',
@@ -1017,7 +1020,15 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                   title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}${usageTitle ? ` (${usageTitle})` : ''}`}
                   aria-label={`Slot ${slot.slotIndex}${usageTitle ? ` ${usageTitle}` : ''}`}
                 >
-                  {isUsed && (
+                  {isUsed && isTransparentSlot && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-1 top-0.5 rounded bg-black/70 px-1 text-[11px] font-bold leading-4 text-msx-highlight shadow"
+                    >
+                      T
+                    </span>
+                  )}
+                  {isUsed && !isTransparentSlot && (
                     <span
                       aria-hidden="true"
                       className="absolute left-1 top-1 h-2 w-2 rounded-full border border-black/70 bg-msx-highlight shadow"
