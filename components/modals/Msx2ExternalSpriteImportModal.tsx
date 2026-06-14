@@ -388,7 +388,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
                       type="button"
                       disabled={immutable}
                       onClick={() => toggleReplaceableSlot(slot.slotIndex)}
-                      className={`min-h-10 rounded border text-[10px] ${replaceableSlots.includes(slot.slotIndex) ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${immutable ? 'opacity-50' : ''}`}
+                      className={`min-h-10 rounded border text-[10px] ${replaceableSlots.includes(slot.slotIndex) ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${immutable ? 'cursor-not-allowed' : ''}`}
                       style={{ backgroundColor: slot.hex }}
                       title={immutable ? 'Inmutable' : `Slot ${slot.slotIndex}`}
                     >
