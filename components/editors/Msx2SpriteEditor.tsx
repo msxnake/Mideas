@@ -5,6 +5,8 @@ import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { addEntryToMsx2SpriteLibrary } from '../../utils/msx2SpriteLibrary';
+import { Msx2ExternalSpriteImportModal } from '../modals/Msx2ExternalSpriteImportModal';
+import { Msx2ExternalSpriteImportOptions, Msx2ExternalSpriteImportResult } from '../../utils/msx2ExternalSpriteImport';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import {
   ArrowDownIcon,
@@ -494,6 +496,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [onionSkinEnabled, setOnionSkinEnabled] = useState(true);
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
   const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
+  const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
@@ -875,6 +878,25 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     image.src = URL.createObjectURL(file);
   };
 
+  const applyExternalSpriteImport = (
+    result: Msx2ExternalSpriteImportResult,
+    options: Msx2ExternalSpriteImportOptions,
+  ) => {
+    const nextLayout = inferMetaSpriteLayout(options.targetWidth, options.targetHeight);
+    const nextParts = buildMetaSpriteParts(nextLayout, options.targetWidth, options.targetHeight);
+    onUpdate({
+      size: { width: options.targetWidth, height: options.targetHeight },
+      superSpriteLayout: nextLayout,
+      superSpriteParts: nextParts,
+      palette: result.palette.map(slot => ({ ...slot })),
+      backgroundColor: (result.palette[0]?.hex || sprite.backgroundColor) as MSXColorValue,
+      frames: [{ id: `external_import_${Date.now()}`, data: result.pixelData }],
+      currentFrameIndex: 0,
+      hardware: { ...sprite.hardware, useOrColor: options.useOrColor },
+    });
+    setIsExternalImportOpen(false);
+  };
+
   const previewFrame = sprite.frames[previewFrameIndex]?.data || frame;
   const mirroredPreviewFrame = useMemo(() => mirrorPixelDataHorizontally(previewFrame), [previewFrame]);
   const facingDirection = sprite.facingDirection ?? 'neutral';
@@ -973,6 +995,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={exportToLibrary} title="Export this sprite to the global MSX2 Sprites Library (persists across projects). Reusable via Libraries > Sprites.">Export to Library</Button>
             <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
             <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => importFileRef.current?.click()}>MSX2 Import PNG</Button>
+            <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => setIsExternalImportOpen(true)}>Importar Sprite Exterior</Button>
             <Button size="sm" variant={showSeparatedLayers ? 'primary' : 'secondary'} onClick={() => setShowSeparatedLayers(value => !value)}>
               {showSeparatedLayers ? 'Hide HW Layers' : 'Separate HW Layers'}
             </Button>
@@ -1260,6 +1283,12 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           <pre className="m-0 max-h-28 overflow-auto p-3 text-xs text-msx-textsecondary whitespace-pre-wrap">{asmBytes}</pre>
         </Panel>
       </div>
+      <Msx2ExternalSpriteImportModal
+        isOpen={isExternalImportOpen}
+        sprite={sprite}
+        onClose={() => setIsExternalImportOpen(false)}
+        onApply={applyExternalSpriteImport}
+      />
       </div>
     </div>
   );
