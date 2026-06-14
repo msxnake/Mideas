@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile } from '../../types';
+import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile, ScreenKind } from '../../types';
 import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon } from '../icons/MsxIcons';
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon, PlusCircleIcon } from '../icons/MsxIcons';
 import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
 
 /**
@@ -16,6 +16,8 @@ interface FileExplorerPanelProps {
   selectedAssetId: string | null;
   /** Callback function when an asset is selected. */
   onSelectAsset: (assetId: string | null, editorType?: EditorType) => void;
+  /** Callback to create a new asset of the given type (reuses the real creation logic). */
+  onNewAsset: (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }) => void;
   /** Callback function to request renaming an asset. */
   onRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
   /** Callback function to request deleting an asset. */
@@ -130,6 +132,34 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   code: "Code Files",
 };
 
+/** Singular call-to-action labels for the per-folder "New" button. @constant */
+const FOLDER_NEW_LABELS: Partial<Record<ProjectAsset['type'], string>> = {
+  statemachine: "New State Machine",
+  sprite: "New MSX1 Sprite",
+  msx2sprite: "New Sprite",
+  msx2player: "New Player",
+  msx2enemy: "New Enemy",
+  msx2screen: "New SCREEN 4 Room",
+  msx2bitmaproom: "New Bitmap Room",
+  msx2hudfont: "New HUD Font",
+  msx2presentation: "New SCREEN 5 Presentation",
+  msx2gameflow: "New Game Flow",
+  tile: "New Tile",
+  font: "New Font",
+  boss: "New Boss",
+  screenmap: "New Screen",
+  worldmap: "New World Map",
+  gameflow: "New Game Flow",
+  dialogue: "New Dialogue",
+  portrait: "New Portrait",
+  palette: "New Palette",
+  tilebank: "New Tile Bank",
+  sound: "New Sound FX",
+  track: "New Track",
+  globalvariables: "New Global Variables",
+  code: "New Code File",
+};
+
 /** Maps asset types to their corresponding editor types. @constant */
 const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   statemachine: EditorType.StateMachine,
@@ -197,6 +227,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   assets,
   selectedAssetId,
   onSelectAsset,
+  onNewAsset,
   onRequestRename,
   onRequestDelete,
   onRequestSaveTile,
@@ -584,6 +615,26 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
               )}
               {isExpanded && (
                 <ul id={`folder-content-${folderType}`} className="pl-4 mt-0.5 space-y-0.5">
+                  {folderType !== 'code' && (
+                    <li className="pt-1">
+                      <button
+                        onClick={() => {
+                          if (!folderEnabled) return;
+                          if (folderType === 'screenmap') {
+                            onNewAsset('screenmap', { screenKind: 'playable' });
+                          } else {
+                            onNewAsset(folderType);
+                          }
+                        }}
+                        disabled={!folderEnabled}
+                        title={folderEnabled ? undefined : disabledTitle}
+                        className="w-full text-xs px-2 py-1 rounded bg-msx-accent/80 hover:bg-msx-accent text-white font-medium transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <PlusCircleIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{FOLDER_NEW_LABELS[folderType] || `New ${FOLDER_DISPLAY_NAMES[folderType]}`}</span>
+                      </button>
+                    </li>
+                  )}
                   {folderType === 'track' && (
                     <li className="pt-1">
                       <input

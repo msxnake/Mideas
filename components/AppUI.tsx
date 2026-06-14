@@ -642,9 +642,10 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           <FileExplorerPanel 
             className="w-60 flex-shrink-0"
             assets={assets} 
-            selectedAssetId={selectedAssetId} 
-            onSelectAsset={onSelectAsset} 
-            onRequestRename={memoizedOnRequestRename} 
+            selectedAssetId={selectedAssetId}
+            onSelectAsset={onSelectAsset}
+            onNewAsset={handleNewAsset}
+            onRequestRename={memoizedOnRequestRename}
             isMainMenuActive={currentEditor === EditorType.MainMenu}
             isPresentationScreenActive={currentEditor === EditorType.PresentationScreen}
             isEnemyLibraryActive={currentEditor === EditorType.EnemyLibrary}
