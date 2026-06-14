@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile, ScreenKind } from '../../types';
 import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon, PlusCircleIcon } from '../icons/MsxIcons';
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon, PlusCircleIcon, DocumentDuplicateIcon } from '../icons/MsxIcons';
 import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
 
 /**
@@ -20,6 +20,8 @@ interface FileExplorerPanelProps {
   onNewAsset: (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }) => void;
   /** Callback function to request renaming an asset. */
   onRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
+  /** Callback function to duplicate an asset. */
+  onRequestDuplicate: (assetId: string) => void;
   /** Callback function to request deleting an asset. */
   onRequestDelete: (assetId: string) => void;
   /** Callback function to request saving a single tile asset. */
@@ -229,6 +231,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   onSelectAsset,
   onNewAsset,
   onRequestRename,
+  onRequestDuplicate,
   onRequestDelete,
   onRequestSaveTile,
   onRequestSaveTrack,
@@ -719,6 +722,17 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                             title={`Rename ${asset.name}`}
                           >
                             <PencilIcon className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onRequestDuplicate(asset.id); }}
+                            disabled={!assetEnabled}
+                            className={`p-0.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-msx-accent
+                                        ${isSelected || isTileSelected ? 'text-white hover:bg-msx-highlight/80' : 'text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-accent/30'}
+                                        opacity-0 group-hover:opacity-100 focus-within:opacity-100 disabled:opacity-20 disabled:cursor-not-allowed`}
+                            aria-label={`Duplicate ${asset.name}`}
+                            title={`Duplicate ${asset.name}`}
+                          >
+                            <DocumentDuplicateIcon className="w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); onRequestDelete(asset.id); }}

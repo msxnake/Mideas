@@ -22,6 +22,7 @@ import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from
 import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, MSX2_PLAYER_DOCUMENT_SCHEMA } from '../utils/msx2PlayerDocument';
 import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../data/enemyLibrary';
+import { deepCopy } from '../utils/projectUtils';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -873,6 +874,122 @@ export const useAssetHandlers = ({
     return newAsset;
   };
 
+  const buildDuplicateAssetName = (sourceAsset: ProjectAsset): string => {
+    const baseName = sourceAsset.name.replace(/_copy\d+$/i, '');
+    const usedNames = new Set(
+      assets
+        .filter(asset => asset.type === sourceAsset.type)
+        .map(asset => asset.name)
+    );
+
+    let copyIndex = 1;
+    let candidateName = `${baseName}_copy${copyIndex}`;
+    while (usedNames.has(candidateName)) {
+      copyIndex += 1;
+      candidateName = `${baseName}_copy${copyIndex}`;
+    }
+    return candidateName;
+  };
+
+  const cloneAssetDataForDuplicate = (
+    sourceAsset: ProjectAsset,
+    duplicateId: string,
+    duplicateName: string
+  ): ProjectAsset['data'] => {
+    if (sourceAsset.data === undefined) return undefined;
+    if (typeof sourceAsset.data === 'string') return sourceAsset.data;
+
+    const clonedData = deepCopy(sourceAsset.data);
+    if (clonedData && typeof clonedData === 'object') {
+      if (Object.prototype.hasOwnProperty.call(clonedData, 'id')) {
+        clonedData.id = duplicateId;
+      }
+      if (Object.prototype.hasOwnProperty.call(clonedData, 'name')) {
+        clonedData.name = duplicateName;
+      }
+      if (sourceAsset.type === 'msx2player' && clonedData.player?.identity) {
+        clonedData.player.identity.name = duplicateName;
+      }
+    }
+    return clonedData;
+  };
+
+  const getEditorTypeForAsset = (assetType: ProjectAsset['type']): EditorType => {
+    switch (assetType) {
+      case 'tile': return EditorType.Tile;
+      case 'sprite': return EditorType.Sprite;
+      case 'msx2sprite': return EditorType.Msx2Sprite;
+      case 'msx2bitmap': return EditorType.Msx2Bitmap;
+      case 'msx2screen': return EditorType.Msx2Screen;
+      case 'msx2bitmaproom': return EditorType.Msx2BitmapRoom;
+      case 'msx2player': return EditorType.Msx2Player;
+      case 'msx2enemy': return EditorType.Msx2Enemy;
+      case 'msx2hudfont': return EditorType.Msx2HudFont;
+      case 'msx2presentation': return EditorType.Msx2Presentation;
+      case 'msx2gameflow': return EditorType.Msx2GameFlow;
+      case 'font': return EditorType.Font;
+      case 'boss': return EditorType.Boss;
+      case 'screenmap': return EditorType.Screen;
+      case 'worldmap': return EditorType.WorldMap;
+      case 'gameflow': return EditorType.GameFlow;
+      case 'dialogue': return EditorType.Dialogue;
+      case 'portrait': return EditorType.Portrait;
+      case 'tilebank': return EditorType.TileBanks;
+      case 'sound': return EditorType.Sound;
+      case 'track': return EditorType.Track;
+      case 'behavior': return EditorType.BehaviorEditor;
+      case 'componentdefinition': return EditorType.ComponentDefinitionEditor;
+      case 'entitytemplate': return EditorType.EntityTemplateEditor;
+      case 'globalvariables': return EditorType.GlobalVariables;
+      case 'palette': return EditorType.Palette;
+      case 'presentationscreen': return EditorType.PresentationScreen;
+      case 'code': return EditorType.Code;
+      case 'statemachine': return EditorType.StateMachine;
+      default: return EditorType.None;
+    }
+  };
+
+  const handleDuplicateAsset = (assetId: string) => {
+    const sourceAsset = assets.find(asset => asset.id === assetId);
+    if (!sourceAsset) {
+      setStatusBarMessage('Asset duplicate failed: source asset not found.');
+      return;
+    }
+
+    if (!isAssetTypeEnabledForMsx2Project(sourceAsset.type, currentScreenMode, msx2ProjectProfile)) {
+      setStatusBarMessage(`${sourceAsset.type} is disabled for this ${getProjectTargetFromScreenMode(currentScreenMode)} project profile.`);
+      return;
+    }
+
+    const duplicateId = `${sourceAsset.type}_${Date.now()}_copy_${Math.random().toString(36).slice(2, 7)}`;
+    const duplicateName = buildDuplicateAssetName(sourceAsset);
+    const duplicateAsset: ProjectAsset = {
+      ...sourceAsset,
+      id: duplicateId,
+      name: duplicateName,
+      data: cloneAssetDataForDuplicate(sourceAsset, duplicateId, duplicateName),
+    };
+
+    setAssetsWithHistory(prevAssets => {
+      const sourceIndex = prevAssets.findIndex(asset => asset.id === assetId);
+      if (sourceIndex === -1) return [...prevAssets, duplicateAsset];
+      const nextAssets = [...prevAssets];
+      nextAssets.splice(sourceIndex + 1, 0, duplicateAsset);
+      return nextAssets;
+    });
+
+    if (duplicateAsset.type === 'tilebank' && duplicateAsset.data && Array.isArray((duplicateAsset.data as TileBank).banks)) {
+      setTileBanksWithHistory(prevTileBanks => [
+        ...prevTileBanks.filter(tileBank => tileBank.id !== duplicateId),
+        duplicateAsset.data as TileBank
+      ]);
+    }
+
+    setSelectedAssetId(duplicateId);
+    setCurrentEditor(getEditorTypeForAsset(duplicateAsset.type));
+    setStatusBarMessage(`Duplicated asset "${sourceAsset.name}" as "${duplicateName}".`);
+  };
+
   const handleDeleteAsset = (assetId: string) => {
     const assetToDelete = assets.find(a => a.id === assetId);
     if (assetToDelete) {
@@ -1100,6 +1217,7 @@ export const useAssetHandlers = ({
   return {
     handleUpdateAsset,
     handleNewAsset,
+    handleDuplicateAsset,
     handleDeleteAsset,
     handleUpdateSpriteOrder,
     handleReorderSpriteFrames,
