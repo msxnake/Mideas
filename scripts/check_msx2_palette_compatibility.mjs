@@ -18,6 +18,11 @@ assert.match(
   /getUsedMsx2SpritePaletteSlots/,
   'Palette comparison must be able to restrict checks to sprite pixels actually used',
 );
+assert.match(
+  utilitySource,
+  /candidate\?\.player \|\| candidate/,
+  'Player palette checks must unwrap imported/exported player documents stored in data.player',
+);
 
 const normalizeHex = value => String(value || '').trim().toUpperCase();
 
@@ -66,5 +71,29 @@ assert.deepEqual(
 
 const unusedMismatch = compareMsx2PalettesForUsedSlots(screenPalette, spritePalette, new Set([0, 15]));
 assert.equal(unusedMismatch.length, 0, 'Mismatched slots that are not used by the sprite must not warn');
+
+function resolveMsx2PlayerSpriteIds(player) {
+  const definition = player?.player || player;
+  const ids = new Set();
+  if (definition?.render?.spriteAssetId) ids.add(definition.render.spriteAssetId);
+  for (const animation of Object.values(definition?.animations || {})) {
+    if (animation?.spriteAssetId) ids.add(animation.spriteAssetId);
+  }
+  return Array.from(ids);
+}
+
+assert.deepEqual(
+  resolveMsx2PlayerSpriteIds({
+    player: {
+      render: { spriteAssetId: 'player_spc_copy1' },
+      animations: {
+        idle: { spriteAssetId: 'player_spc_copy1' },
+        hurt: { spriteAssetId: 'player_spr' },
+      },
+    },
+  }),
+  ['player_spc_copy1', 'player_spr'],
+  'Imported/exported Player assets must still expose the MSX2 sprites used by render and animations',
+);
 
 console.log('MSX2 palette compatibility checks passed');

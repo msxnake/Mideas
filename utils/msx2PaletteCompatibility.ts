@@ -30,6 +30,11 @@ const addNonEmpty = (ids: Set<string>, value: unknown) => {
   if (id) ids.add(id);
 };
 
+const unwrapMsx2PlayerDefinition = (value: unknown): Partial<Msx2PlayerDefinition> | undefined => {
+  const candidate = value as { player?: Partial<Msx2PlayerDefinition> } & Partial<Msx2PlayerDefinition> | undefined;
+  return candidate?.player || candidate;
+};
+
 export const getUsedMsx2SpritePaletteSlots = (sprite: Msx2Sprite): Set<number> => {
   const used = new Set<number>();
   for (const frame of sprite.frames || []) {
@@ -72,10 +77,11 @@ export const compareMsx2PalettesForUsedSlots = (
     .filter((item): item is Msx2PaletteSlotMismatch => item !== null);
 };
 
-export const resolveMsx2PlayerSpriteIds = (player: Msx2PlayerDefinition | undefined): string[] => {
+export const resolveMsx2PlayerSpriteIds = (player: Msx2PlayerDefinition | { player?: Msx2PlayerDefinition } | undefined): string[] => {
+  const definition = unwrapMsx2PlayerDefinition(player);
   const ids = new Set<string>();
-  addNonEmpty(ids, player?.render?.spriteAssetId);
-  Object.values(player?.animations || {}).forEach(animation => addNonEmpty(ids, animation?.spriteAssetId));
+  addNonEmpty(ids, definition?.render?.spriteAssetId);
+  Object.values(definition?.animations || {}).forEach(animation => addNonEmpty(ids, animation?.spriteAssetId));
   return Array.from(ids);
 };
 
