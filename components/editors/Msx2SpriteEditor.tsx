@@ -565,6 +565,46 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       })
     ).flat();
   }, [cellColumns, frame, palette, sprite.backgroundColor, sprite.size.height, useOrColor]);
+  const spritePaletteUsage = useMemo(() => {
+    const usedSlots = new Set<number>();
+    const orBaseSlots = new Set<number>();
+    const orOverlaySlots = new Set<number>();
+    const orResultSlots = new Set<number>();
+    const bg = normalizeColor(sprite.backgroundColor);
+
+    sprite.frames.forEach(spriteFrame => {
+      const data = spriteFrame.data || [];
+      data.forEach(row => {
+        row.forEach(color => {
+          const normalized = normalizeColor(String(color || ''));
+          if (!normalized || normalized === bg || normalized === normalizeColor(TRANSPARENT_HEX)) return;
+          const slot = paletteSlotForColor(normalized, palette);
+          if (typeof slot === 'number' && slot > 0) usedSlots.add(slot);
+        });
+      });
+
+      for (let y = 0; y < sprite.size.height; y++) {
+        for (let cellX = 0; cellX < cellColumns; cellX++) {
+          const xOffset = cellX * 16;
+          const row = data[y] || [];
+          const rowSlots = row.slice(xOffset, xOffset + 16)
+            .map(color => {
+              const normalized = normalizeColor(String(color || ''));
+              if (!normalized || normalized === bg || normalized === normalizeColor(TRANSPARENT_HEX)) return 0;
+              return paletteSlotForColor(normalized, palette) || 0;
+            })
+            .filter(slot => slot > 0);
+          const orPair = useOrColor ? findHardwareOrColorPair(rowSlots) : undefined;
+          if (!orPair) continue;
+          orBaseSlots.add(orPair.base);
+          orOverlaySlots.add(orPair.overlay);
+          orResultSlots.add(orPair.result);
+        }
+      }
+    });
+
+    return { usedSlots, orBaseSlots, orOverlaySlots, orResultSlots };
+  }, [cellColumns, palette, sprite.backgroundColor, sprite.frames, sprite.size.height, useOrColor]);
   const invalidLineCount = rowDiagnostics.filter(row => row.invalid).length;
   const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
   const stackedColorLineCount = rowDiagnostics.filter(row => row.layerCount > 1).length;
@@ -956,16 +996,44 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
 
         <Panel title="Active Brush" collapsible>
           <div className="grid grid-cols-2 gap-2 p-2">
-            {palette.map(slot => (
-              <button
-                key={slot.slotIndex}
-                type="button"
-                className={`h-8 rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}
-                style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
-                onClick={() => setSelectedColor(slot.hex)}
-                title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}`}
-              />
-            ))}
+            {palette.map(slot => {
+              const isUsed = spritePaletteUsage.usedSlots.has(slot.slotIndex);
+              const isOrBase = spritePaletteUsage.orBaseSlots.has(slot.slotIndex);
+              const isOrOverlay = spritePaletteUsage.orOverlaySlots.has(slot.slotIndex);
+              const isOrResult = spritePaletteUsage.orResultSlots.has(slot.slotIndex);
+              const usageTitle = [
+                isUsed ? 'used' : '',
+                isOrBase ? 'OR base' : '',
+                isOrOverlay ? 'OR overlay' : '',
+                isOrResult ? 'OR result' : '',
+              ].filter(Boolean).join(', ');
+              return (
+                <button
+                  key={slot.slotIndex}
+                  type="button"
+                  className={`relative h-8 overflow-hidden rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${isOrResult ? 'ring-1 ring-amber-300' : ''}`}
+                  style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
+                  onClick={() => setSelectedColor(slot.hex)}
+                  title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}${usageTitle ? ` (${usageTitle})` : ''}`}
+                  aria-label={`Slot ${slot.slotIndex}${usageTitle ? ` ${usageTitle}` : ''}`}
+                >
+                  {isUsed && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-1 top-1 h-2 w-2 rounded-full border border-black/70 bg-msx-highlight shadow"
+                    />
+                  )}
+                  {isOrResult && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-0 left-0 rounded-tr bg-amber-300 px-1 py-0.5 text-[9px] font-bold leading-none text-black"
+                    >
+                      OR
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </Panel>
 
