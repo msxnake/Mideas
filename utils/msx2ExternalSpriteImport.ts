@@ -18,6 +18,8 @@ export interface Msx2ExternalSpriteImportOptions {
   targetHeight: number;
   finalColorCount: number;
   replaceableSlots: number[];
+  backgroundSlot?: number;
+  backgroundColor?: MSXColorValue;
   orBaseSlot?: number;
   orOverlaySlot?: number;
   orResultSlot?: number;
@@ -31,6 +33,7 @@ export interface Msx2ExternalSpriteImportOptions {
 export interface Msx2ExternalSpriteImportResult {
   palette: Screen5PaletteSlot[];
   pixelData: PixelData;
+  backgroundColor: MSXColorValue;
   detectedOpaqueColors: number;
   crop: { x: number; y: number; width: number; height: number };
   generatedSlots: Screen5PaletteSlot[];
@@ -45,11 +48,6 @@ const normalizeHex = (value: string | undefined): string =>
 
 const isTransparentHex = (value: string | undefined): boolean =>
   normalizeHex(value) === normalizeHex(TRANSPARENT_HEX);
-
-const isBlackOrWhite = (value: string | undefined): boolean => {
-  const normalized = normalizeHex(value);
-  return normalized === '#000000' || normalized === '#FFFFFF';
-};
 
 const hexToRgb = (hex: string | undefined): Rgb | null => {
   const normalized = normalizeHex(hex);
@@ -291,6 +289,8 @@ export function importExternalPngAsMsx2Sprite(
   const targetHeight = clamp(Math.floor(options.targetHeight), 8, 128);
   const normalizedOptions = { ...options, targetWidth, targetHeight };
   const background = detectBorderBackground(imageData);
+  const outputBackgroundColor = (options.backgroundColor || currentBackgroundColor || TRANSPARENT_HEX) as MSXColorValue;
+  const outputBackgroundRgb = hexToRgb(outputBackgroundColor);
   const crop = options.cropToVisible
     ? computeVisibleCrop(imageData, background, options.backgroundTolerance)
     : { x: 0, y: 0, width: imageData.width, height: imageData.height };
@@ -300,26 +300,29 @@ export function importExternalPngAsMsx2Sprite(
 
   const immutableSlots = findImmutableSlots(currentPalette);
   const replaceableSlots = options.replaceableSlots
-    .filter(slot => slot > 0 && slot < 16 && !immutableSlots.has(slot))
+    .filter(slot => slot > 0 && slot < 16 && slot !== options.backgroundSlot && !immutableSlots.has(slot))
     .filter((slot, index, all) => all.indexOf(slot) === index);
-  const immutableVisibleSlots = currentPalette.filter(slot =>
-    immutableSlots.has(slot.slotIndex) && slot.slotIndex !== 0 && isBlackOrWhite(slot.hex)
-  );
-  const requestedTotalColors = clamp(Math.floor(options.finalColorCount), 1, 15);
-  const mutableColorTarget = Math.max(0, requestedTotalColors - immutableVisibleSlots.length);
+  const requestedCustomColors = clamp(Math.floor(options.finalColorCount), 1, 15);
   const customColorCount = replaceableSlots.length
-    ? Math.min(mutableColorTarget, replaceableSlots.length)
+    ? Math.min(requestedCustomColors, replaceableSlots.length)
     : 0;
 
   if (replaceableSlots.length === 0) {
     warnings.push('No hay slots sustituibles seleccionados; se usara la paleta actual.');
   }
-  if (mutableColorTarget > replaceableSlots.length) {
-    warnings.push('Hay menos slots sustituibles que colores finales solicitados.');
+  if (requestedCustomColors > replaceableSlots.length) {
+    warnings.push('Hay menos slots sustituibles que colores custom solicitados.');
   }
 
-  const immutablePaletteCandidates = currentPalette.filter(slot => immutableSlots.has(slot.slotIndex) && slot.slotIndex !== 0);
+  const immutablePaletteCandidates = currentPalette.filter(slot =>
+    immutableSlots.has(slot.slotIndex)
+    && slot.slotIndex !== 0
+    && normalizeHex(slot.hex) !== normalizeHex(outputBackgroundColor)
+  );
   const nonImmutableSamples = visibleSamples.filter(sample => {
+    if (outputBackgroundRgb && colorDistance(sample, outputBackgroundRgb) <= options.backgroundTolerance * options.backgroundTolerance) {
+      return false;
+    }
     const nearestImmutable = nearestSlotColor(sample, immutablePaletteCandidates);
     if (!nearestImmutable) return true;
     const immutableRgb = hexToRgb(nearestImmutable.hex);
@@ -334,7 +337,8 @@ export function importExternalPngAsMsx2Sprite(
   const generatedSlots: Screen5PaletteSlot[] = [];
   const preferredOrSlots = options.useOrColor && options.orOverlaySlot && options.orResultSlot && options.orBaseSlot
     && ((options.orBaseSlot | options.orOverlaySlot) === options.orResultSlot)
-    ? [options.orOverlaySlot, options.orResultSlot]
+    ? [options.orBaseSlot, options.orOverlaySlot, options.orResultSlot]
+      .filter((slot, index, all) => all.indexOf(slot) === index)
     : [];
   const orderedReplaceableSlots = [
     ...preferredOrSlots.filter(slot => replaceableSlots.includes(slot)),
@@ -358,11 +362,13 @@ export function importExternalPngAsMsx2Sprite(
     if (fallback) candidateSlots.push(fallback);
   }
 
-  const backgroundColor = (nextPalette[0]?.hex || currentBackgroundColor || TRANSPARENT_HEX) as MSXColorValue;
   const pixelData: PixelData = rawPixels.map(row => row.map(pixel => {
-    if (!pixel.visible) return backgroundColor;
+    if (!pixel.visible) return outputBackgroundColor;
+    if (outputBackgroundRgb && colorDistance(pixel, outputBackgroundRgb) <= options.backgroundTolerance * options.backgroundTolerance) {
+      return outputBackgroundColor;
+    }
     const slot = nearestSlotColor(pixel, candidateSlots);
-    return (slot?.hex || backgroundColor) as MSXColorValue;
+    return (slot?.hex || outputBackgroundColor) as MSXColorValue;
   }));
 
   if (targetWidth % 16 !== 0 || targetHeight % 16 !== 0) {
@@ -375,6 +381,7 @@ export function importExternalPngAsMsx2Sprite(
   return {
     palette: nextPalette,
     pixelData,
+    backgroundColor: outputBackgroundColor,
     detectedOpaqueColors,
     crop,
     generatedSlots,

@@ -890,7 +890,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       superSpriteLayout: nextLayout,
       superSpriteParts: nextParts,
       palette: result.palette.map(slot => ({ ...slot })),
-      backgroundColor: (result.palette[0]?.hex || sprite.backgroundColor) as MSXColorValue,
+      backgroundColor: result.backgroundColor,
       frames: [{ id: `external_import_${Date.now()}`, data: result.pixelData }],
       currentFrameIndex: 0,
       hardware: { ...sprite.hardware, useOrColor: options.useOrColor },

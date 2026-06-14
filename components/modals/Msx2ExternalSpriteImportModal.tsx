@@ -67,11 +67,41 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
   onApply,
 }) => {
   const { slots: palette } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
+  const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
+  const isUsefulOrPair = (slots: typeof palette, base: number, overlay: number, excludedSlot: number): boolean => {
+    const result = base | overlay;
+    return base > 0
+      && overlay > 0
+      && result > 0
+      && result < 16
+      && base !== overlay
+      && result !== base
+      && result !== overlay
+      && base !== excludedSlot
+      && overlay !== excludedSlot
+      && result !== excludedSlot
+      && !isImmutableSlot(slots[base]?.hex)
+      && !isImmutableSlot(slots[overlay]?.hex)
+      && !isImmutableSlot(slots[result]?.hex);
+  };
+
+  const findDefaultOrPair = (slots: typeof palette, excludedSlot = blackSlot): { base: number; overlay: number } => {
+    const replaceable = defaultReplaceableMsx2SpriteSlots(slots).filter(slot => slot !== excludedSlot);
+    for (const base of replaceable) {
+      for (const overlay of replaceable) {
+        if (isUsefulOrPair(slots, base, overlay, excludedSlot) && replaceable.includes(base | overlay)) {
+          return { base, overlay };
+        }
+      }
+    }
+    return { base: replaceable[0] || 2, overlay: replaceable[1] || replaceable[0] || 4 };
+  };
   const [imageData, setImageData] = useState<ImageData | null>(null);
   const [fileName, setFileName] = useState('');
   const [targetWidth, setTargetWidth] = useState(sprite.size.width);
   const [targetHeight, setTargetHeight] = useState(sprite.size.height);
-  const [finalColorCount, setFinalColorCount] = useState(4);
+  const [finalColorCount, setFinalColorCount] = useState(3);
+  const [backgroundSlot, setBackgroundSlot] = useState(blackSlot);
   const [backgroundTolerance, setBackgroundTolerance] = useState(22);
   const [preserveAspect, setPreserveAspect] = useState(true);
   const [cropToVisible, setCropToVisible] = useState(true);
@@ -80,27 +110,39 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
   const [replaceableSlots, setReplaceableSlots] = useState<number[]>(() => defaultReplaceableMsx2SpriteSlots(palette));
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
-  const defaultOverlaySlot = palette.some(slot => slot.slotIndex === 4 && !isImmutableSlot(slot.hex)) ? 4 : defaultReplaceableMsx2SpriteSlots(palette)[0] || 2;
-  const [orOverlaySlot, setOrOverlaySlot] = useState(defaultOverlaySlot);
-  const orResultSlot = blackSlot | orOverlaySlot;
+  const defaultOrPair = useMemo(() => findDefaultOrPair(palette), [palette, blackSlot]);
+  const [orBaseSlot, setOrBaseSlot] = useState(defaultOrPair.base);
+  const [orOverlaySlot, setOrOverlaySlot] = useState(defaultOrPair.overlay);
+  const orResultSlot = orBaseSlot | orOverlaySlot;
+  const backgroundColor = (palette[backgroundSlot]?.hex || '#000000') as MSXColorValue;
+  const selectableOrSlots = useMemo(() => palette.filter(slot => (
+    slot.slotIndex > 0
+    && !isImmutableSlot(slot.hex)
+    && slot.slotIndex !== backgroundSlot
+  )), [backgroundSlot, palette]);
 
   useEffect(() => {
     if (!isOpen) return;
     setTargetWidth(sprite.size.width);
     setTargetHeight(sprite.size.height);
     setUseOrColor(sprite.hardware?.useOrColor !== false);
+    setBackgroundSlot(blackSlot);
+    const pair = findDefaultOrPair(palette, blackSlot);
+    setOrBaseSlot(pair.base);
+    setOrOverlaySlot(pair.overlay);
     const defaults = defaultReplaceableMsx2SpriteSlots(palette);
-    const preferred = [defaultOverlaySlot, blackSlot | defaultOverlaySlot].filter(slot => defaults.includes(slot));
+    const preferred = [pair.base, pair.overlay, pair.base | pair.overlay].filter(slot => defaults.includes(slot));
     setReplaceableSlots([...preferred, ...defaults.filter(slot => !preferred.includes(slot))]);
-  }, [blackSlot, defaultOverlaySlot, isOpen, palette, sprite.hardware?.useOrColor, sprite.size.height, sprite.size.width]);
+  }, [blackSlot, isOpen, palette, sprite.hardware?.useOrColor, sprite.size.height, sprite.size.width]);
 
   const options = useMemo<Msx2ExternalSpriteImportOptions>(() => ({
     targetWidth,
     targetHeight,
     finalColorCount,
     replaceableSlots,
-    orBaseSlot: blackSlot,
+    backgroundSlot,
+    backgroundColor,
+    orBaseSlot,
     orOverlaySlot,
     orResultSlot,
     syncProjectPalette,
@@ -108,7 +150,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
     cropToVisible,
     backgroundTolerance,
     useOrColor,
-  }), [backgroundTolerance, blackSlot, cropToVisible, finalColorCount, orOverlaySlot, orResultSlot, preserveAspect, replaceableSlots, syncProjectPalette, targetHeight, targetWidth, useOrColor]);
+  }), [backgroundColor, backgroundSlot, backgroundTolerance, cropToVisible, finalColorCount, orBaseSlot, orOverlaySlot, orResultSlot, preserveAspect, replaceableSlots, syncProjectPalette, targetHeight, targetWidth, useOrColor]);
 
   const result = useMemo(() => {
     if (!imageData) return null;
@@ -146,7 +188,19 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
     image.src = url;
   };
 
+  const chooseBackgroundSlot = (slot: number) => {
+    setBackgroundSlot(slot);
+    setReplaceableSlots(current => current.filter(value => value !== slot));
+    if (!isUsefulOrPair(palette, orBaseSlot, orOverlaySlot, slot)) {
+      const pair = findDefaultOrPair(palette, slot);
+      setOrBaseSlot(pair.base);
+      setOrOverlaySlot(pair.overlay);
+      includeOrSlots(pair.base, pair.overlay);
+    }
+  };
+
   const toggleReplaceableSlot = (slot: number) => {
+    if (slot === backgroundSlot) return;
     if (isImmutableSlot(palette[slot]?.hex)) return;
     setReplaceableSlots(current =>
       current.includes(slot)
@@ -155,15 +209,25 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
     );
   };
 
-  const chooseOverlaySlot = (slot: number) => {
-    setOrOverlaySlot(slot);
-    const resultSlot = blackSlot | slot;
+  const includeOrSlots = (baseSlot: number, overlaySlot: number) => {
+    const resultSlot = baseSlot | overlaySlot;
     setReplaceableSlots(current => {
       const next = new Set(current);
-      if (!isImmutableSlot(palette[slot]?.hex)) next.add(slot);
+      if (!isImmutableSlot(palette[baseSlot]?.hex)) next.add(baseSlot);
+      if (!isImmutableSlot(palette[overlaySlot]?.hex)) next.add(overlaySlot);
       if (!isImmutableSlot(palette[resultSlot]?.hex)) next.add(resultSlot);
       return Array.from(next).sort((a, b) => a - b);
     });
+  };
+
+  const chooseBaseSlot = (slot: number) => {
+    setOrBaseSlot(slot);
+    includeOrSlots(slot, orOverlaySlot);
+  };
+
+  const chooseOverlaySlot = (slot: number) => {
+    setOrOverlaySlot(slot);
+    includeOrSlots(orBaseSlot, slot);
   };
 
   if (!isOpen) return null;
@@ -202,12 +266,22 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
               <label>Alto
                 <input type="number" min={8} max={128} step={8} value={targetHeight} onChange={event => setTargetHeight(Number(event.target.value) || 16)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
               </label>
-              <label>Colores totales
-                <input type="number" min={2} max={15} value={finalColorCount} onChange={event => setFinalColorCount(Number(event.target.value) || 4)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
+              <label>Colores custom
+                <input type="number" min={1} max={15} value={finalColorCount} onChange={event => setFinalColorCount(Number(event.target.value) || 3)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
+              </label>
+              <label>Fondo
+                <select value={backgroundSlot} onChange={event => chooseBackgroundSlot(Number(event.target.value))} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1">
+                  {palette.filter(slot => slot.slotIndex > 0).map(slot => (
+                    <option key={slot.slotIndex} value={slot.slotIndex}>S{slot.slotIndex} {slot.hex}</option>
+                  ))}
+                </select>
               </label>
               <label>Fondo tol.
                 <input type="number" min={0} max={96} value={backgroundTolerance} onChange={event => setBackgroundTolerance(Number(event.target.value) || 0)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
               </label>
+              <div className="col-span-2 text-msx-textsecondary">
+                El fondo rellena transparencia y no cuenta como color custom.
+              </div>
               <label className="col-span-2 flex items-center justify-between gap-2">
                 Mantener proporcion
                 <input type="checkbox" checked={preserveAspect} onChange={event => setPreserveAspect(event.target.checked)} />
@@ -228,18 +302,26 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
                 <input type="checkbox" checked={useOrColor} onChange={event => setUseOrColor(event.target.checked)} />
               </div>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                <div className="rounded border border-msx-border p-2">
-                  <div className="text-msx-textsecondary">Base</div>
-                  <div>Slot {blackSlot}</div>
-                </div>
+                <label className="rounded border border-msx-border p-2">Base
+                  <select value={orBaseSlot} onChange={event => chooseBaseSlot(Number(event.target.value))} className="mt-1 w-full bg-msx-panelbg">
+                    {selectableOrSlots.filter(slot => (
+                      (slot.slotIndex | orOverlaySlot) < 16
+                      && (slot.slotIndex | orOverlaySlot) !== slot.slotIndex
+                      && (slot.slotIndex | orOverlaySlot) !== orOverlaySlot
+                      && !isImmutableSlot(palette[slot.slotIndex | orOverlaySlot]?.hex)
+                    )).map(slot => (
+                      <option key={slot.slotIndex} value={slot.slotIndex}>Slot {slot.slotIndex}</option>
+                    ))}
+                  </select>
+                </label>
                 <div className="text-center text-msx-highlight">|</div>
                 <label className="rounded border border-msx-border p-2">Overlay
                   <select value={orOverlaySlot} onChange={event => chooseOverlaySlot(Number(event.target.value))} className="mt-1 w-full bg-msx-panelbg">
-                    {palette.filter(slot => (
-                      slot.slotIndex > 0
-                      && !isImmutableSlot(slot.hex)
-                      && (blackSlot | slot.slotIndex) < 16
-                      && !isImmutableSlot(palette[blackSlot | slot.slotIndex]?.hex)
+                    {selectableOrSlots.filter(slot => (
+                      (orBaseSlot | slot.slotIndex) < 16
+                      && (orBaseSlot | slot.slotIndex) !== orBaseSlot
+                      && (orBaseSlot | slot.slotIndex) !== slot.slotIndex
+                      && !isImmutableSlot(palette[orBaseSlot | slot.slotIndex]?.hex)
                     )).map(slot => (
                       <option key={slot.slotIndex} value={slot.slotIndex}>Slot {slot.slotIndex}</option>
                     ))}
@@ -247,7 +329,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
                 </label>
               </div>
               <div className="mt-2 text-msx-textsecondary">
-                Resultado OR: slot {blackSlot} | slot {orOverlaySlot} = slot {orResultSlot}
+                Resultado OR: slot {orBaseSlot} | slot {orOverlaySlot} = slot {orResultSlot}
               </div>
             </div>
 
@@ -255,7 +337,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
               <div className="mb-2 text-msx-textsecondary">Slots que se pueden sustituir</div>
               <div className="grid grid-cols-5 gap-1">
                 {palette.slice(1).map(slot => {
-                  const immutable = isImmutableSlot(slot.hex);
+                  const immutable = isImmutableSlot(slot.hex) || slot.slotIndex === backgroundSlot;
                   return (
                     <button
                       key={slot.slotIndex}
@@ -290,7 +372,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
               <div className="mb-2 text-xs text-msx-textsecondary">Resultado MSX2</div>
               <div className="flex min-h-[280px] items-center justify-center overflow-auto">
                 {result ? (
-                  <PixelPreview data={result.pixelData} backgroundColor={(result.palette[0]?.hex || TRANSPARENT_HEX) as MSXColorValue} />
+                  <PixelPreview data={result.pixelData} backgroundColor={result.backgroundColor} />
                 ) : (
                   <div className="text-sm text-msx-textsecondary">Sin preview.</div>
                 )}
