@@ -35,6 +35,7 @@ interface Msx2SpriteEditorProps {
   sprite: Msx2Sprite;
   onUpdate: (data: Partial<Msx2Sprite>) => void;
   onSyncPaletteSlots?: (slots: Screen5PaletteSlot[]) => void;
+  onSavePaletteAsset?: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -482,7 +483,7 @@ const Msx2PixelGrid: React.FC<{
   );
 };
 
-export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, onSyncPaletteSlots }) => {
+export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, onSyncPaletteSlots, onSavePaletteAsset }) => {
   const { slots: palette, changed: paletteChanged } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
   const frame = normalizeFrame(sprite);
   const prevFrame = sprite.frames[sprite.currentFrameIndex - 1]?.data;
@@ -1292,6 +1293,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         sprite={sprite}
         onClose={() => setIsExternalImportOpen(false)}
         onApply={applyExternalSpriteImport}
+        onSavePaletteAsset={onSavePaletteAsset}
       />
       </div>
     </div>

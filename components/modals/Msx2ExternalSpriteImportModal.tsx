@@ -14,6 +14,7 @@ interface Msx2ExternalSpriteImportModalProps {
   sprite: Msx2Sprite;
   onClose: () => void;
   onApply: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
+  onSavePaletteAsset?: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -65,6 +66,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
   sprite,
   onClose,
   onApply,
+  onSavePaletteAsset,
 }) => {
   const { slots: palette } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
   const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
@@ -401,6 +403,11 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
 
         <div className="flex justify-end gap-2 border-t border-msx-border px-4 py-3">
           <Button size="sm" variant="ghost" onClick={onClose}>Cancelar</Button>
+          {onSavePaletteAsset && (
+            <Button size="sm" variant="secondary" disabled={!result} onClick={() => result && onSavePaletteAsset(result, options)}>
+              Guardar paleta como asset
+            </Button>
+          )}
           <Button size="sm" variant="primary" disabled={!result} onClick={() => result && onApply(result, options)}>
             Aplicar al Sprite
           </Button>
