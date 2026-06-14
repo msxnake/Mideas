@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, EnemyDefinition, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -428,6 +428,41 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     };
   };
 
+  const syncGeneratedMsx2PaletteSlots = (generatedSlots: Screen5PaletteSlot[]) => {
+    if (!generatedSlots.length) return;
+    const slotMap = new Map(generatedSlots.map(slot => [slot.slotIndex, { ...slot }]));
+    const updatedAssets = assets.filter(asset => {
+      if (asset.type === 'palette') {
+        const paletteAsset = asset.data as PaletteAsset | undefined;
+        return paletteAsset?.mode === 'SCREEN4' || paletteAsset?.mode === 'SCREEN5';
+      }
+      return asset.type === 'msx2screen' || asset.type === 'msx2bitmaproom';
+    }).length;
+    setAssetsWithHistory(prev => prev.map(asset => {
+      if (asset.type === 'palette') {
+        const paletteAsset = asset.data as PaletteAsset | undefined;
+        if (paletteAsset?.mode !== 'SCREEN4' && paletteAsset?.mode !== 'SCREEN5') return asset;
+        const { slots } = ensureScreen5PaletteSlots(paletteAsset.slots);
+        const nextSlots = slots.map(slot => slotMap.get(slot.slotIndex) || slot);
+        return { ...asset, data: { ...paletteAsset, slots: nextSlots } };
+      }
+      if (asset.type === 'msx2screen') {
+        const screen = asset.data as Msx2Screen4TileScreen;
+        const { slots } = ensureScreen5PaletteSlots(screen.palette);
+        const nextSlots = slots.map(slot => slotMap.get(slot.slotIndex) || slot);
+        return { ...asset, data: { ...screen, palette: nextSlots } };
+      }
+      if (asset.type === 'msx2bitmaproom') {
+        const room = asset.data as Msx2Screen4BitmapRoom;
+        const { slots } = ensureScreen5PaletteSlots(room.palette);
+        const nextSlots = slots.map(slot => slotMap.get(slot.slotIndex) || slot);
+        return { ...asset, data: { ...room, palette: nextSlots } };
+      }
+      return asset;
+    }));
+    setStatusBarMessage(`Paleta MSX2 sincronizada: ${generatedSlots.map(slot => `S${slot.slotIndex}`).join(', ')} en ${updatedAssets} asset(s).`);
+  };
+
   const renderRightPanelContent = () => {
     if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
       return (
@@ -722,7 +757,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           
           {currentEditor === EditorType.Tile && activeAsset?.type === 'tile' && ( <TileEditor currentTile={activeAsset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} zoom={tileEditorZoom} setZoom={setTileEditorZoom} onSelectGlobalColor={setSelectedColor} />)}
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} saveSpriteZoom={saveSpriteZoom} />)}
-          {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
+          {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSyncPaletteSlots={syncGeneratedMsx2PaletteSlots} />)}
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && ( <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}

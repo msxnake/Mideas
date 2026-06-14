@@ -21,6 +21,7 @@ export interface Msx2ExternalSpriteImportOptions {
   orBaseSlot?: number;
   orOverlaySlot?: number;
   orResultSlot?: number;
+  syncProjectPalette?: boolean;
   preserveAspect: boolean;
   cropToVisible: boolean;
   backgroundTolerance: number;

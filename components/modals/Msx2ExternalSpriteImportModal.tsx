@@ -76,6 +76,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
   const [preserveAspect, setPreserveAspect] = useState(true);
   const [cropToVisible, setCropToVisible] = useState(true);
   const [useOrColor, setUseOrColor] = useState(sprite.hardware?.useOrColor !== false);
+  const [syncProjectPalette, setSyncProjectPalette] = useState(true);
   const [replaceableSlots, setReplaceableSlots] = useState<number[]>(() => defaultReplaceableMsx2SpriteSlots(palette));
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -102,11 +103,12 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
     orBaseSlot: blackSlot,
     orOverlaySlot,
     orResultSlot,
+    syncProjectPalette,
     preserveAspect,
     cropToVisible,
     backgroundTolerance,
     useOrColor,
-  }), [backgroundTolerance, blackSlot, cropToVisible, finalColorCount, orOverlaySlot, orResultSlot, preserveAspect, replaceableSlots, targetHeight, targetWidth, useOrColor]);
+  }), [backgroundTolerance, blackSlot, cropToVisible, finalColorCount, orOverlaySlot, orResultSlot, preserveAspect, replaceableSlots, syncProjectPalette, targetHeight, targetWidth, useOrColor]);
 
   const result = useMemo(() => {
     if (!imageData) return null;
@@ -213,6 +215,10 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
               <label className="col-span-2 flex items-center justify-between gap-2">
                 Recortar fondo automaticamente
                 <input type="checkbox" checked={cropToVisible} onChange={event => setCropToVisible(event.target.checked)} />
+              </label>
+              <label className="col-span-2 flex items-center justify-between gap-2">
+                Sincronizar paleta del proyecto
+                <input type="checkbox" checked={syncProjectPalette} onChange={event => setSyncProjectPalette(event.target.checked)} />
               </label>
             </div>
 
