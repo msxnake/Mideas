@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Msx2Sprite, MSXColorValue } from '../../types';
+import { Msx2Sprite, MSXColorValue, PaletteAsset } from '../../types';
 import { Button } from '../common/Button';
 import {
   defaultReplaceableMsx2SpriteSlots,
@@ -7,11 +7,12 @@ import {
   Msx2ExternalSpriteImportOptions,
   Msx2ExternalSpriteImportResult,
 } from '../../utils/msx2ExternalSpriteImport';
-import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 
 interface Msx2ExternalSpriteImportModalProps {
   isOpen: boolean;
   sprite: Msx2Sprite;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
   onClose: () => void;
   onApply: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
   onSavePaletteAsset?: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
@@ -25,6 +26,17 @@ const normalizeHex = (value: string | undefined): string =>
 const isImmutableSlot = (hex: string | undefined): boolean => {
   const normalized = normalizeHex(hex);
   return normalized === normalizeHex(TRANSPARENT_HEX) || normalized === '#000000' || normalized === '#FFFFFF';
+};
+
+const sanitizeImportPalette = (incoming?: PaletteAsset['slots']) => {
+  const defaults = createDefaultScreen5PaletteSlots();
+  const { slots } = ensureScreen5PaletteSlots(incoming);
+  return slots.map((slot, index) => {
+    if (index === 0 || index === 1 || index === 15) {
+      return { ...defaults[index] };
+    }
+    return { ...slot };
+  });
 };
 
 const PixelPreview: React.FC<{
@@ -64,11 +76,20 @@ const PixelPreview: React.FC<{
 export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportModalProps> = ({
   isOpen,
   sprite,
+  paletteAssets = [],
   onClose,
   onApply,
   onSavePaletteAsset,
 }) => {
-  const { slots: palette } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
+  const usablePaletteAssets = useMemo(() => paletteAssets.filter(asset => (
+    asset.data?.mode === 'SCREEN4' || asset.data?.mode === 'SCREEN5'
+  )), [paletteAssets]);
+  const [selectedPaletteSource, setSelectedPaletteSource] = useState('default');
+  const palette = useMemo(() => {
+    if (selectedPaletteSource === 'default') return sanitizeImportPalette();
+    const asset = usablePaletteAssets.find(candidate => candidate.id === selectedPaletteSource);
+    return sanitizeImportPalette(asset?.data?.slots);
+  }, [selectedPaletteSource, usablePaletteAssets]);
   const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
   const isUsefulOrPair = (slots: typeof palette, base: number, overlay: number, excludedSlot: number): boolean => {
     const result = base | overlay;
@@ -125,6 +146,10 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
 
   useEffect(() => {
     if (!isOpen) return;
+    if (selectedPaletteSource !== 'default' && !usablePaletteAssets.some(asset => asset.id === selectedPaletteSource)) {
+      setSelectedPaletteSource('default');
+      return;
+    }
     setTargetWidth(sprite.size.width);
     setTargetHeight(sprite.size.height);
     setUseOrColor(sprite.hardware?.useOrColor !== false);
@@ -135,7 +160,7 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
     const defaults = defaultReplaceableMsx2SpriteSlots(palette);
     const preferred = [pair.base, pair.overlay, pair.base | pair.overlay].filter(slot => defaults.includes(slot));
     setReplaceableSlots([...preferred, ...defaults.filter(slot => !preferred.includes(slot))]);
-  }, [blackSlot, isOpen, palette, sprite.hardware?.useOrColor, sprite.size.height, sprite.size.width]);
+  }, [blackSlot, isOpen, palette, selectedPaletteSource, sprite.hardware?.useOrColor, sprite.size.height, sprite.size.width, usablePaletteAssets]);
 
   const options = useMemo<Msx2ExternalSpriteImportOptions>(() => ({
     targetWidth,
@@ -262,6 +287,23 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
             </div>
 
             <div className="grid grid-cols-2 gap-2 rounded border border-msx-border bg-msx-bgcolor/50 p-3">
+              <label className="col-span-2">Paleta base
+                <select
+                  value={selectedPaletteSource}
+                  onChange={event => setSelectedPaletteSource(event.target.value)}
+                  className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1"
+                >
+                  <option value="default">MSX2 por defecto</option>
+                  {usablePaletteAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
+              {usablePaletteAssets.length === 0 && (
+                <div className="col-span-2 text-msx-textsecondary">
+                  No hay assets de paleta; se usa la paleta MSX2 por defecto.
+                </div>
+              )}
               <label>Ancho
                 <input type="number" min={8} max={128} step={8} value={targetWidth} onChange={event => setTargetWidth(Number(event.target.value) || 16)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
               </label>

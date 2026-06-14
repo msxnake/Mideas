@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, MSXColorValue, PixelData, Point, Screen5PaletteSlot } from '../../types';
+import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, MSXColorValue, PaletteAsset, PixelData, Point, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
@@ -34,6 +34,7 @@ type TransformAction = 'shiftUp' | 'shiftDown' | 'shiftLeft' | 'shiftRight' | 'r
 interface Msx2SpriteEditorProps {
   sprite: Msx2Sprite;
   onUpdate: (data: Partial<Msx2Sprite>) => void;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
   onSyncPaletteSlots?: (slots: Screen5PaletteSlot[]) => void;
   onSavePaletteAsset?: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
 }
@@ -483,7 +484,7 @@ const Msx2PixelGrid: React.FC<{
   );
 };
 
-export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, onSyncPaletteSlots, onSavePaletteAsset }) => {
+export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, paletteAssets = [], onSyncPaletteSlots, onSavePaletteAsset }) => {
   const { slots: palette, changed: paletteChanged } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
   const frame = normalizeFrame(sprite);
   const prevFrame = sprite.frames[sprite.currentFrameIndex - 1]?.data;
@@ -1291,6 +1292,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       <Msx2ExternalSpriteImportModal
         isOpen={isExternalImportOpen}
         sprite={sprite}
+        paletteAssets={paletteAssets}
         onClose={() => setIsExternalImportOpen(false)}
         onApply={applyExternalSpriteImport}
         onSavePaletteAsset={onSavePaletteAsset}
