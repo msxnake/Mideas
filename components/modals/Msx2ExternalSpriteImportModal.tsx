@@ -86,10 +86,10 @@ export const Msx2ExternalSpriteImportModal: React.FC<Msx2ExternalSpriteImportMod
   )), [paletteAssets]);
   const [selectedPaletteSource, setSelectedPaletteSource] = useState('default');
   const palette = useMemo(() => {
-    if (selectedPaletteSource === 'default') return sanitizeImportPalette();
+    if (selectedPaletteSource === 'default') return sanitizeImportPalette(sprite.palette);
     const asset = usablePaletteAssets.find(candidate => candidate.id === selectedPaletteSource);
     return sanitizeImportPalette(asset?.data?.slots);
-  }, [selectedPaletteSource, usablePaletteAssets]);
+  }, [selectedPaletteSource, sprite.palette, usablePaletteAssets]);
   const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
   const isUsefulOrPair = (slots: typeof palette, base: number, overlay: number, excludedSlot: number): boolean => {
     const result = base | overlay;

@@ -10,13 +10,13 @@ import {
   Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot
 } from '../types';
 import { 
-  MSX_SCREEN5_PALETTE, MSX1_PALETTE,
+  MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR,
   DEFAULT_HELP_DOCS_DATA, HELP_DOCS_SYSTEM_ASSET_ID,
   Z80_BEHAVIOR_SNIPPETS, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS, EDITOR_BASE_TILE_DIM_S2,
   DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
-import { ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/msx2PaletteUtils';
+import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/msx2PaletteUtils';
 import { isEntityTemplateEnabledForProject } from '../utils/projectTarget';
 import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { TileEditor } from './editors/TileEditor';
@@ -511,7 +511,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       const isMsx2ScreenEditor = currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen';
       const isMsx2BitmapRoomEditor = currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom';
       const usesScreen2Palette = currentScreenMode === "SCREEN 2 (Graphics I)" && !isMsx2SpriteEditor && !isMsx2BitmapEditor && !isMsx2ScreenEditor && !isMsx2BitmapRoomEditor;
-      let paletteToUse = usesScreen2Palette ? MSX1_PALETTE : MSX_SCREEN5_PALETTE;
+      let paletteToUse = usesScreen2Palette ? MSX1_PALETTE : screen5SlotsToMsxColors(createDefaultScreen5PaletteSlots());
       if (!usesScreen2Palette && currentEditor === EditorType.Tile && activeAsset?.type === 'tile') {
         const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Tile).screen5Palette);
         paletteToUse = screen5SlotsToMsxColors(slots);
