@@ -21,6 +21,30 @@ export interface Screen5PaletteSlot {
 }
 
 /**
+ * Functional zoning of the single shared SCREEN4/SCREEN5 16-color palette.
+ *
+ * In SCREEN 4 tiles and sprites share ONE hardware palette, so the user can
+ * carve the 16 slots into functional zones with a single movable divider:
+ *
+ *  - Immutable slots (slot 0 transparent + black/white) are never reassigned.
+ *  - Sprite zone: contiguous mutable slots reserved for sprites [spriteStart..divider-1].
+ *  - Tile zone: contiguous mutable slots reserved for tiles [divider..tileEnd].
+ *
+ * `divider` is the first slot belonging to the tile zone; everything from
+ * `spriteStart` up to (but not including) `divider` is the sprite zone. This is
+ * the single boundary the user drags. Immutable slots are excluded from both
+ * zones by `getSpriteZoneSlots` / `getTileZoneSlots`.
+ */
+export interface Msx2PaletteZones {
+  /** First slot of the sprite zone (inclusive, usually 1 or 2). */
+  spriteStart: number;
+  /** Movable boundary: first slot of the tile zone (inclusive). */
+  divider: number;
+  /** Last slot of the tile zone (inclusive, usually 15). */
+  tileEnd: number;
+}
+
+/**
  * Represents a color in the MSX2 V9938 palette.
  */
 export interface MSXColor {
@@ -780,6 +804,8 @@ export interface Msx2Screen4TileScreen {
   widthTiles: 16;
   heightTiles: 12;
   palette: Screen5PaletteSlot[];
+  /** User-defined functional zoning of the shared palette (sprites vs tiles). */
+  paletteZones?: Msx2PaletteZones;
   tiles: Msx2Screen4Tile[];
   map: number[][];
   /** MSX2 runtime layers. Kept separate from visual tile data to avoid duplicating large bitmap payloads. */
@@ -1142,7 +1168,7 @@ export interface EnemyDefinition {
   category: EnemyCategory;
   scope: EnemyLibraryScope;
   behavior: { type: EnemyBehaviorType; customRoutine?: string; stateTransitions?: EnemyBehaviorStateTransition[] };
-  attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number; dropBombOnPlayerX?: boolean };
+  attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number; dropBombOnPlayerX?: boolean; bulletSpriteId?: string };
   render: EnemyRenderConfig;
   hitboxes: EnemyHitboxes;
   stats: { hp: number; damage: number; invulnerabilityFrames?: number; knockback?: number };

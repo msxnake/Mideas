@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, EnemyDefinition, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
 } from '../types';
 import { 
   MSX1_PALETTE,
@@ -17,6 +17,7 @@ import {
   DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/msx2PaletteUtils';
+import { createDefaultPaletteZones, normalizePaletteZones } from '../utils/msx2PaletteZones';
 import { isEntityTemplateEnabledForProject } from '../utils/projectTarget';
 import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { TileEditor } from './editors/TileEditor';
@@ -44,6 +45,8 @@ import { BossEditor } from './editors/BossEditor';
 import { SpriteSheetReorderModal } from './modals/SpriteSheetReorderModal';
 import { Msx2EntityLibraryModal } from './modals/Msx2EntityLibraryModal';
 import { Msx2SpriteLibraryModal } from './modals/Msx2SpriteLibraryModal';
+import { Msx2TileLibraryModal } from './modals/Msx2TileLibraryModal';
+import { getUsedMsx2SpritePaletteSlots } from '../utils/msx2PaletteCompatibility';
 import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
 import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
@@ -287,6 +290,32 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const hasUsableProject = Boolean(currentProjectName) && !pendingMsx2NewProject;
   const activeScreenMapAsset = activeAsset?.type === 'screenmap' ? activeAsset.data as ScreenMap : undefined;
   const activeGameFlowAsset = activeAsset?.type === 'gameflow' ? activeAsset.data as GameFlowGraph : undefined;
+  // Active MSX2 SCREEN4 screen (selected first, else the first one in the
+  // project). Target for tile-library imports and palette reconciliation.
+  const activeMsx2ScreenAsset = (activeAsset?.type === 'msx2screen' ? activeAsset : undefined)
+    || assets.find(a => a.type === 'msx2screen');
+  // SCREEN 4 shares one 16-color palette between tiles and sprites, so slots
+  // used by any MSX2 sprite must not be silently overwritten on tile import.
+  const msx2SpriteUsedSlots = React.useMemo(() => {
+    const used = new Set<number>();
+    assets.forEach(asset => {
+      if (asset.type !== 'msx2sprite') return;
+      getUsedMsx2SpritePaletteSlots(asset.data as Msx2Sprite).forEach(slot => {
+        if (slot > 0) used.add(slot);
+      });
+    });
+    return Array.from(used).sort((a, b) => a - b);
+  }, [assets]);
+  // Functional zoning (sprites vs tiles) of the active MSX2 screen's shared
+  // palette. Defaults via the factory when the screen has none stored yet.
+  const activeMsx2PaletteZones = React.useMemo<Msx2PaletteZones | undefined>(() => {
+    if (!activeMsx2ScreenAsset) return undefined;
+    const screen = activeMsx2ScreenAsset.data as Msx2Screen4TileScreen;
+    const { slots } = ensureScreen5PaletteSlots(screen.palette);
+    return screen.paletteZones
+      ? normalizePaletteZones(screen.paletteZones, slots)
+      : createDefaultPaletteZones(slots);
+  }, [activeMsx2ScreenAsset]);
   const bossPackageInputRef = React.useRef<HTMLInputElement>(null);
   const [isAssetExplorerCollapsed, setIsAssetExplorerCollapsed] = useState(false);
   const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
@@ -367,6 +396,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [isMsxEmulatorHelpOpen, setIsMsxEmulatorHelpOpen] = React.useState(false);
   const [isMsx2EntityLibraryOpen, setIsMsx2EntityLibraryOpen] = useState(false);
   const [isMsx2SpriteLibraryOpen, setIsMsx2SpriteLibraryOpen] = useState(false);
+  const [isMsx2TileLibraryOpen, setIsMsx2TileLibraryOpen] = useState(false);
   const [selectedScreenCatalogBlock, setSelectedScreenCatalogBlock] = useState<TileStamp | null>(null);
 
   const handleEditGeneratedFile = React.useCallback((filename: string, content: string) => {
@@ -671,6 +701,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenEntityTemplateEditor={() => onSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
         onOpenMsx2EntityLibrary={() => setIsMsx2EntityLibraryOpen(true)}
         onOpenMsx2SpriteLibrary={() => setIsMsx2SpriteLibraryOpen(true)}
+        onOpenMsx2TileLibrary={() => setIsMsx2TileLibraryOpen(true)}
         onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
         onOpenPngMsxTool={() => {
@@ -1128,6 +1159,48 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               const name = (sprite.name || 'Sprite').trim() || 'Sprite';
               const assetId = `msx2sprite_lib_import_${Date.now()}`;
               handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'msx2sprite', data: { ...sprite, id: assetId } }]);
+            }}
+        />
+      )}
+      {isMsx2TileLibraryOpen && (
+        <Msx2TileLibraryModal
+            isOpen={isMsx2TileLibraryOpen}
+            onClose={() => setIsMsx2TileLibraryOpen(false)}
+            setStatusBarMessage={setStatusBarMessage}
+            destPalette={activeMsx2ScreenAsset ? (activeMsx2ScreenAsset.data as Msx2Screen4TileScreen).palette : null}
+            destScreenName={activeMsx2ScreenAsset?.name}
+            paletteAssets={assets.filter(a => a.type === 'palette')}
+            protectedSlots={msx2SpriteUsedSlots}
+            paletteZones={activeMsx2PaletteZones}
+            onPaletteZonesChange={(zones) => {
+              if (!activeMsx2ScreenAsset) return;
+              handleUpdateAsset(activeMsx2ScreenAsset.id, { paletteZones: zones } as Partial<Msx2Screen4TileScreen>);
+            }}
+            onImportTiles={(tiles, palette, paletteChanged, paletteSourceId) => {
+              // Append the reconciled tile(s) to the active MSX2 SCREEN4 screen's
+              // tiles[] (the array Msx2Screen4RoomEditor edits). When the palette
+              // changed (replace mode, or a different base palette was chosen)
+              // persist it on the screen so the tile renders correctly, and — if
+              // the base was a palette ASSET — write the result back to that
+              // asset too, so the selected palette is actually modified.
+              if (!activeMsx2ScreenAsset) {
+                setStatusBarMessage('No hay pantalla MSX2 activa; el tile queda solo en la biblioteca global.');
+                return;
+              }
+              const data = activeMsx2ScreenAsset.data as Msx2Screen4TileScreen;
+              const existing = Array.isArray(data.tiles) ? data.tiles : [];
+              const update: Partial<Msx2Screen4TileScreen> = { tiles: [...existing, ...tiles] };
+              if (paletteChanged && palette) update.palette = palette;
+              handleUpdateAsset(activeMsx2ScreenAsset.id, update);
+              if (palette && paletteSourceId && paletteSourceId !== 'screen') {
+                const paletteAsset = assets.find(a => a.id === paletteSourceId && a.type === 'palette');
+                if (paletteAsset) {
+                  handleUpdateAsset(paletteAsset.id, { slots: palette.map(slot => ({ ...slot })) });
+                  setStatusBarMessage(`Importado tile y actualizada la paleta "${paletteAsset.name}".`);
+                  return;
+                }
+              }
+              setStatusBarMessage(`Importados ${tiles.length} tile(s) a "${activeMsx2ScreenAsset.name}".`);
             }}
         />
       )}

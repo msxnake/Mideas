@@ -114,15 +114,32 @@ const cloneTile = (tile: Msx2Screen4Tile): Msx2Screen4Tile => {
 
 const normalizeTiles = (tiles?: Msx2Screen4Tile[]): Msx2Screen4Tile[] => {
   const source = tiles?.length ? tiles : [{ id: 'tile_0', name: 'Tile 0', pixels: createTilePixels(0) }];
+  // Tile ids are used as React list keys and names are shown/selected by the
+  // user, so both must be unique. Duplicates (e.g. importing the same library
+  // tile twice, or duplicating) made clicks/deletes hit the wrong row. Dedup
+  // deterministically so the same input always yields the same output.
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
   return source.map((tile, index) => {
     const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
     const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
     const pixels = Array.from({ length: height }, (_, y) =>
       Array.from({ length: width }, (_, x) => Math.max(0, Math.min(15, Number(tile.pixels?.[y]?.[x]) || 0)))
     );
+
+    let id = tile.id || `tile_${index}`;
+    while (seenIds.has(id)) id = `${id}_${index}`;
+    seenIds.add(id);
+
+    const baseName = tile.name || `Tile ${index}`;
+    let name = baseName;
+    let suffix = 2;
+    while (seenNames.has(name)) name = `${baseName} (${suffix++})`;
+    seenNames.add(name);
+
     return normalizeMsx2Screen4TileBehavior({
-      id: tile.id || `tile_${index}`,
-      name: tile.name || `Tile ${index}`,
+      id,
+      name,
       width,
       height,
       pixels,
@@ -1003,6 +1020,25 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
     });
   };
 
+  const deleteTile = () => {
+    if (tiles.length <= 1) return; // keep at least one tile
+    const removeIndex = Math.max(0, Math.min(tiles.length - 1, selectedTileIndex));
+    const target = tiles[removeIndex];
+    if (!confirm(`¿Eliminar el tile ${removeIndex} (${target?.name || ''})? Las celdas del mapa que lo usan pasarán al tile 0.`)) return;
+    const nextTiles = tiles.filter((_, index) => index !== removeIndex).map(cloneTile);
+    // The screen map stores tile indices, so reindex: cells using the removed
+    // tile fall back to tile 0; cells above it shift down by one.
+    const remappedMap = map.map(row => row.map(cell => {
+      if (cell === removeIndex) return 0;
+      return cell > removeIndex ? cell - 1 : cell;
+    }));
+    onUpdate({ tiles: nextTiles, map: remappedMap });
+    setSelectedTileIndex(prev => {
+      const clamped = prev > removeIndex ? prev - 1 : prev;
+      return Math.max(0, Math.min(nextTiles.length - 1, clamped));
+    });
+  };
+
   const editableRuntimeLayer = mode === 'collision' || mode === 'effects' || mode === 'behavior';
   const editableSelectionLayer = mode === 'visual' || editableRuntimeLayer;
   const activeEditRect = selectionRect || {
@@ -1281,6 +1317,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
               onAddTile={addTile}
               onDuplicateTile={duplicateTile}
               onClearTile={clearTile}
+              onDeleteTile={deleteTile}
               onOpenTileStudio={() => setTileStudioOpen(open => !open)}
               tileStudioOpen={tileStudioOpen}
             />
@@ -1298,6 +1335,7 @@ export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ sc
               onAddTile={addTile}
               onDuplicateTile={duplicateTile}
               onClearTile={clearTile}
+              onDeleteTile={deleteTile}
               onClose={() => setTileStudioOpen(false)}
               onUpdate={onUpdate}
               activeSlot={activeSlot}

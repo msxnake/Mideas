@@ -1386,6 +1386,7 @@ interface Msx2Screen4TilesPanelProps {
   onAddTile: () => void;
   onDuplicateTile: () => void;
   onClearTile: () => void;
+  onDeleteTile?: () => void;
   onOpenTileStudio?: () => void;
   tileStudioOpen?: boolean;
 }
@@ -1447,6 +1448,7 @@ export const Msx2Screen4TilesPanel: React.FC<Msx2Screen4TilesPanelProps> = ({
   onAddTile,
   onDuplicateTile,
   onClearTile,
+  onDeleteTile,
   onOpenTileStudio,
   tileStudioOpen = false,
 }) => {
@@ -1494,6 +1496,11 @@ export const Msx2Screen4TilesPanel: React.FC<Msx2Screen4TilesPanelProps> = ({
         <Button size="sm" variant="secondary" onClick={onAddTile}>Add</Button>
         <Button size="sm" variant="secondary" onClick={onDuplicateTile}>Duplicate</Button>
         <Button size="sm" variant="danger" onClick={onClearTile}>Clear</Button>
+        {onDeleteTile && (
+          <Button size="sm" variant="danger" onClick={onDeleteTile} disabled={tiles.length <= 1} title="Eliminar el tile seleccionado y reindexar el mapa">
+            Borrar
+          </Button>
+        )}
       </div>
       {filteredTiles.length === 0 ? (
         <div className="text-xs text-msx-textsecondary">No hay tiles para este filtro.</div>

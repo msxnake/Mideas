@@ -98,6 +98,8 @@ interface ToolbarProps {
   onOpenMsx2EntityLibrary: () => void;
   /** Callback to open the global MSX2 sprites library dialog. */
   onOpenMsx2SpriteLibrary: () => void;
+  /** Callback to open the global MSX2 tiles library dialog. */
+  onOpenMsx2TileLibrary: () => void;
   /** Callback to open the MSX2 enemy library editor. */
   onOpenEnemyLibrary: () => void;
   /** Callback to open the world view editor. */
@@ -261,7 +263,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenMsx2TileLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -503,6 +505,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {shouldShowMsx2Controls && (
         <DropdownMenu label="Libraries">
           <DropdownItem onClick={onOpenMsx2SpriteLibrary} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white">Sprites</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2TileLibrary} icon={<TilesetIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white">Tiles</DropdownItem>
           <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Components</DropdownItem>
           <DropdownItem onClick={onOpenMsx2EntityLibrary} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entities</DropdownItem>
           <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">Enemies</DropdownItem>

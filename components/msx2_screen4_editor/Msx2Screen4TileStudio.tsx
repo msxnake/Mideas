@@ -71,6 +71,7 @@ type Msx2Screen4TileStudioProps = Omit<Msx2Screen4TileEditorPanelProps, 'layout'
   onAddTile: () => void;
   onDuplicateTile: () => void;
   onClearTile: () => void;
+  onDeleteTile?: () => void;
   onClose: () => void;
   onUpdate: (data: object, newAssets?: ProjectAsset[]) => void;
 };
@@ -117,6 +118,7 @@ export const Msx2Screen4TileStudio: React.FC<Msx2Screen4TileStudioProps> = ({
   onAddTile,
   onDuplicateTile,
   onClearTile,
+  onDeleteTile,
   onClose,
   onUpdate,
   ...editorProps
@@ -218,6 +220,11 @@ export const Msx2Screen4TileStudio: React.FC<Msx2Screen4TileStudioProps> = ({
               <Button size="sm" variant="secondary" onClick={onAddTile}>Add</Button>
               <Button size="sm" variant="secondary" onClick={onDuplicateTile}>Dup</Button>
               <Button size="sm" variant="danger" onClick={onClearTile}>Clear</Button>
+              {onDeleteTile && (
+                <Button size="sm" variant="danger" onClick={onDeleteTile} disabled={tiles.length <= 1} title="Eliminar el tile seleccionado y reindexar el mapa" className="col-span-3">
+                  Borrar tile
+                </Button>
+              )}
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
