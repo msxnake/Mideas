@@ -33,6 +33,8 @@ import { WaveformEditorModal } from '../tracker/WaveformEditorModal';
 import { Panel } from '../common/Panel';
 import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
 import { CowbellPT3Player } from '../utils/cowbellPt3Player';
+import { useMidiInput } from '../../utils/useMidiInput';
+import { MidiInputPanel, MidiChannelMode } from '../tracker/MidiInputPanel';
 
 const hasFullPT3Header = (bytes: Uint8Array): boolean => {
   const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
@@ -1347,6 +1349,102 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels, schedulePreviewNoteCut, getResolvedCellValue, mutedChannels]);
 
+  // --- MIDI input (Akai MPK Mini MK3 and other Web MIDI devices) ---
+  const [midiOctaveOffset, setMidiOctaveOffset] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('mideas.tracker.midi.octaveOffset') || '0', 10);
+    return Number.isFinite(v) ? Math.max(-4, Math.min(4, v)) : 0;
+  });
+  const [midiChannelMode, setMidiChannelMode] = useState<MidiChannelMode>(() => {
+    return (localStorage.getItem('mideas.tracker.midi.channelMode') as MidiChannelMode) === 'fixed' ? 'fixed' : 'follow';
+  });
+  const [midiFixedChannelIndex, setMidiFixedChannelIndex] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('mideas.tracker.midi.fixedChannel') || '0', 10);
+    return Number.isFinite(v) ? v : 0;
+  });
+
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.octaveOffset', String(midiOctaveOffset)); }, [midiOctaveOffset]);
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.channelMode', midiChannelMode); }, [midiChannelMode]);
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.fixedChannel', String(midiFixedChannelIndex)); }, [midiFixedChannelIndex]);
+
+  // Convert a MIDI note number to a tracker note string (e.g. 60 -> "C-4"),
+  // applying the configured octave offset. MIDI 60 = C4. Returns null if the
+  // resulting octave is outside the tracker's 0..7 range.
+  const midiNoteToTrackerNote = useCallback((midiNote: number): string | null => {
+    const noteIndex = ((midiNote % 12) + 12) % 12;
+    const baseOctave = Math.floor(midiNote / 12) - 1;
+    const octave = baseOctave + midiOctaveOffset;
+    if (octave < 0 || octave > 7) return null;
+    return `${PT3_NOTE_NAMES[noteIndex]}${octave}`;
+  }, [midiOctaveOffset]);
+
+  // Insert a note string at an explicit (row, channel) target, reusing the
+  // exact same logic as the on-screen piano / computer keyboard: write the
+  // cell, preview through the synth, highlight the key, and advance the row.
+  const insertNoteAtChannel = useCallback((channelId: TrackerChannelId, noteName: string) => {
+    if (!currentPattern) return;
+    const rowIndex = (focusedCell && focusedCell.channelId === channelId)
+      ? focusedCell.rowIndex
+      : (focusedCell ? focusedCell.rowIndex : 0);
+    const channelIndex = channels.indexOf(channelId);
+    if (channelIndex < 0) return;
+    const resolvedInstrumentId = getResolvedCellValue(rowIndex, channelId, 'instrument');
+    const resolvedOrnamentId = getResolvedCellValue(rowIndex, channelId, 'ornament');
+    if (!mutedChannels.has(channelId)) {
+      synthesizer?.playNote(
+        channelIndex as any,
+        noteName,
+        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
+        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
+        currentPattern.rows[rowIndex]?.[channelId]?.volume ?? 15
+      );
+      schedulePreviewNoteCut(channelIndex);
+    }
+    setActivePianoKeys(prev => new Set(prev).add(noteName));
+    setActivePianoKeyLevels(prev => { const next = new Map(prev); next.set(noteName, 1); return next; });
+    if (activePianoKeysTimeoutRef.current) clearTimeout(activePianoKeysTimeoutRef.current);
+    activePianoKeysTimeoutRef.current = window.setTimeout(() => {
+      setActivePianoKeys(prev => { const next = new Set(prev); next.delete(noteName); return next; });
+      setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteName); return next; });
+    }, 150);
+    handleCellChange(rowIndex, channelId, 'note', noteName);
+    focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
+  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump]);
+
+  const handleMidiNoteOn = useCallback((midiNote: number, _velocity: number) => {
+    const noteName = midiNoteToTrackerNote(midiNote);
+    if (!noteName) return;
+    // Follow cursor: requires a focused cell; otherwise default to first channel.
+    if (midiChannelMode === 'follow') {
+      const targetChannel = focusedCell ? focusedCell.channelId : channels[0];
+      insertNoteAtChannel(targetChannel, noteName);
+    } else {
+      const idx = Math.max(0, Math.min(channels.length - 1, midiFixedChannelIndex));
+      insertNoteAtChannel(channels[idx], noteName);
+    }
+  }, [midiNoteToTrackerNote, midiChannelMode, focusedCell, channels, midiFixedChannelIndex, insertNoteAtChannel]);
+
+  // Note Off: nothing to clean up here. Preview note cuts are scheduled by
+  // the preview timeout; explicit silencing on key release is intentionally
+  // avoided so it does not interfere with row playback / pending cuts.
+  const handleMidiNoteOff = useCallback((_midiNote: number) => { /* no-op: state-safe */ }, []);
+
+  // Control Change: map knobs to the active instrument id as a clean hook.
+  // CC values 0..127 are scaled to the available instrument range. Extend here
+  // to map other knobs/CC numbers to volume or other tracker parameters.
+  const handleMidiControlChange = useCallback((_cc: number, value: number) => {
+    const instruments = songData.instruments || [];
+    if (instruments.length === 0) return;
+    const idx = Math.min(instruments.length - 1, Math.floor((value / 128) * instruments.length));
+    const target = instruments[idx];
+    if (target) setActiveInstrumentId(target.id);
+  }, [songData.instruments]);
+
+  const midi = useMidiInput({
+    onNoteOn: handleMidiNoteOn,
+    onNoteOff: handleMidiNoteOff,
+    onControlChange: handleMidiControlChange,
+  });
+
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
       setEditingInstrument(instrument);
@@ -1762,6 +1860,16 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             activeOrnamentId={activeOrnamentId}
             onSetActiveOrnamentId={setActiveOrnamentId}
             onOpenOrnamentModal={handleOpenOrnamentModal}
+          />
+          <MidiInputPanel
+            midi={midi}
+            octaveOffset={midiOctaveOffset}
+            onOctaveOffsetChange={setMidiOctaveOffset}
+            channelMode={midiChannelMode}
+            onChannelModeChange={setMidiChannelMode}
+            fixedChannelIndex={midiFixedChannelIndex}
+            onFixedChannelIndexChange={setMidiFixedChannelIndex}
+            channelLabels={channels as unknown as string[]}
           />
           </div>
         </div>
