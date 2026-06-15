@@ -1382,14 +1382,22 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   // cell, preview through the synth, highlight the key, and advance the row.
   const insertNoteAtChannel = useCallback((channelId: TrackerChannelId, noteName: string) => {
     if (!currentPattern) return;
-    const rowIndex = (focusedCell && focusedCell.channelId === channelId)
-      ? focusedCell.rowIndex
-      : (focusedCell ? focusedCell.rowIndex : 0);
     const channelIndex = channels.indexOf(channelId);
     if (channelIndex < 0) return;
+    // While playing, record live at tempo: write into the row currently being
+    // played and let the cursor follow the playhead (do NOT advance the edit
+    // cursor per note, which produced the sequential bug). When stopped, behave
+    // as step entry at the focused cell, advancing by editStepJump.
+    const recording = isPlaying;
+    const rowIndex = recording
+      ? Math.max(0, Math.min(currentPattern.numRows - 1, playbackRow))
+      : (focusedCell ? focusedCell.rowIndex : 0);
     const resolvedInstrumentId = getResolvedCellValue(rowIndex, channelId, 'instrument');
     const resolvedOrnamentId = getResolvedCellValue(rowIndex, channelId, 'ornament');
-    if (!mutedChannels.has(channelId)) {
+    // Manual preview only when stopped. During playback the engine plays the
+    // written note on its next pass, and a manual note-cut would silence the
+    // channel mid-playback.
+    if (!recording && !mutedChannels.has(channelId)) {
       synthesizer?.playNote(
         channelIndex as any,
         noteName,
@@ -1407,8 +1415,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteName); return next; });
     }, 150);
     handleCellChange(rowIndex, channelId, 'note', noteName);
-    focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
-  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump]);
+    if (!recording) {
+      focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
+    }
+  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump, isPlaying, playbackRow]);
 
   const handleMidiNoteOn = useCallback((midiNote: number, _velocity: number) => {
     const noteName = midiNoteToTrackerNote(midiNote);
