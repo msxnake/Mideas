@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Msx2Screen4Tile, Screen5PaletteSlot } from '../../types';
 import { Button } from '../common/Button';
 import {
+  computeContentCropRect,
   defaultReplaceableMsx2SpriteSlots,
 } from '../../utils/msx2ExternalSpriteImport';
 import {
   importExternalPngAsMsx2Tiles,
+  isMsx2TileEmpty,
   Msx2ExternalTileImportOptions,
 } from '../../utils/msx2ExternalTileImport';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
@@ -83,6 +85,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const [baseName, setBaseName] = useState('tile');
   const [targetWidth, setTargetWidth] = useState(16);
   const [targetHeight, setTargetHeight] = useState(16);
+  // When on, Ancho and Alto stay equal (square): editing one mirrors the other.
+  const [lockDimensions, setLockDimensions] = useState(false);
   const [finalColorCount, setFinalColorCount] = useState(3);
   const [backgroundSlot, setBackgroundSlot] = useState(blackSlot);
   const [backgroundTolerance, setBackgroundTolerance] = useState(22);
@@ -91,6 +95,14 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const [replaceableSlots, setReplaceableSlots] = useState<number[]>(() => defaultReplaceableMsx2SpriteSlots(palette));
   const [showResultGrid, setShowResultGrid] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  // Re-roll counter for the color quantizer (see "Recuantizar" button).
+  const [quantizeSeed, setQuantizeSeed] = useState(0);
+  // Interactive crop: draw a rectangle (snapped to 16px) over the source image
+  // and discard everything outside it before reprocessing.
+  const [cropMode, setCropMode] = useState(false);
+  const [cropSelection, setCropSelection] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const backgroundColor = (palette[backgroundSlot]?.hex || '#000000');
@@ -102,8 +114,14 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     setBaseName('tile');
     setTargetWidth(16);
     setTargetHeight(16);
+    setLockDimensions(false);
     setBackgroundSlot(blackSlot);
     setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(palette));
+    setQuantizeSeed(0);
+    setCropMode(false);
+    setCropSelection(null);
+    setIsSelecting(false);
+    dragStartRef.current = null;
   }, [isOpen, blackSlot, palette]);
 
   const options = useMemo<Msx2ExternalTileImportOptions>(() => ({
@@ -119,12 +137,21 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     backgroundTolerance,
     useOrColor: false,
     baseName,
-  }), [backgroundColor, backgroundSlot, backgroundTolerance, baseName, cropToVisible, finalColorCount, preserveAspect, replaceableSlots, targetHeight, targetWidth]);
+    quantizeSeed,
+  }), [backgroundColor, backgroundSlot, backgroundTolerance, baseName, cropToVisible, finalColorCount, preserveAspect, quantizeSeed, replaceableSlots, targetHeight, targetWidth]);
 
   const result = useMemo(() => {
     if (!imageData) return null;
     return importExternalPngAsMsx2Tiles(imageData, palette, backgroundColor, options);
   }, [imageData, options, palette, backgroundColor]);
+
+  // Empty (all-background) cells are previewed but skipped when adding to the
+  // library, so a sparse sheet doesn't flood it with blank tiles.
+  const nonEmptyTiles = useMemo(
+    () => (result?.tiles ?? []).filter(tile => !isMsx2TileEmpty(tile)),
+    [result],
+  );
+  const emptyTileCount = (result?.tiles.length ?? 0) - nonEmptyTiles.length;
 
   useEffect(() => {
     if (!imageData || !originalCanvasRef.current) return;
@@ -152,6 +179,11 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
       setImageData(ctx.getImageData(0, 0, image.width, image.height));
       setFileName(name);
       setBaseName(name.replace(/\.[a-z0-9]+$/i, '') || 'tile');
+      setQuantizeSeed(0);
+      setCropMode(false);
+      setCropSelection(null);
+      setIsSelecting(false);
+      dragStartRef.current = null;
       URL.revokeObjectURL(url);
     };
     image.onerror = () => URL.revokeObjectURL(url);
@@ -210,6 +242,165 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     setReplaceableSlots(current => current.filter(value => value !== slot));
   };
 
+  // Crops the in-memory source image to its drawing (border-background bounding
+  // box) and reprocesses. Destructive on the loaded ImageData only — re-pick the
+  // file to recover the original. Trims most empty cells and uses resolution better.
+  const handleCropToContent = () => {
+    if (!imageData) return;
+    const rect = computeContentCropRect(imageData, backgroundTolerance);
+    if (rect.width >= imageData.width && rect.height >= imageData.height) return; // nothing to trim
+    const source = document.createElement('canvas');
+    source.width = imageData.width;
+    source.height = imageData.height;
+    source.getContext('2d')?.putImageData(imageData, 0, 0);
+    const cropped = document.createElement('canvas');
+    cropped.width = rect.width;
+    cropped.height = rect.height;
+    const ctx = cropped.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(source, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+    setImageData(ctx.getImageData(0, 0, rect.width, rect.height));
+  };
+
+  // --- Interactive crop selection (snapped to 16px, the tile cell size) ------
+  const snapTo16 = (value: number) => Math.round(value / 16) * 16;
+
+  // Maps a pointer position (client px) onto the source image's pixel space,
+  // accounting for the canvas being CSS-scaled to fit the panel.
+  const toImagePoint = (clientX: number, clientY: number) => {
+    const canvas = originalCanvasRef.current;
+    if (!canvas || !imageData) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const px = (clientX - rect.left) * (imageData.width / rect.width);
+    const py = (clientY - rect.top) * (imageData.height / rect.height);
+    return {
+      x: Math.max(0, Math.min(imageData.width, px)),
+      y: Math.max(0, Math.min(imageData.height, py)),
+    };
+  };
+
+  // Clamps a raw rectangle to the image bounds keeping a 16px minimum.
+  const clampCropSelection = (sel: { x: number; y: number; w: number; h: number }) => {
+    if (!imageData) return null;
+    const x = Math.max(0, Math.min(snapTo16(sel.x), imageData.width - 16));
+    const y = Math.max(0, Math.min(snapTo16(sel.y), imageData.height - 16));
+    const w = Math.min(Math.max(16, snapTo16(sel.w)), imageData.width - x);
+    const h = Math.min(Math.max(16, snapTo16(sel.h)), imageData.height - y);
+    return { x, y, w, h };
+  };
+
+  // Builds a 16px-aligned rectangle anchored at `a`, growing toward `b`. When
+  // `square` is set (Shift held), the side is the larger of the two extents.
+  const buildCropSelection = (a: { x: number; y: number }, b: { x: number; y: number }, square = false) => {
+    if (!imageData) return null;
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    if (square) {
+      const side = Math.max(Math.abs(dx), Math.abs(dy));
+      dx = (dx < 0 ? -1 : 1) * side;
+      dy = (dy < 0 ? -1 : 1) * side;
+    }
+    const x0 = Math.max(0, Math.min(snapTo16(Math.min(a.x, a.x + dx)), imageData.width));
+    const y0 = Math.max(0, Math.min(snapTo16(Math.min(a.y, a.y + dy)), imageData.height));
+    const x1 = Math.max(0, Math.min(snapTo16(Math.max(a.x, a.x + dx)), imageData.width));
+    const y1 = Math.max(0, Math.min(snapTo16(Math.max(a.y, a.y + dy)), imageData.height));
+    let w = Math.min(Math.max(16, x1 - x0), imageData.width - x0);
+    let h = Math.min(Math.max(16, y1 - y0), imageData.height - y0);
+    if (square) {
+      const side = Math.min(w, h);
+      w = side;
+      h = side;
+    }
+    return { x: x0, y: y0, w, h };
+  };
+
+  const handleCropPointerDown = (event: React.MouseEvent) => {
+    if (!cropMode || !imageData) return;
+    event.preventDefault();
+    const pt = toImagePoint(event.clientX, event.clientY);
+    if (!pt) return;
+    dragStartRef.current = pt;
+    setIsSelecting(true);
+    setCropSelection(buildCropSelection(pt, pt, event.shiftKey));
+  };
+
+  const handleCropPointerMove = (event: React.MouseEvent) => {
+    if (!cropMode || !isSelecting || !dragStartRef.current) return;
+    const pt = toImagePoint(event.clientX, event.clientY);
+    if (!pt) return;
+    setCropSelection(buildCropSelection(dragStartRef.current, pt, event.shiftKey));
+  };
+
+  const finishCropSelection = () => {
+    dragStartRef.current = null;
+    setIsSelecting(false);
+  };
+
+  const exitCropMode = () => {
+    setCropMode(false);
+    setCropSelection(null);
+    setIsSelecting(false);
+    dragStartRef.current = null;
+  };
+
+  // Crops the loaded ImageData to the user-drawn selection (multiples of 16px)
+  // and reprocesses. Discards everything outside the rectangle. Destructive on
+  // the in-memory image only — re-pick the file to recover the original.
+  const applyCropSelection = () => {
+    if (!imageData || !cropSelection) return;
+    const { x, y, w, h } = cropSelection;
+    if (w < 16 || h < 16) return;
+    const source = document.createElement('canvas');
+    source.width = imageData.width;
+    source.height = imageData.height;
+    source.getContext('2d')?.putImageData(imageData, 0, 0);
+    const cropped = document.createElement('canvas');
+    cropped.width = w;
+    cropped.height = h;
+    const ctx = cropped.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(source, x, y, w, h, 0, 0, w, h);
+    setImageData(ctx.getImageData(0, 0, w, h));
+    exitCropMode();
+  };
+
+  // Release the drag even if the mouse is lifted outside the canvas.
+  useEffect(() => {
+    if (!isSelecting) return;
+    const onUp = () => finishCropSelection();
+    window.addEventListener('mouseup', onUp);
+    return () => window.removeEventListener('mouseup', onUp);
+  }, [isSelecting]);
+
+  // Keyboard nudging while in crop mode: arrows resize the selection one tile
+  // (16px) at a time, Shift+arrows move it, Enter applies and Escape cancels.
+  useEffect(() => {
+    if (!cropMode) return;
+    const onKey = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (event.key === 'Escape') { event.preventDefault(); exitCropMode(); return; }
+      if (event.key === 'Enter') { event.preventDefault(); applyCropSelection(); return; }
+      if (!cropSelection) return;
+      const step = 16;
+      const move = event.shiftKey;
+      const next = { ...cropSelection };
+      switch (event.key) {
+        case 'ArrowRight': move ? (next.x += step) : (next.w += step); break;
+        case 'ArrowLeft': move ? (next.x -= step) : (next.w -= step); break;
+        case 'ArrowDown': move ? (next.y += step) : (next.h += step); break;
+        case 'ArrowUp': move ? (next.y -= step) : (next.h -= step); break;
+        default: return;
+      }
+      event.preventDefault();
+      const clamped = clampCropSelection(next);
+      if (clamped) setCropSelection(clamped);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cropMode, cropSelection, imageData]);
+
   if (!isOpen) return null;
 
   return (
@@ -258,10 +449,31 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                 <input type="text" value={baseName} onChange={event => setBaseName(event.target.value)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
               </label>
               <label>Ancho (x16)
-                <input type="number" min={16} max={128} step={16} value={targetWidth} onChange={event => setTargetWidth(Number(event.target.value) || 16)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
+                <input type="number" min={16} max={128} step={16} value={targetWidth} onChange={event => {
+                  const value = Number(event.target.value) || 16;
+                  setTargetWidth(value);
+                  if (lockDimensions) setTargetHeight(value);
+                }} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
               </label>
               <label>Alto (x16)
-                <input type="number" min={16} max={128} step={16} value={targetHeight} onChange={event => setTargetHeight(Number(event.target.value) || 16)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
+                <input type="number" min={16} max={128} step={16} value={targetHeight} onChange={event => {
+                  const value = Number(event.target.value) || 16;
+                  setTargetHeight(value);
+                  if (lockDimensions) setTargetWidth(value);
+                }} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
+              </label>
+              <label className="col-span-2 flex items-center justify-between gap-2">
+                Vincular Ancho/Alto (cuadrado)
+                <input
+                  type="checkbox"
+                  checked={lockDimensions}
+                  onChange={event => {
+                    const checked = event.target.checked;
+                    setLockDimensions(checked);
+                    // Snap to a square immediately so the preview matches the lock.
+                    if (checked) setTargetHeight(targetWidth);
+                  }}
+                />
               </label>
               <label>Colores custom
                 <input type="number" min={1} max={15} value={finalColorCount} onChange={event => setFinalColorCount(Number(event.target.value) || 3)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
@@ -314,10 +526,74 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
 
           <div className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-2">
             <div className="min-h-0 rounded border border-msx-border bg-msx-bgcolor/50 p-3">
-              <div className="mb-2 text-xs text-msx-textsecondary">Original</div>
+              <div className="mb-2 flex items-center justify-between gap-2 text-xs text-msx-textsecondary">
+                <span>Original</span>
+                {cropMode ? (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-msx-highlight"
+                      title="Arrastra para seleccionar. Shift = cuadrado. Flechas = ±1 tile, Shift+Flechas = mover. Enter = aplicar, Esc = cancelar."
+                    >
+                      {cropSelection
+                        ? `${cropSelection.w}x${cropSelection.h}px (${cropSelection.w / 16}x${cropSelection.h / 16} tiles)`
+                        : 'Arrastra (Shift=cuadrado)'}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={!cropSelection}
+                      onClick={applyCropSelection}
+                      title="Recorta a la selección y descarta el resto"
+                    >
+                      Aplicar
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={exitCropMode}>Cancelar</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!imageData}
+                      onClick={() => { setCropMode(true); setCropSelection(null); }}
+                      title="Dibuja un rectángulo (múltiplo de 16px) y descarta el resto"
+                    >
+                      Selección
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!imageData}
+                      onClick={handleCropToContent}
+                      title="Recorta la imagen al contenido (quita el borde de fondo) y reprocesa"
+                    >
+                      Auto
+                    </Button>
+                  </div>
+                )}
+              </div>
               <div className="flex max-h-[430px] items-center justify-center overflow-auto">
                 {imageData ? (
-                  <canvas ref={originalCanvasRef} className="max-h-[420px] max-w-full border border-msx-border" />
+                  <div
+                    className={`relative inline-block overflow-hidden ${cropMode ? 'cursor-crosshair' : ''}`}
+                    onMouseDown={handleCropPointerDown}
+                    onMouseMove={handleCropPointerMove}
+                    onMouseUp={finishCropSelection}
+                  >
+                    <canvas ref={originalCanvasRef} className="block max-h-[420px] max-w-full border border-msx-border" />
+                    {cropMode && cropSelection && (
+                      <div
+                        className="pointer-events-none absolute border-2 border-msx-highlight"
+                        style={{
+                          left: `${(cropSelection.x / imageData.width) * 100}%`,
+                          top: `${(cropSelection.y / imageData.height) * 100}%`,
+                          width: `${(cropSelection.w / imageData.width) * 100}%`,
+                          height: `${(cropSelection.h / imageData.height) * 100}%`,
+                          boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
+                        }}
+                      />
+                    )}
+                  </div>
                 ) : (
                   <div className="text-sm text-msx-textsecondary">Selecciona un PNG.</div>
                 )}
@@ -327,10 +603,21 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
             <div className="min-h-0 rounded border border-msx-border bg-msx-bgcolor/50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2 text-xs text-msx-textsecondary">
                 <span>Resultado MSX2 {result ? `— ${result.columns}x${result.rows} tiles` : ''}</span>
-                <label className="flex items-center gap-1" title="Mostrar/ocultar la rejilla separadora">
-                  <input type="checkbox" checked={showResultGrid} onChange={event => setShowResultGrid(event.target.checked)} />
-                  Rejilla
-                </label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!result}
+                    onClick={() => setQuantizeSeed(seed => seed + 1)}
+                    title="Vuelve a repartir los colores (re-ejecuta la cuantización con otra semilla)"
+                  >
+                    Recuantizar
+                  </Button>
+                  <label className="flex items-center gap-1" title="Mostrar/ocultar la rejilla separadora">
+                    <input type="checkbox" checked={showResultGrid} onChange={event => setShowResultGrid(event.target.checked)} />
+                    Rejilla
+                  </label>
+                </div>
               </div>
               <div className="flex min-h-[280px] items-start justify-center overflow-auto">
                 {result ? (
@@ -360,11 +647,16 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                   <div className="text-sm text-msx-textsecondary">Sin preview.</div>
                 )}
               </div>
-              {result && result.warnings.length > 0 && (
+              {result && (result.warnings.length > 0 || emptyTileCount > 0) && (
                 <div className="mt-3 space-y-1 text-xs">
                   {result.warnings.map(warning => (
                     <div key={warning} className="text-msx-warning">{warning}</div>
                   ))}
+                  {emptyTileCount > 0 && (
+                    <div className="text-msx-textsecondary">
+                      {emptyTileCount} celda(s) vacía(s) se omitirán al añadir a la biblioteca.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -376,13 +668,13 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
           <Button
             size="sm"
             variant="primary"
-            disabled={!result || result.tiles.length === 0}
+            disabled={!result || nonEmptyTiles.length === 0}
             onClick={() => {
-              if (!result) return;
-              onAddTiles(result.tiles, result.palette);
+              if (!result || nonEmptyTiles.length === 0) return;
+              onAddTiles(nonEmptyTiles, result.palette);
             }}
           >
-            Añadir a la biblioteca ({result?.tiles.length ?? 0})
+            Añadir a la biblioteca ({nonEmptyTiles.length})
           </Button>
         </div>
       </div>
