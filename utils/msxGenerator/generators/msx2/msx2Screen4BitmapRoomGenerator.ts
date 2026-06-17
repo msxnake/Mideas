@@ -1,4 +1,4 @@
-import { Msx2BitmapRoomCommand, Msx2Screen4BitmapRoom, Screen5PaletteSlot } from '../../../../types';
+import { Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2Screen4BitmapRoom, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -84,6 +84,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
     behavior: room?.behavior || [],
     entities: room?.entities || [],
     playerEntries: room?.playerEntries || [],
+    runtime: room?.runtime,
     notes: room?.notes,
   };
 }
@@ -183,7 +184,132 @@ function normalizeVisibleFramebuffer(room: Msx2Screen4BitmapRoom): number[][] | 
   );
 }
 
-function buildBitmapHudSeedPixels(): number[][] {
+const DEFAULT_HUD_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
+const DEFAULT_HUD_PATTERNS: Record<string, number[]> = {
+  ' ': [0, 0, 0, 0, 0, 0, 0, 0],
+  '0': [0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0],
+  '1': [0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0],
+  '2': [0x3C,0x66,0x06,0x1C,0x30,0x60,0x7E,0],
+  '3': [0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0],
+  '4': [0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0],
+  '5': [0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0],
+  '6': [0x1C,0x30,0x60,0x7C,0x66,0x66,0x3C,0],
+  '7': [0x7E,0x06,0x0C,0x18,0x30,0x30,0x30,0],
+  '8': [0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0],
+  '9': [0x3C,0x66,0x66,0x3E,0x06,0x0C,0x38,0],
+  A: [0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0],
+  B: [0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0],
+  C: [0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0],
+  D: [0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0],
+  E: [0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0],
+  F: [0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0],
+  G: [0x3C,0x66,0x60,0x6E,0x66,0x66,0x3C,0],
+  H: [0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0],
+  I: [0x7E,0x18,0x18,0x18,0x18,0x18,0x7E,0],
+  J: [0x1E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0],
+  K: [0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0],
+  L: [0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0],
+  M: [0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0],
+  N: [0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0],
+  O: [0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0],
+  P: [0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0],
+  Q: [0x3C,0x66,0x66,0x66,0x6A,0x6C,0x36,0],
+  R: [0x7C,0x66,0x66,0x7C,0x78,0x6C,0x66,0],
+  S: [0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0],
+  T: [0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0],
+  U: [0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0],
+  V: [0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0],
+  W: [0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0],
+  X: [0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0],
+  Y: [0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0],
+  Z: [0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0],
+  ':': [0x00,0x18,0x18,0x00,0x00,0x18,0x18,0],
+  '-': [0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0],
+  '/': [0x06,0x0C,0x0C,0x18,0x30,0x30,0x60,0],
+};
+
+function getBitmapHudFontAsset(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Msx2HudFontAsset | undefined {
+  const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
+  const preferredId = room.runtime?.hudFontAssetId;
+  const preferred = preferredId
+    ? assets.find(asset => asset.type === 'msx2hudfont' && asset.id === preferredId)?.data as Msx2HudFontAsset | undefined
+    : undefined;
+  return preferred || assets.find(asset => asset.type === 'msx2hudfont')?.data as Msx2HudFontAsset | undefined;
+}
+
+function normalizeHudText(value: string, maxLength: number, allowedCharacters: string): string {
+  const allowed = new Set(Array.from(allowedCharacters || DEFAULT_HUD_CHARS));
+  return Array.from(String(value || '').toUpperCase())
+    .map(char => allowed.has(char) ? char : ' ')
+    .join('')
+    .slice(0, Math.max(0, maxLength));
+}
+
+function getBitmapHudWidgetText(widget: Msx2HudWidget, room: Msx2Screen4BitmapRoom, allowedCharacters: string): string {
+  const maxChars = Math.max(1, Math.min(31, Math.floor((Number(widget.width) || 64) / 8)));
+  if (widget.kind === 'text') return normalizeHudText(widget.text || widget.name || 'TEXT', maxChars, allowedCharacters);
+  if (widget.kind !== 'counter') return '';
+  const binding = widget.binding || 'custom';
+  const fallbackValue =
+    binding === 'air' ? room.runtime?.initialAir ?? 255 :
+    binding === 'lives' ? 3 :
+    binding === 'collectibles' ? 0 :
+    binding === 'playerEnergy' ? room.runtime?.playerEnergyInitial ?? 16 :
+    binding === 'bossEnergy' ? room.runtime?.bossEnergyInitial ?? 16 :
+    0;
+  const value = clampByte(widget.initialValue, fallbackValue);
+  return normalizeHudText(String(value).padStart(maxChars, '0'), maxChars, allowedCharacters);
+}
+
+function drawBitmapHudText(
+  pixels: number[][],
+  text: string,
+  x: number,
+  y: number,
+  font: Msx2HudFontAsset | undefined,
+  color: number
+): void {
+  const patterns = font?.patterns || DEFAULT_HUD_PATTERNS;
+  for (const [charIndex, char] of Array.from(text).entries()) {
+    const pattern = patterns[char] || patterns[' '] || DEFAULT_HUD_PATTERNS[' '];
+    for (let row = 0; row < 8; row++) {
+      const bits = Number(pattern[row]) || 0;
+      for (let col = 0; col < 8; col++) {
+        if (!(bits & (0x80 >> col))) continue;
+        const px = x + (charIndex * 8) + col;
+        const py = y + row;
+        if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < pixels.length) pixels[py][px] = color & 0x0f;
+      }
+    }
+  }
+}
+
+function drawBitmapHudAtlasIcon(
+  pixels: number[][],
+  room: Msx2Screen4BitmapRoom,
+  atlasPixels: number[][],
+  widget: Msx2HudWidget
+): void {
+  const entries = room.atlas.entries || [];
+  const entry = entries.find(item => item.id === widget.atlasEntryId) || entries[clampByte(widget.iconTileIndex, 0)];
+  const x0 = clampInt(widget.x, 0, SCREEN_WIDTH - 1, 0);
+  const y0 = clampInt(widget.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 0);
+  const width = Math.max(1, Math.min(Number(widget.width) || entry?.w || 8, SCREEN_WIDTH - x0));
+  const height = Math.max(1, Math.min(Number(widget.height) || entry?.h || 8, BITMAP_ROOM_HUD_HEIGHT - y0));
+  if (!entry) {
+    paintRect(pixels, x0, y0, width, height, widget.primaryColor ?? 15);
+    return;
+  }
+  for (let yy = 0; yy < height; yy++) {
+    for (let xx = 0; xx < width; xx++) {
+      const color = atlasPixels[entry.sy + yy]?.[entry.sx + xx];
+      if (color === undefined) continue;
+      pixels[y0 + yy][x0 + xx] = color & 0x0f;
+    }
+  }
+}
+
+function buildBitmapHudSeedPixels(room: Msx2Screen4BitmapRoom, atlasPixels: number[][], analysis: ProjectAnalysis): number[][] {
   const framebuffer = Array.from({ length: BITMAP_ROOM_HUD_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
   for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT - 1; y++) {
     for (let x = 0; x < SCREEN_WIDTH; x++) {
@@ -192,6 +318,28 @@ function buildBitmapHudSeedPixels(): number[][] {
   }
   for (let x = 0; x < SCREEN_WIDTH; x++) {
     framebuffer[BITMAP_ROOM_HUD_HEIGHT - 1][x] = 15;
+  }
+  const widgets = room.runtime?.showHud === false || room.runtime?.hideHud === true ? [] : room.runtime?.hudWidgets || [];
+  const font = getBitmapHudFontAsset(analysis, room);
+  const allowedCharacters = font?.characters || DEFAULT_HUD_CHARS;
+  for (const widget of widgets) {
+    const x = clampInt(widget.x, 0, SCREEN_WIDTH - 1, 0);
+    const y = clampInt(widget.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 0);
+    const width = clampInt(widget.width, 1, SCREEN_WIDTH - x, widget.kind === 'icon' ? 8 : 64);
+    const height = clampInt(widget.height, 1, BITMAP_ROOM_HUD_HEIGHT - y, widget.kind === 'bar' ? 6 : 8);
+    if (widget.kind === 'bar') {
+      const maxValue = Math.max(1, clampByte(widget.maxValue, 16));
+      const initialValue = Math.min(maxValue, clampByte(widget.initialValue, maxValue));
+      const fillWidth = Math.max(0, Math.min(width - 2, Math.floor(((width - 2) * initialValue) / maxValue)));
+      paintRect(framebuffer, x, y, width, height, widget.borderColor ?? 15);
+      paintRect(framebuffer, x + 1, y + 1, Math.max(0, width - 2), Math.max(0, height - 2), widget.emptyColor ?? 4);
+      paintRect(framebuffer, x + 1, y + 1, fillWidth, Math.max(0, height - 2), widget.primaryColor ?? 10);
+    } else if (widget.kind === 'icon') {
+      drawBitmapHudAtlasIcon(framebuffer, room, atlasPixels, { ...widget, width, height });
+    } else {
+      const color = widget.primaryColor ?? ((font?.colorByte ?? 0xF1) >> 4);
+      drawBitmapHudText(framebuffer, getBitmapHudWidgetText(widget, room, allowedCharacters), x, y, font, color);
+    }
   }
   return framebuffer;
 }
@@ -396,10 +544,13 @@ function buildPaletteBytes(palette: Screen5PaletteSlot[]): number[] {
   }).flat();
 }
 
-function buildRuntimeAsm(room: Msx2Screen4BitmapRoom, commandCount: number, rleChunks: RleChunk[]): string {
+function buildRuntimeAsm(
+  room: Msx2Screen4BitmapRoom,
+  commandCount: number,
+  rleChunks: RleChunk[],
+  hudSeedRleChunks: RleChunk[]
+): string {
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
-  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels());
-  const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks);
   const framebufferUploadAsm = buildRleUploadAsm(rleChunks);
 
@@ -977,6 +1128,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const collisionBytes = buildCollisionTableBytes(room);
   const spawn = resolvePlayerSpawnPixels(room);
   const paletteBytes = buildPaletteBytes(room.palette);
+  const atlasPixels = normalizeAtlasPixels(room);
   const gameFramebufferPixels = normalizeVisibleFramebuffer(room) || renderRoomToPixels(room);
   const framebufferBytes = packBitmapPixels(gameFramebufferPixels.slice(0, SCREEN_HEIGHT_DEFAULT));
   const framebufferRleChunks = buildRleChunksForVram(
@@ -984,11 +1136,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     BITMAP_ROOM_GAME_VRAM_BASE,
     'bitmap_room_framebuffer_rle_chunk'
   );
-  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels());
+  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis));
   const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
   const spriteTables = buildSpriteTables();
-  const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks);
+  const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks, hudSeedRleChunks);
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
+  const hudWidgetCount = room.runtime?.showHud === false || room.runtime?.hideHud === true ? 0 : room.runtime?.hudWidgets?.length || 0;
 
   return `; File: unitedFiles.asm
 ; ==================================================================
@@ -999,6 +1152,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Backend: msx2-screen4-bitmap-room
 ; Visible page: VRAM #0000, ${ROW_BYTES} bytes/row, ${visibleHeight} lines
 ; Bitmap room HUD height: ${BITMAP_ROOM_HUD_HEIGHT} px
+; Bitmap room HUD widgets: ${hudWidgetCount}
 ; Bitmap room game area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}
 ; Bitmap room upload area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
 ; Framebuffer bytes: ${framebufferBytes.length}

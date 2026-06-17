@@ -79,6 +79,28 @@ BRICK_VARIANTS = [
     ("brick_white", 15),
 ]
 
+SMOKE_HUD_FONT_PATTERNS = {
+    " ": [0, 0, 0, 0, 0, 0, 0, 0],
+    "0": [0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C, 0],
+    "1": [0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x7E, 0],
+    "2": [0x3C, 0x66, 0x06, 0x1C, 0x30, 0x60, 0x7E, 0],
+    "3": [0x3C, 0x66, 0x06, 0x1C, 0x06, 0x66, 0x3C, 0],
+    "4": [0x0C, 0x1C, 0x3C, 0x6C, 0x7E, 0x0C, 0x0C, 0],
+    "5": [0x7E, 0x60, 0x7C, 0x06, 0x06, 0x66, 0x3C, 0],
+    "6": [0x1C, 0x30, 0x60, 0x7C, 0x66, 0x66, 0x3C, 0],
+    "7": [0x7E, 0x06, 0x0C, 0x18, 0x30, 0x30, 0x30, 0],
+    "8": [0x3C, 0x66, 0x66, 0x3C, 0x66, 0x66, 0x3C, 0],
+    "9": [0x3C, 0x66, 0x66, 0x3E, 0x06, 0x0C, 0x38, 0],
+    "A": [0x18, 0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0],
+    "E": [0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x7E, 0],
+    "G": [0x3C, 0x66, 0x60, 0x6E, 0x66, 0x66, 0x3C, 0],
+    "I": [0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x7E, 0],
+    "L": [0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0],
+    "M": [0x63, 0x77, 0x7F, 0x6B, 0x63, 0x63, 0x63, 0],
+    "S": [0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0],
+    "T": [0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0],
+}
+
 
 def build_atlas_pixels(width: int = 128, height: int = 16) -> list[list[int]]:
     pixels = [[0 for _x in range(width)] for _y in range(height)]
@@ -210,6 +232,29 @@ def build_project() -> dict[str, object]:
         "effects": [[0 for _x in range(16)] for _y in range(12)],
         "behavior": [[0 for _x in range(16)] for _y in range(12)],
         "entities": [],
+        "runtime": {
+            "screenKind": "playable",
+            "screenEngine": "player",
+            "movementMode": "platform",
+            "movementModel": "platform",
+            "activeAreaX": 0,
+            "activeAreaY": 1,
+            "activeAreaWidth": 16,
+            "activeAreaHeight": 12,
+            "showHud": True,
+            "statusHud": True,
+            "hudStyle": "statusBars",
+            "hudFontAssetId": "smoke_hud_font",
+            "initialAir": 180,
+            "playerEnergyMax": 16,
+            "playerEnergyInitial": 12,
+            "hudWidgets": [
+                {"id": "hud_stage", "name": "Stage", "kind": "text", "binding": "custom", "x": 8, "y": 4, "width": 56, "height": 8, "primaryColor": 15, "text": "STAGE 1"},
+                {"id": "hud_life", "name": "Life", "kind": "bar", "binding": "playerEnergy", "x": 72, "y": 5, "width": 56, "height": 6, "maxValue": 16, "initialValue": 12, "primaryColor": 10, "borderColor": 15, "emptyColor": 4},
+                {"id": "hud_item", "name": "Item", "kind": "icon", "binding": "collectibles", "x": 144, "y": 4, "width": 8, "height": 8, "atlasEntryId": "brick_white"},
+                {"id": "hud_time", "name": "Time", "kind": "counter", "binding": "air", "variableName": "time", "x": 208, "y": 4, "width": 24, "height": 8, "initialValue": 180, "primaryColor": 11},
+            ],
+        },
         "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
     }
     room_data["visibleFramebuffer"] = {
@@ -228,7 +273,21 @@ def build_project() -> dict[str, object]:
                 "name": "Bitmap Room Smoke",
                 "type": "msx2bitmaproom",
                 "data": room_data,
-            }
+            },
+            {
+                "id": "smoke_hud_font",
+                "name": "Smoke HUD Font",
+                "type": "msx2hudfont",
+                "data": {
+                    "target": "MSX2",
+                    "vdpMode": "SCREEN4",
+                    "baseChar": 192,
+                    "characters": " 0123456789AEGILMST",
+                    "patterns": SMOKE_HUD_FONT_PATTERNS,
+                    "colorByte": 0xF1,
+                    "notes": "Smoke font used by SCREEN 5 bitmap-room HUD widgets.",
+                },
+            },
         ],
     }
 
@@ -352,6 +411,7 @@ def extract_db_bytes(asm_text: str, label: str) -> list[int]:
 def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> None:
     for marker in (
         "Bitmap room HUD height: 16 px",
+        "Bitmap room HUD widgets: 4",
         "Bitmap room game area: 256x192 at visual Y=16",
         "Bitmap room upload area: 256x192 at VRAM #0800",
         "HUD band is persistent and is not rewritten by normal room loads",

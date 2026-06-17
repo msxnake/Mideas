@@ -701,6 +701,8 @@ export interface Msx2HudWidget {
   borderColor?: number;
   emptyColor?: number;
   iconTileIndex?: number;
+  /** Optional bitmap-room atlas entry used by SCREEN 5 HUD icon/item widgets. */
+  atlasEntryId?: string;
   text?: string;
   variableName?: string;
 }
@@ -790,6 +792,8 @@ export interface Msx2Screen4Runtime {
   hudSecondaryColor?: number;
   hudBorderColor?: number;
   hudEmptyColor?: number;
+  /** Optional MSX2 HUD Font asset used by bitmap-room text widgets. */
+  hudFontAssetId?: string;
   hudWidgets?: Msx2HudWidget[];
   shooter?: Msx2ShooterRuntimeConfig;
   notes?: string;
