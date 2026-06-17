@@ -16,7 +16,7 @@ import { Button } from '../common/Button';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
 import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
-import { FolderOpenIcon, MapIcon, PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
+import { EraserIcon, EyeIcon, EyeOffIcon, FolderOpenIcon, MapIcon, PlusCircleIcon, SaveFloppyIcon, TrashIcon } from '../icons/MsxIcons';
 
 type BitmapRoomTool = 'copy8' | 'copy16' | 'fill' | 'lineH' | 'lineV' | 'erase';
 
@@ -32,6 +32,7 @@ const SCREEN5_VISIBLE_H = 212;
 const HUD_H = 16;
 const GAME_Y_OFFSET = HUD_H;
 const GRID = 8;
+const TILE_EDITOR_SIZE = 16;
 const FALLBACK_HEX = '#05070B';
 const DEFAULT_HUD_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_HUD_PATTERNS: Record<string, number[]> = {
@@ -278,6 +279,43 @@ const createHudWidget = (
   };
 };
 
+const rectsOverlap = (
+  ax: number,
+  ay: number,
+  aw: number,
+  ah: number,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
+): boolean => ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+
+interface MiniWindowProps {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const MiniWindow: React.FC<MiniWindowProps> = ({ title, isOpen, onToggle, children, className = '' }) => (
+  <section className={`rounded border border-msx-border bg-msx-panelbg ${className}`}>
+    <div className="flex items-center justify-between gap-2 border-b border-msx-border px-2 py-1.5">
+      <h4 className="text-sm pixel-font text-msx-highlight truncate">{title}</h4>
+      <button
+        type="button"
+        className="text-msx-textsecondary hover:text-msx-highlight"
+        onClick={onToggle}
+        title={isOpen ? `Hide ${title}` : `Show ${title}`}
+        aria-label={isOpen ? `Hide ${title}` : `Show ${title}`}
+      >
+        {isOpen ? <EyeOffIcon /> : <EyeIcon />}
+      </button>
+    </div>
+    {isOpen && <div className="p-2">{children}</div>}
+  </section>
+);
+
 export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorProps> = ({ room, onUpdate, allAssets = [] }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -288,6 +326,11 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
   const [zoom, setZoom] = useState(3);
   const [showGrid, setShowGrid] = useState(true);
   const [isTileLibraryOpen, setIsTileLibraryOpen] = useState(false);
+  const [isAtlasWindowOpen, setIsAtlasWindowOpen] = useState(true);
+  const [isHudWindowOpen, setIsHudWindowOpen] = useState(true);
+  const [isTileEditorWindowOpen, setIsTileEditorWindowOpen] = useState(true);
+  const [tileEditorPixels, setTileEditorPixels] = useState<number[][]>(() => createPixels(TILE_EDITOR_SIZE, TILE_EDITOR_SIZE, 0));
+  const [tileEditorMessage, setTileEditorMessage] = useState('');
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(room.palette), [room.palette]);
   const atlasWidth = Math.max(1, Number(room.atlas?.width) || 256);
   const atlasHeight = Math.max(1, Number(room.atlas?.height) || 128);
@@ -435,6 +478,77 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
     onUpdate({ atlas: { ...room.atlas, width: atlasWidth, height: atlasHeight, offscreenBaseY: room.atlas?.offscreenBaseY || 320, entries: atlasEntries, pixels } });
   };
 
+  const paintTileEditorPixel = (x: number, y: number) => {
+    setTileEditorPixels(current => current.map((row, rowIndex) =>
+      rowIndex === y ? row.map((slot, colIndex) => colIndex === x ? activeColor : slot) : row
+    ));
+    setTileEditorMessage('');
+  };
+
+  const clearTileEditor = () => {
+    setTileEditorPixels(createPixels(TILE_EDITOR_SIZE, TILE_EDITOR_SIZE, 0));
+    setTileEditorMessage('');
+  };
+
+  const loadSelectedEntryToTileEditor = () => {
+    if (!selectedAtlasEntry) {
+      setTileEditorMessage('No atlas entry selected.');
+      return;
+    }
+    const next = createPixels(TILE_EDITOR_SIZE, TILE_EDITOR_SIZE, 0);
+    for (let y = 0; y < TILE_EDITOR_SIZE; y++) {
+      for (let x = 0; x < TILE_EDITOR_SIZE; x++) {
+        next[y][x] = atlasPixels[selectedAtlasEntry.sy + y]?.[selectedAtlasEntry.sx + x] ?? 0;
+      }
+    }
+    setTileEditorPixels(next);
+    setTileEditorMessage(`Loaded ${selectedAtlasEntry.name}.`);
+  };
+
+  const findFreeAtlasTileSlot = (): { x: number; y: number } | null => {
+    for (let y = 0; y <= atlasHeight - TILE_EDITOR_SIZE; y += TILE_EDITOR_SIZE) {
+      for (let x = 0; x <= atlasWidth - TILE_EDITOR_SIZE; x += TILE_EDITOR_SIZE) {
+        const occupied = atlasEntries.some(entry => rectsOverlap(x, y, TILE_EDITOR_SIZE, TILE_EDITOR_SIZE, entry.sx, entry.sy, entry.w, entry.h));
+        if (!occupied) return { x, y };
+      }
+    }
+    return null;
+  };
+
+  const saveTileEditorToAtlas = () => {
+    const slot = findFreeAtlasTileSlot();
+    if (!slot) {
+      setTileEditorMessage('Atlas is full. Import a larger atlas before saving more 16x16 HUD tiles.');
+      return;
+    }
+    const pixels = atlasPixels.map(row => [...row]);
+    for (let y = 0; y < TILE_EDITOR_SIZE; y++) {
+      for (let x = 0; x < TILE_EDITOR_SIZE; x++) {
+        pixels[slot.y + y][slot.x + x] = tileEditorPixels[y]?.[x] ?? 0;
+      }
+    }
+    const entry: Msx2BitmapRoomAtlasEntry = {
+      id: `hud_tile_16x16_${Date.now()}`,
+      name: `HUD Tile ${atlasEntries.length + 1}`,
+      sx: slot.x,
+      sy: slot.y,
+      w: TILE_EDITOR_SIZE,
+      h: TILE_EDITOR_SIZE,
+    };
+    onUpdate({
+      atlas: {
+        ...room.atlas,
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        entries: [...atlasEntries, entry],
+        pixels,
+      },
+    });
+    setSelectedAtlasEntryId(entry.id);
+    setTileEditorMessage(`Saved ${entry.name}.`);
+  };
+
   const handleImportAtlas = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -524,31 +638,32 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
 
       <div className="flex flex-grow min-h-0 overflow-hidden">
         <aside className="w-64 border-r border-msx-border p-2 overflow-y-auto">
-          <h4 className="text-sm pixel-font text-msx-highlight mb-2">Atlas Entries</h4>
-          <select value={selectedAtlasEntryId} onChange={(event) => setSelectedAtlasEntryId(event.target.value)} className="w-full bg-msx-bgcolor border border-msx-border rounded p-1 text-xs">
-            {atlasEntries.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>)}
-          </select>
-          <div className="mt-3 grid grid-cols-8 gap-1">
-            {slots.map((slot, index) => (
-              <button
-                key={index}
-                type="button"
-                title={`Color ${index}`}
-                className={`h-6 border ${activeColor === index ? 'border-white' : 'border-msx-border'}`}
-                style={{ backgroundColor: slot.hex === 'rgba(0,0,0,0)' ? '#000' : slot.hex }}
-                onClick={() => setActiveColor(index)}
-              />
-            ))}
-          </div>
-          <div className="mt-3 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary space-y-1">
-            <div className="font-semibold text-msx-highlight">SCREEN 5 bitmap export contract</div>
-            <div>HUD band: 256x16 persistent at VRAM #0000.</div>
-            <div>Room load: 256x192 starts at visual Y=16.</div>
-            <div>Commands are internal export data; erase works by position.</div>
-          </div>
-          <div className="mt-2 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary">
-            SCREEN 5 has no 2-color row clash. Imported SCREEN 4 tiles are flattened to bitmap pixels.
-          </div>
+          <MiniWindow title="Atlas Entries" isOpen={isAtlasWindowOpen} onToggle={() => setIsAtlasWindowOpen(value => !value)}>
+            <select value={selectedAtlasEntryId} onChange={(event) => setSelectedAtlasEntryId(event.target.value)} className="w-full bg-msx-bgcolor border border-msx-border rounded p-1 text-xs">
+              {atlasEntries.map(entry => <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>)}
+            </select>
+            <div className="mt-3 grid grid-cols-8 gap-1">
+              {slots.map((slot, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  title={`Color ${index}`}
+                  className={`h-6 border ${activeColor === index ? 'border-white' : 'border-msx-border'}`}
+                  style={{ backgroundColor: slot.hex === 'rgba(0,0,0,0)' ? '#000' : slot.hex }}
+                  onClick={() => setActiveColor(index)}
+                />
+              ))}
+            </div>
+            <div className="mt-3 rounded border border-msx-border bg-msx-bgcolor p-2 text-[0.7rem] text-msx-textsecondary space-y-1">
+              <div className="font-semibold text-msx-highlight">SCREEN 5 bitmap export contract</div>
+              <div>HUD band: 256x16 persistent at VRAM #0000.</div>
+              <div>Room load: 256x192 starts at visual Y=16.</div>
+              <div>Commands are internal export data; erase works by position.</div>
+            </div>
+            <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2 text-[0.7rem] text-msx-textsecondary">
+              SCREEN 5 has no 2-color row clash. Imported SCREEN 4 tiles are flattened to bitmap pixels.
+            </div>
+          </MiniWindow>
         </aside>
 
         <main className="flex-1 overflow-auto p-3 flex justify-center bg-[#080A0F]">
@@ -568,8 +683,9 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
         </main>
 
         <aside className="w-96 border-l border-msx-border p-2 overflow-y-auto">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <h4 className="text-sm pixel-font text-msx-highlight">HUD Creator</h4>
+          <div className="space-y-2">
+          <MiniWindow title="HUD Creator" isOpen={isHudWindowOpen} onToggle={() => setIsHudWindowOpen(value => !value)}>
+          <div className="flex items-center justify-end gap-2 mb-2">
             <Button size="sm" variant={runtime.showHud === false || runtime.hideHud ? 'secondary' : 'primary'} onClick={() => updateRuntime({ showHud: runtime.showHud === false, hideHud: runtime.showHud !== false })}>
               {runtime.showHud === false || runtime.hideHud ? 'Off' : 'On'}
             </Button>
@@ -666,6 +782,58 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
           )}
           <div className="mt-3 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary">
             Click inside the HUD band to move the selected widget. Use Erase and click a position to delete room paint or HUD widgets.
+          </div>
+          </MiniWindow>
+
+          <MiniWindow title="16x16 Tile Editor" isOpen={isTileEditorWindowOpen} onToggle={() => setIsTileEditorWindowOpen(value => !value)}>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <Button size="sm" variant="secondary" icon={<SaveFloppyIcon />} onClick={saveTileEditorToAtlas}>Add 16x16 to Atlas</Button>
+              <Button size="sm" variant="secondary" onClick={loadSelectedEntryToTileEditor}>Load Selected</Button>
+              <Button size="sm" variant="secondary" icon={<EraserIcon />} onClick={clearTileEditor}>Clear</Button>
+            </div>
+            <div className="flex gap-3 items-start">
+              <div
+                className="grid border border-msx-border bg-msx-bgcolor"
+                style={{
+                  gridTemplateColumns: `repeat(${TILE_EDITOR_SIZE}, 12px)`,
+                  gridTemplateRows: `repeat(${TILE_EDITOR_SIZE}, 12px)`,
+                }}
+              >
+                {tileEditorPixels.flatMap((row, y) => row.map((slot, x) => (
+                  <button
+                    key={`${x}_${y}`}
+                    type="button"
+                    title={`x ${x}, y ${y}, color ${slot}`}
+                    className="border border-black/50"
+                    style={{ width: 12, height: 12, backgroundColor: slots[slot]?.hex === 'rgba(0,0,0,0)' ? '#000' : slots[slot]?.hex || FALLBACK_HEX }}
+                    onClick={() => paintTileEditorPixel(x, y)}
+                  />
+                )))}
+              </div>
+              <div className="min-w-0 flex-1 space-y-2 text-xs text-msx-textsecondary">
+                <div className="grid grid-cols-4 gap-1">
+                  {slots.map((slot, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      title={`Color ${index}`}
+                      className={`h-6 border ${activeColor === index ? 'border-white' : 'border-msx-border'}`}
+                      style={{ backgroundColor: slot.hex === 'rgba(0,0,0,0)' ? '#000' : slot.hex }}
+                      onClick={() => setActiveColor(index)}
+                    />
+                  ))}
+                </div>
+                <div className="rounded border border-msx-border bg-msx-bgcolor p-2 text-[0.7rem]">
+                  Active color: {activeColor}
+                </div>
+                {tileEditorMessage && (
+                  <div className="rounded border border-msx-border bg-msx-bgcolor p-2 text-[0.7rem] text-msx-highlight">
+                    {tileEditorMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          </MiniWindow>
           </div>
         </aside>
       </div>
