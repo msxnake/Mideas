@@ -1390,7 +1390,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
             size="sm"
             variant={isScreen4BitmapRuntimeFlow ? 'primary' : 'ghost'}
           >
-            SCREEN 4 Bitmap
+            SCREEN 5 Bitmap
           </Button>
         </div>
         <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5PresentationFlow}>

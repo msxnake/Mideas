@@ -499,7 +499,7 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Msx2Screen;
         break;
       case 'msx2bitmaproom':
-        defaultName = 'New MSX2 SCREEN 4 Bitmap Room';
+        defaultName = 'New MSX2 SCREEN 5 Bitmap Room';
         newAssetData = {
           id,
           name: defaultName,

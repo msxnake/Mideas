@@ -1072,7 +1072,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             <option value="">Select Screen...</option>
             {availableScreenMaps.map(sm => (
               <option key={sm.id} value={sm.id}>
-                {sm.name} {isMsx2Screen4BitmapRoom(sm) ? '[MSX2 SCREEN 4 Bitmap]' : isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
+                {sm.name} {isMsx2Screen4BitmapRoom(sm) ? '[MSX2 SCREEN 5 Bitmap]' : isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
               </option>
             ))}
           </select>

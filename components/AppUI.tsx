@@ -603,7 +603,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         }
         if (activeAsset?.type === 'msx2bitmaproom') {
           handleUpdateAsset(activeAsset.id, { palette: sanitized.map(slot => ({ ...slot })) });
-          setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada a la pantalla bitmap SCREEN 4.`);
+          setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada a la pantalla bitmap SCREEN 5.`);
         }
       };
       return (

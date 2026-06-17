@@ -600,7 +600,7 @@ export const useProjectHandlers = ({
             Target screen mode: <strong>{screenMode}</strong> (cannot be changed later).
           </p>
           <p className="text-msx-textsecondary mt-2">
-            Asset filters and a starter {usesMsx2BitmapRoomStarter(profile) ? 'SCREEN 4 bitmap room' : 'SCREEN 4 room'} will be saved in the project JSON.
+            Asset filters and a starter {usesMsx2BitmapRoomStarter(profile) ? 'SCREEN 5 bitmap room' : 'SCREEN 4 room'} will be saved in the project JSON.
           </p>
           <p className="text-msx-warning mt-2">This will clear all current unsaved assets and history.</p>
         </>

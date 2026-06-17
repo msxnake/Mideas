@@ -1098,7 +1098,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         return (
           <div className="space-y-1">
             <div><strong className="text-msx-highlight">Name:</strong> {room.name}</div>
-            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 4 bitmap room</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 5 bitmap room</div>
             <div><strong className="text-msx-highlight">Screen:</strong> {room.width}x{room.height} px</div>
             <div><strong className="text-msx-highlight">Atlas:</strong> {room.atlas?.width || 0}x{room.atlas?.height || 0} px / {atlasEntries} entries</div>
             <div><strong className="text-msx-highlight">Commands:</strong> {commandCount}</div>
@@ -2033,8 +2033,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         ],
       },
       [EditorType.Msx2BitmapRoom]: {
-        title: 'MSX2 SCREEN 4 Bitmap Room Help',
-        summary: 'Compose bitmap-style SCREEN 4 rooms from atlas commands while preserving the 2-color-per-8-pixel-row constraint.',
+        title: 'MSX2 SCREEN 5 Bitmap Room Help',
+        summary: 'Compose bitmap-style SCREEN 5 rooms from atlas commands while preserving the 2-color-per-8-pixel-row constraint.',
         tips: [
           'Use copy/fill/line commands for compact reusable backgrounds.',
           'Watch color-limit diagnostics before exporting.',

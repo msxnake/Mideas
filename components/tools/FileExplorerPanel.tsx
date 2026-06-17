@@ -111,7 +111,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   msx2player: "MSX2 Players",
   msx2enemy: "MSX2 Enemies",
   msx2screen: "MSX2 SCREEN 4 Rooms",
-  msx2bitmaproom: "MSX2 SCREEN 4 Bitmap Rooms",
+  msx2bitmaproom: "MSX2 SCREEN 5 Bitmap Rooms",
   msx2hudfont: "MSX2 HUD Fonts",
   msx2presentation: "MSX2 SCREEN 5 Presentations",
   msx2gameflow: "MSX2 Game Flows",
