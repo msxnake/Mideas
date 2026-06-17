@@ -142,7 +142,7 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
         ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
       }
     }
-    if (showGrid && zoom >= 2) {
+    if (showGrid) {
       ctx.strokeStyle = 'rgba(255,255,255,0.14)';
       for (let x = 0; x <= SCREEN_W; x += GRID) {
         ctx.beginPath();
@@ -195,8 +195,15 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    // Map by the actual rendered size, not by `zoom`. The displayed canvas may be
+    // scaled by CSS/flex (it has no fixed CSS size), so dividing by `zoom` lands the
+    // command on the wrong pixel. rect.width/height always reflect what the user sees.
     const rect = event.currentTarget.getBoundingClientRect();
-    addCommandAt(Math.floor((event.clientX - rect.left) / zoom), Math.floor((event.clientY - rect.top) / zoom));
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const height = room.height || 192;
+    const x = Math.floor((event.clientX - rect.left) * (SCREEN_W / rect.width));
+    const y = Math.floor((event.clientY - rect.top) * (height / rect.height));
+    addCommandAt(x, y);
   };
 
   const updateAtlasPixels = (pixels: number[][]) => {
@@ -247,7 +254,7 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
   const deleteCommand = (id: string) => updateComposition(commands.filter(command => command.id !== id));
 
   return (
-    <Panel title="MSX2 SCREEN 4 Bitmap Room" icon={<MapIcon />} className="flex-grow flex flex-col bg-msx-bgcolor">
+    <Panel title="MSX2 SCREEN 5 Bitmap Room" icon={<MapIcon />} className="flex-grow flex flex-col bg-msx-bgcolor">
       <input ref={fileInputRef} type="file" accept=".png,.jpg,.jpeg,.webp" onChange={handleImportAtlas} style={{ display: 'none' }} />
       <div className="p-2 border-b border-msx-border flex flex-wrap items-center gap-2">
         <Button size="sm" variant={tool === 'copy8' ? 'primary' : 'secondary'} onClick={() => setTool('copy8')}>Copy 8x8</Button>
@@ -285,13 +292,13 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
             ))}
           </div>
           <div className="mt-3 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary space-y-1">
-            <div className="font-semibold text-msx-highlight">SCREEN 4 bitmap export contract</div>
+            <div className="font-semibold text-msx-highlight">SCREEN 5 bitmap export contract</div>
             <div>Authoring uses atlas + V9938 command list.</div>
             <div>Runtime: bitmap page VRAM #0000, atlas offscreen Y≥212.</div>
             <div>Primitives: cmd D0/98 copy, C0 fill, 70 line.</div>
           </div>
           <div className={`mt-2 rounded border p-2 text-[0.7rem] ${colorLimitDiagnostics.length ? 'border-msx-warning bg-msx-warning/10 text-msx-warning' : 'border-msx-border bg-msx-panelbg text-msx-textsecondary'}`}>
-            <div className="font-semibold">{colorLimitDiagnostics.length ? 'Color rows will be reduced' : 'Color rows are SCREEN 4 safe'}</div>
+            <div className="font-semibold">{colorLimitDiagnostics.length ? 'Color rows will be reduced' : 'Color rows are SCREEN 5 safe'}</div>
             <div>{colorLimitDiagnostics.length ? `${colorLimitDiagnostics.length} rows use more than 2 colors.` : 'No 8-pixel row exceeds 2 colors.'}</div>
             {diagnosticPreview.length > 0 && (
               <div className="mt-1 max-h-20 overflow-auto font-mono">
@@ -310,7 +317,17 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
             ref={canvasRef}
             onClick={handleCanvasClick}
             className="border border-msx-border"
-            style={{ imageRendering: 'pixelated', cursor: 'crosshair' }}
+            style={{
+              imageRendering: 'pixelated',
+              cursor: 'crosshair',
+              // Pin the displayed size to the bitmap size so 1 CSS px == 1 device px / zoom.
+              // Without this, the flex parent (align-items: stretch) distorts the canvas and
+              // breaks both the zoom slider and click-to-place mapping.
+              width: `${SCREEN_W * zoom}px`,
+              height: `${(room.height || 192) * zoom}px`,
+              flex: '0 0 auto',
+              alignSelf: 'flex-start',
+            }}
           />
         </main>
 
