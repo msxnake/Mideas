@@ -16,6 +16,7 @@ const SCREEN5_VISIBLE_HEIGHT = 212;
 const BITMAP_ROOM_HUD_HEIGHT = 16;
 const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
 const ROW_BYTES = SCREEN_WIDTH / 2;
+const BITMAP_ROOM_GAME_VRAM_BASE = BITMAP_ROOM_GAME_Y_OFFSET * ROW_BYTES;
 const VDP_CTRL_PORT = '#99';
 const VDP_DATA_PORT = '#98';
 const VDP_CMD_PORT = '#9B';
@@ -182,8 +183,8 @@ function normalizeVisibleFramebuffer(room: Msx2Screen4BitmapRoom): number[][] | 
   );
 }
 
-function buildScreen5VisibleFramebuffer(gamePixels: number[][]): number[][] {
-  const framebuffer = Array.from({ length: SCREEN5_VISIBLE_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
+function buildBitmapHudSeedPixels(): number[][] {
+  const framebuffer = Array.from({ length: BITMAP_ROOM_HUD_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
   for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT - 1; y++) {
     for (let x = 0; x < SCREEN_WIDTH; x++) {
       framebuffer[y][x] = 1;
@@ -191,13 +192,6 @@ function buildScreen5VisibleFramebuffer(gamePixels: number[][]): number[][] {
   }
   for (let x = 0; x < SCREEN_WIDTH; x++) {
     framebuffer[BITMAP_ROOM_HUD_HEIGHT - 1][x] = 15;
-  }
-  for (let y = 0; y < SCREEN_HEIGHT_DEFAULT; y++) {
-    const targetY = y + BITMAP_ROOM_GAME_Y_OFFSET;
-    if (targetY >= SCREEN5_VISIBLE_HEIGHT) break;
-    for (let x = 0; x < SCREEN_WIDTH; x++) {
-      framebuffer[targetY][x] = clampByte(gamePixels[y]?.[x], 0) & 0x0f;
-    }
   }
   return framebuffer;
 }
@@ -340,21 +334,26 @@ function rleEncodeBytes(bytes: number[]): number[] {
   return encoded;
 }
 
-function buildFramebufferRleChunks(framebufferBytes: number[]): RleChunk[] {
+function buildRleChunksForVram(bytes: number[], vramBaseOffset: number, labelPrefix: string): RleChunk[] {
   const chunks: RleChunk[] = [];
-  for (let offset = 0; offset < framebufferBytes.length; offset += VRAM_BANK_BYTES) {
-    const raw = framebufferBytes.slice(offset, Math.min(offset + VRAM_BANK_BYTES, framebufferBytes.length));
+  let offset = 0;
+  while (offset < bytes.length) {
+    const absoluteVramOffset = vramBaseOffset + offset;
+    const remainingInBank = VRAM_BANK_BYTES - (absoluteVramOffset % VRAM_BANK_BYTES);
+    const rawLength = Math.min(remainingInBank, bytes.length - offset);
+    const raw = bytes.slice(offset, offset + rawLength);
     chunks.push({
-      label: `bitmap_room_framebuffer_rle_chunk_${chunks.length}`,
-      vramOffset: offset,
+      label: `${labelPrefix}_${chunks.length}`,
+      vramOffset: absoluteVramOffset,
       rawLength: raw.length,
       bytes: rleEncodeBytes(raw),
     });
+    offset += rawLength;
   }
   return chunks;
 }
 
-function buildFramebufferUploadAsm(rleChunks: RleChunk[]): string {
+function buildRleUploadAsm(rleChunks: RleChunk[]): string {
   const lines: string[] = [];
   for (const chunk of rleChunks) {
     lines.push(`    ld hl, ${chunk.label}`);
@@ -366,12 +365,11 @@ function buildFramebufferUploadAsm(rleChunks: RleChunk[]): string {
   return lines.join('\n');
 }
 
-function formatFramebufferRleChunks(chunks: RleChunk[], rawByteCount: number, visibleHeight: number): string {
+function formatRleChunks(chunks: RleChunk[], rawByteCount: number, description: string): string {
   const encodedByteCount = chunks.reduce((total, chunk) => total + chunk.bytes.length, 0);
   const lines: string[] = [
-    `; Visible ${SCREEN_WIDTH}x${visibleHeight} framebuffer, packed 4bpp RLE`,
+    `; ${description}`,
     `; Raw bytes: ${rawByteCount}; encoded bytes: ${encodedByteCount}`,
-    `bitmap_room_framebuffer_data:`,
   ];
   for (const chunk of chunks) {
     lines.push(`; VRAM ${hexWord(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`);
@@ -381,7 +379,6 @@ function formatFramebufferRleChunks(chunks: RleChunk[], rawByteCount: number, vi
     }
     lines.push(`${chunk.label}_end:`);
   }
-  lines.push(`bitmap_room_framebuffer_data_end:`);
   lines.push('');
   return lines.join('\n');
 }
@@ -401,7 +398,10 @@ function buildPaletteBytes(palette: Screen5PaletteSlot[]): number[] {
 
 function buildRuntimeAsm(room: Msx2Screen4BitmapRoom, commandCount: number, rleChunks: RleChunk[]): string {
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
-  const framebufferUploadAsm = buildFramebufferUploadAsm(rleChunks);
+  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels());
+  const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
+  const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks);
+  const framebufferUploadAsm = buildRleUploadAsm(rleChunks);
 
   return `
 ; --- V9938 bitmap SCREEN 4 runtime (Vampire Killer style) ---
@@ -637,10 +637,10 @@ upload_bitmap_atlas:
     ret
 
 ; ------------------------------------------------------------
-; FUNCTION: upload_bitmap_framebuffer
+; FUNCTION: init_bitmap_hud_band
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Upload the pre-rendered packed 4bpp SCREEN 5 framebuffer to visible VRAM.
+;   Initialize the persistent top HUD band once after entering SCREEN 5.
 ;
 ; INPUT:
 ;   None.
@@ -658,13 +658,43 @@ upload_bitmap_atlas:
 ;   decompress_bitmap_rle_to_vram
 ;
 ; SIDE EFFECTS:
-;   Writes the visible VRAM page starting at #0000.
+;   Writes the top ${BITMAP_ROOM_HUD_HEIGHT} scanlines at VRAM #0000.
+;
+; NOTES:
+;   Room transitions should normally call upload_bitmap_framebuffer only. HUD
+;   widgets are expected to redraw their changed glyphs/bars separately.
+; ------------------------------------------------------------
+init_bitmap_hud_band:
+${hudSeedUploadAsm}
+
+; ------------------------------------------------------------
+; FUNCTION: upload_bitmap_framebuffer
+; ------------------------------------------------------------
+; PURPOSE:
+;   Upload the pre-rendered packed 4bpp game room framebuffer to visible VRAM.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   decompress_bitmap_rle_to_vram
+;
+; SIDE EFFECTS:
+;   Writes the game area VRAM starting at ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}.
 ;
 ; NOTES:
 ;   Reads compact RLE data from the resident ROM window, then re-arms R#14 per
 ;   16KB VRAM bank so rows beyond physical VRAM #3FFF are written correctly.
-;   The first ${BITMAP_ROOM_HUD_HEIGHT} scanlines are reserved for HUD, and the
-;   192px game framebuffer starts at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}.
+;   The HUD band is persistent and is not rewritten by normal room loads.
 ; ------------------------------------------------------------
 upload_bitmap_framebuffer:
 ${framebufferUploadAsm}
@@ -948,9 +978,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const spawn = resolvePlayerSpawnPixels(room);
   const paletteBytes = buildPaletteBytes(room.palette);
   const gameFramebufferPixels = normalizeVisibleFramebuffer(room) || renderRoomToPixels(room);
-  const framebufferPixels = buildScreen5VisibleFramebuffer(gameFramebufferPixels);
-  const framebufferBytes = packBitmapPixels(framebufferPixels);
-  const framebufferRleChunks = buildFramebufferRleChunks(framebufferBytes);
+  const framebufferBytes = packBitmapPixels(gameFramebufferPixels.slice(0, SCREEN_HEIGHT_DEFAULT));
+  const framebufferRleChunks = buildRleChunksForVram(
+    framebufferBytes,
+    BITMAP_ROOM_GAME_VRAM_BASE,
+    'bitmap_room_framebuffer_rle_chunk'
+  );
+  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels());
+  const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
   const spriteTables = buildSpriteTables();
   const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks);
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
@@ -965,6 +1000,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Visible page: VRAM #0000, ${ROW_BYTES} bytes/row, ${visibleHeight} lines
 ; Bitmap room HUD height: ${BITMAP_ROOM_HUD_HEIGHT} px
 ; Bitmap room game area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}
+; Bitmap room upload area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
 ; Framebuffer bytes: ${framebufferBytes.length}
 ; ==================================================================
 
@@ -998,6 +1034,7 @@ init_rom:
     di
     call init_screen4_bitmap_vdp
     call load_screen4_bitmap_palette
+    call init_bitmap_hud_band
     call upload_bitmap_framebuffer
     call init_hardware_sprite_tables
     ; Place the player at the room spawn point.
@@ -1024,7 +1061,13 @@ init_rom:
 ${runtimeAsm}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-${formatFramebufferRleChunks(framebufferRleChunks, framebufferBytes.length, visibleHeight)}
+bitmap_room_hud_seed_data:
+${formatRleChunks(hudSeedRleChunks, hudSeedBytes.length, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`)}
+bitmap_room_hud_seed_data_end:
+
+bitmap_room_framebuffer_data:
+${formatRleChunks(framebufferRleChunks, framebufferBytes.length, `Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer, packed 4bpp RLE, destination VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}`)}
+bitmap_room_framebuffer_data_end:
 
 ${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, 'Sprite color table sample (slot 1)')}
 bitmap_room_sprite_colors_end:

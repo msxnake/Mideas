@@ -353,7 +353,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     for marker in (
         "Bitmap room HUD height: 16 px",
         "Bitmap room game area: 256x192 at visual Y=16",
-        "The first 16 scanlines are reserved for HUD",
+        "Bitmap room upload area: 256x192 at VRAM #0800",
+        "HUD band is persistent and is not rewritten by normal room loads",
         "add a, 16",
     ):
         if marker not in asm_text:
@@ -362,6 +363,22 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     palette_length = len(extract_db_bytes(asm_text, "screen4_bitmap_palette_data"))
     if palette_length != 32:
         raise RuntimeError(f"screen4_bitmap_palette_data has {palette_length} bytes; expected 32")
+
+    hud_chunks = re.findall(r"^bitmap_room_hud_seed_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
+    if not hud_chunks:
+        raise RuntimeError("Generated ASM is missing bitmap_room_hud_seed_rle_chunk_* data")
+    hud_decoded_length = 0
+    for chunk_label in (chunk.split(":", 1)[0] for chunk in hud_chunks):
+        chunk_bytes = extract_db_bytes(asm_text, chunk_label)
+        if len(chunk_bytes) % 2 != 0:
+            raise RuntimeError(f"{chunk_label} has odd RLE byte length: {len(chunk_bytes)}")
+        for index in range(0, len(chunk_bytes), 2):
+            hud_decoded_length += chunk_bytes[index]
+    expected_hud_length = 256 * 16 // 2
+    if hud_decoded_length != expected_hud_length:
+        raise RuntimeError(
+            f"bitmap room HUD seed RLE decodes to {hud_decoded_length} bytes; expected {expected_hud_length}"
+        )
 
     rle_chunks = re.findall(r"^bitmap_room_framebuffer_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
     if not rle_chunks:
@@ -375,7 +392,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         encoded_length += len(chunk_bytes)
         for index in range(0, len(chunk_bytes), 2):
             decoded_length += chunk_bytes[index]
-    expected_framebuffer_length = 256 * 212 // 2
+    expected_framebuffer_length = 256 * 192 // 2
     if decoded_length != expected_framebuffer_length:
         raise RuntimeError(
             f"bitmap room RLE decodes to {decoded_length} bytes; expected {expected_framebuffer_length}"
