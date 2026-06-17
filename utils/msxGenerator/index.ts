@@ -4,6 +4,7 @@
  */
 
 import { ProjectAsset } from '../../types';
+import { getMsx2ScreenModeConflictMessage } from '../msx2ProjectProfiles';
 import { analyzeProject, ProjectAnalysis } from '../asmTemplateGenerator';
 import { GeneratedASMFiles, ProjectSummary } from './types/asmTypes';
 
@@ -280,6 +281,15 @@ export function generateModularASM(
   }
 
   console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
+
+  // One ROM = one MSX2 graphics mode. Block export of projects that mix tile SCREEN 4 screens
+  // and bitmap SCREEN 5 rooms before any backend is selected (the selector would otherwise pick
+  // one mode and silently drop the other set of screens).
+  const screenModeConflict = getMsx2ScreenModeConflictMessage(assets);
+  if (screenModeConflict) {
+    console.error('❌', screenModeConflict);
+    throw new Error(screenModeConflict);
+  }
 
   const targetGraphicsBackend = resolveGraphicsBackend(config, assets);
   if (targetGraphicsBackend === 'msx2-screen5-presentation') {

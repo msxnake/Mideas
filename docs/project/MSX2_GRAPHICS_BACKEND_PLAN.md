@@ -62,6 +62,23 @@ This section records the decision only. Implementation is deferred:
   screens for SCREEN 4; bitmap-room composer + atlas/command list for SCREEN 5).
 - Rename the bitmap-room mode's user-facing label to "SCREEN 5 (bitmap room)".
 
+### Update (2026-06-17) — no-mixing enforced
+
+The "one ROM = one mode" rule is now enforced in two layers, so tile SCREEN 4 screens
+(`msx2screen`) and bitmap SCREEN 5 rooms (`msx2bitmaproom`) can no longer coexist in a game:
+
+- **Authoring guard** (`utils/msx2ProjectProfiles.ts`): asset-type lists are split by mode —
+  `MSX2_TILE_SCREEN_ASSET_TYPES` (platform/maze/shooter profiles, includes `msx2screen`, excludes
+  `msx2bitmaproom`) and `MSX2_BITMAP_ROOM_ASSET_TYPES` (`bitmapPlatform`, the reverse). The New
+  Asset menu only offers the screen type of the chosen mode. `allowedAssetTypes` is now
+  baseline-authoritative in `normalizeMsx2ProjectProfile` (no `mergeUnique`) so legacy mixed
+  projects are corrected on load. This reverses the earlier contract that *required* platform/maze
+  to allow bitmap rooms.
+- **Export guard** (`detectMsx2ScreenModeConflict` / `getMsx2ScreenModeConflictMessage`, called in
+  `generateModularASM`): export throws a clear message if a project still holds both screen-mode
+  types (e.g. imported/legacy JSON), instead of silently routing to one backend and dropping the
+  other screens. Contracted in `scripts/check_msx2_project_profiles.mjs`.
+
 ### Choosing a mode per game type (author guidance)
 
 - Single-screen / grid / puzzle / board, color-by-cell acceptable → **Tile (SCREEN 4)**.

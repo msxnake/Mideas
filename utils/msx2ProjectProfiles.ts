@@ -13,15 +13,21 @@ export interface Msx2GameProfileOption {
   label: string;
   description: string;
   previewKind: Msx2GameProfileId;
+  /** Shown with an "Experimental" badge; backend not yet feature-complete. */
+  experimental?: boolean;
 }
 
+// Asset types shared by every MSX2 profile, independent of the chosen graphics mode.
+// The screen-mode-specific types are kept OUT of here on purpose: a project picks ONE
+// graphics mode for the whole ROM (one ROM = one mode, no CHGMOD mid-game, see
+// docs/project/MSX2_GRAPHICS_BACKEND_PLAN.md), so tile SCREEN 4 screens (`msx2screen`)
+// and bitmap SCREEN 5 rooms (`msx2bitmaproom`) must never be offered together.
 const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'code',
   'statemachine',
   'globalvariables',
   'palette',
   'msx2sprite',
-  'msx2screen',
   'msx2player',
   'msx2enemy',
   'msx2presentation',
@@ -32,7 +38,14 @@ const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'track',
 ];
 
-const MSX2_PLATFORM_MAZE_ASSET_TYPES: ProjectAsset['type'][] = [
+// Tile gameplay profiles (GRAPHIC 3 / "SCREEN 4"): name-table tile screens, no bitmap rooms.
+const MSX2_TILE_SCREEN_ASSET_TYPES: ProjectAsset['type'][] = [
+  ...MSX2_SHARED_ASSET_TYPES,
+  'msx2screen',
+];
+
+// Bitmap room gameplay profile (GRAPHIC 4 / SCREEN 5, VK-style command engine): no tile screens.
+const MSX2_BITMAP_ROOM_ASSET_TYPES: ProjectAsset['type'][] = [
   ...MSX2_SHARED_ASSET_TYPES,
   'msx2bitmaproom',
 ];
@@ -45,7 +58,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'player',
     movementMode: 'platform',
     filters: {
-      allowedAssetTypes: [...MSX2_PLATFORM_MAZE_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'player',
         'player_shooter',
@@ -115,7 +128,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'maze',
     movementMode: 'maze',
     filters: {
-      allowedAssetTypes: [...MSX2_PLATFORM_MAZE_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'player_maze',
         'ghost_maze',
@@ -165,7 +178,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'shooter',
     movementMode: 'shooterVertical',
     filters: {
-      allowedAssetTypes: [...MSX2_SHARED_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'shooter_vertical_player',
         'enemy_static',
@@ -204,12 +217,12 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
   },
   bitmapPlatform: {
     profileId: 'bitmapPlatform',
-    label: 'Action bitmap (VK-style)',
-    description: 'SCREEN 4 bitmap rooms composed with V9938 copy/fill/line commands and hardware sprites.',
+    label: 'Action bitmap · SCREEN 5 (VK-style)',
+    description: 'SCREEN 5 (GRAPHIC 4) bitmap rooms composed with V9938 copy/fill/line commands and hardware sprites. Experimental — Phase 1: playable player; HUD text, enemies and room transitions pending.',
     screenEngine: 'player',
     movementMode: 'platform',
     filters: {
-      allowedAssetTypes: [...MSX2_PLATFORM_MAZE_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_BITMAP_ROOM_ASSET_TYPES],
       allowedEntityPresetIds: [
         'player',
         'player_shooter',
@@ -277,7 +290,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'shooter',
     movementMode: 'shooterHorizontal',
     filters: {
-      allowedAssetTypes: [...MSX2_SHARED_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'galaxian_player',
         'galaxian_alien_formation',
@@ -321,19 +334,27 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
   },
 };
 
-/** Profiles offered when creating a new MSX2 project (bitmap starter is internal-only). */
+/**
+ * Profiles offered when creating a new MSX2 project. `bitmapPlatform` (SCREEN 5
+ * bitmap room) is exposed as Experimental — its backend is Phase 1 (player only).
+ */
 export const MSX2_CREATABLE_GAME_PROFILE_IDS: Msx2GameProfileId[] = [
   'platform',
   'maze',
   'shooterVertical',
   'shooterHorizontal',
+  'bitmapPlatform',
 ];
+
+/** Profile ids surfaced with an "Experimental" badge in the picker. */
+export const MSX2_EXPERIMENTAL_GAME_PROFILE_IDS: Msx2GameProfileId[] = ['bitmapPlatform'];
 
 export const MSX2_GAME_PROFILE_OPTIONS: Msx2GameProfileOption[] = MSX2_CREATABLE_GAME_PROFILE_IDS.map(id => ({
   id,
   label: PROFILE_DEFINITIONS[id].label,
   description: PROFILE_DEFINITIONS[id].description,
   previewKind: id,
+  experimental: MSX2_EXPERIMENTAL_GAME_PROFILE_IDS.includes(id),
 }));
 
 export function buildMsx2ProjectProfile(profileId: Msx2GameProfileId): Msx2ProjectProfile {
@@ -369,7 +390,10 @@ export function normalizeMsx2ProjectProfile(
     filters: {
       ...latest.filters,
       ...profile.filters,
-      allowedAssetTypes: mergeUnique(profile.filters?.allowedAssetTypes, latest.filters.allowedAssetTypes),
+      // Screen-mode asset types are mode-defining and baseline-authoritative: do NOT union
+      // with the saved profile, or a legacy project that mixed tile screens and bitmap rooms
+      // would keep offering both and break the "one ROM = one graphics mode" rule.
+      allowedAssetTypes: [...latest.filters.allowedAssetTypes],
       allowedEntityPresetIds: mergeUnique(profile.filters?.allowedEntityPresetIds, latest.filters.allowedEntityPresetIds),
       allowedEntityEngines: mergeUnique(profile.filters?.allowedEntityEngines, latest.filters.allowedEntityEngines),
       allowedComponentIds: mergeUnique(profile.filters?.allowedComponentIds, latest.filters.allowedComponentIds),
@@ -392,6 +416,47 @@ export function isAssetTypeAllowedForMsx2Profile(
 ): boolean {
   if (!profile) return true;
   return profile.filters.allowedAssetTypes.includes(assetType);
+}
+
+export interface Msx2ScreenModeConflict {
+  hasTileScreens: boolean;
+  hasBitmapRooms: boolean;
+  /** True when a project mixes tile SCREEN 4 screens and bitmap SCREEN 5 rooms. */
+  conflict: boolean;
+}
+
+/**
+ * MSX2 graphics modes are mutually exclusive per ROM (one ROM = one mode, no CHGMOD mid-game,
+ * see docs/project/MSX2_GRAPHICS_BACKEND_PLAN.md). A project that holds BOTH tile SCREEN 4
+ * screens (`msx2screen`) and bitmap SCREEN 5 rooms (`msx2bitmaproom`) cannot be exported: the
+ * backend selector targets a single mode and would silently drop the other set of screens.
+ */
+export function detectMsx2ScreenModeConflict(
+  assets: ReadonlyArray<ProjectAsset> | null | undefined
+): Msx2ScreenModeConflict {
+  let hasTileScreens = false;
+  let hasBitmapRooms = false;
+  for (const asset of assets || []) {
+    if (asset?.type === 'msx2screen') hasTileScreens = true;
+    else if (asset?.type === 'msx2bitmaproom') hasBitmapRooms = true;
+  }
+  return { hasTileScreens, hasBitmapRooms, conflict: hasTileScreens && hasBitmapRooms };
+}
+
+/**
+ * Returns a user-facing block message when a project mixes the two MSX2 screen modes, or null
+ * when the project is single-mode (safe to export).
+ */
+export function getMsx2ScreenModeConflictMessage(
+  assets: ReadonlyArray<ProjectAsset> | null | undefined
+): string | null {
+  if (!detectMsx2ScreenModeConflict(assets).conflict) return null;
+  return (
+    'MSX2 export blocked: this project mixes tile SCREEN 4 screens (MSX2 SCREEN 4 Rooms) and ' +
+    'bitmap SCREEN 5 rooms (MSX2 SCREEN 5 Bitmap Rooms). An MSX2 ROM can use only one graphics ' +
+    'mode (one ROM = one mode, no mode switch mid-game). Remove every screen of the mode you are ' +
+    'not exporting, then try again.'
+  );
 }
 
 export const MSX2_ENTITY_TEMPLATE_ID_PREFIX = 'tpl_msx2_';

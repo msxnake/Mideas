@@ -17,12 +17,13 @@ const projectTargetSource = read('utils', 'projectTarget.ts');
 const roomEditorSource = read('components', 'editors', 'Msx2Screen4RoomEditor.tsx');
 const msx2EditorPartsSource = read('components', 'msx2_screen4_editor', 'Msx2Screen4EditorParts.tsx');
 const toolbarSource = read('components', 'layout', 'Toolbar.tsx');
+const generatorIndexSource = read('utils', 'msxGenerator', 'index.ts');
 const packageJson = JSON.parse(read('package.json'));
 
 const errors = [];
 
 const requiredProfileIds = ['platform', 'maze', 'shooterVertical', 'shooterHorizontal', 'bitmapPlatform'];
-const creatableProfileIds = ['platform', 'maze', 'shooterVertical', 'shooterHorizontal'];
+const creatableProfileIds = ['platform', 'maze', 'shooterVertical', 'shooterHorizontal', 'bitmapPlatform'];
 for (const profileId of requiredProfileIds) {
   if (!profilesSource.includes(`${profileId}:`)) {
     errors.push(`Missing PROFILE_DEFINITIONS entry for ${profileId}`);
@@ -58,8 +59,17 @@ if (!profilesSource.includes('MSX2_GAME_PROFILE_OPTIONS: Msx2GameProfileOption[]
   errors.push('MSX2_GAME_PROFILE_OPTIONS must be built only from MSX2_CREATABLE_GAME_PROFILE_IDS');
 }
 const creatableBlock = profilesSource.match(/MSX2_CREATABLE_GAME_PROFILE_IDS:[\s\S]*?\];/)?.[0] || '';
-if (creatableBlock.includes('bitmapPlatform')) {
-  errors.push('bitmapPlatform must not be listed in MSX2_CREATABLE_GAME_PROFILE_IDS');
+if (!creatableBlock.includes('bitmapPlatform')) {
+  errors.push('bitmapPlatform must be listed in MSX2_CREATABLE_GAME_PROFILE_IDS (exposed as Experimental SCREEN 5 bitmap room)');
+}
+if (!profilesSource.includes('MSX2_EXPERIMENTAL_GAME_PROFILE_IDS')) {
+  errors.push('msx2ProjectProfiles.ts must define MSX2_EXPERIMENTAL_GAME_PROFILE_IDS');
+}
+if (!/MSX2_EXPERIMENTAL_GAME_PROFILE_IDS:[\s\S]*?'bitmapPlatform'/.test(profilesSource)) {
+  errors.push('bitmapPlatform must be marked experimental in MSX2_EXPERIMENTAL_GAME_PROFILE_IDS');
+}
+if (!pickerSource.includes('Experimental')) {
+  errors.push('Msx2GameProfilePicker.tsx must show an Experimental badge for experimental profiles');
 }
 
 const entityTemplateEditorSource = read('components', 'editors', 'EntityTemplateEditor.tsx');
@@ -73,21 +83,66 @@ if (!entityTemplateEditorSource.includes('msx2ProjectProfile')) {
 if (!projectTargetSource.includes('MSX2_UI_HIDDEN_ASSET_TYPES')) {
   errors.push('projectTarget.ts must define MSX2_UI_HIDDEN_ASSET_TYPES');
 }
-if (!profilesSource.includes('MSX2_PLATFORM_MAZE_ASSET_TYPES')) {
-  errors.push('msx2ProjectProfiles.ts must define MSX2_PLATFORM_MAZE_ASSET_TYPES');
+// One ROM = one MSX2 graphics mode: tile (SCREEN 4) profiles only allow tile screens, and the
+// bitmap room (SCREEN 5) profile only allows bitmap rooms. The two screen-mode asset types
+// (`msx2screen` / `msx2bitmaproom`) must never be offered together.
+if (!profilesSource.includes('MSX2_TILE_SCREEN_ASSET_TYPES')) {
+  errors.push('msx2ProjectProfiles.ts must define MSX2_TILE_SCREEN_ASSET_TYPES');
+}
+if (!profilesSource.includes('MSX2_BITMAP_ROOM_ASSET_TYPES')) {
+  errors.push('msx2ProjectProfiles.ts must define MSX2_BITMAP_ROOM_ASSET_TYPES');
 }
 if (!profilesSource.includes("'msx2bitmaproom'")) {
-  errors.push('msx2ProjectProfiles.ts must reference msx2bitmaproom for platform/maze profiles');
+  errors.push('msx2ProjectProfiles.ts must reference msx2bitmaproom for the bitmap room (SCREEN 5) profile');
 }
-if (!/platform:[\s\S]*?allowedAssetTypes:\s*\[\.\.\.MSX2_PLATFORM_MAZE_ASSET_TYPES\]/.test(profilesSource)) {
-  errors.push('platform profile must allow MSX2 SCREEN 4 bitmap rooms');
+if (!profilesSource.includes("'msx2screen'")) {
+  errors.push('msx2ProjectProfiles.ts must reference msx2screen for tile (SCREEN 4) profiles');
 }
-if (!/maze:[\s\S]*?allowedAssetTypes:\s*\[\.\.\.MSX2_PLATFORM_MAZE_ASSET_TYPES\]/.test(profilesSource)) {
-  errors.push('maze profile must allow MSX2 SCREEN 4 bitmap rooms');
+
+const sharedAssetList = profilesSource.match(/MSX2_SHARED_ASSET_TYPES[^=]*=\s*\[[\s\S]*?\];/)?.[0] || '';
+const tileAssetList = profilesSource.match(/MSX2_TILE_SCREEN_ASSET_TYPES[^=]*=\s*\[[\s\S]*?\];/)?.[0] || '';
+const bitmapAssetList = profilesSource.match(/MSX2_BITMAP_ROOM_ASSET_TYPES[^=]*=\s*\[[\s\S]*?\];/)?.[0] || '';
+if (sharedAssetList.includes("'msx2screen'") || sharedAssetList.includes("'msx2bitmaproom'")) {
+  errors.push('MSX2_SHARED_ASSET_TYPES must not contain screen-mode-specific types (msx2screen/msx2bitmaproom)');
 }
-if (/shooterVertical:[\s\S]*?allowedAssetTypes:[\s\S]*?'msx2bitmaproom'/.test(profilesSource)
-  || /shooterHorizontal:[\s\S]*?allowedAssetTypes:[\s\S]*?'msx2bitmaproom'/.test(profilesSource)) {
-  errors.push('shooter profiles must not allow msx2bitmaproom');
+if (!tileAssetList.includes("'msx2screen'")) {
+  errors.push('MSX2_TILE_SCREEN_ASSET_TYPES must include msx2screen');
+}
+if (tileAssetList.includes("'msx2bitmaproom'")) {
+  errors.push('MSX2_TILE_SCREEN_ASSET_TYPES must NOT include msx2bitmaproom (no SCREEN 4/SCREEN 5 mixing)');
+}
+if (!bitmapAssetList.includes("'msx2bitmaproom'")) {
+  errors.push('MSX2_BITMAP_ROOM_ASSET_TYPES must include msx2bitmaproom');
+}
+if (bitmapAssetList.includes("'msx2screen'")) {
+  errors.push('MSX2_BITMAP_ROOM_ASSET_TYPES must NOT include msx2screen (no SCREEN 4/SCREEN 5 mixing)');
+}
+
+for (const tileProfile of ['platform', 'maze', 'shooterVertical', 'shooterHorizontal']) {
+  const usesTileList = new RegExp(`${tileProfile}:[\\s\\S]*?allowedAssetTypes:\\s*\\[\\.\\.\\.MSX2_TILE_SCREEN_ASSET_TYPES\\]`);
+  if (!usesTileList.test(profilesSource)) {
+    errors.push(`${tileProfile} profile must use MSX2_TILE_SCREEN_ASSET_TYPES (tile SCREEN 4, no bitmap rooms)`);
+  }
+}
+if (!/bitmapPlatform:[\s\S]*?allowedAssetTypes:\s*\[\.\.\.MSX2_BITMAP_ROOM_ASSET_TYPES\]/.test(profilesSource)) {
+  errors.push('bitmapPlatform profile must use MSX2_BITMAP_ROOM_ASSET_TYPES (bitmap SCREEN 5, no tile screens)');
+}
+
+// allowedAssetTypes must be baseline-authoritative (not unioned with saved profiles), otherwise a
+// legacy mixed project would keep both screen-mode types after normalization.
+if (/allowedAssetTypes:\s*mergeUnique\(/.test(profilesSource)) {
+  errors.push('normalizeMsx2ProjectProfile must NOT mergeUnique allowedAssetTypes (screen-mode types are baseline-authoritative)');
+}
+
+// Export-time guard: mixed-mode projects must be blocked, not silently routed to one backend.
+for (const helper of ['detectMsx2ScreenModeConflict', 'getMsx2ScreenModeConflictMessage']) {
+  if (!profilesSource.includes(helper)) {
+    errors.push(`msx2ProjectProfiles.ts must export ${helper} (MSX2 screen-mode conflict guard)`);
+  }
+}
+if (!generatorIndexSource.includes('getMsx2ScreenModeConflictMessage')
+  || !/getMsx2ScreenModeConflictMessage[\s\S]*?throw new Error/.test(generatorIndexSource)) {
+  errors.push('generateModularASM must call getMsx2ScreenModeConflictMessage and throw on a screen-mode conflict');
 }
 
 for (const token of [
