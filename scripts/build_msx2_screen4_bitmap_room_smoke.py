@@ -350,6 +350,15 @@ def extract_db_bytes(asm_text: str, label: str) -> list[int]:
 
 
 def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> None:
+    for marker in (
+        "Bitmap room HUD height: 16 px",
+        "Bitmap room game area: 256x192 at visual Y=16",
+        "The first 16 scanlines are reserved for HUD",
+        "add a, 16",
+    ):
+        if marker not in asm_text:
+            raise RuntimeError(f"Generated ASM is missing bitmap-room HUD marker: {marker}")
+
     palette_length = len(extract_db_bytes(asm_text, "screen4_bitmap_palette_data"))
     if palette_length != 32:
         raise RuntimeError(f"screen4_bitmap_palette_data has {palette_length} bytes; expected 32")
@@ -366,7 +375,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         encoded_length += len(chunk_bytes)
         for index in range(0, len(chunk_bytes), 2):
             decoded_length += chunk_bytes[index]
-    expected_framebuffer_length = 256 * 192 // 2
+    expected_framebuffer_length = 256 * 212 // 2
     if decoded_length != expected_framebuffer_length:
         raise RuntimeError(
             f"bitmap room RLE decodes to {decoded_length} bytes; expected {expected_framebuffer_length}"

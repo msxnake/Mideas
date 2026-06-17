@@ -12,6 +12,9 @@ interface Msx2BitmapRoomConfig {
 
 const SCREEN_WIDTH = 256;
 const SCREEN_HEIGHT_DEFAULT = 192;
+const SCREEN5_VISIBLE_HEIGHT = 212;
+const BITMAP_ROOM_HUD_HEIGHT = 16;
+const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
 const ROW_BYTES = SCREEN_WIDTH / 2;
 const VDP_CTRL_PORT = '#99';
 const VDP_DATA_PORT = '#98';
@@ -174,10 +177,29 @@ function packAtlasPixels(room: Msx2Screen4BitmapRoom): number[] {
 function normalizeVisibleFramebuffer(room: Msx2Screen4BitmapRoom): number[][] | undefined {
   const pixels = room.visibleFramebuffer?.pixels;
   if (!Array.isArray(pixels)) return undefined;
-  const height = room.height || SCREEN_HEIGHT_DEFAULT;
-  return Array.from({ length: height }, (_unused, y) =>
+  return Array.from({ length: SCREEN_HEIGHT_DEFAULT }, (_unused, y) =>
     Array.from({ length: SCREEN_WIDTH }, (_unused2, x) => clampByte(pixels[y]?.[x], 0) & 0x0f)
   );
+}
+
+function buildScreen5VisibleFramebuffer(gamePixels: number[][]): number[][] {
+  const framebuffer = Array.from({ length: SCREEN5_VISIBLE_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
+  for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT - 1; y++) {
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+      framebuffer[y][x] = 1;
+    }
+  }
+  for (let x = 0; x < SCREEN_WIDTH; x++) {
+    framebuffer[BITMAP_ROOM_HUD_HEIGHT - 1][x] = 15;
+  }
+  for (let y = 0; y < SCREEN_HEIGHT_DEFAULT; y++) {
+    const targetY = y + BITMAP_ROOM_GAME_Y_OFFSET;
+    if (targetY >= SCREEN5_VISIBLE_HEIGHT) break;
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+      framebuffer[targetY][x] = clampByte(gamePixels[y]?.[x], 0) & 0x0f;
+    }
+  }
+  return framebuffer;
 }
 
 interface CommandRecord {
@@ -641,6 +663,8 @@ upload_bitmap_atlas:
 ; NOTES:
 ;   Reads compact RLE data from the resident ROM window, then re-arms R#14 per
 ;   16KB VRAM bank so rows beyond physical VRAM #3FFF are written correctly.
+;   The first ${BITMAP_ROOM_HUD_HEIGHT} scanlines are reserved for HUD, and the
+;   192px game framebuffer starts at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}.
 ; ------------------------------------------------------------
 upload_bitmap_framebuffer:
 ${framebufferUploadAsm}
@@ -784,13 +808,66 @@ bitmap_probe_solid:
     or a
     ret
 
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_sprite_sat
+; ------------------------------------------------------------
+; PURPOSE:
+;   Write sprite 0 SAT bytes, converting logical game Y to visual SCREEN 5 Y.
+;
+; INPUT:
+;   player_y = logical game Y coordinate, 0..191.
+;   player_x = visual/logical X coordinate.
+;   player_pat = hardware sprite pattern index.
+;   player_ec = early-clock byte.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, DE
+;
+; PRESERVES:
+;   BC, HL, IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes 4 bytes to sprite 0 SAT at VRAM #F600 through VDP ports #99/#98.
+;
+; NOTES:
+;   Background pixels are shifted down by ${BITMAP_ROOM_GAME_Y_OFFSET}px to
+;   reserve the top HUD band, but collision/movement keep logical coordinates.
+; ------------------------------------------------------------
 bitmap_update_sprite_sat:
-    ; Copy the 4-byte player SAT image (player_y,player_x,pattern,EC at #C000)
-    ; into sprite 0's SAT slot at VRAM #F600. Clobbers AF/BC/DE/HL.
-    ld hl, player_y
     ld de, #F600
-    ld bc, 4
-    jp copy_to_vram_ext
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    push af
+    in a, (${VDP_CTRL_PORT})
+    pop af
+    out (${VDP_CTRL_PORT}), a
+    ld a, #8E
+    out (${VDP_CTRL_PORT}), a
+    in a, (${VDP_CTRL_PORT})
+    ld a, e
+    out (${VDP_CTRL_PORT}), a
+    ld a, d
+    and #3F
+    or #40
+    out (${VDP_CTRL_PORT}), a
+    ld a, (player_y)
+    add a, ${BITMAP_ROOM_GAME_Y_OFFSET}
+    out (${VDP_DATA_PORT}), a
+    ld a, (player_x)
+    out (${VDP_DATA_PORT}), a
+    ld a, (player_pat)
+    out (${VDP_DATA_PORT}), a
+    ld a, (player_ec)
+    out (${VDP_DATA_PORT}), a
+    ret
 `;
 }
 
@@ -870,11 +947,13 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const collisionBytes = buildCollisionTableBytes(room);
   const spawn = resolvePlayerSpawnPixels(room);
   const paletteBytes = buildPaletteBytes(room.palette);
-  const framebufferBytes = packBitmapPixels(normalizeVisibleFramebuffer(room) || renderRoomToPixels(room));
+  const gameFramebufferPixels = normalizeVisibleFramebuffer(room) || renderRoomToPixels(room);
+  const framebufferPixels = buildScreen5VisibleFramebuffer(gameFramebufferPixels);
+  const framebufferBytes = packBitmapPixels(framebufferPixels);
   const framebufferRleChunks = buildFramebufferRleChunks(framebufferBytes);
   const spriteTables = buildSpriteTables();
   const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks);
-  const visibleHeight = room.height || SCREEN_HEIGHT_DEFAULT;
+  const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
 
   return `; File: unitedFiles.asm
 ; ==================================================================
@@ -884,6 +963,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Screen mode: ${config.screenMode}
 ; Backend: msx2-screen4-bitmap-room
 ; Visible page: VRAM #0000, ${ROW_BYTES} bytes/row, ${visibleHeight} lines
+; Bitmap room HUD height: ${BITMAP_ROOM_HUD_HEIGHT} px
+; Bitmap room game area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}
 ; Framebuffer bytes: ${framebufferBytes.length}
 ; ==================================================================
 
