@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Msx2BitmapRoomAtlasEntry, Msx2BitmapRoomCommand, Msx2Screen4BitmapRoom } from '../../types';
+import { Msx2BitmapRoomAtlasEntry, Msx2BitmapRoomCommand, Msx2Screen4BitmapRoom, Msx2Screen4Tile, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
+import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
 import { FolderOpenIcon, MapIcon, PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 
 type BitmapRoomTool = 'copy8' | 'copy16' | 'fill' | 'lineH' | 'lineV';
@@ -110,6 +112,7 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
   const [selectedAtlasEntryId, setSelectedAtlasEntryId] = useState(room.atlas?.entries?.[0]?.id || '');
   const [zoom, setZoom] = useState(3);
   const [showGrid, setShowGrid] = useState(true);
+  const [isTileLibraryOpen, setIsTileLibraryOpen] = useState(false);
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(room.palette), [room.palette]);
   const atlasWidth = Math.max(1, Number(room.atlas?.width) || 256);
   const atlasHeight = Math.max(1, Number(room.atlas?.height) || 128);
@@ -251,6 +254,35 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
     image.src = url;
   };
 
+  // Brings SCREEN 4 tiles from the global tile library into the atlas as 16x16 blocks. The modal
+  // reconciles each tile to the room palette first (destPalette={slots}), so the pixels handed back
+  // are already in room-palette index space; we only persist the palette when the user overwrote
+  // room slots (paletteChanged). Importing copies pixels into THIS room's atlas — it never creates a
+  // SCREEN 4 tile screen asset, so the one-mode-per-ROM rule is preserved.
+  const handleImportTilesFromLibrary = (
+    tiles: Msx2Screen4Tile[],
+    palette: Screen5PaletteSlot[],
+    paletteChanged: boolean,
+  ) => {
+    if (!tiles.length) return;
+    const { atlas, addedEntries } = importTilesIntoAtlas(
+      {
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels: room.atlas?.pixels,
+        entries: atlasEntries,
+      },
+      tiles,
+    );
+    onUpdate({
+      atlas,
+      ...(paletteChanged ? { palette: palette.map(slot => ({ ...slot })) } : {}),
+    });
+    if (addedEntries[0]) setSelectedAtlasEntryId(addedEntries[0].id);
+    setTool('copy16');
+  };
+
   const deleteCommand = (id: string) => updateComposition(commands.filter(command => command.id !== id));
 
   return (
@@ -263,6 +295,7 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
         <Button size="sm" variant={tool === 'lineH' ? 'primary' : 'secondary'} onClick={() => setTool('lineH')}>Line H</Button>
         <Button size="sm" variant={tool === 'lineV' ? 'primary' : 'secondary'} onClick={() => setTool('lineV')}>Line V</Button>
         <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => fileInputRef.current?.click()}>Import Atlas PNG</Button>
+        <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={() => setIsTileLibraryOpen(true)} title="Load SCREEN 4 tiles from the global library as 16x16 atlas blocks">Load Tiles</Button>
         <label className="ml-auto text-xs text-msx-textsecondary flex items-center gap-2">
           Zoom
           <input type="range" min={1} max={4} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} />
@@ -357,6 +390,14 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
           </div>
         </aside>
       </div>
+
+      <Msx2TileLibraryModal
+        isOpen={isTileLibraryOpen}
+        onClose={() => setIsTileLibraryOpen(false)}
+        destPalette={slots}
+        destScreenName={room.name}
+        onImportTiles={handleImportTilesFromLibrary}
+      />
     </Panel>
   );
 };
