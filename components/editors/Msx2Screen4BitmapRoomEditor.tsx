@@ -86,6 +86,11 @@ const normalizePixels = (pixels: number[][] | undefined, width: number, height: 
   return pixels.map(row => row.map(value => Math.max(0, Math.min(15, Number(value) || 0))));
 };
 
+const resolveSlotHex = (slots: Screen5PaletteSlot[], slot: number): string => {
+  const hex = slots[slot]?.hex;
+  return !hex || hex === 'rgba(0,0,0,0)' ? '#000' : hex;
+};
+
 const clampInt = (value: unknown, min: number, max: number, fallback: number): number => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -316,6 +321,46 @@ const MiniWindow: React.FC<MiniWindowProps> = ({ title, isOpen, onToggle, childr
   </section>
 );
 
+interface AtlasTilePreviewProps {
+  entry: Msx2BitmapRoomAtlasEntry;
+  atlasPixels: number[][];
+  slots: Screen5PaletteSlot[];
+  isSelected: boolean;
+  onSelect: () => void;
+}
+
+const AtlasTilePreview: React.FC<AtlasTilePreviewProps> = ({ entry, atlasPixels, slots, isSelected, onSelect }) => {
+  const width = Math.max(1, entry.w || 8);
+  const height = Math.max(1, entry.h || 8);
+  return (
+    <button
+      type="button"
+      className={`rounded border p-1 text-left bg-msx-bgcolor hover:border-msx-highlight ${isSelected ? 'border-msx-highlight' : 'border-msx-border'}`}
+      title={`${entry.name} (${entry.w}x${entry.h})`}
+      onClick={onSelect}
+    >
+      <div className="aspect-square w-full bg-black border border-black/70 overflow-hidden">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" shapeRendering="crispEdges">
+          {Array.from({ length: height }, (_row, y) => (
+            Array.from({ length: width }, (_col, x) => (
+              <rect
+                key={`${x}_${y}`}
+                x={x}
+                y={y}
+                width={1}
+                height={1}
+                fill={resolveSlotHex(slots, atlasPixels[entry.sy + y]?.[entry.sx + x] ?? 0)}
+              />
+            ))
+          ))}
+        </svg>
+      </div>
+      <div className="mt-1 text-[0.65rem] leading-tight text-msx-textprimary truncate">{entry.name}</div>
+      <div className="text-[0.6rem] leading-tight text-msx-textsecondary">{entry.w}x{entry.h}</div>
+    </button>
+  );
+};
+
 export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorProps> = ({ room, onUpdate, allAssets = [] }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +373,7 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
   const [isTileLibraryOpen, setIsTileLibraryOpen] = useState(false);
   const [isAtlasWindowOpen, setIsAtlasWindowOpen] = useState(true);
   const [isHudWindowOpen, setIsHudWindowOpen] = useState(true);
+  const [isTilePickerWindowOpen, setIsTilePickerWindowOpen] = useState(true);
   const [isTileEditorWindowOpen, setIsTileEditorWindowOpen] = useState(true);
   const [tileEditorPixels, setTileEditorPixels] = useState<number[][]>(() => createPixels(TILE_EDITOR_SIZE, TILE_EDITOR_SIZE, 0));
   const [tileEditorMessage, setTileEditorMessage] = useState('');
@@ -684,12 +730,12 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
 
         <aside className="w-96 border-l border-msx-border p-2 overflow-y-auto">
           <div className="space-y-2">
-          <MiniWindow title="HUD Creator" isOpen={isHudWindowOpen} onToggle={() => setIsHudWindowOpen(value => !value)}>
-          <div className="flex items-center justify-end gap-2 mb-2">
-            <Button size="sm" variant={runtime.showHud === false || runtime.hideHud ? 'secondary' : 'primary'} onClick={() => updateRuntime({ showHud: runtime.showHud === false, hideHud: runtime.showHud !== false })}>
-              {runtime.showHud === false || runtime.hideHud ? 'Off' : 'On'}
-            </Button>
-          </div>
+            <MiniWindow title="HUD Creator" isOpen={isHudWindowOpen} onToggle={() => setIsHudWindowOpen(value => !value)}>
+              <div className="flex items-center justify-end gap-2 mb-2">
+                <Button size="sm" variant={runtime.showHud === false || runtime.hideHud ? 'secondary' : 'primary'} onClick={() => updateRuntime({ showHud: runtime.showHud === false, hideHud: runtime.showHud !== false })}>
+                  {runtime.showHud === false || runtime.hideHud ? 'Off' : 'On'}
+                </Button>
+              </div>
           <label className="block text-xs text-msx-textsecondary mb-2">
             Text Font
             <select
@@ -783,7 +829,28 @@ export const Msx2Screen4BitmapRoomEditor: React.FC<Msx2Screen4BitmapRoomEditorPr
           <div className="mt-3 rounded border border-msx-border bg-msx-panelbg p-2 text-[0.7rem] text-msx-textsecondary">
             Click inside the HUD band to move the selected widget. Use Erase and click a position to delete room paint or HUD widgets.
           </div>
-          </MiniWindow>
+            </MiniWindow>
+
+            <MiniWindow title="Atlas Tiles" isOpen={isTilePickerWindowOpen} onToggle={() => setIsTilePickerWindowOpen(value => !value)}>
+              {atlasEntries.length === 0 ? (
+                <div className="rounded border border-msx-border bg-msx-bgcolor p-2 text-xs text-msx-textsecondary">No atlas tiles loaded.</div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-3 gap-2">
+                    {atlasEntries.map(entry => (
+                      <AtlasTilePreview
+                        key={entry.id}
+                        entry={entry}
+                        atlasPixels={atlasPixels}
+                        slots={slots}
+                        isSelected={entry.id === selectedAtlasEntry?.id}
+                        onSelect={() => setSelectedAtlasEntryId(entry.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </MiniWindow>
 
           <MiniWindow title="16x16 Tile Editor" isOpen={isTileEditorWindowOpen} onToggle={() => setIsTileEditorWindowOpen(value => !value)}>
             <div className="flex flex-wrap items-center gap-2 mb-2">
