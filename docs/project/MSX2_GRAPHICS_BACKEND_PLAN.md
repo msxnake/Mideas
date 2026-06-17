@@ -11,6 +11,64 @@ The selector lives at the top of `generateModularASM`:
 
 Do not add SCREEN 4 branches inside the existing SCREEN 2 `headerGenerator`, `screensGenerator`, `patternsGenerator`, or `colorsGenerator`.
 
+## Dual-mode MSX2 — per-project decision (2026-06-16)
+
+Decision: an MSX2 project picks **one** graphics mode for the whole ROM. One ROM =
+one mode. No CHGMOD mid-game. Per-world and per-screen mode switching are
+explicitly **out of scope** (deferred) for simplicity and runtime stability.
+
+Two MSX2 game modes (plus the presentation backend):
+
+| Mode (UI) | Backend id | Real VDP mode | Best for | Trade-off |
+|-----------|-----------|---------------|----------|-----------|
+| **Tile (SCREEN 4)** | `msx2-screen4-pattern` | GRAPHIC 3 (tile: pattern/color/name) | Puzzle, board, fixed-screen, grid games (King's Valley 2 style) | Cheap name-table updates; **2-color-per-8px-cell clash**; no command engine |
+| **Bitmap room (SCREEN 5)** | `msx2-screen4-bitmap-room` | **SCREEN 5 / GRAPHIC 4** (`CHGMOD 5`, 4bpp) | Action, platformers, rich art (Pampas, Vampire Killer, Maze of Galious) | **16 colors free per pixel, no clash**; needs command-engine block composition at room load |
+| Presentation | `msx2-screen5-presentation` | SCREEN 5 | Title/cutscene still images | Not a gameplay mode |
+
+Naming note: `msx2-screen4-bitmap-room` is a route/UI label only; at runtime it does
+`CHGMOD 5`, so its **actual hardware mode is SCREEN 5**. The UI label for this mode
+should read "SCREEN 5 (bitmap room)" to match reality and avoid the historical
+SCREEN-4-vs-SCREEN-5 confusion (see `MSX2_BITMAP_MULTICOLOR_STUDY.md`).
+
+### Current state (verified 2026-06-16)
+
+The dual routing already exists at the engine level in
+`resolveGraphicsBackend(config, assets)` (`utils/msxGenerator/index.ts`). Selection
+priority today:
+
+1. `config.targetGraphicsBackend` explicit (legacy `msx2-screen5-*` → deprecated →
+   routed to `msx2-screen4-pattern`).
+2. The `msx2gameflow` asset `purpose`: `screen4-runtime` → pattern,
+   `screen4-bitmap-runtime` → bitmap-room, `screen5-presentation` → presentation.
+3. Auto-detection by asset presence (presentation / bitmap-room assets).
+4. Fallback by `screenMode` → `msx2-screen4-pattern`.
+
+So mode selection is effectively **per-project already** (driven by the project's
+single Main MSX2 gameflow / assets), which is why per-project is the chosen
+granularity: it matches the engine and needs no mid-game mode switching.
+
+### What remains (future work, NOT done here)
+
+This section records the decision only. Implementation is deferred:
+
+- Expose an **explicit per-project selector** ("Tile SCREEN 4" vs "Bitmap room
+  SCREEN 5") in the MSX2 project setup UI, persisted in `msx2ProjectProfile`,
+  instead of relying on implicit asset/gameflow detection.
+- Map that selector to `targetGraphicsBackend` (and/or the gameflow `purpose`) so
+  export is deterministic regardless of which assets exist.
+- Default for new MSX2 projects (proposal: Tile SCREEN 4, the cheaper/simpler mode;
+  decide on creation).
+- Ensure the authoring surface follows the chosen mode (tile editor + name-table
+  screens for SCREEN 4; bitmap-room composer + atlas/command list for SCREEN 5).
+- Rename the bitmap-room mode's user-facing label to "SCREEN 5 (bitmap room)".
+
+### Choosing a mode per game type (author guidance)
+
+- Single-screen / grid / puzzle / board, color-by-cell acceptable → **Tile (SCREEN 4)**.
+- Scrolling or full-room action, rich multicolor art, no clash → **Bitmap room (SCREEN 5)**.
+- Mostly static rooms + sprites for actors → either; SCREEN 5 if clash is the problem,
+  SCREEN 4 if ROM/CPU budget is tight and the tile look is fine.
+
 ## Current Slice
 
 The first MSX2 slice supports:
@@ -73,13 +131,35 @@ Out of scope for this slice:
 
 ## Vampire Killer-Inspired MSX2 Direction
 
+> Correction / mode note (2026-06-16): the OpenMSX trace shows Vampire Killer
+> runs in **GRAPHIC 4 = SCREEN 5** (16-color packed bitmap, `R0=0x06`,
+> 128-byte/4bpp stride), NOT in GRAPHIC 3. Its block composition uses the **VDP
+> command engine** (`HMMM`/`LMMM`/`HMMV`/`LINE`), which **only works in bitmap
+> modes (GRAPHIC 4/5/6/7), never in GRAPHIC 3**.
+>
+> Naming caveat: Mideas has **two** MSX2 routes both labelled "SCREEN 4":
+> - `msx2-screen4-pattern`: a genuine GRAPHIC 3 tile mode (pattern/color/name
+>   tables). It has the 2-color-per-cell clash and **cannot** run the command
+>   engine; its "composition" is writing the name table (cheap).
+> - `msx2-screen4-bitmap-room`: only *named* SCREEN 4. At runtime it does
+>   `CHGMOD 5` and sets sprite mode 2 tables at `F400/F600/F800` — i.e. the
+>   **actual VDP mode is SCREEN 5 / GRAPHIC 4** (the generator's own comment in
+>   `msx2Screen4BitmapRoomGenerator.ts` says so). This backend DOES use the
+>   command engine and IS the Vampire Killer technique.
+>
+> So the VK composer is available in Mideas through `msx2-screen4-bitmap-room`,
+> which is SCREEN 5 under a "SCREEN 4" route name. Just don't expect command-engine
+> helpers to work on the GRAPHIC 3 `msx2-screen4-pattern` path. See
+> `docs/project/MSX2_BITMAP_MULTICOLOR_STUDY.md`.
+
 The Vampire Killer OpenMSX research in
 `research/vampire_killer_openmsx/report.md` gives a concrete target style for
 Mideas MSX2. The useful lesson is not to copy game code, but to copy the
 architecture:
 
 - author with tiles/cells in Mideas;
-- export/load as SCREEN 4 bitmap resources;
+- export/load as **SCREEN 5** bitmap resources (the command-engine composer
+  requires a bitmap mode);
 - use V9938 commands to compose the visible page;
 - keep hardware sprites for moving actors.
 
