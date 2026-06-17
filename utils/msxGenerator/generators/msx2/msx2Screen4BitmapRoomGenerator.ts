@@ -30,6 +30,7 @@ const OP_COPY_8 = 3;
 const OP_COPY_16 = 4;
 
 const VDP_CMD_BLOCK_SIZE = 15;
+const VRAM_BANK_BYTES = 0x4000;
 
 const clampByte = (value: unknown, fallback = 0): number => {
   const numeric = Number(value);
@@ -295,6 +296,74 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
   return `${lines.join('\n')}\n`;
 }
 
+interface RleChunk {
+  label: string;
+  vramOffset: number;
+  rawLength: number;
+  bytes: number[];
+}
+
+function rleEncodeBytes(bytes: number[]): number[] {
+  const encoded: number[] = [];
+  for (let offset = 0; offset < bytes.length;) {
+    const value = bytes[offset] & 0xff;
+    let count = 1;
+    offset++;
+    while (offset < bytes.length && (bytes[offset] & 0xff) === value && count < 255) {
+      count++;
+      offset++;
+    }
+    encoded.push(count, value);
+  }
+  return encoded;
+}
+
+function buildFramebufferRleChunks(framebufferBytes: number[]): RleChunk[] {
+  const chunks: RleChunk[] = [];
+  for (let offset = 0; offset < framebufferBytes.length; offset += VRAM_BANK_BYTES) {
+    const raw = framebufferBytes.slice(offset, Math.min(offset + VRAM_BANK_BYTES, framebufferBytes.length));
+    chunks.push({
+      label: `bitmap_room_framebuffer_rle_chunk_${chunks.length}`,
+      vramOffset: offset,
+      rawLength: raw.length,
+      bytes: rleEncodeBytes(raw),
+    });
+  }
+  return chunks;
+}
+
+function buildFramebufferUploadAsm(rleChunks: RleChunk[]): string {
+  const lines: string[] = [];
+  for (const chunk of rleChunks) {
+    lines.push(`    ld hl, ${chunk.label}`);
+    lines.push(`    ld de, ${hexWord(chunk.vramOffset)}`);
+    lines.push(`    ld bc, ${chunk.label}_end - ${chunk.label}`);
+    lines.push(`    call decompress_bitmap_rle_to_vram`);
+  }
+  lines.push(`    ret`);
+  return lines.join('\n');
+}
+
+function formatFramebufferRleChunks(chunks: RleChunk[], rawByteCount: number, visibleHeight: number): string {
+  const encodedByteCount = chunks.reduce((total, chunk) => total + chunk.bytes.length, 0);
+  const lines: string[] = [
+    `; Visible ${SCREEN_WIDTH}x${visibleHeight} framebuffer, packed 4bpp RLE`,
+    `; Raw bytes: ${rawByteCount}; encoded bytes: ${encodedByteCount}`,
+    `bitmap_room_framebuffer_data:`,
+  ];
+  for (const chunk of chunks) {
+    lines.push(`; VRAM ${hexWord(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`);
+    lines.push(`${chunk.label}:`);
+    for (let offset = 0; offset < chunk.bytes.length; offset += 16) {
+      lines.push(`    DB ${chunk.bytes.slice(offset, offset + 16).map(hexByte).join(',')}`);
+    }
+    lines.push(`${chunk.label}_end:`);
+  }
+  lines.push(`bitmap_room_framebuffer_data_end:`);
+  lines.push('');
+  return lines.join('\n');
+}
+
 function buildPaletteBytes(palette: Screen5PaletteSlot[]): number[] {
   return Array.from({ length: 16 }, (_unused, slotIndex) => {
     const slot = palette.find(item => item?.slotIndex === slotIndex) || palette[slotIndex];
@@ -308,8 +377,9 @@ function buildPaletteBytes(palette: Screen5PaletteSlot[]): number[] {
   }).flat();
 }
 
-function buildRuntimeAsm(room: Msx2Screen4BitmapRoom, commandCount: number): string {
+function buildRuntimeAsm(room: Msx2Screen4BitmapRoom, commandCount: number, rleChunks: RleChunk[]): string {
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
+  const framebufferUploadAsm = buildFramebufferUploadAsm(rleChunks);
 
   return `
 ; --- V9938 bitmap SCREEN 4 runtime (Vampire Killer style) ---
@@ -326,8 +396,37 @@ vdp_write_register:
     pop bc
     ret
 
+; ------------------------------------------------------------
+; FUNCTION: copy_to_vram_ext
+; ------------------------------------------------------------
+; PURPOSE:
+;   Copy one contiguous CPU memory block to an absolute V9938 VRAM address.
+;
+; INPUT:
+;   HL = ROM/RAM source pointer.
+;   DE = absolute VRAM destination address.
+;   BC = byte count. Must not be zero.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes VRAM through VDP ports #99/#98 and leaves R#14 reset to zero.
+;
+; NOTES:
+;   The V9938 data-port auto-increment is only trusted inside the current
+;   16KB VRAM bank. Callers that copy more than one bank must split the copy.
+; ------------------------------------------------------------
 copy_to_vram_ext:
-    ; HL=ROM/RAM source, DE=absolute VRAM destination, BC=length. Clobbers AF/BC/DE/HL.
     ld a, d
     and #C0
     rlca
@@ -353,6 +452,80 @@ copy_to_vram_ext:
     ld a, b
     or c
     jp nz, .copy_loop
+    xor a
+    push af
+    in a, (${VDP_CTRL_PORT})
+    pop af
+    out (${VDP_CTRL_PORT}), a
+    ld a, #8E
+    out (${VDP_CTRL_PORT}), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: decompress_bitmap_rle_to_vram
+; ------------------------------------------------------------
+; PURPOSE:
+;   Expand count/value RLE bytes from ROM to one absolute V9938 VRAM bank.
+;
+; INPUT:
+;   HL = RLE source pointer. Format is repeated count,value pairs.
+;   DE = absolute VRAM destination address.
+;   BC = encoded byte count. Must be even and non-zero.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes expanded bytes to VRAM through VDP ports #99/#98.
+;
+; NOTES:
+;   Each call must target data that stays inside one 16KB VRAM bank. The
+;   generator splits the visible framebuffer on bank boundaries.
+; ------------------------------------------------------------
+decompress_bitmap_rle_to_vram:
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    push af
+    in a, (${VDP_CTRL_PORT})
+    pop af
+    out (${VDP_CTRL_PORT}), a
+    ld a, #8E
+    out (${VDP_CTRL_PORT}), a
+    in a, (${VDP_CTRL_PORT})
+    ld a, e
+    out (${VDP_CTRL_PORT}), a
+    ld a, d
+    and #3F
+    or #40
+    out (${VDP_CTRL_PORT}), a
+.rle_loop:
+    ld a, b
+    or c
+    jp z, .rle_done
+    ld a, (hl)
+    inc hl
+    dec bc
+    ld d, a
+    ld a, (hl)
+    inc hl
+    dec bc
+.emit_loop:
+    out (${VDP_DATA_PORT}), a
+    dec d
+    jp nz, .emit_loop
+    jp .rle_loop
+.rle_done:
     xor a
     push af
     in a, (${VDP_CTRL_PORT})
@@ -441,11 +614,36 @@ upload_bitmap_atlas:
     ; Deprecated atlas path; kept as a stable label for older smoke contracts.
     ret
 
+; ------------------------------------------------------------
+; FUNCTION: upload_bitmap_framebuffer
+; ------------------------------------------------------------
+; PURPOSE:
+;   Upload the pre-rendered packed 4bpp SCREEN 5 framebuffer to visible VRAM.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   decompress_bitmap_rle_to_vram
+;
+; SIDE EFFECTS:
+;   Writes the visible VRAM page starting at #0000.
+;
+; NOTES:
+;   Reads compact RLE data from the resident ROM window, then re-arms R#14 per
+;   16KB VRAM bank so rows beyond physical VRAM #3FFF are written correctly.
+; ------------------------------------------------------------
 upload_bitmap_framebuffer:
-    ld hl, bitmap_room_framebuffer_data
-    ld de, #0000
-    ld bc, bitmap_room_framebuffer_data_end - bitmap_room_framebuffer_data
-    jp copy_to_vram_ext
+${framebufferUploadAsm}
 
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
@@ -673,8 +871,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const spawn = resolvePlayerSpawnPixels(room);
   const paletteBytes = buildPaletteBytes(room.palette);
   const framebufferBytes = packBitmapPixels(normalizeVisibleFramebuffer(room) || renderRoomToPixels(room));
+  const framebufferRleChunks = buildFramebufferRleChunks(framebufferBytes);
   const spriteTables = buildSpriteTables();
-  const runtimeAsm = buildRuntimeAsm(room, 0);
+  const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks);
   const visibleHeight = room.height || SCREEN_HEIGHT_DEFAULT;
 
   return `; File: unitedFiles.asm
@@ -744,8 +943,7 @@ init_rom:
 ${runtimeAsm}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-${formatBytes('bitmap_room_framebuffer_data', framebufferBytes, `Visible ${SCREEN_WIDTH}x${visibleHeight} framebuffer, packed 4bpp`)}
-bitmap_room_framebuffer_data_end:
+${formatFramebufferRleChunks(framebufferRleChunks, framebufferBytes.length, visibleHeight)}
 
 ${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, 'Sprite color table sample (slot 1)')}
 bitmap_room_sprite_colors_end:
