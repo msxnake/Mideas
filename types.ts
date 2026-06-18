@@ -351,6 +351,13 @@ export interface Msx2Screen4BitmapRoom {
     source: 'authored' | 'generated-from-cells';
     commands: Msx2BitmapRoomCommand[];
   };
+  /**
+   * Tile-map of the visible page: 16 cols x (height/16) rows (192 cells at 192px).
+   * Each cell holds an atlas-entry reference (index into `atlas.entries` + 1; 0 = empty),
+   * so only one 16x16 tile can occupy a cell (last paint wins). The render's `copy` commands
+   * are derived from this grid; it is also the compact representation to export to MSX2.
+   */
+  tileGrid?: number[][];
   visibleFramebuffer?: {
     source: 'pre-rendered';
     pixels: number[][];

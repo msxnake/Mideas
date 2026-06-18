@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
-  LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, 
+  LineColorAttribute, MSX1ColorValue, WorldMapGraph, WorldMapConnection, WorldMapScreenNode, ConnectionDirection, PSGSoundData,
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
@@ -416,6 +416,140 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
     .map(a => a.data as WorldMapGraph), [assets]);
+
+  // Beta SCREEN 5 editor: create a bitmap room adjacent to the active one and record
+  // the bidirectional WorldMap connection ("rails"). Reuses the current room's palette
+  // and atlas so the same tiles are available; composition/collision/effects/behavior
+  // start empty.
+  const handleCreateAdjacentBitmapRoom = useCallback((direction: ConnectionDirection) => {
+    if (!activeAsset || activeAsset.type !== 'msx2bitmaproom') return;
+    const currentRoom = activeAsset.data as Msx2Screen4BitmapRoom;
+    const opposite: Record<ConnectionDirection, ConnectionDirection> = {
+      north: 'south', south: 'north', east: 'west', west: 'east',
+    };
+    const dirLabel: Record<ConnectionDirection, string> = {
+      north: 'Norte', south: 'Sur', east: 'Este', west: 'Oeste',
+    };
+
+    // Deterministic id so the post-update selection matches the created asset.
+    const existsAlready = assets.some(a => a.id === `${activeAsset.id}_${direction}`);
+    const newRoomId = existsAlready ? `${activeAsset.id}_${direction}_${Date.now()}` : `${activeAsset.id}_${direction}`;
+
+    setAssetsWithHistory(prev => {
+      const stamp = Date.now();
+      const baseName = `${activeAsset.name} ${dirLabel[direction]}`;
+      let newRoomName = baseName;
+      let suffix = 2;
+      const existingNames = new Set(prev.map(a => a.name));
+      while (existingNames.has(newRoomName)) { newRoomName = `${baseName} (${suffix})`; suffix++; }
+
+      const roomHeight = currentRoom.height || 192;
+      const blankGrid = (cols: number, rows: number) => Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
+      const collisionCols = Math.floor(256 / 16);
+      const collisionRows = Math.floor(roomHeight / 16);
+
+      // New room: reuse palette + atlas, empty composition/collision/effects/behavior.
+      const newRoom: Msx2Screen4BitmapRoom = {
+        id: newRoomId,
+        name: newRoomName,
+        target: 'MSX2',
+        vdpMode: 'SCREEN4_BITMAP_ROOM',
+        width: 256,
+        height: currentRoom.height,
+        palette: currentRoom.palette.map(slot => ({ ...slot })),
+        atlas: {
+          width: currentRoom.atlas.width,
+          height: currentRoom.atlas.height,
+          offscreenBaseY: currentRoom.atlas.offscreenBaseY,
+          pixels: currentRoom.atlas.pixels.map(row => [...row]),
+          entries: currentRoom.atlas.entries.map(entry => ({ ...entry })),
+        },
+        composition: { source: 'authored', commands: [] },
+        collision: blankGrid(collisionCols, collisionRows),
+        effects: blankGrid(collisionCols, collisionRows),
+        behavior: blankGrid(collisionCols, collisionRows),
+        entities: [],
+        playerEntries: [],
+      };
+      const newRoomAsset: ProjectAsset = { id: newRoomId, name: newRoomName, type: 'msx2bitmaproom', data: newRoom };
+
+      // Find-or-create the WorldMap that contains the current room.
+      let worldmapIndex = prev.findIndex(a =>
+        a.type === 'worldmap'
+        && (a.data as WorldMapGraph | undefined)?.nodes?.some(node => node.screenAssetId === activeAsset.id),
+      );
+      let graph: WorldMapGraph;
+      if (worldmapIndex === -1) {
+        const wmId = `worldmap_${stamp}`;
+        const currentNodeId = `wmnode_${activeAsset.id}`;
+        const currentNode: WorldMapScreenNode = {
+          id: currentNodeId,
+          screenAssetId: activeAsset.id,
+          name: activeAsset.name,
+          position: { x: 0, y: 0 },
+        };
+        graph = {
+          id: wmId,
+          name: 'World Map',
+          nodes: [currentNode],
+          connections: [],
+          startScreenNodeId: currentNodeId,
+          gridSize: 20,
+          zoomLevel: 1,
+          panOffset: { x: 0, y: 0 },
+        };
+      } else {
+        const wmAsset = prev[worldmapIndex];
+        const existing = wmAsset.data as WorldMapGraph;
+        graph = {
+          ...existing,
+          nodes: existing.nodes.map(node => ({ ...node, position: { ...node.position } })),
+          connections: existing.connections.map(conn => ({ ...conn })),
+        };
+      }
+
+      const currentNode = graph.nodes.find(node => node.screenAssetId === activeAsset.id)!;
+      const step = (graph.gridSize || 20) * 12; // sensible offset between nodes
+      const offset = {
+        north: { x: 0, y: -step },
+        south: { x: 0, y: step },
+        west: { x: -step, y: 0 },
+        east: { x: step, y: 0 },
+      }[direction];
+      const newNode: WorldMapScreenNode = {
+        id: `wmnode_${newRoomId}`,
+        screenAssetId: newRoomId,
+        name: newRoomName,
+        position: { x: currentNode.position.x + offset.x, y: currentNode.position.y + offset.y },
+      };
+      const connection: WorldMapConnection = {
+        id: `wmconn_${stamp}`,
+        fromNodeId: currentNode.id,
+        toNodeId: newNode.id,
+        fromDirection: direction,
+        toDirection: opposite[direction],
+      };
+      const nextGraph: WorldMapGraph = {
+        ...graph,
+        nodes: [...graph.nodes, newNode],
+        connections: [...graph.connections, connection],
+      };
+      const worldmapAsset: ProjectAsset = { id: nextGraph.id, name: nextGraph.name, type: 'worldmap', data: nextGraph };
+
+      const next = [...prev, newRoomAsset];
+      if (worldmapIndex === -1) {
+        next.push(worldmapAsset);
+      } else {
+        // re-find index in the mutated copy (we only appended, so original index holds)
+        next[worldmapIndex] = worldmapAsset;
+      }
+      return next;
+    });
+
+    // Open the new room in the bitmap editor grid (sets asset + editor; keeps beta toggle).
+    onSelectAsset(newRoomId, EditorType.Msx2BitmapRoom);
+    setStatusBarMessage(`SCREEN 5: pantalla creada al ${dirLabel[direction]} y conectada en el World Map.`);
+  }, [activeAsset, assets, setAssetsWithHistory, onSelectAsset, setStatusBarMessage]);
 
   const dataAssets = assets.filter(a =>
     ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'msx2bitmaproom', 'msx2player', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
@@ -835,7 +969,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 </button>
               </div>
               {useBitmapBetaEditor
-                ? <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />
+                ? <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} />
                 : <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} />}
             </div>
           )}
