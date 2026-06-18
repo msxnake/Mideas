@@ -103,7 +103,7 @@ const getCurrentMsx2GameFlowPurpose = (assets: ProjectAsset[], activeAssetId?: s
 
 const shouldExportMsx2Screen5Presentation = (assets: ProjectAsset[], activeAssetId?: string | null): boolean => {
   const purpose = getCurrentMsx2GameFlowPurpose(assets, activeAssetId);
-  if (purpose === 'screen4-runtime') return false;
+  if (purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime') return false;
   if (purpose === 'screen5-presentation') return hasMsx2PresentationAsset(assets);
   return hasMsx2PresentationAsset(assets);
 };
@@ -111,7 +111,26 @@ const shouldExportMsx2Screen5Presentation = (assets: ProjectAsset[], activeAsset
 const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const presentations = assets.filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
   const flows = assets.filter(asset => asset.type === 'msx2gameflow');
-  const screen5Flows = flows.filter(asset => (asset.data as any)?.purpose !== 'screen4-runtime');
+  const hasScreen4RuntimeFlow = flows.some(asset => {
+    const purpose = (asset.data as any)?.purpose;
+    return purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime';
+  });
+  const screen5Flows = flows.filter(asset => (asset.data as any)?.purpose === 'screen5-presentation');
+  if (presentations.length === 0 || (screen5Flows.length === 0 && hasScreen4RuntimeFlow)) {
+    return {
+      hasScreen5Presentation: false,
+      hasMsx2GameFlow: false,
+      flowName: null,
+      hasScreen5Node: false,
+      screen5NodeId: null,
+      presentationAssetId: null,
+      presentationName: null,
+      missingPresentation: false,
+      transitionEffect: null,
+      transitionDurationFrames: null,
+      invalidFlowShape: false,
+    };
+  }
   const flow = screen5Flows.find(asset => asset.name === 'Main MSX2') || screen5Flows[0];
   const flowData = flow?.data as any;
   const nodes = Array.isArray(flowData?.nodes) ? flowData.nodes : [];
