@@ -209,6 +209,17 @@ def build_castle_commands() -> list[dict[str, object]]:
 def build_project() -> dict[str, object]:
     atlas_pixels = build_atlas_pixels()
     commands = build_castle_commands()
+    commands.append({
+        "id": "stale_tile_copy_must_be_ignored",
+        "op": "copy",
+        "atlasEntryId": "brick_red",
+        "dx": 0,
+        "dy": 0,
+        "w": 16,
+        "h": 16,
+    })
+    tile_grid = [[0 for _x in range(16)] for _y in range(12)]
+    tile_grid[0][0] = 4  # brick_green: proves tileGrid overrides stale copy commands.
     room_data = {
         "id": "bitmap_room_smoke",
         "name": "Bitmap Room Smoke",
@@ -228,6 +239,7 @@ def build_project() -> dict[str, object]:
             "source": "authored",
             "commands": commands,
         },
+        "tileGrid": tile_grid,
         "collision": [[0 for _x in range(16)] for _y in range(12)],
         "effects": [[0 for _x in range(16)] for _y in range(12)],
         "behavior": [[0 for _x in range(16)] for _y in range(12)],
@@ -257,11 +269,6 @@ def build_project() -> dict[str, object]:
         },
         "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
     }
-    room_data["visibleFramebuffer"] = {
-        "source": "pre-rendered",
-        "pixels": render_smoke_room_data(room_data),
-    }
-    room_data["composition"] = {"source": "authored", "commands": []}
     return {
         "name": "msx2_bitmap_room_smoke",
         "currentScreenMode": "SCREEN 4 (Graphics II)",
@@ -337,9 +344,13 @@ def render_smoke_bitmap_room(project: dict[str, object]) -> list[list[int]]:
     atlas = room["atlas"]
     atlas_pixels = atlas["pixels"]
     entries = {entry["id"]: entry for entry in atlas["entries"]}
+    entry_list = atlas["entries"]
+    has_tile_grid = isinstance(room.get("tileGrid"), list)
 
     for command in room["composition"]["commands"]:
         op = command["op"]
+        if has_tile_grid and op == "copy":
+            continue
         if op == "fill":
             color = int(command.get("color", 0))
             x0 = int(command.get("x", 0))
@@ -377,6 +388,30 @@ def render_smoke_bitmap_room(project: dict[str, object]) -> list[list[int]]:
                         pixels[ty][tx] = int(atlas_pixels[ay][ax])
         else:
             raise RuntimeError(f"Unsupported smoke composition command: {op}")
+
+    if has_tile_grid:
+        for cy, row in enumerate(room["tileGrid"]):
+            for cx, value in enumerate(row):
+                entry_index = int(value) - 1
+                if entry_index < 0 or entry_index >= len(entry_list):
+                    continue
+                entry = entry_list[entry_index]
+                sx = int(entry["sx"])
+                sy = int(entry["sy"])
+                w = int(entry["w"])
+                h = int(entry["h"])
+                dx = cx * 16
+                dy = cy * 16
+                for y in range(h):
+                    ty = dy + y
+                    ay = sy + y
+                    if not (0 <= ty < height and 0 <= ay < len(atlas_pixels)):
+                        continue
+                    for x in range(w):
+                        tx = dx + x
+                        ax = sx + x
+                        if 0 <= tx < width and 0 <= ax < len(atlas_pixels[ay]):
+                            pixels[ty][tx] = int(atlas_pixels[ay][ax])
 
     return pixels
 
@@ -445,6 +480,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         raise RuntimeError("Generated ASM is missing bitmap_room_framebuffer_rle_chunk_* data")
     decoded_length = 0
     encoded_length = 0
+    decoded_bytes: list[int] = []
     for chunk_label in (chunk.split(":", 1)[0] for chunk in rle_chunks):
         chunk_bytes = extract_db_bytes(asm_text, chunk_label)
         if len(chunk_bytes) % 2 != 0:
@@ -452,6 +488,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         encoded_length += len(chunk_bytes)
         for index in range(0, len(chunk_bytes), 2):
             decoded_length += chunk_bytes[index]
+            decoded_bytes.extend([chunk_bytes[index + 1]] * chunk_bytes[index])
     expected_framebuffer_length = 256 * 192 // 2
     if decoded_length != expected_framebuffer_length:
         raise RuntimeError(
@@ -460,6 +497,11 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     if encoded_length >= expected_framebuffer_length:
         raise RuntimeError(
             f"bitmap room RLE did not reduce resident source data: encoded={encoded_length}, raw={expected_framebuffer_length}"
+        )
+    tile_grid_probe_byte = decoded_bytes[(2 * 128) + 1]
+    if tile_grid_probe_byte != 0xCC:
+        raise RuntimeError(
+            f"bitmap room tileGrid was not authoritative at y=2,x=2: got #{tile_grid_probe_byte:02X}, expected #CC"
         )
 
 

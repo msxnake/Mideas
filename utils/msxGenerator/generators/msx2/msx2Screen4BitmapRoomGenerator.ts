@@ -17,6 +17,7 @@ const BITMAP_ROOM_HUD_HEIGHT = 16;
 const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
 const ROW_BYTES = SCREEN_WIDTH / 2;
 const BITMAP_ROOM_GAME_VRAM_BASE = BITMAP_ROOM_GAME_Y_OFFSET * ROW_BYTES;
+const TILE_GRID_SIZE = 16;
 const VDP_CTRL_PORT = '#99';
 const VDP_DATA_PORT = '#98';
 const VDP_CMD_PORT = '#9B';
@@ -78,6 +79,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
       source: room?.composition?.source || 'authored',
       commands: room?.composition?.commands || [],
     },
+    tileGrid: room?.tileGrid,
     visibleFramebuffer: room?.visibleFramebuffer,
     collision: room?.collision || [],
     effects: room?.effects || [],
@@ -133,11 +135,36 @@ function copyAtlasEntry(screen: number[][], atlasPixels: number[][], room: Msx2S
   }
 }
 
+function copyTileGrid(screen: number[][], atlasPixels: number[][], room: Msx2Screen4BitmapRoom): void {
+  const grid = room.tileGrid;
+  if (!Array.isArray(grid)) return;
+  for (let cy = 0; cy < grid.length; cy++) {
+    const row = grid[cy];
+    if (!Array.isArray(row)) continue;
+    for (let cx = 0; cx < row.length; cx++) {
+      const entryIndex = clampInt(row[cx], 0, room.atlas.entries.length, 0) - 1;
+      const entry = room.atlas.entries[entryIndex];
+      if (!entry) continue;
+      copyAtlasEntry(screen, atlasPixels, room, {
+        id: `tile_${cx}_${cy}`,
+        op: 'copy',
+        atlasEntryId: entry.id,
+        dx: cx * TILE_GRID_SIZE,
+        dy: cy * TILE_GRID_SIZE,
+        w: entry.w || TILE_GRID_SIZE,
+        h: entry.h || TILE_GRID_SIZE,
+      });
+    }
+  }
+}
+
 function renderRoomToPixels(room: Msx2Screen4BitmapRoom): number[][] {
   const height = room.height || SCREEN_HEIGHT_DEFAULT;
   const atlasPixels = normalizeAtlasPixels(room);
   const screen = Array.from({ length: height }, () => Array.from({ length: SCREEN_WIDTH }, () => 0));
+  const shouldUseTileGrid = Array.isArray(room.tileGrid);
   for (const command of room.composition.commands || []) {
+    if (shouldUseTileGrid && command.op === 'copy') continue;
     if (command.op === 'copy') {
       copyAtlasEntry(screen, atlasPixels, room, command);
     } else if (command.op === 'fill') {
@@ -147,6 +174,9 @@ function renderRoomToPixels(room: Msx2Screen4BitmapRoom): number[][] {
     } else if (command.op === 'lineV') {
       paintRect(screen, command.x, command.y, 1, command.length, command.color);
     }
+  }
+  if (shouldUseTileGrid) {
+    copyTileGrid(screen, atlasPixels, room);
   }
   return screen;
 }

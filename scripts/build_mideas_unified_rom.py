@@ -5706,19 +5706,24 @@ if (raw.presentationScreen && raw.presentationScreen.data && Array.isArray(raw.p
 }
 
 const hasMsx2Presentation = assets.some(asset => asset && asset.type === "msx2presentation");
+const hasMsx2BitmapRoom = assets.some(asset => asset && asset.type === "msx2bitmaproom");
 const msx2GameFlows = assets.filter(asset => asset && asset.type === "msx2gameflow");
 const currentMsx2GameFlow = msx2GameFlows.find(asset => asset.name === "Main MSX2") || msx2GameFlows[0];
 const currentMsx2GameFlowPurpose = currentMsx2GameFlow && currentMsx2GameFlow.data ? currentMsx2GameFlow.data.purpose : undefined;
 const requestedScreenMode = raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)";
-const exportScreenMode = currentMsx2GameFlowPurpose === "screen4-runtime"
+const exportScreenMode = currentMsx2GameFlowPurpose === "screen4-runtime" || currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
   ? "SCREEN 4 (Graphics II)"
   : (hasMsx2Presentation ? "SCREEN 5 (Graphics III)" : requestedScreenMode);
 const defaultGraphicsBackend = currentMsx2GameFlowPurpose === "screen4-runtime"
   ? "msx2-screen4-pattern"
+  : currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
+  ? "msx2-screen4-bitmap-room"
   : currentMsx2GameFlowPurpose === "screen5-presentation" && hasMsx2Presentation
   ? "msx2-screen5-presentation"
   : hasMsx2Presentation
   ? "msx2-screen5-presentation"
+  : hasMsx2BitmapRoom
+  ? "msx2-screen4-bitmap-room"
   : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(exportScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank");
 
 const files = generator.generateModularASM(name, assets, {

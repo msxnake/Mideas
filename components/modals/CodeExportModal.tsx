@@ -623,9 +623,16 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     const enhancedAssets = getEnhancedAssets();
     const rawScreenMode = projectData?.screenMode || projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)';
     const hasScreen5Presentation = shouldExportMsx2Screen5Presentation(enhancedAssets, activeAssetId);
-    const currentScreenMode = hasScreen5Presentation ? LEGACY_SCREEN5_MODE : normalizeMsx2ExportScreenMode(rawScreenMode);
+    const hasMsx2BitmapRoom = enhancedAssets.some(asset => asset.type === 'msx2bitmaproom');
+    const currentScreenMode = hasScreen5Presentation
+      ? LEGACY_SCREEN5_MODE
+      : hasMsx2BitmapRoom
+      ? 'SCREEN 4 (Graphics II)'
+      : normalizeMsx2ExportScreenMode(rawScreenMode);
     const targetGraphicsBackend = hasScreen5Presentation
       ? 'msx2-screen5-presentation'
+      : hasMsx2BitmapRoom
+      ? 'msx2-screen4-bitmap-room'
       : isMsx2Screen4ExportMode(currentScreenMode)
       ? 'msx2-screen4-pattern'
       : 'screen2-tilebank';
