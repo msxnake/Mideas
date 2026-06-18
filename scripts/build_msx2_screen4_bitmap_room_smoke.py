@@ -450,6 +450,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "Bitmap room game area: 256x192 at visual Y=16",
         "Bitmap room upload area: 256x192 at VRAM #0800",
         "HUD band is persistent and is not rewritten by normal room loads",
+        "FUNCTION: init_plain32k_page2_slot",
+        "Mirror the cartridge primary slot from page 1 (#4000-#7FFF) into page 2",
         "add a, 16",
     ):
         if marker not in asm_text:

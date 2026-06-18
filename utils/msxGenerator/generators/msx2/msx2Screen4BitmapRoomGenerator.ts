@@ -587,6 +587,49 @@ function buildRuntimeAsm(
   return `
 ; --- V9938 bitmap SCREEN 4 runtime (Vampire Killer style) ---
 
+; ------------------------------------------------------------
+; FUNCTION: init_plain32k_page2_slot
+; ------------------------------------------------------------
+; PURPOSE:
+;   Mirror the cartridge primary slot from page 1 (#4000-#7FFF) into page 2
+;   (#8000-#BFFF) so plain 32KB ROM data can be read linearly.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC
+;
+; PRESERVES:
+;   DE, HL, IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Updates the primary slot select register at PPI port #A8 for page 2.
+;
+; NOTES:
+;   Bitmap rooms can place RLE source data above #8000 once tile variety grows.
+;   Without this setup the second ROM page may still point at RAM/BIOS, causing
+;   the decoder to feed #FF bytes into VRAM after the first visible render.
+; ------------------------------------------------------------
+init_plain32k_page2_slot:
+    in a, (PPI_A)
+    ld b, a
+    and #0C                  ; keep page 1 primary slot bits
+    rlca
+    rlca                     ; move page 1 bits into page 2 position
+    ld c, a
+    ld a, b
+    and #CF                  ; clear page 2 primary slot bits
+    or c
+    out (PPI_A), a
+    ret
+
 vdp_write_register:
     ; A=register, E=value. Preserves BC, clobbers AF.
     push bc
@@ -630,17 +673,15 @@ vdp_write_register:
 ;   16KB VRAM bank. Callers that copy more than one bank must split the copy.
 ; ------------------------------------------------------------
 copy_to_vram_ext:
+    push de
     ld a, d
     and #C0
     rlca
     rlca
-    push af
-    in a, (${VDP_CTRL_PORT})
-    pop af
-    out (${VDP_CTRL_PORT}), a
-    ld a, #8E
-    out (${VDP_CTRL_PORT}), a
-    in a, (${VDP_CTRL_PORT})
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
     ld a, e
     out (${VDP_CTRL_PORT}), a
     ld a, d
@@ -656,12 +697,9 @@ copy_to_vram_ext:
     or c
     jp nz, .copy_loop
     xor a
-    push af
-    in a, (${VDP_CTRL_PORT})
-    pop af
-    out (${VDP_CTRL_PORT}), a
-    ld a, #8E
-    out (${VDP_CTRL_PORT}), a
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
     ret
 
 ; ------------------------------------------------------------
@@ -695,17 +733,15 @@ copy_to_vram_ext:
 ;   generator splits the visible framebuffer on bank boundaries.
 ; ------------------------------------------------------------
 decompress_bitmap_rle_to_vram:
+    push de
     ld a, d
     and #C0
     rlca
     rlca
-    push af
-    in a, (${VDP_CTRL_PORT})
-    pop af
-    out (${VDP_CTRL_PORT}), a
-    ld a, #8E
-    out (${VDP_CTRL_PORT}), a
-    in a, (${VDP_CTRL_PORT})
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
     ld a, e
     out (${VDP_CTRL_PORT}), a
     ld a, d
@@ -730,12 +766,9 @@ decompress_bitmap_rle_to_vram:
     jp .rle_loop
 .rle_done:
     xor a
-    push af
-    in a, (${VDP_CTRL_PORT})
-    pop af
-    out (${VDP_CTRL_PORT}), a
-    ld a, #8E
-    out (${VDP_CTRL_PORT}), a
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
     ret
 
 vdp_reinit_cmd_pointer:
@@ -898,11 +931,18 @@ init_hardware_sprite_tables:
 bitmap_wait_vblank:
     ; Poll VDP status S#0 until the frame flag (bit 7) is set: a 60 Hz tick that
     ; does NOT depend on BIOS frame interrupts (the VK-style VDP init does not
-    ; enable a BIOS-compatible vblank IRQ). Assumes R#15 = 0. Clobbers AF.
+    ; enable a BIOS-compatible vblank IRQ). Assumes R#15 = 0. Clobbers AF/BC.
+    ; If the host BIOS/VDP state never raises S#0 bit 7, return after a bounded
+    ; delay so gameplay cannot hang on the first rendered frame.
+    ld bc, #4000
 .wv_loop:
     in a, (VDP_CTRL_PORT)
     bit 7, a
-    jp z, .wv_loop
+    ret nz
+    dec bc
+    ld a, b
+    or c
+    jp nz, .wv_loop
     ret
 
 update_player_movement:
@@ -1052,17 +1092,15 @@ bitmap_probe_solid:
 ; ------------------------------------------------------------
 bitmap_update_sprite_sat:
     ld de, #F600
+    push de
     ld a, d
     and #C0
     rlca
     rlca
-    push af
-    in a, (${VDP_CTRL_PORT})
-    pop af
-    out (${VDP_CTRL_PORT}), a
-    ld a, #8E
-    out (${VDP_CTRL_PORT}), a
-    in a, (${VDP_CTRL_PORT})
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
     ld a, e
     out (${VDP_CTRL_PORT}), a
     ld a, d
@@ -1078,6 +1116,10 @@ bitmap_update_sprite_sat:
     out (${VDP_DATA_PORT}), a
     ld a, (player_ec)
     out (${VDP_DATA_PORT}), a
+    xor a
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
     ret
 `;
 }
@@ -1191,6 +1233,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 CHGMOD  EQU #005F
 GTSTCK  EQU #00DC
 SNSMAT  EQU #0141
+PPI_A EQU #A8
 VDP_CTRL_PORT EQU ${VDP_CTRL_PORT}
 VDP_DATA_PORT EQU ${VDP_DATA_PORT}
 VDP_CMD_PORT EQU ${VDP_CMD_PORT}
@@ -1216,6 +1259,7 @@ player_ec  EQU #C003
 
 init_rom:
     di
+    call init_plain32k_page2_slot
     call init_screen4_bitmap_vdp
     call load_screen4_bitmap_palette
     call init_bitmap_hud_band
@@ -1231,11 +1275,11 @@ init_rom:
     ld (player_ec), a
     ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
-    ; by polling the frame flag, so it does not depend on BIOS frame interrupts.
+    ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
+    ; consume S#0 before the main loop sees it.
     ld a, #0F
     ld e, #00
     call vdp_write_register
-    ei
 .main_loop:
     call bitmap_wait_vblank
     call update_player_movement
