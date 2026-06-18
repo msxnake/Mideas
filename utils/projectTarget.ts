@@ -23,6 +23,7 @@ const MSX1_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
 const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'msx2sprite',
   'msx2bitmap',
+  'msx2bitmaptile',
   'msx2screen',
   'msx2bitmaproom',
   'msx2player',

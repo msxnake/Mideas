@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -1104,6 +1104,19 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Commands:</strong> {commandCount}</div>
             <div><strong className="text-msx-highlight">Export:</strong> PGT/PNT/CGT, 3 banks</div>
             <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
+          </div>
+        );
+      }
+      case 'msx2bitmaptile': {
+        const tile = asset.data as BitmapTileScreen5;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {tile?.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> SCREEN5_BITMAP</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {tile?.width || 0}x{tile?.height || 0} px</div>
+            <div><strong className="text-msx-highlight">Palette:</strong> {tile?.paletteId || 'missing'}</div>
+            <div><strong className="text-msx-highlight">Source:</strong> {tile?.sourceType || 'unknown'}</div>
+            <div><strong className="text-msx-highlight">Pixels:</strong> {tile?.pixelData?.length || 0} indexed slots</div>
           </div>
         );
       }

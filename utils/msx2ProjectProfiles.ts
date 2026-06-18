@@ -28,6 +28,7 @@ const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'globalvariables',
   'palette',
   'msx2sprite',
+  'msx2bitmaptile',
   'msx2player',
   'msx2enemy',
   'msx2presentation',

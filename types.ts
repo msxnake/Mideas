@@ -317,6 +317,22 @@ export interface Msx2Bitmap {
   notes?: string;
 }
 
+export interface BitmapTileScreen5 {
+  id: string;
+  name: string;
+  mode: 'SCREEN5_BITMAP';
+  width: number;
+  height: number;
+  sourceType: 'png-import' | 'manual-edit' | 'generated' | 'atlas-export';
+  sourceFileName?: string;
+  paletteId: string;
+  pixelData: number[];
+  previewImage?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type Msx2BitmapRoomCommand =
   | { id: string; op: 'copy'; atlasEntryId: string; dx: number; dy: number; w?: number; h?: number }
   | { id: string; op: 'fill'; x: number; y: number; w: number; h: number; color: number }
@@ -2993,9 +3009,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
@@ -3047,6 +3063,12 @@ export interface PaletteAsset {
   notes?: string;
   /** Intended palette mode. */
   mode: 'SCREEN4' | 'SCREEN5';
+  /** Origin metadata for generated/imported palettes. */
+  source?: 'manual' | 'auto-generated-from-png' | 'duplicated' | 'imported' | 'auto-generated-from-screen5-bitmap-tile';
+  /** Strong link to the tile that caused this palette to be created. */
+  createdFromTileId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type DataFormat = 'hex' | 'decimal';

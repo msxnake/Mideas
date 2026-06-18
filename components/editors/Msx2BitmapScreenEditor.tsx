@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ConnectionDirection,
+  BitmapTileScreen5,
   Msx2BitmapRoomAtlasEntry,
   Msx2BitmapRoomCommand,
   Msx2Screen4BitmapRoom,
   Msx2Screen4Tile,
+  PaletteAsset,
   ProjectAsset,
   Screen5PaletteSlot,
   WorldMapGraph,
@@ -16,6 +18,13 @@ import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
 import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
 import { addEntryToMsx2TileLibrary } from '../../utils/msx2TileLibrary';
 import {
+  areScreen5PalettesEquivalent,
+  bitmapTileScreen5ToAtlasTile,
+  buildScreen5BitmapTileAsset,
+  createScreen5PaletteAssetForTile,
+  findMatchingScreen5PaletteAsset,
+} from '../../utils/msx2Screen5BitmapTileLibrary';
+import {
   EraserIcon,
   EyeIcon,
   EyeOffIcon,
@@ -25,6 +34,7 @@ import {
   PaintBrushIcon,
   PencilIcon,
   PlusCircleIcon,
+  SaveIcon,
   SpriteIcon,
   ZoomInIcon,
   ZoomOutIcon,
@@ -217,7 +227,7 @@ const buildTileGrid = (room: Msx2Screen4BitmapRoom, cols: number, rows: number):
 
 interface Msx2BitmapScreenEditorProps {
   room: Msx2Screen4BitmapRoom;
-  onUpdate: (data: Partial<Msx2Screen4BitmapRoom>) => void;
+  onUpdate: (data: Partial<Msx2Screen4BitmapRoom>, newAssets?: ProjectAsset[]) => void;
   allAssets?: ProjectAsset[];
   setStatusBarMessage?: (m: string) => void;
   /** Creates a new bitmap room adjacent to the current one (and the WorldMap rail). */
@@ -404,6 +414,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   // collapsible panel toggles
   const [openTools, setOpenTools] = useState(true);
   const [openAtlas, setOpenAtlas] = useState(true);
+  const [openBitmapTiles, setOpenBitmapTiles] = useState(true);
   const [openCategories, setOpenCategories] = useState(true);
   const [openLayers, setOpenLayers] = useState(true);
   const [openMinimap, setOpenMinimap] = useState(true);
@@ -419,6 +430,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const atlasPixels = useMemo(() => normalizePixels(room.atlas?.pixels, atlasWidth, atlasHeight), [room.atlas?.pixels, atlasWidth, atlasHeight]);
   const atlasEntries = room.atlas?.entries || [];
   const selectedAtlasEntry = atlasEntries.find(entry => entry.id === selectedAtlasEntryId) || atlasEntries[0];
+  const screen5BitmapTileAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2bitmaptile'),
+    [allAssets],
+  );
   // Category filter: keep entries whose inferred category matches, plus uncategorized ones.
   const visibleAtlasEntries = useMemo(
     () => atlasEntries.filter(entry => {
@@ -824,6 +839,80 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     }
   };
 
+  const handleSaveAtlasEntryAsBitmapTileAsset = () => {
+    const entry = selectedAtlasEntry;
+    if (!entry) {
+      setStatusBarMessage?.('No hay tile de atlas seleccionado para guardar como asset SCREEN 5.');
+      return;
+    }
+    const w = Math.max(1, entry.w || GRID);
+    const h = Math.max(1, entry.h || GRID);
+    const pixels: number[][] = Array.from({ length: h }, (_r, yy) =>
+      Array.from({ length: w }, (_c, xx) => atlasPixels[entry.sy + yy]?.[entry.sx + xx] ?? 0),
+    );
+
+    const draftTileId = `bitmap_tile_screen5_${Date.now()}`;
+    const matchingPalette = findMatchingScreen5PaletteAsset(slots, allAssets);
+    const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(slots, entry.name, draftTileId, allAssets);
+    const tileAsset = buildScreen5BitmapTileAsset({
+      name: entry.name,
+      width: w,
+      height: h,
+      pixels,
+      paletteId: paletteAsset.id,
+      existingAssets: matchingPalette ? allAssets : [...allAssets, paletteAsset],
+      sourceType: 'atlas-export',
+    });
+    if (!matchingPalette) {
+      (paletteAsset.data as PaletteAsset).createdFromTileId = tileAsset.id;
+    }
+    onUpdate({}, matchingPalette ? [tileAsset] : [paletteAsset, tileAsset]);
+    setStatusBarMessage?.(
+      matchingPalette
+        ? `Guardado "${tileAsset.name}" como MSX2 Bitmap Tile usando la paleta "${matchingPalette.name}".`
+        : `Guardado "${tileAsset.name}" y creada la paleta "${paletteAsset.name}".`
+    );
+  };
+
+  const handleImportBitmapTileAsset = (asset: ProjectAsset) => {
+    const tile = asset.data as BitmapTileScreen5 | undefined;
+    if (!tile || !tile.paletteId) {
+      setStatusBarMessage?.(`"${asset.name}" no tiene paletteId; no se puede importar.`);
+      return;
+    }
+    const paletteAsset = allAssets.find(candidate => candidate.id === tile.paletteId && candidate.type === 'palette');
+    const palette = (paletteAsset?.data as PaletteAsset | undefined)?.slots;
+    if (!palette) {
+      setStatusBarMessage?.(`No existe la paleta asociada a "${asset.name}".`);
+      return;
+    }
+    const shouldApplyPalette = !areScreen5PalettesEquivalent(slots, palette);
+    if (shouldApplyPalette) {
+      const ok = window.confirm(`El tile "${asset.name}" usa la paleta "${paletteAsset?.name || tile.paletteId}", distinta de la pantalla activa. ¿Cargar esa paleta en la pantalla antes de importarlo?`);
+      if (!ok) {
+        setStatusBarMessage?.('Importación cancelada para evitar colores incorrectos.');
+        return;
+      }
+    }
+    const atlasTile = bitmapTileScreen5ToAtlasTile(tile);
+    const { atlas, addedEntries } = importTilesIntoAtlas(
+      {
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels: room.atlas?.pixels,
+        entries: atlasEntries,
+      },
+      [atlasTile as Msx2Screen4Tile],
+    );
+    onUpdate({
+      atlas,
+      ...(shouldApplyPalette ? { palette: palette.map(slot => ({ ...slot })) } : {}),
+    });
+    if (addedEntries[0]) setSelectedAtlasEntryId(addedEntries[0].id);
+    setStatusBarMessage?.(`Importado "${asset.name}" al atlas SCREEN 5.`);
+  };
+
   // --- Load a 16-color palette from a project palette asset ---
   const handleLoadPalette = () => {
     if (paletteAssets.length === 0) {
@@ -895,6 +984,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={handleExportToLibrary} title="Exportar el tile/atlas seleccionado a la biblioteca">
           Exportar a biblioteca
         </Button>
+        <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={handleSaveAtlasEntryAsBitmapTileAsset} title="Guardar el tile seleccionado como asset MSX2 Bitmap Tile con paletteId persistente">
+          Guardar asset bitmap
+        </Button>
         <Button size="sm" variant="secondary" icon={<PaintBrushIcon />} onClick={handleLoadPalette} title="Cargar una paleta de 16 colores SCREEN 5">
           Cargar paleta de colores
         </Button>
@@ -937,6 +1029,32 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 {visibleAtlasEntries.length === 0 && (
                   <div className="mt-1 text-[0.6rem] text-msx-textsecondary">Sin tiles en la categoría "{statusCategoryLabel}".</div>
                 )}
+              </div>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="MSX2 Bitmap Tiles" isOpen={openBitmapTiles} onToggle={() => setOpenBitmapTiles(v => !v)}>
+            {screen5BitmapTileAssets.length === 0 ? (
+              <div className="rounded border border-msx-border bg-msx-bgcolor p-2 text-xs text-msx-textsecondary">
+                No hay assets Screen 5 Bitmap Tiles en el proyecto.
+              </div>
+            ) : (
+              <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                {screen5BitmapTileAssets.map(asset => {
+                  const tile = asset.data as BitmapTileScreen5 | undefined;
+                  return (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      onClick={() => handleImportBitmapTileAsset(asset)}
+                      className="w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-left text-xs text-msx-textprimary hover:border-msx-highlight"
+                      title={`Importar ${asset.name} al atlas (${tile?.width || 0}x${tile?.height || 0})`}
+                    >
+                      <span className="block truncate">{asset.name}</span>
+                      <span className="text-[0.6rem] text-msx-textsecondary">{tile?.width || 0}x{tile?.height || 0}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </CollapsiblePanel>
