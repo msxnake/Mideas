@@ -9,6 +9,10 @@ interface Rgb {
   b: number;
 }
 
+interface WeightedRgb extends Rgb {
+  weight: number;
+}
+
 interface RawPixel extends Rgb {
   visible: boolean;
 }
@@ -28,6 +32,12 @@ export interface Msx2ExternalSpriteImportOptions {
   cropToVisible: boolean;
   backgroundTolerance: number;
   useOrColor: boolean;
+  /**
+   * Optional re-roll seed for the color quantizer. 0/undefined keeps the
+   * legacy deterministic result (median-sample start); increasing it shifts the
+   * k-means seeding so the caller can ask for an alternative palette split.
+   */
+  quantizeSeed?: number;
 }
 
 export interface Msx2ExternalSpriteImportResult {
@@ -205,6 +215,26 @@ function downscaleToTarget(
   return target;
 }
 
+function collectVisibleSourceSamples(
+  imageData: ImageData,
+  crop: { x: number; y: number; width: number; height: number },
+  background: Rgb,
+  options: Msx2ExternalSpriteImportOptions,
+): Rgb[] {
+  const samples: Rgb[] = [];
+  const maxSamples = 16384;
+  const area = Math.max(1, crop.width * crop.height);
+  const step = Math.max(1, Math.floor(Math.sqrt(area / maxSamples)));
+  for (let y = crop.y; y < crop.y + crop.height; y += step) {
+    for (let x = crop.x; x < crop.x + crop.width; x += step) {
+      const pixel = imagePixel(imageData, x, y);
+      if (!isVisibleSourcePixel(pixel, background, options.backgroundTolerance)) continue;
+      samples.push({ r: pixel.r, g: pixel.g, b: pixel.b });
+    }
+  }
+  return samples;
+}
+
 function findImmutableSlots(palette: Screen5PaletteSlot[]): Set<number> {
   const immutable = new Set<number>([0]);
   palette.forEach(slot => {
@@ -228,16 +258,36 @@ function nearestSlotColor(pixel: Rgb, slots: Screen5PaletteSlot[]): Screen5Palet
   return best?.slot;
 }
 
-function pickSeedSamples(samples: Rgb[], count: number): Rgb[] {
+function buildWeightedSamples(samples: Rgb[]): WeightedRgb[] {
+  const grouped = new Map<string, WeightedRgb>();
+  samples.forEach(sample => {
+    const snapped = snapHexToScreen5MasterColor(rgbToHex(sample));
+    const current = grouped.get(snapped.hex);
+    if (current) {
+      current.weight += 1;
+      return;
+    }
+    const rgb = hexToRgb(snapped.hex);
+    if (!rgb) return;
+    grouped.set(snapped.hex, { ...rgb, weight: 1 });
+  });
+  return Array.from(grouped.values());
+}
+
+function pickSeedSamples(samples: WeightedRgb[], count: number, seed = 0): Rgb[] {
   if (samples.length === 0) return [];
-  const seeds: Rgb[] = [samples[Math.floor(samples.length / 2)]];
+  const sorted = [...samples].sort((a, b) => b.weight - a.weight);
+  const stride = Math.max(1, Math.floor(sorted.length / Math.max(1, count)));
+  const startIndex = seed > 0 ? (seed * stride) % sorted.length : 0;
+  const seeds: Rgb[] = [sorted[startIndex]];
   while (seeds.length < count) {
-    let bestSample = samples[0];
+    let bestSample = sorted[0];
     let bestDistance = -1;
-    samples.forEach(sample => {
+    sorted.forEach(sample => {
       const distance = Math.min(...seeds.map(seed => colorDistance(sample, seed)));
-      if (distance > bestDistance) {
-        bestDistance = distance;
+      const weightedDistance = distance * Math.log2(sample.weight + 1);
+      if (weightedDistance > bestDistance) {
+        bestDistance = weightedDistance;
         bestSample = sample;
       }
     });
@@ -246,14 +296,14 @@ function pickSeedSamples(samples: Rgb[], count: number): Rgb[] {
   return seeds;
 }
 
-function quantizeSamples(samples: Rgb[], count: number): Rgb[] {
-  const unique = Array.from(new Map(samples.map(sample => [quantizedKey(sample), sample])).values());
-  const k = clamp(count, 1, Math.max(1, unique.length));
-  let centers = pickSeedSamples(unique, k);
+function quantizeSamples(samples: Rgb[], count: number, seed = 0): Rgb[] {
+  const weighted = buildWeightedSamples(samples);
+  const k = clamp(count, 1, Math.max(1, weighted.length));
+  let centers = pickSeedSamples(weighted, k, seed);
 
   for (let iteration = 0; iteration < 10; iteration++) {
     const groups = centers.map(() => ({ r: 0, g: 0, b: 0, count: 0 }));
-    unique.forEach(sample => {
+    weighted.forEach(sample => {
       let bestIndex = 0;
       let bestDistance = Infinity;
       centers.forEach((center, index) => {
@@ -263,10 +313,10 @@ function quantizeSamples(samples: Rgb[], count: number): Rgb[] {
           bestIndex = index;
         }
       });
-      groups[bestIndex].r += sample.r;
-      groups[bestIndex].g += sample.g;
-      groups[bestIndex].b += sample.b;
-      groups[bestIndex].count += 1;
+      groups[bestIndex].r += sample.r * sample.weight;
+      groups[bestIndex].g += sample.g * sample.weight;
+      groups[bestIndex].b += sample.b * sample.weight;
+      groups[bestIndex].count += sample.weight;
     });
     centers = centers.map((center, index) => {
       const group = groups[index];
@@ -296,6 +346,8 @@ export function importExternalPngAsMsx2Sprite(
     : { x: 0, y: 0, width: imageData.width, height: imageData.height };
   const rawPixels = downscaleToTarget(imageData, crop, background, normalizedOptions);
   const visibleSamples = rawPixels.flat().filter(pixel => pixel.visible);
+  const sourceVisibleSamples = collectVisibleSourceSamples(imageData, crop, background, normalizedOptions);
+  const paletteSourceSamples = sourceVisibleSamples.length ? sourceVisibleSamples : visibleSamples;
   const detectedOpaqueColors = new Set(visibleSamples.map(quantizedKey)).size;
 
   const immutableSlots = findImmutableSlots(currentPalette);
@@ -319,7 +371,7 @@ export function importExternalPngAsMsx2Sprite(
     && slot.slotIndex !== 0
     && normalizeHex(slot.hex) !== normalizeHex(outputBackgroundColor)
   );
-  const nonImmutableSamples = visibleSamples.filter(sample => {
+  const nonImmutableSamples = paletteSourceSamples.filter(sample => {
     if (outputBackgroundRgb && colorDistance(sample, outputBackgroundRgb) <= options.backgroundTolerance * options.backgroundTolerance) {
       return false;
     }
@@ -328,9 +380,9 @@ export function importExternalPngAsMsx2Sprite(
     const immutableRgb = hexToRgb(nearestImmutable.hex);
     return !immutableRgb || colorDistance(sample, immutableRgb) > 26 * 26;
   });
-  const samplesForCustom = nonImmutableSamples.length ? nonImmutableSamples : visibleSamples;
+  const samplesForCustom = nonImmutableSamples.length ? nonImmutableSamples : paletteSourceSamples;
   const generatedColors = replaceableSlots.length && customColorCount > 0
-    ? quantizeSamples(samplesForCustom, Math.min(customColorCount, replaceableSlots.length))
+    ? quantizeSamples(samplesForCustom, Math.min(customColorCount, replaceableSlots.length), options.quantizeSeed ?? 0)
     : [];
 
   const nextPalette = currentPalette.map(slot => ({ ...slot }));
@@ -387,6 +439,20 @@ export function importExternalPngAsMsx2Sprite(
     generatedSlots,
     warnings,
   };
+}
+
+/**
+ * Returns the bounding box of the visible content (everything that is not the
+ * detected border background), the same detection `cropToVisible` uses. Callers
+ * can use it to crop the source image to its drawing. Returns the full frame if
+ * nothing visible is found.
+ */
+export function computeContentCropRect(
+  imageData: ImageData,
+  tolerance: number,
+): { x: number; y: number; width: number; height: number } {
+  const background = detectBorderBackground(imageData);
+  return computeVisibleCrop(imageData, background, tolerance);
 }
 
 export function defaultReplaceableMsx2SpriteSlots(palette: Screen5PaletteSlot[]): number[] {
