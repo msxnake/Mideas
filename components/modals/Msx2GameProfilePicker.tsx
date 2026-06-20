@@ -107,6 +107,27 @@ function drawShooterVerticalPreview(ctx: CanvasRenderingContext2D, width: number
   ctx.fillRect(29, 30, 2, 8);
 }
 
+function drawBitmapRoomPreview(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  // Multicolor composed room (no attribute clash) — bricks + door + player.
+  const brick = ['#1d4ed8', '#2563eb', '#1e3a8a'];
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(0, 0, width, height);
+  for (let row = 0; row < 6; row += 1) {
+    for (let col = 0; col < 8; col += 1) {
+      ctx.fillStyle = brick[(row + col) % brick.length];
+      ctx.fillRect(2 + col * 14, 2 + row * 11, 12, 9);
+    }
+  }
+  ctx.fillStyle = '#7f1d1d';
+  ctx.fillRect(width / 2 - 9, 4, 18, 12);
+  ctx.fillStyle = '#facc15';
+  ctx.fillRect(width / 2 - 5, 6, 10, 8);
+  ctx.fillStyle = PREVIEW_COLORS.player;
+  ctx.fillRect(20, height - 24, 10, 14);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(20, height - 24, 10, 4);
+}
+
 function drawProfilePreview(canvas: HTMLCanvasElement, profileId: Msx2GameProfileId) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -127,6 +148,9 @@ function drawProfilePreview(canvas: HTMLCanvasElement, profileId: Msx2GameProfil
     case 'shooterVertical':
       drawShooterVerticalPreview(ctx, width, height);
       break;
+    case 'bitmapPlatform':
+      drawBitmapRoomPreview(ctx, width, height);
+      break;
     default:
       drawPlatformPreview(ctx, width, height);
   }
@@ -139,7 +163,7 @@ const ProfilePreview: React.FC<{ profileId: Msx2GameProfileId }> = ({ profileId 
       <img
         src={imageSrc}
         alt=""
-        className="w-full h-auto rounded border border-msx-border bg-black object-cover object-center"
+        className="w-full h-auto max-h-32 rounded border border-msx-border bg-black object-cover object-center"
         style={{ aspectRatio: '16 / 10' }}
       />
     );
@@ -177,7 +201,7 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4">
       <div
-        className="w-full max-w-4xl rounded-lg border border-msx-border bg-msx-panelbg p-6 shadow-xl animate-slideIn"
+        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg border border-msx-border bg-msx-panelbg p-6 shadow-xl animate-slideIn"
         role="dialog"
         aria-modal="true"
         aria-labelledby="msx2GameProfilePickerTitle"
@@ -194,7 +218,7 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {MSX2_GAME_PROFILE_OPTIONS.map(option => {
             const selected = selectedProfileId === option.id;
             return (
@@ -207,7 +231,14 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
                 }`}
               >
                 <ProfilePreview profileId={option.previewKind} />
-                <div className="mt-2 text-sm font-semibold text-msx-textprimary">{option.label}</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm font-semibold text-msx-textprimary">{option.label}</span>
+                  {option.experimental && (
+                    <span className="rounded border border-yellow-500/60 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-300">
+                      Experimental
+                    </span>
+                  )}
+                </div>
                 <div className="mt-1 text-xs text-msx-textsecondary">{option.description}</div>
               </button>
             );
