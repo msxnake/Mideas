@@ -33,8 +33,8 @@ const SCREEN_MODE_OPTIONS = [
   },
   {
     value: 'SCREEN 4 (Graphics II)',
-    title: 'MSX2 SCREEN 4 (Graphics II)',
-    description: 'Modo tileado/patrones (256x192, paleta MSX2 y sprites tipo 2) pensado para juegos Z80.',
+    title: 'MSX2 (Graphics II / Bitmap)',
+    description: 'SCREEN 4 tileado (256×192, paleta MSX2, sprites tipo 2) o SCREEN 5 bitmap (rooms VK-style). Eliges el tipo de juego en el siguiente paso.',
   },
 ];
 
