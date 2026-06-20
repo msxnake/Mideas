@@ -1,4 +1,4 @@
-import { Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen4BitmapRoom, Msx2Sprite, Screen5PaletteSlot } from '../../../../types';
+import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen4BitmapRoom, Msx2Sprite, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -29,10 +29,14 @@ const VDP_DATA_PORT = '#98';
 const VDP_CMD_PORT = '#9B';
 const VDP_PALETTE_PORT = '#9A';
 
-const CMD_COPY_8 = 0xD0;
-const CMD_COPY_16 = 0xD0;
-const CMD_FILL = 0xC0;
-const CMD_LINE = 0x70;
+// V9938 LOGICAL commands operate in DOT (pixel) units, which is what the room
+// records store (dx/dy/nx/ny in pixels). The earlier engine used the high-speed
+// byte commands (0xD0/0xC0) with pixel values, which doubled every X coordinate;
+// the world engine uses the logical variants so a 16px tile lands on 16px.
+const CMD_COPY_8 = 0x90;   // LMMM: logical move VRAM -> VRAM
+const CMD_COPY_16 = 0x90;  // LMMM
+const CMD_FILL = 0x80;     // LMMV: logical move VDP color -> VRAM (rectangle fill)
+const CMD_LINE = 0x70;     // LINE
 
 const OP_FILL = 0;
 const OP_LINE_H = 1;
@@ -63,6 +67,59 @@ const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toU
 
 function firstBitmapRoom(analysis: ProjectAnalysis): Msx2Screen4BitmapRoom | undefined {
   return ((analysis as any).msx2BitmapRooms || [])[0] as Msx2Screen4BitmapRoom | undefined;
+}
+
+type RoomTransitions = Map<number, Partial<Record<ConnectionDirection, number>>>;
+
+/**
+ * A "world" is a `worldmap` asset; its nodes are the bitmap-room screens that
+ * share one tileset/palette. This collects the ordered rooms of the world that
+ * contains the first bitmap room, the start room index, and the edge-transition
+ * table (room index + direction -> destination room index) derived from the
+ * worldmap connections. With no worldmap it degrades to a single standalone room.
+ */
+function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
+  rooms: Msx2Screen4BitmapRoom[];
+  startIndex: number;
+  transitions: RoomTransitions;
+} {
+  const allRooms = (((analysis as any).msx2BitmapRooms || []) as Msx2Screen4BitmapRoom[]).filter(Boolean);
+  if (allRooms.length === 0) return { rooms: [], startIndex: 0, transitions: new Map() };
+
+  const roomById = new Map(allRooms.map(room => [room.id, room]));
+  const worldmaps = ((analysis as any).worldmaps || []) as any[];
+  const graph = worldmaps.find(wm => (wm?.nodes || []).some((node: any) => roomById.has(node?.screenAssetId)));
+  if (!graph) return { rooms: [allRooms[0]], startIndex: 0, transitions: new Map() };
+
+  // Order the rooms by the worldmap nodes that resolve to a bitmap room.
+  const orderedNodes = (graph.nodes || []).filter((node: any) => roomById.has(node?.screenAssetId));
+  const rooms = orderedNodes.map((node: any) => roomById.get(node.screenAssetId)!);
+  const indexByScreenId = new Map<string, number>(orderedNodes.map((node: any, index: number) => [node.screenAssetId, index]));
+  const nodeById = new Map<string, any>((graph.nodes || []).map((node: any) => [node.id, node]));
+
+  let startIndex = 0;
+  const startNode = graph.startScreenNodeId ? nodeById.get(graph.startScreenNodeId) : undefined;
+  if (startNode && indexByScreenId.has(startNode.screenAssetId)) {
+    startIndex = indexByScreenId.get(startNode.screenAssetId)!;
+  }
+
+  const transitions: RoomTransitions = new Map();
+  const setTransition = (from: number, dir: ConnectionDirection, to: number) => {
+    const entry = transitions.get(from) || {};
+    entry[dir] = to;
+    transitions.set(from, entry);
+  };
+  for (const connection of graph.connections || []) {
+    const fromNode = nodeById.get(connection?.fromNodeId);
+    const toNode = nodeById.get(connection?.toNodeId);
+    if (!fromNode || !toNode) continue;
+    const fromIndex = indexByScreenId.get(fromNode.screenAssetId);
+    const toIndex = indexByScreenId.get(toNode.screenAssetId);
+    if (fromIndex === undefined || toIndex === undefined) continue;
+    if (connection.fromDirection) setTransition(fromIndex, connection.fromDirection, toIndex);
+    if (connection.toDirection) setTransition(toIndex, connection.toDirection, fromIndex);
+  }
+  return { rooms, startIndex, transitions };
 }
 
 function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4BitmapRoom {
@@ -491,6 +548,94 @@ function commandRecordsToVdpBlocks(records: CommandRecord[]): number[] {
   return records.flatMap(record => buildVdpCommandBlock(record));
 }
 
+/** True when a fill command covers the whole screen (the editor's background fill). */
+function isFullScreenFillCommand(command: Msx2BitmapRoomCommand): boolean {
+  return command.op === 'fill'
+    && command.x <= 0
+    && command.y <= 0
+    && command.x + command.w >= SCREEN_WIDTH
+    && command.y + command.h >= SCREEN_HEIGHT_DEFAULT;
+}
+
+/**
+ * Read a room's 16x12 tile-index map (the authoritative 192-byte screen). Prefers
+ * the persisted `tileGrid`; otherwise reconstructs it from the `copy` commands.
+ * Each cell holds an atlas-entry reference (index+1; 0 = empty/background).
+ */
+function buildRoomTileIndexGrid(room: Msx2Screen4BitmapRoom): number[][] {
+  const entries = room.atlas?.entries || [];
+  const grid = Array.from({ length: COLLISION_ROWS }, () => Array.from({ length: COLLISION_COLS }, () => 0));
+  if (Array.isArray(room.tileGrid)) {
+    for (let y = 0; y < COLLISION_ROWS; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        const value = Math.max(0, Math.trunc(Number(room.tileGrid[y]?.[x]) || 0));
+        grid[y][x] = value > 0 && value - 1 < entries.length ? value : 0;
+      }
+    }
+    return grid;
+  }
+  const idToIndex = new Map(entries.map((entry, index) => [entry.id, index]));
+  for (const command of room.composition?.commands || []) {
+    if (command.op !== 'copy') continue;
+    const index = idToIndex.get(command.atlasEntryId);
+    if (index === undefined) continue;
+    const cx = Math.floor(command.dx / TILE_GRID_SIZE);
+    const cy = Math.floor(command.dy / TILE_GRID_SIZE);
+    if (cx >= 0 && cx < COLLISION_COLS && cy >= 0 && cy < COLLISION_ROWS) grid[cy][cx] = index + 1;
+  }
+  return grid;
+}
+
+/**
+ * World-engine room render program: a list of V9938 command blocks the runtime
+ * replays to (re)build one room's visible game band from the shared tileset that
+ * already sits in offscreen VRAM. Block 0 clears the game band to the background
+ * color; authored fills/lines come next; then one 16x16 VRAM->VRAM copy per
+ * occupied cell of the 192-byte tile map (the authoritative screen). Every
+ * destination Y is shifted by the HUD band so logical room coords (0..191) land
+ * below the persistent HUD. Returns the flattened 15-byte blocks and their count.
+ */
+function buildRoomRenderBlocks(room: Msx2Screen4BitmapRoom): { bytes: number[]; count: number } {
+  const backgroundColor = clampByte(room.backgroundColor, 0) & 0x0f;
+  const offscreenBaseY = room.atlas?.offscreenBaseY || 320;
+  const entries = room.atlas?.entries || [];
+  const records: CommandRecord[] = [
+    { op: OP_FILL, sx: 0, sy: 0, dx: 0, dy: BITMAP_ROOM_GAME_Y_OFFSET, nx: SCREEN_WIDTH, ny: SCREEN_HEIGHT_DEFAULT, color: backgroundColor },
+  ];
+  // Authored color fills/lines (skip the full-screen background fill; the clear above covers it).
+  for (const command of room.composition?.commands || []) {
+    if (command.op === 'fill') {
+      if (isFullScreenFillCommand(command)) continue;
+      records.push({ op: OP_FILL, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.w, 1, 256, 1), ny: clampInt(command.h, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
+    } else if (command.op === 'lineH') {
+      records.push({ op: OP_LINE_H, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.length, 1, 256, 1), ny: 1, color: clampByte(command.color, 0) & 0x0f });
+    } else if (command.op === 'lineV') {
+      records.push({ op: OP_LINE_V, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: 1, ny: clampInt(command.length, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
+    }
+  }
+  // Tile copies from the authoritative 192-byte map.
+  const grid = buildRoomTileIndexGrid(room);
+  for (let y = 0; y < COLLISION_ROWS; y++) {
+    for (let x = 0; x < COLLISION_COLS; x++) {
+      const value = grid[y][x];
+      if (!value) continue;
+      const entry = entries[value - 1];
+      if (!entry) continue;
+      records.push({
+        op: OP_COPY_16,
+        sx: clampInt(entry.sx, 0, 255, 0),
+        sy: clampInt(entry.sy, 0, 511, 0) + offscreenBaseY,
+        dx: x * TILE_GRID_SIZE,
+        dy: y * TILE_GRID_SIZE + BITMAP_ROOM_GAME_Y_OFFSET,
+        nx: TILE_GRID_SIZE,
+        ny: TILE_GRID_SIZE,
+        color: 0,
+      });
+    }
+  }
+  return { bytes: commandRecordsToVdpBlocks(records), count: records.length };
+}
+
 function formatBytes(label: string, bytes: number[], comment?: string): string {
   const lines: string[] = [];
   if (comment) lines.push(`; ${comment}`);
@@ -718,7 +863,7 @@ function buildRuntimeAsm(
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
   const backdropColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
-  const framebufferUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
+  const tilesetUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
   const shouldEmitPlayerPatternUpdate = playerAnimation.frameCount > 1 || playerAnimation.mirror;
   const mirrorPatternOffset = playerAnimation.frameCount * 4;
   const mirrorSelectionAsm = playerAnimation.mirror && playerAnimation.authoredFacing === 'right'
@@ -1385,17 +1530,18 @@ upload_bitmap_atlas:
 ;   Writes the top ${BITMAP_ROOM_HUD_HEIGHT} scanlines at VRAM #0000.
 ;
 ; NOTES:
-;   Room transitions should normally call upload_bitmap_framebuffer only. HUD
-;   widgets are expected to redraw their changed glyphs/bars separately.
+;   The HUD band is uploaded once and persists across room loads (load_room only
+;   repaints the game band below it). HUD widgets redraw their glyphs/bars apart.
 ; ------------------------------------------------------------
 init_bitmap_hud_band:
 ${hudSeedUploadAsm}
 
 ; ------------------------------------------------------------
-; FUNCTION: upload_bitmap_framebuffer
+; FUNCTION: upload_tileset_atlas
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Upload the pre-rendered packed 4bpp game room framebuffer to visible VRAM.
+;   Upload the shared world tileset (atlas, packed 4bpp RLE) once to offscreen
+;   VRAM. load_room then builds each room by copying 16x16 tiles from here.
 ;
 ; INPUT:
 ;   None.
@@ -1413,15 +1559,120 @@ ${hudSeedUploadAsm}
 ;   decompress_bitmap_rle_to_vram
 ;
 ; SIDE EFFECTS:
-;   Writes the game area VRAM starting at ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}.
+;   Writes the offscreen tileset VRAM starting at ${hexWord(atlasVramBase)}.
 ;
 ; NOTES:
-;   Reads compact RLE data from the resident ROM window, then re-arms R#14 per
-;   16KB VRAM bank so rows beyond physical VRAM #3FFF are written correctly.
-;   The HUD band is persistent and is not rewritten by normal room loads.
+;   Reads compact RLE data from the resident ROM window (or P2 data banks), then
+;   re-arms R#14 per 16KB VRAM bank so rows beyond physical VRAM #3FFF are
+;   written correctly. Uploaded once at boot; rooms reference it by VRAM source.
 ; ------------------------------------------------------------
-upload_bitmap_framebuffer:
-${framebufferUploadAsm}
+upload_tileset_atlas:
+${tilesetUploadAsm}
+
+; ------------------------------------------------------------
+; FUNCTION: replay_room_commands
+; ------------------------------------------------------------
+; PURPOSE:
+;   Feed a room render program (a list of ${VDP_CMD_BLOCK_SIZE}-byte V9938 command
+;   blocks) to the VDP command engine, waiting for each command to finish.
+;
+; INPUT:
+;   HL = pointer to the command blocks. B = number of blocks.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, HL
+;
+; PRESERVES:
+;   DE, IX, IY
+;
+; CALLS:
+;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer.
+;
+; SIDE EFFECTS:
+;   Issues LMMV/LMMM/LINE commands that paint the visible game band.
+;
+; NOTES:
+;   Each block is SX,SY,DX,DY,NX,NY (16-bit LE), CLR, ARG, CMR. Indirect register
+;   writes auto-increment from R#32, so the pointer is re-armed per block.
+; ------------------------------------------------------------
+replay_room_commands:
+    ld a, b
+    or a
+    ret z
+.next_block:
+    push bc
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld b, ${VDP_CMD_BLOCK_SIZE}
+.write_block:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .write_block
+    pop bc
+    djnz .next_block
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: load_room
+; ------------------------------------------------------------
+; PURPOSE:
+;   Render one room's visible game band from the shared tileset and reload its
+;   collision map into RAM.
+;
+; INPUT:
+;   A = room/screen index (0-based).
+;
+; OUTPUT:
+;   current_screen_index updated; bitmap_room_collision_map (RAM) refreshed.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   replay_room_commands.
+;
+; SIDE EFFECTS:
+;   Repaints the game band via the VDP command engine; LDIR over collision RAM.
+;
+; NOTES:
+;   Pointer tables are word-indexed (DW), the block-count table is byte-indexed.
+;   DE = room index is preserved across the three table lookups (add hl,de only).
+; ------------------------------------------------------------
+load_room:
+    ld (current_screen_index), a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_render_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                 ; HL = room render blocks
+    push hl
+    ld hl, bitmap_room_blockcount_table
+    add hl, de
+    ld b, (hl)              ; B = block count
+    pop hl
+    call replay_room_commands
+    ld hl, bitmap_room_collision_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                 ; HL = room collision source
+    ld de, bitmap_room_collision_map
+    ld bc, ${COLLISION_COLS * COLLISION_ROWS}
+    ldir
+    ret
 
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
@@ -1919,25 +2170,38 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   if (config.romMode === 'megarom' && config.targetFormat !== 'konami') {
     throw new Error(`MSX2 bitmap-room MegaROM currently supports Konami mapper only, got ${config.targetFormat}`);
   }
-  const room = normalizeRoom(firstBitmapRoom(analysis));
-  const collisionBytes = buildCollisionTableBytes(room);
+  // World engine: all screens of a world share one tileset/palette. The shared
+  // tileset (the start room's atlas) is uploaded once to offscreen VRAM; each room
+  // is a 192-byte tile map replayed as VRAM->VRAM copies by load_room.
+  const world = collectBitmapWorldRooms(analysis);
+  const rooms = (world.rooms.length ? world.rooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
+  const startIndex = Math.min(world.startIndex, rooms.length - 1);
+  const room = rooms[startIndex];
   const spawn = resolvePlayerSpawnPixels(room);
   const paletteBytes = buildPaletteBytes(room.palette);
   const atlasPixels = normalizeAtlasPixels(room);
-  const gameFramebufferPixels = normalizeVisibleFramebuffer(room) || renderRoomToPixels(room);
-  const framebufferBytes = packBitmapPixels(gameFramebufferPixels.slice(0, SCREEN_HEIGHT_DEFAULT));
-  const framebufferRleChunks = buildRleChunksForVram(
-    framebufferBytes,
-    BITMAP_ROOM_GAME_VRAM_BASE,
-    'bitmap_room_framebuffer_rle_chunk'
-  );
+  const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
+  const tilesetBytes = packAtlasPixels(room);
+  const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
+  // Per-room render program (command blocks) + collision map.
+  const roomTables = rooms.map((roomData, index) => {
+    const render = buildRoomRenderBlocks(roomData);
+    return {
+      index,
+      renderLabel: `bitmap_room_render_${index}`,
+      renderBytes: render.bytes,
+      blockCount: render.count,
+      collisionLabel: `bitmap_room_collision_${index}`,
+      collisionBytes: buildCollisionTableBytes(roomData),
+    };
+  });
   const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis));
   const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
-  const allRleChunks = [...hudSeedRleChunks, ...framebufferRleChunks];
+  const allRleChunks = [...hudSeedRleChunks, ...tilesetRleChunks];
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(hudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`),
-      ...buildBankedRleDataBlocks(framebufferRleChunks, `Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer, packed 4bpp RLE`),
+      ...buildBankedRleDataBlocks(tilesetRleChunks, `Shared world tileset (atlas), packed 4bpp RLE`),
     ]
     : [];
   const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
@@ -1947,20 +2211,28 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const hudSeedDataAsm = isKonamiMegaRom
     ? `; Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed is emitted in Konami MegaROM data banks below.\n`
     : formatRleChunks(hudSeedRleChunks, hudSeedBytes.length, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`);
-  const framebufferDataAsm = isKonamiMegaRom
-    ? `; Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer RLE is emitted in Konami MegaROM data banks below.\n`
-    : formatRleChunks(framebufferRleChunks, framebufferBytes.length, `Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer, packed 4bpp RLE, destination VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}`);
+  const tilesetDataAsm = isKonamiMegaRom
+    ? `; Shared world tileset RLE is emitted in Konami MegaROM data banks below.\n`
+    : formatRleChunks(tilesetRleChunks, tilesetBytes.length, `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexWord(atlasVramBase)}`);
   const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
   const spriteTables = buildSpriteTables(playerSprite);
   const spriteSourceLabel = spriteTables.usedConfigured
     ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
     : 'placeholder fallback (no configured player sprite resolvable)';
-  const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks, hudSeedRleChunks, {
+  const runtimeAsm = buildRuntimeAsm(room, 0, tilesetRleChunks, hudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
     authoredFacing: spriteTables.authoredFacing,
   }, { bankedRle: isKonamiMegaRom });
+  // Per-room render-program + collision data and the dispatch tables for load_room.
+  const roomDataAsm = roomTables.map(table =>
+    `${formatBytes(table.renderLabel, table.renderBytes, `Room ${table.index} render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
+    `${formatBytes(table.collisionLabel, table.collisionBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}`
+  ).join('\n');
+  const roomRenderPtrTableAsm = `bitmap_room_render_ptr_table:\n${roomTables.map(t => `    DW ${t.renderLabel}`).join('\n')}\n`;
+  const roomBlockCountTableAsm = `bitmap_room_blockcount_table:\n    DB ${roomTables.map(t => t.blockCount).join(',')}\n`;
+  const roomCollisionPtrTableAsm = `bitmap_room_collision_ptr_table:\n${roomTables.map(t => `    DW ${t.collisionLabel}`).join('\n')}\n`;
   const playerAnimationUpdateCall = (spriteTables.frameCount > 1 || spriteTables.mirror)
     ? '    call bitmap_update_player_sprite_animation\n'
     : '';
@@ -1982,8 +2254,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Bitmap room HUD height: ${BITMAP_ROOM_HUD_HEIGHT} px
 ; Bitmap room HUD widgets: ${hudWidgetCount}
 ; Bitmap room game area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}
-; Bitmap room upload area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
-; Framebuffer bytes: ${framebufferBytes.length}
+; Bitmap room game band VRAM base: ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
+; World rooms: ${rooms.length}; start room index: ${startIndex}
+; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexWord(atlasVramBase)}
 ; ==================================================================
 
 CHGMOD  EQU #005F
@@ -2013,6 +2286,10 @@ player_flags        EQU #C007
 player_facing       EQU #C008
 player_jump_lock    EQU #C009
 player_moving       EQU #C00A
+; World engine runtime state.
+current_screen_index EQU #C00B
+; Active room collision map copied here by load_room (16x12 = 192 bytes).
+bitmap_room_collision_map EQU #C010
 
     org #4000
 
@@ -2031,8 +2308,11 @@ init_rom:
     call init_screen4_bitmap_vdp
     call load_screen4_bitmap_palette
     call init_bitmap_hud_band
-    call upload_bitmap_framebuffer
+    call upload_tileset_atlas
     call init_hardware_sprite_tables
+    ; Render the start room from the shared tileset already in VRAM.
+    ld a, ${startIndex}
+    call load_room
     ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
@@ -2069,9 +2349,16 @@ bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
 bitmap_room_hud_seed_data_end:
 
-bitmap_room_framebuffer_data:
-${framebufferDataAsm}
-bitmap_room_framebuffer_data_end:
+bitmap_room_tileset_data:
+${tilesetDataAsm}
+bitmap_room_tileset_data_end:
+
+; World engine dispatch tables (indexed by room/screen index).
+${roomRenderPtrTableAsm}
+${roomBlockCountTableAsm}
+${roomCollisionPtrTableAsm}
+; Per-room render programs and collision maps.
+${roomDataAsm}
 
 ${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}`)}
 bitmap_room_sprite_colors_end:
@@ -2081,8 +2368,6 @@ bitmap_room_sprite_attrs_end:
 
 ${formatBytes('bitmap_room_sprite_patterns', spriteTables.patterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}`)}
 bitmap_room_sprite_patterns_end:
-
-${formatBytes('bitmap_room_collision_map', collisionBytes, `${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}
 
     ds #C000 - $, #FF
 ${bankedDataAsm}

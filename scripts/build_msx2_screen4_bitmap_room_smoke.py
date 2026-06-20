@@ -124,6 +124,71 @@ def build_brick_entries() -> list[dict[str, object]]:
     ]
 
 
+def build_player_sprite_frame(frame_index: int) -> list[list[str]]:
+    transparent = "rgba(0,0,0,0)"
+    primary = "#FFFFFF"
+    accent = "#FF2424" if frame_index == 0 else "#24DB24"
+    pixels = [[transparent for _x in range(16)] for _y in range(16)]
+    for y in range(2, 15):
+        for x in range(4, 11):
+            pixels[y][x] = primary
+    # Asymmetric arm/nose: this makes mirrored pattern generation observable.
+    for y in range(5, 9):
+        for x in range(10, 15):
+            pixels[y][x] = accent
+    # Different leg pose per frame: this makes animation data observable.
+    leg_x = 5 if frame_index == 0 else 8
+    for y in range(12, 16):
+        pixels[y][leg_x] = accent
+    return pixels
+
+
+def build_player_sprite_asset() -> dict[str, object]:
+    return {
+        "id": "smoke_player_sprite",
+        "name": "Smoke Player Sprite",
+        "type": "msx2sprite",
+        "data": {
+            "id": "smoke_player_sprite",
+            "name": "Smoke Player Sprite",
+            "target": "MSX2",
+            "vdpMode": "SCREEN5",
+            "size": {"width": 16, "height": 16},
+            "palette": default_palette(),
+            "backgroundColor": "rgba(0,0,0,0)",
+            "frames": [
+                {"id": "frame_0", "data": build_player_sprite_frame(0)},
+                {"id": "frame_1", "data": build_player_sprite_frame(1)},
+            ],
+            "currentFrameIndex": 0,
+            "animationSpeedMs": 120,
+            "loops": True,
+            "facingDirection": "right",
+            "hardware": {"x": 48, "y": 80, "color": 15, "patternIndex": 0},
+        },
+    }
+
+
+def build_player_asset() -> dict[str, object]:
+    return {
+        "id": "smoke_player",
+        "name": "Smoke Player",
+        "type": "msx2player",
+        "data": {
+            "id": "smoke_player",
+            "name": "Smoke Player",
+            "target": "MSX2",
+            "render": {
+                "spriteAssetId": "smoke_player_sprite",
+            },
+            "defaultFacing": "right",
+            "movement": {
+                "mode": "platform",
+            },
+        },
+    }
+
+
 def build_castle_commands() -> list[dict[str, object]]:
     commands: list[dict[str, object]] = []
 
@@ -228,6 +293,7 @@ def build_project() -> dict[str, object]:
         "width": 256,
         "height": 192,
         "palette": default_palette(),
+        "backgroundColor": 1,
         "atlas": {
             "width": 128,
             "height": 16,
@@ -244,6 +310,7 @@ def build_project() -> dict[str, object]:
         "effects": [[0 for _x in range(16)] for _y in range(12)],
         "behavior": [[0 for _x in range(16)] for _y in range(12)],
         "entities": [],
+        "playerEntries": [{"id": "spawn0", "x": 48, "y": 80, "facing": "right", "playerId": "smoke_player"}],
         "runtime": {
             "screenKind": "playable",
             "screenEngine": "player",
@@ -295,6 +362,8 @@ def build_project() -> dict[str, object]:
                     "notes": "Smoke font used by SCREEN 5 bitmap-room HUD widgets.",
                 },
             },
+            build_player_sprite_asset(),
+            build_player_asset(),
         ],
     }
 
@@ -302,7 +371,8 @@ def build_project() -> dict[str, object]:
 def render_smoke_room_data(room: dict[str, object]) -> list[list[int]]:
     width = int(room["width"])
     height = int(room["height"])
-    pixels = [[0 for _x in range(width)] for _y in range(height)]
+    background_color = int(room.get("backgroundColor", 0)) & 0x0F
+    pixels = [[background_color for _x in range(width)] for _y in range(height)]
     for command in room["composition"]["commands"]:
         op = command["op"]
         if op == "fill":
@@ -340,7 +410,8 @@ def render_smoke_bitmap_room(project: dict[str, object]) -> list[list[int]]:
         return framebuffer["pixels"]
     width = int(room["width"])
     height = int(room["height"])
-    pixels = [[0 for _x in range(width)] for _y in range(height)]
+    background_color = int(room.get("backgroundColor", 0)) & 0x0F
+    pixels = [[background_color for _x in range(width)] for _y in range(height)]
     atlas = room["atlas"]
     atlas_pixels = atlas["pixels"]
     entries = {entry["id"]: entry for entry in atlas["entries"]}
@@ -448,18 +519,40 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "Bitmap room HUD height: 16 px",
         "Bitmap room HUD widgets: 4",
         "Bitmap room game area: 256x192 at visual Y=16",
-        "Bitmap room upload area: 256x192 at VRAM #0800",
-        "HUD band is persistent and is not rewritten by normal room loads",
+        "World rooms: 1; start room index: 0",
+        "Shared tileset bytes: 2048 at VRAM #A000",
         "FUNCTION: init_plain32k_page2_slot",
         "Mirror the cartridge primary slot from page 1 (#4000-#7FFF) into page 2",
         "add a, 16",
+        "player_anim_counter EQU #C004",
+        "player_vy           EQU #C006",
+        "player_facing       EQU #C008",
+        "player_moving       EQU #C00A",
+        "FUNCTION: bitmap_update_player_sprite_animation",
+        "ld a, (player_moving)",
+        "ld a, #FA              ; -6 px/frame initial jump velocity",
+        "bitmap_room_collision_map EQU",
+        "bitmap_room_collision_0:",
+        "current_screen_index EQU",
     ):
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing bitmap-room HUD marker: {marker}")
 
+    if "add a, 8\n.store_player_pattern:" not in asm_text:
+        raise RuntimeError("Generated ASM is missing mirrored sprite pattern offset for 2 animation frames")
+    if "ld (player_pat), a" not in asm_text:
+        raise RuntimeError("Generated ASM does not update player_pat from animation/facing state")
+
     palette_length = len(extract_db_bytes(asm_text, "screen4_bitmap_palette_data"))
     if palette_length != 32:
         raise RuntimeError(f"screen4_bitmap_palette_data has {palette_length} bytes; expected 32")
+
+    sprite_pattern_length = len(extract_db_bytes(asm_text, "bitmap_room_sprite_patterns"))
+    if sprite_pattern_length != 128:
+        raise RuntimeError(
+            f"bitmap_room_sprite_patterns has {sprite_pattern_length} bytes; expected 128 "
+            "(2 frames + mirrored copies, 32 bytes each)"
+        )
 
     hud_chunks = re.findall(r"^bitmap_room_hud_seed_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
     if not hud_chunks:
@@ -477,33 +570,54 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
             f"bitmap room HUD seed RLE decodes to {hud_decoded_length} bytes; expected {expected_hud_length}"
         )
 
-    rle_chunks = re.findall(r"^bitmap_room_framebuffer_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
-    if not rle_chunks:
-        raise RuntimeError("Generated ASM is missing bitmap_room_framebuffer_rle_chunk_* data")
-    decoded_length = 0
-    encoded_length = 0
-    decoded_bytes: list[int] = []
-    for chunk_label in (chunk.split(":", 1)[0] for chunk in rle_chunks):
+    # Shared world tileset (atlas) uploaded once to offscreen VRAM.
+    room = next(
+        (asset["data"] for asset in project["assets"]  # type: ignore[index]
+         if asset.get("type") == "msx2bitmaproom"),
+        None,
+    )
+    atlas = room["atlas"] if room else {"width": 128, "height": 16}
+    # Each atlas row is packed to the full 256px VRAM stride (128 bytes), so the
+    # tileset occupies 128 bytes * atlas height in offscreen VRAM.
+    expected_tileset_length = 128 * int(atlas["height"])
+    tileset_chunks = re.findall(r"^bitmap_room_tileset_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
+    if not tileset_chunks:
+        raise RuntimeError("Generated ASM is missing bitmap_room_tileset_rle_chunk_* data")
+    tileset_decoded_length = 0
+    for chunk_label in (chunk.split(":", 1)[0] for chunk in tileset_chunks):
         chunk_bytes = extract_db_bytes(asm_text, chunk_label)
         if len(chunk_bytes) % 2 != 0:
             raise RuntimeError(f"{chunk_label} has odd RLE byte length: {len(chunk_bytes)}")
-        encoded_length += len(chunk_bytes)
         for index in range(0, len(chunk_bytes), 2):
-            decoded_length += chunk_bytes[index]
-            decoded_bytes.extend([chunk_bytes[index + 1]] * chunk_bytes[index])
-    expected_framebuffer_length = 256 * 192 // 2
-    if decoded_length != expected_framebuffer_length:
+            tileset_decoded_length += chunk_bytes[index]
+    if tileset_decoded_length != expected_tileset_length:
         raise RuntimeError(
-            f"bitmap room RLE decodes to {decoded_length} bytes; expected {expected_framebuffer_length}"
+            f"bitmap room tileset RLE decodes to {tileset_decoded_length} bytes; expected {expected_tileset_length}"
         )
-    if encoded_length >= expected_framebuffer_length:
+
+    # Room 0 render program: a list of 15-byte V9938 command blocks. The 192-byte
+    # tile map is authoritative, so the only tile copy must be tileGrid[0][0] (the
+    # stale composition copy at the same cell must be ignored).
+    render_bytes = extract_db_bytes(asm_text, "bitmap_room_render_0")
+    if not render_bytes or len(render_bytes) % 15 != 0:
+        raise RuntimeError(f"bitmap_room_render_0 has {len(render_bytes)} bytes; expected a non-zero multiple of 15")
+    blocks = [render_bytes[i:i + 15] for i in range(0, len(render_bytes), 15)]
+    copy_blocks = [b for b in blocks if b[14] == 0x90]  # LMMM (VRAM->VRAM copy)
+    if len(copy_blocks) != 1:
         raise RuntimeError(
-            f"bitmap room RLE did not reduce resident source data: encoded={encoded_length}, raw={expected_framebuffer_length}"
+            f"bitmap_room_render_0 has {len(copy_blocks)} tile-copy blocks; expected exactly 1 (sparse tileGrid)"
         )
-    tile_grid_probe_byte = decoded_bytes[(2 * 128) + 1]
-    if tile_grid_probe_byte != 0xCC:
+    copy = copy_blocks[0]
+    dest_x = copy[4] | (copy[5] << 8)
+    dest_y = copy[6] | (copy[7] << 8)
+    src_y = copy[2] | (copy[3] << 8)
+    if dest_x != 0 or dest_y != 16:
         raise RuntimeError(
-            f"bitmap room tileGrid was not authoritative at y=2,x=2: got #{tile_grid_probe_byte:02X}, expected #CC"
+            f"tile (0,0) copy lands at DX={dest_x},DY={dest_y}; expected DX=0,DY=16 (HUD-offset game band)"
+        )
+    if src_y < 320:
+        raise RuntimeError(
+            f"tile copy source Y={src_y} is not in the offscreen tileset (expected >= 320)"
         )
 
 
@@ -539,8 +653,11 @@ def main() -> int:
     asm_text = asm_output.read_text(encoding="utf-8")
     for marker in (
         "init_screen4_bitmap_vdp",
-        "upload_bitmap_framebuffer",
-        "bitmap_room_framebuffer_data",
+        "upload_tileset_atlas",
+        "bitmap_room_tileset_data",
+        "load_room",
+        "replay_room_commands",
+        "bitmap_room_render_ptr_table",
         "Mideas MSX2 SCREEN 4 bitmap room backend (V9938 command engine)",
     ):
         if marker not in asm_text:
