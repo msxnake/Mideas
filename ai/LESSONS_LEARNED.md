@@ -1030,3 +1030,27 @@ Leccion:
 La regla de "registros no preservados" incluye el ESTADO GLOBAL del VDP, no solo registros
 de CPU. Si una rutina cambia R#15 (status select), R#17 (indirect pointer) o bancos de
 mapper, debe restaurarlo o documentarlo en su cabecera. Ver `ai/ASM_GUIDELINES.md`.
+
+---
+
+## Diagnostico: la fisica del Player vive anidada en data.player.movement
+
+Fecha: 2026-06-20
+
+Problema:
+Al cablear el salto del SCREEN 5 bitmap al Player Config, un grep de `data.movement` del
+asset `msx2player` daba `None` y un test inyectando `data.movement.jumpPower=8` no surtia
+efecto: el generador siempre veia `jumpPower=5`. Parecia que el build "reseteaba" el player.
+
+Causa:
+El asset `msx2player` guarda la config en `data.player.movement` (detallado) y
+`data.compact.movement`, NO en `data.movement`. `parseMsx2PlayerImport` aplana `doc.player`
+(o `doc.compact`), asi que la inyeccion al nivel raiz se ignoraba y se leia el valor real
+(default 5) de la ruta anidada.
+
+Leccion:
+La fuente real de fisica del Player es `data.player.movement` / `data.compact.movement`
+(no `data.movement`). Variante de la leccion 2026-06-14 (entidades en `layers.entities`):
+antes de concluir "no hay config", buscar en la ruta anidada correcta; un grep negativo a
+nivel raiz no prueba ausencia. `getMsx2PlatformPhysicsFromPlayerEntity` devuelve 8.8
+(`jumpImpulse88`/`terminalVelocity88`); el backend bitmap usa px enteros (redondear /256).

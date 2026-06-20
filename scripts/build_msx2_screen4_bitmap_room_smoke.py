@@ -530,7 +530,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "player_moving       EQU #C00A",
         "FUNCTION: bitmap_update_player_sprite_animation",
         "ld a, (player_moving)",
-        "ld a, #FA              ; -6 px/frame initial jump velocity",
+        "px/frame initial jump velocity (Player Config jumpPower)",
         "bitmap_room_collision_map EQU",
         "bitmap_room_collision_0:",
         "current_screen_index EQU",

@@ -2,6 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
+import { getMsx2PlatformPhysicsFromPlayerEntity } from '../../../msx2PlatformPhysics';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -713,7 +714,8 @@ function buildRuntimeAsm(
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right' },
-  options: { bankedRle: boolean }
+  options: { bankedRle: boolean },
+  playerPhysics: BitmapPlayerPhysics
 ): string {
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
@@ -1719,7 +1721,7 @@ bitmap_stick_dx:
     ld a, (player_flags)
     and #01
     jp z, .apply_gravity
-    ld a, #FA              ; -6 px/frame initial jump velocity
+    ld a, #${playerPhysics.jumpImpulseByte.toString(16).toUpperCase().padStart(2, '0')}              ; -${playerPhysics.jumpPx} px/frame initial jump velocity (Player Config jumpPower)
     ld (player_vy), a
     ld a, (player_flags)
     and #FE
@@ -1732,7 +1734,7 @@ bitmap_stick_dx:
     ld (player_jump_lock), a
 .apply_gravity:
     ld a, (player_vy)
-    cp 6
+    cp ${playerPhysics.terminalPx}              ; terminal fall speed px/frame (Player Config maxFallSpeed)
     jp z, .apply_vertical_velocity
     inc a
     ld (player_vy), a
@@ -1968,6 +1970,42 @@ const PLACEHOLDER_SPRITE_PATTERNS = [
 const BITMAP_ROOM_DEFAULT_SPRITE_COLOR = 15;
 
 // Resolve the configured player's 16x16 render sprite for the bitmap room.
+// Resolve the msx2player definition linked to the room (same priority as the sprite
+// resolver): room.playerEntries[].playerId -> that player asset; else the first player asset.
+function resolveBitmapRoomPlayer(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Partial<Msx2PlayerDefinition> | undefined {
+  const playerRecords = getMsx2PlayerAssetRecords(analysis);
+  const referenceIds = new Set<string>();
+  for (const entry of room.playerEntries || []) {
+    const playerId = String((entry as any)?.playerId || '').trim();
+    if (playerId) referenceIds.add(playerId);
+  }
+  if (referenceIds.size) {
+    const referenced = playerRecords.find(record =>
+      referenceIds.has(record.assetId) || referenceIds.has(record.playerId) || referenceIds.has(record.name)
+    );
+    if (referenced?.player) return referenced.player;
+  }
+  return playerRecords[0]?.player;
+}
+
+interface BitmapPlayerPhysics {
+  jumpImpulseByte: number; // signed -jumpPx as a byte (e.g. -6 -> #FA)
+  jumpPx: number;
+  terminalPx: number;
+}
+
+// Map the Player Config jump/fall physics to the bitmap engine's whole-pixel velocities.
+// The bitmap runtime uses integer px/frame (player_vy is a signed byte), not 8.8 like SCREEN 4,
+// so jumpImpulse88/terminalVelocity88 are rounded to px. The Player Config is the source of
+// truth (movement.jumpPower / maxFallSpeed, default 5 / 6); the user edits "Jump Power" there.
+function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | undefined): BitmapPlayerPhysics {
+  const physics = getMsx2PlatformPhysicsFromPlayerEntity(player);
+  const toSigned16 = (value: number) => ((value & 0x8000) ? value - 0x10000 : value);
+  const jumpPx = Math.max(2, Math.min(15, Math.round(Math.abs(toSigned16(physics.jumpImpulse88)) / 256)));
+  const terminalPx = Math.max(1, Math.min(15, Math.round(physics.terminalVelocity88 / 256)));
+  return { jumpImpulseByte: (256 - jumpPx) & 0xff, jumpPx, terminalPx };
+}
+
 // Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
 // else first msx2player asset's render sprite; else first referenced msx2sprite.
 function resolveBitmapRoomPlayerSprite(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Msx2Sprite | undefined {
@@ -2173,12 +2211,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const spriteSourceLabel = spriteTables.usedConfigured
     ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
     : 'placeholder fallback (no configured player sprite resolvable)';
+  // Jump/fall physics from the linked Player Config (movement.jumpPower / maxFallSpeed).
+  const playerPhysics = resolveBitmapPlayerPhysics(resolveBitmapRoomPlayer(analysis, room));
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, hudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
     authoredFacing: spriteTables.authoredFacing,
-  }, { bankedRle: isKonamiMegaRom });
+  }, { bankedRle: isKonamiMegaRom }, playerPhysics);
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
     `${formatBytes(table.renderLabel, table.renderBytes, `Room ${table.index} render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
