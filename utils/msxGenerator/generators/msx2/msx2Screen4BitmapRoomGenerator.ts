@@ -1428,10 +1428,10 @@ ${tilesetUploadAsm}
 ;   None.
 ;
 ; DESTROYS:
-;   AF, BC, HL
+;   AF, BC, DE, HL  (vdp_reinit_cmd_pointer overwrites E)
 ;
 ; PRESERVES:
-;   DE, IX, IY
+;   IX, IY
 ;
 ; CALLS:
 ;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer.
@@ -1488,7 +1488,8 @@ replay_room_commands:
 ;
 ; NOTES:
 ;   Pointer tables are word-indexed (DW), the block-count table is byte-indexed.
-;   DE = room index is preserved across the three table lookups (add hl,de only).
+;   replay_room_commands clobbers DE (vdp_reinit_cmd_pointer writes E), so the
+;   collision lookup re-derives the index from current_screen_index in RAM.
 ; ------------------------------------------------------------
 load_room:
     ld (current_screen_index), a
@@ -1507,6 +1508,10 @@ load_room:
     ld b, (hl)              ; B = block count
     pop hl
     call replay_room_commands
+    ; DE was clobbered by the command engine; re-derive the room index.
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
     ld hl, bitmap_room_collision_ptr_table
     add hl, de
     add hl, de
