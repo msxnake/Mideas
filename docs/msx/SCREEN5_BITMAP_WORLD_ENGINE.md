@@ -73,3 +73,24 @@ Portada de SCREEN 4 (`msx2_try_world_edge_transition_*`):
 - Fase 2: `load_room` por command engine + recarga de collision.
 - Fase 3: transición de borde multi-pantalla.
 - Fase 4: banking de mundos grandes / TileBank B por zona.
+
+## Gotchas / bugs resueltos
+
+- **`load_room` colisión basura por clobber de DE (2026-06-20)** — `replay_room_commands`
+  destruye `DE` (vía `vdp_reinit_cmd_pointer` que hace `ld e,#20`); `load_room` no debe
+  reutilizar `DE` como índice de room tras llamarlo. Síntoma: player amurallado, sin gravedad,
+  solo anima. Detalle completo y tabla de registros que destruye cada helper en
+  [Z80_REGISTER_CLOBBER_ERRATA.md](Z80_REGISTER_CLOBBER_ERRATA.md). **No es problema de mapper**
+  (konami vs auto-detect dan el mismo fallo).
+- **Color 0 = backdrop (R#7)** — en SCREEN 5 el color 0 (transparencia) y las franjas exteriores
+  se pintan con el backdrop R#7 = `backgroundColor`. Si no se escribe R#7 tras CHGMOD, sale el
+  cyan por defecto del C-BIOS.
+
+## Test OpenMSX headless
+
+```
+openmsx -machine C-BIOS_MSX2 -cart room.rom -romtype konami -script probe.tcl
+```
+TCL útil: `peek 0xC000`=player_y, `0xC001`=player_x, `0xC00B`=current_screen_index, collision RAM
+en `0xC010+idx`. Input: `keymatrixdown 8 0x80`=derecha, `0x10`=izquierda, bit0=space. El boot de
+C-BIOS tarda ~5-6 s: muestrear a partir de T+6 s.
