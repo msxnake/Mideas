@@ -418,10 +418,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     .map(a => a.data as WorldMapGraph), [assets]);
 
   // Beta SCREEN 5 editor: create a bitmap room adjacent to the active one and record
-  // the bidirectional WorldMap connection ("rails"). Reuses the current room's palette
-  // and atlas so the same tiles are available; composition/collision/effects/behavior
-  // start empty.
-  const handleCreateAdjacentBitmapRoom = useCallback((direction: ConnectionDirection) => {
+  // the bidirectional WorldMap connection ("rails"). Reuses the current room's palette;
+  // the atlas/tile edge are copied only when requested by the confirm dialog.
+  const handleCreateAdjacentBitmapRoom = useCallback((direction: ConnectionDirection, options?: { copySharedEdgeTiles?: boolean }) => {
     if (!activeAsset || activeAsset.type !== 'msx2bitmaproom') return;
     const currentRoom = activeAsset.data as Msx2Screen4BitmapRoom;
     const opposite: Record<ConnectionDirection, ConnectionDirection> = {
@@ -447,8 +446,88 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       const blankGrid = (cols: number, rows: number) => Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
       const collisionCols = Math.floor(256 / 16);
       const collisionRows = Math.floor(roomHeight / 16);
+      const shouldCopySharedEdgeTiles = options?.copySharedEdgeTiles === true;
+      const initialTileGrid = blankGrid(collisionCols, collisionRows);
+      const sourceAtlasEntries = currentRoom.atlas?.entries || [];
+      const sourceTileGrid = blankGrid(collisionCols, collisionRows);
 
-      // New room: reuse palette + atlas, empty composition/collision/effects/behavior.
+      if (Array.isArray(currentRoom.tileGrid)) {
+        for (let y = 0; y < collisionRows; y++) {
+          for (let x = 0; x < collisionCols; x++) {
+            const value = Math.max(0, Math.trunc(Number(currentRoom.tileGrid[y]?.[x]) || 0));
+            sourceTileGrid[y][x] = value > 0 && value - 1 < sourceAtlasEntries.length ? value : 0;
+          }
+        }
+      } else {
+        const idToIndex = new Map(sourceAtlasEntries.map((entry, index) => [entry.id, index]));
+        for (const command of currentRoom.composition?.commands || []) {
+          if (command.op !== 'copy') continue;
+          const index = idToIndex.get(command.atlasEntryId);
+          if (index === undefined) continue;
+          const cx = Math.floor(command.dx / 16);
+          const cy = Math.floor(command.dy / 16);
+          if (cx >= 0 && cx < collisionCols && cy >= 0 && cy < collisionRows) sourceTileGrid[cy][cx] = index + 1;
+        }
+      }
+
+      // The canvas renders from composition copy commands (see renderComposition in the editor),
+      // NOT from tileGrid. So when copying the shared edge we must also emit the copy commands or
+      // the cells stay invisible despite being present in tileGrid.
+      //
+      // The shared edge depends on the direction: the new room's edge that touches the current
+      // room mirrors the current room's opposite edge.
+      //   east  -> current rightmost column copies to new leftmost column
+      //   west  -> current leftmost  column copies to new rightmost column
+      //   north -> current top    row copies to new bottom row
+      //   south -> current bottom row copies to new top    row
+      const initialCopyCommands: { id: string; op: 'copy'; atlasEntryId: string; dx: number; dy: number; w: number; h: number }[] = [];
+      if (shouldCopySharedEdgeTiles) {
+        const lastCol = collisionCols - 1;
+        const lastRow = collisionRows - 1;
+        const edgeCells: { sx: number; sy: number; dx: number; dy: number }[] = [];
+        if (direction === 'east' || direction === 'west') {
+          const srcX = direction === 'east' ? lastCol : 0;
+          const dstX = direction === 'east' ? 0 : lastCol;
+          for (let y = 0; y < collisionRows; y++) edgeCells.push({ sx: srcX, sy: y, dx: dstX, dy: y });
+        } else {
+          const srcY = direction === 'north' ? 0 : lastRow;
+          const dstY = direction === 'north' ? lastRow : 0;
+          for (let x = 0; x < collisionCols; x++) edgeCells.push({ sx: x, sy: srcY, dx: x, dy: dstY });
+        }
+        for (const cell of edgeCells) {
+          const value = sourceTileGrid[cell.sy]?.[cell.sx] || 0;
+          if (initialTileGrid[cell.dy]) initialTileGrid[cell.dy][cell.dx] = value;
+          const entry = value > 0 ? sourceAtlasEntries[value - 1] : undefined;
+          if (entry) {
+            initialCopyCommands.push({
+              id: `tile_${cell.dx}_${cell.dy}`,
+              op: 'copy',
+              atlasEntryId: entry.id,
+              dx: cell.dx * 16,
+              dy: cell.dy * 16,
+              w: entry.w || 16,
+              h: entry.h || 16,
+            });
+          }
+        }
+      }
+
+      const emptyAtlas = {
+        width: 256,
+        height: 128,
+        offscreenBaseY: currentRoom.atlas?.offscreenBaseY || 320,
+        pixels: Array.from({ length: 128 }, () => Array.from({ length: 256 }, () => 0)),
+        entries: [],
+      };
+      const clonedAtlas = {
+        width: currentRoom.atlas?.width || 256,
+        height: currentRoom.atlas?.height || 128,
+        offscreenBaseY: currentRoom.atlas?.offscreenBaseY || 320,
+        pixels: (currentRoom.atlas?.pixels || []).map(row => [...row]),
+        entries: (currentRoom.atlas?.entries || []).map(entry => ({ ...entry })),
+      };
+
+      // New room: reuse palette. Keep atlas empty unless the user asks for a copied edge.
       const newRoom: Msx2Screen4BitmapRoom = {
         id: newRoomId,
         name: newRoomName,
@@ -457,14 +536,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         width: 256,
         height: currentRoom.height,
         palette: currentRoom.palette.map(slot => ({ ...slot })),
-        atlas: {
-          width: currentRoom.atlas.width,
-          height: currentRoom.atlas.height,
-          offscreenBaseY: currentRoom.atlas.offscreenBaseY,
-          pixels: currentRoom.atlas.pixels.map(row => [...row]),
-          entries: currentRoom.atlas.entries.map(entry => ({ ...entry })),
-        },
-        composition: { source: 'authored', commands: [] },
+        atlas: shouldCopySharedEdgeTiles ? clonedAtlas : emptyAtlas,
+        composition: { source: 'authored', commands: shouldCopySharedEdgeTiles ? initialCopyCommands : [] },
+        ...(shouldCopySharedEdgeTiles ? { tileGrid: initialTileGrid } : {}),
         collision: blankGrid(collisionCols, collisionRows),
         effects: blankGrid(collisionCols, collisionRows),
         behavior: blankGrid(collisionCols, collisionRows),
@@ -548,7 +622,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
     // Open the new room in the bitmap editor grid (sets asset + editor; keeps beta toggle).
     onSelectAsset(newRoomId, EditorType.Msx2BitmapRoom);
-    setStatusBarMessage(`SCREEN 5: pantalla creada al ${dirLabel[direction]} y conectada en el World Map.`);
+    setStatusBarMessage(`SCREEN 5: pantalla creada al ${dirLabel[direction]} y conectada en el World Map.${direction === 'east' && options?.copySharedEdgeTiles ? ' Borde derecho copiado.' : ''}`);
   }, [activeAsset, assets, setAssetsWithHistory, onSelectAsset, setStatusBarMessage]);
 
   const dataAssets = assets.filter(a =>
@@ -969,7 +1043,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 </button>
               </div>
               {useBitmapBetaEditor
-                ? <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} />
+                ? <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} />
                 : <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} />}
             </div>
           )}
@@ -1328,6 +1402,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onPaletteZonesChange={(zones) => {
               if (!activeMsx2ScreenAsset) return;
               handleUpdateAsset(activeMsx2ScreenAsset.id, { paletteZones: zones } as Partial<Msx2Screen4TileScreen>);
+            }}
+            activeTargetMode={activeAsset?.type === 'msx2bitmaproom' ? 'screen5' : activeMsx2ScreenAsset ? 'screen4' : 'none'}
+            allAssets={assets}
+            onImportBitmapTileAssets={(newAssets) => {
+              if (activeAsset?.type !== 'msx2bitmaproom') {
+                setStatusBarMessage('Abre una pantalla SCREEN 5 para importar tiles bitmap.');
+                return;
+              }
+              handleUpdateAsset(activeAsset.id, {}, newAssets);
             }}
             onImportTiles={(tiles, palette, paletteChanged, paletteSourceId) => {
               // Append the reconciled tile(s) to the active MSX2 SCREEN4 screen's

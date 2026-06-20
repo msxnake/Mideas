@@ -333,6 +333,23 @@ export interface BitmapTileScreen5 {
   updatedAt: string;
 }
 
+export interface BitmapTileStampScreen5 {
+  id: string;
+  name: string;
+  mode: 'SCREEN5_BITMAP_STAMP';
+  columns: number;
+  rows: number;
+  tileWidth: 16;
+  tileHeight: 16;
+  sourceType: 'png-import' | 'manual-edit' | 'generated' | 'atlas-export';
+  sourceFileName?: string;
+  paletteId: string;
+  tiles: BitmapTileScreen5[];
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type Msx2BitmapRoomCommand =
   | { id: string; op: 'copy'; atlasEntryId: string; dx: number; dy: number; w?: number; h?: number }
   | { id: string; op: 'fill'; x: number; y: number; w: number; h: number; color: number }
@@ -346,6 +363,8 @@ export interface Msx2BitmapRoomAtlasEntry {
   sy: number;
   w: number;
   h: number;
+  /** Optional SCREEN 5 bitmap-room collision/behavior flags applied when this atlas tile is painted. */
+  collisionFlags?: number;
 }
 
 export interface Msx2Screen4BitmapRoom {
@@ -356,6 +375,12 @@ export interface Msx2Screen4BitmapRoom {
   width: 256;
   height: 192 | 212;
   palette: Screen5PaletteSlot[];
+  /**
+   * Base SCREEN 5 palette slot. Single backdrop color: it clears the visible bitmap room,
+   * and is written to VDP R#7 so it ALSO paints the outer "franjas" and every color-0
+   * (transparent) pixel inside tiles. Background, transparency and border share this slot.
+   */
+  backgroundColor?: number;
   atlas: {
     width: number;
     height: number;

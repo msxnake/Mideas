@@ -715,6 +715,8 @@ function buildRuntimeAsm(
   options: { bankedRle: boolean }
 ): string {
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
+  // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
+  const backdropColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
   const framebufferUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
   const shouldEmitPlayerPatternUpdate = playerAnimation.frameCount > 1 || playerAnimation.mirror;
@@ -1317,6 +1319,11 @@ init_screen4_bitmap_vdp:
     ; Point indirect writes at command register R#32.
     ld a, #11
     ld e, #20
+    call vdp_write_register
+    ; Backdrop color (R#7) = background color. In SCREEN 5 this paints the outer "franjas"
+    ; AND every color-0 (transparent) bitmap pixel, so background/transparency/border match.
+    ld a, #07
+    ld e, #${backdropColor.toString(16).toUpperCase().padStart(2, '0')}
     call vdp_write_register
     ret
 
