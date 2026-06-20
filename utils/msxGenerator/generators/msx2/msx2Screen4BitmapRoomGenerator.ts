@@ -19,7 +19,9 @@ interface Msx2BitmapRoomConfig {
 const SCREEN_WIDTH = 256;
 const SCREEN_HEIGHT_DEFAULT = 192;
 const SCREEN5_VISIBLE_HEIGHT = 212;
-const BITMAP_ROOM_HUD_HEIGHT = 16;
+// 212-line SCREEN 5 layout, no leftover: 20px HUD band on top + 192px game band
+// (20 + 192 = 212). Requires VDP R#9 LN=1 (set in init_screen4_bitmap_vdp).
+const BITMAP_ROOM_HUD_HEIGHT = 20;
 const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
 const ROW_BYTES = SCREEN_WIDTH / 2;
 const BITMAP_ROOM_GAME_VRAM_BASE = BITMAP_ROOM_GAME_Y_OFFSET * ROW_BYTES;
@@ -1314,6 +1316,11 @@ init_screen4_bitmap_vdp:
     call vdp_write_register
     ld a, #0B
     ld e, #01
+    call vdp_write_register
+    ; 212-line display (R#9 LN=1) so the 20px HUD + 192px game band fill the screen
+    ; with no leftover scanlines at the bottom.
+    ld a, #09
+    ld e, #80
     call vdp_write_register
     ; Point indirect writes at command register R#32.
     ld a, #11

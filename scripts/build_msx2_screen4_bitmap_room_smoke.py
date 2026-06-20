@@ -516,14 +516,14 @@ def extract_db_bytes(asm_text: str, label: str) -> list[int]:
 
 def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> None:
     for marker in (
-        "Bitmap room HUD height: 16 px",
+        "Bitmap room HUD height: 20 px",
         "Bitmap room HUD widgets: 4",
-        "Bitmap room game area: 256x192 at visual Y=16",
+        "Bitmap room game area: 256x192 at visual Y=20",
         "World rooms: 1; start room index: 0",
         "Shared tileset bytes: 2048 at VRAM #A000",
         "FUNCTION: init_plain32k_page2_slot",
         "Mirror the cartridge primary slot from page 1 (#4000-#7FFF) into page 2",
-        "add a, 16",
+        "add a, 20",
         "player_anim_counter EQU #C004",
         "player_vy           EQU #C006",
         "player_facing       EQU #C008",
@@ -564,7 +564,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
             raise RuntimeError(f"{chunk_label} has odd RLE byte length: {len(chunk_bytes)}")
         for index in range(0, len(chunk_bytes), 2):
             hud_decoded_length += chunk_bytes[index]
-    expected_hud_length = 256 * 16 // 2
+    expected_hud_length = 256 * 20 // 2
     if hud_decoded_length != expected_hud_length:
         raise RuntimeError(
             f"bitmap room HUD seed RLE decodes to {hud_decoded_length} bytes; expected {expected_hud_length}"
@@ -611,9 +611,9 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     dest_x = copy[4] | (copy[5] << 8)
     dest_y = copy[6] | (copy[7] << 8)
     src_y = copy[2] | (copy[3] << 8)
-    if dest_x != 0 or dest_y != 16:
+    if dest_x != 0 or dest_y != 20:
         raise RuntimeError(
-            f"tile (0,0) copy lands at DX={dest_x},DY={dest_y}; expected DX=0,DY=16 (HUD-offset game band)"
+            f"tile (0,0) copy lands at DX={dest_x},DY={dest_y}; expected DX=0,DY=20 (HUD-offset game band)"
         )
     if src_y < 320:
         raise RuntimeError(

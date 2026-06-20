@@ -11,6 +11,14 @@
 - Pantalla = 256×192 → 16 columnas × 12 filas = **192 tiles** → **192 bytes** de índices.
 - Cada byte del mapa = índice de tile 16×16 (0 = vacío/fondo).
 
+### Layout vertical (212 líneas)
+
+El VDP se pone en **212 líneas** (R#9 LN=1, en `init_screen4_bitmap_vdp`) y se reparte sin
+sobrante: **HUD 20px** (líneas 0–19) + **juego 192px** (líneas 20–211). Constantes:
+`BITMAP_ROOM_HUD_HEIGHT = 20`, `BITMAP_ROOM_GAME_Y_OFFSET = 20`. El render del juego y el sprite
+del player se desplazan +20px (`load_room` pinta en `dy = row*16 + 20`; `bitmap_update_sprite_sat`
+hace `add a, 20`). La colisión usa coords lógicas (0–191) sin offset.
+
 ## Tamaños
 
 | Elemento             |    Tamaño |
