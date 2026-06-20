@@ -1,4 +1,4 @@
-# Z80 Register Clobber Across `call` — Generator Errata
+# Estado no restaurado tras un `call` (registros CPU + VDP) — Generator Errata
 
 ## Descripción del bug
 
@@ -73,6 +73,26 @@ daban el mismo fallo.
 | `load_room`                   | AF, BC, DE, HL      | IX, IY          | |
 | `copy_to_vram_ext`            | AF, BC, DE, HL      | IX, IY          | |
 | `decompress_bitmap_rle_to_vram` | AF, BC, DE, HL    | IX, IY          | |
+
+## El mismo patrón con ESTADO GLOBAL del VDP (no solo registros de CPU)
+
+No solo los registros de CPU se "clobbean": también el **estado global del VDP** que una rutina
+deja seleccionado. Si un caller asume un estado y la rutina lo cambió sin restaurarlo, falla.
+
+### Caso real — lag tras transición SCREEN 5 (2026-06-20)
+
+`load_room` usa el command engine; sus sondeos de estado (`read_vdp_status_2`) dejan
+**R#15 = 2** (status register select = S#2). El `init` reseteaba R#15=0 tras el primer
+`load_room`, pero `try_room_transition` no. Tras entrar a una room vecina, el
+`bitmap_wait_vblank` del main loop —que **asume R#15=0** y lee S#0 bit7 (flag de vblank)— leía
+S#2, nunca veía el vblank y agotaba su contador de fallback (#4000) **cada frame** → lag severo
+("pinta la pantalla constantemente"). El start room iba bien porque init sí restauraba R#15.
+
+**Fix**: `load_room` restaura `R#15=0` antes de retornar (cubre init y transiciones).
+
+Estado global del VDP a vigilar al llamar/escribir rutinas: **R#15** (status register select),
+**R#17** (indirect register pointer), y los **registros de mapper** (bancos Konami). Si una
+rutina los cambia, debe restaurarlos o documentarlo en su cabecera.
 
 ## Regla de prevención
 

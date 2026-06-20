@@ -6,7 +6,7 @@
 
 **LEER**: `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md` para referencia completa.
 **LEER TAMBIEN**: `docs/msx/Z80_LDA_I_ERRATA.md` antes de tocar codigo ASM que preserve/restaure IRQ o lea IFF2 mediante flags.
-**LEER TAMBIEN**: `docs/msx/Z80_REGISTER_CLOBBER_ERRATA.md` antes de reutilizar un registro tras un `call` (qué destruye cada rutina; caso real del bug de colisión en SCREEN 5 bitmap).
+**LEER TAMBIEN**: `docs/msx/Z80_REGISTER_CLOBBER_ERRATA.md` antes de reutilizar un registro de CPU o asumir estado del VDP (R#15/R#17/banks) tras un `call`. Incluye qué destruye cada rutina y dos casos reales en SCREEN 5 bitmap (colisión basura por clobber de DE; lag por R#15 sin restaurar).
 
 | INCORRECTO | CORRECTO |
 |------------|----------|
