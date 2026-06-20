@@ -564,6 +564,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [replaceFromSlot, setReplaceFromSlot] = useState(1);
   const [replaceToSlot, setReplaceToSlot] = useState(0);
   const [draggedReplaceSlot, setDraggedReplaceSlot] = useState<number | null>(null);
+  const [replaceColorWarning, setReplaceColorWarning] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
@@ -664,6 +665,19 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
 
     return { usedSlots, orBaseSlots, orOverlaySlots, orResultSlots };
   }, [cellColumns, palette, sprite.frames, sprite.size.height, useOrColor]);
+  const paletteSlotsByColor = useMemo(() => {
+    const slotsByColor = new Map<string, number[]>();
+    palette.forEach(slot => {
+      const key = normalizeColor(slot.hex);
+      slotsByColor.set(key, [...(slotsByColor.get(key) || []), slot.slotIndex]);
+    });
+    return slotsByColor;
+  }, [palette]);
+  const duplicatePaletteSlotsFor = (slotIndex: number): number[] => {
+    const slot = palette.find(candidate => candidate.slotIndex === slotIndex);
+    return slot ? (paletteSlotsByColor.get(normalizeColor(slot.hex)) || []) : [];
+  };
+  const isReplaceSlotAmbiguous = (slotIndex: number): boolean => duplicatePaletteSlotsFor(slotIndex).length > 1;
   const invalidLineCount = rowDiagnostics.filter(row => row.invalid).length;
   const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
   const stackedColorLineCount = rowDiagnostics.filter(row => row.layerCount > 1).length;
@@ -797,6 +811,14 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
 
   const replaceFromPaletteSlot = palette.find(slot => slot.slotIndex === replaceFromSlot) || palette[0];
   const replaceToPaletteSlot = palette.find(slot => slot.slotIndex === replaceToSlot) || palette[0];
+  const replaceFromAmbiguous = isReplaceSlotAmbiguous(replaceFromSlot);
+  const describeAmbiguousReplaceSlot = (slotIndex: number): string | null => {
+    const slot = palette.find(candidate => candidate.slotIndex === slotIndex);
+    if (!slot) return null;
+    const duplicates = duplicatePaletteSlotsFor(slotIndex).filter(candidate => candidate !== slotIndex);
+    if (!duplicates.length) return null;
+    return `No se puede reemplazar S${slotIndex}: comparte ${slot.hex} con S${duplicates.join(', S')}. Cambia uno de esos slots antes de reemplazar.`;
+  };
   const replaceSourcePixelCount = useMemo(() => {
     if (!replaceFromPaletteSlot) return 0;
     const source = normalizeColor(replaceFromPaletteSlot.hex);
@@ -834,10 +856,16 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   };
 
   const replaceSpriteSlot = (fromSlot: number, toSlot: number) => {
+    setReplaceColorWarning(null);
     if (fromSlot === toSlot) return;
     const sourceSlot = palette.find(slot => slot.slotIndex === fromSlot);
     const targetSlot = palette.find(slot => slot.slotIndex === toSlot);
     if (!sourceSlot || !targetSlot) return;
+    const ambiguousWarning = describeAmbiguousReplaceSlot(fromSlot);
+    if (ambiguousWarning) {
+      setReplaceColorWarning(ambiguousWarning);
+      return;
+    }
     const source = normalizeColor(sourceSlot.hex);
     const target = targetSlot.hex as MSXColorValue;
     let changed = false;
@@ -855,6 +883,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       ),
     }));
     if (!changed) return;
+    setReplaceColorWarning(null);
     onUpdate({
       frames,
       currentFrameIndex: Math.max(0, Math.min(sprite.currentFrameIndex || 0, frames.length - 1)),
@@ -1109,6 +1138,8 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             {palette.map(slot => {
               const isTransparentSlot = slot.slotIndex === 0;
               const isUsed = spritePaletteUsage.usedSlots.has(slot.slotIndex);
+              const isAmbiguousReplaceSource = isReplaceSlotAmbiguous(slot.slotIndex);
+              const ambiguousReplaceWarning = describeAmbiguousReplaceSlot(slot.slotIndex);
               const isOrBase = spritePaletteUsage.orBaseSlots.has(slot.slotIndex);
               const isOrOverlay = spritePaletteUsage.orOverlaySlots.has(slot.slotIndex);
               const isOrResult = spritePaletteUsage.orResultSlots.has(slot.slotIndex);
@@ -1146,13 +1177,19 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                   )}
                   {isUsed && !isTransparentSlot && (
                     <span
-                      draggable
-                      className="absolute left-1 top-1 h-4 w-4 cursor-grab rounded-full border border-black/70 bg-msx-highlight shadow active:cursor-grabbing"
-                      title={`Arrastra para reemplazar S${slot.slotIndex} por otro color`}
+                      draggable={!isAmbiguousReplaceSource}
+                      className={`absolute left-1 top-1 h-4 w-4 rounded-full border border-black/70 bg-msx-highlight shadow ${isAmbiguousReplaceSource ? 'cursor-not-allowed opacity-60' : 'cursor-grab active:cursor-grabbing'}`}
+                      title={ambiguousReplaceWarning || `Arrastra para reemplazar S${slot.slotIndex} por otro color`}
                       aria-label={`Drag used color slot ${slot.slotIndex} to replace it`}
                       onClick={event => event.stopPropagation()}
                       onDragStart={event => {
                         event.stopPropagation();
+                        if (ambiguousReplaceWarning) {
+                          event.preventDefault();
+                          setReplaceColorWarning(ambiguousReplaceWarning);
+                          return;
+                        }
+                        setReplaceColorWarning(null);
                         setDraggedReplaceSlot(slot.slotIndex);
                         event.dataTransfer.effectAllowed = 'move';
                         event.dataTransfer.setData('text/plain', String(slot.slotIndex));
@@ -1200,14 +1237,19 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               icon={<SwapHorizIcon />}
               className="w-full"
               justify="center"
-              disabled={replaceFromSlot === replaceToSlot || replaceSourcePixelCount === 0}
-              title={`Replace ${replaceSourcePixelCount} pixels across all frames`}
+              disabled={replaceFromSlot === replaceToSlot || replaceSourcePixelCount === 0 || replaceFromAmbiguous}
+              title={replaceFromAmbiguous ? (describeAmbiguousReplaceSlot(replaceFromSlot) || 'Source slot is ambiguous') : `Replace ${replaceSourcePixelCount} pixels across all frames`}
             >
               Replace Color
             </Button>
             <div className="text-[11px] text-msx-textsecondary">
               {replaceSourcePixelCount} px in all frames
             </div>
+            {replaceColorWarning && (
+              <div className="rounded border border-amber-400/50 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+                {replaceColorWarning}
+              </div>
+            )}
           </div>
         </Panel>
 
