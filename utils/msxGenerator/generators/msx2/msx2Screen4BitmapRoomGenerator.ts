@@ -164,10 +164,6 @@ function normalizeAtlasPixels(room: Msx2Screen4BitmapRoom): number[][] {
   );
 }
 
-function createScreenPixels(fill = 0): number[][] {
-  return Array.from({ length: SCREEN_HEIGHT_DEFAULT }, () => Array.from({ length: SCREEN_WIDTH }, () => fill & 0x0f));
-}
-
 function paintRect(screen: number[][], x: number, y: number, w: number, h: number, color: number): void {
   const x0 = clampInt(x, 0, SCREEN_WIDTH, 0);
   const y0 = clampInt(y, 0, SCREEN_HEIGHT_DEFAULT, 0);
@@ -178,75 +174,6 @@ function paintRect(screen: number[][], x: number, y: number, w: number, h: numbe
       screen[py][px] = color & 0x0f;
     }
   }
-}
-
-function copyAtlasEntry(screen: number[][], atlasPixels: number[][], room: Msx2Screen4BitmapRoom, command: Extract<Msx2BitmapRoomCommand, { op: 'copy' }>): void {
-  const entry = room.atlas.entries.find(item => item.id === command.atlasEntryId);
-  if (!entry) return;
-  const sx = clampInt(entry.sx, 0, room.atlas.width, 0);
-  const sy = clampInt(entry.sy, 0, room.atlas.height, 0);
-  const dx = clampInt(command.dx, 0, SCREEN_WIDTH, 0);
-  const dy = clampInt(command.dy, 0, SCREEN_HEIGHT_DEFAULT, 0);
-  const width = clampInt(command.w ?? entry.w, 1, SCREEN_WIDTH, entry.w || 8);
-  const height = clampInt(command.h ?? entry.h, 1, SCREEN_HEIGHT_DEFAULT, entry.h || 8);
-  for (let y = 0; y < height; y++) {
-    const dstY = dy + y;
-    const srcY = sy + y;
-    if (dstY < 0 || dstY >= SCREEN_HEIGHT_DEFAULT || srcY < 0 || srcY >= room.atlas.height) continue;
-    for (let x = 0; x < width; x++) {
-      const dstX = dx + x;
-      const srcX = sx + x;
-      if (dstX < 0 || dstX >= SCREEN_WIDTH || srcX < 0 || srcX >= room.atlas.width) continue;
-      screen[dstY][dstX] = atlasPixels[srcY]?.[srcX] ?? 0;
-    }
-  }
-}
-
-function copyTileGrid(screen: number[][], atlasPixels: number[][], room: Msx2Screen4BitmapRoom): void {
-  const grid = room.tileGrid;
-  if (!Array.isArray(grid)) return;
-  for (let cy = 0; cy < grid.length; cy++) {
-    const row = grid[cy];
-    if (!Array.isArray(row)) continue;
-    for (let cx = 0; cx < row.length; cx++) {
-      const entryIndex = clampInt(row[cx], 0, room.atlas.entries.length, 0) - 1;
-      const entry = room.atlas.entries[entryIndex];
-      if (!entry) continue;
-      copyAtlasEntry(screen, atlasPixels, room, {
-        id: `tile_${cx}_${cy}`,
-        op: 'copy',
-        atlasEntryId: entry.id,
-        dx: cx * TILE_GRID_SIZE,
-        dy: cy * TILE_GRID_SIZE,
-        w: entry.w || TILE_GRID_SIZE,
-        h: entry.h || TILE_GRID_SIZE,
-      });
-    }
-  }
-}
-
-function renderRoomToPixels(room: Msx2Screen4BitmapRoom): number[][] {
-  const height = room.height || SCREEN_HEIGHT_DEFAULT;
-  const atlasPixels = normalizeAtlasPixels(room);
-  const backgroundColor = clampByte(room.backgroundColor, 0) & 0x0f;
-  const screen = Array.from({ length: height }, () => Array.from({ length: SCREEN_WIDTH }, () => backgroundColor));
-  const shouldUseTileGrid = Array.isArray(room.tileGrid);
-  for (const command of room.composition.commands || []) {
-    if (shouldUseTileGrid && command.op === 'copy') continue;
-    if (command.op === 'copy') {
-      copyAtlasEntry(screen, atlasPixels, room, command);
-    } else if (command.op === 'fill') {
-      paintRect(screen, command.x, command.y, command.w, command.h, command.color);
-    } else if (command.op === 'lineH') {
-      paintRect(screen, command.x, command.y, command.length, 1, command.color);
-    } else if (command.op === 'lineV') {
-      paintRect(screen, command.x, command.y, 1, command.length, command.color);
-    }
-  }
-  if (shouldUseTileGrid) {
-    copyTileGrid(screen, atlasPixels, room);
-  }
-  return screen;
 }
 
 function packBitmapPixels(pixels: number[][]): number[] {
@@ -272,14 +199,6 @@ function packAtlasPixels(room: Msx2Screen4BitmapRoom): number[] {
     rows.push(row);
   }
   return packBitmapPixels(rows);
-}
-
-function normalizeVisibleFramebuffer(room: Msx2Screen4BitmapRoom): number[][] | undefined {
-  const pixels = room.visibleFramebuffer?.pixels;
-  if (!Array.isArray(pixels)) return undefined;
-  return Array.from({ length: SCREEN_HEIGHT_DEFAULT }, (_unused, y) =>
-    Array.from({ length: SCREEN_WIDTH }, (_unused2, x) => clampByte(pixels[y]?.[x], 0) & 0x0f)
-  );
 }
 
 const DEFAULT_HUD_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
@@ -451,70 +370,6 @@ interface CommandRecord {
   nx: number;
   ny: number;
   color: number;
-}
-
-function buildCommandRecords(room: Msx2Screen4BitmapRoom): CommandRecord[] {
-  const offscreenBaseY = room.atlas.offscreenBaseY || 320;
-  const entryById = new Map((room.atlas.entries || []).map(entry => [entry.id, entry]));
-  const records: CommandRecord[] = [];
-
-  for (const command of room.composition.commands || []) {
-    if (command.op === 'fill') {
-      records.push({
-        op: OP_FILL,
-        sx: 0,
-        sy: 0,
-        dx: clampInt(command.x, 0, 255, 0),
-        dy: clampInt(command.y, 0, 511, 0),
-        nx: clampInt(command.w, 1, 256, 1),
-        ny: clampInt(command.h, 1, 256, 1),
-        color: clampByte(command.color, 0) & 0x0f,
-      });
-      continue;
-    }
-    if (command.op === 'lineH') {
-      records.push({
-        op: OP_LINE_H,
-        sx: 0,
-        sy: 0,
-        dx: clampInt(command.x, 0, 255, 0),
-        dy: clampInt(command.y, 0, 511, 0),
-        nx: clampInt(command.length, 1, 256, 1),
-        ny: 1,
-        color: clampByte(command.color, 0) & 0x0f,
-      });
-      continue;
-    }
-    if (command.op === 'lineV') {
-      records.push({
-        op: OP_LINE_V,
-        sx: 0,
-        sy: 0,
-        dx: clampInt(command.x, 0, 255, 0),
-        dy: clampInt(command.y, 0, 511, 0),
-        nx: 1,
-        ny: clampInt(command.length, 1, 256, 1),
-        color: clampByte(command.color, 0) & 0x0f,
-      });
-      continue;
-    }
-    const entry = entryById.get(command.atlasEntryId);
-    if (!entry) continue;
-    const width = clampInt(command.w ?? entry.w, 1, 256, entry.w || 8);
-    const height = clampInt(command.h ?? entry.h, 1, 256, entry.h || 8);
-    records.push({
-      op: width >= 16 || height >= 16 ? OP_COPY_16 : OP_COPY_8,
-      sx: clampInt(entry.sx, 0, 255, 0),
-      sy: clampInt(entry.sy, 0, 511, 0) + offscreenBaseY,
-      dx: clampInt(command.dx, 0, 255, 0),
-      dy: clampInt(command.dy, 0, 511, 0),
-      nx: width,
-      ny: height,
-      color: 0,
-    });
-  }
-
-  return records;
 }
 
 function buildVdpCommandBlock(record: CommandRecord): number[] {
@@ -853,7 +708,6 @@ function buildPaletteBytes(palette: Screen5PaletteSlot[]): number[] {
 
 function buildRuntimeAsm(
   room: Msx2Screen4BitmapRoom,
-  commandCount: number,
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right' },
@@ -1472,11 +1326,6 @@ init_screen4_bitmap_vdp:
     call vdp_write_register
     ret
 
-compose_bitmap_room:
-    ; Deprecated command-stream path. Current bitmap-room smoke uploads a
-    ; pre-rendered framebuffer for deterministic full-screen composition.
-    ret
-
 load_screen4_bitmap_palette:
     ld hl, screen4_bitmap_palette_data
     ld b, 16
@@ -1499,10 +1348,6 @@ load_screen4_bitmap_palette:
     pop af
     inc a
     djnz .palette_loop
-    ret
-
-upload_bitmap_atlas:
-    ; Deprecated atlas path; kept as a stable label for older smoke contracts.
     ret
 
 ; ------------------------------------------------------------
@@ -2250,35 +2095,6 @@ function resolvePlayerSpawnPixels(room: Msx2Screen4BitmapRoom): { x: number; y: 
   return { x, y, visible: true };
 }
 
-function appendRectBytes(bytes: number[], x: number, y: number, w: number, h: number, color: number): void {
-  const x0 = clampInt(x, 0, SCREEN_WIDTH, 0);
-  const y0 = clampInt(y, 0, SCREEN_HEIGHT_DEFAULT, 0);
-  const x1 = clampInt(x + Math.max(0, w), 0, SCREEN_WIDTH, 0);
-  const y1 = clampInt(y + Math.max(0, h), 0, SCREEN_HEIGHT_DEFAULT, 0);
-  if (x1 <= x0 || y1 <= y0) return;
-  const byteX = Math.floor(x0 / 2);
-  const byteX1 = Math.ceil(x1 / 2);
-  const widthBytes = byteX1 - byteX;
-  const height = y1 - y0;
-  const address = y0 * ROW_BYTES + byteX;
-  const nibble = clampByte(color, 0) & 0x0f;
-  bytes.push(address & 0xff, (address >> 8) & 0xff, widthBytes & 0xff, height & 0xff, (nibble << 4) | nibble);
-}
-
-function buildVisibleRectBytes(room: Msx2Screen4BitmapRoom): number[] {
-  const bytes: number[] = [];
-  for (const command of room.composition.commands || []) {
-    if (command.op === 'fill') {
-      appendRectBytes(bytes, command.x, command.y, command.w, command.h, command.color);
-    } else if (command.op === 'lineH') {
-      appendRectBytes(bytes, command.x, command.y, command.length, 1, command.color);
-    } else if (command.op === 'lineV') {
-      appendRectBytes(bytes, command.x, command.y, 1, command.length, command.color);
-    }
-  }
-  return bytes;
-}
-
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2BitmapRoomConfig): string {
   const isKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   if (config.romMode === 'megarom' && config.targetFormat !== 'konami') {
@@ -2339,7 +2155,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const spriteSourceLabel = spriteTables.usedConfigured
     ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
     : 'placeholder fallback (no configured player sprite resolvable)';
-  const runtimeAsm = buildRuntimeAsm(room, 0, tilesetRleChunks, hudSeedRleChunks, {
+  const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, hudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
