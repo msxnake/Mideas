@@ -1222,6 +1222,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Room: ${room.name}
 ; Screen mode: ${config.screenMode}
 ; Backend: msx2-screen4-bitmap-room
+; ROM Mode: ${config.romMode}
+; Mapper Target: ${config.targetFormat}
+; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
+; NOTE: Bitmap-room SCREEN 5 currently uses a linear simple32k ROM layout.
 ; Visible page: VRAM #0000, ${ROW_BYTES} bytes/row, ${visibleHeight} lines
 ; Bitmap room HUD height: ${BITMAP_ROOM_HUD_HEIGHT} px
 ; Bitmap room HUD widgets: ${hudWidgetCount}

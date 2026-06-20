@@ -305,9 +305,9 @@ export function generateModularASM(
     const analysis = analyzeProject(projectName, assets);
     return generateMsx2Screen4BitmapRoomFiles(projectName, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
-      romMode: config.romMode || 'simple32k',
-      targetFormat: config.targetFormat || 'konami',
-      autoMegaROM: config.autoMegaROM ?? false,
+      romMode: 'simple32k',
+      targetFormat: 'konami',
+      autoMegaROM: false,
     });
   }
   if (targetGraphicsBackend === 'msx2-screen4-pattern') {
@@ -513,9 +513,9 @@ export function generateModularASMFromSummary(
   if (summaryGraphicsBackend === 'msx2-screen4-bitmap-room') {
     return generateMsx2Screen4BitmapRoomFiles(summary.projectInfo.name, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
-      romMode: summaryGraphicsConfig.romMode || 'simple32k',
-      targetFormat: summaryGraphicsConfig.targetFormat || 'konami',
-      autoMegaROM: summaryGraphicsConfig.autoMegaROM ?? false,
+      romMode: 'simple32k',
+      targetFormat: 'konami',
+      autoMegaROM: false,
     });
   }
   if (summaryGraphicsBackend === 'msx2-screen4-pattern') {
