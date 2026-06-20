@@ -47,6 +47,59 @@ const clonePixels = (data: PixelData): PixelData => data.map(row => [...row]);
 const createPixels = (width: number, height: number, color: MSXColorValue): PixelData =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => color));
 
+const PaletteSlotSwatch: React.FC<{ hex: string; className?: string }> = ({ hex, className = '' }) => {
+  const isTransparent = hex === TRANSPARENT_HEX || hex === 'transparent';
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block h-3 w-3 shrink-0 rounded border border-msx-border ${isTransparent ? 'bg-stripes' : ''} ${className}`}
+      style={{ backgroundColor: isTransparent ? undefined : hex }}
+    />
+  );
+};
+
+const PaletteSlotDropdown: React.FC<{
+  label: string;
+  value: number;
+  palette: Screen5PaletteSlot[];
+  onChange: (slotIndex: number) => void;
+  ariaLabel: string;
+}> = ({ label, value, palette, onChange, ariaLabel }) => {
+  const selected = palette.find(slot => slot.slotIndex === value) || palette[0];
+  const formatSlot = (slot: Screen5PaletteSlot) => `S${slot.slotIndex}${slot.slotIndex === 0 ? ' T' : ''} ${slot.hex}`;
+  return (
+    <div className="space-y-1">
+      <span className="block">{label}</span>
+      <details className="group relative">
+        <summary
+          className="flex cursor-pointer list-none items-center gap-2 rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary outline-none focus-visible:ring-1 focus-visible:ring-msx-highlight"
+          aria-label={ariaLabel}
+        >
+          <PaletteSlotSwatch hex={selected?.hex || '#000000'} />
+          <span className="min-w-0 truncate">{selected ? formatSlot(selected) : 'Slot missing'}</span>
+          <span className="ml-auto text-msx-textsecondary">▾</span>
+        </summary>
+        <div className="absolute z-30 mt-1 max-h-64 min-w-full overflow-y-auto rounded border border-msx-border bg-msx-panelbg py-1 shadow-lg">
+          {palette.map(slot => (
+            <button
+              key={slot.slotIndex}
+              type="button"
+              className={`flex w-full items-center gap-2 px-2 py-1 text-left text-xs hover:bg-msx-accent hover:text-white ${slot.slotIndex === value ? 'text-msx-highlight' : 'text-msx-textprimary'}`}
+              onClick={event => {
+                onChange(slot.slotIndex);
+                event.currentTarget.closest('details')?.removeAttribute('open');
+              }}
+            >
+              <PaletteSlotSwatch hex={slot.hex} />
+              <span className="whitespace-nowrap">{formatSlot(slot)}</span>
+            </button>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+};
+
 interface MetaSpritePreset {
   id: Exclude<Msx2SuperSpriteLayout, 'custom'>;
   label: string;
@@ -1092,37 +1145,21 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         <Panel title="Replace Color" collapsible>
           <div className="space-y-2 p-2 text-xs text-msx-textsecondary">
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-              <label className="space-y-1">
-                <span className="block">From</span>
-                <select
-                  value={replaceFromSlot}
-                  onChange={event => setReplaceFromSlot(Number(event.target.value))}
-                  className="w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
-                  aria-label="Replace source color slot"
-                >
-                  {palette.map(slot => (
-                    <option key={slot.slotIndex} value={slot.slotIndex}>
-                      {`S${slot.slotIndex}${slot.slotIndex === 0 ? ' T' : ''} ${slot.hex}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <PaletteSlotDropdown
+                label="From"
+                value={replaceFromSlot}
+                palette={palette}
+                onChange={setReplaceFromSlot}
+                ariaLabel="Replace source color slot"
+              />
               <SwapHorizIcon className="mb-1 h-4 w-4 text-msx-highlight" />
-              <label className="space-y-1">
-                <span className="block">To</span>
-                <select
-                  value={replaceToSlot}
-                  onChange={event => setReplaceToSlot(Number(event.target.value))}
-                  className="w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
-                  aria-label="Replace target color slot"
-                >
-                  {palette.map(slot => (
-                    <option key={slot.slotIndex} value={slot.slotIndex}>
-                      {`S${slot.slotIndex}${slot.slotIndex === 0 ? ' T' : ''} ${slot.hex}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <PaletteSlotDropdown
+                label="To"
+                value={replaceToSlot}
+                palette={palette}
+                onChange={setReplaceToSlot}
+                ariaLabel="Replace target color slot"
+              />
             </div>
             <Button
               onClick={replaceSpriteColor}
