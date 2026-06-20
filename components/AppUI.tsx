@@ -25,7 +25,6 @@ import { SpriteEditor } from './editors/SpriteEditor';
 import { Msx2SpriteEditor } from './editors/Msx2SpriteEditor';
 import { Msx2BitmapEditor } from './editors/Msx2BitmapEditor';
 import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
-import { Msx2Screen4BitmapRoomEditor } from './editors/Msx2Screen4BitmapRoomEditor';
 import { Msx2BitmapScreenEditor } from './editors/Msx2BitmapScreenEditor';
 import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
 import { Msx2EnemyEditor } from './editors/Msx2EnemyEditor';
@@ -318,7 +317,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       : createDefaultPaletteZones(slots);
   }, [activeMsx2ScreenAsset]);
   const bossPackageInputRef = React.useRef<HTMLInputElement>(null);
-  const [useBitmapBetaEditor, setUseBitmapBetaEditor] = useState(false);
   const [isAssetExplorerCollapsed, setIsAssetExplorerCollapsed] = useState(false);
   const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
   const [selectedMsx2GameFlowNodeId, setSelectedMsx2GameFlowNodeId] = useState<string | null>(null);
@@ -620,7 +618,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       return next;
     });
 
-    // Open the new room in the bitmap editor grid (sets asset + editor; keeps beta toggle).
+    // Open the new room in the bitmap editor grid (sets asset + editor).
     onSelectAsset(newRoomId, EditorType.Msx2BitmapRoom);
     setStatusBarMessage(`SCREEN 5: pantalla creada al ${dirLabel[direction]} y conectada en el World Map.${direction === 'east' && options?.copySharedEdgeTiles ? ' Borde derecho copiado.' : ''}`);
   }, [activeAsset, assets, setAssetsWithHistory, onSelectAsset, setStatusBarMessage]);
@@ -1030,22 +1028,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
-            <div className="flex flex-col flex-grow min-h-0">
-              <div className="flex items-center gap-2 px-2 py-1 border-b border-msx-border bg-msx-panelbg text-xs shrink-0">
-                <span className="text-msx-textsecondary">Editor bitmap SCREEN 5:</span>
-                <button
-                  type="button"
-                  onClick={() => setUseBitmapBetaEditor(v => !v)}
-                  className="px-2 py-0.5 rounded border border-msx-border text-msx-highlight hover:bg-msx-border/40"
-                  title="Alternar entre el editor clásico (atlas + command list) y el nuevo editor tipo Tile Map (beta)"
-                >
-                  {useBitmapBetaEditor ? 'Tile Map (beta) ▸ volver al clásico' : 'Clásico ▸ probar Tile Map (beta)'}
-                </button>
-              </div>
-              {useBitmapBetaEditor
-                ? <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} />
-                : <Msx2Screen4BitmapRoomEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} />}
-            </div>
+            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} />
           )}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} playerAssetName={activeAsset.name} onUpdate={(patch) => {
             const mergedPlayer = mergeMsx2PlayerUpdate(activeAsset.data, patch);

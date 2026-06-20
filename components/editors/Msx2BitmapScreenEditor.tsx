@@ -55,12 +55,11 @@ import {
 } from '../icons/MsxIcons';
 
 /**
- * NEW MSX2 "SCREEN 5" bitmap screen editor (UI shell / beta).
+ * MSX2 "SCREEN 5" bitmap screen editor (Tile Map). This is the single editor for
+ * `'msx2bitmaproom'` assets (the older atlas+command-list editor was removed).
  *
- * This is a fresh layout built to match the provided "Tile Map Editor — MSX2" mockup.
- * It reuses the data model (`Msx2Screen4BitmapRoom`, asset type id `'msx2bitmaproom'`)
- * and the import-to-atlas flow from the existing `Msx2Screen4BitmapRoomEditor`, but does
- * NOT replace it. Wired: brush/eraser/flood-fill painting, layer-aware editing, cell
+ * Layout built to match the "Tile Map Editor — MSX2" mockup over the
+ * `Msx2Screen4BitmapRoom` data model. Wired: brush/eraser/flood-fill painting, layer-aware editing, cell
  * properties (collision flags), category filtering, palette load, export to library, and
  * a downsampled world minimap. Remaining nice-to-haves: in-place palette-slot colour
  * editing and merging flood-fill runs into taller rects. Every user-visible "Screen 4"
