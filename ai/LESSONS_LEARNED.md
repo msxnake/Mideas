@@ -14,6 +14,35 @@ Leccion Aprendida:
 
 ---
 
+## Bug Resuelto: MegaROM SCREEN 5 bitmap escribe banco en RAM si page 2 no es cartucho
+
+Fecha: 2026-06-20
+
+Problema:
+SCREEN 5 bitmap-room en simple32k renderizaba bien, pero en MegaROM Konami
+terminaba blanco. El probe de OpenMSX mostraba que tras `ld (#8000),4`, la CPU
+leia `#04` desde `#8000`.
+
+Causa:
+La rutina habia copiado los setters de banco Konami de SCREEN 4, pero no la
+rutina previa que mapea `#8000-#BFFF` al mismo slot del cartucho que `#4000`.
+Sin esa seleccion de slot, `ld (#8000),A` escribia RAM en vez del registro del
+mapper, y el decoder RLE leia basura/blancos desde RAM.
+
+Solucion:
+Antes de inicializar los bancos Konami, llamar a una rutina tipo
+`map_page2_to_cart_primary` que usa `RSLREG`, resuelve slot expandido desde
+`#FCC1`, y llama a `ENASLT` con `H=#80`. Despues ya son validos
+`mapper_set_bank_p1/p2/p3`.
+
+Leccion:
+Al portar rutinas MegaROM entre backends, copiar el ciclo completo:
+seleccion de slot del cartucho + inicializacion de bancos + setters. Si un
+probe tras `ld (#8000),A` lee el mismo valor escrito, no hay mapper activo en
+esa pagina; es RAM visible.
+
+---
+
 ## Criterio de Registro
 
 Registrar solo lecciones esenciales de bugs resueltos.
@@ -786,3 +815,168 @@ Si un asset visual se anima en el editor pero no en ROM, verificar primero si
 el generador esta empaquetando todos los frames y si el SAT cambia de grupo de
 patron. En sprites hardware 16x16 MSX2, animar significa cambiar indices de
 patron en saltos de 4; no basta con que el JSON tenga `animations`.
+
+---
+
+## Bug Resuelto (diagnostico): entidades colocadas no estan en screen.data.entities sino en screen.data.layers.entities
+
+Fecha: 2026-06-14
+
+Problema:
+Diagnosticando por que el Bat de `push13.json` no soltaba la bomba, inspeccione
+el JSON y conclui erroneamente que "el enemigo no estaba colocado en la pantalla"
+(0 entidades). El usuario corrigio: el Bat SI estaba colocado y se veia en
+OpenMSX volando.
+
+Causa:
+Al inspeccionar una pantalla MSX2 SCREEN 4 busque las entidades en
+`screen.data.entities` y `screen.data.entityInstances`, claves que NO existen.
+Las entidades colocadas (player/enemy/collectible/etc.) viven en
+`screen.data.layers.entities`. `layers` agrupa varias capas:
+`['collision', 'effects', 'behavior', 'entities']`. Mi script solo miro el nivel
+`data.*` y dio 0 entidades, llevandome a un diagnostico falso.
+
+Solucion:
+Releer el JSON recursivamente buscando la entidad real (`kind:'enemy'`,
+`flyerSine`) la localizo en `assets[N].data.layers.entities[i]`. Con la entidad
+ya encontrada, el diagnostico correcto fue otro (snapshot stale: la entidad
+colocada carecia de `msx2_ai.dropBombOnPlayerX` porque se coloco ANTES de marcar
+el check en el Enemy Config).
+
+Leccion:
+Para inspeccionar entidades colocadas en una pantalla MSX2 SCREEN 4, mirar
+SIEMPRE en `screen.data.layers.entities` (no en `data.entities`). `data.layers`
+contiene las capas collision/effects/behavior/entities. Antes de afirmar "no hay
+X en el JSON", hacer una busqueda RECURSIVA por una propiedad caracteristica del
+objeto buscado (p. ej. `flyerSine`, `kind:'enemy'`) en vez de asumir la ruta de
+la clave. Un grep negativo sobre una ruta concreta no prueba ausencia: prueba que
+no esta en ESA ruta.
+
+---
+
+## Tecnica/Trampa: smoke OpenMSX de ROMs Konami DEBE usar -romtype konami
+
+Fecha: 2026-06-14
+
+Problema:
+Depurando por que el player no podia empujar cajas al activar la bala del bat,
+arranque OpenMSX con `-cart rom` SIN `-romtype konami`. El cache de colision en
+RAM (#C2F0) aparecia lleno de CODIGO/basura en vez del mapa (`00 00 00 01...`),
+el player caia 16px de mas y las cajas reposaban una fila distinta. Conclui
+(erroneamente) que la copia de bancos megarom estaba rota y corrompia la
+colision. Casi persigo un bug inexistente.
+
+Causa:
+El generador emite ROMs MegaROM Konami4 cuyo cambio de banco es `ld (#8000), a`.
+Sin `-romtype konami`, OpenMSX auto-detecta MAL el mapper, asi que `ld (#8000),a`
+no pagina el banco de datos esperado y el `ldir` de screen-load copia bytes del
+banco equivocado (codigo) al cache de colision. El ROM en disco era correcto
+(offset 0x8E10 = `00 00 00 01...`); solo el runtime con mapper mal detectado
+producia basura. Al anadir `-romtype konami`, el cache salia correcto en ambos
+ROMs y el bug real (independiente) se reproducia limpiamente.
+
+Leccion:
+Todo smoke/debug OpenMSX de un ROM generado (MegaROM Konami) DEBE pasar
+`-romtype konami` (`openmsx -machine C-BIOS_MSX2+ -cart rom -romtype konami ...`).
+Sin el, el bank switching `ld (#8000),a` no funciona y veras corrupciones
+FALSAS (caches con codigo, saltos de fila en colision, fisica desplazada) que NO
+son bugs del juego sino del mapper mal detectado. Sintoma delator: un cache de
+RAM que deberia tener datos limpios (`00 00 00 01`) contiene secuencias que
+parecen opcodes (`21 xx C6 11 08 00 19 7E` = ld hl/ld de/add hl,de/ld a,(hl)).
+Antes de culpar a la copia de bancos, verificar: (1) el ROM en disco en el offset
+fisico del label tiene el dato correcto, y (2) el smoke usa el romtype correcto.
+
+---
+
+## Bug Resuelto: framebuffer SCREEN 5 cortado por leer datos ROM desde #8000
+
+Fecha: 2026-06-17
+
+Problema:
+El backend `msx2-screen4-bitmap-room` arrancaba en SCREEN 5 y escribia la parte
+superior del framebuffer, pero desde la linea ~128 la pantalla quedaba blanca.
+Parecia una pared de escritura VRAM en #4000.
+
+Causa:
+La escritura extendida a VRAM #4000 funcionaba. El fallo real era la fuente:
+el framebuffer crudo de 24576 bytes colocaba la segunda mitad del dato en
+direccion Z80 #8000+, y el ROM simple del smoke no garantizaba tener esa mitad
+del cartucho mapeada como lectura de ROM. La rutina leia #FF y escribia blanco
+en la zona inferior, aunque el archivo ROM en disco contuviera los bytes reales.
+
+Solucion:
+Emitir el framebuffer como RLE residente y descomprimirlo a VRAM por chunks de
+16KB, rearmando R#14 por chunk. El dato comprimido del smoke queda en la ventana
+ROM accesible y ya no depende de leer la segunda pagina en #8000.
+
+Leccion:
+Si una escritura a VRAM alta parece fallar, aislar primero destino y fuente:
+probar un micro-ROM que escriba un patron constante en VRAM #4000 y otro que lea
+la fuente desde #8000. Un watchpoint de lectura en #8000 no prueba que el dato sea
+correcto; puede estar leyendo #FF por mapeo. Para recursos grandes en ROM simple,
+usar compresion/staging accesible o un mapper real inicializado, no asumir que
+todo el archivo lineal esta visible en el espacio Z80.
+
+---
+
+## Bug Resuelto: paneles laterales no scrollean por cadena flex sin min-h-0
+
+Fecha: 2026-06-18
+
+Problema:
+En el editor SCREEN 5 (Msx2BitmapScreenEditor) los paneles laterales (asides) tenian
+`overflow-y-auto` pero al crecer su contenido (mas miniventanas) las de abajo quedaban
+ocultas y no aparecia scroll: crecia todo el editor.
+
+Causa:
+El componente `Panel` (components/common/Panel.tsx) envuelve a los hijos en un body por
+defecto `p-2 flex-grow overflow-auto` (bloque, NO flex-col). Ademas el div EXTERNO del
+Panel tenia `flex-grow` pero `min-height:auto` (default de flex), por lo que un flex item
+crece con su contenido en vez de acotarse a la altura disponible. Sin un eslabon acotado,
+los asides nunca recibian una altura tope y su `overflow-y-auto` no se activaba.
+
+Solucion:
+Acotar la cadena de alturas de arriba abajo con `min-h-0` y un body flex-col:
+- Pasar al `Panel` `className="... flex-grow flex flex-col min-h-0"` Y
+  `bodyClassName="flex-grow flex flex-col min-h-0 overflow-hidden"`.
+- La fila de columnas: `flex flex-grow min-h-0 overflow-hidden`; cada aside con
+  `overflow-y-auto`. El root del area de editores debe colgar de un contenedor acotado
+  (h-screen / min-h-0 en cada nivel intermedio).
+
+Leccion:
+Para que un `overflow-y-auto` scrollee, TODA la cadena de ancestros flex hasta el viewport
+debe estar acotada: cada flex item que a su vez es contenedor flex necesita `min-h-0`
+(porque `min-height:auto` impide encogerse). El `Panel` por defecto NO crea una columna
+flex acotada: hay que pasarle `bodyClassName` flex-col + `min-h-0`. Sintoma: contenido que
+crece y "empuja" en vez de scrollear.
+
+Variante (mismo dia): mapear clic de canvas a celda SIEMPRE por el tamano renderizado real
+(`rect.width/height`), NUNCA dividiendo por `zoom`. Un `<canvas>` sin tamano CSS explicito
+dentro de un flex con `align-items: stretch` se deforma; dar al canvas width/height CSS
+explicitos (= bitmap*zoom) + `flex:'0 0 auto'` + `alignSelf:'flex-start'`.
+
+---
+
+## Bug Resuelto: player SCREEN 5 bitmap sin paridad de runtime
+
+Fecha: 2026-06-19
+
+Problema:
+El player colocado en el editor beta SCREEN 5 bitmap se veia, pero no animaba y
+el backend no respetaba el contrato esperado de player tipo SCREEN 4.
+
+Causa:
+El backend `msx2-screen4-bitmap-room` era fase 1: empaquetaba solo el frame 0 del
+sprite, mantenia `player_pat` fijo, no generaba patrones mirror, y usaba movimiento
+libre arriba/abajo en vez de fisica de plataforma contra la tabla foreground 16x12.
+
+Solucion:
+Resolver el `msx2player` enlazado desde `playerEntries`, empaquetar frames y mirror
+del `msx2sprite`, actualizar `player_pat` por frame/facing, y usar movimiento de
+plataforma basico con gravedad, salto y probes contra la tabla de colision de 192 bytes.
+
+Leccion:
+Un backend grafico nuevo no hereda automaticamente el contrato del player de SCREEN 4.
+Cada backend jugable debe portar explicitamente: fuente real del sprite, frames, mirror,
+RAM de estado, fisica, input y colision foreground. Un smoke debe probar RAM/SAT/patron,
+no solo que el sprite aparece en una captura.

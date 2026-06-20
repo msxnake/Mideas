@@ -1,7 +1,13 @@
-import { Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2Screen4BitmapRoom, Screen5PaletteSlot } from '../../../../types';
+import { Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen4BitmapRoom, Msx2Sprite, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
+import {
+  buildHardwareSpriteLayersForFrame,
+  getFirstReferencedMsx2Sprite,
+  getMsx2PlayerAssetRecords,
+  resolveMsx2SpriteById,
+} from './msx2Screen4Generator';
 
 interface Msx2BitmapRoomConfig {
   screenMode: 'SCREEN 4 (Graphics II)';
@@ -36,6 +42,9 @@ const OP_COPY_16 = 4;
 
 const VDP_CMD_BLOCK_SIZE = 15;
 const VRAM_BANK_BYTES = 0x4000;
+const ROM_DATA_BANK_BYTES = 0x2000;
+const BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK = 4;
+const RLE_ROM_CHUNK_MAX_BYTES = 0x1f00;
 
 const clampByte = (value: unknown, fallback = 0): number => {
   const numeric = Number(value);
@@ -68,6 +77,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
     width: SCREEN_WIDTH,
     height,
     palette: Array.isArray(room?.palette) ? room!.palette : [],
+    backgroundColor: clampByte(room?.backgroundColor, 0) & 0x0f,
     atlas: {
       width: atlasWidth,
       height: atlasHeight,
@@ -161,7 +171,8 @@ function copyTileGrid(screen: number[][], atlasPixels: number[][], room: Msx2Scr
 function renderRoomToPixels(room: Msx2Screen4BitmapRoom): number[][] {
   const height = room.height || SCREEN_HEIGHT_DEFAULT;
   const atlasPixels = normalizeAtlasPixels(room);
-  const screen = Array.from({ length: height }, () => Array.from({ length: SCREEN_WIDTH }, () => 0));
+  const backgroundColor = clampByte(room.backgroundColor, 0) & 0x0f;
+  const screen = Array.from({ length: height }, () => Array.from({ length: SCREEN_WIDTH }, () => backgroundColor));
   const shouldUseTileGrid = Array.isArray(room.tileGrid);
   for (const command of room.composition.commands || []) {
     if (shouldUseTileGrid && command.op === 'copy') continue;
@@ -495,6 +506,7 @@ interface RleChunk {
   vramOffset: number;
   rawLength: number;
   bytes: number[];
+  dataBank?: number;
 }
 
 function rleEncodeBytes(bytes: number[]): number[] {
@@ -520,26 +532,146 @@ function buildRleChunksForVram(bytes: number[], vramBaseOffset: number, labelPre
     const remainingInBank = VRAM_BANK_BYTES - (absoluteVramOffset % VRAM_BANK_BYTES);
     const rawLength = Math.min(remainingInBank, bytes.length - offset);
     const raw = bytes.slice(offset, offset + rawLength);
-    chunks.push({
-      label: `${labelPrefix}_${chunks.length}`,
-      vramOffset: absoluteVramOffset,
-      rawLength: raw.length,
-      bytes: rleEncodeBytes(raw),
-    });
+
+    let rawOffset = 0;
+    let chunkStartRawOffset = 0;
+    let chunkBytes: number[] = [];
+    let chunkRawLength = 0;
+    const flushChunk = () => {
+      if (!chunkBytes.length) return;
+      chunks.push({
+        label: `${labelPrefix}_${chunks.length}`,
+        vramOffset: absoluteVramOffset + chunkStartRawOffset,
+        rawLength: chunkRawLength,
+        bytes: chunkBytes,
+      });
+      chunkStartRawOffset = rawOffset;
+      chunkBytes = [];
+      chunkRawLength = 0;
+    };
+
+    while (rawOffset < raw.length) {
+      const value = raw[rawOffset] & 0xff;
+      let count = 1;
+      rawOffset++;
+      while (rawOffset < raw.length && (raw[rawOffset] & 0xff) === value && count < 255) {
+        count++;
+        rawOffset++;
+      }
+      if (chunkBytes.length + 2 > RLE_ROM_CHUNK_MAX_BYTES) {
+        rawOffset -= count;
+        flushChunk();
+        continue;
+      }
+      chunkBytes.push(count, value);
+      chunkRawLength += count;
+    }
+    flushChunk();
     offset += rawLength;
   }
   return chunks;
 }
 
-function buildRleUploadAsm(rleChunks: RleChunk[]): string {
+function buildRleUploadAsm(rleChunks: RleChunk[], banked: boolean): string {
   const lines: string[] = [];
   for (const chunk of rleChunks) {
+    if (banked) {
+      lines.push(`    ld a, ${chunk.label}_DATA_BANK`);
+      lines.push(`    call bitmap_room_select_data_bank_a`);
+    }
     lines.push(`    ld hl, ${chunk.label}`);
     lines.push(`    ld de, ${hexWord(chunk.vramOffset)}`);
     lines.push(`    ld bc, ${chunk.label}_end - ${chunk.label}`);
     lines.push(`    call decompress_bitmap_rle_to_vram`);
   }
+  if (banked) {
+    lines.push(`    call bitmap_room_restore_resident_banks`);
+  }
   lines.push(`    ret`);
+  return lines.join('\n');
+}
+
+interface BankedDataBlock {
+  label: string;
+  bytes: number[];
+  description: string;
+}
+
+interface PackedDataBank {
+  bank: number;
+  used: number;
+  blocks: BankedDataBlock[];
+}
+
+function buildBankedRleDataBlocks(chunks: RleChunk[], description: string): BankedDataBlock[] {
+  return chunks.map(chunk => ({
+    label: chunk.label,
+    bytes: chunk.bytes,
+    description: `${description}; VRAM ${hexWord(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`,
+  }));
+}
+
+function packBitmapRoomDataBanks(blocks: BankedDataBlock[]): PackedDataBank[] {
+  const banks: PackedDataBank[] = [];
+  let current: PackedDataBank | undefined;
+  for (const block of blocks) {
+    if (block.bytes.length > ROM_DATA_BANK_BYTES) {
+      throw new Error(`Bitmap-room data block ${block.label} is ${block.bytes.length} bytes and exceeds one 8KB MegaROM bank`);
+    }
+    if (!current || current.used + block.bytes.length > ROM_DATA_BANK_BYTES) {
+      current = {
+        bank: BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK + banks.length,
+        used: 0,
+        blocks: [],
+      };
+      banks.push(current);
+    }
+    current.blocks.push(block);
+    current.used += block.bytes.length;
+  }
+  return banks;
+}
+
+function assignDataBankConstants(banks: PackedDataBank[], chunks: RleChunk[]): void {
+  const chunkByLabel = new Map(chunks.map(chunk => [chunk.label, chunk]));
+  for (const bank of banks) {
+    for (const block of bank.blocks) {
+      const chunk = chunkByLabel.get(block.label);
+      if (chunk) chunk.dataBank = bank.bank;
+    }
+  }
+}
+
+function formatDataBankEquates(chunks: RleChunk[]): string {
+  const lines: string[] = [];
+  for (const chunk of chunks) {
+    if (chunk.dataBank !== undefined) {
+      lines.push(`${chunk.label}_DATA_BANK EQU ${chunk.dataBank}`);
+    }
+  }
+  return lines.length ? `${lines.join('\n')}\n` : '';
+}
+
+function formatBankedDataBanks(banks: PackedDataBank[]): string {
+  if (!banks.length) return '';
+  const lines: string[] = ['; --- SCREEN 5 bitmap-room Konami MegaROM data banks ---'];
+  for (const bank of banks) {
+    lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_PHYS_START:`);
+    lines.push(`    org #8000`);
+    lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_ROM_START:`);
+    for (const block of bank.blocks) {
+      lines.push(`; ${block.description}`);
+      lines.push(`${block.label}:`);
+      for (let offset = 0; offset < block.bytes.length; offset += 16) {
+        lines.push(`    DB ${block.bytes.slice(offset, offset + 16).map(hexByte).join(',')}`);
+      }
+      lines.push(`${block.label}_end:`);
+      lines.push('');
+    }
+    lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_USED_END:`);
+    lines.push(`    ds #A000 - $, #FF`);
+    lines.push('');
+  }
   return lines.join('\n');
 }
 
@@ -578,11 +710,98 @@ function buildRuntimeAsm(
   room: Msx2Screen4BitmapRoom,
   commandCount: number,
   rleChunks: RleChunk[],
-  hudSeedRleChunks: RleChunk[]
+  hudSeedRleChunks: RleChunk[],
+  playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right' },
+  options: { bankedRle: boolean }
 ): string {
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
-  const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks);
-  const framebufferUploadAsm = buildRleUploadAsm(rleChunks);
+  const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
+  const framebufferUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
+  const shouldEmitPlayerPatternUpdate = playerAnimation.frameCount > 1 || playerAnimation.mirror;
+  const mirrorPatternOffset = playerAnimation.frameCount * 4;
+  const mirrorSelectionAsm = playerAnimation.mirror && playerAnimation.authoredFacing === 'right'
+    ? `    ld b, a
+    ld a, (player_facing)
+    or a
+    ld a, b
+    jp nz, .store_player_pattern
+    add a, ${mirrorPatternOffset}
+`
+    : playerAnimation.mirror && playerAnimation.authoredFacing === 'left'
+      ? `    ld b, a
+    ld a, (player_facing)
+    or a
+    ld a, b
+    jp z, .store_player_pattern
+    add a, ${mirrorPatternOffset}
+`
+      : '';
+  const playerAnimationAsm = shouldEmitPlayerPatternUpdate ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_player_sprite_animation
+; ------------------------------------------------------------
+; PURPOSE:
+;   Advance the SCREEN 5 bitmap-room player hardware sprite frame and update
+;   the SAT pattern index used by bitmap_update_sprite_sat.
+;
+; INPUT:
+;   player_anim_counter = frame-delay counter.
+;   player_anim_frame   = current logical animation frame.
+;   player_moving       = 1 when horizontal input moved the player this frame.
+;
+; OUTPUT:
+;   player_pat updated to the V9938 16x16 pattern group for the current frame.
+;
+; DESTROYS:
+;   AF.
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Reads player_moving and writes player_anim_counter, player_anim_frame and
+;   player_pat in RAM.
+;
+; NOTES:
+;   V9938 16x16 sprites consume four 8x8 patterns per frame, so the SAT pattern
+;   index advances by frame * 4. Stack is not used.
+; ------------------------------------------------------------
+bitmap_update_player_sprite_animation:
+${playerAnimation.frameCount > 1 ? `    ld a, (player_moving)
+    or a
+    jp nz, .player_anim_active
+    xor a
+    ld (player_anim_counter), a
+    ld (player_anim_frame), a
+    jp .refresh_player_pattern
+.player_anim_active:
+    ld a, (player_anim_counter)
+    inc a
+    cp ${playerAnimation.delayFrames}
+    jp nc, .advance_player_anim_frame
+    ld (player_anim_counter), a
+    jp .refresh_player_pattern
+.advance_player_anim_frame:
+    xor a
+    ld (player_anim_counter), a
+    ld a, (player_anim_frame)
+    inc a
+    cp ${playerAnimation.frameCount}
+    jp c, .store_player_anim_frame
+    xor a
+.store_player_anim_frame:
+    ld (player_anim_frame), a
+` : ''}.refresh_player_pattern:
+    ld a, (player_anim_frame)
+    add a, a
+    add a, a
+${mirrorSelectionAsm}.store_player_pattern:
+    ld (player_pat), a
+    ret
+` : '';
 
   return `
 ; --- V9938 bitmap SCREEN 4 runtime (Vampire Killer style) ---
@@ -629,6 +848,285 @@ init_plain32k_page2_slot:
     or c
     out (PPI_A), a
     ret
+
+; ------------------------------------------------------------
+; FUNCTION: map_page2_to_cart_primary
+; ------------------------------------------------------------
+; PURPOSE:
+;   Map #8000-#BFFF to the same cartridge slot currently used by #4000-#7FFF.
+;
+; INPUT:
+;   Current ROM is executing from the cartridge slot in page 1 (#4000).
+;
+; OUTPUT:
+;   Page 2 (#8000-#BFFF) is switched to the cartridge slot.
+;
+; DESTROYS:
+;   AF, BC, HL.
+;
+; PRESERVES:
+;   DE, IX, IY.
+;
+; CALLS:
+;   RSLREG, get_cart_slot_value, ENASLT.
+;
+; SIDE EFFECTS:
+;   Changes the active slot for #8000-#BFFF.
+;
+; NOTES:
+;   Required before Konami mapper writes. Without this, ld (#8000),A writes RAM
+;   instead of the cartridge mapper register on machines where page 2 still
+;   points to RAM after boot. Stack use is only the BIOS CALL/RET nesting.
+; ------------------------------------------------------------
+map_page2_to_cart_primary:
+    call RSLREG
+    rrca
+    rrca
+    call get_cart_slot_value
+    ld h, #80
+    jp ENASLT
+
+; ------------------------------------------------------------
+; FUNCTION: get_cart_slot_value
+; ------------------------------------------------------------
+; PURPOSE:
+;   Convert primary slot bits into the ENASLT slot descriptor, including
+;   expanded-slot secondary bits when the cartridge slot is expanded.
+;
+; INPUT:
+;   A bits 0-1 = primary slot id for the cartridge page.
+;
+; OUTPUT:
+;   A = ENASLT slot descriptor for the same slot.
+;
+; DESTROYS:
+;   AF, BC, HL.
+;
+; PRESERVES:
+;   DE, IX, IY.
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Reads BIOS expanded slot table at #FCC1.
+;
+; NOTES:
+;   Mirrors the SCREEN 4 MegaROM slot setup. PUSH/POP are not used.
+; ------------------------------------------------------------
+get_cart_slot_value:
+    and #03
+    ld c, a
+    ld b, 0
+    ld hl, #FCC1
+    add hl, bc
+    ld a, (hl)
+    and #80
+    jp z, .slot_ready
+    or c
+    ld c, a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    ld a, (hl)
+    and #0C
+.slot_ready:
+    or c
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: init_konami8k_fixed_bank0_banks
+; ------------------------------------------------------------
+; PURPOSE:
+;   Initialize a Konami 8KB MegaROM with bank 0 fixed at #4000 and the
+;   resident startup banks mapped in #6000/#8000/#A000.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF.
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   mapper_set_bank_p1, mapper_set_bank_p2, mapper_set_bank_p3.
+;
+; SIDE EFFECTS:
+;   Writes Konami mapper registers #6000, #8000 and #A000.
+;
+; NOTES:
+;   Stack is not used here. Bank 0 remains fixed by the cartridge mapper.
+; ------------------------------------------------------------
+init_konami8k_fixed_bank0_banks:
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    jp mapper_set_bank_p3
+
+; ------------------------------------------------------------
+; FUNCTION: mapper_set_bank_p1
+; ------------------------------------------------------------
+; PURPOSE:
+;   Select the physical Konami 8KB bank visible at #6000-#7FFF.
+;
+; INPUT:
+;   A = physical bank number.
+;
+; OUTPUT:
+;   A unchanged.
+;
+; DESTROYS:
+;   None.
+;
+; PRESERVES:
+;   AF, BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes Konami mapper register #6000.
+;
+; NOTES:
+;   No PUSH/POP. LD (nn),A does not modify flags.
+; ------------------------------------------------------------
+mapper_set_bank_p1:
+    ld (#6000), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: mapper_set_bank_p2
+; ------------------------------------------------------------
+; PURPOSE:
+;   Select the physical Konami 8KB bank visible at #8000-#9FFF.
+;
+; INPUT:
+;   A = physical bank number.
+;
+; OUTPUT:
+;   A unchanged.
+;
+; DESTROYS:
+;   None.
+;
+; PRESERVES:
+;   AF, BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes Konami mapper register #8000.
+;
+; NOTES:
+;   P2 is the bitmap-room data read window for banked RLE sources.
+; ------------------------------------------------------------
+mapper_set_bank_p2:
+    ld (#8000), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: mapper_set_bank_p3
+; ------------------------------------------------------------
+; PURPOSE:
+;   Select the physical Konami 8KB bank visible at #A000-#BFFF.
+;
+; INPUT:
+;   A = physical bank number.
+;
+; OUTPUT:
+;   A unchanged.
+;
+; DESTROYS:
+;   None.
+;
+; PRESERVES:
+;   AF, BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes Konami mapper register #A000.
+;
+; NOTES:
+;   Present for symmetry with the fixed-bank0 SCREEN 4 MegaROM runtime.
+; ------------------------------------------------------------
+mapper_set_bank_p3:
+    ld (#A000), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_room_select_data_bank_a
+; ------------------------------------------------------------
+; PURPOSE:
+;   Map one bitmap-room data bank into the P2 #8000 read window.
+;
+; INPUT:
+;   A = physical data bank number.
+;
+; OUTPUT:
+;   A unchanged.
+;
+; DESTROYS:
+;   None.
+;
+; PRESERVES:
+;   AF, BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   mapper_set_bank_p2.
+;
+; SIDE EFFECTS:
+;   Changes which ROM bank is readable at #8000-#9FFF.
+;
+; NOTES:
+;   Call this before loading HL with a banked data label. Stack is not used.
+; ------------------------------------------------------------
+bitmap_room_select_data_bank_a:
+    jp mapper_set_bank_p2
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_room_restore_resident_banks
+; ------------------------------------------------------------
+; PURPOSE:
+;   Restore the resident physical banks after banked resource uploads.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF.
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   mapper_set_bank_p2, mapper_set_bank_p3.
+;
+; SIDE EFFECTS:
+;   Restores P2=#8000 to physical bank 2 and P3=#A000 to physical bank 3.
+;
+; NOTES:
+;   Keeps gameplay reads from resident tables deterministic after loading
+;   large SCREEN 5 bitmap RLE resources. Stack is not used.
+; ------------------------------------------------------------
+bitmap_room_restore_resident_banks:
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    jp mapper_set_bank_p3
 
 vdp_write_register:
     ; A=register, E=value. Preserves BC, clobbers AF.
@@ -801,6 +1299,11 @@ init_screen4_bitmap_vdp:
     ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
     ld a, #05
     call CHGMOD
+    ; Enable 16x16 hardware sprites (R#1 bit1 = SI). CHGMOD 5 leaves R#1=#60 (8x8),
+    ; which would render only the top-left 8x8 quadrant of the 16x16 player pattern.
+    ld a, #01
+    ld e, #62
+    call vdp_write_register
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
     ld a, #05
     ld e, #EF
@@ -946,45 +1449,123 @@ bitmap_wait_vblank:
     ret
 
 update_player_movement:
-    ; Cursor movement (1px/frame) with 16x16-cell collision. Reads keyboard
-    ; row 8 directly via SNSMAT (a 0 bit means pressed): bit7=right, bit6=down,
-    ; bit5=up, bit4=left. SNSMAT works without frame interrupts, unlike GTSTCK.
-    ; Clobbers AF/BC/DE/HL.
-    ld a, 8
-    call SNSMAT
+    ; Platform movement with 16x16-cell foreground collision. Reads keyboard row 8
+    ; directly via PPI (pressed bit = 1 after CPL): bit7=right, bit5=up,
+    ; bit4=left, bit0=SPACE. Clobbers AF/BC/DE/HL.
+    ; Read keyboard row 8 (cursor keys) DIRECTLY via the PPI, not via BIOS SNSMAT.
+    ; SNSMAT (a BIOS call) stalled the DI cartridge loop far below 60Hz (PC parked in
+    ; BIOS) AND let the BIOS reset the VDP (R#1 back to 8x8 sprites) every frame.
+    in a, (PPI_C)
+    and #F0                 ; preserve CAPS LED / cassette / key-click bits
+    or 8                    ; select keyboard row 8 in the low nibble
+    out (PPI_C), a
+    in a, (PPI_B)           ; row 8 data (0 = key pressed)
     cpl                     ; now a set bit means that key is pressed
     ld c, a                 ; C = pressed mask for keyboard row 8
+    xor a
+    ld (player_moving), a
 bitmap_stick_dx:
     bit 7, c
     jp z, .not_right
     ld a, 1
+    ld (player_facing), a
+    ld (player_moving), a
+    ld a, 2                 ; player speed: 2px/frame (was 1 -> felt sluggish)
     push bc
     call bitmap_try_move_x
     pop bc
-    jp .check_vert
+    jp .check_jump
 .not_right:
     bit 4, c
-    jp z, .check_vert
-    ld a, #FF
+    jp z, .check_jump
+    xor a
+    ld (player_facing), a
+    inc a
+    ld (player_moving), a
+    ld a, #FE              ; -2px/frame (left)
     push bc
     call bitmap_try_move_x
     pop bc
-.check_vert:
-    bit 6, c
-    jp z, .not_down
-    ld a, 1
-    jp bitmap_try_move_y
-.not_down:
+.check_jump:
+    bit 0, c
+    jp nz, .jump_pressed
     bit 5, c
+    jp z, .jump_released
+.jump_pressed:
+    ld a, (player_jump_lock)
+    or a
+    jp nz, .apply_gravity
+    ld a, (player_flags)
+    and #01
+    jp z, .apply_gravity
+    ld a, #FA              ; -6 px/frame initial jump velocity
+    ld (player_vy), a
+    ld a, (player_flags)
+    and #FE
+    ld (player_flags), a
+    ld a, 1
+    ld (player_jump_lock), a
+    jp .apply_gravity
+.jump_released:
+    xor a
+    ld (player_jump_lock), a
+.apply_gravity:
+    ld a, (player_vy)
+    cp 6
+    jp z, .apply_vertical_velocity
+    inc a
+    ld (player_vy), a
+.apply_vertical_velocity:
+    ld a, (player_vy)
+    or a
     ret z
-    ld a, #FF
-    jp bitmap_try_move_y
+    bit 7, a
+    jp z, .falling
+    neg
+    ld b, a
+    ld c, #FF
+    jp .vertical_step_loop
+.falling:
+    ld a, (player_flags)
+    and #FE
+    ld (player_flags), a
+    ld a, (player_vy)
+    ld b, a
+    ld c, #01
+.vertical_step_loop:
+    ld a, c
+    push bc
+    call bitmap_try_move_y
+    pop bc
+    jp c, .vertical_blocked
+    djnz .vertical_step_loop
+    ret
+.vertical_blocked:
+    xor a
+    ld (player_vy), a
+    bit 7, c
+    ret nz
+    ld a, (player_flags)
+    or #01
+    ld (player_flags), a
+    ret
+
+${playerAnimationAsm}
 
 bitmap_try_move_x:
-    ; A = signed dx (#01 right, #FF left). Commits player_x when the leading
-    ; edge (probed at vertical centre y+8) is not a solid cell. The candidate is
-    ; kept on the stack because bitmap_probe_solid clobbers DE (keeps only BC).
+    ; A = signed dx. Commits player_x when the leading edge is not solid.
+    ; Probes top and bottom of the 16x16 body. Clobbers AF/BC/DE/HL.
     ld b, a
+    ld a, (player_x)
+    bit 7, b
+    jp z, .check_right_bounds
+    cp 2
+    ret c
+    jp .x_bounds_ok
+.check_right_bounds:
+    cp 239
+    ret nc
+.x_bounds_ok:
     ld a, (player_x)
     add a, b                ; A = candidate X (top-left)
     push af                 ; save candidate across the probe
@@ -994,8 +1575,13 @@ bitmap_try_move_x:
 .left_edge:
     ld b, a                 ; B = probe X (left edge keeps the candidate X)
     ld a, (player_y)
-    add a, 8
-    ld c, a                 ; C = probe Y (vertical centre)
+    inc a
+    ld c, a                 ; C = probe Y (top inset)
+    call bitmap_probe_solid
+    jp nz, .x_blocked
+    ld a, (player_y)
+    add a, 15
+    ld c, a                 ; C = probe Y (bottom)
     call bitmap_probe_solid
     jp nz, .x_blocked
     pop af                  ; A = candidate X
@@ -1006,9 +1592,8 @@ bitmap_try_move_x:
     ret
 
 bitmap_try_move_y:
-    ; A = signed dy (#01 down, #FF up). Commits player_y when the leading edge
-    ; (probed at horizontal centre x+8) is not a solid cell. Candidate kept on
-    ; the stack (bitmap_probe_solid clobbers DE).
+    ; A = signed single-pixel dy (#01 down, #FF up). Commits player_y when the
+    ; leading edge is not solid. Carry set on blocked. Clobbers AF/BC/DE/HL.
     ld b, a
     ld a, (player_y)
     add a, b                ; A = candidate Y (top-left)
@@ -1019,15 +1604,22 @@ bitmap_try_move_y:
 .up_edge:
     ld c, a                 ; C = probe Y (top edge keeps the candidate Y)
     ld a, (player_x)
-    add a, 8
-    ld b, a                 ; B = probe X (horizontal centre)
+    inc a
+    ld b, a                 ; B = probe X (left inset)
+    call bitmap_probe_solid
+    jp nz, .y_blocked
+    ld a, (player_x)
+    add a, 14
+    ld b, a                 ; B = probe X (right inset)
     call bitmap_probe_solid
     jp nz, .y_blocked
     pop af                  ; A = candidate Y
     ld (player_y), a
+    or a                    ; clear carry
     ret
 .y_blocked:
     pop af
+    scf
     ret
 
 bitmap_probe_solid:
@@ -1124,25 +1716,144 @@ bitmap_update_sprite_sat:
 `;
 }
 
-function buildSpriteTables(): { colors: number[]; attrs: number[]; patterns: number[] } {
-  const colors = Array.from({ length: 16 }, () => 0x01);
+// Placeholder blob sprite (a diamond) used only when no configured player
+// sprite can be resolved from the project.
+const PLACEHOLDER_SPRITE_COLORS = Array.from({ length: 16 }, () => 0x01);
+const PLACEHOLDER_SPRITE_PATTERNS = [
+  0x3C, 0x7E, 0xFF, 0xFF, 0xFF, 0xFF, 0x7E, 0x3C,
+  0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
+  0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x3C, 0x7E, 0xFF, 0xFF, 0xFF, 0xFF, 0x7E, 0x3C,
+  0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
+  0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const BITMAP_ROOM_DEFAULT_SPRITE_COLOR = 15;
+
+// Resolve the configured player's 16x16 render sprite for the bitmap room.
+// Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
+// else first msx2player asset's render sprite; else first referenced msx2sprite.
+function resolveBitmapRoomPlayerSprite(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Msx2Sprite | undefined {
+  const playerRecords = getMsx2PlayerAssetRecords(analysis);
+
+  const referenceIds = new Set<string>();
+  for (const entry of room.playerEntries || []) {
+    const playerId = String((entry as any)?.playerId || '').trim();
+    if (playerId) referenceIds.add(playerId);
+  }
+
+  const resolveFromPlayer = (player: Partial<Msx2PlayerDefinition> | undefined): Msx2Sprite | undefined => {
+    const spriteAssetId = String(player?.render?.spriteAssetId || '').trim();
+    return spriteAssetId ? resolveMsx2SpriteById(analysis, spriteAssetId) : undefined;
+  };
+
+  // 1) Explicit playerId reference from the room.
+  if (referenceIds.size) {
+    const referenced = playerRecords.find(record =>
+      referenceIds.has(record.assetId) || referenceIds.has(record.playerId) || referenceIds.has(record.name)
+    );
+    const sprite = resolveFromPlayer(referenced?.player);
+    if (sprite) return sprite;
+  }
+
+  // 2) First msx2player asset's render sprite.
+  for (const record of playerRecords) {
+    const sprite = resolveFromPlayer(record.player);
+    if (sprite) return sprite;
+  }
+
+  // 3) Any referenced msx2sprite in the project.
+  return getFirstReferencedMsx2Sprite(analysis);
+}
+
+function getBitmapRoomSpriteFrameIndices(sprite: Msx2Sprite | undefined): number[] {
+  if (!sprite?.frames?.length) return [0];
+  const indices = sprite.frames
+    .map((_frame, index) => index)
+    .filter(index => Array.isArray(sprite.frames?.[index]?.data) && sprite.frames[index].data.length > 0);
+  return (indices.length ? indices : [0]).slice(0, 8);
+}
+
+function getBitmapRoomSpriteAnimationDelayFrames(sprite: Msx2Sprite | undefined): number {
+  const speedMs = Number(sprite?.animationSpeedMs);
+  if (!Number.isFinite(speedMs) || speedMs <= 0) return 8;
+  return Math.max(1, Math.min(255, Math.round(speedMs / (1000 / 60))));
+}
+
+function reverseSpritePatternByte(value: number): number {
+  let result = 0;
+  for (let bit = 0; bit < 8; bit++) {
+    if (value & (1 << bit)) result |= 0x80 >> bit;
+  }
+  return result;
+}
+
+function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
+  const topLeft = pattern.slice(0, 8);
+  const bottomLeft = pattern.slice(8, 16);
+  const topRight = pattern.slice(16, 24);
+  const bottomRight = pattern.slice(24, 32);
+  return [
+    ...topRight.map(reverseSpritePatternByte),
+    ...bottomRight.map(reverseSpritePatternByte),
+    ...topLeft.map(reverseSpritePatternByte),
+    ...bottomLeft.map(reverseSpritePatternByte),
+  ];
+}
+
+function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; attrs: number[]; patterns: number[]; usedConfigured: boolean; frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right' } {
+  // sprite 0 = player (Y,X overwritten each frame by bitmap_update_sprite_sat),
+  // pattern index 0. sprite 1 Y=#D8 stops further sprite processing.
   const attrs = [
-    0x60, 0x80, 0x00, 0x00, // sprite 0: player (Y,X overwritten each frame), pattern 0
-    0xD8, 0x00, 0x00, 0x00, // Y=#D8 stops sprite processing, so only sprite 0 shows
+    0x60, 0x80, 0x00, 0x00,
+    0xD8, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00,
   ];
-  const patterns = [
-    0x3C, 0x7E, 0xFF, 0xFF, 0xFF, 0xFF, 0x7E, 0x3C,
-    0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
-    0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x3C, 0x7E, 0xFF, 0xFF, 0xFF, 0xFF, 0x7E, 0x3C,
-    0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
-    0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  ];
-  return { colors, attrs, patterns };
+
+  if (sprite) {
+    // V9938 sprite mode 2: 32-byte pattern (four 8x8 quadrants) + 16 line colors.
+    // Reuse the SCREEN 4 converter; emit every authored frame, primary (first) color layer.
+    const frameIndices = getBitmapRoomSpriteFrameIndices(sprite);
+    const frameLayers = frameIndices
+      .map(frameIndex => buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)[0])
+      .filter((layer): layer is NonNullable<typeof layer> => Boolean(layer && Array.isArray(layer.pattern) && layer.pattern.length === 32));
+    const primary = frameLayers[0];
+    if (primary && Array.isArray(primary.pattern) && primary.pattern.length === 32) {
+      const authoredFacing = sprite.facingDirection === 'left' || sprite.facingDirection === 'right'
+        ? sprite.facingDirection
+        : undefined;
+      const basePatterns = frameLayers.flatMap(layer => layer.pattern.map(value => value & 0xff));
+      const mirrorPatterns = authoredFacing
+        ? frameLayers.flatMap(layer => mirrorHardwareSpritePatternHorizontally(layer.pattern).map(value => value & 0xff))
+        : [];
+      const colors = (primary.colors || []).slice(0, 16);
+      while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+      return {
+        colors: colors.map(value => value & 0xff),
+        attrs,
+        patterns: [...basePatterns, ...mirrorPatterns],
+        usedConfigured: true,
+        frameCount: Math.max(1, frameLayers.length),
+        delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite),
+        mirror: Boolean(authoredFacing),
+        authoredFacing,
+      };
+    }
+  }
+
+  // Fallback: the original placeholder blob.
+  return {
+    colors: PLACEHOLDER_SPRITE_COLORS.slice(),
+    attrs,
+    patterns: PLACEHOLDER_SPRITE_PATTERNS.slice(),
+    usedConfigured: false,
+    frameCount: 1,
+    delayFrames: 8,
+    mirror: false,
+  };
 }
 
 const COLLISION_COLS = 16;
@@ -1161,9 +1872,10 @@ function buildCollisionTableBytes(room: Msx2Screen4BitmapRoom): number[] {
 function resolvePlayerSpawnPixels(room: Msx2Screen4BitmapRoom): { x: number; y: number; visible: boolean } {
   const entry = (room.playerEntries || [])[0];
   if (!entry) return { x: 0, y: 0xD8, visible: false };
-  const tileX = clampInt(entry?.x, 0, COLLISION_COLS - 1, 1);
-  const tileY = clampInt(entry?.y, 0, COLLISION_ROWS - 1, 1);
-  return { x: tileX * 16, y: tileY * 16, visible: true };
+  // playerEntries store PIXEL coordinates (0..255 / 0..191), NOT tile coords.
+  const x = clampInt(entry?.x, 0, 255, 32);
+  const y = clampInt(entry?.y, 0, 191, 128);
+  return { x, y, visible: true };
 }
 
 function appendRectBytes(bytes: number[], x: number, y: number, w: number, h: number, color: number): void {
@@ -1196,6 +1908,10 @@ function buildVisibleRectBytes(room: Msx2Screen4BitmapRoom): number[] {
 }
 
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2BitmapRoomConfig): string {
+  const isKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
+  if (config.romMode === 'megarom' && config.targetFormat !== 'konami') {
+    throw new Error(`MSX2 bitmap-room MegaROM currently supports Konami mapper only, got ${config.targetFormat}`);
+  }
   const room = normalizeRoom(firstBitmapRoom(analysis));
   const collisionBytes = buildCollisionTableBytes(room);
   const spawn = resolvePlayerSpawnPixels(room);
@@ -1210,8 +1926,37 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   );
   const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis));
   const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
-  const spriteTables = buildSpriteTables();
-  const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks, hudSeedRleChunks);
+  const allRleChunks = [...hudSeedRleChunks, ...framebufferRleChunks];
+  const bankedDataBlocks = isKonamiMegaRom
+    ? [
+      ...buildBankedRleDataBlocks(hudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`),
+      ...buildBankedRleDataBlocks(framebufferRleChunks, `Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer, packed 4bpp RLE`),
+    ]
+    : [];
+  const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
+  if (isKonamiMegaRom) assignDataBankConstants(bankedDataBanks, allRleChunks);
+  const bankedDataEquates = isKonamiMegaRom ? formatDataBankEquates(allRleChunks) : '';
+  const bankedDataAsm = isKonamiMegaRom ? formatBankedDataBanks(bankedDataBanks) : '';
+  const hudSeedDataAsm = isKonamiMegaRom
+    ? `; Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed is emitted in Konami MegaROM data banks below.\n`
+    : formatRleChunks(hudSeedRleChunks, hudSeedBytes.length, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`);
+  const framebufferDataAsm = isKonamiMegaRom
+    ? `; Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer RLE is emitted in Konami MegaROM data banks below.\n`
+    : formatRleChunks(framebufferRleChunks, framebufferBytes.length, `Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer, packed 4bpp RLE, destination VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}`);
+  const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
+  const spriteTables = buildSpriteTables(playerSprite);
+  const spriteSourceLabel = spriteTables.usedConfigured
+    ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
+    : 'placeholder fallback (no configured player sprite resolvable)';
+  const runtimeAsm = buildRuntimeAsm(room, 0, framebufferRleChunks, hudSeedRleChunks, {
+    frameCount: spriteTables.frameCount,
+    delayFrames: spriteTables.delayFrames,
+    mirror: spriteTables.mirror,
+    authoredFacing: spriteTables.authoredFacing,
+  }, { bankedRle: isKonamiMegaRom });
+  const playerAnimationUpdateCall = (spriteTables.frameCount > 1 || spriteTables.mirror)
+    ? '    call bitmap_update_player_sprite_animation\n'
+    : '';
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
   const hudWidgetCount = room.runtime?.showHud === false || room.runtime?.hideHud === true ? 0 : room.runtime?.hudWidgets?.length || 0;
 
@@ -1225,7 +1970,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; ROM Mode: ${config.romMode}
 ; Mapper Target: ${config.targetFormat}
 ; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
-; NOTE: Bitmap-room SCREEN 5 currently uses a linear simple32k ROM layout.
+; NOTE: ${isKonamiMegaRom ? 'Bitmap-room SCREEN 5 RLE sources are read through Konami P2/#8000 data banks.' : 'Bitmap-room SCREEN 5 uses a linear simple32k ROM layout.'}
 ; Visible page: VRAM #0000, ${ROW_BYTES} bytes/row, ${visibleHeight} lines
 ; Bitmap room HUD height: ${BITMAP_ROOM_HUD_HEIGHT} px
 ; Bitmap room HUD widgets: ${hudWidgetCount}
@@ -1235,13 +1980,18 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; ==================================================================
 
 CHGMOD  EQU #005F
+ENASLT  EQU #0024
 GTSTCK  EQU #00DC
+RSLREG  EQU #0138
 SNSMAT  EQU #0141
 PPI_A EQU #A8
+PPI_B EQU #A9
+PPI_C EQU #AA
 VDP_CTRL_PORT EQU ${VDP_CTRL_PORT}
 VDP_DATA_PORT EQU ${VDP_DATA_PORT}
 VDP_CMD_PORT EQU ${VDP_CMD_PORT}
 VDP_PALETTE_PORT EQU ${VDP_PALETTE_PORT}
+${bankedDataEquates}
 
 ; Player SAT image in RAM (kept contiguous so the 4 bytes copy straight to the
 ; sprite 0 SAT slot at VRAM #F600): Y, X, pattern number, early-clock byte.
@@ -1249,6 +1999,13 @@ player_y   EQU #C000
 player_x   EQU #C001
 player_pat EQU #C002
 player_ec  EQU #C003
+player_anim_counter EQU #C004
+player_anim_frame   EQU #C005
+player_vy           EQU #C006
+player_flags        EQU #C007
+player_facing       EQU #C008
+player_jump_lock    EQU #C009
+player_moving       EQU #C00A
 
     org #4000
 
@@ -1263,7 +2020,7 @@ player_ec  EQU #C003
 
 init_rom:
     di
-    call init_plain32k_page2_slot
+    ${isKonamiMegaRom ? 'call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks' : 'call init_plain32k_page2_slot'}
     call init_screen4_bitmap_vdp
     call load_screen4_bitmap_palette
     call init_bitmap_hud_band
@@ -1277,6 +2034,14 @@ init_rom:
     xor a
     ld (player_pat), a
     ld (player_ec), a
+    ld (player_anim_counter), a
+    ld (player_anim_frame), a
+    ld (player_vy), a
+    ld (player_flags), a
+    ld (player_jump_lock), a
+    ld (player_moving), a
+    inc a
+    ld (player_facing), a
     ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
@@ -1287,32 +2052,33 @@ init_rom:
 .main_loop:
     call bitmap_wait_vblank
     call update_player_movement
-    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}    call bitmap_update_sprite_sat
     jp .main_loop
 
 ${runtimeAsm}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
-${formatRleChunks(hudSeedRleChunks, hudSeedBytes.length, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`)}
+${hudSeedDataAsm}
 bitmap_room_hud_seed_data_end:
 
 bitmap_room_framebuffer_data:
-${formatRleChunks(framebufferRleChunks, framebufferBytes.length, `Game ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} framebuffer, packed 4bpp RLE, destination VRAM ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}`)}
+${framebufferDataAsm}
 bitmap_room_framebuffer_data_end:
 
-${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, 'Sprite color table sample (slot 1)')}
+${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}`)}
 bitmap_room_sprite_colors_end:
 
-${formatBytes('bitmap_room_sprite_attrs', spriteTables.attrs, 'SAT sample entries (dual 16x16 cells)')}
+${formatBytes('bitmap_room_sprite_attrs', spriteTables.attrs, 'SAT: sprite 0 active (Y/X set at runtime), sprite 1 Y=#D8 stops processing')}
 bitmap_room_sprite_attrs_end:
 
-${formatBytes('bitmap_room_sprite_patterns', spriteTables.patterns, 'Sprite patterns for sample player placeholder')}
+${formatBytes('bitmap_room_sprite_patterns', spriteTables.patterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}`)}
 bitmap_room_sprite_patterns_end:
 
 ${formatBytes('bitmap_room_collision_map', collisionBytes, `${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}
 
     ds #C000 - $, #FF
+${bankedDataAsm}
     end
 `;
 }

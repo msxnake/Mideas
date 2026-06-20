@@ -75,13 +75,6 @@ const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
   presentationScreen: true,
 };
 
-const BITMAP_ROOM_ROM_CONFIG: RomBuildConfig = {
-  romMode: 'simple32k',
-  targetFormat: 'konami',
-  autoMegaROM: false,
-  executionMode: 'interruptTaskManager',
-};
-
 const sanitizeAsmLabel = (value: string, fallback: string): string => {
   const label = (value || fallback).toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/^([^A-Z_])/, '_$1');
   return label || fallback;
@@ -662,14 +655,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       : isMsx2Screen4ExportMode(currentScreenMode)
       ? 'msx2-screen4-pattern'
       : 'screen2-tilebank';
-    const effectiveRomConfig: RomBuildConfig = targetGraphicsBackend === 'msx2-screen4-bitmap-room'
-      ? { ...BITMAP_ROOM_ROM_CONFIG, executionMode: romConfig.executionMode }
-      : romConfig;
     const { generateModularASM } = await import('../../utils/msxGenerator');
 
     const modularFiles = generateModularASM(projectName, enhancedAssets, {
       generateUnified: true,
-      ...effectiveRomConfig,
+      ...romConfig,
       screenMode: currentScreenMode,
       targetGraphicsBackend
     });
@@ -686,7 +676,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
     return {
       projectName,
-      romConfig: effectiveRomConfig,
+      romConfig,
       modularFiles,
       files,
       mainCode,
