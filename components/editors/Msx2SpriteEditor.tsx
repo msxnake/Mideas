@@ -563,6 +563,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
   const [replaceFromSlot, setReplaceFromSlot] = useState(1);
   const [replaceToSlot, setReplaceToSlot] = useState(0);
+  const [draggedReplaceSlot, setDraggedReplaceSlot] = useState<number | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
@@ -832,10 +833,13 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     updateFrameData(next);
   };
 
-  const replaceSpriteColor = () => {
-    if (!replaceFromPaletteSlot || !replaceToPaletteSlot || replaceFromSlot === replaceToSlot) return;
-    const source = normalizeColor(replaceFromPaletteSlot.hex);
-    const target = replaceToPaletteSlot.hex as MSXColorValue;
+  const replaceSpriteSlot = (fromSlot: number, toSlot: number) => {
+    if (fromSlot === toSlot) return;
+    const sourceSlot = palette.find(slot => slot.slotIndex === fromSlot);
+    const targetSlot = palette.find(slot => slot.slotIndex === toSlot);
+    if (!sourceSlot || !targetSlot) return;
+    const source = normalizeColor(sourceSlot.hex);
+    const target = targetSlot.hex as MSXColorValue;
     let changed = false;
     const sourceFrames = sprite.frames.length
       ? sprite.frames
@@ -855,6 +859,16 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       frames,
       currentFrameIndex: Math.max(0, Math.min(sprite.currentFrameIndex || 0, frames.length - 1)),
     });
+  };
+
+  const replaceSpriteColor = () => replaceSpriteSlot(replaceFromSlot, replaceToSlot);
+
+  const handlePaletteSlotDrop = (targetSlot: number) => {
+    if (typeof draggedReplaceSlot !== 'number') return;
+    replaceSpriteSlot(draggedReplaceSlot, targetSlot);
+    setReplaceFromSlot(draggedReplaceSlot);
+    setReplaceToSlot(targetSlot);
+    setDraggedReplaceSlot(null);
   };
 
   const handlePixel = (point: Point, isRightClick: boolean) => {
@@ -1108,9 +1122,17 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                 <button
                   key={slot.slotIndex}
                   type="button"
-                  className={`relative h-8 overflow-hidden rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${isOrResult ? 'ring-1 ring-amber-300' : ''}`}
+                  className={`relative h-8 overflow-hidden rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${isOrResult ? 'ring-1 ring-amber-300' : ''} ${draggedReplaceSlot !== null && draggedReplaceSlot !== slot.slotIndex ? 'outline outline-1 outline-msx-highlight/70' : ''}`}
                   style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
                   onClick={() => setSelectedColor(slot.hex)}
+                  onDragOver={event => {
+                    if (draggedReplaceSlot === null || draggedReplaceSlot === slot.slotIndex) return;
+                    event.preventDefault();
+                  }}
+                  onDrop={event => {
+                    event.preventDefault();
+                    handlePaletteSlotDrop(slot.slotIndex);
+                  }}
                   title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}${usageTitle ? ` (${usageTitle})` : ''}`}
                   aria-label={`Slot ${slot.slotIndex}${usageTitle ? ` ${usageTitle}` : ''}`}
                 >
@@ -1124,8 +1146,18 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                   )}
                   {isUsed && !isTransparentSlot && (
                     <span
-                      aria-hidden="true"
-                      className="absolute left-1 top-1 h-2 w-2 rounded-full border border-black/70 bg-msx-highlight shadow"
+                      draggable
+                      className="absolute left-1 top-1 h-4 w-4 cursor-grab rounded-full border border-black/70 bg-msx-highlight shadow active:cursor-grabbing"
+                      title={`Arrastra para reemplazar S${slot.slotIndex} por otro color`}
+                      aria-label={`Drag used color slot ${slot.slotIndex} to replace it`}
+                      onClick={event => event.stopPropagation()}
+                      onDragStart={event => {
+                        event.stopPropagation();
+                        setDraggedReplaceSlot(slot.slotIndex);
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', String(slot.slotIndex));
+                      }}
+                      onDragEnd={() => setDraggedReplaceSlot(null)}
                     />
                   )}
                   {isOrResult && (
