@@ -421,6 +421,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isPostAsmAnalyzing || isPostAsmOptimizing || isQuickValidating || isBuildingAndRunning;
   const msx2Screen5ExportInfo = getMsx2Screen5ExportInfo(assets);
+  const hasMsx2BitmapRoom = assets.some(asset => asset.type === 'msx2bitmaproom');
+  const isMsx2BitmapRoomExport = hasMsx2BitmapRoom && !shouldExportMsx2Screen5Presentation(assets, activeAssetId);
+  const effectiveMsxModel = isMsx2BitmapRoomExport ? 'MSX2' : options.msxModel;
+  const effectiveRomMode: RomMode = isMsx2BitmapRoomExport ? 'megarom' : romMode;
+  const effectiveMapperFormat: MapperFormat = isMsx2BitmapRoomExport ? 'konami' : mapperFormat;
+  const effectiveRomSizeKB = isMsx2BitmapRoomExport ? undefined : romSizeKB;
   const backendBaseUrl = (() => {
     const env = import.meta.env as Record<string, string | undefined>;
     const configuredBaseUrl = env.VITE_BACKEND_URL?.trim() || env.VITE_API_BASE_URL?.trim();
@@ -548,11 +554,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   };
 
   const buildCurrentRomConfig = (): RomBuildConfig => ({
-    romMode,
-    targetFormat: mapperFormat,
-    autoMegaROM: romMode === 'auto',
+    romMode: effectiveRomMode,
+    targetFormat: effectiveMapperFormat,
+    autoMegaROM: effectiveRomMode === 'auto',
     executionMode,
-    romSizeKB
+    romSizeKB: effectiveRomSizeKB
   });
 
   const isRomConfigDifferent = (generatedConfig: RomBuildConfig | null, currentConfig: RomBuildConfig) => {
@@ -1863,14 +1869,20 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     MSX Model:
                   </label>
                   <select
-                    value={options.msxModel}
+                    value={effectiveMsxModel}
                     onChange={(e) => setOptions({ ...options, msxModel: e.target.value as 'MSX1' | 'MSX2' | 'MSX2+' })}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
-                    <option value="MSX1">MSX1</option>
+                    {!isMsx2BitmapRoomExport && <option value="MSX1">MSX1</option>}
                     <option value="MSX2">MSX2</option>
-                    <option value="MSX2+">MSX2+</option>
+                    {!isMsx2BitmapRoomExport && <option value="MSX2+">MSX2+</option>}
                   </select>
+                  {isMsx2BitmapRoomExport && (
+                    <p className="mt-1 text-[11px] text-msx-textsecondary">
+                      SCREEN 5 bitmap-room requiere MSX2/V9938; MSX1 no es un target valido.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1937,15 +1949,21 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     ROM Mode:
                   </label>
                   <select
-                    value={romMode}
+                    value={effectiveRomMode}
                     onChange={(e) => setRomMode(e.target.value as RomMode)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
-                    <option value="auto">Auto (32KB -&gt; MegaROM)</option>
-                    <option value="simple32k">Force Simple 32KB</option>
-                    <option value="plain48k">Force Plain 48KB</option>
+                    {!isMsx2BitmapRoomExport && <option value="auto">Auto (32KB -&gt; MegaROM)</option>}
+                    {!isMsx2BitmapRoomExport && <option value="simple32k">Force Simple 32KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value="plain48k">Force Plain 48KB</option>}
                     <option value="megarom">Force MegaROM</option>
                   </select>
+                  {isMsx2BitmapRoomExport && (
+                    <p className="mt-1 text-[11px] text-msx-textsecondary">
+                      SCREEN 5 bitmap-room usa siempre MegaROM Konami; 32K/48K no son builds validos para este backend.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1953,13 +1971,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     Mapper Target:
                   </label>
                   <select
-                    value={mapperFormat}
+                    value={effectiveMapperFormat}
                     onChange={(e) => setMapperFormat(e.target.value as MapperFormat)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
                     <option value="konami">Konami 8KB</option>
-                    <option value="ascii8">ASCII 8KB</option>
-                    <option value="ascii16">ASCII 16KB</option>
+                    {!isMsx2BitmapRoomExport && <option value="ascii8">ASCII 8KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value="ascii16">ASCII 16KB</option>}
                   </select>
                 </div>
 
@@ -1968,24 +1987,30 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     ROM Size:
                   </label>
                   <select
-                    value={romSizeKB ?? 0}
+                    value={effectiveRomSizeKB ?? 0}
                     onChange={(e) => {
                       const v = parseInt(e.target.value, 10);
                       setRomSizeKB(v === 0 ? undefined : v);
                     }}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
-                    <option value={0}>Auto (32KB / 48KB / power-of-two)</option>
-                    <option value={32}>32 KB</option>
-                    <option value={48}>48 KB (plain48k)</option>
-                    <option value={64}>64 KB</option>
-                    <option value={128}>128 KB</option>
-                    <option value={256}>256 KB</option>
+                    <option value={0}>{isMsx2BitmapRoomExport ? 'Auto MegaROM (power-of-two)' : 'Auto (32KB / 48KB / power-of-two)'}</option>
+                    {!isMsx2BitmapRoomExport && <option value={32}>32 KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value={48}>48 KB (plain48k)</option>}
+                    {!isMsx2BitmapRoomExport && <option value={64}>64 KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value={128}>128 KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value={256}>256 KB</option>}
                   </select>
                 </div>
 
                 <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
-                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, size=<strong>{romSizeKB ? `${romSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
+                  Active ROM config: mode=<strong>{effectiveRomMode}</strong>, mapper=<strong>{effectiveMapperFormat}</strong>, size=<strong>{effectiveRomSizeKB ? `${effectiveRomSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
+                  {isMsx2BitmapRoomExport && (
+                    <div className="mt-1 text-msx-highlight">
+                      SCREEN 5 bitmap-room fixed export: MSX2 + MegaROM Konami.
+                    </div>
+                  )}
                   {msx2Screen5ExportInfo.hasScreen5Presentation && (
                     <>
                       <div className="mt-1">
@@ -2122,11 +2147,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <li>• 🎯 Ready to compile with glass.jar</li>
                       <li>• 🚀 Game Flow integration for main menu</li>
                       <li>• 💾 Creates .ROM file for MSX emulators/flash carts</li>
-                      <li>• ROM mode selected: <strong>{romMode}</strong></li>
-                      <li>• Mapper selected: <strong>{mapperFormat}</strong></li>
+                      <li>• ROM mode selected: <strong>{effectiveRomMode}</strong></li>
+                      <li>• Mapper selected: <strong>{effectiveMapperFormat}</strong></li>
                       <li>• Engine selected: <strong>{executionMode}</strong></li>
                     </ul>
-                    {romMode === 'simple32k' && (
+                    {effectiveRomMode === 'simple32k' && (
                       <p className="mt-2 text-yellow-300">
                         ⚠️ Force Simple 32KB is active. If the compiled ROM exceeds 32KB, a mapper conflict warning will appear.
                       </p>
