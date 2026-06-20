@@ -226,7 +226,7 @@ Mideas
 - Color unificado fondo/transparencia/franjas via VDP R#7 = `backgroundColor`.
 - Layout vertical 212 lineas: R#9 LN=1 + HUD 20px + juego 192px (sin las 4 lineas azules sobrantes).
 - NewProjectModal: opcion MSX2 ahora indica SCREEN 4 / SCREEN 5. Game-type picker: 3 columnas + scroll para no recortarse.
-- 2 bugs ASM resueltos (corrupcion de estado a traves de call): clobber de DE en `load_room`; R#15 sin restaurar tras transicion (lag). Leccion en `ai/LESSONS_LEARNED.md` + errata `docs/msx/Z80_REGISTER_CLOBBER_ERRATA.md` + LEER en `CLAUDE.md`.
+- 2 bugs ASM resueltos (corrupcion de estado a traves de call): clobber de DE en `load_room`; R#15 sin restaurar tras transicion (lag). Leccion en `ai/LESSONS_LEARNED.md`, regla general + tabla de clobbers en `ai/ASM_GUIDELINES.md`, LEER en `CLAUDE.md`.
 - Verificacion OpenMSX (`newOne5.json`, C-BIOS_MSX2, -romtype konami): travesia pant1<->pant2<->pant3 ambos sentidos, clamp en bordes de mundo, gravedad, render limpio, sin lag, suelo llega al fondo. Smoke `msx2-screen4-bitmap-room` y validacion MegaROM Konami pasan.
 - Pendiente: Fase 4 (banking por mundo TileBank A/B cuando haya muchas rooms; hoy render programs residentes en primeros 32KB). Transiciones N/S sin probar end-to-end (newOne5 solo tiene E/W).
 - Nota git: `ai/PROJECT_MEMORY.md` ya tenia sin commitear el bloque previo "Sesion 2026-06-20 - SCREEN 5 bitmap MegaROM pantalla blanca" (trabajo ya commiteado en 47ed9320/e6b17fe6 por otra IA); se commitea junto por ser ambos logs de memoria del mismo archivo.

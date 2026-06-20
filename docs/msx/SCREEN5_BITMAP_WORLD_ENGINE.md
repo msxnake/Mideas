@@ -88,7 +88,7 @@ Portada de SCREEN 4 (`msx2_try_world_edge_transition_*`):
   destruye `DE` (vía `vdp_reinit_cmd_pointer` que hace `ld e,#20`); `load_room` no debe
   reutilizar `DE` como índice de room tras llamarlo. Síntoma: player amurallado, sin gravedad,
   solo anima. Detalle completo y tabla de registros que destruye cada helper en
-  [Z80_REGISTER_CLOBBER_ERRATA.md](Z80_REGISTER_CLOBBER_ERRATA.md). **No es problema de mapper**
+  `ai/ASM_GUIDELINES.md` y `ai/LESSONS_LEARNED.md`. **No es problema de mapper**
   (konami vs auto-detect dan el mismo fallo).
 - **Lag tras transición por R#15 sin restaurar (2026-06-20)** — `load_room` usa el command
   engine, que lee S#2 (`read_vdp_status_2` deja **R#15=2**). El `init` reseteaba R#15=0 tras el
@@ -98,7 +98,7 @@ Portada de SCREEN 4 (`msx2_try_world_edge_transition_*`):
   la pantalla constantemente"). El start room iba bien porque init sí reseteaba. Fix: `load_room`
   restaura R#15=0 al final (cubre init y transiciones). Lección: si una rutina cambia estado
   global del VDP (R#15, R#17, banks), debe restaurarlo o documentarlo — igual que con registros
-  de CPU ([Z80_REGISTER_CLOBBER_ERRATA.md](Z80_REGISTER_CLOBBER_ERRATA.md)).
+  de CPU (ver `ai/ASM_GUIDELINES.md`).
 - **Color 0 = backdrop (R#7)** — en SCREEN 5 el color 0 (transparencia) y las franjas exteriores
   se pintan con el backdrop R#7 = `backgroundColor`. Si no se escribe R#7 tras CHGMOD, sale el
   cyan por defecto del C-BIOS.

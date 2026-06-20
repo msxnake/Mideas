@@ -983,31 +983,50 @@ no solo que el sprite aparece en una captura.
 
 ---
 
-## Bug Resuelto: estado no preservado a traves de un call (registro CPU y estado VDP)
+## Bug Resuelto: DE clobbeado a traves de un call (load_room colision basura)
 
 Fecha: 2026-06-20
 
 Problema:
-World engine SCREEN 5 multi-pantalla: (1) al entrar en una room el player quedaba
-amurallado, sin gravedad, solo animaba; (2) tras la transicion el juego iba lentisimo
-("pinta la pantalla constantemente").
+World engine SCREEN 5: al entrar en una room el player quedaba amurallado, sin gravedad,
+solo animaba ("paredes alrededor").
 
 Causa:
-(1) `load_room` guardaba el indice de room en DE entre lookups, pero `replay_room_commands`
-clobbea DE (via `vdp_reinit_cmd_pointer` que hace `ld e,#20`); el lookup de colision uso
-DE basura -> LDIR de colision basura a RAM. (2) `read_vdp_status_2` (dentro de `load_room`)
-deja R#15=2; `init` lo reseteaba a 0 tras el primer load_room, pero `try_room_transition` no
--> `bitmap_wait_vblank` (asume R#15=0, lee S#0 bit7) leia S#2, no veia vblank y corria el
-fallback #4000 cada frame.
+`load_room` guardaba el indice de room en DE entre los lookups de tablas, pero
+`replay_room_commands` clobbea DE (via `vdp_reinit_cmd_pointer` que hace `ld e,#20`). El
+lookup del puntero de colision uso DE basura -> dereferencio puntero basura -> LDIR de
+colision basura a RAM -> toda celda parecia solida.
 
 Solucion:
-(1) Re-derivar el indice desde `current_screen_index` (RAM) tras el call. (2) `load_room`
-restaura R#15=0 antes de retornar (cubre init y transiciones). Verificado en OpenMSX:
-gravedad, travesia pant1<->pant2<->pant3 y velocidad normal.
+Re-derivar el indice desde `current_screen_index` (RAM) despues del call, sin confiar en DE.
+Corregido tambien el comentario PRESERVES de `replay_room_commands` (clobbea DE).
 
 Leccion:
-La regla de registros del charter incluye el ESTADO GLOBAL del VDP, no solo registros de
-CPU. Si una rutina cambia R#15 (status select), R#17 (indirect pointer) o bancos de mapper,
-debe restaurarlo o documentarlo; y un caller nunca debe asumir que DE/HL/flags sobreviven a
-un call sin leer su DESTROYS. Detalle y tabla de clobbers de los helpers VDP en
-`docs/msx/Z80_REGISTER_CLOBBER_ERRATA.md`.
+Confirma la primera hipotesis del charter: un caller nunca debe asumir que un registro
+sobrevive a un `call` sin leer su DESTROYS. Si el comentario PRESERVES miente, corregir
+codigo Y comentario. Ver tabla de clobbers de helpers VDP en `ai/ASM_GUIDELINES.md`.
+
+---
+
+## Bug Resuelto: estado global del VDP (R#15) no restaurado tras un call -> lag
+
+Fecha: 2026-06-20
+
+Problema:
+World engine SCREEN 5: tras una transicion de pantalla el juego iba lentisimo, como si
+"pintara la pantalla constantemente". El start room iba bien.
+
+Causa:
+`load_room` usa el command engine; `read_vdp_status_2` deja R#15=2 (status select = S#2).
+`init` reseteaba R#15=0 tras el primer load_room, pero `try_room_transition` no. Tras la
+transicion, `bitmap_wait_vblank` (asume R#15=0, lee S#0 bit7) leia S#2, no veia el flag de
+vblank y agotaba el contador de fallback (#4000) cada frame -> lag.
+
+Solucion:
+`load_room` restaura R#15=0 antes de retornar (cubre init y transiciones). Verificado en
+OpenMSX: travesia pant1<->pant2<->pant3 a velocidad normal.
+
+Leccion:
+La regla de "registros no preservados" incluye el ESTADO GLOBAL del VDP, no solo registros
+de CPU. Si una rutina cambia R#15 (status select), R#17 (indirect pointer) o bancos de
+mapper, debe restaurarlo o documentarlo en su cabecera. Ver `ai/ASM_GUIDELINES.md`.

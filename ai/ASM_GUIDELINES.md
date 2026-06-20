@@ -75,11 +75,41 @@ Revisar:
 - CALLs internas
 - Interrupciones
 
+## Estado Global del VDP (no solo registros de CPU)
+
+La regla de preservación NO se limita a los registros de CPU. Una rutina también puede dejar
+"clobbeado" el estado global del VDP que otra rutina asume:
+
+- **R#15** (status register select): `bitmap_wait_vblank` asume R#15=0 para leer S#0 bit7
+  (vblank). Cualquier `read_vdp_status_2` lo deja en 2.
+- **R#17** (indirect register pointer): el command engine lo mueve.
+- **Registros de mapper** (bancos Konami #6000/#8000/#A000).
+
+Regla: si una rutina cambia R#15/R#17/banks, debe restaurarlos antes de salir o documentarlo
+en su cabecera para que el caller lo restaure. Un caller no debe asumir estado VDP estable a
+través de un `call` igual que no asume registros estables.
+
+### Tabla de clobbers — helpers VDP del runtime bitmap (`msx2Screen4BitmapRoomGenerator.ts`)
+
+| Rutina                          | Destruye            | Notas |
+|---------------------------------|---------------------|-------|
+| `vdp_write_register`            | AF                  | A=reg, E=valor; preserva BC/DE/HL |
+| `vdp_reinit_cmd_pointer`        | AF, **E**           | `ld e,#20` — clobbea E |
+| `vdp_wait_cmd_ready`            | AF                  | deja R#15=2 (lee S#2) |
+| `replay_room_commands`          | AF, BC, **DE**, HL  | hereda clobber de E; deja R#15=2 |
+| `load_room`                     | AF, BC, DE, HL      | restaura R#15=0 al final |
+| `copy_to_vram_ext`              | AF, BC, DE, HL      | |
+| `decompress_bitmap_rle_to_vram` | AF, BC, DE, HL      | |
+
 ## Primera Hipótesis ante Bugs
 
 Ante un bug difícil de encontrar, asumir primero:
 
-"Algún registro no está siendo preservado correctamente."
+"Algún registro de CPU o estado global del VDP (R#15/R#17/banks) no está siendo preservado
+correctamente a través de un `call`."
+
+Casos reales registrados en `LESSONS_LEARNED.md` (2026-06-20): DE clobbeado por
+`replay_room_commands` (colisión basura) y R#15 sin restaurar (lag tras transición).
 
 ## Convención de Función
 
