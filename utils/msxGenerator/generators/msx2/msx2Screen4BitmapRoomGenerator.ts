@@ -1674,6 +1674,88 @@ load_room:
     ldir
     ret
 
+; ------------------------------------------------------------
+; FUNCTION: try_room_transition
+; ------------------------------------------------------------
+; PURPOSE:
+;   Walk the player into the neighbour room across one screen edge (world rails).
+;
+; INPUT:
+;   A = direction (0=west, 1=east, 2=north, 3=south).
+;
+; OUTPUT:
+;   On a valid neighbour: the neighbour room is loaded, the player is repositioned
+;   at the opposite edge, vertical velocity is reset, and carry is SET.
+;   With no neighbour for that edge: carry is CLEAR and nothing changes.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   load_room.
+;
+; SIDE EFFECTS:
+;   Repaints the game band (load_room) and updates player_x/player_y/player_vy.
+;
+; NOTES:
+;   Table layout is 4 bytes per room (west, east, north, south); #FF = no rail.
+;   current_screen_index * 4 + direction indexes the destination room (or #FF).
+; ------------------------------------------------------------
+try_room_transition:
+    ld c, a                 ; C = direction
+    ld a, (current_screen_index)
+    add a, a
+    add a, a                ; A = index * 4
+    add a, c
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_transition_table
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jp z, .no_rail
+    push bc                 ; preserve direction across load_room
+    call load_room          ; A = destination room index
+    pop bc                  ; C = direction
+    xor a
+    ld (player_vy), a
+    ld a, (player_flags)
+    and #FE                 ; clear on-ground so gravity re-evaluates
+    ld (player_flags), a
+    ld a, c
+    or a
+    jp z, .enter_right      ; went west -> enter at right edge
+    cp 1
+    jp z, .enter_left       ; went east -> enter at left edge
+    cp 2
+    jp z, .enter_bottom     ; went north -> enter at bottom edge
+.enter_top:                 ; went south -> enter at top edge
+    ld a, 2
+    ld (player_y), a
+    scf
+    ret
+.enter_bottom:
+    ld a, 174
+    ld (player_y), a
+    scf
+    ret
+.enter_right:
+    ld a, 238
+    ld (player_x), a
+    scf
+    ret
+.enter_left:
+    ld a, 2
+    ld (player_x), a
+    scf
+    ret
+.no_rail:
+    or a                    ; clear carry: caller keeps the player on this screen
+    ret
+
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
     ld hl, bitmap_room_sprite_colors
@@ -1732,6 +1814,15 @@ bitmap_stick_dx:
     push bc
     call bitmap_try_move_x
     pop bc
+    ; East edge: if a neighbour room exists, walk into it.
+    ld a, (player_x)
+    cp 238
+    jp c, .check_jump
+    ld a, 1                 ; direction east
+    push bc
+    call try_room_transition
+    pop bc
+    ret c                   ; transitioned -> done this frame
     jp .check_jump
 .not_right:
     bit 4, c
@@ -1744,6 +1835,15 @@ bitmap_stick_dx:
     push bc
     call bitmap_try_move_x
     pop bc
+    ; West edge: if a neighbour room exists, walk into it.
+    ld a, (player_x)
+    cp 3
+    jp nc, .check_jump
+    xor a                   ; direction west
+    push bc
+    call try_room_transition
+    pop bc
+    ret c
 .check_jump:
     bit 0, c
     jp nz, .jump_pressed
@@ -1776,7 +1876,7 @@ bitmap_stick_dx:
 .apply_vertical_velocity:
     ld a, (player_vy)
     or a
-    ret z
+    jp z, .movement_done
     bit 7, a
     jp z, .falling
     neg
@@ -1797,15 +1897,29 @@ bitmap_stick_dx:
     pop bc
     jp c, .vertical_blocked
     djnz .vertical_step_loop
-    ret
+    jp .movement_done
 .vertical_blocked:
     xor a
     ld (player_vy), a
     bit 7, c
-    ret nz
+    jp nz, .movement_done
     ld a, (player_flags)
     or #01
     ld (player_flags), a
+.movement_done:
+    ; North/South edge: walk (or fall) into a vertical neighbour room if one exists.
+    ld a, (player_y)
+    cp 2
+    jp nc, .check_south_edge
+    ld a, 2                 ; direction north
+    call try_room_transition
+    ret
+.check_south_edge:
+    ld a, (player_y)
+    cp 175
+    ret c                   ; not at the bottom edge
+    ld a, 3                 ; direction south
+    call try_room_transition
     ret
 
 ${playerAnimationAsm}
@@ -2195,6 +2309,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       collisionBytes: buildCollisionTableBytes(roomData),
     };
   });
+  // Edge-transition table: 4 bytes per room (west, east, north, south); #FF = no rail.
+  const transitionTableBytes = rooms.flatMap((_roomData, index) => {
+    const rails = world.transitions.get(index) || {};
+    const target = (dir: ConnectionDirection) => (rails[dir] === undefined ? 0xff : rails[dir]!);
+    return [target('west'), target('east'), target('north'), target('south')];
+  });
   const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis));
   const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
   const allRleChunks = [...hudSeedRleChunks, ...tilesetRleChunks];
@@ -2233,6 +2353,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const roomRenderPtrTableAsm = `bitmap_room_render_ptr_table:\n${roomTables.map(t => `    DW ${t.renderLabel}`).join('\n')}\n`;
   const roomBlockCountTableAsm = `bitmap_room_blockcount_table:\n    DB ${roomTables.map(t => t.blockCount).join(',')}\n`;
   const roomCollisionPtrTableAsm = `bitmap_room_collision_ptr_table:\n${roomTables.map(t => `    DW ${t.collisionLabel}`).join('\n')}\n`;
+  const roomTransitionTableAsm = formatBytes('bitmap_room_transition_table', transitionTableBytes, 'Edge rails per room: west,east,north,south (#FF = none)');
   const playerAnimationUpdateCall = (spriteTables.frameCount > 1 || spriteTables.mirror)
     ? '    call bitmap_update_player_sprite_animation\n'
     : '';
@@ -2357,6 +2478,7 @@ bitmap_room_tileset_data_end:
 ${roomRenderPtrTableAsm}
 ${roomBlockCountTableAsm}
 ${roomCollisionPtrTableAsm}
+${roomTransitionTableAsm}
 ; Per-room render programs and collision maps.
 ${roomDataAsm}
 

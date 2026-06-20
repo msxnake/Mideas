@@ -3748,7 +3748,9 @@ def validate_msx2_screen5_bitmap_room_konami_fixed_bank0_megarom(
         "bitmap_room_select_data_bank_a:",
         "bitmap_room_restore_resident_banks:",
         "BITMAP_ROOM_DATA_BANK_4_ROM_START:",
-        "bitmap_room_framebuffer_rle_chunk_0_DATA_BANK",
+        "bitmap_room_tileset_rle_chunk_0_DATA_BANK",
+        "load_room:",
+        "upload_tileset_atlas:",
     ]
     missing = [marker for marker in required_markers if marker not in asm_text]
     if missing:
