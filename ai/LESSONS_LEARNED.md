@@ -980,3 +980,34 @@ Un backend grafico nuevo no hereda automaticamente el contrato del player de SCR
 Cada backend jugable debe portar explicitamente: fuente real del sprite, frames, mirror,
 RAM de estado, fisica, input y colision foreground. Un smoke debe probar RAM/SAT/patron,
 no solo que el sprite aparece en una captura.
+
+---
+
+## Bug Resuelto: estado no preservado a traves de un call (registro CPU y estado VDP)
+
+Fecha: 2026-06-20
+
+Problema:
+World engine SCREEN 5 multi-pantalla: (1) al entrar en una room el player quedaba
+amurallado, sin gravedad, solo animaba; (2) tras la transicion el juego iba lentisimo
+("pinta la pantalla constantemente").
+
+Causa:
+(1) `load_room` guardaba el indice de room en DE entre lookups, pero `replay_room_commands`
+clobbea DE (via `vdp_reinit_cmd_pointer` que hace `ld e,#20`); el lookup de colision uso
+DE basura -> LDIR de colision basura a RAM. (2) `read_vdp_status_2` (dentro de `load_room`)
+deja R#15=2; `init` lo reseteaba a 0 tras el primer load_room, pero `try_room_transition` no
+-> `bitmap_wait_vblank` (asume R#15=0, lee S#0 bit7) leia S#2, no veia vblank y corria el
+fallback #4000 cada frame.
+
+Solucion:
+(1) Re-derivar el indice desde `current_screen_index` (RAM) tras el call. (2) `load_room`
+restaura R#15=0 antes de retornar (cubre init y transiciones). Verificado en OpenMSX:
+gravedad, travesia pant1<->pant2<->pant3 y velocidad normal.
+
+Leccion:
+La regla de registros del charter incluye el ESTADO GLOBAL del VDP, no solo registros de
+CPU. Si una rutina cambia R#15 (status select), R#17 (indirect pointer) o bancos de mapper,
+debe restaurarlo o documentarlo; y un caller nunca debe asumir que DE/HL/flags sobreviven a
+un call sin leer su DESTROYS. Detalle y tabla de clobbers de los helpers VDP en
+`docs/msx/Z80_REGISTER_CLOBBER_ERRATA.md`.
