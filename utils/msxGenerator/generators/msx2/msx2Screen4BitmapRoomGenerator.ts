@@ -1522,7 +1522,13 @@ load_room:
     ld de, bitmap_room_collision_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
-    ret
+    ; The command-engine status polls above left R#15 pointing at S#2. Restore S#0
+    ; selection so the main loop's bitmap_wait_vblank (which assumes R#15=0) syncs
+    ; correctly; otherwise post-transition rooms run on the bounded-delay fallback
+    ; every frame (severe lag).
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
 
 ; ------------------------------------------------------------
 ; FUNCTION: try_room_transition
