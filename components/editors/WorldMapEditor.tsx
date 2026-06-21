@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, ProjectAsset } from '../../types';
+import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, ProjectAsset, PaletteAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
@@ -24,6 +24,7 @@ interface WorldMapEditorProps {
   tileset: Tile[];
   currentScreenMode: string;
   dataOutputFormat: DataFormat;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
   onNavigateToAsset: (assetId: string) => void;
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
   setStatusBarMessage: (message: string) => void;
@@ -254,6 +255,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   tileset,
   currentScreenMode,
   dataOutputFormat,
+  paletteAssets = [],
   onNavigateToAsset,
   onShowContextMenu,
   setStatusBarMessage
@@ -1079,6 +1081,22 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         </div>
         <Button onClick={handleSetStartScreen} size="sm" disabled={!selectedNodeId} variant="secondary">Set Start</Button>
         <Button onClick={handleDeleteSelected} size="sm" disabled={!selectedNodeId && !selectedConnectionId} variant="danger" icon={<TrashIcon className="w-3 h-3" />}>Delete Sel.</Button>
+        <div className="flex items-center space-x-1 border-l border-msx-border pl-2">
+          <label className="text-xs pixel-font text-msx-textsecondary">World Palette:</label>
+          <select
+            value={worldMapGraph.paletteAssetId || ''}
+            onChange={e => onUpdate({ paletteAssetId: e.target.value || undefined })}
+            className="max-w-44 p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+            title="Paleta MSX2 compartida que se carga una vez al entrar en este mundo"
+          >
+            <option value="">Fallback: start room</option>
+            {paletteAssets
+              .filter(asset => asset.data?.mode === 'SCREEN4' || asset.data?.mode === 'SCREEN5')
+              .map(asset => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+          </select>
+        </div>
         {selectedConnection && (
           <div className="flex items-center gap-1 border-l border-msx-border pl-2">
             <label className="text-xs pixel-font text-msx-textsecondary">Transition:</label>

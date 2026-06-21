@@ -12,6 +12,34 @@ import type { UseMidiInputReturn, MidiLastMessage } from '../../utils/useMidiInp
 export type MidiChannelMode = 'follow' | 'fixed';
 
 /**
+ * Tracker actions that can be triggered from a learned MIDI CC (pad in CC mode
+ * or a knob). Only CC messages drive these, so note input is never hijacked.
+ * @category Tracker
+ */
+export type MidiActionId =
+  | 'playStop'
+  | 'pause'
+  | 'recArm'
+  | 'instrumentPrev'
+  | 'instrumentNext'
+  | 'volumeDown'
+  | 'volumeUp';
+
+/** Human labels + display order for the assignable MIDI actions. */
+export const MIDI_ACTION_LABELS: { id: MidiActionId; label: string }[] = [
+  { id: 'playStop', label: 'Play / Stop' },
+  { id: 'pause', label: 'Pausa / Reanudar' },
+  { id: 'recArm', label: 'REC (armar)' },
+  { id: 'instrumentPrev', label: 'Instrumento -' },
+  { id: 'instrumentNext', label: 'Instrumento +' },
+  { id: 'volumeDown', label: 'Volumen -' },
+  { id: 'volumeUp', label: 'Volumen +' },
+];
+
+/** Map of action -> assigned CC number (null = unassigned). */
+export type MidiActionMap = Record<MidiActionId, number | null>;
+
+/**
  * Props for the {@link MidiInputPanel} component.
  * @category Tracker
  */
@@ -29,6 +57,25 @@ interface MidiInputPanelProps {
   onFixedChannelIndexChange: (index: number) => void;
   /** Channel id labels for the fixed-channel selector. */
   channelLabels: string[];
+  /**
+   * Called from a real user gesture (enable toggle / device pick) to create &
+   * resume the audio context. MIDI messages are NOT user-activation gestures,
+   * so without this the first preview note can stay silent (suspended context).
+   */
+  onActivateAudio?: () => void;
+  /** Current CC assignments for the tracker actions (MIDI Learn). */
+  actionMap: MidiActionMap;
+  /** The action currently waiting to learn a CC, or null. */
+  learnTarget: MidiActionId | null;
+  /** Arm/disarm learning for an action (pass null to cancel). */
+  onLearnAction: (action: MidiActionId | null) => void;
+  /** Clear the CC assigned to an action. */
+  onClearAction: (action: MidiActionId) => void;
+  /** Whether live recording is currently armed (REC). */
+  recArmed: boolean;
+  /** When on, MIDI velocity is written to the cell's volume column. */
+  velocityToVolume: boolean;
+  onVelocityToVolumeChange: (value: boolean) => void;
 }
 
 const formatMessage = (msg: MidiLastMessage | null): string => {
@@ -81,6 +128,14 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
   fixedChannelIndex,
   onFixedChannelIndexChange,
   channelLabels,
+  onActivateAudio,
+  actionMap,
+  learnTarget,
+  onLearnAction,
+  onClearAction,
+  recArmed,
+  velocityToVolume,
+  onVelocityToVolumeChange,
 }) => {
   const {
     supported, status, enabled, setEnabled, inputs, selectedInputId, selectInput, lastMessage,
@@ -102,7 +157,12 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
               className="accent-msx-accent"
               checked={enabled}
               disabled={!supported}
-              onChange={(e) => setEnabled(e.target.checked)}
+              onChange={(e) => {
+                // Resume audio inside this click (a user gesture) so MIDI
+                // preview is reliable from the very first note.
+                if (e.target.checked) onActivateAudio?.();
+                setEnabled(e.target.checked);
+              }}
             />
             <span>Enable MIDI</span>
           </label>
@@ -115,7 +175,7 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
             className="rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 font-mono text-msx-textprimary disabled:opacity-50"
             value={selectedInputId ?? ''}
             disabled={!enabled || inputs.length === 0}
-            onChange={(e) => selectInput(e.target.value || null)}
+            onChange={(e) => { onActivateAudio?.(); selectInput(e.target.value || null); }}
           >
             {inputs.length === 0 && <option value="">No devices found</option>}
             {inputs.map(i => (
@@ -140,6 +200,16 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
             >+</button>
           </div>
         </div>
+
+        <label className="flex items-center justify-between gap-2 cursor-pointer select-none">
+          <span className="uppercase tracking-wider text-msx-textsecondary">Velocity → volumen</span>
+          <input
+            type="checkbox"
+            className="accent-msx-accent"
+            checked={velocityToVolume}
+            onChange={(e) => onVelocityToVolumeChange(e.target.checked)}
+          />
+        </label>
 
         <div className="flex flex-col gap-0.5">
           <span className="uppercase tracking-wider text-msx-textsecondary">Target channel</span>
@@ -181,6 +251,44 @@ export const MidiInputPanel: React.FC<MidiInputPanelProps> = ({
           <span className="truncate rounded bg-black/30 px-1 py-0.5 font-mono text-msx-highlight">
             {formatMessage(lastMessage)}
           </span>
+        </div>
+
+        <div className="flex flex-col gap-1 border-t border-msx-border/60 pt-1">
+          <span className="uppercase tracking-wider text-msx-textsecondary">Acciones (CC)</span>
+          {MIDI_ACTION_LABELS.map(({ id, label }) => {
+            const cc = actionMap[id];
+            const learning = learnTarget === id;
+            return (
+              <div key={id} className="flex items-center justify-between gap-1">
+                <span className="flex items-center gap-1 truncate">
+                  {label}
+                  {id === 'recArm' && recArmed && <span className="text-red-400" title="Grabación armada">●</span>}
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="w-12 text-right font-mono text-msx-highlight">{cc != null ? `CC ${cc}` : '--'}</span>
+                  <button
+                    type="button"
+                    className={`rounded border px-1 leading-none ${learning ? 'border-yellow-400 text-yellow-300' : 'border-msx-border text-msx-textprimary hover:border-msx-highlight'}`}
+                    onClick={() => { onActivateAudio?.(); onLearnAction(learning ? null : id); }}
+                    title="Pulsa y luego mueve un knob / pulsa un pad (en modo CC)"
+                  >
+                    {learning ? 'Toca…' : 'Learn'}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-msx-border px-1 leading-none text-msx-textprimary hover:border-red-400 disabled:opacity-40"
+                    disabled={cc == null}
+                    onClick={() => onClearAction(id)}
+                    title="Borrar asignación"
+                  >×</button>
+                </div>
+              </div>
+            );
+          })}
+          {learnTarget && (
+            <span className="text-yellow-300">Mueve un knob o pulsa un pad en modo CC…</span>
+          )}
+          <span className="text-msx-textsecondary">Las funciones se disparan solo con CC; las notas siguen entrando como notas.</span>
         </div>
       </div>
     </Panel>

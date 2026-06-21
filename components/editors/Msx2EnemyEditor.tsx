@@ -269,6 +269,7 @@ const validateEnemy = (enemy: EnemyDefinition, allAssets: ProjectAsset[]): strin
   if (roles.length === 0) issues.push('At least one render role is recommended.');
   if (roles.some(role => role.spriteId && !allAssets.some(asset => asset.id === role.spriteId))) issues.push('A render role references a missing sprite.');
   if (roles.some(role => role.frames.length === 0)) issues.push('Every render role needs at least one frame.');
+  if (enemy.attack.bulletSpriteId && !allAssets.some(asset => asset.id === enemy.attack.bulletSpriteId)) issues.push('The Bullet Sprite references a missing sprite.');
   if (enemy.hitboxes.body.w <= 0 || enemy.hitboxes.body.h <= 0) issues.push('Body hitbox must have width and height.');
   if (enemy.budget.sprites > 4) issues.push('Sprite budget is high for MSX2 hardware sprites.');
   return issues;
@@ -757,11 +758,26 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
           <section className={`${panelClass} ${activeSection === 'Combat & Hitboxes' ? 'absolute inset-0' : 'hidden'}`}>
             <div className={panelTitleClass}>Combat & Hitboxes</div>
             <div className="space-y-4 overflow-auto p-4">
-              <Field label="Attack">
-                <select className={selectClass} value={enemy.attack.type} onChange={event => patch({ attack: { ...enemy.attack, type: event.target.value as EnemyAttackType } })}>
-                  {ATTACK_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Attack">
+                  <select className={selectClass} value={enemy.attack.type} onChange={event => patch({ attack: { ...enemy.attack, type: event.target.value as EnemyAttackType } })}>
+                    {ATTACK_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </Field>
+                <Field label="Bullet Sprite">
+                  <select
+                    className={selectClass}
+                    value={enemy.attack.bulletSpriteId || ''}
+                    onChange={event => patch({ attack: { ...enemy.attack, bulletSpriteId: event.target.value || undefined } })}
+                  >
+                    <option value="">None (no shooting)</option>
+                    {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Bullet Sprite is the graphic/animation linked to this enemy's firing routine. Leave it on <span className="text-slate-300">None</span> if this enemy never shoots. The firing trigger (e.g. the drop-bomb check below) decides when it fires.
+              </div>
               <div className="rounded border border-slate-700 bg-[#111821] p-3">
                 <Checkbox
                   label="Drop bomb when aligned with player X"
@@ -769,7 +785,7 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                   onChange={checked => patch({ attack: { ...enemy.attack, dropBombOnPlayerX: checked } })}
                 />
                 <div className="mt-1 text-[11px] text-slate-500">
-                  Optional. When active, the enemy drops a falling bullet whenever its X lines up with the player (±8px). Uses the shared enemy-bullet pool with a ~1s cooldown. Best paired with FlyerSine (Bat).
+                  Optional. When active, the enemy drops a falling bullet whenever its X lines up with the player (±8px). Uses the shared enemy-bullet pool with a ~1s cooldown. Best paired with FlyerSine (Bat). The dropped bullet uses the Bullet Sprite selected above.
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-3">
