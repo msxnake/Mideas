@@ -26,6 +26,8 @@ const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
 export interface Msx2ExternalTileImportOptions extends Msx2ExternalSpriteImportOptions {
   /** Base name used for the generated tiles (cells get an _r{row}_c{col} suffix). */
   baseName?: string;
+  /** SCREEN 5 bitmap tiles keep all slot indices; SCREEN 4 tiles enforce color clash. */
+  outputMode?: 'screen4' | 'screen5';
 }
 
 export interface Msx2ExternalTileImportResult {
@@ -41,6 +43,15 @@ export interface Msx2ExternalTileImportResult {
 
 const normalizeHex = (value: string | undefined): string =>
   String(value || '').trim().toUpperCase();
+
+/**
+ * A tile is "empty" when every pixel resolves to slot 0 (background/transparent).
+ * Used to skip fully-background cells when adding sliced sheets to the library.
+ */
+export function isMsx2TileEmpty(tile: Msx2Screen4Tile): boolean {
+  const pixels = tile.pixels ?? [];
+  return pixels.every(row => row.every(slot => (slot ?? 0) === 0));
+}
 
 /** Rounds up to the nearest multiple of 16, clamped to a sane tile-sheet range. */
 const snapToCell = (value: number): number => {
@@ -122,9 +133,10 @@ export function importExternalPngAsMsx2Tiles(
       // (1 color per line + OR-color), tiles need per-segment lineAttributes.
       // Derive the dominant fg/bg pair per segment and snap every pixel to it,
       // matching exactly how the tile editor validates/repairs pixels.
-      const lineAttributes = inferLineAttributesFromPixels(rawPixels);
-      const pixels = fixInvalidTilePixels(rawPixels, lineAttributes);
-      if (pixels.some((rowPixels, y) => rowPixels.some((slot, x) => slot !== rawPixels[y][x]))) {
+      const bitmapMode = options.outputMode === 'screen5';
+      const lineAttributes = bitmapMode ? undefined : inferLineAttributesFromPixels(rawPixels);
+      const pixels = bitmapMode || !lineAttributes ? rawPixels : fixInvalidTilePixels(rawPixels, lineAttributes);
+      if (!bitmapMode && pixels.some((rowPixels, y) => rowPixels.some((slot, x) => slot !== rawPixels[y][x]))) {
         constrainedCells += 1;
       }
       const name = single ? baseName : `${baseName}_r${row}_c${col}`;
@@ -134,13 +146,15 @@ export function importExternalPngAsMsx2Tiles(
         width: TILE_CELL,
         height: TILE_CELL,
         pixels,
-        lineAttributes,
+        ...(lineAttributes ? { lineAttributes } : {}),
         behaviorKind: 'background',
       });
     }
   }
 
-  if (constrainedCells > 0) {
+  if (options.outputMode === 'screen5') {
+    warnings.push('Salida SCREEN 5 bitmap: se conservan los colores por pixel; no se aplica color clash SCREEN 4.');
+  } else if (constrainedCells > 0) {
     warnings.push(`${constrainedCells} celda(s) reducidas a 2 colores por segmento de 8 px (límite de tiles SCREEN 4).`);
   }
 

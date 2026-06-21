@@ -145,6 +145,153 @@ export function buildReplaceAssignmentAvoiding(
   return map;
 }
 
+/**
+ * Perceptual difference between two hex colors as a percentage (0 = identical,
+ * 100 = black↔white). Weights match the importer (sRGB luma weighting).
+ */
+export function colorPercentDiff(a: string, b: string): number {
+  const ra = hexToRgb(a);
+  const rb = hexToRgb(b);
+  if (!ra || !rb) return 100;
+  // colorDistance is a weighted squared distance whose max is 255^2, so the
+  // normalized linear distance is sqrt(dist)/255.
+  return (Math.sqrt(colorDistance(ra, rb)) / 255) * 100;
+}
+
+export type Msx2TileColorStatus = 'exact' | 'near' | 'new';
+
+export interface Msx2TileColorMatch extends TileColorUsage {
+  /** exact = same color already in palette; near = within marginPct; new = unique. */
+  status: Msx2TileColorStatus;
+  /** Existing palette slot for exact/near (null for new). */
+  matchSlot: number | null;
+  /** % difference to matchSlot (0 for exact, 100 for new). */
+  percentDiff: number;
+  /** Hex of the matched existing slot, when any. */
+  matchHex: string | null;
+}
+
+/**
+ * Classifies each used tile color against the destination palette so the UI can
+ * reuse existing colors instead of saturating the palette with near-duplicates:
+ *  - 'exact': identical color already present → reuse that slot, never write.
+ *  - 'near' : within `marginPct` of an existing color → ask the user (adapt/new).
+ *  - 'new'  : genuinely new color → allocate a slot to enrich the palette.
+ */
+export function classifyTileColors(
+  used: TileColorUsage[],
+  destPalette: Screen5PaletteSlot[],
+  marginPct = 5,
+): Msx2TileColorMatch[] {
+  return used.map(usage => {
+    let bestSlot = -1;
+    let bestDiff = Infinity;
+    destPalette.forEach(slot => {
+      if (slot.slotIndex === 0 || isTransparent(slot.hex)) return;
+      const diff = colorPercentDiff(usage.hex, slot.hex);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestSlot = slot.slotIndex;
+      }
+    });
+    const status: Msx2TileColorStatus = bestSlot < 0
+      ? 'new'
+      : bestDiff <= 0.01 ? 'exact'
+      : bestDiff <= marginPct ? 'near'
+      : 'new';
+    return {
+      ...usage,
+      status,
+      matchSlot: status === 'new' ? null : bestSlot,
+      percentDiff: bestSlot < 0 ? 100 : bestDiff,
+      matchHex: status === 'new' || bestSlot < 0 ? null : destPalette[bestSlot]?.hex ?? null,
+    };
+  });
+}
+
+/**
+ * Picks up to `needed` writable slots to host genuinely new colors, preferring
+ * slots whose color is a duplicate of another slot (redundant → safe to reuse)
+ * before consuming unique slots. Skips reserved (e.g. sprite/reused) and
+ * transparent slots. This keeps the palette as rich as possible.
+ */
+export function pickFreeSlots(
+  needed: number,
+  destPalette: Screen5PaletteSlot[],
+  reserved: Set<number>,
+): number[] {
+  const seenHex = new Set<string>();
+  const duplicateSlots: number[] = [];
+  const uniqueSlots: number[] = [];
+  for (let slot = 1; slot <= 15; slot++) {
+    const hex = String(destPalette[slot]?.hex || '').trim().toUpperCase();
+    // Never allocate onto reserved, transparent, or the immutable black/white
+    // slots (those are off-limits per the palette zoning).
+    if (reserved.has(slot) || isTransparent(destPalette[slot]?.hex) || hex === '#000000' || hex === '#FFFFFF') continue;
+    if (seenHex.has(hex)) duplicateSlots.push(slot);
+    else { seenHex.add(hex); uniqueSlots.push(slot); }
+  }
+  return [...duplicateSlots, ...uniqueSlots].slice(0, needed);
+}
+
+export interface Msx2SmartReconcileResult {
+  tile: Msx2Screen4Tile;
+  palette: Screen5PaletteSlot[];
+  /** source slot → { dest slot, reuse existing color or write a new one }. */
+  allocation: Map<number, { dest: number; mode: 'reuse' | 'new' }>;
+}
+
+/**
+ * Smart reconciliation that maximizes palette richness without duplicates:
+ * exact/near(adapt) colors reuse the existing slot, while 'new' colors (and
+ * near colors the user forced to "new") are written into free slots.
+ *
+ * @param forceNew Source slots whose 'near' match the user chose to add anyway.
+ */
+export function buildSmartReconcile(
+  tile: Msx2Screen4Tile,
+  sourcePalette: Screen5PaletteSlot[],
+  destPalette: Screen5PaletteSlot[],
+  matches: Msx2TileColorMatch[],
+  forceNew: Set<number>,
+  protectedSlots: Set<number>,
+): Msx2SmartReconcileResult {
+  const reserved = new Set<number>(protectedSlots);
+  const reuse: Array<{ src: number; dest: number }> = [];
+  const toAllocate: Array<{ src: number }> = [];
+  matches.forEach(match => {
+    const wantNew = match.status === 'new' || (match.status === 'near' && forceNew.has(match.slot));
+    if (!wantNew && match.matchSlot != null) {
+      reuse.push({ src: match.slot, dest: match.matchSlot });
+      reserved.add(match.matchSlot);
+    } else {
+      toAllocate.push({ src: match.slot });
+    }
+  });
+
+  const freeSlots = pickFreeSlots(toAllocate.length, destPalette, reserved);
+  const allocation = new Map<number, { dest: number; mode: 'reuse' | 'new' }>();
+  reuse.forEach(({ src, dest }) => allocation.set(src, { dest, mode: 'reuse' }));
+  toAllocate.forEach(({ src }, index) => {
+    const dest = freeSlots[index] ?? (src >= 1 && src <= 15 ? src : 1);
+    allocation.set(src, { dest, mode: 'new' });
+  });
+
+  const palette = destPalette.map(slot => ({ ...slot }));
+  const assignment = new Map<number, number>([[0, 0]]);
+  allocation.forEach((info, src) => {
+    assignment.set(src, info.dest);
+    if (info.mode === 'new') {
+      const source = sourcePalette[src];
+      if (source && info.dest >= 1 && info.dest <= 15) {
+        palette[info.dest] = { slotIndex: info.dest, masterIndex: source.masterIndex, hex: source.hex };
+      }
+    }
+  });
+
+  return { tile: remapTileSlots(tile, assignment), palette, allocation };
+}
+
 /** Remaps a tile's pixels and lineAttributes through a source→dest slot map. */
 export function remapTileSlots(tile: Msx2Screen4Tile, map: Map<number, number>): Msx2Screen4Tile {
   const remap = (slot: number): number => map.get(Number(slot) || 0) ?? (Number(slot) || 0);

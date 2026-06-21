@@ -1571,6 +1571,8 @@ export interface WorldMapGraph {
   id: string;
   /** The name of the world map. */
   name: string;
+  /** Shared MSX2 palette asset loaded once when entering this world. */
+  paletteAssetId?: string;
   /** An array of all screen nodes in the map. */
   nodes: WorldMapScreenNode[];
   /** An array of all connections between nodes. */

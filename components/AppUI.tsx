@@ -294,6 +294,25 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   // project). Target for tile-library imports and palette reconciliation.
   const activeMsx2ScreenAsset = (activeAsset?.type === 'msx2screen' ? activeAsset : undefined)
     || assets.find(a => a.type === 'msx2screen');
+  const activeMsx2BitmapRoomAsset = activeAsset?.type === 'msx2bitmaproom' ? activeAsset : undefined;
+  const activeBitmapWorldAsset = React.useMemo(() => {
+    if (!activeMsx2BitmapRoomAsset) return undefined;
+    return assets.find(asset =>
+      asset.type === 'worldmap'
+      && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === activeMsx2BitmapRoomAsset.id)
+    );
+  }, [activeMsx2BitmapRoomAsset, assets]);
+  const activeBitmapWorldPaletteAsset = React.useMemo(() => {
+    const paletteAssetId = (activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId;
+    if (!paletteAssetId) return undefined;
+    return assets.find(asset => asset.id === paletteAssetId && asset.type === 'palette');
+  }, [activeBitmapWorldAsset, assets]);
+  const activeBitmapImportPalette = React.useMemo(() => {
+    const paletteAsset = activeBitmapWorldPaletteAsset?.data as PaletteAsset | undefined;
+    if (paletteAsset?.slots?.length) return ensureScreen5PaletteSlots(paletteAsset.slots).slots;
+    if (activeMsx2BitmapRoomAsset?.data) return ensureScreen5PaletteSlots((activeMsx2BitmapRoomAsset.data as Msx2Screen4BitmapRoom).palette).slots;
+    return null;
+  }, [activeBitmapWorldPaletteAsset, activeMsx2BitmapRoomAsset]);
   // SCREEN 4 shares one 16-color palette between tiles and sprites, so slots
   // used by any MSX2 sprite must not be silently overwritten on tile import.
   const msx2SpriteUsedSlots = React.useMemo(() => {
@@ -444,6 +463,16 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       const blankGrid = (cols: number, rows: number) => Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
       const collisionCols = Math.floor(256 / 16);
       const collisionRows = Math.floor(roomHeight / 16);
+      const worldForCurrentRoom = prev.find(asset =>
+        asset.type === 'worldmap'
+        && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === activeAsset.id)
+      );
+      const worldPaletteId = (worldForCurrentRoom?.data as WorldMapGraph | undefined)?.paletteAssetId;
+      const worldPaletteAsset = worldPaletteId
+        ? prev.find(asset => asset.id === worldPaletteId && asset.type === 'palette')
+        : undefined;
+      const worldPalette = (worldPaletteAsset?.data as PaletteAsset | undefined)?.slots;
+      const roomPalette = ensureScreen5PaletteSlots(worldPalette || currentRoom.palette).slots;
       const shouldCopySharedEdgeTiles = options?.copySharedEdgeTiles === true;
       const initialTileGrid = blankGrid(collisionCols, collisionRows);
       const sourceAtlasEntries = currentRoom.atlas?.entries || [];
@@ -533,7 +562,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         vdpMode: 'SCREEN4_BITMAP_ROOM',
         width: 256,
         height: currentRoom.height,
-        palette: currentRoom.palette.map(slot => ({ ...slot })),
+        palette: roomPalette.map(slot => ({ ...slot })),
         atlas: shouldCopySharedEdgeTiles ? clonedAtlas : emptyAtlas,
         composition: { source: 'authored', commands: shouldCopySharedEdgeTiles ? initialCopyCommands : [] },
         ...(shouldCopySharedEdgeTiles ? { tileGrid: initialTileGrid } : {}),
@@ -1028,7 +1057,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
-            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} />
+            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} />
           )}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} playerAssetName={activeAsset.name} onUpdate={(patch) => {
             const mergedPlayer = mergeMsx2PlayerUpdate(activeAsset.data, patch);
@@ -1055,7 +1084,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Screen && activeAsset?.type === 'screenmap' && ( <ScreenEditor screenMap={activeAsset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { if (data.layers?.entities === undefined && (activeAsset.data as ScreenMap).layers.entities) { (data as Partial<ScreenMap>).layers = { ... (activeAsset.data as ScreenMap).layers, ...data.layers, entities: (activeAsset.data as ScreenMap).layers.entities };} if(data.effectZones === undefined && (activeAsset.data as ScreenMap).effectZones) { (data as Partial<ScreenMap>).effectZones = (activeAsset.data as ScreenMap).effectZones;} handleUpdateAsset(activeAsset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} onActiveLayerChange={setCurrentScreenEditorActiveLayer} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates.filter(template => isEntityTemplateEnabledForProject(template, currentScreenMode))} onShowMapFile={handleShowMapFile} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} zoom={screenEditorZoom} setZoom={setScreenEditorZoom} showSectorLines={showSectorLines} onToggleSectorLines={() => setShowSectorLines(v => !v)} catalogStamp={selectedScreenCatalogBlock} onClearCatalogStamp={() => setSelectedScreenCatalogBlock(null)} />)}
           {currentEditor === EditorType.Code && activeAsset?.type === 'code' && ( <div className="flex flex-grow h-full overflow-hidden"> <div className="flex-grow h-full"> <CodeEditor code={activeAsset.data as string} onUpdate={(code) => handleUpdateAsset(activeAsset.id, code)} language="z80" assetName={activeAsset.name} snippetToInsert={snippetToInsert} /> </div> {snippetsEnabled && ( <SnippetsPanel snippets={userSnippets.filter(s => !Z80_BEHAVIOR_SNIPPETS.find(bs => bs.name === s.name))} onSnippetSelect={handleSnippetSelected} isEnabled={true} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet}/>)}</div>)}
           {currentEditor === EditorType.BehaviorEditor && activeAsset?.type === 'behavior' && ( <BehaviorEditor behaviorScript={activeAsset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} /> )}
-          {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
+          {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} /> )}
           {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
@@ -1377,8 +1406,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             isOpen={isMsx2TileLibraryOpen}
             onClose={() => setIsMsx2TileLibraryOpen(false)}
             setStatusBarMessage={setStatusBarMessage}
-            destPalette={activeMsx2ScreenAsset ? (activeMsx2ScreenAsset.data as Msx2Screen4TileScreen).palette : null}
-            destScreenName={activeMsx2ScreenAsset?.name}
+            destPalette={activeAsset?.type === 'msx2bitmaproom' ? activeBitmapImportPalette : activeMsx2ScreenAsset ? (activeMsx2ScreenAsset.data as Msx2Screen4TileScreen).palette : null}
+            destScreenName={activeAsset?.type === 'msx2bitmaproom' ? activeBitmapWorldAsset?.name || activeAsset.name : activeMsx2ScreenAsset?.name}
             paletteAssets={assets.filter(a => a.type === 'palette')}
             protectedSlots={msx2SpriteUsedSlots}
             paletteZones={activeMsx2PaletteZones}
@@ -1389,11 +1418,12 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             activeTargetMode={activeAsset?.type === 'msx2bitmaproom' ? 'screen5' : activeMsx2ScreenAsset ? 'screen4' : 'none'}
             allAssets={assets}
             onImportBitmapTileAssets={(newAssets) => {
-              if (activeAsset?.type !== 'msx2bitmaproom') {
-                setStatusBarMessage('Abre una pantalla SCREEN 5 para importar tiles bitmap.');
-                return;
-              }
-              handleUpdateAsset(activeAsset.id, {}, newAssets);
+              // Creating bitmap-tile project assets does not require an active
+              // bitmap room: handleUpdateAsset with empty data just appends
+              // newAssets to the project. When a bitmap room is active we pass its
+              // id (harmless, the room is not modified); otherwise '' still adds the
+              // assets at project level so they appear in the MSX2 Bitmap Tiles folder.
+              handleUpdateAsset(activeAsset?.id ?? '', {}, newAssets);
             }}
             onImportTiles={(tiles, palette, paletteChanged, paletteSourceId) => {
               // Append the reconciled tile(s) to the active MSX2 SCREEN4 screen's

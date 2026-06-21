@@ -682,16 +682,6 @@ export function buildStarterMsx2BitmapRoomAsset(
 ): Msx2Screen4BitmapRoom {
   const roomId = `bitmap_room_${profile.profileId}_${projectName.replace(/\s+/g, '_').toLowerCase()}`;
   const atlasPixels = Array.from({ length: 64 }, () => Array.from({ length: 256 }, () => 0));
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 16; x++) {
-      atlasPixels[y][x] = (x + y) % 2 === 0 ? 4 : 5;
-    }
-  }
-  for (let y = 0; y < 8; y++) {
-    for (let x = 0; x < 8; x++) {
-      atlasPixels[16 + y][x] = 15;
-    }
-  }
   const preset = MSX2_ENTITY_REPERTOIRE.find(item => item.id === profile.filters.defaultEntityPresetId)
     || MSX2_ENTITY_REPERTOIRE[0];
   const player = {
@@ -711,30 +701,17 @@ export function buildStarterMsx2BitmapRoomAsset(
     width: 256,
     height: 192,
     palette: createDefaultScreen5PaletteSlots(),
+    backgroundColor: 1,
     atlas: {
       width: 256,
       height: 64,
       offscreenBaseY: 320,
       pixels: atlasPixels,
-      entries: [
-        { id: 'floor_tile', name: 'Floor 8x8', sx: 0, sy: 0, w: 8, h: 8 },
-        { id: 'hud_glyph', name: 'HUD Glyph 8x8', sx: 0, sy: 16, w: 8, h: 8 },
-        { id: 'door_icon', name: 'Door 16x16', sx: 0, sy: 48, w: 16, h: 16 },
-      ],
+      entries: [],
     },
     composition: {
       source: 'authored',
-      commands: [
-        { id: 'clear', op: 'fill', x: 0, y: 0, w: 256, h: 192, color: 1 },
-        { id: 'floor_row', op: 'copy', atlasEntryId: 'floor_tile', dx: 0, dy: 160, w: 8, h: 8 },
-        { id: 'floor_row_2', op: 'copy', atlasEntryId: 'floor_tile', dx: 8, dy: 160, w: 8, h: 8 },
-        { id: 'floor_row_3', op: 'copy', atlasEntryId: 'floor_tile', dx: 16, dy: 160, w: 8, h: 8 },
-        { id: 'hud_label', op: 'copy', atlasEntryId: 'hud_glyph', dx: 8, dy: 0, w: 8, h: 8 },
-        { id: 'player_bar_bg', op: 'fill', x: 59, y: 13, w: 66, h: 6, color: 0 },
-        { id: 'player_bar', op: 'fill', x: 60, y: 14, w: 64, h: 4, color: 11 },
-        { id: 'player_bar_top', op: 'lineH', x: 59, y: 13, length: 66, color: 14 },
-        { id: 'door', op: 'copy', atlasEntryId: 'door_icon', dx: 64, dy: 128, w: 16, h: 16 },
-      ],
+      commands: [],
     },
     collision: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
     effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),

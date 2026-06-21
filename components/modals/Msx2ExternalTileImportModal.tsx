@@ -16,7 +16,12 @@ interface Msx2ExternalTileImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** Adds the quantized tiles (and the palette they map to) to the library. */
-  onAddTiles: (tiles: Msx2Screen4Tile[], palette: Screen5PaletteSlot[]) => void;
+  onAddTiles: (
+    tiles: Msx2Screen4Tile[],
+    palette: Screen5PaletteSlot[],
+    outputMode: 'screen4' | 'screen5',
+    layout?: { columns: number; rows: number; baseName: string },
+  ) => void;
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -85,6 +90,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const [baseName, setBaseName] = useState('tile');
   const [targetWidth, setTargetWidth] = useState(16);
   const [targetHeight, setTargetHeight] = useState(16);
+  const [outputMode, setOutputMode] = useState<'screen4' | 'screen5'>('screen4');
   // When on, Ancho and Alto stay equal (square): editing one mirrors the other.
   const [lockDimensions, setLockDimensions] = useState(false);
   const [finalColorCount, setFinalColorCount] = useState(3);
@@ -138,7 +144,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     useOrColor: false,
     baseName,
     quantizeSeed,
-  }), [backgroundColor, backgroundSlot, backgroundTolerance, baseName, cropToVisible, finalColorCount, preserveAspect, quantizeSeed, replaceableSlots, targetHeight, targetWidth]);
+    outputMode,
+  }), [backgroundColor, backgroundSlot, backgroundTolerance, baseName, cropToVisible, finalColorCount, outputMode, preserveAspect, quantizeSeed, replaceableSlots, targetHeight, targetWidth]);
 
   const result = useMemo(() => {
     if (!imageData) return null;
@@ -445,6 +452,27 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
             </div>
 
             <div className="grid grid-cols-2 gap-2 rounded border border-msx-border bg-msx-bgcolor/50 p-3">
+              <div className="col-span-2">
+                <div className="mb-1 text-msx-textsecondary">Tipo de tile</div>
+                <div className="grid grid-cols-2 gap-1 rounded border border-msx-border bg-msx-panelbg p-1">
+                  <button
+                    type="button"
+                    className={`rounded px-2 py-1 text-xs ${outputMode === 'screen4' ? 'bg-msx-highlight text-black' : 'text-msx-textsecondary hover:text-msx-highlight'}`}
+                    onClick={() => setOutputMode('screen4')}
+                    title="Aplica las restricciones de color por segmento de tiles SCREEN 4"
+                  >
+                    SCREEN 4 color clash
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded px-2 py-1 text-xs ${outputMode === 'screen5' ? 'bg-msx-highlight text-black' : 'text-msx-textsecondary hover:text-msx-highlight'}`}
+                    onClick={() => setOutputMode('screen5')}
+                    title="Conserva colores por pixel para tiles bitmap SCREEN 5"
+                  >
+                    SCREEN 5 bitmap
+                  </button>
+                </div>
+              </div>
               <label className="col-span-2">Nombre base
                 <input type="text" value={baseName} onChange={event => setBaseName(event.target.value)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
               </label>
@@ -671,7 +699,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
             disabled={!result || nonEmptyTiles.length === 0}
             onClick={() => {
               if (!result || nonEmptyTiles.length === 0) return;
-              onAddTiles(nonEmptyTiles, result.palette);
+              const tilesToAdd = outputMode === 'screen5' && result.tiles.length > 1 ? result.tiles : nonEmptyTiles;
+              onAddTiles(tilesToAdd, result.palette, outputMode, { columns: result.columns, rows: result.rows, baseName });
             }}
           >
             Añadir a la biblioteca ({nonEmptyTiles.length})

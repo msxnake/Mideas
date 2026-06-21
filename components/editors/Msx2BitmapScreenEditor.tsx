@@ -265,6 +265,12 @@ interface Msx2BitmapScreenEditorProps {
   onOpenRoom?: (assetId: string) => void;
   /** Project profile used to filter the entity preset repertoire (same as SCREEN 4). */
   msx2ProjectProfile?: Msx2ProjectProfile | null;
+  /** Palette asset shared by the world that owns this room. */
+  worldPaletteAssetId?: string;
+  /** Assigns a palette asset as the shared palette for the owning world. */
+  onSetWorldPaletteAssetId?: (paletteAssetId: string | undefined) => void;
+  /** Updates an existing palette asset without routing through the active room. */
+  onUpdatePaletteAsset?: (paletteAssetId: string, slots: Screen5PaletteSlot[]) => void;
 }
 
 // Placement on the Entities layer: pick WHAT to place (a player entry, an entity
@@ -352,6 +358,43 @@ const AtlasThumb: React.FC<AtlasThumbProps> = ({ entry, atlasPixels, slots, isSe
   );
 };
 
+/**
+ * Canvas-only preview of an atlas entry that fills its parent box. Unlike AtlasThumb
+ * (a grid button with padding + name label sized to its own content), this draws just
+ * the tile pixels scaled to the container, so embedding it in a fixed small square box
+ * shows the WHOLE tile undistorted instead of a cropped centre. Same pixel source as
+ * AtlasThumb / renderComposition, so the preview always matches the placed tile.
+ */
+const AtlasTilePreview: React.FC<{
+  entry: Msx2BitmapRoomAtlasEntry;
+  atlasPixels: number[][];
+  slots: Screen5PaletteSlot[];
+}> = ({ entry, atlasPixels, slots }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const width = Math.max(1, entry.w || 8);
+  const height = Math.max(1, entry.h || 8);
+  useEffect(() => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        ctx.fillStyle = resolveSlotHex(slots, atlasPixels[entry.sy + y]?.[entry.sx + x] ?? 0);
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }, [entry, atlasPixels, slots, width, height]);
+  return (
+    <canvas
+      ref={canvasRef}
+      width={width}
+      height={height}
+      className="h-full w-full"
+      style={{ imageRendering: 'pixelated' }}
+    />
+  );
+};
+
 const StampThumb: React.FC<{
   entry: Msx2BitmapStampLibraryEntry;
   slots: Screen5PaletteSlot[];
@@ -430,6 +473,8 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
   const [activeSlot, setActiveSlot] = useState(1);
   const [tool, setTool] = useState<BitmapTileTool>('brush');
   const [isPainting, setIsPainting] = useState(false);
+  // Slot index currently being dragged from its "used color" handle (drag-to-replace).
+  const [draggedSlot, setDraggedSlot] = useState<number | null>(null);
 
   useEffect(() => {
     setName(entry?.name || 'Bitmap Tile');
@@ -442,6 +487,17 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
     window.addEventListener('mouseup', stop);
     return () => window.removeEventListener('mouseup', stop);
   }, []);
+
+  // Palette slot indices actually present in the tile, so the palette can mark
+  // the colors in use (like the MSX2 sprite editor). Pixels store slot indices
+  // directly, so this is unambiguous and needs no color de-duplication.
+  const usedSlots = useMemo(() => {
+    const used = new Set<number>();
+    for (const row of draftPixels) {
+      for (const value of row) used.add(value);
+    }
+    return used;
+  }, [draftPixels]);
 
   if (!entry) return null;
 
@@ -469,6 +525,26 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
 
   const clearTile = () => setDraftPixels(Array.from({ length: height }, () => Array.from({ length: width }, () => 0)));
   const fillTile = () => setDraftPixels(Array.from({ length: height }, () => Array.from({ length: width }, () => activeSlot)));
+
+  // Remap every pixel painted with `fromSlot` to `toSlot` (drag-to-replace).
+  // Pixels are slot indices, so this is a pure index swap with no ambiguity.
+  const replaceSlot = (fromSlot: number, toSlot: number) => {
+    if (fromSlot === toSlot) return;
+    setDraftPixels(current => {
+      let changed = false;
+      const next = current.map(row => row.map(value => {
+        if (value === fromSlot) { changed = true; return toSlot; }
+        return value;
+      }));
+      return changed ? next : current;
+    });
+  };
+
+  const handleSlotDrop = (toSlot: number) => {
+    if (draggedSlot === null) return;
+    replaceSlot(draggedSlot, toSlot);
+    setDraggedSlot(null);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onMouseDown={event => event.stopPropagation()}>
@@ -539,18 +615,40 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
             <div>
               <div className="mb-1 text-xs text-msx-highlight">Paleta SCREEN 5</div>
               <div className="grid grid-cols-4 gap-1">
-                {slots.map((slot, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className={`h-8 rounded border text-[0.65rem] ${activeSlot === index ? 'border-white' : 'border-msx-border'}`}
-                    style={{ backgroundColor: resolveSlotHex(slots, index), color: index < 8 ? '#fff' : '#000' }}
-                    onClick={() => setActiveSlot(index)}
-                    title={`Slot ${index} · master ${slot.masterIndex}`}
-                  >
-                    {index}
-                  </button>
-                ))}
+                {slots.map((slot, index) => {
+                  const isUsed = usedSlots.has(index);
+                  const isDropTarget = draggedSlot !== null && draggedSlot !== index;
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      className={`relative h-8 rounded border text-[0.65rem] ${activeSlot === index ? 'border-white' : 'border-msx-border'} ${isDropTarget ? 'outline outline-1 outline-msx-highlight/70' : ''}`}
+                      style={{ backgroundColor: resolveSlotHex(slots, index), color: index < 8 ? '#fff' : '#000' }}
+                      onClick={() => setActiveSlot(index)}
+                      onDragOver={event => { if (isDropTarget) event.preventDefault(); }}
+                      onDrop={event => { event.preventDefault(); handleSlotDrop(index); }}
+                      title={`Slot ${index} · master ${slot.masterIndex}${isUsed ? ' · en uso (arrastra el círculo para reemplazarlo)' : ''}`}
+                    >
+                      {index}
+                      {isUsed && (
+                        <span
+                          draggable
+                          className="absolute right-0.5 top-0.5 h-3.5 w-3.5 cursor-grab rounded-full border border-black/70 bg-msx-highlight shadow active:cursor-grabbing"
+                          title={`Arrastra para reemplazar el slot ${index} por otro color`}
+                          aria-label={`Arrastrar slot usado ${index} para reemplazarlo`}
+                          onClick={event => event.stopPropagation()}
+                          onDragStart={event => {
+                            event.stopPropagation();
+                            setDraggedSlot(index);
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', String(index));
+                          }}
+                          onDragEnd={() => setDraggedSlot(null)}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -591,12 +689,13 @@ const MINIMAP_STEP = 4;
 interface RoomMinimapThumbProps {
   asset: ProjectAsset;
   isCurrent: boolean;
+  paletteSlots: Screen5PaletteSlot[];
   /** When provided (and not the current room), the thumb becomes a clickable "open & edit" target. */
   onOpen?: () => void;
 }
 
 /** Renders a downsampled thumbnail of a bitmap room's composed page for the world minimap. */
-const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, onOpen }) => {
+const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, paletteSlots, onOpen }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const room = asset.data as Msx2Screen4BitmapRoom;
   const tw = Math.ceil(SCREEN_W / MINIMAP_STEP);
@@ -604,7 +703,7 @@ const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, o
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
-    const slots = ensureScreen5PaletteSlots(room?.palette).slots;
+    const slots = ensureScreen5PaletteSlots(paletteSlots).slots;
     const pixels = renderComposition(room, room?.atlas?.pixels || []);
     ctx.clearRect(0, 0, tw, th);
     for (let y = 0; y < th; y++) {
@@ -613,7 +712,7 @@ const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, o
         ctx.fillRect(x, y, 1, 1);
       }
     }
-  }, [room, tw, th]);
+  }, [room, paletteSlots, tw, th]);
   const interactive = !!onOpen && !isCurrent;
   return (
     <div
@@ -653,7 +752,7 @@ const EmptySilhouette: React.FC<EmptySilhouetteProps> = ({ direction, interactiv
   </button>
 );
 
-export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, msx2ProjectProfile = null }) => {
+export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, msx2ProjectProfile = null, worldPaletteAssetId, onSetWorldPaletteAssetId, onUpdatePaletteAsset }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // World-minimap: pending "create screen at <dir>" inline confirm.
@@ -706,7 +805,16 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openPalette, setOpenPalette] = useState(true);
   const [openBudget, setOpenBudget] = useState(true);
 
-  const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(room.palette), [room.palette]);
+  const worldPaletteAsset = useMemo(() => {
+    if (!worldPaletteAssetId) return undefined;
+    return allAssets.find(asset => asset.id === worldPaletteAssetId && asset.type === 'palette') as ProjectAsset | undefined;
+  }, [allAssets, worldPaletteAssetId]);
+  const worldPaletteData = worldPaletteAsset?.data as PaletteAsset | undefined;
+  const { slots, changed } = useMemo(
+    () => ensureScreen5PaletteSlots(worldPaletteData?.slots || room.palette),
+    [room.palette, worldPaletteData?.slots],
+  );
+  const usesWorldPalette = Boolean(worldPaletteAsset && worldPaletteData?.slots);
   const atlasWidth = Math.max(1, Number(room.atlas?.width) || 256);
   const atlasHeight = Math.max(1, Number(room.atlas?.height) || 128);
   const atlasPixels = useMemo(() => normalizePixels(room.atlas?.pixels, atlasWidth, atlasHeight), [room.atlas?.pixels, atlasWidth, atlasHeight]);
@@ -825,8 +933,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const VRAM_LIMIT_KB = 128;
 
   useEffect(() => {
-    if (changed) onUpdate({ palette: slots.map(slot => ({ ...slot })) });
-  }, [changed, onUpdate, slots]);
+    if (!changed) return;
+    if (usesWorldPalette && worldPaletteAssetId && onUpdatePaletteAsset) {
+      onUpdatePaletteAsset(worldPaletteAssetId, slots.map(slot => ({ ...slot })));
+      return;
+    }
+    onUpdate({ palette: slots.map(slot => ({ ...slot })) });
+  }, [changed, onUpdate, onUpdatePaletteAsset, slots, usesWorldPalette, worldPaletteAssetId]);
 
   // --- Main canvas render ---
   useEffect(() => {
@@ -1584,6 +1697,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     tiles: Msx2Screen4Tile[],
     palette: Screen5PaletteSlot[],
     paletteChanged: boolean,
+    paletteSourceId?: string,
   ) => {
     if (!tiles.length) return;
     const { atlas, addedEntries } = importTilesIntoAtlas(
@@ -1596,9 +1710,17 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       },
       tiles,
     );
+    if (paletteChanged && paletteSourceId && paletteSourceId !== 'screen' && onUpdatePaletteAsset) {
+      onUpdatePaletteAsset(paletteSourceId, palette.map(slot => ({ ...slot })));
+      if (onSetWorldPaletteAssetId) onSetWorldPaletteAssetId(paletteSourceId);
+    } else if (paletteChanged && usesWorldPalette && worldPaletteAssetId && onUpdatePaletteAsset) {
+      onUpdatePaletteAsset(worldPaletteAssetId, palette.map(slot => ({ ...slot })));
+    } else if (paletteChanged && !usesWorldPalette && onSetWorldPaletteAssetId && paletteSourceId && paletteSourceId !== 'screen') {
+      onSetWorldPaletteAssetId(paletteSourceId);
+    }
     onUpdate({
       atlas,
-      ...(paletteChanged ? { palette: palette.map(slot => ({ ...slot })) } : {}),
+      ...(paletteChanged && !usesWorldPalette && (!paletteSourceId || paletteSourceId === 'screen') ? { palette: palette.map(slot => ({ ...slot })) } : {}),
     });
     if (addedEntries[0]) {
       setSelectedAtlasEntryId(addedEntries[0].id);
@@ -1740,9 +1862,14 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       },
       [atlasTile as Msx2Screen4Tile],
     );
+    if (shouldApplyPalette && usesWorldPalette && worldPaletteAssetId && onUpdatePaletteAsset) {
+      onUpdatePaletteAsset(worldPaletteAssetId, palette.map(slot => ({ ...slot })));
+    } else if (shouldApplyPalette && !usesWorldPalette && onSetWorldPaletteAssetId) {
+      onSetWorldPaletteAssetId(tile.paletteId);
+    }
     onUpdate({
       atlas,
-      ...(shouldApplyPalette ? { palette: palette.map(slot => ({ ...slot })) } : {}),
+      ...(shouldApplyPalette && !usesWorldPalette && !onSetWorldPaletteAssetId ? { palette: palette.map(slot => ({ ...slot })) } : {}),
     });
     if (addedEntries[0]) {
       setSelectedAtlasEntryId(addedEntries[0].id);
@@ -1763,9 +1890,41 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const applyPaletteAsset = (asset: ProjectAsset) => {
     const data = asset.data as { slots?: Screen5PaletteSlot[] } | undefined;
     const { slots: normalized } = ensureScreen5PaletteSlots(data?.slots);
-    onUpdate({ palette: normalized.map(slot => ({ ...slot })) });
+    if (onSetWorldPaletteAssetId) {
+      onSetWorldPaletteAssetId(asset.id);
+    } else {
+      onUpdate({ palette: normalized.map(slot => ({ ...slot })) });
+    }
     setIsPalettePickerOpen(false);
-    setStatusBarMessage?.(`Paleta "${asset.name}" cargada (16 colores SCREEN 5).`);
+    setStatusBarMessage?.(onSetWorldPaletteAssetId
+      ? `Paleta "${asset.name}" asignada al mundo SCREEN 5.`
+      : `Paleta "${asset.name}" cargada (16 colores SCREEN 5).`
+    );
+  };
+
+  const createPaletteAssetFromCurrent = () => {
+    const baseName = `${room.name || 'SCREEN 5'} Palette`;
+    const usedNames = new Set(allAssets.map(asset => asset.name));
+    let name = baseName;
+    let suffix = 2;
+    while (usedNames.has(name)) name = `${baseName} ${suffix++}`;
+    const now = new Date().toISOString();
+    const paletteAsset: ProjectAsset = {
+      id: `palette_screen5_world_${Date.now()}`,
+      name,
+      type: 'palette',
+      data: {
+        mode: 'SCREEN5',
+        slots: slots.map(slot => ({ ...slot })),
+        source: 'manual',
+        createdAt: now,
+        updatedAt: now,
+        notes: `Saved from SCREEN 5 Palette Manager for "${room.name}".`,
+      } as PaletteAsset,
+    };
+    onUpdate({}, [paletteAsset]);
+    onSetWorldPaletteAssetId?.(paletteAsset.id);
+    setStatusBarMessage?.(`Paleta "${name}" creada como asset${onSetWorldPaletteAssetId ? ' y asignada al mundo' : ''}.`);
   };
 
   const toggleLayerVisible = (key: LayerKey) => setLayerVisible(prev => ({ ...prev, [key]: !prev[key] }));
@@ -2271,7 +2430,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 const renderCell = (direction: ConnectionDirection) => {
                   const neighbour = neighbourRooms[direction];
                   if (neighbour) {
-                    return <RoomMinimapThumb asset={neighbour} isCurrent={false} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} />;
+                    return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} />;
                   }
                   return (
                     <EmptySilhouette
@@ -2291,7 +2450,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         {renderCell('north')}
                         {blank}
                         {renderCell('west')}
-                        <RoomMinimapThumb asset={allAssets.find(a => a.id === room.id) ?? ({ id: room.id, name: room.name, type: 'msx2bitmaproom', data: room } as ProjectAsset)} isCurrent />
+                        <RoomMinimapThumb asset={allAssets.find(a => a.id === room.id) ?? ({ id: room.id, name: room.name, type: 'msx2bitmaproom', data: room } as ProjectAsset)} isCurrent paletteSlots={slots} />
                         {renderCell('east')}
                         {blank}
                         {renderCell('south')}
@@ -2314,7 +2473,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 bg-black border border-msx-border overflow-hidden flex items-center justify-center">
                   {selectedAtlasEntry ? (
-                    <AtlasThumb entry={selectedAtlasEntry} atlasPixels={atlasPixels} slots={slots} isSelected={false} onSelect={() => { /* noop */ }} />
+                    <AtlasTilePreview entry={selectedAtlasEntry} atlasPixels={atlasPixels} slots={slots} />
                   ) : (
                     <SpriteIcon />
                   )}
@@ -2413,7 +2572,42 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Palette Manager" isOpen={openPalette} onToggle={() => setOpenPalette(v => !v)}>
-            {/* Real palette data from ensureScreen5PaletteSlots(room.palette). */}
+            <div className="mb-2 rounded border border-msx-border bg-msx-bgcolor/50 p-2 text-[0.65rem] text-msx-textsecondary">
+              <label className="block space-y-1">
+                <span className="text-msx-highlight">Paleta del mundo</span>
+                <select
+                  value={worldPaletteAssetId || ''}
+                  onChange={event => onSetWorldPaletteAssetId?.(event.target.value || undefined)}
+                  disabled={!onSetWorldPaletteAssetId}
+                  className="w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-xs text-msx-textprimary"
+                  title="Paleta compartida que el ROM carga una vez al entrar en este mundo"
+                >
+                  <option value="">Sin asignar: usar paleta local de esta pantalla</option>
+                  {paletteAssets
+                    .filter(asset => {
+                      const palette = asset.data as PaletteAsset | undefined;
+                      return palette?.mode === 'SCREEN4' || palette?.mode === 'SCREEN5';
+                    })
+                    .map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={createPaletteAssetFromCurrent}
+                className="mt-2 w-full rounded border border-msx-highlight px-2 py-1 text-xs text-msx-highlight hover:bg-msx-highlight/20"
+                title="Crear un asset de paleta con los 16 colores actuales y asignarlo al mundo"
+              >
+                Crear asset con paleta actual
+              </button>
+              <div className="mt-1">
+                {usesWorldPalette
+                  ? `Activa: ${worldPaletteAsset?.name || worldPaletteAssetId}.`
+                  : 'Fallback: esta pantalla conserva su paleta local hasta asignar una paleta al mundo.'}
+              </div>
+            </div>
+            {/* Real palette data from the world palette asset, or room.palette as fallback. */}
             <div className="grid grid-cols-8 gap-1">
               {slots.map((slot, index) => (
                 <button
@@ -2509,6 +2703,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         onClose={() => setIsTileLibraryOpen(false)}
         destPalette={slots}
         destScreenName={room.name}
+        paletteAssets={paletteAssets as Array<{ id: string; name: string; data?: PaletteAsset }>}
         onImportTiles={handleImportTilesFromLibrary}
         activeTargetMode="screen5"
         allAssets={allAssets}

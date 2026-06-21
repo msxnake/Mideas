@@ -23,6 +23,11 @@ import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } fro
 import { buildDetailedMsx2PlayerDocument, MSX2_PLAYER_DOCUMENT_SCHEMA } from '../utils/msx2PlayerDocument';
 import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../data/enemyLibrary';
 import { deepCopy } from '../utils/projectUtils';
+import {
+  buildScreen5BitmapTileAsset,
+  createScreen5PaletteAssetForTile,
+  findMatchingScreen5PaletteAsset,
+} from '../utils/msx2Screen5BitmapTileLibrary';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -356,6 +361,41 @@ export const useAssetHandlers = ({
       return undefined;
     }
 
+    // MSX2 bitmap tiles (SCREEN 5) have no standalone editor: they are a reusable
+    // library consumed by the bitmap room atlas. Creating one builds a blank 16x16
+    // tile plus the SCREEN 5 palette asset it references (without a paletteId the
+    // tile could never be imported into a room atlas). We intentionally do not
+    // change the selection or editor, so the new tile just shows up in the folder
+    // and in the room's "MSX2 Bitmap Tiles" panel without disrupting the active
+    // editor (e.g. an open bitmap room).
+    if (type === 'msx2bitmaptile') {
+      const tileName = 'New Bitmap Tile';
+      const slots = createDefaultScreen5PaletteSlots();
+      const blankPixels = Array.from({ length: 16 }, () => Array.from({ length: 16 }, () => 0));
+      const matchingPalette = findMatchingScreen5PaletteAsset(slots, assets);
+      const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(slots, tileName, 'pending', assets);
+      const tileAsset = buildScreen5BitmapTileAsset({
+        name: tileName,
+        width: 16,
+        height: 16,
+        pixels: blankPixels,
+        paletteId: paletteAsset.id,
+        existingAssets: matchingPalette ? assets : [...assets, paletteAsset],
+        sourceType: 'manual-edit',
+      });
+      if (!matchingPalette) {
+        (paletteAsset.data as PaletteAsset).createdFromTileId = tileAsset.id;
+      }
+      const assetsToAdd = matchingPalette ? [tileAsset] : [paletteAsset, tileAsset];
+      setAssetsWithHistory(prevAssets => [...prevAssets, ...assetsToAdd]);
+      setStatusBarMessage(
+        matchingPalette
+          ? `Created "${tileAsset.name}" (MSX2 Bitmap Tile 16x16) using palette "${matchingPalette.name}".`
+          : `Created "${tileAsset.name}" (MSX2 Bitmap Tile 16x16) and palette "${paletteAsset.name}".`
+      );
+      return tileAsset;
+    }
+
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
@@ -508,22 +548,17 @@ export const useAssetHandlers = ({
           width: 256,
           height: 192,
           palette: createDefaultScreen5PaletteSlots(),
+          backgroundColor: 1,
           atlas: {
             width: 256,
             height: 128,
             offscreenBaseY: 320,
             pixels: Array.from({ length: 128 }, () => Array.from({ length: 256 }, () => 0)),
-            entries: [
-              { id: 'atlas_block_0', name: 'Blank 8x8', sx: 0, sy: 0, w: 8, h: 8 },
-              { id: 'atlas_block_1', name: 'Solid 16x16', sx: 16, sy: 0, w: 16, h: 16 },
-            ],
+            entries: [],
           },
           composition: {
             source: 'authored',
-            commands: [
-              { id: 'clear_screen', op: 'fill', x: 0, y: 0, w: 256, h: 192, color: 1 },
-              { id: 'sample_block', op: 'copy', atlasEntryId: 'atlas_block_1', dx: 32, dy: 128 },
-            ],
+            commands: [],
           },
           collision: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),

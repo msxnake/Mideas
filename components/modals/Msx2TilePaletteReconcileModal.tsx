@@ -12,10 +12,14 @@ import { Msx2PaletteZoneBar } from './Msx2PaletteZoneBar';
 import {
   Msx2TilePaletteReconcileMode,
   buildAdaptMap,
-  buildReplaceAssignmentAvoiding,
+  buildSmartReconcile,
+  classifyTileColors,
   getTileUsedColors,
   reconcileTile,
 } from '../../utils/msx2TilePaletteReconcile';
+
+/** Colors within this % of an existing palette color are flagged as "near". */
+const NEAR_MARGIN_PCT = 5;
 
 interface Msx2TilePaletteReconcileModalProps {
   isOpen: boolean;
@@ -132,9 +136,12 @@ export const Msx2TilePaletteReconcileModal: React.FC<Msx2TilePaletteReconcileMod
   // Which palette to reconcile against: the screen's current palette, or any
   // project palette asset selected by the user.
   const [selectedSource, setSelectedSource] = useState<string>('screen');
-  const [mode, setMode] = useState<Msx2TilePaletteReconcileMode>('adapt');
-  // assignment: source slot -> destination slot, as a plain record for state.
+  // 'replace' is the smart "enrich" mode (reuse existing, ask on near, add new).
+  const [mode, setMode] = useState<Msx2TilePaletteReconcileMode>('replace');
+  // Adapt-mode per-color override (source slot -> destination slot).
   const [assignment, setAssignment] = useState<Record<number, number>>({});
+  // Enrich-mode: source slots whose 'near' match the user chose to add as new.
+  const [forceNew, setForceNew] = useState<Record<number, boolean>>({});
 
   const workingDest = useMemo(() => {
     if (selectedSource === 'screen') return originalScreen;
@@ -146,24 +153,45 @@ export const Msx2TilePaletteReconcileModal: React.FC<Msx2TilePaletteReconcileMod
     if (isOpen) setSelectedSource('screen');
   }, [isOpen]);
 
+  // Adapt defaults to the nearest existing slot per color (editable below);
+  // reset near-match choices whenever the inputs change.
   useEffect(() => {
     if (!isOpen) return;
-    const map = mode === 'adapt'
-      ? buildAdaptMap(usedColors, workingDest)
-      : buildReplaceAssignmentAvoiding(usedColors, workingDest, protectedSet);
-    setAssignment(Object.fromEntries(map));
-  }, [isOpen, mode, usedColors, workingDest, protectedSet]);
+    setAssignment(Object.fromEntries(buildAdaptMap(usedColors, workingDest)));
+    setForceNew({});
+  }, [isOpen, usedColors, workingDest]);
 
-  const assignmentMap = useMemo(() => {
+  // Classify each tile color vs the working palette: exact (reuse), near (<=5%,
+  // ask), or new (allocate). Avoids saturating the palette with duplicates.
+  const colorMatches = useMemo(
+    () => classifyTileColors(usedColors, workingDest, NEAR_MARGIN_PCT),
+    [usedColors, workingDest],
+  );
+
+  const forceNewSet = useMemo(() => {
+    const set = new Set<number>();
+    Object.entries(forceNew).forEach(([slot, value]) => { if (value) set.add(Number(slot)); });
+    return set;
+  }, [forceNew]);
+
+  const adaptMap = useMemo(() => {
     const map = new Map<number, number>([[0, 0]]);
     usedColors.forEach(usage => map.set(usage.slot, assignment[usage.slot] ?? usage.slot));
     return map;
   }, [assignment, usedColors]);
 
-  const result = useMemo(
-    () => reconcileTile(tile, sourcePalette, workingDest, mode, assignmentMap),
-    [tile, sourcePalette, workingDest, mode, assignmentMap],
+  const smart = useMemo(
+    () => buildSmartReconcile(tile, sourcePalette, workingDest, colorMatches, forceNewSet, protectedSet),
+    [tile, sourcePalette, workingDest, colorMatches, forceNewSet, protectedSet],
   );
+
+  const result = useMemo(() => {
+    if (mode === 'adapt') {
+      const adapted = reconcileTile(tile, sourcePalette, workingDest, 'adapt', adaptMap);
+      return { tile: adapted.tile, palette: adapted.palette };
+    }
+    return { tile: smart.tile, palette: smart.palette };
+  }, [mode, tile, sourcePalette, workingDest, adaptMap, smart]);
 
   if (!isOpen) return null;
 
@@ -171,14 +199,12 @@ export const Msx2TilePaletteReconcileModal: React.FC<Msx2TilePaletteReconcileMod
     setAssignment(current => ({ ...current, [sourceSlot]: destSlot }));
 
   const selectableSlots = workingDest.filter(slot => slot.slotIndex >= 1 && slot.slotIndex <= 15);
-  // The screen adopts the chosen palette whenever it differs from its current
-  // one (different asset selected, or replace mode overwrote slots).
   const paletteChanged = !palettesEqual(result.palette, originalScreen);
-  // Slots that 'replace' mode would overwrite but a sprite/player already uses.
+  // Enrich mode: 'new' colors that had to land on a sprite/used slot → warn.
   const conflictSlots = mode === 'replace'
-    ? Array.from(new Set(usedColors
-        .map(usage => assignment[usage.slot] ?? usage.slot)
-        .filter(slot => protectedSet.has(slot))))
+    ? Array.from(new Set(Array.from(smart.allocation.values())
+        .filter(info => info.mode === 'new' && protectedSet.has(info.dest))
+        .map(info => info.dest)))
       .sort((a, b) => a - b)
     : [];
   const handleApply = () => onApply(result.tile, result.palette, paletteChanged, selectedSource);
@@ -254,20 +280,21 @@ export const Msx2TilePaletteReconcileModal: React.FC<Msx2TilePaletteReconcileMod
 
             <div className="rounded border border-msx-border bg-msx-bgcolor/50 p-3 space-y-2">
               <label className="flex items-start gap-2">
-                <input type="radio" name="reconcile-mode" checked={mode === 'adapt'} onChange={() => setMode('adapt')} className="mt-0.5" />
+                <input type="radio" name="reconcile-mode" checked={mode === 'replace'} onChange={() => setMode('replace')} className="mt-0.5" />
                 <span>
-                  <span className="font-semibold text-msx-textprimary">Adaptar a la paleta de la pantalla</span>
+                  <span className="font-semibold text-msx-textprimary">Enriquecer paleta (recomendado)</span>
                   <span className="block text-msx-textsecondary">
-                    No modifica la paleta de la pantalla. Cada color del tile se asigna al slot existente más parecido.
+                    Reusa los colores que ya existen, avisa de los muy parecidos (≤{NEAR_MARGIN_PCT}%) para que elijas, y
+                    añade los nuevos en slots libres. No duplica colores.
                   </span>
                 </span>
               </label>
               <label className="flex items-start gap-2">
-                <input type="radio" name="reconcile-mode" checked={mode === 'replace'} onChange={() => setMode('replace')} className="mt-0.5" />
+                <input type="radio" name="reconcile-mode" checked={mode === 'adapt'} onChange={() => setMode('adapt')} className="mt-0.5" />
                 <span>
-                  <span className="font-semibold text-msx-textprimary">Reemplazar slots de la pantalla</span>
+                  <span className="font-semibold text-msx-textprimary">Adaptar a la paleta existente</span>
                   <span className="block text-msx-textsecondary">
-                    Sobrescribe los slots elegidos con los colores del tile. Afecta a todo lo que ya use esos slots.
+                    No modifica la paleta. Cada color del tile se asigna al slot existente más parecido.
                   </span>
                 </span>
               </label>
@@ -275,11 +302,11 @@ export const Msx2TilePaletteReconcileModal: React.FC<Msx2TilePaletteReconcileMod
 
             <div className="rounded border border-msx-border bg-msx-bgcolor/50 p-3">
               <div className="mb-2 text-msx-textsecondary">
-                Colores del tile ({usedColors.length}) → slot de la pantalla
+                Colores del tile ({usedColors.length})
               </div>
               {usedColors.length === 0 ? (
                 <div className="text-msx-textsecondary">El tile no usa colores (vacío).</div>
-              ) : (
+              ) : mode === 'adapt' ? (
                 <ul className="space-y-2">
                   {usedColors.map(usage => {
                     const destSlot = assignment[usage.slot] ?? usage.slot;
@@ -300,23 +327,66 @@ export const Msx2TilePaletteReconcileModal: React.FC<Msx2TilePaletteReconcileMod
                             </option>
                           ))}
                         </select>
-                        <span className="h-6 w-6 flex-none rounded border border-msx-border" style={{ backgroundColor: mode === 'replace' ? usage.hex : destHex }} title={`Destino S${destSlot}`} />
+                        <span className="h-6 w-6 flex-none rounded border border-msx-border" style={{ backgroundColor: destHex }} title={`Destino S${destSlot}`} />
                         <span className="flex-1 text-right text-[10px] text-msx-textsecondary">{usage.count}px</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul className="space-y-2">
+                  {colorMatches.map(match => {
+                    const alloc = smart.allocation.get(match.slot);
+                    const dest = alloc?.dest ?? match.slot;
+                    const isNew = alloc?.mode === 'new';
+                    return (
+                      <li key={match.slot} className="flex items-center gap-2">
+                        <span className="h-6 w-6 flex-none rounded border border-msx-border" style={{ backgroundColor: match.hex }} title={`Tile S${match.slot} ${match.hex}`} />
+                        <span className="min-w-0 flex-1">
+                          {match.status === 'exact' && (
+                            <span className="text-green-400">= ya existe en S{match.matchSlot}</span>
+                          )}
+                          {match.status === 'near' && (
+                            <span className="text-yellow-300">≈ parecido a S{match.matchSlot} ({match.percentDiff.toFixed(1)}%)</span>
+                          )}
+                          {match.status === 'new' && (
+                            <span className="text-msx-highlight">+ color nuevo → S{dest}{protectedSet.has(dest) ? ' ⚠' : ''}</span>
+                          )}
+                        </span>
+                        {match.status === 'near' && (
+                          <div className="flex flex-none items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setForceNew(current => ({ ...current, [match.slot]: false }))}
+                              className={`rounded border px-1.5 py-0.5 ${!forceNewSet.has(match.slot) ? 'border-msx-highlight text-msx-highlight' : 'border-msx-border text-msx-textsecondary'}`}
+                            >Usar existente</button>
+                            <button
+                              type="button"
+                              onClick={() => setForceNew(current => ({ ...current, [match.slot]: true }))}
+                              className={`rounded border px-1.5 py-0.5 ${forceNewSet.has(match.slot) ? 'border-msx-highlight text-msx-highlight' : 'border-msx-border text-msx-textsecondary'}`}
+                            >Crear nuevo</button>
+                          </div>
+                        )}
+                        <span
+                          className="h-6 w-6 flex-none rounded border border-msx-border"
+                          style={{ backgroundColor: isNew ? match.hex : (workingDest[dest]?.hex || '#000000') }}
+                          title={`Destino S${dest}`}
+                        />
+                        <span className="w-10 flex-none text-right text-[10px] text-msx-textsecondary">{match.count}px</span>
                       </li>
                     );
                   })}
                 </ul>
               )}
               {mode === 'replace' && (
-                <div className="mt-2 text-[10px] text-msx-warning">
-                  Los slots destino se sobrescribirán con los colores del tile.
+                <div className="mt-2 text-[10px] text-msx-textsecondary">
+                  <span className="text-green-400">=</span> reusa existente · <span className="text-yellow-300">≈</span> parecido (elige) · <span className="text-msx-highlight">+</span> color nuevo en slot libre.
                 </div>
               )}
               {mode === 'replace' && conflictSlots.length > 0 && (
                 <div className="mt-1 text-[10px] text-msx-danger">
-                  ⚠ Los slots {conflictSlots.map(slot => `S${slot}`).join(', ')} los usan sprites/player
-                  (paleta compartida en SCREEN 4): al sobrescribirlos cambiarás también esos sprites.
-                  Elige slots sin la marca ⚠.
+                  ⚠ No quedan slots libres: los colores nuevos se escribirán en {conflictSlots.map(slot => `S${slot}`).join(', ')},
+                  usados por sprites/player. Reusa colores parecidos o libera slots.
                 </div>
               )}
             </div>
