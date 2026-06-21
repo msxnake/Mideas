@@ -620,6 +620,9 @@ const App: React.FC = () => {
           case 'msx2bitmap':
             setCurrentEditor(EditorType.Msx2Bitmap);
             break;
+          case 'msx2bitmaptile':
+            setCurrentEditor(EditorType.Msx2BitmapTile);
+            break;
           case 'msx2screen':
             setCurrentEditor(EditorType.Msx2Screen);
             break;

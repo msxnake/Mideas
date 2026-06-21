@@ -171,7 +171,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   sprite: EditorType.Sprite,
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
-  msx2bitmaptile: EditorType.None,
+  msx2bitmaptile: EditorType.Msx2BitmapTile,
   msx2player: EditorType.Msx2Player,
   msx2enemy: EditorType.Msx2Enemy,
   msx2screen: EditorType.Msx2Screen,

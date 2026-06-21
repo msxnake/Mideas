@@ -361,13 +361,14 @@ export const useAssetHandlers = ({
       return undefined;
     }
 
-    // MSX2 bitmap tiles (SCREEN 5) have no standalone editor: they are a reusable
-    // library consumed by the bitmap room atlas. Creating one builds a blank 16x16
-    // tile plus the SCREEN 5 palette asset it references (without a paletteId the
-    // tile could never be imported into a room atlas). We intentionally do not
-    // change the selection or editor, so the new tile just shows up in the folder
-    // and in the room's "MSX2 Bitmap Tiles" panel without disrupting the active
-    // editor (e.g. an open bitmap room).
+    // MSX2 bitmap tiles (SCREEN 5) are 16x16 tiles edited in the dedicated
+    // Msx2BitmapTileEditor. Creating one builds a blank tile plus the SCREEN 5
+    // palette asset it references (without a paletteId the tile could never be
+    // imported into a room atlas). When `select` is not explicitly disabled we
+    // also switch the active editor + selection so the user lands in the new
+    // tile editor (per "cuando creo un nuevo tile debe salir este editor").
+    // Callers that only want the asset without leaving the current editor can
+    // pass `{ select: false }`.
     if (type === 'msx2bitmaptile') {
       const tileName = 'New Bitmap Tile';
       const slots = createDefaultScreen5PaletteSlots();
@@ -388,6 +389,10 @@ export const useAssetHandlers = ({
       }
       const assetsToAdd = matchingPalette ? [tileAsset] : [paletteAsset, tileAsset];
       setAssetsWithHistory(prevAssets => [...prevAssets, ...assetsToAdd]);
+      if (options?.select !== false) {
+        setSelectedAssetId(tileAsset.id);
+        setCurrentEditor(EditorType.Msx2BitmapTile);
+      }
       setStatusBarMessage(
         matchingPalette
           ? `Created "${tileAsset.name}" (MSX2 Bitmap Tile 16x16) using palette "${matchingPalette.name}".`
@@ -979,6 +984,7 @@ export const useAssetHandlers = ({
       case 'sprite': return EditorType.Sprite;
       case 'msx2sprite': return EditorType.Msx2Sprite;
       case 'msx2bitmap': return EditorType.Msx2Bitmap;
+      case 'msx2bitmaptile': return EditorType.Msx2BitmapTile;
       case 'msx2screen': return EditorType.Msx2Screen;
       case 'msx2bitmaproom': return EditorType.Msx2BitmapRoom;
       case 'msx2player': return EditorType.Msx2Player;

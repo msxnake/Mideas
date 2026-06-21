@@ -24,6 +24,7 @@ import { TileEditor } from './editors/TileEditor';
 import { SpriteEditor } from './editors/SpriteEditor';
 import { Msx2SpriteEditor } from './editors/Msx2SpriteEditor';
 import { Msx2BitmapEditor } from './editors/Msx2BitmapEditor';
+import { Msx2BitmapTileEditor } from './editors/Msx2BitmapTileEditor';
 import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
 import { Msx2BitmapScreenEditor } from './editors/Msx2BitmapScreenEditor';
 import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
@@ -46,7 +47,7 @@ import { SpriteSheetReorderModal } from './modals/SpriteSheetReorderModal';
 import { Msx2EntityLibraryModal } from './modals/Msx2EntityLibraryModal';
 import { Msx2SpriteLibraryModal } from './modals/Msx2SpriteLibraryModal';
 import { Msx2TileLibraryModal } from './modals/Msx2TileLibraryModal';
-import { getUsedMsx2SpritePaletteSlots } from '../utils/msx2PaletteCompatibility';
+import { getUsedMsx2SpritePaletteSlots, reconcileMsx2SpriteIntoProjectPalette } from '../utils/msx2PaletteCompatibility';
 import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
 import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
@@ -1055,6 +1056,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} saveSpriteZoom={saveSpriteZoom} />)}
           {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onSyncPaletteSlots={syncGeneratedMsx2PaletteSlots} onSavePaletteAsset={(result) => saveImportedMsx2PaletteAsset(result.palette, activeAsset.name, result.generatedSlots)} />)}
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
+          {currentEditor === EditorType.Msx2BitmapTile && activeAsset?.type === 'msx2bitmaptile' && (
+            <Msx2BitmapTileEditor
+              tileAsset={activeAsset}
+              allAssets={assets}
+              onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)}
+              onSelectAsset={onSelectAsset}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+          )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
             <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} />
@@ -1397,7 +1407,27 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               // is serialized with the project JSON and editable like any sprite.
               const name = (sprite.name || 'Sprite').trim() || 'Sprite';
               const assetId = `msx2sprite_lib_import_${Date.now()}`;
-              handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'msx2sprite', data: { ...sprite, id: assetId } }]);
+              const newSpriteAsset: ProjectAsset = { id: assetId, name, type: 'msx2sprite', data: { ...sprite, id: assetId } };
+              // The ROM loads ONE shared SCREEN 5 palette, but a library sprite
+              // carries its own. Reconcile the sprite's used slots into the project
+              // Palette asset (overwrite policy: sprite wins) so its slot indices
+              // map to the right colors in the VDP and OR-color sprites keep their
+              // base|overlay=result relation. Without this, imported OR sprites
+              // render with the wrong colors in the ROM.
+              const paletteAsset = assets.find(asset => asset.type === 'palette');
+              if (paletteAsset) {
+                const { slots, changed, overwrittenSlots } = reconcileMsx2SpriteIntoProjectPalette(sprite, (paletteAsset.data as PaletteAsset).slots);
+                if (changed) {
+                  handleUpdateAsset(paletteAsset.id, { slots }, [newSpriteAsset]);
+                  setStatusBarMessage(`Importado "${name}". Reconciliados ${overwrittenSlots.length} slot(s) [${overwrittenSlots.join(', ')}] en la paleta "${paletteAsset.name}".`);
+                  return;
+                }
+                handleUpdateAsset(paletteAsset.id, {}, [newSpriteAsset]);
+                setStatusBarMessage(`Importado "${name}". La paleta del proyecto ya era compatible.`);
+                return;
+              }
+              handleUpdateAsset(assetId, {}, [newSpriteAsset]);
+              setStatusBarMessage(`Importado "${name}". Aviso: no hay asset Palette en el proyecto; los colores del sprite podrían no coincidir en la ROM.`);
             }}
         />
       )}

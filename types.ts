@@ -3017,6 +3017,7 @@ export enum EditorType {
   Palette = "Palette",
   Msx2Sprite = "Msx2Sprite",
   Msx2Bitmap = "Msx2Bitmap",
+  Msx2BitmapTile = "Msx2BitmapTile",
   Msx2Screen = "Msx2Screen",
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2Player = "Msx2Player",
