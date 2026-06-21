@@ -54,6 +54,7 @@ const OP_COPY_8 = 3;
 const OP_COPY_16 = 4;
 
 const VDP_CMD_BLOCK_SIZE = 15;
+const BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME = 8;
 const VRAM_BANK_BYTES = 0x4000;
 const ROM_DATA_BANK_BYTES = 0x2000;
 const BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK = 4;
@@ -1756,7 +1757,7 @@ start_room_transition:
 ;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer, commit_room_flip.
 ;
 ; SIDE EFFECTS:
-;   Issues one V9938 command block per call. The next frame waits for the
+;   Issues up to ${BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME} V9938 command blocks per call. Each block waits for the
 ;   previous command before submitting another block, avoiding a long synchronous
 ;   wait over the whole room. Restores R#15=0 before returning to the main loop.
 ;
@@ -1773,8 +1774,16 @@ step_room_composition:
     ld a, h
     or l
     jp z, commit_room_flip
-    ld a, 1
+    ld a, ${BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME}
     ld c, a                 ; C = blocks to process this frame
+    ld a, h
+    or a
+    jp nz, .budget_ready
+    ld a, l
+    cp ${BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME}
+    jp nc, .budget_ready
+    ld c, a                 ; Final frame: process only remaining blocks.
+.budget_ready:
     ld hl, (bitmap_composition_block_ptr)
 .process_block:
     push bc
