@@ -15,6 +15,8 @@ import {
   ArrowRightIcon,
   ArrowUpIcon,
   EraserIcon,
+  EyeIcon,
+  EyeOffIcon,
   FolderOpenIcon,
   GridIcon,
   LoadIcon,
@@ -81,6 +83,32 @@ const resolveSlotHexForRender = (slots: Screen5PaletteSlot[], slot: number): str
   return !hex || hex === TRANSPARENT_HEX ? '#05070b' : hex;
 };
 
+interface CollapsiblePanelProps {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onToggle, children, className = '' }) => (
+  <section className={`rounded border border-msx-border bg-msx-panelbg ${className}`}>
+    <div className="flex items-center justify-between gap-2 border-b border-msx-border px-2 py-1.5">
+      <h4 className="text-sm pixel-font text-msx-highlight truncate">{title}</h4>
+      <button
+        type="button"
+        className="text-msx-textsecondary hover:text-msx-highlight"
+        onClick={onToggle}
+        title={isOpen ? `Hide ${title}` : `Show ${title}`}
+        aria-label={isOpen ? `Hide ${title}` : `Show ${title}`}
+      >
+        {isOpen ? <EyeOffIcon /> : <EyeIcon />}
+      </button>
+    </div>
+    {isOpen && <div className="p-2">{children}</div>}
+  </section>
+);
+
 export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   tileAsset,
   allAssets,
@@ -110,6 +138,15 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   const [showCreatePaletteDialog, setShowCreatePaletteDialog] = useState(false);
   const [libraryEntries, setLibraryEntries] = useState<Msx2BitmapTileLibraryEntry[]>([]);
   const [palettePickerForSlot, setPalettePickerForSlot] = useState<number | null>(null);
+
+  const [openTools, setOpenTools] = useState(true);
+  const [openBrush, setOpenBrush] = useState(true);
+  const [openSwap, setOpenSwap] = useState(false);
+  const [openMove, setOpenMove] = useState(false);
+  const [openLibrary, setOpenLibrary] = useState(false);
+  const [openPalette, setOpenPalette] = useState(true);
+  const [openLibraryFile, setOpenLibraryFile] = useState(false);
+  const [openTileInfo, setOpenTileInfo] = useState(true);
 
   const paletteAsset = useMemo(() => {
     if (!tile.paletteId) return undefined;
@@ -298,7 +335,7 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     setStatusBarMessage?.(`Created palette asset "${newPalette.name}" linked to this tile.`);
   };
 
-  const openLibrary = () => {
+  const openLibraryModal = () => {
     setLibraryEntries(loadMsx2BitmapTileLibrary());
     setShowLibraryModal(true);
   };
@@ -377,7 +414,7 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     >
       <div className="flex flex-grow min-h-0 overflow-hidden">
         <aside className="w-56 border-r border-msx-border p-2 overflow-y-auto space-y-2 flex-shrink-0">
-          <Panel title="Tools">
+          <CollapsiblePanel title="Tools" isOpen={openTools} onToggle={() => setOpenTools(v => !v)}>
             <div className="p-2 space-y-1">
               {tools.map(entry => (
                 <Button
@@ -396,18 +433,18 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                 </Button>
               ))}
             </div>
-          </Panel>
+          </CollapsiblePanel>
 
-          <Panel title="Brush size">
+          <CollapsiblePanel title="Brush size" isOpen={openBrush} onToggle={() => setOpenBrush(v => !v)}>
             <div className="p-2 space-y-1">
               <Button size="sm" variant={brushSize === 1 ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setBrushSize(1)}>1 pixel</Button>
               <Button size="sm" variant={brushSize === 2 ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setBrushSize(2)}>2x2 pixels</Button>
               <Button size="sm" variant={brushSize === 'dither' ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setBrushSize('dither')}>Dither 2x2 (10/01)</Button>
               <div className="text-[0.65rem] text-msx-textsecondary pt-1">Brush size applies to Pencil only. Eraser is 1px. Right-click erases with active brush.</div>
             </div>
-          </Panel>
+          </CollapsiblePanel>
 
-          <Panel title="Color swap (this tile)">
+          <CollapsiblePanel title="Color swap (this tile)" isOpen={openSwap} onToggle={() => setOpenSwap(v => !v)}>
             <div className="p-2 space-y-1">
               <Button
                 size="sm"
@@ -427,9 +464,9 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                   : 'Swaps two slots pixel-by-pixel. Palette is untouched.'}
               </div>
             </div>
-          </Panel>
+          </CollapsiblePanel>
 
-          <Panel title="Move pattern (wrap)">
+          <CollapsiblePanel title="Move pattern (wrap)" isOpen={openMove} onToggle={() => setOpenMove(v => !v)}>
             <div className="p-2">
               <div className="grid grid-cols-3 gap-1 max-w-[160px] mx-auto">
                 <div />
@@ -442,14 +479,14 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               </div>
               <div className="text-[0.65rem] text-msx-textsecondary mt-2 text-center">Toroidal: outgoing edge wraps to the opposite side.</div>
             </div>
-          </Panel>
+          </CollapsiblePanel>
 
-          <Panel title="Library">
+          <CollapsiblePanel title="Library" isOpen={openLibrary} onToggle={() => setOpenLibrary(v => !v)}>
             <div className="p-2 space-y-1">
-              <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} className="w-full" justify="start" onClick={openLibrary}>Import from library</Button>
+              <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} className="w-full" justify="start" onClick={openLibraryModal}>Import from library</Button>
               <Button size="sm" variant="secondary" icon={<SaveIcon />} className="w-full" justify="start" onClick={exportToLibrary}>Export to library</Button>
             </div>
-          </Panel>
+          </CollapsiblePanel>
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
@@ -501,7 +538,7 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
         </main>
 
         <aside className="w-64 border-l border-msx-border p-2 overflow-y-auto space-y-2 flex-shrink-0">
-          <Panel title="Palette">
+          <CollapsiblePanel title="Palette" isOpen={openPalette} onToggle={() => setOpenPalette(v => !v)}>
             <div className="p-2 space-y-2">
               <div className="text-xs text-msx-textsecondary break-words">
                 {paletteAsset ? (
@@ -538,17 +575,17 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                 Single click = select active color. Double-click = open (or create) palette asset. Slot 0 ignored.
               </div>
             </div>
-          </Panel>
+          </CollapsiblePanel>
 
-          <Panel title="Library file">
+          <CollapsiblePanel title="Library file" isOpen={openLibraryFile} onToggle={() => setOpenLibraryFile(v => !v)}>
             <div className="p-2 space-y-1">
               <Button size="sm" variant="ghost" className="w-full" justify="start" icon={<SaveIcon />} onClick={exportLibraryFile}>Export library JSON</Button>
               <Button size="sm" variant="ghost" className="w-full" justify="start" icon={<LoadIcon />} onClick={() => libraryFileInputRef.current?.click()}>Import library JSON</Button>
               <input type="file" accept="application/json" ref={libraryFileInputRef} onChange={importLibraryFile} className="hidden" />
             </div>
-          </Panel>
+          </CollapsiblePanel>
 
-          <Panel title="Tile info">
+          <CollapsiblePanel title="Tile info" isOpen={openTileInfo} onToggle={() => setOpenTileInfo(v => !v)}>
             <div className="p-3 text-xs space-y-1 text-msx-textsecondary">
               <div>Source: {tile.sourceType}</div>
               <div>Mode: {tile.mode}</div>
@@ -556,7 +593,7 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               {tile.sourceFileName && <div>Source file: {tile.sourceFileName}</div>}
               {tile.updatedAt && <div>Updated: {new Date(tile.updatedAt).toLocaleString()}</div>}
             </div>
-          </Panel>
+          </CollapsiblePanel>
         </aside>
       </div>
 
