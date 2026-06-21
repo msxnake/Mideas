@@ -1,4 +1,4 @@
-import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen4BitmapRoom, Msx2Sprite, Screen5PaletteSlot } from '../../../../types';
+import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen4BitmapRoom, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -85,6 +85,7 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
   rooms: Msx2Screen4BitmapRoom[];
   startIndex: number;
   transitions: RoomTransitions;
+  paletteAssetId?: string;
 } {
   const allRooms = (((analysis as any).msx2BitmapRooms || []) as Msx2Screen4BitmapRoom[]).filter(Boolean);
   if (allRooms.length === 0) return { rooms: [], startIndex: 0, transitions: new Map() };
@@ -122,7 +123,7 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
     if (connection.fromDirection) setTransition(fromIndex, connection.fromDirection, toIndex);
     if (connection.toDirection) setTransition(toIndex, connection.toDirection, fromIndex);
   }
-  return { rooms, startIndex, transitions };
+  return { rooms, startIndex, transitions, paletteAssetId: typeof graph.paletteAssetId === 'string' ? graph.paletteAssetId : undefined };
 }
 
 function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4BitmapRoom {
@@ -709,11 +710,32 @@ function buildPaletteBytes(palette: Screen5PaletteSlot[]): number[] {
   }).flat();
 }
 
+function resolveWorldPalette(analysis: ProjectAnalysis, paletteAssetId: string | undefined, fallback: Screen5PaletteSlot[]): Screen5PaletteSlot[] {
+  const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
+  const paletteAsset = assets.find(asset => asset.id === paletteAssetId && asset.type === 'palette')?.data as PaletteAsset | undefined;
+  if ((paletteAsset?.mode === 'SCREEN4' || paletteAsset?.mode === 'SCREEN5') && paletteAsset.slots?.length === 16) {
+    return paletteAsset.slots.map(slot => ({ ...slot }));
+  }
+  return fallback;
+}
+
+function multiplyABySmallConstantAsm(multiplier: number): string {
+  if (multiplier <= 1) return '';
+  if (multiplier === 2) return '    add a, a\n';
+  if (multiplier === 4) return '    add a, a\n    add a, a\n';
+  if (multiplier === 8) return '    add a, a\n    add a, a\n    add a, a\n';
+  return `    push bc
+    ld b, a
+    xor a
+${Array.from({ length: multiplier }, () => '    add a, b\n').join('')}    pop bc
+`;
+}
+
 function buildRuntimeAsm(
   room: Msx2Screen4BitmapRoom,
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
-  playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right' },
+  playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number },
   options: { bankedRle: boolean },
   playerPhysics: BitmapPlayerPhysics
 ): string {
@@ -723,7 +745,14 @@ function buildRuntimeAsm(
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
   const tilesetUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
   const shouldEmitPlayerPatternUpdate = playerAnimation.frameCount > 1 || playerAnimation.mirror;
-  const mirrorPatternOffset = playerAnimation.frameCount * 4;
+  const playerPatternFrameStride = Math.max(4, playerAnimation.layerCount * 4);
+  const playerPatternFrameStrideAsm = multiplyABySmallConstantAsm(playerPatternFrameStride);
+  // Per-frame sprite colour table: one 16-line colour table per hardware layer.
+  // The runtime re-uploads the current frame's colours so CC/OR multi-colour
+  // rows (which differ between frames) render correctly past frame 0.
+  const colorFrameStride = playerAnimation.layerCount * 16;
+  const shouldEmitPlayerColorUpdate = playerAnimation.frameCount > 1;
+  const mirrorPatternOffset = playerAnimation.frameCount * playerPatternFrameStride;
   const mirrorSelectionAsm = playerAnimation.mirror && playerAnimation.authoredFacing === 'right'
     ? `    ld b, a
     ld a, (player_facing)
@@ -771,8 +800,9 @@ function buildRuntimeAsm(
 ;   player_pat in RAM.
 ;
 ; NOTES:
-;   V9938 16x16 sprites consume four 8x8 patterns per frame, so the SAT pattern
-;   index advances by frame * 4. Stack is not used.
+;   V9938 16x16 sprites consume four 8x8 patterns per hardware layer, so the
+;   SAT base pattern advances by frame * ${playerPatternFrameStride}. Stack is
+;   used only when the generated stride helper must preserve BC.
 ; ------------------------------------------------------------
 bitmap_update_player_sprite_animation:
 ${playerAnimation.frameCount > 1 ? `    ld a, (player_moving)
@@ -801,11 +831,60 @@ ${playerAnimation.frameCount > 1 ? `    ld a, (player_moving)
     ld (player_anim_frame), a
 ` : ''}.refresh_player_pattern:
     ld a, (player_anim_frame)
-    add a, a
-    add a, a
+${playerPatternFrameStrideAsm}
 ${mirrorSelectionAsm}.store_player_pattern:
     ld (player_pat), a
     ret
+` : '';
+  const playerColorsAsm = shouldEmitPlayerColorUpdate ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_upload_player_frame_colors
+; ------------------------------------------------------------
+; PURPOSE:
+;   Upload the per-line colour table for the CURRENT animation frame to the
+;   V9938 sprite colour table (#F400). The player sprite stores one colour table
+;   per frame because CC/OR multi-colour rows differ between frames; the SAT only
+;   swaps the pattern index, so without re-uploading colours, frames > 0 render
+;   with frame 0's colours (white/garbage lines).
+;
+; INPUT:
+;   player_anim_frame = current logical animation frame (0..${playerAnimation.frameCount - 1}).
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, DE, HL  (via copy_to_vram_ext).
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   copy_to_vram_ext.
+;
+; SIDE EFFECTS:
+;   Writes ${colorFrameStride} bytes (${playerAnimation.layerCount} layer(s) x 16 lines) to VRAM #F400.
+;
+; NOTES:
+;   Source = bitmap_room_sprite_colors + player_anim_frame * ${colorFrameStride}.
+;   Mirror frames reuse the same colours (a horizontal flip keeps line colours),
+;   so the logical frame indexes the table directly. Preserves R#15 (copy uses
+;   copy_to_vram_ext, which does not select a status register).
+; ------------------------------------------------------------
+bitmap_upload_player_frame_colors:
+    ld hl, bitmap_room_sprite_colors
+    ld a, (player_anim_frame)
+    or a
+    jp z, .upload_frame_colors
+    ld de, ${colorFrameStride}
+.add_frame_color_offset:
+    add hl, de
+    dec a
+    jp nz, .add_frame_color_offset
+.upload_frame_colors:
+    ld de, #F400
+    ld bc, ${colorFrameStride}
+    jp copy_to_vram_ext
 ` : '';
 
   return `
@@ -1892,12 +1971,12 @@ bitmap_probe_solid:
 ; FUNCTION: bitmap_update_sprite_sat
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Write sprite 0 SAT bytes, converting logical game Y to visual SCREEN 5 Y.
+;   Write player SAT bytes, converting logical game Y to visual SCREEN 5 Y.
 ;
 ; INPUT:
 ;   player_y = logical game Y coordinate, 0..191.
 ;   player_x = visual/logical X coordinate.
-;   player_pat = hardware sprite pattern index.
+;   player_pat = base hardware sprite pattern index for the current frame.
 ;   player_ec = early-clock byte.
 ;
 ; OUTPUT:
@@ -1913,11 +1992,13 @@ bitmap_probe_solid:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes 4 bytes to sprite 0 SAT at VRAM #F600 through VDP ports #99/#98.
+;   Writes ${playerAnimation.layerCount} player SAT entr${playerAnimation.layerCount === 1 ? 'y' : 'ies'} plus a terminator to
+;   VRAM #F600 through VDP ports #99/#98.
 ;
 ; NOTES:
 ;   Background pixels are shifted down by ${BITMAP_ROOM_GAME_Y_OFFSET}px to
 ;   reserve the top HUD band, but collision/movement keep logical coordinates.
+;   Multi-color sprites are exported as overlapped V9938 mode-2 sprite layers.
 ; ------------------------------------------------------------
 bitmap_update_sprite_sat:
     ld de, #F600
@@ -1936,14 +2017,20 @@ bitmap_update_sprite_sat:
     and #3F
     or #40
     out (${VDP_CTRL_PORT}), a
-    ld a, (player_y)
+${Array.from({ length: playerAnimation.layerCount }, (_unused, layerIndex) => `    ld a, (player_y)
     add a, ${BITMAP_ROOM_GAME_Y_OFFSET}
     out (${VDP_DATA_PORT}), a
     ld a, (player_x)
     out (${VDP_DATA_PORT}), a
     ld a, (player_pat)
-    out (${VDP_DATA_PORT}), a
+${layerIndex ? `    add a, ${layerIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
     ld a, (player_ec)
+    out (${VDP_DATA_PORT}), a
+`).join('')}    ld a, #D8
+    out (${VDP_DATA_PORT}), a
+    xor a
+    out (${VDP_DATA_PORT}), a
+    out (${VDP_DATA_PORT}), a
     out (${VDP_DATA_PORT}), a
     xor a
     ld e, a
@@ -1968,6 +2055,7 @@ const PLACEHOLDER_SPRITE_PATTERNS = [
 ];
 
 const BITMAP_ROOM_DEFAULT_SPRITE_COLOR = 15;
+const BITMAP_ROOM_MAX_PLAYER_SPRITE_LAYERS = 8;
 
 // Resolve the configured player's 16x16 render sprite for the bitmap room.
 // Resolve the msx2player definition linked to the room (same priority as the sprite
@@ -2076,43 +2164,58 @@ function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
   ];
 }
 
-function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; attrs: number[]; patterns: number[]; usedConfigured: boolean; frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right' } {
-  // sprite 0 = player (Y,X overwritten each frame by bitmap_update_sprite_sat),
-  // pattern index 0. sprite 1 Y=#D8 stops further sprite processing.
-  const attrs = [
-    0x60, 0x80, 0x00, 0x00,
+function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; attrs: number[]; patterns: number[]; usedConfigured: boolean; frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number } {
+  const attrsForLayerCount = (layerCount: number): number[] => [
+    ...Array.from({ length: layerCount }, (_unused, layerIndex) => [0x60, 0x80, layerIndex * 4, 0x00]).flat(),
     0xD8, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
   ];
 
   if (sprite) {
     // V9938 sprite mode 2: 32-byte pattern (four 8x8 quadrants) + 16 line colors.
-    // Reuse the SCREEN 4 converter; emit every authored frame, primary (first) color layer.
+    // Reuse the SCREEN 4 converter; emit every authored frame and every color
+    // layer so CC/OR rows authored in the UI survive the SCREEN 5 bitmap-room export.
     const frameIndices = getBitmapRoomSpriteFrameIndices(sprite);
-    const frameLayers = frameIndices
-      .map(frameIndex => buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)[0])
-      .filter((layer): layer is NonNullable<typeof layer> => Boolean(layer && Array.isArray(layer.pattern) && layer.pattern.length === 32));
-    const primary = frameLayers[0];
+    const rawFrameLayerSets = frameIndices
+      .map(frameIndex => buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)
+        .filter(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32));
+    const authoredFacing = sprite.facingDirection === 'left' || sprite.facingDirection === 'right'
+      ? sprite.facingDirection
+      : undefined;
+    const frameCount = Math.max(1, rawFrameLayerSets.length);
+    const maxPatternGroups = Math.max(1, Math.floor(64 / (frameCount * (authoredFacing ? 2 : 1))));
+    const layerCount = Math.max(1, Math.min(
+      BITMAP_ROOM_MAX_PLAYER_SPRITE_LAYERS,
+      maxPatternGroups,
+      ...rawFrameLayerSets.map(layers => layers.length || 1)
+    ));
+    const frameLayerSets = rawFrameLayerSets.map(layers => layers.slice(0, layerCount));
+    const primary = frameLayerSets[0]?.[0];
     if (primary && Array.isArray(primary.pattern) && primary.pattern.length === 32) {
-      const authoredFacing = sprite.facingDirection === 'left' || sprite.facingDirection === 'right'
-        ? sprite.facingDirection
-        : undefined;
-      const basePatterns = frameLayers.flatMap(layer => layer.pattern.map(value => value & 0xff));
+      const emptyPattern = Array(32).fill(0);
+      const patternSetForFrame = (layers: typeof frameLayerSets[number]) =>
+        Array.from({ length: layerCount }, (_unused, layerIndex) => layers[layerIndex]?.pattern || emptyPattern)
+          .flatMap(pattern => pattern.map(value => value & 0xff));
+      const basePatterns = frameLayerSets.flatMap(patternSetForFrame);
       const mirrorPatterns = authoredFacing
-        ? frameLayers.flatMap(layer => mirrorHardwareSpritePatternHorizontally(layer.pattern).map(value => value & 0xff))
+        ? frameLayerSets.flatMap(layers =>
+          Array.from({ length: layerCount }, (_unused, layerIndex) => layers[layerIndex]?.pattern || emptyPattern)
+            .flatMap(pattern => mirrorHardwareSpritePatternHorizontally(pattern).map(value => value & 0xff)))
         : [];
-      const colors = (primary.colors || []).slice(0, 16);
-      while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+      const colors = Array.from({ length: layerCount }, (_unused, layerIndex) => {
+        const layerColors = (frameLayerSets[0]?.[layerIndex]?.colors || []).slice(0, 16);
+        while (layerColors.length < 16) layerColors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+        return layerColors;
+      }).flat();
       return {
         colors: colors.map(value => value & 0xff),
-        attrs,
+        attrs: attrsForLayerCount(layerCount),
         patterns: [...basePatterns, ...mirrorPatterns],
         usedConfigured: true,
-        frameCount: Math.max(1, frameLayers.length),
+        frameCount,
         delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite),
         mirror: Boolean(authoredFacing),
         authoredFacing,
+        layerCount,
       };
     }
   }
@@ -2120,12 +2223,13 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
   // Fallback: the original placeholder blob.
   return {
     colors: PLACEHOLDER_SPRITE_COLORS.slice(),
-    attrs,
+    attrs: attrsForLayerCount(1),
     patterns: PLACEHOLDER_SPRITE_PATTERNS.slice(),
     usedConfigured: false,
     frameCount: 1,
     delayFrames: 8,
     mirror: false,
+    layerCount: 1,
   };
 }
 
@@ -2164,7 +2268,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const startIndex = Math.min(world.startIndex, rooms.length - 1);
   const room = rooms[startIndex];
   const spawn = resolvePlayerSpawnPixels(room);
-  const paletteBytes = buildPaletteBytes(room.palette);
+  const worldPalette = resolveWorldPalette(analysis, world.paletteAssetId, room.palette);
+  const paletteBytes = buildPaletteBytes(worldPalette);
   const atlasPixels = normalizeAtlasPixels(room);
   const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(room);
@@ -2218,6 +2323,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
     authoredFacing: spriteTables.authoredFacing,
+    layerCount: spriteTables.layerCount,
   }, { bankedRle: isKonamiMegaRom }, playerPhysics);
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>

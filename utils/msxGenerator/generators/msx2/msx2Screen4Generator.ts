@@ -1558,7 +1558,7 @@ function getEntityRenderSpriteId(entity: any): string {
   ).trim();
 }
 
-function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string | undefined): Msx2Sprite | undefined {
+export function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string | undefined): Msx2Sprite | undefined {
   if (!spriteAssetId) return undefined;
   return analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
 }
@@ -1569,7 +1569,7 @@ function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | u
   return Object.keys(parsed).length ? parsed : undefined;
 }
 
-function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
+export function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
   assetId: string;
   playerId: string;
   name: string;
@@ -1752,7 +1752,7 @@ function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> 
   return spriteIds;
 }
 
-function getFirstReferencedMsx2Sprite(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+export function getFirstReferencedMsx2Sprite(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const referencedIds = collectReferencedMsx2SpriteIds(analysis);
   for (const spriteId of referencedIds) {
     const sprite = resolveMsx2SpriteById(analysis, spriteId);
@@ -3127,7 +3127,7 @@ function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite)
   return normalized === normalizeColor(sprite.backgroundColor);
 }
 
-interface Msx2HardwareLayer {
+export interface Msx2HardwareLayer {
   pattern: number[];
   colors: number[];
   xOffset: number;
@@ -3264,7 +3264,7 @@ function buildCellRowComposition(slots: number[], useOrColor: boolean): RowLayer
   return { masks, colors };
 }
 
-function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
+export function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
   const frame = sprite.frames?.[frameIndex] || sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
   const useOrColor = sprite.hardware?.useOrColor !== false;
   const cellColumns = Math.max(1, Math.ceil((sprite.size?.width || 16) / 16));

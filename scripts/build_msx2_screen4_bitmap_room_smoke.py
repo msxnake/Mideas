@@ -538,20 +538,29 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing bitmap-room HUD marker: {marker}")
 
-    if "add a, 8\n.store_player_pattern:" not in asm_text:
-        raise RuntimeError("Generated ASM is missing mirrored sprite pattern offset for 2 animation frames")
+    if "add a, 16\n.store_player_pattern:" not in asm_text:
+        raise RuntimeError("Generated ASM is missing mirrored sprite pattern offset for 2 animation frames x 2 hardware layers")
     if "ld (player_pat), a" not in asm_text:
         raise RuntimeError("Generated ASM does not update player_pat from animation/facing state")
+    if "add a, 4\n    out (#98), a" not in asm_text:
+        raise RuntimeError("Generated ASM does not write SAT pattern offset for the second player hardware layer")
 
     palette_length = len(extract_db_bytes(asm_text, "screen4_bitmap_palette_data"))
     if palette_length != 32:
         raise RuntimeError(f"screen4_bitmap_palette_data has {palette_length} bytes; expected 32")
 
     sprite_pattern_length = len(extract_db_bytes(asm_text, "bitmap_room_sprite_patterns"))
-    if sprite_pattern_length != 128:
+    if sprite_pattern_length != 256:
         raise RuntimeError(
-            f"bitmap_room_sprite_patterns has {sprite_pattern_length} bytes; expected 128 "
-            "(2 frames + mirrored copies, 32 bytes each)"
+            f"bitmap_room_sprite_patterns has {sprite_pattern_length} bytes; expected 256 "
+            "(2 frames x 2 layers + mirrored copies, 32 bytes each)"
+        )
+
+    sprite_color_length = len(extract_db_bytes(asm_text, "bitmap_room_sprite_colors"))
+    if sprite_color_length != 32:
+        raise RuntimeError(
+            f"bitmap_room_sprite_colors has {sprite_color_length} bytes; expected 32 "
+            "(2 hardware layers, 16 line colors each)"
         )
 
     hud_chunks = re.findall(r"^bitmap_room_hud_seed_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)

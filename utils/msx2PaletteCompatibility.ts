@@ -6,6 +6,7 @@ import type {
   ProjectAsset,
   Screen5PaletteSlot,
 } from '../types';
+import { ensureScreen5PaletteSlots } from './msx2PaletteUtils';
 
 export interface Msx2PaletteSlotMismatch {
   slotIndex: number;
@@ -104,6 +105,84 @@ export const resolveMsx2EntitySpriteIds = (entity: Msx2Screen4EntityInstance | u
   addNonEmpty(ids, entity?.params?.spriteAssetId);
   addNonEmpty(ids, entity?.params?.spriteId);
   return Array.from(ids);
+};
+
+/**
+ * Slot indices (1-15) actually referenced by the sprite's pixels, matched by HEX
+ * against the sprite's own palette — exactly how the ROM generator resolves a
+ * pixel to a hardware color (`paletteSlotForSpriteColor`). Note this differs from
+ * {@link getUsedMsx2SpritePaletteSlots}, which treats pixels as numeric slot
+ * indices; MSX2 sprite pixel data stores hex color strings, so hex matching is
+ * the correct source of "which slots does this sprite use".
+ */
+export const getUsedMsx2SpriteSlotsByHex = (sprite: Msx2Sprite): Set<number> => {
+  const hexToSlot = new Map<string, number>();
+  (sprite.palette || []).forEach(slot => {
+    if (slot && typeof slot.slotIndex === 'number' && slot.slotIndex > 0) {
+      hexToSlot.set(normalizeHex(slot.hex), slot.slotIndex);
+    }
+  });
+  const background = normalizeHex(sprite.backgroundColor);
+  const transparent = normalizeHex('rgba(0,0,0,0)');
+  const used = new Set<number>();
+  for (const frame of sprite.frames || []) {
+    for (const row of frame.data || []) {
+      for (const cell of row || []) {
+        const hex = normalizeHex(cell);
+        if (!hex || hex === background || hex === transparent) continue;
+        const slot = hexToSlot.get(hex);
+        if (typeof slot === 'number' && slot > 0 && slot < 16) used.add(slot);
+      }
+    }
+  }
+  return used;
+};
+
+export interface Msx2SpritePaletteReconcileResult {
+  /** Project palette slots after merging the sprite's used slots (always 16). */
+  slots: Screen5PaletteSlot[];
+  /** True when at least one slot changed. */
+  changed: boolean;
+  /** The slot indices that were overwritten with the sprite's color. */
+  overwrittenSlots: number[];
+}
+
+/**
+ * Reconciles a library sprite into the project's single shared SCREEN 5 palette.
+ *
+ * The V9938 loads ONE 16-color palette for the whole ROM, but a library sprite
+ * carries its own palette. Without reconciliation the generator emits the
+ * sprite's slot indices while the VDP shows the project's colors at those slots,
+ * so imported sprites render with the wrong colors — and OR-color sprites worst
+ * of all, because the hardware OR overlap color lives at slot `base|overlay` and
+ * must match too.
+ *
+ * Policy (chosen by the user): the sprite wins. Each slot the sprite actually
+ * uses is copied into the project palette at the SAME slot index, overwriting
+ * whatever was there. Keeping the indices is what preserves the OR relation
+ * `base|overlay = result`. Slot 0 (transparent) is never touched. The VDP color
+ * is driven by `masterIndex`, so that is what makes the ROM correct; hex is kept
+ * in sync for the editors.
+ */
+export const reconcileMsx2SpriteIntoProjectPalette = (
+  sprite: Msx2Sprite,
+  projectSlots: Screen5PaletteSlot[] | undefined,
+): Msx2SpritePaletteReconcileResult => {
+  const target = ensureScreen5PaletteSlots(projectSlots).slots.map(slot => ({ ...slot }));
+  const spriteSlots = sprite.palette || [];
+  const used = getUsedMsx2SpriteSlotsByHex(sprite);
+  const overwrittenSlots: number[] = [];
+  used.forEach(index => {
+    const source = spriteSlots.find(slot => slot && slot.slotIndex === index);
+    const destination = target[index];
+    if (!source || !destination) return;
+    const sourceMaster = typeof source.masterIndex === 'number' ? source.masterIndex : destination.masterIndex;
+    if (destination.masterIndex !== sourceMaster || normalizeHex(destination.hex) !== normalizeHex(source.hex)) {
+      target[index] = { slotIndex: index, masterIndex: sourceMaster, hex: source.hex };
+      overwrittenSlots.push(index);
+    }
+  });
+  return { slots: target, changed: overwrittenSlots.length > 0, overwrittenSlots: overwrittenSlots.sort((a, b) => a - b) };
 };
 
 export const collectMsx2PaletteCompatibilityIssues = (
