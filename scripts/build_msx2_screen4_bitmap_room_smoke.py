@@ -6,6 +6,7 @@ are exported as a V9938 bitmap-room runtime (VRAM page + command engine).
 """
 
 import argparse
+import copy
 import json
 import re
 import subprocess
@@ -336,6 +337,37 @@ def build_project() -> dict[str, object]:
         },
         "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
     }
+    room_data_b = copy.deepcopy(room_data)
+    room_data_b["id"] = "bitmap_room_smoke_b"
+    room_data_b["name"] = "Bitmap Room Smoke B"
+    room_data_b["backgroundColor"] = 4
+    room_data_b["tileGrid"] = [[0 for _x in range(16)] for _y in range(12)]
+    room_data_b["tileGrid"][0][0] = 8
+    room_data_b["tileGrid"][0][15] = 2
+    room_data_b["playerEntries"] = [{"id": "spawn1", "x": 16, "y": 80, "facing": "right", "playerId": "smoke_player"}]
+    worldmap_asset = {
+        "id": "bitmap_room_world",
+        "name": "Bitmap Room World",
+        "type": "worldmap",
+        "data": {
+            "id": "bitmap_room_world",
+            "name": "Bitmap Room World",
+            "nodes": [
+                {"id": "wmnode_bitmap_a", "screenAssetId": "bitmap_room_smoke", "name": "Room A", "position": {"x": 0, "y": 0}},
+                {"id": "wmnode_bitmap_b", "screenAssetId": "bitmap_room_smoke_b", "name": "Room B", "position": {"x": 220, "y": 0}},
+            ],
+            "connections": [
+                {
+                    "id": "wmconn_bitmap_a_b",
+                    "fromNodeId": "wmnode_bitmap_a",
+                    "toNodeId": "wmnode_bitmap_b",
+                    "fromDirection": "east",
+                    "toDirection": "west",
+                }
+            ],
+            "startScreenNodeId": "wmnode_bitmap_a",
+        },
+    }
     return {
         "name": "msx2_bitmap_room_smoke",
         "currentScreenMode": "SCREEN 4 (Graphics II)",
@@ -348,6 +380,13 @@ def build_project() -> dict[str, object]:
                 "type": "msx2bitmaproom",
                 "data": room_data,
             },
+            {
+                "id": "bitmap_room_smoke_b",
+                "name": "Bitmap Room Smoke B",
+                "type": "msx2bitmaproom",
+                "data": room_data_b,
+            },
+            worldmap_asset,
             {
                 "id": "smoke_hud_font",
                 "name": "Smoke HUD Font",
@@ -519,8 +558,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "Bitmap room HUD height: 20 px",
         "Bitmap room HUD widgets: 4",
         "Bitmap room game area: 256x192 at visual Y=20",
-        "World rooms: 1; start room index: 0",
-        "Shared tileset bytes: 2048 at VRAM #A000",
+        "World rooms: 2; start room index: 0",
+        "Shared tileset bytes: 2048 at VRAM #10000",
         "FUNCTION: init_plain32k_page2_slot",
         "Mirror the cartridge primary slot from page 1 (#4000-#7FFF) into page 2",
         "add a, 20",
@@ -532,6 +571,11 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "ld a, (player_moving)",
         "px/frame initial jump velocity (Player Config jumpPower)",
         "bitmap_room_collision_map EQU",
+        "bitmap_displayed_page             EQU #C0D0",
+        "bitmap_composition_state          EQU #C0D1",
+        "FUNCTION: start_room_transition",
+        "FUNCTION: step_room_composition",
+        "FUNCTION: commit_room_flip",
         "bitmap_room_collision_0:",
         "current_screen_index EQU",
     ):
@@ -563,9 +607,9 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
             "(2 hardware layers, 16 line colors each)"
         )
 
-    hud_chunks = re.findall(r"^bitmap_room_hud_seed_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
+    hud_chunks = re.findall(r"^bitmap_room_hud_seed_p[01]_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
     if not hud_chunks:
-        raise RuntimeError("Generated ASM is missing bitmap_room_hud_seed_rle_chunk_* data")
+        raise RuntimeError("Generated ASM is missing bitmap_room_hud_seed_p0/p1_rle_chunk_* data")
     hud_decoded_length = 0
     for chunk_label in (chunk.split(":", 1)[0] for chunk in hud_chunks):
         chunk_bytes = extract_db_bytes(asm_text, chunk_label)
@@ -573,7 +617,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
             raise RuntimeError(f"{chunk_label} has odd RLE byte length: {len(chunk_bytes)}")
         for index in range(0, len(chunk_bytes), 2):
             hud_decoded_length += chunk_bytes[index]
-    expected_hud_length = 256 * 20 // 2
+    expected_hud_length = 2 * 256 * 20 // 2
     if hud_decoded_length != expected_hud_length:
         raise RuntimeError(
             f"bitmap room HUD seed RLE decodes to {hud_decoded_length} bytes; expected {expected_hud_length}"
@@ -607,14 +651,14 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     # Room 0 render program: a list of 15-byte V9938 command blocks. The 192-byte
     # tile map is authoritative, so the only tile copy must be tileGrid[0][0] (the
     # stale composition copy at the same cell must be ignored).
-    render_bytes = extract_db_bytes(asm_text, "bitmap_room_render_0")
+    render_bytes = extract_db_bytes(asm_text, "bitmap_room_render_0_p0")
     if not render_bytes or len(render_bytes) % 15 != 0:
-        raise RuntimeError(f"bitmap_room_render_0 has {len(render_bytes)} bytes; expected a non-zero multiple of 15")
+        raise RuntimeError(f"bitmap_room_render_0_p0 has {len(render_bytes)} bytes; expected a non-zero multiple of 15")
     blocks = [render_bytes[i:i + 15] for i in range(0, len(render_bytes), 15)]
     copy_blocks = [b for b in blocks if b[14] == 0x90]  # LMMM (VRAM->VRAM copy)
     if len(copy_blocks) != 1:
         raise RuntimeError(
-            f"bitmap_room_render_0 has {len(copy_blocks)} tile-copy blocks; expected exactly 1 (sparse tileGrid)"
+            f"bitmap_room_render_0_p0 has {len(copy_blocks)} tile-copy blocks; expected exactly 1 (sparse tileGrid)"
         )
     copy = copy_blocks[0]
     dest_x = copy[4] | (copy[5] << 8)
@@ -624,9 +668,27 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         raise RuntimeError(
             f"tile (0,0) copy lands at DX={dest_x},DY={dest_y}; expected DX=0,DY=20 (HUD-offset game band)"
         )
-    if src_y < 320:
+    if src_y < 512:
         raise RuntimeError(
-            f"tile copy source Y={src_y} is not in the offscreen tileset (expected >= 320)"
+            f"tile copy source Y={src_y} is not in the page-2 offscreen tileset (expected >= 512)"
+        )
+
+    render_page1_bytes = extract_db_bytes(asm_text, "bitmap_room_render_0_p1")
+    if not render_page1_bytes or len(render_page1_bytes) % 15 != 0:
+        raise RuntimeError(
+            f"bitmap_room_render_0_p1 has {len(render_page1_bytes)} bytes; expected a non-zero multiple of 15"
+        )
+    page1_blocks = [render_page1_bytes[i:i + 15] for i in range(0, len(render_page1_bytes), 15)]
+    page1_copy_blocks = [b for b in page1_blocks if b[14] == 0x90]
+    if len(page1_copy_blocks) != 1:
+        raise RuntimeError(
+            f"bitmap_room_render_0_p1 has {len(page1_copy_blocks)} tile-copy blocks; expected exactly 1"
+        )
+    page1_copy = page1_copy_blocks[0]
+    page1_dest_y = page1_copy[6] | (page1_copy[7] << 8)
+    if page1_dest_y != 276:
+        raise RuntimeError(
+            f"page 1 tile copy lands at DY={page1_dest_y}; expected DY=276 (page1 base 256 + HUD 20)"
         )
 
 
@@ -666,7 +728,8 @@ def main() -> int:
         "bitmap_room_tileset_data",
         "load_room",
         "replay_room_commands",
-        "bitmap_room_render_ptr_table",
+        "bitmap_room_render_ptr_table_p0",
+        "bitmap_room_render_ptr_table_p1",
         "Mideas MSX2 SCREEN 4 bitmap room backend (V9938 command engine)",
     ):
         if marker not in asm_text:
@@ -674,23 +737,53 @@ def main() -> int:
     validate_generated_asm_tables(asm_text, project)
 
     if not args.skip_openmsx:
+        probe_output = screenshot_output.with_suffix(".probe.txt")
         run_command([
-            "powershell",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(project_root / "scripts" / "capture_openmsx_screenshot.ps1"),
-            "-Rom",
+            sys.executable,
+            str(project_root / "scripts" / "capture_openmsx_action.py"),
+            "--rom",
             str(rom_output),
-            "-ProjectRoot",
+            "--project-root",
             str(project_root),
-            "-Output",
+            "--sequence",
+            "RIGHT:5000",
+            "--output",
             str(screenshot_output),
-            "-WaitMs",
+            "--boot-wait-ms",
             str(args.boot_wait_ms),
+            "--capture-wait-ms",
+            "9000",
+            "--probe-output",
+            str(probe_output),
+            "--probe",
+            "screen:0xC00B",
+            "--probe",
+            "displayed:0xC0D0",
+            "--probe",
+            "composing:0xC0D1",
+            "--probe",
+            "blocks_lo:0xC0D6",
+            "--probe",
+            "blocks_hi:0xC0D7",
+            "--probe",
+            "player_x:0xC001",
         ], cwd=project_root, timeout=90)
         if not screenshot_output.exists() or screenshot_output.stat().st_size == 0:
             raise RuntimeError(f"OpenMSX screenshot was not produced: {screenshot_output}")
+        if not probe_output.exists():
+            raise RuntimeError(f"OpenMSX probe output was not produced: {probe_output}")
+        probe_values: dict[str, int] = {}
+        for line in probe_output.read_text(encoding="utf-8").splitlines():
+            if "=" not in line:
+                continue
+            label, value = line.split("=", 1)
+            probe_values[label.strip()] = int(value.strip(), 16)
+        if probe_values.get("screen") != 1:
+            raise RuntimeError(f"OpenMSX transition did not reach room 1: {probe_values}")
+        if probe_values.get("displayed") != 1:
+            raise RuntimeError(f"OpenMSX transition did not flip to display page 1: {probe_values}")
+        if probe_values.get("composing") != 0:
+            raise RuntimeError(f"OpenMSX transition composition did not finish cleanly: {probe_values}")
         print(f"Screenshot ready: {screenshot_output}")
 
     print(f"Smoke ROM ready: {rom_output} ({rom_output.stat().st_size} bytes)")

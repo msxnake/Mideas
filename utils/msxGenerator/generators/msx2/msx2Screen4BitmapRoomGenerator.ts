@@ -25,7 +25,13 @@ const SCREEN5_VISIBLE_HEIGHT = 212;
 const BITMAP_ROOM_HUD_HEIGHT = 20;
 const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
 const ROW_BYTES = SCREEN_WIDTH / 2;
+const BITMAP_ROOM_PAGE0_BASE_Y = 0;
+const BITMAP_ROOM_PAGE1_BASE_Y = 256;
+const BITMAP_ROOM_ATLAS_BASE_Y = 512;
+const BITMAP_ROOM_PAGE0_R2 = 0x1f;
+const BITMAP_ROOM_PAGE1_R2 = 0x3f;
 const BITMAP_ROOM_GAME_VRAM_BASE = BITMAP_ROOM_GAME_Y_OFFSET * ROW_BYTES;
+const BITMAP_ROOM_PAGE1_VRAM_BASE = BITMAP_ROOM_PAGE1_BASE_Y * ROW_BYTES;
 const TILE_GRID_SIZE = 16;
 const VDP_CTRL_PORT = '#99';
 const VDP_DATA_PORT = '#98';
@@ -67,6 +73,7 @@ const clampInt = (value: unknown, min: number, max: number, fallback: number): n
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
 const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
+const hexVram = (value: number): string => `#${Math.max(0, Math.trunc(value)).toString(16).toUpperCase().padStart(5, '0')}`;
 
 function firstBitmapRoom(analysis: ProjectAnalysis): Msx2Screen4BitmapRoom | undefined {
   return ((analysis as any).msx2BitmapRooms || [])[0] as Msx2Screen4BitmapRoom | undefined;
@@ -142,7 +149,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
     atlas: {
       width: atlasWidth,
       height: atlasHeight,
-      offscreenBaseY: clampInt(room?.atlas?.offscreenBaseY, 0, 511, 320),
+      offscreenBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
       pixels: room?.atlas?.pixels || [],
       entries: room?.atlas?.entries || [],
     },
@@ -454,22 +461,22 @@ function buildRoomTileIndexGrid(room: Msx2Screen4BitmapRoom): number[][] {
  * destination Y is shifted by the HUD band so logical room coords (0..191) land
  * below the persistent HUD. Returns the flattened 15-byte blocks and their count.
  */
-function buildRoomRenderBlocks(room: Msx2Screen4BitmapRoom): { bytes: number[]; count: number } {
+function buildRoomRenderBlocks(room: Msx2Screen4BitmapRoom, pageBaseY = BITMAP_ROOM_PAGE0_BASE_Y): { bytes: number[]; count: number } {
   const backgroundColor = clampByte(room.backgroundColor, 0) & 0x0f;
-  const offscreenBaseY = room.atlas?.offscreenBaseY || 320;
+  const offscreenBaseY = BITMAP_ROOM_ATLAS_BASE_Y;
   const entries = room.atlas?.entries || [];
   const records: CommandRecord[] = [
-    { op: OP_FILL, sx: 0, sy: 0, dx: 0, dy: BITMAP_ROOM_GAME_Y_OFFSET, nx: SCREEN_WIDTH, ny: SCREEN_HEIGHT_DEFAULT, color: backgroundColor },
+    { op: OP_FILL, sx: 0, sy: 0, dx: 0, dy: pageBaseY + BITMAP_ROOM_GAME_Y_OFFSET, nx: SCREEN_WIDTH, ny: SCREEN_HEIGHT_DEFAULT, color: backgroundColor },
   ];
   // Authored color fills/lines (skip the full-screen background fill; the clear above covers it).
   for (const command of room.composition?.commands || []) {
     if (command.op === 'fill') {
       if (isFullScreenFillCommand(command)) continue;
-      records.push({ op: OP_FILL, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.w, 1, 256, 1), ny: clampInt(command.h, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
+      records.push({ op: OP_FILL, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: pageBaseY + clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.w, 1, 256, 1), ny: clampInt(command.h, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
     } else if (command.op === 'lineH') {
-      records.push({ op: OP_LINE_H, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.length, 1, 256, 1), ny: 1, color: clampByte(command.color, 0) & 0x0f });
+      records.push({ op: OP_LINE_H, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: pageBaseY + clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.length, 1, 256, 1), ny: 1, color: clampByte(command.color, 0) & 0x0f });
     } else if (command.op === 'lineV') {
-      records.push({ op: OP_LINE_V, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: 1, ny: clampInt(command.length, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
+      records.push({ op: OP_LINE_V, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: pageBaseY + clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: 1, ny: clampInt(command.length, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
     }
   }
   // Tile copies from the authoritative 192-byte map.
@@ -485,7 +492,7 @@ function buildRoomRenderBlocks(room: Msx2Screen4BitmapRoom): { bytes: number[]; 
         sx: clampInt(entry.sx, 0, 255, 0),
         sy: clampInt(entry.sy, 0, 511, 0) + offscreenBaseY,
         dx: x * TILE_GRID_SIZE,
-        dy: y * TILE_GRID_SIZE + BITMAP_ROOM_GAME_Y_OFFSET,
+        dy: pageBaseY + y * TILE_GRID_SIZE + BITMAP_ROOM_GAME_Y_OFFSET,
         nx: TILE_GRID_SIZE,
         ny: TILE_GRID_SIZE,
         color: 0,
@@ -584,7 +591,8 @@ function buildRleUploadAsm(rleChunks: RleChunk[], banked: boolean): string {
       lines.push(`    call bitmap_room_select_data_bank_a`);
     }
     lines.push(`    ld hl, ${chunk.label}`);
-    lines.push(`    ld de, ${hexWord(chunk.vramOffset)}`);
+    lines.push(`    ld a, ${Math.floor(chunk.vramOffset / VRAM_BANK_BYTES)}`);
+    lines.push(`    ld de, ${hexWord(chunk.vramOffset % VRAM_BANK_BYTES)}`);
     lines.push(`    ld bc, ${chunk.label}_end - ${chunk.label}`);
     lines.push(`    call decompress_bitmap_rle_to_vram`);
   }
@@ -611,7 +619,7 @@ function buildBankedRleDataBlocks(chunks: RleChunk[], description: string): Bank
   return chunks.map(chunk => ({
     label: chunk.label,
     bytes: chunk.bytes,
-    description: `${description}; VRAM ${hexWord(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`,
+    description: `${description}; VRAM ${hexVram(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`,
   }));
 }
 
@@ -686,7 +694,7 @@ function formatRleChunks(chunks: RleChunk[], rawByteCount: number, description: 
     `; Raw bytes: ${rawByteCount}; encoded bytes: ${encodedByteCount}`,
   ];
   for (const chunk of chunks) {
-    lines.push(`; VRAM ${hexWord(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`);
+    lines.push(`; VRAM ${hexVram(chunk.vramOffset)}, raw ${chunk.rawLength} bytes, RLE ${chunk.bytes.length} bytes`);
     lines.push(`${chunk.label}:`);
     for (let offset = 0; offset < chunk.bytes.length; offset += 16) {
       lines.push(`    DB ${chunk.bytes.slice(offset, offset + 16).map(hexByte).join(',')}`);
@@ -739,7 +747,7 @@ function buildRuntimeAsm(
   options: { bankedRle: boolean },
   playerPhysics: BitmapPlayerPhysics
 ): string {
-  const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
+  const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
   const backdropColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
@@ -1292,7 +1300,8 @@ copy_to_vram_ext:
 ;
 ; INPUT:
 ;   HL = RLE source pointer. Format is repeated count,value pairs.
-;   DE = absolute VRAM destination address.
+;   A  = 16KB VRAM bank number (VRAM address >> 14).
+;   DE = VRAM destination address inside that bank (address & #3FFF).
 ;   BC = encoded byte count. Must be even and non-zero.
 ;
 ; OUTPUT:
@@ -1312,14 +1321,12 @@ copy_to_vram_ext:
 ;
 ; NOTES:
 ;   Each call must target data that stays inside one 16KB VRAM bank. The
-;   generator splits the visible framebuffer on bank boundaries.
+;   generator splits data on bank boundaries. Passing A separately allows
+;   uploading the page-2 atlas at VRAM #10000, which cannot fit in a Z80
+;   16-bit DE register.
 ; ------------------------------------------------------------
 decompress_bitmap_rle_to_vram:
     push de
-    ld a, d
-    and #C0
-    rlca
-    rlca
     ld e, a
     ld a, #0E
     call vdp_write_register
@@ -1388,6 +1395,11 @@ init_screen4_bitmap_vdp:
     ld a, #01
     ld e, #62
     call vdp_write_register
+    ; Start on SCREEN 5 page 0. Transitions compose on the hidden page and flip
+    ; this register in commit_room_flip.
+    ld a, #02
+    ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
+    call vdp_write_register
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
     ld a, #05
     ld e, #EF
@@ -1442,7 +1454,8 @@ load_screen4_bitmap_palette:
 ; FUNCTION: init_bitmap_hud_band
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Initialize the persistent top HUD band once after entering SCREEN 5.
+;   Initialize the persistent top HUD band on both double-buffer pages after
+;   entering SCREEN 5.
 ;
 ; INPUT:
 ;   None.
@@ -1460,11 +1473,11 @@ load_screen4_bitmap_palette:
 ;   decompress_bitmap_rle_to_vram
 ;
 ; SIDE EFFECTS:
-;   Writes the top ${BITMAP_ROOM_HUD_HEIGHT} scanlines at VRAM #0000.
+;   Writes the top ${BITMAP_ROOM_HUD_HEIGHT} scanlines at VRAM #00000 and #08000.
 ;
 ; NOTES:
-;   The HUD band is uploaded once and persists across room loads (load_room only
-;   repaints the game band below it). HUD widgets redraw their glyphs/bars apart.
+;   The HUD band is uploaded once to page 0 and page 1. Room composition only
+;   repaints the game band below it, so page flips do not expose an empty HUD.
 ; ------------------------------------------------------------
 init_bitmap_hud_band:
 ${hudSeedUploadAsm}
@@ -1473,8 +1486,9 @@ ${hudSeedUploadAsm}
 ; FUNCTION: upload_tileset_atlas
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Upload the shared world tileset (atlas, packed 4bpp RLE) once to offscreen
-;   VRAM. load_room then builds each room by copying 16x16 tiles from here.
+;   Upload the shared world tileset (atlas, packed 4bpp RLE) once to page 2
+;   offscreen VRAM. load_room/step_room_composition build each room by copying
+;   16x16 tiles from here.
 ;
 ; INPUT:
 ;   None.
@@ -1492,7 +1506,7 @@ ${hudSeedUploadAsm}
 ;   decompress_bitmap_rle_to_vram
 ;
 ; SIDE EFFECTS:
-;   Writes the offscreen tileset VRAM starting at ${hexWord(atlasVramBase)}.
+;   Writes the offscreen tileset VRAM starting at ${hexVram(atlasVramBase)}.
 ;
 ; NOTES:
 ;   Reads compact RLE data from the resident ROM window (or P2 data banks), then
@@ -1510,7 +1524,7 @@ ${tilesetUploadAsm}
 ;   blocks) to the VDP command engine, waiting for each command to finish.
 ;
 ; INPUT:
-;   HL = pointer to the command blocks. B = number of blocks.
+;   HL = pointer to the command blocks. BC = number of blocks.
 ;
 ; OUTPUT:
 ;   None.
@@ -1533,7 +1547,7 @@ ${tilesetUploadAsm}
 ; ------------------------------------------------------------
 replay_room_commands:
     ld a, b
-    or a
+    or c
     ret z
 .next_block:
     push bc
@@ -1546,7 +1560,10 @@ replay_room_commands:
     inc hl
     djnz .write_block
     pop bc
-    djnz .next_block
+    dec bc
+    ld a, b
+    or c
+    jp nz, .next_block
     ret
 
 ; ------------------------------------------------------------
@@ -1578,12 +1595,14 @@ replay_room_commands:
 ;   Pointer tables are word-indexed (DW), the block-count table is byte-indexed.
 ;   replay_room_commands clobbers DE (vdp_reinit_cmd_pointer writes E), so the
 ;   collision lookup re-derives the index from current_screen_index in RAM.
+;   Boot always renders to display page 0. Room transitions use
+;   start_room_transition + step_room_composition instead of this synchronous path.
 ; ------------------------------------------------------------
 load_room:
     ld (current_screen_index), a
     ld e, a
     ld d, 0
-    ld hl, bitmap_room_render_ptr_table
+    ld hl, bitmap_room_render_ptr_table_p0
     add hl, de
     add hl, de
     ld a, (hl)
@@ -1593,7 +1612,10 @@ load_room:
     push hl
     ld hl, bitmap_room_blockcount_table
     add hl, de
-    ld b, (hl)              ; B = block count
+    add hl, de
+    ld c, (hl)
+    inc hl
+    ld b, (hl)              ; BC = block count
     pop hl
     call replay_room_commands
     ; DE was clobbered by the command engine; re-derive the room index.
@@ -1619,17 +1641,17 @@ load_room:
     jp vdp_write_register
 
 ; ------------------------------------------------------------
-; FUNCTION: try_room_transition
+; FUNCTION: start_room_transition
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Walk the player into the neighbour room across one screen edge (world rails).
+;   Queue a transition to the neighbour room across one screen edge. The target
+;   room is composed later, a few VDP command blocks per frame, on the hidden page.
 ;
 ; INPUT:
 ;   A = direction (0=west, 1=east, 2=north, 3=south).
 ;
 ; OUTPUT:
-;   On a valid neighbour: the neighbour room is loaded, the player is repositioned
-;   at the opposite edge, vertical velocity is reset, and carry is SET.
+;   On a valid neighbour: transition state is initialized and carry is SET.
 ;   With no neighbour for that edge: carry is CLEAR and nothing changes.
 ;
 ; DESTROYS:
@@ -1639,17 +1661,23 @@ load_room:
 ;   IX, IY.
 ;
 ; CALLS:
-;   load_room.
+;   None.
 ;
 ; SIDE EFFECTS:
-;   Repaints the game band (load_room) and updates player_x/player_y/player_vy.
+;   Writes bitmap_composition_state, bitmap_pending_room, bitmap_transition_dir,
+;   bitmap_pending_display_page, bitmap_composition_block_ptr and
+;   bitmap_composition_blocks_left in RAM.
 ;
 ; NOTES:
 ;   Table layout is 4 bytes per room (west, east, north, south); #FF = no rail.
-;   current_screen_index * 4 + direction indexes the destination room (or #FF).
+;   If a composition is already active, carry is SET and the request is ignored
+;   so input cannot restart the transition mid-composition.
 ; ------------------------------------------------------------
-try_room_transition:
+start_room_transition:
     ld c, a                 ; C = direction
+    ld a, (bitmap_composition_state)
+    or a
+    jp nz, .already_composing
     ld a, (current_screen_index)
     add a, a
     add a, a                ; A = index * 4
@@ -1661,43 +1689,221 @@ try_room_transition:
     ld a, (hl)
     cp #FF
     jp z, .no_rail
-    push bc                 ; preserve direction across load_room
-    call load_room          ; A = destination room index
-    pop bc                  ; C = direction
-    xor a
-    ld (player_vy), a
-    ld a, (player_flags)
-    and #FE                 ; clear on-ground so gravity re-evaluates
-    ld (player_flags), a
+    ld (bitmap_pending_room), a
     ld a, c
+    ld (bitmap_transition_dir), a
+    ld a, (bitmap_displayed_page)
     or a
-    jp z, .enter_right      ; went west -> enter at right edge
-    cp 1
-    jp z, .enter_left       ; went east -> enter at left edge
-    cp 2
-    jp z, .enter_bottom     ; went north -> enter at bottom edge
-.enter_top:                 ; went south -> enter at top edge
-    ld a, 2
-    ld (player_y), a
-    scf
-    ret
-.enter_bottom:
-    ld a, 174
-    ld (player_y), a
-    scf
-    ret
-.enter_right:
-    ld a, 238
-    ld (player_x), a
-    scf
-    ret
-.enter_left:
-    ld a, 2
-    ld (player_x), a
+    jp z, .compose_page1
+    xor a
+    ld (bitmap_pending_display_page), a
+    ld hl, bitmap_room_render_ptr_table_p0
+    jp .select_render_program
+.compose_page1:
+    ld a, 1
+    ld (bitmap_pending_display_page), a
+    ld hl, bitmap_room_render_ptr_table_p1
+.select_render_program:
+    ld a, (bitmap_pending_room)
+    ld e, a
+    ld d, 0
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld (bitmap_composition_block_ptr), hl
+    ld hl, bitmap_room_blockcount_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_composition_blocks_left), a
+    inc hl
+    ld a, (hl)
+    ld (bitmap_composition_blocks_left + 1), a
+    ld a, 1
+    ld (bitmap_composition_state), a
+.already_composing:
     scf
     ret
 .no_rail:
     or a                    ; clear carry: caller keeps the player on this screen
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: step_room_composition
+; ------------------------------------------------------------
+; PURPOSE:
+;   Continue composing a pending room on the hidden SCREEN 5 page. The visible
+;   page is flipped only after all command blocks have completed.
+;
+; INPUT:
+;   bitmap_composition_state = 1 when a transition is active.
+;   bitmap_composition_block_ptr = next VDP command block to replay.
+;   bitmap_composition_blocks_left = remaining command blocks (16-bit).
+;
+; OUTPUT:
+;   Carry SET when a transition is active this frame; carry CLEAR when idle.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer, commit_room_flip.
+;
+; SIDE EFFECTS:
+;   Issues one V9938 command block per call. The next frame waits for the
+;   previous command before submitting another block, avoiding a long synchronous
+;   wait over the whole room. Restores R#15=0 before returning to the main loop.
+;
+; NOTES:
+;   The routine keeps the old page visible while commands run. Stack balance:
+;   one PUSH BC per command block, matched by one POP BC before the block count
+;   is decremented.
+; ------------------------------------------------------------
+step_room_composition:
+    ld a, (bitmap_composition_state)
+    or a
+    jp z, .composition_idle
+    ld hl, (bitmap_composition_blocks_left)
+    ld a, h
+    or l
+    jp z, commit_room_flip
+    ld a, 1
+    ld c, a                 ; C = blocks to process this frame
+    ld hl, (bitmap_composition_block_ptr)
+.process_block:
+    push bc
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld b, ${VDP_CMD_BLOCK_SIZE}
+.write_step_block:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .write_step_block
+    pop bc
+    push hl
+    ld hl, (bitmap_composition_blocks_left)
+    dec hl
+    ld (bitmap_composition_blocks_left), hl
+    pop hl
+    dec c
+    jp nz, .process_block
+    ld (bitmap_composition_block_ptr), hl
+    ld hl, (bitmap_composition_blocks_left)
+    ld a, h
+    or l
+    jp z, commit_room_flip
+    ld a, #0F
+    ld e, #00
+    call vdp_write_register
+    scf
+    ret
+.composition_idle:
+    or a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: commit_room_flip
+; ------------------------------------------------------------
+; PURPOSE:
+;   Atomically publish a fully-composed hidden page as the visible room.
+;
+; INPUT:
+;   bitmap_pending_room = target room index.
+;   bitmap_pending_display_page = page to display (0 or 1).
+;   bitmap_transition_dir = direction that triggered the transition.
+;
+; OUTPUT:
+;   current_screen_index, bitmap_displayed_page and collision RAM updated.
+;   player_x/player_y repositioned to the opposite edge; carry SET.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   vdp_wait_cmd_ready, vdp_write_register.
+;
+; SIDE EFFECTS:
+;   Copies the target collision grid to RAM, flips VDP R#2, restores R#15=0,
+;   clears bitmap_composition_state, and resets vertical player velocity.
+;
+; NOTES:
+;   R#2 values are SCREEN 5 page bases: #1F for page 0, #3F for page 1.
+;   The display register is written after collision/player state is ready, so
+;   the player is not shown on the new page at an old edge for one frame.
+; ------------------------------------------------------------
+commit_room_flip:
+    call vdp_wait_cmd_ready
+    ld a, (bitmap_pending_room)
+    ld (current_screen_index), a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_room_collision_map
+    ld bc, ${COLLISION_COLS * COLLISION_ROWS}
+    ldir
+    xor a
+    ld (player_vy), a
+    ld a, (player_flags)
+    and #FE
+    ld (player_flags), a
+    ld a, (bitmap_transition_dir)
+    or a
+    jp z, .commit_enter_right
+    cp 1
+    jp z, .commit_enter_left
+    cp 2
+    jp z, .commit_enter_bottom
+.commit_enter_top:
+    ld a, 2
+    ld (player_y), a
+    jp .commit_flip_page
+.commit_enter_bottom:
+    ld a, 174
+    ld (player_y), a
+    jp .commit_flip_page
+.commit_enter_right:
+    ld a, 238
+    ld (player_x), a
+    jp .commit_flip_page
+.commit_enter_left:
+    ld a, 2
+    ld (player_x), a
+.commit_flip_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_displayed_page), a
+    or a
+    jp z, .flip_to_page0
+    ld e, #${BITMAP_ROOM_PAGE1_R2.toString(16).toUpperCase().padStart(2, '0')}
+    jp .write_display_page
+.flip_to_page0:
+    ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
+.write_display_page:
+    ld a, #02
+    call vdp_write_register
+    ld a, #0F
+    ld e, #00
+    call vdp_write_register
+    xor a
+    ld (bitmap_composition_state), a
+    ld (bitmap_composition_blocks_left), a
+    ld (bitmap_composition_blocks_left + 1), a
+    scf
     ret
 
 init_hardware_sprite_tables:
@@ -1764,7 +1970,7 @@ bitmap_stick_dx:
     jp c, .check_jump
     ld a, 1                 ; direction east
     push bc
-    call try_room_transition
+    call start_room_transition
     pop bc
     ret c                   ; transitioned -> done this frame
     jp .check_jump
@@ -1785,7 +1991,7 @@ bitmap_stick_dx:
     jp nc, .check_jump
     xor a                   ; direction west
     push bc
-    call try_room_transition
+    call start_room_transition
     pop bc
     ret c
 .check_jump:
@@ -1856,14 +2062,14 @@ bitmap_stick_dx:
     cp 2
     jp nc, .check_south_edge
     ld a, 2                 ; direction north
-    call try_room_transition
+    call start_room_transition
     ret
 .check_south_edge:
     ld a, (player_y)
     cp 175
     ret c                   ; not at the bottom edge
     ld a, 3                 ; direction south
-    call try_room_transition
+    call start_room_transition
     ret
 
 ${playerAnimationAsm}
@@ -2271,17 +2477,20 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const worldPalette = resolveWorldPalette(analysis, world.paletteAssetId, room.palette);
   const paletteBytes = buildPaletteBytes(worldPalette);
   const atlasPixels = normalizeAtlasPixels(room);
-  const atlasVramBase = (room.atlas.offscreenBaseY || 320) * ROW_BYTES;
+  const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(room);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
   // Per-room render program (command blocks) + collision map.
   const roomTables = rooms.map((roomData, index) => {
-    const render = buildRoomRenderBlocks(roomData);
+    const renderPage0 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE0_BASE_Y);
+    const renderPage1 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE1_BASE_Y);
     return {
       index,
-      renderLabel: `bitmap_room_render_${index}`,
-      renderBytes: render.bytes,
-      blockCount: render.count,
+      renderLabelPage0: `bitmap_room_render_${index}_p0`,
+      renderBytesPage0: renderPage0.bytes,
+      renderLabelPage1: `bitmap_room_render_${index}_p1`,
+      renderBytesPage1: renderPage1.bytes,
+      blockCount: renderPage0.count,
       collisionLabel: `bitmap_room_collision_${index}`,
       collisionBytes: buildCollisionTableBytes(roomData),
     };
@@ -2293,11 +2502,13 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     return [target('west'), target('east'), target('north'), target('south')];
   });
   const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis));
-  const hudSeedRleChunks = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_rle_chunk');
-  const allRleChunks = [...hudSeedRleChunks, ...tilesetRleChunks];
+  const hudSeedRleChunksPage0 = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_p0_rle_chunk');
+  const hudSeedRleChunksPage1 = buildRleChunksForVram(hudSeedBytes, BITMAP_ROOM_PAGE1_VRAM_BASE, 'bitmap_room_hud_seed_p1_rle_chunk');
+  const allHudSeedRleChunks = [...hudSeedRleChunksPage0, ...hudSeedRleChunksPage1];
+  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks];
   const bankedDataBlocks = isKonamiMegaRom
     ? [
-      ...buildBankedRleDataBlocks(hudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`),
+      ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
       ...buildBankedRleDataBlocks(tilesetRleChunks, `Shared world tileset (atlas), packed 4bpp RLE`),
     ]
     : [];
@@ -2306,11 +2517,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const bankedDataEquates = isKonamiMegaRom ? formatDataBankEquates(allRleChunks) : '';
   const bankedDataAsm = isKonamiMegaRom ? formatBankedDataBanks(bankedDataBanks) : '';
   const hudSeedDataAsm = isKonamiMegaRom
-    ? `; Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed is emitted in Konami MegaROM data banks below.\n`
-    : formatRleChunks(hudSeedRleChunks, hudSeedBytes.length, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed, packed 4bpp RLE`);
+    ? `; Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed for page 0/1 is emitted in Konami MegaROM data banks below.\n`
+    : formatRleChunks(allHudSeedRleChunks, hudSeedBytes.length * 2, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`);
   const tilesetDataAsm = isKonamiMegaRom
     ? `; Shared world tileset RLE is emitted in Konami MegaROM data banks below.\n`
-    : formatRleChunks(tilesetRleChunks, tilesetBytes.length, `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexWord(atlasVramBase)}`);
+    : formatRleChunks(tilesetRleChunks, tilesetBytes.length, `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexVram(atlasVramBase)}`);
   const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
   const spriteTables = buildSpriteTables(playerSprite);
   const spriteSourceLabel = spriteTables.usedConfigured
@@ -2318,7 +2529,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     : 'placeholder fallback (no configured player sprite resolvable)';
   // Jump/fall physics from the linked Player Config (movement.jumpPower / maxFallSpeed).
   const playerPhysics = resolveBitmapPlayerPhysics(resolveBitmapRoomPlayer(analysis, room));
-  const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, hudSeedRleChunks, {
+  const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
@@ -2327,11 +2538,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   }, { bankedRle: isKonamiMegaRom }, playerPhysics);
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
-    `${formatBytes(table.renderLabel, table.renderBytes, `Room ${table.index} render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
+    `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
+    `${formatBytes(table.renderLabelPage1, table.renderBytesPage1, `Room ${table.index} page 1 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
     `${formatBytes(table.collisionLabel, table.collisionBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}`
   ).join('\n');
-  const roomRenderPtrTableAsm = `bitmap_room_render_ptr_table:\n${roomTables.map(t => `    DW ${t.renderLabel}`).join('\n')}\n`;
-  const roomBlockCountTableAsm = `bitmap_room_blockcount_table:\n    DB ${roomTables.map(t => t.blockCount).join(',')}\n`;
+  const roomRenderPtrTableAsm = `bitmap_room_render_ptr_table_p0:\n${roomTables.map(t => `    DW ${t.renderLabelPage0}`).join('\n')}\nbitmap_room_render_ptr_table_p1:\n${roomTables.map(t => `    DW ${t.renderLabelPage1}`).join('\n')}\n`;
+  const roomBlockCountTableAsm = `bitmap_room_blockcount_table:\n${roomTables.map(t => `    DW ${t.blockCount}`).join('\n')}\n`;
   const roomCollisionPtrTableAsm = `bitmap_room_collision_ptr_table:\n${roomTables.map(t => `    DW ${t.collisionLabel}`).join('\n')}\n`;
   const roomTransitionTableAsm = formatBytes('bitmap_room_transition_table', transitionTableBytes, 'Edge rails per room: west,east,north,south (#FF = none)');
   const playerAnimationUpdateCall = (spriteTables.frameCount > 1 || spriteTables.mirror)
@@ -2357,7 +2569,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 ; Bitmap room game area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}
 ; Bitmap room game band VRAM base: ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
 ; World rooms: ${rooms.length}; start room index: ${startIndex}
-; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexWord(atlasVramBase)}
+; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexVram(atlasVramBase)}
 ; ==================================================================
 
 CHGMOD  EQU #005F
@@ -2391,6 +2603,14 @@ player_moving       EQU #C00A
 current_screen_index EQU #C00B
 ; Active room collision map copied here by load_room (16x12 = 192 bytes).
 bitmap_room_collision_map EQU #C010
+; Double-buffer room-transition state. Collision map ends at #C0CF.
+bitmap_displayed_page             EQU #C0D0
+bitmap_composition_state          EQU #C0D1
+bitmap_pending_room               EQU #C0D2
+bitmap_transition_dir             EQU #C0D3
+bitmap_composition_block_ptr      EQU #C0D4
+bitmap_composition_blocks_left    EQU #C0D6
+bitmap_pending_display_page       EQU #C0D8
 
     org #4000
 
@@ -2428,6 +2648,15 @@ init_rom:
     ld (player_flags), a
     ld (player_jump_lock), a
     ld (player_moving), a
+    ld (bitmap_displayed_page), a
+    ld (bitmap_composition_state), a
+    ld (bitmap_pending_room), a
+    ld (bitmap_transition_dir), a
+    ld (bitmap_composition_blocks_left), a
+    ld (bitmap_composition_blocks_left + 1), a
+    ld (bitmap_pending_display_page), a
+    ld hl, 0
+    ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
     ; Select status register 0 so vblank polling reads S#0 (the VDP command
@@ -2439,7 +2668,10 @@ init_rom:
     call vdp_write_register
 .main_loop:
     call bitmap_wait_vblank
+    call step_room_composition
+    jp c, .skip_player_movement
     call update_player_movement
+.skip_player_movement:
 ${playerAnimationUpdateCall}    call bitmap_update_sprite_sat
     jp .main_loop
 
