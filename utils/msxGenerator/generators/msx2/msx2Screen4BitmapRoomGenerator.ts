@@ -2,12 +2,21 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import {
+  buildBitmapAirDashEquates,
+  buildBitmapAirDashGateAsm,
+  buildBitmapAirDashInitClearAsm,
+  buildBitmapAirDashRuntimeAsm,
+} from './msx2BitmapAirDashGenerator';
 import {
   buildBitmapDashEquates,
   buildBitmapDashGateAsm,
   buildBitmapDashInitClearAsm,
   buildBitmapDashRuntimeAsm,
+  bitmapDashEnabled,
+  MSX2_BITMAP_DASH_RAM_BASE,
+  MSX2_BITMAP_DASH_RAM_BYTES,
 } from './msx2BitmapDashGenerator';
 import {
   buildBitmapDoubleJumpEquates,
@@ -2620,6 +2629,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const dashInitClear = buildBitmapDashInitClearAsm(dashConfig);
   const dashGate = buildBitmapDashGateAsm(dashConfig);
   const dashRuntime = buildBitmapDashRuntimeAsm(dashConfig);
+  // AIR DASH skill: consumes the frame before normal movement/gravity, using
+  // bitmap_try_move_x so collision remains tied to the SCREEN 5 room cache.
+  const airDashConfig = getMsx2AirDashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const airDashRamBase = MSX2_BITMAP_DASH_RAM_BASE + (bitmapDashEnabled(dashConfig) ? MSX2_BITMAP_DASH_RAM_BYTES : 0);
+  const airDashEquates = buildBitmapAirDashEquates(airDashConfig, airDashRamBase);
+  const airDashInitClear = buildBitmapAirDashInitClearAsm(airDashConfig);
+  const airDashGate = buildBitmapAirDashGateAsm(airDashConfig);
+  const airDashRuntime = buildBitmapAirDashRuntimeAsm(airDashConfig, { lockGroundDashOnStart: bitmapDashEnabled(dashConfig) });
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
@@ -2715,6 +2732,7 @@ bitmap_composition_block_ptr      EQU #C0D4
 bitmap_composition_blocks_left    EQU #C0D6
 bitmap_pending_display_page       EQU #C0D8
 ${dashEquates}
+${airDashEquates}
     org #4000
 
     db "AB"
@@ -2769,10 +2787,11 @@ init_rom:
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${airDashInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
+${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}.skip_player_movement:
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_sprite_sat
@@ -2780,6 +2799,7 @@ ${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_spri
 
 ${runtimeAsm}
 ${dashRuntime}
+${airDashRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:

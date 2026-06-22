@@ -185,6 +185,17 @@ def build_player_asset() -> dict[str, object]:
             "defaultFacing": "right",
             "movement": {
                 "mode": "platform",
+                "jumpPower": 6,
+            },
+            "activeSkills": ["air_dash"],
+            "skillParameters": {
+                "air_dash": {
+                    "airDashSpeed": 6,
+                    "airDashDuration": 6,
+                    "airDashCooldown": 20,
+                    "requireKeyRelease": True,
+                    "invulnerable": True,
+                },
             },
         },
     }
@@ -576,6 +587,9 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "FUNCTION: start_room_transition",
         "FUNCTION: step_room_composition",
         "FUNCTION: commit_room_flip",
+        "bitmap_air_dash_timer     EQU #C0D9",
+        "FUNCTION: bitmap_try_start_air_dash",
+        "FUNCTION: bitmap_step_air_dash_movement",
         "bitmap_room_collision_0:",
         "current_screen_index EQU",
     ):
@@ -601,10 +615,10 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         )
 
     sprite_color_length = len(extract_db_bytes(asm_text, "bitmap_room_sprite_colors"))
-    if sprite_color_length != 32:
+    if sprite_color_length != 64:
         raise RuntimeError(
-            f"bitmap_room_sprite_colors has {sprite_color_length} bytes; expected 32 "
-            "(2 hardware layers, 16 line colors each)"
+            f"bitmap_room_sprite_colors has {sprite_color_length} bytes; expected 64 "
+            "(2 frames x 2 hardware layers, 16 line colors each)"
         )
 
     hud_chunks = re.findall(r"^bitmap_room_hud_seed_p[01]_rle_chunk_\d+:\s*$", asm_text, flags=re.MULTILINE)
@@ -785,6 +799,58 @@ def main() -> int:
         if probe_values.get("composing") != 0:
             raise RuntimeError(f"OpenMSX transition composition did not finish cleanly: {probe_values}")
         print(f"Screenshot ready: {screenshot_output}")
+
+        air_dash_output = screenshot_output.with_name(f"{screenshot_output.stem}_air_dash{screenshot_output.suffix}")
+        air_dash_probe_output = air_dash_output.with_suffix(".probe.txt")
+        run_command([
+            sys.executable,
+            str(project_root / "scripts" / "capture_openmsx_action.py"),
+            "--rom",
+            str(rom_output),
+            "--project-root",
+            str(project_root),
+            "--sequence",
+            "WAIT:700",
+            "--output",
+            str(air_dash_output),
+            "--boot-wait-ms",
+            str(args.boot_wait_ms),
+            "--capture-wait-ms",
+            "800",
+            "--probe-output",
+            str(air_dash_probe_output),
+            "--probe",
+            "screen:0xC00B",
+            "--probe",
+            "air_timer:0xC0D9",
+            "--probe",
+            "air_cooldown:0xC0DA",
+            "--probe",
+            "player_x:0xC001",
+            "--probe",
+            "player_y:0xC000",
+            "--poke",
+            "0xC0D9:0x06",
+            "--poke",
+            "0xC0DC:0x01",
+        ], cwd=project_root, timeout=90)
+        if not air_dash_output.exists() or air_dash_output.stat().st_size == 0:
+            raise RuntimeError(f"OpenMSX air_dash screenshot was not produced: {air_dash_output}")
+        if not air_dash_probe_output.exists():
+            raise RuntimeError(f"OpenMSX air_dash probe output was not produced: {air_dash_probe_output}")
+        air_dash_probe_values: dict[str, int] = {}
+        for line in air_dash_probe_output.read_text(encoding="utf-8").splitlines():
+            if "=" not in line:
+                continue
+            label, value = line.split("=", 1)
+            air_dash_probe_values[label.strip()] = int(value.strip(), 16)
+        if air_dash_probe_values.get("screen") != 0:
+            raise RuntimeError(f"OpenMSX air_dash smoke unexpectedly changed room: {air_dash_probe_values}")
+        if air_dash_probe_values.get("player_x", 0) < 70:
+            raise RuntimeError(f"OpenMSX air_dash did not move the player far enough: {air_dash_probe_values}")
+        if air_dash_probe_values.get("air_timer") != 0:
+            raise RuntimeError(f"OpenMSX air_dash timer did not drain: {air_dash_probe_values}")
+        print(f"Air dash screenshot ready: {air_dash_output}")
 
     print(f"Smoke ROM ready: {rom_output} ({rom_output.stat().st_size} bytes)")
     return 0
