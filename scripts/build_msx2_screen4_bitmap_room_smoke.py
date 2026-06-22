@@ -187,7 +187,7 @@ def build_player_asset() -> dict[str, object]:
                 "mode": "platform",
                 "jumpPower": 6,
             },
-            "activeSkills": ["air_dash", "glide"],
+            "activeSkills": ["air_dash", "glide", "wall_jump"],
             "skillParameters": {
                 "air_dash": {
                     "airDashSpeed": 6,
@@ -199,6 +199,12 @@ def build_player_asset() -> dict[str, object]:
                 "glide": {
                     "glideSpeed": 1,
                     "glideBoostCost": 5,
+                },
+                "wall_jump": {
+                    "wallJumpHorizontal": 4,
+                    "wallJumpVertical": 6,
+                    "wallSlideSpeed": 1,
+                    "requireKeyRelease": True,
                 },
             },
         },
@@ -596,6 +602,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "FUNCTION: bitmap_step_air_dash_movement",
         "bitmap_glide_stamina EQU #C0DD",
         "FUNCTION: bitmap_apply_glide_clamp",
+        "bitmap_wall_slide_side       EQU #C0DF",
+        "FUNCTION: bitmap_wall_jump_frame_gate",
         "bitmap_room_collision_0:",
         "current_screen_index EQU",
     ):
@@ -915,6 +923,76 @@ def main() -> int:
         if glide_probe_values.get("glide_stamina", 0x64) >= 0x64:
             raise RuntimeError(f"OpenMSX glide did not consume stamina while SPACE was held: {glide_probe_values}")
         print(f"Glide screenshot ready: {glide_output}")
+
+        wall_jump_output = screenshot_output.with_name(f"{screenshot_output.stem}_wall_jump{screenshot_output.suffix}")
+        wall_jump_probe_output = wall_jump_output.with_suffix(".probe.txt")
+        run_command([
+            sys.executable,
+            str(project_root / "scripts" / "capture_openmsx_action.py"),
+            "--rom",
+            str(rom_output),
+            "--project-root",
+            str(project_root),
+            "--sequence",
+            "SPACE:300",
+            "--output",
+            str(wall_jump_output),
+            "--boot-wait-ms",
+            str(args.boot_wait_ms),
+            "--capture-wait-ms",
+            "500",
+            "--probe-output",
+            str(wall_jump_probe_output),
+            "--probe",
+            "screen:0xC00B",
+            "--probe",
+            "player_x:0xC001",
+            "--probe",
+            "player_y:0xC000",
+            "--probe",
+            "player_vy:0xC006",
+            "--probe",
+            "wall_side:0xC0DF",
+            "--probe",
+            "wall_lock_timer:0xC0E0",
+            "--probe",
+            "wall_lock_vx:0xC0E1",
+            "--probe",
+            "wall_key_lock:0xC0E2",
+            "--poke",
+            "0xC000:0x64",
+            "--poke",
+            "0xC001:0x32",
+            "--poke",
+            "0xC006:0x04",
+            "--poke",
+            "0xC007:0x00",
+            "--poke",
+            "0xC0DF:0x00",
+            "--poke",
+            "0xC0E0:0x00",
+            "--poke",
+            "0xC0E1:0x00",
+            "--poke",
+            "0xC0E2:0x00",
+        ], cwd=project_root, timeout=90)
+        if not wall_jump_output.exists() or wall_jump_output.stat().st_size == 0:
+            raise RuntimeError(f"OpenMSX wall_jump screenshot was not produced: {wall_jump_output}")
+        if not wall_jump_probe_output.exists():
+            raise RuntimeError(f"OpenMSX wall_jump probe output was not produced: {wall_jump_probe_output}")
+        wall_jump_probe_values: dict[str, int] = {}
+        for line in wall_jump_probe_output.read_text(encoding="utf-8").splitlines():
+            if "=" not in line:
+                continue
+            label, value = line.split("=", 1)
+            wall_jump_probe_values[label.strip()] = int(value.strip(), 16)
+        if wall_jump_probe_values.get("screen") != 0:
+            raise RuntimeError(f"OpenMSX wall_jump smoke unexpectedly changed room: {wall_jump_probe_values}")
+        if wall_jump_probe_values.get("player_x", 0) <= 70:
+            raise RuntimeError(f"OpenMSX wall_jump did not kick the player horizontally: {wall_jump_probe_values}")
+        if wall_jump_probe_values.get("wall_lock_vx") != 4:
+            raise RuntimeError(f"OpenMSX wall_jump did not latch rightward lock velocity: {wall_jump_probe_values}")
+        print(f"Wall jump screenshot ready: {wall_jump_output}")
 
     print(f"Smoke ROM ready: {rom_output} ({rom_output.stat().st_size} bytes)")
     return 0

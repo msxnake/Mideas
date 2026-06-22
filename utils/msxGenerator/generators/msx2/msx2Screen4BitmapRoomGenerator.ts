@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -30,7 +30,16 @@ import {
   buildBitmapGlideGravityHookAsm,
   buildBitmapGlideInitClearAsm,
   buildBitmapGlideRuntimeAsm,
+  MSX2_BITMAP_GLIDE_RAM_BYTES,
 } from './msx2BitmapGlideGenerator';
+import {
+  buildBitmapWallJumpEquates,
+  buildBitmapWallJumpGravityHookAsm,
+  buildBitmapWallJumpInitClearAsm,
+  buildBitmapWallJumpInputHookAsm,
+  buildBitmapWallJumpLandClearAsm,
+  buildBitmapWallJumpRuntimeAsm,
+} from './msx2BitmapWallJumpGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -775,7 +784,7 @@ function buildRuntimeAsm(
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number },
   options: { bankedRle: boolean },
   playerPhysics: BitmapPlayerPhysics,
-  skillHooks: { glideGravityHookAsm?: string } = {},
+  skillHooks: { inputGateAsm?: string; gravityHookAsm?: string; landClearAsm?: string } = {},
 ): string {
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
@@ -2058,6 +2067,7 @@ update_player_movement:
     ld c, a                 ; C = pressed mask for keyboard row 8
     xor a
     ld (player_moving), a
+${skillHooks.inputGateAsm || ''}
 bitmap_stick_dx:
     bit 7, c
     jp z, .not_right
@@ -2106,7 +2116,7 @@ ${buildBitmapJumpBlockAsm(playerPhysics)}
     inc a
     ld (player_vy), a
 .after_gravity_tick:
-${skillHooks.glideGravityHookAsm || ''}
+${skillHooks.gravityHookAsm || ''}
 .apply_vertical_velocity:
     ld a, (player_vy)
     or a
@@ -2140,6 +2150,7 @@ ${skillHooks.glideGravityHookAsm || ''}
     ld a, (player_flags)
     or #01
     ld (player_flags), a
+${skillHooks.landClearAsm || ''}
 .movement_done:
     ; North/South edge: walk (or fall) into a vertical neighbour room if one exists.
     ld a, (player_y)
@@ -2656,17 +2667,32 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const glideInitClear = buildBitmapGlideInitClearAsm(glideConfig);
   const glideGravityHook = buildBitmapGlideGravityHookAsm(glideConfig);
   const glideRuntime = buildBitmapGlideRuntimeAsm(glideConfig);
+  // WALL JUMP skill: detects bitmap wall contact and runs a committed pixel
+  // kick through bitmap_try_move_x. RAM follows dash/air_dash/glide.
+  const wallJumpConfig = getMsx2WallJumpConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const wallJumpRamBase = glideRamBase + (glideConfig.enabled ? MSX2_BITMAP_GLIDE_RAM_BYTES : 0);
+  const wallJumpEquates = buildBitmapWallJumpEquates(wallJumpConfig, wallJumpRamBase);
+  const wallJumpInitClear = buildBitmapWallJumpInitClearAsm(wallJumpConfig);
+  const wallJumpInputHook = buildBitmapWallJumpInputHookAsm(wallJumpConfig);
+  const wallJumpGravityHook = buildBitmapWallJumpGravityHookAsm(wallJumpConfig);
+  const wallJumpLandClear = buildBitmapWallJumpLandClearAsm(wallJumpConfig);
+  const wallJumpRuntime = buildBitmapWallJumpRuntimeAsm(wallJumpConfig);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
   const doubleJumpInitClear = buildBitmapDoubleJumpInitClearAsm(playerPhysics);
+  const gravityHooks = `${glideGravityHook}${wallJumpGravityHook}`;
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
     mirror: spriteTables.mirror,
     authoredFacing: spriteTables.authoredFacing,
     layerCount: spriteTables.layerCount,
-  }, { bankedRle: isKonamiMegaRom }, playerPhysics, { glideGravityHookAsm: glideGravityHook });
+  }, { bankedRle: isKonamiMegaRom }, playerPhysics, {
+    inputGateAsm: wallJumpInputHook,
+    gravityHookAsm: gravityHooks,
+    landClearAsm: wallJumpLandClear,
+  });
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
     `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
@@ -2753,6 +2779,7 @@ bitmap_pending_display_page       EQU #C0D8
 ${dashEquates}
 ${airDashEquates}
 ${glideEquates}
+${wallJumpEquates}
     org #4000
 
     db "AB"
@@ -2807,7 +2834,7 @@ init_rom:
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
@@ -2821,6 +2848,7 @@ ${runtimeAsm}
 ${dashRuntime}
 ${airDashRuntime}
 ${glideRuntime}
+${wallJumpRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
