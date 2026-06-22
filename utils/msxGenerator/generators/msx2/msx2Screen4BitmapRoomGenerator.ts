@@ -847,42 +847,104 @@ ${mirrorSelectionAsm}.store_player_pattern:
 ` : '';
   const playerColorsAsm = shouldEmitPlayerColorUpdate ? `
 ; ------------------------------------------------------------
-; FUNCTION: bitmap_upload_player_frame_colors
+; FUNCTION: fast_copy_to_vram_ext
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Upload the per-line colour table for the CURRENT animation frame to the
-;   V9938 sprite colour table (#F400). The player sprite stores one colour table
-;   per frame because CC/OR multi-colour rows differ between frames; the SAT only
-;   swaps the pattern index, so without re-uploading colours, frames > 0 render
-;   with frame 0's colours (white/garbage lines).
+;   Fast RAM->VRAM block copy of up to 256 bytes with OTIR (~21 cyc/byte vs the
+;   ~48 cyc/byte of copy_to_vram_ext's byte loop). For per-frame VRAM work the
+;   main loop does right after bitmap_wait_vblank, when VRAM is idle (no display
+;   fetch), so the faster write rate is safe and leaves CPU budget for PT3/enemies.
 ;
 ; INPUT:
-;   player_anim_frame = current logical animation frame (0..${playerAnimation.frameCount - 1}).
+;   HL = source RAM pointer.
+;   DE = destination VRAM address (full 16-bit).
+;   B  = byte count (1..256; 0 means 256).
 ;
 ; OUTPUT:
 ;   None.
 ;
 ; DESTROYS:
-;   AF, BC, DE, HL  (via copy_to_vram_ext).
+;   AF, BC, DE, HL.
 ;
 ; PRESERVES:
 ;   IX, IY.
 ;
 ; CALLS:
-;   copy_to_vram_ext.
+;   vdp_write_register.
 ;
 ; SIDE EFFECTS:
-;   Writes ${colorFrameStride} bytes (${playerAnimation.layerCount} layer(s) x 16 lines) to VRAM #F400.
+;   Writes B bytes to VRAM, restores R#14 = 0 (bitmap_wait_vblank reads S#0).
+;   Does not select a status register (R#15 untouched).
+; ------------------------------------------------------------
+fast_copy_to_vram_ext:
+    push de
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
+    ld a, e
+    out (${VDP_CTRL_PORT}), a
+    ld a, d
+    and #3F
+    or #40
+    out (${VDP_CTRL_PORT}), a
+    ld c, ${VDP_DATA_PORT}
+    otir
+    xor a
+    ld e, a
+    ld a, #0E
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_upload_player_frame_colors
+; ------------------------------------------------------------
+; PURPOSE:
+;   Re-upload the player's per-line sprite colour table for the CURRENT
+;   animation frame to the V9938 sprite colour table (#F400), but ONLY when the
+;   frame changed. Each frame has its own colour table because CC/OR multi-colour
+;   rows differ between frames; the SAT only swaps the pattern index, so without
+;   this, frames > 0 render with frame 0's colours (white/garbage lines).
+;
+; INPUT:
+;   player_anim_frame    = current logical frame (0..${playerAnimation.frameCount - 1}).
+;   player_colors_loaded = frame whose colours are currently in VRAM.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF (always); BC, DE, HL only when a frame change triggers the upload.
+;
+; PRESERVES:
+;   IX, IY. Returns after touching only AF when the frame is unchanged, so the
+;   common case (most frames) costs ~7 instructions, not a VRAM copy.
+;
+; CALLS:
+;   fast_copy_to_vram_ext (only on a frame change).
+;
+; SIDE EFFECTS:
+;   On a frame change: writes ${colorFrameStride} bytes (${playerAnimation.layerCount} layer(s) x 16 lines)
+;   to VRAM #F400 and updates player_colors_loaded.
 ;
 ; NOTES:
 ;   Source = bitmap_room_sprite_colors + player_anim_frame * ${colorFrameStride}.
 ;   Mirror frames reuse the same colours (a horizontal flip keeps line colours),
-;   so the logical frame indexes the table directly. Preserves R#15 (copy uses
-;   copy_to_vram_ext, which does not select a status register).
+;   so the logical frame indexes the table directly. Self-correcting: any stale
+;   player_colors_loaded just forces one upload on the first differing frame.
 ; ------------------------------------------------------------
 bitmap_upload_player_frame_colors:
-    ld hl, bitmap_room_sprite_colors
     ld a, (player_anim_frame)
+    ld c, a
+    ld a, (player_colors_loaded)
+    cp c
+    ret z
+    ld a, c
+    ld (player_colors_loaded), a
+    ld hl, bitmap_room_sprite_colors
     or a
     jp z, .upload_frame_colors
     ld de, ${colorFrameStride}
@@ -892,8 +954,8 @@ bitmap_upload_player_frame_colors:
     jp nz, .add_frame_color_offset
 .upload_frame_colors:
     ld de, #F400
-    ld bc, ${colorFrameStride}
-    jp copy_to_vram_ext
+    ld b, ${colorFrameStride}
+    jp fast_copy_to_vram_ext
 ` : '';
 
   return `
@@ -1917,11 +1979,15 @@ commit_room_flip:
 
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
+    ; Colours: upload ONLY frame 0's table here; the rest is per-frame and the
+    ; main loop re-uploads on frame change (bitmap_upload_player_frame_colors).
     ld hl, bitmap_room_sprite_colors
     ld de, #F400
-    ld bc, bitmap_room_sprite_colors_end - bitmap_room_sprite_colors
+    ld bc, ${colorFrameStride}
     call copy_to_vram_ext
-    ld hl, bitmap_room_sprite_attrs
+${shouldEmitPlayerColorUpdate ? `    xor a                   ; frame 0 colours are now in VRAM
+    ld (player_colors_loaded), a
+` : ''}    ld hl, bitmap_room_sprite_attrs
     ld de, #F600
     ld bc, bitmap_room_sprite_attrs_end - bitmap_room_sprite_attrs
     call copy_to_vram_ext
@@ -2082,7 +2148,7 @@ bitmap_stick_dx:
     ret
 
 ${playerAnimationAsm}
-
+${playerColorsAsm}
 bitmap_try_move_x:
     ; A = signed dx. Commits player_x when the leading edge is not solid.
     ; Probes top and bottom of the 16x16 body. Clobbers AF/BC/DE/HL.
@@ -2416,11 +2482,18 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
           Array.from({ length: layerCount }, (_unused, layerIndex) => layers[layerIndex]?.pattern || emptyPattern)
             .flatMap(pattern => mirrorHardwareSpritePatternHorizontally(pattern).map(value => value & 0xff)))
         : [];
-      const colors = Array.from({ length: layerCount }, (_unused, layerIndex) => {
-        const layerColors = (frameLayerSets[0]?.[layerIndex]?.colors || []).slice(0, 16);
-        while (layerColors.length < 16) layerColors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
-        return layerColors;
-      }).flat();
+      // One colour table PER FRAME (layerCount x 16 lines), matching the
+      // per-frame pattern layout. CC/OR multi-colour rows differ between frames,
+      // so the runtime re-uploads the current frame's colours (see
+      // bitmap_upload_player_frame_colors); emitting only frame 0 here left
+      // frames > 0 with frame 0's colours (white/garbage lines).
+      const colors = frameLayerSets.flatMap(layers =>
+        Array.from({ length: layerCount }, (_unused, layerIndex) => {
+          const layerColors = (layers[layerIndex]?.colors || []).slice(0, 16);
+          while (layerColors.length < 16) layerColors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+          return layerColors;
+        }).flat()
+      );
       return {
         colors: colors.map(value => value & 0xff),
         attrs: attrsForLayerCount(layerCount),
@@ -2558,6 +2631,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const playerAnimationUpdateCall = (spriteTables.frameCount > 1 || spriteTables.mirror)
     ? '    call bitmap_update_player_sprite_animation\n'
     : '';
+  // Re-upload the player's sprite colour table on animation frame changes so
+  // OR/CC multi-colour frames render correctly (fast, on-change only).
+  const playerColorsUpdateCall = spriteTables.frameCount > 1
+    ? '    call bitmap_upload_player_frame_colors\n'
+    : '';
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
   const hudWidgetCount = room.runtime?.showHud === false || room.runtime?.hideHud === true ? 0 : room.runtime?.hudWidgets?.length || 0;
 
@@ -2610,7 +2688,10 @@ player_jump_lock    EQU #C009
 player_moving       EQU #C00A
 ; World engine runtime state.
 current_screen_index EQU #C00B
-; Active room collision map copied here by load_room (16x12 = 192 bytes).
+${spriteTables.frameCount > 1 ? `; Frame whose player sprite colours are currently in VRAM (#F400). Drives the
+; on-change per-frame OR/CC colour re-upload (bitmap_upload_player_frame_colors).
+player_colors_loaded EQU #C00C
+` : ''}; Active room collision map copied here by load_room (16x12 = 192 bytes).
 bitmap_room_collision_map EQU #C010
 ; Double-buffer room-transition state. Collision map ends at #C0CF.
 bitmap_displayed_page             EQU #C0D0
@@ -2681,7 +2762,7 @@ init_rom:
     jp c, .skip_player_movement
     call update_player_movement
 .skip_player_movement:
-${playerAnimationUpdateCall}    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_sprite_sat
     jp .main_loop
 
 ${runtimeAsm}
