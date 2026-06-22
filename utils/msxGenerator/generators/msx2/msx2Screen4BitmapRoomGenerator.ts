@@ -2,12 +2,14 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
 import {
+  bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
   buildBitmapAirDashGateAsm,
   buildBitmapAirDashInitClearAsm,
   buildBitmapAirDashRuntimeAsm,
+  MSX2_BITMAP_AIR_DASH_RAM_BYTES,
 } from './msx2BitmapAirDashGenerator';
 import {
   buildBitmapDashEquates,
@@ -23,6 +25,12 @@ import {
   buildBitmapDoubleJumpInitClearAsm,
   buildBitmapJumpBlockAsm,
 } from './msx2BitmapDoubleJumpGenerator';
+import {
+  buildBitmapGlideEquates,
+  buildBitmapGlideGravityHookAsm,
+  buildBitmapGlideInitClearAsm,
+  buildBitmapGlideRuntimeAsm,
+} from './msx2BitmapGlideGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -766,7 +774,8 @@ function buildRuntimeAsm(
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number },
   options: { bankedRle: boolean },
-  playerPhysics: BitmapPlayerPhysics
+  playerPhysics: BitmapPlayerPhysics,
+  skillHooks: { glideGravityHookAsm?: string } = {},
 ): string {
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
@@ -2093,9 +2102,11 @@ ${buildBitmapJumpBlockAsm(playerPhysics)}
 .apply_gravity:
     ld a, (player_vy)
     cp ${playerPhysics.terminalPx}              ; terminal fall speed px/frame (Player Config maxFallSpeed)
-    jp z, .apply_vertical_velocity
+    jp z, .after_gravity_tick
     inc a
     ld (player_vy), a
+.after_gravity_tick:
+${skillHooks.glideGravityHookAsm || ''}
 .apply_vertical_velocity:
     ld a, (player_vy)
     or a
@@ -2637,6 +2648,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const airDashInitClear = buildBitmapAirDashInitClearAsm(airDashConfig);
   const airDashGate = buildBitmapAirDashGateAsm(airDashConfig);
   const airDashRuntime = buildBitmapAirDashRuntimeAsm(airDashConfig, { lockGroundDashOnStart: bitmapDashEnabled(dashConfig) });
+  // GLIDE skill: clamps integer bitmap player_vy after gravity and before the
+  // Y movement loop. RAM follows dash/air_dash so optional skill blocks cannot overlap.
+  const glideConfig = getMsx2GlideConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const glideRamBase = airDashRamBase + (bitmapAirDashEnabled(airDashConfig) ? MSX2_BITMAP_AIR_DASH_RAM_BYTES : 0);
+  const glideEquates = buildBitmapGlideEquates(glideConfig, glideRamBase);
+  const glideInitClear = buildBitmapGlideInitClearAsm(glideConfig);
+  const glideGravityHook = buildBitmapGlideGravityHookAsm(glideConfig);
+  const glideRuntime = buildBitmapGlideRuntimeAsm(glideConfig);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
@@ -2647,7 +2666,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     mirror: spriteTables.mirror,
     authoredFacing: spriteTables.authoredFacing,
     layerCount: spriteTables.layerCount,
-  }, { bankedRle: isKonamiMegaRom }, playerPhysics);
+  }, { bankedRle: isKonamiMegaRom }, playerPhysics, { glideGravityHookAsm: glideGravityHook });
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
     `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
@@ -2733,6 +2752,7 @@ bitmap_composition_blocks_left    EQU #C0D6
 bitmap_pending_display_page       EQU #C0D8
 ${dashEquates}
 ${airDashEquates}
+${glideEquates}
     org #4000
 
     db "AB"
@@ -2787,7 +2807,7 @@ init_rom:
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${airDashInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
@@ -2800,6 +2820,7 @@ ${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_spri
 ${runtimeAsm}
 ${dashRuntime}
 ${airDashRuntime}
+${glideRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:

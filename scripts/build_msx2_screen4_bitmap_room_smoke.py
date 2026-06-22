@@ -187,7 +187,7 @@ def build_player_asset() -> dict[str, object]:
                 "mode": "platform",
                 "jumpPower": 6,
             },
-            "activeSkills": ["air_dash"],
+            "activeSkills": ["air_dash", "glide"],
             "skillParameters": {
                 "air_dash": {
                     "airDashSpeed": 6,
@@ -195,6 +195,10 @@ def build_player_asset() -> dict[str, object]:
                     "airDashCooldown": 20,
                     "requireKeyRelease": True,
                     "invulnerable": True,
+                },
+                "glide": {
+                    "glideSpeed": 1,
+                    "glideBoostCost": 5,
                 },
             },
         },
@@ -590,6 +594,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "bitmap_air_dash_timer     EQU #C0D9",
         "FUNCTION: bitmap_try_start_air_dash",
         "FUNCTION: bitmap_step_air_dash_movement",
+        "bitmap_glide_stamina EQU #C0DD",
+        "FUNCTION: bitmap_apply_glide_clamp",
         "bitmap_room_collision_0:",
         "current_screen_index EQU",
     ):
@@ -851,6 +857,64 @@ def main() -> int:
         if air_dash_probe_values.get("air_timer") != 0:
             raise RuntimeError(f"OpenMSX air_dash timer did not drain: {air_dash_probe_values}")
         print(f"Air dash screenshot ready: {air_dash_output}")
+
+        glide_output = screenshot_output.with_name(f"{screenshot_output.stem}_glide{screenshot_output.suffix}")
+        glide_probe_output = glide_output.with_suffix(".probe.txt")
+        run_command([
+            sys.executable,
+            str(project_root / "scripts" / "capture_openmsx_action.py"),
+            "--rom",
+            str(rom_output),
+            "--project-root",
+            str(project_root),
+            "--sequence",
+            "SPACE:700",
+            "--output",
+            str(glide_output),
+            "--boot-wait-ms",
+            str(args.boot_wait_ms),
+            "--capture-wait-ms",
+            "150",
+            "--probe-output",
+            str(glide_probe_output),
+            "--probe",
+            "screen:0xC00B",
+            "--probe",
+            "player_y:0xC000",
+            "--probe",
+            "player_vy:0xC006",
+            "--probe",
+            "glide_stamina:0xC0DD",
+            "--probe",
+            "glide_active:0xC0DE",
+            "--poke",
+            "0xC000:0x64",
+            "--poke",
+            "0xC006:0x08",
+            "--poke",
+            "0xC007:0x00",
+            "--poke",
+            "0xC009:0x00",
+        ], cwd=project_root, timeout=90)
+        if not glide_output.exists() or glide_output.stat().st_size == 0:
+            raise RuntimeError(f"OpenMSX glide screenshot was not produced: {glide_output}")
+        if not glide_probe_output.exists():
+            raise RuntimeError(f"OpenMSX glide probe output was not produced: {glide_probe_output}")
+        glide_probe_values: dict[str, int] = {}
+        for line in glide_probe_output.read_text(encoding="utf-8").splitlines():
+            if "=" not in line:
+                continue
+            label, value = line.split("=", 1)
+            glide_probe_values[label.strip()] = int(value.strip(), 16)
+        if glide_probe_values.get("screen") != 0:
+            raise RuntimeError(f"OpenMSX glide smoke unexpectedly changed room: {glide_probe_values}")
+        if glide_probe_values.get("player_y", 0) >= 170:
+            raise RuntimeError(f"OpenMSX glide did not slow the fall enough: {glide_probe_values}")
+        if glide_probe_values.get("player_vy", 0xFF) > 2:
+            raise RuntimeError(f"OpenMSX glide did not clamp fall velocity: {glide_probe_values}")
+        if glide_probe_values.get("glide_stamina", 0x64) >= 0x64:
+            raise RuntimeError(f"OpenMSX glide did not consume stamina while SPACE was held: {glide_probe_values}")
+        print(f"Glide screenshot ready: {glide_output}")
 
     print(f"Smoke ROM ready: {rom_output} ({rom_output.stat().st_size} bytes)")
     return 0
