@@ -2,7 +2,18 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import {
+  buildBitmapDashEquates,
+  buildBitmapDashGateAsm,
+  buildBitmapDashInitClearAsm,
+  buildBitmapDashRuntimeAsm,
+} from './msx2BitmapDashGenerator';
+import {
+  buildBitmapDoubleJumpEquates,
+  buildBitmapDoubleJumpInitClearAsm,
+  buildBitmapJumpBlockAsm,
+} from './msx2BitmapDoubleJumpGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -2069,29 +2080,7 @@ bitmap_stick_dx:
     call start_room_transition
     pop bc
     ret c
-.check_jump:
-    bit 0, c
-    jp nz, .jump_pressed
-    bit 5, c
-    jp z, .jump_released
-.jump_pressed:
-    ld a, (player_jump_lock)
-    or a
-    jp nz, .apply_gravity
-    ld a, (player_flags)
-    and #01
-    jp z, .apply_gravity
-    ld a, #${playerPhysics.jumpImpulseByte.toString(16).toUpperCase().padStart(2, '0')}              ; -${playerPhysics.jumpPx} px/frame initial jump velocity (Player Config jumpPower)
-    ld (player_vy), a
-    ld a, (player_flags)
-    and #FE
-    ld (player_flags), a
-    ld a, 1
-    ld (player_jump_lock), a
-    jp .apply_gravity
-.jump_released:
-    xor a
-    ld (player_jump_lock), a
+${buildBitmapJumpBlockAsm(playerPhysics)}
 .apply_gravity:
     ld a, (player_vy)
     cp ${playerPhysics.terminalPx}              ; terminal fall speed px/frame (Player Config maxFallSpeed)
@@ -2361,6 +2350,10 @@ interface BitmapPlayerPhysics {
   jumpImpulseByte: number; // signed -jumpPx as a byte (e.g. -6 -> #FA)
   jumpPx: number;
   terminalPx: number;
+  doubleJumpEnabled: boolean;
+  maxJumps: number;
+  airJumpImpulseByte: number;
+  airJumpPx: number;
 }
 
 // Map the Player Config jump/fall physics to the bitmap engine's whole-pixel velocities.
@@ -2372,7 +2365,16 @@ function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | unde
   const toSigned16 = (value: number) => ((value & 0x8000) ? value - 0x10000 : value);
   const jumpPx = Math.max(2, Math.min(15, Math.round(Math.abs(toSigned16(physics.jumpImpulse88)) / 256)));
   const terminalPx = Math.max(1, Math.min(15, Math.round(physics.terminalVelocity88 / 256)));
-  return { jumpImpulseByte: (256 - jumpPx) & 0xff, jumpPx, terminalPx };
+  const airJumpPx = Math.max(2, Math.min(15, Math.round(Math.abs(toSigned16(physics.airJumpImpulse88)) / 256)));
+  return {
+    jumpImpulseByte: (256 - jumpPx) & 0xff,
+    jumpPx,
+    terminalPx,
+    doubleJumpEnabled: Boolean(physics.doubleJumpEnabled),
+    maxJumps: Math.max(1, Math.min(4, Math.floor(physics.maxJumps) || 1)),
+    airJumpImpulseByte: (256 - airJumpPx) & 0xff,
+    airJumpPx,
+  };
 }
 
 // Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
@@ -2611,6 +2613,17 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     : 'placeholder fallback (no configured player sprite resolvable)';
   // Jump/fall physics from the linked Player Config (movement.jumpPower / maxFallSpeed).
   const playerPhysics = resolveBitmapPlayerPhysics(resolveBitmapRoomPlayer(analysis, room));
+  // DASH skill (pilot): config from the linked Player Config; the ASM uses the
+  // bitmap room's own collision/move primitives (no SCREEN 4 routines reused).
+  const dashConfig = getMsx2DashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const dashEquates = buildBitmapDashEquates(dashConfig);
+  const dashInitClear = buildBitmapDashInitClearAsm(dashConfig);
+  const dashGate = buildBitmapDashGateAsm(dashConfig);
+  const dashRuntime = buildBitmapDashRuntimeAsm(dashConfig);
+  // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
+  // wired in update_player_movement) from the same Player Config physics.
+  const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
+  const doubleJumpInitClear = buildBitmapDoubleJumpInitClearAsm(playerPhysics);
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -2691,7 +2704,7 @@ current_screen_index EQU #C00B
 ${spriteTables.frameCount > 1 ? `; Frame whose player sprite colours are currently in VRAM (#F400). Drives the
 ; on-change per-frame OR/CC colour re-upload (bitmap_upload_player_frame_colors).
 player_colors_loaded EQU #C00C
-` : ''}; Active room collision map copied here by load_room (16x12 = 192 bytes).
+` : ''}${doubleJumpEquates}; Active room collision map copied here by load_room (16x12 = 192 bytes).
 bitmap_room_collision_map EQU #C010
 ; Double-buffer room-transition state. Collision map ends at #C0CF.
 bitmap_displayed_page             EQU #C0D0
@@ -2701,7 +2714,7 @@ bitmap_transition_dir             EQU #C0D3
 bitmap_composition_block_ptr      EQU #C0D4
 bitmap_composition_blocks_left    EQU #C0D6
 bitmap_pending_display_page       EQU #C0D8
-
+${dashEquates}
     org #4000
 
     db "AB"
@@ -2756,16 +2769,17 @@ init_rom:
     ld a, #0F
     ld e, #00
     call vdp_write_register
-.main_loop:
+${dashInitClear}${doubleJumpInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
     call update_player_movement
-.skip_player_movement:
+${dashGate}.skip_player_movement:
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_sprite_sat
     jp .main_loop
 
 ${runtimeAsm}
+${dashRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
