@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -39,7 +39,19 @@ import {
   buildBitmapWallJumpInputHookAsm,
   buildBitmapWallJumpLandClearAsm,
   buildBitmapWallJumpRuntimeAsm,
+  MSX2_BITMAP_WALL_JUMP_RAM_BYTES,
 } from './msx2BitmapWallJumpGenerator';
+import {
+  bitmapPowerStompEnabled,
+  buildBitmapPowerStompEquates,
+  buildBitmapPowerStompGravityHookAsm,
+  buildBitmapPowerStompInitClearAsm,
+  buildBitmapPowerStompInputHookAsm,
+  buildBitmapPowerStompLandClearAsm,
+  buildBitmapPowerStompMainLoopCallAsm,
+  buildBitmapPowerStompRuntimeAsm,
+  MSX2_BITMAP_POWER_STOMP_RAM_BYTES,
+} from './msx2BitmapPowerStompGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -2677,11 +2689,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const wallJumpGravityHook = buildBitmapWallJumpGravityHookAsm(wallJumpConfig);
   const wallJumpLandClear = buildBitmapWallJumpLandClearAsm(wallJumpConfig);
   const wallJumpRuntime = buildBitmapWallJumpRuntimeAsm(wallJumpConfig);
+  // POWER STOMP skill: pins the bitmap integer fall velocity and optionally
+  // shakes SCREEN 5 through V9938 R#18. RAM follows wall_jump.
+  const powerStompConfig = getMsx2PowerStompConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const powerStompRamBase = wallJumpRamBase + (wallJumpConfig.enabled ? MSX2_BITMAP_WALL_JUMP_RAM_BYTES : 0);
+  const powerStompShakeRamBase = powerStompRamBase + (bitmapPowerStompEnabled(powerStompConfig) ? MSX2_BITMAP_POWER_STOMP_RAM_BYTES : 0);
+  const powerStompEquates = buildBitmapPowerStompEquates(powerStompConfig, powerStompRamBase, powerStompShakeRamBase);
+  const powerStompInitClear = buildBitmapPowerStompInitClearAsm(powerStompConfig);
+  const powerStompInputHook = buildBitmapPowerStompInputHookAsm(powerStompConfig);
+  const powerStompGravityHook = buildBitmapPowerStompGravityHookAsm(powerStompConfig);
+  const powerStompLandClear = buildBitmapPowerStompLandClearAsm(powerStompConfig);
+  const powerStompMainLoopCall = buildBitmapPowerStompMainLoopCallAsm(powerStompConfig);
+  const powerStompRuntime = buildBitmapPowerStompRuntimeAsm(powerStompConfig);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
   const doubleJumpInitClear = buildBitmapDoubleJumpInitClearAsm(playerPhysics);
-  const gravityHooks = `${glideGravityHook}${wallJumpGravityHook}`;
+  const inputHooks = `${wallJumpInputHook}${powerStompInputHook}`;
+  const gravityHooks = `${glideGravityHook}${wallJumpGravityHook}${powerStompGravityHook}`;
+  const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}`;
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -2689,9 +2715,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     authoredFacing: spriteTables.authoredFacing,
     layerCount: spriteTables.layerCount,
   }, { bankedRle: isKonamiMegaRom }, playerPhysics, {
-    inputGateAsm: wallJumpInputHook,
+    inputGateAsm: inputHooks,
     gravityHookAsm: gravityHooks,
-    landClearAsm: wallJumpLandClear,
+    landClearAsm: landClearHooks,
   });
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
@@ -2780,6 +2806,7 @@ ${dashEquates}
 ${airDashEquates}
 ${glideEquates}
 ${wallJumpEquates}
+${powerStompEquates}
     org #4000
 
     db "AB"
@@ -2834,14 +2861,14 @@ init_rom:
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
 ${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}    call bitmap_update_sprite_sat
     jp .main_loop
 
 ${runtimeAsm}
@@ -2849,6 +2876,7 @@ ${dashRuntime}
 ${airDashRuntime}
 ${glideRuntime}
 ${wallJumpRuntime}
+${powerStompRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:

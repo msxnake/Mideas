@@ -187,7 +187,7 @@ def build_player_asset() -> dict[str, object]:
                 "mode": "platform",
                 "jumpPower": 6,
             },
-            "activeSkills": ["air_dash", "glide", "wall_jump"],
+            "activeSkills": ["air_dash", "glide", "wall_jump", "power_stomp"],
             "skillParameters": {
                 "air_dash": {
                     "airDashSpeed": 6,
@@ -205,6 +205,11 @@ def build_player_asset() -> dict[str, object]:
                     "wallJumpVertical": 6,
                     "wallSlideSpeed": 1,
                     "requireKeyRelease": True,
+                },
+                "power_stomp": {
+                    "stompSpeed": 12,
+                    "stompCooldown": 20,
+                    "screenShake": True,
                 },
             },
         },
@@ -604,6 +609,10 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "FUNCTION: bitmap_apply_glide_clamp",
         "bitmap_wall_slide_side       EQU #C0DF",
         "FUNCTION: bitmap_wall_jump_frame_gate",
+        "bitmap_stomp_active     EQU #C0E3",
+        "bitmap_shake_timer       EQU #C0E5",
+        "FUNCTION: bitmap_try_start_stomp",
+        "FUNCTION: bitmap_screen_shake_update",
         "bitmap_room_collision_0:",
         "current_screen_index EQU",
     ):
@@ -993,6 +1002,72 @@ def main() -> int:
         if wall_jump_probe_values.get("wall_lock_vx") != 4:
             raise RuntimeError(f"OpenMSX wall_jump did not latch rightward lock velocity: {wall_jump_probe_values}")
         print(f"Wall jump screenshot ready: {wall_jump_output}")
+
+        power_stomp_output = screenshot_output.with_name(f"{screenshot_output.stem}_power_stomp{screenshot_output.suffix}")
+        power_stomp_probe_output = power_stomp_output.with_suffix(".probe.txt")
+        run_command([
+            sys.executable,
+            str(project_root / "scripts" / "capture_openmsx_action.py"),
+            "--rom",
+            str(rom_output),
+            "--project-root",
+            str(project_root),
+            "--sequence",
+            "WAIT:80",
+            "--output",
+            str(power_stomp_output),
+            "--boot-wait-ms",
+            str(args.boot_wait_ms),
+            "--capture-wait-ms",
+            "0",
+            "--probe-output",
+            str(power_stomp_probe_output),
+            "--probe",
+            "screen:0xC00B",
+            "--probe",
+            "player_y:0xC000",
+            "--probe",
+            "player_vy:0xC006",
+            "--probe",
+            "player_flags:0xC007",
+            "--probe",
+            "stomp_active:0xC0E3",
+            "--probe",
+            "stomp_cooldown:0xC0E4",
+            "--probe",
+            "shake_timer:0xC0E5",
+            "--poke",
+            "0xC000:0xB4",
+            "--poke",
+            "0xC001:0x40",
+            "--poke",
+            "0xC006:0x00",
+            "--poke",
+            "0xC007:0x00",
+            "--poke",
+            "0xC0E3:0x01",
+            "--poke",
+            "0xC0E4:0x00",
+            "--poke",
+            "0xC0E5:0x00",
+        ], cwd=project_root, timeout=90)
+        if not power_stomp_output.exists() or power_stomp_output.stat().st_size == 0:
+            raise RuntimeError(f"OpenMSX power_stomp screenshot was not produced: {power_stomp_output}")
+        if not power_stomp_probe_output.exists():
+            raise RuntimeError(f"OpenMSX power_stomp probe output was not produced: {power_stomp_probe_output}")
+        power_stomp_probe_values: dict[str, int] = {}
+        for line in power_stomp_probe_output.read_text(encoding="utf-8").splitlines():
+            if "=" not in line:
+                continue
+            label, value = line.split("=", 1)
+            power_stomp_probe_values[label.strip()] = int(value.strip(), 16)
+        if power_stomp_probe_values.get("screen") != 0:
+            raise RuntimeError(f"OpenMSX power_stomp smoke unexpectedly changed room: {power_stomp_probe_values}")
+        if power_stomp_probe_values.get("stomp_active") != 0:
+            raise RuntimeError(f"OpenMSX power_stomp did not clear on landing: {power_stomp_probe_values}")
+        if (power_stomp_probe_values.get("player_flags", 0) & 0x01) == 0:
+            raise RuntimeError(f"OpenMSX power_stomp did not land/ground the player: {power_stomp_probe_values}")
+        print(f"Power stomp screenshot ready: {power_stomp_output}")
 
     print(f"Smoke ROM ready: {rom_output} ({rom_output.stat().st_size} bytes)")
     return 0
