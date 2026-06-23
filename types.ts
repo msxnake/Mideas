@@ -543,6 +543,15 @@ export interface Msx2PlayerWeaponDefinition {
   };
   hitboxSource: Msx2PlayerWeaponHitboxSource;
   projectileAssetId?: string;
+  /** Bullet visual contract. Optional; when omitted, the weapon has no specific bullet visual. */
+  bulletVisual?: {
+    /** 'sprite' = hardware-sprite asset; 'char' = single 8x8 name-table char. */
+    kind: 'sprite' | 'char';
+    /** msx2sprite asset id (kind === 'sprite'). Empty/undefined = invisible/placeholder bullet. */
+    spriteAssetId?: string;
+    /** Screen char code 0-255 (kind === 'char'). */
+    charCode?: number;
+  };
   ammo?: Msx2PlayerWeaponAmmo;
   durability?: Msx2PlayerWeaponDurability;
   notes?: string;

@@ -14,6 +14,7 @@ import { getAllSkills, getSkillsForBackend } from '../../utils/msxGenerator/skil
 import { resolveGraphicsBackend } from '../../utils/msxGenerator';
 import type { GraphicsBackend } from '../../utils/msxGenerator/graphicsBackend';
 import type { SkillControlIcon, SkillDef, SkillParameterDef } from '../../utils/msxGenerator/skills/types';
+import { BulletConfigDialog } from '../dialogs/skills/BulletConfigDialog';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
@@ -1231,6 +1232,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
   const [openSkillDialogId, setOpenSkillDialogId] = useState<string | null>(null);
+  const [isBulletConfigOpen, setIsBulletConfigOpen] = useState(false);
   const [selectedAttackFacing, setSelectedAttackFacing] = useState<PlayerAttackFacing>('right');
   const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [newStateName, setNewStateName] = useState('');
@@ -2429,12 +2431,18 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                 </select>
                               </Field>
                               <Field label="Projectile Asset">
-                                <input
-                                  className={inputClass}
-                                  value={selectedWeapon.projectileAssetId || ''}
-                                  onChange={event => updateSelectedWeapon({ projectileAssetId: event.target.value || undefined })}
-                                  placeholder="Optional projectile asset id"
-                                />
+                                <button
+                                  type="button"
+                                  className={`${inputClass} text-left`}
+                                  onClick={() => setIsBulletConfigOpen(true)}
+                                  title="Configure bullet visual (sprite or char)"
+                                >
+                                  {selectedWeapon.bulletVisual
+                                    ? selectedWeapon.bulletVisual.kind === 'sprite'
+                                      ? (selectedWeapon.bulletVisual.spriteAssetId ? `Sprite: ${selectedWeapon.bulletVisual.spriteAssetId}` : 'Sprite: (none)')
+                                      : `Char: ${selectedWeapon.bulletVisual.charCode ?? 0}`
+                                    : (selectedWeapon.projectileAssetId ? `Legacy: ${selectedWeapon.projectileAssetId}` : 'Configure...')}
+                                </button>
                               </Field>
                             </div>
                           </div>
@@ -2810,6 +2818,14 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
             />
           );
         })()}
+        {isBulletConfigOpen && selectedWeapon && (
+          <BulletConfigDialog
+            weapon={selectedWeapon}
+            spriteAssets={spriteAssets}
+            onPatch={patch => updateSelectedWeapon(patch)}
+            onClose={() => setIsBulletConfigOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
