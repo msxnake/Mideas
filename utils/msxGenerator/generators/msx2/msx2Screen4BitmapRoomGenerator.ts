@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -51,7 +51,21 @@ import {
   buildBitmapPowerStompMainLoopCallAsm,
   buildBitmapPowerStompRuntimeAsm,
   MSX2_BITMAP_POWER_STOMP_RAM_BYTES,
+  MSX2_BITMAP_SCREEN_SHAKE_RAM_BYTES,
 } from './msx2BitmapPowerStompGenerator';
+import {
+  bitmapShootEnabled,
+  bitmapShootRamBytes,
+  buildBitmapBulletDataTables,
+  buildBitmapBulletInitUploadAsm,
+  buildBitmapBulletSatCallAsm,
+  buildBitmapShootEquates,
+  buildBitmapShootGateAsm,
+  buildBitmapShootInitClearAsm,
+  buildBitmapShootRuntimeAsm,
+  type BitmapShootRuntimeOptions,
+  type BitmapShootSpriteData,
+} from './msx2BitmapShootGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -2455,6 +2469,40 @@ function resolveBitmapRoomPlayerSprite(analysis: ProjectAnalysis, room: Msx2Scre
   return getFirstReferencedMsx2Sprite(analysis);
 }
 
+/**
+ * Resolves the bullet sprite for the shoot skill from the player definition.
+ *
+ * Priority: the first weapon with type 'projectile' and a projectileAssetId;
+ * the resolved sprite's frame-0 layer-0 pattern/colour (32 + 16 bytes) are
+ * returned. Falls back to undefined (the generator emits a placeholder dot).
+ */
+function resolveBitmapBulletSprite(
+  analysis: ProjectAnalysis,
+  player: Partial<Msx2PlayerDefinition> | undefined,
+): BitmapShootSpriteData | undefined {
+  const weapons = player?.weapons;
+  if (Array.isArray(weapons)) {
+    for (const weapon of weapons) {
+      const assetId = String(weapon?.projectileAssetId || '').trim();
+      if (!assetId) continue;
+      const sprite = resolveMsx2SpriteById(analysis, assetId);
+      if (!sprite) continue;
+      const layers = buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, 0)
+        .filter(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
+      const primary = layers[0];
+      if (primary && Array.isArray(primary.pattern) && primary.pattern.length === 32) {
+        const colors = (primary.colors || []).slice(0, 16);
+        while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+        return {
+          patternBytes: primary.pattern.map(v => v & 0xff),
+          colorBytes: colors.map(v => v & 0xff),
+        };
+      }
+    }
+  }
+  return undefined;
+}
+
 function getBitmapRoomSpriteFrameIndices(sprite: Msx2Sprite | undefined): number[] {
   if (!sprite?.frames?.length) return [0];
   const indices = sprite.frames
@@ -2701,6 +2749,28 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const powerStompLandClear = buildBitmapPowerStompLandClearAsm(powerStompConfig);
   const powerStompMainLoopCall = buildBitmapPowerStompMainLoopCallAsm(powerStompConfig);
   const powerStompRuntime = buildBitmapPowerStompRuntimeAsm(powerStompConfig);
+  // SHOOT skill: fires bullets in the facing direction. RAM follows power_stomp shake.
+  const shootConfig = getMsx2ShootConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const shootRamBase = powerStompShakeRamBase + (bitmapPowerStompEnabled(powerStompConfig) ? MSX2_BITMAP_SCREEN_SHAKE_RAM_BYTES : 0);
+  const shootEquates = buildBitmapShootEquates(shootConfig, shootRamBase);
+  const shootInitClear = buildBitmapShootInitClearAsm(shootConfig);
+  const shootGate = buildBitmapShootGateAsm(shootConfig);
+  const bulletSprite = resolveBitmapBulletSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
+  const playerPatternGroups = spriteTables.frameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
+  const bulletPatternNumber = playerPatternGroups * 4;
+  const shootRuntimeOptions: BitmapShootRuntimeOptions = {
+    playerLayerCount: spriteTables.layerCount,
+    bulletPatternNumber,
+    satBase: 0xF600,
+    colorBase: 0xF400,
+    patternBase: 0xF800,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    screenWidth: SCREEN_WIDTH,
+  };
+  const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
+  const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
+  const shootBulletDataTables = buildBitmapBulletDataTables(shootConfig, bulletSprite);
+  const shootRuntime = buildBitmapShootRuntimeAsm(shootConfig, shootRuntimeOptions);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
@@ -2807,7 +2877,7 @@ ${airDashEquates}
 ${glideEquates}
 ${wallJumpEquates}
 ${powerStompEquates}
-    org #4000
+${shootEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -2826,7 +2896,7 @@ init_rom:
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-    ; Render the start room from the shared tileset already in VRAM.
+${shootBulletInitUpload}    ; Render the start room from the shared tileset already in VRAM.
     ld a, ${startIndex}
     call load_room
     ; Place the player at the room spawn point.
@@ -2861,15 +2931,15 @@ init_rom:
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
 ${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
-${dashGate}.skip_player_movement:
+${dashGate}${shootGate}.skip_player_movement:
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}    call bitmap_update_sprite_sat
-    jp .main_loop
+${shootBulletSatCall}    jp .main_loop
 
 ${runtimeAsm}
 ${dashRuntime}
@@ -2877,6 +2947,7 @@ ${airDashRuntime}
 ${glideRuntime}
 ${wallJumpRuntime}
 ${powerStompRuntime}
+${shootRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
@@ -2904,7 +2975,7 @@ bitmap_room_sprite_attrs_end:
 ${formatBytes('bitmap_room_sprite_patterns', spriteTables.patterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}`)}
 bitmap_room_sprite_patterns_end:
 
-    ds #C000 - $, #FF
+${shootBulletDataTables}    ds #C000 - $, #FF
 ${bankedDataAsm}
     end
 `;

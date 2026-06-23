@@ -10,7 +10,9 @@ import { StateMachine, StateMachineState, StateMachineStateName } from '../../st
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
-import { getAllSkills } from '../../utils/msxGenerator/skills/index';
+import { getAllSkills, getSkillsForBackend } from '../../utils/msxGenerator/skills/index';
+import { resolveGraphicsBackend } from '../../utils/msxGenerator';
+import type { GraphicsBackend } from '../../utils/msxGenerator/graphicsBackend';
 import type { SkillControlIcon, SkillDef, SkillParameterDef } from '../../utils/msxGenerator/skills/types';
 
 interface Msx2PlayerEditorProps {
@@ -1218,6 +1220,12 @@ const PlayerPreviewControls: React.FC<{
 
 export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, playerAssetName, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
   const normalized = useMemo(() => normalizeMsx2PlayerDefinition(player), [player]);
+  // Resolve the project's graphics backend from its assets using the SAME rule
+  // as the ASM generator (single source of truth), so the skill list shown here
+  // matches what the generator will actually emit. A skill with no
+  // supportedBackends declared is always shown (backward compatible).
+  const graphicsBackend: GraphicsBackend = useMemo(() => resolveGraphicsBackend({}, allAssets), [allAssets]);
+  const skillsForBackend = useMemo(() => getSkillsForBackend(graphicsBackend), [graphicsBackend]);
   const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
@@ -2188,7 +2196,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       ];
                       const skillBindings = normalized.skillBindings ?? {};
                       const activeIds = new Set(normalized.activeSkills ?? []);
-                      const bindableSkills = getAllSkills().filter(s => s.controlIcon && !s.required && activeIds.has(s.id));
+                      const bindableSkills = skillsForBackend.filter(s => s.controlIcon && !s.required && activeIds.has(s.id));
                       const resolveBinding = (skillId: string): { primary: string; secondary: string } => {
                         const override = skillBindings[skillId];
                         if (override) return { primary: override.primary, secondary: override.secondary ?? 'none' };
@@ -2554,7 +2562,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     <p className="mb-2 text-[11px] font-semibold text-slate-300">Skill Parameters</p>
                     <p className="mb-2 text-[11px] text-slate-400">Click a skill to edit its parameters. Core skills (jump, gravity, air resistance, item collection) are always active.</p>
                     <div className="space-y-1">
-                      {getAllSkills().filter(s => s.parameters && s.parameters.length > 0).map(skill => {
+                      {skillsForBackend.filter(s => s.parameters && s.parameters.length > 0).map(skill => {
                         const active = normalized.activeSkills?.includes(skill.id) ?? false;
                         const hasParameters = Boolean(skill.parameters && skill.parameters.length > 0);
                         const isCore = skill.required;

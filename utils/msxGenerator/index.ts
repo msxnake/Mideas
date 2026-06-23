@@ -49,8 +49,8 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
-export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern' | 'msx2-screen4-bitmap-room' | 'msx2-screen5-presentation';
-type LegacyGraphicsBackend = 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
+export type { GraphicsBackend, LegacyGraphicsBackend } from './graphicsBackend';
+import type { GraphicsBackend, LegacyGraphicsBackend } from './graphicsBackend';
 
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
@@ -136,7 +136,7 @@ function resolveMsx2GameFlowBackend(assets: ProjectAsset[] | undefined): Graphic
   return undefined;
 }
 
-function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
+export function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
   if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
     console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
     return 'msx2-screen4-pattern';

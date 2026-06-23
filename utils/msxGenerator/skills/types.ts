@@ -1,3 +1,5 @@
+import type { GraphicsBackend } from '../graphicsBackend';
+
 export type PlayerState = string;
 
 export interface StateTransition {
@@ -42,6 +44,18 @@ export interface SkillDef {
    * MSX2 ASM generator when listed in `activeSkills`.
    */
   parameters?: SkillParameterDef[];
+  /**
+   * Graphics backends that actually emit ASM for this skill. When omitted or
+   * empty the skill is considered universal (shown for every backend) — this is
+   * the backward-compatible default for core skills and skills whose backend
+   * support is not yet mapped.
+   *
+   * Single source of truth: the Player Config UI filters the skill list by
+   * comparing the resolved project backend against this field, so adding a new
+   * backend implementation only requires updating the skill definition here —
+   * no separate UI allow-list to maintain.
+   */
+  supportedBackends?: GraphicsBackend[];
 }
 
 export interface PlayerStateMachine {

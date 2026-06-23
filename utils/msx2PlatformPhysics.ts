@@ -57,6 +57,26 @@ export interface Msx2AirDashConfig {
 }
 
 /**
+ * Shoot skill config (MSX2 bitmap-room).
+ *
+ * One bullet is spawned per fire-key press+release cycle. Up to `maxBullets`
+ * simultaneous bullets can be on screen; firing is blocked when the pool is
+ * full. Bullets travel horizontally at `bulletSpeed` px/frame in the player's
+ * facing direction and are deactivated on wall/border collision or on enemy
+ * impact (dealing `bulletDamage`).
+ */
+export interface Msx2ShootConfig {
+  enabled: boolean;
+  bulletSpeed: number;
+  maxBullets: number;
+  shootCooldown: number;
+  requireKeyRelease: boolean;
+  bulletDamage: number;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
+/**
  * Carry object skill config (MSX2 platformer).
  *
  * Carryable objects are screen entities flagged with the `msx2_carryable`
@@ -522,6 +542,42 @@ export function getMsx2AirDashConfigFromPlayerEntity(player: any | undefined): M
     airDashCooldown: Math.max(0, Math.min(120, airDashCooldown || 20)),
     requireKeyRelease: params.requireKeyRelease !== false,
     invulnerable: params.invulnerable !== false,
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+function resolveShootSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'shoot');
+}
+
+/**
+ * Returns the resolved shoot skill config for the given player.
+ *
+ * Reads `player.skillParameters.shoot` and clamps every numeric field to the
+ * range declared in `shootParameters` (handlers/index.ts). The skill fires one
+ * bullet per press+release of the fire key; up to `maxBullets` may coexist on
+ * screen. Default binding follows the skill's controlIcon ('attack').
+ */
+export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx2ShootConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('shoot');
+  const params = (player?.skillParameters?.shoot || {}) as Record<string, number | boolean>;
+  const binding = resolveShootSkillBinding(player);
+  const bulletSpeed = pickSkillNumberParam(params, 'shoot', ['bulletSpeed'], 4);
+  const maxBullets = pickSkillNumberParam(params, 'shoot', ['maxBullets'], 3);
+  const shootCooldown = pickSkillNumberParam(params, 'shoot', ['shootCooldown'], 10);
+  const bulletDamage = pickSkillNumberParam(params, 'shoot', ['bulletDamage'], 1);
+  return {
+    enabled,
+    bulletSpeed: Math.max(1, Math.min(16, bulletSpeed || 4)),
+    maxBullets: Math.max(1, Math.min(8, maxBullets || 3)),
+    shootCooldown: Math.max(0, Math.min(120, shootCooldown || 10)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    bulletDamage: Math.max(0, Math.min(10, bulletDamage || 1)),
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
   };

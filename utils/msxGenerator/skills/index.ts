@@ -23,7 +23,7 @@ for (const skill of [
 
 export {
   registerSkill, getSkill, getAllSkills, getCoreSkills, getOptionalSkills,
-  hasSkill, clearRegistry, buildStateMachine, getTotalCycles,
+  getSkillsForBackend, hasSkill, clearRegistry, buildStateMachine, getTotalCycles,
 } from './registry';
 export type { SkillDef, StateTransition, PlayerStateMachine, PlayerState, SkillControlIcon } from './types';
 export {
