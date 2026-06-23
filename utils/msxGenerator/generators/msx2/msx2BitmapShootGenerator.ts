@@ -111,19 +111,28 @@ export function buildBitmapBulletInitUploadAsm(
   opts: BitmapShootRuntimeOptions,
 ): string {
   if (!bitmapShootEnabled(config)) return '';
+  const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
   const patternVram = opts.patternBase + opts.bulletPatternNumber * 8;
-  const colorVram = opts.colorBase + opts.playerLayerCount * 16;
-  return `    ; Upload bullet sprite pattern (32 bytes) to VRAM ${asmWord(patternVram)}
-    ld hl, bitmap_bullet_pattern_data
-    ld de, ${asmWord(patternVram)}
-    ld bc, bitmap_bullet_pattern_data_end - bitmap_bullet_pattern_data
-    call copy_to_vram_ext
-    ; Upload bullet sprite colour (16 bytes) to VRAM ${asmWord(colorVram)}
+  // V9938 sprite mode 2 keeps ONE 16-byte colour table per sprite slot. Active
+  // bullets pack into slots playerLayerCount..playerLayerCount+maxBullets-1, so
+  // every one of those slots needs the bullet colour uploaded; uploading only the
+  // first slot left the 2nd+ simultaneous bullets with an uninitialised (black)
+  // colour table.
+  const colorUploads = Array.from({ length: maxBullets }, (_unused, i) => {
+    const colorVram = opts.colorBase + (opts.playerLayerCount + i) * 16;
+    return `    ; bullet colour -> sprite slot ${opts.playerLayerCount + i} (VRAM ${asmWord(colorVram)})
     ld hl, bitmap_bullet_color_data
     ld de, ${asmWord(colorVram)}
     ld bc, bitmap_bullet_color_data_end - bitmap_bullet_color_data
     call copy_to_vram_ext
 `;
+  }).join('');
+  return `    ; Upload bullet sprite pattern (32 bytes) to VRAM ${asmWord(patternVram)}
+    ld hl, bitmap_bullet_pattern_data
+    ld de, ${asmWord(patternVram)}
+    ld bc, bitmap_bullet_pattern_data_end - bitmap_bullet_pattern_data
+    call copy_to_vram_ext
+${colorUploads}`;
 }
 
 /** Data tables for the bullet sprite (pattern + colour). */
