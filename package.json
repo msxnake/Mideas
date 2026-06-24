@@ -30,6 +30,7 @@
     "smoke:msx2-pong": "python scripts/build_msx2_pong_megarom_smoke.py",
     "smoke:msx2-scroll": "python scripts/build_msx2_screen4_scroll_smoke.py",
     "smoke:msx2-screen4-bitmap-room": "python scripts/build_msx2_screen4_bitmap_room_smoke.py",
+    "smoke:msx2-screen5-bitmap-skills": "python scripts/build_msx2_screen4_bitmap_room_smoke.py --include-all-bitmap-skills --skip-openmsx --json-output test/msx2-screen4/out/msx2_bitmap_room_all_skills_smoke.json --asm-output test/msx2-screen4/out/msx2_bitmap_room_all_skills_smoke.asm --rom-output test/msx2-screen4/out/msx2_bitmap_room_all_skills_smoke.rom",
     "smoke:msx2-screen5-presentation": "python scripts/build_msx2_screen5_presentation_smoke.py",
     "smoke:msx2-legacy-visual": "npm run smoke:msx2-layers && npm run smoke:msx2-conveyor && npm run smoke:msx2-report",
     "smoke:msx2-screen4-galaxian": "python scripts/build_msx2screen4_galaxian_megarom_smoke.py",

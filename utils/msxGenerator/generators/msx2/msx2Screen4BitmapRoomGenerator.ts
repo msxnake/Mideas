@@ -332,6 +332,125 @@ function packAtlasPixels(room: Msx2Screen4BitmapRoom): number[] {
   return packBitmapPixels(rows);
 }
 
+function extractAtlasEntryPixels(room: Msx2Screen4BitmapRoom, entry: { sx: number; sy: number; w: number; h: number }): number[][] {
+  const pixels = normalizeAtlasPixels(room);
+  const width = Math.max(1, Math.min(TILE_GRID_SIZE, Math.trunc(Number(entry.w) || TILE_GRID_SIZE)));
+  const height = Math.max(1, Math.min(TILE_GRID_SIZE, Math.trunc(Number(entry.h) || TILE_GRID_SIZE)));
+  const sx = clampInt(entry.sx, 0, Math.max(0, room.atlas.width - 1), 0);
+  const sy = clampInt(entry.sy, 0, Math.max(0, room.atlas.height - 1), 0);
+  return Array.from({ length: height }, (_row, y) =>
+    Array.from({ length: width }, (_col, x) => pixels[sy + y]?.[sx + x] ?? 0)
+  );
+}
+
+function atlasEntryFingerprint(pixels: number[][]): string {
+  return `${pixels[0]?.length || 0}x${pixels.length}:${pixels.map(row => row.join('')).join('|')}`;
+}
+
+function buildSharedWorldAtlasRooms(rooms: Msx2Screen4BitmapRoom[]): { rooms: Msx2Screen4BitmapRoom[]; atlasRoom: Msx2Screen4BitmapRoom } {
+  const sharedWidth = SCREEN_WIDTH;
+  const uniqueItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number }> = [];
+  const seenFingerprints = new Set<string>();
+  for (const room of rooms) {
+    for (const entry of room.atlas?.entries || []) {
+      const pixels = extractAtlasEntryPixels(room, entry);
+      const fingerprint = atlasEntryFingerprint(pixels);
+      if (seenFingerprints.has(fingerprint)) continue;
+      seenFingerprints.add(fingerprint);
+      uniqueItems.push({ fingerprint, pixels, w: Math.max(1, pixels[0]?.length || TILE_GRID_SIZE), h: Math.max(1, pixels.length) });
+    }
+  }
+  let measureX = 0;
+  let measureY = 0;
+  let measureShelfHeight = TILE_GRID_SIZE;
+  let requiredHeight = TILE_GRID_SIZE;
+  for (const item of uniqueItems) {
+    if (item.w > sharedWidth) {
+      throw new Error(`SCREEN 5 bitmap-room atlas tile ${item.w}x${item.h} exceeds shared atlas width ${sharedWidth}.`);
+    }
+    if (measureX + item.w > sharedWidth) {
+      measureX = 0;
+      measureY += measureShelfHeight;
+      measureShelfHeight = item.h;
+    }
+    requiredHeight = Math.max(requiredHeight, measureY + item.h);
+    measureX += item.w;
+    measureShelfHeight = Math.max(measureShelfHeight, item.h);
+  }
+  const sharedHeight = Math.max(
+    TILE_GRID_SIZE,
+    Math.min(256, Math.max(...rooms.map(room => clampInt(room.atlas?.height, TILE_GRID_SIZE, 256, TILE_GRID_SIZE)), requiredHeight)),
+  );
+  if (requiredHeight > sharedHeight) {
+    throw new Error(`SCREEN 5 bitmap-room shared atlas overflow: tiles from all rooms need more than ${sharedWidth}x${sharedHeight}.`);
+  }
+  const sharedPixels = Array.from({ length: sharedHeight }, () => Array.from({ length: sharedWidth }, () => 0));
+  const placedByFingerprint = new Map<string, { sx: number; sy: number; w: number; h: number }>();
+  let cursorX = 0;
+  let cursorY = 0;
+  let shelfHeight = TILE_GRID_SIZE;
+
+  const placePixels = (pixels: number[][]): { sx: number; sy: number; w: number; h: number } => {
+    const h = Math.max(1, pixels.length);
+    const w = Math.max(1, pixels[0]?.length || TILE_GRID_SIZE);
+    const fingerprint = atlasEntryFingerprint(pixels);
+    const existing = placedByFingerprint.get(fingerprint);
+    if (existing) return existing;
+    if (w > sharedWidth || h > sharedHeight) {
+      throw new Error(`SCREEN 5 bitmap-room atlas tile ${w}x${h} exceeds shared atlas bounds ${sharedWidth}x${sharedHeight}.`);
+    }
+    if (cursorX + w > sharedWidth) {
+      cursorX = 0;
+      cursorY += shelfHeight;
+      shelfHeight = h;
+    }
+    if (cursorY + h > sharedHeight) {
+      throw new Error(`SCREEN 5 bitmap-room shared atlas overflow: tiles from all rooms need more than ${sharedWidth}x${sharedHeight}.`);
+    }
+    const placed = { sx: cursorX, sy: cursorY, w, h };
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        sharedPixels[cursorY + y][cursorX + x] = clampByte(pixels[y]?.[x], 0) & 0x0f;
+      }
+    }
+    cursorX += w;
+    shelfHeight = Math.max(shelfHeight, h);
+    placedByFingerprint.set(fingerprint, placed);
+    return placed;
+  };
+
+  const remappedRooms = rooms.map(room => {
+    const entries = (room.atlas?.entries || []).map(entry => {
+      const placed = placePixels(extractAtlasEntryPixels(room, entry));
+      return { ...entry, sx: placed.sx, sy: placed.sy, w: placed.w, h: placed.h };
+    });
+    return {
+      ...room,
+      atlas: {
+        width: sharedWidth,
+        height: sharedHeight,
+        offscreenBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
+        pixels: sharedPixels,
+        entries,
+      },
+    };
+  });
+
+  return {
+    rooms: remappedRooms,
+    atlasRoom: {
+      ...remappedRooms[0],
+      atlas: {
+        width: sharedWidth,
+        height: sharedHeight,
+        offscreenBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
+        pixels: sharedPixels,
+        entries: remappedRooms.flatMap(room => room.atlas.entries || []),
+      },
+    },
+  };
+}
+
 const DEFAULT_HUD_CHARS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_HUD_PATTERNS: Record<string, number[]> = {
   ' ': [0, 0, 0, 0, 0, 0, 0, 0],
@@ -2704,15 +2823,17 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // tileset (the start room's atlas) is uploaded once to offscreen VRAM; each room
   // is a 192-byte tile map replayed as VRAM->VRAM copies by load_room.
   const world = collectBitmapWorldRooms(analysis);
-  const rooms = (world.rooms.length ? world.rooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
+  const sourceRooms = (world.rooms.length ? world.rooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
+  const sharedAtlas = buildSharedWorldAtlasRooms(sourceRooms);
+  const rooms = sharedAtlas.rooms;
   const startIndex = Math.min(world.startIndex, rooms.length - 1);
   const room = rooms[startIndex];
   const spawn = resolvePlayerSpawnPixels(room);
   const worldPalette = resolveWorldPalette(analysis, world.paletteAssetId, room.palette);
   const paletteBytes = buildPaletteBytes(worldPalette);
-  const atlasPixels = normalizeAtlasPixels(room);
+  const atlasPixels = normalizeAtlasPixels(sharedAtlas.atlasRoom);
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
-  const tilesetBytes = packAtlasPixels(room);
+  const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
   // Per-room render program (command blocks) + collision map.
   const roomTables = rooms.map((roomData, index) => {

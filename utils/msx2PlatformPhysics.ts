@@ -76,6 +76,41 @@ export interface Msx2ShootConfig {
   secondaryControl: Msx2PlayerControlId | 'none';
 }
 
+export interface Msx2SlashConfig {
+  enabled: boolean;
+  slashDuration: number;
+  slashCooldown: number;
+  slashDamage: number;
+  requireKeyRelease: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
+export interface Msx2GrabConfig {
+  enabled: boolean;
+  slideSpeed: number;
+}
+
+export interface Msx2HighJumpConfig {
+  enabled: boolean;
+  highJumpPower: number;
+  holdFrames: number;
+}
+
+export interface Msx2WallBreakConfig {
+  enabled: boolean;
+  breakCooldown: number;
+  requireKeyRelease: boolean;
+}
+
+export interface Msx2SpinAttackConfig {
+  enabled: boolean;
+  spinDuration: number;
+  spinDamage: number;
+  spinCooldown: number;
+  requireKeyRelease: boolean;
+}
+
 /**
  * Carry object skill config (MSX2 platformer).
  *
@@ -580,6 +615,74 @@ export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx
     bulletDamage: Math.max(0, Math.min(10, bulletDamage || 1)),
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2SlashConfigFromPlayerEntity(player: any | undefined): Msx2SlashConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('slash');
+  const params = (player?.skillParameters?.slash || {}) as Record<string, number | boolean>;
+  const binding = resolveMsx2SkillBinding(player, 'slash');
+  const slashDuration = pickSkillNumberParam(params, 'slash', ['slashDuration'], 10);
+  const slashCooldown = pickSkillNumberParam(params, 'slash', ['slashCooldown'], 30);
+  const slashDamage = pickSkillNumberParam(params, 'slash', ['slashDamage'], 1);
+  return {
+    enabled,
+    slashDuration: Math.max(1, Math.min(60, slashDuration || 10)),
+    slashCooldown: Math.max(0, Math.min(120, slashCooldown || 30)),
+    slashDamage: Math.max(0, Math.min(5, slashDamage || 1)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2GrabConfigFromPlayerEntity(player: any | undefined): Msx2GrabConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('grab');
+  const params = (player?.skillParameters?.grab || {}) as Record<string, number | boolean>;
+  const slideSpeed = pickSkillNumberParam(params, 'grab', ['slideSpeed'], 1);
+  return { enabled, slideSpeed: Math.max(0, Math.min(4, slideSpeed ?? 1)) };
+}
+
+export function getMsx2HighJumpConfigFromPlayerEntity(player: any | undefined): Msx2HighJumpConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('high_jump');
+  const params = (player?.skillParameters?.high_jump || {}) as Record<string, number | boolean>;
+  const highJumpPower = pickSkillNumberParam(params, 'high_jump', ['highJumpPower'], 1536);
+  const holdFrames = pickSkillNumberParam(params, 'high_jump', ['highJumpRequired', 'holdFrames'], 10);
+  return {
+    enabled,
+    highJumpPower: Math.max(512, Math.min(3072, highJumpPower || 1536)),
+    holdFrames: Math.max(1, Math.min(30, holdFrames || 10)),
+  };
+}
+
+export function getMsx2WallBreakConfigFromPlayerEntity(player: any | undefined): Msx2WallBreakConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('wall_break');
+  const params = (player?.skillParameters?.wall_break || {}) as Record<string, number | boolean>;
+  const breakCooldown = pickSkillNumberParam(params, 'wall_break', ['breakCooldown'], 20);
+  return {
+    enabled,
+    breakCooldown: Math.max(0, Math.min(120, breakCooldown || 20)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+  };
+}
+
+export function getMsx2SpinAttackConfigFromPlayerEntity(player: any | undefined): Msx2SpinAttackConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('spin_attack');
+  const params = (player?.skillParameters?.spin_attack || {}) as Record<string, number | boolean>;
+  const spinDuration = pickSkillNumberParam(params, 'spin_attack', ['spinDuration'], 30);
+  const spinDamage = pickSkillNumberParam(params, 'spin_attack', ['spinDamage'], 1);
+  const spinCooldown = pickSkillNumberParam(params, 'spin_attack', ['spinCooldown'], 40);
+  return {
+    enabled,
+    spinDuration: Math.max(10, Math.min(60, spinDuration || 30)),
+    spinDamage: Math.max(1, Math.min(5, spinDamage || 1)),
+    spinCooldown: Math.max(10, Math.min(120, spinCooldown || 40)),
+    requireKeyRelease: params.requireKeyRelease !== false,
   };
 }
 

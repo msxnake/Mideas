@@ -234,6 +234,34 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
   };
 
   const handleImport = (entry: Msx2TileLibraryEntry) => {
+    if (activeTargetMode === 'screen5') {
+      if (!onImportBitmapTileAssets) {
+        setStatusBarMessage?.('Este contexto no admite importar tiles bitmap al proyecto.');
+        return;
+      }
+      const pixels = Array.from({ length: entry.tile.height ?? entry.tile.pixels?.length ?? 16 }, (_row, y) =>
+        Array.from({ length: entry.tile.width ?? entry.tile.pixels?.[y]?.length ?? 16 }, (_col, x) => entry.tile.pixels?.[y]?.[x] ?? 0)
+      );
+      const matchingPalette = findMatchingScreen5PaletteAsset(entry.palette, allAssets);
+      const paletteAsset = matchingPalette
+        ?? createScreen5PaletteAssetForTile(entry.palette, entry.name, entry.tile.id, allAssets);
+      const tileAsset = buildScreen5BitmapTileAsset({
+        name: entry.name,
+        width: entry.tile.width ?? pixels[0]?.length ?? 16,
+        height: entry.tile.height ?? pixels.length ?? 16,
+        pixels,
+        paletteId: paletteAsset.id,
+        existingAssets: matchingPalette ? allAssets : [...allAssets, paletteAsset],
+        sourceType: 'atlas-export',
+      });
+      if (!matchingPalette) {
+        (paletteAsset.data as PaletteAsset).createdFromTileId = tileAsset.id;
+      }
+      onImportBitmapTileAssets(matchingPalette ? [tileAsset] : [paletteAsset, tileAsset]);
+      setStatusBarMessage?.(`Importado "${tileAsset.name}" como MSX2 Bitmap Tile para SCREEN 5.`);
+      return;
+    }
+
     // With an active screen we reconcile the tile palette against the screen's;
     // otherwise fall back to a direct import (the host will warn there's no
     // screen) so the action is never silently lost.

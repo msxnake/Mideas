@@ -314,6 +314,10 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     if (activeMsx2BitmapRoomAsset?.data) return ensureScreen5PaletteSlots((activeMsx2BitmapRoomAsset.data as Msx2Screen4BitmapRoom).palette).slots;
     return null;
   }, [activeBitmapWorldPaletteAsset, activeMsx2BitmapRoomAsset]);
+  const activeBitmapWorldRoomIds = React.useMemo(() => {
+    const graph = activeBitmapWorldAsset?.data as WorldMapGraph | undefined;
+    return new Set((graph?.nodes || []).map(node => node.screenAssetId).filter(Boolean));
+  }, [activeBitmapWorldAsset]);
   // SCREEN 4 shares one 16-color palette between tiles and sprites, so slots
   // used by any MSX2 sprite must not be silently overwritten on tile import.
   const msx2SpriteUsedSlots = React.useMemo(() => {
@@ -338,6 +342,57 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   }, [activeMsx2ScreenAsset]);
   const bossPackageInputRef = React.useRef<HTMLInputElement>(null);
   const [isAssetExplorerCollapsed, setIsAssetExplorerCollapsed] = useState(false);
+  const [autoBuildAndRunOnOpen, setAutoBuildAndRunOnOpen] = useState(false);
+
+  const handleOpenCodeExportModal = useCallback(() => {
+    setAutoBuildAndRunOnOpen(false);
+    setIsCodeExportModalOpen(true);
+  }, [setIsCodeExportModalOpen]);
+
+  const handleOpenBuildAndRunShortcut = useCallback(() => {
+    setAutoBuildAndRunOnOpen(true);
+    setIsCodeExportModalOpen(true);
+  }, [setIsCodeExportModalOpen]);
+
+  const handleCloseCodeExportModal = useCallback(() => {
+    setAutoBuildAndRunOnOpen(false);
+    setIsCodeExportModalOpen(false);
+  }, [setIsCodeExportModalOpen]);
+
+  const handleUpdateBitmapRoom = useCallback((data: Partial<Msx2Screen4BitmapRoom>, newAssets?: ProjectAsset[]) => {
+    if (!activeAsset || activeAsset.type !== 'msx2bitmaproom') return;
+    const atlasPatch = data && typeof data === 'object' && 'atlas' in data ? data.atlas : undefined;
+    if (!atlasPatch || activeBitmapWorldRoomIds.size === 0) {
+      handleUpdateAsset(activeAsset.id, data, newAssets);
+      return;
+    }
+
+    const cloneAtlas = (atlas: Msx2Screen4BitmapRoom['atlas']): Msx2Screen4BitmapRoom['atlas'] => ({
+      width: atlas.width,
+      height: atlas.height,
+      offscreenBaseY: atlas.offscreenBaseY,
+      pixels: (atlas.pixels || []).map(row => [...row]),
+      entries: (atlas.entries || []).map(entry => ({ ...entry })),
+    });
+    const sharedAtlas = cloneAtlas(atlasPatch);
+    const activeRoomId = activeAsset.id;
+    setAssetsWithHistory(prev => {
+      const withNewAssets = newAssets && newAssets.length > 0 ? [...prev, ...newAssets] : prev;
+      return withNewAssets.map(asset => {
+        if (asset.type !== 'msx2bitmaproom' || !activeBitmapWorldRoomIds.has(asset.id)) return asset;
+        const roomData = asset.data as Msx2Screen4BitmapRoom;
+        const patch = asset.id === activeRoomId ? data : { atlas: sharedAtlas };
+        return {
+          ...asset,
+          data: {
+            ...roomData,
+            ...patch,
+            atlas: cloneAtlas(sharedAtlas),
+          },
+        };
+      });
+    });
+  }, [activeAsset, activeBitmapWorldRoomIds, handleUpdateAsset, setAssetsWithHistory]);
   const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
   const [selectedMsx2GameFlowNodeId, setSelectedMsx2GameFlowNodeId] = useState<string | null>(null);
 
@@ -540,13 +595,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         }
       }
 
-      const emptyAtlas = {
-        width: 256,
-        height: 128,
-        offscreenBaseY: currentRoom.atlas?.offscreenBaseY || 320,
-        pixels: Array.from({ length: 128 }, () => Array.from({ length: 256 }, () => 0)),
-        entries: [],
-      };
       const clonedAtlas = {
         width: currentRoom.atlas?.width || 256,
         height: currentRoom.atlas?.height || 128,
@@ -555,7 +603,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         entries: (currentRoom.atlas?.entries || []).map(entry => ({ ...entry })),
       };
 
-      // New room: reuse palette. Keep atlas empty unless the user asks for a copied edge.
+      // New room: reuse palette and the world's shared atlas. The room content
+      // itself remains empty unless the user asks for a copied edge.
       const newRoom: Msx2Screen4BitmapRoom = {
         id: newRoomId,
         name: newRoomName,
@@ -564,7 +613,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         width: 256,
         height: currentRoom.height,
         palette: roomPalette.map(slot => ({ ...slot })),
-        atlas: shouldCopySharedEdgeTiles ? clonedAtlas : emptyAtlas,
+        atlas: clonedAtlas,
         composition: { source: 'authored', commands: shouldCopySharedEdgeTiles ? initialCopyCommands : [] },
         ...(shouldCopySharedEdgeTiles ? { tileGrid: initialTileGrid } : {}),
         collision: blankGrid(collisionCols, collisionRows),
@@ -906,7 +955,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onLoadProject={() => fileLoadInputRef.current?.click()}
         onImportBossPackage={() => bossPackageInputRef.current?.click()}
         onOpenRecentProject={handleOpenRecentProject}
-        onExportZ80Code={() => setIsCodeExportModalOpen(true)}
+        onExportZ80Code={handleOpenCodeExportModal}
+        onBuildAndRunMsx2={handleOpenBuildAndRunShortcut}
         onExportGameStructureJson={handleExportIntermediateGameJson}
         onDebug={() => setStatusBarMessage("Debug: Mock action. Implement debugger.")}
         onOpenHelpDocs={() => onSelectAsset(HELP_DOCS_SYSTEM_ASSET_ID, EditorType.HelpDocs)}
@@ -1067,7 +1117,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
-            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} />
+            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen4BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} />
           )}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} playerAssetName={activeAsset.name} onUpdate={(patch) => {
             const mergedPlayer = mergeMsx2PlayerUpdate(activeAsset.data, patch);
@@ -1511,10 +1561,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       {isCodeExportModalOpen && (
         <CodeExportModal
           isOpen={isCodeExportModalOpen}
-          onClose={() => setIsCodeExportModalOpen(false)}
+          onClose={handleCloseCodeExportModal}
           assets={assets}
           currentProjectName={currentProjectName}
           defaultRomMode={defaultExportRomMode}
+          autoBuildAndRun={autoBuildAndRunOnOpen}
           activeAssetId={selectedAssetId}
           projectData={{
             tileBanks,

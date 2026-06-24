@@ -44,6 +44,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rom-output", default=str(out / "msx2_bitmap_room_smoke.rom"), help="Output ROM path")
     parser.add_argument("--screenshot-output", default=str(out / "msx2_bitmap_room_smoke_pattern.png"), help="Output OpenMSX screenshot path")
     parser.add_argument("--skip-openmsx", action="store_true", help="Compile only")
+    parser.add_argument(
+        "--include-all-bitmap-skills",
+        action="store_true",
+        help="Enable every SCREEN 5 bitmap-room player skill covered by the smoke compile.",
+    )
     parser.add_argument("--boot-wait-ms", type=int, default=8000, help="Wait before screenshot")
     return parser.parse_args()
 
@@ -433,6 +438,71 @@ def build_project() -> dict[str, object]:
     }
 
 
+def enable_all_bitmap_skills(project: dict[str, object]) -> None:
+    """Mutate the smoke project so the ASM exporter emits every bitmap skill block."""
+    player_asset = next((asset for asset in project["assets"] if asset.get("type") == "msx2player"), None)
+    if not player_asset:
+        raise RuntimeError("Smoke project has no msx2player asset")
+    player = player_asset["data"]
+    active_skills = list(player.get("activeSkills", []))
+    for skill_id in [
+        "air_dash",
+        "glide",
+        "wall_jump",
+        "power_stomp",
+        "shoot",
+        "teleport_a_b",
+        "slash",
+        "grab",
+        "high_jump",
+        "wall_break",
+        "spin_attack",
+    ]:
+        if skill_id not in active_skills:
+            active_skills.append(skill_id)
+    player["activeSkills"] = active_skills
+    skill_parameters = dict(player.get("skillParameters", {}))
+    skill_parameters.update({
+        "shoot": {
+            "shotSpeed": 4,
+            "fireCooldown": 12,
+            "maxBullets": 2,
+            "requireKeyRelease": True,
+        },
+        "teleport_a_b": {
+            "teleportCooldown": 20,
+            "teleportDelay": 5,
+            "savePointA": True,
+            "maxDistance": 8,
+            "requireKeyRelease": True,
+        },
+        "slash": {
+            "slashDuration": 10,
+            "slashCooldown": 20,
+            "slashDamage": 1,
+            "requireKeyRelease": True,
+        },
+        "grab": {
+            "slideSpeed": 1,
+        },
+        "high_jump": {
+            "highJumpPower": 1536,
+            "holdFrames": 8,
+        },
+        "wall_break": {
+            "breakCooldown": 20,
+            "requireKeyRelease": True,
+        },
+        "spin_attack": {
+            "spinDuration": 20,
+            "spinDamage": 1,
+            "spinCooldown": 30,
+            "requireKeyRelease": True,
+        },
+    })
+    player["skillParameters"] = skill_parameters
+
+
 def render_smoke_room_data(room: dict[str, object]) -> list[list[int]]:
     width = int(room["width"])
     height = int(room["height"])
@@ -729,6 +799,24 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         )
 
 
+def validate_all_bitmap_skill_markers(asm_text: str) -> None:
+    for marker in (
+        "bitmap_try_start_air_dash",
+        "bitmap_apply_glide_clamp",
+        "bitmap_wall_jump_frame_gate",
+        "bitmap_power_stomp_frame_gate",
+        "bitmap_shoot_pressed",
+        "bitmap_try_teleport_ab",
+        "bitmap_try_slash",
+        "bitmap_grab_detect",
+        "bitmap_highjump_arm",
+        "bitmap_try_wall_break",
+        "bitmap_try_spin_attack",
+    ):
+        if marker not in asm_text:
+            raise RuntimeError(f"All-bitmap-skills smoke is missing ASM marker: {marker}")
+
+
 def main() -> int:
     args = parse_args()
     project_root = Path(args.project_root).resolve()
@@ -738,6 +826,8 @@ def main() -> int:
     screenshot_output = Path(args.screenshot_output).resolve()
 
     project = build_project()
+    if args.include_all_bitmap_skills:
+        enable_all_bitmap_skills(project)
     validate_bitmap_palette_indices(render_smoke_bitmap_room(project))
 
     json_output.parent.mkdir(parents=True, exist_ok=True)
@@ -772,6 +862,8 @@ def main() -> int:
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing marker: {marker}")
     validate_generated_asm_tables(asm_text, project)
+    if args.include_all_bitmap_skills:
+        validate_all_bitmap_skill_markers(asm_text)
 
     if not args.skip_openmsx:
         probe_output = screenshot_output.with_suffix(".probe.txt")

@@ -1,4 +1,4 @@
-import React, { startTransition, useState } from 'react';
+import React, { startTransition, useEffect, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
@@ -35,6 +35,8 @@ interface CodeExportModalProps {
   activeAssetId?: string | null;
   onEditFile?: (filename: string, content: string) => void;
   defaultRomMode?: ExportRomMode;
+  /** When true, auto-trigger Build and Run on open (toolbar shortcut). */
+  autoBuildAndRun?: boolean;
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
@@ -390,6 +392,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   activeAssetId,
   onEditFile,
   defaultRomMode = 'simple32k',
+  autoBuildAndRun = false,
 }) => {
   const [exportType, setExportType] = useState<ExportType>('asm_all_in_one');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
@@ -415,6 +418,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [isQuickValidating, setIsQuickValidating] = useState(false);
   const [quickValidationSummary, setQuickValidationSummary] = useState<string | null>(null);
   const [isBuildingAndRunning, setIsBuildingAndRunning] = useState(false);
+  const autoBuildAndRunStartedRef = useRef(false);
   const [pipelineProgress, setPipelineProgress] = useState(0);
   const [pipelineStatus, setPipelineStatus] = useState('Ready');
   const [zx0Options, setZx0Options] = useState<Zx0CompressionOptions>(DEFAULT_ZX0_OPTIONS);
@@ -1619,6 +1623,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const handleBuildAndRun = async () => {
     await runMapperPipeline(true);
   };
+
+  useEffect(() => {
+    if (!isOpen || !autoBuildAndRun || autoBuildAndRunStartedRef.current) return;
+    autoBuildAndRunStartedRef.current = true;
+    void handleBuildAndRun();
+  }, [isOpen, autoBuildAndRun]);
 
   const handleCompressUnifiedAsm = async () => {
     const unifiedFile = generatedFiles.find(f => f.name === 'unitedFiles.asm');

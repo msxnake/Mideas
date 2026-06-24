@@ -30,6 +30,8 @@ interface ToolbarProps {
   onExportAllCodeFiles?: () => void;
   /** Callback to export Z80 code. */
   onExportZ80Code: () => void;
+  /** Callback to open the MSX2 Build and Run shortcut. */
+  onBuildAndRunMsx2?: () => void;
   /** Callback to export an intermediate JSON representation of the game structure. */
   onExportGameStructureJson: () => void;
   /** @deprecated OBSOLETO - Callback to compile the current code. */
@@ -259,7 +261,7 @@ const DropdownSelectItem: React.FC<{
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
   onImportBossPackage,
-  onExportAllCodeFiles, onExportZ80Code, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
+  onExportAllCodeFiles, onExportZ80Code, onBuildAndRunMsx2, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
@@ -511,6 +513,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <DropdownItem onClick={onOpenMsx2EntityLibrary} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entities</DropdownItem>
           <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">Enemies</DropdownItem>
         </DropdownMenu>
+      )}
+      {shouldShowMsx2Controls && onBuildAndRunMsx2 && (
+        <Button
+          onClick={onBuildAndRunMsx2}
+          variant="ghost"
+          size="sm"
+          icon={<PlayIcon />}
+          title="Build and Run MSX2"
+          disabled={!hasActiveProject}
+          className="!text-yellow-300 hover:!bg-yellow-600 hover:!text-black focus:!ring-yellow-500"
+        >
+          Build and Run
+        </Button>
       )}
       {/* MSX1 Last Editor stays inline; MSX2 renders a violet, right-justified
           Last Editor after the spacer (see GROUP 5 area below). */}

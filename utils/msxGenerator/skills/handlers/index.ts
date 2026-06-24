@@ -138,11 +138,18 @@ export const doubleJump: SkillDef = {
   parameters: doubleJumpParameters,
 };
 
+export const slashParameters: SkillParameterDef[] = [
+  { key: 'slashDuration', label: 'Slash active duration (frames)', type: 'number', default: 10, min: 1, max: 60, step: 1, help: 'How many frames the slash hitbox stays active.' },
+  { key: 'slashCooldown', label: 'Slash cooldown (frames)', type: 'number', default: 30, min: 0, max: 120, step: 1, help: 'Frames before the next slash.' },
+  { key: 'slashDamage', label: 'Damage per slash hit', type: 'number', default: 1, min: 0, max: 5, step: 1, help: 'Damage dealt to an enemy on hit.' },
+  { key: 'requireKeyRelease', label: 'Require key release between slashes', type: 'boolean', default: true, help: 'Player must release the slash key before slashing again.' },
+];
+
 export const slash: SkillDef = {
   id: 'slash',
   label: 'Melee slash in facing direction',
   required: false,
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 200,
   controlIcon: 'attack',
   addsStates: ['slashing'],
@@ -151,6 +158,7 @@ export const slash: SkillDef = {
     { from: ['slashing'], to: 'grounded', condition: 'slash_timer_expired AND grounded' },
     { from: ['slashing'], to: 'falling', condition: 'slash_timer_expired AND NOT grounded' },
   ],
+  parameters: slashParameters,
 };
 
 export const pushBox: SkillDef = {
@@ -327,18 +335,22 @@ export const wallBreak: SkillDef = {
   id: 'wall_break',
   label: 'Destroy breakable tiles on contact',
   required: false,
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 150,
   controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
 
+export const grabParameters: SkillParameterDef[] = [
+  { key: 'slideSpeed', label: 'Wall slide speed (px/frame)', type: 'number', default: 1, min: 0, max: 4, step: 1, help: 'Max fall speed while clinging to a wall. 0 = frozen on wall.' },
+];
+
 export const grab: SkillDef = {
   id: 'grab',
   label: 'Wall grab and wall jump',
   required: false,
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 180,
   controlIcon: 'jump',
   addsStates: ['grabbing'],
@@ -347,6 +359,7 @@ export const grab: SkillDef = {
     { from: ['grabbing'], to: 'jumping', condition: 'jump_key_pressed' },
     { from: ['grabbing'], to: 'falling', condition: 'NOT wall_next_to_player OR NOT grab_key_held' },
   ],
+  parameters: grabParameters,
 };
 
 export const dashParameters: SkillParameterDef[] = [
@@ -712,7 +725,7 @@ export const spinAttack: SkillDef = {
   id: 'spin_attack',
   label: 'Spin attack',
   required: false,
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 200,
   controlIcon: 'attack',
   addsStates: ['spinning'],
@@ -922,7 +935,7 @@ export const highJump: SkillDef = {
   id: 'high_jump',
   label: 'High jump',
   required: false,
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 100,
   controlIcon: 'jump',
   addsStates: ['high_jumping'],
@@ -1287,7 +1300,7 @@ export const teleportAB: SkillDef = {
     { from: ['teleporting'], to: 'grounded', condition: 'teleport_complete AND grounded' },
     { from: ['teleporting'], to: 'falling', condition: 'teleport_complete AND NOT grounded' },
   ],
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: teleportABParameters,
 };
 
