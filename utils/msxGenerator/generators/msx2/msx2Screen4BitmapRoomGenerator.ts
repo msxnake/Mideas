@@ -157,14 +157,16 @@ const VDP_DATA_PORT = '#98';
 const VDP_CMD_PORT = '#9B';
 const VDP_PALETTE_PORT = '#9A';
 
-// V9938 LOGICAL commands operate in DOT (pixel) units, which is what the room
-// records store (dx/dy/nx/ny in pixels). The earlier engine used the high-speed
-// byte commands (0xD0/0xC0) with pixel values, which doubled every X coordinate;
-// the world engine uses the logical variants so a 16px tile lands on 16px.
-const CMD_COPY_8 = 0x90;   // LMMM: logical move VRAM -> VRAM
-const CMD_COPY_16 = 0x90;  // LMMM
-const CMD_FILL = 0x80;     // LMMV: logical move VDP color -> VRAM (rectangle fill)
-const CMD_LINE = 0x70;     // LINE
+// V9938 HIGH-SPEED commands operate in BYTE units (2 px per byte in SCREEN 5).
+// The room records store dx/dy/nx/ny in PIXEL units; buildVdpCommandBlock
+// converts SX/DX/NX from pixels to bytes (>> 1) so a 16px tile still lands on
+// 16px. HMMM/HMMV are ~10x faster than the logical LMMM/LMMV variants because
+// they skip the per-pixel logical op. NY stays in lines (not affected by the
+// pixel/byte distinction). X coordinates should be even; odd values truncate.
+const CMD_COPY_8 = 0xD0;   // HMMM: high-speed move VRAM -> VRAM (byte units)
+const CMD_COPY_16 = 0xD0;  // HMMM
+const CMD_FILL = 0xC0;     // HMMV: high-speed fill VRAM rectangle (byte units)
+const CMD_LINE = 0x70;     // LINE (unused by records; HMMV handles line records)
 
 const OP_FILL = 0;
 const OP_LINE_H = 1;
@@ -173,7 +175,7 @@ const OP_COPY_8 = 3;
 const OP_COPY_16 = 4;
 
 const VDP_CMD_BLOCK_SIZE = 15;
-const BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME = 8;
+const BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME = 24;
 const VRAM_BANK_BYTES = 0x4000;
 const ROM_DATA_BANK_BYTES = 0x2000;
 const BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK = 4;
@@ -511,17 +513,23 @@ function buildVdpCommandBlock(record: CommandRecord): number[] {
   const color = record.op === OP_FILL || record.op === OP_LINE_H || record.op === OP_LINE_V
     ? ((record.color & 0x0f) << 4) | (record.color & 0x0f)
     : 0;
+  // HMMM/HMMV use BYTE X coordinates (2 px/byte in SCREEN 5). Halve SX/DX/NX.
+  // Clamp NX to >= 1 so 1-pixel lines/fills don't collapse to 0 bytes (they
+  // render 2 px wide instead of 1, an acceptable visual trade for ~10x speed).
+  const sxByte = record.sx >> 1;
+  const dxByte = record.dx >> 1;
+  const nxByte = Math.max(1, record.nx >> 1);
   return [
-    record.sx & 0xff,
-    (record.sx >> 8) & 0xff,
+    sxByte & 0xff,
+    (sxByte >> 8) & 0xff,
     record.sy & 0xff,
     (record.sy >> 8) & 0xff,
-    record.dx & 0xff,
-    (record.dx >> 8) & 0xff,
+    dxByte & 0xff,
+    (dxByte >> 8) & 0xff,
     record.dy & 0xff,
     (record.dy >> 8) & 0xff,
-    record.nx & 0xff,
-    (record.nx >> 8) & 0xff,
+    nxByte & 0xff,
+    (nxByte >> 8) & 0xff,
     record.ny & 0xff,
     (record.ny >> 8) & 0xff,
     color,

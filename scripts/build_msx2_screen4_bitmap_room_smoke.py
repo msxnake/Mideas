@@ -692,7 +692,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     if not render_bytes or len(render_bytes) % 15 != 0:
         raise RuntimeError(f"bitmap_room_render_0_p0 has {len(render_bytes)} bytes; expected a non-zero multiple of 15")
     blocks = [render_bytes[i:i + 15] for i in range(0, len(render_bytes), 15)]
-    copy_blocks = [b for b in blocks if b[14] == 0x90]  # LMMM (VRAM->VRAM copy)
+    copy_blocks = [b for b in blocks if b[14] == 0xD0]  # HMMM (high-speed VRAM->VRAM copy)
     if len(copy_blocks) != 1:
         raise RuntimeError(
             f"bitmap_room_render_0_p0 has {len(copy_blocks)} tile-copy blocks; expected exactly 1 (sparse tileGrid)"
@@ -716,7 +716,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
             f"bitmap_room_render_0_p1 has {len(render_page1_bytes)} bytes; expected a non-zero multiple of 15"
         )
     page1_blocks = [render_page1_bytes[i:i + 15] for i in range(0, len(render_page1_bytes), 15)]
-    page1_copy_blocks = [b for b in page1_blocks if b[14] == 0x90]
+    page1_copy_blocks = [b for b in page1_blocks if b[14] == 0xD0]
     if len(page1_copy_blocks) != 1:
         raise RuntimeError(
             f"bitmap_room_render_0_p1 has {len(page1_copy_blocks)} tile-copy blocks; expected exactly 1"
