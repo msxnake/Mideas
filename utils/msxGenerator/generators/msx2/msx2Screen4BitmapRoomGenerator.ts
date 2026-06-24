@@ -157,15 +157,13 @@ const VDP_DATA_PORT = '#98';
 const VDP_CMD_PORT = '#9B';
 const VDP_PALETTE_PORT = '#9A';
 
-// V9938 HIGH-SPEED commands operate in BYTE units (2 px per byte in SCREEN 5).
-// The room records store dx/dy/nx/ny in PIXEL units; buildVdpCommandBlock
-// converts SX/DX/NX from pixels to bytes (>> 1) so a 16px tile still lands on
-// 16px. HMMM/HMMV are ~10x faster than the logical LMMM/LMMV variants because
-// they skip the per-pixel logical op. NY stays in lines (not affected by the
-// pixel/byte distinction). X coordinates should be even; odd values truncate.
-const CMD_COPY_8 = 0xD0;   // HMMM: high-speed move VRAM -> VRAM (byte units)
+// V9938 HIGH-SPEED commands. HMMM/HMMV use the SAME pixel coordinate space as
+// LMMM/LMMV (verified empirically: byte-coord halving rendered only the left
+// half). They are ~10x faster because they skip the per-pixel logical op.
+// X coordinates should be even (byte-aligned); all our coords already are.
+const CMD_COPY_8 = 0xD0;   // HMMM: high-speed move VRAM -> VRAM
 const CMD_COPY_16 = 0xD0;  // HMMM
-const CMD_FILL = 0xC0;     // HMMV: high-speed fill VRAM rectangle (byte units)
+const CMD_FILL = 0xC0;     // HMMV: high-speed fill VRAM rectangle
 const CMD_LINE = 0x70;     // LINE (unused by records; HMMV handles line records)
 
 const OP_FILL = 0;
@@ -513,23 +511,20 @@ function buildVdpCommandBlock(record: CommandRecord): number[] {
   const color = record.op === OP_FILL || record.op === OP_LINE_H || record.op === OP_LINE_V
     ? ((record.color & 0x0f) << 4) | (record.color & 0x0f)
     : 0;
-  // HMMM/HMMV use BYTE X coordinates (2 px/byte in SCREEN 5). Halve SX/DX/NX.
-  // Clamp NX to >= 1 so 1-pixel lines/fills don't collapse to 0 bytes (they
-  // render 2 px wide instead of 1, an acceptable visual trade for ~10x speed).
-  const sxByte = record.sx >> 1;
-  const dxByte = record.dx >> 1;
-  const nxByte = Math.max(1, record.nx >> 1);
+  // HMMM/HMMV use the SAME pixel coordinate space as LMMM/LMMV on the V9938
+  // (verified empirically: dividing by 2 halved the rendered width). X coords
+  // should be even (byte-aligned); all our coords are multiples of 16 or 2.
   return [
-    sxByte & 0xff,
-    (sxByte >> 8) & 0xff,
+    record.sx & 0xff,
+    (record.sx >> 8) & 0xff,
     record.sy & 0xff,
     (record.sy >> 8) & 0xff,
-    dxByte & 0xff,
-    (dxByte >> 8) & 0xff,
+    record.dx & 0xff,
+    (record.dx >> 8) & 0xff,
     record.dy & 0xff,
     (record.dy >> 8) & 0xff,
-    nxByte & 0xff,
-    (nxByte >> 8) & 0xff,
+    record.nx & 0xff,
+    (record.nx >> 8) & 0xff,
     record.ny & 0xff,
     (record.ny >> 8) & 0xff,
     color,
