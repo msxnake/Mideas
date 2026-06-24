@@ -14,6 +14,66 @@ Leccion Aprendida:
 
 ---
 
+## Bug Resuelto: HMMM/HMMV usan coords de pixel, no de byte (mitad de pantalla)
+
+Fecha: 2026-06-24
+
+Problema:
+Al migrar el command engine del bitmap room de LMMM/LMMV a HMMM/HMMV para
+acelerar las transiciones de pantalla, solo se renderizaba la mitad izquierda
+de la sala al cambiar de pantalla.
+
+Causa:
+Asumí (basandome en el comentario del codigo Y en `MSX2_BITMAP_MULTICOLOR_STUDY.md:140`)
+que los comandos H (HMMM/HMMV) del V9938 operan en coordenadas de BYTE (2px/byte
+en SCREEN 5). Dividí SX/DX/NX entre 2 en `buildVdpCommandBlock`. Eso halveó todo:
+NX=8 (media tile), DX=C*8 (tiles apilados en la izquierda).
+
+En realidad HMMM/HMMV usan el MISMO espacio de coordenadas en PIXELS que
+LMMM/LMMV. La unica restriccion es que las X sean PARES (byte-aligned), lo cual
+ya se cumple porque todas nuestras coords son multiplos de 16 o 2.
+
+El comentario original del codigo ("0xD0/0xC0 doubled every X coordinate") y la
+linea 140 del doc del proyecto estaban AMBOS equivocados. El primer analisis del
+agente explore (Opt #1: "just swap the constants, HMMM uses pixels") era CORRECTO
+desde el principio.
+
+Solucion:
+Quitar el `/2` en `buildVdpCommandBlock`. Pasar coords de pixel directamente a
+HMMM/HMMV (commit `908cef24`). Las X ya son pares.
+
+Leccion:
+**HMMM/HMMV usan coordenadas de pixel, no de byte, en SCREEN 5/6/7/8.** Son
+~10x mas rapidos que LMMM/LMMV porque saltan la operacion logica per-pixel, NO
+porque cambien el sistema de coords. La restriccion es X par (byte-aligned).
+
+Variante de proceso: cuando un comentario o doc interno contradice el datasheet
+oficial del V9938, Y hay un bug visual empirico, **el bug empirico gana**. No
+confiar ciegamente en docs internos que pueden haber sido escritos tras un bug
+distinto y mal diagnosticado. El comentario original atribuia a HMMM un
+"doubling" que probablemente venia de otro fallo; se descarto HMMM por la razon
+equivocada y el proyecto se quedo con el LMMM lento durante meses.
+
+Sintoma delator: "solo se ve la mitad izquierda" = coords/widths divididas entre
+2 por error. Siempre que se vea half-screen en V9938 commands, revisar si se
+esta dividiendo X entre 2 sin razon.
+
+---
+
+
+
+Fecha:
+
+Problema:
+
+Causa:
+
+Solucion:
+
+Leccion Aprendida:
+
+---
+
 ## Bug Resuelto: MegaROM SCREEN 5 bitmap escribe banco en RAM si page 2 no es cartucho
 
 Fecha: 2026-06-20
