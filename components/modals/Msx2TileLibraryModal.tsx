@@ -28,6 +28,7 @@ import {
   removeMsx2BitmapTileLibraryEntry,
 } from '../../utils/msx2BitmapTileLibrary';
 import {
+  areScreen5PalettesEquivalent,
   buildScreen5BitmapTileAsset,
   createScreen5PaletteAssetForTile,
   findMatchingScreen5PaletteAsset,
@@ -234,37 +235,11 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
   };
 
   const handleImport = (entry: Msx2TileLibraryEntry) => {
-    if (activeTargetMode === 'screen5') {
-      if (!onImportBitmapTileAssets) {
-        setStatusBarMessage?.('Este contexto no admite importar tiles bitmap al proyecto.');
-        return;
-      }
-      const pixels = Array.from({ length: entry.tile.height ?? entry.tile.pixels?.length ?? 16 }, (_row, y) =>
-        Array.from({ length: entry.tile.width ?? entry.tile.pixels?.[y]?.length ?? 16 }, (_col, x) => entry.tile.pixels?.[y]?.[x] ?? 0)
-      );
-      const matchingPalette = findMatchingScreen5PaletteAsset(entry.palette, allAssets);
-      const paletteAsset = matchingPalette
-        ?? createScreen5PaletteAssetForTile(entry.palette, entry.name, entry.tile.id, allAssets);
-      const tileAsset = buildScreen5BitmapTileAsset({
-        name: entry.name,
-        width: entry.tile.width ?? pixels[0]?.length ?? 16,
-        height: entry.tile.height ?? pixels.length ?? 16,
-        pixels,
-        paletteId: paletteAsset.id,
-        existingAssets: matchingPalette ? allAssets : [...allAssets, paletteAsset],
-        sourceType: 'atlas-export',
-      });
-      if (!matchingPalette) {
-        (paletteAsset.data as PaletteAsset).createdFromTileId = tileAsset.id;
-      }
-      onImportBitmapTileAssets(matchingPalette ? [tileAsset] : [paletteAsset, tileAsset]);
-      setStatusBarMessage?.(`Importado "${tileAsset.name}" como MSX2 Bitmap Tile para SCREEN 5.`);
-      return;
-    }
-
     // With an active screen we reconcile the tile palette against the screen's;
     // otherwise fall back to a direct import (the host will warn there's no
-    // screen) so the action is never silently lost.
+    // screen) so the action is never silently lost. SCREEN 5 bitmap rooms use
+    // the same slot-indexed pixels, so the host imports the reconciled result
+    // straight into the active atlas instead of creating a detached project asset.
     if (destPalette && destPalette.length > 0) {
       setReconcileEntry(entry);
       return;
@@ -278,6 +253,24 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       setStatusBarMessage?.('SCREEN 4 requiere tiles color clash. Selecciona la carpeta "Color clash".');
       return;
     }
+    const pixels = Array.from({ length: entry.tile.height }, (_row, y) =>
+      Array.from({ length: entry.tile.width }, (_col, x) => entry.tile.pixelData[y * entry.tile.width + x] ?? 0)
+    );
+    if (activeTargetMode === 'screen5') {
+      const tile: Msx2Screen4Tile = {
+        id: entry.tile.id,
+        name: entry.name,
+        width: entry.tile.width,
+        height: entry.tile.height,
+        pixels,
+      };
+      const paletteChanged = destPalette && destPalette.length > 0
+        ? !areScreen5PalettesEquivalent(destPalette, entry.palette)
+        : false;
+      onImportTiles([tile], entry.palette, paletteChanged);
+      setStatusBarMessage?.(`Importado "${entry.name}" al atlas SCREEN 5.`);
+      return;
+    }
     if (!onImportBitmapTileAssets) {
       setStatusBarMessage?.('Este contexto no admite importar tiles bitmap al proyecto.');
       return;
@@ -288,9 +281,6 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
     // screen. An active room is NOT required to add a project-level bitmap tile.
     const matchingPalette = findMatchingScreen5PaletteAsset(entry.palette, allAssets);
     const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(entry.palette, entry.name, entry.tile.id, allAssets);
-    const pixels = Array.from({ length: entry.tile.height }, (_row, y) =>
-      Array.from({ length: entry.tile.width }, (_col, x) => entry.tile.pixelData[y * entry.tile.width + x] ?? 0)
-    );
     const tileAsset = buildScreen5BitmapTileAsset({
       name: entry.name,
       width: entry.tile.width,

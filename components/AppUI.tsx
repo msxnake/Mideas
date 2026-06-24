@@ -18,6 +18,7 @@ import {
 } from '../constants';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/msx2PaletteUtils';
 import { createDefaultPaletteZones, normalizePaletteZones } from '../utils/msx2PaletteZones';
+import { importTilesIntoAtlas } from '../utils/msx2BitmapAtlasImport';
 import { isEntityTemplateEnabledForProject } from '../utils/projectTarget';
 import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { TileEditor } from './editors/TileEditor';
@@ -1506,6 +1507,36 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               handleUpdateAsset(activeAsset?.id ?? '', {}, newAssets);
             }}
             onImportTiles={(tiles, palette, paletteChanged, paletteSourceId) => {
+              if (activeAsset?.type === 'msx2bitmaproom') {
+                const room = activeAsset.data as Msx2Screen4BitmapRoom;
+                const { atlas } = importTilesIntoAtlas({
+                  width: room.atlas?.width || 256,
+                  height: room.atlas?.height || 0,
+                  offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+                  pixels: room.atlas?.pixels || [],
+                  entries: room.atlas?.entries || [],
+                }, tiles);
+                const update: Partial<Msx2Screen4BitmapRoom> = { atlas };
+                if (paletteChanged && palette) {
+                  if (paletteSourceId && paletteSourceId !== 'screen') {
+                    const paletteAsset = assets.find(a => a.id === paletteSourceId && a.type === 'palette');
+                    if (paletteAsset) {
+                      handleUpdateAsset(paletteAsset.id, { slots: palette.map(slot => ({ ...slot })) });
+                      if (activeBitmapWorldAsset) {
+                        handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId: paletteAsset.id });
+                      }
+                    } else {
+                      update.palette = palette.map(slot => ({ ...slot }));
+                    }
+                  } else {
+                    update.palette = palette.map(slot => ({ ...slot }));
+                  }
+                }
+                handleUpdateBitmapRoom(update);
+                setStatusBarMessage(`Importados ${tiles.length} tile(s) al atlas SCREEN 5 de "${activeAsset.name}".`);
+                return;
+              }
+
               // Append the reconciled tile(s) to the active MSX2 SCREEN4 screen's
               // tiles[] (the array Msx2Screen4RoomEditor edits). When the palette
               // changed (replace mode, or a different base palette was chosen)
