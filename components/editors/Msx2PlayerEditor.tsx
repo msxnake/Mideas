@@ -2822,6 +2822,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
           <BulletConfigDialog
             weapon={selectedWeapon}
             spriteAssets={spriteAssets}
+            allowCharMode={graphicsBackend !== 'msx2-screen4-bitmap-room'}
             onPatch={patch => updateSelectedWeapon(patch)}
             onClose={() => setIsBulletConfigOpen(false)}
           />

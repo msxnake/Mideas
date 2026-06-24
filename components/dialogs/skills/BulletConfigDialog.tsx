@@ -6,6 +6,7 @@ type WeaponPatch = Partial<Msx2PlayerWeaponDefinition>;
 interface BulletConfigDialogProps {
   weapon: Msx2PlayerWeaponDefinition;
   spriteAssets: ProjectAsset[];
+  allowCharMode?: boolean;
   onPatch: (patch: WeaponPatch) => void;
   onClose: () => void;
 }
@@ -21,10 +22,12 @@ interface BulletConfigDialogProps {
  * On save, the dialog mirrors `bulletVisual.spriteAssetId` into
  * `projectileAssetId` so the current ASM keeps working.
  */
-export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, spriteAssets, onPatch, onClose }) => {
+export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, spriteAssets, allowCharMode = true, onPatch, onClose }) => {
   // Resolve initial state: prefer bulletVisual, fall back to legacy projectileAssetId.
   const legacySpriteId = weapon.projectileAssetId;
-  const initialKind: 'sprite' | 'char' = weapon.bulletVisual?.kind ?? (legacySpriteId ? 'sprite' : 'sprite');
+  const initialKind: 'sprite' | 'char' = allowCharMode
+    ? (weapon.bulletVisual?.kind ?? (legacySpriteId ? 'sprite' : 'sprite'))
+    : 'sprite';
   const initialSpriteId = weapon.bulletVisual?.spriteAssetId ?? legacySpriteId ?? '';
   const initialCharCode = weapon.bulletVisual?.charCode ?? 0;
 
@@ -96,7 +99,7 @@ export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, 
           {/* Mode switch (segmented control) */}
           <div>
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-sky-300">Mode</div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid ${allowCharMode ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
               <button
                 type="button"
                 className={`rounded border px-3 py-2 text-xs ${kind === 'sprite' ? 'border-sky-500 bg-sky-900/40 text-sky-200' : 'border-slate-700 bg-[#111821] text-slate-300 hover:bg-slate-800'}`}
@@ -104,16 +107,20 @@ export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, 
               >
                 Sprite (hardware)
               </button>
-              <button
-                type="button"
-                className={`rounded border px-3 py-2 text-xs ${kind === 'char' ? 'border-sky-500 bg-sky-900/40 text-sky-200' : 'border-slate-700 bg-[#111821] text-slate-300 hover:bg-slate-800'}`}
-                onClick={() => setKind('char')}
-              >
-                Char (8x8 tile)
-              </button>
+              {allowCharMode && (
+                <button
+                  type="button"
+                  className={`rounded border px-3 py-2 text-xs ${kind === 'char' ? 'border-sky-500 bg-sky-900/40 text-sky-200' : 'border-slate-700 bg-[#111821] text-slate-300 hover:bg-slate-800'}`}
+                  onClick={() => setKind('char')}
+                >
+                  Char (8x8 tile)
+                </button>
+              )}
             </div>
             <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
-              {kind === 'sprite'
+              {!allowCharMode
+                ? 'SCREEN 5 bitmap-room projectiles render as hardware sprites. Background char codes belong to name-table/tile backends.'
+                : kind === 'sprite'
                 ? 'Bullet renders as a hardware sprite (V9938 SAT). Use for moving projectiles that need per-frame animation/mirror.'
                 : 'Bullet renders as a single background name-table char (8x8 tile). Cheaper; typical of Galaga/1942-style shooters.'}
             </p>
@@ -147,7 +154,7 @@ export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, 
           )}
 
           {/* Char mode */}
-          {kind === 'char' && (
+          {allowCharMode && kind === 'char' && (
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Char code</div>
               <div className="flex items-center gap-3">
@@ -193,7 +200,11 @@ export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, 
 
         <div className="flex items-center justify-between gap-2 border-t border-slate-700 px-4 py-2">
           <div className="text-[10px] text-slate-500">
-            Declarative · ASM runtime consumes <code className="text-slate-400">projectileAssetId</code> today; char-mode runtime pending.
+            {allowCharMode ? (
+              <>Declarative - ASM runtime consumes <code className="text-slate-400">projectileAssetId</code> today; char-mode runtime pending.</>
+            ) : (
+              <>SCREEN 5 bitmap-room - ASM runtime consumes <code className="text-slate-400">projectileAssetId</code> as a sprite asset.</>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
