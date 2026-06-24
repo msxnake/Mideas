@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -25,6 +25,11 @@ import {
   buildBitmapDoubleJumpInitClearAsm,
   buildBitmapJumpBlockAsm,
 } from './msx2BitmapDoubleJumpGenerator';
+import {
+  buildBitmapWallClimbGravityHookAsm,
+  buildBitmapWallClimbRuntimeAsm,
+  resolveBitmapWallClimbConfig,
+} from './msx2BitmapWallClimbGenerator';
 import {
   buildBitmapGlideEquates,
   buildBitmapGlideGravityHookAsm,
@@ -66,6 +71,57 @@ import {
   type BitmapShootRuntimeOptions,
   type BitmapShootSpriteData,
 } from './msx2BitmapShootGenerator';
+import {
+  bitmapTeleportABEnabled,
+  buildBitmapTeleportABEquates,
+  buildBitmapTeleportABGateAsm,
+  buildBitmapTeleportABInitClearAsm,
+  buildBitmapTeleportABRuntimeAsm,
+  MSX2_BITMAP_TELEPORT_AB_RAM_BYTES,
+} from './msx2BitmapTeleportABGenerator';
+import {
+  bitmapSlashEnabled,
+  buildBitmapSlashEquates,
+  buildBitmapSlashGateAsm,
+  buildBitmapSlashInitClearAsm,
+  buildBitmapSlashRuntimeAsm,
+  MSX2_BITMAP_SLASH_RAM_BYTES,
+} from './msx2BitmapSlashGenerator';
+import {
+  bitmapGrabEnabled,
+  buildBitmapGrabEquates,
+  buildBitmapGrabGateAsm,
+  buildBitmapGrabGravityHookAsm,
+  buildBitmapGrabInitClearAsm,
+  buildBitmapGrabRuntimeAsm,
+  MSX2_BITMAP_GRAB_RAM_BYTES,
+} from './msx2BitmapGrabGenerator';
+import {
+  bitmapHighJumpEnabled,
+  buildBitmapHighJumpEquates,
+  buildBitmapHighJumpGravityHookAsm,
+  buildBitmapHighJumpInitClearAsm,
+  buildBitmapHighJumpInputHookAsm,
+  buildBitmapHighJumpLandClearAsm,
+  buildBitmapHighJumpRuntimeAsm,
+  MSX2_BITMAP_HIGH_JUMP_RAM_BYTES,
+} from './msx2BitmapHighJumpGenerator';
+import {
+  bitmapWallBreakEnabled,
+  buildBitmapWallBreakEquates,
+  buildBitmapWallBreakGateAsm,
+  buildBitmapWallBreakInitClearAsm,
+  buildBitmapWallBreakRuntimeAsm,
+  MSX2_BITMAP_WALL_BREAK_RAM_BYTES,
+} from './msx2BitmapWallBreakGenerator';
+import {
+  bitmapSpinAttackEnabled,
+  buildBitmapSpinAttackEquates,
+  buildBitmapSpinAttackGateAsm,
+  buildBitmapSpinAttackInitClearAsm,
+  buildBitmapSpinAttackRuntimeAsm,
+  MSX2_BITMAP_SPIN_ATTACK_RAM_BYTES,
+} from './msx2BitmapSpinAttackGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -2771,13 +2827,63 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
   const shootBulletDataTables = buildBitmapBulletDataTables(shootConfig, bulletSprite);
   const shootRuntime = buildBitmapShootRuntimeAsm(shootConfig, shootRuntimeOptions);
+  // TELEPORT A-B skill: saves/restores position between two points. Pure RAM.
+  const teleportConfig = getMsx2TeleportABConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const teleportRamBase = shootRamBase + bitmapShootRamBytes(shootConfig);
+  const teleportEquates = buildBitmapTeleportABEquates(teleportConfig, teleportRamBase);
+  const teleportInitClear = buildBitmapTeleportABInitClearAsm(teleportConfig);
+  const teleportGate = buildBitmapTeleportABGateAsm(teleportConfig);
+  const teleportRuntime = buildBitmapTeleportABRuntimeAsm(teleportConfig);
+  // SLASH skill: melee attack in facing direction. RAM follows teleport.
+  const slashConfig = getMsx2SlashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const slashRamBase = teleportRamBase + (bitmapTeleportABEnabled(teleportConfig) ? MSX2_BITMAP_TELEPORT_AB_RAM_BYTES : 0);
+  const slashEquates = buildBitmapSlashEquates(slashConfig, slashRamBase);
+  const slashInitClear = buildBitmapSlashInitClearAsm(slashConfig);
+  const slashGate = buildBitmapSlashGateAsm(slashConfig);
+  const slashRuntime = buildBitmapSlashRuntimeAsm(slashConfig);
+  // GRAB skill: wall cling with slow slide. RAM follows slash.
+  const grabConfig = getMsx2GrabConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const grabRamBase = slashRamBase + (bitmapSlashEnabled(slashConfig) ? MSX2_BITMAP_SLASH_RAM_BYTES : 0);
+  const grabEquates = buildBitmapGrabEquates(grabConfig, grabRamBase);
+  const grabInitClear = buildBitmapGrabInitClearAsm(grabConfig);
+  const grabGate = buildBitmapGrabGateAsm(grabConfig);
+  const grabGravityHook = buildBitmapGrabGravityHookAsm(grabConfig);
+  const grabRuntime = buildBitmapGrabRuntimeAsm(grabConfig);
+  // HIGH JUMP skill: variable jump height. RAM follows grab.
+  const highJumpConfig = getMsx2HighJumpConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const highJumpRamBase = grabRamBase + (bitmapGrabEnabled(grabConfig) ? MSX2_BITMAP_GRAB_RAM_BYTES : 0);
+  const highJumpEquates = buildBitmapHighJumpEquates(highJumpConfig, highJumpRamBase);
+  const highJumpInitClear = buildBitmapHighJumpInitClearAsm(highJumpConfig);
+  const highJumpInputHook = buildBitmapHighJumpInputHookAsm(highJumpConfig);
+  const highJumpGravityHook = buildBitmapHighJumpGravityHookAsm(highJumpConfig);
+  const highJumpLandClear = buildBitmapHighJumpLandClearAsm(highJumpConfig);
+  const highJumpRuntime = buildBitmapHighJumpRuntimeAsm(highJumpConfig);
+  // WALL BREAK skill: break solid tiles ahead. RAM follows high_jump.
+  const wallBreakConfig = getMsx2WallBreakConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const wallBreakRamBase = highJumpRamBase + (bitmapHighJumpEnabled(highJumpConfig) ? MSX2_BITMAP_HIGH_JUMP_RAM_BYTES : 0);
+  const wallBreakEquates = buildBitmapWallBreakEquates(wallBreakConfig, wallBreakRamBase);
+  const wallBreakInitClear = buildBitmapWallBreakInitClearAsm(wallBreakConfig);
+  const wallBreakGate = buildBitmapWallBreakGateAsm(wallBreakConfig);
+  const wallBreakRuntime = buildBitmapWallBreakRuntimeAsm(wallBreakConfig);
+  // SPIN ATTACK skill: radial melee. RAM follows wall_break.
+  const spinAttackConfig = getMsx2SpinAttackConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const spinAttackRamBase = wallBreakRamBase + (bitmapWallBreakEnabled(wallBreakConfig) ? MSX2_BITMAP_WALL_BREAK_RAM_BYTES : 0);
+  const spinAttackEquates = buildBitmapSpinAttackEquates(spinAttackConfig, spinAttackRamBase);
+  const spinAttackInitClear = buildBitmapSpinAttackInitClearAsm(spinAttackConfig);
+  const spinAttackGate = buildBitmapSpinAttackGateAsm(spinAttackConfig);
+  const spinAttackRuntime = buildBitmapSpinAttackRuntimeAsm(spinAttackConfig);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
   const doubleJumpInitClear = buildBitmapDoubleJumpInitClearAsm(playerPhysics);
-  const inputHooks = `${wallJumpInputHook}${powerStompInputHook}`;
-  const gravityHooks = `${glideGravityHook}${wallJumpGravityHook}${powerStompGravityHook}`;
-  const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}`;
+  // WALL CLIMB skill (SCREEN 5-only): climb solid walls while holding UP + a
+  // horizontal key into the wall. Gravity hook overrides player_vy upward; no RAM.
+  const wallClimbConfig = resolveBitmapWallClimbConfig(resolveBitmapRoomPlayer(analysis, room));
+  const wallClimbGravityHook = buildBitmapWallClimbGravityHookAsm(wallClimbConfig);
+  const wallClimbRuntime = buildBitmapWallClimbRuntimeAsm(wallClimbConfig);
+  const inputHooks = `${wallJumpInputHook}${powerStompInputHook}${highJumpInputHook}`;
+  const gravityHooks = `${glideGravityHook}${wallJumpGravityHook}${powerStompGravityHook}${wallClimbGravityHook}${grabGravityHook}${highJumpGravityHook}`;
+  const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}`;
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -2877,7 +2983,14 @@ ${airDashEquates}
 ${glideEquates}
 ${wallJumpEquates}
 ${powerStompEquates}
-${shootEquates}    org #4000
+${shootEquates}
+${teleportEquates}
+${slashEquates}
+${grabEquates}
+${highJumpEquates}
+${wallBreakEquates}
+${spinAttackEquates}
+    org #4000
 
     db "AB"
     dw init_rom
@@ -2931,13 +3044,13 @@ ${shootBulletInitUpload}    ; Render the start room from the shared tileset alre
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
 ${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
-${dashGate}${shootGate}.skip_player_movement:
+${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}    call bitmap_update_sprite_sat
 ${shootBulletSatCall}    jp .main_loop
 
@@ -2948,6 +3061,13 @@ ${glideRuntime}
 ${wallJumpRuntime}
 ${powerStompRuntime}
 ${shootRuntime}
+${wallClimbRuntime}
+${teleportRuntime}
+${slashRuntime}
+${grabRuntime}
+${highJumpRuntime}
+${wallBreakRuntime}
+${spinAttackRuntime}
 
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
