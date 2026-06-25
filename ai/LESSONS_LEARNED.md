@@ -1114,3 +1114,37 @@ La fuente real de fisica del Player es `data.player.movement` / `data.compact.mo
 antes de concluir "no hay config", buscar en la ruta anidada correcta; un grep negativo a
 nivel raiz no prueba ausencia. `getMsx2PlatformPhysicsFromPlayerEntity` devuelve 8.8
 (`jumpImpulse88`/`terminalVelocity88`); el backend bitmap usa px enteros (redondear /256).
+
+---
+
+## Tecnica: capture_openmsx_action.py necesita boot-wait-ms >= 6000 para timing fino
+
+Fecha: 2026-06-25
+
+Problema:
+Verificando coyote_time/jump_buffer en SCREEN 5 bitmap, los tests con
+`capture_openmsx_action.py --boot-wait-ms 4000` y secuencias cortas (WAIT/SPACE de
+80-250ms + capture 0-60ms) daban probes del estado POKEADO intacto (ningun frame
+procesaba tras el poke). P. ej. poke coyote=4, WAIT:200, capture 0 -> probe leia
+coyote=04 (sin decrementar) y player_y=50 (sin moverse). Con WAIT:500 si procesaba.
+
+Causa:
+`after time X` es tiempo de EMULACION. OpenMSX tarda en arrancar (cargar ROM,
+init VDP, etc.), asi que con boot-wait-ms 4000 los primeros `after time` cortos
+(<500ms) se leen antes de que la emulacion haya procesado bastantes frames tras
+el poke. El umbral empirico esta entre 4000 y 6000.
+
+Solucion:
+Para smokes de mecanicas con timing fino (frames concretos tras un poke), usar
+`--boot-wait-ms 6000` (o mas). Con boot 6000, WAIT:200+capture 0 ya procesa
+~12 frames (player se mueve, timers decrementan). Para mecanicas de ventana
+corta (coyote/jump_buffer de 4-8 frames), ampliar la ventana del parametro a
+60 frames en el JSON de test y usar boot 6000 + secuencia ~250ms.
+
+Leccion:
+El capturador OpenMSX necesita margen de arranque. Sintoma delator: probe lee
+exactamente el valor pokeado (sin un solo frame de processing) -> boot-wait-ms
+muy bajo para la duracion del test. No es un bug del juego ni del generador; es
+del harness de smoke. Verificado con coyote_time + jump_buffer SCREEN 5 bitmap.
+
+---

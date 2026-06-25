@@ -24,6 +24,10 @@ import {
   buildBitmapDoubleJumpEquates,
   buildBitmapDoubleJumpInitClearAsm,
   buildBitmapJumpBlockAsm,
+  buildBitmapCoyoteBufferEquates,
+  buildBitmapCoyoteBufferInitClearAsm,
+  buildBitmapCoyoteBufferLandHookAsm,
+  buildBitmapCoyoteBufferLeaveGroundHookAsm,
 } from './msx2BitmapDoubleJumpGenerator';
 import {
   buildBitmapWallClimbGravityHookAsm,
@@ -988,7 +992,7 @@ function buildRuntimeAsm(
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number },
   options: { bankedRle: boolean },
   playerPhysics: BitmapPlayerPhysics,
-  skillHooks: { inputGateAsm?: string; gravityHookAsm?: string; landClearAsm?: string } = {},
+  skillHooks: { inputGateAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
 ): string {
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
@@ -2335,6 +2339,7 @@ ${skillHooks.gravityHookAsm || ''}
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
+${skillHooks.leaveGroundAsm || ''}
     ld a, (player_vy)
     ld b, a
     ld c, #01
@@ -2589,12 +2594,19 @@ interface BitmapPlayerPhysics {
   maxJumps: number;
   airJumpImpulseByte: number;
   airJumpPx: number;
+  /** Coyote time in frames (0 = disabled). From skillParameters.jump (see msx2PlatformPhysics). */
+  coyoteTime: number;
+  /** Jump buffer in frames (0 = disabled). From skillParameters.jump. */
+  jumpBuffer: number;
 }
 
 // Map the Player Config jump/fall physics to the bitmap engine's whole-pixel velocities.
 // The bitmap runtime uses integer px/frame (player_vy is a signed byte), not 8.8 like SCREEN 4,
 // so jumpImpulse88/terminalVelocity88 are rounded to px. The Player Config is the source of
 // truth (movement.jumpPower / maxFallSpeed, default 5 / 6); the user edits "Jump Power" there.
+// coyoteTime / jumpBuffer are only honoured when skillParameters.jump is present (protection
+// against legacy movement.* values that were never wired to ASM): getMsx2PlatformPhysicsFromPlayerEntity
+// returns 0 for both when skillParameters.jump is missing, so legacy ROMs stay bit-identical.
 function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | undefined): BitmapPlayerPhysics {
   const physics = getMsx2PlatformPhysicsFromPlayerEntity(player);
   const toSigned16 = (value: number) => ((value & 0x8000) ? value - 0x10000 : value);
@@ -2609,6 +2621,8 @@ function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | unde
     maxJumps: Math.max(1, Math.min(4, Math.floor(physics.maxJumps) || 1)),
     airJumpImpulseByte: (256 - airJumpPx) & 0xff,
     airJumpPx,
+    coyoteTime: Math.max(0, Math.min(16, Math.floor(physics.coyoteTime) || 0)),
+    jumpBuffer: Math.max(0, Math.min(16, Math.floor(physics.jumpBuffer) || 0)),
   };
 }
 
@@ -3000,6 +3014,13 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
   const doubleJumpInitClear = buildBitmapDoubleJumpInitClearAsm(playerPhysics);
+  // COYOTE TIME / JUMP BUFFER: extend the same inline jump block with a
+  // post-ledge jump window and a pre-land press buffer (skillParameters.jump).
+  // RAM is fixed at #C00E/#C00F (free gap), independent of the skill chain.
+  const coyoteBufferEquates = buildBitmapCoyoteBufferEquates(playerPhysics);
+  const coyoteBufferInitClear = buildBitmapCoyoteBufferInitClearAsm(playerPhysics);
+  const coyoteBufferLandHook = buildBitmapCoyoteBufferLandHookAsm(playerPhysics);
+  const coyoteBufferLeaveGroundHook = buildBitmapCoyoteBufferLeaveGroundHookAsm(playerPhysics);
   // WALL CLIMB skill (SCREEN 5-only): climb solid walls while holding UP + a
   // horizontal key into the wall. Gravity hook overrides player_vy upward; no RAM.
   const wallClimbConfig = resolveBitmapWallClimbConfig(resolveBitmapRoomPlayer(analysis, room));
@@ -3007,7 +3028,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const wallClimbRuntime = buildBitmapWallClimbRuntimeAsm(wallClimbConfig);
   const inputHooks = `${wallJumpInputHook}${powerStompInputHook}${highJumpInputHook}`;
   const gravityHooks = `${glideGravityHook}${wallJumpGravityHook}${powerStompGravityHook}${wallClimbGravityHook}${grabGravityHook}${highJumpGravityHook}`;
-  const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}`;
+  // coyote/buffer land hook runs LAST so wall_jump/power_stomp/high_jump clears
+  // settle first; a buffered-jump fire then clears grounded and arms player_vy.
+  const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}${coyoteBufferLandHook}`;
+  const leaveGroundHooks = `${coyoteBufferLeaveGroundHook}`;
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -3018,6 +3042,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     inputGateAsm: inputHooks,
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
+    leaveGroundAsm: leaveGroundHooks,
   });
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
@@ -3092,7 +3117,7 @@ current_screen_index EQU #C00B
 ${spriteTables.frameCount > 1 ? `; Frame whose player sprite colours are currently in VRAM (#F400). Drives the
 ; on-change per-frame OR/CC colour re-upload (bitmap_upload_player_frame_colors).
 player_colors_loaded EQU #C00C
-` : ''}${doubleJumpEquates}; Active room collision map copied here by load_room (16x12 = 192 bytes).
+` : ''}${doubleJumpEquates}${coyoteBufferEquates}; Active room collision map copied here by load_room (16x12 = 192 bytes).
 bitmap_room_collision_map EQU #C010
 ; Double-buffer room-transition state. Collision map ends at #C0CF.
 bitmap_displayed_page             EQU #C0D0
@@ -3168,7 +3193,7 @@ ${shootBulletInitUpload}    ; Render the start room from the shared tileset alre
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}.main_loop:
+${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement

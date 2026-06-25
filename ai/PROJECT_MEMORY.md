@@ -231,3 +231,21 @@ Mideas
 - Salto/gravedad del backend bitmap ahora leen el Player Config (`movement.jumpPower` / `maxFallSpeed`) en vez de hardcodes; convertido a px enteros (player_vy es byte con signo). Verificado OpenMSX: jumpPower 5->salto 10px, 8->28px. RAM/CPU 0 (solo cambian constantes inmediatas). Default ahora -5 (jumpPower=5 del Player Config) en vez del antiguo -6.
 - Pendiente: Fase 4 (banking por mundo TileBank A/B cuando haya muchas rooms; hoy render programs residentes en primeros 32KB). Transiciones N/S sin probar end-to-end (newOne5 solo tiene E/W).
 - Nota git: `ai/PROJECT_MEMORY.md` ya tenia sin commitear el bloque previo "Sesion 2026-06-20 - SCREEN 5 bitmap MegaROM pantalla blanca" (trabajo ya commiteado en 47ed9320/e6b17fe6 por otra IA); se commitea junto por ser ambos logs de memoria del mismo archivo.
+
+## Sesion 2026-06-25 - Skills coyote_time + jump_buffer en SCREEN 5 bitmap
+- Objetivo del usuario: implementar mas skills para SCREEN 5 (backend bitmap room, hardware real SCREEN 5 / CHGMOD 5).
+- Investigo state: bitmap ya tenia 15 skills (dash, air_dash, glide, wall_jump, power_stomp+screen_shake, shoot, teleport_a_b, slash, grab, high_jump, wall_break, spin_attack, double_jump, wall_climb). Faltaban vs SCREEN 4: coyote_time + jump_buffer (los mas faciles, 2 bytes RAM).
+- Implementacion (2 archivos):
+  - `utils/msxGenerator/generators/msx2/msx2BitmapDoubleJumpGenerator.ts`: anadidos `coyoteTime`/`jumpBuffer` a `BitmapJumpPhysics`, constantes `MSX2_BITMAP_COYOTE_TIMER_RAM=0xC00E` / `MSX2_BITMAP_JUMP_BUFFER_TIMER_RAM=0xC00F` (slots libres en el gap del player), funciones `buildBitmapCoyoteBufferEquates/InitClearAsm/LandHookAsm/LeaveGroundHookAsm`, y extension de `buildBitmapJumpBlockAsm` con timer-decrement block, coyote air-gate (consume timer + salta como grounded, cuenta como jump #1) y buffer arm. La rama legacy (coyote=0, buffer=0, double_jump off) es bit-identical al bloque original.
+  - `utils/msxGenerator/generators/msx2/msx2Screen4BitmapRoomGenerator.ts`: `BitmapPlayerPhysics` + `resolveBitmapPlayerPhysics` exponen `coyoteTime`/`jumpBuffer` (de `getMsx2PlatformPhysicsFromPlayerEntity`, que ya los devolvia pero el bitmap los ignoraba). Nuevo hook `leaveGroundAsm` en el struct `skillHooks` (inyectado en `.falling:` tras limpiar grounded). Coyote/buffer land hook al FINAL del chain (tras wall_jump/power_stomp/high_jump) para que sus clears corran primero.
+- RAM: +2 bytes fijos (#C00E coyote timer, #C00F jump_buffer timer), solo usados si los params >0. No tocan el skill chain (#C0D9+).
+- CPU: <30 ciclos/frame solo si activos; 0 para proyectos legacy.
+- No-regresión: `newone25.json` (sin `skillParameters.jump`) recompila a ROM bit-identical (mismo SHA256 FC44238A...). Smoke `msx2-screen4-bitmap-room` pasa.
+- Activación: solo cuando `skillParameters.jump` esta presente (proteccion confirmada en `msx2PlatformPhysics.ts:874-883`: movement.coyoteTime/jumpBuffer legacy se ignoran, como ya pasaba en SCREEN 4).
+- Verificación OpenMSX (C-BIOS_MSX2, simple32k 32KB, fixture `newone25_coyote.json` con coyoteTime/jumpBuffer=4 primero, luego =60 para ventana de test):
+  - Arranque OK (player grounded, timers a 0).
+  - timerDec OK (coyote expira a 0 tras WAIT:500).
+  - Aterrizaje OK (no roto por el land hook).
+  - **Coyote**: poke airborne cayendo + SPACE → player termina 12px mas arriba que sin SPACE (saltó estando airborne, solo posible via coyote). `y=148 vy=04 flags=00` vs `y=160 vy=00 flags=01`.
+  - **Buffer**: poke cayendo + buffer=60 armado → player aterriza y el land hook dispara salto automatico: `y=132 vy=FF(subiendo) flags=00 buffer=00(consumido)` vs buffer=0 `y=160 flags=01`.
+- Leccion nueva en `ai/LESSONS_LEARNED.md`: smoke OpenMSX con `capture_openmsx_action.py` necesita `boot-wait-ms >= 6000` para tests de timing fino (<500ms); con boot 4000 los `after time` cortos se leen antes de que la emulación estabilice.
