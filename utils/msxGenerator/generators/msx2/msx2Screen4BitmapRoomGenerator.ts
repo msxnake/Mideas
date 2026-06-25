@@ -348,7 +348,9 @@ function extractAtlasEntryPixels(room: Msx2Screen4BitmapRoom, entry: { sx: numbe
 }
 
 function atlasEntryFingerprint(pixels: number[][]): string {
-  return `${pixels[0]?.length || 0}x${pixels.length}:${pixels.map(row => row.join('')).join('|')}`;
+  const width = pixels[0]?.length || 0;
+  const rows = pixels.map(row => (row || []).map(value => (clampByte(value, 0) & 0x0f).toString(16)).join(''));
+  return `${width}x${pixels.length}:${rows.join('|')}`;
 }
 
 function buildSharedWorldAtlasRooms(rooms: Msx2Screen4BitmapRoom[]): { rooms: Msx2Screen4BitmapRoom[]; atlasRoom: Msx2Screen4BitmapRoom } {

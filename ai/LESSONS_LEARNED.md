@@ -1187,3 +1187,30 @@ como cambio de feel intencional (no bug) para que el usuario sepa que sus
 proyectos existentes se moveran, y dejarle afinar los valores.
 
 ---
+
+## Bug Resuelto: atlas SCREEN 5 deduplicaba tiles distintos por huella ambigua
+
+Fecha: 2026-06-25
+
+Problema:
+Tras intercambiar colores en un tile SCREEN 5, la UI seguia mostrando el mapa
+correcto, pero la ROM podia mostrar otro patron en pantallas 2/3 del mundo.
+
+Causa:
+El export del atlas compartido deduplicaba tiles por una huella construida con
+`row.join('')`. En SCREEN 5 los indices de paleta van de 0 a 15; sin separador o
+codificacion fija, secuencias distintas pueden producir la misma cadena
+(`1,11` y `11,1`, por ejemplo). El empaquetador fusionaba tiles diferentes y las
+pantallas acababan copiando el patron compartido equivocado.
+
+Solucion:
+Codificar cada pixel como nibble hexadecimal fijo (`0..f`) dentro de la huella
+del atlas antes de deduplicar.
+
+Leccion:
+En SCREEN 5 nunca concatenar indices de paleta decimal sin separador para crear
+hashes o fingerprints. Usar separador, byte/nibble fijo o bytes reales; si no,
+la deduplicacion puede corromper visualmente solo el ROM mientras la UI parece
+correcta.
+
+---
