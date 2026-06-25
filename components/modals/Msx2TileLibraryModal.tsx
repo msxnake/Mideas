@@ -329,6 +329,7 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
     layout?: { columns: number; rows: number; baseName: string },
   ) => {
     let createdProjectAssets = 0;
+    let importedAtlasTiles = 0;
     if (outputMode === 'screen5') {
       if (tiles.length > 1 && layout) {
         addStampToMsx2BitmapStampLibrary(tiles, palette, layout.columns, layout.rows, layout.baseName);
@@ -339,13 +340,20 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       setBitmapStampCount(loadMsx2BitmapStampLibrary().length);
       setActiveFolder('screen5');
 
-      // Also create project assets so imported tiles land directly in the
-      // "MSX2 Bitmap Tiles" folder/panel (one click away from the room atlas),
-      // instead of only living in the global library. Allowed for SCREEN 5 or
-      // no-screen contexts; a SCREEN 4 tile context is excluded. A single shared
-      // palette asset backs the whole batch; empty cells of a multi-tile sheet are
-      // skipped so the folder isn't flooded with blanks.
-      if (onImportBitmapTileAssets && activeTargetMode !== 'screen4') {
+      const nonEmptyScreen5Tiles = tiles.filter(tile => !isMsx2TileEmpty(tile));
+      if (activeTargetMode === 'screen5' && nonEmptyScreen5Tiles.length > 0) {
+        const paletteChanged = destPalette && destPalette.length > 0
+          ? !areScreen5PalettesEquivalent(destPalette, palette)
+          : false;
+        onImportTiles(nonEmptyScreen5Tiles, palette, paletteChanged, 'screen');
+        importedAtlasTiles = nonEmptyScreen5Tiles.length;
+      }
+
+      // Also create project assets when there is no active SCREEN 5 room. With
+      // a room open, the direct onImportTiles path above is the authoritative
+      // atlas import and avoids adding the same PNG twice through an asset
+      // round-trip.
+      if (onImportBitmapTileAssets && activeTargetMode === 'none') {
         const matchingPalette = findMatchingScreen5PaletteAsset(palette, allAssets);
         const paletteAsset = matchingPalette
           ?? createScreen5PaletteAssetForTile(palette, layout?.baseName || tiles[0]?.name || 'Bitmap Tile', tiles[0]?.id || `tile_${Date.now()}`, allAssets);
@@ -378,7 +386,9 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       setEntries(loadMsx2TileLibrary());
       setActiveFolder('screen4');
     }
-    setStatusBarMessage?.(createdProjectAssets > 0
+    setStatusBarMessage?.(importedAtlasTiles > 0
+      ? `Importados ${importedAtlasTiles} tile(s) al atlas SCREEN 5 y anadidos ${tiles.length} a la biblioteca.`
+      : createdProjectAssets > 0
       ? `Importados ${createdProjectAssets} tile(s) al proyecto y añadidos ${tiles.length} a la biblioteca.`
       : `Añadidos ${tiles.length} tile(s) a la biblioteca.`);
     setIsImportOpen(false);

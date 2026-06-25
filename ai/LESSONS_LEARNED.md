@@ -1270,3 +1270,30 @@ de room/mundo. Los flujos de importacion visual con room activa deben actualizar
 ambos; si solo crean assets, la UI no ofrece el tile para pintar.
 
 ---
+
+## Bug Resuelto: importar PNG SCREEN 5 debe escribir directo al atlas activo
+
+Fecha: 2026-06-25
+
+Problema:
+Al importar un PNG desde la biblioteca de tiles con una room SCREEN 5 activa, el
+resultado podia quedarse solo en biblioteca/stamps/assets intermedios y no aparecer
+en el Tile Atlas de la pantalla.
+
+Causa:
+El flujo dependia de crear assets `msx2bitmaptile` y de que otro callback los
+reconvirtiera al atlas. Ese rodeo era fragil: el contrato visible del boton
+"Importar PNG" en SCREEN 5 debe ser "queda disponible en el atlas activo", no
+"queda en biblioteca para importarlo despues".
+
+Solucion:
+En modo SCREEN 5 con room activa, el modal importa directamente los tiles no
+vacios al atlas mediante `onImportTiles`, y deja la biblioteca/stamp como copia
+secundaria. Sin room activa, sigue creando assets de proyecto como antes.
+
+Leccion:
+Para SCREEN 5, cualquier accion UI que diga importar PNG mientras hay una room
+activa debe llamar al camino de atlas activo de forma directa. Los assets y la
+biblioteca son persistencia auxiliar, no sustituyen a `room.atlas.entries`.
+
+---
