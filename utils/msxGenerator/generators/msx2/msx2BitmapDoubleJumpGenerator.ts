@@ -237,6 +237,8 @@ export function buildBitmapJumpBlockAsm(physics: BitmapJumpPhysics): string {
     jp z, .apply_gravity
     ld a, ${jumpByte}              ; -${jumpPx} px/frame initial jump velocity (Player Config jumpPower)
     ld (player_vy), a
+    xor a
+    ld (player_vy_frac), a         ; clear sub-pixel fraction so the next gravity tick starts clean
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
@@ -272,6 +274,8 @@ ${airGate}    jp .apply_gravity
 .jump_from_ground:
     ld a, ${jumpByte}              ; -${jumpPx} px/frame initial jump velocity (Player Config jumpPower)
     ld (player_vy), a
+    xor a
+    ld (player_vy_frac), a         ; clear sub-pixel fraction so the next gravity tick starts clean
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
@@ -324,6 +328,8 @@ ${airGate}    ld a, (player_jumps_used)
     jp nc, ${airRejectTarget}
     ld a, ${airByte}              ; -${airPx} px/frame mid-air jump velocity
     ld (player_vy), a
+    xor a
+    ld (player_vy_frac), a         ; clear sub-pixel fraction so the next gravity tick starts clean
     ld a, (player_jumps_used)
     inc a
     ld (player_jumps_used), a
@@ -333,6 +339,8 @@ ${airGate}    ld a, (player_jumps_used)
 ${airRejectedBlock}.jump_from_ground:
     ld a, ${jumpByte}              ; -${jumpPx} px/frame initial jump velocity (Player Config jumpPower)
     ld (player_vy), a
+    xor a
+    ld (player_vy_frac), a         ; clear sub-pixel fraction so the next gravity tick starts clean
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
@@ -376,6 +384,8 @@ export function buildBitmapCoyoteBufferLandHookAsm(physics: BitmapJumpPhysics | 
       '    ld (player_jump_buffer_t), a',
       `    ld a, ${jumpByte}              ; fire buffered jump as the first jump`,
       '    ld (player_vy), a',
+      '    xor a',
+      '    ld (player_vy_frac), a         ; clear sub-pixel fraction so the next gravity tick starts clean',
       '    ld a, (player_flags)',
       '    and #FE                      ; clear grounded: we are jumping again',
       '    ld (player_flags), a',

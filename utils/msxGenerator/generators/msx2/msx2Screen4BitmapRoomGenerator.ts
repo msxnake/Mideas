@@ -2176,6 +2176,7 @@ commit_room_flip:
     ldir
     xor a
     ld (player_vy), a
+    ld (player_vy_frac), a
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
@@ -2318,9 +2319,18 @@ bitmap_stick_dx:
     ret c
 ${buildBitmapJumpBlockAsm(playerPhysics)}
 .apply_gravity:
+    ; Sub-pixel gravity: accumulate the fractional strength (Player Config
+    ; gravityStrength88 low byte, default 64 = 0.25 px/frame^2) and only nudge
+    ; player_vy by 1 px when it carries. Matches SCREEN 4's gradual arc instead
+    ; of the old fixed 1 px/frame^2 integer nudge. Clobbers AF.
     ld a, (player_vy)
     cp ${playerPhysics.terminalPx}              ; terminal fall speed px/frame (Player Config maxFallSpeed)
-    jp z, .after_gravity_tick
+    jp z, .after_gravity_tick                   ; already terminal: keep frac frozen
+    ld a, (player_vy_frac)
+    add a, ${playerPhysics.gravityFrac}              ; gravityStrength88 low byte (0.25 px/frame^2 default)
+    ld (player_vy_frac), a
+    jp nc, .after_gravity_tick                  ; fraction did not carry -> vy unchanged this frame
+    ld a, (player_vy)                           ; carry: nudge vy 1 px towards terminal
     inc a
     ld (player_vy), a
 .after_gravity_tick:
@@ -2598,15 +2608,22 @@ interface BitmapPlayerPhysics {
   coyoteTime: number;
   /** Jump buffer in frames (0 = disabled). From skillParameters.jump. */
   jumpBuffer: number;
+  /**
+   * Gravity strength as the low byte of the 8.8 value from the Player Config
+   * (gravityStrength88, default #40 = 0.25 px/frame^2). The bitmap runtime accumulates
+   * this into player_vy_frac and only increments player_vy when it carries, giving a
+   * gradual arc that matches SCREEN 4 instead of the old fixed 1 px/frame^2 nudge.
+   */
+  gravityFrac: number;
 }
 
 // Map the Player Config jump/fall physics to the bitmap engine's whole-pixel velocities.
-// The bitmap runtime uses integer px/frame (player_vy is a signed byte), not 8.8 like SCREEN 4,
-// so jumpImpulse88/terminalVelocity88 are rounded to px. The Player Config is the source of
-// truth (movement.jumpPower / maxFallSpeed, default 5 / 6); the user edits "Jump Power" there.
-// coyoteTime / jumpBuffer are only honoured when skillParameters.jump is present (protection
-// against legacy movement.* values that were never wired to ASM): getMsx2PlatformPhysicsFromPlayerEntity
-// returns 0 for both when skillParameters.jump is missing, so legacy ROMs stay bit-identical.
+// The bitmap runtime uses integer px/frame (player_vy is a signed byte) for the committed
+// position, but keeps a sub-pixel fraction (player_vy_frac) so gravity can accelerate
+// gradually like SCREEN 4's 8.8 accumulator (default 0.25 px/frame^2 instead of a fixed
+// 1 px/frame^2). jumpImpulse88/terminalVelocity88 are rounded to px for the integer part;
+// gravityStrength88 is kept as the fractional accumulator so the arc feels smooth.
+// coyoteTime / jumpBuffer are only honoured when skillParameters.jump is present.
 function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | undefined): BitmapPlayerPhysics {
   const physics = getMsx2PlatformPhysicsFromPlayerEntity(player);
   const toSigned16 = (value: number) => ((value & 0x8000) ? value - 0x10000 : value);
@@ -2623,6 +2640,7 @@ function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | unde
     airJumpPx,
     coyoteTime: Math.max(0, Math.min(16, Math.floor(physics.coyoteTime) || 0)),
     jumpBuffer: Math.max(0, Math.min(16, Math.floor(physics.jumpBuffer) || 0)),
+    gravityFrac: Math.max(16, Math.min(128, Math.floor(physics.gravityStrength88) || 0x40)) & 0xff,
   };
 }
 
@@ -3127,6 +3145,11 @@ bitmap_transition_dir             EQU #C0D3
 bitmap_composition_block_ptr      EQU #C0D4
 bitmap_composition_blocks_left    EQU #C0D6
 bitmap_pending_display_page       EQU #C0D8
+; Sub-pixel gravity accumulator (low byte of the 8.8 gravityStrength from the Player
+; Config). Added to player_vy_frac every frame; player_vy only rises by 1 when this
+; carries, so the fall/jump arc accelerates gradually like SCREEN 4 (default 0.25
+; px/frame^2) instead of the old fixed 1 px/frame^2 nudge.
+player_vy_frac                    EQU #C0D9
 ${dashEquates}
 ${airDashEquates}
 ${glideEquates}
@@ -3172,6 +3195,7 @@ ${shootBulletInitUpload}    ; Render the start room from the shared tileset alre
     ld (player_anim_counter), a
     ld (player_anim_frame), a
     ld (player_vy), a
+    ld (player_vy_frac), a
     ld (player_flags), a
     ld (player_jump_lock), a
     ld (player_moving), a

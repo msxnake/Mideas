@@ -261,6 +261,8 @@ bitmap_try_wall_jump_kick:
     jp z, .wall_kick_blocked
 ${keyGate}    ld a, ${wallJumpPowerSigned}
     ld (player_vy), a
+    xor a
+    ld (player_vy_frac), a         ; clear sub-pixel fraction so the kick impulse is not clipped by a stale carry
     ld a, (bitmap_wall_slide_side)
     or a
     jp z, .wall_kick_push_right

@@ -1148,3 +1148,42 @@ muy bajo para la duracion del test. No es un bug del juego ni del generador; es
 del harness de smoke. Verificado con coyote_time + jump_buffer SCREEN 5 bitmap.
 
 ---
+
+## Bug Resuelto: feel del salto distinto entre SCREEN 4 (8.8) y SCREEN 5 (entero)
+
+Fecha: 2026-06-25
+
+Problema:
+El usuario noto que el salto de su proyecto SCREEN 5 (bitmap room) "se siente
+menos suave" que su proyecto SCREEN 4 (tile). Mismo Player Config, distinto feel.
+
+Causa:
+Los dos backends usaban modelos de fisica vertical INCOMPATIBLES:
+- SCREEN 4 (`msx2_apply_platform_gravity`): acumulador 16-bit 8.8
+  (`msx2_player_gravity_vel`), suma `gravityStrength88` (default `#0040` =
+  0.25 px/frame^2) cada frame. La velocidad en px (parte alta) solo cambia
+  cuando la fraccion se desborda -> arco gradual.
+- SCREEN 5 (`.apply_gravity`): `inc (player_vy)` FIJO cada frame =
+  1 px/frame^2 SIEMPRE, sin fraccion, ignorando `gravityStrength88`.
+Resultado: SCREEN 5 aceleraba 4x mas rapido, arco "cuadrado".
+
+Solucion:
+Anadido sub-acumulador `player_vy_frac` (1 byte fijo) a SCREEN 5. `.apply_gravity`
+acumula la parte baja de `gravityStrength88` y solo `inc (player_vy)` cuando
+carry. Mantiene `player_vy` como byte (sin tocar el path de movimiento pixel a
+pixel). Paridad de MODELO con SCREEN 4.
+
+Leccion:
+**Al portar fisica entre backends, mantener el mismo MODELO (resolucion
+sub-pixel), no solo los mismos valores.** Dos backends que leen el mismo
+`gravityStrength88` del Player Config pero lo aplican con distinta resolucion
+(8.8 vs entero) dan feels distintos aunque el JSON sea identico. La paridad de
+"Play vs ROM" exige paridad de MODELO, no solo de constantes.
+
+Variante: cuando un backend legacy usa un modelo mas tosco (entero) por
+simplicidad historica, portar el modelo fino (8.8 / sub-acumulador) es una
+mejora global que afecta a TODOS los proyectos de ese backend. Documentarlo
+como cambio de feel intencional (no bug) para que el usuario sepa que sus
+proyectos existentes se moveran, y dejarle afinar los valores.
+
+---

@@ -22,7 +22,7 @@ import { Msx2DashConfig } from '../../../msx2PlatformPhysics';
  * is a follow-up (the SCREEN 4 control->GTSTCK mapping does not apply here).
  */
 
-export const MSX2_BITMAP_DASH_RAM_BASE = 0xC0D9;
+export const MSX2_BITMAP_DASH_RAM_BASE = 0xC0DA;
 export const MSX2_BITMAP_DASH_RAM_BYTES = 4;
 
 const DASH_KEY_ROW = 4;     // MSX keyboard matrix row holding K..R
