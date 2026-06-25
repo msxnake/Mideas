@@ -1243,3 +1243,30 @@ llevar remap por ID; copiar solo el atlas conserva los numeros pero corrompe el
 significado visual.
 
 ---
+
+## Bug Resuelto: importar PNG SCREEN 5 creaba assets pero no actualizaba atlas
+
+Fecha: 2026-06-25
+
+Problema:
+Al importar un PNG desde una room SCREEN 5 bitmap, los tiles acababan en la
+biblioteca/proyecto pero no aparecian en el `Tile Atlas` de la pantalla activa.
+
+Causa:
+El flujo `onImportBitmapTileAssets` solo anexaba assets `msx2bitmaptile` al
+proyecto. En SCREEN 5 bitmap, el atlas visible y el ROM consumen
+`room.atlas.entries`; crear assets de proyecto no los hace disponibles para
+pintar en la room.
+
+Solucion:
+Cuando hay una `msx2bitmaproom` activa, convertir los `msx2bitmaptile` recien
+creados a tiles de atlas, llamar a `importTilesIntoAtlas`, y guardar a la vez
+el atlas actualizado y los assets de proyecto. Refrescar tambien los stamps
+creados desde PNG.
+
+Leccion:
+En SCREEN 5 hay dos destinos distintos: assets de biblioteca/proyecto y atlas
+de room/mundo. Los flujos de importacion visual con room activa deben actualizar
+ambos; si solo crean assets, la UI no ofrece el tile para pintar.
+
+---

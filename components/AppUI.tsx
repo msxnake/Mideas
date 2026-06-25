@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { 
-  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
+  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, WorldMapConnection, WorldMapScreenNode, ConnectionDirection, PSGSoundData,
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
@@ -19,6 +19,7 @@ import {
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/msx2PaletteUtils';
 import { createDefaultPaletteZones, normalizePaletteZones } from '../utils/msx2PaletteZones';
 import { importTilesIntoAtlas } from '../utils/msx2BitmapAtlasImport';
+import { bitmapTileScreen5ToAtlasTile } from '../utils/msx2Screen5BitmapTileLibrary';
 import { isEntityTemplateEnabledForProject } from '../utils/projectTarget';
 import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { TileEditor } from './editors/TileEditor';
@@ -1543,11 +1544,26 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             activeTargetMode={activeAsset?.type === 'msx2bitmaproom' ? 'screen5' : activeMsx2ScreenAsset ? 'screen4' : 'none'}
             allAssets={assets}
             onImportBitmapTileAssets={(newAssets) => {
-              // Creating bitmap-tile project assets does not require an active
-              // bitmap room: handleUpdateAsset with empty data just appends
-              // newAssets to the project. When a bitmap room is active we pass its
-              // id (harmless, the room is not modified); otherwise '' still adds the
-              // assets at project level so they appear in the MSX2 Bitmap Tiles folder.
+              if (activeAsset?.type === 'msx2bitmaproom') {
+                const room = activeAsset.data as Msx2Screen4BitmapRoom;
+                const bitmapTileAssets = newAssets.filter(asset => asset.type === 'msx2bitmaptile');
+                const atlasTiles = bitmapTileAssets
+                  .map(asset => bitmapTileScreen5ToAtlasTile(asset.data as BitmapTileScreen5))
+                  .filter(tile => Array.isArray(tile.pixels));
+                if (atlasTiles.length > 0) {
+                  const { atlas } = importTilesIntoAtlas({
+                    width: room.atlas?.width || 256,
+                    height: room.atlas?.height || 0,
+                    offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+                    pixels: room.atlas?.pixels || [],
+                    entries: room.atlas?.entries || [],
+                  }, atlasTiles);
+                  handleUpdateBitmapRoom({ atlas }, newAssets);
+                  setStatusBarMessage(`Importados ${atlasTiles.length} tile(s) bitmap al proyecto y al atlas SCREEN 5 de "${activeAsset.name}".`);
+                  return;
+                }
+              }
+              // Creating bitmap-tile project assets does not require an active bitmap room.
               handleUpdateAsset(activeAsset?.id ?? '', {}, newAssets);
             }}
             onImportTiles={(tiles, palette, paletteChanged, paletteSourceId) => {

@@ -2708,8 +2708,33 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         activeTargetMode="screen5"
         allAssets={allAssets}
         onImportBitmapTileAssets={(newAssets) => {
-          onUpdate({}, newAssets);
-          setStatusBarMessage?.(`Importados ${newAssets.filter(asset => asset.type === 'msx2bitmaptile').length} tile(s) bitmap al proyecto.`);
+          const bitmapTileAssets = newAssets.filter(asset => asset.type === 'msx2bitmaptile');
+          const atlasTiles = bitmapTileAssets
+            .map(asset => bitmapTileScreen5ToAtlasTile(asset.data as BitmapTileScreen5))
+            .filter(tile => Array.isArray(tile.pixels));
+          if (atlasTiles.length > 0) {
+            const { atlas, addedEntries } = importTilesIntoAtlas(
+              {
+                width: atlasWidth,
+                height: atlasHeight,
+                offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+                pixels: room.atlas?.pixels,
+                entries: atlasEntries,
+              },
+              atlasTiles,
+            );
+            onUpdate({ atlas }, newAssets);
+            if (addedEntries[0]) {
+              setSelectedAtlasEntryId(addedEntries[0].id);
+              setConfigTarget('tile');
+            }
+          } else {
+            onUpdate({}, newAssets);
+          }
+          const stamps = loadMsx2BitmapStampLibrary();
+          setStampEntries(stamps);
+          setSelectedStampId(current => current && stamps.some(entry => entry.id === current) ? current : (stamps[0]?.id || ''));
+          setStatusBarMessage?.(`Importados ${bitmapTileAssets.length} tile(s) bitmap al proyecto y al atlas SCREEN 5.`);
         }}
       />
 
