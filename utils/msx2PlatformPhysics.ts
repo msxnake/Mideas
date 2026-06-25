@@ -1,5 +1,5 @@
 import { ProjectAnalysis } from './asmTemplateGenerator';
-import { Msx2PlayerControlId, Msx2Screen4TileScreen } from '../types';
+import { Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2Screen4TileScreen } from '../types';
 import { getSkill } from './msxGenerator/skills';
 
 /** MSX1 ROM default: #FC00 (-1024 in 8.8 fixed-point, ~-4 px/frame initial rise). */
@@ -54,6 +54,14 @@ export interface Msx2AirDashConfig {
   invulnerable: boolean;
   primaryControl: Msx2PlayerControlId;
   secondaryControl: Msx2PlayerControlId | 'none';
+  primaryKeyboard?: Msx2BitmapKeyboardBinding;
+  secondaryKeyboard?: Msx2BitmapKeyboardBinding;
+}
+
+export interface Msx2BitmapKeyboardBinding {
+  label: string;
+  row: number;
+  mask: number;
 }
 
 /**
@@ -482,6 +490,43 @@ function resolveAirDashSkillBinding(player: any | undefined): {
   return resolveMsx2SkillBinding(player, 'air_dash');
 }
 
+const MSX2_BITMAP_DIRECTION_KEYS: Record<Exclude<Msx2PlayerControlId, 'jump' | 'attack'>, Msx2BitmapKeyboardBinding> = {
+  left: { label: 'LEFT', row: 8, mask: 0x10 },
+  up: { label: 'UP', row: 8, mask: 0x20 },
+  down: { label: 'DOWN', row: 8, mask: 0x40 },
+  right: { label: 'RIGHT', row: 8, mask: 0x80 },
+};
+
+const MSX2_BITMAP_BUTTON_KEYS: Record<Msx2PlayerButtonBinding, Msx2BitmapKeyboardBinding | undefined> = {
+  upArrow: MSX2_BITMAP_DIRECTION_KEYS.up,
+  spc: { label: 'SPC', row: 8, mask: 0x01 },
+  n: { label: 'N', row: 4, mask: 0x08 },
+  m: { label: 'M', row: 4, mask: 0x04 },
+  joyA: undefined,
+  joyB: undefined,
+};
+
+function resolveMsx2BitmapKeyboardBinding(
+  player: any | undefined,
+  control: Msx2PlayerControlId | 'none',
+): Msx2BitmapKeyboardBinding | undefined {
+  if (control === 'none') return undefined;
+  if (player?.inputEnabled?.[control] === false) return undefined;
+  if (control !== 'jump' && control !== 'attack') return MSX2_BITMAP_DIRECTION_KEYS[control];
+  const fallback: Msx2PlayerButtonBinding = control === 'jump' ? 'spc' : 'm';
+  const raw = String(player?.inputMapping?.[control] || fallback).trim();
+  const normalized = raw === 'UP' || raw === 'Up Arrow' || raw === 'CURSOR_UP'
+    ? 'upArrow'
+    : raw === 'SPACE' || raw === 'Space / X' || raw === 'SPC'
+      ? 'spc'
+      : raw === 'joy_a' || raw === 'joystick_a' || raw === 'Joystick Button A'
+        ? 'joyA'
+        : raw === 'joy_b' || raw === 'joystick_b' || raw === 'Joystick Button B'
+          ? 'joyB'
+          : raw.toLowerCase();
+  return MSX2_BITMAP_BUTTON_KEYS[(normalized as Msx2PlayerButtonBinding)] || MSX2_BITMAP_BUTTON_KEYS[fallback];
+}
+
 function resolveTeleportABSkillBinding(player: any | undefined): {
   primary: Msx2PlayerControlId;
   secondary: Msx2PlayerControlId | 'none';
@@ -579,6 +624,8 @@ export function getMsx2AirDashConfigFromPlayerEntity(player: any | undefined): M
     invulnerable: params.invulnerable !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+    primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),
+    secondaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.secondary),
   };
 }
 

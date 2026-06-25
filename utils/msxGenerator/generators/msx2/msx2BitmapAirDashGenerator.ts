@@ -1,4 +1,4 @@
-import { Msx2AirDashConfig } from '../../../msx2PlatformPhysics';
+import { Msx2AirDashConfig, Msx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 
 /**
  * SCREEN 5 bitmap-room AIR DASH skill.
@@ -13,9 +13,6 @@ import { Msx2AirDashConfig } from '../../../msx2PlatformPhysics';
  */
 
 export const MSX2_BITMAP_AIR_DASH_RAM_BYTES = 4;
-
-const AIR_DASH_KEY_ROW = 2;     // MSX keyboard matrix row holding M on C-BIOS/US layout
-const AIR_DASH_KEY_MASK = 0x01; // bit 0 = 'M' (pilot binding, same intent as bitmap dash)
 
 function asmByte(value: number): string {
   const byte = Math.max(0, Math.min(255, Math.floor(Number(value) || 0)));
@@ -51,6 +48,48 @@ export function buildBitmapAirDashInitClearAsm(config: Msx2AirDashConfig | undef
     ld (bitmap_air_dash_cooldown), a
     ld (bitmap_air_dash_lock), a
     ld (bitmap_air_dash_direction), a
+`;
+}
+
+function buildBitmapAirDashKeyCheck(key: Msx2BitmapKeyboardBinding | undefined): string {
+  if (!key) {
+    return `    xor a
+    ret
+`;
+  }
+  return `    in a, (PPI_C)
+    and #F0
+    or ${key.row}
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and ${asmByte(key.mask)}
+    ret z
+`;
+}
+
+function buildBitmapAirDashPressedRoutine(config: Msx2AirDashConfig): string {
+  const primaryKey = config.primaryKeyboard ?? { label: 'M', row: 4, mask: 0x04 };
+  const secondaryKey = config.secondaryControl !== 'none' ? config.secondaryKeyboard : undefined;
+  const comboLabel = secondaryKey ? `${primaryKey.label}+${secondaryKey.label}` : primaryKey.label;
+  const rows = secondaryKey && secondaryKey.row !== primaryKey.row
+    ? `${primaryKey.row}/${secondaryKey.row}`
+    : String(primaryKey.row);
+  const secondaryCheck = secondaryKey ? buildBitmapAirDashKeyCheck(secondaryKey) : '';
+  return `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_air_dash_pressed
+; ------------------------------------------------------------
+; PURPOSE: Reads the configured air_dash input (${comboLabel}) via PPI.
+; INPUT: none.
+; OUTPUT: A = 1 when pressed, A = 0 otherwise (Z set when not pressed).
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+; SIDE EFFECTS: Selects keyboard row ${rows} on PPI_C. update_player_movement
+;   re-selects row 8 next frame, so the transient selection is safe.
+; ------------------------------------------------------------
+bitmap_air_dash_pressed:
+${buildBitmapAirDashKeyCheck(primaryKey)}${secondaryCheck}    ld a, 1
+    ret
 `;
 }
 
@@ -92,29 +131,7 @@ export function buildBitmapAirDashRuntimeAsm(
 `
     : '';
 
-  return `
-; ------------------------------------------------------------
-; FUNCTION: bitmap_air_dash_pressed
-; ------------------------------------------------------------
-; PURPOSE: Reads the air_dash key ('M', keyboard matrix row ${AIR_DASH_KEY_ROW} bit 2) via PPI.
-; INPUT: none.
-; OUTPUT: A = 1 when pressed, A = 0 otherwise (Z set when not pressed).
-; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
-; SIDE EFFECTS: Selects keyboard row ${AIR_DASH_KEY_ROW} on PPI_C. update_player_movement
-;   re-selects row 8 next frame, so the transient selection is safe.
-; ------------------------------------------------------------
-bitmap_air_dash_pressed:
-    in a, (PPI_C)
-    and #F0
-    or ${AIR_DASH_KEY_ROW}
-    out (PPI_C), a
-    in a, (PPI_B)
-    cpl
-    and ${asmByte(AIR_DASH_KEY_MASK)}
-    ret z
-    ld a, 1
-    ret
-
+  return `${buildBitmapAirDashPressedRoutine(config)}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_air_dash_release_lock
 ; ------------------------------------------------------------

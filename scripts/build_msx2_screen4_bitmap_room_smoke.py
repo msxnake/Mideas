@@ -192,6 +192,10 @@ def build_player_asset() -> dict[str, object]:
                 "mode": "platform",
                 "jumpPower": 6,
             },
+            "inputMapping": {
+                "jump": "spc",
+                "attack": "n",
+            },
             "activeSkills": ["air_dash", "glide", "wall_jump", "power_stomp"],
             "skillParameters": {
                 "air_dash": {
@@ -675,6 +679,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "bitmap_air_dash_timer     EQU #C0DA",
         "FUNCTION: bitmap_try_start_air_dash",
         "FUNCTION: bitmap_step_air_dash_movement",
+        "PURPOSE: Reads the configured air_dash input (N) via PPI.",
+        "or 4\n    out (PPI_C), a\n    in a, (PPI_B)\n    cpl\n    and #08",
         "bitmap_glide_stamina EQU #C0DE",
         "FUNCTION: bitmap_apply_glide_clamp",
         "bitmap_wall_slide_side       EQU #C0E0",
