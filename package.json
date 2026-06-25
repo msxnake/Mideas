@@ -19,6 +19,7 @@
     "test:msx2-runtime-separation": "node scripts/check_msx2_runtime_separation.mjs",
     "test:msx2-palette-compatibility": "node scripts/check_msx2_palette_compatibility.mjs",
     "test:msx2-project-profiles": "node scripts/check_msx2_project_profiles.mjs",
+    "test:screen5-png-import-atlas": "node scripts/check_screen5_png_import_atlas_playwright.cjs",
     "create:msx2-galaxian": "node scripts/create_msx2_galaxian_clone.mjs",
     "create:msx2-screen5-presentation": "python scripts/create_msx2_screen5_presentation_from_png.py",
     "smoke:msx2-screen5-presentation-png": "python scripts/create_msx2_screen5_presentation_from_png.py --source-png generated_assets/presentacion_naves_galaxian_rtype.png --out-dir test/msx2-screen5-presentation/from_png/smoke_gameflow --project-name presentacion_naves_galaxian_rtype_screen5_png_test --output-prefix presentacion_naves_galaxian_rtype_screen5 --asset-name \"Presentation Naves Galaxian R-Type PNG Test\" --timestamp-ms 1779625323134 --with-msx2-gameflow --build-rom",

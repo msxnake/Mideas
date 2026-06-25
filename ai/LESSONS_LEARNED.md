@@ -1297,3 +1297,30 @@ activa debe llamar al camino de atlas activo de forma directa. Los assets y la
 biblioteca son persistencia auxiliar, no sustituyen a `room.atlas.entries`.
 
 ---
+
+## Bug Resuelto: importador PNG abria en SCREEN 4 aunque la room activa era SCREEN 5
+
+Fecha: 2026-06-25
+
+Problema:
+El flujo real del usuario (`Importar tile` -> `Importar PNG` -> seleccionar un
+tile -> `Aplicar` -> `Auto` -> `Añadir a la biblioteca`) no hacia aparecer el
+tile en el atlas SCREEN 5.
+
+Causa:
+El modal externo de PNG inicializaba siempre `outputMode='screen4'`. Aunque la
+biblioteca estuviera abierta desde una room SCREEN 5, el import terminaba en la
+ruta de biblioteca color-clash SCREEN 4, no en `onImportTiles` de atlas SCREEN 5.
+
+Solucion:
+El modal acepta `defaultOutputMode`; la biblioteca le pasa `screen5` cuando
+`activeTargetMode === 'screen5'` y resetea ese modo cada vez que se abre. Se
+añadio test Playwright recurrente con `plantas_tiles.png` que valida que el
+contador de atlas sube a 1.
+
+Leccion:
+No basta con arreglar el callback final: en flujos con modal intermedio, validar
+tambien el estado inicial del modal. Si una room SCREEN 5 abre un importador PNG,
+el modo seleccionado por defecto debe ser SCREEN 5.
+
+---

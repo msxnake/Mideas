@@ -22,6 +22,12 @@ interface Msx2ExternalTileImportModalProps {
     outputMode: 'screen4' | 'screen5',
     layout?: { columns: number; rows: number; baseName: string },
   ) => void;
+  /**
+   * Preselects the "Tipo de tile" output. SCREEN 5 hosts (bitmap rooms) pass
+   * 'screen5' so an imported PNG lands directly in the active atlas instead of
+   * defaulting to the SCREEN 4 color-clash library. Defaults to 'screen4'.
+   */
+  defaultOutputMode?: 'screen4' | 'screen5';
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -81,6 +87,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   isOpen,
   onClose,
   onAddTiles,
+  defaultOutputMode = 'screen4',
 }) => {
   const palette = useMemo(() => createDefaultScreen5PaletteSlots(), []);
   const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
@@ -90,7 +97,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const [baseName, setBaseName] = useState('tile');
   const [targetWidth, setTargetWidth] = useState(16);
   const [targetHeight, setTargetHeight] = useState(16);
-  const [outputMode, setOutputMode] = useState<'screen4' | 'screen5'>('screen4');
+  const [outputMode, setOutputMode] = useState<'screen4' | 'screen5'>(defaultOutputMode);
   // When on, Ancho and Alto stay equal (square): editing one mirrors the other.
   const [lockDimensions, setLockDimensions] = useState(false);
   const [finalColorCount, setFinalColorCount] = useState(3);
@@ -124,11 +131,12 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     setBackgroundSlot(blackSlot);
     setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(palette));
     setQuantizeSeed(0);
+    setOutputMode(defaultOutputMode);
     setCropMode(false);
     setCropSelection(null);
     setIsSelecting(false);
     dragStartRef.current = null;
-  }, [isOpen, blackSlot, palette]);
+  }, [isOpen, blackSlot, palette, defaultOutputMode]);
 
   const options = useMemo<Msx2ExternalTileImportOptions>(() => ({
     targetWidth,

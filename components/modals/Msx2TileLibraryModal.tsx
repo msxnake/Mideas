@@ -550,6 +550,7 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
           isOpen={isImportOpen}
           onClose={() => setIsImportOpen(false)}
           onAddTiles={handleAddTilesFromPng}
+          defaultOutputMode={activeTargetMode === 'screen5' ? 'screen5' : 'screen4'}
         />
       )}
 
