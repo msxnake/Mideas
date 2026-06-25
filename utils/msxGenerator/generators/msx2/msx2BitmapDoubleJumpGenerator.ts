@@ -48,6 +48,12 @@ export interface BitmapJumpPhysics {
   coyoteTime: number;
   /** Jump buffer in frames (0 = disabled). Sourced from skillParameters.jump. */
   jumpBuffer: number;
+  /** Keyboard binding for the logical jump control in SCREEN 5 bitmap runtime. */
+  jumpKeyboard?: {
+    label: string;
+    row: number;
+    mask: number;
+  } | null;
 }
 
 export const MSX2_BITMAP_JUMPS_USED_RAM = 0xC00D;
@@ -62,6 +68,14 @@ function asmByte(value: number): string {
 function asmWord(value: number): string {
   const word = Math.max(0, Math.min(0xFFFF, Math.floor(Number(value) || 0)));
   return `#${word.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+function bitIndexFromMask(mask: number): number {
+  const byte = Math.max(0, Math.min(255, Math.floor(Number(mask) || 0)));
+  for (let bit = 0; bit < 8; bit++) {
+    if (byte === (1 << bit)) return bit;
+  }
+  return 0;
 }
 
 export function bitmapDoubleJumpEnabled(physics: BitmapJumpPhysics | undefined): boolean {
@@ -216,6 +230,22 @@ ${bufferArm}` : ''}`;
 export function buildBitmapJumpBlockAsm(physics: BitmapJumpPhysics): string {
   const jumpByte = asmByte(physics.jumpImpulseByte);
   const jumpPx = Math.max(1, Math.floor(physics.jumpPx) || 5);
+  const jumpKeyboard = physics.jumpKeyboard === undefined ? { label: 'SPC', row: 8, mask: 0x01 } : physics.jumpKeyboard;
+  const jumpInputAsm = !jumpKeyboard
+    ? `    jp .jump_released      ; jump control disabled`
+    : jumpKeyboard.row === 8
+    ? `    bit ${bitIndexFromMask(jumpKeyboard.mask)}, c     ; jump key ${jumpKeyboard.label}
+    jp nz, .jump_pressed
+    jp .jump_released`
+    : `    in a, (PPI_C)           ; jump key ${jumpKeyboard.label}
+    and #F0
+    or ${jumpKeyboard.row}
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and ${asmByte(jumpKeyboard.mask)}
+    jp nz, .jump_pressed
+    jp .jump_released`;
   const djEnabled = bitmapDoubleJumpEnabled(physics);
   const coyote = bitmapCoyoteEnabled(physics);
   const buffer = bitmapJumpBufferEnabled(physics);
@@ -224,10 +254,7 @@ export function buildBitmapJumpBlockAsm(physics: BitmapJumpPhysics): string {
   // Bit-identical legacy single-jump block (no double_jump, no coyote, no buffer).
   if (!djEnabled && !needsAirGate) {
     return `.check_jump:
-    bit 0, c
-    jp nz, .jump_pressed
-    bit 5, c
-    jp z, .jump_released
+${jumpInputAsm}
 .jump_pressed:
     ld a, (player_jump_lock)
     or a
@@ -257,10 +284,7 @@ export function buildBitmapJumpBlockAsm(physics: BitmapJumpPhysics): string {
   if (!djEnabled) {
     // Single jump WITH coyote/buffer.
     return `.check_jump:
-${timerDec}    bit 0, c
-    jp nz, .jump_pressed
-    bit 5, c
-    jp z, .jump_released
+${timerDec}${jumpInputAsm}
 .jump_pressed:
     ld a, (player_jump_lock)
     or a
@@ -311,10 +335,7 @@ ${airGate}    jp .apply_gravity
     xor a
     ld (player_jumps_used), a
 .cj_airborne:
-${timerDec}    bit 0, c
-    jp nz, .jump_pressed
-    bit 5, c
-    jp z, .jump_released
+${timerDec}${jumpInputAsm}
 .jump_pressed:
     ld a, (player_jump_lock)
     or a

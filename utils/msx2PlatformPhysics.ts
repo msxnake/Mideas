@@ -506,7 +506,7 @@ const MSX2_BITMAP_BUTTON_KEYS: Record<Msx2PlayerButtonBinding, Msx2BitmapKeyboar
   joyB: undefined,
 };
 
-function resolveMsx2BitmapKeyboardBinding(
+export function resolveMsx2BitmapKeyboardBinding(
   player: any | undefined,
   control: Msx2PlayerControlId | 'none',
 ): Msx2BitmapKeyboardBinding | undefined {

@@ -670,6 +670,7 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "FUNCTION: bitmap_update_player_sprite_animation",
         "ld a, (player_moving)",
         "px/frame initial jump velocity (Player Config jumpPower)",
+        "bit 0, c     ; jump key SPC",
         "bitmap_room_collision_map EQU",
         "bitmap_displayed_page             EQU #C0D0",
         "bitmap_composition_state          EQU #C0D1",

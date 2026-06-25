@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -2608,6 +2608,12 @@ interface BitmapPlayerPhysics {
   coyoteTime: number;
   /** Jump buffer in frames (0 = disabled). From skillParameters.jump. */
   jumpBuffer: number;
+  /** Keyboard binding for the logical jump control in the bitmap runtime. */
+  jumpKeyboard?: {
+    label: string;
+    row: number;
+    mask: number;
+  } | null;
   /**
    * Gravity strength as the low byte of the 8.8 value from the Player Config
    * (gravityStrength88, default #40 = 0.25 px/frame^2). The bitmap runtime accumulates
@@ -2640,6 +2646,7 @@ function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | unde
     airJumpPx,
     coyoteTime: Math.max(0, Math.min(16, Math.floor(physics.coyoteTime) || 0)),
     jumpBuffer: Math.max(0, Math.min(16, Math.floor(physics.jumpBuffer) || 0)),
+    jumpKeyboard: player?.inputEnabled?.jump === false ? null : (resolveMsx2BitmapKeyboardBinding(player, 'jump') ?? null),
     gravityFrac: Math.max(16, Math.min(128, Math.floor(physics.gravityStrength88) || 0x40)) & 0xff,
   };
 }
