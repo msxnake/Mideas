@@ -1214,3 +1214,32 @@ la deduplicacion puede corromper visualmente solo el ROM mientras la UI parece
 correcta.
 
 ---
+
+## Bug Resuelto: guardar atlas SCREEN 5 cambiaba el significado de tileGrid
+
+Fecha: 2026-06-25
+
+Problema:
+Al usar `Guardar en atlas` desde el editor de tile bitmap, otras pantallas del
+mismo mundo podian mostrar tiles distintos aunque la UI pareciera conservar el
+grid.
+
+Causa:
+El atlas de SCREEN 5 es compartido por mundo, pero `tileGrid` guarda indices
+numericos 1-based hacia `atlas.entries`. Al propagar un atlas actualizado a las
+pantallas hermanas, se copiaban las nuevas entradas sin traducir los indices
+viejos por `entry.id`; una celda que antes apuntaba a la roca en indice 2 podia
+quedarse en 2 aunque la roca hubiese pasado al indice 1.
+
+Solucion:
+Al propagar un atlas compartido, remapear cada `tileGrid` desde el atlas antiguo
+al nuevo usando `entry.id`, y reconstruir los comandos `copy` derivados. Si una
+entrada desaparece, limpiar la celda en vez de apuntar a un tile incorrecto.
+
+Leccion:
+En SCREEN 5, `tileGrid` es compacto pero no estable frente a reordenaciones del
+atlas. Cualquier cambio de `atlas.entries` que se propague entre rooms debe
+llevar remap por ID; copiar solo el atlas conserva los numeros pero corrompe el
+significado visual.
+
+---

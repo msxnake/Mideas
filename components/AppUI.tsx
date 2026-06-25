@@ -375,6 +375,41 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       pixels: (atlas.pixels || []).map(row => [...row]),
       entries: (atlas.entries || []).map(entry => ({ ...entry })),
     });
+
+    const remapTileGridToAtlas = (
+      grid: Msx2Screen4BitmapRoom['tileGrid'],
+      oldAtlas: Msx2Screen4BitmapRoom['atlas'] | undefined,
+      nextAtlas: Msx2Screen4BitmapRoom['atlas'],
+    ): Msx2Screen4BitmapRoom['tileGrid'] => {
+      if (!Array.isArray(grid)) return grid;
+      const nextIndexById = new Map((nextAtlas.entries || []).map((entry, index) => [entry.id, index + 1]));
+      const oldEntries = oldAtlas?.entries || [];
+      return grid.map(row => (row || []).map(value => {
+        const oldValue = Math.max(0, Math.trunc(Number(value) || 0));
+        if (oldValue <= 0) return 0;
+        const oldEntry = oldEntries[oldValue - 1];
+        if (!oldEntry) return 0;
+        return nextIndexById.get(oldEntry.id) || 0;
+      }));
+    };
+
+    const rebuildCopyCommandsForGrid = (
+      grid: Msx2Screen4BitmapRoom['tileGrid'],
+      atlas: Msx2Screen4BitmapRoom['atlas'],
+      sourceCommands: Msx2Screen4BitmapRoom['composition']['commands'] = [],
+    ): Msx2Screen4BitmapRoom['composition'] => {
+      const nonCopy = (sourceCommands || []).filter(command => command.op !== 'copy');
+      const entries = atlas.entries || [];
+      const tileCommands = (grid || []).flatMap((row, y) => (row || []).flatMap((value, x) => {
+        const index = Math.max(0, Math.trunc(Number(value) || 0)) - 1;
+        const entry = index >= 0 ? entries[index] : undefined;
+        return entry
+          ? [{ id: `tile_${x}_${y}`, op: 'copy' as const, atlasEntryId: entry.id, dx: x * 16, dy: y * 16, w: entry.w || 16, h: entry.h || 16 }]
+          : [];
+      }));
+      return { source: 'authored', commands: [...nonCopy, ...tileCommands] };
+    };
+
     const sharedAtlas = cloneAtlas(atlasPatch);
     const activeRoomId = activeAsset.id;
     setAssetsWithHistory(prev => {
@@ -383,12 +418,21 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         if (asset.type !== 'msx2bitmaproom' || !activeBitmapWorldRoomIds.has(asset.id)) return asset;
         const roomData = asset.data as Msx2Screen4BitmapRoom;
         const patch = asset.id === activeRoomId ? data : { atlas: sharedAtlas };
+        const nextAtlas = cloneAtlas(sharedAtlas);
+        const patchHasTileGrid = Object.prototype.hasOwnProperty.call(patch, 'tileGrid');
+        const nextTileGrid = patchHasTileGrid
+          ? patch.tileGrid
+          : remapTileGridToAtlas(roomData.tileGrid, roomData.atlas, nextAtlas);
+        const patchHasComposition = Object.prototype.hasOwnProperty.call(patch, 'composition');
+        const shouldRebuildComposition = !patchHasComposition && Array.isArray(nextTileGrid);
         return {
           ...asset,
           data: {
             ...roomData,
             ...patch,
-            atlas: cloneAtlas(sharedAtlas),
+            atlas: nextAtlas,
+            ...(Array.isArray(nextTileGrid) ? { tileGrid: nextTileGrid } : {}),
+            ...(shouldRebuildComposition ? { composition: rebuildCopyCommandsForGrid(nextTileGrid, nextAtlas, roomData.composition?.commands || []) } : {}),
           },
         };
       });
