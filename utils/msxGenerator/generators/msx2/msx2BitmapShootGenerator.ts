@@ -53,6 +53,8 @@ export interface BitmapShootRuntimeOptions {
   patternBase: number;
   gameYOffset: number;
   screenWidth: number;
+  /** Foreground sprite slots reserved in front of the player (0 = none, legacy). */
+  foregroundSlotCount?: number;
 }
 
 export interface BitmapShootSpriteData {
@@ -171,7 +173,7 @@ export function buildBitmapShootRuntimeAsm(
   const shootCooldown = asmByte(Math.max(0, Math.min(120, Math.floor(config.shootCooldown) || 10)));
   const requireKeyRelease = config.requireKeyRelease !== false;
   const patternNumber = asmByte(opts.bulletPatternNumber);
-  const satStart = opts.satBase + opts.playerLayerCount * 4;
+  const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
 
   const lockGate = requireKeyRelease

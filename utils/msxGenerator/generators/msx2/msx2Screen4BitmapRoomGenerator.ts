@@ -301,6 +301,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
     behavior: room?.behavior || [],
     entities: room?.entities || [],
     playerEntries: room?.playerEntries || [],
+    foregroundTiles: Array.isArray(room?.foregroundTiles) ? room!.foregroundTiles : undefined,
     runtime: room?.runtime,
     notes: room?.notes,
   };
@@ -1008,7 +1009,13 @@ function buildRuntimeAsm(
   options: { bankedRle: boolean },
   playerPhysics: BitmapPlayerPhysics,
   skillHooks: { inputGateAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
+  foreground: { count: number; patternGroupBase: number; satBase: number; colorBase: number; loadCallAsm: string } | null = null,
 ): string {
+  // When foreground tiles exist, the player SAT/colour tables move past the
+  // foreground slots so the player renders behind them. With no foreground these
+  // default to the legacy #F600/#F400 bases (bit-identical output).
+  const playerSatBaseWord = foreground ? hexWord(foreground.satBase) : '#F600';
+  const playerColorBaseWord = foreground ? hexWord(foreground.colorBase) : '#F400';
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
   const backdropColor = clampByte(room.backgroundColor, 0) & 0x0f;
@@ -1214,7 +1221,7 @@ bitmap_upload_player_frame_colors:
     dec a
     jp nz, .add_frame_color_offset
 .upload_frame_colors:
-    ld de, #F400
+    ld de, ${playerColorBaseWord}
     ld b, ${colorFrameStride}
     jp fast_copy_to_vram_ext
 ` : '';
@@ -2236,7 +2243,7 @@ commit_room_flip:
     ld (bitmap_composition_state), a
     ld (bitmap_composition_blocks_left), a
     ld (bitmap_composition_blocks_left + 1), a
-    scf
+${foreground ? foreground.loadCallAsm : ''}    scf
     ret
 
 init_hardware_sprite_tables:
@@ -2244,13 +2251,13 @@ init_hardware_sprite_tables:
     ; Colours: upload ONLY frame 0's table here; the rest is per-frame and the
     ; main loop re-uploads on frame change (bitmap_upload_player_frame_colors).
     ld hl, bitmap_room_sprite_colors
-    ld de, #F400
+    ld de, ${playerColorBaseWord}
     ld bc, ${colorFrameStride}
     call copy_to_vram_ext
 ${shouldEmitPlayerColorUpdate ? `    xor a                   ; frame 0 colours are now in VRAM
     ld (player_colors_loaded), a
 ` : ''}    ld hl, bitmap_room_sprite_attrs
-    ld de, #F600
+    ld de, ${playerSatBaseWord}
     ld bc, bitmap_room_sprite_attrs_end - bitmap_room_sprite_attrs
     call copy_to_vram_ext
     ld hl, bitmap_room_sprite_patterns
@@ -2528,7 +2535,7 @@ bitmap_probe_solid:
 ;
 ; SIDE EFFECTS:
 ;   Writes ${playerAnimation.layerCount} player SAT entr${playerAnimation.layerCount === 1 ? 'y' : 'ies'} plus a terminator to
-;   VRAM #F600 through VDP ports #99/#98.
+;   VRAM ${playerSatBaseWord} through VDP ports #99/#98.
 ;
 ; NOTES:
 ;   Background pixels are shifted down by ${BITMAP_ROOM_GAME_Y_OFFSET}px to
@@ -2536,7 +2543,7 @@ bitmap_probe_solid:
 ;   Multi-color sprites are exported as overlapped V9938 mode-2 sprite layers.
 ; ------------------------------------------------------------
 bitmap_update_sprite_sat:
-    ld de, #F600
+    ld de, ${playerSatBaseWord}
     push de
     ld a, d
     and #C0
@@ -2868,6 +2875,273 @@ function resolvePlayerSpawnPixels(room: Msx2Screen4BitmapRoom): { x: number; y: 
   return { x, y, visible: true };
 }
 
+// Maximum foreground hardware-sprite tiles per room (SAT/pattern budget; the
+// player keeps slot `foregroundCount` onwards).
+const BITMAP_ROOM_FOREGROUND_MAX = 3;
+// Off-screen, non-terminating sprite Y written to empty foreground SAT slots so
+// the V9938 keeps processing sprites up to the player (Y=#D8 would terminate).
+const FOREGROUND_EMPTY_SPRITE_Y = 0xD4;
+
+/**
+ * Pack a 16x16 atlas tile into a 32-byte V9938 sprite-mode-2 pattern that is a
+ * 1-bit OPACITY MASK: pixels equal to colour 0 (canvas transparent in the tile
+ * editor) are transparent in the hardware sprite; every other pixel is opaque
+ * (1). Layout matches the player sprite packing
+ * (buildHardwareSpritePatternForLayer): four quadrants [TL, BL, TR, BR], 8 bytes
+ * each, MSB = leftmost pixel.
+ */
+function buildForegroundMaskPattern(pixels: number[][], _backgroundColor: number): number[] {
+  const result = new Array(32).fill(0);
+  const height = Math.min(16, pixels.length);
+  for (let gy = 0; gy < height; gy++) {
+    const row = pixels[gy] || [];
+    const width = Math.min(16, row.length);
+    for (let gx = 0; gx < width; gx++) {
+      if ((clampByte(row[gx], 0) & 0x0f) === 0) continue;
+      const quadrantBase = (gx < 8 ? 0 : 16) + (gy < 8 ? 0 : 8);
+      result[quadrantBase + (gy & 7)] |= 0x80 >> (gx & 7);
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolve a foreground tile's single sprite colour. An explicit `color` wins;
+ * otherwise the most common colour in the tile excluding 0 (canvas transparent)
+ * and the room background colour. Colour 0 is transparent in sprites, so it is
+ * never returned (min 1).
+ */
+function resolveForegroundTileColor(pixels: number[][], backgroundColor: number, explicit?: number): number {
+  if (typeof explicit === 'number' && Number.isFinite(explicit)) {
+    const c = clampByte(explicit, 1) & 0x0f;
+    return c === 0 ? 1 : c;
+  }
+  const bg = backgroundColor & 0x0f;
+  const counts = new Array(16).fill(0);
+  for (const row of pixels) {
+    if (!row) continue;
+    for (const raw of row) {
+      const c = clampByte(raw, 0) & 0x0f;
+      if (c === 0 || c === bg) continue;
+      counts[c]++;
+    }
+  }
+  let best = 1;
+  let bestCount = 0;
+  for (let c = 1; c < 16; c++) {
+    if (counts[c] > bestCount) {
+      bestCount = counts[c];
+      best = c;
+    }
+  }
+  return best;
+}
+
+interface BitmapRoomForegroundData {
+  patternBytes: number[];
+  colorBytes: number[];
+  /** Per-room table: foregroundCount * 3 bytes (satY, satX, pattern-offset/#FF). */
+  roomTables: number[][];
+}
+
+/**
+ * Build the global ROM tables for foreground tiles across every room: a packed
+ * mask-pattern table (32 bytes per filled tile), a colour table (16 bytes per
+ * filled tile) and one 3-byte-per-slot dispatch table per room. Filled tiles get
+ * a sequential global pattern offset; empty slots (rooms with fewer than
+ * `foregroundCount` tiles) carry pattern-offset #FF so the runtime paints an
+ * off-screen invisible sprite.
+ */
+function buildBitmapRoomForegroundTables(rooms: Msx2Screen4BitmapRoom[], foregroundCount: number): BitmapRoomForegroundData {
+  const patternBytes: number[] = [];
+  const colorBytes: number[] = [];
+  const roomTables: number[][] = [];
+  let globalOffset = 0;
+  for (const room of rooms) {
+    const tiles = (room.foregroundTiles || []).slice(0, foregroundCount);
+    const bg = clampByte(room.backgroundColor, 0) & 0x0f;
+    const table: number[] = [];
+    for (let slot = 0; slot < foregroundCount; slot++) {
+      const tile = tiles[slot];
+      if (!tile) {
+        table.push(0, 0, 0xFF);
+        continue;
+      }
+      const entry = (room.atlas?.entries || []).find(e => e.id === tile.atlasEntryId);
+      // Fallback when the referenced atlas entry is missing: a fully-opaque tile
+      // (use a non-background colour so the mask is non-empty).
+      const pixels = entry
+        ? extractAtlasEntryPixels(room, entry)
+        : Array.from({ length: 16 }, () => Array.from({ length: 16 }, () => (bg === 0 ? 1 : 0)));
+      const mask = buildForegroundMaskPattern(pixels, bg);
+      const color = resolveForegroundTileColor(pixels, bg, tile.color);
+      for (const b of mask) patternBytes.push(b & 0xff);
+      for (let i = 0; i < 16; i++) colorBytes.push(color & 0xff);
+      const cellX = clampInt(tile.cellX, 0, 15, 0);
+      const cellY = clampInt(tile.cellY, 0, 11, 0);
+      const satY = (cellY * 16 + BITMAP_ROOM_GAME_Y_OFFSET) & 0xff;
+      const satX = (cellX * 16) & 0xff;
+      table.push(satY, satX, globalOffset & 0xff);
+      globalOffset++;
+    }
+    roomTables.push(table);
+  }
+  return { patternBytes, colorBytes, roomTables };
+}
+
+/**
+ * Emit the `bitmap_load_foreground_sprites` runtime routine. Called on init and
+ * on every room flip to (re)write the foreground SAT slots, upload their mask
+ * patterns/colours, and clear empty slots to an off-screen invisible sprite.
+ */
+function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBase: number }): string {
+  const slotBlocks: string[] = [];
+  for (let i = 0; i < fg.count; i++) {
+    const patGroup = fg.patternGroupBase + i;
+    const patByte = (patGroup * 4) & 0xff;
+    const patternVram = 0xF800 + patGroup * 32;
+    const colorVram = 0xF400 + i * 16;
+    const satVram = 0xF600 + i * 4;
+    slotBlocks.push(`
+.slot_${i}:
+    ld a, (ix+2)              ; pattern offset (#FF = empty slot for this room)
+    cp #FF
+    jp z, .slot_${i}_empty
+    ; --- upload 32-byte mask pattern -> VRAM ${hexWord(patternVram)} (group ${patGroup}) ---
+    ld a, (ix+2)
+    call fg_patterns_offset
+    ld de, ${hexWord(patternVram)}
+    ld bc, 32
+    call copy_to_vram_ext
+    ; --- upload 16-byte colour table -> VRAM ${hexWord(colorVram)} (slot ${i}) ---
+    ld a, (ix+2)
+    call fg_colors_offset
+    ld de, ${hexWord(colorVram)}
+    ld bc, 16
+    call copy_to_vram_ext
+    ; --- write SAT slot ${i} (filled): Y/X from table ---
+    ld a, (ix+0)
+    ld b, a                   ; B = satY
+    ld a, (ix+1)
+    ld c, a                   ; C = satX
+    jp .slot_${i}_sat
+.slot_${i}_empty:
+    ld b, #${FOREGROUND_EMPTY_SPRITE_Y.toString(16).toUpperCase().padStart(2, '0')}                 ; satY = off-screen (invisible, non-terminator)
+    ld c, 0                   ; satX
+.slot_${i}_sat:
+    ld de, ${hexWord(satVram)}
+    push de
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
+    ld a, e
+    out (${VDP_CTRL_PORT}), a
+    ld a, d
+    and #3F
+    or #40
+    out (${VDP_CTRL_PORT}), a
+    ld a, b
+    out (${VDP_DATA_PORT}), a ; Y
+    ld a, c
+    out (${VDP_DATA_PORT}), a ; X
+    ld a, ${hexByte(patByte)}; pattern number
+    out (${VDP_DATA_PORT}), a
+    xor a
+    out (${VDP_DATA_PORT}), a ; EC = 0
+    xor a
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    inc ix
+    inc ix
+    inc ix                    ; IX -> next slot`);
+  }
+  return `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_load_foreground_sprites
+; ------------------------------------------------------------
+; PURPOSE:
+;   Load the foreground hardware-sprite tiles of the ACTIVE room into the first
+;   ${fg.count} SAT slot(s) (VRAM #F600..${hexWord(0xF600 + fg.count * 4 - 1)}), so the
+;   player (SAT slot ${fg.count}) walks BEHIND them. Each foreground tile is a
+;   single-colour 16x16 sprite whose pattern is a 1-bit opacity mask derived from
+;   its atlas tile (pixel == background -> transparent). Rooms with fewer than
+;   ${fg.count} foreground tiles fill the leftover slots with an off-screen
+;   invisible sprite (Y=#${FOREGROUND_EMPTY_SPRITE_Y.toString(16).toUpperCase().padStart(2, '0')}) so the VDP keeps processing sprites up to the player.
+;   Patterns/colours are uploaded once here; the per-frame player/bullet SAT
+;   writers never touch slots 0..${fg.count - 1}, so these sprites stay put.
+;
+; INPUT:
+;   current_screen_index = active room index.
+;
+; OUTPUT:
+;   SAT slots 0..${fg.count - 1}, pattern groups ${fg.patternGroupBase}..${fg.patternGroupBase + fg.count - 1}
+;   and colour slots 0..${fg.count - 1} rewritten for the active room.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY (caller's IX is pushed/popped; used internally as the room cursor).
+;
+; CALLS:
+;   copy_to_vram_ext, vdp_write_register, fg_patterns_offset, fg_colors_offset.
+;
+; SIDE EFFECTS:
+;   Writes VRAM SAT (#F600..), pattern table (#F800+) and colour table (#F400+);
+;   restores R#14 = 0 on exit.
+; ------------------------------------------------------------
+bitmap_load_foreground_sprites:
+    push ix
+    ; IX -> active room foreground table (bitmap_room_foreground_ptr_table[idx]).
+    ld hl, bitmap_room_foreground_ptr_table
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    push hl
+    pop ix                    ; IX -> 3 bytes/slot dispatch table
+${slotBlocks.join('\n')}
+    pop ix
+    ret
+
+; HL = bitmap_room_foreground_patterns + A*32 (A = foreground pattern offset).
+fg_patterns_offset:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                ; *32
+    ld de, bitmap_room_foreground_patterns
+    add hl, de
+    ret
+
+; HL = bitmap_room_foreground_colors + A*16 (A = foreground pattern offset).
+fg_colors_offset:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                ; *16
+    ld de, bitmap_room_foreground_colors
+    add hl, de
+    ret
+`;
+}
+
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2BitmapRoomConfig): string {
   const isKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   if (config.romMode === 'megarom' && config.targetFormat !== 'konami') {
@@ -2992,14 +3266,39 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const bulletSprite = resolveBitmapBulletSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
   const playerPatternGroups = spriteTables.frameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
   const bulletPatternNumber = playerPatternGroups * 4;
+  // Foreground hardware-sprite tiles (player walks behind them). foregroundCount
+  // is the MAX tile count across all rooms (capped at 3); 0 disables the feature
+  // entirely and keeps the ROM bit-identical to legacy exports.
+  const foregroundCount = rooms.length
+    ? Math.min(BITMAP_ROOM_FOREGROUND_MAX, Math.max(0, ...rooms.map(r => (Array.isArray(r.foregroundTiles) ? r.foregroundTiles.length : 0))))
+    : 0;
+  const foregroundPatternGroupBase = playerPatternGroups + 1;
+  if (foregroundCount > 0 && foregroundPatternGroupBase + foregroundCount > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room foreground sprites need pattern groups ${foregroundPatternGroupBase}..${foregroundPatternGroupBase + foregroundCount - 1}, ` +
+      `but the V9938 sprite pattern table only holds 64 groups (player uses ${playerPatternGroups}, +1 bullet reserve). Reduce player animation frames/layers or foreground tiles.`,
+    );
+  }
+  const playerSatBase = 0xF600 + foregroundCount * 4;
+  const playerColorBase = 0xF400 + foregroundCount * 16;
+  const foregroundData = buildBitmapRoomForegroundTables(rooms, foregroundCount);
+  const foregroundContext = foregroundCount > 0 ? {
+    count: foregroundCount,
+    patternGroupBase: foregroundPatternGroupBase,
+    satBase: playerSatBase,
+    colorBase: playerColorBase,
+    loadCallAsm: '    call bitmap_load_foreground_sprites\n' as string,
+  } : null;
+  const foregroundLoadCallAsm = foregroundContext ? foregroundContext.loadCallAsm : '';
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
     satBase: 0xF600,
-    colorBase: 0xF400,
+    colorBase: playerColorBase,
     patternBase: 0xF800,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     screenWidth: SCREEN_WIDTH,
+    foregroundSlotCount: foregroundCount,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
@@ -3083,7 +3382,16 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  });
+  }, foregroundContext);
+  // Foreground sprite load routine + its per-room dispatch/data tables (only when
+  // some room actually defines foreground tiles).
+  const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
+  const foregroundDataAsm = foregroundContext
+    ? formatBytes('bitmap_room_foreground_patterns', foregroundData.patternBytes, `Foreground tile opacity masks (1 bit/px, ${foregroundContext.count} slot(s) max): ${foregroundData.patternBytes.length / 32} tile(s) total`)
+      + formatBytes('bitmap_room_foreground_colors', foregroundData.colorBytes, `Foreground tile colour tables (16 bytes/slot, single colour repeated)`)
+      + roomTables.map(table => formatBytes(`bitmap_room_foreground_table_${table.index}`, foregroundData.roomTables[table.index], `Room ${table.index} foreground dispatch: ${foregroundContext.count} slot(s) x 3 bytes (satY, satX, pattern-offset/#FF)`)).join('')
+      + `bitmap_room_foreground_ptr_table:\n${roomTables.map(t => `    DW bitmap_room_foreground_table_${t.index}`).join('\n')}\n`
+    : '';
   // Per-room render-program + collision data and the dispatch tables for load_room.
   const roomDataAsm = roomTables.map(table =>
     `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
@@ -3206,7 +3514,7 @@ init_rom:
 ${shootBulletInitUpload}    ; Render the start room from the shared tileset already in VRAM.
     ld a, ${startIndex}
     call load_room
-    ; Place the player at the room spawn point.
+${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
@@ -3263,7 +3571,7 @@ ${grabRuntime}
 ${highJumpRuntime}
 ${wallBreakRuntime}
 ${spinAttackRuntime}
-
+${foregroundLoadRoutineAsm}
 ${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
@@ -3280,7 +3588,7 @@ ${roomCollisionPtrTableAsm}
 ${roomTransitionTableAsm}
 ; Per-room render programs and collision maps.
 ${roomDataAsm}
-
+${foregroundDataAsm}
 ${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}`)}
 bitmap_room_sprite_colors_end:
 

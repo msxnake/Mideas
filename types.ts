@@ -350,6 +350,19 @@ export interface BitmapTileStampScreen5 {
   updatedAt: string;
 }
 
+/**
+ * A SCREEN 5 bitmap stamp stored as a PROJECT asset (persists in the project JSON,
+ * so a new project starts without stamps). Same shape as a global stamp-library
+ * entry (`Msx2BitmapStampLibraryEntry`) so the editor can reuse stamp placement logic.
+ */
+export interface Msx2BitmapStampAsset {
+  id: string;
+  name: string;
+  savedAt: number;
+  stamp: BitmapTileStampScreen5;
+  palette: Screen5PaletteSlot[];
+}
+
 export type Msx2BitmapRoomCommand =
   | { id: string; op: 'copy'; atlasEntryId: string; dx: number; dy: number; w?: number; h?: number }
   | { id: string; op: 'fill'; x: number; y: number; w: number; h: number; color: number }
@@ -409,9 +422,31 @@ export interface Msx2Screen4BitmapRoom {
   entities: Msx2Screen4EntityInstance[];
   /** Dedicated player spawn/entry points. The player is not authored as a generic entity. */
   playerEntries?: Msx2PlayerEntry[];
+  /**
+   * Tiles drawn as SCREEN 5 hardware sprites with HIGHER SAT priority than the player,
+   * so the player walks BEHIND them (pillars / capitals / foreground decoration). Each
+   * entry is a 16x16 cell holding an atlas tile reference; the runtime converts the tile
+   * pixels into a 1-bit opacity mask (pixel == backgroundColor -> transparent, else
+   * opaque) and draws it as a single-color sprite on top of the player. Kept to a few
+   * tiles per room (SAT budget). When empty/absent, the player stays at SAT slot 0
+   * (bit-identical to legacy ROMs).
+   */
+  foregroundTiles?: Msx2BitmapRoomForegroundTile[];
   /** Optional MSX2 runtime metadata (HUD widgets, movement engine). */
   runtime?: Msx2Screen4Runtime;
   notes?: string;
+}
+
+/** A 16x16 foreground overlay tile drawn as a high-priority hardware sprite. */
+export interface Msx2BitmapRoomForegroundTile {
+  /** Grid column 0..15. */
+  cellX: number;
+  /** Grid row 0..(height/16)-1 (0..11 at 192px). */
+  cellY: number;
+  /** Atlas entry whose pixels define the opacity mask (non-background pixels = opaque). */
+  atlasEntryId: string;
+  /** Sprite colour 0..15. Defaults to the tile's most common non-background colour. */
+  color?: number;
 }
 
 /** Foreground/background palette slots for one 8-pixel SCREEN 4 segment. */
@@ -3046,9 +3081,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

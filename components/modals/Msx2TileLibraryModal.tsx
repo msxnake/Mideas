@@ -35,6 +35,7 @@ import {
 } from '../../utils/msx2Screen5BitmapTileLibrary';
 import {
   addStampToMsx2BitmapStampLibrary,
+  buildMsx2BitmapStampEntry,
   loadMsx2BitmapStampLibrary,
   makeBitmapTileFromScreen5Tile,
 } from '../../utils/msx2BitmapStampLibrary';
@@ -337,6 +338,7 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
     layout?: { columns: number; rows: number; baseName: string },
   ) => {
     let createdProjectAssets = 0;
+    let createdProjectStamps = 0;
     let importedAtlasTiles = 0;
 
     // When a SCREEN 5 room hosts this modal, ANY imported PNG must land in the
@@ -356,7 +358,17 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
 
     if (outputMode === 'screen5') {
       if (tiles.length > 1 && layout) {
-        addStampToMsx2BitmapStampLibrary(tiles, palette, layout.columns, layout.rows, layout.baseName);
+        // A multi-tile sheet becomes a per-project STAMP asset (NOT auto-global), so a
+        // new project never inherits old stamps. The user promotes it to the global
+        // library later from the editor's Stamps panel. Without a host callback (no
+        // project context) we fall back to the legacy global behavior.
+        if (onImportBitmapTileAssets) {
+          const stampEntry = buildMsx2BitmapStampEntry(tiles, palette, layout.columns, layout.rows, layout.baseName);
+          onImportBitmapTileAssets([{ id: stampEntry.id, name: stampEntry.name, type: 'msx2bitmapstamp', data: stampEntry }]);
+          createdProjectStamps = 1;
+        } else {
+          addStampToMsx2BitmapStampLibrary(tiles, palette, layout.columns, layout.rows, layout.baseName);
+        }
       } else {
         tiles.forEach(tile => addEntryToMsx2BitmapTileLibrary(makeBitmapTileFromScreen5Tile(tile, `library_palette_${Date.now()}`), palette, tile.name));
       }
@@ -400,7 +412,9 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       setEntries(loadMsx2TileLibrary());
       setActiveFolder('screen4');
     }
-    setStatusBarMessage?.(importedAtlasTiles > 0
+    setStatusBarMessage?.(createdProjectStamps > 0
+      ? `Bloque importado como stamp del proyecto${importedAtlasTiles > 0 ? ` y ${importedAtlasTiles} tile(s) al atlas` : ''}.`
+      : importedAtlasTiles > 0
       ? `Importados ${importedAtlasTiles} tile(s) al atlas SCREEN 5 y anadidos ${tiles.length} a la biblioteca.`
       : createdProjectAssets > 0
       ? `Importados ${createdProjectAssets} tile(s) al proyecto y añadidos ${tiles.length} a la biblioteca.`

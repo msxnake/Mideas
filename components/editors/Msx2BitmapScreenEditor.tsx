@@ -4,6 +4,7 @@ import {
   BitmapTileScreen5,
   Msx2BitmapRoomAtlasEntry,
   Msx2BitmapRoomCommand,
+  Msx2BitmapRoomForegroundTile,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
   Msx2Screen4BitmapRoom,
@@ -29,7 +30,7 @@ import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
 import { addEntryToMsx2TileLibrary } from '../../utils/msx2TileLibrary';
 import {
   Msx2BitmapStampLibraryEntry,
-  loadMsx2BitmapStampLibrary,
+  mergeMsx2BitmapStampLibraryEntries,
 } from '../../utils/msx2BitmapStampLibrary';
 import {
   areScreen5PalettesEquivalent,
@@ -67,7 +68,7 @@ import {
  */
 
 type BrushTool = 'brush' | 'eraser' | 'fill';
-type LayerKey = 'visual' | 'collision' | 'objects';
+type LayerKey = 'visual' | 'collision' | 'objects' | 'foreground';
 type CategoryKey = 'suelo' | 'pared' | 'decoracion' | 'interactivos';
 
 const SCREEN_W = 256;
@@ -86,6 +87,7 @@ const LAYERS: { key: LayerKey; label: string }[] = [
   { key: 'visual', label: 'Visual' },
   { key: 'collision', label: 'Collision' },
   { key: 'objects', label: 'Entities' },
+  { key: 'foreground', label: 'Foreground' },
 ];
 
 // NOTE: align with generator. Cell-property bitmask scheme mirrors the tile/screen
@@ -763,7 +765,6 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [tool, setTool] = useState<BrushTool>('brush');
   const [activeColor, setActiveColor] = useState(4);
   const [selectedAtlasEntryId, setSelectedAtlasEntryId] = useState(room.atlas?.entries?.[0]?.id || '');
-  const [stampEntries, setStampEntries] = useState<Msx2BitmapStampLibraryEntry[]>([]);
   const [selectedStampId, setSelectedStampId] = useState('');
   const [preparedStamp, setPreparedStamp] = useState<{ stampId: string; atlasEntryIds: string[] } | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryKey>('suelo');
@@ -774,8 +775,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [isPalettePickerOpen, setIsPalettePickerOpen] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>(null);
   const [configTarget, setConfigTarget] = useState<'tile' | 'cell'>('tile');
-  const [layerVisible, setLayerVisible] = useState<Record<LayerKey, boolean>>({ visual: true, collision: false, objects: false });
-  const [layerLocked, setLayerLocked] = useState<Record<LayerKey, boolean>>({ visual: false, collision: false, objects: false });
+  const [layerVisible, setLayerVisible] = useState<Record<LayerKey, boolean>>({ visual: true, collision: false, objects: false, foreground: false });
+  const [layerLocked, setLayerLocked] = useState<Record<LayerKey, boolean>>({ visual: false, collision: false, objects: false, foreground: false });
   const [activeLayer, setActiveLayer] = useState<LayerKey>('visual');
   const [cellProps, setCellProps] = useState<Record<string, boolean>>({});
 
@@ -797,6 +798,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openBitmapTiles, setOpenBitmapTiles] = useState(true);
   const [openCategories, setOpenCategories] = useState(true);
   const [openLayers, setOpenLayers] = useState(true);
+  const [openForeground, setOpenForeground] = useState(true);
   const [openPlacement, setOpenPlacement] = useState(true);
   const [openMinimap, setOpenMinimap] = useState(true);
   const [openConfig, setOpenConfig] = useState(true);
@@ -820,7 +822,6 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const atlasPixels = useMemo(() => normalizePixels(room.atlas?.pixels, atlasWidth, atlasHeight), [room.atlas?.pixels, atlasWidth, atlasHeight]);
   const atlasEntries = room.atlas?.entries || [];
   const selectedAtlasEntry = atlasEntries.find(entry => entry.id === selectedAtlasEntryId) || atlasEntries[0];
-  const selectedStampEntry = stampEntries.find(entry => entry.id === selectedStampId) || null;
   const pendingDeleteAtlasEntry = pendingDeleteAtlasEntryId
     ? atlasEntries.find(entry => entry.id === pendingDeleteAtlasEntryId) || null
     : null;
@@ -831,16 +832,25 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2bitmaptile'),
     [allAssets],
   );
+  // Stamps are PROJECT assets (persist in the JSON, absent from a new project), not the
+  // global localStorage library. The "Stamps bitmap" panel lists these; "Subir a
+  // biblioteca global" promotes a chosen one to the shared cross-project library.
+  const stampEntries = useMemo<Msx2BitmapStampLibraryEntry[]>(
+    () => allAssets
+      .filter(asset => asset.type === 'msx2bitmapstamp')
+      .map(asset => asset.data as Msx2BitmapStampLibraryEntry)
+      .filter(Boolean),
+    [allAssets],
+  );
+  const selectedStampEntry = stampEntries.find(entry => entry.id === selectedStampId) || null;
   const backgroundColor = roomBackgroundColor(room);
   // Backdrop hex used for the franja frame and for color-0 (transparent) pixels.
   const backdropHex = resolveSlotHex(slots, backgroundColor);
 
+  // Keep the stamp selection valid as the project's stamp assets change.
   useEffect(() => {
-    if (isTileLibraryOpen) return;
-    const entries = loadMsx2BitmapStampLibrary();
-    setStampEntries(entries);
-    setSelectedStampId(current => current && entries.some(entry => entry.id === current) ? current : (entries[0]?.id || ''));
-  }, [isTileLibraryOpen]);
+    setSelectedStampId(current => current && stampEntries.some(entry => entry.id === current) ? current : (stampEntries[0]?.id || ''));
+  }, [stampEntries]);
 
   // --- Object placement: placed items + the placeable catalog ---
   // Placed entities/enemies (tile coords) and player spawns (pixel coords) live in the
@@ -853,6 +863,16 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => normalizeMsx2PlayerEntries(room.playerEntries),
     [room.playerEntries],
   );
+  // Foreground overlay tiles (rendered as high-priority hardware sprites on MSX2,
+  // so the player walks behind them). Edited on the Foreground layer.
+  const foregroundTiles = useMemo<Msx2BitmapRoomForegroundTile[]>(
+    () => (Array.isArray(room.foregroundTiles) ? room.foregroundTiles : []),
+    [room.foregroundTiles],
+  );
+  const FOREGROUND_MAX = 3;
+  // Optional explicit sprite colour for the next painted foreground tile. Empty
+  // means "auto" (runtime derives the predominant non-background colour).
+  const [foregroundColor, setForegroundColor] = useState<number | ''>('');
   // Entity presets filtered by profile. The PLAYER is never a generic entity (it is a dedicated
   // player spawn / playerEntry), so player-kind presets are excluded from this list — use the
   // "Player Spawn" placeable instead.
@@ -1040,13 +1060,32 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       });
     }
 
+    if (layerVisible.foreground || activeLayer === 'foreground') {
+      const cell = GRID * zoom;
+      foregroundTiles.forEach(tile => {
+        const px = tile.cellX * GRID * zoom;
+        const py = tile.cellY * GRID * zoom;
+        ctx.fillStyle = 'rgba(120,220,255,0.30)';
+        ctx.fillRect(px, py, cell, cell);
+        ctx.strokeStyle = '#78DCFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px + 1, py + 1, cell - 2, cell - 2);
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#04222E';
+        ctx.font = `${Math.max(8, Math.floor(cell * 0.5))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('F', px + cell / 2, py + cell / 2);
+      });
+    }
+
     if (selectedCell) {
       ctx.strokeStyle = '#FFD24A';
       ctx.lineWidth = 2;
       ctx.strokeRect(selectedCell.x * GRID * zoom + 1, selectedCell.y * GRID * zoom + 1, GRID * zoom - 2, GRID * zoom - 2);
       ctx.lineWidth = 1;
     }
-  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId]);
+  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles]);
 
   const commands = room.composition?.commands || [];
 
@@ -1419,6 +1458,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setStatusBarMessage?.(`SCREEN 5: stamp "${entry.name}" preparado; click en el grid para colocarlo.`);
   };
 
+  // Promote a per-project stamp to the global (cross-project) library so it can be
+  // reused in other projects from Libraries→Stamps. Project stamps stay in the project.
+  const promoteStampToGlobalLibrary = (entry: Msx2BitmapStampLibraryEntry) => {
+    mergeMsx2BitmapStampLibraryEntries([entry]);
+    setStatusBarMessage?.(`Stamp "${entry.name}" guardado en la biblioteca global.`);
+  };
+
   const placePreparedStampAtCell = (cellX: number, cellY: number): boolean => {
     const entry = selectedStampEntry;
     if (!entry || !preparedStamp || preparedStamp.stampId !== entry.id) return false;
@@ -1574,6 +1620,39 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     onUpdate(grid === 'collision' ? { collision: grown } : { behavior: grown });
   };
 
+  // --- Foreground-layer painting on the 16px grid ---
+  // Left-click stamps the selected atlas tile as a high-priority hardware sprite
+  // (one per cell, last wins); eraser / right-click clears the cell. Capped at
+  // FOREGROUND_MAX tiles per room (SAT/pattern budget on MSX2).
+  const paintForegroundAt = (px: number, py: number, erase: boolean) => {
+    const cellX = clampInt(Math.floor(px / GRID), 0, gridWidth - 1, 0);
+    const cellY = clampInt(Math.floor(py / GRID), 0, gridHeight - 1, 0);
+    if (erase || tool === 'eraser') {
+      const next = foregroundTiles.filter(t => !(t.cellX === cellX && t.cellY === cellY));
+      if (next.length !== foregroundTiles.length) {
+        onUpdate({ foregroundTiles: next });
+        setStatusBarMessage?.(`SCREEN 5: foreground borrado en celda (${cellX}, ${cellY}).`);
+      }
+      return;
+    }
+    if (!selectedAtlasEntry) {
+      setStatusBarMessage?.('SCREEN 5: selecciona un tile del atlas para pintar Foreground.');
+      return;
+    }
+    const occupied = foregroundTiles.some(t => t.cellX === cellX && t.cellY === cellY);
+    if (!occupied && foregroundTiles.length >= FOREGROUND_MAX) {
+      setStatusBarMessage?.(`SCREEN 5: máximo ${FOREGROUND_MAX} tiles foreground por sala.`);
+      return;
+    }
+    const explicit = foregroundColor === '' ? undefined : clampInt(foregroundColor, 1, 15, 1);
+    const tile: Msx2BitmapRoomForegroundTile = explicit === undefined
+      ? { cellX, cellY, atlasEntryId: selectedAtlasEntry.id }
+      : { cellX, cellY, atlasEntryId: selectedAtlasEntry.id, color: explicit };
+    const next = [...foregroundTiles.filter(t => !(t.cellX === cellX && t.cellY === cellY)), tile];
+    onUpdate({ foregroundTiles: next });
+    setStatusBarMessage?.(`SCREEN 5: foreground colocado en celda (${cellX}, ${cellY}).`);
+  };
+
   // --- Canvas click → cell selection + paint ---
   // IMPORTANT: map clicks via rendered rect ratio (not raw zoom) to avoid the legacy distortion bug.
   const handleCanvasPaint = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1610,6 +1689,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     if (activeLayer === 'visual') {
       paintVisualAt(px, py);
       setStatusBarMessage?.(`SCREEN 5: ${tool} en celda (${cellX}, ${cellY}).`);
+    } else if (activeLayer === 'foreground') {
+      paintForegroundAt(px, py, false);
     } else {
       paintCollisionAt(px, py, 'collision');
       setStatusBarMessage?.(`SCREEN 5: capa ${activeLayer} actualizada en (${cellX}, ${cellY}).`);
@@ -1689,6 +1770,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       const nextCollision = writeCell(room.collision, cellX, cellY, 0, collisionCols, collisionRows);
       applyTileGrid(next, nonCopy => nonCopy.filter(command => !commandContainsPoint(command, snapX, snapY)), nextCollision);
       if (had) setStatusBarMessage?.(`SCREEN 5: tile borrado en celda (${cellX}, ${cellY}).`);
+    } else if (activeLayer === 'foreground') {
+      paintForegroundAt(px, py, true);
     } else {
       const collX = Math.max(0, Math.min(collisionCols - 1, Math.floor(px / COLLISION_CELL)));
       const collY = Math.max(0, Math.min(collisionRows - 1, Math.floor(py / COLLISION_CELL)));
@@ -2141,6 +2224,14 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           Cancel
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => promoteStampToGlobalLibrary(entry)}
+                        title="Guardar este stamp en la biblioteca global (compartida entre proyectos)"
+                      >
+                        ↑ Global
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -2210,6 +2301,55 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                   </button>
                 </div>
               ))}
+            </div>
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Foreground (sprites)" isOpen={openForeground} onToggle={() => setOpenForeground(v => !v)}>
+            {/* Foreground overlay tiles are drawn as MSX2 hardware sprites with HIGHER
+                priority than the player, so the player walks behind them (pillars/columns).
+                Left-click stamps the selected atlas tile; right-click erases. Max 3/room. */}
+            <div className="space-y-2">
+              {activeLayer !== 'foreground' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('foreground')}
+                  className="w-full text-[0.7rem] rounded px-2 py-1 border border-msx-warning text-msx-warning hover:bg-msx-warning/10"
+                >
+                  Activa la capa "Foreground" para pintar
+                </button>
+              )}
+              <div className="text-[0.65rem] text-msx-textsecondary leading-tight">
+                Tile seleccionado: <span className="text-msx-textprimary">{selectedAtlasEntry?.name || '—'}</span>. Click pinta, click-derecho borra.
+              </div>
+              <label className="flex items-center gap-2 text-[0.7rem] text-msx-textsecondary">
+                Color sprite
+                <select
+                  value={foregroundColor}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setForegroundColor(v === '' ? '' : clampInt(Number(v), 1, 15, 1));
+                  }}
+                  className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 text-xs text-msx-textprimary"
+                  title="Color del sprite foreground (vacío = automático: el color no-fondo más frecuente del tile)"
+                >
+                  <option value="">Auto</option>
+                  {Array.from({ length: 15 }, (_unused, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center justify-between text-[0.65rem] text-msx-textsecondary">
+                <span>{foregroundTiles.length}/{FOREGROUND_MAX} tiles</span>
+                {foregroundTiles.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { onUpdate({ foregroundTiles: [] }); setStatusBarMessage?.('SCREEN 5: foreground limpiado.'); }}
+                    className="rounded px-2 py-0.5 border border-msx-border text-msx-textsecondary hover:border-msx-danger hover:text-msx-danger"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
             </div>
           </CollapsiblePanel>
 
@@ -2729,10 +2869,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           } else {
             onUpdate({}, newAssets);
           }
-          const stamps = loadMsx2BitmapStampLibrary();
-          setStampEntries(stamps);
-          setSelectedStampId(current => current && stamps.some(entry => entry.id === current) ? current : (stamps[0]?.id || ''));
-          setStatusBarMessage?.(`Importados ${bitmapTileAssets.length} tile(s) bitmap al proyecto y al atlas SCREEN 5.`);
+          const importedStampCount = newAssets.filter(asset => asset.type === 'msx2bitmapstamp').length;
+          setStatusBarMessage?.(importedStampCount > 0
+            ? `Importado ${importedStampCount} stamp(s) al proyecto.`
+            : `Importados ${bitmapTileAssets.length} tile(s) bitmap al proyecto y al atlas SCREEN 5.`);
         }}
       />
 
