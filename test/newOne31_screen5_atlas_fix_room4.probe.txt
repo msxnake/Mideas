@@ -1,0 +1,3 @@
+room=A0
+player_x=00
+player_y=00

@@ -89,21 +89,26 @@ export function makeBitmapTileFromScreen5Tile(
   };
 }
 
-export function addStampToMsx2BitmapStampLibrary(
+/**
+ * Pure builder: constructs a stamp entry WITHOUT touching localStorage. Used both to
+ * create per-project stamp assets and (via `addStampToMsx2BitmapStampLibrary`) the global
+ * library. Pass `existingNames` to de-duplicate the display name against taken names.
+ */
+export function buildMsx2BitmapStampEntry(
   tiles: Msx2Screen4Tile[],
   palette: Screen5PaletteSlot[],
   columns: number,
   rows: number,
   name?: string,
+  existingNames?: Set<string>,
 ): Msx2BitmapStampLibraryEntry {
-  const entries = loadMsx2BitmapStampLibrary();
   const safeColumns = Math.max(1, Math.trunc(Number(columns) || 1));
   const safeRows = Math.max(1, Math.trunc(Number(rows) || Math.ceil(tiles.length / safeColumns)));
   const baseName = (name || tiles[0]?.name?.replace(/_r\d+_c\d+$/i, '') || 'Bitmap Stamp').trim() || 'Bitmap Stamp';
-  const existingNames = new Set(entries.map(entry => entry.name));
+  const takenNames = existingNames ?? new Set<string>();
   let uniqueName = baseName;
   let suffix = 2;
-  while (existingNames.has(uniqueName)) uniqueName = `${baseName} ${suffix++}`;
+  while (takenNames.has(uniqueName)) uniqueName = `${baseName} ${suffix++}`;
   const now = Date.now();
   const stampId = `${slugify(uniqueName)}_${now}`;
   const paletteId = `${stampId}_palette`;
@@ -115,7 +120,7 @@ export function addStampToMsx2BitmapStampLibrary(
       name: tile.name || `${uniqueName}_${index + 1}`,
     };
   });
-  const entry: Msx2BitmapStampLibraryEntry = {
+  return {
     id: stampId,
     name: uniqueName,
     savedAt: now,
@@ -135,6 +140,18 @@ export function addStampToMsx2BitmapStampLibrary(
     },
     palette: palette.map(slot => ({ ...slot })),
   };
+}
+
+export function addStampToMsx2BitmapStampLibrary(
+  tiles: Msx2Screen4Tile[],
+  palette: Screen5PaletteSlot[],
+  columns: number,
+  rows: number,
+  name?: string,
+): Msx2BitmapStampLibraryEntry {
+  const entries = loadMsx2BitmapStampLibrary();
+  const existingNames = new Set(entries.map(entry => entry.name));
+  const entry = buildMsx2BitmapStampEntry(tiles, palette, columns, rows, name, existingNames);
   saveMsx2BitmapStampLibrary([...entries, entry]);
   return entry;
 }
@@ -153,5 +170,46 @@ export function exportMsx2BitmapStampLibraryFile(): void {
 export function exportMsx2BitmapStampLibraryEntryFile(entry: Msx2BitmapStampLibraryEntry): void {
   const file: Msx2BitmapStampLibraryFile = { version: 1, entries: [entry] };
   downloadTextFile(`${slugify(entry.name)}.msx2bitmapstamp.json`, JSON.stringify(file, null, 2), 'application/json');
+}
+
+/** Parses an exported stamp-library JSON (array or `{version, entries}`) and returns valid entries. */
+export function parseMsx2BitmapStampLibraryFile(json: string): Msx2BitmapStampLibraryEntry[] {
+  const parsed = JSON.parse(json);
+  const rawEntries = Array.isArray(parsed)
+    ? parsed
+    : (parsed && Array.isArray((parsed as Msx2BitmapStampLibraryFile).entries))
+      ? (parsed as Msx2BitmapStampLibraryFile).entries
+      : [];
+  const valid = rawEntries.filter(isValidEntry);
+  if (valid.length === 0) {
+    throw new Error('No valid MSX2 bitmap stamp entries found in the file.');
+  }
+  return valid;
+}
+
+/**
+ * Merges incoming stamps into the global library (de-duping id/name) and persists.
+ * Also used to "promote" a per-project stamp asset to the global library.
+ */
+export function mergeMsx2BitmapStampLibraryEntries(
+  incoming: Msx2BitmapStampLibraryEntry[],
+): Msx2BitmapStampLibraryEntry[] {
+  const entries = loadMsx2BitmapStampLibrary();
+  const existingIds = new Set(entries.map(entry => entry.id));
+  const existingNames = new Set(entries.map(entry => entry.name));
+  const merged = [...entries];
+  for (const candidate of incoming) {
+    let name = candidate.name;
+    let suffix = 2;
+    while (existingNames.has(name)) name = `${candidate.name} ${suffix++}`;
+    let id = candidate.id;
+    if (existingIds.has(id)) id = `${slugify(name)}_${Date.now()}_${suffix}`;
+    const entry: Msx2BitmapStampLibraryEntry = { ...candidate, id, name };
+    merged.push(entry);
+    existingIds.add(id);
+    existingNames.add(name);
+  }
+  saveMsx2BitmapStampLibrary(merged);
+  return merged;
 }
 

@@ -181,13 +181,18 @@
       "Bash(node_modules/.bin/esbuild components/AppUI.tsx --bundle --external:react --external:react-dom --format=esm --outfile=/dev/null --loader:.tsx=tsx --loader:.ts=ts --loader:.png=dataurl --loader:.svg=text --jsx=automatic)",
       "Bash(rm -f e.txt)",
       "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.json)",
-      "Bash(node_modules/.bin/esbuild utils/msxGenerator/generators/msx2/msx2Screen4BitmapRoomGenerator.ts --bundle --format=esm --outfile=/dev/null)",
+      "Bash(node_modules/.bin/esbuild utils/msxGenerator/generators/msx2/msx2Screen5BitmapRoomGenerator.ts --bundle --format=esm --outfile=/dev/null)",
       "Bash(node_modules/.bin/esbuild utils/msxGenerator/generators/msx2/msx2Screen4Generator.ts --bundle --format=esm --outfile=/dev/null)",
       "Bash(node_modules/.bin/esbuild test/msx2-screen4/verify_bitmap_player_sprite.ts --bundle --platform=node --format=cjs --outfile=test/msx2-screen4/verify_bitmap_player_sprite.cjs)",
       "Bash(git status *)",
       "Bash(git rm *)",
       "Bash(rm -f server/temp/n5d.rom server/temp/n5j8.rom server/temp/jumpprobe.tcl server/temp/jumpprobe.log /tmp/n5*.asm /tmp/n5*.rom)",
-      "Bash(rm -f \"C:/Users/salam/AppData/Local/Temp/n5jump.json\" \"C:/Users/salam/AppData/Local/Temp/n5skill.json\" \"C:/Users/salam/AppData/Local/Temp/n5fullmove.json\" \"C:/Users/salam/AppData/Local/Temp/n5jump8.json\")"
+      "Bash(rm -f \"C:/Users/salam/AppData/Local/Temp/n5jump.json\" \"C:/Users/salam/AppData/Local/Temp/n5skill.json\" \"C:/Users/salam/AppData/Local/Temp/n5fullmove.json\" \"C:/Users/salam/AppData/Local/Temp/n5jump8.json\")",
+      "Bash(cd \"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\" && ls public/ 2>/dev/null | head; echo \"---copy json---\"; cp \"$HOME/Downloads/newOne28\\(1\\).json\" \"public/newOne28_test.json\" && echo \"copied to public/newOne28_test.json \\($\\(du -h public/newOne28_test.json | cut -f1\\)\\)\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(rm -f public/newOne28_test.json public/test_tile_marker.png)",
+      "Bash(ls public/*.json public/*.png)",
+      "Bash(rm -f public/newOne28_test.json public/test_tile_marker.png public/test_tile_marker2.png)"
     ],
     "deny": [],
     "ask": []

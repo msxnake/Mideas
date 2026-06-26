@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom } from '../../types';
+import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
@@ -17,13 +17,13 @@ interface WorldViewEditorProps {
   currentScreenMode: string;
 }
 
-type WorldViewScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom;
+type WorldViewScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom;
 
 const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
 
 const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): WorldViewScreen | undefined => {
     const data = screen?.data;
-    if (data && (isMsx2Screen4Mode(data.vdpMode) || data.vdpMode === 'SCREEN4_BITMAP_ROOM' || data.layers || data.map)) {
+    if (data && (isMsx2Screen4Mode(data.vdpMode) || data.vdpMode === 'SCREEN5_BITMAP_ROOM' || data.layers || data.map)) {
         return data as WorldViewScreen;
     }
     return screen as WorldViewScreen | undefined;
@@ -34,9 +34,9 @@ const isMsx2Screen4TileScreen = (screen: WorldViewScreen | undefined): screen is
     return !!unwrapped && isMsx2Screen4Mode((unwrapped as Msx2Screen4TileScreen).vdpMode) && Array.isArray((unwrapped as Msx2Screen4TileScreen).tiles);
 };
 
-const isMsx2Screen4BitmapRoom = (screen: WorldViewScreen | undefined): screen is Msx2Screen4BitmapRoom => {
+const isMsx2Screen5BitmapRoom = (screen: WorldViewScreen | undefined): screen is Msx2Screen5BitmapRoom => {
     const unwrapped = unwrapWorldViewScreen(screen);
-    return !!unwrapped && (unwrapped as Msx2Screen4BitmapRoom).vdpMode === 'SCREEN4_BITMAP_ROOM' && !!(unwrapped as Msx2Screen4BitmapRoom).composition;
+    return !!unwrapped && (unwrapped as Msx2Screen5BitmapRoom).vdpMode === 'SCREEN5_BITMAP_ROOM' && !!(unwrapped as Msx2Screen5BitmapRoom).composition;
 };
 
 const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
@@ -52,7 +52,7 @@ const getWorldViewScreenPixelSize = (
     if (isMsx2Screen4TileScreen(unwrapped)) {
         return { width: MSX2_SCREEN_WIDTH, height: MSX2_SCREEN_HEIGHT };
     }
-    if (isMsx2Screen4BitmapRoom(unwrapped)) {
+    if (isMsx2Screen5BitmapRoom(unwrapped)) {
         return { width: unwrapped.width || MSX2_SCREEN_WIDTH, height: unwrapped.height || MSX2_SCREEN_HEIGHT };
     }
 
@@ -116,7 +116,7 @@ const renderMsx2Screen4ToCanvas = (
 
 const renderMsx2BitmapRoomToCanvas = (
     canvas: HTMLCanvasElement,
-    room: Msx2Screen4BitmapRoom
+    room: Msx2Screen5BitmapRoom
 ) => {
     canvas.width = room.width || MSX2_SCREEN_WIDTH;
     canvas.height = room.height || MSX2_SCREEN_HEIGHT;
@@ -299,7 +299,7 @@ const renderWorldViewScreenToCanvas = (
         renderMsx2Screen4ToCanvas(canvas, unwrapped);
         return;
     }
-    if (isMsx2Screen4BitmapRoom(unwrapped)) {
+    if (isMsx2Screen5BitmapRoom(unwrapped)) {
         renderMsx2BitmapRoomToCanvas(canvas, unwrapped);
         return;
     }

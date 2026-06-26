@@ -1,0 +1,4 @@
+y_ground=160 flags_ground=01
+after_jump1: jumps_used=1 vy=FB flags=00
+after_jump2: jumps_used=2 vy=FD flags=00
+apex_min_y=118  total_rise_px=42

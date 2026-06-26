@@ -1,4 +1,4 @@
-import { ComponentDefinition, EntityTemplate, ProjectAsset, Msx2GameFlowGraph, Msx2GameProfileId, Msx2ProjectProfile, Msx2Screen4BitmapRoom, Msx2Screen4Runtime, Msx2Screen4TileScreen } from '../types';
+import { ComponentDefinition, EntityTemplate, ProjectAsset, Msx2GameFlowGraph, Msx2GameProfileId, Msx2ProjectProfile, Msx2Screen5BitmapRoom, Msx2Screen4Runtime, Msx2Screen4TileScreen } from '../types';
 import { createDefaultScreen5PaletteSlots } from './msx2PaletteUtils';
 import { normalizeMsx2ShooterRuntimeConfig } from './msx2ShooterRuntime';
 import {
@@ -29,6 +29,7 @@ const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'palette',
   'msx2sprite',
   'msx2bitmaptile',
+  'msx2bitmapstamp',
   'msx2player',
   'msx2enemy',
   'msx2presentation',
@@ -679,7 +680,7 @@ function buildStarterPlayerEntity(profile: Msx2ProjectProfile) {
 export function buildStarterMsx2BitmapRoomAsset(
   profile: Msx2ProjectProfile,
   projectName: string
-): Msx2Screen4BitmapRoom {
+): Msx2Screen5BitmapRoom {
   const roomId = `bitmap_room_${profile.profileId}_${projectName.replace(/\s+/g, '_').toLowerCase()}`;
   const atlasPixels = Array.from({ length: 64 }, () => Array.from({ length: 256 }, () => 0));
   const preset = MSX2_ENTITY_REPERTOIRE.find(item => item.id === profile.filters.defaultEntityPresetId)
@@ -697,7 +698,7 @@ export function buildStarterMsx2BitmapRoomAsset(
     id: roomId,
     name: `${profile.label} Room 1`,
     target: 'MSX2',
-    vdpMode: 'SCREEN4_BITMAP_ROOM',
+    vdpMode: 'SCREEN5_BITMAP_ROOM',
     width: 256,
     height: 192,
     palette: createDefaultScreen5PaletteSlots(),

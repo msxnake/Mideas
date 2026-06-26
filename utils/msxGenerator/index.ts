@@ -38,7 +38,7 @@ import { generateBossesFile } from './generators/bossesGenerator';
 import { generatePage0File } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
 import { generateMsx2Screen4Files } from './generators/msx2/msx2Screen4Generator';
-import { generateMsx2Screen4BitmapRoomFiles } from './generators/msx2/msx2Screen4BitmapRoomGenerator';
+import { generateMsx2Screen5BitmapRoomFiles } from './generators/msx2/msx2Screen5BitmapRoomGenerator';
 import { generateMsx2Screen5PresentationFiles } from './generators/msx2/msx2Screen5PresentationGenerator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
@@ -303,7 +303,7 @@ export function generateModularASM(
   }
   if (targetGraphicsBackend === 'msx2-screen4-bitmap-room') {
     const analysis = analyzeProject(projectName, assets);
-    return generateMsx2Screen4BitmapRoomFiles(projectName, analysis, {
+    return generateMsx2Screen5BitmapRoomFiles(projectName, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: config.romMode || 'simple32k',
       targetFormat: config.targetFormat || 'konami',
@@ -511,7 +511,7 @@ export function generateModularASMFromSummary(
     });
   }
   if (summaryGraphicsBackend === 'msx2-screen4-bitmap-room') {
-    return generateMsx2Screen4BitmapRoomFiles(summary.projectInfo.name, analysis, {
+    return generateMsx2Screen5BitmapRoomFiles(summary.projectInfo.name, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',
       targetFormat: summaryGraphicsConfig.targetFormat || 'konami',

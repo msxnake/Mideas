@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -1091,7 +1091,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         );
       }
       case 'msx2bitmaproom': {
-        const room = asset.data as Msx2Screen4BitmapRoom;
+        const room = asset.data as Msx2Screen5BitmapRoom;
         const commandCount = room.composition?.commands?.length || 0;
         const atlasEntries = room.atlas?.entries?.length || 0;
         const collisionRows = room.collision?.length || 0;

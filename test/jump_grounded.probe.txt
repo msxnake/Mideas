@@ -1,0 +1,4 @@
+vy=03
+y=69
+flags=00
+jump_lock=00

@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
-import { WorldMapGraph, ConnectionDirection, ScreenMap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, DataFormat } from '../../types';
+import { WorldMapGraph, ConnectionDirection, ScreenMap, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, DataFormat } from '../../types';
 
-type ExportableWorldScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom;
+type ExportableWorldScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom;
 
 /**
  * Props for the {@link ExportWorldMapASMModal} component.

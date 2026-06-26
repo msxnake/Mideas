@@ -1,0 +1,8 @@
+x0=32 y0=160 facing0=1
+x_mid=80 dash_timer_mid=0
+x_final=80
+dash_timer_final=0
+dash_cooldown=0
+dash_dir=1
+dash_lock=1
+player_y_final=160

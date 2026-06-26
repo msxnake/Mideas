@@ -1,0 +1,2 @@
+y0=160  min_y=96  climbed_px=64
+y_final=96  player_x=32  facing=1  vy=00

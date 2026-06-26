@@ -3,7 +3,7 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph, Msx2GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
-  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen4BitmapRoom, Msx2PlayerDefinition
+  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen5BitmapRoom, Msx2PlayerDefinition
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -549,7 +549,7 @@ export const useAssetHandlers = ({
           id,
           name: defaultName,
           target: 'MSX2',
-          vdpMode: 'SCREEN4_BITMAP_ROOM',
+          vdpMode: 'SCREEN5_BITMAP_ROOM',
           width: 256,
           height: 192,
           palette: createDefaultScreen5PaletteSlots(),
@@ -595,7 +595,7 @@ export const useAssetHandlers = ({
             hudWidgets: [],
           },
           notes: 'Bitmap SCREEN 4 room composer: atlas offscreen, V9938 copy/fill/line command list, sprites above.',
-        } as Msx2Screen4BitmapRoom;
+        } as Msx2Screen5BitmapRoom;
         newEditorType = EditorType.Msx2BitmapRoom;
         break;
       case 'msx2player':

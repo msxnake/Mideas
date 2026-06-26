@@ -161,7 +161,7 @@ Out of scope for this slice:
 > - `msx2-screen4-bitmap-room`: only *named* SCREEN 4. At runtime it does
 >   `CHGMOD 5` and sets sprite mode 2 tables at `F400/F600/F800` — i.e. the
 >   **actual VDP mode is SCREEN 5 / GRAPHIC 4** (the generator's own comment in
->   `msx2Screen4BitmapRoomGenerator.ts` says so). This backend DOES use the
+>   `msx2Screen5BitmapRoomGenerator.ts` says so). This backend DOES use the
 >   command engine and IS the Vampire Killer technique.
 >
 > So the VK composer is available in Mideas through `msx2-screen4-bitmap-room`,

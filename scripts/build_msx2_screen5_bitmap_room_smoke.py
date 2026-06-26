@@ -325,7 +325,7 @@ def build_project() -> dict[str, object]:
         "id": "bitmap_room_smoke",
         "name": "Bitmap Room Smoke",
         "target": "MSX2",
-        "vdpMode": "SCREEN4_BITMAP_ROOM",
+        "vdpMode": "SCREEN5_BITMAP_ROOM",
         "width": 256,
         "height": 192,
         "palette": default_palette(),
@@ -703,9 +703,9 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
     if "add a, 4\n    out (#98), a" not in asm_text:
         raise RuntimeError("Generated ASM does not write SAT pattern offset for the second player hardware layer")
 
-    palette_length = len(extract_db_bytes(asm_text, "screen4_bitmap_palette_data"))
+    palette_length = len(extract_db_bytes(asm_text, "screen5_bitmap_palette_data"))
     if palette_length != 32:
-        raise RuntimeError(f"screen4_bitmap_palette_data has {palette_length} bytes; expected 32")
+        raise RuntimeError(f"screen5_bitmap_palette_data has {palette_length} bytes; expected 32")
 
     sprite_pattern_length = len(extract_db_bytes(asm_text, "bitmap_room_sprite_patterns"))
     if sprite_pattern_length != 256:
@@ -857,7 +857,7 @@ def main() -> int:
 
     asm_text = asm_output.read_text(encoding="utf-8")
     for marker in (
-        "init_screen4_bitmap_vdp",
+        "init_screen5_bitmap_vdp",
         "upload_tileset_atlas",
         "bitmap_room_tileset_data",
         "load_room",

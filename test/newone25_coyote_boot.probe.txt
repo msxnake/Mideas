@@ -1,0 +1,9 @@
+screen=00
+player_y=90
+player_x=24
+player_vy=00
+player_flags=01
+coyote=00
+buffer=00
+jump_lock=00
+jumps_used=05

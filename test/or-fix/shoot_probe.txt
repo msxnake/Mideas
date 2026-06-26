@@ -1,0 +1,5 @@
+pool_active: s0=0 s1=0 s2=1
+pool_x:      s0=97 s1=97 s2=82
+color_F420 (bullet slot0): 0F 0F 0F 0F   (esperado 0F 0F 0F 0F)
+color_F430 (bullet slot1): 00 00 00 00 
+color_F440 (bullet slot2): 00 00 00 00 

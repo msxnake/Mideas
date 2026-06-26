@@ -7,7 +7,7 @@ import {
   Msx2BitmapRoomForegroundTile,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
-  Msx2Screen4BitmapRoom,
+  Msx2Screen5BitmapRoom,
   Msx2Screen4EntityInstance,
   Msx2Screen4Tile,
   PaletteAsset,
@@ -60,7 +60,7 @@ import {
  * `'msx2bitmaproom'` assets (the older atlas+command-list editor was removed).
  *
  * Layout built to match the "Tile Map Editor — MSX2" mockup over the
- * `Msx2Screen4BitmapRoom` data model. Wired: brush/eraser/flood-fill painting, layer-aware editing, cell
+ * `Msx2Screen5BitmapRoom` data model. Wired: brush/eraser/flood-fill painting, layer-aware editing, cell
  * properties (collision flags), category filtering, palette load, export to library, and
  * a downsampled world minimap. Remaining nice-to-haves: in-place palette-slot colour
  * editing and merging flood-fill runs into taller rects. Every user-visible "Screen 4"
@@ -143,7 +143,7 @@ const normalizePixels = (pixels: number[][] | undefined, width: number, height: 
 
 // Single backdrop slot (VDP R#7): clears the room AND paints the outer "franjas" plus every
 // color-0 (transparent) bitmap pixel, so background/transparency/border are one and the same.
-const roomBackgroundColor = (room: Msx2Screen4BitmapRoom): number => clampByte(room.backgroundColor, 0) & 0x0f;
+const roomBackgroundColor = (room: Msx2Screen5BitmapRoom): number => clampByte(room.backgroundColor, 0) & 0x0f;
 
 const isFullScreenFillCommand = (command: Msx2BitmapRoomCommand, width = SCREEN_W, height = SCREEN_H): boolean =>
   command.op === 'fill'
@@ -199,7 +199,7 @@ const writeCell = (grid: number[][] | undefined, cellX: number, cellY: number, v
 };
 
 /** Flatten the room composition commands into a SCREEN_W x SCREEN_H slot grid (same idea as the legacy editor's renderComposition). */
-const renderComposition = (room: Msx2Screen4BitmapRoom, atlasPixels: number[][]): number[][] => {
+const renderComposition = (room: Msx2Screen5BitmapRoom, atlasPixels: number[][]): number[][] => {
   const pixels = createPixels(SCREEN_W, SCREEN_H, roomBackgroundColor(room));
   const atlasEntries = new Map((room.atlas?.entries || []).map(entry => [entry.id, entry]));
   (room.composition?.commands || []).forEach(command => {
@@ -232,7 +232,7 @@ const renderComposition = (room: Msx2Screen4BitmapRoom, atlasPixels: number[][])
  * page. Prefers the persisted `room.tileGrid`; otherwise reconstructs it from the `copy` commands
  * (later commands overwrite the same cell, matching the render's "last wins").
  */
-const buildTileGrid = (room: Msx2Screen4BitmapRoom, cols: number, rows: number): number[][] => {
+const buildTileGrid = (room: Msx2Screen5BitmapRoom, cols: number, rows: number): number[][] => {
   const entries = room.atlas?.entries || [];
   const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
   if (Array.isArray(room.tileGrid)) {
@@ -257,8 +257,8 @@ const buildTileGrid = (room: Msx2Screen4BitmapRoom, cols: number, rows: number):
 };
 
 interface Msx2BitmapScreenEditorProps {
-  room: Msx2Screen4BitmapRoom;
-  onUpdate: (data: Partial<Msx2Screen4BitmapRoom>, newAssets?: ProjectAsset[]) => void;
+  room: Msx2Screen5BitmapRoom;
+  onUpdate: (data: Partial<Msx2Screen5BitmapRoom>, newAssets?: ProjectAsset[]) => void;
   allAssets?: ProjectAsset[];
   setStatusBarMessage?: (m: string) => void;
   /** Creates a new bitmap room adjacent to the current one (and the WorldMap rail). */
@@ -699,7 +699,7 @@ interface RoomMinimapThumbProps {
 /** Renders a downsampled thumbnail of a bitmap room's composed page for the world minimap. */
 const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, paletteSlots, onOpen }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const room = asset.data as Msx2Screen4BitmapRoom;
+  const room = asset.data as Msx2Screen5BitmapRoom;
   const tw = Math.ceil(SCREEN_W / MINIMAP_STEP);
   const th = Math.ceil(SCREEN_H / MINIMAP_STEP);
   useEffect(() => {

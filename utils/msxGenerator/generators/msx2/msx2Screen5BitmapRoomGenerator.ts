@@ -1,4 +1,4 @@
-import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen4BitmapRoom, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
+import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -144,7 +144,7 @@ const SCREEN_WIDTH = 256;
 const SCREEN_HEIGHT_DEFAULT = 192;
 const SCREEN5_VISIBLE_HEIGHT = 212;
 // 212-line SCREEN 5 layout, no leftover: 20px HUD band on top + 192px game band
-// (20 + 192 = 212). Requires VDP R#9 LN=1 (set in init_screen4_bitmap_vdp).
+// (20 + 192 = 212). Requires VDP R#9 LN=1 (set in init_screen5_bitmap_vdp).
 const BITMAP_ROOM_HUD_HEIGHT = 20;
 const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
 const ROW_BYTES = SCREEN_WIDTH / 2;
@@ -201,8 +201,8 @@ const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpp
 const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
 const hexVram = (value: number): string => `#${Math.max(0, Math.trunc(value)).toString(16).toUpperCase().padStart(5, '0')}`;
 
-function firstBitmapRoom(analysis: ProjectAnalysis): Msx2Screen4BitmapRoom | undefined {
-  return ((analysis as any).msx2BitmapRooms || [])[0] as Msx2Screen4BitmapRoom | undefined;
+function firstBitmapRoom(analysis: ProjectAnalysis): Msx2Screen5BitmapRoom | undefined {
+  return ((analysis as any).msx2BitmapRooms || [])[0] as Msx2Screen5BitmapRoom | undefined;
 }
 
 type RoomTransitions = Map<number, Partial<Record<ConnectionDirection, number>>>;
@@ -215,12 +215,12 @@ type RoomTransitions = Map<number, Partial<Record<ConnectionDirection, number>>>
  * worldmap connections. With no worldmap it degrades to a single standalone room.
  */
 function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
-  rooms: Msx2Screen4BitmapRoom[];
+  rooms: Msx2Screen5BitmapRoom[];
   startIndex: number;
   transitions: RoomTransitions;
   paletteAssetId?: string;
 } {
-  const allRooms = (((analysis as any).msx2BitmapRooms || []) as Msx2Screen4BitmapRoom[]).filter(Boolean);
+  const allRooms = (((analysis as any).msx2BitmapRooms || []) as Msx2Screen5BitmapRoom[]).filter(Boolean);
   if (allRooms.length === 0) return { rooms: [], startIndex: 0, transitions: new Map() };
 
   const roomById = new Map(allRooms.map(room => [room.id, room]));
@@ -259,7 +259,7 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
   return { rooms, startIndex, transitions, paletteAssetId: typeof graph.paletteAssetId === 'string' ? graph.paletteAssetId : undefined };
 }
 
-function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4BitmapRoom {
+function normalizeRoom(room: Msx2Screen5BitmapRoom | undefined): Msx2Screen5BitmapRoom {
   const atlasWidth = clampInt(room?.atlas?.width, 1, 256, 256);
   const entryBottom = Math.max(
     0,
@@ -278,7 +278,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
     id: room?.id || 'bitmap_room_0',
     name: room?.name || 'MSX2 SCREEN 4 Bitmap Room',
     target: 'MSX2',
-    vdpMode: 'SCREEN4_BITMAP_ROOM',
+    vdpMode: 'SCREEN5_BITMAP_ROOM',
     width: SCREEN_WIDTH,
     height,
     palette: Array.isArray(room?.palette) ? room!.palette : [],
@@ -307,7 +307,7 @@ function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4Bitm
   };
 }
 
-function normalizeAtlasPixels(room: Msx2Screen4BitmapRoom): number[][] {
+function normalizeAtlasPixels(room: Msx2Screen5BitmapRoom): number[][] {
   return Array.from({ length: room.atlas.height }, (_unused, y) =>
     Array.from({ length: room.atlas.width }, (_unused2, x) => clampByte(room.atlas.pixels?.[y]?.[x], 0) & 0x0f)
   );
@@ -337,7 +337,7 @@ function packBitmapPixels(pixels: number[][]): number[] {
   return packed;
 }
 
-function packAtlasPixels(room: Msx2Screen4BitmapRoom): number[] {
+function packAtlasPixels(room: Msx2Screen5BitmapRoom): number[] {
   const atlasPixels = normalizeAtlasPixels(room);
   const rows: number[][] = [];
   for (let y = 0; y < room.atlas.height; y++) {
@@ -350,7 +350,7 @@ function packAtlasPixels(room: Msx2Screen4BitmapRoom): number[] {
   return packBitmapPixels(rows);
 }
 
-function extractAtlasEntryPixels(room: Msx2Screen4BitmapRoom, entry: { sx: number; sy: number; w: number; h: number }): number[][] {
+function extractAtlasEntryPixels(room: Msx2Screen5BitmapRoom, entry: { sx: number; sy: number; w: number; h: number }): number[][] {
   const pixels = normalizeAtlasPixels(room);
   const width = Math.max(1, Math.min(TILE_GRID_SIZE, Math.trunc(Number(entry.w) || TILE_GRID_SIZE)));
   const height = Math.max(1, Math.min(TILE_GRID_SIZE, Math.trunc(Number(entry.h) || TILE_GRID_SIZE)));
@@ -367,7 +367,7 @@ function atlasEntryFingerprint(pixels: number[][]): string {
   return `${width}x${pixels.length}:${rows.join('|')}`;
 }
 
-function buildSharedWorldAtlasRooms(rooms: Msx2Screen4BitmapRoom[]): { rooms: Msx2Screen4BitmapRoom[]; atlasRoom: Msx2Screen4BitmapRoom } {
+function buildSharedWorldAtlasRooms(rooms: Msx2Screen5BitmapRoom[]): { rooms: Msx2Screen5BitmapRoom[]; atlasRoom: Msx2Screen5BitmapRoom } {
   const sharedWidth = SCREEN_WIDTH;
   const uniqueItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number }> = [];
   const seenFingerprints = new Set<string>();
@@ -515,7 +515,7 @@ const DEFAULT_HUD_PATTERNS: Record<string, number[]> = {
   '/': [0x06,0x0C,0x0C,0x18,0x30,0x30,0x60,0],
 };
 
-function getBitmapHudFontAsset(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Msx2HudFontAsset | undefined {
+function getBitmapHudFontAsset(analysis: ProjectAnalysis, room: Msx2Screen5BitmapRoom): Msx2HudFontAsset | undefined {
   const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
   const preferredId = room.runtime?.hudFontAssetId;
   const preferred = preferredId
@@ -532,7 +532,7 @@ function normalizeHudText(value: string, maxLength: number, allowedCharacters: s
     .slice(0, Math.max(0, maxLength));
 }
 
-function getBitmapHudWidgetText(widget: Msx2HudWidget, room: Msx2Screen4BitmapRoom, allowedCharacters: string): string {
+function getBitmapHudWidgetText(widget: Msx2HudWidget, room: Msx2Screen5BitmapRoom, allowedCharacters: string): string {
   const maxChars = Math.max(1, Math.min(31, Math.floor((Number(widget.width) || 64) / 8)));
   if (widget.kind === 'text') return normalizeHudText(widget.text || widget.name || 'TEXT', maxChars, allowedCharacters);
   if (widget.kind !== 'counter') return '';
@@ -573,7 +573,7 @@ function drawBitmapHudText(
 
 function drawBitmapHudAtlasIcon(
   pixels: number[][],
-  room: Msx2Screen4BitmapRoom,
+  room: Msx2Screen5BitmapRoom,
   atlasPixels: number[][],
   widget: Msx2HudWidget
 ): void {
@@ -596,7 +596,7 @@ function drawBitmapHudAtlasIcon(
   }
 }
 
-function buildBitmapHudSeedPixels(room: Msx2Screen4BitmapRoom, atlasPixels: number[][], analysis: ProjectAnalysis): number[][] {
+function buildBitmapHudSeedPixels(room: Msx2Screen5BitmapRoom, atlasPixels: number[][], analysis: ProjectAnalysis): number[][] {
   const framebuffer = Array.from({ length: BITMAP_ROOM_HUD_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
   for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT - 1; y++) {
     for (let x = 0; x < SCREEN_WIDTH; x++) {
@@ -690,7 +690,7 @@ function isFullScreenFillCommand(command: Msx2BitmapRoomCommand): boolean {
  * the persisted `tileGrid`; otherwise reconstructs it from the `copy` commands.
  * Each cell holds an atlas-entry reference (index+1; 0 = empty/background).
  */
-function buildRoomTileIndexGrid(room: Msx2Screen4BitmapRoom): number[][] {
+function buildRoomTileIndexGrid(room: Msx2Screen5BitmapRoom): number[][] {
   const entries = room.atlas?.entries || [];
   const grid = Array.from({ length: COLLISION_ROWS }, () => Array.from({ length: COLLISION_COLS }, () => 0));
   if (Array.isArray(room.tileGrid)) {
@@ -723,7 +723,7 @@ function buildRoomTileIndexGrid(room: Msx2Screen4BitmapRoom): number[][] {
  * destination Y is shifted by the HUD band so logical room coords (0..191) land
  * below the persistent HUD. Returns the flattened 15-byte blocks and their count.
  */
-function buildRoomRenderBlocks(room: Msx2Screen4BitmapRoom, pageBaseY = BITMAP_ROOM_PAGE0_BASE_Y): { bytes: number[]; count: number } {
+function buildRoomRenderBlocks(room: Msx2Screen5BitmapRoom, pageBaseY = BITMAP_ROOM_PAGE0_BASE_Y): { bytes: number[]; count: number } {
   const backgroundColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const offscreenBaseY = BITMAP_ROOM_ATLAS_BASE_Y;
   const entries = room.atlas?.entries || [];
@@ -1002,7 +1002,7 @@ ${Array.from({ length: multiplier }, () => '    add a, b\n').join('')}    pop bc
 }
 
 function buildRuntimeAsm(
-  room: Msx2Screen4BitmapRoom,
+  room: Msx2Screen5BitmapRoom,
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number },
@@ -1715,7 +1715,7 @@ vdp_wait_cmd_ready:
     jp nz, .wait_loop
     ret
 
-init_screen4_bitmap_vdp:
+init_screen5_bitmap_vdp:
     ; This backend composes 4bpp bitmap pages with V9938 commands (128 bytes per
     ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The editor
     ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
@@ -1757,8 +1757,8 @@ init_screen4_bitmap_vdp:
     call vdp_write_register
     ret
 
-load_screen4_bitmap_palette:
-    ld hl, screen4_bitmap_palette_data
+load_screen5_bitmap_palette:
+    ld hl, screen5_bitmap_palette_data
     ld b, 16
     xor a
 .palette_loop:
@@ -2602,7 +2602,7 @@ const BITMAP_ROOM_MAX_PLAYER_SPRITE_LAYERS = 8;
 // Resolve the configured player's 16x16 render sprite for the bitmap room.
 // Resolve the msx2player definition linked to the room (same priority as the sprite
 // resolver): room.playerEntries[].playerId -> that player asset; else the first player asset.
-function resolveBitmapRoomPlayer(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Partial<Msx2PlayerDefinition> | undefined {
+function resolveBitmapRoomPlayer(analysis: ProjectAnalysis, room: Msx2Screen5BitmapRoom): Partial<Msx2PlayerDefinition> | undefined {
   const playerRecords = getMsx2PlayerAssetRecords(analysis);
   const referenceIds = new Set<string>();
   for (const entry of room.playerEntries || []) {
@@ -2675,7 +2675,7 @@ function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | unde
 
 // Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
 // else first msx2player asset's render sprite; else first referenced msx2sprite.
-function resolveBitmapRoomPlayerSprite(analysis: ProjectAnalysis, room: Msx2Screen4BitmapRoom): Msx2Sprite | undefined {
+function resolveBitmapRoomPlayerSprite(analysis: ProjectAnalysis, room: Msx2Screen5BitmapRoom): Msx2Sprite | undefined {
   const playerRecords = getMsx2PlayerAssetRecords(analysis);
 
   const referenceIds = new Set<string>();
@@ -2856,7 +2856,7 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
 const COLLISION_COLS = 16;
 const COLLISION_ROWS = 12;
 
-function buildCollisionTableBytes(room: Msx2Screen4BitmapRoom): number[] {
+function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < COLLISION_ROWS; y++) {
     for (let x = 0; x < COLLISION_COLS; x++) {
@@ -2866,7 +2866,7 @@ function buildCollisionTableBytes(room: Msx2Screen4BitmapRoom): number[] {
   return bytes;
 }
 
-function resolvePlayerSpawnPixels(room: Msx2Screen4BitmapRoom): { x: number; y: number; visible: boolean } {
+function resolvePlayerSpawnPixels(room: Msx2Screen5BitmapRoom): { x: number; y: number; visible: boolean } {
   const entry = (room.playerEntries || [])[0];
   if (!entry) return { x: 0, y: 0xD8, visible: false };
   // playerEntries store PIXEL coordinates (0..255 / 0..191), NOT tile coords.
@@ -2952,7 +2952,7 @@ interface BitmapRoomForegroundData {
  * `foregroundCount` tiles) carry pattern-offset #FF so the runtime paints an
  * off-screen invisible sprite.
  */
-function buildBitmapRoomForegroundTables(rooms: Msx2Screen4BitmapRoom[], foregroundCount: number): BitmapRoomForegroundData {
+function buildBitmapRoomForegroundTables(rooms: Msx2Screen5BitmapRoom[], foregroundCount: number): BitmapRoomForegroundData {
   const patternBytes: number[] = [];
   const colorBytes: number[] = [];
   const roomTables: number[][] = [];
@@ -3506,8 +3506,8 @@ ${spinAttackEquates}
 init_rom:
     di
     ${isKonamiMegaRom ? 'call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks' : 'call init_plain32k_page2_slot'}
-    call init_screen4_bitmap_vdp
-    call load_screen4_bitmap_palette
+    call init_screen5_bitmap_vdp
+    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
@@ -3572,7 +3572,7 @@ ${highJumpRuntime}
 ${wallBreakRuntime}
 ${spinAttackRuntime}
 ${foregroundLoadRoutineAsm}
-${formatBytes('screen4_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
+${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
 bitmap_room_hud_seed_data_end:
@@ -3604,7 +3604,7 @@ ${bankedDataAsm}
 `;
 }
 
-export function generateMsx2Screen4BitmapRoomFiles(
+export function generateMsx2Screen5BitmapRoomFiles(
   projectName: string,
   analysis: ProjectAnalysis,
   config: Msx2BitmapRoomConfig

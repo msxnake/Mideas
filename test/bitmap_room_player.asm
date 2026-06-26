@@ -37,8 +37,8 @@ player_ec  EQU #C003
 
 init_rom:
     di
-    call init_screen4_bitmap_vdp
-    call load_screen4_bitmap_palette
+    call init_screen5_bitmap_vdp
+    call load_screen5_bitmap_palette
     call upload_bitmap_framebuffer
     call init_hardware_sprite_tables
     ; Place the player at the room spawn point.
@@ -137,7 +137,7 @@ vdp_wait_cmd_ready:
     jp nz, .wait_loop
     ret
 
-init_screen4_bitmap_vdp:
+init_screen5_bitmap_vdp:
     ; This backend composes 4bpp bitmap pages with V9938 commands (128 bytes per
     ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The editor
     ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
@@ -164,8 +164,8 @@ compose_bitmap_room:
     ; pre-rendered framebuffer for deterministic full-screen composition.
     ret
 
-load_screen4_bitmap_palette:
-    ld hl, screen4_bitmap_palette_data
+load_screen5_bitmap_palette:
+    ld hl, screen5_bitmap_palette_data
     ld b, 16
     xor a
 .palette_loop:
@@ -347,7 +347,7 @@ bitmap_update_sprite_sat:
 
 
 ; VDP palette bytes: byte1=(R<<4)|B, byte2=G
-screen4_bitmap_palette_data:
+screen5_bitmap_palette_data:
     DB #00,#00,#00,#00,#11,#06,#33,#07,#17,#01,#27,#03,#51,#01,#27,#06
     DB #71,#01,#73,#03,#61,#06,#64,#06,#11,#04,#65,#02,#55,#05,#77,#07
 

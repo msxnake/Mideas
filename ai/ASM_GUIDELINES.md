@@ -89,7 +89,7 @@ Regla: si una rutina cambia R#15/R#17/banks, debe restaurarlos antes de salir o 
 en su cabecera para que el caller lo restaure. Un caller no debe asumir estado VDP estable a
 través de un `call` igual que no asume registros estables.
 
-### Tabla de clobbers — helpers VDP del runtime bitmap (`msx2Screen4BitmapRoomGenerator.ts`)
+### Tabla de clobbers — helpers VDP del runtime bitmap (`msx2Screen5BitmapRoomGenerator.ts`)
 
 | Rutina                          | Destruye            | Notas |
 |---------------------------------|---------------------|-------|

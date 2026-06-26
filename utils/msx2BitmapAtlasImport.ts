@@ -1,7 +1,7 @@
 /**
  * Import MSX2 SCREEN 4 tiles into a SCREEN 5 bitmap-room atlas.
  *
- * A bitmap-room atlas (`Msx2Screen4BitmapRoom.atlas`) and an MSX2 SCREEN 4 tile both store
+ * A bitmap-room atlas (`Msx2Screen5BitmapRoom.atlas`) and an MSX2 SCREEN 4 tile both store
  * slot-indexed pixels (palette indices 0-15), so reusing tile art is a pixel blit: each tile is
  * copied into a free 16x16 region of the atlas and registered as a `Msx2BitmapRoomAtlasEntry`,
  * ready to place with the room's Copy 16x16 command.

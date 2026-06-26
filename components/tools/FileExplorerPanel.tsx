@@ -63,6 +63,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'msx2sprite': return <SpriteIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmap': return <MapIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaptile': return <TilesetIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
+    case 'msx2bitmapstamp': return <TilesetIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
     case 'msx2screen': return <MapIcon className={`${iconClass} text-blue-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaproom': return <MapIcon className={`${iconClass} text-sky-200 group-hover:text-msx-accent`} />;
     case 'msx2player': return <SpriteIcon className={`${iconClass} text-yellow-300 group-hover:text-msx-accent`} />;
@@ -101,7 +102,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2bitmapstamp', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -109,6 +110,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   sprite: "MSX1 Sprites",
   msx2sprite: "MSX2 Sprites",
   msx2bitmaptile: "MSX2 Bitmap Tiles",
+  msx2bitmapstamp: "MSX2 Bitmap Stamps",
   msx2bitmap: "Legacy MSX2 Bitmaps",
   msx2player: "MSX2 Players",
   msx2enemy: "MSX2 Enemies",
@@ -172,6 +174,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
   msx2bitmaptile: EditorType.Msx2BitmapTile,
+  msx2bitmapstamp: EditorType.None,
   msx2player: EditorType.Msx2Player,
   msx2enemy: EditorType.Msx2Enemy,
   msx2screen: EditorType.Msx2Screen,

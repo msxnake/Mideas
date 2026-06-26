@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, ProjectAsset, PaletteAsset } from '../../types';
+import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, ProjectAsset, PaletteAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
@@ -30,7 +30,7 @@ interface WorldMapEditorProps {
   setStatusBarMessage: (message: string) => void;
 }
 
-type WorldMapSelectableScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom;
+type WorldMapSelectableScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom;
 
 const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
 
@@ -38,8 +38,8 @@ const isMsx2Screen4TileScreen = (screen: WorldMapSelectableScreen | undefined): 
   return !!screen && isMsx2Screen4Mode((screen as Msx2Screen4TileScreen).vdpMode) && Array.isArray((screen as Msx2Screen4TileScreen).tiles);
 };
 
-const isMsx2Screen4BitmapRoom = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen4BitmapRoom => {
-  return !!screen && (screen as Msx2Screen4BitmapRoom).vdpMode === 'SCREEN4_BITMAP_ROOM' && !!(screen as Msx2Screen4BitmapRoom).composition;
+const isMsx2Screen5BitmapRoom = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen5BitmapRoom => {
+  return !!screen && (screen as Msx2Screen5BitmapRoom).vdpMode === 'SCREEN5_BITMAP_ROOM' && !!(screen as Msx2Screen5BitmapRoom).composition;
 };
 
 const isScreenMap = (screen: WorldMapSelectableScreen | undefined): screen is ScreenMap => {
@@ -103,7 +103,7 @@ const drawMsx2Screen4Preview = (
 
 const drawMsx2BitmapRoomPreview = (
   ctx: CanvasRenderingContext2D,
-  room: Msx2Screen4BitmapRoom,
+  room: Msx2Screen5BitmapRoom,
   previewWidth: number,
   previewHeight: number
 ): void => {
@@ -181,7 +181,7 @@ const createScreenMiniPreviewDataURL = (
     return canvas.toDataURL();
   }
 
-  if (isMsx2Screen4BitmapRoom(screenMap)) {
+  if (isMsx2Screen5BitmapRoom(screenMap)) {
     drawMsx2BitmapRoomPreview(ctx, screenMap, previewWidth, previewHeight);
     return canvas.toDataURL();
   }
@@ -610,7 +610,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const handleOpenExportAsmModal = () => {
     const hasMsx2Screens = nodes.some(node => {
       const screen = availableScreenMaps.find(candidate => candidate.id === node.screenAssetId);
-      return isMsx2Screen4TileScreen(screen) || isMsx2Screen4BitmapRoom(screen);
+      return isMsx2Screen4TileScreen(screen) || isMsx2Screen5BitmapRoom(screen);
     });
     if (hasMsx2Screens) {
       setStatusBarMessage('World Map ASM export is MSX1-only for now; MSX2 SCREEN 4 worlds export through the main Z80/ROM pipeline.');
@@ -1074,7 +1074,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             <option value="">Select Screen...</option>
             {availableScreenMaps.map(sm => (
               <option key={sm.id} value={sm.id}>
-                {sm.name} {isMsx2Screen4BitmapRoom(sm) ? '[MSX2 SCREEN 5 Bitmap]' : isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
+                {sm.name} {isMsx2Screen5BitmapRoom(sm) ? '[MSX2 SCREEN 5 Bitmap]' : isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
               </option>
             ))}
           </select>
@@ -1294,7 +1294,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
           isOpen={isExportAsmModalOpen}
           onClose={() => setIsExportAsmModalOpen(false)}
           worldMapGraph={worldMapGraph}
-          availableScreenMaps={availableScreenMaps.filter(screen => isScreenMap(screen) || isMsx2Screen4TileScreen(screen) || isMsx2Screen4BitmapRoom(screen))}
+          availableScreenMaps={availableScreenMaps.filter(screen => isScreenMap(screen) || isMsx2Screen4TileScreen(screen) || isMsx2Screen5BitmapRoom(screen))}
           dataOutputFormat={dataOutputFormat}
         />
       )}

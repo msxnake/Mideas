@@ -1,0 +1,4 @@
+y0=160
+UP:    y=112  climbed_up=48  (debe subir)
+CLING: y=112  drift=0  (debe ~0, no caer)
+DOWN:  y=150  descended=38  (debe bajar)
