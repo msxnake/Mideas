@@ -1353,3 +1353,33 @@ edicion: el atlas activo. Cualquier test de importacion debe cubrir ambas rutas
 (`Color clash` y `Bitmap SCREEN 5`) y no solo el importador PNG.
 
 ---
+
+## Bug Resuelto: atlas SCREEN 5 recortado a 256px en export ROM
+
+Fecha: 2026-06-26
+
+Problema:
+La UI SCREEN 5 bitmap mostraba correctamente columna y plantas importadas, pero
+la ROM MSX dibujaba solo parte de la columna y las plantas salian como huecos o
+patrones incorrectos.
+
+Causa:
+El editor permite que el atlas crezca por debajo de 256px de alto. En
+`newOne28(1)4.json` habia tiles usados con `sy=336`, `sy=352` y `sy=368`.
+El generador bitmap normalizaba `atlas.height` con maximo 256, asi que esos
+pixeles no se empaquetaban ni se subian a VRAM, aunque los comandos de room
+siguieran copiando desde esas coordenadas.
+
+Solucion:
+Permitir atlas relativo de hasta 512px en el export SCREEN 5 bitmap. Con
+`BITMAP_ROOM_ATLAS_BASE_Y=512`, esto ocupa como maximo VRAM Y 512..1023
+(`#10000..#1FFFF`), dentro de la VRAM addressable del V9938.
+
+Leccion:
+La UI y el generador deben compartir el mismo limite de atlas. Si el editor
+crece el atlas mas alla de 256px, el export no puede recortarlo silenciosamente:
+debe soportarlo o fallar explicitamente. Sintoma delator: la UI muestra tiles
+nuevos al final del atlas, pero la ROM copia huecos/patrones viejos solo para
+esos tiles.
+
+---

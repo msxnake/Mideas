@@ -151,6 +151,7 @@ const ROW_BYTES = SCREEN_WIDTH / 2;
 const BITMAP_ROOM_PAGE0_BASE_Y = 0;
 const BITMAP_ROOM_PAGE1_BASE_Y = 256;
 const BITMAP_ROOM_ATLAS_BASE_Y = 512;
+const BITMAP_ROOM_ATLAS_MAX_HEIGHT = 512;
 const BITMAP_ROOM_PAGE0_R2 = 0x1f;
 const BITMAP_ROOM_PAGE1_R2 = 0x3f;
 const BITMAP_ROOM_GAME_VRAM_BASE = BITMAP_ROOM_GAME_Y_OFFSET * ROW_BYTES;
@@ -259,7 +260,7 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
 
 function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4BitmapRoom {
   const atlasWidth = clampInt(room?.atlas?.width, 1, 256, 256);
-  const atlasHeight = clampInt(room?.atlas?.height, 1, 256, 256);
+  const atlasHeight = clampInt(room?.atlas?.height, 1, BITMAP_ROOM_ATLAS_MAX_HEIGHT, 256);
   const height = room?.height === 212 ? 212 : SCREEN_HEIGHT_DEFAULT;
   return {
     id: room?.id || 'bitmap_room_0',
@@ -385,7 +386,7 @@ function buildSharedWorldAtlasRooms(rooms: Msx2Screen4BitmapRoom[]): { rooms: Ms
   }
   const sharedHeight = Math.max(
     TILE_GRID_SIZE,
-    Math.min(256, Math.max(...rooms.map(room => clampInt(room.atlas?.height, TILE_GRID_SIZE, 256, TILE_GRID_SIZE)), requiredHeight)),
+    Math.min(BITMAP_ROOM_ATLAS_MAX_HEIGHT, Math.max(...rooms.map(room => clampInt(room.atlas?.height, TILE_GRID_SIZE, BITMAP_ROOM_ATLAS_MAX_HEIGHT, TILE_GRID_SIZE)), requiredHeight)),
   );
   if (requiredHeight > sharedHeight) {
     throw new Error(`SCREEN 5 bitmap-room shared atlas overflow: tiles from all rooms need more than ${sharedWidth}x${sharedHeight}.`);
