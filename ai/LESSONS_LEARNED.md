@@ -1324,3 +1324,32 @@ tambien el estado inicial del modal. Si una room SCREEN 5 abre un importador PNG
 el modo seleccionado por defecto debe ser SCREEN 5.
 
 ---
+
+## Bug Resuelto: biblioteca global SCREEN 5 solo validaba Color clash en atlas
+
+Fecha: 2026-06-26
+
+Problema:
+En una room SCREEN 5, importar desde la biblioteca global parecia funcionar solo
+con tiles de la carpeta `Color clash`; los tiles de `Bitmap SCREEN 5` no quedaban
+claramente validados como entradas nuevas del atlas.
+
+Causa:
+El flujo de biblioteca tenia dos rutas distintas: `Color clash` usaba
+`handleImport` y `Bitmap SCREEN 5` usaba `handleImportBitmap`. La cobertura de
+test solo verificaba PNG y no comprobaba que ambas carpetas escribieran en el
+mismo destino visible (`room.atlas.entries`). Ademas, si la paleta bitmap diferia,
+el flujo debia pasar por conciliacion antes de llamar a `onImportTiles`.
+
+Solucion:
+Con room SCREEN 5 activa, los bitmap tiles se convierten a `Msx2Screen4Tile`,
+conciliando paleta cuando hace falta, y se importan por `onImportTiles` igual que
+los Color clash. El test Playwright recurrente ahora precarga una entrada de
+cada carpeta y exige que el atlas suba 0 -> 1 -> 2 antes de probar PNG.
+
+Leccion:
+Para SCREEN 5, la biblioteca global tiene dos carpetas pero un unico destino de
+edicion: el atlas activo. Cualquier test de importacion debe cubrir ambas rutas
+(`Color clash` y `Bitmap SCREEN 5`) y no solo el importador PNG.
+
+---

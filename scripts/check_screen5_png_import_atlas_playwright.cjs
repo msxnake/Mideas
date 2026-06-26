@@ -5,6 +5,103 @@ const { chromium } = require('playwright');
 const DEFAULT_SOURCE = 'C:\\Users\\salam\\Downloads\\plantas_tiles.png';
 const sourcePng = process.env.MIDEAS_SCREEN5_PNG_IMPORT_SOURCE || DEFAULT_SOURCE;
 
+function createDefaultScreen5PaletteSlots() {
+  const base = [
+    'rgba(0,0,0,0)',
+    '#000000',
+    '#3EB847',
+    '#74D07D',
+    '#2F2FC1',
+    '#5858FC',
+    '#B63125',
+    '#68D2DA',
+    '#FC584A',
+    '#FF8E81',
+    '#C0BF3B',
+    '#E7E474',
+    '#309337',
+    '#B640C8',
+    '#999999',
+    '#FFFFFF',
+  ];
+  const levels = [0x00, 0x24, 0x49, 0x6D, 0x92, 0xB6, 0xDB, 0xFF];
+  const closest = value => levels.reduce((best, level, index) => (
+    Math.abs(level - value) < Math.abs(levels[best] - value) ? index : best
+  ), 0);
+  const hex2 = value => value.toString(16).padStart(2, '0').toUpperCase();
+  return base.map((hex, slotIndex) => {
+    if (slotIndex === 0) return { slotIndex, masterIndex: -1, hex };
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const ri = closest(r);
+    const gi = closest(g);
+    const bi = closest(b);
+    return {
+      slotIndex,
+      masterIndex: (ri << 6) | (gi << 3) | bi,
+      hex: `#${hex2(levels[ri])}${hex2(levels[gi])}${hex2(levels[bi])}`,
+    };
+  });
+}
+
+function makeSolidTilePixels(slot) {
+  return Array.from({ length: 16 }, (_row, y) =>
+    Array.from({ length: 16 }, (_col, x) => ((x + y) % 5 === 0 ? 0 : slot))
+  );
+}
+
+function makeLibraryFixtures() {
+  const palette = createDefaultScreen5PaletteSlots();
+  const colorClashTile = {
+    id: 'screen4_library_tile',
+    name: 'Library Color Clash Test',
+    width: 16,
+    height: 16,
+    pixels: makeSolidTilePixels(2),
+    behaviorKind: 'background',
+  };
+  const bitmapPixels = makeSolidTilePixels(3);
+  const bitmapTile = {
+    id: 'screen5_bitmap_library_tile',
+    name: 'Library Bitmap Test',
+    mode: 'SCREEN5_BITMAP',
+    width: 16,
+    height: 16,
+    sourceType: 'png-import',
+    paletteId: 'test_palette',
+    pixelData: bitmapPixels.flat(),
+    createdAt: '2026-06-26T00:00:00.000Z',
+    updatedAt: '2026-06-26T00:00:00.000Z',
+  };
+  return {
+    colorClashEntries: [{
+      id: 'entry_screen4_library_tile',
+      name: 'Library Color Clash Test',
+      savedAt: 1770000000000,
+      tile: colorClashTile,
+      palette,
+    }],
+    bitmapEntries: [{
+      id: 'entry_screen5_bitmap_library_tile',
+      name: 'Library Bitmap Test',
+      savedAt: 1770000000001,
+      tile: bitmapTile,
+      palette,
+    }],
+  };
+}
+
+async function importFirstVisibleLibraryTile(page) {
+  await page.getByRole('button', { name: 'Import', exact: true }).first().click();
+  await page.waitForTimeout(400);
+  const reconcileButton = page.getByRole('button', { name: 'Importar a la pantalla' });
+  if (await reconcileButton.count()) {
+    await reconcileButton.click();
+    await page.waitForTimeout(500);
+  }
+}
+
 async function main() {
   if (!fs.existsSync(sourcePng)) {
     throw new Error(`PNG source not found: ${sourcePng}`);
@@ -59,7 +156,33 @@ async function main() {
     await page.locator('button').filter({ hasText: 'Create MSX2 Project' }).last().click();
     await page.waitForTimeout(1000);
 
+    await page.evaluate(fixtures => {
+      localStorage.setItem('msxIdeMsx2TileLibrary_v1', JSON.stringify(fixtures.colorClashEntries));
+      localStorage.setItem('msxIdeMsx2BitmapTileLibrary_v1', JSON.stringify(fixtures.bitmapEntries));
+    }, makeLibraryFixtures());
+
     await page.getByRole('button', { name: 'Importar tile' }).click();
+    await page.waitForTimeout(500);
+    await importFirstVisibleLibraryTile(page);
+    let body = await page.locator('body').innerText();
+    let atlasBudget = body.match(/Atlas tiles\s+(\d+) \/ 256/);
+    if (!atlasBudget || Number(atlasBudget[1]) < 1) {
+      throw new Error(`Color-clash library tile did not reach SCREEN 5 atlas. Atlas budget: ${atlasBudget?.[0] || '<missing>'}`);
+    }
+
+    await page.getByRole('button', { name: /Carpeta: Bitmap SCREEN 5/ }).click();
+    await page.waitForTimeout(300);
+    await importFirstVisibleLibraryTile(page);
+    body = await page.locator('body').innerText();
+    atlasBudget = body.match(/Atlas tiles\s+(\d+) \/ 256/);
+    const propsAtlasAfterBitmap = body.match(/Atlas: 256x\d+ px \/ (\d+) entries/);
+    if (!atlasBudget || Number(atlasBudget[1]) < 2) {
+      throw new Error(`Bitmap SCREEN 5 library tile did not reach atlas. Atlas budget: ${atlasBudget?.[0] || '<missing>'}`);
+    }
+    if (!propsAtlasAfterBitmap || Number(propsAtlasAfterBitmap[1]) < 2) {
+      throw new Error(`Room properties do not show both library atlas entries. Atlas props: ${propsAtlasAfterBitmap?.[0] || '<missing>'}`);
+    }
+
     await page.getByRole('button', { name: 'Importar PNG' }).click();
     await page.waitForTimeout(500);
 
@@ -75,7 +198,14 @@ async function main() {
     await page.locator('button[title^="Dibuja"]').click();
     await page.waitForTimeout(300);
 
-    const sourceCanvas = page.locator('canvas').nth(2);
+    const sourceCanvasIndex = await page.locator('canvas').evaluateAll(canvases => {
+      const exact = canvases.findIndex(canvas => canvas.width === 1254 && canvas.height === 1254);
+      if (exact >= 0) return exact;
+      return canvases.reduce((best, canvas, index) => (
+        canvas.width * canvas.height > canvases[best].width * canvases[best].height ? index : best
+      ), 0);
+    });
+    const sourceCanvas = page.locator('canvas').nth(sourceCanvasIndex);
     const box = await sourceCanvas.boundingBox();
     if (!box) throw new Error('Source PNG canvas was not visible.');
 
@@ -114,19 +244,19 @@ async function main() {
     await addButton.click();
     await page.waitForTimeout(1200);
 
-    const body = await page.locator('body').innerText();
-    const atlasBudget = body.match(/Atlas tiles\s+(\d+) \/ 256/);
+    body = await page.locator('body').innerText();
+    atlasBudget = body.match(/Atlas tiles\s+(\d+) \/ 256/);
     const propsAtlas = body.match(/Atlas: 256x\d+ px \/ (\d+) entries/);
     const libraryCount = body.match(/Carpeta: Bitmap SCREEN 5 \((\d+)\)/);
     const status = body.match(/Importados .*atlas SCREEN 5.*/)?.[0] || '';
 
-    if (!atlasBudget || Number(atlasBudget[1]) < 1) {
+    if (!atlasBudget || Number(atlasBudget[1]) < 3) {
       throw new Error(`Tile Atlas did not receive the PNG tile. Atlas budget: ${atlasBudget?.[0] || '<missing>'}`);
     }
-    if (!propsAtlas || Number(propsAtlas[1]) < 1) {
+    if (!propsAtlas || Number(propsAtlas[1]) < 3) {
       throw new Error(`Room properties do not show atlas entries. Atlas props: ${propsAtlas?.[0] || '<missing>'}`);
     }
-    if (!libraryCount || Number(libraryCount[1]) < 1) {
+    if (!libraryCount || Number(libraryCount[1]) < 2) {
       throw new Error(`Bitmap SCREEN 5 library was not updated. Library: ${libraryCount?.[0] || '<missing>'}`);
     }
     if (!status.includes('atlas SCREEN 5')) {

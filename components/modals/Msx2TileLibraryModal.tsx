@@ -267,7 +267,17 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       const paletteChanged = destPalette && destPalette.length > 0
         ? !areScreen5PalettesEquivalent(destPalette, entry.palette)
         : false;
-      onImportTiles([tile], entry.palette, paletteChanged);
+      // When the tile's palette differs from the active screen, reconcile it with
+      // the same dialog SCREEN 4 uses, instead of silently overwriting the world
+      // palette. Overwriting repaints every OTHER atlas tile with the wrong colors
+      // (the user sees "only the palette changed, the tile didn't import"). The
+      // reconcile dialog lets the user enrich (add new colors to free slots) or
+      // adapt (remap to existing slots), neither of which breaks existing tiles.
+      if (paletteChanged && destPalette && destPalette.length > 0) {
+        setReconcileEntry({ id: entry.id, name: entry.name, savedAt: entry.savedAt, tile, palette: entry.palette });
+        return;
+      }
+      onImportTiles([tile], entry.palette, false);
       setStatusBarMessage?.(`Importado "${entry.name}" al atlas SCREEN 5.`);
       return;
     }
@@ -275,10 +285,8 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       setStatusBarMessage?.('Este contexto no admite importar tiles bitmap al proyecto.');
       return;
     }
-    // Reaching here means 'screen5' (a bitmap room is open) or 'none' (no screen
-    // active). Both create the project asset; only the 'screen4' tile context is
-    // rejected (handled above) because bitmap tiles don't belong on a color-clash
-    // screen. An active room is NOT required to add a project-level bitmap tile.
+    // Reaching here means no compatible screen is active. Create a project-level
+    // bitmap tile asset so the art is still available for later atlas import.
     const matchingPalette = findMatchingScreen5PaletteAsset(entry.palette, allAssets);
     const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(entry.palette, entry.name, entry.tile.id, allAssets);
     const tileAsset = buildScreen5BitmapTileAsset({
@@ -330,6 +338,22 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
   ) => {
     let createdProjectAssets = 0;
     let importedAtlasTiles = 0;
+
+    // When a SCREEN 5 room hosts this modal, ANY imported PNG must land in the
+    // active atlas; that is the visible contract of "Importar PNG" here. This is
+    // independent of the screen4/screen5 toggle, so a mis-set toggle (or a stale
+    // default) can never make the tile silently vanish into the global library only.
+    if (activeTargetMode === 'screen5') {
+      const nonEmptyAtlasTiles = tiles.filter(tile => !isMsx2TileEmpty(tile));
+      if (nonEmptyAtlasTiles.length > 0) {
+        const paletteChanged = destPalette && destPalette.length > 0
+          ? !areScreen5PalettesEquivalent(destPalette, palette)
+          : false;
+        onImportTiles(nonEmptyAtlasTiles, palette, paletteChanged, 'screen');
+        importedAtlasTiles = nonEmptyAtlasTiles.length;
+      }
+    }
+
     if (outputMode === 'screen5') {
       if (tiles.length > 1 && layout) {
         addStampToMsx2BitmapStampLibrary(tiles, palette, layout.columns, layout.rows, layout.baseName);
@@ -340,19 +364,9 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
       setBitmapStampCount(loadMsx2BitmapStampLibrary().length);
       setActiveFolder('screen5');
 
-      const nonEmptyScreen5Tiles = tiles.filter(tile => !isMsx2TileEmpty(tile));
-      if (activeTargetMode === 'screen5' && nonEmptyScreen5Tiles.length > 0) {
-        const paletteChanged = destPalette && destPalette.length > 0
-          ? !areScreen5PalettesEquivalent(destPalette, palette)
-          : false;
-        onImportTiles(nonEmptyScreen5Tiles, palette, paletteChanged, 'screen');
-        importedAtlasTiles = nonEmptyScreen5Tiles.length;
-      }
-
-      // Also create project assets when there is no active SCREEN 5 room. With
-      // a room open, the direct onImportTiles path above is the authoritative
-      // atlas import and avoids adding the same PNG twice through an asset
-      // round-trip.
+      // Project assets are only created when there is NO active SCREEN 5 room.
+      // With a room open, the activeTargetMode==='screen5' block above already
+      // wrote the tiles to the atlas; creating assets too would duplicate them.
       if (onImportBitmapTileAssets && activeTargetMode === 'none') {
         const matchingPalette = findMatchingScreen5PaletteAsset(palette, allAssets);
         const paletteAsset = matchingPalette
