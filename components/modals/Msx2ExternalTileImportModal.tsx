@@ -125,6 +125,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const [replaceableSlots, setReplaceableSlots] = useState<number[]>(() => defaultReplaceableMsx2SpriteSlots(palette));
   const [showResultGrid, setShowResultGrid] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [adaptToExistingPalette, setAdaptToExistingPalette] = useState(false);
   // Re-roll counter for the color quantizer (see "Recuantizar" button).
   const [quantizeSeed, setQuantizeSeed] = useState(0);
   // Interactive crop: draw a rectangle (snapped to 16px) over the source image
@@ -142,8 +143,9 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     ? 'Paleta MSX2 por defecto'
     : (paletteAssets.find(asset => asset.id === activePaletteSourceId)?.name || 'Paleta del proyecto');
 
-  const activatePaletteSource = (sourceId: string) => {
+  const activatePaletteSource = (sourceId: string, adaptExisting = true) => {
     setActivePaletteSourceId(sourceId);
+    setAdaptToExistingPalette(adaptExisting);
     const nextPalette = sourceId === '__screen__'
       ? initialPalette
       : sourceId === '__default__'
@@ -167,6 +169,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     setLockDimensions(false);
     setBackgroundSlot(resetBlackSlot);
     setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(resetPalette));
+    setAdaptToExistingPalette(false);
     setQuantizeSeed(0);
     setOutputMode(defaultOutputMode);
     setActivePaletteSourceId(destPalette ? '__screen__' : '__default__');
@@ -191,7 +194,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     baseName,
     quantizeSeed,
     outputMode,
-  }), [backgroundColor, backgroundSlot, backgroundTolerance, baseName, cropToVisible, finalColorCount, outputMode, preserveAspect, quantizeSeed, replaceableSlots, targetHeight, targetWidth]);
+    adaptToExistingPalette: outputMode === 'screen5' && adaptToExistingPalette,
+  }), [adaptToExistingPalette, backgroundColor, backgroundSlot, backgroundTolerance, baseName, cropToVisible, finalColorCount, outputMode, preserveAspect, quantizeSeed, replaceableSlots, targetHeight, targetWidth]);
 
   const result = useMemo(() => {
     if (!imageData) return null;
@@ -586,9 +590,9 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                   </div>
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant={adaptToExistingPalette ? 'primary' : 'secondary'}
                     disabled={!destPalette}
-                    onClick={() => activatePaletteSource('__screen__')}
+                    onClick={() => activatePaletteSource('__screen__', true)}
                     title="Recuantiza el PNG usando la paleta ya activa en la pantalla o mundo"
                   >
                     Adaptar a paleta existente
@@ -596,7 +600,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                 </div>
                 <select
                   value={activePaletteSourceId}
-                  onChange={event => activatePaletteSource(event.target.value)}
+                  onChange={event => activatePaletteSource(event.target.value, true)}
                   className="mb-2 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1 text-xs text-msx-textprimary"
                   title="Selecciona la paleta que se usara para adaptar/recuantizar el PNG"
                 >
@@ -616,6 +620,11 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                     />
                   ))}
                 </div>
+                {adaptToExistingPalette && (
+                  <div className="mt-2 text-[11px] text-msx-highlight">
+                    Adaptacion fija activa: no se crean colores nuevos.
+                  </div>
+                )}
               </div>
             )}
 
@@ -725,9 +734,11 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                   <Button
                     size="sm"
                     variant="secondary"
-                    disabled={!result}
+                    disabled={!result || adaptToExistingPalette}
                     onClick={() => setQuantizeSeed(seed => seed + 1)}
-                    title="Vuelve a repartir los colores (re-ejecuta la cuantización con otra semilla)"
+                    title={adaptToExistingPalette
+                      ? 'La adaptacion a paleta fija no genera colores nuevos'
+                      : 'Vuelve a repartir los colores (re-ejecuta la cuantización con otra semilla)'}
                   >
                     Recuantizar
                   </Button>

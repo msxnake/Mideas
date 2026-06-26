@@ -38,6 +38,11 @@ export interface Msx2ExternalSpriteImportOptions {
    * k-means seeding so the caller can ask for an alternative palette split.
    */
   quantizeSeed?: number;
+  /**
+   * When true, keep the incoming SCREEN 5 palette fixed and map pixels to the
+   * nearest existing slot instead of generating replacement slot colours.
+   */
+  adaptToExistingPalette?: boolean;
 }
 
 export interface Msx2ExternalSpriteImportResult {
@@ -349,6 +354,7 @@ export function importExternalPngAsMsx2Sprite(
   const sourceVisibleSamples = collectVisibleSourceSamples(imageData, crop, background, normalizedOptions);
   const paletteSourceSamples = sourceVisibleSamples.length ? sourceVisibleSamples : visibleSamples;
   const detectedOpaqueColors = new Set(visibleSamples.map(quantizedKey)).size;
+  const adaptToExistingPalette = Boolean(options.adaptToExistingPalette);
 
   const immutableSlots = findImmutableSlots(currentPalette);
   const replaceableSlots = options.replaceableSlots
@@ -359,10 +365,12 @@ export function importExternalPngAsMsx2Sprite(
     ? Math.min(requestedCustomColors, replaceableSlots.length)
     : 0;
 
-  if (replaceableSlots.length === 0) {
+  if (adaptToExistingPalette) {
+    warnings.push('Paleta existente activa: no se generan colores nuevos; cada pixel se adapta al slot mas cercano.');
+  } else if (replaceableSlots.length === 0) {
     warnings.push('No hay slots sustituibles seleccionados; se usara la paleta actual.');
   }
-  if (requestedCustomColors > replaceableSlots.length) {
+  if (!adaptToExistingPalette && requestedCustomColors > replaceableSlots.length) {
     warnings.push('Hay menos slots sustituibles que colores custom solicitados.');
   }
 
@@ -381,7 +389,7 @@ export function importExternalPngAsMsx2Sprite(
     return !immutableRgb || colorDistance(sample, immutableRgb) > 26 * 26;
   });
   const samplesForCustom = nonImmutableSamples.length ? nonImmutableSamples : paletteSourceSamples;
-  const generatedColors = replaceableSlots.length && customColorCount > 0
+  const generatedColors = !adaptToExistingPalette && replaceableSlots.length && customColorCount > 0
     ? quantizeSamples(samplesForCustom, Math.min(customColorCount, replaceableSlots.length), options.quantizeSeed ?? 0)
     : [];
 
@@ -405,10 +413,18 @@ export function importExternalPngAsMsx2Sprite(
     generatedSlots.push(slot);
   });
 
-  const candidateSlots = [
-    ...immutablePaletteCandidates,
-    ...generatedSlots,
-  ].filter(slot => slot.slotIndex > 0 && !isTransparentHex(slot.hex));
+  const fixedPaletteCandidates = currentPalette.filter(slot =>
+    slot.slotIndex > 0
+    && slot.slotIndex !== options.backgroundSlot
+    && !isTransparentHex(slot.hex)
+  );
+  const candidateSlots = (adaptToExistingPalette
+    ? fixedPaletteCandidates
+    : [
+      ...immutablePaletteCandidates,
+      ...generatedSlots,
+    ])
+    .filter(slot => slot.slotIndex > 0 && !isTransparentHex(slot.hex));
   if (candidateSlots.length === 0) {
     const fallback = nextPalette.find(slot => slot.slotIndex > 0 && !isTransparentHex(slot.hex));
     if (fallback) candidateSlots.push(fallback);
