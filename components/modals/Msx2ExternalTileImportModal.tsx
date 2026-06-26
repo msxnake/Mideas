@@ -143,7 +143,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     ? 'Paleta MSX2 por defecto'
     : (paletteAssets.find(asset => asset.id === activePaletteSourceId)?.name || 'Paleta del proyecto');
 
-  const activatePaletteSource = (sourceId: string, adaptExisting = true) => {
+  const activatePaletteSource = (sourceId: string, adaptExisting = adaptToExistingPalette) => {
     setActivePaletteSourceId(sourceId);
     setAdaptToExistingPalette(adaptExisting);
     const nextPalette = sourceId === '__screen__'
@@ -169,7 +169,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     setLockDimensions(false);
     setBackgroundSlot(resetBlackSlot);
     setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(resetPalette));
-    setAdaptToExistingPalette(false);
+    setAdaptToExistingPalette(defaultOutputMode === 'screen5' && Boolean(destPalette));
     setQuantizeSeed(0);
     setOutputMode(defaultOutputMode);
     setActivePaletteSourceId(destPalette ? '__screen__' : '__default__');
@@ -592,12 +592,23 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                     size="sm"
                     variant={adaptToExistingPalette ? 'primary' : 'secondary'}
                     disabled={!destPalette}
-                    onClick={() => activatePaletteSource('__screen__', true)}
+                    onClick={() => {
+                      activatePaletteSource('__screen__', true);
+                      setOutputMode('screen5');
+                    }}
                     title="Recuantiza el PNG usando la paleta ya activa en la pantalla o mundo"
                   >
                     Adaptar a paleta existente
                   </Button>
                 </div>
+                <label className="mb-2 flex items-center justify-between gap-2 text-[11px] text-msx-textsecondary">
+                  Usar solo colores de esta paleta
+                  <input
+                    type="checkbox"
+                    checked={adaptToExistingPalette}
+                    onChange={event => setAdaptToExistingPalette(event.target.checked)}
+                  />
+                </label>
                 <select
                   value={activePaletteSourceId}
                   onChange={event => activatePaletteSource(event.target.value, true)}
