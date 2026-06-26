@@ -152,6 +152,7 @@ const BITMAP_ROOM_PAGE0_BASE_Y = 0;
 const BITMAP_ROOM_PAGE1_BASE_Y = 256;
 const BITMAP_ROOM_ATLAS_BASE_Y = 512;
 const BITMAP_ROOM_ATLAS_MAX_HEIGHT = 512;
+const BITMAP_ROOM_SOURCE_ATLAS_MAX_HEIGHT = 2048;
 const BITMAP_ROOM_PAGE0_R2 = 0x1f;
 const BITMAP_ROOM_PAGE1_R2 = 0x3f;
 const BITMAP_ROOM_GAME_VRAM_BASE = BITMAP_ROOM_GAME_Y_OFFSET * ROW_BYTES;
@@ -260,7 +261,18 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
 
 function normalizeRoom(room: Msx2Screen4BitmapRoom | undefined): Msx2Screen4BitmapRoom {
   const atlasWidth = clampInt(room?.atlas?.width, 1, 256, 256);
-  const atlasHeight = clampInt(room?.atlas?.height, 1, BITMAP_ROOM_ATLAS_MAX_HEIGHT, 256);
+  const entryBottom = Math.max(
+    0,
+    ...((room?.atlas?.entries || []).map(entry =>
+      Math.trunc(Number(entry?.sy) || 0) + Math.max(1, Math.trunc(Number(entry?.h) || TILE_GRID_SIZE))
+    )),
+  );
+  const authoredAtlasHeight = Math.max(
+    Number(room?.atlas?.height) || 0,
+    Array.isArray(room?.atlas?.pixels) ? room!.atlas!.pixels.length : 0,
+    entryBottom,
+  );
+  const atlasHeight = clampInt(authoredAtlasHeight, 1, BITMAP_ROOM_SOURCE_ATLAS_MAX_HEIGHT, 256);
   const height = room?.height === 212 ? 212 : SCREEN_HEIGHT_DEFAULT;
   return {
     id: room?.id || 'bitmap_room_0',

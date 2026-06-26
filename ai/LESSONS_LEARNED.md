@@ -14,6 +14,35 @@ Leccion Aprendida:
 
 ---
 
+## Bug Resuelto: atlas fuente SCREEN 5 recortado antes del repack compartido
+
+Fecha: 2026-06-26
+
+Problema:
+La UI SCREEN 5 mostraba una pantalla con tiles de hielo completos, pero la ROM
+MSX dibujaba solo lineas finas del patron.
+
+Causa:
+El world engine reempaqueta los atlas de todas las rooms en un atlas compartido
+offscreen. Antes de ese repack, `normalizeRoom` recortaba cada atlas fuente al
+maximo exportable de VRAM (512px). En `newOne31.json` la pantalla 4 tenia tiles
+usados con `sy=560`; al recortar primero, `extractAtlasEntryPixels` leia desde el
+borde recortado/filas vacias y el tile compartido se construia mal.
+
+Solucion:
+Separar el limite del atlas de autoria/fuente del limite del atlas compartido
+exportado a VRAM. El atlas fuente se normaliza con altura suficiente para leer
+`atlas.pixels` y `entry.sy + entry.h`; despues el repack compacto sigue obligado
+a caber en el area offscreen de 512px.
+
+Leccion:
+En SCREEN 5, no aplicar limites de VRAM al atlas de autoria antes de extraer los
+tiles. Primero leer los pixels reales guardados por la UI; luego reempaquetar y
+validar contra el limite hardware. Sintoma delator: solo fallan los tiles
+situados muy abajo en el atlas, aunque el atlas compartido final podria caber.
+
+---
+
 ## Bug Resuelto: HMMM/HMMV usan coords de pixel, no de byte (mitad de pantalla)
 
 Fecha: 2026-06-24
