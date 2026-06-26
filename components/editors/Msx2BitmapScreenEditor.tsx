@@ -878,6 +878,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     }),
     [atlasEntries, selectedCategory],
   );
+  const revealAtlasEntry = (entry?: Msx2BitmapRoomAtlasEntry) => {
+    if (!entry) return;
+    setSelectedAtlasEntryId(entry.id);
+    const category = inferEntryCategory(entry.name);
+    if (category) setSelectedCategory(category);
+    setConfigTarget('tile');
+  };
   const composedPixels = useMemo(() => renderComposition(room, atlasPixels), [room, atlasPixels]);
 
   const roomHeight = Number(room.height) || SCREEN_H;
@@ -1406,7 +1413,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     });
     setSelectedStampId(entry.id);
     setPreparedStamp({ stampId: entry.id, atlasEntryIds: addedEntries.map(atlasEntry => atlasEntry.id) });
-    if (addedEntries[0]) setSelectedAtlasEntryId(addedEntries[0].id);
+    revealAtlasEntry(addedEntries[0]);
     setActiveLayer('visual');
     setTool('brush');
     setStatusBarMessage?.(`SCREEN 5: stamp "${entry.name}" preparado; click en el grid para colocarlo.`);
@@ -1722,10 +1729,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       atlas,
       ...(paletteChanged && !usesWorldPalette && (!paletteSourceId || paletteSourceId === 'screen') ? { palette: palette.map(slot => ({ ...slot })) } : {}),
     });
-    if (addedEntries[0]) {
-      setSelectedAtlasEntryId(addedEntries[0].id);
-      setConfigTarget('tile');
-    }
+    revealAtlasEntry(addedEntries[0]);
     setStatusBarMessage?.(`Importados ${addedEntries.length} tile(s) al atlas SCREEN 5.`);
   };
 
@@ -1871,10 +1875,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       atlas,
       ...(shouldApplyPalette && !usesWorldPalette && !onSetWorldPaletteAssetId ? { palette: palette.map(slot => ({ ...slot })) } : {}),
     });
-    if (addedEntries[0]) {
-      setSelectedAtlasEntryId(addedEntries[0].id);
-      setConfigTarget('tile');
-    }
+    revealAtlasEntry(addedEntries[0]);
     setStatusBarMessage?.(`Importado "${asset.name}" al atlas SCREEN 5.`);
   };
 
@@ -2724,10 +2725,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
               atlasTiles,
             );
             onUpdate({ atlas }, newAssets);
-            if (addedEntries[0]) {
-              setSelectedAtlasEntryId(addedEntries[0].id);
-              setConfigTarget('tile');
-            }
+            revealAtlasEntry(addedEntries[0]);
           } else {
             onUpdate({}, newAssets);
           }

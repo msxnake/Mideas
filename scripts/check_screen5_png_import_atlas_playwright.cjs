@@ -75,7 +75,7 @@ function makeLibraryFixtures() {
   const bitmapPixels = makeSolidTilePixels(3);
   const bitmapTile = {
     id: 'screen5_bitmap_library_tile',
-    name: 'Library Bitmap Test',
+    name: 'plantitas1',
     mode: 'SCREEN5_BITMAP',
     width: 16,
     height: 16,
@@ -95,7 +95,7 @@ function makeLibraryFixtures() {
     }],
     bitmapEntries: [{
       id: 'entry_screen5_bitmap_library_tile',
-      name: 'Library Bitmap Test',
+      name: 'plantitas1',
       savedAt: 1770000000001,
       tile: bitmapTile,
       palette: bitmapPalette,
@@ -152,12 +152,14 @@ async function main() {
   });
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await page.waitForTimeout(1000);
     await page.evaluate(() => {
       localStorage.removeItem('msxIdeMsx2BitmapTileLibrary_v1');
       localStorage.removeItem('msxIdeMsx2BitmapStampLibrary_v1');
     });
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1000);
 
     await page.getByRole('button', { name: 'File' }).click();
     await page.getByText('New Project', { exact: true }).click();
@@ -198,7 +200,15 @@ async function main() {
     if (!propsAtlasAfterBitmap || Number(propsAtlasAfterBitmap[1]) < 2) {
       throw new Error(`Room properties do not show both library atlas entries. Atlas props: ${propsAtlasAfterBitmap?.[0] || '<missing>'}`);
     }
+    await page.getByRole('button', { name: 'Cerrar' }).last().click();
+    await page.waitForTimeout(300);
+    const visiblePlantAtlasTile = await page.locator('button[title^="plantitas1"]').count();
+    if (visiblePlantAtlasTile === 0) {
+      throw new Error('Imported bitmap tile plantitas1 reached the atlas counter but is hidden by the atlas category filter.');
+    }
 
+    await page.getByRole('button', { name: 'Importar tile' }).click();
+    await page.waitForTimeout(500);
     await page.getByRole('button', { name: 'Importar PNG' }).click();
     await page.waitForTimeout(500);
 
