@@ -298,13 +298,24 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const activeMsx2ScreenAsset = (activeAsset?.type === 'msx2screen' ? activeAsset : undefined)
     || assets.find(a => a.type === 'msx2screen');
   const activeMsx2BitmapRoomAsset = activeAsset?.type === 'msx2bitmaproom' ? activeAsset : undefined;
+  const bitmapLibraryTargetRoomAsset = React.useMemo(() => {
+    if (activeMsx2BitmapRoomAsset) return activeMsx2BitmapRoomAsset;
+    if (activeAsset?.type === 'worldmap') {
+      const graph = activeAsset.data as WorldMapGraph | undefined;
+      const roomId = (graph?.nodes || [])
+        .map(node => node.screenAssetId)
+        .find(screenAssetId => assets.some(asset => asset.id === screenAssetId && asset.type === 'msx2bitmaproom'));
+      if (roomId) return assets.find(asset => asset.id === roomId && asset.type === 'msx2bitmaproom');
+    }
+    return assets.find(asset => asset.type === 'msx2bitmaproom');
+  }, [activeAsset, activeMsx2BitmapRoomAsset, assets]);
   const activeBitmapWorldAsset = React.useMemo(() => {
-    if (!activeMsx2BitmapRoomAsset) return undefined;
+    if (!bitmapLibraryTargetRoomAsset) return undefined;
     return assets.find(asset =>
       asset.type === 'worldmap'
-      && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === activeMsx2BitmapRoomAsset.id)
+      && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === bitmapLibraryTargetRoomAsset.id)
     );
-  }, [activeMsx2BitmapRoomAsset, assets]);
+  }, [bitmapLibraryTargetRoomAsset, assets]);
   const activeBitmapWorldPaletteAsset = React.useMemo(() => {
     const paletteAssetId = (activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId;
     if (!paletteAssetId) return undefined;
@@ -313,9 +324,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const activeBitmapImportPalette = React.useMemo(() => {
     const paletteAsset = activeBitmapWorldPaletteAsset?.data as PaletteAsset | undefined;
     if (paletteAsset?.slots?.length) return ensureScreen5PaletteSlots(paletteAsset.slots).slots;
-    if (activeMsx2BitmapRoomAsset?.data) return ensureScreen5PaletteSlots((activeMsx2BitmapRoomAsset.data as Msx2Screen4BitmapRoom).palette).slots;
+    if (bitmapLibraryTargetRoomAsset?.data) return ensureScreen5PaletteSlots((bitmapLibraryTargetRoomAsset.data as Msx2Screen4BitmapRoom).palette).slots;
     return null;
-  }, [activeBitmapWorldPaletteAsset, activeMsx2BitmapRoomAsset]);
+  }, [activeBitmapWorldPaletteAsset, bitmapLibraryTargetRoomAsset]);
   const activeBitmapWorldRoomIds = React.useMemo(() => {
     const graph = activeBitmapWorldAsset?.data as WorldMapGraph | undefined;
     return new Set((graph?.nodes || []).map(node => node.screenAssetId).filter(Boolean));
@@ -361,11 +372,12 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     setIsCodeExportModalOpen(false);
   }, [setIsCodeExportModalOpen]);
 
-  const handleUpdateBitmapRoom = useCallback((data: Partial<Msx2Screen4BitmapRoom>, newAssets?: ProjectAsset[]) => {
-    if (!activeAsset || activeAsset.type !== 'msx2bitmaproom') return;
+  const handleUpdateBitmapRoom = useCallback((data: Partial<Msx2Screen4BitmapRoom>, newAssets?: ProjectAsset[], targetRoomAsset?: ProjectAsset) => {
+    const roomAsset = targetRoomAsset ?? (activeAsset?.type === 'msx2bitmaproom' ? activeAsset : undefined);
+    if (!roomAsset || roomAsset.type !== 'msx2bitmaproom') return;
     const atlasPatch = data && typeof data === 'object' && 'atlas' in data ? data.atlas : undefined;
     if (!atlasPatch || activeBitmapWorldRoomIds.size === 0) {
-      handleUpdateAsset(activeAsset.id, data, newAssets);
+      handleUpdateAsset(roomAsset.id, data, newAssets);
       return;
     }
 
@@ -412,7 +424,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     };
 
     const sharedAtlas = cloneAtlas(atlasPatch);
-    const activeRoomId = activeAsset.id;
+    const activeRoomId = roomAsset.id;
     setAssetsWithHistory(prev => {
       const withNewAssets = newAssets && newAssets.length > 0 ? [...prev, ...newAssets] : prev;
       return withNewAssets.map(asset => {
@@ -1532,8 +1544,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             isOpen={isMsx2TileLibraryOpen}
             onClose={() => setIsMsx2TileLibraryOpen(false)}
             setStatusBarMessage={setStatusBarMessage}
-            destPalette={activeAsset?.type === 'msx2bitmaproom' ? activeBitmapImportPalette : activeMsx2ScreenAsset ? (activeMsx2ScreenAsset.data as Msx2Screen4TileScreen).palette : null}
-            destScreenName={activeAsset?.type === 'msx2bitmaproom' ? activeBitmapWorldAsset?.name || activeAsset.name : activeMsx2ScreenAsset?.name}
+            destPalette={bitmapLibraryTargetRoomAsset ? activeBitmapImportPalette : activeMsx2ScreenAsset ? (activeMsx2ScreenAsset.data as Msx2Screen4TileScreen).palette : null}
+            destScreenName={bitmapLibraryTargetRoomAsset ? activeBitmapWorldAsset?.name || bitmapLibraryTargetRoomAsset.name : activeMsx2ScreenAsset?.name}
             paletteAssets={assets.filter(a => a.type === 'palette')}
             protectedSlots={msx2SpriteUsedSlots}
             paletteZones={activeMsx2PaletteZones}
@@ -1541,11 +1553,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               if (!activeMsx2ScreenAsset) return;
               handleUpdateAsset(activeMsx2ScreenAsset.id, { paletteZones: zones } as Partial<Msx2Screen4TileScreen>);
             }}
-            activeTargetMode={activeAsset?.type === 'msx2bitmaproom' ? 'screen5' : activeMsx2ScreenAsset ? 'screen4' : 'none'}
+            activeTargetMode={bitmapLibraryTargetRoomAsset ? 'screen5' : activeMsx2ScreenAsset ? 'screen4' : 'none'}
             allAssets={assets}
             onImportBitmapTileAssets={(newAssets) => {
-              if (activeAsset?.type === 'msx2bitmaproom') {
-                const room = activeAsset.data as Msx2Screen4BitmapRoom;
+              if (bitmapLibraryTargetRoomAsset) {
+                const room = bitmapLibraryTargetRoomAsset.data as Msx2Screen4BitmapRoom;
                 const bitmapTileAssets = newAssets.filter(asset => asset.type === 'msx2bitmaptile');
                 const atlasTiles = bitmapTileAssets
                   .map(asset => bitmapTileScreen5ToAtlasTile(asset.data as BitmapTileScreen5))
@@ -1558,8 +1570,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                     pixels: room.atlas?.pixels || [],
                     entries: room.atlas?.entries || [],
                   }, atlasTiles);
-                  handleUpdateBitmapRoom({ atlas }, newAssets);
-                  setStatusBarMessage(`Importados ${atlasTiles.length} tile(s) bitmap al proyecto y al atlas SCREEN 5 de "${activeAsset.name}".`);
+                  handleUpdateBitmapRoom({ atlas }, newAssets, bitmapLibraryTargetRoomAsset);
+                  setStatusBarMessage(`Importados ${atlasTiles.length} tile(s) bitmap al proyecto y al atlas SCREEN 5 de "${bitmapLibraryTargetRoomAsset.name}".`);
                   return;
                 }
               }
@@ -1567,8 +1579,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               handleUpdateAsset(activeAsset?.id ?? '', {}, newAssets);
             }}
             onImportTiles={(tiles, palette, paletteChanged, paletteSourceId) => {
-              if (activeAsset?.type === 'msx2bitmaproom') {
-                const room = activeAsset.data as Msx2Screen4BitmapRoom;
+              if (bitmapLibraryTargetRoomAsset) {
+                const room = bitmapLibraryTargetRoomAsset.data as Msx2Screen4BitmapRoom;
                 const { atlas } = importTilesIntoAtlas({
                   width: room.atlas?.width || 256,
                   height: room.atlas?.height || 0,
@@ -1592,8 +1604,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                     update.palette = palette.map(slot => ({ ...slot }));
                   }
                 }
-                handleUpdateBitmapRoom(update);
-                setStatusBarMessage(`Importados ${tiles.length} tile(s) al atlas SCREEN 5 de "${activeAsset.name}".`);
+                handleUpdateBitmapRoom(update, undefined, bitmapLibraryTargetRoomAsset);
+                setStatusBarMessage(`Importados ${tiles.length} tile(s) al atlas SCREEN 5 de "${bitmapLibraryTargetRoomAsset.name}".`);
                 return;
               }
 

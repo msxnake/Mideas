@@ -51,8 +51,19 @@ function makeSolidTilePixels(slot) {
   );
 }
 
+function createMismatchedScreen5PaletteSlots() {
+  const slots = createDefaultScreen5PaletteSlots();
+  return slots.map(slot => {
+    if (slot.slotIndex === 3) return { ...slot, masterIndex: 73, hex: '#246D24' };
+    if (slot.slotIndex === 6) return { ...slot, masterIndex: 292, hex: '#929224' };
+    if (slot.slotIndex === 10) return { ...slot, masterIndex: 438, hex: '#DBDB92' };
+    return slot;
+  });
+}
+
 function makeLibraryFixtures() {
   const palette = createDefaultScreen5PaletteSlots();
+  const bitmapPalette = createMismatchedScreen5PaletteSlots();
   const colorClashTile = {
     id: 'screen4_library_tile',
     name: 'Library Color Clash Test',
@@ -87,7 +98,7 @@ function makeLibraryFixtures() {
       name: 'Library Bitmap Test',
       savedAt: 1770000000001,
       tile: bitmapTile,
-      palette,
+      palette: bitmapPalette,
     }],
   };
 }
@@ -96,10 +107,12 @@ async function importFirstVisibleLibraryTile(page) {
   await page.getByRole('button', { name: 'Import', exact: true }).first().click();
   await page.waitForTimeout(400);
   const reconcileButton = page.getByRole('button', { name: 'Importar a la pantalla' });
-  if (await reconcileButton.count()) {
+  const reconciled = await reconcileButton.count() > 0;
+  if (reconciled) {
     await reconcileButton.click();
     await page.waitForTimeout(500);
   }
+  return reconciled;
 }
 
 async function main() {
@@ -172,7 +185,10 @@ async function main() {
 
     await page.getByRole('button', { name: /Carpeta: Bitmap SCREEN 5/ }).click();
     await page.waitForTimeout(300);
-    await importFirstVisibleLibraryTile(page);
+    const usedReconcile = await importFirstVisibleLibraryTile(page);
+    if (!usedReconcile) {
+      throw new Error('Bitmap SCREEN 5 library import did not open palette reconciliation; recurrent test must cover that branch.');
+    }
     body = await page.locator('body').innerText();
     atlasBudget = body.match(/Atlas tiles\s+(\d+) \/ 256/);
     const propsAtlasAfterBitmap = body.match(/Atlas: 256x\d+ px \/ (\d+) entries/);
