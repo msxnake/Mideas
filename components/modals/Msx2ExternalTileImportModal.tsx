@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Msx2Screen4Tile, Screen5PaletteSlot } from '../../types';
+import { PaletteAsset, Msx2Screen4Tile, Screen5PaletteSlot } from '../../types';
 import { Button } from '../common/Button';
 import {
   computeContentCropRect,
@@ -10,7 +10,7 @@ import {
   isMsx2TileEmpty,
   Msx2ExternalTileImportOptions,
 } from '../../utils/msx2ExternalTileImport';
-import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 
 interface Msx2ExternalTileImportModalProps {
   isOpen: boolean;
@@ -28,6 +28,10 @@ interface Msx2ExternalTileImportModalProps {
    * defaulting to the SCREEN 4 color-clash library. Defaults to 'screen4'.
    */
   defaultOutputMode?: 'screen4' | 'screen5';
+  /** Active screen/world palette used by SCREEN 5 rooms. */
+  destPalette?: Screen5PaletteSlot[] | null;
+  /** Project palette assets that can be activated as the import palette. */
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -88,8 +92,21 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   onClose,
   onAddTiles,
   defaultOutputMode = 'screen4',
+  destPalette,
+  paletteAssets = [],
 }) => {
-  const palette = useMemo(() => createDefaultScreen5PaletteSlots(), []);
+  const defaultPalette = useMemo(() => createDefaultScreen5PaletteSlots(), []);
+  const initialPalette = useMemo(
+    () => ensureScreen5PaletteSlots(destPalette || defaultPalette).slots,
+    [defaultPalette, destPalette],
+  );
+  const [activePaletteSourceId, setActivePaletteSourceId] = useState('__screen__');
+  const palette = useMemo(() => {
+    if (activePaletteSourceId === '__screen__') return initialPalette;
+    if (activePaletteSourceId === '__default__') return defaultPalette;
+    const asset = paletteAssets.find(candidate => candidate.id === activePaletteSourceId);
+    return ensureScreen5PaletteSlots(asset?.data?.slots || initialPalette).slots;
+  }, [activePaletteSourceId, defaultPalette, initialPalette, paletteAssets]);
   const blackSlot = palette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
 
   const [imageData, setImageData] = useState<ImageData | null>(null);
@@ -119,24 +136,45 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const originalCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const backgroundColor = (palette[backgroundSlot]?.hex || '#000000');
+  const selectedPaletteName = activePaletteSourceId === '__screen__'
+    ? 'Paleta existente de la pantalla'
+    : activePaletteSourceId === '__default__'
+    ? 'Paleta MSX2 por defecto'
+    : (paletteAssets.find(asset => asset.id === activePaletteSourceId)?.name || 'Paleta del proyecto');
+
+  const activatePaletteSource = (sourceId: string) => {
+    setActivePaletteSourceId(sourceId);
+    const nextPalette = sourceId === '__screen__'
+      ? initialPalette
+      : sourceId === '__default__'
+      ? defaultPalette
+      : ensureScreen5PaletteSlots(paletteAssets.find(asset => asset.id === sourceId)?.data?.slots || initialPalette).slots;
+    const nextBlackSlot = nextPalette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
+    setBackgroundSlot(nextBlackSlot);
+    setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(nextPalette));
+    setQuantizeSeed(seed => seed + 1);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
+    const resetPalette = destPalette ? initialPalette : defaultPalette;
+    const resetBlackSlot = resetPalette.find(slot => normalizeHex(slot.hex) === '#000000')?.slotIndex ?? 1;
     setImageData(null);
     setFileName('');
     setBaseName('tile');
     setTargetWidth(16);
     setTargetHeight(16);
     setLockDimensions(false);
-    setBackgroundSlot(blackSlot);
-    setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(palette));
+    setBackgroundSlot(resetBlackSlot);
+    setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(resetPalette));
     setQuantizeSeed(0);
     setOutputMode(defaultOutputMode);
+    setActivePaletteSourceId(destPalette ? '__screen__' : '__default__');
     setCropMode(false);
     setCropSelection(null);
     setIsSelecting(false);
     dragStartRef.current = null;
-  }, [isOpen, blackSlot, palette, defaultOutputMode]);
+  }, [isOpen, defaultOutputMode, destPalette, defaultPalette, initialPalette]);
 
   const options = useMemo<Msx2ExternalTileImportOptions>(() => ({
     targetWidth,
@@ -536,6 +574,50 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                 La imagen se trocea en celdas de 16x16; cada celda es un tile.
               </div>
             </div>
+
+            {outputMode === 'screen5' && (
+              <div className="rounded border border-msx-border bg-msx-bgcolor/50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-msx-textsecondary">Paleta SCREEN 5 activa</div>
+                    <div className="mt-1 truncate text-[11px] text-msx-textprimary" title={selectedPaletteName}>
+                      {selectedPaletteName}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!destPalette}
+                    onClick={() => activatePaletteSource('__screen__')}
+                    title="Recuantiza el PNG usando la paleta ya activa en la pantalla o mundo"
+                  >
+                    Adaptar a paleta existente
+                  </Button>
+                </div>
+                <select
+                  value={activePaletteSourceId}
+                  onChange={event => activatePaletteSource(event.target.value)}
+                  className="mb-2 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1 text-xs text-msx-textprimary"
+                  title="Selecciona la paleta que se usara para adaptar/recuantizar el PNG"
+                >
+                  {destPalette && <option value="__screen__">Paleta existente de la pantalla</option>}
+                  <option value="__default__">Paleta MSX2 por defecto</option>
+                  {paletteAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+                <div className="grid grid-cols-8 gap-1">
+                  {palette.map(slot => (
+                    <div
+                      key={`active-palette-${slot.slotIndex}`}
+                      className="h-5 rounded border border-msx-border"
+                      style={{ backgroundColor: slot.hex }}
+                      title={`S${slot.slotIndex} ${slot.hex}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="rounded border border-msx-border bg-msx-bgcolor/50 p-3">
               <div className="mb-2 text-msx-textsecondary">Slots que se pueden sustituir</div>
