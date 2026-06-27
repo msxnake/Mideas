@@ -257,8 +257,20 @@ bitmap_wall_jump_detect_any_contact:
 bitmap_wall_jump_probe_left:
     ld a, (player_x)
     cp 2
-    jp c, .wall_probe_left_none
+    jp c, .wall_probe_left_near
     sub 2
+    ld b, a
+    ld a, (player_y)
+    add a, 8
+    ld c, a
+    call bitmap_probe_solid
+    or a
+    jp z, .wall_probe_left_near
+    xor a
+    ret
+.wall_probe_left_near:
+    ld a, (player_x)
+    add a, 2
     ld b, a
     ld a, (player_y)
     add a, 8
@@ -284,6 +296,18 @@ bitmap_wall_jump_probe_left:
 bitmap_wall_jump_probe_right:
     ld a, (player_x)
     add a, 17
+    ld b, a
+    ld a, (player_y)
+    add a, 8
+    ld c, a
+    call bitmap_probe_solid
+    or a
+    jp z, .wall_probe_right_near
+    ld a, 1
+    ret
+.wall_probe_right_near:
+    ld a, (player_x)
+    add a, 13
     ld b, a
     ld a, (player_y)
     add a, 8
