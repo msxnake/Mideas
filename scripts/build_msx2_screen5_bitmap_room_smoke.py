@@ -811,6 +811,7 @@ def validate_all_bitmap_skill_markers(asm_text: str) -> None:
         "bitmap_try_start_air_dash",
         "bitmap_apply_glide_clamp",
         "bitmap_wall_jump_frame_gate",
+        "bitmap_wall_jump_detect_any_contact",
         "bitmap_power_stomp_frame_gate",
         "bitmap_shoot_pressed",
         "bitmap_try_teleport_ab",
@@ -1078,11 +1079,13 @@ def main() -> int:
             "--poke",
             "0xC0E0:0x00",
             "--poke",
-            "0xC0E1:0x00",
+            "0xC0E1:0x01",
             "--poke",
             "0xC0E2:0x00",
             "--poke",
             "0xC0E3:0x00",
+            "--poke",
+            "0xC073:0x01",
         ], cwd=project_root, timeout=90)
         if not wall_jump_output.exists() or wall_jump_output.stat().st_size == 0:
             raise RuntimeError(f"OpenMSX wall_jump screenshot was not produced: {wall_jump_output}")

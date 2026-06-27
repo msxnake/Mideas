@@ -162,8 +162,8 @@ bitmap_wall_jump_clear_lock:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_wall_jump_detect_contact
 ; ------------------------------------------------------------
-; PURPOSE: Detects wall contact only when the player is airborne and holding
-;   the direction into that wall. Uses bitmap_probe_solid at mid-body.
+; PURPOSE: Detects initial wall contact only when the player is airborne and
+;   holding the direction into that wall. Uses bitmap_probe_solid at mid-body.
 ; INPUT: player_x/player_y/player_flags plus row 8 keyboard state.
 ; OUTPUT: A = 0 left wall, A = 1 right wall, A = #FF none.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
@@ -207,6 +207,93 @@ bitmap_wall_jump_detect_contact:
     ld a, 1
     ret
 .wall_detect_none:
+    ld a, ${asmByte(BITMAP_WALL_SLIDE_NONE)}
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_wall_jump_detect_any_contact
+; ------------------------------------------------------------
+; PURPOSE: Detects wall contact after the wall_jump chain has started, without
+;   requiring the player to hold direction toward the wall. Probe order follows
+;   the previous kick direction so narrow two-wall gaps prefer the wall just hit.
+; INPUT: player_x/player_y/player_flags/bitmap_wall_jump_lock_vx.
+; OUTPUT: A = 0 left wall, A = 1 right wall, A = #FF none.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; CALLS: bitmap_probe_solid.
+; NOTES: Only valid while airborne; grounded state returns #FF.
+; ------------------------------------------------------------
+bitmap_wall_jump_detect_any_contact:
+    ld a, (player_flags)
+    bit 0, a
+    jp nz, .wall_any_none
+    ld a, (bitmap_wall_jump_lock_vx)
+    bit 7, a
+    jp nz, .wall_any_left_first
+.wall_any_right_first:
+    call bitmap_wall_jump_probe_right
+    cp ${asmByte(BITMAP_WALL_SLIDE_NONE)}
+    ret nz
+    call bitmap_wall_jump_probe_left
+    ret
+.wall_any_left_first:
+    call bitmap_wall_jump_probe_left
+    cp ${asmByte(BITMAP_WALL_SLIDE_NONE)}
+    ret nz
+    call bitmap_wall_jump_probe_right
+    ret
+.wall_any_none:
+    ld a, ${asmByte(BITMAP_WALL_SLIDE_NONE)}
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_wall_jump_probe_left
+; ------------------------------------------------------------
+; PURPOSE: Tests the wall_jump left-side mid-body probe.
+; INPUT: player_x/player_y.
+; OUTPUT: A = 0 when the left wall is solid, A = #FF otherwise.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; CALLS: bitmap_probe_solid.
+; ------------------------------------------------------------
+bitmap_wall_jump_probe_left:
+    ld a, (player_x)
+    cp 2
+    jp c, .wall_probe_left_none
+    sub 2
+    ld b, a
+    ld a, (player_y)
+    add a, 8
+    ld c, a
+    call bitmap_probe_solid
+    or a
+    jp z, .wall_probe_left_none
+    xor a
+    ret
+.wall_probe_left_none:
+    ld a, ${asmByte(BITMAP_WALL_SLIDE_NONE)}
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_wall_jump_probe_right
+; ------------------------------------------------------------
+; PURPOSE: Tests the wall_jump right-side mid-body probe.
+; INPUT: player_x/player_y.
+; OUTPUT: A = 1 when the right wall is solid, A = #FF otherwise.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; CALLS: bitmap_probe_solid.
+; ------------------------------------------------------------
+bitmap_wall_jump_probe_right:
+    ld a, (player_x)
+    add a, 17
+    ld b, a
+    ld a, (player_y)
+    add a, 8
+    ld c, a
+    call bitmap_probe_solid
+    or a
+    jp z, .wall_probe_right_none
+    ld a, 1
+    ret
+.wall_probe_right_none:
     ld a, ${asmByte(BITMAP_WALL_SLIDE_NONE)}
     ret
 
@@ -287,19 +374,20 @@ ${keyArm}    ld a, ${asmByte(BITMAP_WALL_SLIDE_NONE)}
 ; ------------------------------------------------------------
 ; PURPOSE: While lock_timer is active, moves horizontally by |lock_vx| pixels
 ;   this frame using bitmap_try_move_x one pixel at a time.
-; INPUT: bitmap_wall_jump_lock_timer/vx.
+; INPUT: bitmap_wall_jump_lock_timer (#FF = moving, 1 = chain armed, 0 = idle),
+;   bitmap_wall_jump_lock_vx.
 ; OUTPUT: player_x advanced; carry is not used by caller.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
 ; CALLS: bitmap_try_move_x.
-; SIDE EFFECTS: Updates player_x and may clear lock_timer when blocked.
+; SIDE EFFECTS: Updates player_x and may set lock_timer=1 when blocked.
 ; NOTES: bitmap_try_move_x clobbers BC, so each pixel step wraps BC with PUSH/POP.
 ;   The compare against the previous X detects blocked movement because
 ;   bitmap_try_move_x does not return carry on X blockage.
 ; ------------------------------------------------------------
 bitmap_step_wall_jump_lock:
     ld a, (bitmap_wall_jump_lock_timer)
-    or a
-    ret z
+    cp #FF
+    ret nz
     ld a, (player_flags)
     bit 0, a
     jp nz, bitmap_wall_jump_clear_lock
@@ -343,7 +431,7 @@ bitmap_step_wall_jump_lock:
     djnz .wall_lock_left_loop
     ret
 .wall_lock_stop:
-    xor a
+    ld a, 1
     ld (bitmap_wall_jump_lock_timer), a
     ret
 
@@ -351,22 +439,43 @@ bitmap_step_wall_jump_lock:
 ; FUNCTION: bitmap_wall_jump_frame_gate
 ; ------------------------------------------------------------
 ; PURPOSE: Per-frame wall_jump gate: release key lock, step active kick,
-;   try a new kick from the previously detected wall contact, then detect wall
-;   contact for the next frame and report whether normal horizontal input should skip.
+;   detect wall contact, then try a new kick. The first contact requires holding
+;   direction into the wall; after one valid wall_jump, chained jumps only need
+;   the jump button while airborne and touching a wall.
 ; INPUT: none.
-; OUTPUT: Carry SET when lock_vx is armed and normal horizontal input must skip;
-;   carry CLEAR otherwise.
+; OUTPUT: Carry SET while the committed kick movement is active and normal
+;   horizontal input must skip; carry CLEAR otherwise.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
 ; CALLS: bitmap_wall_jump_release_lock, bitmap_step_wall_jump_lock,
-;   bitmap_wall_jump_detect_contact, bitmap_try_wall_jump_kick.
+;   bitmap_wall_jump_detect_contact, bitmap_wall_jump_detect_any_contact,
+;   bitmap_try_wall_jump_kick, bitmap_wall_jump_clear_lock.
 ; SIDE EFFECTS: Updates wall_jump RAM and player position/velocity.
 ; ------------------------------------------------------------
 bitmap_wall_jump_frame_gate:
 ${requireKeyRelease ? `    call bitmap_wall_jump_release_lock
 ` : ''}    call bitmap_step_wall_jump_lock
-    call bitmap_try_wall_jump_kick
+    ld a, (player_flags)
+    bit 0, a
+    jp z, .wall_gate_airborne
+    call bitmap_wall_jump_clear_lock
+    jp .wall_gate_no_skip
+.wall_gate_airborne:
+    ld a, (bitmap_wall_jump_lock_timer)
+    cp #FF
+    jp z, .wall_gate_active_skip
+    or a
+    jp z, .wall_gate_initial_detect
+    call bitmap_wall_jump_detect_any_contact
+    jp .wall_gate_store_contact
+.wall_gate_initial_detect:
     call bitmap_wall_jump_detect_contact
+.wall_gate_store_contact:
     ld (bitmap_wall_slide_side), a
+    call bitmap_try_wall_jump_kick
+    ld a, (bitmap_wall_jump_lock_timer)
+    cp #FF
+    jp nz, .wall_gate_no_skip
+.wall_gate_active_skip:
     ld a, (bitmap_wall_jump_lock_vx)
     or a
     jp z, .wall_gate_no_skip
