@@ -3929,10 +3929,11 @@ function buildHardwareSpriteRuntimeAsm(
   restartScreenLabel: string,
   restartScreenIndex: number,
   tileScreenCount = 1,
-  options: { deferSatUploadToShooterFrameDispatch?: boolean; pushBoxEnabled?: boolean; tileScreens?: Array<Msx2Screen4TileScreen | undefined> } = {}
+  options: { deferSatUploadToShooterFrameDispatch?: boolean; pushBoxEnabled?: boolean; tileScreens?: Array<Msx2Screen4TileScreen | undefined>; useKonamiDataBank?: boolean } = {}
 ): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
+  const useKonamiDataBank = options.useKonamiDataBank ?? false;
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
   const color = Math.max(1, Math.min(15, settings.color));
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
@@ -4524,9 +4525,16 @@ update_msx2_player_frame_colors:
     dec a
     jp nz, .add_player_frame_color_offset
 .upload_player_frame_colors:
+${useKonamiDataBank ? `    ; msx2_hw_player_frame_colors lives in the SCREEN 4 cold data bank (P2/#8000).
+    ; The main loop runs with P2 on the resident bank, so map the data bank in
+    ; before reading the per-frame colours, then restore it afterwards.
+    call msx2_screen4_data_bank_enter
     ld de, ${SCREEN4_SPRCOL_VRAM}
     ld b, ${playerColorAnim.stride}
-    jp msx2_fast_copy_to_vram
+    call msx2_fast_copy_to_vram
+    jp msx2_screen4_data_bank_leave` : `    ld de, ${SCREEN4_SPRCOL_VRAM}
+    ld b, ${playerColorAnim.stride}
+    jp msx2_fast_copy_to_vram`}
 
 ; ------------------------------------------------------------
 ; FUNCTION: msx2_fast_copy_to_vram
@@ -12622,7 +12630,7 @@ ${formatBytes('msx2_screen_enemy_state_range_y', enemyStateRangeYBytes, `Per-msx
       firstScreenLabel,
       firstScreenIndex ?? 0,
       tileScreens.length,
-      { deferSatUploadToShooterFrameDispatch: shooterSatUploadInFrameDispatch, pushBoxEnabled: pushBoxMovement, tileScreens }
+      { deferSatUploadToShooterFrameDispatch: shooterSatUploadInFrameDispatch, pushBoxEnabled: pushBoxMovement, tileScreens, useKonamiDataBank }
     )
     : `upload_hardware_sprite_attrs:
 write_hardware_sprite_attrs:
