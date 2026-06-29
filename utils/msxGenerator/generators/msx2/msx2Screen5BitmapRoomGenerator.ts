@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWi
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -126,6 +126,22 @@ import {
   buildBitmapSpinAttackRuntimeAsm,
   MSX2_BITMAP_SPIN_ATTACK_RAM_BYTES,
 } from './msx2BitmapSpinAttackGenerator';
+import {
+  bitmapIceSlideEnabled,
+  buildBitmapIceSlideEquates,
+  buildBitmapIceSlideHorizontalHookAsm,
+  buildBitmapIceSlideInitClearAsm,
+  buildBitmapIceSlideRuntimeAsm,
+  MSX2_BITMAP_ICE_SLIDE_RAM_BYTES,
+} from './msx2BitmapIceSlideGenerator';
+import {
+  bitmapCrouchEnabled,
+  buildBitmapCrouchEquates,
+  buildBitmapCrouchHorizontalHookAsm,
+  buildBitmapCrouchInitClearAsm,
+  buildBitmapCrouchRuntimeAsm,
+  MSX2_BITMAP_CROUCH_RAM_BYTES,
+} from './msx2BitmapCrouchGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -1005,10 +1021,11 @@ function buildRuntimeAsm(
   room: Msx2Screen5BitmapRoom,
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
-  playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number },
+  playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean },
   options: { bankedRle: boolean },
   playerPhysics: BitmapPlayerPhysics,
-  skillHooks: { inputGateAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
+  playerHitbox: BitmapPlayerHitbox,
+  skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
   foreground: { count: number; patternGroupBase: number; satBase: number; colorBase: number; loadCallAsm: string } | null = null,
 ): string {
   // When foreground tiles exist, the player SAT/colour tables move past the
@@ -1016,20 +1033,55 @@ function buildRuntimeAsm(
   // default to the legacy #F600/#F400 bases (bit-identical output).
   const playerSatBaseWord = foreground ? hexWord(foreground.satBase) : '#F600';
   const playerColorBaseWord = foreground ? hexWord(foreground.colorBase) : '#F400';
+  // Player body collision box (Player Config) -> solid-probe edges/offsets. The
+  // leading edge is probed along the perpendicular axis at every <=16px step so a
+  // body taller/wider than one 16px collision cell cannot tunnel through a cell.
+  const hbLeft = playerHitbox.x;
+  const hbRight = playerHitbox.x + playerHitbox.w - 1;
+  const hbTop = playerHitbox.y;
+  const hbBottom = playerHitbox.y + playerHitbox.h - 1;
+  const probeRowOffsets: number[] = [];
+  for (let row = hbTop; row < hbBottom; row += 16) probeRowOffsets.push(row);
+  probeRowOffsets.push(hbBottom);
+  const probeColOffsets: number[] = [];
+  for (let col = hbLeft; col < hbRight; col += 16) probeColOffsets.push(col);
+  probeColOffsets.push(hbRight);
+  // Vertical room-edge thresholds scale with the body hitbox so a tall sprite
+  // (e.g. 16x32, two stacked hardware sprites) can still fall through a gap
+  // into the room below. bitmap_probe_solid treats Y >= 192 as solid, so the
+  // feet leading edge (player_y + hbBottom) gets blocked at the screen bottom;
+  // the south transition must fire just before that point. These reproduce the
+  // legacy 175/174 for a 16px body (hbBottom = 15) and lower the threshold for
+  // taller bodies (159/158 for a 32px body).
+  const southEdgeThreshold = 190 - hbBottom;
+  const bottomEntryY = southEdgeThreshold - 1;
+  // `add a, n` only when n > 0 (keeps the n=0 path byte-identical to the legacy code).
+  const addAImmediate = (offset: number) => (offset > 0 ? `    add a, ${offset}\n` : '');
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   // Single backdrop color (R#7): background fill, transparency (color 0) and franjas share it.
   const backdropColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const hudSeedUploadAsm = buildRleUploadAsm(hudSeedRleChunks, options.bankedRle);
   const tilesetUploadAsm = buildRleUploadAsm(rleChunks, options.bankedRle);
-  const shouldEmitPlayerPatternUpdate = playerAnimation.frameCount > 1 || playerAnimation.mirror;
+  // Per-state animations (separate sprite per state) append extra frame banks
+  // after the base frames; totalFrames covers base + every state clip. When no
+  // state animations exist, totalFrames === frameCount and hasStateAnim is false,
+  // so every derived value below is identical to the legacy path (byte-equal ROM).
+  const hasStateAnim = !!playerAnimation.hasStateAnimations;
+  const totalFrames = playerAnimation.totalFrameCount ?? playerAnimation.frameCount;
+  const shouldEmitPlayerPatternUpdate = totalFrames > 1 || playerAnimation.mirror || hasStateAnim;
   const playerPatternFrameStride = Math.max(4, playerAnimation.layerCount * 4);
   const playerPatternFrameStrideAsm = multiplyABySmallConstantAsm(playerPatternFrameStride);
   // Per-frame sprite colour table: one 16-line colour table per hardware layer.
   // The runtime re-uploads the current frame's colours so CC/OR multi-colour
   // rows (which differ between frames) render correctly past frame 0.
   const colorFrameStride = playerAnimation.layerCount * 16;
-  const shouldEmitPlayerColorUpdate = playerAnimation.frameCount > 1;
-  const mirrorPatternOffset = playerAnimation.frameCount * playerPatternFrameStride;
+  const shouldEmitPlayerColorUpdate = totalFrames > 1 || hasStateAnim;
+  // Mirror patterns sit after ALL base + state frames in the combined bank.
+  const mirrorPatternOffset = totalFrames * playerPatternFrameStride;
+  // The pattern/colour frame index source: with state animations the routine
+  // resolves an absolute frame (clip base + intra-clip frame); otherwise the
+  // legacy logical frame is used directly.
+  const animFrameSource = hasStateAnim ? 'player_anim_abs_frame' : 'player_anim_frame';
   const mirrorSelectionAsm = playerAnimation.mirror && playerAnimation.authoredFacing === 'right'
     ? `    ld b, a
     ld a, (player_facing)
@@ -1082,7 +1134,75 @@ function buildRuntimeAsm(
 ;   used only when the generated stride helper must preserve BC.
 ; ------------------------------------------------------------
 bitmap_update_player_sprite_animation:
-${playerAnimation.frameCount > 1 ? `    ld a, (player_moving)
+${hasStateAnim ? `    ; State-driven: player_anim_state selects a clip (frameBase,count,delay) from
+    ; bitmap_player_anim_clip_table. State 0 = base idle/walk (pins to frame 0 when
+    ; idle); every other state cycles its own clip. Clobbers AF/BC/DE/HL.
+    ld a, (player_anim_state)
+    ld b, a
+    ld a, (player_anim_state_prev)
+    cp b
+    jp z, .anim_same_state
+    ld a, b
+    ld (player_anim_state_prev), a
+    xor a
+    ld (player_anim_counter), a
+    ld (player_anim_frame), a
+.anim_same_state:
+    ld hl, bitmap_player_anim_clip_table
+    ld a, b
+    add a, a
+    add a, b                 ; A = state * 3
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld (player_anim_clip_base), a
+    inc hl
+    ld a, (hl)
+    ld (player_anim_clip_count), a
+    inc hl
+    ld a, (hl)
+    ld (player_anim_clip_delay), a
+    ld a, b
+    or a                     ; base state (0) pins to idle frame 0 while not moving
+    jp nz, .anim_cycle
+    ld a, (player_moving)
+    or a
+    jp nz, .anim_cycle
+    xor a
+    ld (player_anim_counter), a
+    ld (player_anim_frame), a
+    jp .anim_set_abs
+.anim_cycle:
+    ld a, (player_anim_clip_delay)
+    ld b, a
+    ld a, (player_anim_counter)
+    inc a
+    cp b
+    jp nc, .anim_advance
+    ld (player_anim_counter), a
+    jp .anim_set_abs
+.anim_advance:
+    xor a
+    ld (player_anim_counter), a
+    ld a, (player_anim_clip_count)
+    ld b, a
+    ld a, (player_anim_frame)
+    inc a
+    cp b
+    jp nc, .anim_wrap
+    ld (player_anim_frame), a
+    jp .anim_set_abs
+.anim_wrap:
+    xor a
+    ld (player_anim_frame), a
+.anim_set_abs:
+    ld a, (player_anim_clip_base)
+    ld b, a
+    ld a, (player_anim_frame)
+    add a, b
+    ld (player_anim_abs_frame), a
+` : `${playerAnimation.frameCount > 1 ? `    ld a, (player_moving)
     or a
     jp nz, .player_anim_active
     xor a
@@ -1106,8 +1226,8 @@ ${playerAnimation.frameCount > 1 ? `    ld a, (player_moving)
     xor a
 .store_player_anim_frame:
     ld (player_anim_frame), a
-` : ''}.refresh_player_pattern:
-    ld a, (player_anim_frame)
+` : ''}`}.refresh_player_pattern:
+    ld a, (${animFrameSource})
 ${playerPatternFrameStrideAsm}
 ${mirrorSelectionAsm}.store_player_pattern:
     ld (player_pat), a
@@ -1205,7 +1325,7 @@ fast_copy_to_vram_ext:
 ;   player_colors_loaded just forces one upload on the first differing frame.
 ; ------------------------------------------------------------
 bitmap_upload_player_frame_colors:
-    ld a, (player_anim_frame)
+    ld a, (${animFrameSource})
     ld c, a
     ld a, (player_colors_loaded)
     cp c
@@ -1908,7 +2028,7 @@ replay_room_commands:
 ;   A = room/screen index (0-based).
 ;
 ; OUTPUT:
-;   current_screen_index updated; bitmap_room_collision_map (RAM) refreshed.
+;   current_screen_index updated; collision/behavior RAM refreshed.
 ;
 ; DESTROYS:
 ;   AF, BC, DE, HL
@@ -1920,12 +2040,12 @@ replay_room_commands:
 ;   replay_room_commands.
 ;
 ; SIDE EFFECTS:
-;   Repaints the game band via the VDP command engine; LDIR over collision RAM.
+;   Repaints the game band via the VDP command engine; LDIR over room RAM maps.
 ;
 ; NOTES:
 ;   Pointer tables are word-indexed (DW), the block-count table is byte-indexed.
 ;   replay_room_commands clobbers DE (vdp_reinit_cmd_pointer writes E), so the
-;   collision lookup re-derives the index from current_screen_index in RAM.
+;   collision/behavior lookup re-derives the index from current_screen_index in RAM.
 ;   Boot always renders to display page 0. Room transitions use
 ;   start_room_transition + step_room_composition instead of this synchronous path.
 ; ------------------------------------------------------------
@@ -1961,6 +2081,19 @@ load_room:
     ld h, (hl)
     ld l, a                 ; HL = room collision source
     ld de, bitmap_room_collision_map
+    ld bc, ${COLLISION_COLS * COLLISION_ROWS}
+    ldir
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_behavior_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                 ; HL = room behavior source
+    ld de, bitmap_room_behavior_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
     ; The command-engine status polls above left R#15 pointing at S#2. Restore S#0
@@ -2159,7 +2292,7 @@ step_room_composition:
 ;   bitmap_transition_dir = direction that triggered the transition.
 ;
 ; OUTPUT:
-;   current_screen_index, bitmap_displayed_page and collision RAM updated.
+;   current_screen_index, bitmap_displayed_page, collision and behavior RAM updated.
 ;   player_x/player_y repositioned to the opposite edge; carry SET.
 ;
 ; DESTROYS:
@@ -2172,7 +2305,7 @@ step_room_composition:
 ;   vdp_wait_cmd_ready, vdp_write_register.
 ;
 ; SIDE EFFECTS:
-;   Copies the target collision grid to RAM, flips VDP R#2, restores R#15=0,
+;   Copies the target collision/behavior grids to RAM, flips VDP R#2, restores R#15=0,
 ;   clears bitmap_composition_state, and resets vertical player velocity.
 ;
 ; NOTES:
@@ -2196,6 +2329,19 @@ commit_room_flip:
     ld de, bitmap_room_collision_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_behavior_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_room_behavior_map
+    ld bc, ${COLLISION_COLS * COLLISION_ROWS}
+    ldir
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
@@ -2214,7 +2360,7 @@ commit_room_flip:
     ld (player_y), a
     jp .commit_flip_page
 .commit_enter_bottom:
-    ld a, 174
+    ld a, ${bottomEntryY}
     ld (player_y), a
     jp .commit_flip_page
 .commit_enter_right:
@@ -2298,7 +2444,8 @@ update_player_movement:
     ld c, a                 ; C = pressed mask for keyboard row 8
     xor a
     ld (player_moving), a
-${skillHooks.inputGateAsm || ''}
+${hasStateAnim ? '    ld (player_anim_state), a    ; default animation state each frame; skills assert theirs\n' : ''}${skillHooks.inputGateAsm || ''}
+${skillHooks.horizontalHookAsm || ''}
 bitmap_stick_dx:
     bit 7, c
     jp z, .not_right
@@ -2331,6 +2478,25 @@ bitmap_stick_dx:
     call bitmap_try_move_x
     pop bc
     ; West edge: if a neighbour room exists, walk into it.
+    ld a, (player_x)
+    cp 3
+    jp nc, .check_jump
+    xor a                   ; direction west
+    push bc
+    call start_room_transition
+    pop bc
+    ret c
+.check_horizontal_edges:
+    ld a, (player_x)
+    cp 238
+    jp c, .check_west_edge
+    ld a, 1                 ; direction east
+    push bc                 ; start_room_transition clobbers BC; C (keyboard row 8 mask) must survive for .check_jump
+    call start_room_transition
+    pop bc
+    ret c
+    jp .check_jump
+.check_west_edge:
     ld a, (player_x)
     cp 3
     jp nc, .check_jump
@@ -2402,7 +2568,7 @@ ${skillHooks.landClearAsm || ''}
     ret
 .check_south_edge:
     ld a, (player_y)
-    cp 175
+    cp ${southEdgeThreshold}
     ret c                   ; not at the bottom edge
     ld a, 3                 ; direction south
     call start_room_transition
@@ -2411,8 +2577,10 @@ ${skillHooks.landClearAsm || ''}
 ${playerAnimationAsm}
 ${playerColorsAsm}
 bitmap_try_move_x:
-    ; A = signed dx. Commits player_x when the leading edge is not solid.
-    ; Probes top and bottom of the 16x16 body. Clobbers AF/BC/DE/HL.
+    ; A = signed dx. Commits player_x when the leading edge of the configured body
+    ; collision box is not solid. Hitbox: x=${playerHitbox.x}, y=${playerHitbox.y},
+    ; w=${playerHitbox.w}, h=${playerHitbox.h}. Probes Y rows ${probeRowOffsets.join('/')}
+    ; (every <=16px so a tall body cannot tunnel a cell). Clobbers AF/BC/DE/HL.
     ld b, a
     ld a, (player_x)
     bit 7, b
@@ -2425,24 +2593,19 @@ bitmap_try_move_x:
     ret nc
 .x_bounds_ok:
     ld a, (player_x)
-    add a, b                ; A = candidate X (top-left)
-    push af                 ; save candidate across the probe
+    add a, b                ; A = candidate X (sprite top-left)
+    push af                 ; save candidate across the probes
     bit 7, b
-    jp nz, .left_edge
-    add a, 15               ; moving right: probe the right edge
-.left_edge:
-    ld b, a                 ; B = probe X (left edge keeps the candidate X)
-    ld a, (player_y)
-    inc a
-    ld c, a                 ; C = probe Y (top inset)
+    jp nz, .x_left_edge
+${addAImmediate(hbRight)}    jp .x_have_edge
+.x_left_edge:
+${addAImmediate(hbLeft)}.x_have_edge:
+    ld b, a                 ; B = probe X (hitbox leading edge; preserved by probe_solid)
+${probeRowOffsets.map(row => `    ld a, (player_y)
+${addAImmediate(row)}    ld c, a                 ; C = probe Y (+${row})
     call bitmap_probe_solid
     jp nz, .x_blocked
-    ld a, (player_y)
-    add a, 15
-    ld c, a                 ; C = probe Y (bottom)
-    call bitmap_probe_solid
-    jp nz, .x_blocked
-    pop af                  ; A = candidate X
+`).join('')}    pop af                  ; A = candidate X
     ld (player_x), a
     ret
 .x_blocked:
@@ -2451,27 +2614,23 @@ bitmap_try_move_x:
 
 bitmap_try_move_y:
     ; A = signed single-pixel dy (#01 down, #FF up). Commits player_y when the
-    ; leading edge is not solid. Carry set on blocked. Clobbers AF/BC/DE/HL.
+    ; leading edge of the configured body collision box is not solid. Carry set on
+    ; blocked. Probes X cols ${probeColOffsets.join('/')}. Clobbers AF/BC/DE/HL.
     ld b, a
     ld a, (player_y)
-    add a, b                ; A = candidate Y (top-left)
+    add a, b                ; A = candidate Y (sprite top-left)
     push af
     bit 7, b
-    jp nz, .up_edge
-    add a, 15               ; moving down: probe the bottom edge
-.up_edge:
-    ld c, a                 ; C = probe Y (top edge keeps the candidate Y)
-    ld a, (player_x)
-    inc a
-    ld b, a                 ; B = probe X (left inset)
+    jp nz, .y_up_edge
+${addAImmediate(hbBottom)}    jp .y_have_edge
+.y_up_edge:
+${addAImmediate(hbTop)}.y_have_edge:
+    ld c, a                 ; C = probe Y (hitbox leading edge; preserved by probe_solid)
+${probeColOffsets.map(col => `    ld a, (player_x)
+${addAImmediate(col)}    ld b, a                 ; B = probe X (+${col})
     call bitmap_probe_solid
     jp nz, .y_blocked
-    ld a, (player_x)
-    add a, 14
-    ld b, a                 ; B = probe X (right inset)
-    call bitmap_probe_solid
-    jp nz, .y_blocked
-    pop af                  ; A = candidate Y
+`).join('')}    pop af                  ; A = candidate Y
     ld (player_y), a
     or a                    ; clear carry
     ret
@@ -2504,6 +2663,33 @@ bitmap_probe_solid:
     ld e, a
     ld d, 0
     ld hl, bitmap_room_collision_map
+    add hl, de
+    ld a, (hl)
+    or a
+    ret
+
+bitmap_probe_behavior:
+    ; B = pixel X, C = pixel Y. Returns A = behavior cell value with Z set
+    ; when empty. Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.
+    ld a, c
+    cp 192
+    jp c, .behavior_probe_y_visible
+    xor a
+    ret
+.behavior_probe_y_visible:
+    ld a, c
+    and #F0
+    ld l, a
+    ld a, b
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, l
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_behavior_map
     add hl, de
     ld a, (hl)
     or a
@@ -2559,13 +2745,13 @@ bitmap_update_sprite_sat:
     and #3F
     or #40
     out (${VDP_CTRL_PORT}), a
-${Array.from({ length: playerAnimation.layerCount }, (_unused, layerIndex) => `    ld a, (player_y)
-    add a, ${BITMAP_ROOM_GAME_Y_OFFSET}
+${playerAnimation.spriteOffsets.map((offset, slotIndex) => `    ld a, (player_y)
+    add a, ${BITMAP_ROOM_GAME_Y_OFFSET}${offset.y ? `\n    add a, ${offset.y}                   ; cell row +${offset.y}px` : ''}
     out (${VDP_DATA_PORT}), a
-    ld a, (player_x)
+    ld a, (player_x)${offset.x ? `\n    add a, ${offset.x}                   ; cell col +${offset.x}px` : ''}
     out (${VDP_DATA_PORT}), a
     ld a, (player_pat)
-${layerIndex ? `    add a, ${layerIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
+${slotIndex ? `    add a, ${slotIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
     ld a, (player_ec)
     out (${VDP_DATA_PORT}), a
 `).join('')}    ld a, #D8
@@ -2643,6 +2829,29 @@ interface BitmapPlayerPhysics {
    * gradual arc that matches SCREEN 4 instead of the old fixed 1 px/frame^2 nudge.
    */
   gravityFrac: number;
+}
+
+interface BitmapPlayerHitbox { x: number; y: number; w: number; h: number; }
+
+// Player body collision box from the Player Config (Msx2PlayerEditor "Collision Box":
+// Left/Top/Width/Height -> hitboxes.body {x,y,w,h}). Defaults to the full sprite size
+// so a 16x32 sprite without an explicit box still collides over its whole height.
+// Insets are clamped to a non-negative 0..31 px range (the box lives inside the sprite).
+function getBitmapPlayerBodyHitbox(
+  player: Partial<Msx2PlayerDefinition> | undefined,
+  spriteSize?: { width?: number; height?: number },
+): BitmapPlayerHitbox {
+  const body: any = (player as any)?.hitboxes?.body || (player as any)?.components?.msx2_collision || (player as any)?.params || {};
+  const inset = (value: unknown, fallback: number) => Math.max(0, Math.min(31, Math.floor(Number(value) || fallback)));
+  const span = (value: unknown, fallback: number) => Math.max(1, Math.min(32, Math.floor(Number(value) || fallback)));
+  const defW = span(spriteSize?.width, 16);
+  const defH = span(spriteSize?.height, 16);
+  return {
+    x: inset(body.x ?? body.offsetX ?? body.hitboxX ?? body.left, 0),
+    y: inset(body.y ?? body.offsetY ?? body.hitboxY ?? body.top, 0),
+    w: span(body.w ?? body.width ?? body.hitboxW, defW),
+    h: span(body.h ?? body.height ?? body.hitboxH, defH),
+  };
 }
 
 // Map the Player Config jump/fall physics to the bitmap engine's whole-pixel velocities.
@@ -2777,9 +2986,13 @@ function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
   ];
 }
 
-function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; attrs: number[]; patterns: number[]; usedConfigured: boolean; frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number } {
-  const attrsForLayerCount = (layerCount: number): number[] => [
-    ...Array.from({ length: layerCount }, (_unused, layerIndex) => [0x60, 0x80, layerIndex * 4, 0x00]).flat(),
+interface BitmapSpriteSlotOffset { x: number; y: number; }
+
+function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; attrs: number[]; patterns: number[]; usedConfigured: boolean; frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; cells: BitmapSpriteSlotOffset[]; colorLayerCount: number; basePatternsNoMirror: number[]; basePatternsMirror: number[] } {
+  // The SAT template Y/X are placeholders (the runtime rewrites every slot each
+  // frame); the cell offsets are still baked so the initial frame is correct.
+  const attrsForOffsets = (offsets: BitmapSpriteSlotOffset[]): number[] => [
+    ...offsets.map((off, slotIndex) => [clampByte(0x60 + off.y), clampByte(0x80 + off.x), slotIndex * 4, 0x00]).flat(),
     0xD8, 0x00, 0x00, 0x00,
   ];
 
@@ -2787,6 +3000,8 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
     // V9938 sprite mode 2: 32-byte pattern (four 8x8 quadrants) + 16 line colors.
     // Reuse the SCREEN 4 converter; emit every authored frame and every color
     // layer so CC/OR rows authored in the UI survive the SCREEN 5 bitmap-room export.
+    // Sprites taller/wider than 16px decompose into 16x16 CELLS (xOffset/yOffset);
+    // each cell is its own hardware sprite stacked at player_y+yOffset/player_x+xOffset.
     const frameIndices = getBitmapRoomSpriteFrameIndices(sprite);
     const rawFrameLayerSets = frameIndices
       .map(frameIndex => buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)
@@ -2795,62 +3010,254 @@ function buildSpriteTables(sprite: Msx2Sprite | undefined): { colors: number[]; 
       ? sprite.facingDirection
       : undefined;
     const frameCount = Math.max(1, rawFrameLayerSets.length);
-    const maxPatternGroups = Math.max(1, Math.floor(64 / (frameCount * (authoredFacing ? 2 : 1))));
-    const layerCount = Math.max(1, Math.min(
+
+    // Distinct 16x16 cells across all frames, in row-major (top-to-bottom,
+    // left-to-right) order so a 16x32 sprite yields cell 0 = top, cell 1 = bottom.
+    const cellKey = (layer: { xOffset: number; yOffset: number }) => `${layer.yOffset}:${layer.xOffset}`;
+    const cellMap = new Map<string, BitmapSpriteSlotOffset>();
+    for (const layers of rawFrameLayerSets) {
+      for (const layer of layers) {
+        if (!cellMap.has(cellKey(layer))) cellMap.set(cellKey(layer), { x: layer.xOffset, y: layer.yOffset });
+      }
+    }
+    const cells = Array.from(cellMap.values()).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const cellCount = Math.max(1, cells.length);
+
+    const layersForCell = (layers: typeof rawFrameLayerSets[number], cell: BitmapSpriteSlotOffset) =>
+      layers.filter(layer => layer.xOffset === cell.x && layer.yOffset === cell.y);
+
+    // Color layers PER CELL (OR/CC multicolor), the max authored across frames and
+    // cells, clamped to the per-cell layer cap and the V9938 pattern budget. Every
+    // cell uses the same color-layer count so a single sprite-slot grid (cell x
+    // layer) stays stable across frames — the SAT writer can then bake offsets.
+    const mirrorFactor = authoredFacing ? 2 : 1;
+    const maxAuthoredColorLayers = Math.max(1, ...rawFrameLayerSets.flatMap(layers =>
+      cells.map(cell => layersForCell(layers, cell).length || 1)));
+    const maxColorLayersByBudget = Math.max(1, Math.floor(64 / (frameCount * cellCount * mirrorFactor)));
+    const colorLayerCount = Math.max(1, Math.min(
       BITMAP_ROOM_MAX_PLAYER_SPRITE_LAYERS,
-      maxPatternGroups,
-      ...rawFrameLayerSets.map(layers => layers.length || 1)
+      maxAuthoredColorLayers,
+      maxColorLayersByBudget,
     ));
-    const frameLayerSets = rawFrameLayerSets.map(layers => layers.slice(0, layerCount));
-    const primary = frameLayerSets[0]?.[0];
-    if (primary && Array.isArray(primary.pattern) && primary.pattern.length === 32) {
+    // Sprite slot s = cellIndex * colorLayerCount + colorLayerIndex. Offsets are
+    // frame-invariant (the cell grid is fixed), so they can be emitted as immediates.
+    const spriteOffsets: BitmapSpriteSlotOffset[] = cells.flatMap(cell =>
+      Array.from({ length: colorLayerCount }, () => ({ x: cell.x, y: cell.y })));
+    const spritesPerFrame = spriteOffsets.length; // cellCount * colorLayerCount
+
+    if (rawFrameLayerSets.some(layers => layers.length)) {
       const emptyPattern = Array(32).fill(0);
-      const patternSetForFrame = (layers: typeof frameLayerSets[number]) =>
-        Array.from({ length: layerCount }, (_unused, layerIndex) => layers[layerIndex]?.pattern || emptyPattern)
-          .flatMap(pattern => pattern.map(value => value & 0xff));
-      const basePatterns = frameLayerSets.flatMap(patternSetForFrame);
+      // Per frame: cell-major, then color-layer-inner — matching spriteOffsets and
+      // the SAT writer's pattern increment (player_pat + slot*4).
+      const patternSetForFrame = (layers: typeof rawFrameLayerSets[number], transform: (pattern: number[]) => number[]) =>
+        cells.flatMap(cell => {
+          const cellLayers = layersForCell(layers, cell);
+          return Array.from({ length: colorLayerCount }, (_unused, layerIndex) => cellLayers[layerIndex]?.pattern || emptyPattern)
+            .flatMap(pattern => transform(pattern).map(value => value & 0xff));
+        });
+      const basePatterns = rawFrameLayerSets.flatMap(layers => patternSetForFrame(layers, pattern => pattern));
       const mirrorPatterns = authoredFacing
-        ? frameLayerSets.flatMap(layers =>
-          Array.from({ length: layerCount }, (_unused, layerIndex) => layers[layerIndex]?.pattern || emptyPattern)
-            .flatMap(pattern => mirrorHardwareSpritePatternHorizontally(pattern).map(value => value & 0xff)))
+        ? rawFrameLayerSets.flatMap(layers => patternSetForFrame(layers, mirrorHardwareSpritePatternHorizontally))
         : [];
-      // One colour table PER FRAME (layerCount x 16 lines), matching the
+      // One colour table PER FRAME (spritesPerFrame x 16 lines), matching the
       // per-frame pattern layout. CC/OR multi-colour rows differ between frames,
       // so the runtime re-uploads the current frame's colours (see
       // bitmap_upload_player_frame_colors); emitting only frame 0 here left
       // frames > 0 with frame 0's colours (white/garbage lines).
-      const colors = frameLayerSets.flatMap(layers =>
-        Array.from({ length: layerCount }, (_unused, layerIndex) => {
-          const layerColors = (layers[layerIndex]?.colors || []).slice(0, 16);
-          while (layerColors.length < 16) layerColors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
-          return layerColors;
-        }).flat()
+      const colors = rawFrameLayerSets.flatMap(layers =>
+        cells.flatMap(cell => {
+          const cellLayers = layersForCell(layers, cell);
+          return Array.from({ length: colorLayerCount }, (_unused, layerIndex) => {
+            const layerColors = (cellLayers[layerIndex]?.colors || []).slice(0, 16);
+            while (layerColors.length < 16) layerColors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+            return layerColors;
+          }).flat();
+        })
       );
       return {
         colors: colors.map(value => value & 0xff),
-        attrs: attrsForLayerCount(layerCount),
+        attrs: attrsForOffsets(spriteOffsets),
         patterns: [...basePatterns, ...mirrorPatterns],
         usedConfigured: true,
         frameCount,
         delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite),
         mirror: Boolean(authoredFacing),
         authoredFacing,
-        layerCount,
+        layerCount: spritesPerFrame,
+        spriteOffsets,
+        cells,
+        colorLayerCount,
+        basePatternsNoMirror: basePatterns,
+        basePatternsMirror: mirrorPatterns,
       };
     }
   }
 
-  // Fallback: the original placeholder blob.
+  // Fallback: the original placeholder blob (single 16x16 sprite).
   return {
     colors: PLACEHOLDER_SPRITE_COLORS.slice(),
-    attrs: attrsForLayerCount(1),
+    attrs: attrsForOffsets([{ x: 0, y: 0 }]),
     patterns: PLACEHOLDER_SPRITE_PATTERNS.slice(),
     usedConfigured: false,
     frameCount: 1,
     delayFrames: 8,
     mirror: false,
     layerCount: 1,
+    spriteOffsets: [{ x: 0, y: 0 }],
+    cells: [{ x: 0, y: 0 }],
+    colorLayerCount: 1,
+    basePatternsNoMirror: PLACEHOLDER_SPRITE_PATTERNS.slice(),
+    basePatternsMirror: [],
   };
+}
+
+/**
+ * A per-state animation clip: a separate sprite whose frames are rendered using
+ * the SAME cell grid / colour-layer count as the base player sprite (v1 "same
+ * dimension" constraint). Its frames are appended after the base frames so a
+ * single combined pattern/colour bank serves every state.
+ */
+interface BitmapStateAnimation {
+  state: string;          // animation-state name (a skill's addsStates entry)
+  animId: number;         // runtime id written to player_anim_state (1..K; 0 = base)
+  frameBase: number;      // first frame index within the combined non-mirror bank
+  frameCount: number;     // frames in this clip
+  delayFrames: number;    // per-frame delay (8.33ms units, like the base)
+  patternsNoMirror: number[];
+  patternsMirror: number[];
+  colors: number[];
+}
+
+/**
+ * Extracts a state sprite's frames forced onto the base player's cell grid and
+ * colour-layer count. Returns ok=false when the sprite has no usable frames so
+ * the caller can skip the mapping (and the base walk/idle stays the fallback).
+ *
+ * This duplicates the base extraction math in buildSpriteTables on purpose: the
+ * base path stays byte-for-byte untouched, and state sprites reuse the exact
+ * same per-frame cell-major / colour-layer-inner layout so player_pat indexing
+ * is uniform across every clip.
+ */
+function extractStateSpriteBank(
+  sprite: Msx2Sprite,
+  cells: BitmapSpriteSlotOffset[],
+  colorLayerCount: number,
+  authoredFacing: 'left' | 'right' | undefined,
+): { ok: boolean; frameCount: number; delayFrames: number; patternsNoMirror: number[]; patternsMirror: number[]; colors: number[] } {
+  const empty = { ok: false, frameCount: 0, delayFrames: 8, patternsNoMirror: [], patternsMirror: [], colors: [] };
+  const frameIndices = getBitmapRoomSpriteFrameIndices(sprite);
+  const rawFrameLayerSets = frameIndices
+    .map(frameIndex => buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)
+      .filter(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32));
+  if (!rawFrameLayerSets.some(layers => layers.length)) return empty;
+
+  const emptyPattern = Array(32).fill(0);
+  const layersForCell = (layers: typeof rawFrameLayerSets[number], cell: BitmapSpriteSlotOffset) =>
+    layers.filter(layer => layer.xOffset === cell.x && layer.yOffset === cell.y);
+  const patternSetForFrame = (layers: typeof rawFrameLayerSets[number], transform: (pattern: number[]) => number[]) =>
+    cells.flatMap(cell => {
+      const cellLayers = layersForCell(layers, cell);
+      return Array.from({ length: colorLayerCount }, (_unused, layerIndex) => cellLayers[layerIndex]?.pattern || emptyPattern)
+        .flatMap(pattern => transform(pattern).map(value => value & 0xff));
+    });
+  const patternsNoMirror = rawFrameLayerSets.flatMap(layers => patternSetForFrame(layers, pattern => pattern));
+  const patternsMirror = authoredFacing
+    ? rawFrameLayerSets.flatMap(layers => patternSetForFrame(layers, mirrorHardwareSpritePatternHorizontally))
+    : [];
+  const colors = rawFrameLayerSets.flatMap(layers =>
+    cells.flatMap(cell => {
+      const cellLayers = layersForCell(layers, cell);
+      return Array.from({ length: colorLayerCount }, (_unused, layerIndex) => {
+        const layerColors = (cellLayers[layerIndex]?.colors || []).slice(0, 16);
+        while (layerColors.length < 16) layerColors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+        return layerColors;
+      }).flat();
+    })
+  ).map(value => value & 0xff);
+  return {
+    ok: true,
+    frameCount: rawFrameLayerSets.length,
+    delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite),
+    patternsNoMirror,
+    patternsMirror,
+    colors,
+  };
+}
+
+// Animation-state names that already map to the base sprite (clip id 0); a
+// state-linked animation table row using one of these is ignored as a clip.
+const BITMAP_BASE_ANIM_STATES = new Set(['', 'idle', 'walk', 'walking', 'run', 'running', 'grounded', 'default', 'stand', 'standing']);
+
+/**
+ * Resolves the player's per-state animation sprites into appended frame banks.
+ *
+ * Two authoring sources, merged (state name -> sprite asset id):
+ *   1. The player Animations table (`player.animations[*]`): each row that links
+ *      a `spriteAssetId` to a `stateMachineState` (the existing Player editor UI;
+ *      the field comment "does not drive runtime ASM yet" is now satisfied for
+ *      SCREEN 5). Base walk/idle states are skipped (they ARE clip 0).
+ *   2. `player.render.stateSprites: { <state>: <spriteAssetId> }` — an explicit
+ *      override map (wins over the table) for projects authored as raw JSON.
+ *
+ * Each mapped sprite must resolve and have usable frames; banks get sequential
+ * animIds and frameBase offsets continuing after the base sprite's frames.
+ */
+function resolveBitmapRoomStateAnimations(
+  analysis: ProjectAnalysis,
+  room: Msx2Screen5BitmapRoom,
+  base: { frameCount: number; cells: BitmapSpriteSlotOffset[]; colorLayerCount: number; authoredFacing?: 'left' | 'right' },
+): BitmapStateAnimation[] {
+  const player = resolveBitmapRoomPlayer(analysis, room);
+
+  // state -> spriteAssetId, insertion-ordered (animations first, then overrides).
+  const mapping = new Map<string, string>();
+  const animations = (player as any)?.animations as Record<string, any> | undefined;
+  if (animations && typeof animations === 'object') {
+    const order: string[] = Array.isArray((player as any)?.animationOrder) && (player as any).animationOrder.length
+      ? (player as any).animationOrder
+      : Object.keys(animations);
+    for (const key of order) {
+      const anim = animations[key];
+      const state = String(anim?.stateMachineState || '').trim();
+      const spriteAssetId = String(anim?.spriteAssetId || '').trim();
+      if (!state || !spriteAssetId) continue;
+      if (BITMAP_BASE_ANIM_STATES.has(state.toLowerCase())) continue;
+      if (!mapping.has(state)) mapping.set(state, spriteAssetId);
+    }
+  }
+  const stateSprites = (player?.render as any)?.stateSprites as Record<string, unknown> | undefined;
+  if (stateSprites && typeof stateSprites === 'object') {
+    for (const [state, rawSpriteId] of Object.entries(stateSprites)) {
+      const trimmedState = String(state || '').trim();
+      const spriteAssetId = String(rawSpriteId || '').trim();
+      if (!trimmedState || !spriteAssetId) continue;
+      mapping.set(trimmedState, spriteAssetId); // explicit override wins
+    }
+  }
+  if (!mapping.size) return [];
+
+  const banks: BitmapStateAnimation[] = [];
+  let frameCursor = base.frameCount;
+  let animId = 1;
+  for (const [state, spriteAssetId] of mapping) {
+    const sprite = resolveMsx2SpriteById(analysis, spriteAssetId);
+    if (!sprite) continue;
+    const bank = extractStateSpriteBank(sprite, base.cells, base.colorLayerCount, base.authoredFacing);
+    if (!bank.ok) continue;
+    banks.push({
+      state,
+      animId,
+      frameBase: frameCursor,
+      frameCount: bank.frameCount,
+      delayFrames: bank.delayFrames,
+      patternsNoMirror: bank.patternsNoMirror,
+      patternsMirror: bank.patternsMirror,
+      colors: bank.colors,
+    });
+    frameCursor += bank.frameCount;
+    animId += 1;
+  }
+  return banks;
 }
 
 const COLLISION_COLS = 16;
@@ -2861,6 +3268,16 @@ function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
   for (let y = 0; y < COLLISION_ROWS; y++) {
     for (let x = 0; x < COLLISION_COLS; x++) {
       bytes.push(clampByte(room.collision?.[y]?.[x], 0));
+    }
+  }
+  return bytes;
+}
+
+function buildBehaviorTableBytes(room: Msx2Screen5BitmapRoom): number[] {
+  const bytes: number[] = [];
+  for (let y = 0; y < COLLISION_ROWS; y++) {
+    for (let x = 0; x < COLLISION_COLS; x++) {
+      bytes.push(clampByte(room.behavior?.[y]?.[x], 0));
     }
   }
   return bytes;
@@ -3176,6 +3593,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       blockCount: renderPage0.count,
       collisionLabel: `bitmap_room_collision_${index}`,
       collisionBytes: buildCollisionTableBytes(roomData),
+      behaviorLabel: `bitmap_room_behavior_${index}`,
+      behaviorBytes: buildBehaviorTableBytes(roomData),
     };
   });
   // Edge-transition table: 4 bytes per room (west, east, north, south); #FF = no rail.
@@ -3210,15 +3629,52 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const spriteSourceLabel = spriteTables.usedConfigured
     ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
     : 'placeholder fallback (no configured player sprite resolvable)';
+  // Per-state animation clips: optional separate sprites (player.render.stateSprites)
+  // rendered on the SAME cell grid as the base sprite. Their frames are appended
+  // after the base frames into one combined pattern/colour bank. When none are
+  // configured the combined arrays equal the base arrays, so the ROM is byte-equal.
+  const stateAnimations = resolveBitmapRoomStateAnimations(analysis, room, {
+    frameCount: spriteTables.frameCount,
+    cells: spriteTables.cells,
+    colorLayerCount: spriteTables.colorLayerCount,
+    authoredFacing: spriteTables.authoredFacing,
+  });
+  const hasStateAnimations = stateAnimations.length > 0;
+  // Map an animation-state name -> runtime id so skills can assert their state.
+  const stateAnimIds: Record<string, number> = {};
+  for (const bank of stateAnimations) stateAnimIds[bank.state] = bank.animId;
+  // Combined banks: [base non-mirror][state non-mirror][base mirror][state mirror].
+  const combinedFrameCount = spriteTables.frameCount + stateAnimations.reduce((sum, bank) => sum + bank.frameCount, 0);
+  const combinedPatterns = [
+    ...spriteTables.basePatternsNoMirror,
+    ...stateAnimations.flatMap(bank => bank.patternsNoMirror),
+    ...spriteTables.basePatternsMirror,
+    ...stateAnimations.flatMap(bank => bank.patternsMirror),
+  ];
+  const combinedColors = [
+    ...spriteTables.colors,
+    ...stateAnimations.flatMap(bank => bank.colors),
+  ];
+  // Clip table (id 0 = base idle/walk, ids 1..K = state clips): 3 bytes each
+  // (frameBase, frameCount, delay). Emitted only when state animations exist.
+  const animClipTableBytes = hasStateAnimations
+    ? [
+        0, spriteTables.frameCount & 0xff, spriteTables.delayFrames & 0xff,
+        ...stateAnimations.flatMap(bank => [bank.frameBase & 0xff, bank.frameCount & 0xff, bank.delayFrames & 0xff]),
+      ]
+    : [];
   // Jump/fall physics from the linked Player Config (movement.jumpPower / maxFallSpeed).
   const playerPhysics = resolveBitmapPlayerPhysics(resolveBitmapRoomPlayer(analysis, room));
+  // Body collision box from the Player Config; defaults to the player sprite size so a
+  // 16x32 sprite collides over its full height even without an explicit box.
+  const playerHitbox = getBitmapPlayerBodyHitbox(resolveBitmapRoomPlayer(analysis, room), playerSprite?.size);
   // DASH skill (pilot): config from the linked Player Config; the ASM uses the
   // bitmap room's own collision/move primitives (no SCREEN 4 routines reused).
   const dashConfig = getMsx2DashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
   const dashEquates = buildBitmapDashEquates(dashConfig);
   const dashInitClear = buildBitmapDashInitClearAsm(dashConfig);
   const dashGate = buildBitmapDashGateAsm(dashConfig);
-  const dashRuntime = buildBitmapDashRuntimeAsm(dashConfig);
+  const dashRuntime = buildBitmapDashRuntimeAsm(dashConfig, { dashing: stateAnimIds['dashing'] });
   // AIR DASH skill: consumes the frame before normal movement/gravity, using
   // bitmap_try_move_x so collision remains tied to the SCREEN 5 room cache.
   const airDashConfig = getMsx2AirDashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
@@ -3244,7 +3700,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const wallJumpInputHook = buildBitmapWallJumpInputHookAsm(wallJumpConfig);
   const wallJumpGravityHook = buildBitmapWallJumpGravityHookAsm(wallJumpConfig);
   const wallJumpLandClear = buildBitmapWallJumpLandClearAsm(wallJumpConfig);
-  const wallJumpRuntime = buildBitmapWallJumpRuntimeAsm(wallJumpConfig);
+  const wallJumpRuntime = buildBitmapWallJumpRuntimeAsm(wallJumpConfig, {
+    wall_sliding: stateAnimIds['wall_sliding'],
+    wall_jumping: stateAnimIds['wall_jumping'],
+  });
   // POWER STOMP skill: pins the bitmap integer fall velocity and optionally
   // shakes SCREEN 5 through V9938 R#18. RAM follows wall_jump.
   const powerStompConfig = getMsx2PowerStompConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
@@ -3264,7 +3723,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const shootInitClear = buildBitmapShootInitClearAsm(shootConfig);
   const shootGate = buildBitmapShootGateAsm(shootConfig);
   const bulletSprite = resolveBitmapBulletSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
-  const playerPatternGroups = spriteTables.frameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
+  const playerPatternGroups = combinedFrameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
   const bulletPatternNumber = playerPatternGroups * 4;
   // Foreground hardware-sprite tiles (player walks behind them). foregroundCount
   // is the MAX tile count across all rooms (capped at 3); 0 disables the feature
@@ -3349,6 +3808,30 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const spinAttackInitClear = buildBitmapSpinAttackInitClearAsm(spinAttackConfig);
   const spinAttackGate = buildBitmapSpinAttackGateAsm(spinAttackConfig);
   const spinAttackRuntime = buildBitmapSpinAttackRuntimeAsm(spinAttackConfig);
+  // ICE SLIDE skill: grounded inertia on behavior-layer ice cells. RAM follows spin_attack.
+  const iceSlideConfig = {
+    ...getMsx2IceSlideConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room)),
+    footProbeLeftOffset: Math.max(0, Math.min(31, playerHitbox.x)),
+    footProbeRightOffset: Math.max(0, Math.min(31, playerHitbox.x + playerHitbox.w - 1)),
+    footProbeYOffset: Math.max(1, Math.min(32, playerHitbox.y + playerHitbox.h)),
+  };
+  const iceSlideRamBase = spinAttackRamBase + (bitmapSpinAttackEnabled(spinAttackConfig) ? MSX2_BITMAP_SPIN_ATTACK_RAM_BYTES : 0);
+  const iceSlideEquates = buildBitmapIceSlideEquates(iceSlideConfig, iceSlideRamBase);
+  const iceSlideInitClear = buildBitmapIceSlideInitClearAsm(iceSlideConfig);
+  const iceSlideHorizontalHook = buildBitmapIceSlideHorizontalHookAsm(iceSlideConfig);
+  const iceSlideRuntime = buildBitmapIceSlideRuntimeAsm(iceSlideConfig);
+  // CROUCH skill: hold DOWN while grounded to slow/freeze movement (optional
+  // momentum slide on release). Shares the horizontal hook slot with ice_slide.
+  // RAM follows ice_slide.
+  const crouchConfig = getMsx2CrouchConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const crouchRamBase = iceSlideRamBase + (bitmapIceSlideEnabled(iceSlideConfig) ? MSX2_BITMAP_ICE_SLIDE_RAM_BYTES : 0);
+  const crouchEquates = buildBitmapCrouchEquates(crouchConfig, crouchRamBase);
+  const crouchInitClear = buildBitmapCrouchInitClearAsm(crouchConfig);
+  const crouchHorizontalHook = buildBitmapCrouchHorizontalHookAsm(crouchConfig);
+  const crouchRuntime = buildBitmapCrouchRuntimeAsm(crouchConfig, {
+    crouching: stateAnimIds['crouching'],
+    sliding: stateAnimIds['sliding'],
+  });
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
@@ -3377,8 +3860,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     mirror: spriteTables.mirror,
     authoredFacing: spriteTables.authoredFacing,
     layerCount: spriteTables.layerCount,
-  }, { bankedRle: isKonamiMegaRom }, playerPhysics, {
+    spriteOffsets: spriteTables.spriteOffsets,
+    totalFrameCount: combinedFrameCount,
+    hasStateAnimations,
+  }, { bankedRle: isKonamiMegaRom }, playerPhysics, playerHitbox, {
     inputGateAsm: inputHooks,
+    horizontalHookAsm: `${iceSlideHorizontalHook}${crouchHorizontalHook}`,
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
@@ -3396,18 +3883,20 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const roomDataAsm = roomTables.map(table =>
     `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
     `${formatBytes(table.renderLabelPage1, table.renderBytesPage1, `Room ${table.index} page 1 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
-    `${formatBytes(table.collisionLabel, table.collisionBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}`
+    `${formatBytes(table.collisionLabel, table.collisionBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}` +
+    `${formatBytes(table.behaviorLabel, table.behaviorBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} behavior grid (16x16 px cells), row-major, 0=empty, 3=ice_slide default`)}`
   ).join('\n');
   const roomRenderPtrTableAsm = `bitmap_room_render_ptr_table_p0:\n${roomTables.map(t => `    DW ${t.renderLabelPage0}`).join('\n')}\nbitmap_room_render_ptr_table_p1:\n${roomTables.map(t => `    DW ${t.renderLabelPage1}`).join('\n')}\n`;
   const roomBlockCountTableAsm = `bitmap_room_blockcount_table:\n${roomTables.map(t => `    DW ${t.blockCount}`).join('\n')}\n`;
   const roomCollisionPtrTableAsm = `bitmap_room_collision_ptr_table:\n${roomTables.map(t => `    DW ${t.collisionLabel}`).join('\n')}\n`;
+  const roomBehaviorPtrTableAsm = `bitmap_room_behavior_ptr_table:\n${roomTables.map(t => `    DW ${t.behaviorLabel}`).join('\n')}\n`;
   const roomTransitionTableAsm = formatBytes('bitmap_room_transition_table', transitionTableBytes, 'Edge rails per room: west,east,north,south (#FF = none)');
-  const playerAnimationUpdateCall = (spriteTables.frameCount > 1 || spriteTables.mirror)
+  const playerAnimationUpdateCall = (combinedFrameCount > 1 || spriteTables.mirror || hasStateAnimations)
     ? '    call bitmap_update_player_sprite_animation\n'
     : '';
   // Re-upload the player's sprite colour table on animation frame changes so
   // OR/CC multi-colour frames render correctly (fast, on-change only).
-  const playerColorsUpdateCall = spriteTables.frameCount > 1
+  const playerColorsUpdateCall = (combinedFrameCount > 1 || hasStateAnimations)
     ? '    call bitmap_upload_player_frame_colors\n'
     : '';
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
@@ -3462,9 +3951,18 @@ player_jump_lock    EQU #C009
 player_moving       EQU #C00A
 ; World engine runtime state.
 current_screen_index EQU #C00B
-${spriteTables.frameCount > 1 ? `; Frame whose player sprite colours are currently in VRAM (#F400). Drives the
+${(spriteTables.frameCount > 1 || hasStateAnimations) ? `; Frame whose player sprite colours are currently in VRAM (#F400). Drives the
 ; on-change per-frame OR/CC colour re-upload (bitmap_upload_player_frame_colors).
 player_colors_loaded EQU #C00C
+` : ''}${hasStateAnimations ? `; Per-state animation runtime (separate sprite per animation state). Fixed block
+; above the skill RAM chain and below the behavior map (#C200). player_anim_state
+; is reset to 0 each frame in update_player_movement and asserted by skills.
+player_anim_state      EQU #C1F0
+player_anim_state_prev EQU #C1F1
+player_anim_clip_base  EQU #C1F2
+player_anim_clip_count EQU #C1F3
+player_anim_clip_delay EQU #C1F4
+player_anim_abs_frame  EQU #C1F5
 ` : ''}${doubleJumpEquates}${coyoteBufferEquates}; Active room collision map copied here by load_room (16x12 = 192 bytes).
 bitmap_room_collision_map EQU #C010
 ; Double-buffer room-transition state. Collision map ends at #C0CF.
@@ -3492,6 +3990,12 @@ ${grabEquates}
 ${highJumpEquates}
 ${wallBreakEquates}
 ${spinAttackEquates}
+${iceSlideEquates}
+${crouchEquates}
+; Active room behavior map copied here by load_room (16x12 = 192 bytes).
+; Used by surface skills such as ice_slide. Kept away from the compact player
+; state/skill chain so future optional skills do not overlap it.
+bitmap_room_behavior_map EQU #C200
     org #4000
 
     db "AB"
@@ -3547,7 +4051,12 @@ ${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
     ld a, #0F
     ld e, #00
     call vdp_write_register
-${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}.main_loop:
+${hasStateAnimations ? `    xor a
+    ld (player_anim_state), a
+    ld (player_anim_abs_frame), a
+    dec a
+    ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
+` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}.main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
@@ -3571,6 +4080,8 @@ ${grabRuntime}
 ${highJumpRuntime}
 ${wallBreakRuntime}
 ${spinAttackRuntime}
+${iceSlideRuntime}
+${crouchRuntime}
 ${foregroundLoadRoutineAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
@@ -3585,18 +4096,23 @@ bitmap_room_tileset_data_end:
 ${roomRenderPtrTableAsm}
 ${roomBlockCountTableAsm}
 ${roomCollisionPtrTableAsm}
+${roomBehaviorPtrTableAsm}
 ${roomTransitionTableAsm}
-; Per-room render programs and collision maps.
+; Per-room render programs, collision maps and behavior maps.
 ${roomDataAsm}
 ${foregroundDataAsm}
-${formatBytes('bitmap_room_sprite_colors', spriteTables.colors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}`)}
+${formatBytes('bitmap_room_sprite_colors', combinedColors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
 bitmap_room_sprite_colors_end:
 
 ${formatBytes('bitmap_room_sprite_attrs', spriteTables.attrs, 'SAT: sprite 0 active (Y/X set at runtime), sprite 1 Y=#D8 stops processing')}
 bitmap_room_sprite_attrs_end:
 
-${formatBytes('bitmap_room_sprite_patterns', spriteTables.patterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}`)}
+${formatBytes('bitmap_room_sprite_patterns', combinedPatterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
 bitmap_room_sprite_patterns_end:
+${hasStateAnimations ? `
+; Player animation clip table: id 0 = base idle/walk, ids 1..${stateAnimations.length} = state
+; clips. 3 bytes/entry: frameBase, frameCount, delayFrames. Indexed by player_anim_state.
+${formatBytes('bitmap_player_anim_clip_table', animClipTableBytes, stateAnimations.map(b => `${b.animId}=${b.state}(base ${b.frameBase},${b.frameCount}f)`).join(', '))}` : ''}
 
 ${shootBulletDataTables}    ds #C000 - $, #FF
 ${bankedDataAsm}

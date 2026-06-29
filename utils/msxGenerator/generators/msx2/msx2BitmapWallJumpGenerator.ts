@@ -71,16 +71,42 @@ export function buildBitmapWallJumpLandClearAsm(config: Msx2WallJumpConfig | und
 `;
 }
 
-export function buildBitmapWallJumpRuntimeAsm(config: Msx2WallJumpConfig | undefined): string {
+export function buildBitmapWallJumpRuntimeAsm(
+  config: Msx2WallJumpConfig | undefined,
+  stateAnimIds: { wall_sliding?: number; wall_jumping?: number } = {},
+): string {
   if (!config || !bitmapWallJumpEnabled(config)) return '';
 
   const slideSpeed = asmByte(config.wallSlideSpeed);
+  // Per-state animation asserts (only when a separate sprite is mapped for the
+  // state). The gate runs in update_player_movement's input hook, after the
+  // per-frame player_anim_state reset, so these hold only this frame.
+  const wallJumpingStateSetAsm = typeof stateAnimIds.wall_jumping === 'number'
+    ? `    ld a, ${stateAnimIds.wall_jumping}\n    ld (player_anim_state), a\n`
+    : '';
+  const wallSlidingStateSetAsm = typeof stateAnimIds.wall_sliding === 'number'
+    ? `    ld a, (bitmap_wall_slide_side)
+    cp #FF
+    jp z, .wall_gate_anim_done
+    ld a, ${stateAnimIds.wall_sliding}
+    ld (player_anim_state), a
+.wall_gate_anim_done:
+`
+    : '';
   const wallJumpPowerSigned = asmByte((config.wallJumpPower88 >> 8) & 0xff);
   const wallJumpHorizontal = Math.max(1, Math.min(12, Math.floor(config.wallJumpHorizontal) || 4));
   const wallJumpHorizontalByte = asmByte(wallJumpHorizontal);
   const requireKeyRelease = config.requireKeyRelease !== false;
   const keyGate = requireKeyRelease
     ? `    ld a, (bitmap_wall_jump_key_lock)
+    or a
+    jp nz, .wall_kick_blocked
+    ; Also honor the normal jump's requireKeyRelease lock. A ground (or air)
+    ; jump arms player_jump_lock until the key is released. Without this check,
+    ; jumping right next to a wall fires a wall_jump on the very next frame
+    ; (the player was practically still on the ground) instead of waiting for a
+    ; fresh press of the jump button.
+    ld a, (player_jump_lock)
     or a
     jp nz, .wall_kick_blocked
 `
@@ -503,10 +529,10 @@ ${requireKeyRelease ? `    call bitmap_wall_jump_release_lock
     ld a, (bitmap_wall_jump_lock_vx)
     or a
     jp z, .wall_gate_no_skip
-    scf
+${wallJumpingStateSetAsm}    scf
     ret
 .wall_gate_no_skip:
-    or a
+${wallSlidingStateSetAsm}    or a
     ret
 `;
 }
