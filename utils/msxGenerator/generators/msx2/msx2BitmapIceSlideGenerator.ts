@@ -60,7 +60,9 @@ export function buildBitmapIceSlideHorizontalHookAsm(config: Msx2IceSlideConfig)
     cp 238
     jp c, .check_jump
     ld a, 1                        ; direction east
+    push bc                        ; start_room_transition clobbers BC; C (keyboard row 8 mask) must survive for .check_jump
     call start_room_transition
+    pop bc
     ret c                          ; transition queued -> done this frame
     jp .check_jump
 .ice_slide_edge_west:
@@ -68,7 +70,9 @@ export function buildBitmapIceSlideHorizontalHookAsm(config: Msx2IceSlideConfig)
     cp 3
     jp nc, .check_jump
     xor a                          ; direction west
+    push bc
     call start_room_transition
+    pop bc
     ret c
     jp .check_jump
 .ice_slide_hook_done:
