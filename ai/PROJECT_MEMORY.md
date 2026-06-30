@@ -250,6 +250,28 @@ Mideas
   - **Buffer**: poke cayendo + buffer=60 armado → player aterriza y el land hook dispara salto automatico: `y=132 vy=FF(subiendo) flags=00 buffer=00(consumido)` vs buffer=0 `y=160 flags=01`.
 - Leccion nueva en `ai/LESSONS_LEARNED.md`: smoke OpenMSX con `capture_openmsx_action.py` necesita `boot-wait-ms >= 6000` para tests de timing fino (<500ms); con boot 4000 los `after time` cortos se leen antes de que la emulación estabilice.
 
+## Sesion 2026-06-30 - SCREEN 5 bitmap: tiles Deadly pasables + sistema daño/respawn
+- Rama: `feature/msx2-screen-bifurcation`.
+- Objetivo del usuario: un tile "pinchos" marcado como Deadly en el Screen Editor no debía tener colisión implícita (quería pisarlos) y SÍ matar al pisarlos. Hasta ahora no mataban.
+- Diagnóstico (dos causas en el backend bitmap, no una):
+  1. `bitmap_probe_solid` hacia `or a` sobre el byte de celda: cualquier flag !=0 (incluido Deadly 0x40) se trataba como solido. El player no podia pisar los pinchos.
+  2. El backend bitmap NO tenia deteccion de deadly ni sistema de vidas/health/respawn (eso solo existe en MSX1/SCREEN 2/4 via `update_deadly_tiles_component`). El main loop solo hacia movimiento + skills + SAT.
+- Cambio 1 (`msx2Screen5BitmapRoomGenerator.ts:bitmap_probe_solid`): enmascarar el bit Deadly antes del test (`and #BF`). Deadly solo (0x40) -> pasable; Solid+Deadly (0x50) -> sigue solido (Solid 0x10 sobrevive la mascara). Contrato respetado: A devuelve el valor original de celda, Z = pasable. No-regresion para tiles solid/vacio (resultado identico).
+- Cambio 2 (mismo archivo): nuevo sistema deadly.
+  - `resolveBitmapPlayerVitals` lee `health.maxHealth/lives/invulnerabilityFrames` del Player Config (campos que ya existen en la UI y `types.ts:669`).
+  - `buildBitmapDeadlySystemAsm` genera EQUs + init + main-loop call + rutina.
+  - Rutina nueva `bitmap_check_deadly_contact` (documentada INPUT/OUTPUT/DESTROYS AF,DE,HL / PRESERVES BC) llamada cada frame tras `.skip_player_movement`. Probes left/center/right de la banda inferior del body via `bitmap_probe_deadly` (helper nuevo, simetrico a probe_solid/probe_behavior). Decrementa health, arma i-frames, y al llegar a 0 health decrementa lives + respawn (health=maxHealth, invuln, player al spawn del room actual).
+  - Helper `bitmap_probe_deadly` (test `bit 6, a`, devuelve A intacto).
+  - Tabla ROM `bitmap_room_spawn_x_table`/`bitmap_room_spawn_y_table` (1 byte/room cada una, indexada por `current_screen_index`) para respawn.
+- RAM: +3 bytes fijos `player_health #C1FD / player_lives #C1FE / player_invuln #C1FF`, en el gap seguro entre `player_anim_state (#C1F0-#C1F5)` y `bitmap_room_behavior_map (#C200)`, lejos del skill chain (que empieza en `player_vy_frac #C0D9`). Sin tocar el skill chain ni punteros 16-bit. Tabla spawn = ROM (4 bytes/room), 0 RAM.
+- CPU: 1 probe (3 muestras) + 1-2 compares por frame solo cuando invuln=0. <50 ciclos/frame. Inapreciable.
+- Fuera de alcance (pendientes, avisados al usuario): HUD dinamico de vidas/health en bitmap, pantalla de Game Over al llegar lives=0 (hoy respawn infinito: si lives llega a 0 respawn igual), knockback al recibir daño (hoy solo i-frames).
+- Verificacion: smoke `build_msx2_screen5_bitmap_room_smoke.py --skip-openmsx` (ROM 32768 bytes, glass OK). OpenMSX C-BIOS_MSX2 simple32k:
+  - Boot: health=05, lives=03, invuln=00, player grounded (pFlags=01) y reposando (pY=B0). No-regresion.
+  - Poke de celda deadly (0x40) bajo el player (fila 11 cols 1-5) + WAIT 1500ms: health=03 (5->3, dos toques separados por 60 frames de i-frames), invuln=2A, player sigue reposando (deadly pasable confirmado).
+  - WAIT 6000ms: lives=02 (ocurrio >=1 respawn al llegar health a 0), health=04 (reseteado y un toque nuevo), invuln=30, player reposicionado al spawn (pY=AD).
+- Contract: anadidos 10 checks en `scripts/check_skill_params_contract.cjs` para el deadly bitmap (EQUs, helper, rutina, mascara, tabla spawn). El contract completo NO pasa por un fallo PREEXISTENTE ajeno a este cambio (`air_dash active block` sobre `msx2Screen4Generator.ts`, ya roto en el arbol; verificado con `git stash`). Mis 10 checks verificados aislados via grep sobre el fuente TS.
+
 ## Sesion 2026-06-25 (tarde) - SCREEN 5 bitmap: fisica vertical fraccional (paridad con SCREEN 4)
 - Bug reportado por el usuario: el salto en su proyecto SCREEN 5 "se siente menos suave" que en su proyecto SCREEN 4.
 - Causa raiz: modelo de fisica vertical distinto entre backends. SCREEN 4 (`msx2Screen4Generator.ts:2529 msx2_apply_platform_gravity`) acumula `gravityStrength88` (default `#0040` = 0.25 px/frame^2) en `msx2_player_gravity_vel` (16-bit 8.8); el movimiento real (parte alta) solo cambia cuando la fraccion se desborda -> arco gradual. SCREEN 5 (`msx2Screen5BitmapRoomGenerator.ts .apply_gravity`) hacia `inc a` fijo cada frame = 1 px/frame^2 SIEMPRE, sin fraccion ni usar `gravityStrength88`. Resultado: SCREEN 5 aceleraba 4x mas rapido, arco "cuadrado".

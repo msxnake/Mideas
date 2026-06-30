@@ -505,4 +505,30 @@ assert(catalogCode.includes('selectEnemyRenderRole') && catalogCode.includes('fr
 assert(genCode.includes('parseEnemyFrameList') && genCode.includes('anim.frameList') && genCode.includes('enemyAnimationSettings.frameIndices.map'),
   'MSX2 generator consumes enemy msx2_animation.frameList when emitting shared enemy sprite frames');
 
-console.log('\nAll 65 plumbing checks passed.');
+// SCREEN 5 bitmap Deadly-tile damage system (player_health/lives/invuln).
+// Lesson 2026-06-08: a new RAM EQU must not collide with a 16-bit pointer's
+// HI byte. These 3 fixed bytes live in the safe gap between the optional
+// state-anim block (#C1F0-#C1F5) and the behavior map (#C200), far above the
+// skill chain (which starts at player_vy_frac #C0D9) and clear of every
+// documented 16-bit pointer in the bitmap runtime.
+const bitmapGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts'), 'utf8');
+assert(bitmapGenCode.includes('player_health  EQU #C1FD') && bitmapGenCode.includes('player_lives   EQU #C1FE') && bitmapGenCode.includes('player_invuln  EQU #C1FF'),
+  'bitmap deadly system reserves 3 fixed bytes at #C1FD-#C1FF (clear of the skill chain and 16-bit pointers)');
+assert(!/EQU\s+#C1F[DEF]/.test(bitmapGenCode.replace('player_health  EQU #C1FD', '').replace('player_lives   EQU #C1FE', '').replace('player_invuln  EQU #C1FF', '')),
+  'no other bitmap EQU reuses the deadly-system bytes #C1FD-#C1FF');
+assert(bitmapGenCode.includes('function resolveBitmapPlayerVitals') && bitmapGenCode.includes('health.maxHealth') && bitmapGenCode.includes('health.lives') && bitmapGenCode.includes('health.invulnerabilityFrames'),
+  'resolveBitmapPlayerVitals reads maxHealth/lives/invulnerabilityFrames from the Player Config');
+assert(bitmapGenCode.includes('function buildBitmapDeadlySystemAsm'),
+  'bitmap deadly system has a dedicated ASM builder');
+assert(bitmapGenCode.includes('and #BF') && /bitmap_probe_solid:[\s\S]*?and #BF/.test(bitmapGenCode),
+  'bitmap_probe_solid masks the Deadly bit (#BF = ~#40) so deadly-only tiles are passable');
+assert(bitmapGenCode.includes('bitmap_probe_deadly:') && bitmapGenCode.includes('bit 6, a'),
+  'bitmap_probe_deadly helper tests the Deadly bit (0x40) without altering A');
+assert(bitmapGenCode.includes('FUNCTION: bitmap_check_deadly_contact') && bitmapGenCode.includes('DESTROYS:\n;   AF, DE, HL') && bitmapGenCode.includes('PRESERVES:\n;   BC'),
+  'bitmap_check_deadly_contact has the mandatory ASM contract (DESTROYS/PRESERVES)');
+assert(bitmapGenCode.includes('call bitmap_check_deadly_contact'),
+  'bitmap main loop calls bitmap_check_deadly_contact every frame');
+assert(bitmapGenCode.includes('bitmap_room_spawn_x_table') && bitmapGenCode.includes('bitmap_room_spawn_y_table'),
+  'bitmap deadly respawn reads the per-room spawn tables');
+
+console.log('\nAll 75 plumbing checks passed.');

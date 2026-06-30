@@ -14,6 +14,50 @@ Leccion Aprendida:
 
 ---
 
+Fecha: 2026-06-30
+
+Problema:
+En el backend SCREEN 5 bitmap, un tile marcado como Deadly en el Screen Editor
+no mataba al player. Ademas, parecia "llevar colision implicita": el player no
+podia pisar los pinchos.
+
+Causa:
+Dos fallos compuestos en `msx2Screen5BitmapRoomGenerator.ts`:
+1. `bitmap_probe_solid` hacia `ld a,(hl); or a; ret`: tratba cualquier byte !=0
+   como solido. Como Deadly = 0x40 (nibble alto), toda celda deadly bloqueaba
+   al player. El body nunca entraba en la celda deadly.
+2. El backend bitmap no tenia NINGUN sistema de deteccion de deadly, ni vidas,
+   ni health, ni respawn (eso solo existe en MSX1/SCREEN 2/4 via
+   `update_deadly_tiles_component`). Aunque el player tocara deadly, no pasaba
+   nada porque el main loop no comprobaba daño.
+
+Solucion:
+1. Enmascarar el bit Deadly antes del test de solidez (`and #BF`; #BF = ~#40).
+   Deadly solo (0x40) -> pasable; Solid+Deadly (0x50) -> sigue solido (Solid
+   0x10 sobrevive la mascara). Preservar A (contrato: devuelve cell value) con
+   `ld e,a; and #BF; ld a,e`.
+2. Rutina nueva `bitmap_check_deadly_contact` cada frame: probe deadly sobre la
+   banda inferior del body, decrementa health, arma i-frames, y al llegar a 0
+   health decrementa lives + respawn al spawn del room actual. 3 bytes RAM
+   fijos (`player_health/lives/invuln`) + tabla ROM de spawns por room.
+
+Leccion Aprendida:
+Un byte de celda con varios flags packeados NO puede testearse con un simple
+`or a` para "es solido": cualquier flag (deadly, breakable, interactable...)
+cuenta como solidez. La solidez es una mascara especifica, no "byte != 0". En
+SCREEN 5 bitmap, el nibble alto (#F0) es la familia/solidez, PERO el bit
+Deadly (0x40) debe excluirse porque un tile puede ser mortal-sin-bloquear
+(pinchos en el suelo). Regla: `solid = (cell & (#F0 & ~#40)) != 0` = `(cell &
+#B0) != 0`.
+
+Ademas: un backend jugable nuevo NO hereda el sistema de daño/vidas del
+backend anterior. Cada backend debe portar explicitamente la deteccion de
+peligros, vidas, respawn y game-over. Que el editor ofrezca el checkbox
+"Deadly" no implica que el runtime lo consuma; verificar siempre que el flag
+de autoría llega al runtime y dispara una accion.
+
+---
+
 ## Bug Resuelto: atlas fuente SCREEN 5 recortado antes del repack compartido
 
 Fecha: 2026-06-26

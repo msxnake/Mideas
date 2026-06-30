@@ -2641,8 +2641,11 @@ ${addAImmediate(col)}    ld b, a                 ; B = probe X (+${col})
 
 bitmap_probe_solid:
     ; B = pixel X, C = pixel Y. Returns A = collision cell value with Z set
-    ; when empty. Index = (Y & #F0) + (X >> 4) into the 16x12 grid. Because a
-    ; cell is 16 px, (Y >> 4) * 16 == (Y & #F0). Clobbers AF/DE/HL; keeps BC.
+    ; when passable (cell empty OR deadly-only). Index = (Y & #F0) + (X >> 4)
+    ; into the 16x12 grid. Because a cell is 16 px, (Y >> 4) * 16 == (Y & #F0).
+    ; The Deadly bit (0x40) is masked out so a deadly-only tile (e.g. floor
+    ; spikes) does NOT block movement; Solid+Deadly (0x50) still blocks because
+    ; the Solid bit (0x10) survives the mask. Clobbers AF/DE/HL; keeps BC.
     ld a, c
     cp 192
     jp c, .probe_y_visible
@@ -2664,8 +2667,38 @@ bitmap_probe_solid:
     ld d, 0
     ld hl, bitmap_room_collision_map
     add hl, de
-    ld a, (hl)
-    or a
+    ld a, (hl)              ; A = cell value (returned intact to honour the contract)
+    ld e, a                 ; E = copy of cell value
+    and #BF                 ; mask out Deadly bit (#BF = ~#40); Z when empty or deadly-only
+    ld a, e                 ; restore A = original cell value
+    ret
+
+bitmap_probe_deadly:
+    ; B = pixel X, C = pixel Y. Returns A = collision cell value with Z set
+    ; when the cell does NOT have the Deadly bit (0x40), NZ when it does.
+    ; Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.
+    ld a, c
+    cp 192
+    jp c, .deadly_probe_y_visible
+    xor a
+    ret
+.deadly_probe_y_visible:
+    ld a, c
+    and #F0
+    ld l, a
+    ld a, b
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, l
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de
+    ld a, (hl)              ; A = cell value (returned intact)
+    bit 6, a                ; test Deadly bit without altering A
     ret
 
 bitmap_probe_behavior:
@@ -2880,6 +2913,173 @@ function resolveBitmapPlayerPhysics(player: Partial<Msx2PlayerDefinition> | unde
     jumpKeyboard: player?.inputEnabled?.jump === false ? null : (resolveMsx2BitmapKeyboardBinding(player, 'jump') ?? null),
     gravityFrac: Math.max(16, Math.min(128, Math.floor(physics.gravityStrength88) || 0x40)) & 0xff,
   };
+}
+
+// Player vitals from the Player Config (Msx2PlayerEditor "General" tab:
+// Initial Health / Initial Lives / I-Time). The bitmap runtime consumes them
+// as the Deadly-tile damage system: each deadly contact decrements health,
+// invuln counts down i-frames, and reaching 0 health costs 1 life + respawn at
+// the current room's spawn point (read from bitmap_room_spawn_x/y_table).
+interface BitmapPlayerVitals {
+  /** Initial/current health (Player Config health.maxHealth, default 5). 1..255. */
+  maxHealth: number;
+  /** Initial/current lives (Player Config health.lives, default 3). 1..255. */
+  lives: number;
+  /** Invulnerability frames after a hit (health.invulnerabilityFrames, default 60). 0..255. */
+  invulnFrames: number;
+}
+function resolveBitmapPlayerVitals(player: Partial<Msx2PlayerDefinition> | undefined): BitmapPlayerVitals {
+  const health = (player as any)?.health || {};
+  const clampByte01 = (value: unknown, fallback: number) => Math.max(1, Math.min(255, Math.floor(Number(value) || fallback)));
+  return {
+    maxHealth: clampByte01(health.maxHealth, 5),
+    lives: clampByte01(health.lives, 3),
+    invulnFrames: clampByte01(health.invulnerabilityFrames, 60),
+  };
+}
+
+// Build the SCREEN 5 bitmap Deadly-tile damage system: EQUs, init snippet,
+// main-loop call and the runtime routine. Probes the body's lower band
+// (left/center/right) so a passable deadly floor tile (Deadly bit 0x40, not
+// Solid) is detected when the player stands on it; decrements health, arms
+// i-frames, and respawns at the current room's spawn point on 0 health.
+function buildBitmapDeadlySystemAsm(vitals: BitmapPlayerVitals, hitbox: BitmapPlayerHitbox): {
+  equates: string;
+  initAsm: string;
+  mainLoopCall: string;
+  routineAsm: string;
+} {
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const hbCenter = Math.floor((hbLeft + hbRight) / 2);
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  const hexB = (n: number) => `#${(n & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
+  const maxHealthByte = hexB(vitals.maxHealth);
+  const livesByte = hexB(vitals.lives);
+  const invulnByte = hexB(vitals.invulnFrames);
+  // EQUs: 3 fixed bytes in the safe gap between the optional state-anim block
+  // (#C1F0-#C1F5) and bitmap_room_behavior_map (#C200). This region is always
+  // free regardless of which optional skills are active (the skill chain lives
+  // far below, starting at player_vy_frac #C0D9). check_skill_params_contract.cjs
+  // asserts these addresses stay unique and clear of 16-bit pointers.
+  const equates = `; Deadly-tile damage system (SCREEN 5 bitmap). Fixed bytes in the safe gap
+; between player_anim_state (#C1F0-#C1F5) and bitmap_room_behavior_map (#C200).
+player_health  EQU #C1FD
+player_lives   EQU #C1FE
+player_invuln  EQU #C1FF
+`;
+  const initAsm = `    ; Initialise player vitals from the Player Config (health.maxHealth / lives).
+    ld a, ${maxHealthByte}
+    ld (player_health), a
+    ld a, ${livesByte}
+    ld (player_lives), a
+    xor a
+    ld (player_invuln), a
+`;
+  const mainLoopCall = `    call bitmap_check_deadly_contact    ; deadly-tile damage + respawn (SCREEN 5 bitmap)\n`;
+  const routineAsm = `; ------------------------------------------------------------
+; FUNCTION: bitmap_check_deadly_contact
+; ------------------------------------------------------------
+; PURPOSE:
+;   Apply deadly-tile damage for the bitmap room backend. Each frame (after
+;   movement) the body's lower band is probed for the Deadly bit (0x40); on
+;   contact health is decremented, i-frames are armed, and reaching 0 health
+;   costs 1 life and respawns the player at the current room's spawn point.
+;
+; INPUT:
+;   RAM state: player_x, player_y, player_health, player_lives, player_invuln,
+;              bitmap_composition_state, current_screen_index.
+;
+; OUTPUT:
+;   player_health / player_lives / player_invuln updated; on respawn also
+;   player_x, player_y, player_vy, player_vy_frac.
+;
+; DESTROYS:
+;   AF, DE, HL
+;
+; PRESERVES:
+;   BC (so the main loop can call it next to skills without register spills)
+;
+; CALLS:
+;   bitmap_probe_deadly
+;
+; SIDE EFFECTS:
+;   Reads bitmap_room_collision_map (probe) and bitmap_room_spawn_x/y_table
+;   (respawn). Never fires while bitmap_composition_state != 0 (mid-transition).
+; ------------------------------------------------------------
+bitmap_check_deadly_contact:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz                     ; skip during room transition/composition
+
+    ld a, (player_invuln)
+    or a
+    jr z, .deadly_invuln_done
+    dec a
+    ld (player_invuln), a      ; count down i-frames
+.deadly_invuln_done:
+    ld a, (player_invuln)
+    or a
+    ret nz                     ; still invulnerable -> no damage this frame
+
+    ; Probe the body's lower band (left / center / right) for a deadly cell.
+    ld a, (player_y)
+${addA(hbBottom)}    ld c, a                    ; C = probe Y (lower body edge); bitmap_probe_deadly keeps BC
+
+    ld a, (player_x)
+${addA(hbLeft)}    ld b, a
+    call bitmap_probe_deadly
+    jp nz, .deadly_take_damage
+    ld a, (player_x)
+${addA(hbCenter)}    ld b, a
+    call bitmap_probe_deadly
+    jp nz, .deadly_take_damage
+    ld a, (player_x)
+${addA(hbRight)}    ld b, a
+    call bitmap_probe_deadly
+    jp z, .deadly_no_contact   ; no deadly contact in any sample -> exit
+    ; fallthrough -> apply damage
+.deadly_take_damage:
+    ld hl, player_health
+    dec (hl)
+    ld a, (hl)
+    or a
+    jr nz, .deadly_arm_invuln  ; still alive -> arm i-frames and return
+    ; health == 0: cost 1 life, then respawn. No game-over screen exists in the
+    ; bitmap backend yet; respawn always fires so the player is never stuck.
+    ld hl, player_lives
+    dec (hl)
+.deadly_respawn:
+    ld a, ${maxHealthByte}
+    ld (player_health), a
+    ld a, ${invulnByte}
+    ld (player_invuln), a
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_spawn_x_table
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_spawn_y_table
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    ret
+.deadly_arm_invuln:
+    ld a, ${invulnByte}
+    ld (player_invuln), a
+.deadly_no_contact:
+    ret
+`;
+  return { equates, initAsm, mainLoopCall, routineAsm };
 }
 
 // Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
@@ -3668,6 +3868,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Body collision box from the Player Config; defaults to the player sprite size so a
   // 16x32 sprite collides over its full height even without an explicit box.
   const playerHitbox = getBitmapPlayerBodyHitbox(resolveBitmapRoomPlayer(analysis, room), playerSprite?.size);
+  // Vitals from the Player Config (health.maxHealth / lives / invulnerabilityFrames).
+  // Consumed by the Deadly-tile damage system (bitmap_check_deadly_contact).
+  const playerVitals = resolveBitmapPlayerVitals(resolveBitmapRoomPlayer(analysis, room));
+  // Deadly-tile damage system: EQUs, init, main-loop call and the runtime routine.
+  const deadlySystem = buildBitmapDeadlySystemAsm(playerVitals, playerHitbox);
   // DASH skill (pilot): config from the linked Player Config; the ASM uses the
   // bitmap room's own collision/move primitives (no SCREEN 4 routines reused).
   const dashConfig = getMsx2DashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
@@ -3891,6 +4096,15 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const roomCollisionPtrTableAsm = `bitmap_room_collision_ptr_table:\n${roomTables.map(t => `    DW ${t.collisionLabel}`).join('\n')}\n`;
   const roomBehaviorPtrTableAsm = `bitmap_room_behavior_ptr_table:\n${roomTables.map(t => `    DW ${t.behaviorLabel}`).join('\n')}\n`;
   const roomTransitionTableAsm = formatBytes('bitmap_room_transition_table', transitionTableBytes, 'Edge rails per room: west,east,north,south (#FF = none)');
+  // Per-room player spawn coordinates (1 byte each). Indexed by current_screen_index
+  // by bitmap_check_deadly_contact to respawn the player at the correct room's entry.
+  const roomSpawnBytes = rooms.map(roomData => {
+    const sp = resolvePlayerSpawnPixels(roomData);
+    return { x: clampByte(sp.x, 0) & 0xff, y: clampByte(sp.y, 0) & 0xff };
+  });
+  const roomSpawnTableAsm =
+    `bitmap_room_spawn_x_table:\n    DB ${roomSpawnBytes.map(b => `${b.x}`).join(',')}\n` +
+    `bitmap_room_spawn_y_table:\n    DB ${roomSpawnBytes.map(b => `${b.y}`).join(',')}\n`;
   const playerAnimationUpdateCall = (combinedFrameCount > 1 || spriteTables.mirror || hasStateAnimations)
     ? '    call bitmap_update_player_sprite_animation\n'
     : '';
@@ -3996,7 +4210,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-    org #4000
+${deadlySystem.equates}    org #4000
 
     db "AB"
     dw init_rom
@@ -4044,7 +4258,7 @@ ${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
-    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${deadlySystem.initAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.
@@ -4063,7 +4277,7 @@ ${hasStateAnimations ? `    xor a
 ${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}    call bitmap_update_sprite_sat
 ${shootBulletSatCall}    jp .main_loop
 
 ${runtimeAsm}
@@ -4082,6 +4296,7 @@ ${wallBreakRuntime}
 ${spinAttackRuntime}
 ${iceSlideRuntime}
 ${crouchRuntime}
+${deadlySystem.routineAsm}
 ${foregroundLoadRoutineAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
@@ -4098,6 +4313,7 @@ ${roomBlockCountTableAsm}
 ${roomCollisionPtrTableAsm}
 ${roomBehaviorPtrTableAsm}
 ${roomTransitionTableAsm}
+${roomSpawnTableAsm}
 ; Per-room render programs, collision maps and behavior maps.
 ${roomDataAsm}
 ${foregroundDataAsm}
