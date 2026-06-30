@@ -531,4 +531,23 @@ assert(bitmapGenCode.includes('call bitmap_check_deadly_contact'),
 assert(bitmapGenCode.includes('bitmap_room_spawn_x_table') && bitmapGenCode.includes('bitmap_room_spawn_y_table'),
   'bitmap deadly respawn reads the per-room spawn tables');
 
-console.log('\nAll 75 plumbing checks passed.');
+// Blink i-frames + deadlyInstantRespawn option (Player Config health.deadlyInstantRespawn).
+const playerDefaultsCode = fs.readFileSync(path.join(ROOT, 'utils', 'msx2PlayerDefaults.ts'), 'utf8');
+assert(playerDefaultsCode.includes('deadlyInstantRespawn: true'),
+  'msx2PlayerDefaults seeds health.deadlyInstantRespawn = true (platformer-style default)');
+assert(/deadlyInstantRespawn\?:\s*boolean/.test(typesCode),
+  'Msx2PlayerDefinition.health.deadlyInstantRespawn is an optional boolean');
+assert(bitmapGenCode.includes('deadlyInstantRespawn') && bitmapGenCode.includes('health.deadlyInstantRespawn'),
+  'bitmap vitals resolver reads health.deadlyInstantRespawn');
+assert(bitmapGenCode.includes('blink_phase   EQU #C1F9') && bitmapGenCode.includes('blink_ended   EQU #C1FA') && bitmapGenCode.includes('blink_hide    EQU #C1FB'),
+  'bitmap blink reserves 3 fixed bytes at #C1F9-#C1FB (next to the deadly vitals)');
+assert(bitmapGenCode.includes('blink_timer   EQU player_invuln'),
+  'blink_timer aliases player_invuln (in_blink == blink_timer != 0; no extra RAM)');
+assert(bitmapGenCode.includes('enableBlink: boolean = false') && bitmapGenCode.includes('enableBlink: bitmap backend always renders i-frame flicker'),
+  'buildRuntimeAsm gates SAT flicker on enableBlink and generateUnitedFiles turns it on');
+assert(bitmapGenCode.includes('ld a, (blink_hide)') && /bitmap_update_sprite_sat:[\s\S]*?blink_hide/.test(bitmapGenCode),
+  'bitmap_update_sprite_sat reads blink_hide to flicker the player sprite while invulnerable');
+assert(bitmapGenCode.includes('ld (blink_ended), a') && bitmapGenCode.includes('blink ended this frame'),
+  'bitmap_check_deadly_contact pulses blink_ended the frame blink finishes (1 -> 0)');
+
+console.log('\nAll 84 plumbing checks passed.');

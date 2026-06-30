@@ -378,6 +378,8 @@ export interface Msx2BitmapRoomAtlasEntry {
   h: number;
   /** Optional SCREEN 5 bitmap-room collision/behavior flags applied when this atlas tile is painted. */
   collisionFlags?: number;
+  /** Optional SCREEN 5 bitmap-room behavior code applied when this atlas tile is painted. 3 = ice_slide surface. */
+  behaviorCode?: number;
 }
 
 export interface Msx2Screen5BitmapRoom {
@@ -502,6 +504,8 @@ export interface Msx2PlayerSkillBinding {
   primary: Msx2PlayerControlId;
   /** Secondary icon for combo activations. 'none' = no second button needed. */
   secondary?: Msx2PlayerControlId | 'none';
+  /** How primary/secondary are combined in UI declarations. Default: 'and'. */
+  operator?: 'and' | 'or';
 }
 export type Msx2PlayerRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type Msx2PlayerSpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
@@ -668,6 +672,14 @@ export interface Msx2PlayerDefinition {
     invulnerabilityFrames: number;
     knockbackX?: number;
     knockbackY?: number;
+    /**
+     * SCREEN 5 bitmap deadly-tile behaviour when the player touches a deadly
+     * cell. true (default) = instant respawn (platformer-style: spikes kill on
+     * touch and send the player back to the room spawn, costing 1 life).
+     * false = action-style: spikes deal 1 health damage + blink i-frames but
+     * do NOT respawn; the player can walk off and only respawns at 0 health.
+     */
+    deadlyInstantRespawn?: boolean;
   };
   /** Declarative weapon definitions. Not consumed by MSX2 ASM yet. */
   weapons?: Msx2PlayerWeaponDefinition[];

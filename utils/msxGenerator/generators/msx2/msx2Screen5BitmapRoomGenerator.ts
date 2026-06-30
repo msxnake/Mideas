@@ -1027,6 +1027,7 @@ function buildRuntimeAsm(
   playerHitbox: BitmapPlayerHitbox,
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
   foreground: { count: number; patternGroupBase: number; satBase: number; colorBase: number; loadCallAsm: string } | null = null,
+  enableBlink: boolean = false,
 ): string {
   // When foreground tiles exist, the player SAT/colour tables move past the
   // foreground slots so the player renders behind them. With no foreground these
@@ -2778,16 +2779,54 @@ bitmap_update_sprite_sat:
     and #3F
     or #40
     out (${VDP_CTRL_PORT}), a
-${playerAnimation.spriteOffsets.map((offset, slotIndex) => `    ld a, (player_y)
+${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invuln != 0), hide the
+    ; player every other phase so hits/respawns read as a flicker. blink_hide is
+    ; computed here (SAT upload always runs, even mid-transition) and read by
+    ; each layer's Y write below. 8-frame cycle: visible phases 0..3, hidden 4..7.
+    ld a, (player_invuln)
+    or a
+    jr z, .blink_hide_off
+    ld a, (blink_phase)
+    inc a
+    and #07
+    ld (blink_phase), a
+    cp #04
+    jr c, .blink_hide_off
+    ld a, 1
+    ld (blink_hide), a
+    jr .blink_hide_done
+.blink_hide_off:
+    xor a
+    ld (blink_hide), a
+.blink_hide_done:
+` : ''}${playerAnimation.spriteOffsets.map((offset, slotIndex) => {
+  const yWriteNormal = `    ld a, (player_y)
     add a, ${BITMAP_ROOM_GAME_Y_OFFSET}${offset.y ? `\n    add a, ${offset.y}                   ; cell row +${offset.y}px` : ''}
-    out (${VDP_DATA_PORT}), a
-    ld a, (player_x)${offset.x ? `\n    add a, ${offset.x}                   ; cell col +${offset.x}px` : ''}
+    out (${VDP_DATA_PORT}), a`;
+  const yWriteHidden = `    ld a, #D8
+    out (${VDP_DATA_PORT}), a`;
+  const xPatEc = `    ld a, (player_x)${offset.x ? `\n    add a, ${offset.x}                   ; cell col +${offset.x}px` : ''}
     out (${VDP_DATA_PORT}), a
     ld a, (player_pat)
 ${slotIndex ? `    add a, ${slotIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
     ld a, (player_ec)
-    out (${VDP_DATA_PORT}), a
-`).join('')}    ld a, #D8
+    out (${VDP_DATA_PORT}), a`;
+  if (enableBlink) {
+    return `    ld a, (blink_hide)
+    or a
+    jr nz, .slot_${slotIndex}_hide_y
+${yWriteNormal}
+    jr .slot_${slotIndex}_after_y
+.slot_${slotIndex}_hide_y:
+${yWriteHidden}
+.slot_${slotIndex}_after_y:
+${xPatEc}
+`;
+  }
+  return `${yWriteNormal}
+${xPatEc}
+`;
+}).join('')}    ld a, #D8
     out (${VDP_DATA_PORT}), a
     xor a
     out (${VDP_DATA_PORT}), a
@@ -2927,6 +2966,12 @@ interface BitmapPlayerVitals {
   lives: number;
   /** Invulnerability frames after a hit (health.invulnerabilityFrames, default 60). 0..255. */
   invulnFrames: number;
+  /**
+   * Deadly-tile behaviour (health.deadlyInstantRespawn, default true).
+   * true  = deadly contact -> -1 life + immediate respawn + blink i-frames.
+   * false = deadly contact -> -1 health + blink i-frames; respawn only at 0 health.
+   */
+  deadlyInstantRespawn: boolean;
 }
 function resolveBitmapPlayerVitals(player: Partial<Msx2PlayerDefinition> | undefined): BitmapPlayerVitals {
   const health = (player as any)?.health || {};
@@ -2935,6 +2980,8 @@ function resolveBitmapPlayerVitals(player: Partial<Msx2PlayerDefinition> | undef
     maxHealth: clampByte01(health.maxHealth, 5),
     lives: clampByte01(health.lives, 3),
     invulnFrames: clampByte01(health.invulnerabilityFrames, 60),
+    // Default true (platformer-style instant respawn). `!== false` keeps undefined as true.
+    deadlyInstantRespawn: health.deadlyInstantRespawn !== false,
   };
 }
 
@@ -2963,37 +3010,73 @@ function buildBitmapDeadlySystemAsm(vitals: BitmapPlayerVitals, hitbox: BitmapPl
   // free regardless of which optional skills are active (the skill chain lives
   // far below, starting at player_vy_frac #C0D9). check_skill_params_contract.cjs
   // asserts these addresses stay unique and clear of 16-bit pointers.
-  const equates = `; Deadly-tile damage system (SCREEN 5 bitmap). Fixed bytes in the safe gap
-; between player_anim_state (#C1F0-#C1F5) and bitmap_room_behavior_map (#C200).
-player_health  EQU #C1FD
-player_lives   EQU #C1FE
-player_invuln  EQU #C1FF
+  // blink_timer is an alias for player_invuln: the i-frame countdown IS the
+  // blink countdown (in_blink == blink_timer != 0). blink_ended pulses 1 for a
+  // single frame when the countdown reaches 0, so callers can react to the
+  // exact frame blink finishes. blink_phase/blink_hide drive the SAT flicker.
+  const equates = `; Deadly-tile damage + blink i-frames system (SCREEN 5 bitmap). Fixed bytes in
+; the safe gap between player_anim_state (#C1F0-#C1F5) and bitmap_room_behavior_map (#C200).
+blink_phase   EQU #C1F9
+blink_ended   EQU #C1FA
+blink_hide    EQU #C1FB
+player_health EQU #C1FD
+player_lives  EQU #C1FE
+player_invuln EQU #C1FF
+blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown. in_blink = (blink_timer != 0)
 `;
-  const initAsm = `    ; Initialise player vitals from the Player Config (health.maxHealth / lives).
+  const initAsm = `    ; Initialise player vitals from the Player Config (health.maxHealth / lives)
+    ; and clear blink state (blink_timer/player_invuln is cleared below).
     ld a, ${maxHealthByte}
     ld (player_health), a
     ld a, ${livesByte}
     ld (player_lives), a
     xor a
     ld (player_invuln), a
+    ld (blink_phase), a
+    ld (blink_ended), a
+    ld (blink_hide), a
 `;
   const mainLoopCall = `    call bitmap_check_deadly_contact    ; deadly-tile damage + respawn (SCREEN 5 bitmap)\n`;
+  const takeDamageAsm = vitals.deadlyInstantRespawn
+    ? `    ; Instant respawn (Player Config health.deadlyInstantRespawn = true):
+    ; a deadly contact costs 1 life and respawns immediately (platformer style).
+.deadly_take_damage:
+    ld hl, player_lives
+    dec (hl)
+    jp .deadly_respawn
+`
+    : `    ; Action-style (health.deadlyInstantRespawn = false): a deadly contact
+    ; deals 1 health damage + blink; respawn only fires when health reaches 0.
+.deadly_take_damage:
+    ld hl, player_health
+    dec (hl)
+    ld a, (hl)
+    or a
+    jr nz, .deadly_arm_invuln  ; still alive -> arm blink i-frames and return
+    ld hl, player_lives
+    dec (hl)
+    jp .deadly_respawn         ; health 0 -> cost 1 life + respawn
+`;
   const routineAsm = `; ------------------------------------------------------------
 ; FUNCTION: bitmap_check_deadly_contact
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Apply deadly-tile damage for the bitmap room backend. Each frame (after
-;   movement) the body's lower band is probed for the Deadly bit (0x40); on
-;   contact health is decremented, i-frames are armed, and reaching 0 health
-;   costs 1 life and respawns the player at the current room's spawn point.
+;   Apply deadly-tile damage + blink i-frames for the bitmap room backend.
+;   Each frame (after movement) the body's lower band is probed for the Deadly
+;   bit (0x40). On contact:
+;     - health.deadlyInstantRespawn true  -> -1 life + immediate respawn + blink.
+;     - health.deadlyInstantRespawn false -> -1 health + blink; respawn at 0 hp.
+;   While blinking (blink_timer/player_invuln != 0) the player is immune to all
+;   damage. blink_ended pulses 1 the exact frame blink finishes (1 -> 0).
 ;
 ; INPUT:
 ;   RAM state: player_x, player_y, player_health, player_lives, player_invuln,
-;              bitmap_composition_state, current_screen_index.
+;              blink_phase, blink_ended, bitmap_composition_state,
+;              current_screen_index.
 ;
 ; OUTPUT:
-;   player_health / player_lives / player_invuln updated; on respawn also
-;   player_x, player_y, player_vy, player_vy_frac.
+;   player_health / player_lives / player_invuln / blink_ended updated; on
+;   respawn also player_x, player_y, player_vy, player_vy_frac.
 ;
 ; DESTROYS:
 ;   AF, DE, HL
@@ -3013,15 +3096,22 @@ bitmap_check_deadly_contact:
     or a
     ret nz                     ; skip during room transition/composition
 
+    ; --- blink i-frames countdown ---
+    xor a
+    ld (blink_ended), a        ; default: blink not ending this frame
     ld a, (player_invuln)
     or a
-    jr z, .deadly_invuln_done
+    jr z, .deadly_invuln_done  ; already 0: not blinking
     dec a
-    ld (player_invuln), a      ; count down i-frames
+    ld (player_invuln), a      ; count down blink/i-frames
+    or a
+    jr nz, .deadly_invuln_done ; still blinking
+    ld a, 1
+    ld (blink_ended), a        ; just reached 0 -> blink ended this frame
 .deadly_invuln_done:
     ld a, (player_invuln)
     or a
-    ret nz                     ; still invulnerable -> no damage this frame
+    ret nz                     ; in_blink -> immune to all damage this frame
 
     ; Probe the body's lower band (left / center / right) for a deadly cell.
     ld a, (player_y)
@@ -3039,18 +3129,7 @@ ${addA(hbCenter)}    ld b, a
 ${addA(hbRight)}    ld b, a
     call bitmap_probe_deadly
     jp z, .deadly_no_contact   ; no deadly contact in any sample -> exit
-    ; fallthrough -> apply damage
-.deadly_take_damage:
-    ld hl, player_health
-    dec (hl)
-    ld a, (hl)
-    or a
-    jr nz, .deadly_arm_invuln  ; still alive -> arm i-frames and return
-    ; health == 0: cost 1 life, then respawn. No game-over screen exists in the
-    ; bitmap backend yet; respawn always fires so the player is never stuck.
-    ld hl, player_lives
-    dec (hl)
-.deadly_respawn:
+${takeDamageAsm}.deadly_respawn:
     ld a, ${maxHealthByte}
     ld (player_health), a
     ld a, ${invulnByte}
@@ -4074,7 +4153,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';

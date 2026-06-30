@@ -2264,6 +2264,11 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                   </p>
                   <Field label="I-Time" suffix="frames"><SmallNumber value={normalized.health.invulnerabilityFrames} onChange={value => updateHealth({ invulnerabilityFrames: value })} /></Field>
                   <Field label="Knockback"><SmallNumber step={0.01} value={numberValue(normalized.health.knockbackX, 1)} onChange={value => updateHealth({ knockbackX: value })} /></Field>
+                  <Checkbox
+                    label="Deadly tiles = instant respawn (on). Off = damage + blink, no respawn until 0 health."
+                    checked={normalized.health.deadlyInstantRespawn !== false}
+                    onChange={checked => updateHealth({ deadlyInstantRespawn: checked })}
+                  />
                   <Checkbox label="Can Take Damage" checked={true} onChange={() => undefined} />
                 </div>
               </section>

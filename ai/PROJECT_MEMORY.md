@@ -250,6 +250,25 @@ Mideas
   - **Buffer**: poke cayendo + buffer=60 armado → player aterriza y el land hook dispara salto automatico: `y=132 vy=FF(subiendo) flags=00 buffer=00(consumido)` vs buffer=0 `y=160 flags=01`.
 - Leccion nueva en `ai/LESSONS_LEARNED.md`: smoke OpenMSX con `capture_openmsx_action.py` necesita `boot-wait-ms >= 6000` para tests de timing fino (<500ms); con boot 4000 los `after time` cortos se leen antes de que la emulación estabilice.
 
+## Sesion 2026-06-30 (tarde) - SCREEN 5 bitmap: skill blink + opcion deadlyInstantRespawn
+- Rama: `feature/msx2-screen-bifurcation`.
+- Objetivo del usuario: skill "blink" (parpadeo del sprite) como feedback de i-frames al recibir daño, con variables expuestas (tiempo/frames, in_blink/blink_ended), y una opcion configurable para que al caer en pinchos se pueda elegir entre respawn o no respawn.
+- Decisiones con el usuario: blink es automatico al recibir daño (no boton); las "2 opciones" al caer en pinchos son el flag `health.deadlyInstantRespawn` (ON=respawn inmediato plataforma-clasica / OFF=dano+blink modo accion sin respawn hasta 0 health); durante blink el player es inmune a todo dano.
+- Cambios:
+  - `types.ts` + `utils/msx2PlayerDefaults.ts`: nuevo campo `health.deadlyInstantRespawn?: boolean` (default `true`, no-regresion). UI: checkbox en Msx2PlayerEditor seccion "Combat & Damage".
+  - `msx2Screen5BitmapRoomGenerator.ts:resolveBitmapPlayerVitals` lee `health.deadlyInstantRespawn` (default true).
+  - EQUs blink: `blink_phase #C1F9`, `blink_ended #C1FA`, `blink_hide #C1FB`. `blink_timer EQU player_invuln` (alias: la cuenta de i-frames ES la cuenta de blink; `in_blink = blink_timer != 0`, 0 bytes extra).
+  - `bitmap_check_deadly_contact`: añade countdown de blink con `blink_ended` (pulsa 1 el frame exacto en que blink llega a 1->0) y genera 2 variantes de take_damage segun el flag:
+    - ON (default): deadly -> `-1 life + respawn inmediato + blink` (plataforma clasica).
+    - OFF: deadly -> `-1 health + blink`, respawn solo al health=0 (modo accion). Es lo que el usuario pidio para "caer en pinchos y no queremos spawn".
+  - Parpadeo visual: `bitmap_update_sprite_sat` recibe `enableBlink` (true en bitmap). Un preamble calcula `blink_hide` cada frame (ciclo 8 frames: visible fases 0-3, oculto 4-7) y cada capa del sprite escribe Y=#D8 cuando blink_hide. Solo usa AF (respeta el contrato PRESERVES BC,HL de la rutina).
+- RAM: +3 bytes fijos (`blink_phase/blink_ended/blink_hide #C1F9-#C1FB`), pegados a los del deadly (#C1FD-#C1FF). `blink_timer` es alias de `player_invuln` (0 bytes). CPU: ~12 ciclos/frame en el SAT upload (calculo blink_hide) + lógica ya existente.
+- Riesgo señalado al usuario: el default ON cambia el comportamiento previo (que era dano gradual). Antes deadly gastaba health de a 1 y respawnea al 0; ahora ON = respawn inmediato al primer contacto. Si prefiere el anterior como default, basta cambiar `deadlyInstantRespawn: true` -> `false` en msx2PlayerDefaults.ts (la UI lo overridea por proyecto).
+- Verificacion (OpenMSX C-BIOS_MSX2, simple32k):
+  - Smoke ON (default): poke deadly bajo el player + WAIT 250ms -> `lives=02` (respawn inmediato, -1 life), `invuln=39` (blink armado), `bphase=04`, `bhide=01` (sprite oculto = parpadeo activo), `pY=50` (reposicionado al spawn).
+  - Smoke OFF (JSON con `deadlyInstantRespawn:false`): mismo poke + WAIT 1500ms -> `health=03` (dano gradual 5->4->3 con i-frames de 60 frames), `lives=03` (SIN respawn), `invuln=2A`, `bhide=01`, `pY=B0` (player se queda en el sitio). Compilado via `build_mideas_unified_rom.py` con un fixture derivado del smoke.
+  - Glass ROM 32768 bytes en ambos. Contract: +9 checks (deadlyInstantRespawn tipo/default/lectura, EQUs blink, alias blink_timer, enableBlink, SAT lee blink_hide, blink_ended pulse). El contract completo sigue sin pasar por el fallo PREEXISTENTE ajeno (`air_dash active block`).
+
 ## Sesion 2026-06-30 - SCREEN 5 bitmap: tiles Deadly pasables + sistema daño/respawn
 - Rama: `feature/msx2-screen-bifurcation`.
 - Objetivo del usuario: un tile "pinchos" marcado como Deadly en el Screen Editor no debía tener colisión implícita (quería pisarlos) y SÍ matar al pisarlos. Hasta ahora no mataban.
