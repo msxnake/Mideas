@@ -49,6 +49,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable every SCREEN 5 bitmap-room player skill covered by the smoke compile.",
     )
+    parser.add_argument(
+        "--include-linked-hud-bar",
+        action="store_true",
+        help="Link a msx2hud asset with a playerEnergy bar (dynamic HMMV) to room A.",
+    )
     parser.add_argument("--boot-wait-ms", type=int, default=8000, help="Wait before screenshot")
     return parser.parse_args()
 
@@ -654,6 +659,11 @@ def extract_db_bytes(asm_text: str, label: str) -> list[int]:
 
 
 def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> None:
+    has_linked_hud = any(
+        asset.get("type") == "msx2bitmaproom"
+        and ((asset.get("data") or {}).get("runtime") or {}).get("hudAssetId")
+        for asset in project.get("assets", [])
+    )
     for marker in (
         "Bitmap room HUD height: 20 px",
         "Bitmap room HUD widgets: 4",
@@ -693,6 +703,8 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         "bitmap_room_collision_0:",
         "current_screen_index EQU",
     ):
+        if has_linked_hud and marker.startswith("Bitmap room HUD widgets:"):
+            continue
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing bitmap-room HUD marker: {marker}")
 
@@ -825,6 +837,77 @@ def validate_all_bitmap_skill_markers(asm_text: str) -> None:
             raise RuntimeError(f"All-bitmap-skills smoke is missing ASM marker: {marker}")
 
 
+def inject_linked_hud_bar(project: dict[str, object]) -> None:
+    """Append a standalone msx2hud asset (a playerEnergy bar + a score counter) and
+    link it from room A via runtime.hudAssetId. Exercises the dynamic linked-HUD
+    path in msx2Screen5BitmapRoomGenerator: the bar is a dynamic HMMV widget bound
+    to the real player_health byte; the counter is a tile-based dynamic widget."""
+    hud_asset = {
+        "id": "smoke_hud_linked",
+        "name": "Smoke Linked HUD",
+        "type": "msx2hud",
+        "data": {
+            "target": "MSX2",
+            "width": 256,
+            "height": 20,
+            "paletteAssetId": None,
+            "icons": [],
+            "notes": "Linked HUD smoke: bar bound to playerEnergy + score counter.",
+            "layers": [
+                {
+                    "id": "hud_layer_bar",
+                    "name": "Energy Bar",
+                    "kind": "widget",
+                    "visible": True,
+                    "locked": False,
+                    "element": {
+                        "id": "el_energy_bar",
+                        "kind": "bar",
+                        "x": 72,
+                        "y": 6,
+                        "width": 80,
+                        "height": 8,
+                        "binding": "playerEnergy",
+                        "maxValue": 16,
+                        "initialValue": 12,
+                        "format": {"base": "dec", "zeroPad": False},
+                        "colors": {"primary": 10, "empty": 4, "border": 15},
+                        "align": {"h": "left", "v": "top"},
+                        "visible": True,
+                        "blink": "off",
+                    },
+                },
+                {
+                    "id": "hud_layer_counter",
+                    "name": "Score",
+                    "kind": "widget",
+                    "visible": True,
+                    "locked": False,
+                    "element": {
+                        "id": "el_score",
+                        "kind": "counter",
+                        "x": 8,
+                        "y": 4,
+                        "width": 48,
+                        "height": 8,
+                        "binding": "score",
+                        "initialValue": 7,
+                        "format": {"digits": 3, "base": "dec", "zeroPad": True},
+                        "colors": {"text": 11},
+                        "align": {"h": "left", "v": "top"},
+                        "visible": True,
+                        "blink": "off",
+                    },
+                },
+            ],
+        },
+    }
+    project["assets"].append(hud_asset)
+    for asset in project["assets"]:
+        if asset.get("type") == "msx2bitmaproom" and asset.get("id") == "bitmap_room_smoke":
+            asset["data"].setdefault("runtime", {})["hudAssetId"] = "smoke_hud_linked"
+
+
 def main() -> int:
     args = parse_args()
     project_root = Path(args.project_root).resolve()
@@ -836,6 +919,8 @@ def main() -> int:
     project = build_project()
     if args.include_all_bitmap_skills:
         enable_all_bitmap_skills(project)
+    if args.include_linked_hud_bar:
+        inject_linked_hud_bar(project)
     validate_bitmap_palette_indices(render_smoke_bitmap_room(project))
 
     json_output.parent.mkdir(parents=True, exist_ok=True)
@@ -872,6 +957,15 @@ def main() -> int:
     validate_generated_asm_tables(asm_text, project)
     if args.include_all_bitmap_skills:
         validate_all_bitmap_skill_markers(asm_text)
+    if args.include_linked_hud_bar:
+        for marker in (
+            "Dynamic bar meter for linked HUD element",
+            "hud_linked_launch_cmd",
+            "update_hud_linked_0",   # bar = instance 0 (first dynamic source)
+            "update_hud_linked_1",   # counter = instance 1 (tile-based, must still emit)
+        ):
+            if marker not in asm_text:
+                raise RuntimeError(f"Linked HUD bar marker missing in ASM: {marker}")
 
     if not args.skip_openmsx:
         probe_output = screenshot_output.with_suffix(".probe.txt")
