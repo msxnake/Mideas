@@ -550,4 +550,23 @@ assert(bitmapGenCode.includes('ld a, (blink_hide)') && /bitmap_update_sprite_sat
 assert(bitmapGenCode.includes('ld (blink_ended), a') && bitmapGenCode.includes('blink ended this frame'),
   'bitmap_check_deadly_contact pulses blink_ended the frame blink finishes (1 -> 0)');
 
-console.log('\nAll 84 plumbing checks passed.');
+// Hearts HUD (SCREEN 5 bitmap): one heart per player_health, drawn via HMMM.
+assert(bitmapGenCode.includes('function buildBitmapHeartTilePixels') && bitmapGenCode.includes('HEART_FULL_MASK'),
+  'bitmap hearts bakes a hand-authored 16x16 heart mask (full + outline)');
+assert(bitmapGenCode.includes('BITMAP_HUD_HEART_VRAM') && bitmapGenCode.includes('BITMAP_HUD_HEART_TILE_Y = 224'),
+  'bitmap hearts live in the fixed page-0 offscreen slot (VRAM #7000, Y=224), independent of atlas size');
+assert(bitmapGenCode.includes('function buildBitmapHeartsHudAsm'),
+  'bitmap hearts has a dedicated ASM builder');
+assert(bitmapGenCode.includes('hud_hearts_drawn EQU #C1FC') && bitmapGenCode.includes('hud_cmd_block    EQU #C2C0'),
+  'bitmap hearts reserve a dirty-flag (#C1FC) + 15-byte command scratch (#C2C0, after the behavior map)');
+assert(bitmapGenCode.includes('update_hud_hearts:') && bitmapGenCode.includes('hud_launch_heart_cmd:'),
+  'bitmap hearts runtime has the dirty-flag drawer + command launcher');
+assert(/update_hud_hearts:[\s\S]*?vdp_write_register/.test(bitmapGenCode) && bitmapGenCode.includes('ld a, #0F'),
+  'bitmap hearts restores R#15 = S#0 after the command engine (else vblank polling breaks)');
+assert(bitmapGenCode.includes('call upload_hud_hearts') && bitmapGenCode.includes('call update_hud_hearts'),
+  'bitmap init uploads heart tiles and the main loop redraws them');
+// Revised deadly model: health ALWAYS drops on deadly contact (so hearts move).
+assert(/\.deadly_take_damage:[\s\S]*?ld hl, player_health[\s\S]*?dec \(hl\)/.test(bitmapGenCode),
+  'revised deadly always decrements player_health first (hearts follow health in both modes)');
+
+console.log('\nAll 92 plumbing checks passed.');

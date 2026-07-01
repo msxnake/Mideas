@@ -250,6 +250,26 @@ Mideas
   - **Buffer**: poke cayendo + buffer=60 armado → player aterriza y el land hook dispara salto automatico: `y=132 vy=FF(subiendo) flags=00 buffer=00(consumido)` vs buffer=0 `y=160 flags=01`.
 - Leccion nueva en `ai/LESSONS_LEARNED.md`: smoke OpenMSX con `capture_openmsx_action.py` necesita `boot-wait-ms >= 6000` para tests de timing fino (<500ms); con boot 4000 los `after time` cortos se leen antes de que la emulación estabilice.
 
+## Sesion 2026-06-30 (noche) - SCREEN 5 bitmap: HUD de corazones + modelo deadly revisado
+- Rama: `feature/msx2-screen-bifurcation`.
+- Objetivo del usuario: HUD de corazones que representen `player_health` (uno por punto), baje uno al tocar deadly (corazon vacio = outline, no desaparece), y opciones configurables. Entrevista larga para fijar diseño.
+- Decisiones (entrevista): corazones = `player_health` (no lives); perdido = corazon vacio (outline, 2 tiles: full + empty); tiles 16x16 horneados por defecto (assets propios mas adelante); update solo pagina visible; dirty-flag; v1 hardcoded top-left; color rojo; overflow >12 escala a 8x8 (follow-up pendiente, v1 clampa a 12).
+- **Modelo deadly revisado** (para que los corazones muevan): tocar deadly SIEMPRE `-1 player_health` + armar blink. `deadlyInstantRespawn` controla SOLO el reposiciono: ON = reposiciona al spawn por toque (sin resetear health, corazones siguen bajando); OFF = se queda. Al llegar health=0 -> `-1 life` + respawn completo (health=maxHealth + blink). Antes (tarea blink) el modo ON no bajaba health -> corazones nunca movian.
+- Cambios (`msx2Screen5BitmapRoomGenerator.ts`):
+  - Constantes: `BITMAP_HUD_HEART_TILE_Y=224`, `BITMAP_HUD_HEART_VRAM=#7000` (slot offscreen fijo pagina-0, independiente del atlas), colores palette 9 (full rojo) / 14 (empty gris) / 1 (bg = HUD seed bg).
+  - `buildBitmapHeartTilePixels()`: mask 16x16 hand-authored + outline (4-vecindad). Framebuffer 16x32 (full cols 0-15, empty cols 16-31), bg=color 1 para que HMMM se integre sin borrar el HUD seed.
+  - `buildBitmapHeartsHudAsm(maxHealth, heartUploadAsm)`: EQUs (`hud_hearts_drawn #C1FC`, `hud_cmd_block #C2C0` 15 bytes), rutinas `upload_hud_hearts` (wrapper RLE) + `update_hud_hearts` (dirty-flag: LDIR template a scratch, patchea DY desde `bitmap_displayed_page`, loop slots con `cp (player_health)` decide full/empty, `hud_launch_heart_cmd` lanza HMMM 15 bytes). **Restaura R#15=0 al final** (lección 2026-06-20: vdp_wait_cmd_ready deja R#15=2, romperia el poll de vblank). Template HMMM: source Y=224, NX=NY=16, CMR=#D0.
+  - `bitmap_check_deadly_contact` revisado: `takeDamageAsm` (ON y OFF) ambos empiezan `dec (player_health)`; `.deadly_respawn` (full: reset health+blink+vy) cae a `.deadly_reposition` (solo mueve al spawn). ON usa reposition por toque; OFF solo ret.
+  - Pipeline RLE: `heartRleChunks` anadidos a `allRleChunks` + `bankedDataBlocks` (MegaROM). `heartDataAsm` + `bitmap_room_hud_heart_data` emitidos. `init_rom` llama `upload_hud_hearts` + siembra `hud_hearts_drawn=#FF` (fuerza redraw frame 1). Main loop llama `update_hud_hearts`.
+- RAM: +16 bytes (`hud_hearts_drawn` 1 + `hud_cmd_block` 15, en gaps libres #C1FC y #C2C0). Tiles en ROM/VRAM (0 RAM). CPU: dirty-flag -> 0 coste en frames sin daño; ~N comandos HMMM (N=maxHealth≤12) solo cuando health cambia.
+- Riesgo señalado al usuario: el fondo del tile corazon = color 1 (HUD seed bg). Si el usuario pone otros widgets HUD arriba-izquierda, los corazones los pisan (v1 hardcoded reserva top-left). Overflow >12 corazones pendiente (escala 8x8).
+- Verificacion (OpenMSX C-BIOS_MSX2, simple32k, glass 32KB):
+  - Boot: `health=05`, `heartsDrawn=05` (dirty-flag latched, corazones llenos), player grounded, no crash.
+  - Poke deadly bajo player + WAIT 1500ms: `health=04`, `heartsDrawn=04` (un corazon vaciado, health y flag en sincronia), `lives=03`.
+  - WAIT 4000ms: `health=02`, `heartsDrawn=02` (3 toques, corazones siguen a health), `lives=03`.
+  - Nota timing: boot-wait 5000 + WAIT 300 no dio tiempo (player aun cayendo); boot-wait 6000 + WAIT 1500 si (lección 2026-06-25 reconfirmada).
+- Contract: +8 checks (heart builder, VRAM #7000, builder fn, EQUs, rutinas, R#15 restore, calls, deadly dec-health). Total 92. Contract completo sigue sin pasar por fallo PREEXISTENTE ajeno (`air_dash active block`).
+
 ## Sesion 2026-06-30 (tarde) - SCREEN 5 bitmap: skill blink + opcion deadlyInstantRespawn
 - Rama: `feature/msx2-screen-bifurcation`.
 - Objetivo del usuario: skill "blink" (parpadeo del sprite) como feedback de i-frames al recibir daño, con variables expuestas (tiempo/frames, in_blink/blink_ended), y una opcion configurable para que al caer en pinchos se pueda elegir entre respawn o no respawn.

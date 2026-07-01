@@ -198,6 +198,30 @@ const VDP_CMD_BLOCK_SIZE = 15;
 const BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME = 24;
 const VRAM_BANK_BYTES = 0x4000;
 const ROM_DATA_BANK_BYTES = 0x2000;
+
+// Hearts HUD (v1): tiles live in the always-free page-0 offscreen band (below the
+// 212 visible lines, above the atlas region). Fixed address so they never depend
+// on the per-world atlas size. Y=224 -> VRAM #7000 (R#14=1). Two 16x16 tiles sit
+// side by side: heart_full (sx=0) and heart_empty (sx=16). Copied to the HUD band
+// (color-1 background) via HMMM whenever player_health changes.
+const BITMAP_HUD_HEART_TILE_Y = 224;
+const BITMAP_HUD_HEART_VRAM = BITMAP_HUD_HEART_TILE_Y * ROW_BYTES; // #7000
+const BITMAP_HUD_HEART_FULL_SX = 0;
+const BITMAP_HUD_HEART_EMPTY_SX = 16;
+const BITMAP_HUD_HEART_NX = 16;
+const BITMAP_HUD_HEART_NY = 16;
+const BITMAP_HUD_HEART_FIRST_X = 8;   // first heart dest X
+const BITMAP_HUD_HEART_SPACING = 16;  // px between heart slots
+const BITMAP_HUD_HEART_DEST_Y = 2;    // dest Y within the 20px HUD band
+// Palette indices for the baked heart pixels. Full = bright red (MSX2 default
+// light red), empty = gray outline. The project palette must map these slots to
+// red/gray for the hearts to read correctly (configurable later via widget asset).
+const BITMAP_HUD_HEART_COLOR_FULL = 9;
+const BITMAP_HUD_HEART_COLOR_EMPTY = 14;
+const BITMAP_HUD_HEART_COLOR_BG = 1;  // matches the HUD seed background
+// Max hearts that fit in a 256px row at 16px each (left margin 8). Overflow
+// (>12 hearts) is a documented follow-up (8x8 scaling); v1 assumes <= 12.
+const BITMAP_HUD_HEART_MAX_SLOTS = 12;
 const BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK = 4;
 const RLE_ROM_CHUNK_MAX_BYTES = 0x1f00;
 
@@ -610,6 +634,55 @@ function drawBitmapHudAtlasIcon(
       pixels[y0 + yy][x0 + xx] = color & 0x0f;
     }
   }
+}
+
+// 16x16 heart silhouette (hand-authored). 'X' = a heart pixel.
+const HEART_FULL_MASK: string[] = [
+  '................',
+  '...XX.....XX....',
+  '..XXXX...XXXX...',
+  '.XXXXXX.XXXXXXX.',
+  '.XXXXXXXXXXXXXX.',
+  '.XXXXXXXXXXXXXX.',
+  '.XXXXXXXXXXXXXX.',
+  '.XXXXXXXXXXXXXX.',
+  '..XXXXXXXXXXXX..',
+  '...XXXXXXXXXX...',
+  '....XXXXXXXX....',
+  '.....XXXXXX.....',
+  '......XXXX......',
+  '.......XX.......',
+  '................',
+  '................',
+];
+
+/**
+ * Build the HUD heart tile pixels: a 16-row x 32-col framebuffer holding two
+ * side-by-side 16x16 tiles — heart_full (cols 0..15) and heart_empty (cols
+ * 16..31, the outline of the same shape). Background is the HUD seed color so
+ * HMMM copies blend seamlessly into the HUD band. The empty heart is the
+ * boundary of the full mask (a filled pixel kept only if any 4-neighbour is
+ * empty), giving a hollow outline that reads as a "lost" heart.
+ */
+function buildBitmapHeartTilePixels(): number[][] {
+  const bg = BITMAP_HUD_HEART_COLOR_BG;
+  const full = BITMAP_HUD_HEART_COLOR_FULL;
+  const empty = BITMAP_HUD_HEART_COLOR_EMPTY;
+  const mask = HEART_FULL_MASK.map(row => row.split('').map(ch => ch === 'X'));
+  // Full tile (cols 0..15): heart pixels = full color, rest = bg.
+  // Empty tile (cols 16..31): outline pixels = empty color, rest = bg.
+  const grid: number[][] = Array.from({ length: 16 }, () => Array.from({ length: 32 }, () => bg));
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      if (mask[y][x]) grid[y][x] = full;
+      // outline: a filled cell with at least one empty 4-neighbour
+      const neighbourEmpty =
+        (x === 0) || (x === 15) || (y === 0) || (y === 15) ||
+        !mask[y][x - 1] || !mask[y][x + 1] || !mask[y - 1]?.[x] || !mask[y + 1]?.[x];
+      if (mask[y][x] && neighbourEmpty) grid[y][x + 16] = empty;
+    }
+  }
+  return grid;
 }
 
 function buildBitmapHudSeedPixels(room: Msx2Screen5BitmapRoom, atlasPixels: number[][], analysis: ProjectAnalysis): number[][] {
@@ -2581,20 +2654,30 @@ bitmap_try_move_x:
     ; A = signed dx. Commits player_x when the leading edge of the configured body
     ; collision box is not solid. Hitbox: x=${playerHitbox.x}, y=${playerHitbox.y},
     ; w=${playerHitbox.w}, h=${playerHitbox.h}. Probes Y rows ${probeRowOffsets.join('/')}
-    ; (every <=16px so a tall body cannot tunnel a cell). Clobbers AF/BC/DE/HL.
+    ; (every <=16px so a tall body cannot tunnel a cell). Large ice-slide dx is
+    ; clamped at the room edges before probing so unsigned player_x never wraps
+    ; from x=2 to x=250 (or past the east edge) during room transitions.
+    ; Clobbers AF/BC/DE/HL.
     ld b, a
     ld a, (player_x)
     bit 7, b
     jp z, .check_right_bounds
+    add a, b                ; negative dx: carry means no unsigned underflow
+    jp c, .x_check_left_min
+.x_clamp_left:
+    ld a, 2
+    jp .x_candidate_ready
+.x_check_left_min:
     cp 2
-    ret c
-    jp .x_bounds_ok
+    jp c, .x_clamp_left
+    jp .x_candidate_ready
 .check_right_bounds:
-    cp 239
-    ret nc
-.x_bounds_ok:
-    ld a, (player_x)
     add a, b                ; A = candidate X (sprite top-left)
+.x_check_right_max:
+    cp 238
+    jp c, .x_candidate_ready
+    ld a, 238
+.x_candidate_ready:
     push af                 ; save candidate across the probes
     bit 7, b
     jp nz, .x_left_edge
@@ -3037,25 +3120,44 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
     ld (blink_hide), a
 `;
   const mainLoopCall = `    call bitmap_check_deadly_contact    ; deadly-tile damage + respawn (SCREEN 5 bitmap)\n`;
+  // Revised deadly model: a deadly contact ALWAYS costs 1 health (so the hearts
+  // HUD moves) + arms blink i-frames. deadlyInstantRespawn only controls whether
+  // the player is also repositioned to the spawn on each touch:
+  //   true  -> reposition every touch (no health reset; hearts keep dropping).
+  //   false -> stay in place.
+  // At 0 health -> -1 life + full respawn (reposition + health reset + blink).
   const takeDamageAsm = vitals.deadlyInstantRespawn
-    ? `    ; Instant respawn (Player Config health.deadlyInstantRespawn = true):
-    ; a deadly contact costs 1 life and respawns immediately (platformer style).
-.deadly_take_damage:
-    ld hl, player_lives
-    dec (hl)
-    jp .deadly_respawn
-`
-    : `    ; Action-style (health.deadlyInstantRespawn = false): a deadly contact
-    ; deals 1 health damage + blink; respawn only fires when health reaches 0.
+    ? `    ; Instant-respawn mode (health.deadlyInstantRespawn = true): each deadly
+    ; touch costs 1 health + blink AND repositions the player to the spawn.
 .deadly_take_damage:
     ld hl, player_health
     dec (hl)
     ld a, (hl)
     or a
-    jr nz, .deadly_arm_invuln  ; still alive -> arm blink i-frames and return
+    jr z, .deadly_dead
+    ld a, ${invulnByte}
+    ld (player_invuln), a
+    jp .deadly_reposition       ; reposition (blink armed), health NOT reset
+.deadly_dead:
     ld hl, player_lives
     dec (hl)
-    jp .deadly_respawn         ; health 0 -> cost 1 life + respawn
+    jp .deadly_respawn          ; health 0 -> -1 life + full respawn
+`
+    : `    ; Action mode (health.deadlyInstantRespawn = false): each deadly touch
+    ; costs 1 health + blink; the player stays in place. Full respawn at 0 hp.
+.deadly_take_damage:
+    ld hl, player_health
+    dec (hl)
+    ld a, (hl)
+    or a
+    jr z, .deadly_dead
+    ld a, ${invulnByte}
+    ld (player_invuln), a       ; arm blink i-frames, stay in place
+    ret
+.deadly_dead:
+    ld hl, player_lives
+    dec (hl)
+    jp .deadly_respawn          ; health 0 -> -1 life + full respawn
 `;
   const routineAsm = `; ------------------------------------------------------------
 ; FUNCTION: bitmap_check_deadly_contact
@@ -3063,9 +3165,10 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
 ; PURPOSE:
 ;   Apply deadly-tile damage + blink i-frames for the bitmap room backend.
 ;   Each frame (after movement) the body's lower band is probed for the Deadly
-;   bit (0x40). On contact:
-;     - health.deadlyInstantRespawn true  -> -1 life + immediate respawn + blink.
-;     - health.deadlyInstantRespawn false -> -1 health + blink; respawn at 0 hp.
+;   bit (0x40). On contact ALWAYS: -1 player_health + arm blink. The hearts HUD
+;   follows player_health so every touch drops a heart. deadlyInstantRespawn
+;   only decides whether the player is also repositioned to the spawn (true) or
+;   stays (false). At 0 health -> -1 life + full respawn (health reset + blink).
 ;   While blinking (blink_timer/player_invuln != 0) the player is immune to all
 ;   damage. blink_ended pulses 1 the exact frame blink finishes (1 -> 0).
 ;
@@ -3076,7 +3179,7 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
 ;
 ; OUTPUT:
 ;   player_health / player_lives / player_invuln / blink_ended updated; on
-;   respawn also player_x, player_y, player_vy, player_vy_frac.
+;   respawn/reposition also player_x, player_y, player_vy, player_vy_frac.
 ;
 ; DESTROYS:
 ;   AF, DE, HL
@@ -3089,7 +3192,7 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
 ;
 ; SIDE EFFECTS:
 ;   Reads bitmap_room_collision_map (probe) and bitmap_room_spawn_x/y_table
-;   (respawn). Never fires while bitmap_composition_state != 0 (mid-transition).
+;   (respawn/reposition). Never fires while bitmap_composition_state != 0.
 ; ------------------------------------------------------------
 bitmap_check_deadly_contact:
     ld a, (bitmap_composition_state)
@@ -3130,6 +3233,7 @@ ${addA(hbRight)}    ld b, a
     call bitmap_probe_deadly
     jp z, .deadly_no_contact   ; no deadly contact in any sample -> exit
 ${takeDamageAsm}.deadly_respawn:
+    ; FULL respawn (health reached 0): reset health, arm blink, zero velocity.
     ld a, ${maxHealthByte}
     ld (player_health), a
     ld a, ${invulnByte}
@@ -3137,6 +3241,9 @@ ${takeDamageAsm}.deadly_respawn:
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
+    ; fall through to .deadly_reposition (move player to the room spawn)
+.deadly_reposition:
+    ; Move the player to the current room's spawn point (no health reset).
     ld a, (current_screen_index)
     ld e, a
     ld d, 0
@@ -3152,13 +3259,164 @@ ${takeDamageAsm}.deadly_respawn:
     ld a, (hl)
     ld (player_y), a
     ret
-.deadly_arm_invuln:
-    ld a, ${invulnByte}
-    ld (player_invuln), a
 .deadly_no_contact:
     ret
 `;
   return { equates, initAsm, mainLoopCall, routineAsm };
+}
+
+// Build the SCREEN 5 bitmap hearts HUD: one heart per point of player_health,
+// drawn into the top-left of the 20px HUD band. Heart tiles (full + empty
+// outline) are baked at build time and uploaded once to a fixed page-0 offscreen
+// slot (VRAM #7000, Y=224); update_hud_hearts copies them via HMMM to the VISIBLE
+// page only, on a dirty-flag (redraws when player_health changes).
+//
+// v1 limits: maxHealth is clamped to BITMAP_HUD_HEART_MAX_SLOTS (12) hearts; the
+// 8x8 overflow path for >12 is a documented follow-up.
+function buildBitmapHeartsHudAsm(maxHealthRaw: number, heartUploadAsm: string): {
+  equates: string;
+  routinesAsm: string;
+  initAsm: string;
+  mainLoopCall: string;
+} {
+  const slotCount = Math.max(0, Math.min(BITMAP_HUD_HEART_MAX_SLOTS, Math.floor(maxHealthRaw) || 0));
+  if (slotCount === 0) {
+    // No hearts to draw (maxHealth <= 0 after clamp): emit nothing, keep the ROM clean.
+    return { equates: '', routinesAsm: '', initAsm: '', mainLoopCall: '' };
+  }
+  const heartTileYByte = `#${(BITMAP_HUD_HEART_TILE_Y & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
+  const nxByte = `#${(BITMAP_HUD_HEART_NX & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
+  const emptySx = BITMAP_HUD_HEART_EMPTY_SX;
+  const firstX = BITMAP_HUD_HEART_FIRST_X;
+  const destY = BITMAP_HUD_HEART_DEST_Y;
+  // EQUs: 1 byte dirty-flag (#C1FC, the last free gap before player_health) +
+  // 15-byte command scratch (#C2C0, right after the 192-byte behavior map).
+  const equates = `; Hearts HUD (SCREEN 5 bitmap). Dirty-flag + 15-byte V9938 command scratch.
+hud_hearts_drawn EQU #C1FC
+hud_cmd_block    EQU #C2C0
+`;
+  const initAsm = `    ; Upload heart tiles (full + empty) to the page-0 offscreen slot and force
+    ; a redraw on frame 1 by seeding the dirty flag with an impossible value.
+    call upload_hud_hearts
+    ld a, #FF
+    ld (hud_hearts_drawn), a
+`;
+  const mainLoopCall = `    call update_hud_hearts    ; redraw hearts HUD when player_health changes\n`;
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: upload_hud_hearts
+; ------------------------------------------------------------
+; PURPOSE:
+;   Upload the baked heart tiles (16x16 full + 16x16 empty, side by side = a
+;   32x16 4bpp blob) to the fixed page-0 offscreen slot at VRAM #7000 (Y=224).
+;   Called once at boot. The tiles are the HMMM source for update_hud_hearts.
+; ------------------------------------------------------------
+upload_hud_hearts:
+${heartUploadAsm}
+; ------------------------------------------------------------
+; FUNCTION: update_hud_hearts
+; ------------------------------------------------------------
+; PURPOSE:
+;   Redraw the hearts row in the HUD band when player_health changes (dirty-flag).
+;   Draws ${slotCount} slot(s) at x=${firstX}.. +${BITMAP_HUD_HEART_SPACING}, y=${destY}: a full
+;   heart (source sx=0) for each slot index < player_health, an empty outline
+;   (source sx=${emptySx}) for each lost one. Only the VISIBLE page is updated
+;   (bitmap_displayed_page). Uses HMMM from the heart tile slot at Y=${BITMAP_HUD_HEART_TILE_Y}.
+;
+; INPUT:
+;   player_health, bitmap_displayed_page, hud_hearts_drawn (dirty flag).
+;
+; OUTPUT:
+;   HUD band hearts refreshed on the visible page; hud_hearts_drawn latched.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer, vdp_write_register
+;
+; SIDE EFFECTS:
+;   V9938 command engine runs ${slotCount} HMMM block(s). R#15 is left at S#2 by
+;   vdp_wait_cmd_ready, so R#15 is restored to S#0 before returning (else the
+;   bitmap_wait_vblank poll would read the wrong status register).
+; ------------------------------------------------------------
+update_hud_hearts:
+    ld a, (player_health)
+    ld hl, hud_hearts_drawn
+    cp (hl)
+    ret z                       ; unchanged -> nothing to redraw
+    ld (hl), a                  ; latch new health
+
+    ; Copy the ROM command template into the 15-byte scratch, then patch the
+    ; per-frame fields (DY from the visible page; SX/DX per slot in the loop).
+    ld hl, hud_heart_cmd_template
+    ld de, hud_cmd_block
+    ld bc, ${VDP_CMD_BLOCK_SIZE}
+    ldir
+    ld a, ${destY}
+    ld (hud_cmd_block + 6), a   ; DY lo (HUD band offset)
+    ld a, (bitmap_displayed_page)
+    ld (hud_cmd_block + 7), a   ; DY hi (0 = page 0 base Y, 1 = page 1 base Y 256)
+
+    ld b, ${slotCount}          ; slot count (compile-time constant)
+    ld c, 0                     ; C = current slot index
+.hud_slot_loop:
+    ; Source X (full vs empty): full (0) when slot < health, else empty (${emptySx}).
+    ld a, c
+    push hl
+    ld hl, player_health
+    cp (hl)                     ; carry set when slot < health
+    pop hl
+    jr c, .hud_full_heart
+    ld a, ${emptySx}
+    jr .hud_set_sx
+.hud_full_heart:
+    xor a
+.hud_set_sx:
+    ld (hud_cmd_block + 0), a   ; SX lo
+    ; Destination X = ${firstX} + slot * ${BITMAP_HUD_HEART_SPACING}
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    add a, ${firstX}
+    ld (hud_cmd_block + 4), a   ; DX lo
+    call hud_launch_heart_cmd
+    inc c
+    djnz .hud_slot_loop
+
+    ; Restore R#15 = S#0 so the main-loop vblank poll reads the frame flag.
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register
+    ret
+
+hud_launch_heart_cmd:
+    ; Launch the 15-byte V9938 command currently in hud_cmd_block. Clobbers
+    ; AF, HL; keeps BC (the slot index in C survives across the OUT loop).
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    push bc
+    ld hl, hud_cmd_block
+    ld b, ${VDP_CMD_BLOCK_SIZE}
+.hud_write_block:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .hud_write_block
+    pop bc
+    ret
+
+; HMMM command template: source = heart tile at Y=${BITMAP_HUD_HEART_TILE_Y}, size
+; ${BITMAP_HUD_HEART_NX}x${BITMAP_HUD_HEART_NY}. SX/DX/DY are patched at runtime.
+hud_heart_cmd_template:
+    DB 0,0, ${heartTileYByte},0, 0,0, 0,0, ${nxByte},0, ${nxByte},0, 0,0, #D0
+`;
+  return { equates, routinesAsm, initAsm, mainLoopCall };
 }
 
 // Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
@@ -3859,6 +4117,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
+  // Hearts HUD tiles (16x16 full + 16x16 empty outline, side by side = 32x16
+  // 4bpp blob) uploaded once to the fixed page-0 offscreen slot at VRAM #7000.
+  const heartTileBytes = packBitmapPixels(buildBitmapHeartTilePixels());
+  const heartRleChunks = buildRleChunksForVram(heartTileBytes, BITMAP_HUD_HEART_VRAM, 'bitmap_room_hud_heart_rle_chunk');
   // Per-room render program (command blocks) + collision map.
   const roomTables = rooms.map((roomData, index) => {
     const renderPage0 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE0_BASE_Y);
@@ -3886,11 +4148,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const hudSeedRleChunksPage0 = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_p0_rle_chunk');
   const hudSeedRleChunksPage1 = buildRleChunksForVram(hudSeedBytes, BITMAP_ROOM_PAGE1_VRAM_BASE, 'bitmap_room_hud_seed_p1_rle_chunk');
   const allHudSeedRleChunks = [...hudSeedRleChunksPage0, ...hudSeedRleChunksPage1];
-  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks];
+  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks];
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
       ...buildBankedRleDataBlocks(tilesetRleChunks, `Shared world tileset (atlas), packed 4bpp RLE`),
+      ...buildBankedRleDataBlocks(heartRleChunks, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE`),
     ]
     : [];
   const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
@@ -3903,6 +4166,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const tilesetDataAsm = isKonamiMegaRom
     ? `; Shared world tileset RLE is emitted in Konami MegaROM data banks below.\n`
     : formatRleChunks(tilesetRleChunks, tilesetBytes.length, `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexVram(atlasVramBase)}`);
+  const heartUploadAsm = buildRleUploadAsm(heartRleChunks, isKonamiMegaRom);
+  const heartDataAsm = isKonamiMegaRom
+    ? `; Hearts HUD tiles RLE is emitted in Konami MegaROM data banks below.\n`
+    : formatRleChunks(heartRleChunks, heartTileBytes.length, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE, destination VRAM ${hexVram(BITMAP_HUD_HEART_VRAM)}`);
   const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
   const spriteTables = buildSpriteTables(playerSprite);
   const spriteSourceLabel = spriteTables.usedConfigured
@@ -3952,6 +4219,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const playerVitals = resolveBitmapPlayerVitals(resolveBitmapRoomPlayer(analysis, room));
   // Deadly-tile damage system: EQUs, init, main-loop call and the runtime routine.
   const deadlySystem = buildBitmapDeadlySystemAsm(playerVitals, playerHitbox);
+  // Hearts HUD: one heart per point of player_health, top-left of the HUD band.
+  const heartsHud = buildBitmapHeartsHudAsm(playerVitals.maxHealth, heartUploadAsm);
   // DASH skill (pilot): config from the linked Player Config; the ASM uses the
   // bitmap room's own collision/move primitives (no SCREEN 4 routines reused).
   const dashConfig = getMsx2DashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
@@ -4289,7 +4558,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}    org #4000
 
     db "AB"
     dw init_rom
@@ -4337,7 +4606,7 @@ ${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
-${deadlySystem.initAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${deadlySystem.initAsm}${heartsHud.initAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.
@@ -4356,7 +4625,7 @@ ${hasStateAnimations ? `    xor a
 ${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}    call bitmap_update_sprite_sat
 ${shootBulletSatCall}    jp .main_loop
 
 ${runtimeAsm}
@@ -4376,6 +4645,7 @@ ${spinAttackRuntime}
 ${iceSlideRuntime}
 ${crouchRuntime}
 ${deadlySystem.routineAsm}
+${heartsHud.routinesAsm}
 ${foregroundLoadRoutineAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
@@ -4385,6 +4655,10 @@ bitmap_room_hud_seed_data_end:
 bitmap_room_tileset_data:
 ${tilesetDataAsm}
 bitmap_room_tileset_data_end:
+
+bitmap_room_hud_heart_data:
+${heartDataAsm}
+bitmap_room_hud_heart_data_end:
 
 ; World engine dispatch tables (indexed by room/screen index).
 ${roomRenderPtrTableAsm}
