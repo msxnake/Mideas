@@ -408,6 +408,41 @@ const ColorSwatchPicker: React.FC<{
   </div>
 );
 
+/** Gallery picker linking a HUD widget slot (atlasEntryId/emptyAtlasEntryId) to one of the asset's icons. */
+const IconAssetPicker: React.FC<{
+  icons: Msx2HudIconEntry[];
+  slots: Screen5PaletteSlot[];
+  value: string | undefined;
+  onChange: (iconId: string | undefined) => void;
+}> = ({ icons, slots, value, onChange }) => (
+  <div className="flex flex-wrap gap-1">
+    <button
+      type="button"
+      title="None"
+      onClick={() => onChange(undefined)}
+      className={`w-8 h-8 flex-shrink-0 flex items-center justify-center text-[0.6rem] border rounded bg-msx-bgcolor ${value === undefined ? 'border-msx-accent' : 'border-msx-border'}`}
+    >
+      ✕
+    </button>
+    {icons.map(icon => (
+      <button
+        key={icon.id}
+        type="button"
+        title={icon.name}
+        onClick={() => onChange(icon.id)}
+        className={`w-8 h-8 flex-shrink-0 border rounded p-0.5 bg-msx-bgcolor overflow-hidden ${value === icon.id ? 'border-msx-accent' : 'border-msx-border'}`}
+      >
+        <div className="grid w-full h-full" style={{ gridTemplateColumns: `repeat(${icon.width}, 1fr)`, gridTemplateRows: `repeat(${icon.height}, 1fr)` }}>
+          {icon.pixels.flatMap((row, y) => row.map((c, x) => (
+            <div key={`${x}-${y}`} style={{ backgroundColor: c >= 0 ? (slots[c]?.hex || '#fff') : 'transparent' }} />
+          )))}
+        </div>
+      </button>
+    ))}
+    {icons.length === 0 && <span className="text-[0.6rem] text-msx-textsecondary">No icons yet — create one in the Assets tab.</span>}
+  </div>
+);
+
 interface Msx2HudEditorProps {
   asset: Msx2HudAsset;
   onUpdate: (data: Partial<Msx2HudAsset>) => void;
@@ -1011,6 +1046,29 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         <label>W<input type="number" value={selectedLayer.element.width} onChange={e => updateElement(selectedLayer.id, { width: Math.max(1, Math.min(256, Number(e.target.value) || 1)) })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
                         <label>H<input type="number" value={selectedLayer.element.height} onChange={e => updateElement(selectedLayer.id, { height: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
                       </div>
+
+                      {(['icon', 'portrait', 'iconRow', 'iconCounter'] as Msx2HudElementKind[]).includes(selectedLayer.element.kind) && (
+                        <div className="pt-1 border-t border-msx-border">
+                          <div className="text-msx-textsecondary mb-1">Icon</div>
+                          <IconAssetPicker
+                            icons={icons}
+                            slots={slots}
+                            value={selectedLayer.element.atlasEntryId}
+                            onChange={iconId => updateElement(selectedLayer.id, { atlasEntryId: iconId })}
+                          />
+                        </div>
+                      )}
+                      {selectedLayer.element.kind === 'iconRow' && (
+                        <div className="pt-1 border-t border-msx-border">
+                          <div className="text-msx-textsecondary mb-1">Empty Icon (unfilled slots)</div>
+                          <IconAssetPicker
+                            icons={icons}
+                            slots={slots}
+                            value={selectedLayer.element.emptyAtlasEntryId}
+                            onChange={iconId => updateElement(selectedLayer.id, { emptyAtlasEntryId: iconId })}
+                          />
+                        </div>
+                      )}
 
                       <div className="pt-1 border-t border-msx-border">
                         <div className="text-msx-textsecondary mb-1">Colors</div>
