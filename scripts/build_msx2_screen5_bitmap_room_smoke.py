@@ -899,6 +899,29 @@ def inject_linked_hud_bar(project: dict[str, object]) -> None:
                         "blink": "off",
                     },
                 },
+                {
+                    "id": "hud_layer_wide",
+                    "name": "Score Wide",
+                    "kind": "widget",
+                    "visible": True,
+                    "locked": False,
+                    "element": {
+                        "id": "el_score_wide",
+                        "kind": "counter",
+                        "x": 120,
+                        "y": 4,
+                        "width": 56,
+                        "height": 8,
+                        "binding": "custom",
+                        "variableName": "scoreWide",
+                        "initialValue": 12345,
+                        "format": {"digits": 5, "base": "dec", "zeroPad": True},
+                        "colors": {"text": 10},
+                        "align": {"h": "left", "v": "top"},
+                        "visible": True,
+                        "blink": "off",
+                    },
+                },
             ],
         },
     }
@@ -961,8 +984,11 @@ def main() -> int:
         for marker in (
             "Dynamic bar meter for linked HUD element",
             "hud_linked_launch_cmd",
-            "update_hud_linked_0",   # bar = instance 0 (first dynamic source)
-            "update_hud_linked_1",   # counter = instance 1 (tile-based, must still emit)
+            "update_hud_linked_0",   # bar = instance 0 (HMMV, no tile)
+            "update_hud_linked_1",   # narrow 8-bit counter = instance 1 (tile-based, dec3)
+            "update_hud_linked_2",   # wide 16-bit counter = instance 2 (tile-based, dec5)
+            "hud_word_to_dec5",      # 16-bit decimal conversion routine
+            "hud_dec5_buffer EQU",   # shared 5-byte dec buffer
         ):
             if marker not in asm_text:
                 raise RuntimeError(f"Linked HUD bar marker missing in ASM: {marker}")
