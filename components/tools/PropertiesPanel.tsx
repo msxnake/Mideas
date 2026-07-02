@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2HudFontAsset, Msx2HudAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -1062,6 +1062,17 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Characters:</strong> {font.characters?.length || 0}</div>
             <div><strong className="text-msx-highlight">Patterns:</strong> {Object.keys(font.patterns || {}).length}</div>
             <div><strong className="text-msx-highlight">Color byte:</strong> #{(font.colorByte ?? 0).toString(16).padStart(2, '0').toUpperCase()}</div>
+          </div>
+        );
+      }
+      case 'msx2hud': {
+        const hud = asset.data as Msx2HudAsset;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {hud.width}x{hud.height}</div>
+            <div><strong className="text-msx-highlight">Layers:</strong> {hud.layers?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Icons:</strong> {hud.icons?.length || 0}</div>
           </div>
         );
       }

@@ -16,16 +16,21 @@ interface PaletteEditorProps {
   paletteAsset: { id: string; name: string; data?: PaletteAsset };
   onUpdate: (updatedData: Partial<PaletteAsset>) => void;
   setStatusBarMessage: (message: string) => void;
+  /** Slot to preselect when the editor mounts (e.g. opened from a brush double-click). */
+  initialActiveSlot?: number;
 }
 
 export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   paletteAsset,
   onUpdate,
   setStatusBarMessage,
+  initialActiveSlot,
 }) => {
   const { slots: rawSlots = [], notes = '', mode = 'SCREEN4' } = paletteAsset.data || { slots: [] };
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(rawSlots), [rawSlots]);
-  const [activeSlot, setActiveSlot] = useState<number>(1);
+  const [activeSlot, setActiveSlot] = useState<number>(
+    initialActiveSlot !== undefined && initialActiveSlot > 0 ? initialActiveSlot : 1
+  );
 
   const activePaletteSlot = slots[activeSlot] || slots[1];
   const activeMasterColor = activePaletteSlot?.masterIndex >= 0

@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { 
-  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
+  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, Msx2HudAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, WorldMapConnection, WorldMapScreenNode, ConnectionDirection, PSGSoundData,
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
@@ -21,6 +21,7 @@ import { createDefaultPaletteZones, normalizePaletteZones } from '../utils/msx2P
 import { importTilesIntoAtlas } from '../utils/msx2BitmapAtlasImport';
 import { bitmapTileScreen5ToAtlasTile } from '../utils/msx2Screen5BitmapTileLibrary';
 import { isEntityTemplateEnabledForProject } from '../utils/projectTarget';
+import { recomposeScreen5WorldMap } from '../utils/worldMapRecompose';
 import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
 import { TileEditor } from './editors/TileEditor';
 import { SpriteEditor } from './editors/SpriteEditor';
@@ -33,6 +34,7 @@ import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
 import { Msx2EnemyEditor } from './editors/Msx2EnemyEditor';
 import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils/msx2PlayerDocument';
 import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
+import { Msx2HudEditor } from './editors/Msx2HudEditor';
 import { Msx2Screen5PresentationEditor } from './editors/Msx2Screen5PresentationEditor';
 import { ScreenEditor } from './editors/ScreenEditor';
 import { CodeEditor } from './editors/CodeEditor';
@@ -566,6 +568,31 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     // Deterministic id so the post-update selection matches the created asset.
     const existsAlready = assets.some(a => a.id === `${activeAsset.id}_${direction}`);
     const newRoomId = existsAlready ? `${activeAsset.id}_${direction}_${Date.now()}` : `${activeAsset.id}_${direction}`;
+    const findExistingAdjacentNode = (assetList: ProjectAsset[]): WorldMapScreenNode | undefined => {
+      const worldAsset = assetList.find(asset =>
+        asset.type === 'worldmap'
+        && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === activeAsset.id)
+      );
+      const graph = worldAsset?.data as WorldMapGraph | undefined;
+      const currentNode = graph?.nodes?.find(node => node.screenAssetId === activeAsset.id);
+      if (!graph || !currentNode) return undefined;
+      const step = (graph.gridSize || 20) * 12;
+      const offset = {
+        north: { x: 0, y: -step },
+        south: { x: 0, y: step },
+        west: { x: -step, y: 0 },
+        east: { x: step, y: 0 },
+      }[direction];
+      const targetX = currentNode.position.x + offset.x;
+      const targetY = currentNode.position.y + offset.y;
+      return graph.nodes.find(node =>
+        node.screenAssetId !== activeAsset.id
+        && node.position.x === targetX
+        && node.position.y === targetY
+      );
+    };
+    const existingAdjacentNode = findExistingAdjacentNode(assets);
+    const targetRoomId = existingAdjacentNode?.screenAssetId || newRoomId;
 
     setAssetsWithHistory(prev => {
       const stamp = Date.now();
@@ -727,11 +754,47 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         west: { x: -step, y: 0 },
         east: { x: step, y: 0 },
       }[direction];
+      const targetPosition = { x: currentNode.position.x + offset.x, y: currentNode.position.y + offset.y };
+      const adjacentNode = graph.nodes.find(node =>
+        node.id !== currentNode.id
+        && node.position.x === targetPosition.x
+        && node.position.y === targetPosition.y
+      );
+      if (adjacentNode) {
+        const connectionExists = graph.connections.some(conn =>
+          (
+            conn.fromNodeId === currentNode.id
+            && conn.toNodeId === adjacentNode.id
+            && conn.fromDirection === direction
+            && conn.toDirection === opposite[direction]
+          ) || (
+            conn.fromNodeId === adjacentNode.id
+            && conn.toNodeId === currentNode.id
+            && conn.fromDirection === opposite[direction]
+            && conn.toDirection === direction
+          )
+        );
+        const connection: WorldMapConnection = {
+          id: `wmconn_${stamp}`,
+          fromNodeId: currentNode.id,
+          toNodeId: adjacentNode.id,
+          fromDirection: direction,
+          toDirection: opposite[direction],
+        };
+        const nextGraph: WorldMapGraph = {
+          ...graph,
+          connections: connectionExists ? graph.connections : [...graph.connections, connection],
+        };
+        const worldmapAsset: ProjectAsset = { id: nextGraph.id, name: nextGraph.name, type: 'worldmap', data: nextGraph };
+        const next = [...prev];
+        if (worldmapIndex !== -1) next[worldmapIndex] = worldmapAsset;
+        return next;
+      }
       const newNode: WorldMapScreenNode = {
         id: `wmnode_${newRoomId}`,
         screenAssetId: newRoomId,
         name: newRoomName,
-        position: { x: currentNode.position.x + offset.x, y: currentNode.position.y + offset.y },
+        position: targetPosition,
       };
       const connection: WorldMapConnection = {
         id: `wmconn_${stamp}`,
@@ -758,9 +821,72 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     });
 
     // Open the new room in the bitmap editor grid (sets asset + editor).
-    onSelectAsset(newRoomId, EditorType.Msx2BitmapRoom);
-    setStatusBarMessage(`SCREEN 5: pantalla creada al ${dirLabel[direction]} y conectada en el World Map.${direction === 'east' && options?.copySharedEdgeTiles ? ' Borde derecho copiado.' : ''}`);
+    onSelectAsset(targetRoomId, EditorType.Msx2BitmapRoom);
+    setStatusBarMessage(existingAdjacentNode
+      ? `SCREEN 5: pantalla existente al ${dirLabel[direction]} cargada y conectada en el World Map.`
+      : `SCREEN 5: pantalla creada al ${dirLabel[direction]} y conectada en el World Map.${direction === 'east' && options?.copySharedEdgeTiles ? ' Borde derecho copiado.' : ''}`
+    );
   }, [activeAsset, assets, setAssetsWithHistory, onSelectAsset, setStatusBarMessage]);
+
+  // SCREEN 5 minimap: mark a bitmap room as the world's start screen. Find-or-create the
+  // WorldMap that owns the room, then point startScreenNodeId at that room's node.
+  const handleSetWorldStartBitmapRoom = useCallback((roomId: string) => {
+    setAssetsWithHistory(prev => {
+      const roomAsset = prev.find(asset => asset.id === roomId && asset.type === 'msx2bitmaproom');
+      if (!roomAsset) return prev;
+      const worldmapIndex = prev.findIndex(asset =>
+        asset.type === 'worldmap'
+        && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === roomId)
+      );
+      if (worldmapIndex === -1) {
+        // Room is not in any world yet: create a minimal WorldMap with this room as start.
+        const stamp = Date.now();
+        const nodeId = `wmnode_${roomId}`;
+        const graph: WorldMapGraph = {
+          id: `worldmap_${stamp}`,
+          name: 'World Map',
+          nodes: [{ id: nodeId, screenAssetId: roomId, name: roomAsset.name, position: { x: 0, y: 0 } }],
+          connections: [],
+          startScreenNodeId: nodeId,
+          gridSize: 20,
+          zoomLevel: 1,
+          panOffset: { x: 0, y: 0 },
+        };
+        return [...prev, { id: graph.id, name: graph.name, type: 'worldmap', data: graph }];
+      }
+      const wmAsset = prev[worldmapIndex];
+      const graph = wmAsset.data as WorldMapGraph;
+      const node = graph.nodes.find(n => n.screenAssetId === roomId);
+      if (!node || graph.startScreenNodeId === node.id) return prev; // already the start: no-op
+      const next = prev.slice();
+      next[worldmapIndex] = { ...wmAsset, data: { ...graph, startScreenNodeId: node.id } };
+      return next;
+    });
+    setStatusBarMessage('SCREEN 5: pantalla marcada como inicio del mundo en el World Map.');
+  }, [setAssetsWithHistory, setStatusBarMessage]);
+
+  // SCREEN 5 minimap: recompose the WorldMap asset that owns the given room. Drops nodes whose
+  // room was deleted + their dangling rails, then re-lays the surviving rooms on a clean grid so
+  // the WorldView renders correctly again. Linked to the pertinent worldmap (the one containing
+  // the room), which matters when the project has several worldmap assets.
+  const handleRecomposeBitmapWorld = useCallback((roomId: string) => {
+    const wmAsset = assets.find(asset =>
+      asset.type === 'worldmap'
+      && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === roomId)
+    );
+    if (!wmAsset) {
+      setStatusBarMessage('SCREEN 5: esta pantalla no pertenece a ningún World Map todavía.');
+      return;
+    }
+    const existingRoomIds = new Set<string>(
+      assets.filter(asset => asset.type === 'msx2bitmaproom').map(asset => asset.id)
+    );
+    const nextGraph = recomposeScreen5WorldMap(wmAsset.data as WorldMapGraph, existingRoomIds);
+    setAssetsWithHistory(prev => prev.map(asset =>
+      asset.id === wmAsset.id ? { ...asset, data: nextGraph } : asset
+    ));
+    setStatusBarMessage(`SCREEN 5: World Map "${wmAsset.name}" reconstruido — ${nextGraph.nodes.length} pantalla(s), ${nextGraph.connections.length} conexión(es).`);
+  }, [assets, setAssetsWithHistory, setStatusBarMessage]);
 
   const dataAssets = assets.filter(a =>
     ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'msx2bitmaproom', 'msx2player', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
@@ -861,6 +987,31 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         slots: slots.map(slot => ({ ...slot })),
         mode: 'SCREEN4',
         notes: `Saved from external sprite import for "${sourceName || 'MSX2 Sprite'}". ${generatedText}`,
+      } as PaletteAsset,
+    };
+    setAssetsWithHistory(prev => [...prev, paletteAsset]);
+    setSelectedPaletteAssetId(paletteAsset.id);
+    setStatusBarMessage(`Paleta "${name}" guardada como asset.`);
+  };
+
+  const saveMsx2PaletteAsAsset = (slotsToSave: Screen5PaletteSlot[], requestedName: string) => {
+    const { slots } = ensureScreen5PaletteSlots(slotsToSave);
+    const baseName = (requestedName || 'Sprite').trim() || 'Sprite';
+    const usedNames = new Set(assets.filter(asset => asset.type === 'palette').map(asset => asset.name));
+    let name = baseName;
+    let suffix = 1;
+    while (usedNames.has(name)) {
+      suffix += 1;
+      name = `${baseName} ${suffix}`;
+    }
+    const paletteAsset: ProjectAsset = {
+      id: `palette_${Date.now()}`,
+      name,
+      type: 'palette',
+      data: {
+        slots: slots.map(slot => ({ ...slot })),
+        mode: 'SCREEN5',
+        notes: 'Saved from MSX2 SCREEN 5 sprite editor.',
       } as PaletteAsset,
     };
     setAssetsWithHistory(prev => [...prev, paletteAsset]);
@@ -1165,7 +1316,24 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           
           {currentEditor === EditorType.Tile && activeAsset?.type === 'tile' && ( <TileEditor currentTile={activeAsset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} zoom={tileEditorZoom} setZoom={setTileEditorZoom} onSelectGlobalColor={setSelectedColor} />)}
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} saveSpriteZoom={saveSpriteZoom} />)}
-          {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onSyncPaletteSlots={syncGeneratedMsx2PaletteSlots} onSavePaletteAsset={(result) => saveImportedMsx2PaletteAsset(result.palette, activeAsset.name, result.generatedSlots)} />)}
+          {currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite' && ( <Msx2SpriteEditor sprite={activeAsset.data as Msx2Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onSyncPaletteSlots={syncGeneratedMsx2PaletteSlots} onSavePaletteAsset={(result) => saveImportedMsx2PaletteAsset(result.palette, activeAsset.name, result.generatedSlots)} worldPalette={activeBitmapImportPalette} worldPaletteName={activeBitmapWorldPaletteAsset?.name || activeBitmapWorldAsset?.name} onImportWorldPalette={activeBitmapImportPalette ? () => {
+            const worldName = activeBitmapWorldPaletteAsset?.name || activeBitmapWorldAsset?.name || 'actual';
+            const sprite = activeAsset.data as Msx2Sprite;
+            const { slots: currentSlots } = ensureScreen5PaletteSlots(sprite.palette);
+            const changedSlots = activeBitmapImportPalette
+              .map((slot, index) => ({ slot, index }))
+              .filter(({ slot, index }) => index > 0 && (
+                (slot.hex || '').toUpperCase() !== (currentSlots[index]?.hex || '').toUpperCase()
+                || slot.masterIndex !== currentSlots[index]?.masterIndex
+              ))
+              .map(({ index }) => index);
+            if (changedSlots.length === 0) {
+              setStatusBarMessage(`El sprite "${activeAsset.name}" ya usa la paleta del mundo "${worldName}"; nada que importar.`);
+              return;
+            }
+            handleUpdateAsset(activeAsset.id, applyScreen5PaletteToMsx2Sprite(sprite, activeBitmapImportPalette));
+            setStatusBarMessage(`Paleta del mundo "${worldName}" importada al sprite "${activeAsset.name}" (${changedSlots.length} slot(s): ${changedSlots.join(', ')}).`);
+          } : undefined} onSavePaletteAsAsset={(slots, name) => saveMsx2PaletteAsAsset(slots, name)} />)}
           {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2BitmapTile && activeAsset?.type === 'msx2bitmaptile' && (
             <Msx2BitmapTileEditor
@@ -1178,7 +1346,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
-            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} />
+            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} onSetWorldStartRoom={handleSetWorldStartBitmapRoom} onRecomposeWorld={handleRecomposeBitmapWorld} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} onUpdateProjectAsset={(assetId, data) => handleUpdateAsset(assetId, data)} onOpenHudAsset={(id) => onSelectAsset(id, EditorType.Msx2HudEditor)} />
           )}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} playerAssetName={activeAsset.name} onUpdate={(patch) => {
             const mergedPlayer = mergeMsx2PlayerUpdate(activeAsset.data, patch);
@@ -1199,6 +1367,13 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               font={activeAsset.data as Msx2HudFontAsset}
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               dataOutputFormat={dataOutputFormat}
+            />
+          )}
+          {currentEditor === EditorType.Msx2HudEditor && activeAsset?.type === 'msx2hud' && (
+            <Msx2HudEditor
+              asset={activeAsset.data as Msx2HudAsset}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
             />
           )}
           {currentEditor === EditorType.Boss && activeAsset?.type === 'boss' && ( <BossEditor boss={activeAsset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onUpdateTileBank={handleUpdateBossTileBank} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} zoom={bossEditorZoom} setZoom={setBossEditorZoom} copiedBossPhase={copiedBossPhase} setCopiedBossPhase={setCopiedBossPhase} /> )}

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile, ScreenKind } from '../../types';
 import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon, PlusCircleIcon, DocumentDuplicateIcon } from '../icons/MsxIcons';
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon, PlusCircleIcon, DocumentDuplicateIcon, HudIcon } from '../icons/MsxIcons';
 import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
 
 /**
@@ -69,6 +69,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'msx2player': return <SpriteIcon className={`${iconClass} text-yellow-300 group-hover:text-msx-accent`} />;
     case 'msx2enemy': return <BugIcon className={`${iconClass} text-red-300 group-hover:text-msx-accent`} />;
     case 'msx2hudfont': return <PencilIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
+    case 'msx2hud': return <HudIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
     case 'msx2presentation': return <MapIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
     case 'msx2gameflow': return <GameFlowIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
     case 'font': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -102,7 +103,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2bitmapstamp', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2bitmapstamp', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2hud', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -117,6 +118,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   msx2screen: "MSX2 SCREEN 4 Rooms",
   msx2bitmaproom: "MSX2 SCREEN 5 Bitmap Rooms",
   msx2hudfont: "MSX2 HUD Fonts",
+  msx2hud: "MSX2 HUDs",
   msx2presentation: "MSX2 SCREEN 5 Presentations",
   msx2gameflow: "MSX2 Game Flows",
   font: "MSX1 Fonts",
@@ -148,6 +150,7 @@ const FOLDER_NEW_LABELS: Partial<Record<ProjectAsset['type'], string>> = {
   msx2screen: "New SCREEN 4 Room",
   msx2bitmaproom: "New Bitmap Room",
   msx2hudfont: "New HUD Font",
+  msx2hud: "New HUD",
   msx2presentation: "New SCREEN 5 Presentation",
   msx2gameflow: "New Game Flow",
   tile: "New Tile",
@@ -180,6 +183,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   msx2screen: EditorType.Msx2Screen,
   msx2bitmaproom: EditorType.Msx2BitmapRoom,
   msx2hudfont: EditorType.Msx2HudFont,
+  msx2hud: EditorType.Msx2HudEditor,
   msx2presentation: EditorType.Msx2Presentation,
   msx2gameflow: EditorType.Msx2GameFlow,
   font: EditorType.Font,

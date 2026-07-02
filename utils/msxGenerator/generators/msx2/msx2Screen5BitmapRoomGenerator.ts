@@ -1,4 +1,4 @@
-import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudFontAsset, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
+import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -564,6 +564,21 @@ function getBitmapHudFontAsset(analysis: ProjectAnalysis, room: Msx2Screen5Bitma
   return preferred || assets.find(asset => asset.type === 'msx2hudfont')?.data as Msx2HudFontAsset | undefined;
 }
 
+/**
+ * Resolves the standalone MSX2 HUD asset (project asset type 'msx2hud') linked
+ * from a bitmap room's `runtime.hudAssetId`, same lookup pattern as
+ * `resolveWorldPalette`. Returns undefined when unlinked or unresolved, in which
+ * case the caller falls back to the legacy hardcoded hearts HUD + inline
+ * `room.runtime.hudWidgets` (byte-identical ROM for projects that never touch
+ * the Msx2HudEditor).
+ */
+function resolveLinkedHudAsset(analysis: ProjectAnalysis, hudAssetId: string | undefined): Msx2HudAsset | undefined {
+  if (!hudAssetId) return undefined;
+  const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
+  const asset = assets.find(item => item.id === hudAssetId && item.type === 'msx2hud')?.data as Msx2HudAsset | undefined;
+  return asset && Array.isArray(asset.layers) ? asset : undefined;
+}
+
 function normalizeHudText(value: string, maxLength: number, allowedCharacters: string): string {
   const allowed = new Set(Array.from(allowedCharacters || DEFAULT_HUD_CHARS));
   return Array.from(String(value || '').toUpperCase())
@@ -636,6 +651,37 @@ function drawBitmapHudAtlasIcon(
   }
 }
 
+/**
+ * Draws a static icon from a linked Msx2HudAsset's own mini-atlas (`Msx2HudAsset.icons`,
+ * authored in the Mideas HUD Editor), used by 'portrait'/'iconCounter' elements and by
+ * 'icon' elements when baked as a fallback. Falls back to a solid rect placeholder when
+ * no icon is referenced/found, matching `drawBitmapHudAtlasIcon`'s behaviour.
+ */
+function drawHudAssetIcon(
+  pixels: number[][],
+  icons: Msx2HudIconEntry[],
+  element: Msx2HudElement,
+  x0: number,
+  y0: number,
+  width: number,
+  height: number
+): void {
+  const icon = icons.find(item => item.id === element.atlasEntryId);
+  if (!icon) {
+    paintRect(pixels, x0, y0, width, height, element.colors.primary ?? 15);
+    return;
+  }
+  for (let yy = 0; yy < height && yy < icon.height; yy++) {
+    for (let xx = 0; xx < width && xx < icon.width; xx++) {
+      const color = icon.pixels[yy]?.[xx];
+      if (color === undefined || color < 0) continue;
+      const px = x0 + xx;
+      const py = y0 + yy;
+      if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < pixels.length) pixels[py][px] = color & 0x0f;
+    }
+  }
+}
+
 // 16x16 heart silhouette (hand-authored). 'X' = a heart pixel.
 const HEART_FULL_MASK: string[] = [
   '................',
@@ -685,7 +731,12 @@ function buildBitmapHeartTilePixels(): number[][] {
   return grid;
 }
 
-function buildBitmapHudSeedPixels(room: Msx2Screen5BitmapRoom, atlasPixels: number[][], analysis: ProjectAnalysis): number[][] {
+function buildBitmapHudSeedPixels(
+  room: Msx2Screen5BitmapRoom,
+  atlasPixels: number[][],
+  analysis: ProjectAnalysis,
+  linkedHudAsset?: Msx2HudAsset
+): number[][] {
   const framebuffer = Array.from({ length: BITMAP_ROOM_HUD_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
   for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT - 1; y++) {
     for (let x = 0; x < SCREEN_WIDTH; x++) {
@@ -695,9 +746,66 @@ function buildBitmapHudSeedPixels(room: Msx2Screen5BitmapRoom, atlasPixels: numb
   for (let x = 0; x < SCREEN_WIDTH; x++) {
     framebuffer[BITMAP_ROOM_HUD_HEIGHT - 1][x] = 15;
   }
-  const widgets = room.runtime?.showHud === false || room.runtime?.hideHud === true ? [] : room.runtime?.hudWidgets || [];
+  const hidden = room.runtime?.showHud === false || room.runtime?.hideHud === true;
+  if (hidden) return framebuffer;
   const font = getBitmapHudFontAsset(analysis, room);
   const allowedCharacters = font?.characters || DEFAULT_HUD_CHARS;
+
+  if (linkedHudAsset) {
+    // Standalone Msx2HudAsset (authored in the Mideas HUD Editor), linked via
+    // room.runtime.hudAssetId. Supersedes room.runtime.hudWidgets entirely. Layers
+    // are ordered top-of-editor-list = front; render back-to-front (reversed).
+    // 'iconRow'/'icon' elements are fully dynamic (drawn at runtime, see
+    // buildBitmapHudLinkedIconRowAsm) and intentionally NOT baked here to avoid a
+    // stale duplicate under the runtime-drawn copy. 'counter'/'iconCounter' bake
+    // only their static icon glyph here; the digits are runtime-drawn.
+    const icons = linkedHudAsset.icons || [];
+    for (const layer of [...linkedHudAsset.layers].reverse()) {
+      if (!layer.visible) continue;
+      if (layer.kind === 'paint') {
+        for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT; y++) {
+          for (let x = 0; x < SCREEN_WIDTH; x++) {
+            const color = layer.pixels[y]?.[x];
+            if (color === undefined || color < 0) continue;
+            framebuffer[y][x] = color & 0x0f;
+          }
+        }
+        continue;
+      }
+      const element = layer.element;
+      if (!element.visible) continue;
+      const x = clampInt(element.x, 0, SCREEN_WIDTH - 1, 0);
+      const y = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 0);
+      const width = clampInt(element.width, 1, SCREEN_WIDTH - x, element.kind === 'bar' ? 64 : 16);
+      const height = clampInt(element.height, 1, BITMAP_ROOM_HUD_HEIGHT - y, element.kind === 'bar' ? 6 : 16);
+      if (element.kind === 'bar') {
+        const maxValue = Math.max(1, clampByte(element.maxValue, 16));
+        const initialValue = Math.min(maxValue, clampByte(element.initialValue, maxValue));
+        // Match the dynamic HMMV region (buildBitmapHudLinkedBarAsm): even-aligned
+        // full box, empty track + primary fill, NO 1px border. SCREEN 5 HMMV needs
+        // byte-aligned DX/NX, so a 1px frame cannot survive the dynamic fill.
+        const barX = clampInt(element.x, 0, SCREEN_WIDTH - 2, 8) & ~1;
+        const barW = Math.min(254, Math.max(2, clampInt(element.width, 2, SCREEN_WIDTH - barX, 64) & ~1));
+        const barY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
+        const barH = Math.max(1, clampInt(element.height, 1, BITMAP_ROOM_HUD_HEIGHT - barY, 6));
+        const fillWidth = (Math.floor((barW * initialValue) / maxValue)) & ~1;
+        paintRect(framebuffer, barX, barY, barW, barH, element.colors.empty ?? 4);
+        paintRect(framebuffer, barX, barY, fillWidth, barH, element.colors.primary ?? 10);
+      } else if (element.kind === 'text') {
+        const color = element.colors.text ?? ((font?.colorByte ?? 0xF1) >> 4);
+        const maxChars = Math.max(1, Math.min(31, Math.floor(width / 8)));
+        drawBitmapHudText(framebuffer, normalizeHudText(element.text || '', maxChars, allowedCharacters), x, y, font, color);
+      } else if (element.kind === 'portrait' || element.kind === 'iconCounter') {
+        drawHudAssetIcon(framebuffer, icons, element, x, y, width, height);
+      }
+      // 'icon' and 'iconRow' are runtime-dynamic: nothing baked here (see
+      // linkedHudDynamicSources in generateUnitedFiles).
+    }
+    return framebuffer;
+  }
+
+  // Legacy fallback: inline room.runtime.hudWidgets (pre-Msx2HudEditor projects).
+  const widgets = room.runtime?.hudWidgets || [];
   for (const widget of widgets) {
     const x = clampInt(widget.x, 0, SCREEN_WIDTH - 1, 0);
     const y = clampInt(widget.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 0);
@@ -3419,6 +3527,657 @@ hud_heart_cmd_template:
   return { equates, routinesAsm, initAsm, mainLoopCall };
 }
 
+// ------------------------------------------------------------------------
+// Linked MSX2 HUD asset (Msx2HudAsset, authored in the standalone Mideas HUD
+// Editor and referenced by room.runtime.hudAssetId): generalizes the hearts
+// HUD pattern above (dirty-flag + HMMM + restore R#15) to arbitrary 'iconRow'
+// / 'icon' (repeated or single icon slots) and 'counter' / 'iconCounter'
+// (numeric text) elements. Only used when a HUD asset is linked; the classic
+// buildBitmapHeartsHudAsm above stays completely untouched and is the only
+// path taken when no HUD asset is linked (byte-identical ROM, zero regression
+// risk for existing projects).
+// ------------------------------------------------------------------------
+
+interface HudDynamicSource {
+  kind: 'iconRow' | 'counter' | 'bar';
+  element: Msx2HudElement;
+}
+
+/** Elements whose visual state changes at runtime (everything else is baked once into the HUD seed). */
+function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSource[] {
+  const sources: HudDynamicSource[] = [];
+  for (const layer of hudAsset.layers || []) {
+    if (layer.kind !== 'widget' || !layer.visible || !layer.element.visible) continue;
+    const kind = layer.element.kind;
+    if (kind === 'iconRow' || kind === 'icon') sources.push({ kind: 'iconRow', element: layer.element });
+    else if (kind === 'counter' || kind === 'iconCounter') sources.push({ kind: 'counter', element: layer.element });
+    else if (kind === 'bar') sources.push({ kind: 'bar', element: layer.element });
+  }
+  return sources;
+}
+
+/**
+ * Maps an element's variable binding to the RAM byte the runtime routine reads.
+ * Only `playerEnergy` (player_health) and `lives` (player_lives) have a real game
+ * mechanic behind them today. Every other binding (`score`/`bossEnergy`/`air`/
+ * `collectibles`/`custom`) gets its OWN persistent RAM byte instead — this is NOT a
+ * scoring/timer mechanic, just a widget-owned counter seeded from `initialValue`
+ * that a future system (skills, tile interactions) can write to. Documented as
+ * such so the generated ROM never pretends to have gameplay that does not exist.
+ */
+function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex: number): string {
+  if (element.binding === 'playerEnergy') return 'player_health';
+  if (element.binding === 'lives') return 'player_lives';
+  if (element.binding === 'air') return 'air_timer';
+  return `hud_linked_${instanceIndex}_value`;
+}
+
+/**
+ * Builds the 16x32 (full+empty side by side) tile pixels for an iconRow/icon
+ * element, sourced from the linked HUD asset's own icon mini-atlas
+ * (`Msx2HudAsset.icons`, element.atlasEntryId/emptyAtlasEntryId). Falls back to
+ * the hand-authored heart mask ONLY for playerEnergy-bound elements without an
+ * icon assigned (keeps the "Apply Hearts HUD" editor preset working out of the
+ * box); any other unconfigured icon falls back to a plain colour placeholder
+ * rect so a munition/lives pip never surprises the author with a heart shape.
+ */
+function buildIconRowTilePixels(hudAsset: Msx2HudAsset, element: Msx2HudElement): number[][] {
+  const icons = hudAsset.icons || [];
+  const fullIcon = icons.find(item => item.id === element.atlasEntryId);
+  const emptyIcon = icons.find(item => item.id === element.emptyAtlasEntryId);
+  if (!fullIcon && !emptyIcon && element.binding === 'playerEnergy') {
+    return buildBitmapHeartTilePixels();
+  }
+  const bg = BITMAP_HUD_HEART_COLOR_BG;
+  const grid: number[][] = Array.from({ length: 16 }, () => Array.from({ length: 32 }, () => bg));
+  const paintIcon = (icon: Msx2HudIconEntry | undefined, colOffset: number, fallbackColor: number) => {
+    if (icon) {
+      for (let y = 0; y < 16 && y < icon.height; y++) {
+        for (let x = 0; x < 16 && x < icon.width; x++) {
+          const color = icon.pixels[y]?.[x];
+          if (color !== undefined && color >= 0) grid[y][colOffset + x] = color & 0x0f;
+        }
+      }
+    } else {
+      for (let y = 4; y < 12; y++) {
+        for (let x = 4; x < 12; x++) grid[y][colOffset + x] = fallbackColor & 0x0f;
+      }
+    }
+  };
+  paintIcon(fullIcon, 0, element.colors.primary ?? 10);
+  paintIcon(emptyIcon, 16, element.colors.secondary ?? 14);
+  return grid;
+}
+
+/** Builds an 8-row x 80-col (10 digits x 8px) glyph strip for a counter element's digits 0-9. */
+function buildCounterGlyphPixels(font: Msx2HudFontAsset | undefined, color: number): number[][] {
+  const patterns = font?.patterns || DEFAULT_HUD_PATTERNS;
+  const bg = BITMAP_HUD_HEART_COLOR_BG;
+  const grid: number[][] = Array.from({ length: 8 }, () => Array.from({ length: 80 }, () => bg));
+  for (let digit = 0; digit <= 9; digit++) {
+    const pattern = patterns[String(digit)] || DEFAULT_HUD_PATTERNS[String(digit)];
+    for (let row = 0; row < 8; row++) {
+      const bits = Number(pattern[row]) || 0;
+      for (let col = 0; col < 8; col++) {
+        if (bits & (0x80 >> col)) grid[row][(digit * 8) + col] = color & 0x0f;
+      }
+    }
+  }
+  return grid;
+}
+
+/** Shared decimal conversion (A: 0-255 -> hud_dec3_buffer: hundreds,tens,units ASCII). Emitted once. */
+const HUD_BYTE_TO_DEC3_ROUTINE_ASM = `; ------------------------------------------------------------
+; FUNCTION: hud_byte_to_dec3
+; ------------------------------------------------------------
+; PURPOSE:
+;   Converts A (0-255) to 3 ASCII decimal digits in hud_dec3_buffer (hundreds,
+;   tens, units), shared by every linked HUD counter/iconCounter widget.
+; DESTROYS: AF, BC
+; ------------------------------------------------------------
+hud_byte_to_dec3:
+    ld c, a
+    ld b, 0
+.hud_dec3_hundreds:
+    ld a, c
+    cp 100
+    jr c, .hud_dec3_tens_start
+    sub 100
+    ld c, a
+    inc b
+    jr .hud_dec3_hundreds
+.hud_dec3_tens_start:
+    ld a, b
+    add a, '0'
+    ld (hud_dec3_buffer), a
+    ld b, 0
+.hud_dec3_tens:
+    ld a, c
+    cp 10
+    jr c, .hud_dec3_units_start
+    sub 10
+    ld c, a
+    inc b
+    jr .hud_dec3_tens
+.hud_dec3_units_start:
+    ld a, b
+    add a, '0'
+    ld (hud_dec3_buffer + 1), a
+    ld a, c
+    add a, '0'
+    ld (hud_dec3_buffer + 2), a
+    ret
+`;
+
+/** Shared 16-bit decimal conversion for wide (digits 4-5) linked HUD counters. Emitted once. */
+const HUD_WORD_TO_DEC5_ROUTINE_ASM = `; ------------------------------------------------------------
+; FUNCTION: hud_word_to_dec5
+; ------------------------------------------------------------
+; PURPOSE:
+;   Converts HL (0-65535) to 5 ASCII decimal digits in hud_dec5_buffer, shared by
+;   every wide (16-bit) linked HUD counter widget. No division: repeated 16-bit
+;   subtraction of 10000/1000/100/10 (max ~33 iterations total), remainder = units.
+; INPUT:
+;   HL = value (0-65535)
+; OUTPUT:
+;   hud_dec5_buffer[0..4] = '0'-'9' (ten-thousands .. units)
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+hud_word_to_dec5:
+    ld de, hud_dec5_buffer
+    ld bc, #2710          ; 10000
+    call hud_dec5_digit
+    ld bc, #03E8          ; 1000
+    call hud_dec5_digit
+    ld bc, #0064          ; 100
+    call hud_dec5_digit
+    ld bc, #000A          ; 10
+    call hud_dec5_digit
+    ld a, l               ; remainder = units
+    add a, '0'
+    ld (de), a
+    ret
+hud_dec5_digit:
+    xor a                 ; digit count = 0
+.hud_dec5_sub:
+    or a                  ; clear carry for sbc (A = count, preserved)
+    sbc hl, bc
+    jr c, hud_dec5_done
+    inc a
+    jr .hud_dec5_sub
+hud_dec5_done:
+    add hl, bc            ; restore (over-subtracted by one)
+    add a, '0'
+    ld (de), a
+    inc de
+    ret
+`;
+
+/**
+ * Resolves a linked HUD counter element's display width. Narrow (1-3 digits) uses
+ * the 8-bit dec3 path (byte value, unchanged). Wide (4-5 digits) uses the 16-bit
+ * dec5 path (2-byte value). Counters bound to a byte game-state (playerEnergy/lives)
+ * are forced narrow regardless of `digits`, since those bindings have no high byte.
+ * 6-7 requested digits clamp to 5 (24-bit/BCD would need much more RAM; future work).
+ */
+function linkedCounterSpec(element: Msx2HudElement): { digits: number; wide: boolean } {
+  const requested = Math.max(1, Math.min(7, Math.floor(element.format?.digits || 3)));
+  const byteBinding = element.binding === 'playerEnergy' || element.binding === 'lives' || element.binding === 'air';
+  if (requested >= 4 && !byteBinding) {
+    return { digits: Math.min(5, requested), wide: true };
+  }
+  return { digits: Math.min(3, requested), wide: false };
+}
+
+/** Shared 15-byte command launcher for every linked HUD dynamic widget. Emitted once. */
+const HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM = `; ------------------------------------------------------------
+; FUNCTION: hud_linked_launch_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Launches the 15-byte V9938 command currently in hud_cmd_block. Shared by
+;   every linked HUD dynamic widget (they run sequentially from the main loop,
+;   never concurrently, so the scratch block is safe to reuse).
+; DESTROYS: AF, HL
+; PRESERVES: BC
+; ------------------------------------------------------------
+hud_linked_launch_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    push bc
+    ld hl, hud_cmd_block
+    ld b, ${VDP_CMD_BLOCK_SIZE}
+.hud_linked_launch_write:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .hud_linked_launch_write
+    pop bc
+    ret
+`;
+
+/**
+ * Generalizes buildBitmapHeartsHudAsm to an arbitrary linked-asset iconRow/icon
+ * element: repeated (or single, for 'icon') slots that fill/empty by comparing a
+ * slot index against the bound RAM byte. Same dirty-flag + HMMM + R#15-restore
+ * pattern, parametrized by position/slot-count/tile source instead of hardcoded.
+ * v1 keeps the 16px fixed slot spacing (same as the classic hearts HUD); the
+ * element's `spacing` field is authored for the editor preview only for now.
+ */
+function buildBitmapHudLinkedIconRowAsm(
+  source: HudDynamicSource,
+  tileVramY: number,
+  ram: { dirtyFlagAddress: number; valueAddress?: number },
+  bindingRamLabel: string,
+  uploadAsm: string,
+  instanceIndex: number
+): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
+  const element = source.element;
+  const isToggle = element.kind === 'icon';
+  const slotCount = isToggle ? 1 : Math.max(1, Math.min(BITMAP_HUD_HEART_MAX_SLOTS, clampByte(element.maxValue, 5)));
+  const firstX = clampInt(element.x, 0, SCREEN_WIDTH - 1, 8);
+  const destY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
+  const emptySx = 16;
+  const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
+  const uploadLabel = `upload_hud_linked_${instanceIndex}`;
+  const updateLabel = `update_hud_linked_${instanceIndex}`;
+  const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
+  const loopLabel = `.hud_linked_${instanceIndex}_loop`;
+  const fullLabel = `.hud_linked_${instanceIndex}_full`;
+  const setSxLabel = `.hud_linked_${instanceIndex}_set_sx`;
+
+  const equates = `; Linked HUD ${isToggle ? 'icon toggle' : 'icon row'} #${instanceIndex} (${element.id}), bound to "${element.binding}".
+${dirtyLabel} EQU ${hexWord(ram.dirtyFlagAddress)}
+${ram.valueAddress !== undefined ? `${bindingRamLabel} EQU ${hexWord(ram.valueAddress)}\n` : ''}`;
+
+  const initAsm = `    call ${uploadLabel}
+    ld a, #FF
+    ld (${dirtyLabel}), a
+${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initialValue, 0))}\n    ld (${bindingRamLabel}), a\n` : ''}`;
+
+  const mainLoopCall = `    call ${updateLabel}    ; redraw linked HUD ${isToggle ? 'icon' : 'icon row'} #${instanceIndex} (${element.id})\n`;
+
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: ${uploadLabel} / ${updateLabel}
+; ------------------------------------------------------------
+; PURPOSE:
+;   Generalized icon-row/icon-toggle widget for linked HUD element "${element.id}".
+;   Same dirty-flag + HMMM pattern as update_hud_hearts: redraws ${slotCount}
+;   slot(s) at x=${firstX}..+16, y=${destY} only when ${bindingRamLabel} changes.
+; DESTROYS: AF, BC, DE, HL
+; PRESERVES: IX, IY
+; CALLS: hud_linked_launch_cmd, vdp_write_register
+; ------------------------------------------------------------
+${uploadLabel}:
+${uploadAsm}
+${updateLabel}:
+    ld a, (${bindingRamLabel})
+    ld hl, ${dirtyLabel}
+    cp (hl)
+    ret z
+    ld (hl), a
+
+    ld hl, ${tmplLabel}
+    ld de, hud_cmd_block
+    ld bc, ${VDP_CMD_BLOCK_SIZE}
+    ldir
+    ld a, ${destY}
+    ld (hud_cmd_block + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (hud_cmd_block + 7), a
+
+    ld b, ${slotCount}
+    ld c, 0
+${loopLabel}:
+    ld a, c
+    push hl
+    ld hl, ${bindingRamLabel}
+    cp (hl)
+    pop hl
+    jr c, ${fullLabel}
+    ld a, ${emptySx}
+    jr ${setSxLabel}
+${fullLabel}:
+    xor a
+${setSxLabel}:
+    ld (hud_cmd_block + 0), a
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    add a, ${firstX}
+    ld (hud_cmd_block + 4), a
+    call hud_linked_launch_cmd
+    inc c
+    djnz ${loopLabel}
+
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register
+    ret
+
+${tmplLabel}:
+    DB 0,0, ${hexByte(tileVramY)},0, 0,0, 0,0, #10,0, #10,0, 0,0, #D0
+`;
+  return { equates, initAsm, mainLoopCall, routinesAsm };
+}
+
+/**
+ * Numeric counter widget for a linked HUD element ('counter' or the digits of
+ * an 'iconCounter'). Converts the bound byte (0-255) to up to 3 zero-padded
+ * decimal digits (hud_byte_to_dec3, shared) and blits each glyph via HMMM,
+ * using the same dirty-flag + command-scratch pattern as the icon-row widget.
+ */
+function buildBitmapHudLinkedCounterAsm(
+  source: HudDynamicSource,
+  glyphVramY: number,
+  ram: { dirtyFlagAddress: number; valueAddress?: number },
+  bindingRamLabel: string,
+  uploadAsm: string,
+  instanceIndex: number
+): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
+  const element = source.element;
+  const { digits, wide } = linkedCounterSpec(element);
+  const iconOffset = element.kind === 'iconCounter' ? 16 : 0;
+  const destX = clampInt(element.x, 0, SCREEN_WIDTH - 1, 8) + iconOffset;
+  const destY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
+  const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
+  const uploadLabel = `upload_hud_linked_${instanceIndex}`;
+  const updateLabel = `update_hud_linked_${instanceIndex}`;
+  const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
+  const loopLabel = `.hud_linked_${instanceIndex}_digit_loop`;
+  const changedLabel = `.hud_linked_${instanceIndex}_changed`;
+  const bufferLabel = wide ? 'hud_dec5_buffer' : 'hud_dec3_buffer';
+  const digitBufferOffset = (wide ? 5 : 3) - digits;
+  const convertCall = wide ? 'hud_word_to_dec5' : 'hud_byte_to_dec3';
+
+  const equates = `; Linked HUD counter #${instanceIndex} (${element.id}), bound to "${element.binding}" [${wide ? `16-bit, ${digits} digits` : `8-bit, ${digits} digits`}].
+${dirtyLabel} EQU ${hexWord(ram.dirtyFlagAddress)}
+${ram.valueAddress !== undefined ? `${bindingRamLabel} EQU ${hexWord(ram.valueAddress)}\n` : ''}`;
+
+  const initAsm = wide
+    ? `    call ${uploadLabel}
+    ld hl, #FFFF
+    ld (${dirtyLabel}), hl
+${ram.valueAddress !== undefined ? `    ld hl, ${hexWord(Math.max(0, Math.min(65535, Math.floor(element.initialValue || 0))))}\n    ld (${bindingRamLabel}), hl\n` : ''}`
+    : `    call ${uploadLabel}
+    ld a, #FF
+    ld (${dirtyLabel}), a
+${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initialValue, 0))}\n    ld (${bindingRamLabel}), a\n` : ''}`;
+
+  const mainLoopCall = `    call ${updateLabel}    ; redraw linked HUD counter #${instanceIndex} (${element.id})\n`;
+
+  // Shared digit-blit loop: reads ASCII digits from bufferLabel+digitBufferOffset,
+  // maps each to its 8px glyph (SX = digit*8) and HMMMs NX=NY=8 to destX + i*8.
+  const blitLoop = `    ld hl, ${tmplLabel}
+    ld de, hud_cmd_block
+    ld bc, ${VDP_CMD_BLOCK_SIZE}
+    ldir
+    ld a, ${destY}
+    ld (hud_cmd_block + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (hud_cmd_block + 7), a
+
+    ld b, ${digits}
+    ld c, 0
+${loopLabel}:
+    push bc
+    ld a, c
+    ld e, a
+    ld d, 0
+    ld hl, ${bufferLabel} + ${digitBufferOffset}
+    add hl, de
+    ld a, (hl)
+    sub '0'
+    add a, a
+    add a, a
+    add a, a
+    ld (hud_cmd_block + 0), a
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, ${destX}
+    ld (hud_cmd_block + 4), a
+    call hud_linked_launch_cmd
+    pop bc
+    inc c
+    djnz ${loopLabel}
+
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register
+    ret
+`;
+
+  const dirtyCheckAndConvert = wide
+    ? `${updateLabel}:
+    ld hl, (${bindingRamLabel})
+    ld de, (${dirtyLabel})
+    or a
+    sbc hl, de
+    jr nz, ${changedLabel}
+    ret
+${changedLabel}:
+    ld hl, (${bindingRamLabel})
+    ld (${dirtyLabel}), hl
+    call ${convertCall}
+
+${blitLoop}`
+    : `${updateLabel}:
+    ld a, (${bindingRamLabel})
+    ld hl, ${dirtyLabel}
+    cp (hl)
+    ret z
+    ld (hl), a
+    call ${convertCall}
+
+${blitLoop}`;
+
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: ${uploadLabel} / ${updateLabel}
+; ------------------------------------------------------------
+; PURPOSE:
+;   Numeric counter widget for linked HUD element "${element.id}": ${digits}
+;   zero-padded decimal digit(s) at x=${destX}, y=${destY}, redrawn only when
+;   ${bindingRamLabel} changes (dirty-flag). ${wide ? `16-bit value via ${convertCall}.` : `8-bit value via ${convertCall}.`}
+; DESTROYS: AF, BC, DE, HL
+; PRESERVES: IX, IY
+; CALLS: ${convertCall}, hud_linked_launch_cmd, vdp_write_register
+; ------------------------------------------------------------
+${uploadLabel}:
+${uploadAsm}
+${dirtyCheckAndConvert}
+${tmplLabel}:
+    DB 0,0, ${hexByte(glyphVramY)},0, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
+`;
+  return { equates, initAsm, mainLoopCall, routinesAsm };
+}
+
+/**
+ * Air/time countdown timer for SCREEN 5 bitmap rooms. A room-level byte
+ * `air_timer` (seeded from room.runtime.initialAir) that 'air'-bound HUD counters
+ * read — same pattern as playerEnergy→player_health. Decrements once per second
+ * (frame divider = 60, assuming the 60Hz vblank-synced main loop). When `ticking`
+ * is false (initialAir==0 or disableAirTimer) the byte is still allocated + seeded
+ * so an air-bound counter always has a valid symbol to read (it just stays static).
+ * Stops at 0 (no death/event wired here — that is future game logic).
+ */
+function buildBitmapAirTimerAsm(opts: {
+  airTimerAddress: number;
+  airFrameDividerAddress: number;
+  initialAir: number;
+  framesPerTick: number;
+  ticking: boolean;
+}): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
+  const { airTimerAddress, airFrameDividerAddress, initialAir, framesPerTick, ticking } = opts;
+  const equates = `air_timer EQU ${hexWord(airTimerAddress)}        ; room air/time countdown (read by 'air'-bound HUD counters)
+air_frame_divider EQU ${hexWord(airFrameDividerAddress)}
+`;
+  const initAsm = `    ld a, ${hexByte(initialAir)}
+    ld (air_timer), a
+    xor a
+    ld (air_frame_divider), a
+`;
+  if (!ticking) {
+    return { equates, initAsm, mainLoopCall: '', routinesAsm: '' };
+  }
+  const mainLoopCall = `    call update_air_timer    ; air/time countdown (-1 each ~${framesPerTick} frames)\n`;
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: update_air_timer
+; ------------------------------------------------------------
+; PURPOSE:
+;   Decrements the room air/time countdown (air_timer) by 1 every ${framesPerTick}
+;   frames (~1s at 60Hz). Stops at 0. 'air'-bound HUD counters display air_timer.
+; DESTROYS: AF, HL
+; PRESERVES: BC, DE, IX, IY
+; ------------------------------------------------------------
+update_air_timer:
+    ld hl, air_frame_divider
+    inc (hl)
+    ld a, (hl)
+    cp ${framesPerTick}
+    ret nz                  ; not a full tick yet
+    xor a
+    ld (hl), a              ; reset divider
+    ld a, (air_timer)
+    or a
+    ret z                   ; already at 0
+    dec a
+    ld (air_timer), a
+    ret
+`;
+  return { equates, initAsm, mainLoopCall, routinesAsm };
+}
+
+/**
+ * Dynamic bar meter for a linked HUD 'bar' element. Unlike iconRow/counter this
+ * widget needs NO offscreen source tile: the track + fill are drawn directly with
+ * V9938 HMMV fills (CMD_FILL, high-speed fill). fillW = clamp(value,0,max) * barW
+ * / max. The region is forced EVEN-aligned because SCREEN 5 packs 2px/byte and
+ * HMMV requires byte-aligned DX/NX; consequently a 1px frame cannot be preserved
+ * by the fill, so the bar has NO border (the seed baker matches this — see
+ * buildBitmapHudSeedPixels). Same dirty-flag + R#15-restore contract as the other
+ * linked widgets.
+ */
+function buildBitmapHudLinkedBarAsm(
+  source: HudDynamicSource,
+  ram: { dirtyFlagAddress: number; valueAddress?: number },
+  bindingRamLabel: string,
+  instanceIndex: number
+): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
+  const element = source.element;
+  const max = Math.max(1, clampByte(element.maxValue, 16));
+  // Even-aligned dynamic region (SCREEN 5 HMMV: byte-aligned DX/NX).
+  const barX = clampInt(element.x, 0, SCREEN_WIDTH - 2, 8) & ~1;
+  const barW = Math.min(254, Math.max(2, clampInt(element.width, 2, SCREEN_WIDTH - barX, 64) & ~1));
+  const barY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
+  const barH = Math.max(1, clampInt(element.height, 1, BITMAP_ROOM_HUD_HEIGHT - barY, 6));
+  const emptyColor = (element.colors.empty ?? 4) & 0x0f;
+  const primaryColor = (element.colors.primary ?? 10) & 0x0f;
+  const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
+  const updateLabel = `update_hud_linked_${instanceIndex}`;
+  const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
+  const clampNeeded = max < 255;
+
+  const equates = `; Linked HUD bar #${instanceIndex} (${element.id}), bound to "${element.binding}".
+${dirtyLabel} EQU ${hexWord(ram.dirtyFlagAddress)}
+${ram.valueAddress !== undefined ? `${bindingRamLabel} EQU ${hexWord(ram.valueAddress)}\n` : ''}`;
+
+  const initAsm = `    ld a, #FF
+    ld (${dirtyLabel}), a
+${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initialValue, 0))}\n    ld (${bindingRamLabel}), a\n` : ''}`;
+
+  const mainLoopCall = `    call ${updateLabel}    ; redraw linked HUD bar #${instanceIndex} (${element.id})\n`;
+
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: ${updateLabel}
+; ------------------------------------------------------------
+; PURPOSE:
+;   Dynamic bar meter for linked HUD element "${element.id}": redraws the even-
+;   aligned box x=${barX}, y=${barY}, w=${barW}, h=${barH} (empty track + primary
+;   fill, fillW = clamp(value,0,${max}) * ${barW} / ${max}) only when ${bindingRamLabel}
+;   changes. Uses V9938 HMMV fills (CMD_FILL = ${hexByte(CMD_FILL)}); NO offscreen tile.
+; INPUT:
+;   ${bindingRamLabel} = current value (0..${max})
+; DESTROYS: AF, BC, DE, HL
+; PRESERVES: IX, IY
+; CALLS: hud_linked_launch_cmd, vdp_write_register
+; SIDE EFFECTS: writes VRAM via the V9938 command engine; restores R#15=0 at the
+;   end (hud_linked_launch_cmd leaves it at S#2) so vblank polling (S#0) survives.
+; ------------------------------------------------------------
+${updateLabel}:
+    ld a, (${bindingRamLabel})
+    ld hl, ${dirtyLabel}
+    cp (hl)
+    ret z
+    ld (hl), a
+${clampNeeded ? `    cp ${max + 1}
+    jr c, .b${instanceIndex}_clamped
+    ld a, ${hexByte(max)}
+.b${instanceIndex}_clamped:` : ''}
+    ; --- fillW (A) = value * ${barW} / ${max}, floored even (byte alignment) ---
+    or a
+    jr z, .b${instanceIndex}_zero
+    ld b, a
+    ld de, ${hexWord(barW)}
+    ld hl, 0
+.b${instanceIndex}_mul:
+    add hl, de
+    djnz .b${instanceIndex}_mul
+    ld bc, ${hexWord(max)}
+    xor a
+.b${instanceIndex}_div:
+    or a
+    sbc hl, bc
+    jr c, .b${instanceIndex}_div_done
+    inc a
+    jr .b${instanceIndex}_div
+.b${instanceIndex}_div_done:
+    and #FE
+    jr .b${instanceIndex}_have
+.b${instanceIndex}_zero:
+    xor a
+.b${instanceIndex}_have:
+    push af                       ; A = fillW (preserved across ldir)
+
+    ld hl, ${tmplLabel}
+    ld de, hud_cmd_block
+    ld bc, ${VDP_CMD_BLOCK_SIZE}
+    ldir
+    ld a, ${hexByte(barY)}
+    ld (hud_cmd_block + 6), a     ; DY lo
+    ld a, (bitmap_displayed_page)
+    ld (hud_cmd_block + 7), a     ; DY hi = displayed page
+
+    ; HMMV #1: empty track over the full box (COL = empty, NX = barW from template).
+    ld a, ${hexByte(emptyColor)}
+    ld (hud_cmd_block + 12), a
+    call hud_linked_launch_cmd
+
+    pop af                        ; A = fillW
+    or a
+    jr z, .b${instanceIndex}_done
+    ld (hud_cmd_block + 8), a     ; NX lo = fillW
+    ld a, ${hexByte(primaryColor)}
+    ld (hud_cmd_block + 12), a    ; COL = primary
+    call hud_linked_launch_cmd
+
+.b${instanceIndex}_done:
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register       ; restore R#15 = 0 (status select S#0)
+    ret
+
+${tmplLabel}:
+    DB ${hexByte(barX & 0xFF)},0, 0,0, ${hexByte(barX & 0xFF)},0, ${hexByte(barY & 0xFF)},0, ${hexByte(barW & 0xFF)},0, ${hexByte(barH & 0xFF)},0, ${hexByte(emptyColor)},0, ${hexByte(CMD_FILL)}
+`;
+  return { equates, initAsm, mainLoopCall, routinesAsm };
+}
+
 // Priority: room.playerEntries[].playerId -> msx2player asset -> render.spriteAssetId;
 // else first msx2player asset's render sprite; else first referenced msx2sprite.
 function resolveBitmapRoomPlayerSprite(analysis: ProjectAnalysis, room: Msx2Screen5BitmapRoom): Msx2Sprite | undefined {
@@ -4114,6 +4873,37 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const worldPalette = resolveWorldPalette(analysis, world.paletteAssetId, room.palette);
   const paletteBytes = buildPaletteBytes(worldPalette);
   const atlasPixels = normalizeAtlasPixels(sharedAtlas.atlasRoom);
+  // Linked MSX2 HUD asset (Msx2HudAsset via room.runtime.hudAssetId): supersedes the
+  // legacy hardcoded hearts HUD + inline room.runtime.hudWidgets when present. See
+  // resolveLinkedHudAsset / buildBitmapHudSeedPixels / buildBitmapHudLinked*Asm.
+  const linkedHudAsset = resolveLinkedHudAsset(analysis, room.runtime?.hudAssetId);
+  const hudGloballyHidden = room.runtime?.showHud === false || room.runtime?.hideHud === true;
+  const linkedHudFont = linkedHudAsset ? getBitmapHudFontAsset(analysis, room) : undefined;
+  const linkedHudDynamicSources = linkedHudAsset && !hudGloballyHidden ? collectLinkedHudDynamicSources(linkedHudAsset) : [];
+  // Offscreen tile/glyph source rows for linked dynamic widgets, stacked right after
+  // the classic hearts slot (Y=224..239) and before the shared atlas (Y=512). 16 rows
+  // reserved per tile-based instance (iconRow uses all 16; counter only uses the top 8,
+  // the rest stay unwritten padding) so every instance steps at a uniform offset.
+  // 'bar' widgets are EXCLUDED: they draw with HMMV fills (no source tile), so they
+  // consume neither an offscreen slot nor the VRAM collision budget.
+  const tileBasedHudSources = linkedHudDynamicSources.filter(source => source.kind !== 'bar');
+  const LINKED_HUD_TILE_BASE_Y = BITMAP_HUD_HEART_TILE_Y + BITMAP_HUD_HEART_NY;
+  if (LINKED_HUD_TILE_BASE_Y + (tileBasedHudSources.length * 16) > BITMAP_ROOM_ATLAS_BASE_Y) {
+    throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many tile/glyph dynamic widgets (${tileBasedHudSources.length}); offscreen VRAM would collide with the shared tileset atlas. Reduce the number of iconRow/icon/counter widgets.`);
+  }
+  const linkedHudTileData: { index: number; kind: HudDynamicSource['kind']; tileVramY: number; bytes: number[]; rleChunks: ReturnType<typeof buildRleChunksForVram>; uploadAsm: string }[] = [];
+  linkedHudDynamicSources.forEach((source, index) => {
+    if (source.kind === 'bar') return; // bars use HMMV, no offscreen tile
+    const tileSlot = linkedHudTileData.length;
+    const tileVramY = LINKED_HUD_TILE_BASE_Y + (tileSlot * 16);
+    const pixels = source.kind === 'iconRow'
+      ? buildIconRowTilePixels(linkedHudAsset!, source.element)
+      : buildCounterGlyphPixels(linkedHudFont, source.element.colors.text ?? 15);
+    const bytes = packBitmapPixels(pixels);
+    const rleChunks = buildRleChunksForVram(bytes, tileVramY * ROW_BYTES, `bitmap_room_hud_linked_${index}_rle_chunk`);
+    const uploadAsm = buildRleUploadAsm(rleChunks, isKonamiMegaRom);
+    linkedHudTileData.push({ index, kind: source.kind, tileVramY, bytes, rleChunks, uploadAsm });
+  });
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
@@ -4144,16 +4934,18 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     const target = (dir: ConnectionDirection) => (rails[dir] === undefined ? 0xff : rails[dir]!);
     return [target('west'), target('east'), target('north'), target('south')];
   });
-  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis));
+  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis, linkedHudAsset));
   const hudSeedRleChunksPage0 = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_p0_rle_chunk');
   const hudSeedRleChunksPage1 = buildRleChunksForVram(hudSeedBytes, BITMAP_ROOM_PAGE1_VRAM_BASE, 'bitmap_room_hud_seed_p1_rle_chunk');
   const allHudSeedRleChunks = [...hudSeedRleChunksPage0, ...hudSeedRleChunksPage1];
-  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks];
+  const linkedHudAllRleChunks = linkedHudTileData.flatMap(entry => entry.rleChunks);
+  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks, ...linkedHudAllRleChunks];
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
       ...buildBankedRleDataBlocks(tilesetRleChunks, `Shared world tileset (atlas), packed 4bpp RLE`),
       ...buildBankedRleDataBlocks(heartRleChunks, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE`),
+      ...linkedHudTileData.flatMap(entry => buildBankedRleDataBlocks(entry.rleChunks, `Linked HUD dynamic widget #${entry.index} (${entry.kind}) tile/glyph data, packed 4bpp RLE`)),
     ]
     : [];
   const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
@@ -4170,6 +4962,16 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const heartDataAsm = isKonamiMegaRom
     ? `; Hearts HUD tiles RLE is emitted in Konami MegaROM data banks below.\n`
     : formatRleChunks(heartRleChunks, heartTileBytes.length, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE, destination VRAM ${hexVram(BITMAP_HUD_HEART_VRAM)}`);
+  // Upload ASM + raw data section for every linked HUD dynamic widget's tile/glyph blob.
+  // (Per-entry upload ASM is precomputed in linkedHudTileData; 'bar' widgets have no
+  // tile/glyph data and are omitted here.)
+  const linkedHudDataAsm = isKonamiMegaRom
+    ? (linkedHudTileData.length ? `; Linked HUD dynamic widget tile/glyph RLE is emitted in Konami MegaROM data banks below.\n` : '')
+    : linkedHudTileData.map(entry => formatRleChunks(
+        entry.rleChunks,
+        entry.bytes.length,
+        `Linked HUD dynamic widget #${entry.index} (${entry.kind}) tile/glyph data, packed 4bpp RLE, destination VRAM ${hexVram(entry.tileVramY * ROW_BYTES)}`
+      )).join('');
   const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
   const spriteTables = buildSpriteTables(playerSprite);
   const spriteSourceLabel = spriteTables.usedConfigured
@@ -4220,7 +5022,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Deadly-tile damage system: EQUs, init, main-loop call and the runtime routine.
   const deadlySystem = buildBitmapDeadlySystemAsm(playerVitals, playerHitbox);
   // Hearts HUD: one heart per point of player_health, top-left of the HUD band.
-  const heartsHud = buildBitmapHeartsHudAsm(playerVitals.maxHealth, heartUploadAsm);
+  // Only the classic zero-config fallback when no MSX2 HUD asset is linked (byte-
+  // identical ROM for projects that never touch the Msx2HudEditor); a linked HUD
+  // asset takes over the whole HUD (see linkedHud* below).
+  const heartsHud = linkedHudAsset
+    ? { equates: '', initAsm: '', mainLoopCall: '', routinesAsm: '' }
+    : buildBitmapHeartsHudAsm(playerVitals.maxHealth, heartUploadAsm);
   // DASH skill (pilot): config from the linked Player Config; the ASM uses the
   // bitmap room's own collision/move primitives (no SCREEN 4 routines reused).
   const dashConfig = getMsx2DashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
@@ -4385,6 +5192,82 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     crouching: stateAnimIds['crouching'],
     sliding: stateAnimIds['sliding'],
   });
+  // Linked MSX2 HUD asset dynamic widgets: RAM follows crouch (the last skill in
+  // the chain). Per widget: dirty-flag (1 byte, or 2 for wide 16-bit counters so a
+  // high-byte-only change is detected) + value byte(s) for bindings without a real
+  // existing RAM counter (score/bossEnergy/air/collectibles/custom; NOT a scoring
+  // mechanic, just the widget's own persistent byte(s) — 2 bytes for wide counters).
+  // Shared hud_dec3_buffer (3B) for narrow counters + hud_dec5_buffer (5B) for wide.
+  // Guarded against overflowing into the reserved player-animation block at #C1F0.
+  const linkedHudRamBase = crouchRamBase + (crouchConfig.enabled ? MSX2_BITMAP_CROUCH_RAM_BYTES : 0);
+  const HUD_LINKED_RAM_CEILING = 0xC1F0;
+  let hudLinkedRamCursor = linkedHudRamBase;
+  const linkedHudRamAllocations = linkedHudDynamicSources.map(source => {
+    const dirtyFlagAddress = hudLinkedRamCursor;
+    const wide = source.kind === 'counter' && linkedCounterSpec(source.element).wide;
+    const dirtyBytes = wide ? 2 : 1;
+    hudLinkedRamCursor += dirtyBytes;
+    const needsOwnValue = !(source.element.binding === 'playerEnergy' || source.element.binding === 'lives' || source.element.binding === 'air');
+    const valueBytes = needsOwnValue ? (wide ? 2 : 1) : 0;
+    const valueAddress = valueBytes > 0 ? hudLinkedRamCursor : undefined;
+    hudLinkedRamCursor += valueBytes;
+    return { dirtyFlagAddress, valueAddress, wide };
+  });
+  const anyNarrowCounter = linkedHudDynamicSources.some(source => source.kind === 'counter' && !linkedCounterSpec(source.element).wide);
+  const anyWideCounter = linkedHudDynamicSources.some(source => source.kind === 'counter' && linkedCounterSpec(source.element).wide);
+  const hudDec3BufferAddress = anyNarrowCounter ? hudLinkedRamCursor : undefined;
+  if (hudDec3BufferAddress !== undefined) hudLinkedRamCursor += 3;
+  const hudDec5BufferAddress = anyWideCounter ? hudLinkedRamCursor : undefined;
+  if (hudDec5BufferAddress !== undefined) hudLinkedRamCursor += 5;
+  // Air/time countdown timer (G3): allocated whenever an 'air'-bound HUD counter
+  // exists. 'air' counters read the shared air_timer byte (like playerEnergy reads
+  // player_health), so air_timer + air_frame_divider are always allocated+seeded
+  // when an air counter is present (giving it a valid symbol); the decrement
+  // routine is only emitted when initialAir>0 and the timer is not disabled.
+  const anyAirCounter = linkedHudDynamicSources.some(source => source.kind === 'counter' && source.element.binding === 'air');
+  const airInitial = clampByte(room.runtime?.initialAir ?? 0, 0);
+  const airDisabled = !!room.runtime?.disableAirTimer;
+  const airTimerAllocated = anyAirCounter;
+  const airTimerAddress = airTimerAllocated ? hudLinkedRamCursor : undefined;
+  if (airTimerAllocated) hudLinkedRamCursor += 1;
+  const airFrameDividerAddress = airTimerAllocated ? hudLinkedRamCursor : undefined;
+  if (airTimerAllocated) hudLinkedRamCursor += 1;
+  const airTimerSystem = airTimerAllocated
+    ? buildBitmapAirTimerAsm({
+        airTimerAddress: airTimerAddress!,
+        airFrameDividerAddress: airFrameDividerAddress!,
+        initialAir: airInitial,
+        framesPerTick: 60,
+        ticking: airInitial > 0 && !airDisabled,
+      })
+    : null;
+  if (linkedHudDynamicSources.length && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many dynamic widgets: RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce the number of dynamic (iconRow/icon/counter/bar) widgets or disable the air timer.`);
+  }
+  const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
+  const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
+    const ram = linkedHudRamAllocations[index];
+    const bindingRamLabel = resolveHudElementBindingRamLabel(source.element, index);
+    if (source.kind === 'bar') {
+      return buildBitmapHudLinkedBarAsm(source, ram, bindingRamLabel, index);
+    }
+    const tileData = tileDataBySourceIndex.get(index)!;
+    return source.kind === 'iconRow'
+      ? buildBitmapHudLinkedIconRowAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index)
+      : buildBitmapHudLinkedCounterAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index);
+  });
+  const linkedHudSharedEquates = linkedHudDynamicSources.length
+    ? `; Linked MSX2 HUD asset dynamic widgets: shared 15-byte V9938 command scratch${hudDec3BufferAddress !== undefined || hudDec5BufferAddress !== undefined ? ' + shared decimal conversion buffer(s)' : ''}.
+hud_cmd_block EQU #C2C0
+${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3BufferAddress)}\n` : ''}${hudDec5BufferAddress !== undefined ? `hud_dec5_buffer EQU ${hexWord(hudDec5BufferAddress)}\n` : ''}`
+    : '';
+  const linkedHudSharedRoutines = linkedHudDynamicSources.length
+    ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
+    : '';
+  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}`;
+  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}`;
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
@@ -4462,7 +5345,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ? '    call bitmap_upload_player_frame_colors\n'
     : '';
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
-  const hudWidgetCount = room.runtime?.showHud === false || room.runtime?.hideHud === true ? 0 : room.runtime?.hudWidgets?.length || 0;
+  const hudWidgetCount = hudGloballyHidden
+    ? 0
+    : linkedHudAsset
+      ? linkedHudAsset.layers.filter(layer => layer.kind === 'widget').length
+      : room.runtime?.hudWidgets?.length || 0;
 
   return `; File: unitedFiles.asm
 ; ==================================================================
@@ -4558,7 +5445,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -4606,7 +5493,7 @@ ${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
-${deadlySystem.initAsm}${heartsHud.initAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.
@@ -4625,7 +5512,7 @@ ${hasStateAnimations ? `    xor a
 ${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}    call bitmap_update_sprite_sat
 ${shootBulletSatCall}    jp .main_loop
 
 ${runtimeAsm}
@@ -4646,6 +5533,7 @@ ${iceSlideRuntime}
 ${crouchRuntime}
 ${deadlySystem.routineAsm}
 ${heartsHud.routinesAsm}
+${linkedHudRoutinesAsm}
 ${foregroundLoadRoutineAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 bitmap_room_hud_seed_data:
@@ -4659,6 +5547,10 @@ bitmap_room_tileset_data_end:
 bitmap_room_hud_heart_data:
 ${heartDataAsm}
 bitmap_room_hud_heart_data_end:
+
+bitmap_room_hud_linked_data:
+${linkedHudDataAsm}
+bitmap_room_hud_linked_data_end:
 
 ; World engine dispatch tables (indexed by room/screen index).
 ${roomRenderPtrTableAsm}

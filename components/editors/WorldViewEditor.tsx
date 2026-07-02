@@ -6,6 +6,7 @@ import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } f
 import { Button } from '../common/Button';
 import { GridToggleButton } from './GridToggleButton';
 import { getScreenModeMetrics } from '../../utils/screenModeConfig';
+import { buildScreen5MatrixWorldViewLayout } from '../../utils/screen5WorldViewLayout';
 
 const MSX2_SCREEN_WIDTH = 256;
 const MSX2_SCREEN_HEIGHT = 192;
@@ -36,7 +37,10 @@ const isMsx2Screen4TileScreen = (screen: WorldViewScreen | undefined): screen is
 
 const isMsx2Screen5BitmapRoom = (screen: WorldViewScreen | undefined): screen is Msx2Screen5BitmapRoom => {
     const unwrapped = unwrapWorldViewScreen(screen);
-    return !!unwrapped && (unwrapped as Msx2Screen5BitmapRoom).vdpMode === 'SCREEN5_BITMAP_ROOM' && !!(unwrapped as Msx2Screen5BitmapRoom).composition;
+    const vdpMode = (unwrapped as Msx2Screen5BitmapRoom | undefined)?.vdpMode;
+    return !!unwrapped
+        && (vdpMode === 'SCREEN5_BITMAP_ROOM' || vdpMode === 'SCREEN4_BITMAP_ROOM')
+        && !!(unwrapped as Msx2Screen5BitmapRoom).composition;
 };
 
 const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
@@ -383,6 +387,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
   currentScreenMode
 }) => {
     const [selectedWorldMapId, setSelectedWorldMapId] = useState<string | null>(null);
+    const [layoutMode, setLayoutMode] = useState<'legacyConnections' | 'screen5Matrix'>('legacyConnections');
     const [isGridVisible, setIsGridVisible] = useState(false);
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -430,6 +435,16 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
     const screensToRender = useMemo(() => {
         if (!worldMapGraph || worldMapGraph.nodes.length === 0) {
             return { nodes: [], worldBounds: { minX: 0, minY: 0, width: 0, height: 0 } };
+        }
+
+        if (layoutMode === 'screen5Matrix') {
+            return buildScreen5MatrixWorldViewLayout({
+                graph: worldMapGraph,
+                screens: allScreenMaps,
+                getScreenId: screen => unwrapWorldViewScreen(screen)?.id,
+                getScreenName: screen => unwrapWorldViewScreen(screen)?.name,
+                getScreenSize: screen => getWorldViewScreenPixelSize(unwrapWorldViewScreen(screen) || screen, EDITOR_BASE_TILE_DIM),
+            });
         }
     
         const screenPositions = new Map<string, { x: number, y: number }>();
@@ -546,7 +561,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
         };
         
         return { nodes: nodesToRender, worldBounds };
-    }, [worldMapGraph, allScreenMaps, EDITOR_BASE_TILE_DIM, refreshKey]);
+    }, [worldMapGraph, allScreenMaps, EDITOR_BASE_TILE_DIM, layoutMode, refreshKey]);
     
     useEffect(() => {
         if (containerSize.width > 0 && screensToRender.nodes.length > 0) {
@@ -636,12 +651,23 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                         </option>
                     ))}
                 </select>
+                <label htmlFor="world-view-layout" className="font-bold text-msx-textsecondary">Layout:</label>
+                <select
+                    id="world-view-layout"
+                    value={layoutMode}
+                    onChange={(e) => setLayoutMode(e.target.value as typeof layoutMode)}
+                    className="p-1 bg-msx-panelbg border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                    title="Legacy walks connection rails. SCREEN 5 Matrix uses authored minimap node coordinates."
+                >
+                    <option value="legacyConnections">Legacy rails</option>
+                    <option value="screen5Matrix">SCREEN 5 matrix</option>
+                </select>
                 <div className="flex-grow"></div>
                 <GridToggleButton isGridVisible={isGridVisible} onToggle={handleToggleGrid} />
-                <Button 
-                    onClick={() => setRefreshKey(k => k + 1)} 
-                    size="sm" 
-                    variant="secondary" 
+                <Button
+                    onClick={() => setRefreshKey(k => k + 1)}
+                    size="sm"
+                    variant="secondary"
                     title="Refresh view if screen assets have changed"
                     icon={<RefreshCwIcon className="w-4 h-4" />}
                 >

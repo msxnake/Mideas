@@ -327,6 +327,10 @@ export interface BitmapTileScreen5 {
   sourceFileName?: string;
   paletteId: string;
   pixelData: number[];
+  /** Optional SCREEN 5 bitmap-room collision flags carried by stamps/metatiles. */
+  collisionFlags?: number;
+  /** Optional SCREEN 5 bitmap-room behavior code carried by stamps/metatiles. 3 = ice_slide surface. */
+  behaviorCode?: number;
   previewImage?: string;
   tags?: string[];
   createdAt: string;
@@ -480,6 +484,10 @@ export interface Msx2Screen4Tile {
   lineAttributes?: Msx2Screen4LineAttribute[][];
   /** Gameplay role: background, solid foreground, hazard, or pushable box. Defaults to background. */
   behaviorKind?: Msx2Screen4TileBehaviorKind;
+  /** Optional SCREEN 5 bitmap-room collision flags preserved when importing into a bitmap atlas. */
+  collisionFlags?: number;
+  /** Optional SCREEN 5 bitmap-room behavior code preserved when importing into a bitmap atlas. */
+  behaviorCode?: number;
   /** Optional per-tile hitbox override for collision/hazard probes. */
   hitbox?: Msx2Screen4TileHitbox;
 }
@@ -811,6 +819,88 @@ export interface Msx2HudWidget {
   variableName?: string;
 }
 
+/** Standalone HUD asset (Msx2HudAsset) element kinds. Distinct from Msx2HudWidgetKind (SCREEN 4 tile HUD). */
+export type Msx2HudElementKind = 'bar' | 'counter' | 'icon' | 'iconRow' | 'iconCounter' | 'text' | 'portrait';
+export type Msx2HudElementBinding = Msx2HudWidgetBinding;
+
+export interface Msx2HudElementFormat {
+  digits?: number;
+  base?: 'dec' | 'hex';
+  zeroPad?: boolean;
+  prefix?: string;
+}
+
+export interface Msx2HudElementColors {
+  text?: number;
+  outline?: number;
+  shadow?: number;
+  primary?: number;
+  secondary?: number;
+  border?: number;
+  empty?: number;
+}
+
+export interface Msx2HudElementAlign {
+  h: 'left' | 'center' | 'right';
+  v: 'top' | 'middle' | 'bottom';
+}
+
+/** A single structured HUD element placed on a Msx2HudAsset canvas. */
+export interface Msx2HudElement {
+  id: string;
+  kind: Msx2HudElementKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  binding: Msx2HudElementBinding;
+  variableName?: string;
+  text?: string;
+  maxValue?: number;
+  initialValue?: number;
+  spacing?: number;
+  format: Msx2HudElementFormat;
+  colors: Msx2HudElementColors;
+  atlasEntryId?: string;
+  /** Empty/background icon variant used by iconRow slots (e.g. lives pips). */
+  emptyAtlasEntryId?: string;
+  align: Msx2HudElementAlign;
+  visible: boolean;
+  blink: 'off' | 'slow' | 'fast';
+}
+
+/** Small icon atlas owned by a Msx2HudAsset, used by icon/iconRow/iconCounter/portrait elements. */
+export interface Msx2HudIconEntry {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  /** Palette indices (0-15), one entry per pixel row-major. */
+  pixels: number[][];
+}
+
+export type Msx2HudLayer =
+  | { id: string; name: string; kind: 'paint'; visible: boolean; locked: boolean; pixels: number[][] }
+  | { id: string; name: string; kind: 'widget'; visible: boolean; locked: boolean; element: Msx2HudElement };
+
+/**
+ * Standalone, reusable HUD asset for MSX2 SCREEN 5 bitmap rooms.
+ * Authored once (paint layers + structured widget layers with variable bindings),
+ * then linked by id from a room's runtime (Msx2Screen4Runtime.hudAssetId).
+ */
+export interface Msx2HudAsset {
+  target: 'MSX2';
+  /** Fixed: matches BITMAP_ROOM_HUD_HEIGHT (top band of SCREEN 5 bitmap rooms). */
+  width: 256;
+  height: 20;
+  /** Ordered top-to-bottom in the editor's Layers panel; first entry renders on top. */
+  layers: Msx2HudLayer[];
+  /** Optional shared palette asset (type 'palette'), same pattern as WorldMapGraph.paletteAssetId. */
+  paletteAssetId?: string;
+  icons: Msx2HudIconEntry[];
+  notes?: string;
+}
+
 export type Msx2ShooterDirection = 'vertical' | 'horizontal';
 export type Msx2ShooterScrollMode = 'none' | 'tileVertical' | 'spaceLoop' | 'bossStatic';
 export type Msx2ShooterPlayerMode = 'single' | 'twoPlayerAlternate' | 'twoPlayerLimited';
@@ -899,6 +989,8 @@ export interface Msx2Screen4Runtime {
   /** Optional MSX2 HUD Font asset used by bitmap-room text widgets. */
   hudFontAssetId?: string;
   hudWidgets?: Msx2HudWidget[];
+  /** Optional linked Msx2HudAsset (project asset type 'msx2hud'); supersedes inline hudWidgets for SCREEN 5 bitmap rooms. */
+  hudAssetId?: string;
   shooter?: Msx2ShooterRuntimeConfig;
   notes?: string;
 }
@@ -3079,6 +3171,7 @@ export enum EditorType {
   Msx2Player = "Msx2Player",
   Msx2Enemy = "Msx2Enemy",
   Msx2HudFont = "Msx2HudFont",
+  Msx2HudEditor = "Msx2HudEditor",
   Msx2Presentation = "Msx2Presentation",
   Msx2GameFlow = "Msx2GameFlow",
   PngMsxChars = "PngMsxChars",
@@ -3093,9 +3186,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

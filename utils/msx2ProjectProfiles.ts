@@ -15,6 +15,8 @@ export interface Msx2GameProfileOption {
   previewKind: Msx2GameProfileId;
   /** Shown with an "Experimental" badge; backend not yet feature-complete. */
   experimental?: boolean;
+  /** Shown with a "Not implemented" badge; profile is not yet available. */
+  notImplemented?: boolean;
 }
 
 // Asset types shared by every MSX2 profile, independent of the chosen graphics mode.
@@ -36,6 +38,7 @@ const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'msx2gameflow',
   'worldmap',
   'msx2hudfont',
+  'msx2hud',
   'sound',
   'track',
 ];
@@ -219,7 +222,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
   },
   bitmapPlatform: {
     profileId: 'bitmapPlatform',
-    label: 'Action bitmap · SCREEN 5 (VK-style)',
+    label: 'Platform Bitmap · SCREEN 5 (VK-style)',
     description: 'SCREEN 5 (GRAPHIC 4) bitmap rooms composed with V9938 copy/fill/line commands and hardware sprites. Experimental — Phase 1: playable player; HUD text, enemies and room transitions pending.',
     screenEngine: 'player',
     movementMode: 'platform',
@@ -351,12 +354,20 @@ export const MSX2_CREATABLE_GAME_PROFILE_IDS: Msx2GameProfileId[] = [
 /** Profile ids surfaced with an "Experimental" badge in the picker. */
 export const MSX2_EXPERIMENTAL_GAME_PROFILE_IDS: Msx2GameProfileId[] = ['bitmapPlatform'];
 
+/** Profile ids surfaced with a "Not implemented" badge in the picker (backend pending). */
+export const MSX2_NOT_IMPLEMENTED_GAME_PROFILE_IDS: Msx2GameProfileId[] = [
+  'maze',
+  'shooterVertical',
+  'shooterHorizontal',
+];
+
 export const MSX2_GAME_PROFILE_OPTIONS: Msx2GameProfileOption[] = MSX2_CREATABLE_GAME_PROFILE_IDS.map(id => ({
   id,
   label: PROFILE_DEFINITIONS[id].label,
   description: PROFILE_DEFINITIONS[id].description,
   previewKind: id,
   experimental: MSX2_EXPERIMENTAL_GAME_PROFILE_IDS.includes(id),
+  notImplemented: MSX2_NOT_IMPLEMENTED_GAME_PROFILE_IDS.includes(id),
 }));
 
 export function buildMsx2ProjectProfile(profileId: Msx2GameProfileId): Msx2ProjectProfile {

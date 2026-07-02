@@ -98,7 +98,18 @@ export function importTilesIntoAtlas(
     let id = `atlas_${slugify(tile.name)}_${Date.now()}_${index}`;
     while (existingIds.has(id)) id = `${id}_x`;
     existingIds.add(id);
-    const entry: Msx2BitmapRoomAtlasEntry = { id, name: tile.name || `Tile ${index + 1}`, sx, sy, w: tileWidth, h: tileHeight };
+    const collisionFlags = Math.max(0, Math.min(255, Math.trunc(Number(tile.collisionFlags) || 0)));
+    const behaviorCode = Math.max(0, Math.min(255, Math.trunc(Number(tile.behaviorCode) || 0)));
+    const entry: Msx2BitmapRoomAtlasEntry = {
+      id,
+      name: tile.name || `Tile ${index + 1}`,
+      sx,
+      sy,
+      w: tileWidth,
+      h: tileHeight,
+      ...(collisionFlags ? { collisionFlags } : {}),
+      ...(behaviorCode ? { behaviorCode } : {}),
+    };
     entries.push(entry);
     addedEntries.push(entry);
   });

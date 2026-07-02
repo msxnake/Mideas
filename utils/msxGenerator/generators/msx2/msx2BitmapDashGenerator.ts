@@ -75,12 +75,22 @@ export function buildBitmapDashGateAsm(config: Msx2DashConfig | undefined): stri
 }
 
 /** The dash routines (empty when disabled). */
-export function buildBitmapDashRuntimeAsm(config: Msx2DashConfig | undefined): string {
+export function buildBitmapDashRuntimeAsm(
+  config: Msx2DashConfig | undefined,
+  stateAnimIds: { dashing?: number } = {},
+): string {
   if (!config || !bitmapDashEnabled(config)) return '';
 
   const dashSpeed = Math.max(1, Math.min(24, Math.floor(config.dashSpeed) || 8));
   const dashDuration = asmByte(config.dashDuration);
   const dashCooldown = asmByte(config.dashCooldown);
+  // Assert the 'dashing' animation state while a dash is active, when a separate
+  // sprite is mapped for it. player_anim_state is reset to 0 each frame in
+  // update_player_movement (which runs before this gate), so writing it here only
+  // holds for the dash frames. The symbol exists only when state animations are on.
+  const dashStateSetAsm = typeof stateAnimIds.dashing === 'number'
+    ? `    ld a, ${stateAnimIds.dashing}\n    ld (player_anim_state), a\n`
+    : '';
   const lockGate = config.requireKeyRelease
     ? `    ld a, (bitmap_dash_lock)
     or a
@@ -216,7 +226,7 @@ bitmap_step_dash_movement:
     ret z
     dec a
     ld (bitmap_dash_timer), a
-    ld a, (bitmap_dash_direction)
+${dashStateSetAsm}    ld a, (bitmap_dash_direction)
     or a
     jp z, .dash_step_left
 .dash_step_right:

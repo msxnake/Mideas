@@ -8,6 +8,7 @@
   "addsStates": ["crouching", "sliding"],
   "icon": "⬇️",
   "category": "movement",
+  "supportedBackends": ["msx2-screen4-pattern", "msx2-screen4-bitmap-room"],
   "parameters": [
     {
       "key": "crouchSpeed",

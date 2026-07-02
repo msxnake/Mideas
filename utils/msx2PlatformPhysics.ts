@@ -119,6 +119,24 @@ export interface Msx2SpinAttackConfig {
   requireKeyRelease: boolean;
 }
 
+export interface Msx2IceSlideConfig {
+  enabled: boolean;
+  surfaceCode: number;
+  maxSlideSpeed: number;
+  accelerationFrames: number;
+  frictionFrames: number;
+  footProbeLeftOffset?: number;
+  footProbeRightOffset?: number;
+  footProbeYOffset?: number;
+}
+
+export interface Msx2CrouchConfig {
+  enabled: boolean;
+  crouchSpeed: number;
+  crouchHitboxHeight: number;
+  slideDistance: number;
+}
+
 /**
  * Carry object skill config (MSX2 platformer).
  *
@@ -730,6 +748,47 @@ export function getMsx2SpinAttackConfigFromPlayerEntity(player: any | undefined)
     spinDamage: Math.max(1, Math.min(5, spinDamage || 1)),
     spinCooldown: Math.max(10, Math.min(120, spinCooldown || 40)),
     requireKeyRelease: params.requireKeyRelease !== false,
+  };
+}
+
+export function getMsx2IceSlideConfigFromPlayerEntity(player: any | undefined): Msx2IceSlideConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('ice_slide');
+  const params = (player?.skillParameters?.ice_slide || {}) as Record<string, number | boolean>;
+  const surfaceCode = pickSkillNumberParam(params, 'ice_slide', ['surfaceCode'], 3);
+  const maxSlideSpeed = pickSkillNumberParam(params, 'ice_slide', ['maxSlideSpeed'], 4);
+  const accelerationFrames = pickSkillNumberParam(params, 'ice_slide', ['accelerationFrames'], 2);
+  const frictionFrames = pickSkillNumberParam(params, 'ice_slide', ['frictionFrames'], 8);
+  return {
+    enabled,
+    surfaceCode: Math.max(1, Math.min(255, surfaceCode || 3)),
+    maxSlideSpeed: Math.max(1, Math.min(8, maxSlideSpeed || 4)),
+    accelerationFrames: Math.max(1, Math.min(8, accelerationFrames || 2)),
+    frictionFrames: Math.max(1, Math.min(32, frictionFrames || 8)),
+  };
+}
+
+/**
+ * Returns the resolved crouch skill config for the given player.
+ *
+ * Reads `player.skillParameters.crouch` and clamps each numeric field to the
+ * range declared in `crouchParameters` (handlers/index.ts). `crouchHitboxHeight`
+ * is carried for parity with the SCREEN 4 pattern config but has no effect in
+ * the SCREEN 5 bitmap room engine, whose collision grid is 16x16 px cells and
+ * whose player body is exactly 16 px tall (no sub-cell gap to duck under).
+ */
+export function getMsx2CrouchConfigFromPlayerEntity(player: any | undefined): Msx2CrouchConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('crouch');
+  const params = (player?.skillParameters?.crouch || {}) as Record<string, number | boolean>;
+  const crouchSpeed = pickSkillNumberParam(params, 'crouch', ['crouchSpeed'], 1);
+  const crouchHitboxHeight = pickSkillNumberParam(params, 'crouch', ['crouchHitboxHeight'], 8);
+  const slideDistance = pickSkillNumberParam(params, 'crouch', ['slideDistance'], 0);
+  return {
+    enabled,
+    crouchSpeed: Math.max(0, Math.min(4, Math.trunc(crouchSpeed))),
+    crouchHitboxHeight: Math.max(4, Math.min(12, Math.trunc(crouchHitboxHeight || 8))),
+    slideDistance: Math.max(0, Math.min(16, Math.trunc(slideDistance))),
   };
 }
 

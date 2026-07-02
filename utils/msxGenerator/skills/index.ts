@@ -6,7 +6,7 @@ import {
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp,
+  powerStomp, iceSlide,
 } from './handlers/index';
 
 for (const skill of [
@@ -16,7 +16,7 @@ for (const skill of [
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp,
+  powerStomp, iceSlide,
 ]) {
   registerSkill(skill);
 }
@@ -33,5 +33,5 @@ export {
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp,
+  powerStomp, iceSlide,
 } from './handlers/index';

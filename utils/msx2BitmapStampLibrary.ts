@@ -1,5 +1,6 @@
 import { BitmapTileScreen5, BitmapTileStampScreen5, Msx2Screen4Tile, Screen5PaletteSlot } from '../types';
 import { downloadTextFile } from './downloadUtils';
+import { ensureScreen5PaletteSlots } from './msx2PaletteUtils';
 
 const LS_KEY = 'msxIdeMsx2BitmapStampLibrary_v1';
 
@@ -211,5 +212,81 @@ export function mergeMsx2BitmapStampLibraryEntries(
   }
   saveMsx2BitmapStampLibrary(merged);
   return merged;
+}
+
+// --- Palette adaptation (Convert/Adapt) -----------------------------------
+// Remap a stamp authored against one SCREEN 5 palette onto another (the current
+// screen palette) WITHOUT touching either palette: each pixel's slot index is
+// rewritten to the slot of the target palette whose colour is perceptually
+// closest. Slot 0 (transparent) is always preserved.
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || '').trim());
+  if (!match) return [0, 0, 0];
+  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
+};
+
+// Weighted ("redmean") RGB distance — approximates perceived colour difference
+// better than plain Euclidean, so the nearest slot also matches tonally.
+const colorDistanceSq = (a: [number, number, number], b: [number, number, number]): number => {
+  const rmean = (a[0] + b[0]) / 2;
+  const dr = a[0] - b[0];
+  const dg = a[1] - b[1];
+  const db = a[2] - b[2];
+  return (2 + rmean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rmean) / 256) * db * db;
+};
+
+/**
+ * Builds a 16-entry table mapping each slot index of `sourceSlots` to the index
+ * of the closest colour in `targetSlots`. Slot 0 always maps to 0 (transparent).
+ */
+export function buildScreen5PaletteRemap(
+  sourceSlots: Screen5PaletteSlot[] | undefined,
+  targetSlots: Screen5PaletteSlot[] | undefined,
+): number[] {
+  const source = ensureScreen5PaletteSlots(sourceSlots).slots;
+  const target = ensureScreen5PaletteSlots(targetSlots).slots;
+  const remap = new Array<number>(16).fill(0);
+  for (let s = 1; s < source.length; s++) {
+    const sourceRgb = hexToRgb(source[s].hex);
+    let bestIndex = s < target.length ? s : 0;
+    let bestDistance = Infinity;
+    for (let t = 1; t < target.length; t++) {
+      const distance = colorDistanceSq(sourceRgb, hexToRgb(target[t].hex));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = t;
+      }
+    }
+    remap[s] = bestIndex;
+  }
+  return remap;
+}
+
+/**
+ * Returns a copy of `entry` whose tile pixels are remapped onto `targetSlots`
+ * (nearest colour per slot) and whose palette is set to `targetSlots`. The
+ * original entry, its palette and the target palette are left untouched.
+ */
+export function adaptStampEntryToPalette(
+  entry: Msx2BitmapStampLibraryEntry,
+  targetSlots: Screen5PaletteSlot[] | undefined,
+): Msx2BitmapStampLibraryEntry {
+  const palette = ensureScreen5PaletteSlots(targetSlots).slots;
+  const remap = buildScreen5PaletteRemap(entry.palette, palette);
+  const now = new Date().toISOString();
+  const tiles = entry.stamp.tiles.map(tile => ({
+    ...tile,
+    pixelData: tile.pixelData.map(value => {
+      const index = clampSlot(value);
+      return remap[index] ?? index;
+    }),
+    updatedAt: now,
+  }));
+  return {
+    ...entry,
+    stamp: { ...entry.stamp, tiles, updatedAt: now },
+    palette: palette.map(slot => ({ ...slot })),
+  };
 }
 

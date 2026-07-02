@@ -17,6 +17,35 @@ Leccion Aprendida:
 Fecha: 2026-06-30
 
 Problema:
+En SCREEN 5 bitmap, con aceleracion/hielo alta durante una transicion entre
+pantallas, a veces se recomponia/cargaba una pantalla incorrecta o parecia
+repetirse la misma sala.
+
+Causa:
+`bitmap_try_move_x` sumaba un `dx` firmado directamente sobre `player_x` byte.
+Al entrar por el borde izquierdo (`player_x=2`) con velocidad residual negativa
+alta, por ejemplo `dx=#F8`, la suma de 8 bits envolvia a `250`. El player saltaba
+al borde derecho y podia disparar una transicion absurda antes de que el flujo de
+salas quedase estable.
+
+Solucion:
+Clampar el candidato X antes de hacer probes y antes de escribir `player_x`:
+velocidad negativa no puede bajar de `x=2`; velocidad positiva no puede pasar de
+`x=238`. La transicion de borde se decide despues por los rails, pero la coordenada
+no puede envolver.
+
+Leccion Aprendida:
+En ASM Z80, cualquier coordenada byte modificada por velocidad firmada debe tener
+clamp explicito antes de guardarse. No basta con comprobar la posicion actual:
+con velocidades mayores de 1-2 px/frame, `player_x + dx` puede envolver y simular
+que el player ha cruzado al borde contrario. Sintoma delator: bugs de transicion
+que solo aparecen con aceleracion/inercia alta.
+
+---
+
+Fecha: 2026-06-30
+
+Problema:
 En el backend SCREEN 5 bitmap, un tile marcado como Deadly en el Screen Editor
 no mataba al player. Ademas, parecia "llevar colision implicita": el player no
 podia pisar los pinchos.

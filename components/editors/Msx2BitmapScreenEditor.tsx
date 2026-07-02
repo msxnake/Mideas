@@ -5,6 +5,7 @@ import {
   Msx2BitmapRoomAtlasEntry,
   Msx2BitmapRoomCommand,
   Msx2BitmapRoomForegroundTile,
+  Msx2HudAsset,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
   Msx2Screen5BitmapRoom,
@@ -30,6 +31,7 @@ import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
 import { addEntryToMsx2TileLibrary } from '../../utils/msx2TileLibrary';
 import {
   Msx2BitmapStampLibraryEntry,
+  adaptStampEntryToPalette,
   mergeMsx2BitmapStampLibraryEntries,
 } from '../../utils/msx2BitmapStampLibrary';
 import {
@@ -45,6 +47,7 @@ import {
   EyeOffIcon,
   FolderOpenIcon,
   GridIcon,
+  HudIcon,
   MapIcon,
   PaintBrushIcon,
   PencilIcon,
@@ -70,18 +73,21 @@ import {
 type BrushTool = 'brush' | 'eraser' | 'fill';
 type LayerKey = 'visual' | 'collision' | 'objects' | 'foreground';
 type CategoryKey = 'suelo' | 'pared' | 'decoracion' | 'interactivos';
+type CategoryFilterKey = 'all' | CategoryKey;
 
 const SCREEN_W = 256;
 const SCREEN_H = 192;
 const GRID = 16;
 const FALLBACK_HEX = '#05070B';
 
-const CATEGORIES: { key: CategoryKey; label: string }[] = [
+const CATEGORY_FILTERS: { key: CategoryFilterKey; label: string }[] = [
+  { key: 'all', label: 'Todos' },
   { key: 'suelo', label: 'Suelo' },
   { key: 'pared', label: 'Pared' },
   { key: 'decoracion', label: 'Decoración' },
   { key: 'interactivos', label: 'Interactivos' },
 ];
+const CATEGORIES = CATEGORY_FILTERS.filter((cat): cat is { key: CategoryKey; label: string } => cat.key !== 'all');
 
 const LAYERS: { key: LayerKey; label: string }[] = [
   { key: 'visual', label: 'Visual' },
@@ -110,6 +116,11 @@ const PROPERTY_FLAGS: { key: string; label: string }[] = [
   { key: 'deadly', label: 'Deadly' },
   { key: 'interactable', label: 'Interactable' },
 ];
+
+const BEHAVIOR_CODE = {
+  none: 0,
+  ice: 3,
+} as const;
 
 // Collision/behavior grids are addressed on a 16px cell grid (16 cols x 12 rows for a 192px page).
 const COLLISION_CELL = 16;
@@ -265,6 +276,10 @@ interface Msx2BitmapScreenEditorProps {
   onCreateAdjacentRoom?: (direction: ConnectionDirection, options?: { copySharedEdgeTiles?: boolean }) => void;
   /** Opens an existing room asset for editing (minimap navigation to a neighbour). */
   onOpenRoom?: (assetId: string) => void;
+  /** Marks a room as the world's start screen (sets startScreenNodeId on the owning WorldMap). */
+  onSetWorldStartRoom?: (roomId: string) => void;
+  /** Rebuilds the WorldMap that owns this room (drops deleted rooms, re-lays the grid). */
+  onRecomposeWorld?: (roomId: string) => void;
   /** Project profile used to filter the entity preset repertoire (same as SCREEN 4). */
   msx2ProjectProfile?: Msx2ProjectProfile | null;
   /** Palette asset shared by the world that owns this room. */
@@ -273,7 +288,29 @@ interface Msx2BitmapScreenEditorProps {
   onSetWorldPaletteAssetId?: (paletteAssetId: string | undefined) => void;
   /** Updates an existing palette asset without routing through the active room. */
   onUpdatePaletteAsset?: (paletteAssetId: string, slots: Screen5PaletteSlot[]) => void;
+  /** Updates an existing project asset that is not necessarily the active room. */
+  onUpdateProjectAsset?: (assetId: string, data: unknown) => void;
+  /** Opens a Msx2HudAsset (project asset type 'msx2hud') for editing in the Msx2HudEditor. */
+  onOpenHudAsset?: (assetId: string) => void;
 }
+
+const createDefaultMsx2HudAsset = (): Msx2HudAsset => ({
+  target: 'MSX2',
+  width: 256,
+  height: 20,
+  layers: [
+    {
+      id: `hud_layer_${Date.now()}`,
+      name: 'Background',
+      kind: 'paint',
+      visible: true,
+      locked: false,
+      pixels: Array.from({ length: 20 }, () => new Array(256).fill(-1)),
+    },
+  ],
+  icons: [],
+  notes: 'Standalone HUD asset for SCREEN 5 bitmap rooms. Link it from a room via runtime.hudAssetId.',
+});
 
 // Placement on the Entities layer: pick WHAT to place (a player entry, an entity
 // preset from the repertoire, or an enemy from the project's msx2enemy library).
@@ -291,6 +328,8 @@ const DIRECTION_LABELS: Record<ConnectionDirection, string> = {
   east: 'Este',
   west: 'Oeste',
 };
+
+type DiagonalDirection = 'northWest' | 'northEast' | 'southWest' | 'southEast';
 
 interface CollapsiblePanelProps {
   title: string;
@@ -694,10 +733,12 @@ interface RoomMinimapThumbProps {
   paletteSlots: Screen5PaletteSlot[];
   /** When provided (and not the current room), the thumb becomes a clickable "open & edit" target. */
   onOpen?: () => void;
+  /** Whether this room is the world's start screen (renders a ★ badge). */
+  isStart?: boolean;
 }
 
 /** Renders a downsampled thumbnail of a bitmap room's composed page for the world minimap. */
-const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, paletteSlots, onOpen }) => {
+const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, paletteSlots, onOpen, isStart }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const room = asset.data as Msx2Screen5BitmapRoom;
   const tw = Math.ceil(SCREEN_W / MINIMAP_STEP);
@@ -718,10 +759,10 @@ const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, p
   const interactive = !!onOpen && !isCurrent;
   return (
     <div
-      title={interactive ? `Editar "${asset.name}"` : asset.name}
+      title={`${isStart ? '★ Inicio del mundo — ' : ''}${interactive ? `Editar "${asset.name}"` : asset.name}`}
       role={interactive ? 'button' : undefined}
       onClick={interactive ? onOpen : undefined}
-      className={`rounded border overflow-hidden transition-colors ${
+      className={`relative rounded border overflow-hidden transition-colors ${
         isCurrent
           ? 'border-msx-highlight ring-1 ring-msx-highlight'
           : interactive
@@ -730,6 +771,14 @@ const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, p
       }`}
     >
       <canvas ref={canvasRef} width={tw} height={th} className="w-full block bg-black" style={{ imageRendering: 'pixelated', aspectRatio: '4 / 3' }} />
+      {isStart && (
+        <span
+          className="absolute top-0.5 left-0.5 rounded bg-black/70 px-1 text-[0.6rem] leading-none text-msx-highlight"
+          title="Pantalla de inicio del mundo"
+        >
+          ★
+        </span>
+      )}
     </div>
   );
 };
@@ -754,7 +803,7 @@ const EmptySilhouette: React.FC<EmptySilhouetteProps> = ({ direction, interactiv
   </button>
 );
 
-export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, msx2ProjectProfile = null, worldPaletteAssetId, onSetWorldPaletteAssetId, onUpdatePaletteAsset }) => {
+export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, onSetWorldStartRoom, onRecomposeWorld, msx2ProjectProfile = null, worldPaletteAssetId, onSetWorldPaletteAssetId, onUpdatePaletteAsset, onUpdateProjectAsset, onOpenHudAsset }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // World-minimap: pending "create screen at <dir>" inline confirm.
@@ -767,7 +816,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [selectedAtlasEntryId, setSelectedAtlasEntryId] = useState(room.atlas?.entries?.[0]?.id || '');
   const [selectedStampId, setSelectedStampId] = useState('');
   const [preparedStamp, setPreparedStamp] = useState<{ stampId: string; atlasEntryIds: string[] } | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<CategoryKey>('suelo');
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilterKey>('all');
   const [zoom, setZoom] = useState(2);
   const [showGrid, setShowGrid] = useState(true);
   const [editMode, setEditMode] = useState<'normal' | 'rect' | 'flood'>('normal');
@@ -806,6 +855,47 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openTarget, setOpenTarget] = useState(true);
   const [openPalette, setOpenPalette] = useState(true);
   const [openBudget, setOpenBudget] = useState(true);
+  const [openHud, setOpenHud] = useState(true);
+
+  const hudAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2hud'), [allAssets]);
+  const hudAssetId = room.runtime?.hudAssetId;
+  const linkedHudAsset = useMemo(
+    () => hudAssets.find(asset => asset.id === hudAssetId),
+    [hudAssets, hudAssetId],
+  );
+  const selectedHudAssetId = linkedHudAsset ? linkedHudAsset.id : '';
+
+  const withHudAssetId = (hudAssetIdValue: string | undefined) => ({
+    screenKind: 'playable' as const,
+    screenEngine: 'player' as const,
+    activeAreaX: 0,
+    activeAreaY: 0,
+    activeAreaWidth: 256,
+    activeAreaHeight: 192,
+    ...room.runtime,
+    hudAssetId: hudAssetIdValue,
+  });
+
+  const handleLinkHudAsset = (nextId: string) => {
+    const nextHudAsset = nextId ? hudAssets.find(asset => asset.id === nextId) : undefined;
+    onUpdate({ runtime: withHudAssetId(nextId || undefined) });
+    setStatusBarMessage?.(
+      nextHudAsset
+        ? `SCREEN 5: HUD "${nextHudAsset.name}" vinculado a la pantalla.`
+        : 'SCREEN 5: HUD desvinculado (NONE).'
+    );
+  };
+
+  const handleCreateAndLinkHud = () => {
+    const newAsset: ProjectAsset = {
+      id: `msx2hud_${Date.now()}`,
+      name: room.name ? `${room.name} HUD` : 'New MSX2 HUD',
+      type: 'msx2hud',
+      data: createDefaultMsx2HudAsset(),
+    };
+    onUpdate({ runtime: withHudAssetId(newAsset.id) }, [newAsset]);
+    onOpenHudAsset?.(newAsset.id);
+  };
 
   const worldPaletteAsset = useMemo(() => {
     if (!worldPaletteAssetId) return undefined;
@@ -843,6 +933,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     [allAssets],
   );
   const selectedStampEntry = stampEntries.find(entry => entry.id === selectedStampId) || null;
+  const selectedStampAsset = selectedStampId
+    ? allAssets.find(asset =>
+      asset.type === 'msx2bitmapstamp'
+      && (asset.id === selectedStampId || (asset.data as Msx2BitmapStampLibraryEntry | undefined)?.id === selectedStampId)
+    ) || null
+    : null;
   const backgroundColor = roomBackgroundColor(room);
   // Backdrop hex used for the franja frame and for color-0 (transparent) pixels.
   const backdropHex = resolveSlotHex(slots, backgroundColor);
@@ -890,9 +986,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2player'),
     [allAssets],
   );
-  // Category filter: keep entries whose inferred category matches, plus uncategorized ones.
+  // Category filter: "Todos" disables filtering; other filters keep their category
+  // plus uncategorized entries so legacy atlas tiles do not disappear unexpectedly.
   const visibleAtlasEntries = useMemo(
-    () => atlasEntries.filter(entry => {
+    () => selectedCategory === 'all' ? atlasEntries : atlasEntries.filter(entry => {
       const cat = inferEntryCategory(entry.name);
       return cat === null || cat === selectedCategory;
     }),
@@ -951,8 +1048,75 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         result[connection.toDirection] = result[connection.toDirection] ?? resolveRoom(connection.fromNodeId);
       }
     });
+    const step = (graph.gridSize || 20) * 12;
+    const offset: Record<ConnectionDirection, { x: number; y: number }> = {
+      north: { x: 0, y: -step },
+      south: { x: 0, y: step },
+      west: { x: -step, y: 0 },
+      east: { x: step, y: 0 },
+    };
+    (Object.keys(result) as ConnectionDirection[]).forEach(direction => {
+      if (result[direction]) return;
+      const target = offset[direction];
+      const adjacentNode = graph.nodes.find(node =>
+        node.id !== currentNode.id
+        && node.position.x === currentNode.position.x + target.x
+        && node.position.y === currentNode.position.y + target.y
+      );
+      result[direction] = adjacentNode ? resolveRoom(adjacentNode.id) : null;
+    });
     return result;
   }, [allAssets, bitmapRooms, room.id]);
+
+  const diagonalRooms = useMemo(() => {
+    const result: Record<DiagonalDirection, ProjectAsset | null> = {
+      northWest: null,
+      northEast: null,
+      southWest: null,
+      southEast: null,
+    };
+    const worldmapAsset = allAssets.find(asset =>
+      asset.type === 'worldmap'
+      && (asset.data as WorldMapGraph | undefined)?.nodes?.some(node => node.screenAssetId === room.id),
+    );
+    const graph = worldmapAsset?.data as WorldMapGraph | undefined;
+    const currentNode = graph?.nodes.find(node => node.screenAssetId === room.id);
+    if (!graph || !currentNode) return result;
+    const roomById = new Map(bitmapRooms.map(asset => [asset.id, asset]));
+    const step = (graph.gridSize || 20) * 12;
+    const offset: Record<DiagonalDirection, { x: number; y: number }> = {
+      northWest: { x: -step, y: -step },
+      northEast: { x: step, y: -step },
+      southWest: { x: -step, y: step },
+      southEast: { x: step, y: step },
+    };
+    (Object.keys(result) as DiagonalDirection[]).forEach(direction => {
+      const target = offset[direction];
+      const node = graph.nodes.find(item =>
+        item.id !== currentNode.id
+        && item.position.x === currentNode.position.x + target.x
+        && item.position.y === currentNode.position.y + target.y
+      );
+      result[direction] = node ? (roomById.get(node.screenAssetId) ?? null) : null;
+    });
+    return result;
+  }, [allAssets, bitmapRooms, room.id]);
+
+  // World start-screen context: which room is the world's start (so the minimap can badge it),
+  // and whether the current room is that start (so the "mark as start" button reflects state).
+  const worldStart = useMemo(() => {
+    const worldmapAsset = allAssets.find(asset =>
+      asset.type === 'worldmap'
+      && (asset.data as WorldMapGraph | undefined)?.nodes?.some(node => node.screenAssetId === room.id),
+    );
+    const graph = worldmapAsset?.data as WorldMapGraph | undefined;
+    const startNode = graph?.nodes.find(node => node.id === graph.startScreenNodeId);
+    return {
+      hasWorld: !!graph,
+      startRoomId: startNode?.screenAssetId ?? null,
+      currentIsStart: !!startNode && startNode.screenAssetId === room.id,
+    };
+  }, [allAssets, room.id]);
 
   // VRAM budget (realistic): atlas (4bpp) + visible framebuffer (128 bytes/line * height).
   const vramBytes = Math.round((atlasWidth * atlasHeight) / 2) + 128 * roomHeight;
@@ -1139,6 +1303,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     nextGrid: number[][],
     filterNonCopy?: (cmds: Msx2BitmapRoomCommand[]) => Msx2BitmapRoomCommand[],
     nextCollision?: number[][],
+    nextBehavior?: number[][],
   ) => {
     const entries = room.atlas?.entries || [];
     let nonCopy = (room.composition?.commands || []).filter(command => command.op !== 'copy');
@@ -1148,6 +1313,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       tileGrid: nextGrid,
       composition: { source: 'authored', commands: [...nonCopy, ...tileCmds] },
       ...(nextCollision ? { collision: nextCollision } : {}),
+      ...(nextBehavior ? { behavior: nextBehavior } : {}),
     });
   };
 
@@ -1171,10 +1337,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const deleteValue = deleteIndex + 1;
     let clearedCells = 0;
     let nextCollision = room.collision;
+    let nextBehavior = room.behavior;
     const nextGrid = tileGrid.map((row, y) => row.map((value, x) => {
       if (value === deleteValue) {
         clearedCells += 1;
         nextCollision = writeCell(nextCollision, x, y, 0, collisionCols, collisionRows);
+        nextBehavior = writeCell(nextBehavior, x, y, 0, collisionCols, collisionRows);
         return 0;
       }
       return value > deleteValue ? value - 1 : value;
@@ -1204,6 +1372,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       },
       tileGrid: nextGrid,
       collision: nextCollision,
+      behavior: nextBehavior,
       composition: {
         source: room.composition?.source || 'authored',
         commands: [...nonCopy, ...tileCmds],
@@ -1418,6 +1587,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         Array.from({ length: tile.width }, (_col, x) => tile.pixelData[y * tile.width + x] ?? 0)
       ),
       behaviorKind: 'background',
+      collisionFlags: tile.collisionFlags,
+      behaviorCode: tile.behaviorCode,
     }));
 
   const prepareStampForPlacement = (entry: Msx2BitmapStampLibraryEntry) => {
@@ -1458,6 +1629,31 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setStatusBarMessage?.(`SCREEN 5: stamp "${entry.name}" preparado; click en el grid para colocarlo.`);
   };
 
+  // Adapt a stamp with a different palette to the CURRENT screen palette and prepare it
+  // for placement, WITHOUT modifying the screen palette, the stamp asset or the global
+  // library. Each stamp pixel is remapped to the nearest colour/tone of the current
+  // palette; the adapted tiles (not the originals) are what get imported into the atlas.
+  const prepareStampWithCurrentPalette = (entry: Msx2BitmapStampLibraryEntry) => {
+    const adapted = adaptStampEntryToPalette(entry, slots);
+    const { atlas, addedEntries } = importTilesIntoAtlas(
+      {
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels: room.atlas?.pixels,
+        entries: atlasEntries,
+      },
+      stampToAtlasTiles(adapted),
+    );
+    onUpdate({ atlas }); // No palette change: colours already remapped to the current palette.
+    setSelectedStampId(entry.id);
+    setPreparedStamp({ stampId: entry.id, atlasEntryIds: addedEntries.map(atlasEntry => atlasEntry.id) });
+    revealAtlasEntry(addedEntries[0]);
+    setActiveLayer('visual');
+    setTool('brush');
+    setStatusBarMessage?.(`SCREEN 5: stamp "${entry.name}" adaptado a la paleta actual; click en el grid para colocarlo.`);
+  };
+
   // Promote a per-project stamp to the global (cross-project) library so it can be
   // reused in other projects from Libraries→Stamps. Project stamps stay in the project.
   const promoteStampToGlobalLibrary = (entry: Msx2BitmapStampLibraryEntry) => {
@@ -1474,6 +1670,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     }
     const next = tileGrid.map(row => [...row]);
     let nextCollision = room.collision;
+    let nextBehavior = room.behavior;
     for (let index = 0; index < preparedStamp.atlasEntryIds.length; index++) {
       const atlasEntryId = preparedStamp.atlasEntryIds[index];
       const atlasIndex = atlasEntries.findIndex(atlasEntry => atlasEntry.id === atlasEntryId);
@@ -1484,9 +1681,11 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       const targetY = cellY + dy;
       next[targetY][targetX] = atlasIndex + 1;
       const flags = clampByte(atlasEntries[atlasIndex]?.collisionFlags, 0);
+      const behaviorCode = clampByte(atlasEntries[atlasIndex]?.behaviorCode, 0);
       nextCollision = writeCell(nextCollision, targetX, targetY, flags, collisionCols, collisionRows);
+      nextBehavior = writeCell(nextBehavior, targetX, targetY, behaviorCode, collisionCols, collisionRows);
     }
-    applyTileGrid(next, undefined, nextCollision);
+    applyTileGrid(next, undefined, nextCollision, nextBehavior);
     setStatusBarMessage?.(`SCREEN 5: stamp "${entry.name}" colocado en (${cellX}, ${cellY}).`);
     return true;
   };
@@ -1504,7 +1703,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       const next = tileGrid.map(row => [...row]);
       next[cy][cx] = 0;
       const nextCollision = writeCell(room.collision, cx, cy, 0, collisionCols, collisionRows);
-      applyTileGrid(next, nonCopy => nonCopy.filter(command => !commandContainsPoint(command, snapX, snapY)), nextCollision);
+      const nextBehavior = writeCell(room.behavior, cx, cy, 0, collisionCols, collisionRows);
+      applyTileGrid(next, nonCopy => nonCopy.filter(command => !commandContainsPoint(command, snapX, snapY)), nextCollision, nextBehavior);
       return;
     }
     if (tool === 'fill') {
@@ -1531,10 +1731,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
         }
         let nextCollision = room.collision;
+        let nextBehavior = room.behavior;
         paintedCells.forEach(cell => {
           nextCollision = writeCell(nextCollision, cell.x, cell.y, selectedAtlasEntryFlags, collisionCols, collisionRows);
+          nextBehavior = writeCell(nextBehavior, cell.x, cell.y, selectedAtlasEntryBehaviorCode, collisionCols, collisionRows);
         });
-        applyTileGrid(next, undefined, nextCollision);
+        applyTileGrid(next, undefined, nextCollision, nextBehavior);
         return;
       }
       // No tile selected: fall back to a pixel-level colour flood-fill (scanline) using activeColor,
@@ -1598,7 +1800,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const next = tileGrid.map(row => [...row]);
         next[cy][cx] = index + 1;
         const nextCollision = writeCell(room.collision, cx, cy, selectedAtlasEntryFlags, collisionCols, collisionRows);
-        applyTileGrid(next, undefined, nextCollision);
+        const nextBehavior = writeCell(room.behavior, cx, cy, selectedAtlasEntryBehaviorCode, collisionCols, collisionRows);
+        applyTileGrid(next, undefined, nextCollision, nextBehavior);
       }
     } else {
       // No tile selected: paint a single-cell color fill (preserved as a non-'copy' command).
@@ -1768,7 +1971,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       const next = tileGrid.map(row => [...row]);
       next[cellY][cellX] = 0;
       const nextCollision = writeCell(room.collision, cellX, cellY, 0, collisionCols, collisionRows);
-      applyTileGrid(next, nonCopy => nonCopy.filter(command => !commandContainsPoint(command, snapX, snapY)), nextCollision);
+      const nextBehavior = writeCell(room.behavior, cellX, cellY, 0, collisionCols, collisionRows);
+      applyTileGrid(next, nonCopy => nonCopy.filter(command => !commandContainsPoint(command, snapX, snapY)), nextCollision, nextBehavior);
       if (had) setStatusBarMessage?.(`SCREEN 5: tile borrado en celda (${cellX}, ${cellY}).`);
     } else if (activeLayer === 'foreground') {
       paintForegroundAt(px, py, true);
@@ -2023,9 +2227,48 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     : null;
 
   const selectedAtlasEntryFlags = selectedAtlasEntry ? clampByte(selectedAtlasEntry.collisionFlags, 0) : 0;
+  const selectedAtlasEntryBehaviorCode = selectedAtlasEntry ? clampByte(selectedAtlasEntry.behaviorCode, 0) : 0;
+  const getConfigAtlasEntryIds = (): string[] => {
+    if (configTarget !== 'tile') return [];
+    const preparedIds = preparedStamp?.stampId === selectedStampId
+      ? preparedStamp.atlasEntryIds.filter(id => atlasEntries.some(entry => entry.id === id))
+      : [];
+    if (preparedIds.length > 0 && (!selectedAtlasEntry || preparedIds.includes(selectedAtlasEntry.id))) return preparedIds;
+    return selectedAtlasEntry ? [selectedAtlasEntry.id] : [];
+  };
+  const persistPreparedStampTileMetadata = (
+    targetEntryIds: string[],
+    updater: (tile: BitmapTileScreen5) => BitmapTileScreen5,
+  ): boolean => {
+    if (!onUpdateProjectAsset || !selectedStampAsset || !selectedStampEntry || preparedStamp?.stampId !== selectedStampId) return false;
+    const targetSet = new Set(targetEntryIds);
+    const now = Date.now();
+    const updatedTiles = selectedStampEntry.stamp.tiles.map((tile, index) => (
+      targetSet.has(preparedStamp.atlasEntryIds[index]) ? updater(tile) : tile
+    ));
+    const updatedEntry: Msx2BitmapStampLibraryEntry = {
+      ...selectedStampEntry,
+      savedAt: now,
+      stamp: {
+        ...selectedStampEntry.stamp,
+        tiles: updatedTiles,
+        updatedAt: new Date(now).toISOString(),
+      },
+    };
+    onUpdateProjectAsset(selectedStampAsset.id, updatedEntry);
+    return true;
+  };
+  const selectedCellBehaviorCode = selectedCollisionCell
+    ? readCell(room.behavior, selectedCollisionCell.x, selectedCollisionCell.y)
+    : 0;
   const configFlags = configTarget === 'cell' && selectedCollisionCell
     ? readCell(room.collision, selectedCollisionCell.x, selectedCollisionCell.y)
     : selectedAtlasEntryFlags;
+  const configBehaviorCode = configTarget === 'cell' && selectedCollisionCell
+    ? selectedCellBehaviorCode
+    : selectedAtlasEntryBehaviorCode;
+  const formatBehaviorCode = (value: number) =>
+    value === BEHAVIOR_CODE.ice ? `${value} (Ice)` : `${value}`;
 
   // Reflect the selected tile/cell stored collision flags into the checkbox state.
   useEffect(() => {
@@ -2035,9 +2278,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     }
     const next: Record<string, boolean> = {};
     PROPERTY_FLAGS.forEach(flag => { next[flag.key] = (configFlags & PROP_BIT[flag.key]) !== 0; });
+    next.ice = configBehaviorCode === BEHAVIOR_CODE.ice;
     setCellProps(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, selectedAtlasEntry?.id, selectedAtlasEntryFlags]);
+  }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode]);
 
   const toggleProp = (key: string) => {
     const bit = PROP_BIT[key];
@@ -2050,40 +2294,115 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       return;
     }
 
-    if (!selectedAtlasEntry) {
+    const targetEntryIds = getConfigAtlasEntryIds();
+    if (targetEntryIds.length === 0) {
       setStatusBarMessage?.('Selecciona un tile del atlas o una celda del lienzo primero.');
       return;
     }
-    const current = clampByte(selectedAtlasEntry.collisionFlags, 0);
-    const nextValue = (current & bit) ? (current & ~bit) : (current | bit);
-    const entries = atlasEntries.map(entry => entry.id === selectedAtlasEntry.id
-      ? { ...entry, collisionFlags: nextValue }
-      : entry);
-    const selectedTileIndex = atlasEntries.indexOf(selectedAtlasEntry) + 1;
+    const targetSet = new Set(targetEntryIds);
+    const current = selectedAtlasEntry && targetSet.has(selectedAtlasEntry.id)
+      ? clampByte(selectedAtlasEntry.collisionFlags, 0)
+      : clampByte(atlasEntries.find(entry => targetSet.has(entry.id))?.collisionFlags, 0);
+    const turnOn = (current & bit) === 0;
+    const beforeById = new Map(atlasEntries.map(entry => [entry.id, clampByte(entry.collisionFlags, 0)]));
+    const afterById = new Map<string, number>();
+    const entries = atlasEntries.map(entry => {
+      if (!targetSet.has(entry.id)) return entry;
+      const flags = clampByte(entry.collisionFlags, 0);
+      const nextValue = turnOn ? (flags | bit) : (flags & ~bit);
+      afterById.set(entry.id, nextValue);
+      return { ...entry, collisionFlags: nextValue || undefined };
+    });
     let syncedCells = 0;
     let nextCollision = room.collision;
-    if (selectedTileIndex > 0) {
+    atlasEntries.forEach((entry, index) => {
+      if (!targetSet.has(entry.id)) return;
+      const tileIndexToSync = index + 1;
+      const before = beforeById.get(entry.id) ?? 0;
+      const after = afterById.get(entry.id) ?? before;
       tileGrid.forEach((row, y) => {
         row.forEach((tileIndex, x) => {
-          if (tileIndex !== selectedTileIndex) return;
-          if (readCell(nextCollision, x, y) !== current) return;
-          nextCollision = writeCell(nextCollision, x, y, nextValue, collisionCols, collisionRows);
+          if (tileIndex !== tileIndexToSync) return;
+          if (readCell(nextCollision, x, y) !== before) return;
+          nextCollision = writeCell(nextCollision, x, y, after, collisionCols, collisionRows);
           syncedCells++;
         });
       });
-    }
+    });
     onUpdate({
       atlas: { ...room.atlas, entries },
       ...(syncedCells > 0 ? { collision: nextCollision } : {}),
     });
+    const persistedStamp = persistPreparedStampTileMetadata(targetEntryIds, tile => {
+      const flags = clampByte(tile.collisionFlags, 0);
+      const nextValue = turnOn ? (flags | bit) : (flags & ~bit);
+      return { ...tile, collisionFlags: nextValue || undefined, updatedAt: new Date().toISOString() };
+    });
+    const targetLabel = targetEntryIds.length > 1
+      ? `${targetEntryIds.length} tiles del metatile`
+      : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
     setStatusBarMessage?.(
-      `SCREEN 5: ${key} ${(nextValue & bit) ? 'ON' : 'OFF'} en tile "${selectedAtlasEntry.name}"` +
-      (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s).` : '.')
+      `SCREEN 5: ${key} ${turnOn ? 'ON' : 'OFF'} en ${targetLabel}` +
+      (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
+      (persistedStamp ? '; metatile actualizado.' : '.')
+    );
+  };
+
+  const toggleIceSurface = () => {
+    const nextValue = configBehaviorCode === BEHAVIOR_CODE.ice ? BEHAVIOR_CODE.none : BEHAVIOR_CODE.ice;
+    if (configTarget === 'cell' && selectedCollisionCell) {
+      const grown = writeCell(room.behavior, selectedCollisionCell.x, selectedCollisionCell.y, nextValue, collisionCols, collisionRows);
+      onUpdate({ behavior: grown });
+      setStatusBarMessage?.(`SCREEN 5: Ice ${nextValue === BEHAVIOR_CODE.ice ? 'ON' : 'OFF'} en celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}).`);
+      return;
+    }
+
+    const targetEntryIds = getConfigAtlasEntryIds();
+    if (targetEntryIds.length === 0) {
+      setStatusBarMessage?.('Selecciona un tile del atlas o una celda del lienzo primero.');
+      return;
+    }
+    const targetSet = new Set(targetEntryIds);
+    const beforeById = new Map(atlasEntries.map(entry => [entry.id, clampByte(entry.behaviorCode, 0)]));
+    const entries = atlasEntries.map(entry => targetSet.has(entry.id)
+      ? { ...entry, behaviorCode: nextValue || undefined }
+      : entry);
+    let syncedCells = 0;
+    let nextBehavior = room.behavior;
+    atlasEntries.forEach((entry, index) => {
+      if (!targetSet.has(entry.id)) return;
+      const tileIndexToSync = index + 1;
+      const before = beforeById.get(entry.id) ?? 0;
+      tileGrid.forEach((row, y) => {
+        row.forEach((tileIndex, x) => {
+          if (tileIndex !== tileIndexToSync) return;
+          if (readCell(nextBehavior, x, y) !== before) return;
+          nextBehavior = writeCell(nextBehavior, x, y, nextValue, collisionCols, collisionRows);
+          syncedCells++;
+        });
+      });
+    });
+    onUpdate({
+      atlas: { ...room.atlas, entries },
+      ...(syncedCells > 0 ? { behavior: nextBehavior } : {}),
+    });
+    const persistedStamp = persistPreparedStampTileMetadata(targetEntryIds, tile => ({
+      ...tile,
+      behaviorCode: nextValue || undefined,
+      updatedAt: new Date().toISOString(),
+    }));
+    const targetLabel = targetEntryIds.length > 1
+      ? `${targetEntryIds.length} tiles del metatile`
+      : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
+    setStatusBarMessage?.(
+      `SCREEN 5: Ice ${nextValue === BEHAVIOR_CODE.ice ? 'ON' : 'OFF'} en ${targetLabel}` +
+      (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
+      (persistedStamp ? '; metatile actualizado.' : '.')
     );
   };
 
   const selectedCellSlot = selectedCell ? composedPixels[selectedCell.y * GRID]?.[selectedCell.x * GRID] ?? 0 : 0;
-  const statusCategoryLabel = CATEGORIES.find(c => c.key === selectedCategory)?.label || '';
+  const statusCategoryLabel = CATEGORY_FILTERS.find(c => c.key === selectedCategory)?.label || '';
 
   const toolBtn = (key: BrushTool, label: string, icon: React.ReactNode) => (
     <Button size="sm" variant={tool === key ? 'primary' : 'secondary'} icon={icon} onClick={() => setTool(key)}>{label}</Button>
@@ -2108,6 +2427,21 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         <Button size="sm" variant="danger" icon={<EraserIcon />} onClick={handleClearAll} title="Vaciar todo el contenido de la pantalla (tiles, rellenos, capas, entidades, enemigos, objetos y player)">
           Clear All
         </Button>
+        <label className="flex items-center gap-1 text-xs text-msx-textsecondary">
+          <HudIcon />
+          MSX2 HUD
+          <select
+            value={selectedHudAssetId}
+            onChange={event => handleLinkHudAsset(event.target.value)}
+            className="bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-xs text-msx-textprimary min-w-32"
+            title="Selecciona el asset MSX2 HUD que se integrara en la banda superior SCREEN 5; NONE quita el HUD vinculado."
+          >
+            <option value="">NONE</option>
+            {hudAssets.map(asset => (
+              <option key={asset.id} value={asset.id}>{asset.name}</option>
+            ))}
+          </select>
+        </label>
         <span className="ml-auto text-[0.7rem] text-msx-textsecondary pixel-font">Tile Map Editor — MSX2 (SCREEN 5 beta)</span>
       </div>
 
@@ -2214,6 +2548,16 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                       >
                         Colocar
                       </Button>
+                      {!areScreen5PalettesEquivalent(slots, entry.palette) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => prepareStampWithCurrentPalette(entry)}
+                          title="Adapta los colores del stamp a la paleta actual (busca el tono mas cercano de cada slot) y lo deja listo para colocar sin cambiar la paleta de pantalla"
+                        >
+                          Adapt
+                        </Button>
+                      )}
                       {preparedStamp?.stampId === entry.id && (
                         <Button
                           size="sm"
@@ -2266,9 +2610,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Categorías" isOpen={openCategories} onToggle={() => setOpenCategories(v => !v)}>
-            {/* Filters the atlas grid by category inferred from entry names (uncategorized always shown). */}
+            {/* Filters the atlas grid by category inferred from entry names. "Todos" disables filtering. */}
             <div className="grid grid-cols-1 gap-1">
-              {CATEGORIES.map(cat => (
+              {CATEGORY_FILTERS.map(cat => (
                 <button
                   key={cat.key}
                   type="button"
@@ -2571,7 +2915,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 const renderCell = (direction: ConnectionDirection) => {
                   const neighbour = neighbourRooms[direction];
                   if (neighbour) {
-                    return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} />;
+                    return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} isStart={neighbour.id === worldStart.startRoomId} />;
                   }
                   return (
                     <EmptySilhouette
@@ -2581,26 +2925,60 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     />
                   );
                 };
-                const blank = <div className="opacity-0" style={{ aspectRatio: '4 / 3' }} />;
+                const renderDiagonal = (direction: DiagonalDirection) => {
+                  const neighbour = diagonalRooms[direction];
+                  if (!neighbour) return <div className="opacity-0" style={{ aspectRatio: '4 / 3' }} />;
+                  return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} isStart={neighbour.id === worldStart.startRoomId} />;
+                };
                 return (
                   // Scrollable (both axes) so the map can grow without clipping.
                   <div className="overflow-auto" style={{ maxHeight: '13rem' }}>
                     <div className="mx-auto" style={{ width: '15rem', minWidth: '12rem' }}>
                       <div className="grid grid-cols-3 gap-1">
-                        {blank}
+                        {renderDiagonal('northWest')}
                         {renderCell('north')}
-                        {blank}
+                        {renderDiagonal('northEast')}
                         {renderCell('west')}
-                        <RoomMinimapThumb asset={allAssets.find(a => a.id === room.id) ?? ({ id: room.id, name: room.name, type: 'msx2bitmaproom', data: room } as ProjectAsset)} isCurrent paletteSlots={slots} />
+                        <RoomMinimapThumb asset={allAssets.find(a => a.id === room.id) ?? ({ id: room.id, name: room.name, type: 'msx2bitmaproom', data: room } as ProjectAsset)} isCurrent paletteSlots={slots} isStart={worldStart.currentIsStart} />
                         {renderCell('east')}
-                        {blank}
+                        {renderDiagonal('southWest')}
                         {renderCell('south')}
-                        {blank}
+                        {renderDiagonal('southEast')}
                       </div>
                     </div>
                   </div>
                 );
               })()}
+              {/* World start-screen control: marks this room as the world's entry point. */}
+              <div className="mt-2 flex items-center justify-between gap-2 text-[0.65rem]">
+                <span className={worldStart.currentIsStart ? 'text-msx-highlight' : 'text-msx-textsecondary'}>
+                  {worldStart.currentIsStart
+                    ? '★ Pantalla de inicio del mundo'
+                    : worldStart.startRoomId
+                      ? 'Otra pantalla es el inicio'
+                      : 'Sin pantalla de inicio definida'}
+                </span>
+                <button
+                  type="button"
+                  disabled={!onSetWorldStartRoom || worldStart.currentIsStart}
+                  onClick={() => onSetWorldStartRoom?.(room.id)}
+                  title="Marca esta pantalla como punto de inicio del mundo (startScreenNodeId del World Map)"
+                  className="rounded border border-msx-border px-2 py-0.5 text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40 disabled:cursor-default disabled:hover:border-msx-border disabled:hover:text-msx-textsecondary"
+                >
+                  Marcar como inicio
+                </button>
+              </div>
+              {/* Recompose: rebuild the owning WorldMap asset so the WorldView renders correctly
+                  after rooms were deleted/edited (drops orphans + dangling rails, re-lays grid). */}
+              <button
+                type="button"
+                disabled={!onRecomposeWorld || !worldStart.hasWorld}
+                onClick={() => onRecomposeWorld?.(room.id)}
+                title="Reconstruye el asset World Map que contiene esta pantalla: elimina pantallas borradas y recoloca el grid. Después la World View se verá bien."
+                className="mt-1 w-full rounded border border-msx-accent px-2 py-1 text-[0.7rem] text-msx-accent hover:bg-msx-accent/15 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                Reconstruir World Map
+              </button>
             </CollapsiblePanel>
           </div>
         </main>
@@ -2621,6 +2999,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 </div>
                 <div className="text-xs text-msx-textsecondary space-y-0.5">
                   <div>ID: <span className="text-msx-textprimary">{selectedAtlasEntry ? toHex(atlasEntries.indexOf(selectedAtlasEntry)) : '--'}</span></div>
+                  <div>Behavior: <span className="text-msx-textprimary">{selectedAtlasEntry ? formatBehaviorCode(selectedAtlasEntryBehaviorCode) : '--'}</span></div>
                   <div>Categoría: <span className="text-msx-textprimary">{statusCategoryLabel || 'Suelo'}</span></div>
                 </div>
               </div>
@@ -2634,6 +3013,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 <div className="text-xs text-msx-textsecondary space-y-0.5">
                   <div>X: <span className="text-msx-textprimary">{selectedCell?.x ?? '--'}</span> &nbsp; Y: <span className="text-msx-textprimary">{selectedCell?.y ?? '--'}</span></div>
                   <div>Tile: <span className="text-msx-textprimary">{toHex(selectedCellSlot)}</span></div>
+                  <div>Behavior: <span className="text-msx-textprimary">{selectedCollisionCell ? formatBehaviorCode(selectedCellBehaviorCode) : '--'}</span></div>
                 </div>
               </div>
             </div>
@@ -2667,7 +3047,52 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                   {flag.label}
                 </label>
               ))}
+              <label className="flex items-center gap-1 text-xs text-msx-textsecondary">
+                <input type="checkbox" checked={!!cellProps.ice} onChange={toggleIceSurface} />
+                Ice (behavior=3)
+              </label>
             </div>
+            <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-[0.65rem] text-msx-textsecondary">
+              {configTarget === 'cell' && selectedCollisionCell
+                ? 'Editas solo la celda seleccionada; marca Ice para escribir behavior=3 en esa celda.'
+                : 'Editas el tile del atlas; marca Ice para que ese tile pinte behavior=3 y sincronice sus celdas ya colocadas.'}
+            </div>
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="HUD" isOpen={openHud} onToggle={() => setOpenHud(v => !v)}>
+            <div className="text-[0.65rem] text-msx-textsecondary mb-2">
+              Vincula un asset MSX2 HUD (diseñado en el Mideas HUD Editor) a esta room. El HUD se dibuja siempre encima de la banda superior de 20px de SCREEN 5.
+            </div>
+            <select
+              value={selectedHudAssetId}
+              onChange={event => handleLinkHudAsset(event.target.value)}
+              className="w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-xs text-msx-textprimary mb-2"
+            >
+              <option value="">NONE</option>
+              {hudAssets.map(asset => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={handleCreateAndLinkHud} className="flex-1">
+                Crear y vincular
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<HudIcon />}
+                disabled={!linkedHudAsset}
+                onClick={() => linkedHudAsset && onOpenHudAsset?.(linkedHudAsset.id)}
+                className="flex-1"
+              >
+                Editar HUD
+              </Button>
+            </div>
+            {linkedHudAsset && (
+              <div className="mt-2 text-[0.65rem] text-msx-textsecondary">
+                Vinculado: <span className="text-msx-textprimary">{linkedHudAsset.name}</span>
+              </div>
+            )}
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Grid Options" isOpen={openGridOptions} onToggle={() => setOpenGridOptions(v => !v)}>

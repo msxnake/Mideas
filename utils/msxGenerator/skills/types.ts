@@ -36,8 +36,10 @@ export interface SkillDef {
   cycles: number;
   addsStates: PlayerState[];
   transitions: StateTransition[];
-  /** Which control icon(s) this skill responds to. `['down', 'jump']` = Down + A. undefined = automatic. */
+  /** Which control icon(s) this skill responds to. `['down', 'jump']` = Down + A by default. undefined = automatic. */
   controlIcon?: SkillControlIcon | SkillControlIcon[];
+  /** How multiple control icons combine in UI declarations. Default: 'and'. */
+  controlOperator?: 'and' | 'or';
   /**
    * Declarative parameter schema surfaced in the Player Config "Abilities & Items"
    * dialog. Optional skills with parameters (e.g. double_jump) are read by the

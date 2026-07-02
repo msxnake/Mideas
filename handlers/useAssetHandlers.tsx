@@ -3,7 +3,7 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph, Msx2GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
-  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen5BitmapRoom, Msx2PlayerDefinition
+  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2HudAsset, Msx2Screen5BitmapRoom, Msx2PlayerDefinition
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -629,6 +629,27 @@ export const useAssetHandlers = ({
         } as Msx2HudFontAsset;
         newEditorType = EditorType.Msx2HudFont;
         break;
+      case 'msx2hud':
+        defaultName = 'New MSX2 HUD';
+        newAssetData = {
+          target: 'MSX2',
+          width: 256,
+          height: 20,
+          layers: [
+            {
+              id: `hud_layer_${Date.now()}`,
+              name: 'Background',
+              kind: 'paint',
+              visible: true,
+              locked: false,
+              pixels: Array.from({ length: 20 }, () => new Array(256).fill(-1)),
+            },
+          ],
+          icons: [],
+          notes: 'Standalone HUD asset for SCREEN 5 bitmap rooms. Link it from a room via runtime.hudAssetId.',
+        } as Msx2HudAsset;
+        newEditorType = EditorType.Msx2HudEditor;
+        break;
       case 'msx2presentation':
         defaultName = 'New MSX2 SCREEN 5 Presentation';
         newAssetData = {
@@ -990,6 +1011,7 @@ export const useAssetHandlers = ({
       case 'msx2player': return EditorType.Msx2Player;
       case 'msx2enemy': return EditorType.Msx2Enemy;
       case 'msx2hudfont': return EditorType.Msx2HudFont;
+      case 'msx2hud': return EditorType.Msx2HudEditor;
       case 'msx2presentation': return EditorType.Msx2Presentation;
       case 'msx2gameflow': return EditorType.Msx2GameFlow;
       case 'font': return EditorType.Font;

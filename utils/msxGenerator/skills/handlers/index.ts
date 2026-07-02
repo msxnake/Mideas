@@ -833,7 +833,7 @@ export const crouch: SkillDef = {
   id: 'crouch',
   label: 'Crouch',
   required: false,
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 40,
   controlIcon: 'down',
   addsStates: ['crouching', 'sliding'],
@@ -1494,4 +1494,63 @@ export const powerStomp: SkillDef = {
   ],
   supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: powerStompParameters,
+};
+
+export const iceSlideParameters: SkillParameterDef[] = [
+  {
+    key: 'surfaceCode',
+    label: 'Ice behavior code',
+    type: 'number',
+    default: 3,
+    min: 1,
+    max: 255,
+    step: 1,
+    help: 'Behavior-layer cell value treated as slippery ice under the player feet.',
+  },
+  {
+    key: 'maxSlideSpeed',
+    label: 'Max slide speed (px/frame)',
+    type: 'number',
+    default: 4,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Maximum horizontal inertia while standing on ice.',
+  },
+  {
+    key: 'accelerationFrames',
+    label: 'Acceleration frames',
+    type: 'number',
+    default: 2,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Frames between each 1px/frame acceleration step on ice.',
+  },
+  {
+    key: 'frictionFrames',
+    label: 'Friction frames',
+    type: 'number',
+    default: 8,
+    min: 1,
+    max: 32,
+    step: 1,
+    help: 'Frames between each 1px/frame slowdown step after releasing input on ice.',
+  },
+];
+
+export const iceSlide: SkillDef = {
+  id: 'ice_slide',
+  label: 'Ice slide',
+  required: false,
+  cycles: 60,
+  controlIcon: ['left', 'right'],
+  controlOperator: 'or',
+  addsStates: ['sliding'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'sliding', condition: 'on_ice AND horizontal_speed != 0' },
+    { from: ['sliding'], to: 'grounded', condition: 'NOT on_ice OR horizontal_speed = 0' },
+  ],
+  supportedBackends: ['msx2-screen4-bitmap-room'],
+  parameters: iceSlideParameters,
 };
