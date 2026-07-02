@@ -7,7 +7,7 @@ import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import {
-  HudIcon, EyeIcon, EyeOffIcon, LockIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon,
+  HudIcon, EyeIcon, EyeOffIcon, LockIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon,
   PencilIcon, EraserIcon, PaintBrushIcon, ContourIcon, ZoomInIcon, ZoomOutIcon, PlusCircleIcon, ImageIcon,
 } from '../icons/MsxIcons';
 
@@ -801,6 +801,19 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     onUpdate({ icons: icons.map(i => (i.id === id ? { ...i, width, height, pixels } : i)) });
   };
 
+  // Shifts an icon's pixels by 1px within its fixed-size grid. The row/column
+  // pushed past the edge is discarded; the row/column left behind on the
+  // opposite side becomes transparent (classic sprite-editor "nudge").
+  const nudgeIcon = (id: string, dx: number, dy: number) => {
+    const icon = icons.find(i => i.id === id);
+    if (!icon) return;
+    const { width, height } = icon;
+    const pixels = Array.from({ length: height }, (_, y) => (
+      Array.from({ length: width }, (_, x) => icon.pixels[y - dy]?.[x - dx] ?? TRANSPARENT)
+    ));
+    onUpdate({ icons: icons.map(i => (i.id === id ? { ...i, pixels } : i)) });
+  };
+
   const deleteIcon = (id: string) => {
     onUpdate({ icons: icons.filter(icon => icon.id !== id) });
     if (selectedIconId === id) setSelectedIconId(undefined);
@@ -1110,6 +1123,15 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width, selectedIcon.height - 1)}>-</Button>
                         <span className="w-5 text-center">{selectedIcon.height}</span>
                         <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width, selectedIcon.height + 1)}>+</Button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-msx-textsecondary">Move</span>
+                        <Button size="sm" variant="ghost" title="Nudge left" icon={<ArrowLeftIcon />} onClick={() => nudgeIcon(selectedIcon.id, -1, 0)} />
+                        <div className="flex flex-col gap-0.5">
+                          <Button size="sm" variant="ghost" title="Nudge up" icon={<ArrowUpIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, -1)} />
+                          <Button size="sm" variant="ghost" title="Nudge down" icon={<ArrowDownIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, 1)} />
+                        </div>
+                        <Button size="sm" variant="ghost" title="Nudge right" icon={<ArrowRightIcon />} onClick={() => nudgeIcon(selectedIcon.id, 1, 0)} />
                       </div>
                     </div>
                     <div
