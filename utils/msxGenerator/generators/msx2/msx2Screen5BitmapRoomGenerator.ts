@@ -4878,6 +4878,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // resolveLinkedHudAsset / buildBitmapHudSeedPixels / buildBitmapHudLinked*Asm.
   const linkedHudAsset = resolveLinkedHudAsset(analysis, room.runtime?.hudAssetId);
   const hudGloballyHidden = room.runtime?.showHud === false || room.runtime?.hideHud === true;
+  // A linked HUD asset owns the SCREEN 5 HUD band. In that mode the legacy
+  // automatic hearts HUD is fully disabled: no routines, no calls, no heart RLE
+  // resources. Selecting NONE in the editor restores this classic fallback.
+  const useClassicHeartsHud = !linkedHudAsset && !hudGloballyHidden;
   const linkedHudFont = linkedHudAsset ? getBitmapHudFontAsset(analysis, room) : undefined;
   const linkedHudDynamicSources = linkedHudAsset && !hudGloballyHidden ? collectLinkedHudDynamicSources(linkedHudAsset) : [];
   // Offscreen tile/glyph source rows for linked dynamic widgets, stacked right after
@@ -4887,7 +4891,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // 'bar' widgets are EXCLUDED: they draw with HMMV fills (no source tile), so they
   // consume neither an offscreen slot nor the VRAM collision budget.
   const tileBasedHudSources = linkedHudDynamicSources.filter(source => source.kind !== 'bar');
-  const LINKED_HUD_TILE_BASE_Y = BITMAP_HUD_HEART_TILE_Y + BITMAP_HUD_HEART_NY;
+  const LINKED_HUD_TILE_BASE_Y = useClassicHeartsHud
+    ? BITMAP_HUD_HEART_TILE_Y + BITMAP_HUD_HEART_NY
+    : BITMAP_HUD_HEART_TILE_Y;
   if (LINKED_HUD_TILE_BASE_Y + (tileBasedHudSources.length * 16) > BITMAP_ROOM_ATLAS_BASE_Y) {
     throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many tile/glyph dynamic widgets (${tileBasedHudSources.length}); offscreen VRAM would collide with the shared tileset atlas. Reduce the number of iconRow/icon/counter widgets.`);
   }
@@ -4907,10 +4913,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
-  // Hearts HUD tiles (16x16 full + 16x16 empty outline, side by side = 32x16
-  // 4bpp blob) uploaded once to the fixed page-0 offscreen slot at VRAM #7000.
-  const heartTileBytes = packBitmapPixels(buildBitmapHeartTilePixels());
-  const heartRleChunks = buildRleChunksForVram(heartTileBytes, BITMAP_HUD_HEART_VRAM, 'bitmap_room_hud_heart_rle_chunk');
+  // Classic automatic hearts HUD tiles (16x16 full + 16x16 empty outline, side
+  // by side = 32x16 4bpp blob). They are emitted only when no linked HUD asset
+  // owns the HUD band; otherwise the linked HUD's tile/glyph data reuses the
+  // same offscreen VRAM row and the ROM does not carry dead heart resources.
+  const heartTileBytes = useClassicHeartsHud ? packBitmapPixels(buildBitmapHeartTilePixels()) : [];
+  const heartRleChunks = useClassicHeartsHud
+    ? buildRleChunksForVram(heartTileBytes, BITMAP_HUD_HEART_VRAM, 'bitmap_room_hud_heart_rle_chunk')
+    : [];
   // Per-room render program (command blocks) + collision map.
   const roomTables = rooms.map((roomData, index) => {
     const renderPage0 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE0_BASE_Y);
@@ -4944,7 +4954,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
       ...buildBankedRleDataBlocks(tilesetRleChunks, `Shared world tileset (atlas), packed 4bpp RLE`),
-      ...buildBankedRleDataBlocks(heartRleChunks, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE`),
+      ...(useClassicHeartsHud ? buildBankedRleDataBlocks(heartRleChunks, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE`) : []),
       ...linkedHudTileData.flatMap(entry => buildBankedRleDataBlocks(entry.rleChunks, `Linked HUD dynamic widget #${entry.index} (${entry.kind}) tile/glyph data, packed 4bpp RLE`)),
     ]
     : [];
@@ -4958,10 +4968,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const tilesetDataAsm = isKonamiMegaRom
     ? `; Shared world tileset RLE is emitted in Konami MegaROM data banks below.\n`
     : formatRleChunks(tilesetRleChunks, tilesetBytes.length, `Shared world tileset (atlas), packed 4bpp RLE, destination VRAM ${hexVram(atlasVramBase)}`);
-  const heartUploadAsm = buildRleUploadAsm(heartRleChunks, isKonamiMegaRom);
-  const heartDataAsm = isKonamiMegaRom
-    ? `; Hearts HUD tiles RLE is emitted in Konami MegaROM data banks below.\n`
-    : formatRleChunks(heartRleChunks, heartTileBytes.length, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE, destination VRAM ${hexVram(BITMAP_HUD_HEART_VRAM)}`);
+  const heartUploadAsm = useClassicHeartsHud ? buildRleUploadAsm(heartRleChunks, isKonamiMegaRom) : '';
+  const heartDataAsm = useClassicHeartsHud
+    ? (isKonamiMegaRom
+        ? `; Hearts HUD tiles RLE is emitted in Konami MegaROM data banks below.\n`
+        : formatRleChunks(heartRleChunks, heartTileBytes.length, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE, destination VRAM ${hexVram(BITMAP_HUD_HEART_VRAM)}`))
+    : `; Classic hearts HUD disabled: linked MSX2 HUD asset owns the HUD band.\n`;
   // Upload ASM + raw data section for every linked HUD dynamic widget's tile/glyph blob.
   // (Per-entry upload ASM is precomputed in linkedHudTileData; 'bar' widgets have no
   // tile/glyph data and are omitted here.)
@@ -5025,9 +5037,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Only the classic zero-config fallback when no MSX2 HUD asset is linked (byte-
   // identical ROM for projects that never touch the Msx2HudEditor); a linked HUD
   // asset takes over the whole HUD (see linkedHud* below).
-  const heartsHud = linkedHudAsset
-    ? { equates: '', initAsm: '', mainLoopCall: '', routinesAsm: '' }
-    : buildBitmapHeartsHudAsm(playerVitals.maxHealth, heartUploadAsm);
+  const heartsHud = useClassicHeartsHud
+    ? buildBitmapHeartsHudAsm(playerVitals.maxHealth, heartUploadAsm)
+    : { equates: '', initAsm: '', mainLoopCall: '', routinesAsm: '' };
   // DASH skill (pilot): config from the linked Player Config; the ASM uses the
   // bitmap room's own collision/move primitives (no SCREEN 4 routines reused).
   const dashConfig = getMsx2DashConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));

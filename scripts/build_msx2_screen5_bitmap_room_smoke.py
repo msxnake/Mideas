@@ -1016,6 +1016,14 @@ def main() -> int:
         ):
             if marker not in asm_text:
                 raise RuntimeError(f"Linked HUD bar marker missing in ASM: {marker}")
+        for forbidden in (
+            "update_hud_hearts:",
+            "upload_hud_hearts:",
+            "hud_hearts_drawn EQU",
+            "bitmap_room_hud_heart_rle_chunk",
+        ):
+            if forbidden in asm_text:
+                raise RuntimeError(f"Linked HUD asset must disable the automatic hearts HUD, but ASM still contains: {forbidden}")
 
     if not args.skip_openmsx:
         probe_output = screenshot_output.with_suffix(".probe.txt")
