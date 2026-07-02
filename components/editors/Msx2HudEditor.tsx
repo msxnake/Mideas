@@ -908,6 +908,27 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      // Arrow keys nudge the selected widget: 1px, or 8px with Shift held.
+      const arrowDelta: Record<string, { dx: number; dy: number }> = {
+        ArrowLeft: { dx: -1, dy: 0 },
+        ArrowRight: { dx: 1, dy: 0 },
+        ArrowUp: { dx: 0, dy: -1 },
+        ArrowDown: { dx: 0, dy: 1 },
+      };
+      const delta = arrowDelta[event.key];
+      if (delta) {
+        if (!selectedLayer || selectedLayer.kind !== 'widget' || selectedLayer.locked) return;
+        const step = event.shiftKey ? 8 : 1;
+        const el = selectedLayer.element;
+        const nextX = Math.max(0, Math.min(HUD_WIDTH - el.width, el.x + delta.dx * step));
+        const nextY = Math.max(0, Math.min(HUD_HEIGHT - el.height, el.y + delta.dy * step));
+        if (nextX !== el.x || nextY !== el.y) updateElement(selectedLayer.id, { x: nextX, y: nextY });
+        event.preventDefault();
+        return;
+      }
+
+      if (event.shiftKey) return;
       const tool = TOOLS.find(t => t.shortcut.toLowerCase() === event.key.toLowerCase());
       if (tool) {
         setActiveTool(tool.id);
@@ -916,7 +937,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [selectedLayer, updateElement]);
 
   return (
     <>
