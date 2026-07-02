@@ -465,6 +465,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
   const [previewPoints, setPreviewPoints] = useState<{ x: number; y: number }[] | null>(null);
   // --- Phase 1 editor chrome state ---
   const [previewScale, setPreviewScale] = useState(2); // integer scale for the full-screen preview
+  const [showFullPreview, setShowFullPreview] = useState(true); // collapses the large full-screen preview panel
   const [showHudArea, setShowHudArea] = useState(true); // highlight the 20-row HUD band in the preview
   const [showGrid, setShowGrid] = useState(true); // 1px pixel grid on the edit canvas
   const [showMovePattern, setShowMovePattern] = useState(true); // Assets tab: icon "Move pattern" mini-window visibility
@@ -1010,12 +1011,16 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
             <div className="flex items-center gap-3 mb-1 text-xs text-msx-textsecondary">
               <span>Full Screen Preview (256×212 · HUD 20 + game 192)</span>
               <label className="flex items-center gap-1">
+                <input type="checkbox" checked={showFullPreview} onChange={e => setShowFullPreview(e.target.checked)} />
+                Show Preview
+              </label>
+              <label className="flex items-center gap-1">
                 <input type="checkbox" checked={showHudArea} onChange={e => setShowHudArea(e.target.checked)} />
                 Show HUD Area
               </label>
-              <label className="flex items-center gap-1">
+              <label className={`flex items-center gap-1 ${showFullPreview ? '' : 'opacity-50'}`}>
                 Scale
-                <select value={previewScale} onChange={e => setPreviewScale(Number(e.target.value) || 1)} className="bg-msx-bgcolor border border-msx-border rounded px-1">
+                <select value={previewScale} disabled={!showFullPreview} onChange={e => setPreviewScale(Number(e.target.value) || 1)} className="bg-msx-bgcolor border border-msx-border rounded px-1 disabled:opacity-50">
                   <option value={1}>1×</option>
                   <option value={2}>2×</option>
                   <option value={3}>3×</option>
@@ -1023,7 +1028,9 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                 </select>
               </label>
             </div>
-            <canvas ref={previewRef} style={{ imageRendering: 'pixelated', border: '1px solid #444' }} />
+            {showFullPreview && (
+              <canvas ref={previewRef} style={{ imageRendering: 'pixelated', border: '1px solid #444' }} />
+            )}
           </div>
         </div>
 
