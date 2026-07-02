@@ -881,7 +881,13 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
         </div>
 
         {/* Right: Inspector/Palette/Assets tabs + Layers/Library */}
-        <div className="w-72 border-l border-msx-border flex-shrink-0 flex flex-col overflow-hidden">
+        <div className="w-72 border-l border-msx-border flex-shrink-0 flex flex-col overflow-hidden gap-2 p-2">
+          <Panel
+            title="Inspector"
+            collapsible
+            className="flex-grow flex flex-col min-h-0"
+            bodyClassName="flex-1 flex flex-col overflow-hidden p-0"
+          >
           <div className="flex border-b border-msx-border">
             {(['inspector', 'palette', 'assets'] as const).map(tab => (
               <button
@@ -1082,14 +1088,16 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
               </div>
             )}
           </div>
+          </Panel>
 
           {/* Layers panel */}
-          <div className="border-t border-msx-border flex flex-col" style={{ maxHeight: '35%' }}>
-            <div className="flex items-center justify-between px-2 py-1 border-b border-msx-border">
-              <h4 className="text-xs pixel-font text-msx-highlight">Layers</h4>
-              <Button size="sm" variant="ghost" icon={<PlusCircleIcon />} onClick={addPaintLayer}>Paint layer</Button>
-            </div>
-            <div className="overflow-y-auto flex-1">
+          <Panel
+            title="Layers"
+            collapsible
+            className="flex-shrink-0 flex flex-col max-h-[35%]"
+            bodyClassName="overflow-y-auto flex-1 p-0"
+            headerButtons={<Button size="sm" variant="ghost" icon={<PlusCircleIcon />} onClick={addPaintLayer}>Paint layer</Button>}
+          >
               {layers.map(layer => (
                 <div
                   key={layer.id}
@@ -1108,12 +1116,15 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                   <button type="button" onClick={e => { e.stopPropagation(); deleteLayer(layer.id); }} className="text-msx-danger"><TrashIcon /></button>
                 </div>
               ))}
-            </div>
-          </div>
+          </Panel>
 
           {/* Widget library */}
-          <div className="border-t border-msx-border p-2" style={{ maxHeight: '30%', overflowY: 'auto' }}>
-            <h4 className="text-xs pixel-font text-msx-highlight mb-1">Widgets / Library</h4>
+          <Panel
+            title="Widgets / Library"
+            collapsible
+            className="flex-shrink-0 flex flex-col max-h-[30%]"
+            bodyClassName="p-2 overflow-y-auto"
+          >
             <div className="grid grid-cols-3 gap-1">
               {WIDGET_TEMPLATES.map(template => (
                 <button
@@ -1127,7 +1138,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                 </button>
               ))}
             </div>
-          </div>
+          </Panel>
         </div>
       </div>
       {/* Status bar */}
