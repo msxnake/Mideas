@@ -426,6 +426,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
   const [previewScale, setPreviewScale] = useState(2); // integer scale for the full-screen preview
   const [showHudArea, setShowHudArea] = useState(true); // highlight the 20-row HUD band in the preview
   const [showGrid, setShowGrid] = useState(true); // 1px pixel grid on the edit canvas
+  const [showMovePattern, setShowMovePattern] = useState(true); // Assets tab: icon "Move pattern" mini-window visibility
   const [snap, setSnap] = useState(true); // pixel snap (canvas is pixel-precise; informational + future use)
   // Rulers + status bar use refs to avoid re-rendering on every mouse move / stroke.
   const rulerXRef = useRef<HTMLCanvasElement>(null);
@@ -1124,15 +1125,6 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         <span className="w-5 text-center">{selectedIcon.height}</span>
                         <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width, selectedIcon.height + 1)}>+</Button>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-msx-textsecondary">Move</span>
-                        <Button size="sm" variant="ghost" title="Nudge left" icon={<ArrowLeftIcon />} onClick={() => nudgeIcon(selectedIcon.id, -1, 0)} />
-                        <div className="flex flex-col gap-0.5">
-                          <Button size="sm" variant="ghost" title="Nudge up" icon={<ArrowUpIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, -1)} />
-                          <Button size="sm" variant="ghost" title="Nudge down" icon={<ArrowDownIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, 1)} />
-                        </div>
-                        <Button size="sm" variant="ghost" title="Nudge right" icon={<ArrowRightIcon />} onClick={() => nudgeIcon(selectedIcon.id, 1, 0)} />
-                      </div>
                     </div>
                     <div
                       className="grid border border-msx-border"
@@ -1146,6 +1138,34 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                           style={{ width: 10, height: 10, backgroundColor: c >= 0 ? (slots[c]?.hex || '#fff') : '#222', border: '1px solid rgba(255,255,255,0.05)' }}
                         />
                       )))}
+                    </div>
+
+                    {/* Move pattern mini-window: nudges the icon's pixels within its fixed
+                        grid. Edge-clip (not wrap): pixels pushed past a border are lost. */}
+                    <div className="mt-2 border border-msx-border rounded">
+                      <div className="flex items-center justify-between px-2 py-1 border-b border-msx-border">
+                        <span className="text-msx-highlight text-[0.65rem] pixel-font">Move pattern</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowMovePattern(v => !v)}
+                          className="text-msx-textsecondary hover:text-msx-highlight"
+                          title={showMovePattern ? 'Hide move pattern' : 'Show move pattern'}
+                          aria-label={showMovePattern ? 'Hide move pattern' : 'Show move pattern'}
+                        >
+                          {showMovePattern ? <EyeIcon /> : <EyeOffIcon />}
+                        </button>
+                      </div>
+                      {showMovePattern && (
+                        <div className="p-2 flex flex-col items-center gap-1">
+                          <Button size="sm" variant="ghost" title="Nudge up" icon={<ArrowUpIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, -1)} />
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" title="Nudge left" icon={<ArrowLeftIcon />} onClick={() => nudgeIcon(selectedIcon.id, -1, 0)} />
+                            <Button size="sm" variant="ghost" title="Nudge right" icon={<ArrowRightIcon />} onClick={() => nudgeIcon(selectedIcon.id, 1, 0)} />
+                            <Button size="sm" variant="ghost" title="Nudge down" icon={<ArrowDownIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, 1)} />
+                          </div>
+                          <span className="text-[0.6rem] text-msx-textsecondary text-center">Pixels pushed past an edge are lost.</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
