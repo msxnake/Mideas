@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { 
-  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, Msx2HudAsset, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
+  EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, Msx2HudAsset, Msx2HudIconEntry, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, WorldMapConnection, WorldMapScreenNode, ConnectionDirection, PSGSoundData,
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
@@ -52,6 +52,7 @@ import { Msx2EntityLibraryModal } from './modals/Msx2EntityLibraryModal';
 import { Msx2StampLibraryModal } from './modals/Msx2StampLibraryModal';
 import { Msx2SpriteLibraryModal } from './modals/Msx2SpriteLibraryModal';
 import { Msx2TileLibraryModal } from './modals/Msx2TileLibraryModal';
+import { Msx2HudIconLibraryModal } from './modals/Msx2HudIconLibraryModal';
 import { getUsedMsx2SpritePaletteSlots, reconcileMsx2SpriteIntoProjectPalette } from '../utils/msx2PaletteCompatibility';
 import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
@@ -534,6 +535,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [isMsx2StampLibraryOpen, setIsMsx2StampLibraryOpen] = useState(false);
   const [isMsx2SpriteLibraryOpen, setIsMsx2SpriteLibraryOpen] = useState(false);
   const [isMsx2TileLibraryOpen, setIsMsx2TileLibraryOpen] = useState(false);
+  const [isMsx2HudIconLibraryOpen, setIsMsx2HudIconLibraryOpen] = useState(false);
   const [selectedScreenCatalogBlock, setSelectedScreenCatalogBlock] = useState<TileStamp | null>(null);
 
   const handleEditGeneratedFile = React.useCallback((filename: string, content: string) => {
@@ -1202,6 +1204,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenMsx2SpriteLibrary={() => setIsMsx2SpriteLibraryOpen(true)}
         onOpenMsx2TileLibrary={() => setIsMsx2TileLibraryOpen(true)}
         onOpenMsx2StampLibrary={() => setIsMsx2StampLibraryOpen(true)}
+        onOpenMsx2HudIconLibrary={() => setIsMsx2HudIconLibraryOpen(true)}
         onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
         onOpenPngMsxTool={() => {
@@ -1374,6 +1377,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               asset={activeAsset.data as Msx2HudAsset}
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               allAssets={assets}
+              setStatusBarMessage={setStatusBarMessage}
             />
           )}
           {currentEditor === EditorType.Boss && activeAsset?.type === 'boss' && ( <BossEditor boss={activeAsset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onUpdateTileBank={handleUpdateBossTileBank} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} zoom={bossEditorZoom} setZoom={setBossEditorZoom} copiedBossPhase={copiedBossPhase} setCopiedBossPhase={setCopiedBossPhase} /> )}
@@ -1825,6 +1829,22 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               }
               setStatusBarMessage(`Importados ${tiles.length} tile(s) a "${activeMsx2ScreenAsset.name}".`);
             }}
+        />
+      )}
+      {isMsx2HudIconLibraryOpen && (
+        <Msx2HudIconLibraryModal
+            isOpen={isMsx2HudIconLibraryOpen}
+            onClose={() => setIsMsx2HudIconLibraryOpen(false)}
+            setStatusBarMessage={setStatusBarMessage}
+            onImportIcon={activeAsset?.type === 'msx2hud' ? (icon) => {
+              // Icons live nested in Msx2HudAsset.icons[], not as standalone
+              // project assets — append with a fresh id so re-importing the
+              // same library entry never collides with an existing icon.
+              const hudAsset = activeAsset.data as Msx2HudAsset;
+              const existingIcons = hudAsset.icons || [];
+              const newIcon: Msx2HudIconEntry = { ...icon, id: `hud_icon_lib_import_${Date.now()}`, pixels: icon.pixels.map(row => [...row]) };
+              handleUpdateAsset(activeAsset.id, { icons: [...existingIcons, newIcon] });
+            } : undefined}
         />
       )}
       {isSpriteFramesModalOpen && (

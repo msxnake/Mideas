@@ -4,11 +4,14 @@ import {
   Msx2HudWidgetBinding, ProjectAsset, PaletteAsset, Screen5PaletteSlot,
 } from '../../types';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { addEntryToMsx2HudIconLibrary } from '../../utils/msx2HudIconLibrary';
+import { Msx2HudIconLibraryModal } from '../modals/Msx2HudIconLibraryModal';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import {
   HudIcon, EyeIcon, EyeOffIcon, LockIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon,
   PencilIcon, EraserIcon, PaintBrushIcon, ContourIcon, ZoomInIcon, ZoomOutIcon, PlusCircleIcon, ImageIcon,
+  LoadIcon, SaveIcon,
 } from '../icons/MsxIcons';
 
 const HUD_WIDTH = 256;
@@ -409,9 +412,10 @@ interface Msx2HudEditorProps {
   asset: Msx2HudAsset;
   onUpdate: (data: Partial<Msx2HudAsset>) => void;
   allAssets?: ProjectAsset[];
+  setStatusBarMessage?: (message: string) => void;
 }
 
-export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, allAssets = [] }) => {
+export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, allAssets = [], setStatusBarMessage }) => {
   const layers = asset.layers || [];
   const icons = asset.icons || [];
   const [selectedLayerId, setSelectedLayerId] = useState<string | undefined>(layers[0]?.id);
@@ -421,6 +425,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
   const [rightTab, setRightTab] = useState<'inspector' | 'palette' | 'assets'>('inspector');
   const [selectedIconId, setSelectedIconId] = useState<string | undefined>(icons[0]?.id);
   const [iconTool, setIconTool] = useState<'paint' | 'fill'>('paint'); // Assets tab: icon pixel editor active tool
+  const [isIconLibraryOpen, setIsIconLibraryOpen] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; mode: 'paint' | 'move'; grabDx?: number; grabDy?: number } | null>(null);
   const [previewPoints, setPreviewPoints] = useState<{ x: number; y: number }[] | null>(null);
   // --- Phase 1 editor chrome state ---
@@ -781,6 +786,21 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     setSelectedIconId(icon.id);
   };
 
+  /** Saves the selected icon (with the active palette, for portable previews) to the global HUD icon library. */
+  const exportSelectedIconToLibrary = () => {
+    if (!selectedIcon) return;
+    const entry = addEntryToMsx2HudIconLibrary(selectedIcon, slots, selectedIcon.name);
+    setStatusBarMessage?.(`Exported "${entry.name}" to the HUD icon library.`);
+  };
+
+  /** Imports a library icon into this HUD asset's icon atlas with a fresh id. */
+  const importIconFromLibrary = (libraryIcon: Msx2HudIconEntry) => {
+    const icon: Msx2HudIconEntry = { ...libraryIcon, id: uid('hud_icon'), pixels: libraryIcon.pixels.map(row => [...row]) };
+    onUpdate({ icons: [...icons, icon] });
+    setSelectedIconId(icon.id);
+    setIsIconLibraryOpen(false);
+  };
+
   const updateIconPixel = (x: number, y: number) => {
     if (!selectedIcon) return;
     const next = clonePixels(selectedIcon.pixels);
@@ -864,6 +884,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
   }, []);
 
   return (
+    <>
     <Panel title="Mideas HUD Editor" icon={<HudIcon />} className="flex-grow flex flex-col bg-msx-bgcolor min-h-0" bodyClassName="p-0 flex-grow flex flex-col overflow-hidden min-h-0">
       {/* Fixed HUD-area restriction warning */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1 bg-yellow-900/40 border-b border-yellow-700/60 text-yellow-200 text-xs" style={{ userSelect: 'none' }}>
@@ -1116,7 +1137,10 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
 
             {rightTab === 'assets' && (
               <div className="space-y-2 text-xs">
-                <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={addIcon}>Add blank {DEFAULT_ICON_SIZE}x{DEFAULT_ICON_SIZE} icon</Button>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={addIcon}>Add blank {DEFAULT_ICON_SIZE}x{DEFAULT_ICON_SIZE} icon</Button>
+                  <Button size="sm" variant="ghost" icon={<LoadIcon />} title="Import an icon from the global library" onClick={() => setIsIconLibraryOpen(true)}>Library</Button>
+                </div>
                 <div className="grid grid-cols-4 gap-1">
                   {icons.map(icon => (
                     <button
@@ -1138,6 +1162,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                   <div className="pt-2 border-t border-msx-border">
                     <div className="flex items-center justify-between mb-1">
                       <input value={selectedIcon.name} onChange={e => onUpdate({ icons: icons.map(i => (i.id === selectedIcon.id ? { ...i, name: e.target.value } : i)) })} className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 flex-grow mr-1" />
+                      <Button size="sm" variant="ghost" icon={<SaveIcon />} title="Export to Library" onClick={exportSelectedIconToLibrary} />
                       <Button size="sm" variant="danger" icon={<TrashIcon />} onClick={() => deleteIcon(selectedIcon.id)} />
                     </div>
                     <div className="flex items-center gap-1 mb-2">
@@ -1276,5 +1301,12 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
         <span className="flex items-center gap-1 text-emerald-400">● Saved</span>
       </div>
     </Panel>
+    <Msx2HudIconLibraryModal
+      isOpen={isIconLibraryOpen}
+      onClose={() => setIsIconLibraryOpen(false)}
+      onImportIcon={importIconFromLibrary}
+      setStatusBarMessage={setStatusBarMessage}
+    />
+    </>
   );
 };
