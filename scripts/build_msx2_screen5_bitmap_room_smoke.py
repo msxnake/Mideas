@@ -922,6 +922,28 @@ def inject_linked_hud_bar(project: dict[str, object]) -> None:
                         "blink": "off",
                     },
                 },
+                {
+                    "id": "hud_layer_air",
+                    "name": "Time",
+                    "kind": "widget",
+                    "visible": True,
+                    "locked": False,
+                    "element": {
+                        "id": "el_time",
+                        "kind": "counter",
+                        "x": 184,
+                        "y": 4,
+                        "width": 40,
+                        "height": 8,
+                        "binding": "air",
+                        "initialValue": 180,
+                        "format": {"digits": 3, "base": "dec", "zeroPad": True},
+                        "colors": {"text": 15},
+                        "align": {"h": "left", "v": "top"},
+                        "visible": True,
+                        "blink": "off",
+                    },
+                },
             ],
         },
     }
@@ -989,6 +1011,8 @@ def main() -> int:
             "update_hud_linked_2",   # wide 16-bit counter = instance 2 (tile-based, dec5)
             "hud_word_to_dec5",      # 16-bit decimal conversion routine
             "hud_dec5_buffer EQU",   # shared 5-byte dec buffer
+            "update_air_timer",      # G3: air/time countdown routine
+            "air_timer EQU",         # room countdown byte (read by air-bound counters)
         ):
             if marker not in asm_text:
                 raise RuntimeError(f"Linked HUD bar marker missing in ASM: {marker}")
