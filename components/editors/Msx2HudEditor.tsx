@@ -529,8 +529,19 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
       return;
     }
 
-    // Stamp tools (Text/Icon Stamp/Number Field/Meter-Bar/Heart-Life/Gem-Coin/Portrait
-    // Slot) drop a new widget layer at the click point, regardless of the currently
+    // Icon Stamp drops the icon currently selected in the Assets tab, sized to its
+    // real pixel dimensions. With no icon selected, falls back to the generic
+    // placeholder template (empty icon slot).
+    if (activeTool === 'iconStamp') {
+      const template: WidgetTemplate = selectedIcon
+        ? { label: 'Icon Stamp', kind: 'icon', overrides: { binding: 'custom', atlasEntryId: selectedIcon.id, width: selectedIcon.width, height: selectedIcon.height } }
+        : STAMP_TOOL_TEMPLATES.iconStamp!;
+      addWidgetAtPosition(template, x, y);
+      return;
+    }
+
+    // Stamp tools (Text/Number Field/Meter-Bar/Heart-Life/Gem-Coin/Portrait Slot)
+    // drop a new widget layer at the click point, regardless of the currently
     // selected layer.
     const stampTemplate = STAMP_TOOL_TEMPLATES[activeTool];
     if (stampTemplate) {
@@ -760,8 +771,10 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     autosaveRef.current.textContent = `${hh}:${mm}:${ss}`;
   }, [layers, icons]);
 
+  const DEFAULT_ICON_SIZE = 8;
+
   const addIcon = () => {
-    const icon: Msx2HudIconEntry = { id: uid('hud_icon'), name: `Icon ${icons.length + 1}`, width: 16, height: 16, pixels: blankPixels(16, 16) };
+    const icon: Msx2HudIconEntry = { id: uid('hud_icon'), name: `Icon ${icons.length + 1}`, width: DEFAULT_ICON_SIZE, height: DEFAULT_ICON_SIZE, pixels: blankPixels(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE) };
     onUpdate({ icons: [...icons, icon] });
     setSelectedIconId(icon.id);
   };
@@ -771,6 +784,21 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     const next = clonePixels(selectedIcon.pixels);
     next[y][x] = next[y][x] === selectedColor ? TRANSPARENT : selectedColor;
     onUpdate({ icons: icons.map(icon => (icon.id === selectedIcon.id ? { ...icon, pixels: next } : icon)) });
+  };
+
+  // Resizes an icon's grid by 1px per +/- click. Existing pixels are kept anchored
+  // to the top-left corner: growing pads new transparent rows/cols on the
+  // right/bottom, shrinking crops from the right/bottom.
+  const resizeIcon = (id: string, nextWidth: number, nextHeight: number) => {
+    const icon = icons.find(i => i.id === id);
+    if (!icon) return;
+    const width = Math.max(1, Math.min(HUD_WIDTH, nextWidth));
+    const height = Math.max(1, Math.min(HUD_HEIGHT, nextHeight));
+    if (width === icon.width && height === icon.height) return;
+    const pixels = Array.from({ length: height }, (_, y) => (
+      Array.from({ length: width }, (_, x) => icon.pixels[y]?.[x] ?? TRANSPARENT)
+    ));
+    onUpdate({ icons: icons.map(i => (i.id === id ? { ...i, width, height, pixels } : i)) });
   };
 
   const deleteIcon = (id: string) => {
@@ -1046,7 +1074,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
 
             {rightTab === 'assets' && (
               <div className="space-y-2 text-xs">
-                <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={addIcon}>Add blank 16x16 icon</Button>
+                <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={addIcon}>Add blank {DEFAULT_ICON_SIZE}x{DEFAULT_ICON_SIZE} icon</Button>
                 <div className="grid grid-cols-4 gap-1">
                   {icons.map(icon => (
                     <button
@@ -1069,6 +1097,20 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                     <div className="flex items-center justify-between mb-1">
                       <input value={selectedIcon.name} onChange={e => onUpdate({ icons: icons.map(i => (i.id === selectedIcon.id ? { ...i, name: e.target.value } : i)) })} className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 flex-grow mr-1" />
                       <Button size="sm" variant="danger" icon={<TrashIcon />} onClick={() => deleteIcon(selectedIcon.id)} />
+                    </div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-msx-textsecondary">W</span>
+                        <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width - 1, selectedIcon.height)}>-</Button>
+                        <span className="w-5 text-center">{selectedIcon.width}</span>
+                        <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width + 1, selectedIcon.height)}>+</Button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-msx-textsecondary">H</span>
+                        <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width, selectedIcon.height - 1)}>-</Button>
+                        <span className="w-5 text-center">{selectedIcon.height}</span>
+                        <Button size="sm" variant="ghost" onClick={() => resizeIcon(selectedIcon.id, selectedIcon.width, selectedIcon.height + 1)}>+</Button>
+                      </div>
                     </div>
                     <div
                       className="grid border border-msx-border"
