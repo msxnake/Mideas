@@ -420,6 +420,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
   const [zoom, setZoom] = useState(6);
   const [rightTab, setRightTab] = useState<'inspector' | 'palette' | 'assets'>('inspector');
   const [selectedIconId, setSelectedIconId] = useState<string | undefined>(icons[0]?.id);
+  const [iconTool, setIconTool] = useState<'paint' | 'fill'>('paint'); // Assets tab: icon pixel editor active tool
   const dragRef = useRef<{ startX: number; startY: number; mode: 'paint' | 'move'; grabDx?: number; grabDy?: number } | null>(null);
   const [previewPoints, setPreviewPoints] = useState<{ x: number; y: number }[] | null>(null);
   // --- Phase 1 editor chrome state ---
@@ -787,6 +788,33 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     onUpdate({ icons: icons.map(icon => (icon.id === selectedIcon.id ? { ...icon, pixels: next } : icon)) });
   };
 
+  // Flood-fills the connected same-colour region under (x,y) with the selected colour.
+  const fillIconPixel = (x: number, y: number) => {
+    if (!selectedIcon) return;
+    const next = floodFill(selectedIcon.pixels, x, y, selectedColor);
+    onUpdate({ icons: icons.map(icon => (icon.id === selectedIcon.id ? { ...icon, pixels: next } : icon)) });
+  };
+
+  // Auto-contour: stamps the selected colour onto every transparent cell that is
+  // 4-directionally adjacent to an already-opaque pixel, tracing a 1px outline
+  // around the drawn shape.
+  const contourIcon = (id: string) => {
+    const icon = icons.find(i => i.id === id);
+    if (!icon) return;
+    const { width, height, pixels } = icon;
+    const isOpaque = (x: number, y: number) => x >= 0 && x < width && y >= 0 && y < height && (pixels[y]?.[x] ?? TRANSPARENT) >= 0;
+    const next = clonePixels(pixels);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (isOpaque(x, y)) continue;
+        if (isOpaque(x - 1, y) || isOpaque(x + 1, y) || isOpaque(x, y - 1) || isOpaque(x, y + 1)) {
+          next[y][x] = selectedColor;
+        }
+      }
+    }
+    onUpdate({ icons: icons.map(i => (i.id === id ? { ...i, pixels: next } : i)) });
+  };
+
   // Resizes an icon's grid by 1px per +/- click. Existing pixels are kept anchored
   // to the top-left corner: growing pads new transparent rows/cols on the
   // right/bottom, shrinking crops from the right/bottom.
@@ -1112,6 +1140,11 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                       <input value={selectedIcon.name} onChange={e => onUpdate({ icons: icons.map(i => (i.id === selectedIcon.id ? { ...i, name: e.target.value } : i)) })} className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 flex-grow mr-1" />
                       <Button size="sm" variant="danger" icon={<TrashIcon />} onClick={() => deleteIcon(selectedIcon.id)} />
                     </div>
+                    <div className="flex items-center gap-1 mb-2">
+                      <Button size="sm" variant={iconTool === 'paint' ? 'primary' : 'ghost'} title="Pencil" icon={<PencilIcon />} onClick={() => setIconTool('paint')} />
+                      <Button size="sm" variant={iconTool === 'fill' ? 'primary' : 'ghost'} title="Fill" icon={<PaintBrushIcon />} onClick={() => setIconTool('fill')} />
+                      <Button size="sm" variant="ghost" title="Contour" icon={<ContourIcon />} onClick={() => contourIcon(selectedIcon.id)} />
+                    </div>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="flex items-center gap-1">
                         <span className="text-msx-textsecondary">W</span>
@@ -1134,7 +1167,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         <button
                           key={`${x}-${y}`}
                           type="button"
-                          onClick={() => updateIconPixel(x, y)}
+                          onClick={() => (iconTool === 'fill' ? fillIconPixel(x, y) : updateIconPixel(x, y))}
                           style={{ width: 10, height: 10, backgroundColor: c >= 0 ? (slots[c]?.hex || '#fff') : '#222', border: '1px solid rgba(255,255,255,0.05)' }}
                         />
                       )))}
@@ -1160,8 +1193,8 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                           <Button size="sm" variant="ghost" title="Nudge up" icon={<ArrowUpIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, -1)} />
                           <div className="flex items-center gap-1">
                             <Button size="sm" variant="ghost" title="Nudge left" icon={<ArrowLeftIcon />} onClick={() => nudgeIcon(selectedIcon.id, -1, 0)} />
-                            <Button size="sm" variant="ghost" title="Nudge right" icon={<ArrowRightIcon />} onClick={() => nudgeIcon(selectedIcon.id, 1, 0)} />
                             <Button size="sm" variant="ghost" title="Nudge down" icon={<ArrowDownIcon />} onClick={() => nudgeIcon(selectedIcon.id, 0, 1)} />
+                            <Button size="sm" variant="ghost" title="Nudge right" icon={<ArrowRightIcon />} onClick={() => nudgeIcon(selectedIcon.id, 1, 0)} />
                           </div>
                           <span className="text-[0.6rem] text-msx-textsecondary text-center">Pixels pushed past an edge are lost.</span>
                         </div>
