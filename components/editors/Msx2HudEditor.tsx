@@ -1117,20 +1117,22 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                             className="w-full bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 mb-1"
                           />
                         )}
-                        <div className="grid grid-cols-4 gap-1 items-center">
-                          <label>Digits<input type="number" value={selectedLayer.element.format.digits ?? 3} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, digits: Number(e.target.value) || 0 } })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
-                          <label>Base
-                            <select value={selectedLayer.element.format.base || 'dec'} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, base: e.target.value as 'dec' | 'hex' } })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1">
-                              <option value="dec">dec</option>
-                              <option value="hex">hex</option>
-                            </select>
-                          </label>
-                          <label className="flex items-center gap-1 col-span-2">
-                            <input type="checkbox" checked={!!selectedLayer.element.format.zeroPad} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, zeroPad: e.target.checked } })} />
-                            Zero-pad
-                          </label>
-                          <label className="col-span-2">Prefix<input value={selectedLayer.element.format.prefix || ''} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, prefix: e.target.value } })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
-                        </div>
+                        {(selectedLayer.element.kind === 'counter' || selectedLayer.element.kind === 'iconCounter') && (
+                          <div className="grid grid-cols-4 gap-1 items-center">
+                            <label>Digits<input type="number" value={selectedLayer.element.format.digits ?? 3} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, digits: Number(e.target.value) || 0 } })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
+                            <label>Base
+                              <select value={selectedLayer.element.format.base || 'dec'} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, base: e.target.value as 'dec' | 'hex' } })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1">
+                                <option value="dec">dec</option>
+                                <option value="hex">hex</option>
+                              </select>
+                            </label>
+                            <label className="flex items-center gap-1 col-span-2">
+                              <input type="checkbox" checked={!!selectedLayer.element.format.zeroPad} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, zeroPad: e.target.checked } })} />
+                              Zero-pad
+                            </label>
+                            <label className="col-span-2">Prefix<input value={selectedLayer.element.format.prefix || ''} onChange={e => updateElement(selectedLayer.id, { format: { ...selectedLayer.element.format, prefix: e.target.value } })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
+                          </div>
+                        )}
                       </div>
 
                       <div className="pt-1 border-t border-msx-border grid grid-cols-2 gap-2">
