@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2PlayerDefinition, Msx2HudFontAsset, Msx2HudAsset, Msx2HudIconEntry, ScreenMap, MSXColorValue, SpriteFrame, PixelData,
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, WorldMapConnection, WorldMapScreenNode, ConnectionDirection, PSGSoundData,
@@ -66,6 +66,7 @@ import { PresentationScreenEditor } from './editors/PresentationScreenEditor';
 import { DialogueEditor } from './editors/DialogueEditor';
 import { Msx2DialogueEditor } from './editors/Msx2DialogueEditor';
 import { Msx2BitmapStampEditor } from './editors/Msx2BitmapStampEditor';
+import { Msx2BitmapTerrainEditor } from './editors/Msx2BitmapTerrainEditor';
 import { PortraitEditor } from './editors/PortraitEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { Msx2GameFlowEditor } from './editors/Msx2GameFlowEditor';
@@ -460,6 +461,29 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   }, [activeAsset, activeBitmapWorldRoomIds, handleUpdateAsset, setAssetsWithHistory]);
   const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
   const [selectedMsx2GameFlowNodeId, setSelectedMsx2GameFlowNodeId] = useState<string | null>(null);
+  const wasScreen5HelpOnlyEditorRef = useRef(false);
+
+  const screen5HelpOnlyEditorTypes = [
+    EditorType.Msx2Sprite,
+    EditorType.Msx2Bitmap,
+    EditorType.Msx2BitmapRoom,
+    EditorType.Msx2BitmapTile,
+    EditorType.Msx2BitmapStamp,
+    EditorType.Msx2BitmapTerrain,
+    EditorType.Msx2Dialogue,
+    EditorType.Msx2HudFont,
+    EditorType.Msx2HudEditor,
+    EditorType.Msx2Presentation,
+    EditorType.Palette,
+  ];
+  const isScreen5HelpOnlyEditor = screen5HelpOnlyEditorTypes.includes(currentEditor);
+
+  useEffect(() => {
+    if (isScreen5HelpOnlyEditor && !wasScreen5HelpOnlyEditorRef.current) {
+      setIsPropertiesPanelCollapsed(true);
+    }
+    wasScreen5HelpOnlyEditorRef.current = isScreen5HelpOnlyEditor;
+  }, [isScreen5HelpOnlyEditor]);
 
   useEffect(() => {
     setSelectedMsx2GameFlowNodeId(null);
@@ -1351,7 +1375,13 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             handleUpdateAsset(activeAsset.id, applyScreen5PaletteToMsx2Sprite(sprite, activeBitmapImportPalette));
             setStatusBarMessage(`Paleta del mundo "${worldName}" importada al sprite "${activeAsset.name}" (${changedSlots.length} slot(s): ${changedSlots.join(', ')}).`);
           } : undefined} onSavePaletteAsAsset={(slots, name) => saveMsx2PaletteAsAsset(slots, name)} />)}
-          {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && ( <Msx2BitmapEditor bitmap={activeAsset.data as Msx2Bitmap} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
+          {currentEditor === EditorType.Msx2Bitmap && activeAsset?.type === 'msx2bitmap' && (
+            <Msx2BitmapEditor
+              bitmap={activeAsset.data as Msx2Bitmap}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>}
+            />
+          )}
           {currentEditor === EditorType.Msx2BitmapTile && activeAsset?.type === 'msx2bitmaptile' && (
             <Msx2BitmapTileEditor
               tileAsset={activeAsset}
@@ -1369,6 +1399,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               activeBitmapWorld={activeBitmapWorldAsset?.data as WorldMapGraph | undefined}
               onSelectAsset={onSelectAsset}
               setStatusBarMessage={setStatusBarMessage}
+            />
+          )}
+          {currentEditor === EditorType.Msx2BitmapTerrain && activeAsset?.type === 'msx2bitmapterrain' && (
+            <Msx2BitmapTerrainEditor
+              terrainAsset={activeAsset.data as Msx2BitmapTerrainAsset}
             />
           )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
@@ -1557,8 +1592,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             <button
               type="button"
               onClick={() => setIsPropertiesPanelCollapsed(false)}
-              title="Show Asset Properties"
-              aria-label="Show Asset Properties"
+              title={isScreen5HelpOnlyEditor ? "Show Help" : "Show Asset Properties"}
+              aria-label={isScreen5HelpOnlyEditor ? "Show Help" : "Show Asset Properties"}
               className="h-7 w-6 rounded border border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary"
             >
               {'<'}
@@ -1577,12 +1612,13 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 {'>'}
               </button>
             </div>
-            {renderRightPanelContent()}
+            {!isScreen5HelpOnlyEditor && renderRightPanelContent()}
             <PropertiesPanel 
-            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || currentEditor === EditorType.EnemyLibrary || (currentEditor === EditorType.PresentationScreen && activeAsset?.type !== 'presentationscreen') ? undefined : activeAsset}
-            entityInstance={selectedEntityInstance}
-            effectZone={selectedEffectZone}
-            gameFlowNode={selectedGameFlowNode}
+            helpOnly={isScreen5HelpOnlyEditor}
+            asset={isScreen5HelpOnlyEditor || currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || currentEditor === EditorType.EnemyLibrary || (currentEditor === EditorType.PresentationScreen && activeAsset?.type !== 'presentationscreen') ? undefined : activeAsset}
+            entityInstance={isScreen5HelpOnlyEditor ? undefined : selectedEntityInstance}
+            effectZone={isScreen5HelpOnlyEditor ? undefined : selectedEffectZone}
+            gameFlowNode={isScreen5HelpOnlyEditor ? undefined : selectedGameFlowNode}
             onUpdateGameFlowNode={(id, data) => {
               if (activeGameFlowAsset) {
                 const updatedNodes = activeGameFlowAsset.nodes.map(n =>

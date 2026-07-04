@@ -184,7 +184,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   msx2bitmap: EditorType.Msx2Bitmap,
   msx2bitmaptile: EditorType.Msx2BitmapTile,
   msx2bitmapstamp: EditorType.Msx2BitmapStamp,
-  msx2bitmapterrain: EditorType.Msx2BitmapStamp,
+  msx2bitmapterrain: EditorType.Msx2BitmapTerrain,
   msx2player: EditorType.Msx2Player,
   msx2enemy: EditorType.Msx2Enemy,
   msx2screen: EditorType.Msx2Screen,

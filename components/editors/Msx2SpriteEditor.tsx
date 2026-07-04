@@ -607,6 +607,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
   const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
   const [paletteEditorSlot, setPaletteEditorSlot] = useState<number | null>(null);
+  const [selectedSavedPaletteId, setSelectedSavedPaletteId] = useState('');
   const [isSavePaletteOpen, setIsSavePaletteOpen] = useState(false);
   const [savePaletteName, setSavePaletteName] = useState('');
   const [replaceFromSlot, setReplaceFromSlot] = useState(1);
@@ -624,6 +625,26 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
   const useOrColor = sprite.hardware?.useOrColor !== false;
+  const applySavedPaletteAsset = () => {
+    if (!selectedSavedPaletteId) return;
+    const paletteAsset = paletteAssets.find(asset => asset.id === selectedSavedPaletteId);
+    if (!paletteAsset?.data?.slots?.length) return;
+    const nextSlots = ensureScreen5PaletteSlots(paletteAsset.data.slots).slots;
+    const { slots: currentSlots } = ensureScreen5PaletteSlots(sprite.palette);
+    const remapByColor = new Map<string, MSXColorValue>();
+    currentSlots.forEach((slot, index) => {
+      const nextHex = nextSlots[index]?.hex;
+      if (nextHex) remapByColor.set(normalizeColor(slot.hex), nextHex as MSXColorValue);
+    });
+    onUpdate({
+      palette: nextSlots.map(slot => ({ ...slot })),
+      backgroundColor: (nextSlots[0]?.hex || sprite.backgroundColor) as MSXColorValue,
+      frames: sprite.frames.map(frame => ({
+        ...frame,
+        data: frame.data.map(row => row.map(color => remapByColor.get(normalizeColor(String(color))) || color)),
+      })),
+    });
+  };
   const orPalettePairs = useMemo<HardwareOrColorPalettePair[]>(() => {
     const slotByIndex = new Map(palette.map(slot => [slot.slotIndex, slot]));
     const pairs: HardwareOrColorPalettePair[] = [];
@@ -805,6 +826,12 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       setSelectedColor(palette[1]?.hex || palette[0]?.hex || '#FFFFFF');
     }
   }, [palette, selectedColor]);
+
+  useEffect(() => {
+    if (selectedSavedPaletteId && !paletteAssets.some(asset => asset.id === selectedSavedPaletteId)) {
+      setSelectedSavedPaletteId('');
+    }
+  }, [paletteAssets, selectedSavedPaletteId]);
 
   useEffect(() => {
     if (!isAnimationPlaying) {
@@ -1247,6 +1274,41 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               </Button>
             </div>
           )}
+          <div className="border-b border-msx-border p-2">
+            {paletteAssets.length > 0 ? (
+              <div className="space-y-2 text-xs">
+                <label className="block text-msx-textsecondary">
+                  Paleta guardada
+                  <select
+                    value={selectedSavedPaletteId}
+                    onChange={event => setSelectedSavedPaletteId(event.target.value)}
+                    className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                  >
+                    <option value="">-- Elegir --</option>
+                    {paletteAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<FolderOpenIcon />}
+                  className="w-full"
+                  justify="center"
+                  disabled={!selectedSavedPaletteId}
+                  onClick={applySavedPaletteAsset}
+                  title="Carga los 16 slots de la paleta seleccionada en este sprite y remapea sus pixels por índice de slot."
+                >
+                  Cargar paleta seleccionada
+                </Button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-msx-textsecondary">
+                No hay paletas guardadas. Crea una en Project Assets &gt; MSX2 Palettes.
+              </p>
+            )}
+          </div>
           {offPalettePixelCount > 0 && (
             <div className="border-b border-msx-border p-2">
               <Button

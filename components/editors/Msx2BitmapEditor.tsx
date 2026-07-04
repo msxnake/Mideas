@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Msx2Bitmap } from '../../types';
+import { Msx2Bitmap, PaletteAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
@@ -10,6 +10,7 @@ type BitmapTool = 'pencil' | 'erase' | 'fill' | 'picker';
 interface Msx2BitmapEditorProps {
   bitmap: Msx2Bitmap;
   onUpdate: (data: Partial<Msx2Bitmap>) => void;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
 }
 
 const WIDTH = 256;
@@ -51,9 +52,10 @@ const nearestSlot = (r: number, g: number, b: number, slots: { hex: string }[]):
   return bestSlot;
 };
 
-export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUpdate }) => {
+export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUpdate, paletteAssets = [] }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedSavedPaletteId, setSelectedSavedPaletteId] = useState('');
   const [tool, setTool] = useState<BitmapTool>('pencil');
   const [activeSlot, setActiveSlot] = useState(1);
   const [zoom, setZoom] = useState(2);
@@ -66,6 +68,20 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
   useEffect(() => {
     if (changed) onUpdate({ palette: slots.map(slot => ({ ...slot })) });
   }, [changed, onUpdate, slots]);
+
+  useEffect(() => {
+    if (selectedSavedPaletteId && !paletteAssets.some(asset => asset.id === selectedSavedPaletteId)) {
+      setSelectedSavedPaletteId('');
+    }
+  }, [paletteAssets, selectedSavedPaletteId]);
+
+  const applySavedPaletteAsset = () => {
+    if (!selectedSavedPaletteId) return;
+    const paletteAsset = paletteAssets.find(asset => asset.id === selectedSavedPaletteId);
+    if (!paletteAsset?.data?.slots?.length) return;
+    const nextSlots = ensureScreen5PaletteSlots(paletteAsset.data.slots).slots;
+    onUpdate({ palette: nextSlots.map(slot => ({ ...slot })) });
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -211,19 +227,54 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
         </Panel>
 
         <Panel title="MSX2 Legacy Bitmap Palette">
-          <div className="grid grid-cols-4 gap-2 p-2">
-            {slots.map(slot => (
-              <button
-                key={slot.slotIndex}
-                type="button"
-                className={`h-9 rounded border text-[0.65rem] ${activeSlot === slot.slotIndex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}
-                style={{ backgroundColor: slot.hex === TRANSPARENT_HEX ? '#111827' : slot.hex }}
-                onClick={() => setActiveSlot(slot.slotIndex)}
-                title={`Slot ${slot.slotIndex}: ${slot.hex}`}
-              >
-                <span className="bg-black/40 px-1 rounded text-white">{slot.slotIndex}</span>
-              </button>
-            ))}
+          <div className="space-y-2 p-2">
+            <div className="grid grid-cols-4 gap-2">
+              {slots.map(slot => (
+                <button
+                  key={slot.slotIndex}
+                  type="button"
+                  className={`h-9 rounded border text-[0.65rem] ${activeSlot === slot.slotIndex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}
+                  style={{ backgroundColor: slot.hex === TRANSPARENT_HEX ? '#111827' : slot.hex }}
+                  onClick={() => setActiveSlot(slot.slotIndex)}
+                  title={`Slot ${slot.slotIndex}: ${slot.hex}`}
+                >
+                  <span className="bg-black/40 px-1 rounded text-white">{slot.slotIndex}</span>
+                </button>
+              ))}
+            </div>
+            {paletteAssets.length > 0 ? (
+              <div className="space-y-2 border-t border-msx-border pt-2 text-xs">
+                <label className="block text-msx-textsecondary">
+                  Paleta guardada
+                  <select
+                    value={selectedSavedPaletteId}
+                    onChange={event => setSelectedSavedPaletteId(event.target.value)}
+                    className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                  >
+                    <option value="">-- Elegir --</option>
+                    {paletteAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<FolderOpenIcon />}
+                  className="w-full"
+                  justify="center"
+                  disabled={!selectedSavedPaletteId}
+                  onClick={applySavedPaletteAsset}
+                  title="Carga los 16 slots de la paleta seleccionada en este bitmap."
+                >
+                  Cargar paleta seleccionada
+                </Button>
+              </div>
+            ) : (
+              <p className="border-t border-msx-border pt-2 text-[10px] text-msx-textsecondary">
+                No hay paletas guardadas. Crea una en Project Assets &gt; MSX2 Palettes.
+              </p>
+            )}
           </div>
         </Panel>
       </div>

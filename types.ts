@@ -3354,6 +3354,7 @@ export enum EditorType {
   Msx2Bitmap = "Msx2Bitmap",
   Msx2BitmapTile = "Msx2BitmapTile",
   Msx2BitmapStamp = "Msx2BitmapStamp",
+  Msx2BitmapTerrain = "Msx2BitmapTerrain",
   Msx2Screen = "Msx2Screen",
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2Player = "Msx2Player",
