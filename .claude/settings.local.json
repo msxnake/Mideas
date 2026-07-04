@@ -213,7 +213,22 @@
       "Bash(tee /tmp/tsc.log)",
       "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit -p tsconfig.check.json)",
       "Bash(tee /tmp/tsc2.log)",
-      "Bash(rm -f /tmp/recompose_test.cjs /tmp/fixture_b64.txt /tmp/tsc.log /tmp/tsc2.log; ls tsconfig.check.json 2>/dev/null && echo \"WARN: tsconfig.check.json still exists\" || echo \"temp tsconfig already removed\")"
+      "Bash(rm -f /tmp/recompose_test.cjs /tmp/fixture_b64.txt /tmp/tsc.log /tmp/tsc2.log; ls tsconfig.check.json 2>/dev/null && echo \"WARN: tsconfig.check.json still exists\" || echo \"temp tsconfig already removed\")",
+      "Bash(ls public *)",
+      "Bash(grep -n \"publicDir\\\\|root:\" vite.config.*)",
+      "Bash(node_modules/.bin/esbuild utils/msxGenerator/generators/msx2/msx2Screen5BitmapRoomGenerator.ts --bundle --platform=node --format=cjs --outfile=test/ts_build_dbg/hudgen.cjs)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit --skipLibCheck --target es2020 --module esnext --moduleResolution bundler --jsx react-jsx --esModuleInterop utils/msxGenerator/generators/msx2/msx2Screen5BitmapRoomGenerator.ts)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit --skipLibCheck --target es2020 --module esnext --moduleResolution bundler --jsx react-jsx --esModuleInterop components/editors/Msx2GameFlowEditor.tsx)",
+      "Bash(\"C:/Program Files/openMSX/openmsx.exe\" -machine C-BIOS_MSX2 -cart test/msx2-bitmap-dialogue/dlg.rom -script test/msx2-bitmap-dialogue/dlg_probe.tcl)",
+      "Bash(cp test/msx2-bitmap-dialogue/dlg_probe.tcl test/msx2-bitmap-dialogue/dlg_probe_mega.tcl)",
+      "Bash(sed -i 's/shot\\\\\\([0-9]\\\\\\)/mega_shot\\\\1/; s/probe.log/probe_mega.log/' test/msx2-bitmap-dialogue/dlg_probe_mega.tcl)",
+      "Bash(\"C:/Program Files/openMSX/openmsx.exe\" -machine C-BIOS_MSX2 -cart test/msx2-bitmap-dialogue/dlg_mega.rom -romtype konami -script test/msx2-bitmap-dialogue/dlg_probe_mega.tcl)",
+      "Bash(mv utils/msx2Autotile.js utils/msx2Autotile.cjs)",
+      "Bash(sed -i 's#./utils/msx2Autotile.js#./utils/msx2Autotile.cjs#' smoke.cjs)",
+      "Bash(sed -i \"s#require\\(\\\\\"../types\\\\\"\\)#require\\(\\\\\"../types.cjs\\\\\"\\)#\" utils/msx2Autotile.cjs)",
+      "Bash(mv types.js types.cjs)",
+      "Bash(rm -rf temp/autotile_check)",
+      "Bash(cat .claude/launch.json)"
     ],
     "deny": [],
     "ask": []

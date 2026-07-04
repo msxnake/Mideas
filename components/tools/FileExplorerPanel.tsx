@@ -64,12 +64,14 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'msx2bitmap': return <MapIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaptile': return <TilesetIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmapstamp': return <TilesetIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
+    case 'msx2bitmapterrain': return <TilesetIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
     case 'msx2screen': return <MapIcon className={`${iconClass} text-blue-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaproom': return <MapIcon className={`${iconClass} text-sky-200 group-hover:text-msx-accent`} />;
     case 'msx2player': return <SpriteIcon className={`${iconClass} text-yellow-300 group-hover:text-msx-accent`} />;
     case 'msx2enemy': return <BugIcon className={`${iconClass} text-red-300 group-hover:text-msx-accent`} />;
     case 'msx2hudfont': return <PencilIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
     case 'msx2hud': return <HudIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
+    case 'msx2dialogue': return <ListBulletIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
     case 'msx2presentation': return <MapIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
     case 'msx2gameflow': return <GameFlowIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
     case 'font': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -103,7 +105,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2bitmapstamp', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2hud', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2bitmapstamp', 'msx2bitmapterrain', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2dialogue', 'msx2hudfont', 'msx2hud', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -112,12 +114,14 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   msx2sprite: "MSX2 Sprites",
   msx2bitmaptile: "MSX2 Bitmap Tiles",
   msx2bitmapstamp: "MSX2 Bitmap Stamps",
+  msx2bitmapterrain: "MSX2 Autotile Terrains",
   msx2bitmap: "Legacy MSX2 Bitmaps",
   msx2player: "MSX2 Players",
   msx2enemy: "MSX2 Enemies",
   msx2screen: "MSX2 SCREEN 4 Rooms",
   msx2bitmaproom: "MSX2 SCREEN 5 Bitmap Rooms",
-  msx2hudfont: "MSX2 HUD Fonts",
+  msx2dialogue: "MSX2 Dialogues",
+  msx2hudfont: "MSX2 Fonts",
   msx2hud: "MSX2 HUDs",
   msx2presentation: "MSX2 SCREEN 5 Presentations",
   msx2gameflow: "MSX2 Game Flows",
@@ -149,7 +153,9 @@ const FOLDER_NEW_LABELS: Partial<Record<ProjectAsset['type'], string>> = {
   msx2enemy: "New Enemy",
   msx2screen: "New SCREEN 4 Room",
   msx2bitmaproom: "New Bitmap Room",
-  msx2hudfont: "New HUD Font",
+  msx2bitmapstamp: "New Stamp",
+  msx2dialogue: "New MSX2 Dialogue",
+  msx2hudfont: "New MSX2 Font",
   msx2hud: "New HUD",
   msx2presentation: "New SCREEN 5 Presentation",
   msx2gameflow: "New Game Flow",
@@ -177,11 +183,13 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
   msx2bitmaptile: EditorType.Msx2BitmapTile,
-  msx2bitmapstamp: EditorType.None,
+  msx2bitmapstamp: EditorType.Msx2BitmapStamp,
+  msx2bitmapterrain: EditorType.Msx2BitmapStamp,
   msx2player: EditorType.Msx2Player,
   msx2enemy: EditorType.Msx2Enemy,
   msx2screen: EditorType.Msx2Screen,
   msx2bitmaproom: EditorType.Msx2BitmapRoom,
+  msx2dialogue: EditorType.Msx2Dialogue,
   msx2hudfont: EditorType.Msx2HudFont,
   msx2hud: EditorType.Msx2HudEditor,
   msx2presentation: EditorType.Msx2Presentation,

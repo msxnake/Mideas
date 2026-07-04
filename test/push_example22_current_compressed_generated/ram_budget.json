@@ -1,0 +1,107 @@
+{
+  "scope": "msx2_screen4_ram_budget",
+  "start": "#C000",
+  "end": "#C666",
+  "limit": "#F300",
+  "usableBytes": 13056,
+  "usedBytes": 1638,
+  "freeBytes": 11418,
+  "warningThresholdBytes": 11097,
+  "maxPersistentScreens": 60,
+  "reachableScreens": 2,
+  "status": "ok",
+  "sections": [
+    {
+      "id": "runtime.globals_player_input",
+      "start": "#C000",
+      "end": "#C047",
+      "bytes": 71,
+      "mutable": true,
+      "reason": "Fixed hot runtime state for player/input/global counters."
+    },
+    {
+      "id": "runtime.snake_body_cache",
+      "start": "#C047",
+      "end": "#C0A9",
+      "bytes": 98,
+      "mutable": true,
+      "reason": "Fixed-size cache reserved only for snake-char body state."
+    },
+    {
+      "id": "runtime.persistent_effect_layers",
+      "start": "#C0A9",
+      "end": "#C229",
+      "bytes": 384,
+      "mutable": true,
+      "count": 2,
+      "bytesPerScreen": 192,
+      "reason": "One mutable effects layer per reachable SCREEN 4 room."
+    },
+    {
+      "id": "runtime.effects_scratch",
+      "start": "#C230",
+      "end": "#C2F0",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Temporary effect layer buffer for screens without persistent slot or loaders."
+    },
+    {
+      "id": "runtime.collision_current_cache",
+      "start": "#C2F0",
+      "end": "#C3B0",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Hot cache for the current SCREEN 4 collision layer copied from ROM data banks."
+    },
+    {
+      "id": "runtime.behavior_current_cache",
+      "start": "#C3B0",
+      "end": "#C470",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Hot cache for the current SCREEN 4 behavior layer copied from ROM data banks."
+    },
+    {
+      "id": "runtime.cell_flags_current_cache",
+      "start": "#C470",
+      "end": "#C530",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Packed current SCREEN 4 solid/effect/behavior flags, staged for the unified runtime layer contract."
+    },
+    {
+      "id": "runtime.visual_map_cache",
+      "start": "#C530",
+      "end": "#C5F0",
+      "bytes": 192,
+      "mutable": true,
+      "reason": "Current SCREEN 4 visual tile index map used for per-tile hazard hitbox lookup."
+    },
+    {
+      "id": "runtime.hazard_hitbox_cache",
+      "start": "#C5F0",
+      "end": "#C6F0",
+      "bytes": 256,
+      "mutable": true,
+      "reason": "Current SCREEN 4 per-tile hazard hitbox table (ox, oy, w, h bytes)."
+    },
+    {
+      "id": "runtime.enemy_pool",
+      "start": "#C700",
+      "end": "#C756",
+      "bytes": 86,
+      "mutable": true,
+      "slots": 12,
+      "reason": "Active enemy/hazard runtime arrays; ROM keeps enemy templates."
+    }
+  ],
+  "recommendations": [
+    {
+      "severity": "ok",
+      "target": "runtimeRam",
+      "reason": "Estimated runtime RAM fits below warning threshold.",
+      "action": "No RAM recovery needed for this project slice."
+    }
+  ],
+  "note": "RAM budget reports mutable runtime state only. ROM and VRAM storage are reported separately."
+}

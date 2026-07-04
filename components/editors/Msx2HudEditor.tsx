@@ -1,10 +1,12 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Msx2HudAsset, Msx2HudLayer, Msx2HudElement, Msx2HudElementKind, Msx2HudIconEntry,
-  Msx2HudWidgetBinding, ProjectAsset, PaletteAsset, Screen5PaletteSlot,
+  Msx2HudWidgetBinding, ProjectAsset, PaletteAsset, Screen5PaletteSlot, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, WorldMapGraph,
+  Msx2HudFontAsset, BitmapTileScreen5, Msx2BitmapStampAsset, BitmapTileStampScreen5, Msx2HudXpRewardActionType,
 } from '../../types';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { addEntryToMsx2HudIconLibrary } from '../../utils/msx2HudIconLibrary';
+import { buildScreen5PaletteRemap } from '../../utils/msx2BitmapStampLibrary';
 import { Msx2HudIconLibraryModal } from '../modals/Msx2HudIconLibraryModal';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -61,7 +63,7 @@ const WIDGET_TEMPLATES: WidgetTemplate[] = [
   { label: 'Timer (MM:SS)', kind: 'counter', overrides: { binding: 'custom', variableName: 'timer', format: { digits: 4, base: 'dec', zeroPad: true } } },
   { label: 'Coin Counter', kind: 'iconCounter', overrides: { binding: 'collectibles', format: { digits: 2, base: 'dec', zeroPad: false, prefix: 'x' } } },
   { label: 'Ammo Counter', kind: 'iconCounter', overrides: { binding: 'custom', variableName: 'ammo', format: { digits: 2, base: 'dec', zeroPad: false, prefix: 'x' } } },
-  { label: 'XP Bar', kind: 'bar', overrides: { binding: 'custom', variableName: 'xp', colors: { primary: 6, secondary: 4, border: 15, empty: 4 } } },
+  { label: 'XP Bar', kind: 'bar', overrides: { binding: 'experience', maxValue: 100, initialValue: 0, colors: { primary: 6, secondary: 4, border: 15, empty: 4 }, xpReward: { enabled: true, carryOverflow: true, actions: [{ type: 'incrementLevel', amount: 1 }] } } },
   { label: 'MP Bar', kind: 'bar', overrides: { binding: 'custom', variableName: 'mp', colors: { primary: 5, secondary: 4, border: 15, empty: 4 } } },
   { label: 'Empty Slot', kind: 'icon', overrides: { binding: 'custom' } },
 ];
@@ -93,6 +95,233 @@ const blankPixels = (width: number, height: number): number[][] =>
   Array.from({ length: height }, () => new Array(width).fill(TRANSPARENT));
 
 const clonePixels = (pixels: number[][]): number[][] => pixels.map(row => [...row]);
+
+const clampSlot = (value: unknown): number => {
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) ? Math.max(0, Math.min(15, n)) : 0;
+};
+
+const bitmapTileToPixelGrid = (tile: BitmapTileScreen5): number[][] => {
+  const width = Math.max(1, Math.trunc(Number(tile.width) || 1));
+  const height = Math.max(1, Math.trunc(Number(tile.height) || 1));
+  return Array.from({ length: height }, (_row, y) =>
+    Array.from({ length: width }, (_col, x) => clampSlot(tile.pixelData?.[y * width + x]))
+  );
+};
+
+const bitmapStampToPixelGrid = (stamp: BitmapTileStampScreen5): number[][] => {
+  const columns = Math.max(1, Math.trunc(Number(stamp.columns) || 1));
+  const rows = Math.max(1, Math.trunc(Number(stamp.rows) || 1));
+  const tileWidth = Math.max(1, Math.trunc(Number(stamp.tileWidth) || 16));
+  const tileHeight = Math.max(1, Math.trunc(Number(stamp.tileHeight) || 16));
+  const width = columns * tileWidth;
+  const height = rows * tileHeight;
+  const pixels = Array.from({ length: height }, () => Array.from({ length: width }, () => 0));
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < columns; col++) {
+      const tile = stamp.tiles?.[row * columns + col];
+      if (!tile) continue;
+      const tilePixels = bitmapTileToPixelGrid(tile);
+      for (let y = 0; y < tileHeight; y++) {
+        for (let x = 0; x < tileWidth; x++) {
+          pixels[row * tileHeight + y][col * tileWidth + x] = clampSlot(tilePixels[y]?.[x]);
+        }
+      }
+    }
+  }
+  return pixels;
+};
+
+const remapGridToHudIconPixels = (grid: number[][], remap: number[]): number[][] => {
+  const croppedHeight = Math.min(HUD_HEIGHT, Math.max(1, grid.length));
+  const croppedWidth = Math.min(HUD_WIDTH, Math.max(1, grid[0]?.length || 1));
+  return Array.from({ length: croppedHeight }, (_row, y) =>
+    Array.from({ length: croppedWidth }, (_col, x) => {
+      const sourceSlot = clampSlot(grid[y]?.[x]);
+      if (sourceSlot === 0) return TRANSPARENT;
+      return clampSlot(remap[sourceSlot] ?? sourceSlot);
+    })
+  );
+};
+
+const sourcePaletteForBitmapTile = (tile: BitmapTileScreen5, allAssets: ProjectAsset[], fallback: Screen5PaletteSlot[]): Screen5PaletteSlot[] => {
+  const paletteAsset = allAssets.find(asset => asset.id === tile.paletteId && asset.type === 'palette')?.data as PaletteAsset | undefined;
+  return paletteAsset?.slots?.length ? paletteAsset.slots : fallback;
+};
+
+const buildHudIconFromBitmapAsset = (
+  sourceAsset: ProjectAsset,
+  allAssets: ProjectAsset[],
+  targetSlots: Screen5PaletteSlot[],
+): { icon: Msx2HudIconEntry; cropped: boolean } | null => {
+  let sourcePixels: number[][];
+  let sourceSlots: Screen5PaletteSlot[];
+
+  if (sourceAsset.type === 'msx2bitmaptile') {
+    const tile = sourceAsset.data as BitmapTileScreen5 | undefined;
+    if (!tile || tile.mode !== 'SCREEN5_BITMAP' || !Array.isArray(tile.pixelData)) return null;
+    sourcePixels = bitmapTileToPixelGrid(tile);
+    sourceSlots = sourcePaletteForBitmapTile(tile, allAssets, targetSlots);
+  } else if (sourceAsset.type === 'msx2bitmapstamp') {
+    const stampAsset = sourceAsset.data as Msx2BitmapStampAsset | undefined;
+    const stamp = stampAsset?.stamp;
+    if (!stamp || stamp.mode !== 'SCREEN5_BITMAP_STAMP' || !Array.isArray(stamp.tiles)) return null;
+    sourcePixels = bitmapStampToPixelGrid(stamp);
+    sourceSlots = stampAsset.palette?.length ? stampAsset.palette : targetSlots;
+  } else {
+    return null;
+  }
+
+  const remap = buildScreen5PaletteRemap(sourceSlots, targetSlots);
+  const pixels = remapGridToHudIconPixels(sourcePixels, remap);
+  return {
+    icon: {
+      id: uid('hud_icon'),
+      name: sourceAsset.name || 'Bitmap HUD Icon',
+      width: pixels[0]?.length || 1,
+      height: pixels.length || 1,
+      pixels,
+    },
+    cropped: sourcePixels.length > HUD_HEIGHT || (sourcePixels[0]?.length || 0) > HUD_WIDTH,
+  };
+};
+
+const hashString = (value: string): number => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) hash = ((hash * 31) + value.charCodeAt(i)) >>> 0;
+  return hash;
+};
+
+const bitmapRoomHasPreviewContent = (room: Msx2Screen5BitmapRoom): boolean => {
+  if ((room.composition?.commands || []).length > 0) return true;
+  if ((room.visibleFramebuffer?.pixels || []).length > 0) return true;
+  return (room.tileGrid || []).some(row => row.some(value => value > 0));
+};
+
+const selectHudPreviewBitmapRoom = (allAssets: ProjectAsset[], hudAssetId: string): Msx2Screen5BitmapRoom | undefined => {
+  const bitmapRooms = allAssets
+    .filter(item => item.type === 'msx2bitmaproom')
+    .map(item => item.data as Msx2Screen5BitmapRoom);
+  const linked = bitmapRooms.find(room => room.runtime?.hudAssetId === hudAssetId);
+  if (linked) return linked;
+  const withContent = bitmapRooms.filter(bitmapRoomHasPreviewContent);
+  const candidates = withContent.length ? withContent : bitmapRooms;
+  if (!candidates.length) return undefined;
+  return candidates[hashString(hudAssetId || 'hud') % candidates.length];
+};
+
+const resolveBitmapRoomPreviewPalette = (
+  allAssets: ProjectAsset[],
+  room: Msx2Screen5BitmapRoom,
+): Screen5PaletteSlot[] => {
+  const world = allAssets.find(asset =>
+    asset.type === 'worldmap'
+    && ((asset.data as WorldMapGraph | undefined)?.nodes || []).some(node => node.screenAssetId === room.id)
+  )?.data as WorldMapGraph | undefined;
+  const worldPalette = world?.paletteAssetId
+    ? allAssets.find(asset => asset.id === world.paletteAssetId && asset.type === 'palette')?.data as PaletteAsset | undefined
+    : undefined;
+  return worldPalette?.slots?.length
+    ? worldPalette.slots
+    : room.palette?.length
+      ? room.palette
+      : createDefaultScreen5PaletteSlots();
+};
+
+const drawScreen5BitmapRoomPreview = (
+  ctx: CanvasRenderingContext2D,
+  room: Msx2Screen5BitmapRoom,
+  palette: Screen5PaletteSlot[],
+  scale: number,
+): void => {
+  const colorFor = (index: number): string => palette[index & 0x0f]?.hex || '#000000';
+  const originY = HUD_HEIGHT * scale;
+  const paintRect = (x: number, y: number, w: number, h: number, color: number) => {
+    if (w <= 0 || h <= 0) return;
+    const x0 = Math.max(0, Math.floor(x));
+    const y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(HUD_WIDTH, Math.ceil(x + w));
+    const y1 = Math.min(GAME_AREA_HEIGHT, Math.ceil(y + h));
+    if (x1 <= x0 || y1 <= y0) return;
+    ctx.fillStyle = colorFor(color);
+    ctx.fillRect(x0 * scale, originY + y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale);
+  };
+
+  ctx.fillStyle = colorFor(room.backgroundColor ?? 0);
+  ctx.fillRect(0, originY, HUD_WIDTH * scale, GAME_AREA_HEIGHT * scale);
+
+  const framebuffer = room.visibleFramebuffer?.pixels;
+  if (framebuffer?.length) {
+    for (let y = 0; y < GAME_AREA_HEIGHT; y++) {
+      for (let x = 0; x < HUD_WIDTH; x++) {
+        const color = framebuffer[y]?.[x];
+        if (color === undefined) continue;
+        ctx.fillStyle = colorFor(color);
+        ctx.fillRect(x * scale, originY + y * scale, scale, scale);
+      }
+    }
+    return;
+  }
+
+  const atlasEntries = new Map((room.atlas?.entries || []).map(entry => [entry.id, entry]));
+  const atlasPixels = room.atlas?.pixels || [];
+  for (const command of room.composition?.commands || []) {
+    if (command.op === 'fill') {
+      paintRect(command.x, command.y, command.w, command.h, command.color);
+      continue;
+    }
+    if (command.op === 'lineH') {
+      paintRect(command.x, command.y, command.length, 1, command.color);
+      continue;
+    }
+    if (command.op === 'lineV') {
+      paintRect(command.x, command.y, 1, command.length, command.color);
+      continue;
+    }
+    if (command.op !== 'copy') continue;
+    const entry = atlasEntries.get(command.atlasEntryId);
+    if (!entry) continue;
+    const w = Math.max(1, Math.min(command.w || entry.w || 16, HUD_WIDTH));
+    const h = Math.max(1, Math.min(command.h || entry.h || 16, GAME_AREA_HEIGHT));
+    for (let yy = 0; yy < h; yy++) {
+      const destY = command.dy + yy;
+      if (destY < 0 || destY >= GAME_AREA_HEIGHT) continue;
+      for (let xx = 0; xx < w; xx++) {
+        const destX = command.dx + xx;
+        if (destX < 0 || destX >= HUD_WIDTH) continue;
+        const color = atlasPixels[entry.sy + yy]?.[entry.sx + xx];
+        if (color === undefined) continue;
+        ctx.fillStyle = colorFor(color);
+        ctx.fillRect(destX * scale, originY + destY * scale, scale, scale);
+      }
+    }
+  }
+};
+
+interface HudRuntimePreviewContext {
+  playerEnergyMax?: number;
+  playerEnergyInitial?: number;
+}
+
+const clampHudRuntimeValue = (value: unknown, fallback: number): number => {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) ? Math.max(1, Math.min(255, n)) : fallback;
+};
+
+const hudElementMaxValue = (el: Msx2HudElement, runtime?: HudRuntimePreviewContext): number => {
+  if (el.binding === 'playerEnergy' && runtime?.playerEnergyMax !== undefined) {
+    return clampHudRuntimeValue(runtime.playerEnergyMax, 5);
+  }
+  return el.maxValue && el.maxValue > 0 ? el.maxValue : 1;
+};
+
+const hudElementInitialValue = (el: Msx2HudElement, max: number, runtime?: HudRuntimePreviewContext): number => {
+  if (el.binding === 'playerEnergy' && runtime?.playerEnergyInitial !== undefined) {
+    return Math.min(max, clampHudRuntimeValue(runtime.playerEnergyInitial, max));
+  }
+  return clampRatio(el.initialValue ?? 0, 0, max);
+};
 
 const createPaintLayer = (name: string): Msx2HudLayer => ({
   id: uid('hud_layer'),
@@ -240,15 +469,68 @@ const drawHeartMask = (ctx: CanvasRenderingContext2D, ox: number, oy: number, sc
   }
 };
 
-/** Draws HUD text (counters/labels) with an 8px monospace face, honouring horizontal alignment. */
+const drawHudBitmapFontText = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  scale: number,
+  color: string,
+  font: Msx2HudFontAsset,
+  slots: Screen5PaletteSlot[],
+) => {
+  const allowed = new Set(Array.from(font.characters || ''));
+  const patterns = font.patterns || {};
+  ctx.fillStyle = color;
+  for (const [charIndex, rawChar] of Array.from(text || '').entries()) {
+    const char = rawChar.toUpperCase();
+    const key = allowed.size === 0 || allowed.has(char) ? char : ' ';
+    const bitmap = font.vdpMode === 'SCREEN5' ? font.bitmapPatterns?.[key] || font.bitmapPatterns?.[' '] : undefined;
+    const backgroundSlot = Math.max(0, Math.min(15, Number(font.screen5BackgroundSlot ?? 0) || 0));
+    if (Array.isArray(bitmap)) {
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const slot = Number(bitmap[row]?.[col]);
+          if (!Number.isFinite(slot) || slot === backgroundSlot) continue;
+          ctx.fillStyle = slotHex(slots, slot, '#000');
+          ctx.fillRect((x + (charIndex * 8) + col) * scale, (y + row) * scale, scale, scale);
+        }
+      }
+      ctx.fillStyle = color;
+      continue;
+    }
+    const pattern = patterns[key] || patterns[' '];
+    if (!pattern) continue;
+    for (let row = 0; row < 8; row++) {
+      const bits = Number(pattern[row]) || 0;
+      for (let col = 0; col < 8; col++) {
+        if (bits & (0x80 >> col)) {
+          ctx.fillRect((x + (charIndex * 8) + col) * scale, (y + row) * scale, scale, scale);
+        }
+      }
+    }
+  }
+};
+
+/** Draws HUD text (counters/labels), honouring horizontal alignment. */
 const drawHudText = (
   ctx: CanvasRenderingContext2D,
   text: string,
   el: Msx2HudElement,
   scale: number,
   color: string,
+  font?: Msx2HudFontAsset,
+  slots: Screen5PaletteSlot[] = [],
 ) => {
   if (!text) return;
+  const textWidth = Array.from(text).length * 8;
+  let textX = el.x;
+  if (el.align.h === 'right') textX = el.x + el.width - textWidth;
+  else if (el.align.h === 'center') textX = el.x + Math.floor((el.width - textWidth) / 2);
+  if (font) {
+    drawHudBitmapFontText(ctx, text, textX, el.y, scale, color, font, slots);
+    return;
+  }
   ctx.font = `${8 * scale}px monospace`;
   ctx.fillStyle = color;
   ctx.textBaseline = 'top';
@@ -276,7 +558,7 @@ const renderWidgetLayer = (
   scale: number,
   slots: Screen5PaletteSlot[],
   icons: Msx2HudIconEntry[],
-  options: { editMode: boolean; selected: boolean },
+  options: { editMode: boolean; selected: boolean; runtime?: HudRuntimePreviewContext; font?: Msx2HudFontAsset },
 ) => {
   if (layer.kind !== 'widget') return;
   const el = layer.element;
@@ -284,7 +566,7 @@ const renderWidgetLayer = (
   const y = el.y * scale;
   const w = el.width * scale;
   const h = el.height * scale;
-  const { editMode, selected } = options;
+  const { editMode, selected, runtime, font } = options;
 
   if (el.kind === 'bar') {
     // WYSIWYG with the export (buildBitmapHudSeedPixels + buildBitmapHudLinkedBarAsm):
@@ -292,8 +574,8 @@ const renderWidgetLayer = (
     // needs byte-aligned DX/NX, so a 1px frame cannot survive the dynamic fill.
     const barXlog = el.x & ~1;
     const barWlog = Math.min(254, Math.max(2, el.width & ~1));
-    const max = el.maxValue && el.maxValue > 0 ? el.maxValue : 1;
-    const fillWlog = (Math.floor((barWlog * clampRatio(el.initialValue ?? 0, 0, max)) / max)) & ~1;
+    const max = hudElementMaxValue(el, runtime);
+    const fillWlog = (Math.floor((barWlog * hudElementInitialValue(el, max, runtime)) / max)) & ~1;
     const bx = barXlog * scale;
     const by = el.y * scale;
     const bw = barWlog * scale;
@@ -304,9 +586,12 @@ const renderWidgetLayer = (
     ctx.fillRect(bx, by, fillWlog * scale, bh);
   } else if (el.kind === 'iconRow') {
     const step = el.spacing && el.spacing > 0 ? el.spacing : 16;
-    const total = Math.max(1, Math.floor(el.width / step));
-    const max = el.maxValue && el.maxValue > 0 ? el.maxValue : total;
-    const fullCount = max > 0 ? Math.round((clampRatio(el.initialValue ?? 0, 0, max) / max) * total) : 0;
+    const authoredTotal = Math.max(1, Math.floor(el.width / step));
+    const max = hudElementMaxValue(el, runtime);
+    const total = el.binding === 'playerEnergy' && runtime?.playerEnergyMax !== undefined
+      ? max
+      : authoredTotal;
+    const fullCount = max > 0 ? Math.round((hudElementInitialValue(el, max, runtime) / max) * total) : 0;
     const fullIcon = icons.find(i => i.id === el.atlasEntryId);
     const emptyIcon = icons.find(i => i.id === el.emptyAtlasEntryId);
     const heartFallback = !fullIcon && !emptyIcon && el.binding === 'playerEnergy';
@@ -344,7 +629,7 @@ const renderWidgetLayer = (
     if (icon) {
       drawIconPixels(ctx, icon, el.x + 1, el.y + 1, scale, slots);
     } else if (editMode) {
-      drawHudText(ctx, KIND_LABELS[el.kind], { ...el, align: { ...el.align, h: 'center' } }, scale, slotHex(slots, el.colors.text, '#aaa'));
+      drawHudText(ctx, KIND_LABELS[el.kind], { ...el, align: { ...el.align, h: 'center' } }, scale, slotHex(slots, el.colors.text, '#aaa'), font, slots);
     }
   } else if (el.kind === 'iconCounter') {
     const icon = icons.find(i => i.id === el.atlasEntryId);
@@ -361,11 +646,13 @@ const renderWidgetLayer = (
       { ...el, x: el.x + iconW + 1, width: Math.max(1, el.width - iconW - 1), align: { ...el.align, h: 'left' } },
       scale,
       slotHex(slots, el.colors.text, '#ff0'),
+      font,
+      slots,
     );
   } else if (el.kind === 'counter') {
-    drawHudText(ctx, formatPreviewValue(el.initialValue ?? 0, el), el, scale, slotHex(slots, el.colors.text, '#ff0'));
+    drawHudText(ctx, formatPreviewValue(el.initialValue ?? 0, el), el, scale, slotHex(slots, el.colors.text, '#ff0'), font, slots);
   } else if (el.kind === 'text') {
-    drawHudText(ctx, el.text || '', el, scale, slotHex(slots, el.colors.text, '#fff'));
+    drawHudText(ctx, el.text || '', el, scale, slotHex(slots, el.colors.text, '#fff'), font, slots);
   }
 
   // Bounds / selection outline (edit mode only).
@@ -376,7 +663,13 @@ const renderWidgetLayer = (
   }
 };
 
-const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'score', 'lives', 'collectibles', 'custom'];
+const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'custom'];
+const XP_REWARD_ACTION_LABELS: Record<Msx2HudXpRewardActionType, string> = {
+  incrementLevel: 'Level +',
+  incrementSkillPoints: 'Skill points +',
+  restoreHealth: 'Restore health',
+  callAsmHook: 'Call ASM hook',
+};
 
 const ColorSwatchPicker: React.FC<{
   slots: Screen5PaletteSlot[];
@@ -443,6 +736,26 @@ const IconAssetPicker: React.FC<{
   </div>
 );
 
+const extractMsx2PlayerData = (asset: ProjectAsset | undefined): Partial<Msx2PlayerDefinition> | undefined => {
+  if (!asset || asset.type !== 'msx2player') return undefined;
+  const data = asset.data as any;
+  return (data?.player || data?.compact || data) as Partial<Msx2PlayerDefinition>;
+};
+
+const msx2PlayerIdentityKeys = (asset: ProjectAsset): Set<string> => {
+  const player = extractMsx2PlayerData(asset);
+  const data = asset.data as any;
+  return new Set([
+    asset.id,
+    asset.name,
+    (player as any)?.id,
+    data?.player?.identity?.id,
+    data?.player?.identity?.name,
+    data?.compact?.id,
+    data?.compact?.name,
+  ].map(value => String(value || '').trim()).filter(Boolean));
+};
+
 interface Msx2HudEditorProps {
   asset: Msx2HudAsset;
   onUpdate: (data: Partial<Msx2HudAsset>) => void;
@@ -459,6 +772,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
   const [zoom, setZoom] = useState(4);
   const [rightTab, setRightTab] = useState<'inspector' | 'palette' | 'assets'>('inspector');
   const [selectedIconId, setSelectedIconId] = useState<string | undefined>(icons[0]?.id);
+  const [bitmapIconSourceAssetId, setBitmapIconSourceAssetId] = useState<string>('');
   const [iconTool, setIconTool] = useState<'paint' | 'fill'>('paint'); // Assets tab: icon pixel editor active tool
   const [isIconLibraryOpen, setIsIconLibraryOpen] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; mode: 'paint' | 'move'; grabDx?: number; grabDy?: number } | null>(null);
@@ -487,7 +801,45 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     () => (paletteAsset?.data as PaletteAsset | undefined)?.slots || createDefaultScreen5PaletteSlots(),
     [paletteAsset],
   );
+  const runtimePreview = useMemo<HudRuntimePreviewContext>(() => {
+    const linkedRoom = allAssets.find(item =>
+      item.type === 'msx2bitmaproom'
+      && ((item.data as Msx2Screen5BitmapRoom | undefined)?.runtime?.hudAssetId === asset.id)
+    )?.data as Msx2Screen5BitmapRoom | undefined;
+    const referencedIds = new Set<string>();
+    for (const entry of linkedRoom?.playerEntries || []) {
+      const playerId = String((entry as any)?.playerId || '').trim();
+      if (playerId) referencedIds.add(playerId);
+    }
+    const playerAssets = allAssets.filter(item => item.type === 'msx2player');
+    const playerAsset = referencedIds.size
+      ? playerAssets.find(item => {
+          const keys = msx2PlayerIdentityKeys(item);
+          return [...referencedIds].some(id => keys.has(id));
+        }) || playerAssets[0]
+      : playerAssets[0];
+    const player = extractMsx2PlayerData(playerAsset);
+    const maxHealth = clampHudRuntimeValue((player as any)?.health?.maxHealth, 5);
+    return { playerEnergyMax: maxHealth, playerEnergyInitial: maxHealth };
+  }, [allAssets, asset.id]);
+  const previewBitmapRoom = useMemo(
+    () => selectHudPreviewBitmapRoom(allAssets, asset.id),
+    [allAssets, asset.id],
+  );
+  const previewBitmapRoomPalette = useMemo(
+    () => previewBitmapRoom ? resolveBitmapRoomPreviewPalette(allAssets, previewBitmapRoom) : undefined,
+    [allAssets, previewBitmapRoom],
+  );
   const paletteAssets = useMemo(() => allAssets.filter(a => a.type === 'palette'), [allAssets]);
+  const bitmapIconSourceAssets = useMemo(
+    () => allAssets.filter(a => a.type === 'msx2bitmaptile' || a.type === 'msx2bitmapstamp'),
+    [allAssets],
+  );
+  const hudFontAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2hudfont'), [allAssets]);
+  const selectedHudFont = useMemo(() => {
+    if (!asset.hudFontAssetId) return undefined;
+    return hudFontAssets.find(a => a.id === asset.hudFontAssetId)?.data as Msx2HudFontAsset | undefined;
+  }, [asset.hudFontAssetId, hudFontAssets]);
 
   const selectedLayer = layers.find(l => l.id === selectedLayerId);
   const selectedIcon = icons.find(i => i.id === selectedIconId);
@@ -505,6 +857,13 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
         : layer
     )));
   }, [layers, updateLayers]);
+
+  const updateXpReward = useCallback((id: string, patch: Partial<NonNullable<Msx2HudElement['xpReward']>>) => {
+    const layer = layers.find(item => item.id === id);
+    if (!layer || layer.kind !== 'widget') return;
+    const current = layer.element.xpReward || { enabled: true, carryOverflow: true, actions: [{ type: 'incrementLevel' as const, amount: 1 }] };
+    updateElement(id, { xpReward: { ...current, ...patch } });
+  }, [layers, updateElement]);
 
   const moveLayer = (id: string, direction: -1 | 1) => {
     const index = layers.findIndex(l => l.id === id);
@@ -688,7 +1047,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
           }
         }
       } else {
-        renderWidgetLayer(ctx, layer, zoom, slots, icons, { editMode: true, selected: layer.id === selectedLayerId });
+        renderWidgetLayer(ctx, layer, zoom, slots, icons, { editMode: true, selected: layer.id === selectedLayerId, runtime: runtimePreview, font: selectedHudFont });
       }
     });
     if (previewPoints && selectedLayer?.kind === 'paint') {
@@ -702,7 +1061,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
       const hex = slots[selectedColor]?.hex || '#fff';
       statusColorRef.current.textContent = `${hex} (${selectedColor})`;
     }
-  }, [layers, zoom, slots, selectedLayerId, previewPoints, selectedColor, showGrid]);
+  }, [layers, zoom, slots, selectedLayerId, previewPoints, selectedColor, showGrid, runtimePreview, selectedHudFont]);
 
   // --- Full screen preview (256x212, MSX2 SCREEN 5: HUD 20 + game 192) ---
   const previewRef = useRef<HTMLCanvasElement>(null);
@@ -715,11 +1074,16 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     canvas.width = HUD_WIDTH * scale;
     canvas.height = FULL_SCREEN_HEIGHT * scale;
     ctx.imageSmoothingEnabled = false;
-    // Game area backdrop (rows 20..211).
-    ctx.fillStyle = '#202038';
-    ctx.fillRect(0, HUD_HEIGHT * scale, canvas.width, GAME_AREA_HEIGHT * scale);
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    for (let y = HUD_HEIGHT; y < FULL_SCREEN_HEIGHT; y += 16) ctx.fillRect(0, y * scale, canvas.width, 1);
+    // Game area backdrop (rows 20..211). Prefer a real SCREEN 5 bitmap room so
+    // the HUD can be judged over representative gameplay instead of an empty grid.
+    if (previewBitmapRoom && previewBitmapRoomPalette) {
+      drawScreen5BitmapRoomPreview(ctx, previewBitmapRoom, previewBitmapRoomPalette, scale);
+    } else {
+      ctx.fillStyle = '#202038';
+      ctx.fillRect(0, HUD_HEIGHT * scale, canvas.width, GAME_AREA_HEIGHT * scale);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      for (let y = HUD_HEIGHT; y < FULL_SCREEN_HEIGHT; y += 16) ctx.fillRect(0, y * scale, canvas.width, 1);
+    }
     // HUD area backdrop (rows 0..19).
     ctx.fillStyle = '#101018';
     ctx.fillRect(0, 0, canvas.width, HUD_HEIGHT * scale);
@@ -735,7 +1099,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
           }
         }
       } else {
-        renderWidgetLayer(ctx, layer, scale, slots, icons, { editMode: false, selected: false });
+        renderWidgetLayer(ctx, layer, scale, slots, icons, { editMode: false, selected: false, runtime: runtimePreview, font: selectedHudFont });
       }
     });
     // HUD / GAME AREA separator + band highlight.
@@ -750,7 +1114,7 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.fillText('GAME 256x192', 2, HUD_HEIGHT * scale + 9 * scale);
     }
-  }, [layers, slots, previewScale, showHudArea]);
+  }, [layers, slots, previewScale, showHudArea, runtimePreview, previewBitmapRoom, previewBitmapRoomPalette, selectedHudFont]);
 
   // --- Rulers (pixel-accurate, scaled with zoom) ---
   React.useEffect(() => {
@@ -820,6 +1184,28 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
     const icon: Msx2HudIconEntry = { id: uid('hud_icon'), name: `Icon ${icons.length + 1}`, width: DEFAULT_ICON_SIZE, height: DEFAULT_ICON_SIZE, pixels: blankPixels(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE) };
     onUpdate({ icons: [...icons, icon] });
     setSelectedIconId(icon.id);
+  };
+
+  const importBitmapAssetAsIcon = () => {
+    const sourceAsset = bitmapIconSourceAssets.find(item => item.id === bitmapIconSourceAssetId);
+    if (!sourceAsset) {
+      setStatusBarMessage?.('MSX2 HUD: selecciona un MSX2 Bitmap Tile o Stamp para importarlo como icono.');
+      return;
+    }
+    const result = buildHudIconFromBitmapAsset(sourceAsset, allAssets, slots);
+    if (!result) {
+      setStatusBarMessage?.(`MSX2 HUD: no se pudo convertir "${sourceAsset.name}" en icono.`);
+      return;
+    }
+    onUpdate({ icons: [...icons, result.icon] });
+    setSelectedIconId(result.icon.id);
+    setRightTab('assets');
+    setActiveTool('iconStamp');
+    setStatusBarMessage?.(
+      result.cropped
+        ? `MSX2 HUD: "${sourceAsset.name}" importado como icono ${result.icon.width}x${result.icon.height}; recortado al HUD 256x20. Usa Icon Stamp para colocarlo.`
+        : `MSX2 HUD: "${sourceAsset.name}" importado como icono ${result.icon.width}x${result.icon.height}. Usa Icon Stamp para colocarlo.`
+    );
   };
 
   /** Saves the selected icon (with the active palette, for portable previews) to the global HUD icon library. */
@@ -1168,30 +1554,110 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         <label>Initial<input type="number" value={selectedLayer.element.initialValue ?? 0} onChange={e => updateElement(selectedLayer.id, { initialValue: Number(e.target.value) || 0 })} className="w-full bg-msx-bgcolor border border-msx-border rounded px-1" /></label>
                       </div>
 
-                      <div className="pt-1 border-t border-msx-border">
-                        <div className="text-msx-textsecondary mb-1">Alignment</div>
-                        <div className="flex gap-1 mb-1">
-                          {(['left', 'center', 'right'] as const).map(h => (
-                            <Button key={h} size="sm" variant={selectedLayer.element.align.h === h ? 'primary' : 'ghost'} onClick={() => updateElement(selectedLayer.id, { align: { ...selectedLayer.element.align, h } })}>{h}</Button>
-                          ))}
+                      {selectedLayer.element.kind === 'bar' && selectedLayer.element.binding === 'experience' && (
+                        <div className="pt-1 border-t border-msx-border space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-msx-textsecondary">XP Reward</div>
+                            <label className="flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={selectedLayer.element.xpReward?.enabled ?? true}
+                                onChange={e => updateXpReward(selectedLayer.id, { enabled: e.target.checked })}
+                              />
+                              Enabled
+                            </label>
+                          </div>
+                          <label className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedLayer.element.xpReward?.carryOverflow ?? true}
+                              onChange={e => updateXpReward(selectedLayer.id, { carryOverflow: e.target.checked })}
+                            />
+                            Carry overflow XP after reward
+                          </label>
+                          <div className="space-y-1">
+                            {(selectedLayer.element.xpReward?.actions || [{ type: 'incrementLevel' as const, amount: 1 }]).map((action, actionIndex) => (
+                              <div key={`xp-reward-${actionIndex}`} className="grid grid-cols-12 gap-1 items-center">
+                                <select
+                                  value={action.type}
+                                  onChange={e => {
+                                    const actions = [...(selectedLayer.element.xpReward?.actions || [{ type: 'incrementLevel' as const, amount: 1 }])];
+                                    actions[actionIndex] = { ...actions[actionIndex], type: e.target.value as Msx2HudXpRewardActionType };
+                                    updateXpReward(selectedLayer.id, { actions });
+                                  }}
+                                  className="col-span-6 bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5"
+                                >
+                                  {(Object.keys(XP_REWARD_ACTION_LABELS) as Msx2HudXpRewardActionType[]).map(type => (
+                                    <option key={type} value={type}>{XP_REWARD_ACTION_LABELS[type]}</option>
+                                  ))}
+                                </select>
+                                {action.type === 'callAsmHook' ? (
+                                  <input
+                                    className="col-span-5 bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5"
+                                    placeholder="hook_label"
+                                    value={action.hookLabel || ''}
+                                    onChange={e => {
+                                      const actions = [...(selectedLayer.element.xpReward?.actions || [])];
+                                      actions[actionIndex] = { ...action, hookLabel: e.target.value };
+                                      updateXpReward(selectedLayer.id, { actions });
+                                    }}
+                                  />
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={255}
+                                    className="col-span-5 bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5"
+                                    value={action.amount ?? 1}
+                                    onChange={e => {
+                                      const actions = [...(selectedLayer.element.xpReward?.actions || [])];
+                                      actions[actionIndex] = { ...action, amount: Math.max(0, Math.min(255, Number(e.target.value) || 0)) };
+                                      updateXpReward(selectedLayer.id, { actions });
+                                    }}
+                                  />
+                                )}
+                                <button
+                                  type="button"
+                                  className="col-span-1 text-msx-danger"
+                                  onClick={() => {
+                                    const actions = (selectedLayer.element.xpReward?.actions || []).filter((_item, index) => index !== actionIndex);
+                                    updateXpReward(selectedLayer.id, { actions });
+                                  }}
+                                >
+                                  x
+                                </button>
+                              </div>
+                            ))}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                const actions = [...(selectedLayer.element.xpReward?.actions || []), { type: 'incrementSkillPoints' as const, amount: 1 }];
+                                updateXpReward(selectedLayer.id, { actions });
+                              }}
+                            >
+                              Add reward action
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-1">
-                          {(['top', 'middle', 'bottom'] as const).map(v => (
-                            <Button key={v} size="sm" variant={selectedLayer.element.align.v === v ? 'primary' : 'ghost'} onClick={() => updateElement(selectedLayer.id, { align: { ...selectedLayer.element.align, v } })}>{v}</Button>
-                          ))}
-                        </div>
-                      </div>
+                      )}
 
-                      <div className="pt-1 border-t border-msx-border flex items-center justify-between">
+                      {(['text', 'counter', 'iconCounter'] as Msx2HudElementKind[]).includes(selectedLayer.element.kind) && (
+                        <div className="pt-1 border-t border-msx-border">
+                          <div className="text-msx-textsecondary mb-1">Text Alignment</div>
+                          <div className="flex gap-1">
+                            {(['left', 'center', 'right'] as const).map(h => (
+                              <Button key={h} size="sm" variant={selectedLayer.element.align.h === h ? 'primary' : 'ghost'} onClick={() => updateElement(selectedLayer.id, { align: { ...selectedLayer.element.align, h } })}>{h}</Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="pt-1 border-t border-msx-border">
                         <label className="flex items-center gap-1">
                           <input type="checkbox" checked={selectedLayer.element.visible} onChange={e => updateElement(selectedLayer.id, { visible: e.target.checked })} />
                           Visible
                         </label>
-                        <select value={selectedLayer.element.blink} onChange={e => updateElement(selectedLayer.id, { blink: e.target.value as 'off' | 'slow' | 'fast' })} className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5">
-                          <option value="off">Blink: Off</option>
-                          <option value="slow">Blink: Slow</option>
-                          <option value="fast">Blink: Fast</option>
-                        </select>
                       </div>
                     </>
                   )}
@@ -1212,6 +1678,24 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                   <option value="">Default SCREEN 5 palette</option>
                   {paletteAssets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
+                <div className="text-msx-textsecondary pt-2">MSX2 Font:</div>
+                <select
+                  value={asset.hudFontAssetId || ''}
+                  onChange={e => {
+                    const nextId = e.target.value || null;
+                    const nextFont = nextId ? hudFontAssets.find(a => a.id === nextId) : undefined;
+                    onUpdate({ hudFontAssetId: nextId });
+                    setStatusBarMessage?.(
+                      nextFont
+                        ? `MSX2 HUD: fuente "${nextFont.name}" seleccionada.`
+                        : 'MSX2 HUD: fuente personalizada desactivada (None).'
+                    );
+                  }}
+                  className="w-full bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5"
+                >
+                  <option value="">None</option>
+                  {hudFontAssets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
                 <div className="grid grid-cols-8 gap-1 pt-2">
                   {slots.map((slot, index) => (
                     <div key={index} className="flex flex-col items-center">
@@ -1228,6 +1712,32 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                 <div className="flex items-center gap-1">
                   <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={addIcon}>Add blank {DEFAULT_ICON_SIZE}x{DEFAULT_ICON_SIZE} icon</Button>
                   <Button size="sm" variant="ghost" icon={<LoadIcon />} title="Import an icon from the global library" onClick={() => setIsIconLibraryOpen(true)}>Library</Button>
+                </div>
+                <div className="border border-msx-border rounded p-2 space-y-1">
+                  <div className="text-msx-textsecondary">Import MSX2 bitmap asset as HUD icon</div>
+                  <select
+                    value={bitmapIconSourceAssetId}
+                    onChange={event => setBitmapIconSourceAssetId(event.target.value)}
+                    className="w-full bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5"
+                  >
+                    <option value="">Select Bitmap Tile / Stamp...</option>
+                    {bitmapIconSourceAssets.map(sourceAsset => (
+                      <option key={sourceAsset.id} value={sourceAsset.id}>
+                        {sourceAsset.type === 'msx2bitmapstamp' ? 'Stamp' : 'Tile'} - {sourceAsset.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<ImageIcon />}
+                    onClick={importBitmapAssetAsIcon}
+                    disabled={!bitmapIconSourceAssetId}
+                    className="w-full"
+                  >
+                    Import as HUD icon
+                  </Button>
+                  <div className="text-[0.6rem] text-msx-textsecondary">Slot 0 imports as transparent. Assets taller than 20px are cropped to the HUD band.</div>
                 </div>
                 <div className="grid grid-cols-4 gap-1">
                   {icons.map(icon => (

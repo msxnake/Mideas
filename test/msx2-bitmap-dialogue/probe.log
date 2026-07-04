@@ -1,0 +1,7 @@
+boot x=36 y=144 state=0
+after UP: state=1 (expect 1 typing)
+typing done: state=2 (expect 2 wait)
+line 2 typing: state=1 (expect 1)
+line 2 done: state=2 (expect 2)
+closed: state=0 (expect 0)
+player x=36 y=144

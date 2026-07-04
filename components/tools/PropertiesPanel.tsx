@@ -1061,6 +1061,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Base char:</strong> {font.baseChar}</div>
             <div><strong className="text-msx-highlight">Characters:</strong> {font.characters?.length || 0}</div>
             <div><strong className="text-msx-highlight">Patterns:</strong> {Object.keys(font.patterns || {}).length}</div>
+            {font.vdpMode === 'SCREEN5' && <div><strong className="text-msx-highlight">Bitmap glyphs:</strong> {Object.keys(font.bitmapPatterns || {}).length}</div>}
+            {font.paletteAssetId && <div><strong className="text-msx-highlight">Palette:</strong> {font.paletteAssetId}</div>}
             <div><strong className="text-msx-highlight">Color byte:</strong> #{(font.colorByte ?? 0).toString(16).padStart(2, '0').toUpperCase()}</div>
           </div>
         );
@@ -1073,6 +1075,19 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Size:</strong> {hud.width}x{hud.height}</div>
             <div><strong className="text-msx-highlight">Layers:</strong> {hud.layers?.length || 0}</div>
             <div><strong className="text-msx-highlight">Icons:</strong> {hud.icons?.length || 0}</div>
+          </div>
+        );
+      }
+      case 'msx2dialogue': {
+        const dlg = asset.data as any;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {dlg?.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 5 bitmap dialogue</div>
+            <div><strong className="text-msx-highlight">Lines:</strong> {dlg?.lines?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Portraits:</strong> {dlg?.portraits?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Box:</strong> {dlg?.box?.width || 0}x{dlg?.box?.height || 0} @ {dlg?.box?.x || 0},{dlg?.box?.y || 0}</div>
+            <div><strong className="text-msx-highlight">Char delay:</strong> {dlg?.exportOptions?.charDelayFrames ?? 3} frames</div>
           </div>
         );
       }
@@ -2084,7 +2099,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         ],
       },
       [EditorType.Msx2HudFont]: {
-        title: 'MSX2 HUD Font Help',
+        title: 'MSX2 Font Help',
         summary: 'Prepare SCREEN 4 text glyphs for menus, HUDs, story panels, and GameFlow runtime text.',
         tips: [
           'Keep menu fonts consistent with the visual style of SCREEN 4 menus.',
@@ -2217,7 +2232,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         summary: 'Edit global MSX1 font patterns and row color attributes.',
         tips: [
           'Focus on Space, digits, and A-Z for HUD/menu readability.',
-          'Use MSX2 HUD Font for SCREEN 4 text workflows.',
+          'Use MSX2 Font for SCREEN 4 text workflows.',
         ],
       },
       [EditorType.ComponentDefinitionEditor]: {
@@ -2281,7 +2296,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         summary: 'Configure gameplay UI elements such as counters, icons, bars, and labels.',
         tips: [
           'Keep HUD regions away from active gameplay space.',
-          'For MSX2 SCREEN 4 HUD text, pair this with MSX2 HUD Font assets.',
+          'For MSX2 SCREEN 4 HUD text, pair this with MSX2 Font assets.',
         ],
       },
       [EditorType.MainMenu]: {

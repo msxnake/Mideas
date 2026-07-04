@@ -14,6 +14,64 @@ Leccion Aprendida:
 
 ---
 
+Fecha: 2026-07-02
+
+Problema:
+En SCREEN 5 bitmap, el Player Config definia `maxHealth=5`, pero el HUD mostraba
+cantidades distintas segun superficie: el editor de HUD podia dibujar 6 corazones
+por el ancho del widget y la ROM podia dibujar hasta 12 por el limite interno del
+backend.
+
+Causa:
+Los widgets `playerEnergy` mezclaban dos fuentes de verdad. El runtime ya leia
+`player_health` desde Player Config, pero el renderer del HUD y los builders ASM
+seguian usando `element.maxValue`, `element.initialValue`, ancho/spacing del widget
+o el clamp maximo de corazones. Eso hacia que la autoria visual mandase sobre el
+estado real del player.
+
+Solucion:
+Resolver `playerEnergy` contra `health.maxHealth` del Player Config tanto en el
+preview del editor como en `buildBitmapHudSeedPixels`, `buildBitmapHudLinkedBarAsm`
+y `buildBitmapHudLinkedIconRowAsm`. El widget puede conservar su layout, pero el
+contador/escala real sale del player.
+
+Leccion Aprendida:
+En HUDs ligados a gameplay, `binding=playerEnergy` debe usar siempre Player Config
+como fuente de verdad. `maxValue`, `initialValue`, ancho y spacing son datos de
+autoria/layout; si se usan como estado runtime, UI, preview y ROM divergen.
+
+---
+
+Fecha: 2026-07-02
+
+Problema:
+En SCREEN 5 bitmap, al cambiar a una pantalla adyacente el HUD podia mostrar
+valores divergentes o placeholders de seed en la nueva sala, aunque la primera
+pantalla se viera bien.
+
+Causa:
+El backend usa doble buffer por paginas VRAM: la sala nueva se compone en la
+pagina oculta y despues `commit_room_flip` cambia `bitmap_displayed_page`. Los
+widgets dinamicos del HUD redibujan solo si cambia su dirty flag. Tras el flip,
+la pagina nueva podia conservar el HUD seed inicial, pero el dirty flag seguia
+coincidiendo con el valor logico ya dibujado en la pagina anterior, asi que el
+widget no se redibujaba en la pagina visible nueva.
+
+Solucion:
+Invalidar los dirty flags del HUD dinamico dentro de `commit_room_flip`, despues
+de publicar `bitmap_displayed_page`. La invalidacion escribe un valor distinto
+al valor real actual (XOR 1; tambien para counters de 16 bits en el byte bajo),
+de modo que el siguiente frame reutiliza las rutinas existentes y redibuja sobre
+la nueva pagina visible.
+
+Leccion Aprendida:
+Con page flipping, un dirty flag global no prueba que la pagina actualmente
+visible tenga el rectangulo actualizado. Cualquier overlay dinamico dibujado
+solo en la pagina visible debe invalidarse al hacer flip, o mantener dirty/state
+por pagina.
+
+---
+
 Fecha: 2026-06-30
 
 Problema:

@@ -280,6 +280,7 @@ export type Msx2RuntimeEngine =
   | 'spike'
   | 'door'
   | 'checkpoint'
+  | 'npc'
   | 'control_2_players'
   | 'paddleHorizontal'
   | 'ballBounce'
@@ -803,6 +804,18 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_collision: { solid: false },
     },
     params: { runtime: 'MSX2', engine: 'door' },
+  },
+  {
+    id: 'npc',
+    label: 'MSX2 Talking NPC',
+    kind: 'npc',
+    runtime: 'MSX2',
+    engine: 'npc',
+    description: 'SCREEN 5 bitmap-room NPC: the player overlaps its 16x16 cell and presses the talk key (UP/SPACE) to play an MSX2 Dialogue (typewriter box + talking-head portrait). Its visual is an atlas tile baked into the room render.',
+    components: {
+      msx2_transform: {},
+    },
+    params: { runtime: 'MSX2', engine: 'npc', npcDialogue: { dialogueAssetId: '', atlasEntryId: '', talkKey: 'up' } },
   },
   {
     id: 'checkpoint',

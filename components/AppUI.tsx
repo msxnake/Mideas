@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, EnemyDefinition, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, Msx2DialogueAsset, Msx2BitmapStampAsset, Msx2BitmapTerrainAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
 } from '../types';
 import { 
   MSX1_PALETTE,
@@ -50,6 +50,7 @@ import { BossEditor } from './editors/BossEditor';
 import { SpriteSheetReorderModal } from './modals/SpriteSheetReorderModal';
 import { Msx2EntityLibraryModal } from './modals/Msx2EntityLibraryModal';
 import { Msx2StampLibraryModal } from './modals/Msx2StampLibraryModal';
+import { Msx2TerrainLibraryModal } from './modals/Msx2TerrainLibraryModal';
 import { Msx2SpriteLibraryModal } from './modals/Msx2SpriteLibraryModal';
 import { Msx2TileLibraryModal } from './modals/Msx2TileLibraryModal';
 import { Msx2HudIconLibraryModal } from './modals/Msx2HudIconLibraryModal';
@@ -63,6 +64,8 @@ import { PaletteEditor } from './editors/PaletteEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
 import { PresentationScreenEditor } from './editors/PresentationScreenEditor';
 import { DialogueEditor } from './editors/DialogueEditor';
+import { Msx2DialogueEditor } from './editors/Msx2DialogueEditor';
+import { Msx2BitmapStampEditor } from './editors/Msx2BitmapStampEditor';
 import { PortraitEditor } from './editors/PortraitEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { Msx2GameFlowEditor } from './editors/Msx2GameFlowEditor';
@@ -533,6 +536,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [isMsxEmulatorHelpOpen, setIsMsxEmulatorHelpOpen] = React.useState(false);
   const [isMsx2EntityLibraryOpen, setIsMsx2EntityLibraryOpen] = useState(false);
   const [isMsx2StampLibraryOpen, setIsMsx2StampLibraryOpen] = useState(false);
+  const [isMsx2TerrainLibraryOpen, setIsMsx2TerrainLibraryOpen] = useState(false);
   const [isMsx2SpriteLibraryOpen, setIsMsx2SpriteLibraryOpen] = useState(false);
   const [isMsx2TileLibraryOpen, setIsMsx2TileLibraryOpen] = useState(false);
   const [isMsx2HudIconLibraryOpen, setIsMsx2HudIconLibraryOpen] = useState(false);
@@ -1204,6 +1208,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenMsx2SpriteLibrary={() => setIsMsx2SpriteLibraryOpen(true)}
         onOpenMsx2TileLibrary={() => setIsMsx2TileLibraryOpen(true)}
         onOpenMsx2StampLibrary={() => setIsMsx2StampLibraryOpen(true)}
+        onOpenMsx2TerrainLibrary={() => setIsMsx2TerrainLibraryOpen(true)}
         onOpenMsx2HudIconLibrary={() => setIsMsx2HudIconLibraryOpen(true)}
         onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
@@ -1306,6 +1311,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               onCreateAsset={handleNewAsset}
             />
           )}
+          {currentEditor === EditorType.Msx2Dialogue && activeAsset?.type === 'msx2dialogue' && (
+            <Msx2DialogueEditor
+              dialogue={(activeAsset.data as Msx2DialogueAsset) || ({ id: activeAsset.id, name: activeAsset.name } as Msx2DialogueAsset)}
+              onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)}
+              allAssets={assets}
+              paletteSlots={activeBitmapImportPalette || undefined}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+          )}
           {currentEditor === EditorType.Portrait && activeAsset?.type === 'portrait' && (
             <PortraitEditor
               portrait={(activeAsset.data as PortraitAsset) || ({ id: activeAsset.id, name: activeAsset.name, widthChars: 4, heightChars: 4, cells: Array(16).fill(''), dedupeIdenticalTiles: true, mouth: { enabled: false, cellIndex: 0, openTileId: '' } } as PortraitAsset)}
@@ -1347,6 +1361,16 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               setStatusBarMessage={setStatusBarMessage}
             />
           )}
+          {currentEditor === EditorType.Msx2BitmapStamp && activeAsset?.type === 'msx2bitmapstamp' && (
+            <Msx2BitmapStampEditor
+              stamp={activeAsset.data as Msx2BitmapStampAsset}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
+              activeBitmapWorld={activeBitmapWorldAsset?.data as WorldMapGraph | undefined}
+              onSelectAsset={onSelectAsset}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+          )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
             <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} onSetWorldStartRoom={handleSetWorldStartBitmapRoom} onRecomposeWorld={handleRecomposeBitmapWorld} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} onUpdateProjectAsset={(assetId, data) => handleUpdateAsset(assetId, data)} onOpenHudAsset={(id) => onSelectAsset(id, EditorType.Msx2HudEditor)} />
@@ -1370,6 +1394,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               font={activeAsset.data as Msx2HudFontAsset}
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               dataOutputFormat={dataOutputFormat}
+              allAssets={assets}
             />
           )}
           {currentEditor === EditorType.Msx2HudEditor && activeAsset?.type === 'msx2hud' && (
@@ -1385,7 +1410,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Code && activeAsset?.type === 'code' && ( <div className="flex flex-grow h-full overflow-hidden"> <div className="flex-grow h-full"> <CodeEditor code={activeAsset.data as string} onUpdate={(code) => handleUpdateAsset(activeAsset.id, code)} language="z80" assetName={activeAsset.name} snippetToInsert={snippetToInsert} /> </div> {snippetsEnabled && ( <SnippetsPanel snippets={userSnippets.filter(s => !Z80_BEHAVIOR_SNIPPETS.find(bs => bs.name === s.name))} onSnippetSelect={handleSnippetSelected} isEnabled={true} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet}/>)}</div>)}
           {currentEditor === EditorType.BehaviorEditor && activeAsset?.type === 'behavior' && ( <BehaviorEditor behaviorScript={activeAsset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} /> )}
           {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
-          {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} /> )}
+          {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap' || a.type === 'msx2screen' || a.type === 'msx2bitmaproom').map(a => a.data as ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} paletteAssets={assets.filter(asset => asset.type === 'palette') as Array<{ id: string; name: string; data?: PaletteAsset }>} /> )}
           {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.TileBanks && activeAsset?.type === 'tilebank' && ( <TileBankEditor tileBank={activeAsset.data as TileBank} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allTiles={assets.filter(a => a.type === 'tile')} allFonts={assets.filter(a => a.type === 'font')} currentScreenMode={currentScreenMode}/>)}
@@ -1682,6 +1707,28 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             const assetId = `stamp_lib_import_${Date.now()}`;
             handleUpdateAsset(assetId, {}, [{ id: assetId, name: entry.name, type: 'msx2bitmapstamp', data: { ...entry, id: assetId } }]);
           }}
+        />
+      )}
+      {isMsx2TerrainLibraryOpen && (
+        <Msx2TerrainLibraryModal
+          isOpen={isMsx2TerrainLibraryOpen}
+          onClose={() => setIsMsx2TerrainLibraryOpen(false)}
+          setStatusBarMessage={setStatusBarMessage}
+          onImportTerrainAsset={hasUsableProject ? (entry) => {
+            const baseName = (entry.name || entry.terrain?.name || 'Bitmap Terrain').trim() || 'Bitmap Terrain';
+            const usedNames = new Set(assets.map(asset => asset.name));
+            let name = baseName;
+            let suffix = 2;
+            while (usedNames.has(name)) name = `${baseName} ${suffix++}`;
+            const assetId = `terrain_lib_import_${Date.now()}`;
+            const data: Msx2BitmapTerrainAsset = {
+              ...JSON.parse(JSON.stringify(entry)) as Msx2BitmapTerrainAsset,
+              id: assetId,
+              name,
+              savedAt: Date.now(),
+            };
+            handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'msx2bitmapterrain', data }]);
+          } : undefined}
         />
       )}
       {isMsx2EntityLibraryOpen && (

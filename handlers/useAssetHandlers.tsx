@@ -3,7 +3,8 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph, Msx2GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
-  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2HudAsset, Msx2Screen5BitmapRoom, Msx2PlayerDefinition
+  DialogueAsset, Msx2DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2HudAsset, Msx2Screen5BitmapRoom, Msx2PlayerDefinition,
+  BitmapTileScreen5, Msx2BitmapStampAsset
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -617,7 +618,7 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Msx2Enemy;
         break;
       case 'msx2hudfont':
-        defaultName = 'New MSX2 HUD Font';
+        defaultName = 'New MSX2 Font';
         newAssetData = {
           target: 'MSX2',
           vdpMode: 'SCREEN4',
@@ -625,7 +626,8 @@ export const useAssetHandlers = ({
           characters: MSX2_HUD_FONT_CHARACTERS,
           patterns: JSON.parse(JSON.stringify(DEFAULT_MSX2_HUD_FONT_PATTERNS)),
           colorByte: 0xF1,
-          notes: 'Generic SCREEN 4 HUD font for counters and text widgets. Separate from MSX1 font assets.',
+          screen5BackgroundSlot: 1,
+          notes: 'Generic MSX2 font for counters and text widgets. SCREEN 4 uses 1bpp patterns; SCREEN 5 can paint 4bpp bitmap glyphs.',
         } as Msx2HudFontAsset;
         newEditorType = EditorType.Msx2HudFont;
         break;
@@ -645,11 +647,103 @@ export const useAssetHandlers = ({
               pixels: Array.from({ length: 20 }, () => new Array(256).fill(-1)),
             },
           ],
+          hudFontAssetId: null,
           icons: [],
           notes: 'Standalone HUD asset for SCREEN 5 bitmap rooms. Link it from a room via runtime.hudAssetId.',
         } as Msx2HudAsset;
         newEditorType = EditorType.Msx2HudEditor;
         break;
+      case 'msx2bitmapstamp': {
+        defaultName = 'New Stamp';
+        const slots = createDefaultScreen5PaletteSlots();
+        const matchingPalette = findMatchingScreen5PaletteAsset(slots, assets);
+        const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(slots, defaultName, id, assets);
+        const now = new Date().toISOString();
+        const blankTile = (row: number, col: number): BitmapTileScreen5 => ({
+          id: `${id}_cell_${row}_${col}`,
+          name: `${defaultName} ${row}_${col}`,
+          mode: 'SCREEN5_BITMAP',
+          width: 16,
+          height: 16,
+          sourceType: 'manual-edit',
+          paletteId: paletteAsset.id,
+          pixelData: new Array(16 * 16).fill(0),
+          createdAt: now,
+          updatedAt: now,
+        });
+        const cols = 2;
+        const rws = 2;
+        const tiles: BitmapTileScreen5[] = [];
+        for (let r = 0; r < rws; r++) for (let c = 0; c < cols; c++) tiles.push(blankTile(r, c));
+        newAssetData = {
+          id,
+          name: defaultName,
+          savedAt: Date.now(),
+          stamp: {
+            id,
+            name: defaultName,
+            mode: 'SCREEN5_BITMAP_STAMP',
+            columns: cols,
+            rows: rws,
+            tileWidth: 16,
+            tileHeight: 16,
+            sourceType: 'manual-edit',
+            paletteId: paletteAsset.id,
+            tiles,
+            createdAt: now,
+            updatedAt: now,
+          },
+          palette: slots,
+        } as Msx2BitmapStampAsset;
+        newEditorType = EditorType.Msx2BitmapStamp;
+        if (!matchingPalette) {
+          setAssetsWithHistory(prevAssets => [...prevAssets, paletteAsset]);
+        }
+        break;
+      }
+      case 'msx2dialogue': {
+        defaultName = 'New MSX2 Dialogue';
+        const blankFrame = () => Array.from({ length: 32 }, () => new Array(32).fill(1));
+        newAssetData = {
+          id,
+          name: defaultName,
+          target: 'MSX2',
+          lines: [
+            { id: `dlg_line_${Date.now()}`, speaker: 'NPC', text: 'HELLO TRAVELLER', waitForInput: true },
+          ],
+          box: {
+            x: 8,
+            y: 8,
+            width: 240,
+            height: 56,
+            backgroundColor: 1,
+            borderColor: 15,
+            textColor: 15,
+            portraitSide: 'left',
+            padding: 4,
+          },
+          portraits: [
+            {
+              id: `dlg_portrait_${Date.now()}`,
+              name: 'Portrait 1',
+              width: 32,
+              height: 32,
+              closedPixels: blankFrame(),
+              openPixels: blankFrame(),
+            },
+          ],
+          defaultPortraitId: undefined,
+          fontAssetId: undefined,
+          exportOptions: {
+            charDelayFrames: 3,
+            mouthToggleEveryChars: 2,
+            stripUnsupportedChars: true,
+          },
+        } as Msx2DialogueAsset;
+        (newAssetData as Msx2DialogueAsset).defaultPortraitId = (newAssetData as Msx2DialogueAsset).portraits[0].id;
+        newEditorType = EditorType.Msx2Dialogue;
+        break;
+      }
       case 'msx2presentation':
         defaultName = 'New MSX2 SCREEN 5 Presentation';
         newAssetData = {
@@ -1020,6 +1114,8 @@ export const useAssetHandlers = ({
       case 'worldmap': return EditorType.WorldMap;
       case 'gameflow': return EditorType.GameFlow;
       case 'dialogue': return EditorType.Dialogue;
+      case 'msx2dialogue': return EditorType.Msx2Dialogue;
+      case 'msx2bitmapstamp': return EditorType.Msx2BitmapStamp;
       case 'portrait': return EditorType.Portrait;
       case 'tilebank': return EditorType.TileBanks;
       case 'sound': return EditorType.Sound;

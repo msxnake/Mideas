@@ -1,5 +1,6 @@
 # System files
 nul
+nul.*
 
 # Local Python/runtime caches
 __pycache__/

@@ -367,6 +367,28 @@ export interface Msx2BitmapStampAsset {
   palette: Screen5PaletteSlot[];
 }
 
+export interface Msx2BitmapTerrainAssetTile {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  pixels: number[][];
+  collisionFlags?: number;
+  behaviorCode?: number;
+}
+
+/** Reusable SCREEN 5 autotile terrain asset. The terrain mapping references tile ids
+ *  from `tiles`; importing into a room copies those tiles into that room's atlas and
+ *  remaps the terrain to the newly-created atlas entry ids. */
+export interface Msx2BitmapTerrainAsset {
+  id: string;
+  name: string;
+  savedAt: number;
+  terrain: Omit<Msx2BitmapAutoTerrain, 'id'>;
+  tiles: Msx2BitmapTerrainAssetTile[];
+  palette: Screen5PaletteSlot[];
+}
+
 export type Msx2BitmapRoomCommand =
   | { id: string; op: 'copy'; atlasEntryId: string; dx: number; dy: number; w?: number; h?: number }
   | { id: string; op: 'fill'; x: number; y: number; w: number; h: number; color: number }
@@ -384,6 +406,61 @@ export interface Msx2BitmapRoomAtlasEntry {
   collisionFlags?: number;
   /** Optional SCREEN 5 bitmap-room behavior code applied when this atlas tile is painted. 3 = ice_slide surface. */
   behaviorCode?: number;
+}
+
+/**
+ * Autotile terrain for SCREEN 5 bitmap rooms. Editor-only: painting with a terrain picks the
+ * atlas entry matching each cell's neighbour mask, but the room still stores plain `tileGrid`
+ * atlas references, so the MSX2 generator and the ROM output are unaffected.
+ */
+export interface Msx2BitmapAutoTerrain {
+  id: string;
+  name: string;
+  /** blob16: 16 tiles keyed by cardinal neighbours; wang47: 47 tiles including diagonals. */
+  template: 'blob16' | 'wang47';
+  /** Canonical 8-bit neighbour mask (see utils/msx2Autotile.ts) -> atlas entry id. */
+  mapping: Record<number, string>;
+  /**
+   * Optional random substitutions per canonical mask (e.g. grassier centre tiles). Rolled
+   * ONCE when a cell first resolves to a mask; re-resolving keeps any tile already valid for
+   * the mask (base or variant), so healing neighbours never reshuffles decoration. Erase +
+   * repaint re-rolls.
+   */
+  variants?: Record<number, Msx2BitmapAutoTerrainVariant[]>;
+}
+
+/** Random substitution tile for one autotile mask (e.g. a grassier centre tile). */
+export interface Msx2BitmapAutoTerrainVariant {
+  /** Atlas entry drawn instead of the base tile when the roll hits. */
+  entryId: string;
+  /** 1-100: chance of this variant. The base tile keeps the remaining probability. */
+  percent: number;
+}
+
+export interface Msx2KeyItemDefinition {
+  id: string;
+  name: string;
+  /** Inventory bit/slot used by the eventual runtime exporter. Keep 0..7 for one byte. */
+  bitIndex: number;
+  /** Optional HUD icon id to mirror this key/item in the linked HUD. */
+  hudIconId?: string;
+  /** Palette slot used by simple UI/runtime previews. */
+  color?: number;
+  /** When true, the key survives room transitions/save-state decisions. */
+  persistent?: boolean;
+  notes?: string;
+}
+
+export interface Msx2LockedDoorConfig {
+  enabled: boolean;
+  requiredKeyId?: string;
+  consumeKey?: boolean;
+  openOnce?: boolean;
+  closedAtlasEntryId?: string;
+  openAtlasEntryId?: string;
+  lockedMessage?: string;
+  targetRoomId?: string;
+  targetEntryId?: string;
 }
 
 export interface Msx2Screen5BitmapRoom {
@@ -418,6 +495,8 @@ export interface Msx2Screen5BitmapRoom {
    * are derived from this grid; it is also the compact representation to export to MSX2.
    */
   tileGrid?: number[][];
+  /** Autotile terrains: neighbour-mask -> atlas-entry mappings painted with the terrain brush. */
+  autoTerrains?: Msx2BitmapAutoTerrain[];
   visibleFramebuffer?: {
     source: 'pre-rendered';
     pixels: number[][];
@@ -426,6 +505,8 @@ export interface Msx2Screen5BitmapRoom {
   effects: number[][];
   behavior: number[][];
   entities: Msx2Screen4EntityInstance[];
+  /** Room-authored key/item definitions used by pickups and locked doors. */
+  keyItems?: Msx2KeyItemDefinition[];
   /** Dedicated player spawn/entry points. The player is not authored as a generic entity. */
   playerEntries?: Msx2PlayerEntry[];
   /**
@@ -494,7 +575,7 @@ export interface Msx2Screen4Tile {
 
 export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
-export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'hazard' | 'custom';
+export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'custom';
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'ghostMaze' | 'dive';
 export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
@@ -792,6 +873,9 @@ export type Msx2HudWidgetBinding =
   | 'playerEnergy'
   | 'bossEnergy'
   | 'air'
+  | 'experience'
+  | 'level'
+  | 'skillPoints'
   | 'score'
   | 'lives'
   | 'collectibles'
@@ -845,6 +929,24 @@ export interface Msx2HudElementAlign {
   v: 'top' | 'middle' | 'bottom';
 }
 
+export type Msx2HudXpRewardActionType =
+  | 'incrementLevel'
+  | 'incrementSkillPoints'
+  | 'restoreHealth'
+  | 'callAsmHook';
+
+export interface Msx2HudXpRewardAction {
+  type: Msx2HudXpRewardActionType;
+  amount?: number;
+  hookLabel?: string;
+}
+
+export interface Msx2HudXpRewardConfig {
+  enabled: boolean;
+  carryOverflow: boolean;
+  actions: Msx2HudXpRewardAction[];
+}
+
 /** A single structured HUD element placed on a Msx2HudAsset canvas. */
 export interface Msx2HudElement {
   id: string;
@@ -864,6 +966,8 @@ export interface Msx2HudElement {
   atlasEntryId?: string;
   /** Empty/background icon variant used by iconRow slots (e.g. lives pips). */
   emptyAtlasEntryId?: string;
+  /** Optional reward program used by experience bars when player XP reaches maxValue. */
+  xpReward?: Msx2HudXpRewardConfig;
   align: Msx2HudElementAlign;
   visible: boolean;
   blink: 'off' | 'slow' | 'fast';
@@ -897,6 +1001,11 @@ export interface Msx2HudAsset {
   layers: Msx2HudLayer[];
   /** Optional shared palette asset (type 'palette'), same pattern as WorldMapGraph.paletteAssetId. */
   paletteAssetId?: string;
+  /**
+   * Optional MSX2 HUD Font asset used by SCREEN 5 bitmap text/counter widgets.
+   * null means "None": do not auto-pick a project font, use the built-in bitmap fallback.
+   */
+  hudFontAssetId?: string | null;
   icons: Msx2HudIconEntry[];
   notes?: string;
 }
@@ -2688,6 +2797,83 @@ export interface DialogueAsset {
 }
 // --- End Dialogue Asset Types ---
 
+// --- MSX2 SCREEN 5 Bitmap Dialogue Asset Types ---
+// Parallel to the MSX1 DialogueAsset above but pixel-based: no Name Table char
+// codes, no tilebanks. Rendered in the SCREEN 5 bitmap-room backend with V9938
+// HMMV fills (box) + HMMM glyph/portrait blits (typewriter + mouth animation).
+
+/** A talking-head portrait: two 4bpp frames (mouth closed / mouth open). */
+export interface Msx2DialoguePortrait {
+  id: string;
+  name: string;
+  /** Width in pixels, multiple of 8. Default 32. */
+  width: number;
+  /** Height in pixels, multiple of 8. Default 32. */
+  height: number;
+  /** Palette-slot pixels (height rows x width cols), mouth closed. */
+  closedPixels: number[][];
+  /** Mouth-open frame, same dimensions. */
+  openPixels: number[][];
+}
+
+export interface Msx2DialogueLine {
+  id: string;
+  speaker?: string;
+  text: string;
+  /** Portrait shown while this line types. Falls back to defaultPortraitId. */
+  portraitId?: string;
+  /** Wait for the talk key before advancing to the next line. Default true. */
+  waitForInput?: boolean;
+}
+
+export interface Msx2DialogueBoxConfig {
+  /** Box rect in pixels inside the 256x192 game band. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** SCREEN 5 palette slot for the interior fill. */
+  backgroundColor: number;
+  /** SCREEN 5 palette slot for the 2px frame. */
+  borderColor: number;
+  /** SCREEN 5 palette slot for the text glyphs. */
+  textColor: number;
+  /** Which side of the box the portrait sits on. */
+  portraitSide: 'left' | 'right';
+  /** Interior padding in pixels between border, portrait and text. */
+  padding: number;
+}
+
+export interface Msx2DialogueAsset {
+  id: string;
+  name: string;
+  target: 'MSX2';
+  lines: Msx2DialogueLine[];
+  box: Msx2DialogueBoxConfig;
+  portraits: Msx2DialoguePortrait[];
+  defaultPortraitId?: string;
+  /** msx2hudfont asset used for the text glyphs; falls back to the room's HUD font. */
+  fontAssetId?: string;
+  exportOptions: {
+    /** Frames between typed characters. */
+    charDelayFrames: number;
+    /** Mouth open/close toggles every N typed characters. 0 = mouth static. */
+    mouthToggleEveryChars: number;
+    stripUnsupportedChars: boolean;
+  };
+}
+
+/** Params bag stored on an Msx2Screen4EntityInstance with kind 'npc'. */
+export interface Msx2NpcDialogueParams {
+  /** msx2dialogue asset played when the player talks to this NPC. */
+  dialogueAssetId: string;
+  /** Optional room-atlas entry drawn at the NPC cell (baked into the render program). */
+  atlasEntryId?: string;
+  /** Key that opens/advances the dialogue. Default 'up'. */
+  talkKey?: 'up' | 'space';
+}
+// --- End MSX2 SCREEN 5 Bitmap Dialogue Asset Types ---
+
 // --- Portrait Asset Types ---
 export interface PortraitMouthConfig {
   enabled: boolean;
@@ -3157,6 +3343,7 @@ export enum EditorType {
   WorldView = "WorldView",
   GameFlow = "GameFlow",
   Dialogue = "Dialogue",
+  Msx2Dialogue = "Msx2Dialogue",
   Portrait = "Portrait",
   MainMenu = "MainMenu",
   PresentationScreen = "PresentationScreen",
@@ -3166,6 +3353,7 @@ export enum EditorType {
   Msx2Sprite = "Msx2Sprite",
   Msx2Bitmap = "Msx2Bitmap",
   Msx2BitmapTile = "Msx2BitmapTile",
+  Msx2BitmapStamp = "Msx2BitmapStamp",
   Msx2Screen = "Msx2Screen",
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2Player = "Msx2Player",
@@ -3186,9 +3374,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
@@ -3211,14 +3399,20 @@ export interface MSXFontAsset {
 export interface Msx2HudFontAsset {
   /** Fixed target for this asset family. */
   target: 'MSX2';
-  /** VDP pattern mode used by the native MSX2 room backend. */
-  vdpMode: 'SCREEN4';
+  /** VDP mode used by the native MSX2 room backend. */
+  vdpMode: 'SCREEN4' | 'SCREEN5';
   /** First SCREEN 4 character code reserved for the HUD font. */
   baseChar: number;
   /** Supported characters in asset order. */
   characters: string;
   /** One 8-byte 1bpp pattern per supported character. */
   patterns: Record<string, number[]>;
+  /** Optional SCREEN 5 palette asset used by bitmap glyphs and previews. */
+  paletteAssetId?: string;
+  /** SCREEN 5 background slot used as the glyph mask "off" color. */
+  screen5BackgroundSlot?: number;
+  /** SCREEN 5 4bpp bitmap glyphs: one 8x8 palette-slot matrix per character. */
+  bitmapPatterns?: Record<string, number[][]>;
   /** SCREEN 4 color byte per glyph row: fg nibble << 4 | bg nibble. */
   colorByte: number;
   /** Optional note for authors. */

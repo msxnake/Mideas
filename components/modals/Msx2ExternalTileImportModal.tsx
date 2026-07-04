@@ -32,12 +32,17 @@ interface Msx2ExternalTileImportModalProps {
   destPalette?: Screen5PaletteSlot[] | null;
   /** Project palette assets that can be activated as the import palette. */
   paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
+  /** Existing global library names. Used to prevent accidental overwrite/collision. */
+  existingLibraryNames?: string[];
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
 
 const normalizeHex = (value: string | undefined): string =>
   String(value || '').trim().toUpperCase();
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
 
 const isImmutableSlot = (hex: string | undefined): boolean => {
   const normalized = normalizeHex(hex);
@@ -94,6 +99,7 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   defaultOutputMode = 'screen4',
   destPalette,
   paletteAssets = [],
+  existingLibraryNames = [],
 }) => {
   const defaultPalette = useMemo(() => createDefaultScreen5PaletteSlots(), []);
   const initialPalette = useMemo(
@@ -128,6 +134,10 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
   const [adaptToExistingPalette, setAdaptToExistingPalette] = useState(false);
   // Re-roll counter for the color quantizer (see "Recuantizar" button).
   const [quantizeSeed, setQuantizeSeed] = useState(0);
+  const [autoColorCountFromImage, setAutoColorCountFromImage] = useState(true);
+  const [isSaveNameOpen, setIsSaveNameOpen] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveNameError, setSaveNameError] = useState('');
   // Interactive crop: draw a rectangle (snapped to 16px) over the source image
   // and discard everything outside it before reprocessing.
   const [cropMode, setCropMode] = useState(false);
@@ -169,13 +179,18 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     setLockDimensions(false);
     setBackgroundSlot(resetBlackSlot);
     setReplaceableSlots(defaultReplaceableMsx2SpriteSlots(resetPalette));
+    setFinalColorCount(3);
     setAdaptToExistingPalette(defaultOutputMode === 'screen5' && Boolean(destPalette));
     setQuantizeSeed(0);
+    setAutoColorCountFromImage(true);
     setOutputMode(defaultOutputMode);
     setActivePaletteSourceId(destPalette ? '__screen__' : '__default__');
     setCropMode(false);
     setCropSelection(null);
     setIsSelecting(false);
+    setIsSaveNameOpen(false);
+    setSaveName('');
+    setSaveNameError('');
     dragStartRef.current = null;
   }, [isOpen, defaultOutputMode, destPalette, defaultPalette, initialPalette]);
 
@@ -201,6 +216,24 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     if (!imageData) return null;
     return importExternalPngAsMsx2Tiles(imageData, palette, backgroundColor, options);
   }, [imageData, options, palette, backgroundColor]);
+  const maxColorCountForImport = outputMode === 'screen5' && result?.sourceColorCount
+    ? Math.max(1, Math.min(15, result.sourceColorCount))
+    : 15;
+
+  useEffect(() => {
+    if (!autoColorCountFromImage || outputMode !== 'screen5' || !result) return;
+    if (result.sourceColorCount <= 0) {
+      setAutoColorCountFromImage(false);
+      return;
+    }
+    const maxColors = Math.max(1, Math.min(15, result.sourceColorCount));
+    if (finalColorCount !== maxColors) setFinalColorCount(maxColors);
+    setAutoColorCountFromImage(false);
+  }, [autoColorCountFromImage, finalColorCount, outputMode, result?.sourceColorCount]);
+  useEffect(() => {
+    if (outputMode !== 'screen5' || !result?.sourceColorCount) return;
+    if (finalColorCount > maxColorCountForImport) setFinalColorCount(maxColorCountForImport);
+  }, [finalColorCount, maxColorCountForImport, outputMode, result?.sourceColorCount]);
 
   // Empty (all-background) cells are previewed but skipped when adding to the
   // library, so a sparse sheet doesn't flood it with blank tiles.
@@ -209,6 +242,51 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     [result],
   );
   const emptyTileCount = (result?.tiles.length ?? 0) - nonEmptyTiles.length;
+  const existingLibraryNameSet = useMemo(
+    () => new Set(existingLibraryNames.map(name => name.trim().toLowerCase()).filter(Boolean)),
+    [existingLibraryNames],
+  );
+
+  const buildTilesWithSaveName = (name: string): Msx2Screen4Tile[] => {
+    if (!result) return [];
+    const safeName = name.trim() || baseName.trim() || 'tile';
+    const multi = result.columns > 1 || result.rows > 1;
+    return result.tiles.map((tile, index) => {
+      const row = Math.floor(index / result.columns);
+      const col = index % result.columns;
+      return {
+        ...tile,
+        name: multi ? `${safeName}_r${row}_c${col}` : safeName,
+      };
+    });
+  };
+
+  const openSaveNameDialog = () => {
+    setSaveName((baseName || fileName.replace(/\.[a-z0-9]+$/i, '') || 'tile').trim());
+    setSaveNameError('');
+    setIsSaveNameOpen(true);
+  };
+
+  const confirmSaveToLibrary = () => {
+    if (!result || nonEmptyTiles.length === 0) return;
+    const trimmedName = saveName.trim();
+    if (!trimmedName) {
+      setSaveNameError('Escribe un nombre para guardarlo en la biblioteca.');
+      return;
+    }
+    const namedTiles = buildTilesWithSaveName(trimmedName);
+    const duplicatedName = [trimmedName, ...namedTiles.map(tile => tile.name)]
+      .find(name => existingLibraryNameSet.has(name.trim().toLowerCase()));
+    if (duplicatedName) {
+      setSaveNameError(`Ya existe "${duplicatedName}". Cambia el nombre para no sobreescribirlo.`);
+      return;
+    }
+    const tilesToAdd = outputMode === 'screen5' && namedTiles.length > 1
+      ? namedTiles
+      : namedTiles.filter(tile => !isMsx2TileEmpty(tile));
+    onAddTiles(tilesToAdd, result.palette, outputMode, { columns: result.columns, rows: result.rows, baseName: trimmedName });
+    setIsSaveNameOpen(false);
+  };
 
   useEffect(() => {
     if (!imageData || !originalCanvasRef.current) return;
@@ -236,6 +314,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
       setImageData(ctx.getImageData(0, 0, image.width, image.height));
       setFileName(name);
       setBaseName(name.replace(/\.[a-z0-9]+$/i, '') || 'tile');
+      setFinalColorCount(outputMode === 'screen5' ? 15 : 3);
+      setAutoColorCountFromImage(true);
       setQuantizeSeed(0);
       setCropMode(false);
       setCropSelection(null);
@@ -317,6 +397,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     if (!ctx) return;
     ctx.drawImage(source, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
     setImageData(ctx.getImageData(0, 0, rect.width, rect.height));
+    setFinalColorCount(outputMode === 'screen5' ? 15 : 3);
+    setAutoColorCountFromImage(true);
   };
 
   // --- Interactive crop selection (snapped to 16px, the tile cell size) ------
@@ -419,6 +501,8 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
     if (!ctx) return;
     ctx.drawImage(source, x, y, w, h, 0, 0, w, h);
     setImageData(ctx.getImageData(0, 0, w, h));
+    setFinalColorCount(outputMode === 'screen5' ? 15 : 3);
+    setAutoColorCountFromImage(true);
     exitCropMode();
   };
 
@@ -516,7 +600,11 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                   <button
                     type="button"
                     className={`rounded px-2 py-1 text-xs ${outputMode === 'screen5' ? 'bg-msx-highlight text-black' : 'text-msx-textsecondary hover:text-msx-highlight'}`}
-                    onClick={() => setOutputMode('screen5')}
+                    onClick={() => {
+                      setOutputMode('screen5');
+                      setFinalColorCount(15);
+                      setAutoColorCountFromImage(true);
+                    }}
                     title="Conserva colores por pixel para tiles bitmap SCREEN 5"
                   >
                     SCREEN 5 bitmap
@@ -554,7 +642,24 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                 />
               </label>
               <label>Colores custom
-                <input type="number" min={1} max={15} value={finalColorCount} onChange={event => setFinalColorCount(Number(event.target.value) || 3)} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1" />
+                <input
+                  type="number"
+                  min={1}
+                  max={maxColorCountForImport}
+                  step={1}
+                  value={finalColorCount}
+                  onChange={event => {
+                    const next = clamp(Number(event.target.value) || 1, 1, maxColorCountForImport);
+                    setFinalColorCount(next);
+                    setAutoColorCountFromImage(false);
+                  }}
+                  className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1"
+                />
+                {outputMode === 'screen5' && result?.sourceColorCount ? (
+                  <span className="mt-1 block text-[10px] text-msx-textsecondary">
+                    Usados {result.sourceColorCount}; activos {result.activeColorCount}.
+                  </span>
+                ) : null}
               </label>
               <label>Fondo
                 <select value={backgroundSlot} onChange={event => chooseBackgroundSlot(Number(event.target.value))} className="mt-1 w-full rounded border border-msx-border bg-msx-panelbg px-2 py-1">
@@ -634,6 +739,32 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
                 {adaptToExistingPalette && (
                   <div className="mt-2 text-[11px] text-msx-highlight">
                     Adaptacion fija activa: no se crean colores nuevos.
+                  </div>
+                )}
+                {result && result.colorUsage.length > 0 && (
+                  <div className="mt-3 rounded border border-msx-border bg-msx-panelbg/70 p-2">
+                    <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-msx-textsecondary">
+                      <span>Colores usados</span>
+                      <span>{result.activeColorCount}/{result.sourceColorCount}</span>
+                    </div>
+                    <div className="max-h-32 space-y-1 overflow-auto pr-1">
+                      {result.colorUsage.map(entry => (
+                        <div
+                          key={`import-color-${entry.slotIndex}`}
+                          className={`grid grid-cols-[18px_34px_1fr_auto] items-center gap-2 text-[10px] ${entry.kept ? 'text-msx-textprimary' : 'text-msx-textsecondary opacity-60'}`}
+                          title={entry.kept
+                            ? `S${entry.slotIndex} se conserva`
+                            : `S${entry.slotIndex} se sustituye por S${entry.mappedToSlot ?? 0}`}
+                        >
+                          <span className="h-4 w-4 rounded border border-msx-border" style={{ backgroundColor: entry.hex }} />
+                          <span>S{entry.slotIndex}</span>
+                          <span className="truncate">{entry.hex} · {entry.count}px · {entry.percent.toFixed(1)}%</span>
+                          <span className={entry.kept ? 'text-msx-highlight' : 'text-msx-warning'}>
+                            {entry.kept ? 'ON' : `S${entry.mappedToSlot ?? 0}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -809,15 +940,44 @@ export const Msx2ExternalTileImportModal: React.FC<Msx2ExternalTileImportModalPr
             size="sm"
             variant="primary"
             disabled={!result || nonEmptyTiles.length === 0}
-            onClick={() => {
-              if (!result || nonEmptyTiles.length === 0) return;
-              const tilesToAdd = outputMode === 'screen5' && result.tiles.length > 1 ? result.tiles : nonEmptyTiles;
-              onAddTiles(tilesToAdd, result.palette, outputMode, { columns: result.columns, rows: result.rows, baseName });
-            }}
+            onClick={openSaveNameDialog}
           >
             Añadir a la biblioteca ({nonEmptyTiles.length})
           </Button>
         </div>
+        {isSaveNameOpen && result && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-sm rounded border border-msx-border bg-msx-panelbg p-4 shadow-xl">
+              <h3 className="mb-3 text-sm font-semibold text-msx-highlight">Guardar en biblioteca</h3>
+              <label className="block text-xs text-msx-textsecondary">
+                Nombre
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={event => {
+                    setSaveName(event.target.value);
+                    setSaveNameError('');
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') confirmSaveToLibrary();
+                    if (event.key === 'Escape') setIsSaveNameOpen(false);
+                  }}
+                  autoFocus
+                  className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-sm text-msx-textprimary"
+                />
+              </label>
+              {saveNameError && (
+                <div className="mt-2 rounded border border-msx-warning/60 bg-msx-warning/10 px-2 py-1 text-xs text-msx-warning">
+                  {saveNameError}
+                </div>
+              )}
+              <div className="mt-4 flex justify-end gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setIsSaveNameOpen(false)}>Cancelar</Button>
+                <Button size="sm" variant="primary" onClick={confirmSaveToLibrary}>Guardar</Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

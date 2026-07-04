@@ -25,6 +25,7 @@ const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
   'msx2bitmap',
   'msx2bitmaptile',
   'msx2bitmapstamp',
+  'msx2bitmapterrain',
   'msx2screen',
   'msx2bitmaproom',
   'msx2player',

@@ -2,10 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ConnectionDirection,
   BitmapTileScreen5,
+  Msx2BitmapAutoTerrain,
+  Msx2BitmapAutoTerrainVariant,
+  Msx2BitmapTerrainAsset,
   Msx2BitmapRoomAtlasEntry,
   Msx2BitmapRoomCommand,
   Msx2BitmapRoomForegroundTile,
   Msx2HudAsset,
+  Msx2KeyItemDefinition,
+  Msx2LockedDoorConfig,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
   Msx2Screen5BitmapRoom,
@@ -27,13 +32,22 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
+import {
+  applyTerrainToGrid,
+  describeAutotileMask,
+  findTerrainForGridValue,
+  pruneTerrainsForEntries,
+} from '../../utils/msx2Autotile';
 import { Msx2TileLibraryModal } from '../modals/Msx2TileLibraryModal';
+import { Msx2AutotileImportModal } from '../modals/Msx2AutotileImportModal';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { addEntryToMsx2TileLibrary } from '../../utils/msx2TileLibrary';
 import {
   Msx2BitmapStampLibraryEntry,
   adaptStampEntryToPalette,
   mergeMsx2BitmapStampLibraryEntries,
 } from '../../utils/msx2BitmapStampLibrary';
+import { addTerrainToMsx2BitmapTerrainLibrary } from '../../utils/msx2BitmapTerrainLibrary';
 import {
   areScreen5PalettesEquivalent,
   bitmapTileScreen5ToAtlasTile,
@@ -116,6 +130,26 @@ const PROPERTY_FLAGS: { key: string; label: string }[] = [
   { key: 'deadly', label: 'Deadly' },
   { key: 'interactable', label: 'Interactable' },
 ];
+
+const sanitizeKeyItemId = (value: string, fallback = 'key_item') => {
+  const id = value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  return id || fallback;
+};
+
+const normalizeLockedDoorConfig = (value: unknown): Msx2LockedDoorConfig => {
+  const raw = value && typeof value === 'object' ? value as Partial<Msx2LockedDoorConfig> : {};
+  return {
+    enabled: Boolean(raw.enabled),
+    requiredKeyId: typeof raw.requiredKeyId === 'string' ? raw.requiredKeyId : '',
+    consumeKey: Boolean(raw.consumeKey),
+    openOnce: raw.openOnce !== false,
+    closedAtlasEntryId: typeof raw.closedAtlasEntryId === 'string' ? raw.closedAtlasEntryId : '',
+    openAtlasEntryId: typeof raw.openAtlasEntryId === 'string' ? raw.openAtlasEntryId : '',
+    lockedMessage: typeof raw.lockedMessage === 'string' ? raw.lockedMessage : '',
+    targetRoomId: typeof raw.targetRoomId === 'string' ? raw.targetRoomId : '',
+    targetEntryId: typeof raw.targetEntryId === 'string' ? raw.targetEntryId : '',
+  };
+};
 
 const BEHAVIOR_CODE = {
   none: 0,
@@ -308,6 +342,7 @@ const createDefaultMsx2HudAsset = (): Msx2HudAsset => ({
       pixels: Array.from({ length: 20 }, () => new Array(256).fill(-1)),
     },
   ],
+  hudFontAssetId: null,
   icons: [],
   notes: 'Standalone HUD asset for SCREEN 5 bitmap rooms. Link it from a room via runtime.hudAssetId.',
 });
@@ -362,12 +397,15 @@ interface AtlasThumbProps {
   atlasPixels: number[][];
   slots: Screen5PaletteSlot[];
   isSelected: boolean;
-  onSelect: () => void;
+  /** Receives the click event so the caller can read Ctrl/Cmd for multi-selection. */
+  onSelect: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDoubleClick?: () => void;
   onContextMenu?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  /** 1-based position inside the random-mix multi-selection; null/undefined = not in the mix. */
+  multiIndex?: number | null;
 }
 
-const AtlasThumb: React.FC<AtlasThumbProps> = ({ entry, atlasPixels, slots, isSelected, onSelect, onDoubleClick, onContextMenu }) => {
+const AtlasThumb: React.FC<AtlasThumbProps> = ({ entry, atlasPixels, slots, isSelected, onSelect, onDoubleClick, onContextMenu, multiIndex }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const width = Math.max(1, entry.w || 8);
   const height = Math.max(1, entry.h || 8);
@@ -382,11 +420,12 @@ const AtlasThumb: React.FC<AtlasThumbProps> = ({ entry, atlasPixels, slots, isSe
       }
     }
   }, [entry, atlasPixels, slots, width, height]);
+  const inMix = multiIndex !== null && multiIndex !== undefined;
   return (
     <button
       type="button"
-      className={`rounded border p-1 text-left bg-msx-bgcolor hover:border-msx-highlight ${isSelected ? 'border-msx-highlight' : 'border-msx-border'}`}
-      title={`${entry.name} (${entry.w}x${entry.h})`}
+      className={`relative rounded border p-1 text-left bg-msx-bgcolor hover:border-msx-highlight ${inMix ? 'border-msx-cyan ring-1 ring-msx-cyan' : isSelected ? 'border-msx-highlight' : 'border-msx-border'}`}
+      title={`${entry.name} (${entry.w}x${entry.h})${inMix ? ` — en mezcla aleatoria (#${multiIndex})` : ''}\nCtrl+click: añadir/quitar de la mezcla aleatoria`}
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
@@ -395,6 +434,11 @@ const AtlasThumb: React.FC<AtlasThumbProps> = ({ entry, atlasPixels, slots, isSe
         <canvas ref={canvasRef} width={width} height={height} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
       </div>
       <div className="mt-1 text-[0.6rem] leading-tight text-msx-textprimary truncate">{entry.name}</div>
+      {inMix && (
+        <span className="absolute right-0.5 top-0.5 rounded bg-msx-cyan px-1 text-[0.55rem] font-bold leading-tight text-black">
+          {multiIndex}
+        </span>
+      )}
     </button>
   );
 };
@@ -492,6 +536,8 @@ interface BitmapTileEditorModalProps {
   onClose: () => void;
   onSaveAtlas: (name: string, pixels: number[][]) => void;
   onSaveAsset: (name: string, pixels: number[][]) => void;
+  /** Appends the draft as a NEW atlas entry (the edited tile stays untouched). */
+  onSaveAtlasCopy: (name: string, pixels: number[][]) => void;
 }
 
 const clonePixelGrid = (pixels: number[][], width: number, height: number): number[][] =>
@@ -506,6 +552,7 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
   onClose,
   onSaveAtlas,
   onSaveAsset,
+  onSaveAtlasCopy,
 }) => {
   const width = Math.max(1, Math.trunc(entry?.w || GRID));
   const height = Math.max(1, Math.trunc(entry?.h || GRID));
@@ -513,7 +560,10 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
   const [draftPixels, setDraftPixels] = useState<number[][]>(() => clonePixelGrid(pixels, width, height));
   const [activeSlot, setActiveSlot] = useState(1);
   const [tool, setTool] = useState<BitmapTileTool>('brush');
+  const [brushSize, setBrushSize] = useState<1 | 2 | 3>(1);
+  const [ditherMaskEnabled, setDitherMaskEnabled] = useState(false);
   const [isPainting, setIsPainting] = useState(false);
+  const [paintingTool, setPaintingTool] = useState<BitmapTileTool>('brush');
   // Slot index currently being dragged from its "used color" handle (drag-to-replace).
   const [draggedSlot, setDraggedSlot] = useState<number | null>(null);
 
@@ -559,7 +609,16 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
         }
         return next;
       }
-      next[y][x] = nextTool === 'erase' ? 0 : activeSlot;
+      const offset = brushSize === 3 ? 1 : 0;
+      for (let by = 0; by < brushSize; by++) {
+        for (let bx = 0; bx < brushSize; bx++) {
+          const px = x + bx - offset;
+          const py = y + by - offset;
+          if (px < 0 || py < 0 || px >= width || py >= height) continue;
+          if (ditherMaskEnabled && ((px + py) & 1) !== 0) continue;
+          next[py][px] = nextTool === 'erase' ? 0 : activeSlot;
+        }
+      }
       return next;
     });
   };
@@ -604,6 +663,7 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
           <div className="overflow-auto rounded border border-msx-border bg-black p-3">
             <div
               className="grid mx-auto"
+              onContextMenu={event => event.preventDefault()}
               style={{
                 width: width * 22,
                 gridTemplateColumns: `repeat(${width}, 22px)`,
@@ -619,11 +679,15 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
                   title={`${x},${y} slot ${slot}`}
                   onMouseDown={event => {
                     event.preventDefault();
+                    if (event.button !== 0 && event.button !== 2) return;
+                    const nextTool = event.button === 2 ? 'erase' : tool;
+                    setPaintingTool(nextTool);
                     setIsPainting(true);
-                    applyAt(x, y);
+                    applyAt(x, y, nextTool);
                   }}
+                  onContextMenu={event => event.preventDefault()}
                   onMouseEnter={() => {
-                    if (isPainting && tool !== 'fill') applyAt(x, y);
+                    if (isPainting && paintingTool !== 'fill') applyAt(x, y, paintingTool);
                   }}
                 />
               )))}
@@ -651,6 +715,31 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
                   {item === 'brush' ? 'Pincel' : item === 'erase' ? 'Goma' : 'Relleno'}
                 </button>
               ))}
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs text-msx-highlight">Brocha</div>
+              <div className="grid grid-cols-3 gap-1">
+                {([1, 2, 3] as const).map(size => (
+                  <button
+                    key={size}
+                    type="button"
+                    className={`rounded border px-2 py-1 text-xs ${brushSize === size ? 'border-msx-highlight text-msx-highlight' : 'border-msx-border text-msx-textsecondary hover:border-msx-highlight'}`}
+                    onClick={() => setBrushSize(size)}
+                    title={`Grosor de brocha ${size}x${size}`}
+                  >
+                    {size}x{size}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className={`w-full rounded border px-2 py-1 text-xs ${ditherMaskEnabled ? 'border-msx-highlight text-msx-highlight' : 'border-msx-border text-msx-textsecondary hover:border-msx-highlight'}`}
+                onClick={() => setDitherMaskEnabled(value => !value)}
+                title="Aplica una máscara alterna 010101 al pintar o borrar para hacer degradado/dither."
+              >
+                Degradado 010101
+              </button>
             </div>
 
             <div>
@@ -709,6 +798,14 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
                 onClick={() => onSaveAtlas(name, draftPixels)}
               >
                 Guardar en atlas
+              </button>
+              <button
+                type="button"
+                className="w-full rounded border border-msx-border px-2 py-1 text-xs text-msx-textprimary hover:border-msx-highlight"
+                title="Crea un tile NUEVO en el atlas con este dibujo; el original no cambia. Ideal para variantes de autotile."
+                onClick={() => onSaveAtlasCopy(name === entry?.name ? `${name}_var` : name, draftPixels)}
+              >
+                Duplicar en atlas (tile nuevo)
               </button>
               <button
                 type="button"
@@ -805,6 +902,7 @@ const EmptySilhouette: React.FC<EmptySilhouetteProps> = ({ direction, interactiv
 
 export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, onSetWorldStartRoom, onRecomposeWorld, msx2ProjectProfile = null, worldPaletteAssetId, onSetWorldPaletteAssetId, onUpdatePaletteAsset, onUpdateProjectAsset, onOpenHudAsset }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const autoTerrainRestoreRoomRef = useRef<string | null>(null);
 
   // World-minimap: pending "create screen at <dir>" inline confirm.
   const [pendingCreateDir, setPendingCreateDir] = useState<ConnectionDirection | null>(null);
@@ -816,6 +914,20 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [selectedAtlasEntryId, setSelectedAtlasEntryId] = useState(room.atlas?.entries?.[0]?.id || '');
   const [selectedStampId, setSelectedStampId] = useState('');
   const [preparedStamp, setPreparedStamp] = useState<{ stampId: string; atlasEntryIds: string[] } | null>(null);
+  const [selectedTerrainId, setSelectedTerrainId] = useState('');
+  const [isAutotileImportOpen, setIsAutotileImportOpen] = useState(false);
+  const [selectedTerrainAssetId, setSelectedTerrainAssetId] = useState('');
+  // Out-of-bounds neighbours count as terrain: borders render solid, continuing into the next room.
+  const [terrainEdgesAsTerrain, setTerrainEdgesAsTerrain] = useState(true);
+  const [pendingDeleteTerrainId, setPendingDeleteTerrainId] = useState<string | null>(null);
+  // Variants editor: which mask is being edited (null = default to the terrain's centre mask)
+  // and whether the add-variant atlas picker is open.
+  const [variantMask, setVariantMask] = useState<number | null>(null);
+  const [isVariantPickerOpen, setIsVariantPickerOpen] = useState(false);
+  // Random-mix brush: Ctrl+click on atlas thumbs builds this list; painting rolls one of
+  // these entries per cell (weighted by percent, equal split by default). Editor-local state.
+  const [multiTileSelection, setMultiTileSelection] = useState<Array<{ entryId: string; percent: number }>>([]);
+  const [isRandomMixOpen, setIsRandomMixOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilterKey>('all');
   const [zoom, setZoom] = useState(2);
   const [showGrid, setShowGrid] = useState(true);
@@ -837,12 +949,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
   const [draggingPlaced, setDraggingPlaced] = useState<{ kind: 'entity' | 'player'; id: string } | null>(null);
   const [pendingDeletePlaced, setPendingDeletePlaced] = useState<{ kind: 'entity' | 'player'; id: string } | null>(null);
-  const [pendingDeleteAtlasEntryId, setPendingDeleteAtlasEntryId] = useState<string | null>(null);
+  const [pendingDeleteAtlasEntryIds, setPendingDeleteAtlasEntryIds] = useState<string[]>([]);
   const [editingAtlasEntryId, setEditingAtlasEntryId] = useState<string | null>(null);
 
   // collapsible panel toggles
   const [openTools, setOpenTools] = useState(true);
   const [openAtlas, setOpenAtlas] = useState(true);
+  const [openAutotile, setOpenAutotile] = useState(true);
   const [openStamps, setOpenStamps] = useState(true);
   const [openBitmapTiles, setOpenBitmapTiles] = useState(true);
   const [openCategories, setOpenCategories] = useState(true);
@@ -912,9 +1025,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const atlasPixels = useMemo(() => normalizePixels(room.atlas?.pixels, atlasWidth, atlasHeight), [room.atlas?.pixels, atlasWidth, atlasHeight]);
   const atlasEntries = room.atlas?.entries || [];
   const selectedAtlasEntry = atlasEntries.find(entry => entry.id === selectedAtlasEntryId) || atlasEntries[0];
-  const pendingDeleteAtlasEntry = pendingDeleteAtlasEntryId
-    ? atlasEntries.find(entry => entry.id === pendingDeleteAtlasEntryId) || null
-    : null;
+  const autoTerrains = room.autoTerrains || [];
+  const selectedTerrain = autoTerrains.find(terrain => terrain.id === selectedTerrainId) || null;
+  const pendingDeleteAtlasEntryIdSet = new Set(pendingDeleteAtlasEntryIds);
+  const pendingDeleteAtlasEntries = atlasEntries.filter(entry => pendingDeleteAtlasEntryIdSet.has(entry.id));
   const editingAtlasEntry = editingAtlasEntryId
     ? atlasEntries.find(entry => entry.id === editingAtlasEntryId) || null
     : null;
@@ -932,6 +1046,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       .filter(Boolean),
     [allAssets],
   );
+  const terrainAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2bitmapterrain' && asset.data) as Array<ProjectAsset & { data: Msx2BitmapTerrainAsset }>,
+    [allAssets],
+  );
   const selectedStampEntry = stampEntries.find(entry => entry.id === selectedStampId) || null;
   const selectedStampAsset = selectedStampId
     ? allAssets.find(asset =>
@@ -939,6 +1057,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       && (asset.id === selectedStampId || (asset.data as Msx2BitmapStampLibraryEntry | undefined)?.id === selectedStampId)
     ) || null
     : null;
+
+  useEffect(() => {
+    if (selectedTerrainAssetId && !terrainAssets.some(asset => asset.id === selectedTerrainAssetId)) {
+      setSelectedTerrainAssetId('');
+    }
+  }, [selectedTerrainAssetId, terrainAssets]);
+
   const backgroundColor = roomBackgroundColor(room);
   // Backdrop hex used for the franja frame and for color-0 (transparent) pixels.
   const backdropHex = resolveSlotHex(slots, backgroundColor);
@@ -954,6 +1079,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const placedEntities = useMemo<Msx2Screen4EntityInstance[]>(
     () => (Array.isArray(room.entities) ? room.entities : []),
     [room.entities],
+  );
+  const keyItems = useMemo<Msx2KeyItemDefinition[]>(
+    () => (Array.isArray(room.keyItems) ? room.keyItems : []),
+    [room.keyItems],
   );
   const playerEntries = useMemo<Msx2PlayerEntry[]>(
     () => normalizeMsx2PlayerEntries(room.playerEntries),
@@ -1015,6 +1144,24 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2bitmaproom'),
     [allAssets],
   );
+  const currentWorldGraph = useMemo(() => {
+    const worldmapAsset = allAssets.find(asset =>
+      asset.type === 'worldmap'
+      && (asset.data as WorldMapGraph | undefined)?.nodes?.some(node => node.screenAssetId === room.id),
+    );
+    return (worldmapAsset?.data as WorldMapGraph | undefined) || null;
+  }, [allAssets, room.id]);
+  const selectedPlacedEntity = useMemo(
+    () => selectedPlacedId ? placedEntities.find(entity => entity.id === selectedPlacedId) || null : null,
+    [placedEntities, selectedPlacedId],
+  );
+  const selectedDoorConfig = selectedPlacedEntity?.kind === 'door'
+    ? normalizeLockedDoorConfig(selectedPlacedEntity.params?.lockedDoor)
+    : null;
+  const selectedDoorTargetRoom = selectedDoorConfig?.targetRoomId
+    ? bitmapRooms.find(asset => asset.id === selectedDoorConfig.targetRoomId) || null
+    : null;
+  const selectedDoorTargetEntries = normalizeMsx2PlayerEntries((selectedDoorTargetRoom?.data as Msx2Screen5BitmapRoom | undefined)?.playerEntries);
 
   // World-minimap adjacency: find the WorldMap that contains this room and derive
   // the neighbour room asset per cardinal direction from its connections ("rails").
@@ -1214,9 +1361,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const cx = entity.position?.x ?? 0;
         const cy = entity.position?.y ?? 0;
         const isEnemy = entity.kind === 'enemy';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : '#40A0FF';
-        const label = isEnemy ? 'E' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : '◆';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : '#40A0FF';
+        const label = isEnemy ? 'E' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : '◆';
         drawMarker(cx, cy, fill, stroke, label, selectedPlacedId === entity.id);
       });
       playerEntries.forEach(entry => {
@@ -1317,52 +1464,60 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     });
   };
 
-  const getAtlasEntryUsageCount = (entry: Msx2BitmapRoomAtlasEntry | null): number => {
-    if (!entry) return 0;
-    const index = atlasEntries.findIndex(item => item.id === entry.id);
-    if (index < 0) return 0;
-    const tileValue = index + 1;
-    return tileGrid.reduce((sum, row) => sum + row.filter(value => value === tileValue).length, 0);
+  const getAtlasEntriesUsageCount = (entries: Msx2BitmapRoomAtlasEntry[]): number => {
+    const tileValues = new Set(entries
+      .map(entry => atlasEntries.findIndex(item => item.id === entry.id))
+      .filter(index => index >= 0)
+      .map(index => index + 1));
+    if (tileValues.size === 0) return 0;
+    return tileGrid.reduce((sum, row) => sum + row.filter(value => tileValues.has(value)).length, 0);
   };
 
-  const confirmDeleteAtlasEntry = () => {
-    const entry = pendingDeleteAtlasEntry;
-    if (!entry) return;
-    const deleteIndex = atlasEntries.findIndex(item => item.id === entry.id);
-    if (deleteIndex < 0) {
-      setPendingDeleteAtlasEntryId(null);
+  const confirmDeleteAtlasEntries = () => {
+    const deleteIds = new Set(pendingDeleteAtlasEntryIds);
+    const deleteEntries = atlasEntries.filter(entry => deleteIds.has(entry.id));
+    if (deleteEntries.length === 0) {
+      setPendingDeleteAtlasEntryIds([]);
       return;
     }
 
-    const deleteValue = deleteIndex + 1;
+    const firstDeleteIndex = atlasEntries.findIndex(item => deleteIds.has(item.id));
+    const nextEntries = atlasEntries.filter(item => !deleteIds.has(item.id));
+    const nextValueByEntryId = new Map(nextEntries.map((entry, index) => [entry.id, index + 1]));
     let clearedCells = 0;
     let nextCollision = room.collision;
     let nextBehavior = room.behavior;
     const nextGrid = tileGrid.map((row, y) => row.map((value, x) => {
-      if (value === deleteValue) {
+      const oldEntry = value > 0 ? atlasEntries[value - 1] : null;
+      if (!oldEntry) return 0;
+      if (deleteIds.has(oldEntry.id)) {
         clearedCells += 1;
         nextCollision = writeCell(nextCollision, x, y, 0, collisionCols, collisionRows);
         nextBehavior = writeCell(nextBehavior, x, y, 0, collisionCols, collisionRows);
         return 0;
       }
-      return value > deleteValue ? value - 1 : value;
+      return nextValueByEntryId.get(oldEntry.id) || 0;
     }));
-    const nextEntries = atlasEntries.filter(item => item.id !== entry.id);
     const nextPixels = atlasPixels.map(row => [...row]);
-    const sx = Math.max(0, Math.trunc(entry.sx || 0));
-    const sy = Math.max(0, Math.trunc(entry.sy || 0));
-    const w = Math.max(1, Math.trunc(entry.w || GRID));
-    const h = Math.max(1, Math.trunc(entry.h || GRID));
-    for (let y = sy; y < Math.min(nextPixels.length, sy + h); y++) {
-      for (let x = sx; x < Math.min(atlasWidth, sx + w); x++) {
-        nextPixels[y][x] = 0;
+    for (const entry of deleteEntries) {
+      const sx = Math.max(0, Math.trunc(entry.sx || 0));
+      const sy = Math.max(0, Math.trunc(entry.sy || 0));
+      const w = Math.max(1, Math.trunc(entry.w || GRID));
+      const h = Math.max(1, Math.trunc(entry.h || GRID));
+      for (let y = sy; y < Math.min(nextPixels.length, sy + h); y++) {
+        for (let x = sx; x < Math.min(atlasWidth, sx + w); x++) {
+          nextPixels[y][x] = 0;
+        }
       }
     }
 
     const nonCopy = (room.composition?.commands || []).filter(command => command.op !== 'copy');
     const tileCmds = buildCopyCommandsFromGrid(nextGrid, nextEntries);
-    const fallbackSelection = nextEntries[deleteIndex]?.id || nextEntries[deleteIndex - 1]?.id || '';
+    const fallbackSelection = nextEntries[firstDeleteIndex]?.id || nextEntries[firstDeleteIndex - 1]?.id || '';
+    // Autotile mappings pointing at the deleted entry are dropped (empty terrains removed).
+    const nextTerrains = pruneTerrainsForEntries(room.autoTerrains, nextEntries);
     onUpdate({
+      ...(nextTerrains !== room.autoTerrains ? { autoTerrains: nextTerrains || [] } : {}),
       atlas: {
         width: atlasWidth,
         height: atlasHeight,
@@ -1378,11 +1533,14 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         commands: [...nonCopy, ...tileCmds],
       },
     });
-    setPendingDeleteAtlasEntryId(null);
-    if (selectedAtlasEntryId === entry.id) {
+    setPendingDeleteAtlasEntryIds([]);
+    if (selectedAtlasEntryId && deleteIds.has(selectedAtlasEntryId)) {
       setSelectedAtlasEntryId(fallbackSelection);
     }
-    setStatusBarMessage?.(`SCREEN 5: tile "${entry.name}" eliminado del atlas (${clearedCells} celdas limpiadas).`);
+    setMultiTileSelection(current => current.filter(item => !deleteIds.has(item.entryId)));
+    setStatusBarMessage?.(deleteEntries.length === 1
+      ? `SCREEN 5: tile "${deleteEntries[0].name}" eliminado del atlas (${clearedCells} celdas limpiadas).`
+      : `SCREEN 5: ${deleteEntries.length} tiles eliminados del atlas (${clearedCells} celdas limpiadas).`);
   };
 
   // Wipe ALL screen content (tiles, color fills/lines, collision/effects/behavior layers,
@@ -1512,6 +1670,76 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setStatusBarMessage?.(`SCREEN 5: "${nextEntity.name}" colocada en (${cellX}, ${cellY}).`);
   };
 
+  const addKeyItemDefinition = () => {
+    const usedIds = new Set(keyItems.map(item => item.id));
+    const ordinal = keyItems.length + 1;
+    let id = sanitizeKeyItemId(`key_${ordinal}`);
+    let suffix = ordinal;
+    while (usedIds.has(id)) {
+      suffix += 1;
+      id = sanitizeKeyItemId(`key_${suffix}`);
+    }
+    const usedBits = new Set(keyItems.map(item => clampInt(Number(item.bitIndex), 0, 7, 0)));
+    const bitIndex = Array.from({ length: 8 }, (_unused, i) => i).find(i => !usedBits.has(i)) ?? 0;
+    const next: Msx2KeyItemDefinition = {
+      id,
+      name: `Key ${ordinal}`,
+      bitIndex,
+      color: 14,
+      persistent: true,
+    };
+    onUpdate({ keyItems: [...keyItems, next] });
+    setStatusBarMessage?.(`SCREEN 5: llave "${next.name}" creada en bit ${bitIndex}.`);
+  };
+
+  const updateKeyItemDefinition = (id: string, patch: Partial<Msx2KeyItemDefinition>) => {
+    onUpdate({
+      keyItems: keyItems.map(item => item.id === id
+        ? {
+            ...item,
+            ...patch,
+            bitIndex: patch.bitIndex !== undefined ? clampInt(Number(patch.bitIndex), 0, 7, item.bitIndex) : item.bitIndex,
+            color: patch.color !== undefined ? clampInt(Number(patch.color), 0, 15, item.color ?? 14) : item.color,
+          }
+        : item),
+    });
+  };
+
+  const deleteKeyItemDefinition = (id: string) => {
+    const nextEntities = placedEntities.map(entity => {
+      const params = { ...(entity.params || {}) };
+      if (params.keyPickupId === id) {
+        delete params.keyPickupId;
+      }
+      const door = normalizeLockedDoorConfig(params.lockedDoor);
+      if (door.requiredKeyId === id) {
+        params.lockedDoor = { ...door, requiredKeyId: '' };
+      }
+      return { ...entity, params };
+    });
+    onUpdate({
+      keyItems: keyItems.filter(item => item.id !== id),
+      entities: nextEntities,
+    });
+    setStatusBarMessage?.('SCREEN 5: llave eliminada y referencias limpiadas.');
+  };
+
+  const updatePlacedEntityParams = (id: string, patch: Record<string, unknown>) => {
+    onUpdate({
+      entities: placedEntities.map(entity =>
+        entity.id === id
+          ? { ...entity, params: { ...(entity.params || {}), ...patch } }
+          : entity
+      ),
+    });
+  };
+
+  const updateLockedDoorConfig = (id: string, patch: Partial<Msx2LockedDoorConfig>) => {
+    const entity = placedEntities.find(item => item.id === id);
+    const current = normalizeLockedDoorConfig(entity?.params?.lockedDoor);
+    updatePlacedEntityParams(id, { lockedDoor: { ...current, ...patch } });
+  };
+
   const deletePlacedEntity = (id: string) => {
     onUpdate({ entities: placedEntities.filter(entity => entity.id !== id) });
     if (selectedPlacedId === id) setSelectedPlacedId(null);
@@ -1594,6 +1822,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const prepareStampForPlacement = (entry: Msx2BitmapStampLibraryEntry) => {
     if (preparedStamp?.stampId === entry.id && preparedStamp.atlasEntryIds.every(id => atlasEntries.some(atlasEntry => atlasEntry.id === id))) {
       setSelectedStampId(entry.id);
+      setSelectedTerrainId('');
+      setMultiTileSelection([]);
       setActiveLayer('visual');
       setTool('brush');
       setStatusBarMessage?.(`SCREEN 5: stamp "${entry.name}" listo para colocar.`);
@@ -1623,6 +1853,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     });
     setSelectedStampId(entry.id);
     setPreparedStamp({ stampId: entry.id, atlasEntryIds: addedEntries.map(atlasEntry => atlasEntry.id) });
+    setSelectedTerrainId('');
+    setMultiTileSelection([]);
     revealAtlasEntry(addedEntries[0]);
     setActiveLayer('visual');
     setTool('brush');
@@ -1648,6 +1880,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     onUpdate({ atlas }); // No palette change: colours already remapped to the current palette.
     setSelectedStampId(entry.id);
     setPreparedStamp({ stampId: entry.id, atlasEntryIds: addedEntries.map(atlasEntry => atlasEntry.id) });
+    setSelectedTerrainId('');
+    setMultiTileSelection([]);
     revealAtlasEntry(addedEntries[0]);
     setActiveLayer('visual');
     setTool('brush');
@@ -1690,12 +1924,185 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     return true;
   };
 
+  // Immutable update of one terrain inside room.autoTerrains.
+  const updateTerrain = (terrainId: string, mutate: (terrain: Msx2BitmapAutoTerrain) => Msx2BitmapAutoTerrain) => {
+    onUpdate({ autoTerrains: autoTerrains.map(terrain => terrain.id === terrainId ? mutate(terrain) : terrain) });
+  };
+
+  // --- Random-mix multi-selection (Ctrl+click on atlas thumbs) ---
+  const equalSplit = (count: number): number => Math.max(1, Math.floor(100 / Math.max(1, count)));
+
+  // Ctrl/Cmd+click toggles the tile in the mix (percents reset to an equal split);
+  // a plain click clears the mix and selects the single tile as usual.
+  const handleAtlasThumbSelect = (entry: Msx2BitmapRoomAtlasEntry, event: React.MouseEvent) => {
+    setSelectedAtlasEntryId(entry.id);
+    setSelectedTerrainId('');
+    setConfigTarget('tile');
+    if (event.ctrlKey || event.metaKey) {
+      setPreparedStamp(null);
+      // Compute outside the state updater: updaters must stay pure (no parent setState inside).
+      const without = multiTileSelection.filter(item => item.entryId !== entry.id);
+      const next = without.length === multiTileSelection.length
+        ? [...multiTileSelection, { entryId: entry.id, percent: 0 }]
+        : without;
+      const percent = equalSplit(next.length);
+      setMultiTileSelection(next.map(item => ({ ...item, percent })));
+      setStatusBarMessage?.(next.length > 1
+        ? `SCREEN 5: mezcla aleatoria con ${next.length} tiles (~${percent}% cada uno); pinta en el grid.`
+        : 'SCREEN 5: mezcla aleatoria necesita al menos 2 tiles (Ctrl+click para añadir más).');
+      return;
+    }
+    if (multiTileSelection.length > 0) {
+      setMultiTileSelection([]);
+      setStatusBarMessage?.('SCREEN 5: mezcla aleatoria deshecha; pincel con tile único.');
+    }
+  };
+
+  // Weighted roll over the mix (entries deleted from the atlas are skipped). Returns null
+  // when fewer than 2 valid tiles remain, so the caller falls back to single-tile painting.
+  const pickFromMultiSelection = (): Msx2BitmapRoomAtlasEntry | null => {
+    const valid = multiTileSelection
+      .map(item => ({ item, entry: atlasEntries.find(candidate => candidate.id === item.entryId) }))
+      .filter((pair): pair is { item: { entryId: string; percent: number }; entry: Msx2BitmapRoomAtlasEntry } => Boolean(pair.entry));
+    if (valid.length < 2) return null;
+    const total = valid.reduce((sum, pair) => sum + Math.max(0, Number(pair.item.percent) || 0), 0);
+    if (total <= 0) return valid[Math.floor(Math.random() * valid.length)].entry;
+    let roll = Math.random() * total;
+    for (const pair of valid) {
+      roll -= Math.max(0, Number(pair.item.percent) || 0);
+      if (roll < 0) return pair.entry;
+    }
+    return valid[valid.length - 1].entry;
+  };
+
+  const multiSelectionActive = multiTileSelection.filter(item => atlasEntries.some(entry => entry.id === item.entryId)).length >= 2;
+
+  // Places one rolled mix tile at the cell. Skips the roll when the cell already holds a
+  // mix tile (drag-stability: no reshuffling while the mouse moves inside painted cells).
+  const paintRandomMixAt = (cx: number, cy: number) => {
+    const currentValue = tileGrid[cy]?.[cx] ?? 0;
+    const currentId = currentValue > 0 ? atlasEntries[currentValue - 1]?.id : undefined;
+    if (currentId && multiTileSelection.some(item => item.entryId === currentId)) return;
+    const entry = pickFromMultiSelection();
+    if (!entry) return;
+    const index = atlasEntries.indexOf(entry);
+    if (index < 0) return;
+    const next = tileGrid.map(row => [...row]);
+    next[cy][cx] = index + 1;
+    const nextCollision = writeCell(room.collision, cx, cy, clampByte(entry.collisionFlags, 0), collisionCols, collisionRows);
+    const nextBehavior = writeCell(room.behavior, cx, cy, clampByte(entry.behaviorCode, 0), collisionCols, collisionRows);
+    applyTileGrid(next, undefined, nextCollision, nextBehavior);
+  };
+
+  // --- Autotile (terrain) painting ---
+  // Paints/erases terrain membership on `cells` and re-resolves the blob tile of every
+  // affected cell + neighbours, writing collision/behavior flags from each chosen entry.
+  const paintTerrainCells = (terrain: Msx2BitmapAutoTerrain, cells: Array<{ x: number; y: number }>, erase: boolean) => {
+    const { grid, changed } = applyTerrainToGrid({
+      grid: tileGrid,
+      entries: atlasEntries,
+      terrain,
+      cells,
+      erase,
+      edgesAreTerrain: terrainEdgesAsTerrain,
+    });
+    if (changed.length === 0) return;
+    let nextCollision = room.collision;
+    let nextBehavior = room.behavior;
+    changed.forEach(({ x, y, entry }) => {
+      nextCollision = writeCell(nextCollision, x, y, clampByte(entry?.collisionFlags, 0), collisionCols, collisionRows);
+      nextBehavior = writeCell(nextBehavior, x, y, clampByte(entry?.behaviorCode, 0), collisionCols, collisionRows);
+    });
+    applyTileGrid(grid, undefined, nextCollision, nextBehavior);
+  };
+
   // --- Visual-layer painting on the 8px grid ---
   // px/py are pixel coords; painting snaps to the GRID (16px, matching 16x16 tiles).
   const paintVisualAt = (px: number, py: number) => {
     const snapX = Math.max(0, Math.min(SCREEN_W - GRID, Math.floor(px / GRID) * GRID));
     const snapY = Math.max(0, Math.min(roomHeight - GRID, Math.floor(py / GRID) * GRID));
     const id = `cmd_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    if (tool === 'eraser') {
+      // Erasing a cell that belongs to an autotile terrain heals its neighbours' borders.
+      const ecx = Math.max(0, Math.min(gridWidth - 1, Math.floor(px / GRID)));
+      const ecy = Math.max(0, Math.min(gridHeight - 1, Math.floor(py / GRID)));
+      const owner = findTerrainForGridValue(autoTerrains, atlasEntries, tileGrid[ecy]?.[ecx] ?? 0);
+      if (owner) {
+        paintTerrainCells(owner, [{ x: ecx, y: ecy }], true);
+        return;
+      }
+    }
+    // Terrain brush/fill: with a terrain selected, the visual layer paints terrain membership.
+    if (selectedTerrain && tool !== 'eraser') {
+      const cx = Math.max(0, Math.min(gridWidth - 1, Math.floor(px / GRID)));
+      const cy = Math.max(0, Math.min(gridHeight - 1, Math.floor(py / GRID)));
+      if (tool === 'brush') {
+        paintTerrainCells(selectedTerrain, [{ x: cx, y: cy }], false);
+        return;
+      }
+      if (tool === 'fill') {
+        // Flood the contiguous EMPTY region from the clicked cell with terrain.
+        if ((tileGrid[cy]?.[cx] ?? 0) !== 0) {
+          setStatusBarMessage?.('SCREEN 5: el relleno de terreno solo actúa sobre celdas vacías.');
+          return;
+        }
+        const region: Array<{ x: number; y: number }> = [];
+        const seen = new Set<number>();
+        const stack: Array<[number, number]> = [[cx, cy]];
+        while (stack.length) {
+          const [x, y] = stack.pop() as [number, number];
+          if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) continue;
+          const k = y * gridWidth + x;
+          if (seen.has(k) || (tileGrid[y]?.[x] ?? 0) !== 0) continue;
+          seen.add(k);
+          region.push({ x, y });
+          stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+        if (region.length > 0) paintTerrainCells(selectedTerrain, region, false);
+        return;
+      }
+    }
+    // Random-mix brush/fill: with 2+ tiles Ctrl-selected, each painted cell rolls one of them.
+    if (multiSelectionActive && tool !== 'eraser' && !preparedStamp) {
+      const cx = Math.max(0, Math.min(gridWidth - 1, Math.floor(px / GRID)));
+      const cy = Math.max(0, Math.min(gridHeight - 1, Math.floor(py / GRID)));
+      if (tool === 'brush') {
+        paintRandomMixAt(cx, cy);
+        return;
+      }
+      if (tool === 'fill') {
+        // Flood the contiguous same-tile region (like the single-tile fill) but roll a mix
+        // tile per cell, so plains come out varied in one click.
+        const target = tileGrid[cy]?.[cx] ?? 0;
+        const region: Array<{ x: number; y: number }> = [];
+        const seen = new Set<number>();
+        const stack: Array<[number, number]> = [[cx, cy]];
+        while (stack.length) {
+          const [x, y] = stack.pop() as [number, number];
+          if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) continue;
+          const k = y * gridWidth + x;
+          if (seen.has(k) || (tileGrid[y]?.[x] ?? 0) !== target) continue;
+          seen.add(k);
+          region.push({ x, y });
+          stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+        if (region.length === 0) return;
+        const next = tileGrid.map(row => [...row]);
+        let nextCollision = room.collision;
+        let nextBehavior = room.behavior;
+        region.forEach(cell => {
+          const entry = pickFromMultiSelection();
+          if (!entry) return;
+          const index = atlasEntries.indexOf(entry);
+          if (index < 0) return;
+          next[cell.y][cell.x] = index + 1;
+          nextCollision = writeCell(nextCollision, cell.x, cell.y, clampByte(entry.collisionFlags, 0), collisionCols, collisionRows);
+          nextBehavior = writeCell(nextBehavior, cell.x, cell.y, clampByte(entry.behaviorCode, 0), collisionCols, collisionRows);
+        });
+        applyTileGrid(next, undefined, nextCollision, nextBehavior);
+        return;
+      }
+    }
     if (tool === 'eraser') {
       // Clear the tile cell (matrix) and drop any color fill/line that covers it.
       const cx = Math.max(0, Math.min(gridWidth - 1, Math.floor(px / GRID)));
@@ -1967,6 +2374,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     if (activeLayer === 'visual') {
       const snapX = Math.max(0, Math.min(SCREEN_W - GRID, Math.floor(px / GRID) * GRID));
       const snapY = Math.max(0, Math.min(roomHeight - GRID, Math.floor(py / GRID) * GRID));
+      // Autotile cells heal their neighbours' borders, same as the Borrador tool.
+      const owner = findTerrainForGridValue(autoTerrains, atlasEntries, tileGrid[cellY]?.[cellX] ?? 0);
+      if (owner) {
+        paintTerrainCells(owner, [{ x: cellX, y: cellY }], true);
+        setStatusBarMessage?.(`SCREEN 5: terreno borrado en celda (${cellX}, ${cellY}); bordes vecinos recalculados.`);
+        return;
+      }
       const had = tileGrid[cellY]?.[cellX] !== 0;
       const next = tileGrid.map(row => [...row]);
       next[cellY][cellX] = 0;
@@ -2020,15 +2434,305 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setStatusBarMessage?.(`Importados ${addedEntries.length} tile(s) al atlas SCREEN 5.`);
   };
 
+  // --- Autotile terrain import: template tiles -> atlas entries + mask mapping ---
+  // The modal delivers tiles with a parallel `masks` list (masks[i] = canonical neighbour
+  // mask of tiles[i]), for both blob16 (16 tiles) and wang47 (47 tiles). The mapping stores
+  // atlas entry IDs (stable across entry deletes).
+  const handleImportAutotileTemplate = ({ name, template, tiles, masks, markSolid }: {
+    name: string;
+    template: Msx2BitmapAutoTerrain['template'];
+    tiles: Msx2Screen4Tile[];
+    masks: number[];
+    markSolid: boolean;
+  }) => {
+    const prepared = tiles.map((tile, index) => ({
+      ...tile,
+      name: `${name}_m${masks[index]}`,
+      ...(markSolid ? { collisionFlags: PROP_BIT.solid } : {}),
+    }));
+    const { atlas, addedEntries } = importTilesIntoAtlas(
+      {
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels: room.atlas?.pixels,
+        entries: atlasEntries,
+      },
+      prepared,
+    );
+    const mapping: Record<number, string> = {};
+    masks.forEach((mask, index) => {
+      const entry = addedEntries[index];
+      if (entry) mapping[mask] = entry.id;
+    });
+    const terrain: Msx2BitmapAutoTerrain = {
+      id: `terrain_${Date.now()}`,
+      name,
+      template,
+      mapping,
+    };
+    onUpdate({ atlas, autoTerrains: [...autoTerrains, terrain] });
+    setIsAutotileImportOpen(false);
+    setSelectedTerrainId(terrain.id);
+    setActiveLayer('visual');
+    setTool('brush');
+    setStatusBarMessage?.(`SCREEN 5: terreno autotile "${name}" (${template === 'wang47' ? '47 tiles wang' : '16 tiles blob'}) importado; pinta en el grid con el pincel.`);
+  };
+
   // Project palette assets, for the "Cargar paleta" picker.
   const paletteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'palette'), [allAssets]);
 
-  const getAtlasEntryPixels = (entry: Msx2BitmapRoomAtlasEntry): number[][] => {
+  const serializeTerrainPixels = (pixels: number[][]): string => pixels.map(row => row.join(',')).join(';');
+
+  const getAtlasEntryPixelsFrom = (pixelsSource: number[][], entry: Msx2BitmapRoomAtlasEntry): number[][] => {
     const w = Math.max(1, entry.w || GRID);
     const h = Math.max(1, entry.h || GRID);
     return Array.from({ length: h }, (_r, yy) =>
-      Array.from({ length: w }, (_c, xx) => atlasPixels[entry.sy + yy]?.[entry.sx + xx] ?? 0),
+      Array.from({ length: w }, (_c, xx) => pixelsSource[entry.sy + yy]?.[entry.sx + xx] ?? 0),
     );
+  };
+
+  const getAtlasEntryPixels = (entry: Msx2BitmapRoomAtlasEntry): number[][] => {
+    return getAtlasEntryPixelsFrom(atlasPixels, entry);
+  };
+
+  const getTerrainReferencedEntryIds = (terrain: Msx2BitmapAutoTerrain): string[] => {
+    const ids = new Set<string>();
+    Object.values(terrain.mapping || {}).forEach(id => ids.add(id));
+    Object.values(terrain.variants || {}).forEach(list => {
+      (list || []).forEach(variant => ids.add(variant.entryId));
+    });
+    return Array.from(ids);
+  };
+
+  const findMatchingCurrentAtlasEntry = (
+    sourceEntry: Msx2BitmapRoomAtlasEntry,
+    sourcePixels: number[][],
+    exactByNameAndPixels: Map<string, Msx2BitmapRoomAtlasEntry[]>,
+    exactByPixels: Map<string, Msx2BitmapRoomAtlasEntry[]>,
+    usedIds: Set<string>,
+  ): Msx2BitmapRoomAtlasEntry | null => {
+    const width = Math.max(1, sourceEntry.w || GRID);
+    const height = Math.max(1, sourceEntry.h || GRID);
+    const pixelKey = `${width}x${height}:${serializeTerrainPixels(sourcePixels)}`;
+    const nameKey = `${sourceEntry.name.toLowerCase()}|${pixelKey}`;
+    const candidates = exactByNameAndPixels.get(nameKey) || exactByPixels.get(pixelKey) || [];
+    return candidates.find(entry => !usedIds.has(entry.id)) || candidates[0] || null;
+  };
+
+  const buildTerrainFromExistingAtlas = (
+    sourceTerrain: Msx2BitmapAutoTerrain,
+    sourceRoom: Msx2Screen5BitmapRoom,
+  ): Msx2BitmapAutoTerrain | null => {
+    const sourceEntries = sourceRoom.atlas?.entries || [];
+    if (sourceEntries.length === 0) return null;
+    const sourceWidth = Math.max(1, Number(sourceRoom.atlas?.width) || 256);
+    const sourceHeight = Math.max(1, Number(sourceRoom.atlas?.height) || 128);
+    const sourcePixels = normalizePixels(sourceRoom.atlas?.pixels, sourceWidth, sourceHeight);
+    const currentByNameAndPixels = new Map<string, Msx2BitmapRoomAtlasEntry[]>();
+    const currentByPixels = new Map<string, Msx2BitmapRoomAtlasEntry[]>();
+    atlasEntries.forEach(entry => {
+      const width = Math.max(1, entry.w || GRID);
+      const height = Math.max(1, entry.h || GRID);
+      const pixelKey = `${width}x${height}:${serializeTerrainPixels(getAtlasEntryPixels(entry))}`;
+      const nameKey = `${entry.name.toLowerCase()}|${pixelKey}`;
+      currentByPixels.set(pixelKey, [...(currentByPixels.get(pixelKey) || []), entry]);
+      currentByNameAndPixels.set(nameKey, [...(currentByNameAndPixels.get(nameKey) || []), entry]);
+    });
+
+    const usedIds = new Set<string>();
+    const sourceToCurrent = new Map<string, string>();
+    const remapEntryId = (sourceEntryId: string): string | null => {
+      if (sourceToCurrent.has(sourceEntryId)) return sourceToCurrent.get(sourceEntryId)!;
+      const sourceEntry = sourceEntries.find(entry => entry.id === sourceEntryId);
+      if (!sourceEntry) return null;
+      const match = findMatchingCurrentAtlasEntry(
+        sourceEntry,
+        getAtlasEntryPixelsFrom(sourcePixels, sourceEntry),
+        currentByNameAndPixels,
+        currentByPixels,
+        usedIds,
+      );
+      if (!match) return null;
+      usedIds.add(match.id);
+      sourceToCurrent.set(sourceEntryId, match.id);
+      return match.id;
+    };
+
+    const mapping: Record<number, string> = {};
+    for (const [mask, sourceEntryId] of Object.entries(sourceTerrain.mapping || {})) {
+      const currentEntryId = remapEntryId(sourceEntryId);
+      if (!currentEntryId) return null;
+      mapping[Number(mask)] = currentEntryId;
+    }
+    const variants: Record<number, Msx2BitmapAutoTerrainVariant[]> = {};
+    Object.entries(sourceTerrain.variants || {}).forEach(([mask, list]) => {
+      const remapped = (list || [])
+        .map(variant => {
+          const entryId = remapEntryId(variant.entryId);
+          return entryId ? { entryId, percent: variant.percent } : null;
+        })
+        .filter((variant): variant is Msx2BitmapAutoTerrainVariant => Boolean(variant));
+      if (remapped.length > 0) variants[Number(mask)] = remapped;
+    });
+    return {
+      id: `terrain_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: sourceTerrain.name,
+      template: sourceTerrain.template,
+      mapping,
+      ...(Object.keys(variants).length > 0 ? { variants } : {}),
+    };
+  };
+
+  const worldTerrainCandidates = useMemo(() => {
+    if (!currentWorldGraph) return [];
+    const roomIdsInWorld = new Set(currentWorldGraph.nodes.map(node => node.screenAssetId));
+    return bitmapRooms
+      .filter(asset => asset.id !== room.id && roomIdsInWorld.has(asset.id))
+      .flatMap(asset => {
+        const sourceRoom = asset.data as Msx2Screen5BitmapRoom;
+        return (sourceRoom.autoTerrains || []).map(terrain => {
+          const rebuilt = buildTerrainFromExistingAtlas(terrain, sourceRoom);
+          return rebuilt ? { sourceRoomName: asset.name, terrain, rebuilt } : null;
+        }).filter((item): item is { sourceRoomName: string; terrain: Msx2BitmapAutoTerrain; rebuilt: Msx2BitmapAutoTerrain } => Boolean(item));
+      });
+  }, [atlasEntries, atlasPixels, bitmapRooms, currentWorldGraph, room.id]);
+
+  const restoreWorldTerrainsFromExistingAtlas = () => {
+    if (worldTerrainCandidates.length === 0) {
+      setStatusBarMessage?.('SCREEN 5: no hay terrains del mundo recuperables con tiles ya presentes en este atlas.');
+      return;
+    }
+    const seenKeys = new Set(autoTerrains.map(terrain => `${terrain.template}|${terrain.name}`));
+    const restored: Msx2BitmapAutoTerrain[] = [];
+    worldTerrainCandidates.forEach(candidate => {
+      const key = `${candidate.rebuilt.template}|${candidate.rebuilt.name}`;
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      restored.push(candidate.rebuilt);
+    });
+    if (restored.length === 0) {
+      setStatusBarMessage?.('SCREEN 5: los terrains recuperables del mundo ya estan asignados en esta pantalla.');
+      return;
+    }
+    onUpdate({ autoTerrains: [...autoTerrains, ...restored] });
+    setSelectedTerrainId(restored[0].id);
+    setActiveLayer('visual');
+    setTool('brush');
+    setStatusBarMessage?.(`SCREEN 5: ${restored.length} terrain(s) recuperados del mundo sin duplicar tiles del atlas.`);
+  };
+
+  useEffect(() => {
+    if (autoTerrains.length > 0 || worldTerrainCandidates.length === 0) return;
+    if (autoTerrainRestoreRoomRef.current === room.id) return;
+    autoTerrainRestoreRoomRef.current = room.id;
+    restoreWorldTerrainsFromExistingAtlas();
+  }, [autoTerrains.length, room.id, worldTerrainCandidates.length]);
+
+  const saveTerrainAsAsset = (terrain: Msx2BitmapAutoTerrain) => {
+    const referencedIds = getTerrainReferencedEntryIds(terrain);
+    const referencedEntries = referencedIds
+      .map(id => atlasEntries.find(entry => entry.id === id))
+      .filter((entry): entry is Msx2BitmapRoomAtlasEntry => Boolean(entry));
+    if (referencedEntries.length === 0) {
+      setStatusBarMessage?.(`SCREEN 5: terreno "${terrain.name}" no tiene tiles validos para guardar.`);
+      return;
+    }
+    const usedNames = new Set(allAssets.map(asset => asset.name));
+    const baseName = terrain.name.trim() || 'Autotile Terrain';
+    let assetName = baseName;
+    let suffix = 2;
+    while (usedNames.has(assetName)) assetName = `${baseName} ${suffix++}`;
+    const assetId = `bitmap_terrain_${Date.now()}`;
+    const data: Msx2BitmapTerrainAsset = {
+      id: assetId,
+      name: assetName,
+      savedAt: Date.now(),
+      terrain: {
+        name: terrain.name,
+        template: terrain.template,
+        mapping: { ...(terrain.mapping || {}) },
+        ...(terrain.variants ? { variants: JSON.parse(JSON.stringify(terrain.variants)) as Record<number, Msx2BitmapAutoTerrainVariant[]> } : {}),
+      },
+      tiles: referencedEntries.map(entry => ({
+        id: entry.id,
+        name: entry.name,
+        width: Math.max(1, entry.w || GRID),
+        height: Math.max(1, entry.h || GRID),
+        pixels: getAtlasEntryPixels(entry),
+        ...(entry.collisionFlags !== undefined ? { collisionFlags: entry.collisionFlags } : {}),
+        ...(entry.behaviorCode !== undefined ? { behaviorCode: entry.behaviorCode } : {}),
+      })),
+      palette: slots.map(slot => ({ ...slot })),
+    };
+    addTerrainToMsx2BitmapTerrainLibrary(data);
+    onUpdate({}, [{ id: assetId, name: assetName, type: 'msx2bitmapterrain', data }]);
+    setSelectedTerrainAssetId(assetId);
+    setStatusBarMessage?.(`SCREEN 5: terreno "${terrain.name}" guardado como asset reutilizable y en Libraries > Terrains (${referencedEntries.length} tiles).`);
+  };
+
+  const importTerrainAssetIntoRoom = (asset: ProjectAsset & { data: Msx2BitmapTerrainAsset }) => {
+    const terrainAsset = asset.data;
+    const tiles: Msx2Screen4Tile[] = (terrainAsset.tiles || []).map(tile => ({
+      id: tile.id,
+      name: tile.name,
+      width: tile.width || GRID,
+      height: tile.height || GRID,
+      pixels: tile.pixels,
+      ...(tile.collisionFlags !== undefined ? { collisionFlags: tile.collisionFlags } : {}),
+      ...(tile.behaviorCode !== undefined ? { behaviorCode: tile.behaviorCode } : {}),
+    }));
+    if (tiles.length === 0) {
+      setStatusBarMessage?.(`SCREEN 5: asset "${asset.name}" no contiene tiles de terreno.`);
+      return;
+    }
+    const { atlas, addedEntries } = importTilesIntoAtlas(
+      {
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels: room.atlas?.pixels,
+        entries: atlasEntries,
+      },
+      tiles,
+    );
+    const idMap = new Map<string, string>();
+    terrainAsset.tiles.forEach((tile, index) => {
+      const entry = addedEntries[index];
+      if (entry) idMap.set(tile.id, entry.id);
+    });
+    const mapping: Record<number, string> = {};
+    Object.entries(terrainAsset.terrain.mapping || {}).forEach(([mask, oldId]) => {
+      const nextId = idMap.get(oldId);
+      if (nextId) mapping[Number(mask)] = nextId;
+    });
+    if (Object.keys(mapping).length === 0) {
+      setStatusBarMessage?.(`SCREEN 5: asset "${asset.name}" no pudo reconstruir el mapping de autotile.`);
+      return;
+    }
+    const variants: Record<number, Msx2BitmapAutoTerrainVariant[]> = {};
+    Object.entries(terrainAsset.terrain.variants || {}).forEach(([mask, list]) => {
+      const remapped = (list || [])
+        .map(variant => {
+          const nextId = idMap.get(variant.entryId);
+          return nextId ? { entryId: nextId, percent: variant.percent } : null;
+        })
+        .filter((variant): variant is Msx2BitmapAutoTerrainVariant => Boolean(variant));
+      if (remapped.length > 0) variants[Number(mask)] = remapped;
+    });
+    const terrain: Msx2BitmapAutoTerrain = {
+      id: `terrain_${Date.now()}`,
+      name: terrainAsset.terrain.name || asset.name,
+      template: terrainAsset.terrain.template || 'blob16',
+      mapping,
+      ...(Object.keys(variants).length > 0 ? { variants } : {}),
+    };
+    onUpdate({ atlas, autoTerrains: [...autoTerrains, terrain] });
+    setSelectedTerrainId(terrain.id);
+    setSelectedTerrainAssetId(asset.id);
+    setActiveLayer('visual');
+    setTool('brush');
+    setStatusBarMessage?.(`SCREEN 5: terreno "${terrain.name}" importado desde asset "${asset.name}" (${addedEntries.length} tiles al atlas).`);
   };
 
   const saveBitmapTileAssetFromPixels = (
@@ -2091,6 +2795,39 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
 
   const saveBitmapTileEditorAsAsset = (name: string, pixels: number[][]) => {
     saveBitmapTileAssetFromPixels(name.trim() || editingAtlasEntry?.name || 'Bitmap Tile', pixels, 'manual-edit');
+  };
+
+  // Append the tile-editor draft as a NEW atlas entry (the edited entry stays untouched),
+  // inheriting the source's collision/behavior flags. One-step path for autotile variants.
+  const saveBitmapTileEditorAsAtlasCopy = (name: string, pixels: number[][]) => {
+    const source = editingAtlasEntry;
+    if (!source) return;
+    const usedNames = new Set(atlasEntries.map(item => item.name));
+    let copyName = name.trim() || `${source.name}_var`;
+    let suffix = 2;
+    while (usedNames.has(copyName)) copyName = `${name.trim() || `${source.name}_var`} ${suffix++}`;
+    const { atlas, addedEntries } = importTilesIntoAtlas(
+      {
+        width: atlasWidth,
+        height: atlasHeight,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels: room.atlas?.pixels,
+        entries: atlasEntries,
+      },
+      [{
+        id: `copy_${source.id}_${Date.now()}`,
+        name: copyName,
+        width: Math.max(1, source.w || GRID),
+        height: Math.max(1, source.h || GRID),
+        pixels,
+        collisionFlags: source.collisionFlags,
+        behaviorCode: source.behaviorCode,
+      }],
+    );
+    onUpdate({ atlas });
+    setEditingAtlasEntryId(null);
+    revealAtlasEntry(addedEntries[0]);
+    setStatusBarMessage?.(`SCREEN 5: tile "${copyName}" creado como copia en el atlas; añádelo como variante en el panel Autotile.`);
   };
 
   // --- Export the selected atlas entry to the global tile library ---
@@ -2427,6 +3164,17 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         <Button size="sm" variant="danger" icon={<EraserIcon />} onClick={handleClearAll} title="Vaciar todo el contenido de la pantalla (tiles, rellenos, capas, entidades, enemigos, objetos y player)">
           Clear All
         </Button>
+        {multiSelectionActive && (
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<GridIcon />}
+            onClick={() => setIsRandomMixOpen(true)}
+            title="Editar los porcentajes de la mezcla aleatoria de tiles (Ctrl+click en el atlas para añadir/quitar)"
+          >
+            Mezcla aleatoria ({multiTileSelection.length})
+          </Button>
+        )}
         <label className="flex items-center gap-1 text-xs text-msx-textsecondary">
           <HudIcon />
           MSX2 HUD
@@ -2471,10 +3219,11 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                       atlasPixels={atlasPixels}
                       slots={slots}
                       isSelected={entry.id === selectedAtlasEntry?.id}
-                      onSelect={() => {
-                        setSelectedAtlasEntryId(entry.id);
-                        setConfigTarget('tile');
-                      }}
+                      multiIndex={(() => {
+                        const index = multiTileSelection.findIndex(item => item.entryId === entry.id);
+                        return index >= 0 ? index + 1 : null;
+                      })()}
+                      onSelect={(event) => handleAtlasThumbSelect(entry, event)}
                       onDoubleClick={() => {
                         setSelectedAtlasEntryId(entry.id);
                         setConfigTarget('tile');
@@ -2484,41 +3233,284 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         event.preventDefault();
                         setSelectedAtlasEntryId(entry.id);
                         setConfigTarget('tile');
-                        setPendingDeleteAtlasEntryId(entry.id);
+                        const validMultiIds = multiTileSelection
+                          .map(item => item.entryId)
+                          .filter(entryId => atlasEntries.some(atlasEntry => atlasEntry.id === entryId));
+                        setPendingDeleteAtlasEntryIds(
+                          validMultiIds.length > 1 && validMultiIds.includes(entry.id)
+                            ? validMultiIds
+                            : [entry.id]
+                        );
                       }}
                     />
                   ))}
                 </div>
-                {pendingDeleteAtlasEntry && (
-                  <div className="mt-2 rounded border border-red-500/60 bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary">
-                    <div className="font-semibold text-red-300">Eliminar tile del atlas?</div>
-                    <div className="mt-1 truncate text-msx-textprimary">{pendingDeleteAtlasEntry.name}</div>
-                    <div className="mt-1">
-                      Se quitara del atlas y se vaciaran {getAtlasEntryUsageCount(pendingDeleteAtlasEntry)} celdas que lo usan.
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        className="rounded bg-red-600 px-2 py-1 text-white hover:bg-red-500"
-                        onClick={confirmDeleteAtlasEntry}
-                      >
-                        Eliminar
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded border border-msx-border px-2 py-1 text-msx-textprimary hover:border-msx-highlight"
-                        onClick={() => setPendingDeleteAtlasEntryId(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
                 {visibleAtlasEntries.length === 0 && (
                   <div className="mt-1 text-[0.6rem] text-msx-textsecondary">Sin tiles en la categoría "{statusCategoryLabel}".</div>
                 )}
               </div>
             )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Autotile (terrenos)" isOpen={openAutotile} onToggle={() => setOpenAutotile(v => !v)}>
+            <div className="space-y-2">
+              <Button size="sm" variant="secondary" onClick={() => setIsAutotileImportOpen(true)}>
+                Importar plantilla PNG (4x4)…
+              </Button>
+              {selectedTerrain && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => saveTerrainAsAsset(selectedTerrain)}
+                  title="Exportar el terreno/autotile seleccionado como asset reutilizable del proyecto"
+                >
+                  Exportar terrain_asset
+                </Button>
+              )}
+              {terrainAssets.length > 0 && (
+                <div className="rounded border border-msx-border bg-msx-bgcolor p-2 space-y-1">
+                  <div className="text-[0.65rem] font-semibold text-msx-highlight">Assets de terreno</div>
+                  <select
+                    value={selectedTerrainAssetId}
+                    onChange={event => setSelectedTerrainAssetId(event.target.value)}
+                    className="w-full rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-[0.65rem] text-msx-textprimary"
+                  >
+                    <option value="">Selecciona asset...</option>
+                    {terrainAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>
+                        {asset.name} ({asset.data.terrain.template === 'wang47' ? '47 wang' : '16 blob'})
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={!selectedTerrainAssetId}
+                    onClick={() => {
+                      const asset = terrainAssets.find(item => item.id === selectedTerrainAssetId);
+                      if (asset) importTerrainAssetIntoRoom(asset);
+                    }}
+                  >
+                    Importar asset guardado
+                  </Button>
+                </div>
+              )}
+              {worldTerrainCandidates.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={restoreWorldTerrainsFromExistingAtlas}
+                  title="Recupera la asignacion autotile desde otra pantalla del mismo mundo usando los tiles que ya existen en este atlas."
+                >
+                  Recuperar terrain del mundo ({worldTerrainCandidates.length})
+                </Button>
+              )}
+              <label className="flex items-center gap-2 text-[0.65rem] text-msx-textsecondary">
+                <input
+                  type="checkbox"
+                  checked={terrainEdgesAsTerrain}
+                  onChange={event => setTerrainEdgesAsTerrain(event.target.checked)}
+                />
+                <span>Bordes de pantalla cuentan como terreno</span>
+              </label>
+              {autoTerrains.length === 0 ? (
+                <div className="rounded border border-msx-border bg-msx-bgcolor p-2 text-xs text-msx-textsecondary">
+                  Sin terrenos. Importa una plantilla blob de 16 tiles (PNG 64x64) y pinta suelos y paredes
+                  con esquinas y bordes automáticos.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {autoTerrains.map(terrain => {
+                    const centerEntry = atlasEntries.find(entry => entry.id === terrain.mapping?.[15]);
+                    const isSelected = terrain.id === selectedTerrainId;
+                    return (
+                      <div key={terrain.id} className={`flex items-center gap-2 rounded border p-1 ${isSelected ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}>
+                        <button
+                          type="button"
+                          className="flex flex-1 items-center gap-2 text-left"
+                          title={`Terreno "${terrain.name}" (${terrain.template}) — pinta con el pincel; el borde/esquina se elige solo`}
+                          onClick={() => {
+                            setSelectedTerrainId(isSelected ? '' : terrain.id);
+                            setPreparedStamp(null);
+                            setMultiTileSelection([]);
+                            setActiveLayer('visual');
+                            if (tool === 'eraser') setTool('brush');
+                            setStatusBarMessage?.(isSelected
+                              ? 'SCREEN 5: terreno deseleccionado; el pincel vuelve a pintar el tile del atlas.'
+                              : `SCREEN 5: terreno "${terrain.name}" activo; pincel/relleno autotile en capa Visual.`);
+                          }}
+                        >
+                          <div className="h-8 w-8 shrink-0 overflow-hidden border border-black/70 bg-black">
+                            {centerEntry
+                              ? <AtlasTilePreview entry={centerEntry} atlasPixels={atlasPixels} slots={slots} />
+                              : <div className="h-full w-full" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-[0.65rem] text-msx-textprimary">{terrain.name}</div>
+                            <div className="text-[0.55rem] text-msx-textsecondary">
+                              {terrain.template === 'blob16' ? '16 tiles (blob)' : '47 tiles (wang)'}
+                            </div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded border border-msx-border px-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+                          title="Guardar este terreno como asset reutilizable"
+                          onClick={() => saveTerrainAsAsset(terrain)}
+                        >
+                          Exportar
+                        </button>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded border border-msx-border px-1 text-[0.65rem] text-msx-textsecondary hover:border-red-400 hover:text-red-300"
+                          title="Eliminar terreno (los tiles del atlas y lo ya pintado se conservan)"
+                          onClick={() => setPendingDeleteTerrainId(terrain.id)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {pendingDeleteTerrainId && (
+                    <div className="rounded border border-red-500/60 bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary">
+                      <div className="font-semibold text-red-300">¿Eliminar terreno?</div>
+                      <div className="mt-1 truncate text-msx-textprimary">
+                        {autoTerrains.find(terrain => terrain.id === pendingDeleteTerrainId)?.name || pendingDeleteTerrainId}
+                      </div>
+                      <div className="mt-1">Se borra solo la definición autotile; los tiles del atlas y las celdas pintadas se conservan.</div>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          className="rounded bg-red-600 px-2 py-1 text-white hover:bg-red-500"
+                          onClick={() => {
+                            onUpdate({ autoTerrains: autoTerrains.filter(terrain => terrain.id !== pendingDeleteTerrainId) });
+                            if (selectedTerrainId === pendingDeleteTerrainId) setSelectedTerrainId('');
+                            setPendingDeleteTerrainId(null);
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-msx-border px-2 py-1 text-msx-textprimary hover:border-msx-highlight"
+                          onClick={() => setPendingDeleteTerrainId(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {selectedTerrain && (() => {
+                // Variants editor for the selected terrain: per-mask random substitutions.
+                const centreMask = selectedTerrain.template === 'wang47' ? 255 : 15;
+                const mappedMasks = Object.keys(selectedTerrain.mapping || {}).map(Number).sort((a, b) => a - b);
+                if (mappedMasks.length === 0) return null;
+                const activeMask = variantMask !== null && mappedMasks.includes(variantMask)
+                  ? variantMask
+                  : (mappedMasks.includes(centreMask) ? centreMask : mappedMasks[0]);
+                const baseEntry = atlasEntries.find(entry => entry.id === selectedTerrain.mapping[activeMask]);
+                const maskVariants = selectedTerrain.variants?.[activeMask] || [];
+                const totalPercent = maskVariants.reduce((sum, variant) => sum + Math.max(0, Number(variant.percent) || 0), 0);
+                const usedIds = new Set([selectedTerrain.mapping[activeMask], ...maskVariants.map(variant => variant.entryId)]);
+                const pickerEntries = atlasEntries.filter(entry => !usedIds.has(entry.id));
+                const setMaskVariants = (nextList: Msx2BitmapAutoTerrainVariant[]) => {
+                  updateTerrain(selectedTerrain.id, terrain => {
+                    const nextVariants = { ...(terrain.variants || {}) };
+                    if (nextList.length > 0) nextVariants[activeMask] = nextList;
+                    else delete nextVariants[activeMask];
+                    return { ...terrain, variants: Object.keys(nextVariants).length > 0 ? nextVariants : undefined };
+                  });
+                };
+                return (
+                  <div className="rounded border border-msx-border bg-msx-bgcolor p-2 space-y-1.5">
+                    <div className="text-[0.65rem] font-semibold text-msx-highlight">Variantes aleatorias</div>
+                    <select
+                      value={activeMask}
+                      onChange={event => { setVariantMask(Number(event.target.value)); setIsVariantPickerOpen(false); }}
+                      className="w-full rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-[0.65rem] text-msx-textprimary"
+                    >
+                      {mappedMasks.map(mask => (
+                        <option key={mask} value={mask}>
+                          {describeAutotileMask(mask, selectedTerrain.template)} — m{mask}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-2 text-[0.6rem] text-msx-textsecondary">
+                      <div className="h-6 w-6 shrink-0 overflow-hidden border border-black/70 bg-black">
+                        {baseEntry && <AtlasTilePreview entry={baseEntry} atlasPixels={atlasPixels} slots={slots} />}
+                      </div>
+                      <span>Base: {Math.max(0, 100 - totalPercent)}%</span>
+                      {totalPercent > 100 && <span className="text-red-300">¡suma {totalPercent}%!</span>}
+                    </div>
+                    {maskVariants.map((variant, index) => {
+                      const entry = atlasEntries.find(item => item.id === variant.entryId);
+                      return (
+                        <div key={`${variant.entryId}_${index}`} className="flex items-center gap-2">
+                          <div className="h-6 w-6 shrink-0 overflow-hidden border border-black/70 bg-black">
+                            {entry && <AtlasTilePreview entry={entry} atlasPixels={atlasPixels} slots={slots} />}
+                          </div>
+                          <span className="min-w-0 flex-1 truncate text-[0.6rem] text-msx-textprimary">{entry?.name || variant.entryId}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={variant.percent}
+                            onChange={event => {
+                              const percent = clampInt(event.target.value, 1, 100, variant.percent);
+                              setMaskVariants(maskVariants.map((item, itemIndex) => itemIndex === index ? { ...item, percent } : item));
+                            }}
+                            className="w-12 rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-right text-[0.65rem] text-msx-textprimary"
+                          />
+                          <span className="text-[0.6rem] text-msx-textsecondary">%</span>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded border border-msx-border px-1 text-[0.65rem] text-msx-textsecondary hover:border-red-400 hover:text-red-300"
+                            title="Quitar variante"
+                            onClick={() => setMaskVariants(maskVariants.filter((_item, itemIndex) => itemIndex !== index))}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <Button size="sm" variant="ghost" onClick={() => setIsVariantPickerOpen(open => !open)}>
+                      {isVariantPickerOpen ? 'Cerrar selector' : '+ Añadir variante…'}
+                    </Button>
+                    {isVariantPickerOpen && (
+                      pickerEntries.length === 0 ? (
+                        <div className="text-[0.6rem] text-msx-textsecondary">No quedan tiles del atlas disponibles; importa o dibuja el tile variante primero.</div>
+                      ) : (
+                        <div className="max-h-32 overflow-y-auto pr-1">
+                          <div className="grid grid-cols-4 gap-1">
+                            {pickerEntries.map(entry => (
+                              <button
+                                key={entry.id}
+                                type="button"
+                                className="rounded border border-msx-border bg-black p-0.5 hover:border-msx-highlight"
+                                title={`Añadir "${entry.name}" como variante (20%)`}
+                                onClick={() => {
+                                  setMaskVariants([...maskVariants, { entryId: entry.id, percent: 20 }]);
+                                  setIsVariantPickerOpen(false);
+                                }}
+                              >
+                                <div className="h-8 w-full overflow-hidden">
+                                  <AtlasTilePreview entry={entry} atlasPixels={atlasPixels} slots={slots} />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
+                    <div className="text-[0.55rem] text-msx-textsecondary">
+                      Se sortea al pintar una celda nueva; curar bordes no re-sortea. Borra y repinta para variar.
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Stamps bitmap" isOpen={openStamps} onToggle={() => setOpenStamps(v => !v)}>
@@ -2826,6 +3818,318 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                   )}
                 </div>
               </div>
+
+              <div className="border-t border-msx-border pt-2">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="text-[0.7rem] text-msx-highlight">Llaves / items ({keyItems.length})</div>
+                  <button
+                    type="button"
+                    onClick={addKeyItemDefinition}
+                    className="rounded border border-msx-border px-2 py-0.5 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+                    title="Crear una llave/item para pickups y puertas"
+                  >
+                    + Key
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {keyItems.map(item => (
+                    <div key={item.id} className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={item.name}
+                          onChange={event => updateKeyItemDefinition(item.id, { name: event.target.value })}
+                          className="min-w-0 flex-1 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          title={item.id}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => deleteKeyItemDefinition(item.id)}
+                          className="text-msx-danger hover:text-msx-highlight"
+                          title="Borrar llave/item"
+                        >
+                          x
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 text-[0.65rem] text-msx-textsecondary">
+                        <label className="flex items-center gap-1">
+                          Bit
+                          <select
+                            value={clampInt(Number(item.bitIndex), 0, 7, 0)}
+                            onChange={event => updateKeyItemDefinition(item.id, { bitIndex: Number(event.target.value) })}
+                            className="min-w-0 flex-1 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-msx-textprimary"
+                          >
+                            {Array.from({ length: 8 }, (_unused, i) => <option key={i} value={i}>{i}</option>)}
+                          </select>
+                        </label>
+                        <label className="flex items-center gap-1">
+                          Color
+                          <select
+                            value={clampInt(Number(item.color ?? 14), 0, 15, 14)}
+                            onChange={event => updateKeyItemDefinition(item.id, { color: Number(event.target.value) })}
+                            className="min-w-0 flex-1 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-msx-textprimary"
+                          >
+                            {Array.from({ length: 16 }, (_unused, i) => <option key={i} value={i}>{i}</option>)}
+                          </select>
+                        </label>
+                        <label className="flex items-center justify-end gap-1">
+                          <input
+                            type="checkbox"
+                            checked={item.persistent !== false}
+                            onChange={event => updateKeyItemDefinition(item.id, { persistent: event.target.checked })}
+                          />
+                          Persist
+                        </label>
+                      </div>
+                      <div className="truncate text-[0.6rem] text-msx-textsecondary">id: {item.id}</div>
+                    </div>
+                  ))}
+                  {keyItems.length === 0 && (
+                    <div className="rounded border border-msx-border px-2 py-1 text-[0.6rem] text-msx-textsecondary">
+                      Crea llaves/items aqui y asignales collectibles o puertas.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedPlacedEntity && (
+                <div className="border-t border-msx-border pt-2 space-y-2">
+                  <div className="text-[0.7rem] text-msx-highlight">Objeto seleccionado</div>
+                  <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 text-[0.65rem] text-msx-textsecondary">
+                    <div className="truncate text-xs text-msx-textprimary">{selectedPlacedEntity.name}</div>
+                    <div>{selectedPlacedEntity.kind} @ {selectedPlacedEntity.position?.x},{selectedPlacedEntity.position?.y}</div>
+                  </div>
+
+                  {selectedPlacedEntity.kind === 'collectible' && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">Pickup de llave/item</div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Item que entrega
+                        <select
+                          value={String(selectedPlacedEntity.params?.keyPickupId || '')}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { keyPickupId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {keyItems.map(item => (
+                            <option key={item.id} value={item.id}>{item.name} (bit {clampInt(Number(item.bitIndex), 0, 7, 0)})</option>
+                          ))}
+                        </select>
+                      </label>
+                      {keyItems.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={addKeyItemDefinition}
+                          className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+                        >
+                          Crear primera llave/item
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity.kind === 'door' && selectedDoorConfig && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Puerta bloqueada</div>
+                        <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                          <input
+                            type="checkbox"
+                            checked={selectedDoorConfig.enabled}
+                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, {
+                              enabled: event.target.checked,
+                              requiredKeyId: selectedDoorConfig.requiredKeyId || keyItems[0]?.id || '',
+                            })}
+                          />
+                          Activa
+                        </label>
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Requiere
+                        <select
+                          value={selectedDoorConfig.requiredKeyId || ''}
+                          onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { requiredKeyId: event.target.value })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {keyItems.map(item => (
+                            <option key={item.id} value={item.id}>{item.name} (bit {clampInt(Number(item.bitIndex), 0, 7, 0)})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 text-[0.65rem] text-msx-textsecondary">
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedDoorConfig.consumeKey}
+                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { consumeKey: event.target.checked })}
+                          />
+                          Consume
+                        </label>
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedDoorConfig.openOnce}
+                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { openOnce: event.target.checked })}
+                          />
+                          Open once
+                        </label>
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Sala destino
+                        <select
+                          value={selectedDoorConfig.targetRoomId || ''}
+                          onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { targetRoomId: event.target.value, targetEntryId: '' })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {bitmapRooms.map(asset => (
+                            <option key={asset.id} value={asset.id}>{asset.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Entry destino
+                        <select
+                          value={selectedDoorConfig.targetEntryId || ''}
+                          onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { targetEntryId: event.target.value })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          disabled={!selectedDoorConfig.targetRoomId}
+                        >
+                          <option value="">Default</option>
+                          {selectedDoorTargetEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.id} ({entry.x},{entry.y})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="grid grid-cols-1 gap-2">
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Metatile cerrado
+                          <select
+                            value={selectedDoorConfig.closedAtlasEntryId || ''}
+                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { closedAtlasEntryId: event.target.value })}
+                            className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          >
+                            <option value="">None</option>
+                            {atlasEntries.map(entry => (
+                              <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updateLockedDoorConfig(selectedPlacedEntity.id, { closedAtlasEntryId: selectedAtlasEntry.id })}
+                            className="flex-1 rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                        </div>
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Metatile abierto
+                          <select
+                            value={selectedDoorConfig.openAtlasEntryId || ''}
+                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { openAtlasEntryId: event.target.value })}
+                            className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          >
+                            <option value="">None</option>
+                            {atlasEntries.map(entry => (
+                              <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updateLockedDoorConfig(selectedPlacedEntity.id, { openAtlasEntryId: selectedAtlasEntry.id })}
+                            className="flex-1 rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                        </div>
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Mensaje si falta llave
+                        <input
+                          value={selectedDoorConfig.lockedMessage || ''}
+                          onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { lockedMessage: event.target.value })}
+                          placeholder="LOCKED"
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity.kind === 'npc' && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">NPC hablador</div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Diálogo (msx2dialogue)
+                        <select
+                          value={String((selectedPlacedEntity.params?.npcDialogue as any)?.dialogueAssetId || '')}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                            npcDialogue: { ...((selectedPlacedEntity.params?.npcDialogue as any) || {}), dialogueAssetId: event.target.value },
+                          })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {allAssets.filter(asset => asset.type === 'msx2dialogue').map(asset => (
+                            <option key={asset.id} value={asset.id}>{asset.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tecla para hablar
+                        <select
+                          value={String((selectedPlacedEntity.params?.npcDialogue as any)?.talkKey || 'up')}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                            npcDialogue: { ...((selectedPlacedEntity.params?.npcDialogue as any) || {}), talkKey: event.target.value === 'space' ? 'space' : 'up' },
+                          })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="up">UP (cursor arriba)</option>
+                          <option value="space">SPACE</option>
+                        </select>
+                      </label>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile visual (atlas)
+                        <select
+                          value={String((selectedPlacedEntity.params?.npcDialogue as any)?.atlasEntryId || '')}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                            npcDialogue: { ...((selectedPlacedEntity.params?.npcDialogue as any) || {}), atlasEntryId: event.target.value || undefined },
+                          })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None (invisible / pintado a mano)</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, {
+                          npcDialogue: { ...((selectedPlacedEntity.params?.npcDialogue as any) || {}), atlasEntryId: selectedAtlasEntry.id },
+                        })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado
+                      </button>
+                      {!(selectedPlacedEntity.params?.npcDialogue as any)?.dialogueAssetId && (
+                        <div className="text-[0.6rem] text-msx-warning">Sin diálogo asignado: el NPC no se exporta al ROM.</div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity.kind !== 'collectible' && selectedPlacedEntity.kind !== 'door' && selectedPlacedEntity.kind !== 'npc' && (
+                    <div className="rounded border border-msx-border px-2 py-1 text-[0.6rem] text-msx-textsecondary">
+                      Las llaves se asignan a collectibles; las cerraduras se asignan a puertas.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </CollapsiblePanel>
         </aside>
@@ -3301,6 +4605,113 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         }}
       />
 
+      <Msx2AutotileImportModal
+        isOpen={isAutotileImportOpen}
+        onClose={() => setIsAutotileImportOpen(false)}
+        slots={slots}
+        onImport={handleImportAutotileTemplate}
+      />
+
+      <ConfirmationModal
+        isOpen={pendingDeleteAtlasEntries.length > 0}
+        title={pendingDeleteAtlasEntries.length > 1 ? 'Eliminar tiles del atlas' : 'Eliminar tile del atlas'}
+        message={pendingDeleteAtlasEntries.length > 0 ? (
+          <div className="space-y-2">
+            <div>
+              {pendingDeleteAtlasEntries.length > 1 ? 'Tiles' : 'Tile'}:{' '}
+              <span className="text-msx-highlight">
+                {pendingDeleteAtlasEntries.length > 1
+                  ? `${pendingDeleteAtlasEntries.length} seleccionados`
+                  : pendingDeleteAtlasEntries[0].name}
+              </span>
+            </div>
+            {pendingDeleteAtlasEntries.length > 1 && (
+              <div className="max-h-24 overflow-y-auto rounded border border-msx-border bg-msx-bgcolor/50 p-2 text-[0.7rem]">
+                {pendingDeleteAtlasEntries.map(entry => (
+                  <div key={entry.id} className="truncate">{entry.name}</div>
+                ))}
+              </div>
+            )}
+            <div>
+              Se {pendingDeleteAtlasEntries.length > 1 ? 'quitaran' : 'quitara'} del atlas y se vaciaran {getAtlasEntriesUsageCount(pendingDeleteAtlasEntries)} celdas que {pendingDeleteAtlasEntries.length > 1 ? 'los usan' : 'lo usan'}.
+            </div>
+          </div>
+        ) : ''}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        confirmButtonVariant="danger"
+        onConfirm={confirmDeleteAtlasEntries}
+        onCancel={() => setPendingDeleteAtlasEntryIds([])}
+      />
+
+      {/* Random-mix percent editor: weights of the Ctrl+click multi-selection brush. */}
+      {isRandomMixOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setIsRandomMixOpen(false)}>
+          <div className="w-80 max-h-[70vh] overflow-y-auto rounded border border-msx-border bg-msx-panelbg p-3 space-y-2" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm pixel-font text-msx-highlight">Mezcla aleatoria de tiles</h4>
+              <button type="button" className="text-msx-textsecondary hover:text-msx-highlight" onClick={() => setIsRandomMixOpen(false)}>✕</button>
+            </div>
+            <div className="text-[0.65rem] text-msx-textsecondary">
+              Cada celda pintada sortea un tile según estos pesos. Ctrl+click en el atlas añade o quita tiles de la lista.
+            </div>
+            {multiTileSelection.map((item, index) => {
+              const entry = atlasEntries.find(candidate => candidate.id === item.entryId);
+              return (
+                <div key={item.entryId} className="flex items-center gap-2">
+                  <span className="w-4 text-right text-[0.6rem] text-msx-cyan">{index + 1}</span>
+                  <div className="h-7 w-7 shrink-0 overflow-hidden border border-black/70 bg-black">
+                    {entry && <AtlasTilePreview entry={entry} atlasPixels={atlasPixels} slots={slots} />}
+                  </div>
+                  <span className={`min-w-0 flex-1 truncate text-[0.65rem] ${entry ? 'text-msx-textprimary' : 'text-red-300 line-through'}`}>
+                    {entry?.name || item.entryId}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={item.percent}
+                    onChange={event => {
+                      const percent = clampInt(event.target.value, 0, 100, item.percent);
+                      setMultiTileSelection(current => current.map((candidate, candidateIndex) =>
+                        candidateIndex === index ? { ...candidate, percent } : candidate));
+                    }}
+                    className="w-12 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-right text-[0.7rem] text-msx-textprimary"
+                  />
+                  <span className="text-[0.65rem] text-msx-textsecondary">%</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-msx-border px-1 text-[0.7rem] text-msx-textsecondary hover:border-red-400 hover:text-red-300"
+                    title="Quitar de la mezcla"
+                    onClick={() => setMultiTileSelection(current => current.filter((_candidate, candidateIndex) => candidateIndex !== index))}
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+            <div className="flex items-center justify-between text-[0.65rem] text-msx-textsecondary">
+              <span>
+                Total: {multiTileSelection.reduce((sum, item) => sum + Math.max(0, Number(item.percent) || 0), 0)}%
+                {' '}(los pesos se normalizan al sortear)
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setMultiTileSelection(current => current.map(item => ({ ...item, percent: equalSplit(current.length) })))}
+              >
+                Partes iguales
+              </Button>
+            </div>
+            {multiTileSelection.length < 2 && (
+              <div className="rounded border border-yellow-600/60 bg-msx-bgcolor p-2 text-[0.65rem] text-yellow-300">
+                La mezcla necesita al menos 2 tiles; con menos, el pincel vuelve al tile único seleccionado.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <BitmapTileEditorModal
         entry={editingAtlasEntry}
         pixels={editingAtlasEntry ? getAtlasEntryPixels(editingAtlasEntry) : []}
@@ -3308,6 +4719,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         onClose={() => setEditingAtlasEntryId(null)}
         onSaveAtlas={saveBitmapTileEditorToAtlas}
         onSaveAsset={saveBitmapTileEditorAsAsset}
+        onSaveAtlasCopy={saveBitmapTileEditorAsAtlasCopy}
       />
 
       {/* Inline palette picker (project palette assets → Screen5PaletteSlot[16]). */}

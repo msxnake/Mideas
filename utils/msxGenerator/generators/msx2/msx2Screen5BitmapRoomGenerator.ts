@@ -1,4 +1,4 @@
-import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
+import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -299,6 +299,489 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
   return { rooms, startIndex, transitions, paletteAssetId: typeof graph.paletteAssetId === 'string' ? graph.paletteAssetId : undefined };
 }
 
+// --- GameFlow intro: SCREEN 5 presentation scene(s) before gameplay ---------
+// The bitmap-runtime GameFlow (purpose 'screen4-bitmap-runtime') may open with
+// Start -> Screen5Presentation [-> Transition] (repeatable) before reaching the
+// WorldLink/room node. Those scenes are rendered at boot on the visible page 0
+// (full 212 lines), then the normal game boot repaints HUD band + room over them.
+
+interface BitmapIntroTransition {
+  effect: string;
+  durationFrames: number;
+}
+
+interface BitmapIntroScene {
+  name: string;
+  paletteBytes: number[];
+  bitmapBytes: number[];
+  waitForKey: boolean;
+  waitFrames: number;
+  transition?: BitmapIntroTransition;
+}
+
+interface BitmapIntroSceneBlob {
+  scene: BitmapIntroScene;
+  index: number;
+  rleChunks: RleChunk[];
+}
+
+const BITMAP_INTRO_SUPPORTED_EFFECTS = new Set<string>([
+  'cls',
+  'fade_to_black',
+  'screen5_vertical_pixel_wipe',
+  'screen5_horizontal_pixel_wipe',
+  'screen5_diagonal_pixel_wipe',
+  'screen5_mirror_pixel_wipe',
+]);
+
+function parseIntroHexColor(hex: unknown): [number, number, number] | null {
+  if (typeof hex !== 'string') return null;
+  const match = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return null;
+  const value = parseInt(match[1], 16);
+  return [
+    Math.round(((value >> 16) & 0xff) * 7 / 255),
+    Math.round(((value >> 8) & 0xff) * 7 / 255),
+    Math.round((value & 0xff) * 7 / 255),
+  ];
+}
+
+// Presentation assets store palettes as masterIndex slots (like rooms) OR as
+// raw hex strings, so this cannot reuse the room-only buildPaletteBytes.
+function buildIntroPaletteBytes(palette: Screen5PaletteSlot[] | undefined): number[] {
+  const source = Array.isArray(palette) ? palette : [];
+  return Array.from({ length: 16 }, (_unused, slotIndex) => {
+    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
+    const masterIndex = Number(slot?.masterIndex);
+    if (Number.isFinite(masterIndex) && masterIndex >= 0) {
+      const index = Math.max(0, Math.min(511, Math.trunc(masterIndex)));
+      return [((index >> 6) & 0x07) << 4 | (index & 0x07), (index >> 3) & 0x07];
+    }
+    const rgb = parseIntroHexColor((slot as any)?.hex);
+    if (rgb) return [(rgb[0] << 4) | rgb[2], rgb[1]];
+    return [0, 0];
+  }).flat();
+}
+
+// 4bpp packed bitmap padded/cropped to the full 212 visible lines. Presentation
+// assets may nest the packed data under .data (PNG import path).
+function buildIntroBitmapBytes(presentation: Msx2Screen5PresentationConfig): number[] {
+  const nested = (presentation as any)?.data as { packedBitmap?: unknown; packedPixels?: unknown; height?: unknown } | undefined;
+  const packed = (Array.isArray(presentation.packedBitmap) && presentation.packedBitmap.length ? presentation.packedBitmap : undefined)
+    || (Array.isArray(nested?.packedBitmap) ? nested!.packedBitmap as number[] : undefined)
+    || (Array.isArray(nested?.packedPixels) ? nested!.packedPixels as number[] : undefined)
+    || [];
+  const declaredHeight = presentation.height ?? (nested?.height as number | undefined);
+  const imageHeight = declaredHeight === 212 ? 212 : 192;
+  const imageBytes = Math.min(imageHeight * ROW_BYTES, packed.length);
+  const bytes = Array.from({ length: SCREEN5_VISIBLE_HEIGHT * ROW_BYTES }, () => 0);
+  for (let index = 0; index < imageBytes; index++) {
+    bytes[index] = clampByte(packed[index], 0);
+  }
+  return bytes;
+}
+
+function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[] {
+  const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
+    .filter(flow => flow?.purpose === 'screen4-bitmap-runtime');
+  const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
+  if (!flow || !Array.isArray(flow.nodes)) return [];
+  const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string; palette?: Screen5PaletteSlot[] }>);
+  const nodeById = new Map(flow.nodes.map(node => [node.id, node]));
+  const nextOf = (node: Msx2GameFlowNode): Msx2GameFlowNode | undefined => {
+    const connection = (flow.connections || []).find(item => item.from.nodeId === node.id && !item.from.sourceId);
+    return connection ? nodeById.get(connection.to.nodeId) : undefined;
+  };
+  const nextExport = (node: Msx2GameFlowNode): Msx2GameFlowNode | undefined => {
+    let next = nextOf(node);
+    const visited = new Set<string>();
+    while (next && (next.type === 'Waypoint' || next.type === 'Globals') && !visited.has(next.id)) {
+      visited.add(next.id);
+      next = nextOf(next);
+    }
+    return next;
+  };
+  const startNode = (flow.startNodeId ? nodeById.get(flow.startNodeId) : undefined)
+    || flow.nodes.find(node => node.type === 'Start');
+  if (!startNode) return [];
+
+  const scenes: BitmapIntroScene[] = [];
+  let current = startNode.type === 'Screen5Presentation' ? startNode : nextExport(startNode);
+  const visited = new Set<string>();
+  while (current && current.type === 'Screen5Presentation' && !visited.has(current.id)) {
+    visited.add(current.id);
+    const node = current as Msx2GameFlowScreen5PresentationNode;
+    const presentation = node.presentationAssetId
+      ? presentations.find(item => (item as any).id === node.presentationAssetId)
+      : presentations[0];
+    if (!presentation) {
+      throw new Error(`MSX2 bitmap-room GameFlow Screen5Presentation node "${node.id}" references missing msx2presentation asset "${node.presentationAssetId || 'auto-first'}".`);
+    }
+    const runtime = (presentation as any).runtime as { waitForKey?: boolean; waitForFrames?: number } | undefined;
+    const scene: BitmapIntroScene = {
+      name: String((presentation as any).name || `scene ${scenes.length}`),
+      paletteBytes: buildIntroPaletteBytes((presentation as any).palette || ((presentation as any).data?.palette as Screen5PaletteSlot[] | undefined)),
+      bitmapBytes: buildIntroBitmapBytes(presentation),
+      waitForKey: node.waitForKey ?? (runtime?.waitForKey !== false),
+      waitFrames: clampByte(node.waitFrames ?? runtime?.waitForFrames, 0),
+    };
+    let next = nextExport(current);
+    if (next?.type === 'Transition') {
+      const transitionNode = next as Msx2GameFlowTransitionNode;
+      const effect = String(transitionNode.effect || '');
+      if (!BITMAP_INTRO_SUPPORTED_EFFECTS.has(effect)) {
+        throw new Error(`MSX2 bitmap-room GameFlow Transition effect "${effect}" is not supported by the SCREEN 5 bitmap-room intro; use a SCREEN 5 effect (pixel wipes, fade to black or CLS).`);
+      }
+      scene.transition = { effect, durationFrames: clampByte(transitionNode.durationFrames, 0) };
+      next = nextExport(next);
+    }
+    scenes.push(scene);
+    current = next;
+  }
+  return scenes;
+}
+
+const BITMAP_INTRO_EFFECT_CALLS: Record<string, string> = {
+  cls: '    call bitmap_intro_cls\n',
+  fade_to_black: '    call bitmap_intro_fade_black\n',
+  screen5_vertical_pixel_wipe: '    call bitmap_intro_wipe_vertical\n',
+  screen5_horizontal_pixel_wipe: '    call bitmap_intro_wipe_horizontal\n',
+  screen5_diagonal_pixel_wipe: '    call bitmap_intro_wipe_diagonal\n',
+  screen5_mirror_pixel_wipe: '    call bitmap_intro_wipe_mirror\n',
+};
+
+/**
+ * Emits the boot-time GameFlow intro: per-scene palette + full-page bitmap on the
+ * visible page 0, key/frame waits and SCREEN 5 transition effects. Everything runs
+ * with interrupts disabled like the rest of the runtime: frame pacing polls S#0
+ * (bitmap_wait_vblank), key waits poll PPI keyboard row 8 (SPACE) directly and the
+ * wipes are V9938 HMMV fills, so no BIOS CHGET/FILVRM/halt is involved.
+ */
+function buildBitmapIntroAsm(
+  blobs: BitmapIntroSceneBlob[],
+  banked: boolean
+): { initCallAsm: string; routinesAsm: string; dataAsm: string } {
+  if (!blobs.length) return { initCallAsm: '', routinesAsm: '', dataAsm: '' };
+  const usedEffects = new Set(blobs.map(blob => blob.scene.transition?.effect).filter(Boolean) as string[]);
+
+  const sceneAsm = blobs.map(({ scene, index }) => {
+    const safeName = scene.name.replace(/[^\x20-\x7E]/g, ' ');
+    const waitAsm = scene.waitForKey
+      ? '    call bitmap_intro_wait_space\n'
+      : scene.waitFrames > 0
+        ? `    ld b, ${scene.waitFrames}\n    call bitmap_intro_wait_frames\n`
+        : '';
+    const transitionAsm = scene.transition
+      ? `${BITMAP_INTRO_EFFECT_CALLS[scene.transition.effect]}${scene.transition.durationFrames > 0
+          ? `    ld b, ${scene.transition.durationFrames}\n    call bitmap_intro_wait_frames\n`
+          : ''}`
+      : '';
+    return `    ; Intro scene ${index}: ${safeName}
+    ld hl, bitmap_intro_scene${index}_palette
+    call bitmap_intro_load_palette
+    call bitmap_intro_upload_scene${index}
+${waitAsm}${transitionAsm}`;
+  }).join('');
+
+  const uploadRoutines = blobs.map(({ index, rleChunks }) => `bitmap_intro_upload_scene${index}:
+${buildRleUploadAsm(rleChunks, banked)}
+`).join('\n');
+
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: run_bitmap_intro
+; ------------------------------------------------------------
+; PURPOSE:
+;   Play the GameFlow intro (Screen5Presentation -> Transition chain) before the
+;   game boot continues. Scenes render on the visible page 0 that the game boot
+;   repaints right after (HUD seed + start room), so nothing needs restoring.
+;
+; INPUT:
+;   None. Called once from init_rom right after init_screen5_bitmap_vdp.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; SIDE EFFECTS:
+;   Hides hardware sprites during the intro (SAT is still uninitialized) and
+;   restores R#8 = #08 (sprites enabled) before returning. In MegaROM mode the
+;   scene uploads select P2 data banks and restore the resident banks.
+; ------------------------------------------------------------
+run_bitmap_intro:
+    ; Hide sprites while the SAT/pattern tables still hold garbage
+    ; (init_hardware_sprite_tables runs later). R#8 base value #08 matches the
+    ; MSX2 BIOS default written by CHGMOD; bit 1 = SPD (sprite disable).
+    ld a, #08
+    ld e, #0A
+    call vdp_write_register
+    ; Blank the visible page before the first scene shows.
+    call bitmap_intro_cls
+${sceneAsm}    ; Re-enable sprites for gameplay.
+    ld a, #08
+    ld e, #08
+    call vdp_write_register
+    ret
+
+bitmap_intro_load_palette:
+    ; HL = 32-byte palette block (byte1=(R<<4)|B, byte2=G). Clobbers AF, BC, HL.
+    ld b, 16
+    xor a
+.pal_loop:
+    push af
+    push bc
+    push hl
+    ld e, a
+    ld a, 16
+    call vdp_write_register
+    pop hl
+    ld a, (hl)
+    out (${VDP_PALETTE_PORT}), a
+    inc hl
+    ld a, (hl)
+    out (${VDP_PALETTE_PORT}), a
+    inc hl
+    pop bc
+    pop af
+    inc a
+    djnz .pal_loop
+    ret
+
+bitmap_intro_fill_rect:
+    ; HMMV fill with colour 0 on the visible page: HL = DX (even px), DE = DY,
+    ; BC = NX (even px), A = NY (1..212). Waits for the command engine, then
+    ; streams R#36..R#46 through the indirect port. Preserves HL, DE, BC.
+    ; Leaves R#15 = S#2 (bitmap_intro_frame_wait restores S#0).
+    push af
+    call vdp_wait_cmd_ready
+    push de
+    ld e, #24                 ; indirect register pointer -> R#36 (DX low)
+    ld a, #11
+    call vdp_write_register
+    pop de
+    ld a, l
+    out (${VDP_CMD_PORT}), a  ; DX low
+    ld a, h
+    out (${VDP_CMD_PORT}), a  ; DX high
+    ld a, e
+    out (${VDP_CMD_PORT}), a  ; DY low
+    ld a, d
+    out (${VDP_CMD_PORT}), a  ; DY high
+    ld a, c
+    out (${VDP_CMD_PORT}), a  ; NX low
+    ld a, b
+    out (${VDP_CMD_PORT}), a  ; NX high
+    pop af
+    out (${VDP_CMD_PORT}), a  ; NY low
+    xor a
+    out (${VDP_CMD_PORT}), a  ; NY high
+    out (${VDP_CMD_PORT}), a  ; COL = 0 (backdrop)
+    out (${VDP_CMD_PORT}), a  ; ARG = 0
+    ld a, #C0                 ; HMMV
+    out (${VDP_CMD_PORT}), a
+    ret
+
+bitmap_intro_cls:
+    ; Clear the full visible page (256x212) with one HMMV. Clobbers AF, BC, DE, HL.
+    ld hl, 0
+    ld de, 0
+    ld bc, #0100
+    ld a, 212
+    jp bitmap_intro_fill_rect
+
+bitmap_intro_frame_wait:
+    ; One 60Hz tick: restore R#15 = S#0 (fills leave S#2 selected), then poll the
+    ; frame flag. Preserves DE, HL. Clobbers AF, BC.
+    push de
+    push hl
+    ld a, #0F
+    ld e, #00
+    call vdp_write_register
+    call bitmap_wait_vblank
+    pop hl
+    pop de
+    ret
+
+bitmap_intro_wait_frames:
+    ; B = frame count (1..255). Clobbers AF, BC.
+.wf_loop:
+    push bc
+    call bitmap_intro_frame_wait
+    pop bc
+    djnz .wf_loop
+    ret
+
+bitmap_intro_wait_space:
+    ; Wait for a SPACE press on PPI keyboard row 8 (bit 0), requiring
+    ; release -> press -> release so a held key cannot leak into gameplay
+    ; as an instant jump. Clobbers AF, BC.
+.ws_release0:
+    call bitmap_intro_read_row8
+    bit 0, a
+    jp nz, .ws_release0
+.ws_press:
+    call bitmap_intro_read_row8
+    bit 0, a
+    jp z, .ws_press
+.ws_release1:
+    call bitmap_intro_read_row8
+    bit 0, a
+    jp nz, .ws_release1
+    ret
+
+bitmap_intro_read_row8:
+    ; A = pressed-bit mask of keyboard row 8 (bit0 = SPACE). Direct PPI read,
+    ; same technique as update_player_movement (no BIOS under DI). Clobbers AF.
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    ret
+${usedEffects.has('screen5_vertical_pixel_wipe') || usedEffects.has('screen5_mirror_pixel_wipe') ? `
+bitmap_intro_fill_col2:
+    ; Fill one 2x212 column at DX = HL, then HL += 2. Clobbers AF, BC, DE.
+    ld de, 0
+    ld bc, 2
+    ld a, 212
+    call bitmap_intro_fill_rect
+    inc hl
+    inc hl
+    ret
+` : ''}${usedEffects.has('screen5_vertical_pixel_wipe') ? `
+bitmap_intro_wipe_vertical:
+    ; Wipe the visible page with 2px columns, left -> right, 2 columns/frame.
+    ld hl, 0
+.vw_loop:
+    call bitmap_intro_fill_col2
+    call bitmap_intro_fill_col2
+    call bitmap_intro_frame_wait
+    ld a, h
+    or a
+    jp z, .vw_loop
+    ret
+` : ''}${usedEffects.has('screen5_mirror_pixel_wipe') ? `
+bitmap_intro_wipe_mirror:
+    ; Wipe 2px columns from both vertical edges inward, one pair per frame.
+    ld hl, 0
+.mw_loop:
+    call bitmap_intro_fill_col2   ; left column; HL += 2
+    push hl
+    ld a, l                       ; right column DX = 256 - HL
+    neg
+    ld l, a
+    ld h, 0
+    ld de, 0
+    ld bc, 2
+    ld a, 212
+    call bitmap_intro_fill_rect
+    pop hl
+    call bitmap_intro_frame_wait
+    ld a, l
+    cp 128
+    jp c, .mw_loop
+    ret
+` : ''}${usedEffects.has('screen5_horizontal_pixel_wipe') ? `
+bitmap_intro_wipe_horizontal:
+    ; Wipe with 2px rows, top -> bottom, 2 rows per frame (212 lines).
+    ld de, 0
+.hw_loop:
+    call bitmap_intro_fill_row2
+    call bitmap_intro_fill_row2
+    call bitmap_intro_frame_wait
+    ld a, e
+    cp 212
+    jp c, .hw_loop
+    ret
+
+bitmap_intro_fill_row2:
+    ; Fill one 256x2 row band at DY = DE, then DE += 2. Clobbers AF, BC, HL.
+    ld hl, 0
+    ld bc, #0100
+    ld a, 2
+    call bitmap_intro_fill_rect
+    inc e
+    inc e
+    ret
+` : ''}${usedEffects.has('screen5_diagonal_pixel_wipe') ? `
+bitmap_intro_wipe_diagonal:
+    ; Clear 8x8 blocks along anti-diagonals (32 cols x 27 rows, last row 4px),
+    ; one diagonal per frame. Scratch: player_y = diagonal index, player_x = row
+    ; block (both re-initialized by the boot sequence right after the intro).
+    xor a
+    ld (player_y), a
+.dg_diag:
+    xor a
+    ld (player_x), a
+.dg_row:
+    ld a, (player_x)
+    ld c, a                   ; C = row block 0..26
+    ld a, (player_y)
+    sub c                     ; A = column block = diagonal - row block
+    jp c, .dg_next_row
+    cp 32
+    jp nc, .dg_next_row
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl                ; HL = DX = column block * 8
+    ld a, c
+    add a, a
+    add a, a
+    add a, a                  ; A = DY = row block * 8 (0..208)
+    ld e, a
+    ld d, 0
+    cp 208
+    ld a, 8
+    jp c, .dg_fill
+    ld a, 4                   ; last row block: 212 - 208 = 4 lines
+.dg_fill:
+    ld bc, 8
+    call bitmap_intro_fill_rect
+.dg_next_row:
+    ld a, (player_x)
+    inc a
+    ld (player_x), a
+    cp 27
+    jp c, .dg_row
+    call bitmap_intro_frame_wait
+    ld a, (player_y)
+    inc a
+    ld (player_y), a
+    cp 58
+    jp c, .dg_diag
+    ret
+` : ''}${usedEffects.has('fade_to_black') ? `
+bitmap_intro_fade_black:
+    ; Write all 16 palette entries black, then blank the bitmap too: the game
+    ; boot uploads the atlas next (slow) and the old presentation must not
+    ; reappear when the game palette loads. Clobbers AF, BC, DE, HL.
+    ld hl, bitmap_intro_black_palette
+    call bitmap_intro_load_palette
+    jp bitmap_intro_cls
+` : ''}
+${uploadRoutines}`;
+
+  const paletteData = blobs.map(({ scene, index }) =>
+    formatBytes(`bitmap_intro_scene${index}_palette`, scene.paletteBytes, `GameFlow intro scene ${index} palette: byte1=(R<<4)|B, byte2=G`)
+  ).join('');
+  const blackPaletteData = usedEffects.has('fade_to_black')
+    ? formatBytes('bitmap_intro_black_palette', Array.from({ length: 32 }, () => 0), 'All-black palette for the fade_to_black intro transition')
+    : '';
+  const chunkData = banked
+    ? (blobs.length ? '; GameFlow intro scene bitmap RLE is emitted in Konami MegaROM data banks below.\n' : '')
+    : blobs.map(({ scene, index, rleChunks }) =>
+        formatRleChunks(rleChunks, scene.bitmapBytes.length, `GameFlow intro scene ${index} SCREEN 5 bitmap, packed 4bpp RLE, destination VRAM #00000`)
+      ).join('');
+
+  return {
+    initCallAsm: '    call run_bitmap_intro\n',
+    routinesAsm,
+    dataAsm: `${paletteData}${blackPaletteData}${chunkData}`,
+  };
+}
+
 function normalizeRoom(room: Msx2Screen5BitmapRoom | undefined): Msx2Screen5BitmapRoom {
   const atlasWidth = clampInt(room?.atlas?.width, 1, 256, 256);
   const entryBottom = Math.max(
@@ -340,6 +823,7 @@ function normalizeRoom(room: Msx2Screen5BitmapRoom | undefined): Msx2Screen5Bitm
     effects: room?.effects || [],
     behavior: room?.behavior || [],
     entities: room?.entities || [],
+    keyItems: Array.isArray(room?.keyItems) ? room!.keyItems : [],
     playerEntries: room?.playerEntries || [],
     foregroundTiles: Array.isArray(room?.foregroundTiles) ? room!.foregroundTiles : undefined,
     runtime: room?.runtime,
@@ -439,7 +923,7 @@ function buildSharedWorldAtlasRooms(rooms: Msx2Screen5BitmapRoom[]): { rooms: Ms
   }
   const sharedHeight = Math.max(
     TILE_GRID_SIZE,
-    Math.min(BITMAP_ROOM_ATLAS_MAX_HEIGHT, Math.max(...rooms.map(room => clampInt(room.atlas?.height, TILE_GRID_SIZE, BITMAP_ROOM_ATLAS_MAX_HEIGHT, TILE_GRID_SIZE)), requiredHeight)),
+    Math.min(BITMAP_ROOM_ATLAS_MAX_HEIGHT, requiredHeight),
   );
   if (requiredHeight > sharedHeight) {
     throw new Error(`SCREEN 5 bitmap-room shared atlas overflow: tiles from all rooms need more than ${sharedWidth}x${sharedHeight}.`);
@@ -555,13 +1039,33 @@ const DEFAULT_HUD_PATTERNS: Record<string, number[]> = {
   '/': [0x06,0x0C,0x0C,0x18,0x30,0x30,0x60,0],
 };
 
-function getBitmapHudFontAsset(analysis: ProjectAnalysis, room: Msx2Screen5BitmapRoom): Msx2HudFontAsset | undefined {
+function findBitmapHudFontAsset(
+  assets: Array<{ id?: string; type?: string; data?: unknown }>,
+  fontAssetId: string | null | undefined,
+): Msx2HudFontAsset | undefined {
+  if (!fontAssetId) return undefined;
+  return assets.find(asset => asset.type === 'msx2hudfont' && asset.id === fontAssetId)?.data as Msx2HudFontAsset | undefined;
+}
+
+function getBitmapHudFontAsset(
+  analysis: ProjectAnalysis,
+  room: Msx2Screen5BitmapRoom,
+  linkedHudAsset?: Msx2HudAsset,
+): Msx2HudFontAsset | undefined {
   const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
-  const preferredId = room.runtime?.hudFontAssetId;
-  const preferred = preferredId
-    ? assets.find(asset => asset.type === 'msx2hudfont' && asset.id === preferredId)?.data as Msx2HudFontAsset | undefined
-    : undefined;
-  return preferred || assets.find(asset => asset.type === 'msx2hudfont')?.data as Msx2HudFontAsset | undefined;
+  if (linkedHudAsset) {
+    if (Object.prototype.hasOwnProperty.call(linkedHudAsset, 'hudFontAssetId')) {
+      return findBitmapHudFontAsset(assets, linkedHudAsset.hudFontAssetId);
+    }
+    if (room.runtime && Object.prototype.hasOwnProperty.call(room.runtime, 'hudFontAssetId')) {
+      return findBitmapHudFontAsset(assets, room.runtime.hudFontAssetId);
+    }
+    return undefined;
+  }
+  if (room.runtime && Object.prototype.hasOwnProperty.call(room.runtime, 'hudFontAssetId')) {
+    return findBitmapHudFontAsset(assets, room.runtime.hudFontAssetId);
+  }
+  return assets.find(asset => asset.type === 'msx2hudfont')?.data as Msx2HudFontAsset | undefined;
 }
 
 /**
@@ -603,6 +1107,23 @@ function getBitmapHudWidgetText(widget: Msx2HudWidget, room: Msx2Screen5BitmapRo
   return normalizeHudText(String(value).padStart(maxChars, '0'), maxChars, allowedCharacters);
 }
 
+function normalizeScreen5HudFontGlyph(font: Msx2HudFontAsset | undefined, char: string, fallbackColor: number, fallbackBg = BITMAP_HUD_HEART_COLOR_BG): number[][] | undefined {
+  if (font?.vdpMode !== 'SCREEN5') return undefined;
+  const backgroundSlot = clampByte(font.screen5BackgroundSlot, fallbackBg) & 0x0f;
+  const bitmap = font.bitmapPatterns?.[char] || font.bitmapPatterns?.[' '];
+  if (Array.isArray(bitmap)) {
+    return Array.from({ length: 8 }, (_unused, y) =>
+      Array.from({ length: 8 }, (_unused2, x) => clampByte(bitmap[y]?.[x], backgroundSlot) & 0x0f)
+    );
+  }
+  const pattern = font.patterns?.[char] || DEFAULT_HUD_PATTERNS[char] || DEFAULT_HUD_PATTERNS[' '];
+  return Array.from({ length: 8 }, (_unused, y) =>
+    Array.from({ length: 8 }, (_unused2, x) =>
+      ((Number(pattern[y]) || 0) & (0x80 >> x)) ? (fallbackColor & 0x0f) : backgroundSlot
+    )
+  );
+}
+
 function drawBitmapHudText(
   pixels: number[][],
   text: string,
@@ -613,6 +1134,20 @@ function drawBitmapHudText(
 ): void {
   const patterns = font?.patterns || DEFAULT_HUD_PATTERNS;
   for (const [charIndex, char] of Array.from(text).entries()) {
+    const bitmapGlyph = normalizeScreen5HudFontGlyph(font, char, color, 0);
+    if (bitmapGlyph) {
+      const backgroundSlot = clampByte(font?.screen5BackgroundSlot, 0) & 0x0f;
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const glyphColor = bitmapGlyph[row][col] & 0x0f;
+          if (glyphColor === backgroundSlot) continue;
+          const px = x + (charIndex * 8) + col;
+          const py = y + row;
+          if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < pixels.length) pixels[py][px] = glyphColor;
+        }
+      }
+      continue;
+    }
     const pattern = patterns[char] || patterns[' '] || DEFAULT_HUD_PATTERNS[' '];
     for (let row = 0; row < 8; row++) {
       const bits = Number(pattern[row]) || 0;
@@ -735,7 +1270,8 @@ function buildBitmapHudSeedPixels(
   room: Msx2Screen5BitmapRoom,
   atlasPixels: number[][],
   analysis: ProjectAnalysis,
-  linkedHudAsset?: Msx2HudAsset
+  linkedHudAsset?: Msx2HudAsset,
+  playerVitals?: BitmapPlayerVitals
 ): number[][] {
   const framebuffer = Array.from({ length: BITMAP_ROOM_HUD_HEIGHT }, () => Array.from({ length: SCREEN_WIDTH }, () => 1));
   for (let y = 0; y < BITMAP_ROOM_HUD_HEIGHT - 1; y++) {
@@ -748,17 +1284,16 @@ function buildBitmapHudSeedPixels(
   }
   const hidden = room.runtime?.showHud === false || room.runtime?.hideHud === true;
   if (hidden) return framebuffer;
-  const font = getBitmapHudFontAsset(analysis, room);
+  const font = getBitmapHudFontAsset(analysis, room, linkedHudAsset);
   const allowedCharacters = font?.characters || DEFAULT_HUD_CHARS;
 
   if (linkedHudAsset) {
     // Standalone Msx2HudAsset (authored in the Mideas HUD Editor), linked via
     // room.runtime.hudAssetId. Supersedes room.runtime.hudWidgets entirely. Layers
     // are ordered top-of-editor-list = front; render back-to-front (reversed).
-    // 'iconRow'/'icon' elements are fully dynamic (drawn at runtime, see
-    // buildBitmapHudLinkedIconRowAsm) and intentionally NOT baked here to avoid a
-    // stale duplicate under the runtime-drawn copy. 'counter'/'iconCounter' bake
-    // only their static icon glyph here; the digits are runtime-drawn.
+    // Runtime-changing widgets are intentionally not duplicated under their
+    // dynamic copy. Static icon/portrait art is baked into the HUD seed; it does
+    // not need RAM, update routines or offscreen VRAM slots.
     const icons = linkedHudAsset.icons || [];
     for (const layer of [...linkedHudAsset.layers].reverse()) {
       if (!layer.visible) continue;
@@ -779,8 +1314,8 @@ function buildBitmapHudSeedPixels(
       const width = clampInt(element.width, 1, SCREEN_WIDTH - x, element.kind === 'bar' ? 64 : 16);
       const height = clampInt(element.height, 1, BITMAP_ROOM_HUD_HEIGHT - y, element.kind === 'bar' ? 6 : 16);
       if (element.kind === 'bar') {
-        const maxValue = Math.max(1, clampByte(element.maxValue, 16));
-        const initialValue = Math.min(maxValue, clampByte(element.initialValue, maxValue));
+        const maxValue = resolveHudElementMaxValue(element, 16, playerVitals);
+        const initialValue = resolveHudElementInitialValue(element, maxValue, playerVitals);
         // Match the dynamic HMMV region (buildBitmapHudLinkedBarAsm): even-aligned
         // full box, empty track + primary fill, NO 1px border. SCREEN 5 HMMV needs
         // byte-aligned DX/NX, so a 1px frame cannot survive the dynamic fill.
@@ -795,11 +1330,12 @@ function buildBitmapHudSeedPixels(
         const color = element.colors.text ?? ((font?.colorByte ?? 0xF1) >> 4);
         const maxChars = Math.max(1, Math.min(31, Math.floor(width / 8)));
         drawBitmapHudText(framebuffer, normalizeHudText(element.text || '', maxChars, allowedCharacters), x, y, font, color);
-      } else if (element.kind === 'portrait' || element.kind === 'iconCounter') {
+      } else if (element.kind === 'portrait' || element.kind === 'icon' || element.kind === 'iconCounter') {
         drawHudAssetIcon(framebuffer, icons, element, x, y, width, height);
       }
-      // 'icon' and 'iconRow' are runtime-dynamic: nothing baked here (see
-      // linkedHudDynamicSources in generateUnitedFiles).
+      // 'iconRow' is runtime-dynamic: nothing baked here (see
+      // linkedHudDynamicSources in generateUnitedFiles). 'counter' digits and
+      // 'iconCounter' digits are also runtime-drawn; only the icon part is baked.
     }
     return framebuffer;
   }
@@ -958,6 +1494,29 @@ function buildRoomRenderBlocks(room: Msx2Screen5BitmapRoom, pageBaseY = BITMAP_R
       });
     }
   }
+  // NPC visuals: an atlas metatile baked into the render program at the NPC's
+  // cell, so it draws on room entry AND on the dialogue-close repaint for free.
+  for (const entity of room.entities || []) {
+    if (entity.kind !== 'npc') continue;
+    const npcParams = entity.params?.npcDialogue as { atlasEntryId?: string } | undefined;
+    if (!npcParams?.atlasEntryId) continue;
+    const entry = entries.find(item => item.id === npcParams.atlasEntryId);
+    if (!entry) continue;
+    const dx = clampInt((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0, SCREEN_WIDTH - 1, 0);
+    const dy = clampInt((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0, SCREEN_HEIGHT_DEFAULT - 1, 0);
+    const w = clampInt(entry.w, 1, 256, TILE_GRID_SIZE);
+    const h = clampInt(entry.h, 1, SCREEN_HEIGHT_DEFAULT, TILE_GRID_SIZE);
+    records.push({
+      op: OP_COPY_16,
+      sx: clampInt(entry.sx, 0, 255, 0),
+      sy: clampInt(entry.sy, 0, 511, 0) + offscreenBaseY,
+      dx,
+      dy: pageBaseY + dy + BITMAP_ROOM_GAME_Y_OFFSET,
+      nx: Math.max(1, Math.min(w, SCREEN_WIDTH - dx)),
+      ny: Math.max(1, Math.min(h, SCREEN_HEIGHT_DEFAULT - dy)),
+      color: 0,
+    });
+  }
   return { bytes: commandRecordsToVdpBlocks(records), count: records.length };
 }
 
@@ -967,6 +1526,16 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
   lines.push(`${label}:`);
   for (let offset = 0; offset < bytes.length; offset += 16) {
     lines.push(`    DB ${bytes.slice(offset, offset + 16).map(hexByte).join(',')}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function formatDbExpressions(label: string, values: string[], comment?: string): string {
+  const lines: string[] = [];
+  if (comment) lines.push(`; ${comment}`);
+  lines.push(`${label}:`);
+  for (let offset = 0; offset < values.length; offset += 16) {
+    lines.push(`    DB ${values.slice(offset, offset + 16).join(',')}`);
   }
   return `${lines.join('\n')}\n`;
 }
@@ -1113,11 +1682,11 @@ function assignDataBankConstants(banks: PackedDataBank[], chunks: RleChunk[]): v
   }
 }
 
-function formatDataBankEquates(chunks: RleChunk[]): string {
+function formatBankedDataEquates(banks: PackedDataBank[]): string {
   const lines: string[] = [];
-  for (const chunk of chunks) {
-    if (chunk.dataBank !== undefined) {
-      lines.push(`${chunk.label}_DATA_BANK EQU ${chunk.dataBank}`);
+  for (const bank of banks) {
+    for (const block of bank.blocks) {
+      lines.push(`${block.label}_DATA_BANK EQU ${bank.bank}`);
     }
   }
   return lines.length ? `${lines.join('\n')}\n` : '';
@@ -1140,7 +1709,8 @@ function formatBankedDataBanks(banks: PackedDataBank[]): string {
       lines.push('');
     }
     lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_USED_END:`);
-    lines.push(`    ds #A000 - $, #FF`);
+    lines.push(`    ds ${ROM_DATA_BANK_BYTES - bank.used}, #FF`);
+    lines.push(`    org BITMAP_ROOM_DATA_BANK_${bank.bank}_PHYS_START + #2000`);
     lines.push('');
   }
   return lines.join('\n');
@@ -1209,6 +1779,8 @@ function buildRuntimeAsm(
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
   foreground: { count: number; patternGroupBase: number; satBase: number; colorBase: number; loadCallAsm: string } | null = null,
   enableBlink: boolean = false,
+  enableKeyDoorTransitions: boolean = false,
+  doorVisualPendingPageCallAsm: string = '',
 ): string {
   // When foreground tiles exist, the player SAT/colour tables move past the
   // foreground slots so the player renders behind them. With no foreground these
@@ -2236,12 +2808,22 @@ load_room:
     ld e, a
     ld d, 0
     ld hl, bitmap_room_render_ptr_table_p0
+${options.bankedRle ? `    ld bc, bitmap_room_render_bank_table_p0
+` : ''}
     add hl, de
     add hl, de
     ld a, (hl)
     inc hl
     ld h, (hl)
     ld l, a                 ; HL = room render blocks
+${options.bankedRle ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}
     push hl
     ld hl, bitmap_room_blockcount_table
     add hl, de
@@ -2256,12 +2838,22 @@ load_room:
     ld e, a
     ld d, 0
     ld hl, bitmap_room_collision_ptr_table
+${options.bankedRle ? `    ld bc, bitmap_room_collision_bank_table
+` : ''}
     add hl, de
     add hl, de
     ld a, (hl)
     inc hl
     ld h, (hl)
     ld l, a                 ; HL = room collision source
+${options.bankedRle ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}
     ld de, bitmap_room_collision_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
@@ -2269,12 +2861,22 @@ load_room:
     ld e, a
     ld d, 0
     ld hl, bitmap_room_behavior_ptr_table
+${options.bankedRle ? `    ld bc, bitmap_room_behavior_bank_table
+` : ''}
     add hl, de
     add hl, de
     ld a, (hl)
     inc hl
     ld h, (hl)
     ld l, a                 ; HL = room behavior source
+${options.bankedRle ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}
     ld de, bitmap_room_behavior_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
@@ -2282,7 +2884,8 @@ load_room:
     ; selection so the main loop's bitmap_wait_vblank (which assumes R#15=0) syncs
     ; correctly; otherwise post-transition rooms run on the bounded-delay fallback
     ; every frame (severe lag).
-    ld a, #0F
+${options.bankedRle ? `    call bitmap_room_restore_resident_banks
+` : ''}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
@@ -2344,12 +2947,14 @@ start_room_transition:
     xor a
     ld (bitmap_pending_display_page), a
     ld hl, bitmap_room_render_ptr_table_p0
-    jp .select_render_program
+${options.bankedRle ? `    ld bc, bitmap_room_render_bank_table_p0
+` : ''}    jp .select_render_program
 .compose_page1:
     ld a, 1
     ld (bitmap_pending_display_page), a
     ld hl, bitmap_room_render_ptr_table_p1
-.select_render_program:
+${options.bankedRle ? `    ld bc, bitmap_room_render_bank_table_p1
+` : ''}.select_render_program:
     ld a, (bitmap_pending_room)
     ld e, a
     ld d, 0
@@ -2359,7 +2964,15 @@ start_room_transition:
     inc hl
     ld h, (hl)
     ld l, a
-    ld (bitmap_composition_block_ptr), hl
+${options.bankedRle ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_composition_block_bank), a
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}    ld (bitmap_composition_block_ptr), hl
     ld hl, bitmap_room_blockcount_table
     add hl, de
     add hl, de
@@ -2370,6 +2983,8 @@ start_room_transition:
     ld (bitmap_composition_blocks_left + 1), a
     ld a, 1
     ld (bitmap_composition_state), a
+${options.bankedRle ? `    call bitmap_room_restore_resident_banks
+` : ''}
 .already_composing:
     scf
     ret
@@ -2429,7 +3044,9 @@ step_room_composition:
     jp nc, .budget_ready
     ld c, a                 ; Final frame: process only remaining blocks.
 .budget_ready:
-    ld hl, (bitmap_composition_block_ptr)
+${options.bankedRle ? `    ld a, (bitmap_composition_block_bank)
+    call bitmap_room_select_data_bank_a
+` : ''}    ld hl, (bitmap_composition_block_ptr)
 .process_block:
     push bc
     call vdp_wait_cmd_ready
@@ -2453,7 +3070,8 @@ step_room_composition:
     ld a, h
     or l
     jp z, commit_room_flip
-    ld a, #0F
+${options.bankedRle ? `    call bitmap_room_restore_resident_banks
+` : ''}    ld a, #0F
     ld e, #00
     call vdp_write_register
     scf
@@ -2488,7 +3106,9 @@ step_room_composition:
 ;
 ; SIDE EFFECTS:
 ;   Copies the target collision/behavior grids to RAM, flips VDP R#2, restores R#15=0,
-;   clears bitmap_composition_state, and resets vertical player velocity.
+;   clears bitmap_composition_state, and resets vertical player velocity. HUD dirty
+;   flags are NOT invalidated: dynamic HUD widgets are mirrored to both pages when
+;   their values change, so transitions only rewrite the game band.
 ;
 ; NOTES:
 ;   R#2 values are SCREEN 5 page bases: #1F for page 0, #3F for page 1.
@@ -2502,12 +3122,22 @@ commit_room_flip:
     ld e, a
     ld d, 0
     ld hl, bitmap_room_collision_ptr_table
+${options.bankedRle ? `    ld bc, bitmap_room_collision_bank_table
+` : ''}
     add hl, de
     add hl, de
     ld a, (hl)
     inc hl
     ld h, (hl)
     ld l, a
+${options.bankedRle ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}
     ld de, bitmap_room_collision_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
@@ -2515,15 +3145,27 @@ commit_room_flip:
     ld e, a
     ld d, 0
     ld hl, bitmap_room_behavior_ptr_table
+${options.bankedRle ? `    ld bc, bitmap_room_behavior_bank_table
+` : ''}
     add hl, de
     add hl, de
     ld a, (hl)
     inc hl
     ld h, (hl)
     ld l, a
+${options.bankedRle ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}
     ld de, bitmap_room_behavior_map
     ld bc, ${COLLISION_COLS * COLLISION_ROWS}
     ldir
+${options.bankedRle ? `    call bitmap_room_restore_resident_banks
+` : ''}
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
@@ -2537,7 +3179,9 @@ commit_room_flip:
     jp z, .commit_enter_left
     cp 2
     jp z, .commit_enter_bottom
-.commit_enter_top:
+${enableKeyDoorTransitions ? `    cp 4
+    jp z, .commit_enter_key_door
+` : ''}.commit_enter_top:
     ld a, 2
     ld (player_y), a
     jp .commit_flip_page
@@ -2552,7 +3196,14 @@ commit_room_flip:
 .commit_enter_left:
     ld a, 2
     ld (player_x), a
-.commit_flip_page:
+${enableKeyDoorTransitions ? `    jp .commit_flip_page
+.commit_enter_key_door:
+    ld a, (bitmap_key_pending_entry_y)
+    ld (player_y), a
+    ld a, (bitmap_key_pending_entry_x)
+    ld (player_x), a
+` : ''}.commit_flip_page:
+${doorVisualPendingPageCallAsm}
     ld a, (bitmap_pending_display_page)
     ld (bitmap_displayed_page), a
     or a
@@ -3373,6 +4024,2056 @@ ${takeDamageAsm}.deadly_respawn:
   return { equates, initAsm, mainLoopCall, routineAsm };
 }
 
+interface BitmapKeyPickupRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  keyMask: number;
+  flagOffset: number;
+}
+
+interface BitmapKeyDoorRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  requiredMask: number;
+  targetRoomIndex: number;
+  targetX: number;
+  targetY: number;
+  flags: number;
+  openOffset: number;
+}
+
+interface BitmapDoorVisualRecord {
+  roomIndex: number;
+  openOffset: number;
+  flags: number;
+  closedCommand: number[];
+  openCommand: number[];
+}
+
+const KEY_DOOR_FLAG_CONSUME = 0x01;
+const KEY_DOOR_FLAG_OPEN_ONCE = 0x02;
+const KEY_DOOR_VISUAL_CLOSED = 0x01;
+const KEY_DOOR_VISUAL_OPEN = 0x02;
+
+function normalizeDoorConfig(value: unknown): {
+  enabled: boolean;
+  requiredKeyId: string;
+  consumeKey: boolean;
+  openOnce: boolean;
+  targetRoomId: string;
+  targetEntryId: string;
+  closedAtlasEntryId: string;
+  openAtlasEntryId: string;
+} {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    enabled: Boolean(raw.enabled),
+    requiredKeyId: typeof raw.requiredKeyId === 'string' ? raw.requiredKeyId : '',
+    consumeKey: Boolean(raw.consumeKey),
+    openOnce: raw.openOnce !== false,
+    targetRoomId: typeof raw.targetRoomId === 'string' ? raw.targetRoomId : '',
+    targetEntryId: typeof raw.targetEntryId === 'string' ? raw.targetEntryId : '',
+    closedAtlasEntryId: typeof raw.closedAtlasEntryId === 'string' ? raw.closedAtlasEntryId : '',
+    openAtlasEntryId: typeof raw.openAtlasEntryId === 'string' ? raw.openAtlasEntryId : '',
+  };
+}
+
+function resolveDoorTargetEntry(room: Msx2Screen5BitmapRoom, entryId: string): { x: number; y: number } {
+  const entries = Array.isArray(room.playerEntries) ? room.playerEntries : [];
+  const entry = entryId ? entries.find(item => item?.id === entryId) : undefined;
+  if (entry) {
+    return {
+      x: clampByte(entry.x, 2) & 0xff,
+      y: clampByte(entry.y, 2) & 0xff,
+    };
+  }
+  const spawn = resolvePlayerSpawnPixels(room);
+  return { x: clampByte(spawn.x, 2) & 0xff, y: clampByte(spawn.y, 2) & 0xff };
+}
+
+function buildDoorVisualCommand(room: Msx2Screen5BitmapRoom, atlasEntryId: string, dx: number, dy: number): number[] | null {
+  const entry = atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === atlasEntryId) : undefined;
+  if (!entry) return null;
+  const sx = clampInt(entry.sx, 0, 255, 0);
+  const sy = BITMAP_ROOM_ATLAS_BASE_Y + clampInt(entry.sy, 0, BITMAP_ROOM_ATLAS_MAX_HEIGHT - 1, 0);
+  const w = clampInt(entry.w, 1, 256, TILE_GRID_SIZE);
+  const h = clampInt(entry.h, 1, SCREEN_HEIGHT_DEFAULT, TILE_GRID_SIZE);
+  const nx = Math.max(1, Math.min(w, SCREEN_WIDTH - dx));
+  const ny = Math.max(1, Math.min(h, SCREEN_HEIGHT_DEFAULT - dy));
+  const destY = BITMAP_ROOM_GAME_Y_OFFSET + dy;
+  return [
+    sx & 0xff, (sx >> 8) & 0xff,
+    sy & 0xff, (sy >> 8) & 0xff,
+    dx & 0xff, (dx >> 8) & 0xff,
+    destY & 0xff, 0,
+    nx & 0xff, (nx >> 8) & 0xff,
+    ny & 0xff, (ny >> 8) & 0xff,
+    0, 0, CMD_COPY_16,
+  ];
+}
+
+function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
+  pickups: BitmapKeyPickupRecord[];
+  doors: BitmapKeyDoorRecord[];
+  visuals: BitmapDoorVisualRecord[];
+} {
+  const keyBits = new Map<string, number>();
+  for (const room of rooms) {
+    for (const item of room.keyItems || []) {
+      if (!item?.id || keyBits.has(item.id)) continue;
+      keyBits.set(item.id, clampInt(item.bitIndex, 0, 7, 0));
+    }
+  }
+  const roomIndexById = new Map(rooms.map((room, index) => [room.id, index]));
+  const pickups: BitmapKeyPickupRecord[] = [];
+  const doors: BitmapKeyDoorRecord[] = [];
+  const visuals: BitmapDoorVisualRecord[] = [];
+  for (const [roomIndex, room] of rooms.entries()) {
+    for (const entity of room.entities || []) {
+      const x = clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff;
+      const y = clampByte((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0) & 0xff;
+      if (entity.kind === 'collectible') {
+        const keyId = typeof entity.params?.keyPickupId === 'string' ? entity.params.keyPickupId : '';
+        const bit = keyBits.get(keyId);
+        if (bit === undefined) continue;
+        pickups.push({ roomIndex, x, y, keyMask: 1 << bit, flagOffset: pickups.length });
+        continue;
+      }
+      if (entity.kind !== 'door') continue;
+      const door = normalizeDoorConfig(entity.params?.lockedDoor);
+      if (!door.enabled || !door.targetRoomId) continue;
+      const targetRoomIndex = roomIndexById.get(door.targetRoomId);
+      if (targetRoomIndex === undefined) continue;
+      const requiredBit = keyBits.get(door.requiredKeyId);
+      const requiredMask = requiredBit === undefined ? 0 : (1 << requiredBit);
+      const targetEntry = resolveDoorTargetEntry(rooms[targetRoomIndex], door.targetEntryId);
+      const flags = (door.consumeKey ? KEY_DOOR_FLAG_CONSUME : 0) | (door.openOnce ? KEY_DOOR_FLAG_OPEN_ONCE : 0);
+      const openOffset = doors.length;
+      const closedCommand = buildDoorVisualCommand(room, door.closedAtlasEntryId, x, y);
+      const openCommand = buildDoorVisualCommand(room, door.openAtlasEntryId, x, y);
+      if (closedCommand || openCommand) {
+        visuals.push({
+          roomIndex,
+          openOffset,
+          flags: (closedCommand ? KEY_DOOR_VISUAL_CLOSED : 0) | (openCommand ? KEY_DOOR_VISUAL_OPEN : 0),
+          closedCommand: closedCommand || new Array(15).fill(0),
+          openCommand: openCommand || new Array(15).fill(0),
+        });
+      }
+      doors.push({
+        roomIndex,
+        x,
+        y,
+        requiredMask,
+        targetRoomIndex,
+        targetX: targetEntry.x,
+        targetY: targetEntry.y,
+        flags,
+        openOffset,
+      });
+    }
+  }
+  return { pickups, doors, visuals };
+}
+
+function buildBitmapKeyDoorSystemAsm(
+  rooms: Msx2Screen5BitmapRoom[],
+  hitbox: BitmapPlayerHitbox,
+  ramBase: number,
+  bankedRoomData: boolean,
+): {
+  enabled: boolean;
+  ramBytes: number;
+  equates: string;
+  initAsm: string;
+  mainLoopCall: string;
+  initialDrawCall: string;
+  pendingPageDrawCall: string;
+  routinesAsm: string;
+  dataAsm: string;
+} {
+  const { pickups, doors, visuals } = collectBitmapKeyDoorRecords(rooms);
+  if (pickups.length === 0 && doors.length === 0) {
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+  }
+
+  const inventoryAddress = ramBase;
+  const pendingXAddress = ramBase + 1;
+  const pendingYAddress = ramBase + 2;
+  const workMaskAddress = ramBase + 3;
+  const workOffsetAddress = ramBase + 4;
+  const targetPageAddress = ramBase + 5;
+  const pickupFlagsAddress = ramBase + 6;
+  const doorOpenFlagsAddress = pickupFlagsAddress + pickups.length;
+  const ramBytes = 6 + pickups.length + doors.length;
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbTop = hitbox.y;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+
+  const pickupTables = rooms.map((_room, roomIndex) => pickups.filter(item => item.roomIndex === roomIndex));
+  const doorTables = rooms.map((_room, roomIndex) => doors.filter(item => item.roomIndex === roomIndex));
+  const visualTables = rooms.map((_room, roomIndex) => visuals.filter(item => item.roomIndex === roomIndex));
+  const pickupDataAsm = pickupTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_key_pickups_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.keyMask, item.flagOffset]), `Room ${roomIndex} key pickup records: x,y,keyMask,pickupFlagOffset`)
+  ).join('');
+  const doorDataAsm = doorTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_key_doors_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.requiredMask, item.targetRoomIndex, item.targetX, item.targetY, item.flags, item.openOffset]), `Room ${roomIndex} locked door records: x,y,requiredMask,targetRoom,targetX,targetY,flags,doorOpenOffset`)
+  ).join('');
+  const visualDataAsm = visualTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_key_door_visuals_room_${roomIndex}`, items.flatMap(item => [item.openOffset, item.flags, ...item.closedCommand, ...item.openCommand]), `Room ${roomIndex} door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)`)
+  ).join('');
+  const dataAsm = `${pickupDataAsm}${doorDataAsm}${visualDataAsm}` +
+    `bitmap_key_pickup_ptr_table:\n${pickupTables.map((_items, i) => `    DW bitmap_key_pickups_room_${i}`).join('\n')}\n` +
+    `bitmap_key_pickup_count_table:\n    DB ${pickupTables.map(items => items.length).join(',')}\n` +
+    `bitmap_key_door_ptr_table:\n${doorTables.map((_items, i) => `    DW bitmap_key_doors_room_${i}`).join('\n')}\n` +
+    `bitmap_key_door_count_table:\n    DB ${doorTables.map(items => items.length).join(',')}\n` +
+    `bitmap_key_door_visual_ptr_table:\n${visualTables.map((_items, i) => `    DW bitmap_key_door_visuals_room_${i}`).join('\n')}\n` +
+    `bitmap_key_door_visual_count_table:\n    DB ${visualTables.map(items => items.length).join(',')}\n`;
+  const clearFlagBytes = [
+    ...Array.from({ length: pickups.length }, (_unused, i) => `    ld (bitmap_key_pickup_flags + ${i}), a`),
+    ...Array.from({ length: doors.length }, (_unused, i) => `    ld (bitmap_key_door_open_flags + ${i}), a`),
+  ].join('\n');
+  const equates = `; Key/items + locked doors system (SCREEN 5 bitmap). RAM follows skills/HUD chain.
+bitmap_key_inventory       EQU ${hexWord(inventoryAddress)}
+bitmap_key_pending_entry_x EQU ${hexWord(pendingXAddress)}
+bitmap_key_pending_entry_y EQU ${hexWord(pendingYAddress)}
+bitmap_key_work_mask       EQU ${hexWord(workMaskAddress)}
+bitmap_key_work_offset     EQU ${hexWord(workOffsetAddress)}
+bitmap_key_target_page     EQU ${hexWord(targetPageAddress)}
+bitmap_key_pickup_flags    EQU ${hexWord(pickupFlagsAddress)}
+bitmap_key_door_open_flags EQU ${hexWord(doorOpenFlagsAddress)}
+bitmap_key_cmd_block       EQU #C2C0
+`;
+  const initAsm = `    ; Clear key inventory and per-pickup/per-door one-shot flags.
+    xor a
+    ld (bitmap_key_inventory), a
+    ld (bitmap_key_pending_entry_x), a
+    ld (bitmap_key_pending_entry_y), a
+    ld (bitmap_key_work_mask), a
+    ld (bitmap_key_work_offset), a
+    ld (bitmap_key_target_page), a
+${clearFlagBytes ? `${clearFlagBytes}\n` : ''}`;
+  const mainLoopCall = `    call bitmap_update_key_doors    ; key pickups + locked-door transitions\n`;
+  const initialDrawCall = visuals.length ? `    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page\n` : '';
+  const pendingPageDrawCall = visuals.length ? `    call bitmap_apply_door_state_pending_page    ; overlay open/closed door metatiles on hidden page before flip\n` : '';
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_player_overlaps_16
+; ------------------------------------------------------------
+; PURPOSE:
+;   Test the configured player body hitbox against a 16x16 entity box.
+;
+; INPUT:
+;   D = entity X in pixels, E = entity Y in pixels.
+;
+; OUTPUT:
+;   A = 1 and NZ when overlapping; A = 0 and Z when separated.
+;
+; DESTROYS:
+;   AF, B
+;
+; PRESERVES:
+;   C, DE, HL, IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   None.
+; ------------------------------------------------------------
+bitmap_player_overlaps_16:
+    ld a, (player_x)
+${addA(hbRight)}    cp d
+    jp c, .key_overlap_no
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, (player_x)
+${addA(hbLeft)}    cp b
+    jp z, .key_overlap_x_ok
+    jp nc, .key_overlap_no
+.key_overlap_x_ok:
+    ld a, (player_y)
+${addA(hbBottom)}    cp e
+    jp c, .key_overlap_no
+    ld a, e
+    add a, 15
+    ld b, a
+    ld a, (player_y)
+${addA(hbTop)}    cp b
+    jp z, .key_overlap_yes
+    jp nc, .key_overlap_no
+.key_overlap_yes:
+    ld a, 1
+    or a
+    ret
+.key_overlap_no:
+    xor a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_key_doors
+; ------------------------------------------------------------
+; PURPOSE:
+;   Per-frame key/item entity system. Collectible entities with keyPickupId set a
+;   bit in bitmap_key_inventory once. Door entities with lockedDoor metadata test
+;   the required bit, optionally consume it, optionally remember that the door was
+;   opened once, and queue a SCREEN 5 room transition to the configured target
+;   room/player entry.
+;
+; INPUT:
+;   RAM state: current_screen_index, bitmap_composition_state, player_x/player_y,
+;              bitmap_key_inventory and per-entity flag bytes.
+;
+; OUTPUT:
+;   Inventory/flags updated; door contact may set bitmap_pending_room and start a
+;   room composition transition. Carry is not a public result.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_check_key_pickups, bitmap_check_locked_doors.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_* RAM and may queue a page-flipped room transition.
+; ------------------------------------------------------------
+bitmap_update_key_doors:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    call bitmap_check_key_pickups
+    jp bitmap_check_locked_doors
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_door_state_visible
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw authored door metatiles (closed/open) for the current room onto the
+;   currently visible SCREEN 5 page. Used after the synchronous boot load_room.
+;
+; INPUT:
+;   current_screen_index, bitmap_displayed_page, bitmap_key_door_open_flags.
+;
+; OUTPUT:
+;   Door visual HMMM commands applied to VRAM.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_apply_door_state_for_current_room.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_target_page and uses the V9938 command engine.
+; ------------------------------------------------------------
+bitmap_apply_door_state_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_key_target_page), a
+    jp bitmap_apply_door_state_for_current_room
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_door_state_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw authored door metatiles (closed/open) for the current room onto the
+;   pending hidden page before commit_room_flip publishes it.
+;
+; INPUT:
+;   current_screen_index, bitmap_pending_display_page, bitmap_key_door_open_flags.
+;
+; OUTPUT:
+;   Door visual HMMM commands applied to the hidden page.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_apply_door_state_for_current_room.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_target_page and uses the V9938 command engine.
+; ------------------------------------------------------------
+bitmap_apply_door_state_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_key_target_page), a
+    jp bitmap_apply_door_state_for_current_room
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_door_state_for_current_room
+; ------------------------------------------------------------
+; PURPOSE:
+;   Scan the current room's visual-door records and copy either the closed or
+;   open metatile from the shared atlas to the selected page. If a door has no
+;   selected metatile for its current state, it is left as rendered by the room.
+;
+; INPUT:
+;   current_screen_index, bitmap_key_target_page, bitmap_key_door_open_flags.
+;
+; OUTPUT:
+;   Door metatile HMMM commands applied to VRAM.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_copy_key_door_command_to_block, bitmap_launch_key_door_cmd,
+;   vdp_write_register.
+;
+; SIDE EFFECTS:
+;   Uses bitmap_key_cmd_block scratch (#C2C0) and restores VDP R#15 to S#0 at
+;   the end of each launched command.
+; ------------------------------------------------------------
+bitmap_apply_door_state_for_current_room:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_door_visual_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_door_visual_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.key_door_visual_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_offset), a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_mask), a       ; visual flags: bit0 closed, bit1 open
+    push hl                            ; recordStart = closed command template
+    xor a
+    ld (bitmap_key_work_mask), a       ; selection: 0 none, 1 closed, 2 open
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_key_door_open_flags
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .key_door_visual_choose_closed
+    pop hl
+    push hl
+    dec hl
+    ld a, (hl)                         ; original visual flags byte
+    bit 1, a
+    jp z, .key_door_visual_have_selection
+    ld a, 2
+    ld (bitmap_key_work_mask), a
+    jp .key_door_visual_have_selection
+.key_door_visual_choose_closed:
+    pop hl
+    push hl
+    dec hl
+    ld a, (hl)                         ; original visual flags byte
+    bit 0, a
+    jp z, .key_door_visual_have_selection
+    ld a, 1
+    ld (bitmap_key_work_mask), a
+.key_door_visual_have_selection:
+    ld a, (bitmap_key_work_mask)
+    pop de                             ; DE = recordStart
+    push de
+    or a
+    jp z, .key_door_visual_advance
+    ld h, d
+    ld l, e
+    cp 2
+    jp nz, .key_door_visual_copy
+    ld de, 15
+    add hl, de                         ; open command template
+.key_door_visual_copy:
+    call bitmap_copy_key_door_command_to_block
+    call bitmap_launch_key_door_cmd
+.key_door_visual_advance:
+    pop hl                             ; HL = recordStart
+    ld de, 30
+    add hl, de                         ; next visual record
+    pop bc
+    djnz .key_door_visual_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_copy_key_door_command_to_block
+; ------------------------------------------------------------
+; PURPOSE:
+;   Copy one 15-byte HMMM template to bitmap_key_cmd_block and patch DY high byte
+;   for page 0/page 1.
+;
+; INPUT:
+;   HL = pointer to 15-byte command template. bitmap_key_target_page = 0 or 1.
+;
+; OUTPUT:
+;   bitmap_key_cmd_block contains the patched command.
+;
+; DESTROYS:
+;   AF, B, DE, HL
+;
+; PRESERVES:
+;   C, IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_cmd_block.
+; ------------------------------------------------------------
+bitmap_copy_key_door_command_to_block:
+    ld de, bitmap_key_cmd_block
+    ld b, 15
+.key_copy_cmd_loop:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    djnz .key_copy_cmd_loop
+    ld a, (bitmap_key_target_page)
+    or a
+    ret z
+    ld a, 1
+    ld (bitmap_key_cmd_block + 7), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_launch_key_door_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Launch the 15-byte V9938 command currently stored in bitmap_key_cmd_block.
+;
+; INPUT:
+;   bitmap_key_cmd_block = complete HMMM command.
+;
+; OUTPUT:
+;   Command submitted to the V9938.
+;
+; DESTROYS:
+;   AF, B, E, HL
+;
+; PRESERVES:
+;   C, D, IX, IY
+;
+; CALLS:
+;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer, vdp_write_register.
+;
+; SIDE EFFECTS:
+;   Writes VDP command registers through #9B. Restores R#15 to S#0 before return
+;   because vdp_wait_cmd_ready leaves it selecting S#2.
+; ------------------------------------------------------------
+bitmap_launch_key_door_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_key_cmd_block
+    ld b, 15
+.key_launch_cmd_loop:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .key_launch_cmd_loop
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_check_key_pickups
+; ------------------------------------------------------------
+; PURPOSE:
+;   Scan active-room key pickup records and set their inventory bit on overlap.
+;
+; INPUT:
+;   current_screen_index, player_x/player_y, bitmap_key_pickup_* tables.
+;
+; OUTPUT:
+;   bitmap_key_inventory and bitmap_key_pickup_flags updated.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_player_overlaps_16.
+;
+; SIDE EFFECTS:
+;   One byte per pickup is set to 1 after collection; graphics are not erased.
+; ------------------------------------------------------------
+bitmap_check_key_pickups:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_pickup_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_pickup_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.key_pickup_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld d, a
+    ld a, (hl)
+    inc hl
+    ld e, a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_mask), a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_offset), a
+    push hl
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_key_pickup_flags
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp nz, .key_pickup_next
+    call bitmap_player_overlaps_16
+    or a
+    jp z, .key_pickup_next
+    ld a, (bitmap_key_inventory)
+    ld b, a
+    ld a, (bitmap_key_work_mask)
+    or b
+    ld (bitmap_key_inventory), a
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_key_pickup_flags
+    add hl, bc
+    ld (hl), 1
+.key_pickup_next:
+    pop hl
+    pop bc
+    djnz .key_pickup_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_check_locked_doors
+; ------------------------------------------------------------
+; PURPOSE:
+;   Scan active-room door records and queue a direct room transition on overlap
+;   when the required key bit is present or the open-once flag was already set.
+;
+; INPUT:
+;   current_screen_index, player_x/player_y, bitmap_key_door_* tables.
+;
+; OUTPUT:
+;   May update bitmap_key_inventory, bitmap_key_door_open_flags,
+;   bitmap_pending_room, bitmap_key_pending_entry_x/y and composition state.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_player_overlaps_16, start_key_door_transition.
+;
+; SIDE EFFECTS:
+;   Starts asynchronous SCREEN 5 room composition; if consumeKey is set the key
+;   bit is cleared before transition.
+; ------------------------------------------------------------
+bitmap_check_locked_doors:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_door_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_door_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.key_door_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld d, a
+    ld a, (hl)
+    inc hl
+    ld e, a
+    call bitmap_player_overlaps_16
+    or a
+    jp z, .key_door_skip_rest
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_mask), a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_pending_room), a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_pending_entry_x), a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_pending_entry_y), a
+    ld a, (hl)
+    inc hl
+    ld c, a                    ; C = flags
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_offset), a
+    bit 1, c
+    jp z, .key_door_check_key
+    push hl
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_key_door_open_flags
+    add hl, de
+    ld a, (hl)
+    pop hl
+    or a
+    jp nz, .key_door_open
+.key_door_check_key:
+    ld a, (bitmap_key_work_mask)
+    or a
+    jp z, .key_door_open
+    ld b, a
+    ld a, (bitmap_key_inventory)
+    and b
+    jp z, .key_door_done
+    bit 0, c
+    jp z, .key_door_mark_open
+    ld a, b
+    cpl
+    ld b, a
+    ld a, (bitmap_key_inventory)
+    and b
+    ld (bitmap_key_inventory), a
+.key_door_mark_open:
+    bit 1, c
+    jp z, .key_door_open
+    push hl
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_key_door_open_flags
+    add hl, de
+    ld (hl), 1
+    pop hl
+.key_door_open:
+    call start_key_door_transition
+    pop bc
+    ret
+.key_door_skip_rest:
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+.key_door_done:
+    pop bc
+    djnz .key_door_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: start_key_door_transition
+; ------------------------------------------------------------
+; PURPOSE:
+;   Queue a direct transition to bitmap_pending_room using the target entry pixel
+;   already stored in bitmap_key_pending_entry_x/y.
+;
+; INPUT:
+;   bitmap_pending_room = destination room index.
+;   bitmap_key_pending_entry_x/y = destination player coordinates.
+;
+; OUTPUT:
+;   Carry SET when the transition is queued or already composing.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_composition_state, bitmap_transition_dir,
+;   bitmap_pending_display_page, bitmap_composition_block_ptr and
+;   bitmap_composition_blocks_left. Direction #04 tells commit_room_flip to use
+;   bitmap_key_pending_entry_x/y instead of an edge spawn.
+; ------------------------------------------------------------
+start_key_door_transition:
+    ld a, (bitmap_composition_state)
+    or a
+    jp nz, .key_door_already_composing
+    ld a, 4
+    ld (bitmap_transition_dir), a
+    ld a, (bitmap_displayed_page)
+    or a
+    jp z, .key_door_compose_page1
+    xor a
+    ld (bitmap_pending_display_page), a
+    ld hl, bitmap_room_render_ptr_table_p0
+${bankedRoomData ? `    ld bc, bitmap_room_render_bank_table_p0
+` : ''}    jp .key_door_select_render_program
+.key_door_compose_page1:
+    ld a, 1
+    ld (bitmap_pending_display_page), a
+    ld hl, bitmap_room_render_ptr_table_p1
+${bankedRoomData ? `    ld bc, bitmap_room_render_bank_table_p1
+` : ''}.key_door_select_render_program:
+    ld a, (bitmap_pending_room)
+    ld e, a
+    ld d, 0
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+${bankedRoomData ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_composition_block_bank), a
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}    ld (bitmap_composition_block_ptr), hl
+    ld hl, bitmap_room_blockcount_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_composition_blocks_left), a
+    inc hl
+    ld a, (hl)
+    ld (bitmap_composition_blocks_left + 1), a
+    ld a, 1
+    ld (bitmap_composition_state), a
+${bankedRoomData ? `    call bitmap_room_restore_resident_banks
+` : ''}
+.key_door_already_composing:
+    scf
+    ret
+`;
+  return { enabled: true, ramBytes, equates, initAsm, mainLoopCall, initialDrawCall, pendingPageDrawCall, routinesAsm, dataAsm };
+}
+
+// ============================================================================
+// SCREEN 5 bitmap NPC dialogue system.
+//
+// A pixel-based re-implementation of the MSX1 Screen 2 dialogue runtime
+// (componentsGenerator.ts generateAutoControlDialogueSystem), designed for the
+// bitmap-room backend and fully independent from it:
+//   - Trigger: 'npc' entities placed in a room; the player overlaps the NPC's
+//     16x16 cell and presses the talk key (UP or SPACE) -> the dialogue opens
+//     and the player update is paused (carry gate in .main_loop).
+//   - Box: V9938 HMMV fills on the DISPLAYED page (2px border + interior).
+//   - Typewriter: text glyphs are baked at build time into a 4bpp glyph strip
+//     (32 glyphs per 256px row) stored in offscreen VRAM below the shared
+//     atlas region; each typed character is ONE 8x8 HMMM blit, exactly the
+//     mechanism proven by the linked-HUD counters.
+//   - Talking head: each portrait is a pair of 4bpp frames (mouth closed at
+//     SX=0, mouth open at SX=width) in the same offscreen blob; the mouth
+//     toggles every N typed characters with one HMMM, and closes on line end.
+//   - Improvements over the Screen 2 system: per-line portraits, fast-forward
+//     (pressing the talk key while typing completes the line instantly), and
+//     auto-advance lines (waitForInput=false).
+//   - Close: the current room's render program is replayed synchronously on
+//     the displayed page (same command blocks used by load_room), so the box
+//     disappears and any NPC visual baked into the program is restored.
+// ============================================================================
+
+interface BitmapDialogueNpcRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  dialogueIndex: number;
+  keyMask: number; // PPI row-8 pressed mask: UP=#20, SPACE=#01
+}
+
+interface BitmapDialogueStripBuild {
+  key: string;
+  font: Msx2HudFontAsset | undefined;
+  textColor: number;
+  bgColor: number;
+  chars: string[];
+  charIndex: Map<string, number>;
+  /** Row offset inside the dialogue VRAM blob (filled during packing). */
+  blobRow: number;
+}
+
+interface BitmapDialoguePortraitBuild {
+  width: number;
+  height: number;
+  closedPixels: number[][];
+  openPixels: number[][];
+  blobRow: number;
+}
+
+interface BitmapDialogueLineBuild {
+  encoded: number[]; // glyph indices, #FE = newline, #FF = end
+  waitForInput: boolean;
+  portraitIndex: number; // global portrait index or 0xFF
+}
+
+interface BitmapDialogueConfigBuild {
+  label: string;
+  boxX: number;
+  boxY: number; // page-local (game Y + HUD offset)
+  boxW: number;
+  boxH: number;
+  borderClr: number;
+  bgClr: number;
+  charDelay: number;
+  mouthInterval: number;
+  textX: number;
+  textY: number;
+  textW: number;
+  textH: number;
+  stripIndex: number;
+  porX: number;
+  porY: number;
+  porMaxW: number;
+  porMaxH: number;
+  lineBase: number;
+  lineCount: number;
+}
+
+interface BitmapDialogueBuildData {
+  npcs: BitmapDialogueNpcRecord[];
+  strips: BitmapDialogueStripBuild[];
+  portraits: BitmapDialoguePortraitBuild[];
+  lines: BitmapDialogueLineBuild[];
+  configs: BitmapDialogueConfigBuild[];
+  /** Total blob rows (before base-row relocation), multiple of 8. */
+  blobRows: number;
+}
+
+const BITMAP_DLG_TALK_KEY_MASKS: Record<string, number> = { up: 0x20, space: 0x01 };
+const BITMAP_DLG_NEWLINE = 0xfe;
+const BITMAP_DLG_END = 0xff;
+const BITMAP_DLG_CFG_BYTES = 20;
+
+function evenFloor(value: number): number {
+  return value & ~1;
+}
+
+/** Chars renderable by a HUD font (bitmap glyphs, 1bpp patterns or defaults). */
+function bitmapDialogueSupportedChars(font: Msx2HudFontAsset | undefined): Set<string> {
+  const supported = new Set<string>(Object.keys(DEFAULT_HUD_PATTERNS));
+  for (const key of Object.keys(font?.patterns || {})) supported.add(key);
+  for (const key of Object.keys((font as any)?.bitmapPatterns || {})) supported.add(key);
+  supported.add(' ');
+  return supported;
+}
+
+/** 8x8 palette-slot glyph for one char: font bitmap glyph or 1bpp pattern. */
+function buildBitmapDialogueGlyph(
+  font: Msx2HudFontAsset | undefined,
+  char: string,
+  textColor: number,
+  bgColor: number
+): number[][] {
+  const bitmapGlyph = normalizeScreen5HudFontGlyph(font, char, textColor, bgColor);
+  if (bitmapGlyph) {
+    const fontBg = clampByte(font?.screen5BackgroundSlot, bgColor) & 0x0f;
+    return bitmapGlyph.map(row => row.map(slot => (slot === fontBg ? bgColor : slot)));
+  }
+  const pattern = font?.patterns?.[char] || DEFAULT_HUD_PATTERNS[char] || DEFAULT_HUD_PATTERNS[' '];
+  return Array.from({ length: 8 }, (_unused, y) =>
+    Array.from({ length: 8 }, (_unused2, x) =>
+      ((Number(pattern[y]) || 0) & (0x80 >> x)) ? (textColor & 0x0f) : (bgColor & 0x0f)
+    )
+  );
+}
+
+/** Word-wrap normalized dialogue text into at most maxRows rows of maxCols chars. */
+function wrapBitmapDialogueText(text: string, maxCols: number, maxRows: number): string[] {
+  const rows: string[] = [];
+  for (const paragraph of String(text || '').split('\n')) {
+    let current = '';
+    for (const word of paragraph.split(' ')) {
+      if (!word && current.length < maxCols) {
+        continue;
+      }
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= maxCols) {
+        current = candidate;
+        continue;
+      }
+      if (current) rows.push(current);
+      let chunk = word;
+      while (chunk.length > maxCols) {
+        rows.push(chunk.slice(0, maxCols));
+        chunk = chunk.slice(maxCols);
+      }
+      current = chunk;
+    }
+    rows.push(current);
+  }
+  while (rows.length && rows[rows.length - 1] === '') rows.pop();
+  return rows.slice(0, Math.max(1, maxRows));
+}
+
+/**
+ * Collects every dialogue reachable from an 'npc' entity in the world's rooms
+ * and precomputes ROM records, glyph strips, portrait frames and the packed
+ * VRAM blob layout. Returns null when no room has a talking NPC (the ROM stays
+ * byte-identical to exports without dialogues).
+ */
+function collectBitmapDialogueData(
+  analysis: ProjectAnalysis,
+  rooms: Msx2Screen5BitmapRoom[],
+  fallbackFont: Msx2HudFontAsset | undefined
+): BitmapDialogueBuildData | null {
+  const assets = ((analysis as any).assets || []) as Array<{ id?: string; type?: string; data?: unknown }>;
+  const dialogueById = new Map<string, any>();
+  for (const asset of assets) {
+    if (asset.type === 'msx2dialogue' && asset.id && asset.data) dialogueById.set(asset.id, asset.data);
+  }
+
+  const npcs: BitmapDialogueNpcRecord[] = [];
+  const dialogueIndexById = new Map<string, number>();
+  const usedDialogues: any[] = [];
+  for (const [roomIndex, room] of rooms.entries()) {
+    for (const entity of room.entities || []) {
+      if (entity.kind !== 'npc') continue;
+      const npcParams = entity.params?.npcDialogue as { dialogueAssetId?: string; talkKey?: string } | undefined;
+      const dialogue = npcParams?.dialogueAssetId ? dialogueById.get(npcParams.dialogueAssetId) : undefined;
+      if (!dialogue || !Array.isArray(dialogue.lines) || dialogue.lines.length === 0) continue;
+      let dialogueIndex = dialogueIndexById.get(npcParams!.dialogueAssetId!);
+      if (dialogueIndex === undefined) {
+        dialogueIndex = usedDialogues.length;
+        dialogueIndexById.set(npcParams!.dialogueAssetId!, dialogueIndex);
+        usedDialogues.push(dialogue);
+      }
+      npcs.push({
+        roomIndex,
+        x: clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+        y: clampByte((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+        dialogueIndex,
+        keyMask: BITMAP_DLG_TALK_KEY_MASKS[npcParams?.talkKey || 'up'] ?? BITMAP_DLG_TALK_KEY_MASKS.up,
+      });
+    }
+  }
+  if (npcs.length === 0) return null;
+  if (usedDialogues.length > 255) {
+    throw new Error(`MSX2 bitmap dialogue system supports at most 255 dialogues per world (got ${usedDialogues.length}).`);
+  }
+
+  const strips: BitmapDialogueStripBuild[] = [];
+  const stripByKey = new Map<string, number>();
+  const portraits: BitmapDialoguePortraitBuild[] = [];
+  const lines: BitmapDialogueLineBuild[] = [];
+  const configs: BitmapDialogueConfigBuild[] = [];
+
+  usedDialogues.forEach((dialogue, dialogueIndex) => {
+    const box = dialogue.box || {};
+    const fontAsset = findBitmapHudFontAsset(assets, dialogue.fontAssetId) || fallbackFont;
+    const textColor = clampByte(box.textColor, 15) & 0x0f;
+    const bgColor = clampByte(box.backgroundColor, 1) & 0x0f;
+    const borderColor = clampByte(box.borderColor, 15) & 0x0f;
+
+    // --- Portraits: normalize dims to multiples of 8 (max 48x48). ---
+    const assetPortraits = (Array.isArray(dialogue.portraits) ? dialogue.portraits : []) as any[];
+    const portraitIndexById = new Map<string, number>();
+    let porMaxW = 0;
+    let porMaxH = 0;
+    for (const portrait of assetPortraits) {
+      if (!portrait?.id) continue;
+      const width = Math.max(8, Math.min(48, Math.round((Number(portrait.width) || 32) / 8) * 8));
+      const height = Math.max(8, Math.min(48, Math.round((Number(portrait.height) || 32) / 8) * 8));
+      const normalizeFrame = (pixels: any): number[][] =>
+        Array.from({ length: height }, (_unused, y) =>
+          Array.from({ length: width }, (_unused2, x) => clampByte(pixels?.[y]?.[x], bgColor) & 0x0f)
+        );
+      portraitIndexById.set(String(portrait.id), portraits.length);
+      portraits.push({
+        width,
+        height,
+        closedPixels: normalizeFrame(portrait.closedPixels),
+        openPixels: normalizeFrame(portrait.openPixels),
+        blobRow: 0,
+      });
+      porMaxW = Math.max(porMaxW, width);
+      porMaxH = Math.max(porMaxH, height);
+    }
+    const resolvePortraitIndex = (portraitId: string | undefined): number => {
+      const id = portraitId || dialogue.defaultPortraitId;
+      const index = id ? portraitIndexById.get(String(id)) : undefined;
+      return index === undefined ? 0xff : index;
+    };
+    const anyPortrait = (Array.isArray(dialogue.lines) ? dialogue.lines : [])
+      .some((line: any) => resolvePortraitIndex(line?.portraitId) !== 0xff);
+    if (!anyPortrait) {
+      porMaxW = 0;
+      porMaxH = 0;
+    }
+
+    // --- Box layout. HMMV/HMMM are byte-based: X coords and widths stay even. ---
+    const boxW = Math.max(48, Math.min(254, evenFloor(clampInt(box.width, 16, 254, 240))));
+    const boxH = Math.max(24, Math.min(SCREEN_HEIGHT_DEFAULT, clampInt(box.height, 24, SCREEN_HEIGHT_DEFAULT, 64)));
+    const boxX = evenFloor(clampInt(box.x, 0, SCREEN_WIDTH - boxW, 8));
+    const boxGameY = clampInt(box.y, 0, SCREEN_HEIGHT_DEFAULT - boxH, Math.max(0, SCREEN_HEIGHT_DEFAULT - boxH - 8));
+    const padding = evenFloor(clampInt(box.padding, 0, 8, 4));
+    const side = box.portraitSide === 'right' ? 'right' : 'left';
+    const interiorX = boxX + 2;
+    const interiorY = boxGameY + 2;
+    const interiorW = boxW - 4;
+    const interiorH = boxH - 4;
+    const porX = porMaxW === 0
+      ? 0
+      : (side === 'left' ? interiorX + padding : evenFloor(interiorX + interiorW - padding - porMaxW));
+    const porY = porMaxH === 0 ? 0 : interiorY + padding;
+    const textX = porMaxW === 0 || side === 'right'
+      ? interiorX + padding
+      : porX + porMaxW + padding;
+    const textAvailW = side === 'right'
+      ? (porMaxW === 0 ? interiorW - 2 * padding : porX - padding - textX)
+      : interiorX + interiorW - padding - textX;
+    const textCols = Math.floor(textAvailW / 8);
+    const textRows = Math.floor((interiorH - 2 * padding) / 8);
+    if (textCols < 4 || textRows < 1) {
+      throw new Error(`MSX2 dialogue "${dialogue.name || dialogueIndex}": the box is too small for its portrait/padding (text area = ${textCols} cols x ${textRows} rows). Enlarge the box or shrink the portrait.`);
+    }
+
+    // --- Glyph strip (deduped by font+colors). ---
+    const fontKey = String(dialogue.fontAssetId || (fontAsset ? 'room-font' : 'default'));
+    const stripKey = `${fontKey}|${textColor}|${bgColor}`;
+    let stripIndex = stripByKey.get(stripKey);
+    if (stripIndex === undefined) {
+      stripIndex = strips.length;
+      stripByKey.set(stripKey, stripIndex);
+      strips.push({ key: stripKey, font: fontAsset, textColor, bgColor, chars: [' '], charIndex: new Map([[' ', 0]]), blobRow: 0 });
+    }
+    const strip = strips[stripIndex];
+    const supported = bitmapDialogueSupportedChars(strip.font);
+    const stripUnsupported = dialogue.exportOptions?.stripUnsupportedChars !== false;
+
+    // --- Lines: prefix speaker, normalize, wrap, encode. ---
+    const lineBase = lines.length;
+    const dialogueLines = (Array.isArray(dialogue.lines) ? dialogue.lines : []) as any[];
+    for (const line of dialogueLines) {
+      const speakerPrefix = line?.speaker ? `${String(line.speaker)}: ` : '';
+      const rawText = `${speakerPrefix}${String(line?.text || '')}`.toUpperCase();
+      const normalized = Array.from(rawText)
+        .map(char => (char === '\n' || supported.has(char) ? char : (stripUnsupported ? ' ' : char)))
+        .map(char => (char === '\n' || supported.has(char) ? char : ' '))
+        .join('');
+      const rows = wrapBitmapDialogueText(normalized, textCols, textRows);
+      const encoded: number[] = [];
+      rows.forEach((row, rowIndex) => {
+        if (rowIndex > 0) encoded.push(BITMAP_DLG_NEWLINE);
+        for (const char of Array.from(row)) {
+          let glyphIndex = strip.charIndex.get(char);
+          if (glyphIndex === undefined) {
+            glyphIndex = strip.chars.length;
+            if (glyphIndex >= BITMAP_DLG_NEWLINE) {
+              throw new Error(`MSX2 dialogue glyph strip overflow: more than ${BITMAP_DLG_NEWLINE - 1} distinct characters share the same font/colors. Split dialogues across styles or reduce the charset.`);
+            }
+            strip.chars.push(char);
+            strip.charIndex.set(char, glyphIndex);
+          }
+          encoded.push(glyphIndex);
+        }
+      });
+      encoded.push(BITMAP_DLG_END);
+      lines.push({
+        encoded,
+        waitForInput: line?.waitForInput !== false,
+        portraitIndex: anyPortrait ? resolvePortraitIndex(line?.portraitId) : 0xff,
+      });
+    }
+    if (lines.length > 255) {
+      throw new Error(`MSX2 bitmap dialogue system supports at most 255 lines across all dialogues (got ${lines.length}).`);
+    }
+
+    configs.push({
+      label: `bitmap_dlg_cfg_${dialogueIndex}`,
+      boxX,
+      boxY: boxGameY + BITMAP_ROOM_GAME_Y_OFFSET,
+      boxW,
+      boxH,
+      borderClr: (borderColor << 4) | borderColor,
+      bgClr: (bgColor << 4) | bgColor,
+      charDelay: clampByte(dialogue.exportOptions?.charDelayFrames, 3),
+      mouthInterval: clampByte(dialogue.exportOptions?.mouthToggleEveryChars, 2),
+      textX,
+      textY: interiorY + padding + BITMAP_ROOM_GAME_Y_OFFSET,
+      textW: textCols * 8,
+      textH: textRows * 8,
+      stripIndex,
+      porX,
+      porY: porY + (porMaxH === 0 ? 0 : BITMAP_ROOM_GAME_Y_OFFSET),
+      porMaxW,
+      porMaxH,
+      lineBase,
+      lineCount: dialogueLines.length,
+    });
+  });
+
+  // --- Pack the VRAM blob: strips first, then portrait frame pairs. ---
+  let blobRow = 0;
+  for (const strip of strips) {
+    strip.blobRow = blobRow;
+    blobRow += Math.ceil(strip.chars.length / 32) * 8;
+  }
+  for (const portrait of portraits) {
+    if (portrait.width * 2 > SCREEN_WIDTH) {
+      throw new Error(`MSX2 dialogue portrait too wide: both mouth frames must fit one 256px VRAM row (width <= 128px).`);
+    }
+    portrait.blobRow = blobRow;
+    blobRow += portrait.height;
+  }
+  return { npcs, strips, portraits, lines, configs, blobRows: Math.ceil(blobRow / 8) * 8 };
+}
+
+/** Renders the dialogue VRAM blob (glyph strips + portrait frame pairs) as pixel rows. */
+function buildBitmapDialogueBlobPixels(data: BitmapDialogueBuildData): number[][] {
+  const rows: number[][] = Array.from({ length: data.blobRows }, () => Array.from({ length: SCREEN_WIDTH }, () => 0));
+  for (const strip of data.strips) {
+    strip.chars.forEach((char, index) => {
+      const glyph = buildBitmapDialogueGlyph(strip.font, char, strip.textColor, strip.bgColor);
+      const gx = (index % 32) * 8;
+      const gy = strip.blobRow + Math.floor(index / 32) * 8;
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) rows[gy + y][gx + x] = glyph[y][x] & 0x0f;
+      }
+    });
+  }
+  for (const portrait of data.portraits) {
+    for (let y = 0; y < portrait.height; y++) {
+      for (let x = 0; x < portrait.width; x++) {
+        rows[portrait.blobRow + y][x] = portrait.closedPixels[y][x] & 0x0f;
+        rows[portrait.blobRow + y][portrait.width + x] = portrait.openPixels[y][x] & 0x0f;
+      }
+    }
+  }
+  return rows;
+}
+
+function buildBitmapDialogueSystemAsm(
+  data: BitmapDialogueBuildData | null,
+  rooms: Msx2Screen5BitmapRoom[],
+  hitbox: BitmapPlayerHitbox,
+  ramBase: number,
+  vramBaseRow: number,
+  uploadAsm: string,
+  keyDoorVisibleDrawCall: string,
+  bankedRoomData: boolean
+): {
+  enabled: boolean;
+  ramBytes: number;
+  equates: string;
+  initAsm: string;
+  uploadCallAsm: string;
+  mainLoopGateAsm: string;
+  routinesAsm: string;
+  dataAsm: string;
+} {
+  if (!data) {
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', uploadCallAsm: '', mainLoopGateAsm: '', routinesAsm: '', dataAsm: '' };
+  }
+
+  // RAM layout: 20-byte config mirror (LDIR'd from the ROM record on open) +
+  // runtime state. Chained after the skills/HUD/key-door RAM like every other
+  // optional system (ceiling #C1F0 checked by the caller).
+  const cfg = ramBase;
+  const state = cfg + BITMAP_DLG_CFG_BYTES;
+  const ramBytes = BITMAP_DLG_CFG_BYTES + 15;
+  const equates = `; SCREEN 5 bitmap NPC dialogue system. Config mirror (20B, LDIR'd on open) + state.
+bitmap_dlg_cfg             EQU ${hexWord(cfg)}
+bitmap_dlg_cfg_box_x       EQU ${hexWord(cfg + 0)}
+bitmap_dlg_cfg_box_y       EQU ${hexWord(cfg + 1)}
+bitmap_dlg_cfg_box_w       EQU ${hexWord(cfg + 2)}
+bitmap_dlg_cfg_box_h       EQU ${hexWord(cfg + 3)}
+bitmap_dlg_cfg_border_clr  EQU ${hexWord(cfg + 4)}
+bitmap_dlg_cfg_bg_clr      EQU ${hexWord(cfg + 5)}
+bitmap_dlg_cfg_delay       EQU ${hexWord(cfg + 6)}
+bitmap_dlg_cfg_mouth_int   EQU ${hexWord(cfg + 7)}
+bitmap_dlg_cfg_text_x      EQU ${hexWord(cfg + 8)}
+bitmap_dlg_cfg_text_y      EQU ${hexWord(cfg + 9)}
+bitmap_dlg_cfg_text_w      EQU ${hexWord(cfg + 10)}
+bitmap_dlg_cfg_text_h      EQU ${hexWord(cfg + 11)}
+bitmap_dlg_cfg_strip_sy    EQU ${hexWord(cfg + 12)}
+bitmap_dlg_cfg_por_x       EQU ${hexWord(cfg + 14)}
+bitmap_dlg_cfg_por_y       EQU ${hexWord(cfg + 15)}
+bitmap_dlg_cfg_por_max_w   EQU ${hexWord(cfg + 16)}
+bitmap_dlg_cfg_por_max_h   EQU ${hexWord(cfg + 17)}
+bitmap_dlg_cfg_line_base   EQU ${hexWord(cfg + 18)}
+bitmap_dlg_cfg_line_count  EQU ${hexWord(cfg + 19)}
+bitmap_dlg_state           EQU ${hexWord(state + 0)}
+bitmap_dlg_lock            EQU ${hexWord(state + 1)}
+bitmap_dlg_line            EQU ${hexWord(state + 2)}
+bitmap_dlg_lines_left      EQU ${hexWord(state + 3)}
+bitmap_dlg_text_ptr        EQU ${hexWord(state + 4)}
+bitmap_dlg_delay           EQU ${hexWord(state + 6)}
+bitmap_dlg_mouth_count     EQU ${hexWord(state + 7)}
+bitmap_dlg_mouth_state     EQU ${hexWord(state + 8)}
+bitmap_dlg_portrait        EQU ${hexWord(state + 9)}
+bitmap_dlg_cursor_x        EQU ${hexWord(state + 10)}
+bitmap_dlg_cursor_y        EQU ${hexWord(state + 11)}
+bitmap_dlg_key_mask        EQU ${hexWord(state + 12)}
+bitmap_dlg_wait_flags      EQU ${hexWord(state + 13)}
+bitmap_dlg_scratch_idx     EQU ${hexWord(state + 14)}
+bitmap_dlg_cmd_block       EQU #C2C0
+`;
+
+  const initAsm = `    ; NPC dialogue system: start idle with the talk key unlatched.
+    xor a
+    ld (bitmap_dlg_state), a
+    ld (bitmap_dlg_lock), a
+    ld (bitmap_dlg_mouth_state), a
+    ld (bitmap_dlg_mouth_count), a
+`;
+
+  const uploadCallAsm = `    call upload_bitmap_dialogue_gfx\n`;
+  const mainLoopGateAsm = `    call bitmap_dialogue_frame      ; NPC talk: open/advance dialogue; carry = player paused
+    jp c, .skip_player_movement
+`;
+
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbTop = hitbox.y;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: upload_bitmap_dialogue_gfx
+; ------------------------------------------------------------
+; PURPOSE:
+;   Upload the dialogue glyph strips + portrait frame pairs (packed 4bpp RLE)
+;   to offscreen VRAM rows ${vramBaseRow}..${vramBaseRow + data.blobRows - 1}, once at boot after the atlas.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+upload_bitmap_dialogue_gfx:
+${uploadAsm}
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dialogue_frame
+; ------------------------------------------------------------
+; PURPOSE:
+;   Per-frame NPC dialogue driver, called before update_player_movement.
+;   Idle: scans the current room's NPC records; player-overlap + talk key
+;   opens the dialogue. Active: runs the typewriter (state 1) or the
+;   line-advance wait (state 2). All VDP work targets the DISPLAYED page.
+;
+; OUTPUT:
+;   Carry SET while a dialogue owns the frame (player update paused);
+;   carry CLEAR when the game runs normally.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; SIDE EFFECTS:
+;   Uses bitmap_dlg_cmd_block scratch (#C2C0, shared serialized scratch) and
+;   restores VDP R#15 to S#0 before returning from any active state.
+; ------------------------------------------------------------
+bitmap_dialogue_frame:
+    call bitmap_dlg_read_keys
+    ld c, a
+    ; Release the talk latch only when BOTH talk keys (UP + SPACE) are up, so
+    ; a held key cannot re-trigger, skip a line or leak a jump on close.
+    ld a, (bitmap_dlg_lock)
+    or a
+    jp z, .dlg_lock_ok
+    ld a, c
+    and #21
+    jp nz, .dlg_lock_ok
+    xor a
+    ld (bitmap_dlg_lock), a
+.dlg_lock_ok:
+    ld a, (bitmap_dlg_state)
+    or a
+    jp z, .dlg_idle
+    cp 1
+    jp z, .dlg_typing
+    jp .dlg_wait_advance
+
+.dlg_idle:
+    ld a, (bitmap_dlg_lock)
+    or a
+    jp nz, .dlg_idle_no
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_dlg_npc_count_table
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .dlg_idle_no
+    ld b, a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_dlg_npc_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.dlg_scan_loop:
+    push bc
+    ld d, (hl)
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld a, (hl)
+    inc hl
+    ld (bitmap_dlg_scratch_idx), a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_dlg_key_mask), a
+    and c
+    jp z, .dlg_scan_next
+    push hl
+    call bitmap_dlg_overlaps
+    pop hl
+    or a
+    jp z, .dlg_scan_next
+    pop bc
+    ld a, 1
+    ld (bitmap_dlg_lock), a
+    ld a, (bitmap_dlg_scratch_idx)
+    call bitmap_dlg_open
+    jp .dlg_consume
+.dlg_scan_next:
+    pop bc
+    djnz .dlg_scan_loop
+.dlg_idle_no:
+    or a
+    ret
+
+.dlg_typing:
+    ; Fast-forward: a fresh talk-key press while typing completes the line now.
+    ld a, (bitmap_dlg_lock)
+    or a
+    jp nz, .dlg_no_ff
+    ld a, (bitmap_dlg_key_mask)
+    and c
+    jp z, .dlg_no_ff
+    ld a, 1
+    ld (bitmap_dlg_lock), a
+.dlg_ff_loop:
+    call bitmap_dlg_emit_char
+    jp nc, .dlg_ff_loop
+    jp .dlg_line_finished
+.dlg_no_ff:
+    ld a, (bitmap_dlg_delay)
+    or a
+    jp z, .dlg_tick
+    dec a
+    ld (bitmap_dlg_delay), a
+    jp .dlg_consume
+.dlg_tick:
+    call bitmap_dlg_emit_char
+    jp c, .dlg_line_finished
+    ld a, (bitmap_dlg_cfg_delay)
+    ld (bitmap_dlg_delay), a
+    jp .dlg_consume
+.dlg_line_finished:
+    ; Always finish a line with the mouth closed.
+    ld a, (bitmap_dlg_mouth_state)
+    or a
+    jp z, .dlg_mouth_closed
+    xor a
+    ld (bitmap_dlg_mouth_state), a
+    call bitmap_dlg_draw_portrait_frame
+.dlg_mouth_closed:
+    ld a, 2
+    ld (bitmap_dlg_state), a
+    jp .dlg_consume
+
+.dlg_wait_advance:
+    ld a, (bitmap_dlg_wait_flags)
+    bit 0, a
+    jp z, .dlg_do_advance       ; waitForInput=false: auto-advance
+    ld a, (bitmap_dlg_lock)
+    or a
+    jp nz, .dlg_consume
+    ld a, (bitmap_dlg_key_mask)
+    and c
+    jp z, .dlg_consume
+    ld a, 1
+    ld (bitmap_dlg_lock), a
+.dlg_do_advance:
+    ld a, (bitmap_dlg_lines_left)
+    dec a
+    ld (bitmap_dlg_lines_left), a
+    or a
+    jp z, .dlg_close
+    ld a, (bitmap_dlg_line)
+    inc a
+    call bitmap_dlg_start_line
+    jp .dlg_consume
+.dlg_close:
+    call bitmap_dlg_close_box
+.dlg_consume:
+    ; Command-engine polls left R#15 at S#2; the main loop's vblank wait
+    ; assumes S#0 (same contract as load_room).
+    ld a, #0F
+    ld e, #00
+    call vdp_write_register
+    scf
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_read_keys
+; ------------------------------------------------------------
+; PURPOSE: Read PPI keyboard row 8. A = pressed mask (UP=#20, SPACE=#01).
+; DESTROYS: AF
+; ------------------------------------------------------------
+bitmap_dlg_read_keys:
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_overlaps
+; ------------------------------------------------------------
+; PURPOSE:
+;   Test the configured player body hitbox against a 16x16 NPC cell.
+;   Self-contained copy of the key/door overlap test (that routine is only
+;   emitted when pickups/doors exist).
+; INPUT:  D = NPC X in pixels, E = NPC Y in pixels.
+; OUTPUT: A = 1 and NZ when overlapping; A = 0 and Z when separated.
+; DESTROYS: AF, B
+; PRESERVES: C, DE, HL, IX, IY
+; ------------------------------------------------------------
+bitmap_dlg_overlaps:
+    ld a, (player_x)
+${addA(hbRight)}    cp d
+    jp c, .dlg_overlap_no
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, (player_x)
+${addA(hbLeft)}    cp b
+    jp z, .dlg_overlap_x_ok
+    jp nc, .dlg_overlap_no
+.dlg_overlap_x_ok:
+    ld a, (player_y)
+${addA(hbBottom)}    cp e
+    jp c, .dlg_overlap_no
+    ld a, e
+    add a, 15
+    ld b, a
+    ld a, (player_y)
+${addA(hbTop)}    cp b
+    jp z, .dlg_overlap_yes
+    jp nc, .dlg_overlap_no
+.dlg_overlap_yes:
+    ld a, 1
+    or a
+    ret
+.dlg_overlap_no:
+    xor a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_open
+; ------------------------------------------------------------
+; PURPOSE:
+;   Open dialogue A: LDIR its 20-byte config record into RAM, draw the box
+;   (border + interior HMMV fills) and start its first line.
+; INPUT: A = dialogue index.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+bitmap_dlg_open:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, bitmap_dlg_cfg_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_dlg_cfg
+    ld bc, ${BITMAP_DLG_CFG_BYTES}
+    ldir
+    call bitmap_dlg_draw_box
+    ld a, (bitmap_dlg_cfg_line_count)
+    ld (bitmap_dlg_lines_left), a
+    ld a, (bitmap_dlg_cfg_line_base)
+    jp bitmap_dlg_start_line
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_start_line
+; ------------------------------------------------------------
+; PURPOSE:
+;   Begin global line A: load its record (text pointer, flags, portrait),
+;   clear the text area, redraw the portrait mouth-closed, reset the cursor
+;   and switch to the typing state.
+; INPUT: A = global line index.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+bitmap_dlg_start_line:
+    ld (bitmap_dlg_line), a
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_dlg_line_records
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_dlg_text_ptr), a
+    inc hl
+    ld a, (hl)
+    ld (bitmap_dlg_text_ptr + 1), a
+    inc hl
+    ld a, (hl)
+    ld (bitmap_dlg_wait_flags), a
+    inc hl
+    ld a, (hl)
+    ld (bitmap_dlg_portrait), a
+    ; Clear the text area to the box background.
+    ld a, (bitmap_dlg_cfg_text_x)
+    ld d, a
+    ld a, (bitmap_dlg_cfg_text_y)
+    ld e, a
+    ld a, (bitmap_dlg_cfg_text_w)
+    ld c, a
+    ld a, (bitmap_dlg_cfg_text_h)
+    ld b, a
+    ld a, (bitmap_dlg_cfg_bg_clr)
+    call bitmap_dlg_fill_rect
+    ; Portrait: clear its max area, then draw this line's closed frame.
+    ld a, (bitmap_dlg_portrait)
+    cp #FF
+    jp z, .dlg_start_no_portrait
+    ld a, (bitmap_dlg_cfg_por_max_w)
+    or a
+    jp z, .dlg_start_no_portrait
+    ld c, a
+    ld a, (bitmap_dlg_cfg_por_max_h)
+    ld b, a
+    ld a, (bitmap_dlg_cfg_por_x)
+    ld d, a
+    ld a, (bitmap_dlg_cfg_por_y)
+    ld e, a
+    ld a, (bitmap_dlg_cfg_bg_clr)
+    call bitmap_dlg_fill_rect
+    xor a
+    ld (bitmap_dlg_mouth_state), a
+    call bitmap_dlg_draw_portrait_frame
+.dlg_start_no_portrait:
+    ld a, (bitmap_dlg_cfg_text_x)
+    ld (bitmap_dlg_cursor_x), a
+    ld a, (bitmap_dlg_cfg_text_y)
+    ld (bitmap_dlg_cursor_y), a
+    xor a
+    ld (bitmap_dlg_mouth_count), a
+    ld (bitmap_dlg_delay), a
+    ld a, 1
+    ld (bitmap_dlg_state), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_emit_char
+; ------------------------------------------------------------
+; PURPOSE:
+;   Typewriter step: read the next text byte. Glyph -> one 8x8 HMMM from the
+;   glyph strip to the cursor (+ mouth cadence); #FE -> newline; #FF -> end.
+; OUTPUT: carry SET when the line just ended, carry CLEAR otherwise.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+bitmap_dlg_emit_char:
+    ld hl, (bitmap_dlg_text_ptr)
+    ld a, (hl)
+    cp ${BITMAP_DLG_END}
+    jp z, .dlg_char_end
+    inc hl
+    ld (bitmap_dlg_text_ptr), hl
+    cp ${BITMAP_DLG_NEWLINE}
+    jp z, .dlg_char_newline
+    ld c, a                       ; C = glyph index
+    ; SX = (idx & 31) * 8
+    and #1F
+    add a, a
+    add a, a
+    add a, a
+    ld (bitmap_dlg_cmd_block + 0), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 1), a
+    ; SY = strip base + ((idx >> 5) * 8) = strip base + ((idx & #E0) >> 2)
+    ld a, c
+    and #E0
+    rrca
+    rrca
+    ld e, a
+    ld d, 0
+    ld hl, (bitmap_dlg_cfg_strip_sy)
+    add hl, de
+    ld a, l
+    ld (bitmap_dlg_cmd_block + 2), a
+    ld a, h
+    ld (bitmap_dlg_cmd_block + 3), a
+    ld a, (bitmap_dlg_cursor_x)
+    ld (bitmap_dlg_cmd_block + 4), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 5), a
+    ld a, (bitmap_dlg_cursor_y)
+    ld (bitmap_dlg_cmd_block + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_dlg_cmd_block + 7), a
+    ld a, 8
+    ld (bitmap_dlg_cmd_block + 8), a
+    ld (bitmap_dlg_cmd_block + 10), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 9), a
+    ld (bitmap_dlg_cmd_block + 11), a
+    ld (bitmap_dlg_cmd_block + 12), a
+    ld (bitmap_dlg_cmd_block + 13), a
+    ld a, #D0                     ; HMMM
+    ld (bitmap_dlg_cmd_block + 14), a
+    call bitmap_dlg_launch_cmd
+    ld a, (bitmap_dlg_cursor_x)
+    add a, 8
+    ld (bitmap_dlg_cursor_x), a
+    ; Mouth cadence: toggle every cfg_mouth_int typed characters.
+    ld a, (bitmap_dlg_cfg_mouth_int)
+    or a
+    jp z, .dlg_char_done
+    ld a, (bitmap_dlg_mouth_count)
+    inc a
+    ld (bitmap_dlg_mouth_count), a
+    ld hl, bitmap_dlg_cfg_mouth_int
+    cp (hl)
+    jp c, .dlg_char_done
+    xor a
+    ld (bitmap_dlg_mouth_count), a
+    ld a, (bitmap_dlg_portrait)
+    cp #FF
+    jp z, .dlg_char_done
+    ld a, (bitmap_dlg_mouth_state)
+    xor 1
+    ld (bitmap_dlg_mouth_state), a
+    call bitmap_dlg_draw_portrait_frame
+.dlg_char_done:
+    or a
+    ret
+.dlg_char_newline:
+    ld a, (bitmap_dlg_cfg_text_x)
+    ld (bitmap_dlg_cursor_x), a
+    ld a, (bitmap_dlg_cursor_y)
+    add a, 8
+    ld (bitmap_dlg_cursor_y), a
+    or a
+    ret
+.dlg_char_end:
+    scf
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_draw_portrait_frame
+; ------------------------------------------------------------
+; PURPOSE:
+;   HMMM the current portrait's frame (bitmap_dlg_mouth_state: 0 = closed at
+;   SX=0, 1 = open at SX=width) to the box's portrait slot on the displayed page.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+bitmap_dlg_draw_portrait_frame:
+    ld a, (bitmap_dlg_portrait)
+    cp #FF
+    ret z
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_dlg_portrait_records
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld c, (hl)                    ; C = width
+    inc hl
+    ld b, (hl)                    ; B = height
+    ld a, (bitmap_dlg_mouth_state)
+    or a
+    jp z, .dlg_por_closed
+    ld a, c                       ; open frame lives at SX = width
+    jp .dlg_por_have_sx
+.dlg_por_closed:
+    xor a
+.dlg_por_have_sx:
+    ld (bitmap_dlg_cmd_block + 0), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 1), a
+    ld a, e
+    ld (bitmap_dlg_cmd_block + 2), a
+    ld a, d
+    ld (bitmap_dlg_cmd_block + 3), a
+    ld a, (bitmap_dlg_cfg_por_x)
+    ld (bitmap_dlg_cmd_block + 4), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 5), a
+    ld a, (bitmap_dlg_cfg_por_y)
+    ld (bitmap_dlg_cmd_block + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_dlg_cmd_block + 7), a
+    ld a, c
+    ld (bitmap_dlg_cmd_block + 8), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 9), a
+    ld a, b
+    ld (bitmap_dlg_cmd_block + 10), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 11), a
+    ld (bitmap_dlg_cmd_block + 12), a
+    ld (bitmap_dlg_cmd_block + 13), a
+    ld a, #D0                     ; HMMM
+    ld (bitmap_dlg_cmd_block + 14), a
+    jp bitmap_dlg_launch_cmd
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_fill_rect
+; ------------------------------------------------------------
+; PURPOSE: HMMV fill on the displayed page.
+; INPUT: D = x, E = y (page-local), C = width, B = height, A = colour byte.
+; DESTROYS: AF, HL (BC/DE preserved)
+; ------------------------------------------------------------
+bitmap_dlg_fill_rect:
+    ld (bitmap_dlg_cmd_block + 12), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 0), a
+    ld (bitmap_dlg_cmd_block + 1), a
+    ld (bitmap_dlg_cmd_block + 2), a
+    ld (bitmap_dlg_cmd_block + 3), a
+    ld a, d
+    ld (bitmap_dlg_cmd_block + 4), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 5), a
+    ld a, e
+    ld (bitmap_dlg_cmd_block + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_dlg_cmd_block + 7), a
+    ld a, c
+    ld (bitmap_dlg_cmd_block + 8), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 9), a
+    ld a, b
+    ld (bitmap_dlg_cmd_block + 10), a
+    xor a
+    ld (bitmap_dlg_cmd_block + 11), a
+    ld (bitmap_dlg_cmd_block + 13), a
+    ld a, #C0                     ; HMMV
+    ld (bitmap_dlg_cmd_block + 14), a
+    jp bitmap_dlg_launch_cmd
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_draw_box
+; ------------------------------------------------------------
+; PURPOSE: Border fill + interior fill (2px frame) from the config mirror.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+bitmap_dlg_draw_box:
+    ld a, (bitmap_dlg_cfg_box_x)
+    ld d, a
+    ld a, (bitmap_dlg_cfg_box_y)
+    ld e, a
+    ld a, (bitmap_dlg_cfg_box_w)
+    ld c, a
+    ld a, (bitmap_dlg_cfg_box_h)
+    ld b, a
+    ld a, (bitmap_dlg_cfg_border_clr)
+    call bitmap_dlg_fill_rect
+    ld a, (bitmap_dlg_cfg_box_x)
+    add a, 2
+    ld d, a
+    ld a, (bitmap_dlg_cfg_box_y)
+    add a, 2
+    ld e, a
+    ld a, (bitmap_dlg_cfg_box_w)
+    sub 4
+    ld c, a
+    ld a, (bitmap_dlg_cfg_box_h)
+    sub 4
+    ld b, a
+    ld a, (bitmap_dlg_cfg_bg_clr)
+    jp bitmap_dlg_fill_rect
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_close_box
+; ------------------------------------------------------------
+; PURPOSE:
+;   Close the dialogue: replay the current room's render program on the
+;   DISPLAYED page (same blocks load_room uses), restoring the background
+;   under the box${keyDoorVisibleDrawCall ? ' and re-applying door state visuals' : ''}. The talk latch stays set so the
+;   held key must be released before it can jump or reopen the dialogue.
+; DESTROYS: AF, BC, DE, HL
+; ------------------------------------------------------------
+bitmap_dlg_close_box:
+    xor a
+    ld (bitmap_dlg_state), a
+    ld a, (bitmap_displayed_page)
+    or a
+    jp z, .dlg_close_p0
+    ld hl, bitmap_room_render_ptr_table_p1
+${bankedRoomData ? `    ld bc, bitmap_room_render_bank_table_p1
+` : ''}    jp .dlg_close_have_table
+.dlg_close_p0:
+    ld hl, bitmap_room_render_ptr_table_p0
+${bankedRoomData ? `    ld bc, bitmap_room_render_bank_table_p0
+` : ''}
+.dlg_close_have_table:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+${bankedRoomData ? `    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    call bitmap_room_select_data_bank_a
+    pop hl
+` : ''}
+    push hl
+    ld hl, bitmap_room_blockcount_table
+    add hl, de
+    add hl, de
+    ld c, (hl)
+    inc hl
+    ld b, (hl)
+    pop hl
+    call replay_room_commands
+${bankedRoomData ? `    call bitmap_room_restore_resident_banks
+` : ''}${keyDoorVisibleDrawCall}    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_launch_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Submit the 15-byte V9938 command in bitmap_dlg_cmd_block: wait for the
+;   previous command, point indirect writes at R#32 and stream the block.
+; DESTROYS: AF, (uses HL' none) - preserves BC, DE, HL via push/pop.
+; ------------------------------------------------------------
+bitmap_dlg_launch_cmd:
+    push bc
+    push de
+    push hl
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_dlg_cmd_block
+    ld b, ${VDP_CMD_BLOCK_SIZE}
+.dlg_launch_write:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .dlg_launch_write
+    pop hl
+    pop de
+    pop bc
+    ret
+`;
+
+  // --- ROM tables. All resident (read every frame; never bank-switched). ---
+  const npcTables = rooms.map((_room, roomIndex) => data.npcs.filter(npc => npc.roomIndex === roomIndex));
+  const npcDataAsm = npcTables.map((items, roomIndex) =>
+    items.length
+      ? formatBytes(`bitmap_dlg_npcs_room_${roomIndex}`, items.flatMap(npc => [npc.x, npc.y, npc.dialogueIndex, npc.keyMask]), `Room ${roomIndex} NPC records: x,y,dialogueIndex,talkKeyMask`)
+      : `bitmap_dlg_npcs_room_${roomIndex}:\n`
+  ).join('');
+  const configDataAsm = data.configs.map(config =>
+    formatBytes(config.label, [
+      config.boxX, config.boxY, config.boxW, config.boxH,
+      config.borderClr, config.bgClr,
+      config.charDelay, config.mouthInterval,
+      config.textX, config.textY, config.textW, config.textH,
+      (vramBaseRow + data.strips[config.stripIndex].blobRow) & 0xff,
+      ((vramBaseRow + data.strips[config.stripIndex].blobRow) >> 8) & 0xff,
+      config.porX, config.porY, config.porMaxW, config.porMaxH,
+      config.lineBase, config.lineCount,
+    ], `Dialogue config: boxX,boxY,boxW,boxH,borderClr,bgClr,delay,mouthInt,textX,textY,textW,textH,stripSY(w),porX,porY,porMaxW,porMaxH,lineBase,lineCount`)
+  ).join('');
+  const lineTextDataAsm = data.lines.map((line, index) =>
+    formatBytes(`bitmap_dlg_text_${index}`, line.encoded, `Dialogue line ${index} glyph indices (#FE newline, #FF end)`)
+  ).join('');
+  const lineRecordsAsm = `; 4 bytes/line: text ptr (word), flags (bit0 = waitForInput), portrait index (#FF none)
+bitmap_dlg_line_records:\n${data.lines.map((line, index) =>
+    `    DW bitmap_dlg_text_${index}\n    DB ${line.waitForInput ? 1 : 0}, ${hexByte(line.portraitIndex)}`
+  ).join('\n')}\n`;
+  const portraitRecordsAsm = data.portraits.length
+    ? formatBytes('bitmap_dlg_portrait_records', data.portraits.flatMap(portrait => [
+        (vramBaseRow + portrait.blobRow) & 0xff,
+        ((vramBaseRow + portrait.blobRow) >> 8) & 0xff,
+        portrait.width,
+        portrait.height,
+      ]), 'Portrait records: frameSY(word), width, height (closed at SX=0, open at SX=width)')
+    : 'bitmap_dlg_portrait_records:\n';
+  const dataAsm = `${npcDataAsm}bitmap_dlg_npc_ptr_table:
+${npcTables.map((_items, roomIndex) => `    DW bitmap_dlg_npcs_room_${roomIndex}`).join('\n')}
+bitmap_dlg_npc_count_table:
+    DB ${npcTables.map(items => items.length).join(',')}
+bitmap_dlg_cfg_ptr_table:
+${data.configs.map(config => `    DW ${config.label}`).join('\n')}
+${configDataAsm}${lineRecordsAsm}${lineTextDataAsm}${portraitRecordsAsm}`;
+
+  return { enabled: true, ramBytes, equates, initAsm, uploadCallAsm, mainLoopGateAsm, routinesAsm, dataAsm };
+}
+
 // Build the SCREEN 5 bitmap hearts HUD: one heart per point of player_health,
 // drawn into the top-left of the 20px HUD band. Heart tiles (full + empty
 // outline) are baked at build time and uploaded once to a fixed page-0 offscreen
@@ -3465,9 +6166,17 @@ update_hud_hearts:
     ldir
     ld a, ${destY}
     ld (hud_cmd_block + 6), a   ; DY lo (HUD band offset)
-    ld a, (bitmap_displayed_page)
-    ld (hud_cmd_block + 7), a   ; DY hi (0 = page 0 base Y, 1 = page 1 base Y 256)
+    xor a
+    ld (hud_cmd_block + 7), a   ; page 0
+    call .hud_draw_heart_page
+    ld a, 1
+    ld (hud_cmd_block + 7), a   ; page 1
+    call .hud_draw_heart_page
 
+    call bitmap_restore_hud_separator
+    ret
+
+.hud_draw_heart_page:
     ld b, ${slotCount}          ; slot count (compile-time constant)
     ld c, 0                     ; C = current slot index
 .hud_slot_loop:
@@ -3495,12 +6204,6 @@ update_hud_hearts:
     call hud_launch_heart_cmd
     inc c
     djnz .hud_slot_loop
-
-    ; Restore R#15 = S#0 so the main-loop vblank poll reads the frame flag.
-    xor a
-    ld e, a
-    ld a, #0F
-    call vdp_write_register
     ret
 
 hud_launch_heart_cmd:
@@ -3527,11 +6230,76 @@ hud_heart_cmd_template:
   return { equates, routinesAsm, initAsm, mainLoopCall };
 }
 
+function buildBitmapHudSeparatorRestoreAsm(enabled: boolean): { mainLoopCall: string; routinesAsm: string } {
+  if (!enabled) return { mainLoopCall: '', routinesAsm: '' };
+  return {
+    mainLoopCall: '',
+    routinesAsm: `; ------------------------------------------------------------
+; FUNCTION: bitmap_restore_hud_separator
+; ------------------------------------------------------------
+; PURPOSE:
+;   Repaints the last HUD row (y=${BITMAP_ROOM_HUD_HEIGHT - 1}) after a dynamic HUD
+;   widgets. SCREEN 5 HMMM/HMMV widgets are opaque 4bpp copies/fills; if a
+;   heart/bar/counter touches the separator row, it can overwrite the white line
+;   seeded by init_bitmap_hud_band. This tiny HMMV restores visual parity with
+;   the editor preview, where the separator is drawn last.
+;
+; INPUT:
+;   hud_cmd_block scratch.
+;
+; OUTPUT:
+;   A 256x1 color-15 separator is restored on BOTH page 0 and page 1. This keeps
+;   the HUD band page-flip safe; transitions do not need to redraw or invalidate it.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   vdp_wait_cmd_ready, vdp_reinit_cmd_pointer, vdp_write_register
+;
+; SIDE EFFECTS:
+;   V9938 command engine runs one HMMV fill. R#15 is restored to S#0 before return.
+; ------------------------------------------------------------
+bitmap_restore_hud_separator:
+    ld hl, bitmap_hud_separator_cmd_template
+    ld de, hud_cmd_block
+    ld bc, ${VDP_CMD_BLOCK_SIZE}
+    ldir
+    xor a
+    ld (hud_cmd_block + 7), a   ; page 0
+    call .hud_separator_draw_page
+    ld a, 1
+    ld (hud_cmd_block + 7), a   ; page 1
+.hud_separator_draw_page:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, hud_cmd_block
+    ld b, ${VDP_CMD_BLOCK_SIZE}
+.hud_separator_write_block:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .hud_separator_write_block
+    xor a
+    ld e, a
+    ld a, #0F
+    call vdp_write_register
+    ret
+
+bitmap_hud_separator_cmd_template:
+    DB 0,0, 0,0, 0,0, ${hexByte(BITMAP_ROOM_HUD_HEIGHT - 1)},0, 0,1, 1,0, #0F,0, #C0
+`,
+  };
+}
+
 // ------------------------------------------------------------------------
 // Linked MSX2 HUD asset (Msx2HudAsset, authored in the standalone Mideas HUD
 // Editor and referenced by room.runtime.hudAssetId): generalizes the hearts
 // HUD pattern above (dirty-flag + HMMM + restore R#15) to arbitrary 'iconRow'
-// / 'icon' (repeated or single icon slots) and 'counter' / 'iconCounter'
+// and 'counter' / 'iconCounter'
 // (numeric text) elements. Only used when a HUD asset is linked; the classic
 // buildBitmapHeartsHudAsm above stays completely untouched and is the only
 // path taken when no HUD asset is linked (byte-identical ROM, zero regression
@@ -3546,10 +6314,12 @@ interface HudDynamicSource {
 /** Elements whose visual state changes at runtime (everything else is baked once into the HUD seed). */
 function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSource[] {
   const sources: HudDynamicSource[] = [];
-  for (const layer of hudAsset.layers || []) {
+  // Match buildBitmapHudSeedPixels and the editor preview: top-of-list layers are
+  // visually in front, so runtime-dynamic widgets must draw back-to-front too.
+  for (const layer of [...(hudAsset.layers || [])].reverse()) {
     if (layer.kind !== 'widget' || !layer.visible || !layer.element.visible) continue;
     const kind = layer.element.kind;
-    if (kind === 'iconRow' || kind === 'icon') sources.push({ kind: 'iconRow', element: layer.element });
+    if (kind === 'iconRow') sources.push({ kind: 'iconRow', element: layer.element });
     else if (kind === 'counter' || kind === 'iconCounter') sources.push({ kind: 'counter', element: layer.element });
     else if (kind === 'bar') sources.push({ kind: 'bar', element: layer.element });
   }
@@ -3569,11 +6339,28 @@ function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex
   if (element.binding === 'playerEnergy') return 'player_health';
   if (element.binding === 'lives') return 'player_lives';
   if (element.binding === 'air') return 'air_timer';
+  if (element.binding === 'experience') return 'player_xp';
+  if (element.binding === 'level') return 'player_level';
+  if (element.binding === 'skillPoints') return 'player_skill_points';
   return `hud_linked_${instanceIndex}_value`;
 }
 
+function resolveHudElementMaxValue(element: Msx2HudElement, fallback: number, playerVitals?: BitmapPlayerVitals): number {
+  if (element.binding === 'playerEnergy' && playerVitals) {
+    return playerVitals.maxHealth;
+  }
+  return Math.max(1, clampByte(element.maxValue, fallback));
+}
+
+function resolveHudElementInitialValue(element: Msx2HudElement, maxValue: number, playerVitals?: BitmapPlayerVitals): number {
+  if (element.binding === 'playerEnergy' && playerVitals) {
+    return Math.min(maxValue, playerVitals.maxHealth);
+  }
+  return Math.min(maxValue, clampByte(element.initialValue, maxValue));
+}
+
 /**
- * Builds the 16x32 (full+empty side by side) tile pixels for an iconRow/icon
+ * Builds the 16x32 (full+empty side by side) tile pixels for an iconRow
  * element, sourced from the linked HUD asset's own icon mini-atlas
  * (`Msx2HudAsset.icons`, element.atlasEntryId/emptyAtlasEntryId). Falls back to
  * the hand-authored heart mask ONLY for playerEnergy-bound elements without an
@@ -3615,6 +6402,15 @@ function buildCounterGlyphPixels(font: Msx2HudFontAsset | undefined, color: numb
   const bg = BITMAP_HUD_HEART_COLOR_BG;
   const grid: number[][] = Array.from({ length: 8 }, () => Array.from({ length: 80 }, () => bg));
   for (let digit = 0; digit <= 9; digit++) {
+    const bitmapGlyph = normalizeScreen5HudFontGlyph(font, String(digit), color, bg);
+    if (bitmapGlyph) {
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          grid[row][(digit * 8) + col] = bitmapGlyph[row][col] & 0x0f;
+        }
+      }
+      continue;
+    }
     const pattern = patterns[String(digit)] || DEFAULT_HUD_PATTERNS[String(digit)];
     for (let row = 0; row < 8; row++) {
       const bits = Number(pattern[row]) || 0;
@@ -3722,7 +6518,12 @@ hud_dec5_done:
  */
 function linkedCounterSpec(element: Msx2HudElement): { digits: number; wide: boolean } {
   const requested = Math.max(1, Math.min(7, Math.floor(element.format?.digits || 3)));
-  const byteBinding = element.binding === 'playerEnergy' || element.binding === 'lives' || element.binding === 'air';
+  const byteBinding = element.binding === 'playerEnergy'
+    || element.binding === 'lives'
+    || element.binding === 'air'
+    || element.binding === 'experience'
+    || element.binding === 'level'
+    || element.binding === 'skillPoints';
   if (requested >= 4 && !byteBinding) {
     return { digits: Math.min(5, requested), wide: true };
   }
@@ -3756,9 +6557,9 @@ hud_linked_launch_cmd:
 `;
 
 /**
- * Generalizes buildBitmapHeartsHudAsm to an arbitrary linked-asset iconRow/icon
- * element: repeated (or single, for 'icon') slots that fill/empty by comparing a
- * slot index against the bound RAM byte. Same dirty-flag + HMMM + R#15-restore
+ * Generalizes buildBitmapHeartsHudAsm to an arbitrary linked-asset iconRow
+ * element: repeated slots that fill/empty by comparing a slot index against the
+ * bound RAM byte. Same dirty-flag + HMMM + R#15-restore
  * pattern, parametrized by position/slot-count/tile source instead of hardcoded.
  * v1 keeps the 16px fixed slot spacing (same as the classic hearts HUD); the
  * element's `spacing` field is authored for the editor preview only for now.
@@ -3769,12 +6570,17 @@ function buildBitmapHudLinkedIconRowAsm(
   ram: { dirtyFlagAddress: number; valueAddress?: number },
   bindingRamLabel: string,
   uploadAsm: string,
-  instanceIndex: number
+  instanceIndex: number,
+  playerVitals?: BitmapPlayerVitals
 ): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
   const element = source.element;
   const isToggle = element.kind === 'icon';
-  const slotCount = isToggle ? 1 : Math.max(1, Math.min(BITMAP_HUD_HEART_MAX_SLOTS, clampByte(element.maxValue, 5)));
-  const firstX = clampInt(element.x, 0, SCREEN_WIDTH - 1, 8);
+  // Clip against the right edge: HMMM DX is written as a low byte only and
+  // SCREEN 5 has no x >= 256, so an overflowing 16px slot would WRAP to x=0 and
+  // stamp over the left side of the HUD. The editor preview clips the same way.
+  const firstX = clampInt(element.x, 0, SCREEN_WIDTH - 16, 8);
+  const slotsThatFit = Math.max(1, Math.floor((SCREEN_WIDTH - firstX) / 16));
+  const slotCount = isToggle ? 1 : Math.max(1, Math.min(Math.min(BITMAP_HUD_HEART_MAX_SLOTS, slotsThatFit), resolveHudElementMaxValue(element, 5, playerVitals)));
   const destY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
   const emptySx = 16;
   const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
@@ -3782,6 +6588,7 @@ function buildBitmapHudLinkedIconRowAsm(
   const updateLabel = `update_hud_linked_${instanceIndex}`;
   const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
   const loopLabel = `.hud_linked_${instanceIndex}_loop`;
+  const drawPageLabel = `.hud_linked_${instanceIndex}_draw_page`;
   const fullLabel = `.hud_linked_${instanceIndex}_full`;
   const setSxLabel = `.hud_linked_${instanceIndex}_set_sx`;
 
@@ -3802,7 +6609,9 @@ ${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initia
 ; PURPOSE:
 ;   Generalized icon-row/icon-toggle widget for linked HUD element "${element.id}".
 ;   Same dirty-flag + HMMM pattern as update_hud_hearts: redraws ${slotCount}
-;   slot(s) at x=${firstX}..+16, y=${destY} only when ${bindingRamLabel} changes.
+;   slot(s) at x=${firstX}..+16, y=${destY} on BOTH display pages only when
+;   ${bindingRamLabel} changes. Keeping page 0 and page 1 identical prevents HUD
+;   redraw/flicker during room transitions; only the game band is page-flipped.
 ; DESTROYS: AF, BC, DE, HL
 ; PRESERVES: IX, IY
 ; CALLS: hud_linked_launch_cmd, vdp_write_register
@@ -3822,20 +6631,36 @@ ${updateLabel}:
     ldir
     ld a, ${destY}
     ld (hud_cmd_block + 6), a
-    ld a, (bitmap_displayed_page)
+    xor a
     ld (hud_cmd_block + 7), a
+    call ${drawPageLabel}
+    ld a, 1
+    ld (hud_cmd_block + 7), a
+    call ${drawPageLabel}
 
+    call bitmap_restore_hud_separator
+    ret
+
+${drawPageLabel}:
     ld b, ${slotCount}
     ld c, 0
 ${loopLabel}:
-    ld a, c
+${isToggle
+    ? `    ; Single icon widget (kind:'icon'): always draws the assigned icon
+    ; (SX=0, the "full" half). Unlike an iconRow slot, a standalone icon has
+    ; no editor UI to author an "empty" state, so it must not depend on
+    ; ${bindingRamLabel} — otherwise the default initialValue=0 would always
+    ; pick the empty/fallback half and the user's icon would never appear,
+    ; breaking editor<->ROM parity.
+    jr ${fullLabel}`
+    : `    ld a, c
     push hl
     ld hl, ${bindingRamLabel}
     cp (hl)
     pop hl
     jr c, ${fullLabel}
     ld a, ${emptySx}
-    jr ${setSxLabel}
+    jr ${setSxLabel}`}
 ${fullLabel}:
     xor a
 ${setSxLabel}:
@@ -3850,15 +6675,12 @@ ${setSxLabel}:
     call hud_linked_launch_cmd
     inc c
     djnz ${loopLabel}
-
-    xor a
-    ld e, a
-    ld a, #0F
-    call vdp_write_register
     ret
 
 ${tmplLabel}:
-    DB 0,0, ${hexByte(tileVramY)},0, 0,0, 0,0, #10,0, #10,0, 0,0, #D0
+    ; SY is a full 10-bit word: tile sources may live past VRAM row 255
+    ; (page-1 offscreen band or after the shared atlas).
+    DB 0,0, ${hexByte(tileVramY & 0xff)},${hexByte((tileVramY >> 8) & 0xff)}, 0,0, 0,0, #10,0, #10,0, 0,0, #D0
 `;
   return { equates, initAsm, mainLoopCall, routinesAsm };
 }
@@ -3881,6 +6703,13 @@ function buildBitmapHudLinkedCounterAsm(
   const { digits, wide } = linkedCounterSpec(element);
   const iconOffset = element.kind === 'iconCounter' ? 16 : 0;
   const destX = clampInt(element.x, 0, SCREEN_WIDTH - 1, 8) + iconOffset;
+  // Clip digits that would cross the right edge: HMMM DX is written as a low
+  // byte only and SCREEN 5 has no x >= 256, so an overflowing glyph would WRAP
+  // to x=0 and stamp digits over the left side of the HUD (seen as a stray "0"
+  // on top of the first heart). The editor preview clips the same way, so only
+  // the digits that actually fit are drawn.
+  const digitsThatFit = Math.floor((SCREEN_WIDTH - destX) / 8);
+  const visibleDigits = Math.max(0, Math.min(digits, digitsThatFit));
   const destY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
   const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
   const uploadLabel = `upload_hud_linked_${instanceIndex}`;
@@ -3888,6 +6717,7 @@ function buildBitmapHudLinkedCounterAsm(
   const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
   const loopLabel = `.hud_linked_${instanceIndex}_digit_loop`;
   const changedLabel = `.hud_linked_${instanceIndex}_changed`;
+  const drawPageLabel = `.hud_linked_${instanceIndex}_draw_page`;
   const bufferLabel = wide ? 'hud_dec5_buffer' : 'hud_dec3_buffer';
   const digitBufferOffset = (wide ? 5 : 3) - digits;
   const convertCall = wide ? 'hud_word_to_dec5' : 'hud_byte_to_dec3';
@@ -3910,16 +6740,29 @@ ${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initia
 
   // Shared digit-blit loop: reads ASCII digits from bufferLabel+digitBufferOffset,
   // maps each to its 8px glyph (SX = digit*8) and HMMMs NX=NY=8 to destX + i*8.
-  const blitLoop = `    ld hl, ${tmplLabel}
+  // The glyphs are redrawn on BOTH page 0 and page 1 when the value changes, so
+  // room page flips never need to invalidate/redraw the HUD band.
+  const blitLoop = visibleDigits === 0 ? `    ; All ${digits} digit(s) of this counter start past the right edge (x=${destX});
+    ; nothing can be drawn without wrapping to x=0, so the widget stays static.
+    ret
+` : `    ld hl, ${tmplLabel}
     ld de, hud_cmd_block
     ld bc, ${VDP_CMD_BLOCK_SIZE}
     ldir
     ld a, ${destY}
     ld (hud_cmd_block + 6), a
-    ld a, (bitmap_displayed_page)
+    xor a
     ld (hud_cmd_block + 7), a
+    call ${drawPageLabel}
+    ld a, 1
+    ld (hud_cmd_block + 7), a
+    call ${drawPageLabel}
 
-    ld b, ${digits}
+    call bitmap_restore_hud_separator
+    ret
+
+${drawPageLabel}:
+    ld b, ${visibleDigits}
     ld c, 0
 ${loopLabel}:
     push bc
@@ -3944,11 +6787,6 @@ ${loopLabel}:
     pop bc
     inc c
     djnz ${loopLabel}
-
-    xor a
-    ld e, a
-    ld a, #0F
-    call vdp_write_register
     ret
 `;
 
@@ -3991,7 +6829,9 @@ ${uploadLabel}:
 ${uploadAsm}
 ${dirtyCheckAndConvert}
 ${tmplLabel}:
-    DB 0,0, ${hexByte(glyphVramY)},0, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
+    ; SY is a full 10-bit word: glyph sources may live past VRAM row 255
+    ; (page-1 offscreen band or after the shared atlas).
+    DB 0,0, ${hexByte(glyphVramY & 0xff)},${hexByte((glyphVramY >> 8) & 0xff)}, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
 `;
   return { equates, initAsm, mainLoopCall, routinesAsm };
 }
@@ -4052,6 +6892,93 @@ update_air_timer:
   return { equates, initAsm, mainLoopCall, routinesAsm };
 }
 
+const sanitizeAsmHookLabel = (value: unknown): string | null => {
+  const label = String(value || '').trim();
+  return /^[A-Za-z_.$?@][A-Za-z0-9_.$?@]*$/.test(label) ? label : null;
+};
+
+function buildBitmapExperienceSystemAsm(opts: {
+  xpAddress: number;
+  xpMaxAddress: number;
+  levelAddress: number;
+  skillPointsAddress: number;
+  initialXp: number;
+  xpMax: number;
+  maxHealth: number;
+  reward?: Msx2HudElement['xpReward'];
+}): { equates: string; initAsm: string; routinesAsm: string } {
+  const reward = opts.reward;
+  const enabled = reward?.enabled !== false;
+  const carryOverflow = reward?.carryOverflow !== false;
+  const actions = Array.isArray(reward?.actions) ? reward!.actions : [];
+  const rewardAsm = enabled
+    ? actions.map(action => {
+        const amount = clampByte(action.amount, 1);
+        if (action.type === 'incrementLevel') {
+          return `    ld hl, player_level
+    ld a, (hl)
+    add a, ${hexByte(amount)}
+    ld (hl), a
+`;
+        }
+        if (action.type === 'incrementSkillPoints') {
+          return `    ld hl, player_skill_points
+    ld a, (hl)
+    add a, ${hexByte(amount)}
+    ld (hl), a
+`;
+        }
+        if (action.type === 'restoreHealth') {
+          return `    ld a, ${hexByte(opts.maxHealth)}
+    ld (player_health), a
+`;
+        }
+        if (action.type === 'callAsmHook') {
+          const hook = sanitizeAsmHookLabel(action.hookLabel);
+          return hook ? `    call ${hook}\n` : '';
+        }
+        return '';
+      }).join('')
+    : '';
+  const equates = `player_xp EQU ${hexWord(opts.xpAddress)}
+player_xp_max EQU ${hexWord(opts.xpMaxAddress)}
+player_level EQU ${hexWord(opts.levelAddress)}
+player_skill_points EQU ${hexWord(opts.skillPointsAddress)}
+`;
+  const initAsm = `    ld a, ${hexByte(opts.initialXp)}
+    ld (player_xp), a
+    ld a, ${hexByte(opts.xpMax)}
+    ld (player_xp_max), a
+    ld a, 1
+    ld (player_level), a
+    xor a
+    ld (player_skill_points), a
+`;
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: add_player_xp
+; ------------------------------------------------------------
+; PURPOSE:
+;   Add XP to player_xp. When player_xp reaches player_xp_max, reset/wrap the
+;   bar and run the authored XP reward program from the HUD XP Bar.
+; INPUT: A = XP amount to add.
+; DESTROYS: AF, HL
+; ------------------------------------------------------------
+add_player_xp:
+    ld hl, player_xp
+    add a, (hl)
+    ld (hl), a
+    ld hl, player_xp_max
+    cp (hl)
+    ret c
+${carryOverflow ? `    sub (hl)
+    ld (player_xp), a
+` : `    xor a
+    ld (player_xp), a
+`}${rewardAsm || '    ; No XP reward actions authored.\n'}    ret
+`;
+  return { equates, initAsm, routinesAsm };
+}
+
 /**
  * Dynamic bar meter for a linked HUD 'bar' element. Unlike iconRow/counter this
  * widget needs NO offscreen source tile: the track + fill are drawn directly with
@@ -4066,10 +6993,11 @@ function buildBitmapHudLinkedBarAsm(
   source: HudDynamicSource,
   ram: { dirtyFlagAddress: number; valueAddress?: number },
   bindingRamLabel: string,
-  instanceIndex: number
+  instanceIndex: number,
+  playerVitals?: BitmapPlayerVitals
 ): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
   const element = source.element;
-  const max = Math.max(1, clampByte(element.maxValue, 16));
+  const max = resolveHudElementMaxValue(element, 16, playerVitals);
   // Even-aligned dynamic region (SCREEN 5 HMMV: byte-aligned DX/NX).
   const barX = clampInt(element.x, 0, SCREEN_WIDTH - 2, 8) & ~1;
   const barW = Math.min(254, Math.max(2, clampInt(element.width, 2, SCREEN_WIDTH - barX, 64) & ~1));
@@ -4080,6 +7008,7 @@ function buildBitmapHudLinkedBarAsm(
   const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
   const updateLabel = `update_hud_linked_${instanceIndex}`;
   const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
+  const drawPageLabel = `.b${instanceIndex}_draw_page`;
   const clampNeeded = max < 255;
 
   const equates = `; Linked HUD bar #${instanceIndex} (${element.id}), bound to "${element.binding}".
@@ -4098,8 +7027,10 @@ ${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initia
 ; PURPOSE:
 ;   Dynamic bar meter for linked HUD element "${element.id}": redraws the even-
 ;   aligned box x=${barX}, y=${barY}, w=${barW}, h=${barH} (empty track + primary
-;   fill, fillW = clamp(value,0,${max}) * ${barW} / ${max}) only when ${bindingRamLabel}
-;   changes. Uses V9938 HMMV fills (CMD_FILL = ${hexByte(CMD_FILL)}); NO offscreen tile.
+;   fill, fillW = clamp(value,0,${max}) * ${barW} / ${max}) on BOTH display pages
+;   only when ${bindingRamLabel} changes. Uses V9938 HMMV fills (CMD_FILL =
+;   ${hexByte(CMD_FILL)}); NO offscreen tile. Keeping page 0 and page 1 identical
+;   prevents HUD redraw/flicker during room transitions.
 ; INPUT:
 ;   ${bindingRamLabel} = current value (0..${max})
 ; DESTROYS: AF, BC, DE, HL
@@ -4149,15 +7080,27 @@ ${clampNeeded ? `    cp ${max + 1}
     ldir
     ld a, ${hexByte(barY)}
     ld (hud_cmd_block + 6), a     ; DY lo
-    ld a, (bitmap_displayed_page)
-    ld (hud_cmd_block + 7), a     ; DY hi = displayed page
+    pop af
+    ld c, a                       ; C = fillW, preserved by hud_linked_launch_cmd
+    xor a
+    ld (hud_cmd_block + 7), a     ; page 0
+    call ${drawPageLabel}
+    ld a, 1
+    ld (hud_cmd_block + 7), a     ; page 1
+    call ${drawPageLabel}
 
+    call bitmap_restore_hud_separator
+    ret
+
+${drawPageLabel}:
     ; HMMV #1: empty track over the full box (COL = empty, NX = barW from template).
+    ld a, ${hexByte(barW & 0xff)}
+    ld (hud_cmd_block + 8), a
     ld a, ${hexByte(emptyColor)}
     ld (hud_cmd_block + 12), a
     call hud_linked_launch_cmd
 
-    pop af                        ; A = fillW
+    ld a, c                       ; A = fillW
     or a
     jr z, .b${instanceIndex}_done
     ld (hud_cmd_block + 8), a     ; NX lo = fillW
@@ -4166,10 +7109,6 @@ ${clampNeeded ? `    cp ${max + 1}
     call hud_linked_launch_cmd
 
 .b${instanceIndex}_done:
-    xor a
-    ld e, a
-    ld a, #0F
-    call vdp_write_register       ; restore R#15 = 0 (status select S#0)
     ret
 
 ${tmplLabel}:
@@ -4869,6 +7808,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const rooms = sharedAtlas.rooms;
   const startIndex = Math.min(world.startIndex, rooms.length - 1);
   const room = rooms[startIndex];
+  const bitmapRoomPlayer = resolveBitmapRoomPlayer(analysis, room);
+  const playerVitals = resolveBitmapPlayerVitals(bitmapRoomPlayer);
   const spawn = resolvePlayerSpawnPixels(room);
   const worldPalette = resolveWorldPalette(analysis, world.paletteAssetId, room.palette);
   const paletteBytes = buildPaletteBytes(worldPalette);
@@ -4882,7 +7823,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // automatic hearts HUD is fully disabled: no routines, no calls, no heart RLE
   // resources. Selecting NONE in the editor restores this classic fallback.
   const useClassicHeartsHud = !linkedHudAsset && !hudGloballyHidden;
-  const linkedHudFont = linkedHudAsset ? getBitmapHudFontAsset(analysis, room) : undefined;
+  const linkedHudFont = linkedHudAsset ? getBitmapHudFontAsset(analysis, room, linkedHudAsset) : undefined;
   const linkedHudDynamicSources = linkedHudAsset && !hudGloballyHidden ? collectLinkedHudDynamicSources(linkedHudAsset) : [];
   // Offscreen tile/glyph source rows for linked dynamic widgets, stacked right after
   // the classic hearts slot (Y=224..239) and before the shared atlas (Y=512). 16 rows
@@ -4891,17 +7832,36 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // 'bar' widgets are EXCLUDED: they draw with HMMV fills (no source tile), so they
   // consume neither an offscreen slot nor the VRAM collision budget.
   const tileBasedHudSources = linkedHudDynamicSources.filter(source => source.kind !== 'bar');
-  const LINKED_HUD_TILE_BASE_Y = useClassicHeartsHud
-    ? BITMAP_HUD_HEART_TILE_Y + BITMAP_HUD_HEART_NY
-    : BITMAP_HUD_HEART_TILE_Y;
-  if (LINKED_HUD_TILE_BASE_Y + (tileBasedHudSources.length * 16) > BITMAP_ROOM_ATLAS_BASE_Y) {
-    throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many tile/glyph dynamic widgets (${tileBasedHudSources.length}); offscreen VRAM would collide with the shared tileset atlas. Reduce the number of iconRow/icon/counter widgets.`);
+  // Offscreen source rows for linked dynamic widgets. VRAM rows 256..467 are the
+  // page-1 VISIBLE band (HUD seed + game band) and rows 488..511 hold the sprite
+  // colour/SAT/pattern tables (#F400+), so the truly free 16px slots are:
+  //   - page-0 offscreen band: rows 212..243 (2 slots),
+  //   - page-1 offscreen band: rows 468..483 (1 slot, right above #F400),
+  //   - everything after the shared atlas (rows 512+atlasHeight .. 1023).
+  // The old fixed base at row 224 overflowed into the page-1 HUD band from the
+  // third tile widget on: its glyph strip overwrote the page-1 HUD seed and became
+  // visible after the first room transition flipped the display to page 1.
+  const atlasRows16 = Math.ceil(atlasPixels.length / 16) * 16;
+  // NPC dialogue system: its glyph-strip/portrait blob reserves rows at the TOP
+  // end of VRAM (growing down from 1024), so the atlas and the linked-HUD slot
+  // layout stay untouched; the HUD slot scan below simply stops at the blob.
+  const dialogueData = collectBitmapDialogueData(analysis, rooms, getBitmapHudFontAsset(analysis, room, linkedHudAsset));
+  const dialogueVramBaseRow = dialogueData ? 1024 - Math.ceil(dialogueData.blobRows / 16) * 16 : 1024;
+  if (dialogueData && dialogueVramBaseRow < BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}": the NPC dialogue glyph/portrait blob needs ${dialogueData.blobRows} VRAM rows but only ${1024 - (BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16)} rows are free after the shared atlas. Reduce portrait sizes/count or shrink the atlas.`);
+  }
+  const linkedHudSlotYs: number[] = [212, 228, 468];
+  for (let slotY = BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16; slotY + 16 <= dialogueVramBaseRow; slotY += 16) {
+    linkedHudSlotYs.push(slotY);
+  }
+  if (tileBasedHudSources.length > linkedHudSlotYs.length) {
+    throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many tile/glyph dynamic widgets (${tileBasedHudSources.length}); only ${linkedHudSlotYs.length} offscreen VRAM slots are free next to the shared tileset atlas. Reduce the number of iconRow/counter widgets. Static icon/portrait widgets are baked into the HUD seed and do not consume these slots.`);
   }
   const linkedHudTileData: { index: number; kind: HudDynamicSource['kind']; tileVramY: number; bytes: number[]; rleChunks: ReturnType<typeof buildRleChunksForVram>; uploadAsm: string }[] = [];
   linkedHudDynamicSources.forEach((source, index) => {
     if (source.kind === 'bar') return; // bars use HMMV, no offscreen tile
     const tileSlot = linkedHudTileData.length;
-    const tileVramY = LINKED_HUD_TILE_BASE_Y + (tileSlot * 16);
+    const tileVramY = linkedHudSlotYs[tileSlot];
     const pixels = source.kind === 'iconRow'
       ? buildIconRowTilePixels(linkedHudAsset!, source.element)
       : buildCounterGlyphPixels(linkedHudFont, source.element.colors.text ?? 15);
@@ -4913,6 +7873,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
+  // NPC dialogue glyph strips + portrait frames: one packed 4bpp blob uploaded
+  // once at boot to the rows reserved above the atlas region.
+  const dialogueBlobBytes = dialogueData ? packBitmapPixels(buildBitmapDialogueBlobPixels(dialogueData)) : [];
+  const dialogueRleChunks = dialogueData
+    ? buildRleChunksForVram(dialogueBlobBytes, dialogueVramBaseRow * ROW_BYTES, 'bitmap_dlg_gfx_rle_chunk')
+    : [];
   // Classic automatic hearts HUD tiles (16x16 full + 16x16 empty outline, side
   // by side = 32x16 4bpp blob). They are emitted only when no linked HUD asset
   // owns the HUD band; otherwise the linked HUD's tile/glyph data reuses the
@@ -4938,29 +7904,68 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       behaviorBytes: buildBehaviorTableBytes(roomData),
     };
   });
+  const roomDataBlocks: BankedDataBlock[] = roomTables.flatMap(table => [
+    {
+      label: table.renderLabelPage0,
+      bytes: table.renderBytesPage0,
+      description: `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`,
+    },
+    {
+      label: table.renderLabelPage1,
+      bytes: table.renderBytesPage1,
+      description: `Room ${table.index} page 1 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`,
+    },
+    {
+      label: table.collisionLabel,
+      bytes: table.collisionBytes,
+      description: `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`,
+    },
+    {
+      label: table.behaviorLabel,
+      bytes: table.behaviorBytes,
+      description: `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} behavior grid (16x16 px cells), row-major, 0=empty, 3=ice_slide default`,
+    },
+  ]);
   // Edge-transition table: 4 bytes per room (west, east, north, south); #FF = no rail.
   const transitionTableBytes = rooms.flatMap((_roomData, index) => {
     const rails = world.transitions.get(index) || {};
     const target = (dir: ConnectionDirection) => (rails[dir] === undefined ? 0xff : rails[dir]!);
     return [target('west'), target('east'), target('north'), target('south')];
   });
-  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis, linkedHudAsset));
+  const hudSeedBytes = packBitmapPixels(buildBitmapHudSeedPixels(room, atlasPixels, analysis, linkedHudAsset, playerVitals));
   const hudSeedRleChunksPage0 = buildRleChunksForVram(hudSeedBytes, 0, 'bitmap_room_hud_seed_p0_rle_chunk');
   const hudSeedRleChunksPage1 = buildRleChunksForVram(hudSeedBytes, BITMAP_ROOM_PAGE1_VRAM_BASE, 'bitmap_room_hud_seed_p1_rle_chunk');
   const allHudSeedRleChunks = [...hudSeedRleChunksPage0, ...hudSeedRleChunksPage1];
   const linkedHudAllRleChunks = linkedHudTileData.flatMap(entry => entry.rleChunks);
-  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks, ...linkedHudAllRleChunks];
+  // GameFlow intro: SCREEN 5 presentation scene(s) + transitions before gameplay.
+  // Each scene bitmap uploads to the visible page 0 (VRAM #00000) through the same
+  // RLE decoder used by the HUD seed/atlas, so simple32k and MegaROM both work.
+  const introScenes = resolveBitmapIntroScenes(analysis);
+  const introSceneBlobs: BitmapIntroSceneBlob[] = introScenes.map((scene, index) => ({
+    scene,
+    index,
+    rleChunks: buildRleChunksForVram(scene.bitmapBytes, 0, `bitmap_intro_scene${index}_rle_chunk`),
+  }));
+  const introRleChunks = introSceneBlobs.flatMap(blob => blob.rleChunks);
+  const introEncodedBytes = introRleChunks.reduce((total, chunk) => total + chunk.bytes.length, 0);
+  if (!isKonamiMegaRom && introEncodedBytes > 16384) {
+    throw new Error(`MSX2 bitmap-room GameFlow intro needs ${introEncodedBytes} bytes of presentation RLE data and cannot fit a simple 32KB ROM; export as Konami MegaROM instead.`);
+  }
+  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks, ...linkedHudAllRleChunks, ...introRleChunks, ...dialogueRleChunks];
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
       ...buildBankedRleDataBlocks(tilesetRleChunks, `Shared world tileset (atlas), packed 4bpp RLE`),
       ...(useClassicHeartsHud ? buildBankedRleDataBlocks(heartRleChunks, `Hearts HUD tiles (full + empty outline), packed 4bpp RLE`) : []),
       ...linkedHudTileData.flatMap(entry => buildBankedRleDataBlocks(entry.rleChunks, `Linked HUD dynamic widget #${entry.index} (${entry.kind}) tile/glyph data, packed 4bpp RLE`)),
+      ...roomDataBlocks,
+      ...introSceneBlobs.flatMap(blob => buildBankedRleDataBlocks(blob.rleChunks, `GameFlow intro scene #${blob.index} SCREEN 5 bitmap, packed 4bpp RLE`)),
+      ...(dialogueData ? buildBankedRleDataBlocks(dialogueRleChunks, 'NPC dialogue glyph strips + portrait frames, packed 4bpp RLE') : []),
     ]
     : [];
   const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
   if (isKonamiMegaRom) assignDataBankConstants(bankedDataBanks, allRleChunks);
-  const bankedDataEquates = isKonamiMegaRom ? formatDataBankEquates(allRleChunks) : '';
+  const bankedDataEquates = isKonamiMegaRom ? formatBankedDataEquates(bankedDataBanks) : '';
   const bankedDataAsm = isKonamiMegaRom ? formatBankedDataBanks(bankedDataBanks) : '';
   const hudSeedDataAsm = isKonamiMegaRom
     ? `; Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed for page 0/1 is emitted in Konami MegaROM data banks below.\n`
@@ -4984,6 +7989,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
         entry.bytes.length,
         `Linked HUD dynamic widget #${entry.index} (${entry.kind}) tile/glyph data, packed 4bpp RLE, destination VRAM ${hexVram(entry.tileVramY * ROW_BYTES)}`
       )).join('');
+  const dialogueGfxDataAsm = !dialogueData
+    ? ''
+    : isKonamiMegaRom
+      ? `; NPC dialogue glyph/portrait RLE is emitted in Konami MegaROM data banks below.\n`
+      : formatRleChunks(dialogueRleChunks, dialogueBlobBytes.length, `NPC dialogue glyph strips + portrait frames, packed 4bpp RLE, destination VRAM ${hexVram(dialogueVramBaseRow * ROW_BYTES)}`);
   const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
   const spriteTables = buildSpriteTables(playerSprite);
   const spriteSourceLabel = spriteTables.usedConfigured
@@ -5024,13 +8034,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       ]
     : [];
   // Jump/fall physics from the linked Player Config (movement.jumpPower / maxFallSpeed).
-  const playerPhysics = resolveBitmapPlayerPhysics(resolveBitmapRoomPlayer(analysis, room));
+  const playerPhysics = resolveBitmapPlayerPhysics(bitmapRoomPlayer);
   // Body collision box from the Player Config; defaults to the player sprite size so a
   // 16x32 sprite collides over its full height even without an explicit box.
-  const playerHitbox = getBitmapPlayerBodyHitbox(resolveBitmapRoomPlayer(analysis, room), playerSprite?.size);
+  const playerHitbox = getBitmapPlayerBodyHitbox(bitmapRoomPlayer, playerSprite?.size);
   // Vitals from the Player Config (health.maxHealth / lives / invulnerabilityFrames).
-  // Consumed by the Deadly-tile damage system (bitmap_check_deadly_contact).
-  const playerVitals = resolveBitmapPlayerVitals(resolveBitmapRoomPlayer(analysis, room));
+  // Consumed by the Deadly-tile damage system and playerEnergy-bound HUD widgets.
   // Deadly-tile damage system: EQUs, init, main-loop call and the runtime routine.
   const deadlySystem = buildBitmapDeadlySystemAsm(playerVitals, playerHitbox);
   // Hearts HUD: one heart per point of player_health, top-left of the HUD band.
@@ -5214,12 +8223,27 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const linkedHudRamBase = crouchRamBase + (crouchConfig.enabled ? MSX2_BITMAP_CROUCH_RAM_BYTES : 0);
   const HUD_LINKED_RAM_CEILING = 0xC1F0;
   let hudLinkedRamCursor = linkedHudRamBase;
+  const experienceElement = linkedHudDynamicSources
+    .map(source => source.element)
+    .find(element => element.binding === 'experience' && element.kind === 'bar');
+  const anyExperienceHud = linkedHudDynamicSources.some(source =>
+    source.element.binding === 'experience'
+    || source.element.binding === 'level'
+    || source.element.binding === 'skillPoints'
+  );
   const linkedHudRamAllocations = linkedHudDynamicSources.map(source => {
     const dirtyFlagAddress = hudLinkedRamCursor;
     const wide = source.kind === 'counter' && linkedCounterSpec(source.element).wide;
     const dirtyBytes = wide ? 2 : 1;
     hudLinkedRamCursor += dirtyBytes;
-    const needsOwnValue = !(source.element.binding === 'playerEnergy' || source.element.binding === 'lives' || source.element.binding === 'air');
+    const needsOwnValue = !(
+      source.element.binding === 'playerEnergy'
+      || source.element.binding === 'lives'
+      || source.element.binding === 'air'
+      || source.element.binding === 'experience'
+      || source.element.binding === 'level'
+      || source.element.binding === 'skillPoints'
+    );
     const valueBytes = needsOwnValue ? (wide ? 2 : 1) : 0;
     const valueAddress = valueBytes > 0 ? hudLinkedRamCursor : undefined;
     hudLinkedRamCursor += valueBytes;
@@ -5253,19 +8277,52 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
         ticking: airInitial > 0 && !airDisabled,
       })
     : null;
-  if (linkedHudDynamicSources.length && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many dynamic widgets: RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce the number of dynamic (iconRow/icon/counter/bar) widgets or disable the air timer.`);
+  const experienceAddress = anyExperienceHud ? hudLinkedRamCursor : undefined;
+  if (anyExperienceHud) hudLinkedRamCursor += 1;
+  const experienceMaxAddress = anyExperienceHud ? hudLinkedRamCursor : undefined;
+  if (anyExperienceHud) hudLinkedRamCursor += 1;
+  const levelAddress = anyExperienceHud ? hudLinkedRamCursor : undefined;
+  if (anyExperienceHud) hudLinkedRamCursor += 1;
+  const skillPointsAddress = anyExperienceHud ? hudLinkedRamCursor : undefined;
+  if (anyExperienceHud) hudLinkedRamCursor += 1;
+  const experienceSystem = anyExperienceHud
+    ? buildBitmapExperienceSystemAsm({
+        xpAddress: experienceAddress!,
+        xpMaxAddress: experienceMaxAddress!,
+        levelAddress: levelAddress!,
+        skillPointsAddress: skillPointsAddress!,
+        initialXp: clampByte(experienceElement?.initialValue, 0),
+        xpMax: Math.max(1, clampByte(experienceElement?.maxValue, 100)),
+        maxHealth: playerVitals.maxHealth,
+        reward: experienceElement?.xpReward,
+      })
+    : null;
+  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom);
+  hudLinkedRamCursor += keyDoorSystem.ramBytes;
+  const dialogueSystem = buildBitmapDialogueSystemAsm(
+    dialogueData,
+    rooms,
+    playerHitbox,
+    hudLinkedRamCursor,
+    dialogueVramBaseRow,
+    buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
+    keyDoorSystem.initialDrawCall,
+    isKonamiMegaRom
+  );
+  hudLinkedRamCursor += dialogueSystem.ramBytes;
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || dialogueSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/dialogue systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
     const ram = linkedHudRamAllocations[index];
     const bindingRamLabel = resolveHudElementBindingRamLabel(source.element, index);
     if (source.kind === 'bar') {
-      return buildBitmapHudLinkedBarAsm(source, ram, bindingRamLabel, index);
+      return buildBitmapHudLinkedBarAsm(source, ram, bindingRamLabel, index, playerVitals);
     }
     const tileData = tileDataBySourceIndex.get(index)!;
     return source.kind === 'iconRow'
-      ? buildBitmapHudLinkedIconRowAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index)
+      ? buildBitmapHudLinkedIconRowAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index, playerVitals)
       : buildBitmapHudLinkedCounterAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index);
   });
   const linkedHudSharedEquates = linkedHudDynamicSources.length
@@ -5276,10 +8333,11 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}`;
-  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${dialogueSystem.equates}`;
+  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${dialogueSystem.initAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}`;
+  const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
   const doubleJumpEquates = buildBitmapDoubleJumpEquates(playerPhysics);
@@ -5317,7 +8375,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, keyDoorSystem.pendingPageDrawCall);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -5328,16 +8386,27 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
       + `bitmap_room_foreground_ptr_table:\n${roomTables.map(t => `    DW bitmap_room_foreground_table_${t.index}`).join('\n')}\n`
     : '';
   // Per-room render-program + collision data and the dispatch tables for load_room.
-  const roomDataAsm = roomTables.map(table =>
-    `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
-    `${formatBytes(table.renderLabelPage1, table.renderBytesPage1, `Room ${table.index} page 1 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
-    `${formatBytes(table.collisionLabel, table.collisionBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}` +
-    `${formatBytes(table.behaviorLabel, table.behaviorBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} behavior grid (16x16 px cells), row-major, 0=empty, 3=ice_slide default`)}`
-  ).join('\n');
+  const roomDataAsm = isKonamiMegaRom
+    ? `; Per-room render programs, collision maps and behavior maps are emitted in Konami MegaROM data banks below.\n`
+    : roomTables.map(table =>
+      `${formatBytes(table.renderLabelPage0, table.renderBytesPage0, `Room ${table.index} page 0 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
+      `${formatBytes(table.renderLabelPage1, table.renderBytesPage1, `Room ${table.index} page 1 render program: ${table.blockCount} V9938 command blocks (clear + 16x16 tile copies)`)}` +
+      `${formatBytes(table.collisionLabel, table.collisionBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} collision grid (16x16 px cells), row-major, 0=empty`)}` +
+      `${formatBytes(table.behaviorLabel, table.behaviorBytes, `Room ${table.index} ${COLLISION_COLS}x${COLLISION_ROWS} behavior grid (16x16 px cells), row-major, 0=empty, 3=ice_slide default`)}`
+    ).join('\n');
   const roomRenderPtrTableAsm = `bitmap_room_render_ptr_table_p0:\n${roomTables.map(t => `    DW ${t.renderLabelPage0}`).join('\n')}\nbitmap_room_render_ptr_table_p1:\n${roomTables.map(t => `    DW ${t.renderLabelPage1}`).join('\n')}\n`;
+  const roomRenderBankTableAsm = isKonamiMegaRom
+    ? `${formatDbExpressions('bitmap_room_render_bank_table_p0', roomTables.map(t => `${t.renderLabelPage0}_DATA_BANK`), 'Konami data bank for each page 0 room render program')}${formatDbExpressions('bitmap_room_render_bank_table_p1', roomTables.map(t => `${t.renderLabelPage1}_DATA_BANK`), 'Konami data bank for each page 1 room render program')}`
+    : '';
   const roomBlockCountTableAsm = `bitmap_room_blockcount_table:\n${roomTables.map(t => `    DW ${t.blockCount}`).join('\n')}\n`;
   const roomCollisionPtrTableAsm = `bitmap_room_collision_ptr_table:\n${roomTables.map(t => `    DW ${t.collisionLabel}`).join('\n')}\n`;
+  const roomCollisionBankTableAsm = isKonamiMegaRom
+    ? formatDbExpressions('bitmap_room_collision_bank_table', roomTables.map(t => `${t.collisionLabel}_DATA_BANK`), 'Konami data bank for each room collision grid')
+    : '';
   const roomBehaviorPtrTableAsm = `bitmap_room_behavior_ptr_table:\n${roomTables.map(t => `    DW ${t.behaviorLabel}`).join('\n')}\n`;
+  const roomBehaviorBankTableAsm = isKonamiMegaRom
+    ? formatDbExpressions('bitmap_room_behavior_bank_table', roomTables.map(t => `${t.behaviorLabel}_DATA_BANK`), 'Konami data bank for each room behavior grid')
+    : '';
   const roomTransitionTableAsm = formatBytes('bitmap_room_transition_table', transitionTableBytes, 'Edge rails per room: west,east,north,south (#FF = none)');
   // Per-room player spawn coordinates (1 byte each). Indexed by current_screen_index
   // by bitmap_check_deadly_contact to respawn the player at the correct room's entry.
@@ -5356,6 +8425,9 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const playerColorsUpdateCall = (combinedFrameCount > 1 || hasStateAnimations)
     ? '    call bitmap_upload_player_frame_colors\n'
     : '';
+  // GameFlow intro ASM (empty strings when the flow has no presentation scenes,
+  // keeping the ROM byte-identical to legacy exports).
+  const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom);
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
   const hudWidgetCount = hudGloballyHidden
     ? 0
@@ -5381,6 +8453,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
 ; Bitmap room game band VRAM base: ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
 ; World rooms: ${rooms.length}; start room index: ${startIndex}
 ; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexVram(atlasVramBase)}
+; MSX2_GAMEFLOW_INTRO_SCENES: ${introScenes.length}
 ; ==================================================================
 
 CHGMOD  EQU #005F
@@ -5434,6 +8507,7 @@ bitmap_transition_dir             EQU #C0D3
 bitmap_composition_block_ptr      EQU #C0D4
 bitmap_composition_blocks_left    EQU #C0D6
 bitmap_pending_display_page       EQU #C0D8
+bitmap_composition_block_bank     EQU #C1F6
 ; Sub-pixel gravity accumulator (low byte of the 8.8 gravityStrength from the Player
 ; Config). Added to player_vy_frac every frame; player_vy only rises by 1 when this
 ; carries, so the fall/jump arc accelerates gradually like SCREEN 4 (default 0.25
@@ -5472,13 +8546,14 @@ init_rom:
     di
     ${isKonamiMegaRom ? 'call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks' : 'call init_plain32k_page2_slot'}
     call init_screen5_bitmap_vdp
-    call load_screen5_bitmap_palette
+${intro.initCallAsm}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-${shootBulletInitUpload}    ; Render the start room from the shared tileset already in VRAM.
+${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}    ; Render the start room from the shared tileset already in VRAM.
     ld a, ${startIndex}
     call load_room
+${keyDoorSystem.initialDrawCall}
 ${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
@@ -5521,12 +8596,12 @@ ${hasStateAnimations ? `    xor a
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
-${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
+${dialogueSystem.mainLoopGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}    call bitmap_update_sprite_sat
+${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}    call bitmap_update_sprite_sat
 ${shootBulletSatCall}    jp .main_loop
-
+${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
 ${airDashRuntime}
@@ -5546,9 +8621,11 @@ ${crouchRuntime}
 ${deadlySystem.routineAsm}
 ${heartsHud.routinesAsm}
 ${linkedHudRoutinesAsm}
+${dialogueSystem.routinesAsm}
+${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-bitmap_room_hud_seed_data:
+${intro.dataAsm}bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
 bitmap_room_hud_seed_data_end:
 
@@ -5566,11 +8643,16 @@ bitmap_room_hud_linked_data_end:
 
 ; World engine dispatch tables (indexed by room/screen index).
 ${roomRenderPtrTableAsm}
+${roomRenderBankTableAsm}
 ${roomBlockCountTableAsm}
 ${roomCollisionPtrTableAsm}
+${roomCollisionBankTableAsm}
 ${roomBehaviorPtrTableAsm}
+${roomBehaviorBankTableAsm}
 ${roomTransitionTableAsm}
 ${roomSpawnTableAsm}
+${keyDoorSystem.dataAsm}
+${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
 ; Per-room render programs, collision maps and behavior maps.
 ${roomDataAsm}
 ${foregroundDataAsm}

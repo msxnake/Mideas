@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom } from '../../types';
+import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, PaletteAsset, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
@@ -7,6 +7,7 @@ import { Button } from '../common/Button';
 import { GridToggleButton } from './GridToggleButton';
 import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 import { buildScreen5MatrixWorldViewLayout } from '../../utils/screen5WorldViewLayout';
+import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 
 const MSX2_SCREEN_WIDTH = 256;
 const MSX2_SCREEN_HEIGHT = 192;
@@ -16,6 +17,7 @@ interface WorldViewEditorProps {
   allScreenMaps: WorldViewScreen[];
   allTiles: Tile[];
   currentScreenMode: string;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
 }
 
 type WorldViewScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom;
@@ -120,7 +122,8 @@ const renderMsx2Screen4ToCanvas = (
 
 const renderMsx2BitmapRoomToCanvas = (
     canvas: HTMLCanvasElement,
-    room: Msx2Screen5BitmapRoom
+    room: Msx2Screen5BitmapRoom,
+    worldPaletteSlots?: Screen5PaletteSlot[]
 ) => {
     canvas.width = room.width || MSX2_SCREEN_WIDTH;
     canvas.height = room.height || MSX2_SCREEN_HEIGHT;
@@ -128,8 +131,9 @@ const renderMsx2BitmapRoomToCanvas = (
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
 
+    const slots = ensureScreen5PaletteSlots(worldPaletteSlots || room.palette).slots;
     const paletteColor = (index: number): string =>
-        room.palette?.find(slot => slot.slotIndex === index)?.hex || room.palette?.[index]?.hex || (index === 0 ? '#000000' : '#ffffff');
+        slots[index]?.hex || slots.find(slot => slot.slotIndex === index)?.hex || (index === 0 ? '#000000' : '#ffffff');
     const atlasPixels = room.atlas?.pixels || [];
     const atlasEntries = new Map((room.atlas?.entries || []).map(entry => [entry.id, entry]));
 
@@ -296,7 +300,8 @@ const renderWorldViewScreenToCanvas = (
     screen: WorldViewScreen,
     tileset: Tile[],
     currentScreenMode: string,
-    baseSliceDim: number
+    baseSliceDim: number,
+    worldPaletteSlots?: Screen5PaletteSlot[]
 ) => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
     if (isMsx2Screen4TileScreen(unwrapped)) {
@@ -304,7 +309,7 @@ const renderWorldViewScreenToCanvas = (
         return;
     }
     if (isMsx2Screen5BitmapRoom(unwrapped)) {
-        renderMsx2BitmapRoomToCanvas(canvas, unwrapped);
+        renderMsx2BitmapRoomToCanvas(canvas, unwrapped, worldPaletteSlots);
         return;
     }
 
@@ -317,7 +322,8 @@ const createWorldViewScreenDataURL = (
     screen: WorldViewScreen,
     tileset: Tile[],
     currentScreenMode: string,
-    baseSliceDim: number
+    baseSliceDim: number,
+    worldPaletteSlots?: Screen5PaletteSlot[]
 ): string => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
     if (isMsx2Screen4TileScreen(unwrapped)) {
@@ -328,7 +334,7 @@ const createWorldViewScreenDataURL = (
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    renderWorldViewScreenToCanvas(canvas, screen, tileset, currentScreenMode, baseSliceDim);
+    renderWorldViewScreenToCanvas(canvas, screen, tileset, currentScreenMode, baseSliceDim, worldPaletteSlots);
     return canvas.toDataURL();
 };
 
@@ -352,13 +358,14 @@ const ScreenCanvas: React.FC<{
     tileset: Tile[];
     currentScreenMode: string;
     baseSliceDim: number;
-}> = React.memo(({ screen, tileset, currentScreenMode, baseSliceDim }) => {
+    worldPaletteSlots?: Screen5PaletteSlot[];
+}> = React.memo(({ screen, tileset, currentScreenMode, baseSliceDim, worldPaletteSlots }) => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
     const { width, height } = getWorldViewScreenPixelSize(unwrapped, baseSliceDim);
     const debugInfo = getWorldViewScreenDebugInfo(unwrapped);
     const dataUrl = useMemo(
-        () => createWorldViewScreenDataURL(unwrapped, tileset, currentScreenMode, baseSliceDim),
-        [unwrapped, tileset, currentScreenMode, baseSliceDim]
+        () => createWorldViewScreenDataURL(unwrapped, tileset, currentScreenMode, baseSliceDim, worldPaletteSlots),
+        [unwrapped, tileset, currentScreenMode, baseSliceDim, worldPaletteSlots]
     );
 
     return (
@@ -384,7 +391,8 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
   allWorldMapGraphs,
   allScreenMaps,
   allTiles,
-  currentScreenMode
+  currentScreenMode,
+  paletteAssets = []
 }) => {
     const [selectedWorldMapId, setSelectedWorldMapId] = useState<string | null>(null);
     const [layoutMode, setLayoutMode] = useState<'legacyConnections' | 'screen5Matrix'>('legacyConnections');
@@ -417,6 +425,26 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
     const worldMapGraph = useMemo(() => {
         return allWorldMapGraphs.find(g => g.id === selectedWorldMapId);
     }, [allWorldMapGraphs, selectedWorldMapId]);
+
+    const worldPaletteSlots = useMemo(() => {
+        if (!worldMapGraph) return undefined;
+        const paletteAsset = worldMapGraph.paletteAssetId
+            ? paletteAssets.find(asset => asset.id === worldMapGraph.paletteAssetId)
+            : undefined;
+        const paletteData = paletteAsset?.data as PaletteAsset | undefined;
+        if (paletteData?.slots?.length) {
+            return ensureScreen5PaletteSlots(paletteData.slots).slots;
+        }
+        const startNode = worldMapGraph.nodes.find(node => node.id === worldMapGraph.startScreenNodeId) || worldMapGraph.nodes[0];
+        const startRoom = startNode
+            ? allScreenMaps.find(screen => unwrapWorldViewScreen(screen)?.id === startNode.screenAssetId)
+            : undefined;
+        const unwrappedStartRoom = unwrapWorldViewScreen(startRoom);
+        if (isMsx2Screen5BitmapRoom(unwrappedStartRoom)) {
+            return ensureScreen5PaletteSlots(unwrappedStartRoom.palette).slots;
+        }
+        return undefined;
+    }, [allScreenMaps, paletteAssets, worldMapGraph]);
 
     useEffect(() => {
         const element = containerRef.current;
@@ -714,6 +742,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                                     tileset={allTiles}
                                     currentScreenMode={currentScreenMode}
                                     baseSliceDim={EDITOR_BASE_TILE_DIM}
+                                    worldPaletteSlots={worldPaletteSlots}
                                 />
                             </div>
                         ))}

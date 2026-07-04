@@ -1,0 +1,127 @@
+{
+  "scope": "msx2_screen4_world_bank_manifest",
+  "mapper": "konami",
+  "bankSizeBytes": 8192,
+  "dataWindowAddress": "#8000",
+  "estimatedPhysicalBanks": [
+    {
+      "bankIndex": 0,
+      "windowAddress": "#8000",
+      "bankSizeBytes": 8192,
+      "warningThresholdBytes": 7372,
+      "usedBytes": 4905,
+      "freeBytes": 3287,
+      "usedPercent": 59.88,
+      "warning": false,
+      "overBudgetBytes": 0,
+      "status": "ok",
+      "packages": [
+        {
+          "id": "msx2screen.screen_platform_mymsxgame",
+          "usedBytes": 2304,
+          "recommendedBankClass": "world.screen"
+        },
+        {
+          "id": "msx2screen.msx2screen_1780415045987",
+          "usedBytes": 1616,
+          "recommendedBankClass": "world.screen"
+        },
+        {
+          "id": "worldmap.worldmap_1780415077651",
+          "usedBytes": 649,
+          "recommendedBankClass": "world.manifest"
+        },
+        {
+          "id": "msx2sprite.msx2sprite_1779969383977",
+          "usedBytes": 288,
+          "recommendedBankClass": "world.graphics.sprite"
+        },
+        {
+          "id": "msx2sprite.msx2sprite_1780501897203",
+          "usedBytes": 48,
+          "recommendedBankClass": "world.graphics.sprite"
+        }
+      ]
+    }
+  ],
+  "worlds": [
+    {
+      "worldId": "worldmap_1780415077651",
+      "estimatedBytes": 4905,
+      "estimated8kBanks": 1,
+      "packages": [
+        {
+          "packageId": "msx2screen.msx2screen_1780415045987",
+          "type": "msx2screen",
+          "sourceId": "msx2screen_1780415045987",
+          "logicalSection": "world screens",
+          "recommendedBankClass": "world.screen",
+          "physicalBankIndex": 0,
+          "windowAddress": "#8000",
+          "bankSizeBytes": 8192,
+          "rawBytes": 1616,
+          "storedBytes": 1616,
+          "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+          "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+        },
+        {
+          "packageId": "msx2screen.screen_platform_mymsxgame",
+          "type": "msx2screen",
+          "sourceId": "screen_platform_mymsxgame",
+          "logicalSection": "world screens",
+          "recommendedBankClass": "world.screen",
+          "physicalBankIndex": 0,
+          "windowAddress": "#8000",
+          "bankSizeBytes": 8192,
+          "rawBytes": 2304,
+          "storedBytes": 2304,
+          "decision": "MIXED_ROM_ZX0_CANDIDATE_TO_VRAM_AND_ROM_RAW",
+          "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+        },
+        {
+          "packageId": "msx2sprite.msx2sprite_1779969383977",
+          "type": "msx2sprite",
+          "sourceId": "msx2sprite_1779969383977",
+          "logicalSection": "world graphics",
+          "recommendedBankClass": "world.graphics.sprite",
+          "physicalBankIndex": 0,
+          "windowAddress": "#8000",
+          "bankSizeBytes": 8192,
+          "rawBytes": 288,
+          "storedBytes": 288,
+          "decision": "ROM_RAW_TO_VRAM",
+          "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+        },
+        {
+          "packageId": "msx2sprite.msx2sprite_1780501897203",
+          "type": "msx2sprite",
+          "sourceId": "msx2sprite_1780501897203",
+          "logicalSection": "world graphics",
+          "recommendedBankClass": "world.graphics.sprite",
+          "physicalBankIndex": 0,
+          "windowAddress": "#8000",
+          "bankSizeBytes": 8192,
+          "rawBytes": 48,
+          "storedBytes": 48,
+          "decision": "ROM_RAW_TO_VRAM",
+          "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+        },
+        {
+          "packageId": "worldmap.worldmap_1780415077651",
+          "type": "worldmap",
+          "sourceId": "worldmap_1780415077651",
+          "logicalSection": "world manifest",
+          "recommendedBankClass": "world.manifest",
+          "physicalBankIndex": 0,
+          "windowAddress": "#8000",
+          "bankSizeBytes": 8192,
+          "rawBytes": 649,
+          "storedBytes": 649,
+          "decision": "ROM_RAW",
+          "placementReason": "Estimated first-fit-decreasing placement before final compression and allocator pass."
+        }
+      ]
+    }
+  ],
+  "note": "Pre-allocator World Bank Pack manifest. Physical banks are estimates from logical_bank_budget.json and may change after compression."
+}

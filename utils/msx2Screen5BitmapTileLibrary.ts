@@ -1,4 +1,4 @@
-import { BitmapTileScreen5, PaletteAsset, ProjectAsset, Screen5PaletteSlot } from '../types';
+import { BitmapTileScreen5, BitmapTileStampScreen5, Msx2BitmapStampAsset, PaletteAsset, ProjectAsset, Screen5PaletteSlot } from '../types';
 import { ensureScreen5PaletteSlots } from './msx2PaletteUtils';
 
 const slugify = (value: string): string =>
@@ -107,4 +107,104 @@ export function bitmapTileScreen5ToAtlasTile(tile: BitmapTileScreen5): { id: str
     Array.from({ length: width }, (_col, x) => Math.max(0, Math.min(15, Math.trunc(Number(tile.pixelData[y * width + x]) || 0))))
   );
   return { id: tile.id, name: tile.name, width, height, pixels };
+}
+
+/** Composite a SCREEN 5 bitmap stamp (columns x rows of 16x16 tiles) into one
+ *  palette-slot pixel grid. Mirrors the HUD editor's local compositor so a stamp
+ *  metatile can be poured straight into a dialogue portrait frame. */
+export function bitmapStampToPixelGrid(stamp: BitmapTileStampScreen5): number[][] {
+  const columns = Math.max(1, Math.trunc(Number(stamp.columns) || 1));
+  const rows = Math.max(1, Math.trunc(Number(stamp.rows) || 1));
+  const tileWidth = Math.max(1, Math.trunc(Number(stamp.tileWidth) || 16));
+  const tileHeight = Math.max(1, Math.trunc(Number(stamp.tileHeight) || 16));
+  const width = columns * tileWidth;
+  const height = rows * tileHeight;
+  const pixels = Array.from({ length: height }, () => Array.from({ length: width }, () => 0));
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < columns; col++) {
+      const tile = stamp.tiles?.[row * columns + col];
+      if (!tile) continue;
+      const tilePixels = bitmapTileScreen5ToAtlasTile(tile).pixels;
+      for (let y = 0; y < tileHeight; y++) {
+        for (let x = 0; x < tileWidth; x++) {
+          pixels[row * tileHeight + y][col * tileWidth + x] = Math.max(0, Math.min(15, Math.trunc(Number(tilePixels[y]?.[x]) || 0)));
+        }
+      }
+    }
+  }
+  return pixels;
+}
+
+/** Build a SCREEN 5 bitmap stamp asset (metatile) from a palette-slot pixel grid
+ *  whose dimensions are multiples of 16. The grid is split into 16x16
+ *  BitmapTileScreen5 sub-tiles (each editable as a bitmap tile), wrapped in the
+ *  project `msx2bitmapstamp` asset shape used by the stamp library/HUD editor. */
+export function buildScreen5BitmapStampAsset(
+  params: {
+    name: string;
+    pixels: number[][];
+    paletteId: string;
+    palette: Screen5PaletteSlot[];
+    existingAssets: ProjectAsset[];
+    sourceType?: BitmapTileScreen5['sourceType'];
+  },
+): ProjectAsset {
+  const usedNames = new Set(params.existingAssets.map(asset => asset.name));
+  const base = (params.name || 'Head Metatile').trim() || 'Head Metatile';
+  let name = base;
+  let suffix = 2;
+  while (usedNames.has(name)) name = `${base} ${suffix++}`;
+  const height = params.pixels.length;
+  const width = params.pixels[0]?.length || 0;
+  const columns = Math.max(1, Math.round(width / 16));
+  const rows = Math.max(1, Math.round(height / 16));
+  const now = new Date().toISOString();
+  const sourceType = params.sourceType ?? 'manual-edit';
+  const slug = slugify(name);
+  const stampId = `bitmap_stamp_screen5_${slug}_${Date.now()}`;
+  const tiles: BitmapTileScreen5[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < columns; col++) {
+      const pixelData: number[] = [];
+      for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+          pixelData.push(Math.max(0, Math.min(15, Math.trunc(Number(params.pixels[row * 16 + y]?.[col * 16 + x]) || 0))));
+        }
+      }
+      tiles.push({
+        id: `${stampId}_tile_${row}_${col}`,
+        name: `${name} ${row}_${col}`,
+        mode: 'SCREEN5_BITMAP',
+        width: 16,
+        height: 16,
+        sourceType,
+        paletteId: params.paletteId,
+        pixelData,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+  const stamp: BitmapTileStampScreen5 = {
+    id: stampId,
+    name,
+    mode: 'SCREEN5_BITMAP_STAMP',
+    columns,
+    rows,
+    tileWidth: 16,
+    tileHeight: 16,
+    sourceType,
+    paletteId: params.paletteId,
+    tiles,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const data: Msx2BitmapStampAsset = {
+    id: stampId,
+    name,
+    savedAt: Date.now(),
+    stamp,
+    palette: cloneSlots(params.palette),
+  };
+  return { id: stampId, name, type: 'msx2bitmapstamp', data };
 }

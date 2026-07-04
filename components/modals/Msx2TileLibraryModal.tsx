@@ -178,6 +178,7 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
   const [entries, setEntries] = useState<Msx2TileLibraryEntry[]>([]);
   const [bitmapEntries, setBitmapEntries] = useState<Msx2BitmapTileLibraryEntry[]>([]);
   const [bitmapStampCount, setBitmapStampCount] = useState(0);
+  const [bitmapStampNames, setBitmapStampNames] = useState<string[]>([]);
   const [activeFolder, setActiveFolder] = useState<'screen4' | 'screen5'>('screen4');
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Partial<Record<Msx2Screen4TileBehaviorKind, boolean>>>({});
@@ -189,7 +190,9 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
     if (isOpen) {
       setEntries(loadMsx2TileLibrary());
       setBitmapEntries(loadMsx2BitmapTileLibrary());
-      setBitmapStampCount(loadMsx2BitmapStampLibrary().length);
+      const bitmapStamps = loadMsx2BitmapStampLibrary();
+      setBitmapStampCount(bitmapStamps.length);
+      setBitmapStampNames(bitmapStamps.map(entry => entry.name));
       setSearch('');
     }
   }, [isOpen]);
@@ -373,7 +376,9 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
         tiles.forEach(tile => addEntryToMsx2BitmapTileLibrary(makeBitmapTileFromScreen5Tile(tile, `library_palette_${Date.now()}`), palette, tile.name));
       }
       setBitmapEntries(loadMsx2BitmapTileLibrary());
-      setBitmapStampCount(loadMsx2BitmapStampLibrary().length);
+      const bitmapStamps = loadMsx2BitmapStampLibrary();
+      setBitmapStampCount(bitmapStamps.length);
+      setBitmapStampNames(bitmapStamps.map(entry => entry.name));
       setActiveFolder('screen5');
 
       // Project assets are only created when there is NO active SCREEN 5 room.
@@ -581,6 +586,11 @@ export const Msx2TileLibraryModal: React.FC<Msx2TileLibraryModalProps> = ({
           defaultOutputMode={activeTargetMode === 'screen5' ? 'screen5' : 'screen4'}
           destPalette={destPalette}
           paletteAssets={paletteAssets}
+          existingLibraryNames={[
+            ...entries.map(entry => entry.name),
+            ...bitmapEntries.map(entry => entry.name),
+            ...bitmapStampNames,
+          ]}
         />
       )}
 

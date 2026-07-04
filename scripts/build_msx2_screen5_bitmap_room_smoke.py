@@ -900,6 +900,29 @@ def inject_linked_hud_bar(project: dict[str, object]) -> None:
                     },
                 },
                 {
+                    "id": "hud_layer_hearts",
+                    "name": "Hearts",
+                    "kind": "widget",
+                    "visible": True,
+                    "locked": False,
+                    "element": {
+                        "id": "el_player_hearts",
+                        "kind": "iconRow",
+                        "x": 160,
+                        "y": 2,
+                        "width": 96,
+                        "height": 16,
+                        "binding": "playerEnergy",
+                        "maxValue": 16,
+                        "initialValue": 12,
+                        "format": {"base": "dec", "zeroPad": False},
+                        "colors": {"primary": 8, "empty": 0, "border": 15},
+                        "align": {"h": "left", "v": "top"},
+                        "visible": True,
+                        "blink": "off",
+                    },
+                },
+                {
                     "id": "hud_layer_wide",
                     "name": "Score Wide",
                     "kind": "widget",
@@ -1005,10 +1028,17 @@ def main() -> int:
     if args.include_linked_hud_bar:
         for marker in (
             "Dynamic bar meter for linked HUD element",
+            "Generalized icon-row",
+            "fillW = clamp(value,0,5) * 80 / 5",
+            "redraws 5",
+            "bitmap_restore_hud_separator",
+            "A 256x1 color-15 separator is restored on BOTH page 0 and page 1",
             "hud_linked_launch_cmd",
-            "update_hud_linked_0",   # bar = instance 0 (HMMV, no tile)
-            "update_hud_linked_1",   # narrow 8-bit counter = instance 1 (tile-based, dec3)
-            "update_hud_linked_2",   # wide 16-bit counter = instance 2 (tile-based, dec5)
+            "update_hud_linked_0",   # air counter = back-most layer after back-to-front ordering
+            "update_hud_linked_1",   # wide 16-bit counter
+            "update_hud_linked_2",   # iconRow playerEnergy, still maxHealth slots
+            "update_hud_linked_3",   # narrow 8-bit counter
+            "update_hud_linked_4",   # bar = front-most layer, drawn last before separator
             "hud_word_to_dec5",      # 16-bit decimal conversion routine
             "hud_dec5_buffer EQU",   # shared 5-byte dec buffer
             "update_air_timer",      # G3: air/time countdown routine
@@ -1016,10 +1046,25 @@ def main() -> int:
         ):
             if marker not in asm_text:
                 raise RuntimeError(f"Linked HUD bar marker missing in ASM: {marker}")
+        expected_order = [
+            "call update_hud_linked_0",
+            "call update_hud_linked_1",
+            "call update_hud_linked_2",
+            "call update_hud_linked_3",
+            "call update_hud_linked_4",
+        ]
+        cursor = -1
+        for marker in expected_order:
+            pos = asm_text.find(marker, cursor + 1)
+            if pos < 0:
+                raise RuntimeError(f"Linked HUD runtime draw order missing marker after {cursor}: {marker}")
+            cursor = pos
+        if "Force linked HUD dynamic widgets to redraw on the newly displayed page" in asm_text:
+            raise RuntimeError("Linked HUD must not invalidate/redraw on room page flip; widgets are mirrored to both pages on value changes.")
         for forbidden in (
-            "update_hud_hearts:",
-            "upload_hud_hearts:",
-            "hud_hearts_drawn EQU",
+            "\nupdate_hud_hearts:",
+            "\nupload_hud_hearts:",
+            "\nhud_hearts_drawn EQU",
             "bitmap_room_hud_heart_rle_chunk",
         ):
             if forbidden in asm_text:

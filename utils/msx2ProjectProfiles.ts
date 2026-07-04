@@ -32,6 +32,7 @@ const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'msx2sprite',
   'msx2bitmaptile',
   'msx2bitmapstamp',
+  'msx2bitmapterrain',
   'msx2player',
   'msx2enemy',
   'msx2presentation',
@@ -53,6 +54,7 @@ const MSX2_TILE_SCREEN_ASSET_TYPES: ProjectAsset['type'][] = [
 const MSX2_BITMAP_ROOM_ASSET_TYPES: ProjectAsset['type'][] = [
   ...MSX2_SHARED_ASSET_TYPES,
   'msx2bitmaproom',
+  'msx2dialogue',
 ];
 
 const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'version'>> = {
@@ -238,6 +240,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'pickup_item',
         'door',
         'checkpoint',
+        'npc',
         'hazard',
         'spike_trap',
         'player_bullet',
@@ -253,6 +256,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'pickupItem',
         'door',
         'checkpoint',
+        'npc',
         'hazard',
         'spike',
       ],
