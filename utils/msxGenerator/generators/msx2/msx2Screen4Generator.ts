@@ -5030,28 +5030,32 @@ ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_x)
-    add a, 8
     ld c, a
-    ld a, c
-    cp b
-    jp c, .enemy_no_slot_${slot}
     ld a, b
-    add a, 15
+    add a, 16
     cp c
     jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
+    ld a, c
+    add a, 16
+    cp b
+    jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
 ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_y)
-    add a, 8
     ld c, a
-    ld a, c
-    cp b
-    jp c, .enemy_no_slot_${slot}
     ld a, b
-    add a, 15
+    add a, 16
     cp c
     jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
+    ld a, c
+    add a, 16
+    cp b
+    jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
     jp .enemy_damage
 .enemy_no_slot_${slot}:
 `;

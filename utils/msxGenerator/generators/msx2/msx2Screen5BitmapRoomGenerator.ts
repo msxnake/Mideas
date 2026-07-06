@@ -2,7 +2,8 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowGraph, Msx2Game
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -147,7 +148,22 @@ import {
   getFirstReferencedMsx2Sprite,
   getMsx2PlayerAssetRecords,
   resolveMsx2SpriteById,
+  type Msx2HardwareLayer,
 } from './msx2Screen4Generator';
+import {
+  BITMAP_MAX_ENEMY_FRAMES,
+  BITMAP_MAX_ENEMY_SLOTS,
+  BitmapEnemyRoomData,
+  buildBitmapEnemySystemAsm,
+} from './msx2BitmapEnemyGenerator';
+import {
+  getMsx2EnemyHazardRuntimeSlots,
+  MSX2_ENEMY_MOVEMENT_PATROL,
+  MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X,
+  MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY,
+  type Msx2EnemyHazardRuntimeSlot,
+} from './msx2EntityRuntimeGenerator';
+import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 
 interface Msx2BitmapRoomConfig {
   screenMode: 'SCREEN 4 (Graphics II)';
@@ -874,12 +890,26 @@ function packAtlasPixels(room: Msx2Screen5BitmapRoom): number[] {
   return packBitmapPixels(rows);
 }
 
-function extractAtlasEntryPixels(room: Msx2Screen5BitmapRoom, entry: { sx: number; sy: number; w: number; h: number }): number[][] {
+function extractAtlasEntryPixels(
+  room: Msx2Screen5BitmapRoom,
+  entry: { sx: number; sy: number; w: number; h: number },
+  options: { maxWidth?: number; maxHeight?: number } = {},
+): number[][] {
   const pixels = normalizeAtlasPixels(room);
-  const width = Math.max(1, Math.min(TILE_GRID_SIZE, Math.trunc(Number(entry.w) || TILE_GRID_SIZE)));
-  const height = Math.max(1, Math.min(TILE_GRID_SIZE, Math.trunc(Number(entry.h) || TILE_GRID_SIZE)));
   const sx = clampInt(entry.sx, 0, Math.max(0, room.atlas.width - 1), 0);
   const sy = clampInt(entry.sy, 0, Math.max(0, room.atlas.height - 1), 0);
+  const maxWidth = Math.max(1, Math.trunc(Number(options.maxWidth) || room.atlas.width));
+  const maxHeight = Math.max(1, Math.trunc(Number(options.maxHeight) || room.atlas.height));
+  const width = Math.max(1, Math.min(
+    maxWidth,
+    Math.max(1, room.atlas.width - sx),
+    Math.trunc(Number(entry.w) || TILE_GRID_SIZE),
+  ));
+  const height = Math.max(1, Math.min(
+    maxHeight,
+    Math.max(1, room.atlas.height - sy),
+    Math.trunc(Number(entry.h) || TILE_GRID_SIZE),
+  ));
   return Array.from({ length: height }, (_row, y) =>
     Array.from({ length: width }, (_col, x) => pixels[sy + y]?.[sx + x] ?? 0)
   );
@@ -1781,6 +1811,8 @@ function buildRuntimeAsm(
   enableBlink: boolean = false,
   enableKeyDoorTransitions: boolean = false,
   doorVisualPendingPageCallAsm: string = '',
+  doorSolidProbeCallAsm: string = '',
+  roomCommitExtraAsm: string = '',
 ): string {
   // When foreground tiles exist, the player SAT/colour tables move past the
   // foreground slots so the player renders behind them. With no foreground these
@@ -3106,9 +3138,11 @@ ${options.bankedRle ? `    call bitmap_room_restore_resident_banks
 ;
 ; SIDE EFFECTS:
 ;   Copies the target collision/behavior grids to RAM, flips VDP R#2, restores R#15=0,
-;   clears bitmap_composition_state, and resets vertical player velocity. HUD dirty
-;   flags are NOT invalidated: dynamic HUD widgets are mirrored to both pages when
-;   their values change, so transitions only rewrite the game band.
+;   and clears bitmap_composition_state. North transitions preserve vertical
+;   jump velocity so the player can keep rising into the room above; other
+;   transitions reset vertical velocity. HUD dirty flags are NOT invalidated:
+;   dynamic HUD widgets are mirrored to both pages when their values change, so
+;   transitions only rewrite the game band.
 ;
 ; NOTES:
 ;   R#2 values are SCREEN 5 page bases: #1F for page 0, #3F for page 1.
@@ -3166,9 +3200,6 @@ ${options.bankedRle ? `    push hl
     ldir
 ${options.bankedRle ? `    call bitmap_room_restore_resident_banks
 ` : ''}
-    xor a
-    ld (player_vy), a
-    ld (player_vy_frac), a
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
@@ -3182,22 +3213,37 @@ ${options.bankedRle ? `    call bitmap_room_restore_resident_banks
 ${enableKeyDoorTransitions ? `    cp 4
     jp z, .commit_enter_key_door
 ` : ''}.commit_enter_top:
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
     ld a, 2
     ld (player_y), a
     jp .commit_flip_page
 .commit_enter_bottom:
+    ; Keep player_vy/player_vy_frac from the jump that crossed the north edge:
+    ; otherwise the player appears at the bottom of the upper room with the jump
+    ; cancelled and immediately falls back through the south rail.
     ld a, ${bottomEntryY}
     ld (player_y), a
     jp .commit_flip_page
 .commit_enter_right:
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
     ld a, 238
     ld (player_x), a
     jp .commit_flip_page
 .commit_enter_left:
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
     ld a, 2
     ld (player_x), a
 ${enableKeyDoorTransitions ? `    jp .commit_flip_page
 .commit_enter_key_door:
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
     ld a, (bitmap_key_pending_entry_y)
     ld (player_y), a
     ld a, (bitmap_key_pending_entry_x)
@@ -3222,7 +3268,7 @@ ${doorVisualPendingPageCallAsm}
     ld (bitmap_composition_state), a
     ld (bitmap_composition_blocks_left), a
     ld (bitmap_composition_blocks_left + 1), a
-${foreground ? foreground.loadCallAsm : ''}    scf
+${foreground ? foreground.loadCallAsm : ''}${roomCommitExtraAsm}    scf
     ret
 
 init_hardware_sprite_tables:
@@ -3394,8 +3440,12 @@ ${skillHooks.landClearAsm || ''}
 .movement_done:
     ; North/South edge: walk (or fall) into a vertical neighbour room if one exists.
     ld a, (player_y)
+    cp 192
+    jp nc, .check_north_edge
+    ld a, (player_y)
     cp 2
     jp nc, .check_south_edge
+.check_north_edge:
     ld a, 2                 ; direction north
     call start_room_transition
     ret
@@ -3416,7 +3466,11 @@ bitmap_try_move_x:
     ; (every <=16px so a tall body cannot tunnel a cell). Large ice-slide dx is
     ; clamped at the room edges before probing so unsigned player_x never wraps
     ; from x=2 to x=250 (or past the east edge) during room transitions.
-    ; Clobbers AF/BC/DE/HL.
+    ; While player_y is wrapped above the top edge (#FF..#C0, jumping over the
+    ; HUD with no north rail) probe rows that fall outside the visible band are
+    ; skipped so the arc can travel horizontally; rows that wrap back into the
+    ; visible band still block, and the bottom-edge guard (player_y < 192 with
+    ; an offscreen probe row) keeps returning solid. Clobbers AF/BC/DE/HL.
     ld b, a
     ld a, (player_x)
     bit 7, b
@@ -3444,10 +3498,17 @@ ${addAImmediate(hbRight)}    jp .x_have_edge
 .x_left_edge:
 ${addAImmediate(hbLeft)}.x_have_edge:
     ld b, a                 ; B = probe X (hitbox leading edge; preserved by probe_solid)
-${probeRowOffsets.map(row => `    ld a, (player_y)
+${probeRowOffsets.map((row, index) => `    ld a, (player_y)
 ${addAImmediate(row)}    ld c, a                 ; C = probe Y (+${row})
+    cp 192
+    jp c, .x_probe_${index}_visible
+    ld a, (player_y)
+    cp 192
+    jp nc, .x_probe_${index}_skip   ; player wrapped above the top edge: offscreen row passes
+.x_probe_${index}_visible:
     call bitmap_probe_solid
     jp nz, .x_blocked
+.x_probe_${index}_skip:
 `).join('')}    pop af                  ; A = candidate X
     ld (player_x), a
     ret
@@ -3459,6 +3520,11 @@ bitmap_try_move_y:
     ; A = signed single-pixel dy (#01 down, #FF up). Commits player_y when the
     ; leading edge of the configured body collision box is not solid. Carry set on
     ; blocked. Probes X cols ${probeColOffsets.join('/')}. Clobbers AF/BC/DE/HL.
+    ; Up moves at the top edge are allowed to wrap into #FF..#C0: that represents
+    ; a logical negative Y so jumps can leave the screen above the HUD when there
+    ; is no north rail. Probes whose Y is outside the visible band are skipped
+    ; only while the candidate itself is in that top-offscreen range; bottom-edge
+    ; probes still block through bitmap_probe_solid.
     ld b, a
     ld a, (player_y)
     add a, b                ; A = candidate Y (sprite top-left)
@@ -3469,10 +3535,19 @@ ${addAImmediate(hbBottom)}    jp .y_have_edge
 .y_up_edge:
 ${addAImmediate(hbTop)}.y_have_edge:
     ld c, a                 ; C = probe Y (hitbox leading edge; preserved by probe_solid)
-${probeColOffsets.map(col => `    ld a, (player_x)
+${probeColOffsets.map((col, index) => `    ld a, c
+    cp 192
+    jp c, .y_probe_${index}_visible
+    pop af
+    push af
+    cp 192
+    jp nc, .y_probe_${index}_skip
+.y_probe_${index}_visible:
+    ld a, (player_x)
 ${addAImmediate(col)}    ld b, a                 ; B = probe X (+${col})
     call bitmap_probe_solid
     jp nz, .y_blocked
+.y_probe_${index}_skip:
 `).join('')}    pop af                  ; A = candidate Y
     ld (player_y), a
     or a                    ; clear carry
@@ -3513,7 +3588,13 @@ bitmap_probe_solid:
     ld a, (hl)              ; A = cell value (returned intact to honour the contract)
     ld e, a                 ; E = copy of cell value
     and #BF                 ; mask out Deadly bit (#BF = ~#40); Z when empty or deadly-only
-    ld a, e                 ; restore A = original cell value
+    jp nz, .probe_return_map_solid
+${doorSolidProbeCallAsm}    ld a, e                 ; restore A = original cell value
+    cp e                    ; keep Z set: empty/deadly-only map cells are passable
+    ret
+.probe_return_map_solid:
+    ld a, e                 ; restore A = original solid cell value
+    or a
     ret
 
 bitmap_probe_deadly:
@@ -3644,6 +3725,13 @@ ${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invul
 ` : ''}${playerAnimation.spriteOffsets.map((offset, slotIndex) => {
   const yWriteNormal = `    ld a, (player_y)
     add a, ${BITMAP_ROOM_GAME_Y_OFFSET}${offset.y ? `\n    add a, ${offset.y}                   ; cell row +${offset.y}px` : ''}
+    ; Natural 8-bit wrap: player_y in #C0..#FF (above the top edge) lands this
+    ; layer over the HUD band or partially clipped by the display top, so the
+    ; jump arc stays visible over the HUD instead of pinning below it.
+    cp #D8                         ; V9938 SAT terminator Y would hide this and later layers
+    jp nz, .slot_${slotIndex}_y_safe
+    inc a                          ; nudge 1px: 216->217 stays offscreen but keeps the SAT alive
+.slot_${slotIndex}_y_safe:
     out (${VDP_DATA_PORT}), a`;
   const yWriteHidden = `    ld a, #D8
     out (${VDP_DATA_PORT}), a`;
@@ -3656,9 +3744,9 @@ ${slotIndex ? `    add a, ${slotIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
   if (enableBlink) {
     return `    ld a, (blink_hide)
     or a
-    jr nz, .slot_${slotIndex}_hide_y
+    jp nz, .slot_${slotIndex}_hide_y
 ${yWriteNormal}
-    jr .slot_${slotIndex}_after_y
+    jp .slot_${slotIndex}_after_y
 .slot_${slotIndex}_hide_y:
 ${yWriteHidden}
 .slot_${slotIndex}_after_y:
@@ -4036,6 +4124,8 @@ interface BitmapKeyDoorRecord {
   roomIndex: number;
   x: number;
   y: number;
+  w: number;
+  h: number;
   requiredMask: number;
   targetRoomIndex: number;
   targetX: number;
@@ -4052,10 +4142,30 @@ interface BitmapDoorVisualRecord {
   openCommand: number[];
 }
 
+interface BitmapPressureButtonRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  targetOpenOffset: number;
+  flags: number;
+}
+
+interface BitmapPressureButtonVisualRecord {
+  roomIndex: number;
+  targetOpenOffset: number;
+  flags: number;
+  releasedCommand: number[];
+  pressedCommand: number[];
+}
+
 const KEY_DOOR_FLAG_CONSUME = 0x01;
 const KEY_DOOR_FLAG_OPEN_ONCE = 0x02;
+const KEY_DOOR_FLAG_NO_TRANSITION = 0x04;
 const KEY_DOOR_VISUAL_CLOSED = 0x01;
 const KEY_DOOR_VISUAL_OPEN = 0x02;
+const PRESSURE_BUTTON_ACTOR_PLAYER = 0x01;
+const PRESSURE_BUTTON_ACTOR_ENEMY = 0x02;
+const PRESSURE_BUTTON_LATCH = 0x80;
 
 function normalizeDoorConfig(value: unknown): {
   enabled: boolean;
@@ -4077,6 +4187,26 @@ function normalizeDoorConfig(value: unknown): {
     targetEntryId: typeof raw.targetEntryId === 'string' ? raw.targetEntryId : '',
     closedAtlasEntryId: typeof raw.closedAtlasEntryId === 'string' ? raw.closedAtlasEntryId : '',
     openAtlasEntryId: typeof raw.openAtlasEntryId === 'string' ? raw.openAtlasEntryId : '',
+  };
+}
+
+function normalizePressureButtonConfig(value: unknown): {
+  enabled: boolean;
+  targetDoorId: string;
+  actors: 'player' | 'enemies' | 'playerAndEnemies';
+  latch: boolean;
+  atlasEntryId: string;
+  pressedAtlasEntryId: string;
+} {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const actors = raw.actors === 'player' || raw.actors === 'enemies' ? raw.actors : 'playerAndEnemies';
+  return {
+    enabled: raw.enabled !== false,
+    targetDoorId: typeof raw.targetDoorId === 'string' ? raw.targetDoorId : '',
+    actors,
+    latch: Boolean(raw.latch),
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    pressedAtlasEntryId: typeof raw.pressedAtlasEntryId === 'string' ? raw.pressedAtlasEntryId : '',
   };
 }
 
@@ -4118,6 +4248,8 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   pickups: BitmapKeyPickupRecord[];
   doors: BitmapKeyDoorRecord[];
   visuals: BitmapDoorVisualRecord[];
+  pressureButtons: BitmapPressureButtonRecord[];
+  pressureButtonVisuals: BitmapPressureButtonVisualRecord[];
 } {
   const keyBits = new Map<string, number>();
   for (const room of rooms) {
@@ -4130,6 +4262,7 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   const pickups: BitmapKeyPickupRecord[] = [];
   const doors: BitmapKeyDoorRecord[] = [];
   const visuals: BitmapDoorVisualRecord[] = [];
+  const doorOpenOffsetByEntityId = new Map<string, number>();
   for (const [roomIndex, room] of rooms.entries()) {
     for (const entity of room.entities || []) {
       const x = clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff;
@@ -4143,16 +4276,26 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
       }
       if (entity.kind !== 'door') continue;
       const door = normalizeDoorConfig(entity.params?.lockedDoor);
-      if (!door.enabled || !door.targetRoomId) continue;
-      const targetRoomIndex = roomIndexById.get(door.targetRoomId);
-      if (targetRoomIndex === undefined) continue;
+      if (!door.enabled) continue;
+      const targetRoomIndex = door.targetRoomId ? roomIndexById.get(door.targetRoomId) : undefined;
+      const hasTransitionTarget = targetRoomIndex !== undefined;
       const requiredBit = keyBits.get(door.requiredKeyId);
       const requiredMask = requiredBit === undefined ? 0 : (1 << requiredBit);
-      const targetEntry = resolveDoorTargetEntry(rooms[targetRoomIndex], door.targetEntryId);
-      const flags = (door.consumeKey ? KEY_DOOR_FLAG_CONSUME : 0) | (door.openOnce ? KEY_DOOR_FLAG_OPEN_ONCE : 0);
+      const targetEntry = hasTransitionTarget
+        ? resolveDoorTargetEntry(rooms[targetRoomIndex], door.targetEntryId)
+        : { x, y };
+      const flags = (door.consumeKey ? KEY_DOOR_FLAG_CONSUME : 0)
+        | (door.openOnce ? KEY_DOOR_FLAG_OPEN_ONCE : 0)
+        | (hasTransitionTarget ? 0 : KEY_DOOR_FLAG_NO_TRANSITION);
       const openOffset = doors.length;
+      if (entity.id) doorOpenOffsetByEntityId.set(entity.id, openOffset);
       const closedCommand = buildDoorVisualCommand(room, door.closedAtlasEntryId, x, y);
       const openCommand = buildDoorVisualCommand(room, door.openAtlasEntryId, x, y);
+      const closedEntry = door.closedAtlasEntryId ? (room.atlas?.entries || []).find(item => item.id === door.closedAtlasEntryId) : undefined;
+      const openEntry = door.openAtlasEntryId ? (room.atlas?.entries || []).find(item => item.id === door.openAtlasEntryId) : undefined;
+      const visualEntry = closedEntry || openEntry;
+      const w = clampInt(visualEntry?.w, 1, 255, TILE_GRID_SIZE);
+      const h = clampInt(visualEntry?.h, 1, 192, TILE_GRID_SIZE);
       if (closedCommand || openCommand) {
         visuals.push({
           roomIndex,
@@ -4166,8 +4309,10 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
         roomIndex,
         x,
         y,
+        w,
+        h,
         requiredMask,
-        targetRoomIndex,
+        targetRoomIndex: hasTransitionTarget ? targetRoomIndex : roomIndex,
         targetX: targetEntry.x,
         targetY: targetEntry.y,
         flags,
@@ -4175,7 +4320,49 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
       });
     }
   }
-  return { pickups, doors, visuals };
+  const pressureButtons: BitmapPressureButtonRecord[] = [];
+  const pressureButtonVisuals: BitmapPressureButtonVisualRecord[] = [];
+  for (const [roomIndex, room] of rooms.entries()) {
+    for (const entity of room.entities || []) {
+      const pressure = normalizePressureButtonConfig(entity.params?.pressureButton || entity.components?.msx2_pressure_button);
+      if (!pressure.enabled || !pressure.targetDoorId) continue;
+      const targetOpenOffset = doorOpenOffsetByEntityId.get(pressure.targetDoorId);
+      if (targetOpenOffset === undefined) continue;
+      let flags = pressure.latch ? PRESSURE_BUTTON_LATCH : 0;
+      if (pressure.actors === 'player' || pressure.actors === 'playerAndEnemies') flags |= PRESSURE_BUTTON_ACTOR_PLAYER;
+      if (pressure.actors === 'enemies' || pressure.actors === 'playerAndEnemies') flags |= PRESSURE_BUTTON_ACTOR_ENEMY;
+      if ((flags & (PRESSURE_BUTTON_ACTOR_PLAYER | PRESSURE_BUTTON_ACTOR_ENEMY)) === 0) continue;
+      pressureButtons.push({
+        roomIndex,
+        x: clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+        y: clampByte((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+        targetOpenOffset,
+        flags,
+      });
+      const releasedCommand = buildDoorVisualCommand(
+        room,
+        pressure.atlasEntryId,
+        clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+        clampByte((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+      );
+      const pressedCommand = buildDoorVisualCommand(
+        room,
+        pressure.pressedAtlasEntryId,
+        clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+        clampByte((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0) & 0xff,
+      );
+      if (releasedCommand || pressedCommand) {
+        pressureButtonVisuals.push({
+          roomIndex,
+          targetOpenOffset,
+          flags: (releasedCommand ? KEY_DOOR_VISUAL_CLOSED : 0) | (pressedCommand ? KEY_DOOR_VISUAL_OPEN : 0),
+          releasedCommand: releasedCommand || pressedCommand || new Array(15).fill(0),
+          pressedCommand: pressedCommand || releasedCommand || new Array(15).fill(0),
+        });
+      }
+    }
+  }
+  return { pickups, doors, visuals, pressureButtons, pressureButtonVisuals };
 }
 
 function buildBitmapKeyDoorSystemAsm(
@@ -4183,20 +4370,23 @@ function buildBitmapKeyDoorSystemAsm(
   hitbox: BitmapPlayerHitbox,
   ramBase: number,
   bankedRoomData: boolean,
+  enemySlots: number = 0,
 ): {
   enabled: boolean;
   ramBytes: number;
   equates: string;
   initAsm: string;
   mainLoopCall: string;
+  pressureButtonCall: string;
   initialDrawCall: string;
   pendingPageDrawCall: string;
+  solidProbeCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
 } {
-  const { pickups, doors, visuals } = collectBitmapKeyDoorRecords(rooms);
+  const { pickups, doors, visuals, pressureButtons, pressureButtonVisuals } = collectBitmapKeyDoorRecords(rooms);
   if (pickups.length === 0 && doors.length === 0) {
-    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', pressureButtonCall: '', initialDrawCall: '', pendingPageDrawCall: '', solidProbeCallAsm: '', routinesAsm: '', dataAsm: '' };
   }
 
   const inventoryAddress = ramBase;
@@ -4205,9 +4395,11 @@ function buildBitmapKeyDoorSystemAsm(
   const workMaskAddress = ramBase + 3;
   const workOffsetAddress = ramBase + 4;
   const targetPageAddress = ramBase + 5;
-  const pickupFlagsAddress = ramBase + 6;
+  const probeXAddress = ramBase + 6;
+  const probeYAddress = ramBase + 7;
+  const pickupFlagsAddress = ramBase + 8;
   const doorOpenFlagsAddress = pickupFlagsAddress + pickups.length;
-  const ramBytes = 6 + pickups.length + doors.length;
+  const ramBytes = 8 + pickups.length + doors.length;
   const hbLeft = hitbox.x;
   const hbRight = hitbox.x + hitbox.w - 1;
   const hbTop = hitbox.y;
@@ -4217,22 +4409,38 @@ function buildBitmapKeyDoorSystemAsm(
   const pickupTables = rooms.map((_room, roomIndex) => pickups.filter(item => item.roomIndex === roomIndex));
   const doorTables = rooms.map((_room, roomIndex) => doors.filter(item => item.roomIndex === roomIndex));
   const visualTables = rooms.map((_room, roomIndex) => visuals.filter(item => item.roomIndex === roomIndex));
+  const pressureButtonTables = rooms.map((_room, roomIndex) => pressureButtons.filter(item => item.roomIndex === roomIndex));
+  const pressureButtonVisualTables = rooms.map((_room, roomIndex) => pressureButtonVisuals.filter(item => item.roomIndex === roomIndex));
   const pickupDataAsm = pickupTables.map((items, roomIndex) =>
     formatBytes(`bitmap_key_pickups_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.keyMask, item.flagOffset]), `Room ${roomIndex} key pickup records: x,y,keyMask,pickupFlagOffset`)
   ).join('');
   const doorDataAsm = doorTables.map((items, roomIndex) =>
-    formatBytes(`bitmap_key_doors_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.requiredMask, item.targetRoomIndex, item.targetX, item.targetY, item.flags, item.openOffset]), `Room ${roomIndex} locked door records: x,y,requiredMask,targetRoom,targetX,targetY,flags,doorOpenOffset`)
+    formatBytes(`bitmap_key_doors_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.w, item.h, item.requiredMask, item.targetRoomIndex, item.targetX, item.targetY, item.flags, item.openOffset]), `Room ${roomIndex} locked door records: x,y,w,h,requiredMask,targetRoom,targetX,targetY,flags,doorOpenOffset`)
   ).join('');
   const visualDataAsm = visualTables.map((items, roomIndex) =>
     formatBytes(`bitmap_key_door_visuals_room_${roomIndex}`, items.flatMap(item => [item.openOffset, item.flags, ...item.closedCommand, ...item.openCommand]), `Room ${roomIndex} door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)`)
   ).join('');
-  const dataAsm = `${pickupDataAsm}${doorDataAsm}${visualDataAsm}` +
+  const pressureButtonDataAsm = pressureButtonTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_pressure_buttons_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.targetOpenOffset, item.flags]), `Room ${roomIndex} pressure button records: x,y,targetDoorOpenOffset,flags`)
+  ).join('');
+  const pressureButtonVisualDataAsm = pressureButtonVisualTables.map((items, roomIndex) =>
+    formatBytes(
+      `bitmap_pressure_button_visuals_room_${roomIndex}`,
+      items.flatMap(item => [item.targetOpenOffset, item.flags, ...item.releasedCommand, ...item.pressedCommand]),
+      `Room ${roomIndex} pressure button visual records: targetDoorOpenOffset,flags,releasedHMMM(15),pressedHMMM(15)`,
+    )
+  ).join('');
+  const dataAsm = `${pickupDataAsm}${doorDataAsm}${visualDataAsm}${pressureButtonDataAsm}${pressureButtonVisualDataAsm}` +
     `bitmap_key_pickup_ptr_table:\n${pickupTables.map((_items, i) => `    DW bitmap_key_pickups_room_${i}`).join('\n')}\n` +
     `bitmap_key_pickup_count_table:\n    DB ${pickupTables.map(items => items.length).join(',')}\n` +
     `bitmap_key_door_ptr_table:\n${doorTables.map((_items, i) => `    DW bitmap_key_doors_room_${i}`).join('\n')}\n` +
     `bitmap_key_door_count_table:\n    DB ${doorTables.map(items => items.length).join(',')}\n` +
     `bitmap_key_door_visual_ptr_table:\n${visualTables.map((_items, i) => `    DW bitmap_key_door_visuals_room_${i}`).join('\n')}\n` +
-    `bitmap_key_door_visual_count_table:\n    DB ${visualTables.map(items => items.length).join(',')}\n`;
+    `bitmap_key_door_visual_count_table:\n    DB ${visualTables.map(items => items.length).join(',')}\n` +
+    `bitmap_pressure_button_ptr_table:\n${pressureButtonTables.map((_items, i) => `    DW bitmap_pressure_buttons_room_${i}`).join('\n')}\n` +
+    `bitmap_pressure_button_count_table:\n    DB ${pressureButtonTables.map(items => items.length).join(',')}\n` +
+    `bitmap_pressure_button_visual_ptr_table:\n${pressureButtonVisualTables.map((_items, i) => `    DW bitmap_pressure_button_visuals_room_${i}`).join('\n')}\n` +
+    `bitmap_pressure_button_visual_count_table:\n    DB ${pressureButtonVisualTables.map(items => items.length).join(',')}\n`;
   const clearFlagBytes = [
     ...Array.from({ length: pickups.length }, (_unused, i) => `    ld (bitmap_key_pickup_flags + ${i}), a`),
     ...Array.from({ length: doors.length }, (_unused, i) => `    ld (bitmap_key_door_open_flags + ${i}), a`),
@@ -4244,6 +4452,8 @@ bitmap_key_pending_entry_y EQU ${hexWord(pendingYAddress)}
 bitmap_key_work_mask       EQU ${hexWord(workMaskAddress)}
 bitmap_key_work_offset     EQU ${hexWord(workOffsetAddress)}
 bitmap_key_target_page     EQU ${hexWord(targetPageAddress)}
+bitmap_key_probe_x         EQU ${hexWord(probeXAddress)}
+bitmap_key_probe_y         EQU ${hexWord(probeYAddress)}
 bitmap_key_pickup_flags    EQU ${hexWord(pickupFlagsAddress)}
 bitmap_key_door_open_flags EQU ${hexWord(doorOpenFlagsAddress)}
 bitmap_key_cmd_block       EQU #C2C0
@@ -4256,10 +4466,21 @@ bitmap_key_cmd_block       EQU #C2C0
     ld (bitmap_key_work_mask), a
     ld (bitmap_key_work_offset), a
     ld (bitmap_key_target_page), a
+    ld (bitmap_key_probe_x), a
+    ld (bitmap_key_probe_y), a
 ${clearFlagBytes ? `${clearFlagBytes}\n` : ''}`;
   const mainLoopCall = `    call bitmap_update_key_doors    ; key pickups + locked-door transitions\n`;
-  const initialDrawCall = visuals.length ? `    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page\n` : '';
-  const pendingPageDrawCall = visuals.length ? `    call bitmap_apply_door_state_pending_page    ; overlay open/closed door metatiles on hidden page before flip\n` : '';
+  const pressureButtonCall = pressureButtons.length ? `    call bitmap_update_pressure_buttons    ; floor pressure buttons -> gates\n` : '';
+  const initialDrawCall = `${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_visible    ; draw pressure button metatiles on current page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page\n` : ''}`;
+  const pendingPageDrawCall = `${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_pending_page    ; draw pressure button metatiles on hidden page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_pending_page    ; overlay open/closed door metatiles on hidden page before flip\n` : ''}`;
+  const solidProbeCallAsm = doors.length ? `    push de
+    call bitmap_probe_locked_door_solid
+    jp z, .probe_no_door_block
+    pop de
+    ret
+.probe_no_door_block:
+    pop de
+` : '';
   const routinesAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_player_overlaps_16
@@ -4314,6 +4535,212 @@ ${addA(hbTop)}    cp b
 .key_overlap_no:
     xor a
     ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_actor_overlaps_16
+; ------------------------------------------------------------
+; PURPOSE:
+;   Generic 16x16 AABB overlap used by pressure buttons for non-player actors.
+;
+; INPUT:
+;   B = actor X, C = actor Y, D = button X, E = button Y.
+;
+; OUTPUT:
+;   A = 1 and NZ when overlapping; A = 0 and Z when separated.
+;
+; DESTROYS:
+;   AF
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY
+; ------------------------------------------------------------
+bitmap_actor_overlaps_16:
+    ld a, b
+    add a, 15
+    cp d
+    jp c, .actor_overlap_no
+    ld a, d
+    add a, 15
+    cp b
+    jp c, .actor_overlap_no
+    ld a, c
+    add a, 15
+    cp e
+    jp c, .actor_overlap_no
+    ld a, e
+    add a, 15
+    cp c
+    jp c, .actor_overlap_no
+    ld a, 1
+    or a
+    ret
+.actor_overlap_no:
+    xor a
+    ret
+
+${pressureButtons.length ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_update_pressure_buttons
+; ------------------------------------------------------------
+; PURPOSE:
+;   Component runtime for floor pressure buttons. A button can be pressed by the
+;   player and/or bitmap enemy slots; it writes the target door's open flag and
+;   redraws door visuals only when the flag changes.
+;
+; INPUT:
+;   current_screen_index, bitmap_pressure_button_* tables, player_x/player_y,
+;   bitmap_enemy_pool when enemy actors are enabled.
+;
+; OUTPUT:
+;   bitmap_key_door_open_flags updated for linked doors.
+;
+; DESTROYS:
+;   AF, BC, DE, HL, IX
+;
+; PRESERVES:
+;   IY
+; ------------------------------------------------------------
+bitmap_update_pressure_buttons:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_pressure_button_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_pressure_button_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.pressure_button_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld d, a                    ; button x
+    ld a, (hl)
+    inc hl
+    ld e, a                    ; button y
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_offset), a ; target door open flag offset
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_mask), a   ; pressure flags
+    push hl                         ; next pressure record
+    xor a
+    ld (bitmap_key_probe_x), a     ; pressed = 0
+    ld a, (bitmap_key_work_mask)
+    bit 0, a
+    jp z, .pressure_check_enemies
+    call bitmap_player_overlaps_16
+    or a
+    jp z, .pressure_check_enemies
+    ld a, 1
+    ld (bitmap_key_probe_x), a
+.pressure_check_enemies:
+    ld a, (bitmap_key_probe_x)
+    or a
+    jp nz, .pressure_apply
+    ld a, (bitmap_key_work_mask)
+    bit 1, a
+    jp z, .pressure_apply
+${enemySlots > 0 ? `    push hl
+    push de
+    call bitmap_pressure_any_enemy_overlaps
+    pop de
+    pop hl
+    or a
+    jp z, .pressure_apply
+    ld a, 1
+    ld (bitmap_key_probe_x), a
+` : ''}
+.pressure_apply:
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_key_door_open_flags
+    add hl, de
+    ld a, (bitmap_key_probe_x)
+    or a
+    jp z, .pressure_release
+    ld a, (hl)
+    or a
+    jp nz, .pressure_next
+    ld (hl), 1
+${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_visible
+` : ''}    call bitmap_apply_door_state_visible
+    jp .pressure_next
+.pressure_release:
+    ld a, (bitmap_key_work_mask)
+    bit 7, a
+    jp nz, .pressure_next
+    ld a, (hl)
+    or a
+    jp z, .pressure_next
+    ld (hl), 0
+${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_visible
+` : ''}    call bitmap_apply_door_state_visible
+.pressure_next:
+    pop hl
+    pop bc
+    dec b
+    jp nz, .pressure_button_loop
+    ret
+${enemySlots > 0 ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_pressure_any_enemy_overlaps
+; ------------------------------------------------------------
+; INPUT:
+;   D = button X, E = button Y.
+;
+; OUTPUT:
+;   A = 1 and NZ if any active bitmap enemy slot overlaps the 16x16 button.
+;
+; DESTROYS:
+;   AF, BC, IX
+;
+; PRESERVES:
+;   DE, HL, IY
+; ------------------------------------------------------------
+bitmap_pressure_any_enemy_overlaps:
+    ld a, (bitmap_enemy_count)
+    or a
+    ret z
+    ld ix, bitmap_enemy_pool
+    ld c, a
+.pressure_enemy_loop:
+    push de
+    push bc
+    ld b, (ix+0)
+    ld c, (ix+1)
+    call bitmap_actor_overlaps_16
+    pop bc
+    pop de
+    or a
+    jp nz, .pressure_enemy_yes
+    push de
+    ld de, 16
+    add ix, de
+    pop de
+    dec c
+    jp nz, .pressure_enemy_loop
+    xor a
+    ret
+.pressure_enemy_yes:
+    ld a, 1
+    or a
+    ret
+` : ''}` : ''}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_key_doors
@@ -4412,6 +4839,105 @@ bitmap_apply_door_state_pending_page:
     ld (bitmap_key_target_page), a
     jp bitmap_apply_door_state_for_current_room
 
+${pressureButtonVisuals.length ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_pressure_button_visuals_visible
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw static pressure-button metatiles onto the currently visible page.
+; ------------------------------------------------------------
+bitmap_apply_pressure_button_visuals_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_key_target_page), a
+    jp bitmap_apply_pressure_button_visuals_for_current_room
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_pressure_button_visuals_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw static pressure-button metatiles onto the pending hidden page.
+; ------------------------------------------------------------
+bitmap_apply_pressure_button_visuals_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_key_target_page), a
+    jp bitmap_apply_pressure_button_visuals_for_current_room
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_pressure_button_visuals_for_current_room
+; ------------------------------------------------------------
+; INPUT:
+;   current_screen_index, bitmap_key_target_page.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+; ------------------------------------------------------------
+bitmap_apply_pressure_button_visuals_for_current_room:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_pressure_button_visual_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_pressure_button_visual_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.pressure_button_visual_loop:
+    push bc
+    ld d, h
+    ld e, l                    ; DE = record start
+    push de
+    ld a, (hl)
+    inc hl
+    push hl
+    ld l, a
+    ld h, 0
+    push de
+    ld de, bitmap_key_door_open_flags
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    ld c, (hl)                 ; visual flags
+    inc hl
+    or a
+    jp z, .pressure_button_visual_released
+    bit 1, c
+    jp z, .pressure_button_visual_have_template
+    ld de, 15
+    add hl, de
+    jp .pressure_button_visual_have_template
+.pressure_button_visual_released:
+    bit 0, c
+    jp nz, .pressure_button_visual_have_template
+    ld de, 15
+    add hl, de
+.pressure_button_visual_have_template:
+    push hl
+    call bitmap_copy_key_door_command_to_block
+    pop hl                     ; selected template pointer
+    pop hl                     ; record start
+    ld de, 32
+    add hl, de
+    push hl
+    call bitmap_launch_key_door_cmd
+    pop hl
+    pop bc
+    djnz .pressure_button_visual_loop
+    ret
+
+` : ''}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_apply_door_state_for_current_room
 ; ------------------------------------------------------------
@@ -4601,6 +5127,149 @@ bitmap_launch_key_door_cmd:
     jp vdp_write_register
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_probe_locked_door_solid
+; ------------------------------------------------------------
+; PURPOSE:
+;   Dynamic collision overlay for locked SCREEN 5 doors. A closed door blocks
+;   movement only when the player probe point is inside its visual rectangle,
+;   the door has a required key mask, the matching inventory bit is missing,
+;   and its open-once flag has not already been set.
+;
+; INPUT:
+;   B = pixel X, C = pixel Y from bitmap_probe_solid.
+;
+; OUTPUT:
+;   A = 1 and NZ when a closed locked door blocks this probe; A = 0 and Z when
+;   no door blocks it.
+;
+; DESTROYS:
+;   AF, DE, HL
+;
+; PRESERVES:
+;   BC, IX, IY
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Uses bitmap_key_probe_x/y and bitmap_key_work_mask/offset scratch bytes.
+; ------------------------------------------------------------
+bitmap_probe_locked_door_solid:
+    push bc
+    ld a, b
+    ld (bitmap_key_probe_x), a
+    ld a, c
+    ld (bitmap_key_probe_y), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_door_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    jp z, .door_probe_none
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_door_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.door_probe_loop:
+    ld a, (hl)
+    inc hl
+    ld d, a                    ; door x
+    ld a, (hl)
+    inc hl
+    ld e, a                    ; door y
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_mask), a ; door width
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_offset), a ; door height
+    ld a, (bitmap_key_probe_x)
+    cp d
+    jp c, .door_probe_skip_rest
+    ld c, d
+    ld a, (bitmap_key_work_mask)
+    add a, c
+    ld c, a
+    ld a, (bitmap_key_probe_x)
+    cp c
+    jp nc, .door_probe_skip_rest
+    ld a, (bitmap_key_probe_y)
+    cp e
+    jp c, .door_probe_skip_rest
+    ld c, e
+    ld a, (bitmap_key_work_offset)
+    add a, c
+    ld c, a
+    ld a, (bitmap_key_probe_y)
+    cp c
+    jp nc, .door_probe_skip_rest
+    ; Inside the visual rectangle: parse the remaining fields.
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_mask), a ; required key mask
+    inc hl                     ; target room
+    inc hl                     ; target x
+    inc hl                     ; target y
+    ld a, (hl)
+    inc hl
+    ld d, a                    ; flags
+    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_offset), a ; door open flag offset
+    bit 2, d
+    jp nz, .door_probe_check_open_flag
+    bit 1, d
+    jp z, .door_probe_check_key
+.door_probe_check_open_flag:
+    push hl
+    ld a, (bitmap_key_work_offset)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_key_door_open_flags
+    add hl, de
+    ld a, (hl)
+    pop hl
+    or a
+    jp nz, .door_probe_not_blocked
+    bit 2, d
+    jp nz, .door_probe_blocked
+.door_probe_check_key:
+    ld a, (bitmap_key_work_mask)
+    or a
+    jp z, .door_probe_not_blocked
+    ld d, a
+    ld a, (bitmap_key_inventory)
+    and d
+    jp nz, .door_probe_not_blocked
+.door_probe_blocked:
+    pop bc
+    ld a, 1
+    or a
+    ret
+.door_probe_not_blocked:
+    dec b
+    jp nz, .door_probe_loop
+    jp .door_probe_none
+.door_probe_skip_rest:
+    ld de, 6
+    add hl, de
+    dec b
+    jp nz, .door_probe_loop
+.door_probe_none:
+    pop bc
+    xor a
+    ret
+
+; ------------------------------------------------------------
 ; FUNCTION: bitmap_check_key_pickups
 ; ------------------------------------------------------------
 ; PURPOSE:
@@ -4742,6 +5411,8 @@ bitmap_check_locked_doors:
     ld a, (hl)
     inc hl
     ld e, a
+    inc hl                         ; skip door visual width
+    inc hl                         ; skip door visual height
     call bitmap_player_overlaps_16
     or a
     jp z, .key_door_skip_rest
@@ -4803,6 +5474,8 @@ bitmap_check_locked_doors:
     ld (hl), 1
     pop hl
 .key_door_open:
+    bit 2, c
+    jp nz, .key_door_done
     call start_key_door_transition
     pop bc
     ret
@@ -4815,7 +5488,8 @@ bitmap_check_locked_doors:
     inc hl
 .key_door_done:
     pop bc
-    djnz .key_door_loop
+    dec b
+    jp nz, .key_door_loop
     ret
 
 ; ------------------------------------------------------------
@@ -4901,7 +5575,461 @@ ${bankedRoomData ? `    call bitmap_room_restore_resident_banks
     scf
     ret
 `;
-  return { enabled: true, ramBytes, equates, initAsm, mainLoopCall, initialDrawCall, pendingPageDrawCall, routinesAsm, dataAsm };
+  return { enabled: true, ramBytes, equates, initAsm, mainLoopCall, pressureButtonCall, initialDrawCall, pendingPageDrawCall, solidProbeCallAsm, routinesAsm, dataAsm };
+}
+
+// ============================================================================
+// SCREEN 5 bitmap collector_gems skill system.
+//
+// Gems are 'collectible' entities WITHOUT a keyPickupId but WITH a
+// params.gemAtlasEntryId: the engine draws the atlas metatile over the room
+// background on room entry (skipping already-collected gems) and, on player
+// overlap, erases the 16x16 cell by restoring the background computed at
+// build time from the room's tile grid (HMMM from the atlas source tile, or
+// an HMMV background-colour fill for empty cells). Collecting also bumps the
+// first linked-HUD counter bound to 'collectibles' (if any) and plays a
+// self-contained PSG blip (collectSound skill param). The whole system is
+// emitted ONLY when the player has the collector_gems skill active AND at
+// least one gem exists, so plain projects stay byte-identical.
+// ============================================================================
+
+interface BitmapGemRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  flagOffset: number;
+  drawCommand: number[];
+  eraseCommand: number[];
+}
+
+/** 15-byte HMMM command copying a 16x16 atlas region onto a room cell. */
+function buildGemAtlasCopyCommand(sxRaw: number, syRaw: number, dx: number, dy: number): number[] {
+  const sx = clampInt(sxRaw, 0, 255, 0);
+  const sy = BITMAP_ROOM_ATLAS_BASE_Y + clampInt(syRaw, 0, BITMAP_ROOM_ATLAS_MAX_HEIGHT - 1, 0);
+  const destY = BITMAP_ROOM_GAME_Y_OFFSET + dy;
+  return [
+    sx & 0xff, (sx >> 8) & 0xff,
+    sy & 0xff, (sy >> 8) & 0xff,
+    dx & 0xff, 0,
+    destY & 0xff, 0,
+    TILE_GRID_SIZE, 0,
+    TILE_GRID_SIZE, 0,
+    0, 0, CMD_COPY_16,
+  ];
+}
+
+/**
+ * 15-byte command restoring the background under a gem cell: HMMM from the
+ * atlas tile the room's tile grid places there, or an HMMV fill with the room
+ * background colour when the cell is empty.
+ */
+function buildGemEraseCommand(room: Msx2Screen5BitmapRoom, dx: number, dy: number): number[] {
+  const grid = buildRoomTileIndexGrid(room);
+  const cx = Math.floor(dx / TILE_GRID_SIZE);
+  const cy = Math.floor(dy / TILE_GRID_SIZE);
+  const value = grid[cy]?.[cx] ?? 0;
+  const entry = value > 0 ? (room.atlas?.entries || [])[value - 1] : undefined;
+  if (entry) {
+    return buildGemAtlasCopyCommand(entry.sx, entry.sy, cx * TILE_GRID_SIZE, cy * TILE_GRID_SIZE);
+  }
+  const bg = (clampByte(room.backgroundColor, 0) & 0x0f) * 0x11;
+  const destY = BITMAP_ROOM_GAME_Y_OFFSET + cy * TILE_GRID_SIZE;
+  return [
+    0, 0, 0, 0,
+    (cx * TILE_GRID_SIZE) & 0xff, 0,
+    destY & 0xff, 0,
+    TILE_GRID_SIZE, 0,
+    TILE_GRID_SIZE, 0,
+    bg, 0, CMD_FILL,
+  ];
+}
+
+function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[]): BitmapGemRecord[] {
+  const records: BitmapGemRecord[] = [];
+  for (const [roomIndex, room] of rooms.entries()) {
+    for (const entity of room.entities || []) {
+      if (entity.kind !== 'collectible') continue;
+      if (typeof entity.params?.keyPickupId === 'string' && entity.params.keyPickupId) continue;
+      const atlasEntryId = typeof entity.params?.gemAtlasEntryId === 'string' ? entity.params.gemAtlasEntryId : '';
+      const entry = atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === atlasEntryId) : undefined;
+      if (!entry) continue;
+      const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
+      const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
+      const x = cellX * TILE_GRID_SIZE;
+      const y = cellY * TILE_GRID_SIZE;
+      records.push({
+        roomIndex,
+        x,
+        y,
+        flagOffset: records.length,
+        drawCommand: buildGemAtlasCopyCommand(entry.sx, entry.sy, x, y),
+        eraseCommand: buildGemEraseCommand(room, x, y),
+      });
+    }
+  }
+  return records;
+}
+
+function buildBitmapGemSystemAsm(
+  rooms: Msx2Screen5BitmapRoom[],
+  hitbox: BitmapPlayerHitbox,
+  ramBase: number,
+  config: Msx2CollectorGemsConfig,
+  hudCounter: { label: string; wide: boolean } | null,
+): {
+  enabled: boolean;
+  ramBytes: number;
+  equates: string;
+  initAsm: string;
+  mainLoopCall: string;
+  initialDrawCall: string;
+  pendingPageDrawCall: string;
+  routinesAsm: string;
+  dataAsm: string;
+} {
+  const gems = config.enabled ? collectBitmapGemRecords(rooms) : [];
+  if (gems.length === 0) {
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+  }
+
+  const workOffsetAddress = ramBase;
+  const targetPageAddress = ramBase + 1;
+  const flagsAddress = ramBase + 2;
+  const ramBytes = 2 + gems.length;
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbTop = hitbox.y;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  // Record layout: x, y, flagOffset, draw HMMM (15B), erase HMMM/HMMV (15B) = 33 bytes.
+  const gemTables = rooms.map((_room, roomIndex) => gems.filter(item => item.roomIndex === roomIndex));
+  const dataAsm = gemTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_gems_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.flagOffset, ...item.drawCommand, ...item.eraseCommand]), `Room ${roomIndex} gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)`)
+  ).join('') +
+    `bitmap_gem_ptr_table:\n${gemTables.map((_items, i) => `    DW bitmap_gems_room_${i}`).join('\n')}\n` +
+    `bitmap_gem_count_table:\n    DB ${gemTables.map(items => items.length).join(',')}\n`;
+
+  const equates = `; collector_gems skill (SCREEN 5 bitmap): ${gems.length} gem(s). RAM follows key-door/dialogue chain.
+bitmap_gem_work_offset EQU ${hexWord(workOffsetAddress)}
+bitmap_gem_target_page EQU ${hexWord(targetPageAddress)}
+bitmap_gem_flags       EQU ${hexWord(flagsAddress)}
+bitmap_gem_cmd_block   EQU #C2C0
+`;
+  const clearFlagBytes = Array.from({ length: gems.length }, (_unused, i) => `    ld (bitmap_gem_flags + ${i}), a`).join('\n');
+  const initAsm = `    ; collector_gems: clear per-gem collected flags.
+    xor a
+    ld (bitmap_gem_work_offset), a
+    ld (bitmap_gem_target_page), a
+${clearFlagBytes}
+`;
+  const counterIncAsm = hudCounter
+    ? (hudCounter.wide
+      ? `    ; +1 gem on the 'collectibles'-bound HUD counter (16-bit, saturating).
+    ld hl, (${hudCounter.label})
+    inc hl
+    ld a, h
+    or l
+    jp z, .gem_counter_done
+    ld (${hudCounter.label}), hl
+.gem_counter_done:
+`
+      : `    ; +1 gem on the 'collectibles'-bound HUD counter (8-bit, saturating).
+    ld a, (${hudCounter.label})
+    inc a
+    jp z, .gem_counter_done
+    ld (${hudCounter.label}), a
+.gem_counter_done:
+`)
+    : '';
+  const sfxCallAsm = config.collectSound ? `    call bitmap_sfx_gem
+` : '';
+  const sfxRoutineAsm = config.collectSound ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_sfx_gem
+; ------------------------------------------------------------
+; PURPOSE:
+;   Gem pickup PSG blip (fire-and-forget register writes, no per-frame
+;   engine). Same table as the SCREEN 4 collector_gems blip: high square
+;   tone on channel A with a fast envelope decay; sets BOTH envelope
+;   period bytes so repeated blips always sound identical.
+;
+; INPUT: None.  OUTPUT: None.
+; DESTROYS: AF, B, HL.  PRESERVES: C, DE, IX, IY.
+; SIDE EFFECTS: Writes PSG registers through ports #A0/#A1.
+; ------------------------------------------------------------
+bitmap_sfx_gem:
+    ld hl, bitmap_sfx_gem_data
+    ld b, 7
+.gem_sfx_loop:
+    ld a, (hl)
+    out (#A0), a
+    inc hl
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    djnz .gem_sfx_loop
+    ret
+
+bitmap_sfx_gem_data:
+    db 7,#3E,0,#1C,1,#00,11,#28,12,#00,8,#10,13,#09
+` : '';
+
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_gem_player_overlaps_16
+; ------------------------------------------------------------
+; PURPOSE:
+;   Test the configured player body hitbox against a 16x16 gem cell.
+;   (Gem-owned copy so the system does not depend on key/doors being
+;   enabled.)
+;
+; INPUT:
+;   D = gem X in pixels, E = gem Y in pixels.
+;
+; OUTPUT:
+;   A = 1 and NZ when overlapping; A = 0 and Z when separated.
+;
+; DESTROYS: AF, B.  PRESERVES: C, DE, HL, IX, IY.
+; ------------------------------------------------------------
+bitmap_gem_player_overlaps_16:
+    ld a, (player_x)
+${addA(hbRight)}    cp d
+    jp c, .gem_overlap_no
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, (player_x)
+${addA(hbLeft)}    cp b
+    jp z, .gem_overlap_x_ok
+    jp nc, .gem_overlap_no
+.gem_overlap_x_ok:
+    ld a, (player_y)
+${addA(hbBottom)}    cp e
+    jp c, .gem_overlap_no
+    ld a, e
+    add a, 15
+    ld b, a
+    ld a, (player_y)
+${addA(hbTop)}    cp b
+    jp z, .gem_overlap_yes
+    jp nc, .gem_overlap_no
+.gem_overlap_yes:
+    ld a, 1
+    or a
+    ret
+.gem_overlap_no:
+    xor a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_gem_copy_cmd_to_block
+; ------------------------------------------------------------
+; PURPOSE:
+;   Copy one 15-byte command template to bitmap_gem_cmd_block (#C2C0, the
+;   scratch shared with HUD/key-door launches — all sequential in the main
+;   loop) and patch the DY high byte for the target page.
+;
+; INPUT:
+;   HL = pointer to 15-byte command template. bitmap_gem_target_page = 0/1.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_gem_copy_cmd_to_block:
+    ld de, bitmap_gem_cmd_block
+    ld b, 15
+.gem_copy_cmd_loop:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    djnz .gem_copy_cmd_loop
+    ld a, (bitmap_gem_target_page)
+    or a
+    ret z
+    ld a, 1
+    ld (bitmap_gem_cmd_block + 7), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_gem_launch_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Launch the 15-byte V9938 command stored in bitmap_gem_cmd_block.
+;   Restores R#15 to S#0 (vdp_wait_cmd_ready leaves it at S#2).
+;
+; DESTROYS: AF, B, E, HL.  PRESERVES: C, D, IX, IY.
+; ------------------------------------------------------------
+bitmap_gem_launch_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_gem_cmd_block
+    ld b, 15
+.gem_launch_cmd_loop:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .gem_launch_cmd_loop
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_gem_room_table
+; ------------------------------------------------------------
+; PURPOSE:
+;   Resolve the current room's gem record table.
+;
+; OUTPUT:
+;   HL = first gem record, B = record count. Z set (and B=0) when empty.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_gem_room_table:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_gem_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_gem_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, b
+    or a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_gems
+; ------------------------------------------------------------
+; PURPOSE:
+;   Per-frame collector_gems scan: on player overlap with an uncollected
+;   gem, mark it collected, restore the background cell on the visible
+;   page${hudCounter ? ', bump the collectibles HUD counter' : ''}${config.collectSound ? ' and play the pickup blip' : ''}.
+;
+; INPUT:
+;   RAM state: current_screen_index, bitmap_composition_state,
+;   player_x/player_y, bitmap_gem_flags.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_update_gems:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    call bitmap_gem_room_table
+    ret z
+.gem_scan_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld d, a
+    ld a, (hl)
+    inc hl
+    ld e, a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_gem_work_offset), a
+    push hl
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_gem_flags
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp nz, .gem_scan_next
+    call bitmap_gem_player_overlaps_16
+    or a
+    jp z, .gem_scan_next
+    ; Collect: latch the flag so the gem never re-triggers.
+    ld a, (bitmap_gem_work_offset)
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_gem_flags
+    add hl, bc
+    ld (hl), 1
+    ; Erase the gem cell on the currently displayed page.
+    pop hl
+    push hl
+    ld de, 15
+    add hl, de
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_gem_target_page), a
+    call bitmap_gem_copy_cmd_to_block
+    call bitmap_gem_launch_cmd
+${counterIncAsm}${sfxCallAsm}.gem_scan_next:
+    pop hl
+    ld de, 30
+    add hl, de
+    pop bc
+    djnz .gem_scan_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_gems_visible / bitmap_apply_gems_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw every UNCOLLECTED gem of the current room onto the visible page
+;   (boot load_room / dialogue-close repaint) or onto the pending hidden
+;   page before commit_room_flip publishes it.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_apply_gems_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_gem_target_page), a
+    jp bitmap_apply_gems_for_current_room
+
+bitmap_apply_gems_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_gem_target_page), a
+bitmap_apply_gems_for_current_room:
+    call bitmap_gem_room_table
+    ret z
+.gem_draw_loop:
+    push bc
+    inc hl
+    inc hl
+    ld a, (hl)
+    inc hl
+    push hl
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_gem_flags
+    add hl, bc
+    ld a, (hl)
+    pop hl
+    or a
+    jp nz, .gem_draw_skip
+    push hl
+    call bitmap_gem_copy_cmd_to_block
+    call bitmap_gem_launch_cmd
+    pop hl
+.gem_draw_skip:
+    ld de, 30
+    add hl, de
+    pop bc
+    djnz .gem_draw_loop
+    ret
+${sfxRoutineAsm}`;
+
+  return {
+    enabled: true,
+    ramBytes,
+    equates,
+    initAsm,
+    mainLoopCall: `    call bitmap_update_gems    ; collector_gems: pickup scan + cell erase\n`,
+    initialDrawCall: `    call bitmap_apply_gems_visible    ; draw uncollected gems on current page\n`,
+    pendingPageDrawCall: `    call bitmap_apply_gems_pending_page    ; draw uncollected gems on hidden page before flip\n`,
+    routinesAsm,
+    dataAsm,
+  };
 }
 
 // ============================================================================
@@ -5243,7 +6371,10 @@ function collectBitmapDialogueData(
       borderClr: (borderColor << 4) | borderColor,
       bgClr: (bgColor << 4) | bgColor,
       charDelay: clampByte(dialogue.exportOptions?.charDelayFrames, 3),
-      mouthInterval: clampByte(dialogue.exportOptions?.mouthToggleEveryChars, 2),
+      mouthInterval: (() => {
+        const base = clampByte(dialogue.exportOptions?.mouthToggleEveryChars, 2);
+        return base > 0 ? clampByte(base * 2, 255) : 0;
+      })(),
       textX,
       textY: interiorY + padding + BITMAP_ROOM_GAME_Y_OFFSET,
       textW: textCols * 8,
@@ -5326,7 +6457,7 @@ function buildBitmapDialogueSystemAsm(
   // optional system (ceiling #C1F0 checked by the caller).
   const cfg = ramBase;
   const state = cfg + BITMAP_DLG_CFG_BYTES;
-  const ramBytes = BITMAP_DLG_CFG_BYTES + 15;
+  const ramBytes = BITMAP_DLG_CFG_BYTES + 16;
   const equates = `; SCREEN 5 bitmap NPC dialogue system. Config mirror (20B, LDIR'd on open) + state.
 bitmap_dlg_cfg             EQU ${hexWord(cfg)}
 bitmap_dlg_cfg_box_x       EQU ${hexWord(cfg + 0)}
@@ -5362,6 +6493,7 @@ bitmap_dlg_cursor_y        EQU ${hexWord(state + 11)}
 bitmap_dlg_key_mask        EQU ${hexWord(state + 12)}
 bitmap_dlg_wait_flags      EQU ${hexWord(state + 13)}
 bitmap_dlg_scratch_idx     EQU ${hexWord(state + 14)}
+bitmap_dlg_sfx_seed        EQU ${hexWord(state + 15)}
 bitmap_dlg_cmd_block       EQU #C2C0
 `;
 
@@ -5371,6 +6503,8 @@ bitmap_dlg_cmd_block       EQU #C2C0
     ld (bitmap_dlg_lock), a
     ld (bitmap_dlg_mouth_state), a
     ld (bitmap_dlg_mouth_count), a
+    ld a, #5A
+    ld (bitmap_dlg_sfx_seed), a
 `;
 
   const uploadCallAsm = `    call upload_bitmap_dialogue_gfx\n`;
@@ -5804,6 +6938,13 @@ bitmap_dlg_emit_char:
     ld a, (bitmap_dlg_mouth_state)
     xor 1
     ld (bitmap_dlg_mouth_state), a
+    or a
+    jp z, .dlg_mouth_closed_sfx
+    call bitmap_dlg_sfx_open
+    jp .dlg_mouth_sfx_done
+.dlg_mouth_closed_sfx:
+    call bitmap_dlg_sfx_close
+.dlg_mouth_sfx_done:
     call bitmap_dlg_draw_portrait_frame
 .dlg_char_done:
     or a
@@ -5819,6 +6960,99 @@ bitmap_dlg_emit_char:
 .dlg_char_end:
     scf
     ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_sfx_open
+; ------------------------------------------------------------
+; PURPOSE:
+;   Pick one of four mouth-open PSG talking blips using a tiny local pseudo-RNG.
+;
+; INPUT: None.  OUTPUT: None.
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; SIDE EFFECTS: Updates bitmap_dlg_sfx_seed and writes PSG ports #A0/#A1.
+; ------------------------------------------------------------
+bitmap_dlg_sfx_open:
+    call bitmap_dlg_random_byte
+    and #03
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_dlg_sfx_open_ptrs
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    jp bitmap_dlg_sfx_write
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_sfx_close
+; ------------------------------------------------------------
+; PURPOSE:
+;   Play the mouth-closed PSG talking blip, lower and shorter than open blips.
+;
+; INPUT: None.  OUTPUT: None.
+; DESTROYS: AF, B, HL.  PRESERVES: C, DE, IX, IY.
+; SIDE EFFECTS: Writes PSG registers through ports #A0/#A1.
+; ------------------------------------------------------------
+bitmap_dlg_sfx_close:
+    ld hl, bitmap_dlg_sfx_close_data
+    jp bitmap_dlg_sfx_write
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_random_byte
+; ------------------------------------------------------------
+; PURPOSE:
+;   Advance the dialogue-local pseudo-RNG used for talk blip variation.
+;
+; INPUT: bitmap_dlg_sfx_seed.
+; OUTPUT: A = pseudo-random byte.
+; DESTROYS: AF, HL.  PRESERVES: BC, DE, IX, IY.
+; SIDE EFFECTS: Updates bitmap_dlg_sfx_seed.
+; ------------------------------------------------------------
+bitmap_dlg_random_byte:
+    ld hl, bitmap_dlg_sfx_seed
+    ld a, (hl)
+    add a, 37
+    xor #A7
+    ld (hl), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_dlg_sfx_write
+; ------------------------------------------------------------
+; PURPOSE:
+;   Fire-and-forget PSG register table writer for dialogue blips.
+;
+; INPUT: HL = register/value pair table with 7 pairs.
+; OUTPUT: None.
+; DESTROYS: AF, B, HL.  PRESERVES: C, DE, IX, IY.
+; SIDE EFFECTS: Writes PSG registers through ports #A0/#A1.
+; ------------------------------------------------------------
+bitmap_dlg_sfx_write:
+    ld b, 7
+.dlg_sfx_write_loop:
+    ld a, (hl)
+    out (#A0), a
+    inc hl
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    djnz .dlg_sfx_write_loop
+    ret
+
+bitmap_dlg_sfx_open_ptrs:
+    DW bitmap_dlg_sfx_open_0, bitmap_dlg_sfx_open_1, bitmap_dlg_sfx_open_2, bitmap_dlg_sfx_open_3
+bitmap_dlg_sfx_open_0:
+    db 7,#3B,4,#FE,5,#00,10,#10,11,#80,12,#01,13,#09
+bitmap_dlg_sfx_open_1:
+    db 7,#3B,4,#E2,5,#00,10,#10,11,#70,12,#01,13,#09
+bitmap_dlg_sfx_open_2:
+    db 7,#3B,4,#D6,5,#00,10,#10,11,#60,12,#01,13,#09
+bitmap_dlg_sfx_open_3:
+    db 7,#3B,4,#BE,5,#00,10,#10,11,#50,12,#01,13,#09
+bitmap_dlg_sfx_close_data:
+    db 7,#3B,4,#1D,5,#01,10,#10,11,#30,12,#01,13,#09
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_dlg_draw_portrait_frame
@@ -7186,6 +8420,238 @@ function resolveBitmapBulletSprite(
   return undefined;
 }
 
+/**
+ * Collect per-room enemy patrol slots for the bitmap-room enemy runtime.
+ *
+ * Geometry (x/y/bounds/dx/dy/mode) comes from the SAME resolver the SCREEN 4
+ * backend uses (getMsx2EnemyHazardRuntimeSlots over a synthetic screen whose
+ * layers.entities are the room entities). SCREEN 5 bitmap currently ports
+ * plain PATROL and PatrolChaseX; other movement modes are skipped with a
+ * console warning.
+ *
+ * The entity filter below MUST mirror getMsx2EnemyHazardRuntimeSlots' own
+ * filter so slot[i] pairs with enemyEntities[i] when resolving each slot's
+ * hardware sprite (the runtime resolver is geometry-only by contract).
+ */
+function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5BitmapRoom[]): BitmapEnemyRoomData {
+  interface EnemySpriteRecord { patGroupOff: number; colorOff: number; frameCount: number; delay: number; }
+  interface EnemySpriteCell { x: number; y: number; }
+  interface EnemySpriteGrid {
+    sprite: Msx2Sprite | undefined;
+    frameIndices: number[];
+    frameLayerSets: Msx2HardwareLayer[][];
+    cells: EnemySpriteCell[];
+    colorLayerCount: number;
+    slots: EnemySpriteCell[];
+  }
+  interface EnemyHardwareSlot {
+    slot: Msx2EnemyHazardRuntimeSlot;
+    entity: any;
+    spriteId: string;
+    spriteLayerIndex: number;
+    offset: EnemySpriteCell;
+  }
+  const spriteRecords = new Map<string, EnemySpriteRecord>();
+  const spriteGrids = new Map<string, EnemySpriteGrid>();
+  const patternBytes: number[] = [];
+  const colorBytes: number[] = [];
+  let maxFrames = 1;
+  const isBitmapEnemyMovementSupported = (mode: number): boolean =>
+    mode === MSX2_ENEMY_MOVEMENT_PATROL
+    || mode === MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X
+    || mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY;
+  const emptyPattern = Array(32).fill(0);
+  const spriteIdForEntity = (entity: any): string => String(
+    entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
+    || entity?.spriteAssetId
+    || ''
+  ).trim();
+  const layersForCell = (layers: Msx2HardwareLayer[], cell: EnemySpriteCell): Msx2HardwareLayer[] =>
+    layers.filter(layer => layer.xOffset === cell.x && layer.yOffset === cell.y);
+  const spriteGrid = (spriteId: string): EnemySpriteGrid => {
+    const key = spriteId || '__placeholder__';
+    const existing = spriteGrids.get(key);
+    if (existing) return existing;
+    const sprite = spriteId ? resolveMsx2SpriteById(analysis, spriteId) : undefined;
+    if (!sprite) {
+      const grid = {
+        sprite: undefined,
+        frameIndices: [0],
+        frameLayerSets: [],
+        cells: [{ x: 0, y: 0 }],
+        colorLayerCount: 1,
+        slots: [{ x: 0, y: 0 }],
+      };
+      spriteGrids.set(key, grid);
+      return grid;
+    }
+    const frameIndices = getBitmapRoomSpriteFrameIndices(sprite).slice(0, BITMAP_MAX_ENEMY_FRAMES);
+    const frameLayerSets = frameIndices.map(frameIndex =>
+      buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, frameIndex)
+        .filter(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32)
+    );
+    const cellKey = (layer: { xOffset: number; yOffset: number }) => `${layer.yOffset}:${layer.xOffset}`;
+    const cellMap = new Map<string, EnemySpriteCell>();
+    for (const layers of frameLayerSets) {
+      for (const layer of layers) {
+        if (!cellMap.has(cellKey(layer))) cellMap.set(cellKey(layer), { x: layer.xOffset, y: layer.yOffset });
+      }
+    }
+    const cells = Array.from(cellMap.values()).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const normalizedCells = cells.length ? cells : [{ x: 0, y: 0 }];
+    const maxAuthoredColorLayers = Math.max(1, ...frameLayerSets.flatMap(layers =>
+      normalizedCells.map(cell => layersForCell(layers, cell).length || 1)
+    ));
+    const colorLayerCount = Math.max(1, maxAuthoredColorLayers);
+    const slots = normalizedCells.flatMap(cell =>
+      Array.from({ length: colorLayerCount }, () => ({ x: cell.x, y: cell.y }))
+    );
+    const grid = { sprite, frameIndices, frameLayerSets, cells: normalizedCells, colorLayerCount, slots };
+    spriteGrids.set(key, grid);
+    return grid;
+  };
+  const spritePatternForSlot = (grid: EnemySpriteGrid, spriteLayerIndex: number, frameSetIndex: number): number[] => {
+    if (!grid.sprite) return PLACEHOLDER_SPRITE_PATTERNS.slice(0, 32);
+    const cellIndex = Math.floor(spriteLayerIndex / grid.colorLayerCount);
+    const colorLayerIndex = spriteLayerIndex % grid.colorLayerCount;
+    const cell = grid.cells[cellIndex] || grid.cells[0] || { x: 0, y: 0 };
+    const layers = layersForCell(grid.frameLayerSets[frameSetIndex] || [], cell);
+    return (layers[colorLayerIndex]?.pattern || emptyPattern).map(value => value & 0xff);
+  };
+  const spriteColorsForSlot = (grid: EnemySpriteGrid, spriteLayerIndex: number, frameSetIndex: number): number[] => {
+    if (!grid.sprite) return Array(16).fill(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+    const cellIndex = Math.floor(spriteLayerIndex / grid.colorLayerCount);
+    const colorLayerIndex = spriteLayerIndex % grid.colorLayerCount;
+    const cell = grid.cells[cellIndex] || grid.cells[0] || { x: 0, y: 0 };
+    const layers = layersForCell(grid.frameLayerSets[frameSetIndex] || [], cell);
+    const colors = (layers[colorLayerIndex]?.colors || []).slice(0, 16).map(value => value & 0xff);
+    while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+    return colors;
+  };
+  const offsetRuntimeSlot = (slot: Msx2EnemyHazardRuntimeSlot, offset: EnemySpriteCell): Msx2EnemyHazardRuntimeSlot => ({
+    ...slot,
+    x: clampByte(slot.x + offset.x, 0),
+    y: clampInt(slot.y + offset.y, 0, 191, 0),
+    minX: clampByte(slot.minX + offset.x, 0),
+    maxX: clampByte(slot.maxX + offset.x, 0),
+    minY: clampInt(slot.minY + offset.y, 0, 191, 0),
+    maxY: clampInt(slot.maxY + offset.y, 0, 191, 0),
+  });
+  // Per unique sprite layer: every animation frame as a [facing-right, facing-left]
+  // 32-byte variant pair (mirroring reuses the player's quadrant mirror), plus
+  // one 16-byte line colour table (frame 0 — enemy colours are per-slot, not
+  // per-frame). Line colours already colour each row, so a single layer keeps
+  // multicolour sprites looking right.
+  const resolveSpriteRecord = (spriteId: string, spriteLayerIndex: number): EnemySpriteRecord => {
+    const key = `${spriteId || '__placeholder__'}:${spriteLayerIndex}`;
+    const existing = spriteRecords.get(key);
+    if (existing) return existing;
+    const grid = spriteGrid(spriteId);
+    const facingLeft = grid.sprite?.facingDirection === 'left';
+    const framePatterns = grid.frameIndices.map((_frameIndex, frameSetIndex) =>
+      spritePatternForSlot(grid, spriteLayerIndex, frameSetIndex)
+    );
+    const frameColors = grid.frameIndices.map((_frameIndex, frameSetIndex) =>
+      spriteColorsForSlot(grid, spriteLayerIndex, frameSetIndex)
+    );
+    const record: EnemySpriteRecord = {
+      patGroupOff: patternBytes.length / 32,
+      colorOff: colorBytes.length / 16,
+      frameCount: framePatterns.length,
+      delay: getBitmapRoomSpriteAnimationDelayFrames(grid.sprite),
+    };
+    for (const pattern of framePatterns) {
+      const mirrored = mirrorHardwareSpritePatternHorizontally(pattern);
+      const rightVariant = facingLeft ? mirrored : pattern;
+      const leftVariant = facingLeft ? pattern : mirrored;
+      patternBytes.push(...rightVariant, ...leftVariant);
+    }
+    for (const colors of frameColors) {
+      colorBytes.push(...colors);
+    }
+    maxFrames = Math.max(maxFrames, record.frameCount);
+    spriteRecords.set(key, record);
+    return record;
+  };
+  let maxSlots = 0;
+  const roomSlotSets = rooms.map(room => {
+    const entities = (room.entities || []).filter((entity: any) =>
+      (entity.kind === 'enemy' || entity.kind === 'hazard')
+      && entity.position
+      && !entity.components?.msx2_push_box
+      && !entity.components?.msx2_box2
+      && entity.params?.engine !== 'pushBox'
+      && entity.params?.engine !== 'box2'
+      && entity.params?.pushBox !== true
+      && entity.params?.box2 !== true
+      && !isMsx2CarryableEntity(entity)
+    );
+    const geometry = getMsx2EnemyHazardRuntimeSlots({ layers: { entities } } as any);
+    const paired = geometry.map((slot, index) => ({ slot, entity: entities[index] as any }));
+    const skipped = paired.filter(pair => !isBitmapEnemyMovementSupported(pair.slot.mode));
+    if (skipped.length) {
+      console.warn(`⚠️ MSX2 bitmap room "${room.name}": ${skipped.length} enemy slot(s) use non-patrol movement modes not yet ported to the bitmap backend; skipping them.`);
+    }
+    const expanded: EnemyHardwareSlot[] = [];
+    let truncatedHardwareSlots = 0;
+    for (const pair of paired.filter(pair => isBitmapEnemyMovementSupported(pair.slot.mode))) {
+      const spriteId = spriteIdForEntity(pair.entity);
+      const grid = spriteGrid(spriteId);
+      const hardwareSlots = grid.slots.length ? grid.slots : [{ x: 0, y: 0 }];
+      for (let spriteLayerIndex = 0; spriteLayerIndex < hardwareSlots.length; spriteLayerIndex++) {
+        if (expanded.length >= BITMAP_MAX_ENEMY_SLOTS) {
+          truncatedHardwareSlots++;
+          continue;
+        }
+        expanded.push({
+          slot: offsetRuntimeSlot(pair.slot, hardwareSlots[spriteLayerIndex]),
+          entity: pair.entity,
+          spriteId,
+          spriteLayerIndex,
+          offset: hardwareSlots[spriteLayerIndex],
+        });
+      }
+    }
+    if (truncatedHardwareSlots > 0) {
+      console.warn(`MSX2 bitmap room "${room.name}": ${truncatedHardwareSlots} enemy hardware sprite layer(s) exceeded the ${BITMAP_MAX_ENEMY_SLOTS}-slot bitmap enemy budget and were skipped.`);
+    }
+    maxSlots = Math.max(maxSlots, expanded.length);
+    return expanded;
+  });
+  if (maxSlots === 0) return { maxSlots: 0, maxFrames: 1, roomTables: [], patternBytes: [], colorBytes: [] };
+  const roomTables = roomSlotSets.map(slots => {
+    const table: number[] = [slots.length & 0xff];
+    for (let i = 0; i < maxSlots; i++) {
+      const pair = slots[i];
+      if (!pair) {
+        table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
+        continue;
+      }
+      const { slot, spriteId, spriteLayerIndex, offset } = pair;
+      const spriteRecord = resolveSpriteRecord(spriteId, spriteLayerIndex);
+      table.push(
+        slot.x & 0xff,
+        slot.y & 0xff,
+        slot.dx & 0xff,
+        slot.dy & 0xff,
+        slot.minX & 0xff,
+        slot.maxX & 0xff,
+        slot.minY & 0xff,
+        slot.maxY & 0xff,
+        spriteRecord.patGroupOff & 0xff,
+        spriteRecord.colorOff & 0xff,
+        spriteRecord.frameCount & 0xff,
+        Math.max(1, spriteRecord.delay) & 0xff,
+        slot.mode & 0xff,
+        offset.x & 0xff,
+        offset.y & 0xff,
+      );
+    }
+    return table;
+  });
+  return { maxSlots, maxFrames, roomTables, patternBytes, colorBytes };
+}
+
 function getBitmapRoomSpriteFrameIndices(sprite: Msx2Sprite | undefined): number[] {
   if (!sprite?.frames?.length) return [0];
   const indices = sprite.frames
@@ -7623,7 +9089,7 @@ function buildBitmapRoomForegroundTables(rooms: Msx2Screen5BitmapRoom[], foregro
       // Fallback when the referenced atlas entry is missing: a fully-opaque tile
       // (use a non-background colour so the mask is non-empty).
       const pixels = entry
-        ? extractAtlasEntryPixels(room, entry)
+        ? extractAtlasEntryPixels(room, entry, { maxWidth: TILE_GRID_SIZE, maxHeight: TILE_GRID_SIZE })
         : Array.from({ length: 16 }, () => Array.from({ length: 16 }, () => (bg === 0 ? 1 : 0)));
       const mask = buildForegroundMaskPattern(pixels, bg);
       const color = resolveForegroundTileColor(pixels, bg, tile.color);
@@ -8130,6 +9596,21 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     loadCallAsm: '    call bitmap_load_foreground_sprites\n' as string,
   } : null;
   const foregroundLoadCallAsm = foregroundContext ? foregroundContext.loadCallAsm : '';
+  // Enemy patrol runtime (SCREEN 4 port): SAT slots sit right after the player
+  // layers (bullets shift past them), pattern groups after the foreground ones.
+  const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
+  const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
+  const enemyPatternGroupCount = enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * 2;
+  if (enemyData.maxSlots > 0 && enemyPatternGroupBase + enemyPatternGroupCount > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room enemies need sprite pattern groups ${enemyPatternGroupBase}..${enemyPatternGroupBase + enemyPatternGroupCount - 1} ` +
+      `(${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} frame(s) x 2 facing variants), but the V9938 sprite pattern table only holds 64 groups ` +
+      `(player uses ${playerPatternGroups}, +1 bullet reserve, +${foregroundCount} foreground). ` +
+      `Reduce player animation frames/layers, foreground tiles, enemy frames or enemies per room.`,
+    );
+  }
+  const enemySatBase = playerSatBase + spriteTables.layerCount * 4;
+  const enemyColorBase = playerColorBase + spriteTables.layerCount * 16;
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -8139,6 +9620,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     screenWidth: SCREEN_WIDTH,
     foregroundSlotCount: foregroundCount,
+    enemySlotCount: enemyData.maxSlots,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
@@ -8297,8 +9779,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
         reward: experienceElement?.xpReward,
       })
     : null;
-  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom);
+  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots);
   hudLinkedRamCursor += keyDoorSystem.ramBytes;
+  // collector_gems skill: gem collectibles drawn/erased on the room bitmap.
+  // Built before the dialogue system so the dialogue-close repaint call chain
+  // can include the gem redraw; RAM chains between key-doors and dialogue.
+  const collectorGemsConfig = getMsx2CollectorGemsConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const gemCounterEntry = linkedHudDynamicSources
+    .map((source, index) => ({ source, index }))
+    .find(item => item.source.kind === 'counter' && item.source.element.binding === 'collectibles');
+  const gemSystem = buildBitmapGemSystemAsm(
+    rooms,
+    playerHitbox,
+    hudLinkedRamCursor,
+    collectorGemsConfig,
+    gemCounterEntry
+      ? { label: resolveHudElementBindingRamLabel(gemCounterEntry.source.element, gemCounterEntry.index), wide: linkedCounterSpec(gemCounterEntry.source.element).wide }
+      : null
+  );
+  hudLinkedRamCursor += gemSystem.ramBytes;
   const dialogueSystem = buildBitmapDialogueSystemAsm(
     dialogueData,
     rooms,
@@ -8306,12 +9805,29 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    keyDoorSystem.initialDrawCall,
+    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || dialogueSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/dialogue systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors.`);
+  // Enemy patrol runtime state chains after the dialogue system. While an NPC
+  // dialogue is open every enemy engine pauses (movement + animation) so the
+  // world freezes with the conversation, like the player movement gate does.
+  const enemySystem = buildBitmapEnemySystemAsm(enemyData, {
+    ramBase: hudLinkedRamCursor,
+    satBase: enemySatBase,
+    colorBase: enemyColorBase,
+    patternGroupBase: enemyPatternGroupBase,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    pauseGateAsm: dialogueSystem.enabled
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
+    or a
+    ret nz
+`
+      : '',
+  });
+  hudLinkedRamCursor += enemySystem.ramBytes;
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || dialogueSystem.enabled || enemySystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/dialogue/enemy systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/enemies.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
@@ -8333,10 +9849,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${dialogueSystem.equates}`;
-  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${dialogueSystem.initAsm}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${dialogueSystem.equates}`;
+  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${dialogueSystem.initAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -8375,7 +9891,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, keyDoorSystem.pendingPageDrawCall);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, enemySystem.loadCallAsm);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -8531,7 +10047,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}    org #4000
 
     db "AB"
     dw init_rom
@@ -8551,10 +10067,12 @@ ${intro.initCallAsm}    call load_screen5_bitmap_palette
     call upload_tileset_atlas
     call init_hardware_sprite_tables
 ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}    ; Render the start room from the shared tileset already in VRAM.
+    xor a
+    ld (bitmap_displayed_page), a
     ld a, ${startIndex}
     call load_room
-${keyDoorSystem.initialDrawCall}
-${foregroundLoadCallAsm}    ; Place the player at the room spawn point.
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}
+${foregroundLoadCallAsm}${enemySystem.loadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
@@ -8599,8 +10117,8 @@ ${hasStateAnimations ? `    xor a
 ${dialogueSystem.mainLoopGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}    call bitmap_update_sprite_sat
-${shootBulletSatCall}    jp .main_loop
+${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
+${enemySystem.satCallAsm}${shootBulletSatCall}    jp .main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
@@ -8624,6 +10142,7 @@ ${linkedHudRoutinesAsm}
 ${dialogueSystem.routinesAsm}
 ${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
+${enemySystem.routinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${intro.dataAsm}bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
@@ -8652,10 +10171,12 @@ ${roomBehaviorBankTableAsm}
 ${roomTransitionTableAsm}
 ${roomSpawnTableAsm}
 ${keyDoorSystem.dataAsm}
+${gemSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
 ; Per-room render programs, collision maps and behavior maps.
 ${roomDataAsm}
 ${foregroundDataAsm}
+${enemySystem.dataAsm}
 ${formatBytes('bitmap_room_sprite_colors', combinedColors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
 bitmap_room_sprite_colors_end:
 

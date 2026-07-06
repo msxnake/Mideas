@@ -463,6 +463,15 @@ export interface Msx2LockedDoorConfig {
   targetEntryId?: string;
 }
 
+export interface Msx2PressureButtonConfig {
+  enabled: boolean;
+  targetDoorId?: string;
+  actors?: 'player' | 'enemies' | 'playerAndEnemies';
+  latch?: boolean;
+  atlasEntryId?: string;
+  pressedAtlasEntryId?: string;
+}
+
 export interface Msx2Screen5BitmapRoom {
   id: string;
   name: string;
@@ -577,7 +586,7 @@ export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
 export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'custom';
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
-export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'ghostMaze' | 'dive';
+export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'patrolChaseX' | 'walkerGravity' | 'ghostMaze' | 'dive';
 export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
 export type Msx2PlayerFunctionKeyAction = 'none' | 'inventory' | 'pause' | 'map' | 'status' | 'save' | 'load' | 'magic' | 'custom';
 export type Msx2PlayerFunctionKeyId = 'f1' | 'f2' | 'f3' | 'f4' | 'f5';

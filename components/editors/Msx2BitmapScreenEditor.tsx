@@ -11,11 +11,13 @@ import {
   Msx2HudAsset,
   Msx2KeyItemDefinition,
   Msx2LockedDoorConfig,
+  Msx2PressureButtonConfig,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
   Msx2Screen5BitmapRoom,
   Msx2Screen4EntityInstance,
   Msx2Screen4Tile,
+  Msx2Sprite,
   PaletteAsset,
   ProjectAsset,
   Screen5PaletteSlot,
@@ -50,6 +52,7 @@ import {
 import { addTerrainToMsx2BitmapTerrainLibrary } from '../../utils/msx2BitmapTerrainLibrary';
 import {
   areScreen5PalettesEquivalent,
+  bitmapStampToPixelGrid,
   bitmapTileScreen5ToAtlasTile,
   buildScreen5BitmapTileAsset,
   createScreen5PaletteAssetForTile,
@@ -136,6 +139,9 @@ const sanitizeKeyItemId = (value: string, fallback = 'key_item') => {
   return id || fallback;
 };
 
+const slugifyIdPart = (value: string): string =>
+  String(value || '').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'metatile';
+
 const normalizeLockedDoorConfig = (value: unknown): Msx2LockedDoorConfig => {
   const raw = value && typeof value === 'object' ? value as Partial<Msx2LockedDoorConfig> : {};
   return {
@@ -148,6 +154,19 @@ const normalizeLockedDoorConfig = (value: unknown): Msx2LockedDoorConfig => {
     lockedMessage: typeof raw.lockedMessage === 'string' ? raw.lockedMessage : '',
     targetRoomId: typeof raw.targetRoomId === 'string' ? raw.targetRoomId : '',
     targetEntryId: typeof raw.targetEntryId === 'string' ? raw.targetEntryId : '',
+  };
+};
+
+const normalizePressureButtonConfig = (value: unknown): Msx2PressureButtonConfig => {
+  const raw = value && typeof value === 'object' ? value as Partial<Msx2PressureButtonConfig> : {};
+  const actors = raw.actors === 'player' || raw.actors === 'enemies' ? raw.actors : 'playerAndEnemies';
+  return {
+    enabled: raw.enabled !== false,
+    targetDoorId: typeof raw.targetDoorId === 'string' ? raw.targetDoorId : '',
+    actors,
+    latch: Boolean(raw.latch),
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    pressedAtlasEntryId: typeof raw.pressedAtlasEntryId === 'string' ? raw.pressedAtlasEntryId : '',
   };
 };
 
@@ -355,6 +374,8 @@ interface PlaceableSelection {
   /** preset id (PlaceableKind 'preset'), enemy asset id (PlaceableKind 'enemy'), or empty when none. */
   id: string;
 }
+
+type PatrolPointKey = 'start' | 'end';
 
 // Cardinal directions for the world-minimap cross. north=up, south=down, west=left, east=right.
 const DIRECTION_LABELS: Record<ConnectionDirection, string> = {
@@ -948,6 +969,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   // disjoint id spaces, so a single selected id is unambiguous.
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
   const [draggingPlaced, setDraggingPlaced] = useState<{ kind: 'entity' | 'player'; id: string } | null>(null);
+  const [patrolPointPicker, setPatrolPointPicker] = useState<{ entityId: string; point: PatrolPointKey } | null>(null);
   const [pendingDeletePlaced, setPendingDeletePlaced] = useState<{ kind: 'entity' | 'player'; id: string } | null>(null);
   const [pendingDeleteAtlasEntryIds, setPendingDeleteAtlasEntryIds] = useState<string[]>([]);
   const [editingAtlasEntryId, setEditingAtlasEntryId] = useState<string | null>(null);
@@ -1155,9 +1177,40 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => selectedPlacedId ? placedEntities.find(entity => entity.id === selectedPlacedId) || null : null,
     [placedEntities, selectedPlacedId],
   );
+  const getEntityMovementMode = (entity: Msx2Screen4EntityInstance | null | undefined): string =>
+    String(entity?.components?.msx2_movement?.mode ?? entity?.params?.movement ?? entity?.params?.movementMode ?? 'static');
+
+  const getPatrolPixelBounds = (entity: Msx2Screen4EntityInstance) => {
+    const params = entity.params || {};
+    const usesPixels = String(entity.components?.msx2_movement?.boundsUnit ?? params.boundsUnit ?? '')
+      .replace(/[\s_-]+/g, '')
+      .toLowerCase() === 'px';
+    const baseX = clampScreenPixelX((entity.position?.x ?? 0) * GRID);
+    const baseY = clampScreenPixelY((entity.position?.y ?? 0) * GRID, roomHeight);
+    const readBound = (key: 'minX' | 'maxX' | 'minY' | 'maxY', fallbackPx: number, maxTile: number, clamp: (value: unknown) => number) => {
+      const raw = entity.components?.msx2_movement?.[key] ?? params[key];
+      if (raw === undefined || raw === null || raw === '') return clamp(fallbackPx);
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) return clamp(fallbackPx);
+      return usesPixels ? clamp(numeric) : clamp(clampInt(numeric, 0, maxTile, 0) * GRID);
+    };
+    return {
+      minX: readBound('minX', baseX, gridWidth - 1, clampScreenPixelX),
+      maxX: readBound('maxX', Math.min(SCREEN_W - GRID, baseX + GRID * 4), gridWidth - 1, clampScreenPixelX),
+      minY: readBound('minY', baseY, gridHeight - 1, value => clampScreenPixelY(value, roomHeight)),
+      maxY: readBound('maxY', baseY, gridHeight - 1, value => clampScreenPixelY(value, roomHeight)),
+    };
+  };
+
+  const selectedPatrolBounds = selectedPlacedEntity ? getPatrolPixelBounds(selectedPlacedEntity) : null;
+  const selectedMovementMode = getEntityMovementMode(selectedPlacedEntity);
   const selectedDoorConfig = selectedPlacedEntity?.kind === 'door'
     ? normalizeLockedDoorConfig(selectedPlacedEntity.params?.lockedDoor)
     : null;
+  const selectedPressureButtonConfig = selectedPlacedEntity
+    ? normalizePressureButtonConfig(selectedPlacedEntity.params?.pressureButton || selectedPlacedEntity.components?.msx2_pressure_button)
+    : null;
+  const pressureButtonTargetDoors = placedEntities.filter(entity => entity.kind === 'door');
   const selectedDoorTargetRoom = selectedDoorConfig?.targetRoomId
     ? bitmapRooms.find(asset => asset.id === selectedDoorConfig.targetRoomId) || null
     : null;
@@ -1339,6 +1392,33 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     // completely separate from the tile composition, so painting tiles never clobbers them.
     if (layerVisible.objects || activeLayer === 'objects') {
       const cell = GRID * zoom;
+      const resolveEntitySprite = (entity: Msx2Screen4EntityInstance): Msx2Sprite | undefined => {
+        const directSpriteId = String(
+          entity.spriteAssetId ||
+          entity.components?.msx2_hardware_sprite?.msx2SpriteAssetId ||
+          ''
+        ).trim();
+        const enemyAssetId = String(entity.params?.enemyAssetId || '').trim();
+        const enemySpriteId = enemyAssetId
+          ? String((allAssets.find(asset => asset.id === enemyAssetId && asset.type === 'msx2enemy')?.data as any)?.render?.spriteId || '').trim()
+          : '';
+        const spriteId = directSpriteId || enemySpriteId;
+        if (!spriteId) return undefined;
+        return allAssets.find(asset => asset.id === spriteId && asset.type === 'msx2sprite')?.data as Msx2Sprite | undefined;
+      };
+      const drawMsx2Sprite = (sprite: Msx2Sprite, pixelX: number, pixelY: number): boolean => {
+        const frame = sprite.frames?.[sprite.currentFrameIndex ?? 0] || sprite.frames?.[0];
+        if (!frame?.data?.length) return false;
+        const bg = sprite.backgroundColor;
+        const px = pixelX * zoom;
+        const py = pixelY * zoom;
+        frame.data.forEach((row, y) => row.forEach((color, x) => {
+          if (!color || color === bg || color === 'rgba(0,0,0,0)' || color === 'transparent') return;
+          ctx.fillStyle = color;
+          ctx.fillRect(px + x * zoom, py + y * zoom, zoom, zoom);
+        }));
+        return true;
+      };
       const drawMarkerPx = (pixelX: number, pixelY: number, fill: string, stroke: string, label: string, isSel: boolean) => {
         const px = pixelX * zoom;
         const py = pixelY * zoom;
@@ -1360,11 +1440,48 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       placedEntities.forEach(entity => {
         const cx = entity.position?.x ?? 0;
         const cy = entity.position?.y ?? 0;
+        if (selectedPlacedId === entity.id) {
+          const movement = getEntityMovementMode(entity).replace(/[\s_-]+/g, '').toLowerCase();
+          const hasStoredBounds = ['minX', 'maxX', 'minY', 'maxY'].some(key =>
+            entity.params?.[key] !== undefined || entity.components?.msx2_movement?.[key] !== undefined
+          );
+          if (hasStoredBounds || movement.includes('patrol') || movement.includes('flyer') || movement.includes('walker') || movement.includes('chase') || movement.includes('ball')) {
+            const bounds = getPatrolPixelBounds(entity);
+            const startX = bounds.minX * zoom;
+            const startY = bounds.minY * zoom;
+            const endX = bounds.maxX * zoom;
+            const endY = bounds.maxY * zoom;
+            ctx.save();
+            ctx.strokeStyle = '#00E0FF';
+            ctx.fillStyle = '#00E0FF';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(startX + cell / 2, startY + cell / 2);
+            ctx.lineTo(endX + cell / 2, endY + cell / 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillRect(startX + cell / 2 - 3, startY + cell / 2 - 3, 6, 6);
+            ctx.fillRect(endX + cell / 2 - 3, endY + cell / 2 - 3, 6, 6);
+            ctx.restore();
+          }
+        }
         const isEnemy = entity.kind === 'enemy';
         const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : 'rgba(64,160,255,0.45)';
         const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : '#40A0FF';
-        const label = isEnemy ? 'E' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : '◆';
-        drawMarker(cx, cy, fill, stroke, label, selectedPlacedId === entity.id);
+        const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
+        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : '◆';
+        const sprite = isEnemy ? resolveEntitySprite(entity) : undefined;
+        if (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID)) {
+          if (selectedPlacedId === entity.id) {
+            ctx.strokeStyle = '#FFD24A';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cx * GRID * zoom + 1, cy * GRID * zoom + 1, cell - 2, cell - 2);
+            ctx.lineWidth = 1;
+          }
+        } else {
+          drawMarker(cx, cy, fill, stroke, label, selectedPlacedId === entity.id);
+        }
       });
       playerEntries.forEach(entry => {
         drawMarkerPx(entry.x, entry.y, 'rgba(255,224,74,0.45)', '#FFE04A', 'P', selectedPlacedId === entry.id);
@@ -1396,7 +1513,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       ctx.strokeRect(selectedCell.x * GRID * zoom + 1, selectedCell.y * GRID * zoom + 1, GRID * zoom - 2, GRID * zoom - 2);
       ctx.lineWidth = 1;
     }
-  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles]);
+  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
 
   const commands = room.composition?.commands || [];
 
@@ -1573,6 +1690,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const cancelEntityPlacement = () => {
     setPlaceable({ kind: 'none', id: '' });
     setSelectedPlacedId(null);
+    setPatrolPointPicker(null);
     setActiveLayer('visual');
     setStatusBarMessage?.('SCREEN 5: colocación cancelada; capa Visual activa para seguir pintando tiles.');
   };
@@ -1734,10 +1852,156 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     });
   };
 
+  const updatePlacedEntityMovement = (id: string, patch: Record<string, unknown>) => {
+    const movementPatch: Record<string, unknown> = {};
+    if (patch.movement !== undefined) movementPatch.mode = patch.movement;
+    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed'].forEach(key => {
+      if (patch[key] !== undefined) movementPatch[key] = patch[key];
+    });
+
+    onUpdate({
+      entities: placedEntities.map(entity =>
+        entity.id === id
+          ? {
+              ...entity,
+              params: { ...(entity.params || {}), ...patch },
+              components: {
+                ...(entity.components || {}),
+                msx2_movement: {
+                  ...(entity.components?.msx2_movement || {}),
+                  ...movementPatch,
+                },
+              },
+            }
+          : entity
+      ),
+    });
+  };
+
+  const updatePlacedEntityPatrolPoint = (id: string, point: PatrolPointKey, pixelX: number, pixelY: number) => {
+    const entity = placedEntities.find(item => item.id === id);
+    if (!entity) return;
+    const bounds = getPatrolPixelBounds(entity);
+    updatePlacedEntityMovement(id, {
+      boundsUnit: 'px',
+      minX: point === 'start' ? clampScreenPixelX(pixelX) : bounds.minX,
+      minY: point === 'start' ? clampScreenPixelY(pixelY, roomHeight) : bounds.minY,
+      maxX: point === 'end' ? clampScreenPixelX(pixelX) : bounds.maxX,
+      maxY: point === 'end' ? clampScreenPixelY(pixelY, roomHeight) : bounds.maxY,
+    });
+  };
+
   const updateLockedDoorConfig = (id: string, patch: Partial<Msx2LockedDoorConfig>) => {
     const entity = placedEntities.find(item => item.id === id);
     const current = normalizeLockedDoorConfig(entity?.params?.lockedDoor);
     updatePlacedEntityParams(id, { lockedDoor: { ...current, ...patch } });
+  };
+
+  const updatePressureButtonConfig = (id: string, patch: Partial<Msx2PressureButtonConfig>) => {
+    const entity = placedEntities.find(item => item.id === id);
+    const current = normalizePressureButtonConfig(entity?.params?.pressureButton || entity?.components?.msx2_pressure_button);
+    const next = { ...current, ...patch };
+    onUpdate({
+      entities: placedEntities.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              params: { ...(item.params || {}), engine: item.params?.engine || 'pressureButton', pressureButton: next },
+              components: { ...(item.components || {}), msx2_pressure_button: next },
+            }
+          : item
+      ),
+    });
+  };
+
+  const buildDoorStampAtlasEntry = (
+    stampEntry: Msx2BitmapStampLibraryEntry,
+    existingEntryId?: string,
+  ): { atlas: NonNullable<Msx2Screen5BitmapRoom['atlas']>; entry: Msx2BitmapRoomAtlasEntry } => {
+    const stampPixels = bitmapStampToPixelGrid(stampEntry.stamp);
+    const stampHeight = Math.max(1, stampPixels.length);
+    const stampWidth = Math.max(1, stampPixels[0]?.length || stampEntry.stamp.columns * stampEntry.stamp.tileWidth || GRID);
+    const existingEntries = atlasEntries.map(entry => ({ ...entry }));
+    const existingIndex = existingEntryId ? existingEntries.findIndex(entry => entry.id === existingEntryId) : -1;
+    const reusableIndex = existingIndex >= 0
+      && existingEntries[existingIndex].w === stampWidth
+      && existingEntries[existingIndex].h === stampHeight
+      ? existingIndex
+      : -1;
+    const sx = reusableIndex >= 0 ? Math.max(0, existingEntries[reusableIndex].sx || 0) : 0;
+    const width = Math.min(SCREEN_W, Math.max(GRID, atlasWidth, sx + stampWidth));
+    const baseHeight = Math.max(atlasHeight, atlasPixels.length);
+    const sy = reusableIndex >= 0
+      ? Math.max(0, existingEntries[reusableIndex].sy || 0)
+      : Math.ceil(existingEntries.reduce((max, entry) => Math.max(max, (entry.sy || 0) + (entry.h || 0)), 0) / GRID) * GRID;
+    const height = Math.max(baseHeight, sy + stampHeight);
+    const pixels = Array.from({ length: height }, (_row, y) =>
+      Array.from({ length: width }, (_col, x) => clampByte(atlasPixels[y]?.[x] ?? 0, 0) & 0x0f)
+    );
+    for (let y = 0; y < stampHeight; y++) {
+      for (let x = 0; x < Math.min(stampWidth, width - sx); x++) {
+        pixels[sy + y][sx + x] = clampByte(stampPixels[y]?.[x] ?? 0, 0) & 0x0f;
+      }
+    }
+    const entry: Msx2BitmapRoomAtlasEntry = {
+      id: reusableIndex >= 0
+        ? existingEntries[reusableIndex].id
+        : `door_metatile_${slugifyIdPart(stampEntry.id)}_${Date.now()}`,
+      name: `Door ${stampEntry.name}`,
+      sx,
+      sy,
+      w: Math.min(stampWidth, width - sx),
+      h: stampHeight,
+    };
+    const entries = reusableIndex >= 0
+      ? existingEntries.map((item, index) => index === reusableIndex ? entry : item)
+      : [...existingEntries, entry];
+    return {
+      atlas: {
+        width,
+        height,
+        offscreenBaseY: room.atlas?.offscreenBaseY || 320,
+        pixels,
+        entries,
+      },
+      entry,
+    };
+  };
+
+  const selectDoorMetatile = (
+    entityId: string,
+    field: 'closedAtlasEntryId' | 'openAtlasEntryId',
+    value: string,
+  ) => {
+    if (!value) {
+      updateLockedDoorConfig(entityId, { [field]: '' });
+      return;
+    }
+    if (value.startsWith('atlas:')) {
+      updateLockedDoorConfig(entityId, { [field]: value.slice('atlas:'.length) });
+      return;
+    }
+    if (!value.startsWith('stamp:')) return;
+    const stampId = value.slice('stamp:'.length);
+    const stampEntry = stampEntries.find(entry => entry.id === stampId);
+    const entity = placedEntities.find(item => item.id === entityId);
+    if (!stampEntry || !entity) return;
+    const currentDoor = normalizeLockedDoorConfig(entity.params?.lockedDoor);
+    const shouldAdaptPalette = !areScreen5PalettesEquivalent(slots, stampEntry.palette);
+    const sourceStamp = shouldAdaptPalette ? adaptStampEntryToPalette(stampEntry, slots) : stampEntry;
+    const currentEntryId = field === 'closedAtlasEntryId' ? currentDoor.closedAtlasEntryId : currentDoor.openAtlasEntryId;
+    const { atlas, entry } = buildDoorStampAtlasEntry(sourceStamp, currentEntryId);
+    const nextDoor = { ...currentDoor, [field]: entry.id };
+    onUpdate({
+      atlas,
+      entities: placedEntities.map(item =>
+        item.id === entityId
+          ? { ...item, params: { ...(item.params || {}), lockedDoor: nextDoor } }
+          : item
+      ),
+    });
+    setSelectedAtlasEntryId(entry.id);
+    setStatusBarMessage?.(`Metatile "${stampEntry.name}" asignado a la puerta (${field === 'closedAtlasEntryId' ? 'cerrado' : 'abierto'}).`);
   };
 
   const deletePlacedEntity = (id: string) => {
@@ -2281,6 +2545,15 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     }
     if (activeLayer === 'objects') {
       // Entities layer: left-click selects an existing placed item, or places the chosen one.
+      if (patrolPointPicker) {
+        const snapX = cellX * GRID;
+        const snapY = cellY * GRID;
+        updatePlacedEntityPatrolPoint(patrolPointPicker.entityId, patrolPointPicker.point, snapX, snapY);
+        setSelectedPlacedId(patrolPointPicker.entityId);
+        setPatrolPointPicker(null);
+        setStatusBarMessage?.(`SCREEN 5: waypoint ${patrolPointPicker.point === 'start' ? 'W1' : 'W2'} fijado en px (${snapX}, ${snapY}).`);
+        return;
+      }
       const hit = findPlacedAtPoint(px, py, cellX, cellY);
       if (hit) {
         setSelectedPlacedId(hit.id);
@@ -3899,6 +4172,128 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     <div>{selectedPlacedEntity.kind} @ {selectedPlacedEntity.position?.x},{selectedPlacedEntity.position?.y}</div>
                   </div>
 
+                  {['enemy', 'hazard', 'custom'].includes(selectedPlacedEntity.kind) && selectedPatrolBounds && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Ruta de patrulla</div>
+                        {patrolPointPicker?.entityId === selectedPlacedEntity.id && (
+                          <span className="text-[0.6rem] text-msx-highlight">
+                            Click mapa: {patrolPointPicker.point === 'start' ? 'W1' : 'W2'}
+                          </span>
+                        )}
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Movimiento
+                        <select
+                          value={selectedMovementMode}
+                          onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { movement: event.target.value, boundsUnit: 'px' })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="static">Static</option>
+                          <option value="patrolX">Patrol X</option>
+                          <option value="patrolChaseX">Patrol chase X</option>
+                          <option value="walkerGravity">Walker gravity</option>
+                          <option value="patrolY">Patrol Y</option>
+                          <option value="walkerEdge">Walker edge</option>
+                          <option value="flyerSine">Flyer sine</option>
+                          <option value="ballBounce">Ball bounce</option>
+                          <option value="chaseH">Chase H</option>
+                        </select>
+                      </label>
+                      <div className="grid grid-cols-[auto_1fr_1fr_auto] items-end gap-1 text-[0.65rem] text-msx-textsecondary">
+                        <span className="pb-1 text-msx-highlight">W1</span>
+                        <label>
+                          X
+                          <input
+                            type="number"
+                            min={0}
+                            max={SCREEN_W - 1}
+                            value={selectedPatrolBounds.minX}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { boundsUnit: 'px', minX: clampScreenPixelX(event.target.value) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                        <label>
+                          Y
+                          <input
+                            type="number"
+                            min={0}
+                            max={roomHeight - 1}
+                            value={selectedPatrolBounds.minY}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { boundsUnit: 'px', minY: clampScreenPixelY(event.target.value, roomHeight) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveLayer('objects'); setPatrolPointPicker({ entityId: selectedPlacedEntity.id, point: 'start' }); }}
+                          className="rounded border border-msx-border px-1.5 py-1 text-[0.6rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+                          title="Pincha en el mapa para fijar W1"
+                        >
+                          Pick
+                        </button>
+                        <span className="pb-1 text-msx-highlight">W2</span>
+                        <label>
+                          X
+                          <input
+                            type="number"
+                            min={0}
+                            max={SCREEN_W - 1}
+                            value={selectedPatrolBounds.maxX}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { boundsUnit: 'px', maxX: clampScreenPixelX(event.target.value) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                        <label>
+                          Y
+                          <input
+                            type="number"
+                            min={0}
+                            max={roomHeight - 1}
+                            value={selectedPatrolBounds.maxY}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { boundsUnit: 'px', maxY: clampScreenPixelY(event.target.value, roomHeight) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveLayer('objects'); setPatrolPointPicker({ entityId: selectedPlacedEntity.id, point: 'end' }); }}
+                          className="rounded border border-msx-border px-1.5 py-1 text-[0.6rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+                          title="Pincha en el mapa para fijar W2"
+                        >
+                          Pick
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[0.65rem] text-msx-textsecondary">
+                        <label>
+                          Dir
+                          <select
+                            value={Number(selectedPlacedEntity.components?.msx2_movement?.direction ?? selectedPlacedEntity.params?.direction ?? 1) < 0 ? -1 : 1}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { direction: Number(event.target.value) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          >
+                            <option value={1}>+</option>
+                            <option value={-1}>-</option>
+                          </select>
+                        </label>
+                        <label>
+                          Velocidad
+                          <input
+                            type="number"
+                            min={1}
+                            max={15}
+                            value={clampInt(selectedPlacedEntity.components?.msx2_movement?.speed ?? selectedPlacedEntity.params?.speed, 1, 15, 2)}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { speed: clampInt(event.target.value, 1, 15, 2) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                      </div>
+                      <div className="text-[0.6rem] text-msx-textsecondary">
+                        Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.
+                      </div>
+                    </div>
+                  )}
+
                   {selectedPlacedEntity.kind === 'collectible' && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
                       <div className="text-[0.7rem] text-msx-highlight">Pickup de llave/item</div>
@@ -3923,6 +4318,35 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         >
                           Crear primera llave/item
                         </button>
+                      )}
+                      {!selectedPlacedEntity.params?.keyPickupId && (
+                        <>
+                          <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Gema (skill collector_gems)</div>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Tile de gema (atlas)
+                            <select
+                              value={String(selectedPlacedEntity.params?.gemAtlasEntryId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { gemAtlasEntryId: event.target.value || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None</option>
+                              {atlasEntries.map(entry => (
+                                <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, { gemAtlasEntryId: selectedAtlasEntry.id })}
+                            className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                          <div className="text-[0.6rem] text-msx-textsecondary">
+                            Con tile asignado (y sin llave) esta entidad es una gema: se dibuja al cargar la sala y el player la recoge si tiene la skill collector_gems.
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
@@ -4005,14 +4429,25 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         <label className="block text-[0.65rem] text-msx-textsecondary">
                           Metatile cerrado
                           <select
-                            value={selectedDoorConfig.closedAtlasEntryId || ''}
-                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { closedAtlasEntryId: event.target.value })}
+                            value={selectedDoorConfig.closedAtlasEntryId ? `atlas:${selectedDoorConfig.closedAtlasEntryId}` : ''}
+                            onChange={event => selectDoorMetatile(selectedPlacedEntity.id, 'closedAtlasEntryId', event.target.value)}
                             className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
                           >
                             <option value="">None</option>
+                            {stampEntries.length > 0 && (
+                              <optgroup label="Stamps bitmap">
+                                {stampEntries.map(entry => (
+                                  <option key={`closed-stamp-${entry.id}`} value={`stamp:${entry.id}`}>
+                                    {entry.name} ({entry.stamp.columns * entry.stamp.tileWidth}x{entry.stamp.rows * entry.stamp.tileHeight})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <optgroup label="Room atlas">
                             {atlasEntries.map(entry => (
-                              <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              <option key={entry.id} value={`atlas:${entry.id}`}>{entry.name} ({entry.w}x{entry.h})</option>
                             ))}
+                            </optgroup>
                           </select>
                         </label>
                         <div className="flex gap-1">
@@ -4028,14 +4463,25 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         <label className="block text-[0.65rem] text-msx-textsecondary">
                           Metatile abierto
                           <select
-                            value={selectedDoorConfig.openAtlasEntryId || ''}
-                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { openAtlasEntryId: event.target.value })}
+                            value={selectedDoorConfig.openAtlasEntryId ? `atlas:${selectedDoorConfig.openAtlasEntryId}` : ''}
+                            onChange={event => selectDoorMetatile(selectedPlacedEntity.id, 'openAtlasEntryId', event.target.value)}
                             className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
                           >
                             <option value="">None</option>
+                            {stampEntries.length > 0 && (
+                              <optgroup label="Stamps bitmap">
+                                {stampEntries.map(entry => (
+                                  <option key={`open-stamp-${entry.id}`} value={`stamp:${entry.id}`}>
+                                    {entry.name} ({entry.stamp.columns * entry.stamp.tileWidth}x{entry.stamp.rows * entry.stamp.tileHeight})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <optgroup label="Room atlas">
                             {atlasEntries.map(entry => (
-                              <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              <option key={entry.id} value={`atlas:${entry.id}`}>{entry.name} ({entry.w}x{entry.h})</option>
                             ))}
+                            </optgroup>
                           </select>
                         </label>
                         <div className="flex gap-1">
@@ -4058,6 +4504,108 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
                         />
                       </label>
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity
+                    && selectedPressureButtonConfig
+                    && (
+                      selectedPlacedEntity.params?.engine === 'pressureButton'
+                      || selectedPlacedEntity.params?.pressureButton
+                      || selectedPlacedEntity.components?.msx2_pressure_button
+                    ) && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Polsador de pressió</div>
+                        <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                          <input
+                            type="checkbox"
+                            checked={selectedPressureButtonConfig.enabled}
+                            onChange={event => updatePressureButtonConfig(selectedPlacedEntity.id, { enabled: event.target.checked })}
+                          />
+                          Actiu
+                        </label>
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Comporta / porta objectiu
+                        <select
+                          value={selectedPressureButtonConfig.targetDoorId || ''}
+                          onChange={event => updatePressureButtonConfig(selectedPlacedEntity.id, { targetDoorId: event.target.value })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {pressureButtonTargetDoors.map(door => (
+                            <option key={door.id} value={door.id}>
+                              {door.name || door.id} ({door.position?.x ?? 0},{door.position?.y ?? 0})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Qui el pot trepitjar
+                        <select
+                          value={selectedPressureButtonConfig.actors || 'playerAndEnemies'}
+                          onChange={event => updatePressureButtonConfig(selectedPlacedEntity.id, { actors: event.target.value as Msx2PressureButtonConfig['actors'] })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="playerAndEnemies">Player + enemics</option>
+                          <option value="player">Només player</option>
+                          <option value="enemies">Només enemics</option>
+                        </select>
+                      </label>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile sense prémer
+                        <select
+                          value={selectedPressureButtonConfig.atlasEntryId || ''}
+                          onChange={event => updatePressureButtonConfig(selectedPlacedEntity.id, { atlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updatePressureButtonConfig(selectedPlacedEntity.id, { atlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado como suelto
+                      </button>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile premut
+                        <select
+                          value={selectedPressureButtonConfig.pressedAtlasEntryId || ''}
+                          onChange={event => updatePressureButtonConfig(selectedPlacedEntity.id, { pressedAtlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updatePressureButtonConfig(selectedPlacedEntity.id, { pressedAtlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado como premut
+                      </button>
+                      <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                        <input
+                          type="checkbox"
+                          checked={selectedPressureButtonConfig.latch}
+                          onChange={event => updatePressureButtonConfig(selectedPlacedEntity.id, { latch: event.target.checked })}
+                        />
+                        Queda obert després de prémer
+                      </label>
+                      {!selectedPressureButtonConfig.targetDoorId && (
+                        <div className="text-[0.6rem] text-msx-warning">Sense porta objectiu: el polsador no tindrà efecte al ROM.</div>
+                      )}
                     </div>
                   )}
 

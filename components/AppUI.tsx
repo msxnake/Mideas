@@ -578,6 +578,28 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     onSelectAsset(assetId, EditorType.Code);
   }, [assets, setAssetsWithHistory, setIsCodeExportModalOpen, onSelectAsset]);
 
+  const handleSaveGeneratedCodeFile = React.useCallback((filename: string, content: string) => {
+    const existingId = assets.find(a => a.type === 'code' && a.name === filename)?.id;
+    const assetId = existingId ?? `code_${filename.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}`;
+    const obsoleteGeneratedCodeFiles = new Set([
+      'main.asm',
+      'data/graphics.asm',
+      'data/components.asm',
+      'code/behaviors.asm',
+    ]);
+    setAssetsWithHistory(prev => {
+      const prevExistingId = prev.find(a => a.type === 'code' && a.name === filename)?.id;
+      const withoutObsoleteCode = filename === 'unitedFiles.asm'
+        ? prev.filter(a => !(a.type === 'code' && obsoleteGeneratedCodeFiles.has(a.name)))
+        : prev;
+      if (prevExistingId) {
+        return withoutObsoleteCode.map(a => a.id === prevExistingId ? { ...a, data: content } : a);
+      }
+      return [...withoutObsoleteCode, { id: assetId, name: filename, type: 'code' as const, data: content }];
+    });
+    setStatusBarMessage(`${filename} saved in Code Files.`);
+  }, [assets, setAssetsWithHistory, setStatusBarMessage]);
+
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
     .map(a => a.data as WorldMapGraph), [assets]);
@@ -1386,6 +1408,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             <Msx2BitmapTileEditor
               tileAsset={activeAsset}
               allAssets={assets}
+              worldPaletteAsset={activeBitmapWorldPaletteAsset}
+              worldName={activeBitmapWorldAsset?.name}
               onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)}
               onSelectAsset={onSelectAsset}
               setStatusBarMessage={setStatusBarMessage}
@@ -1975,6 +1999,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             currentScreenMode
           }}
           onEditFile={handleEditGeneratedFile}
+          onSaveGeneratedCodeFile={handleSaveGeneratedCodeFile}
         />
       )}
     </div>

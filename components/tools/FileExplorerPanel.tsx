@@ -496,7 +496,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
         {FOLDER_TYPE_ORDER.map(folderType => {
           const folderTarget = getAssetTarget(folderType);
-          const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
+          const assetsInFolder = groupedAssets[folderType] || [];
           if (folderType === 'msx2bitmap' && assetsInFolder.length === 0) {
             return null;
           }
@@ -507,7 +507,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
             return null;
           }
 
-          // Code Files are managed exclusively via the Export Z80 Code modal
+          // Code Files are created by the Export Z80 Code modal, then shown here
+          // for inspection/editing like any other generated asset.
           const isExpanded = !!expandedFolders[folderType];
           const folderEnabled = isFolderEnabled(folderType);
           const disabledTitle = getDisabledTitle(folderType);

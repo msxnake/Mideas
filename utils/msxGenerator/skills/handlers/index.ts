@@ -995,7 +995,7 @@ export const collectorGems: SkillDef = {
   controlIcon: 'attack',
   addsStates: [],
   transitions: [],
-  supportedBackends: ['msx2-screen4-pattern'],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: collectorGemsParameters,
 };
 

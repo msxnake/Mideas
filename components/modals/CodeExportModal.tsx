@@ -37,6 +37,8 @@ interface CodeExportModalProps {
   defaultRomMode?: ExportRomMode;
   /** When true, auto-trigger Build and Run on open (toolbar shortcut). */
   autoBuildAndRun?: boolean;
+  /** Save generated ASM into Project Assets without closing this modal. */
+  onSaveGeneratedCodeFile?: (filename: string, content: string) => void;
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
@@ -391,6 +393,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   projectData,
   activeAssetId,
   onEditFile,
+  onSaveGeneratedCodeFile,
   defaultRomMode = 'simple32k',
   autoBuildAndRun = false,
 }) => {
@@ -692,6 +695,25 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       mainCode,
       activeIndex: preferredIndex >= 0 ? preferredIndex : 0
     };
+  };
+
+  const saveUnitedFilesToProjectAssets = (bundle: MapperReadyBundle) => {
+    const unitedFiles = bundle.modularFiles['unitedFiles.asm'];
+    if (!unitedFiles || !onSaveGeneratedCodeFile) return;
+    onSaveGeneratedCodeFile('unitedFiles.asm', unitedFiles);
+  };
+
+  const saveCurrentUnitedFilesToProjectAssets = () => {
+    if (!onSaveGeneratedCodeFile) return;
+    const activeFile = generatedFiles[activeFileIndex];
+    if (activeFile?.name === 'unitedFiles.asm') {
+      onSaveGeneratedCodeFile('unitedFiles.asm', generatedCode);
+      return;
+    }
+    const unitedFile = generatedFiles.find(file => file.name === 'unitedFiles.asm');
+    if (unitedFile?.content) {
+      onSaveGeneratedCodeFile('unitedFiles.asm', unitedFile.content);
+    }
   };
 
   const runCompileRequest = async (sourceCode: string, romConfig: RomBuildConfig, projectNameInput?: string) => {
@@ -1394,6 +1416,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       }
 
       const result = await runCompileRequest(generatedCode, currentRomConfig);
+      saveCurrentUnitedFilesToProjectAssets();
       setCompilationResult(result);
     } catch (error) {
       setCompilationResult({
@@ -1432,6 +1455,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       setGeneratedFiles(bundle.files);
       setActiveFileIndex(bundle.activeIndex);
       setLastGeneratedRomConfig(bundle.romConfig);
+      saveUnitedFilesToProjectAssets(bundle);
       setPipelineProgress(28);
       setPipelineStatus('ASM generated');
 
@@ -1527,6 +1551,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         setGeneratedFiles(cleanBundle.files);
         setActiveFileIndex(cleanBundle.activeIndex);
         setLastGeneratedRomConfig(cleanBundle.romConfig);
+        saveUnitedFilesToProjectAssets(cleanBundle);
         setRomMode('simple32k');
         summary += '\nAuto-clean: regenerated ASM in simple32k mode (minimal mapper stubs).';
       }

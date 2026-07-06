@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, EnemyDefinition, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset, Msx2GameProfileId, Msx2ProjectProfile } from '../types';
 import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
-import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
 import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
@@ -458,23 +457,7 @@ export const useProjectHandlers = ({
     setCopiedLayerBuffer(null);
     setSelectedEffectZoneId(null);
 
-    const newProjectFiles = ["main.asm", "data/graphics.asm", "data/components.asm", "code/behaviors.asm"];
-    const formattedDate = getFormattedDate();
     const createdAssets: ProjectAsset[] = [];
-
-    newProjectFiles.forEach(filename => {
-      const fileContent = filename === "main.asm"
-        ? generateMainAsmContent(projectNameFromModal, formattedDate)
-        : generateAsmFileHeader(projectNameFromModal, formattedDate, filename);
-      const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const newAsset: ProjectAsset = {
-        id: assetId,
-        name: filename,
-        type: 'code',
-        data: fileContent
-      };
-      createdAssets.push(newAsset);
-    });
 
     if (profile) {
       const starterPlayer = buildDetailedMsx2PlayerDocument(createDefaultMsx2PlayerDefinition(`player_${profile.profileId}_${Date.now()}`, profile.profileId));

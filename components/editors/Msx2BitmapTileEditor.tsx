@@ -55,6 +55,8 @@ const DITHER_PATTERN: Array<[number, number]> = [[0, 0], [1, 1]];
 interface Msx2BitmapTileEditorProps {
   tileAsset: ProjectAsset;
   allAssets: ProjectAsset[];
+  worldPaletteAsset?: ProjectAsset;
+  worldName?: string;
   onUpdate: (data: BitmapTileScreen5, newAssets?: ProjectAsset[]) => void;
   onSelectAsset: (assetId: string, editorType?: EditorType) => void;
   setStatusBarMessage?: (message: string) => void;
@@ -112,6 +114,8 @@ const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onTo
 export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   tileAsset,
   allAssets,
+  worldPaletteAsset,
+  worldName,
   onUpdate,
   onSelectAsset,
   setStatusBarMessage,
@@ -152,6 +156,15 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     if (!tile.paletteId) return undefined;
     return allAssets.find(asset => asset.id === tile.paletteId && asset.type === 'palette');
   }, [allAssets, tile.paletteId]);
+
+  const paletteAssets = useMemo(
+    () => allAssets.filter(asset => {
+      if (asset.type !== 'palette') return false;
+      const palette = asset.data as PaletteAsset | undefined;
+      return palette?.mode === 'SCREEN4' || palette?.mode === 'SCREEN5';
+    }),
+    [allAssets],
+  );
 
   const { slots } = useMemo(
     () => ensureScreen5PaletteSlots((paletteAsset?.data as PaletteAsset | undefined)?.slots),
@@ -321,6 +334,16 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     } else {
       setShowCreatePaletteDialog(true);
     }
+  };
+
+  const activatePalette = (paletteId: string) => {
+    const nextPalette = allAssets.find(asset => asset.id === paletteId && asset.type === 'palette');
+    if (!nextPalette) {
+      setStatusBarMessage?.('Palette asset not found.');
+      return;
+    }
+    onUpdate({ ...tile, paletteId, updatedAt: new Date().toISOString() });
+    setStatusBarMessage?.(`Activated palette "${nextPalette.name}" for tile "${tile.name}".`);
   };
 
   const confirmCreatePalette = () => {
@@ -540,22 +563,66 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
         <aside className="w-64 border-l border-msx-border p-2 overflow-y-auto space-y-2 flex-shrink-0">
           <CollapsiblePanel title="Palette" isOpen={openPalette} onToggle={() => setOpenPalette(v => !v)}>
             <div className="p-2 space-y-2">
-              <div className="text-xs text-msx-textsecondary break-words">
-                {paletteAsset ? (
-                  <>
-                    Linked:{' '}
+              <div className="space-y-1 text-xs text-msx-textsecondary">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-msx-highlight">Active palette</span>
+                  {paletteAsset && (
                     <button
                       type="button"
                       className="underline text-msx-accent"
                       onClick={() => onSelectAsset(paletteAsset.id, EditorType.Palette)}
                     >
-                      {paletteAsset.name}
+                      Open
                     </button>
-                  </>
+                  )}
+                </div>
+                <select
+                  value={paletteAsset ? tile.paletteId : ''}
+                  onChange={event => activatePalette(event.target.value)}
+                  className="w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-xs text-msx-textprimary"
+                  title="Palette asset used to render and import this bitmap tile"
+                >
+                  {!paletteAsset && <option value="">Missing palette: choose one</option>}
+                  {paletteAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}{worldPaletteAsset?.id === asset.id ? ' (current world)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="text-xs text-msx-textsecondary break-words">
+                World:{' '}
+                {worldPaletteAsset ? (
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="underline text-msx-accent"
+                      onClick={() => onSelectAsset(worldPaletteAsset.id, EditorType.Palette)}
+                      title={`Open world palette${worldName ? ` for ${worldName}` : ''}`}
+                    >
+                      {worldPaletteAsset.name}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-msx-highlight px-2 py-0.5 text-[0.65rem] text-msx-highlight hover:bg-msx-highlight/20 disabled:opacity-40"
+                      onClick={() => activatePalette(worldPaletteAsset.id)}
+                      disabled={tile.paletteId === worldPaletteAsset.id}
+                      title="Use current world's palette for this tile"
+                    >
+                      Use
+                    </button>
+                  </span>
                 ) : (
-                  <span className="text-amber-300">No palette asset linked. Double-click any color to create one.</span>
+                  <span className="text-amber-300">
+                    {worldName ? `${worldName} has no palette asset linked.` : 'No current world palette linked.'}
+                  </span>
                 )}
               </div>
+              {worldPaletteAsset && tile.paletteId !== worldPaletteAsset.id && (
+                <div className="rounded border border-amber-500/60 bg-amber-950/30 px-2 py-1 text-[0.65rem] text-amber-200">
+                  This tile uses another palette; choose the current world palette to keep colors identical when placed.
+                </div>
+              )}
               <div className="grid grid-cols-4 gap-1">
                 {slots.map(slot => (
                   <button

@@ -84,6 +84,7 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
   const [activeFrame, setActiveFrame] = useState<'closed' | 'open'>('closed');
   const [paintSlot, setPaintSlot] = useState(15);
   const [previewNonce, setPreviewNonce] = useState(0);
+  const previewAudioContextRef = useRef<AudioContext | null>(null);
 
   const palette = useMemo(() => {
     const slots = paletteSlots && paletteSlots.length === 16 ? paletteSlots : createDefaultScreen5PaletteSlots();
@@ -342,7 +343,32 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
     let mouthOpen = false;
     let linePause = 0;
     const charDelay = Math.max(0, clampInt(exportOptions.charDelayFrames, 0, 255, 3));
-    const mouthEvery = Math.max(0, clampInt(exportOptions.mouthToggleEveryChars, 0, 255, 2));
+    const mouthEveryBase = Math.max(0, clampInt(exportOptions.mouthToggleEveryChars, 0, 255, 2));
+    const mouthEvery = mouthEveryBase > 0 ? Math.min(255, mouthEveryBase * 2) : 0;
+    const playBlup = (mouth: 'open' | 'closed') => {
+      if (previewNonce <= 0 || typeof window === 'undefined' || !window.AudioContext) return;
+      const audioCtx = previewAudioContextRef.current || new window.AudioContext();
+      previewAudioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') void audioCtx.resume();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const openFrequencies = [440, 494, 523, 587];
+      const startFrequency = mouth === 'open'
+        ? openFrequencies[Math.floor(Math.random() * openFrequencies.length)]
+        : 392;
+      const duration = mouth === 'open' ? 0.24 : 0.2;
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(startFrequency, now);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(mouth === 'open' ? 0.055 : 0.04, now + 0.015);
+      gain.gain.setValueAtTime(mouth === 'open' ? 0.055 : 0.04, now + duration * 0.58);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.01);
+    };
 
     const startLine = () => {
       ctx.fillStyle = bg;
@@ -381,8 +407,10 @@ export const Msx2DialogueEditor: React.FC<Msx2DialogueEditorProps> = ({ dialogue
           colIndex++;
           charCount++;
           if (mouthEvery > 0 && charCount % mouthEvery === 0) {
+            const justOpened = !mouthOpen;
             mouthOpen = !mouthOpen;
             drawPortraitFrame(plan[lineIndex].portrait, mouthOpen);
+            playBlup(justOpened ? 'open' : 'closed');
           }
           delay = charDelay;
         }

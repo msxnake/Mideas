@@ -1,0 +1,5 @@
+t0 count=2 e0=(x=218 dx=1 f=1 satp=76) e1=(x=183 dx=255 f=1 satp=96) term=216
+t1 count=2 e0=(x=233 dx=1 f=1 satp=76) e1=(x=168 dx=255 f=1 satp=96) term=216
+t2 count=2 e0=(x=233 dx=255 f=1 satp=80) e1=(x=153 dx=255 f=1 satp=96) term=216
+t3 count=2 e0=(x=218 dx=255 f=0 satp=72) e1=(x=138 dx=255 f=0 satp=88) term=216
+t4 count=2 e0=(x=99 dx=255 f=1 satp=80) e1=(x=19 dx=255 f=1 satp=96) term=216
