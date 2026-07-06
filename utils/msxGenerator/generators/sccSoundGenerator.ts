@@ -495,8 +495,8 @@ ${trackTable}
 
 ; ------------------------------------------------------------------
 ; scc_music_init_system
-; What:   Reset SCC music RAM and silence the chip.
-; Inputs: SCC exposed (SCC_Init requirement: page 2 = cartridge slot).
+; What:   Reset SCC music RAM, expose the SCC and silence the chip.
+; Inputs: Page 2 already mapped to the cartridge slot (ENASLT done).
 ; Destroys: AF, B, HL   Preserves: C, DE, IX, IY
 ; ------------------------------------------------------------------
 scc_music_init_system:
@@ -506,7 +506,7 @@ scc_music_init_system:
     ld (scc_music_loop_count), a
     ld (scc_music_mixer_shadow), a
     call scc_music_reset_channels
-    call SCC_Stop
+    call SCC_Init           ; #3F -> #9000 + mixer/volumes to 0
     ret
 
 ; ------------------------------------------------------------------

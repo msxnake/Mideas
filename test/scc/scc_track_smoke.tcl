@@ -38,9 +38,9 @@ after time 8 {
     log_line "wave_ch1_first4=$w (expect triangle instrument samples)"
     log_line "ch_note_4=[debug read memory 0xC058] ch_note_5=[debug read memory 0xC059] (expect 255: unused channels)"
 }
-after time 8.4 {
+after time 8.45 {
     log_line "pattern_row_b=[debug read memory 0xC048] (expect != pattern_row_a: rows advance)"
-    log_line "volout_ch1_b=[debug read memory 0xC07D]"
+    log_line "volout_ch1_b=[debug read memory 0xC07D] (27 frames later: different envelope phase)"
 }
 after time 14 {
     log_line "loop_count=[debug read memory 0xC042] (expect >=1: ~3.2s song wrapped)"
