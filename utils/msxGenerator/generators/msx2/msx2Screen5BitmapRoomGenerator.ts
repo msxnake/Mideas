@@ -8450,6 +8450,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     spriteId: string;
     spriteLayerIndex: number;
     offset: EnemySpriteCell;
+    contact: { damage: number; hitX: number; hitY: number; hitW: number; hitH: number };
   }
   const spriteRecords = new Map<string, EnemySpriteRecord>();
   const spriteGrids = new Map<string, EnemySpriteGrid>();
@@ -8466,6 +8467,41 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     || entity?.spriteAssetId
     || ''
   ).trim();
+  const enemyAssetForEntity = (entity: any): any | undefined => {
+    const enemyId = String(entity?.params?.enemyAssetId || entity?.enemyAssetId || '').trim();
+    if (!enemyId) return undefined;
+    const asset = (analysis.assets || []).find(candidate =>
+      candidate.type === 'msx2enemy'
+      && (
+        candidate.id === enemyId
+        || candidate.name === enemyId
+        || String((candidate.data as any)?.id || '').trim() === enemyId
+        || String((candidate.data as any)?.enemyId || '').trim() === enemyId
+      )
+    );
+    return asset?.data;
+  };
+  const resolveContactForEntity = (entity: any): EnemyHardwareSlot['contact'] => {
+    const collision = entity?.components?.msx2_collision || {};
+    const enemyAsset = enemyAssetForEntity(entity);
+    const attackType = String(enemyAsset?.attack?.type || '').trim();
+    const assetHitbox = enemyAsset?.hitboxes?.damage || {};
+    const assetDamage = Number(enemyAsset?.stats?.damage);
+    const componentDamage = Number(collision.damage);
+    const damage = Math.max(0, Math.min(255, Math.floor(
+      Number.isFinite(componentDamage) && componentDamage > 0
+        ? componentDamage
+        : attackType === 'DamageOnTouch' && Number.isFinite(assetDamage) && assetDamage > 0
+          ? assetDamage
+          : 0
+    ) || 0));
+    const hitboxSource = attackType === 'DamageOnTouch' && assetHitbox ? assetHitbox : collision;
+    const hitX = Math.max(0, Math.min(31, Math.floor(Number(hitboxSource.x ?? hitboxSource.offsetX ?? 0) || 0)));
+    const hitY = Math.max(0, Math.min(31, Math.floor(Number(hitboxSource.y ?? hitboxSource.offsetY ?? 0) || 0)));
+    const hitW = Math.max(1, Math.min(32, Math.floor(Number(hitboxSource.w ?? hitboxSource.width ?? hitboxSource.hitboxW ?? 16) || 16)));
+    const hitH = Math.max(1, Math.min(32, Math.floor(Number(hitboxSource.h ?? hitboxSource.height ?? hitboxSource.hitboxH ?? 16) || 16)));
+    return { damage, hitX, hitY, hitW, hitH };
+  };
   const layersForCell = (layers: Msx2HardwareLayer[], cell: EnemySpriteCell): Msx2HardwareLayer[] =>
     layers.filter(layer => layer.xOffset === cell.x && layer.yOffset === cell.y);
   const spriteGrid = (spriteId: string): EnemySpriteGrid => {
@@ -8598,6 +8634,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       const spriteId = spriteIdForEntity(pair.entity);
       const grid = spriteGrid(spriteId);
       const hardwareSlots = grid.slots.length ? grid.slots : [{ x: 0, y: 0 }];
+      const contact = resolveContactForEntity(pair.entity);
       for (let spriteLayerIndex = 0; spriteLayerIndex < hardwareSlots.length; spriteLayerIndex++) {
         if (expanded.length >= BITMAP_MAX_ENEMY_SLOTS) {
           truncatedHardwareSlots++;
@@ -8609,6 +8646,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
           spriteId,
           spriteLayerIndex,
           offset: hardwareSlots[spriteLayerIndex],
+          contact,
         });
       }
     }
@@ -8624,10 +8662,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     for (let i = 0; i < maxSlots; i++) {
       const pair = slots[i];
       if (!pair) {
-        table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
+        table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 16, 16);
         continue;
       }
-      const { slot, spriteId, spriteLayerIndex, offset } = pair;
+      const { slot, spriteId, spriteLayerIndex, offset, contact } = pair;
       const spriteRecord = resolveSpriteRecord(spriteId, spriteLayerIndex);
       table.push(
         slot.x & 0xff,
@@ -8645,6 +8683,11 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         slot.mode & 0xff,
         offset.x & 0xff,
         offset.y & 0xff,
+        contact.damage & 0xff,
+        contact.hitX & 0xff,
+        contact.hitY & 0xff,
+        contact.hitW & 0xff,
+        contact.hitH & 0xff,
       );
     }
     return table;
@@ -9818,6 +9861,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     colorBase: enemyColorBase,
     patternGroupBase: enemyPatternGroupBase,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    playerHitbox,
+    damageInvulnFrames: playerVitals.invulnFrames,
     pauseGateAsm: dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
     or a

@@ -24,15 +24,17 @@ import {
  *
  * RAM (chained after the dialogue system, below the #C1F0 ceiling):
  *   bitmap_enemy_count   1 byte  active slots in the current room
- *   bitmap_enemy_pool    16 bytes/slot: x, y, dx, dy, minX, maxX, minY, maxY,
+ *   bitmap_enemy_pool    21 bytes/slot: x, y, dx, dy, minX, maxX, minY, maxY,
  *                        animTick, animFrame, frameCount, animDelay, colorOff,
- *                        mode, visualXOff, visualYOff
+ *                        mode, visualXOff, visualYOff, damage, hitX, hitY,
+ *                        hitW, hitH
  *
  * ROM (resident, like the foreground tables):
- *   bitmap_room_enemy_table_N   1 + maxSlots*15 bytes: count + per-slot
+ *   bitmap_room_enemy_table_N   1 + maxSlots*20 bytes: count + per-slot
  *                               x,y,dx,dy,minX,maxX,minY,maxY,
  *                               patGroupOff,colorOff,frameCount,animDelay,
- *                               mode,visualXOff,visualYOff
+ *                               mode,visualXOff,visualYOff,damage,hitX,hitY,
+ *                               hitW,hitH
  *   bitmap_room_enemy_ptr_table DW per room
  *   bitmap_enemy_sprite_patterns  frames*2 variants x 32 bytes per unique sprite
  *   bitmap_enemy_sprite_colors    frameCount x 16 bytes per unique sprite layer
@@ -40,8 +42,8 @@ import {
 
 export const BITMAP_MAX_ENEMY_SLOTS = 4;
 export const BITMAP_MAX_ENEMY_FRAMES = 4;
-const POOL_STRIDE = 16;  // RAM bytes per slot
-const TABLE_STRIDE = 15; // ROM bytes per slot
+const POOL_STRIDE = 21;  // RAM bytes per slot
+const TABLE_STRIDE = 20; // ROM bytes per slot
 /** Same off-screen non-terminator Y the foreground empty slots use. */
 const ENEMY_EMPTY_SPRITE_Y = 0xD4;
 
@@ -78,6 +80,10 @@ export interface BitmapEnemyRuntimeOptions {
   patternGroupBase: number;
   /** HUD band offset added to logical Y before the SAT write. */
   gameYOffset: number;
+  /** Player body hitbox in local player coordinates. */
+  playerHitbox: { x: number; y: number; w: number; h: number };
+  /** I-frame count to arm after a DamageOnTouch hit. */
+  damageInvulnFrames: number;
   /** Early-return gate prepended to bitmap_update_enemies (e.g. the NPC
    * dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
@@ -118,7 +124,7 @@ export function buildBitmapEnemySystemAsm(
   const poolAddr = opts.ramBase + 1;
 
   const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff) ---
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 `;
@@ -153,6 +159,16 @@ bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
     ld (${poolBase} + 14), a
     ld a, (ix+14)             ; visual Y offset from logical enemy origin
     ld (${poolBase} + 15), a
+    ld a, (ix+15)             ; DamageOnTouch damage (0 = harmless)
+    ld (${poolBase} + 16), a
+    ld a, (ix+16)             ; damage hitbox X offset from logical origin
+    ld (${poolBase} + 17), a
+    ld a, (ix+17)             ; damage hitbox Y offset from logical origin
+    ld (${poolBase} + 18), a
+    ld a, (ix+18)             ; damage hitbox width
+    ld (${poolBase} + 19), a
+    ld a, (ix+19)             ; damage hitbox height
+    ld (${poolBase} + 20), a
     ; --- upload frameCount*2 pattern groups -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ld a, (ix+8)
     call bitmap_enemy_patterns_offset
@@ -181,6 +197,13 @@ bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
     ld de, ${TABLE_STRIDE}
     add ix, de`;
   }).join('\n');
+
+  const playerHitbox = opts.playerHitbox;
+  const playerLeft = Math.max(0, Math.min(31, Math.floor(playerHitbox.x) || 0));
+  const playerTop = Math.max(0, Math.min(31, Math.floor(playerHitbox.y) || 0));
+  const playerRight = Math.max(playerLeft + 1, Math.min(64, playerLeft + (Math.floor(playerHitbox.w) || 16)));
+  const playerBottom = Math.max(playerTop + 1, Math.min(64, playerTop + (Math.floor(playerHitbox.h) || 16)));
+  const enemyInvulnFrames = asmByte(opts.damageInvulnFrames || 60);
 
   // ---- bitmap_update_enemies: SCREEN 4 patrol port (1 px/frame, bounce) ----
   // Check-then-move like the SCREEN 4 slot handler: at the bound the enemy
@@ -411,6 +434,113 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     ret
 `;
 
+  const touchDamageAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_check_enemy_touch
+; ------------------------------------------------------------
+; PURPOSE:
+;   Apply DamageOnTouch for active bitmap-room enemy slots. Each damaging
+;   enemy compares its configured damage hitbox against the Player Config body
+;   hitbox, subtracts its damage from player_health, and arms player_invuln.
+;
+; INPUT:
+;   RAM state: bitmap_enemy_count, bitmap_enemy_pool, player_x, player_y,
+;              player_health, player_invuln.
+;
+; OUTPUT:
+;   player_health and player_invuln updated on the first active overlap.
+;
+; DESTROYS:
+;   AF, BC, DE, IX
+;
+; PRESERVES:
+;   HL, IY
+;
+; CALLS:
+;   None
+;
+; SIDE EFFECTS:
+;   Reads enemy slot contact bytes at +16..+20. Damage byte 0 disables contact.
+;   Does not respawn or decrement lives; it only applies contact damage + i-frames.
+; ------------------------------------------------------------
+bitmap_check_enemy_touch:
+${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
+    or a
+    ret z
+    ld a, (player_invuln)
+    or a
+    ret nz                     ; already blinking -> immune this frame
+    ld a, (bitmap_enemy_count)
+    ld b, a
+    ld ix, bitmap_enemy_pool
+.enemy_touch_loop:
+    ld a, (ix+16)              ; damage
+    or a
+    jp z, .enemy_touch_next
+
+    ; X overlap: enemyRight > playerLeft && playerRight > enemyLeft.
+    ld a, (ix+0)
+    sub (ix+14)                ; logical enemy X = visual X - visualXOff
+    add a, (ix+17)             ; + damage hitbox X
+    ld d, a                    ; D = enemyLeft
+    ld e, a
+    ld a, (ix+19)              ; hitW
+    add a, e
+    ld e, a                    ; E = enemyRight exclusive
+    ld a, (player_x)
+${playerLeft ? `    add a, ${playerLeft}\n` : ''}    ld c, a                    ; C = playerLeft
+    ld a, e
+    cp c
+    jp z, .enemy_touch_next
+    jp c, .enemy_touch_next
+    ld a, (player_x)
+${playerRight ? `    add a, ${playerRight}\n` : ''}    cp d                       ; playerRight <= enemyLeft -> separated
+    jp z, .enemy_touch_next
+    jp c, .enemy_touch_next
+
+    ; Y overlap: enemyBottom > playerTop && playerBottom > enemyTop.
+    ld a, (ix+1)
+    sub (ix+15)                ; logical enemy Y = visual Y - visualYOff
+    add a, (ix+18)             ; + damage hitbox Y
+    ld d, a                    ; D = enemyTop
+    ld e, a
+    ld a, (ix+20)              ; hitH
+    add a, e
+    ld e, a                    ; E = enemyBottom exclusive
+    ld a, (player_y)
+${playerTop ? `    add a, ${playerTop}\n` : ''}    ld c, a                    ; C = playerTop
+    ld a, e
+    cp c
+    jp z, .enemy_touch_next
+    jp c, .enemy_touch_next
+    ld a, (player_y)
+${playerBottom ? `    add a, ${playerBottom}\n` : ''}    cp d                       ; playerBottom <= enemyTop -> separated
+    jp z, .enemy_touch_next
+    jp c, .enemy_touch_next
+
+    ; Apply contact damage, saturating at zero to avoid byte underflow.
+    ld a, (player_health)
+    ld e, (ix+16)
+    sub e
+    jp z, .enemy_touch_zero
+    jp c, .enemy_touch_zero
+    ld (player_health), a
+    jp .enemy_touch_arm_iframes
+.enemy_touch_zero:
+    xor a
+    ld (player_health), a
+.enemy_touch_arm_iframes:
+    ld a, ${enemyInvulnFrames}
+    ld (player_invuln), a
+    ret
+.enemy_touch_next:
+    ld de, ${POOL_STRIDE}
+    add ix, de
+    dec b
+    jp nz, .enemy_touch_loop
+    ret
+`;
+
   // ---- bitmap_update_enemy_sat: fixed slots after the player layers ----
   // Pattern byte = slot base group *4 + animFrame*8 (2 variants/frame) + 4
   // when patrolling left (variant 1 = mirrored/facing-left).
@@ -533,6 +663,7 @@ bitmap_enemy_colors_offset:
     add hl, de
     ret
 ${updateAsm}
+${touchDamageAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemy_sat
 ; ------------------------------------------------------------
@@ -591,7 +722,7 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff)`)
+    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH)`)
   ).join('')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
     + emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), [right, left] variant pair per frame (mode 2 quadrants)`)
@@ -602,7 +733,7 @@ ${satSlotBlocks}
     ramBytes,
     equates,
     loadCallAsm: '    call bitmap_load_enemies\n',
-    updateCallAsm: '    call bitmap_update_enemies\n',
+    updateCallAsm: '    call bitmap_update_enemies\n    call bitmap_check_enemy_touch\n',
     satCallAsm: '    call bitmap_update_enemy_sat\n',
     routinesAsm,
     dataAsm,
