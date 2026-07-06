@@ -4120,6 +4120,23 @@ interface BitmapKeyPickupRecord {
   flagOffset: number;
 }
 
+/**
+ * Visual record for a key/item pickup: draws the configured atlas metatile
+ * over the room background on room entry (skipping already-collected pickups)
+ * and erases the cell on collection by restoring the background. Mirrors the
+ * door/pressure-button visual split: BitmapKeyPickupRecord holds the logic
+ * (x,y,mask,flag), this holds the 15-byte draw/erase HMMM templates. A pickup
+ * has a visual record only when it has a keyPickupAtlasEntryId AND a resolved
+ * atlas entry.
+ */
+interface BitmapKeyPickupVisualRecord {
+  roomIndex: number;
+  /** Same offset as BitmapKeyPickupRecord.flagOffset: into bitmap_key_pickup_flags. */
+  flagOffset: number;
+  drawCommand: number[];
+  eraseCommand: number[];
+}
+
 interface BitmapKeyDoorRecord {
   roomIndex: number;
   x: number;
@@ -4246,6 +4263,7 @@ function buildDoorVisualCommand(room: Msx2Screen5BitmapRoom, atlasEntryId: strin
 
 function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   pickups: BitmapKeyPickupRecord[];
+  pickupVisuals: BitmapKeyPickupVisualRecord[];
   doors: BitmapKeyDoorRecord[];
   visuals: BitmapDoorVisualRecord[];
   pressureButtons: BitmapPressureButtonRecord[];
@@ -4260,6 +4278,7 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   }
   const roomIndexById = new Map(rooms.map((room, index) => [room.id, index]));
   const pickups: BitmapKeyPickupRecord[] = [];
+  const pickupVisuals: BitmapKeyPickupVisualRecord[] = [];
   const doors: BitmapKeyDoorRecord[] = [];
   const visuals: BitmapDoorVisualRecord[] = [];
   const doorOpenOffsetByEntityId = new Map<string, number>();
@@ -4271,7 +4290,18 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
         const keyId = typeof entity.params?.keyPickupId === 'string' ? entity.params.keyPickupId : '';
         const bit = keyBits.get(keyId);
         if (bit === undefined) continue;
-        pickups.push({ roomIndex, x, y, keyMask: 1 << bit, flagOffset: pickups.length });
+        const flagOffset = pickups.length;
+        pickups.push({ roomIndex, x, y, keyMask: 1 << bit, flagOffset });
+        const atlasEntryId = typeof entity.params?.keyPickupAtlasEntryId === 'string' ? entity.params.keyPickupAtlasEntryId : '';
+        const entry = atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === atlasEntryId) : undefined;
+        if (entry) {
+          pickupVisuals.push({
+            roomIndex,
+            flagOffset,
+            drawCommand: buildGemAtlasCopyCommand(entry.sx, entry.sy, x, y),
+            eraseCommand: buildGemEraseCommand(room, x, y),
+          });
+        }
         continue;
       }
       if (entity.kind !== 'door') continue;
@@ -4362,7 +4392,7 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
       }
     }
   }
-  return { pickups, doors, visuals, pressureButtons, pressureButtonVisuals };
+  return { pickups, pickupVisuals, doors, visuals, pressureButtons, pressureButtonVisuals };
 }
 
 function buildBitmapKeyDoorSystemAsm(
@@ -4384,7 +4414,7 @@ function buildBitmapKeyDoorSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
-  const { pickups, doors, visuals, pressureButtons, pressureButtonVisuals } = collectBitmapKeyDoorRecords(rooms);
+  const { pickups, pickupVisuals, doors, visuals, pressureButtons, pressureButtonVisuals } = collectBitmapKeyDoorRecords(rooms);
   if (pickups.length === 0 && doors.length === 0) {
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', pressureButtonCall: '', initialDrawCall: '', pendingPageDrawCall: '', solidProbeCallAsm: '', routinesAsm: '', dataAsm: '' };
   }
@@ -4407,12 +4437,16 @@ function buildBitmapKeyDoorSystemAsm(
   const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
 
   const pickupTables = rooms.map((_room, roomIndex) => pickups.filter(item => item.roomIndex === roomIndex));
+  const pickupVisualTables = rooms.map((_room, roomIndex) => pickupVisuals.filter(item => item.roomIndex === roomIndex));
   const doorTables = rooms.map((_room, roomIndex) => doors.filter(item => item.roomIndex === roomIndex));
   const visualTables = rooms.map((_room, roomIndex) => visuals.filter(item => item.roomIndex === roomIndex));
   const pressureButtonTables = rooms.map((_room, roomIndex) => pressureButtons.filter(item => item.roomIndex === roomIndex));
   const pressureButtonVisualTables = rooms.map((_room, roomIndex) => pressureButtonVisuals.filter(item => item.roomIndex === roomIndex));
   const pickupDataAsm = pickupTables.map((items, roomIndex) =>
     formatBytes(`bitmap_key_pickups_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.keyMask, item.flagOffset]), `Room ${roomIndex} key pickup records: x,y,keyMask,pickupFlagOffset`)
+  ).join('');
+  const pickupVisualDataAsm = pickupVisualTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_key_pickup_visuals_room_${roomIndex}`, items.flatMap(item => [item.flagOffset, ...item.drawCommand, ...item.eraseCommand]), `Room ${roomIndex} key pickup visual records: pickupFlagOffset,drawCmd(15),eraseCmd(15)`)
   ).join('');
   const doorDataAsm = doorTables.map((items, roomIndex) =>
     formatBytes(`bitmap_key_doors_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.w, item.h, item.requiredMask, item.targetRoomIndex, item.targetX, item.targetY, item.flags, item.openOffset]), `Room ${roomIndex} locked door records: x,y,w,h,requiredMask,targetRoom,targetX,targetY,flags,doorOpenOffset`)
@@ -4430,9 +4464,11 @@ function buildBitmapKeyDoorSystemAsm(
       `Room ${roomIndex} pressure button visual records: targetDoorOpenOffset,flags,releasedHMMM(15),pressedHMMM(15)`,
     )
   ).join('');
-  const dataAsm = `${pickupDataAsm}${doorDataAsm}${visualDataAsm}${pressureButtonDataAsm}${pressureButtonVisualDataAsm}` +
+  const dataAsm = `${pickupDataAsm}${pickupVisualDataAsm}${doorDataAsm}${visualDataAsm}${pressureButtonDataAsm}${pressureButtonVisualDataAsm}` +
     `bitmap_key_pickup_ptr_table:\n${pickupTables.map((_items, i) => `    DW bitmap_key_pickups_room_${i}`).join('\n')}\n` +
     `bitmap_key_pickup_count_table:\n    DB ${pickupTables.map(items => items.length).join(',')}\n` +
+    `bitmap_key_pickup_visual_ptr_table:\n${pickupVisualTables.map((_items, i) => `    DW bitmap_key_pickup_visuals_room_${i}`).join('\n')}\n` +
+    `bitmap_key_pickup_visual_count_table:\n    DB ${pickupVisualTables.map(items => items.length).join(',')}\n` +
     `bitmap_key_door_ptr_table:\n${doorTables.map((_items, i) => `    DW bitmap_key_doors_room_${i}`).join('\n')}\n` +
     `bitmap_key_door_count_table:\n    DB ${doorTables.map(items => items.length).join(',')}\n` +
     `bitmap_key_door_visual_ptr_table:\n${visualTables.map((_items, i) => `    DW bitmap_key_door_visuals_room_${i}`).join('\n')}\n` +
@@ -4471,8 +4507,8 @@ bitmap_key_cmd_block       EQU #C2C0
 ${clearFlagBytes ? `${clearFlagBytes}\n` : ''}`;
   const mainLoopCall = `    call bitmap_update_key_doors    ; key pickups + locked-door transitions\n`;
   const pressureButtonCall = pressureButtons.length ? `    call bitmap_update_pressure_buttons    ; floor pressure buttons -> gates\n` : '';
-  const initialDrawCall = `${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_visible    ; draw pressure button metatiles on current page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page\n` : ''}`;
-  const pendingPageDrawCall = `${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_pending_page    ; draw pressure button metatiles on hidden page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_pending_page    ; overlay open/closed door metatiles on hidden page before flip\n` : ''}`;
+  const initialDrawCall = `${pickupVisuals.length ? `    call bitmap_apply_key_pickup_visuals_visible    ; draw key pickup metatiles on current page\n` : ''}${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_visible    ; draw pressure button metatiles on current page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page\n` : ''}`;
+  const pendingPageDrawCall = `${pickupVisuals.length ? `    call bitmap_apply_key_pickup_visuals_pending_page    ; draw key pickup metatiles on hidden page\n` : ''}${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_pending_page    ; draw pressure button metatiles on hidden page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_pending_page    ; overlay open/closed door metatiles on hidden page before flip\n` : ''}`;
   const solidProbeCallAsm = doors.length ? `    push de
     call bitmap_probe_locked_door_solid
     jp z, .probe_no_door_block
@@ -4779,6 +4815,141 @@ bitmap_update_key_doors:
     call bitmap_check_key_pickups
     jp bitmap_check_locked_doors
 
+${pickupVisuals.length ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_key_pickup_visuals_visible
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw uncollected key-pickup metatiles for the current room onto the
+;   currently visible SCREEN 5 page. Used after the synchronous boot load_room
+;   and after a dialogue-close repaint, so the key reappears over the room
+;   background unless it was already collected (flag set).
+;
+; INPUT:
+;   current_screen_index, bitmap_displayed_page, bitmap_key_pickup_flags.
+;
+; OUTPUT:
+;   Key-pickup draw HMMM commands applied to VRAM.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_copy_key_door_command_to_block, bitmap_launch_key_door_cmd.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_target_page and uses the V9938 command engine.
+; ------------------------------------------------------------
+bitmap_apply_key_pickup_visuals_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_key_target_page), a
+    jp bitmap_apply_key_pickup_visuals_for_current_room
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_key_pickup_visuals_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw uncollected key-pickup metatiles for the current room onto the pending
+;   hidden page before commit_room_flip publishes it.
+;
+; INPUT:
+;   current_screen_index, bitmap_pending_display_page, bitmap_key_pickup_flags.
+;
+; OUTPUT:
+;   Key-pickup draw HMMM commands applied to the hidden page.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_copy_key_door_command_to_block, bitmap_launch_key_door_cmd.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_target_page and uses the V9938 command engine.
+; ------------------------------------------------------------
+bitmap_apply_key_pickup_visuals_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_key_target_page), a
+    jp bitmap_apply_key_pickup_visuals_for_current_room
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_key_pickup_visuals_for_current_room
+; ------------------------------------------------------------
+; PURPOSE:
+;   Scan the current room's key-pickup visual records and draw the atlas
+;   metatile of every UNCOLLECTED pickup onto the selected page. Collected
+;   pickups (flag set) are skipped so they stay erased.
+;
+; INPUT:
+;   current_screen_index, bitmap_key_target_page, bitmap_key_pickup_flags.
+;
+; OUTPUT:
+;   Key-pickup draw HMMM commands applied to VRAM.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_copy_key_door_command_to_block, bitmap_launch_key_door_cmd,
+;   vdp_write_register.
+;
+; SIDE EFFECTS:
+;   Uses bitmap_key_cmd_block scratch (#C2C0) and restores VDP R#15 to S#0 at
+;   the end of each launched command.
+; ------------------------------------------------------------
+bitmap_apply_key_pickup_visuals_for_current_room:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_pickup_visual_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_pickup_visual_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.key_pickup_visual_loop:
+    push bc
+    ld a, (hl)                     ; flagOffset
+    inc hl
+    push hl                        ; HL = drawCommand template
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_key_pickup_flags
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp nz, .key_pickup_visual_skip
+    pop hl
+    push hl
+    call bitmap_copy_key_door_command_to_block
+    call bitmap_launch_key_door_cmd
+.key_pickup_visual_skip:
+    pop hl
+    ld de, 30                      ; next record: skip remaining 15 draw + 15 erase bytes
+    add hl, de
+    pop bc
+    djnz .key_pickup_visual_loop
+    ret
+
+` : ''}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_apply_door_state_visible
 ; ------------------------------------------------------------
@@ -5288,10 +5459,11 @@ bitmap_probe_locked_door_solid:
 ;   IX, IY
 ;
 ; CALLS:
-;   bitmap_player_overlaps_16.
+;   bitmap_player_overlaps_16, bitmap_erase_key_pickup_visual.
 ;
 ; SIDE EFFECTS:
-;   One byte per pickup is set to 1 after collection; graphics are not erased.
+;   One byte per pickup is set to 1 after collection; pickups with an assigned
+;   atlas metatile are erased on the displayed page (background restored).
 ; ------------------------------------------------------------
 bitmap_check_key_pickups:
     ld a, (current_screen_index)
@@ -5350,12 +5522,83 @@ bitmap_check_key_pickups:
     ld bc, bitmap_key_pickup_flags
     add hl, bc
     ld (hl), 1
-.key_pickup_next:
+${pickupVisuals.length ? `    call bitmap_erase_key_pickup_visual
+` : ''}.key_pickup_next:
     pop hl
     pop bc
     djnz .key_pickup_loop
     ret
 
+${pickupVisuals.length ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_erase_key_pickup_visual
+; ------------------------------------------------------------
+; PURPOSE:
+;   Erase the just-collected key pickup's metatile on the displayed page by
+;   restoring its background cell. The target visual record is found by matching
+;   bitmap_key_work_offset (the collected pickup's flagOffset) against the
+;   current room's pickup-visual table. No-op when the room has no pickups with
+;   a metatile, or when the collected pickup has none.
+;
+; INPUT:
+;   current_screen_index, bitmap_displayed_page, bitmap_key_work_offset = the
+;   flagOffset of the pickup that was just collected.
+;
+; OUTPUT:
+;   Erase HMMM/HMMV command applied to the displayed page VRAM.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   bitmap_copy_key_door_command_to_block, bitmap_launch_key_door_cmd.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_key_target_page and uses the V9938 command engine.
+; ------------------------------------------------------------
+bitmap_erase_key_pickup_visual:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_key_target_page), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_pickup_visual_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_key_pickup_visual_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+.key_pickup_erase_loop:
+    ld a, (hl)                     ; visual record flagOffset
+    ld c, a
+    ld a, (bitmap_key_work_offset)
+    cp c
+    jp z, .key_pickup_erase_found
+    ld de, 31
+    add hl, de
+    dec b
+    jp nz, .key_pickup_erase_loop
+    ret
+.key_pickup_erase_found:
+    inc hl                         ; skip flagOffset -> eraseCommand template
+    ld de, 15
+    add hl, de
+    call bitmap_copy_key_door_command_to_block
+    jp bitmap_launch_key_door_cmd
+
+` : ''}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_check_locked_doors
 ; ------------------------------------------------------------

@@ -4319,6 +4319,35 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           Crear primera llave/item
                         </button>
                       )}
+                      {selectedPlacedEntity.params?.keyPickupId && (
+                        <>
+                          <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Tile de llave (atlas)</div>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Metatile de la llave
+                            <select
+                              value={String(selectedPlacedEntity.params?.keyPickupAtlasEntryId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { keyPickupAtlasEntryId: event.target.value || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None (invisible)</option>
+                              {atlasEntries.map(entry => (
+                                <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, { keyPickupAtlasEntryId: selectedAtlasEntry.id })}
+                            className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                          <div className="text-[0.6rem] text-msx-textsecondary">
+                            Con tile asignado, la llave se dibuja al cargar la sala y se borra al recogerla (restaurando el fondo de la celda).
+                          </div>
+                        </>
+                      )}
                       {!selectedPlacedEntity.params?.keyPickupId && (
                         <>
                           <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Gema (skill collector_gems)</div>
