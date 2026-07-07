@@ -59,6 +59,7 @@ const WIDGET_TEMPLATES: WidgetTemplate[] = [
   { label: 'Icon Slot', kind: 'icon', overrides: { binding: 'custom' } },
   { label: 'Mini Portrait', kind: 'portrait', overrides: { binding: 'custom' } },
   { label: 'Heart Life', kind: 'iconRow', overrides: { binding: 'playerEnergy' } },
+  { label: 'Key Item', kind: 'icon', overrides: { binding: 'keyItem', keyBitIndex: 0 } },
   { label: 'Gem Counter', kind: 'iconCounter', overrides: { binding: 'collectibles', format: { digits: 2, base: 'dec', zeroPad: false, prefix: 'x' } } },
   { label: 'Timer (MM:SS)', kind: 'counter', overrides: { binding: 'custom', variableName: 'timer', format: { digits: 4, base: 'dec', zeroPad: true } } },
   { label: 'Coin Counter', kind: 'iconCounter', overrides: { binding: 'collectibles', format: { digits: 2, base: 'dec', zeroPad: false, prefix: 'x' } } },
@@ -663,7 +664,7 @@ const renderWidgetLayer = (
   }
 };
 
-const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'custom'];
+const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'custom'];
 const XP_REWARD_ACTION_LABELS: Record<Msx2HudXpRewardActionType, string> = {
   incrementLevel: 'Level +',
   incrementSkillPoints: 'Skill points +',
@@ -1522,6 +1523,20 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                             onChange={e => updateElement(selectedLayer.id, { variableName: e.target.value })}
                             className="w-full bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 mb-1"
                           />
+                        )}
+                        {selectedLayer.element.binding === 'keyItem' && (
+                          <label className="block mb-1">
+                            <span className="text-[0.65rem] text-msx-textsecondary">Inventory bit (0–7)</span>
+                            <select
+                              value={String(selectedLayer.element.keyBitIndex ?? 0)}
+                              onChange={e => updateElement(selectedLayer.id, { keyBitIndex: Number(e.target.value) || 0 })}
+                              className="w-full bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5"
+                            >
+                              {[0, 1, 2, 3, 4, 5, 6, 7].map(bit => (
+                                <option key={bit} value={bit}>bit {bit}</option>
+                              ))}
+                            </select>
+                          </label>
                         )}
                         {selectedLayer.element.kind === 'text' && (
                           <input
