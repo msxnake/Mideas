@@ -285,6 +285,7 @@ export type Msx2RuntimeEngine =
   | 'patrolChaseX'
   | 'walkerGravity'
   | 'patrolY'
+  | 'movingPlatform'
   | 'hazard'
   | 'collectible'
   | 'pickupItem'
@@ -769,6 +770,21 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_collision: { damage: 1 },
     },
     params: { runtime: 'MSX2', engine: 'patrolY', movement: 'patrolY', direction: 1 },
+  },
+  {
+    id: 'moving_platform',
+    label: 'MSX2 Moving Platform',
+    kind: 'platform',
+    runtime: 'MSX2',
+    engine: 'movingPlatform',
+    description: 'Hardware-sprite moving platform (patrol X/Y, 16 or 32 px wide) the player can stand on and ride. One-way: solid only from above.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_movement: { mode: 'patrolX', direction: 1, boundsUnit: 'px' },
+      msx2_platform: { carriesPlayer: true, oneWay: true, speed: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'movingPlatform', movement: 'patrolX', direction: 1 },
   },
   {
     id: 'hazard',

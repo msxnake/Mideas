@@ -1131,6 +1131,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2enemy'),
     [allAssets],
   );
+  // MSX2 sprite assets, for binding a hardware sprite to placed entities that
+  // are not enemy-library instances (e.g. moving platforms).
+  const spriteLibraryAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2sprite'),
+    [allAssets],
+  );
   // MSX2 Player assets in the project; a placed player spawn must link to one via `playerId`,
   // or it renders as an unlinked placeholder (the "black circle").
   const playerAssets = useMemo(
@@ -1467,11 +1473,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           }
         }
         const isEnemy = entity.kind === 'enemy';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : '#40A0FF';
+        const isPlatform = entity.kind === 'platform';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : isPlatform ? '#BA78FF' : '#40A0FF';
         const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : '◆';
-        const sprite = isEnemy ? resolveEntitySprite(entity) : undefined;
+        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : isPlatform ? '=' : '◆';
+        const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
         if (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID)) {
           if (selectedPlacedId === entity.id) {
             ctx.strokeStyle = '#FFD24A';
@@ -1840,6 +1847,25 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       entities: nextEntities,
     });
     setStatusBarMessage?.('SCREEN 5: llave eliminada y referencias limpiadas.');
+  };
+
+  const updatePlacedEntityHardwareSprite = (id: string, spriteAssetId: string) => {
+    onUpdate({
+      entities: placedEntities.map(entity =>
+        entity.id === id
+          ? {
+              ...entity,
+              components: {
+                ...(entity.components || {}),
+                msx2_hardware_sprite: {
+                  ...(entity.components?.msx2_hardware_sprite || {}),
+                  msx2SpriteAssetId: spriteAssetId,
+                },
+              },
+            }
+          : entity
+      ),
+    });
   };
 
   const updatePlacedEntityParams = (id: string, patch: Record<string, unknown>) => {
@@ -4172,7 +4198,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     <div>{selectedPlacedEntity.kind} @ {selectedPlacedEntity.position?.x},{selectedPlacedEntity.position?.y}</div>
                   </div>
 
-                  {['enemy', 'hazard', 'custom'].includes(selectedPlacedEntity.kind) && selectedPatrolBounds && (
+                  {['enemy', 'hazard', 'custom', 'platform'].includes(selectedPlacedEntity.kind) && selectedPatrolBounds && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-[0.7rem] text-msx-highlight">Ruta de patrulla</div>
@@ -4191,13 +4217,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         >
                           <option value="static">Static</option>
                           <option value="patrolX">Patrol X</option>
-                          <option value="patrolChaseX">Patrol chase X</option>
-                          <option value="walkerGravity">Walker gravity</option>
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="patrolChaseX">Patrol chase X</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="walkerGravity">Walker gravity</option>}
                           <option value="patrolY">Patrol Y</option>
-                          <option value="walkerEdge">Walker edge</option>
-                          <option value="flyerSine">Flyer sine</option>
-                          <option value="ballBounce">Ball bounce</option>
-                          <option value="chaseH">Chase H</option>
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="walkerEdge">Walker edge</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="flyerSine">Flyer sine</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="ballBounce">Ball bounce</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="chaseH">Chase H</option>}
                         </select>
                       </label>
                       <div className="grid grid-cols-[auto_1fr_1fr_auto] items-end gap-1 text-[0.65rem] text-msx-textsecondary">
@@ -4290,6 +4316,29 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                       </div>
                       <div className="text-[0.6rem] text-msx-textsecondary">
                         Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity.kind === 'platform' && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">Plataforma móvil</div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Sprite (16x16 o 32x16)
+                        <select
+                          value={String(selectedPlacedEntity.components?.msx2_hardware_sprite?.msx2SpriteAssetId || '')}
+                          onChange={event => updatePlacedEntityHardwareSprite(selectedPlacedEntity.id, event.target.value)}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">(placeholder)</option>
+                          {spriteLibraryAssets.map(asset => (
+                            <option key={asset.id} value={asset.id}>{asset.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        One-way: el player la atraviesa desde abajo y aterriza encima; al posarse es transportado
+                        con la plataforma (1 px/frame entre W1 y W2). La anchura (16 o 32 px) sale del sprite elegido.
                       </div>
                     </div>
                   )}

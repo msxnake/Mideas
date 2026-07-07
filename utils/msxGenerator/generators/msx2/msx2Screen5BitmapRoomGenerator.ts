@@ -157,6 +157,11 @@ import {
   buildBitmapEnemySystemAsm,
 } from './msx2BitmapEnemyGenerator';
 import {
+  BITMAP_MAX_PLATFORM_SLOTS,
+  BitmapPlatformRoomData,
+  buildBitmapPlatformSystemAsm,
+} from './msx2BitmapPlatformGenerator';
+import {
   getMsx2EnemyHazardRuntimeSlots,
   MSX2_ENEMY_MOVEMENT_PATROL,
   MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X,
@@ -4401,6 +4406,7 @@ function buildBitmapKeyDoorSystemAsm(
   ramBase: number,
   bankedRoomData: boolean,
   enemySlots: number = 0,
+  forceInventory: boolean = false,
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -4416,6 +4422,24 @@ function buildBitmapKeyDoorSystemAsm(
 } {
   const { pickups, pickupVisuals, doors, visuals, pressureButtons, pressureButtonVisuals } = collectBitmapKeyDoorRecords(rooms);
   if (pickups.length === 0 && doors.length === 0) {
+    // No key/door entities, but a HUD widget may still bind to 'keyItem'. Emit a
+    // lone inventory byte + equate so the widget has a valid RAM symbol; nothing
+    // ever sets it (no pickups), so the icon stays in its "empty" half forever.
+    if (forceInventory) {
+      return {
+        enabled: false,
+        ramBytes: 1,
+        equates: `bitmap_key_inventory EQU ${hexWord(ramBase)}\n`,
+        initAsm: '    xor a\n    ld (bitmap_key_inventory), a\n',
+        mainLoopCall: '',
+        pressureButtonCall: '',
+        initialDrawCall: '',
+        pendingPageDrawCall: '',
+        solidProbeCallAsm: '',
+        routinesAsm: '',
+        dataAsm: '',
+      };
+    }
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', pressureButtonCall: '', initialDrawCall: '', pendingPageDrawCall: '', solidProbeCallAsm: '', routinesAsm: '', dataAsm: '' };
   }
 
@@ -7805,12 +7829,14 @@ function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSourc
 
 /**
  * Maps an element's variable binding to the RAM byte the runtime routine reads.
- * Only `playerEnergy` (player_health) and `lives` (player_lives) have a real game
- * mechanic behind them today. Every other binding (`score`/`bossEnergy`/`air`/
- * `collectibles`/`custom`) gets its OWN persistent RAM byte instead — this is NOT a
- * scoring/timer mechanic, just a widget-owned counter seeded from `initialValue`
- * that a future system (skills, tile interactions) can write to. Documented as
- * such so the generated ROM never pretends to have gameplay that does not exist.
+ * `playerEnergy` (player_health), `lives` (player_lives), `air` (air_timer),
+ * `experience`/`level`/`skillPoints` (XP system) and `keyItem`
+ * (bitmap_key_inventory) read a real game-mechanic byte. Every other binding
+ * (`score`/`bossEnergy`/`collectibles`/`custom`) gets its OWN persistent RAM byte
+ * instead — this is NOT a scoring/timer mechanic, just a widget-owned counter
+ * seeded from `initialValue` that a future system (skills, tile interactions)
+ * can write to. Documented as such so the generated ROM never pretends to have
+ * gameplay that does not exist.
  */
 function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex: number): string {
   if (element.binding === 'playerEnergy') return 'player_health';
@@ -7819,6 +7845,7 @@ function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex
   if (element.binding === 'experience') return 'player_xp';
   if (element.binding === 'level') return 'player_level';
   if (element.binding === 'skillPoints') return 'player_skill_points';
+  if (element.binding === 'keyItem') return 'bitmap_key_inventory';
   return `hud_linked_${instanceIndex}_value`;
 }
 
@@ -8052,6 +8079,10 @@ function buildBitmapHudLinkedIconRowAsm(
 ): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
   const element = source.element;
   const isToggle = element.kind === 'icon';
+  // keyItem-bound icon toggle: shows the "full" half when bit keyBitIndex of
+  // bitmap_key_inventory is set (key collected), the "empty" half otherwise.
+  const isKeyItem = element.binding === 'keyItem';
+  const keyBit = clampInt(element.keyBitIndex, 0, 7, 0);
   // Clip against the right edge: HMMM DX is written as a low byte only and
   // SCREEN 5 has no x >= 256, so an overflowing 16px slot would WRAP to x=0 and
   // stamp over the left side of the HUD. The editor preview clips the same way.
@@ -8123,13 +8154,23 @@ ${drawPageLabel}:
     ld c, 0
 ${loopLabel}:
 ${isToggle
-    ? `    ; Single icon widget (kind:'icon'): always draws the assigned icon
+    ? (isKeyItem
+      ? `    ; Key item icon toggle: draw the "full" half (SX=0) when bit ${keyBit}
+    ; of bitmap_key_inventory is set (key collected), else the "empty" half
+    ; (SX=${emptySx}). Requires an icon tile with both halves authored, like
+    ; an iconRow slot; the HUD icon editor's emptyAtlasEntryId fills it.
+    ld a, (${bindingRamLabel})
+    bit ${keyBit}, a
+    jr nz, ${fullLabel}
+    ld a, ${emptySx}
+    jr ${setSxLabel}`
+      : `    ; Single icon widget (kind:'icon'): always draws the assigned icon
     ; (SX=0, the "full" half). Unlike an iconRow slot, a standalone icon has
     ; no editor UI to author an "empty" state, so it must not depend on
     ; ${bindingRamLabel} — otherwise the default initialValue=0 would always
     ; pick the empty/fallback half and the user's icon would never appear,
     ; breaking editor<->ROM parity.
-    jr ${fullLabel}`
+    jr ${fullLabel}`)
     : `    ld a, c
     push hl
     ld hl, ${bindingRamLabel}
@@ -8936,6 +8977,132 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     return table;
   });
   return { maxSlots, maxFrames, roomTables, patternBytes, colorBytes };
+}
+
+/**
+ * Collect per-room moving-platform slots for the bitmap-room platform runtime.
+ *
+ * Geometry reuses the SCREEN 4 enemy patrol resolver (getMsx2EnemyHazardRuntimeSlots)
+ * over synthetic 'enemy'-kind copies of the placed `kind: 'platform'` entities, so
+ * patrol bounds/direction/boundsUnit semantics stay identical to enemies. Only the
+ * plain PATROL mode is supported; any other movement degrades to a static platform
+ * with a console warning. The platform body is the sprite's TOP ROW of 16x16 cells
+ * (max 2 = 32 px wide), frame 0, first colour layer per cell — platform colours are
+ * static, so no animation frames or facing variants are emitted.
+ */
+function buildBitmapRoomPlatformData(analysis: ProjectAnalysis, rooms: Msx2Screen5BitmapRoom[]): BitmapPlatformRoomData {
+  interface PlatformSpriteRecord { patOff: number; colorOff: number; widthCells: number; }
+  const patternBytes: number[] = [];
+  const colorBytes: number[] = [];
+  const emptyPattern = Array(32).fill(0);
+  const records = new Map<string, PlatformSpriteRecord>();
+  const spriteIdForEntity = (entity: any): string => String(
+    entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
+    || entity?.spriteAssetId
+    || ''
+  ).trim();
+  const resolveRecord = (spriteId: string, roomName: string): PlatformSpriteRecord => {
+    const key = spriteId || '__placeholder__';
+    const existing = records.get(key);
+    if (existing) return existing;
+    const sprite = spriteId ? resolveMsx2SpriteById(analysis, spriteId) : undefined;
+    let cells: Array<{ pattern: number[]; colors: number[] }>;
+    if (!sprite) {
+      cells = [{
+        pattern: PLACEHOLDER_SPRITE_PATTERNS.slice(0, 32),
+        colors: Array(16).fill(BITMAP_ROOM_DEFAULT_SPRITE_COLOR),
+      }];
+    } else {
+      const layers = buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, 0)
+        .filter(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
+      const topCells: Msx2HardwareLayer[] = [];
+      for (const layer of layers.filter(l => l.yOffset === 0).sort((a, b) => a.xOffset - b.xOffset)) {
+        if (!topCells.some(cell => cell.xOffset === layer.xOffset)) topCells.push(layer);
+      }
+      if (layers.some(layer => layer.yOffset !== 0) || layers.filter(l => l.yOffset === 0).length > topCells.length || topCells.length > 2) {
+        console.warn(`MSX2 bitmap room "${roomName}": platform sprite "${spriteId}" exceeds 32x16 or has extra colour layers; only the top row's first 2 cells (first layer each) are used.`);
+      }
+      const used = topCells.length ? topCells.slice(0, 2) : [undefined];
+      cells = used.map(layer => {
+        const colors = (layer?.colors || []).slice(0, 16).map(value => value & 0xff);
+        while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+        return { pattern: (layer?.pattern || emptyPattern).map(value => value & 0xff), colors };
+      });
+    }
+    const record: PlatformSpriteRecord = {
+      patOff: patternBytes.length / 32,
+      colorOff: colorBytes.length / 16,
+      widthCells: cells.length,
+    };
+    for (const cell of cells) {
+      patternBytes.push(...cell.pattern);
+      colorBytes.push(...cell.colors);
+    }
+    records.set(key, record);
+    return record;
+  };
+  let maxSlots = 0;
+  let maxCells = 1;
+  const roomSlotSets = rooms.map(room => {
+    const entities = (room.entities || []).filter((entity: any) => entity.kind === 'platform' && entity.position);
+    const slots: Array<{ slot: Msx2EnemyHazardRuntimeSlot; record: PlatformSpriteRecord; isPatrol: boolean }> = [];
+    if (entities.length) {
+      // Synthetic kind so the shared resolver accepts them; platform entities have
+      // no push-box/carryable components, so the pairing stays 1:1 by index.
+      const synthetic = entities.map((entity: any) => ({ ...entity, kind: 'enemy' }));
+      const geometry = getMsx2EnemyHazardRuntimeSlots({ layers: { entities: synthetic } } as any);
+      for (let index = 0; index < geometry.length; index++) {
+        if (slots.length >= BITMAP_MAX_PLATFORM_SLOTS) {
+          console.warn(`MSX2 bitmap room "${room.name}": more than ${BITMAP_MAX_PLATFORM_SLOTS} moving platforms; extra ones were skipped.`);
+          break;
+        }
+        const slot = geometry[index];
+        const isPatrol = slot.mode === MSX2_ENEMY_MOVEMENT_PATROL;
+        if (!isPatrol) {
+          console.warn(`MSX2 bitmap room "${room.name}": platform "${(entities[index] as any)?.name || index}" uses an unsupported movement mode; it becomes a static platform.`);
+        }
+        const record = resolveRecord(spriteIdForEntity(entities[index]), room.name);
+        maxCells = Math.max(maxCells, record.widthCells);
+        slots.push({ slot, record, isPatrol });
+      }
+    }
+    maxSlots = Math.max(maxSlots, slots.length);
+    return slots;
+  });
+  if (maxSlots === 0) return { maxSlots: 0, maxCells: 1, roomTables: [], patternBytes: [], colorBytes: [] };
+  const roomTables = roomSlotSets.map(slots => {
+    const table: number[] = [slots.length & 0xff];
+    for (let i = 0; i < maxSlots; i++) {
+      const entry = slots[i];
+      if (!entry) {
+        table.push(0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0);
+        continue;
+      }
+      const { slot, record, isPatrol } = entry;
+      // A 32px platform must not patrol past x=224: SCREEN 5 sprites have no
+      // x>=256, so the second cell would wrap to the left edge.
+      const maxXCap = Math.max(0, 256 - record.widthCells * 16);
+      const minX = Math.min(slot.minX & 0xff, maxXCap);
+      const maxX = Math.max(Math.min(slot.maxX & 0xff, maxXCap), minX);
+      const minY = slot.minY & 0xff;
+      const maxY = Math.max(slot.maxY & 0xff, minY);
+      table.push(
+        Math.min(slot.x & 0xff, maxXCap),
+        slot.y & 0xff,
+        isPatrol ? slot.dx & 0xff : 0,
+        isPatrol ? slot.dy & 0xff : 0,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        record.widthCells & 0xff,
+        record.patOff & 0xff,
+        record.colorOff & 0xff,
+      );
+    }
+    return table;
+  });
+  return { maxSlots, maxCells, roomTables, patternBytes, colorBytes };
 }
 
 function getBitmapRoomSpriteFrameIndices(sprite: Msx2Sprite | undefined): number[] {
@@ -9897,6 +10064,22 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   }
   const enemySatBase = playerSatBase + spriteTables.layerCount * 4;
   const enemyColorBase = playerColorBase + spriteTables.layerCount * 16;
+  // Moving-platform runtime: SAT slots sit right after the enemy block (bullets
+  // shift past them), pattern groups after the enemy groups.
+  const platformData = buildBitmapRoomPlatformData(analysis, rooms);
+  const platformPatternGroupBase = enemyPatternGroupBase + enemyPatternGroupCount;
+  const platformPatternGroupCount = platformData.maxSlots * platformData.maxCells;
+  if (platformData.maxSlots > 0 && platformPatternGroupBase + platformPatternGroupCount > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room moving platforms need sprite pattern groups ${platformPatternGroupBase}..${platformPatternGroupBase + platformPatternGroupCount - 1} ` +
+      `(${platformData.maxSlots} slot(s) x ${platformData.maxCells} cell(s)), but the V9938 sprite pattern table only holds 64 groups ` +
+      `(player uses ${playerPatternGroups}, +1 bullet reserve, +${foregroundCount} foreground, +${enemyPatternGroupCount} enemies). ` +
+      `Reduce player animation frames/layers, foreground tiles, enemies or platforms per room.`,
+    );
+  }
+  const platformHardwareSlots = platformData.maxSlots * platformData.maxCells;
+  const platformSatBase = enemySatBase + enemyData.maxSlots * 4;
+  const platformColorBase = enemyColorBase + enemyData.maxSlots * 16;
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -9907,6 +10090,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     screenWidth: SCREEN_WIDTH,
     foregroundSlotCount: foregroundCount,
     enemySlotCount: enemyData.maxSlots,
+    platformSlotCount: platformHardwareSlots,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
@@ -10011,6 +10195,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       || source.element.binding === 'experience'
       || source.element.binding === 'level'
       || source.element.binding === 'skillPoints'
+      || source.element.binding === 'keyItem'
     );
     const valueBytes = needsOwnValue ? (wide ? 2 : 1) : 0;
     const valueAddress = valueBytes > 0 ? hudLinkedRamCursor : undefined;
@@ -10065,7 +10250,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
         reward: experienceElement?.xpReward,
       })
     : null;
-  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots);
+  const anyKeyItemHud = linkedHudDynamicSources.some(source => source.element.binding === 'keyItem');
+  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud);
   hudLinkedRamCursor += keyDoorSystem.ramBytes;
   // collector_gems skill: gem collectibles drawn/erased on the room bitmap.
   // Built before the dialogue system so the dialogue-close repaint call chain
@@ -10114,8 +10300,26 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       : '',
   });
   hudLinkedRamCursor += enemySystem.ramBytes;
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || dialogueSystem.enabled || enemySystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/dialogue/enemy systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/enemies.`);
+  // Moving-platform runtime state chains after the enemy pool, sharing the same
+  // NPC-dialogue pause gate so the world freezes with an open conversation.
+  const platformSystem = buildBitmapPlatformSystemAsm(platformData, {
+    ramBase: hudLinkedRamCursor,
+    satBase: platformSatBase,
+    colorBase: platformColorBase,
+    patternGroupBase: platformPatternGroupBase,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    playerHitbox,
+    terminalFallPx: playerPhysics.terminalPx,
+    pauseGateAsm: dialogueSystem.enabled
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all platforms
+    or a
+    ret nz
+`
+      : '',
+  });
+  hudLinkedRamCursor += platformSystem.ramBytes;
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/dialogue/enemy/platform systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/enemies/platforms.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
@@ -10179,7 +10383,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, enemySystem.loadCallAsm);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -10335,7 +10539,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${platformSystem.equates}    org #4000
 
     db "AB"
     dw init_rom
@@ -10360,7 +10564,7 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}    ; Render the start ro
     ld a, ${startIndex}
     call load_room
 ${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}
-${foregroundLoadCallAsm}${enemySystem.loadCallAsm}    ; Place the player at the room spawn point.
+${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
@@ -10402,11 +10606,11 @@ ${hasStateAnimations ? `    xor a
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
-${dialogueSystem.mainLoopGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
+${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
-${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}.skip_player_movement:
+${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${platformSystem.detectCallAsm}.skip_player_movement:
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${shootBulletSatCall}    jp .main_loop
+${enemySystem.satCallAsm}${platformSystem.satCallAsm}${shootBulletSatCall}    jp .main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
@@ -10431,6 +10635,7 @@ ${dialogueSystem.routinesAsm}
 ${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
 ${enemySystem.routinesAsm}
+${platformSystem.routinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${intro.dataAsm}bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
@@ -10465,6 +10670,7 @@ ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
 ${roomDataAsm}
 ${foregroundDataAsm}
 ${enemySystem.dataAsm}
+${platformSystem.dataAsm}
 ${formatBytes('bitmap_room_sprite_colors', combinedColors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
 bitmap_room_sprite_colors_end:
 

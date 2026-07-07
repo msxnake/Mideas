@@ -584,7 +584,7 @@ export interface Msx2Screen4Tile {
 
 export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
-export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'custom';
+export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'platform' | 'custom';
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'patrolChaseX' | 'walkerGravity' | 'ghostMaze' | 'dive';
 export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
@@ -888,6 +888,7 @@ export type Msx2HudWidgetBinding =
   | 'score'
   | 'lives'
   | 'collectibles'
+  | 'keyItem'
   | 'custom';
 
 export interface Msx2HudWidget {
@@ -975,6 +976,9 @@ export interface Msx2HudElement {
   atlasEntryId?: string;
   /** Empty/background icon variant used by iconRow slots (e.g. lives pips). */
   emptyAtlasEntryId?: string;
+  /** For binding 'keyItem': which inventory bit (0..7) this icon mirrors. The
+   *  icon shows its "full" half when bit N of bitmap_key_inventory is set. */
+  keyBitIndex?: number;
   /** Optional reward program used by experience bars when player XP reaches maxValue. */
   xpReward?: Msx2HudXpRewardConfig;
   align: Msx2HudElementAlign;
