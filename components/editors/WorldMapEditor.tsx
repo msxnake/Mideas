@@ -279,6 +279,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [editingConnectionsForNode, setEditingConnectionsForNode] = useState<WorldMapScreenNode | null>(null);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number, y: number } | null>(null);
+  const [linkPreviewPosition, setLinkPreviewPosition] = useState<{ x: number, y: number } | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragNodeOffset, setDragNodeOffset] = useState<{ x: number, y: number } | null>(null);
 
@@ -366,17 +367,27 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   }, [worldMapGraph.nodes, worldMapGraph.connections, worldMapGraph.gridSize, setPendingAutoConnectionProposal]);
 
   const handlePortClick = (nodeId: string, direction: ConnectionDirection) => {
+    const portNode = nodes.find(node => node.id === nodeId);
+    if (!portNode) return;
+
     if (!linkingState) {
       setLinkingState({ fromNodeId: nodeId, fromDirection: direction });
+      setLinkPreviewPosition(getPortPosition(portNode, direction));
       setSelectedNodeId(null);
       setSelectedConnectionId(null);
+      setStatusBarMessage(`Link start: ${portNode.name} / ${direction.toUpperCase()}. Ctrl+click another port to connect.`);
     } else {
       if (linkingState.fromNodeId === nodeId && linkingState.fromDirection === direction) {
-        setLinkingState(null); return;
+        setLinkingState(null);
+        setLinkPreviewPosition(null);
+        setStatusBarMessage('Link cancelled.');
+        return;
       }
       if (linkingState.fromNodeId === nodeId) {
         alert("Cannot connect a node to itself via manual port linking.");
-        setLinkingState(null); return;
+        setLinkingState(null);
+        setLinkPreviewPosition(null);
+        return;
       }
 
       const existing = worldMapGraph.connections.find(c =>
@@ -385,12 +396,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       );
       if (existing) {
         setLinkingState(null);
-        alert("Connection already exists.");
+        setLinkPreviewPosition(null);
+        setSelectedConnectionId(existing.id);
+        setStatusBarMessage('Connection already exists; it has been selected.');
         return;
       }
 
+      const connectionId = `wmconn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const newConnection: WorldMapConnection = {
-        id: `wmconn_${Date.now()}`,
+        id: connectionId,
         fromNodeId: linkingState.fromNodeId,
         fromDirection: linkingState.fromDirection,
         toNodeId: nodeId,
@@ -400,6 +414,10 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       };
       onUpdate({ connections: [...worldMapGraph.connections, newConnection] });
       setLinkingState(null);
+      setLinkPreviewPosition(null);
+      setSelectedNodeId(null);
+      setSelectedConnectionId(connectionId);
+      setStatusBarMessage(`World Map updated: ${direction.toUpperCase()} port connected.`);
     }
   };
 
@@ -485,6 +503,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setSelectedNodeId(null);
       setSelectedConnectionId(null);
       setLinkingState(null);
+      setLinkPreviewPosition(null);
       setMovingNodeId(null);
       if (svgRef.current) svgRef.current.focus(); // Focus for keyboard events
     }
@@ -518,6 +537,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       if (CTM) {
         const { x, y } = svgPoint.matrixTransform(CTM);
         setMousePosition({ x, y });
+      }
+    } else if (linkingState && svgRef.current) {
+      const svgPoint = svgRef.current.createSVGPoint();
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const CTM = svgRef.current.getScreenCTM()?.inverse();
+      if (CTM) {
+        const { x, y } = svgPoint.matrixTransform(CTM);
+        setLinkPreviewPosition({ x, y });
       }
     }
   };
@@ -927,6 +955,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setSelectedNodeId: (id: string | null) => void;
     setSelectedConnectionId: (id: string | null) => void;
     setLinkingState: (state: { fromNodeId: string; fromDirection: ConnectionDirection } | null) => void;
+    onPortClick: (nodeId: string, direction: ConnectionDirection) => void;
     onNavigateToAsset: (assetId: string) => void;
     onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
     onStartDrag: (nodeId: string, svgX: number, svgY: number) => void;
@@ -943,6 +972,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setSelectedNodeId,
     setSelectedConnectionId,
     setLinkingState,
+    onPortClick,
     onNavigateToAsset,
     onShowContextMenu,
     onStartDrag,
@@ -974,6 +1004,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         setSelectedNodeId(node.id);
         setSelectedConnectionId(null);
         setLinkingState(null);
+        setLinkPreviewPosition(null);
         if (svgGlobalRef?.current) svgGlobalRef.current.focus();
         return;
       }
@@ -981,6 +1012,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setSelectedNodeId(node.id);
       setSelectedConnectionId(null);
       setLinkingState(null);
+      setLinkPreviewPosition(null);
 
       if (svgGlobalRef?.current) {
         svgGlobalRef.current.focus(); // Focus SVG for keyboard events
@@ -1047,10 +1079,18 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               fill={linkingState?.fromNodeId === node.id && linkingState?.fromDirection === dir ? "hsl(50, 80%, 60%)" : "hsl(200, 60%, 50%)"}
               stroke="hsl(200, 80%, 70%)"
               strokeWidth="1"
-              onClick={(e) => { e.stopPropagation(); handlePortClick(node.id, dir); }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                // A port click must not bubble to the node: Ctrl+click on the
+                // body is node dragging, while Ctrl+click on a port is linking.
+                e.stopPropagation();
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onPortClick(node.id, dir); }}
               style={{ cursor: 'crosshair' }}
               role="button"
-              aria-label={`Connect ${dir} port`}
+              aria-label={`Connect ${dir} port (Ctrl+click)`}
+              title={`Ctrl+click to start or finish a connection at the ${dir} port`}
             />
           );
         })}
@@ -1187,7 +1227,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
                 strokeWidth={selectedConnectionId === conn.id ? 3 : 1.5}
                 fill="none"
                 markerEnd="url(#arrowhead)"
-                onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); setSelectedNodeId(null); setLinkingState(null); if (svgRef.current) svgRef.current.focus(); }}
+                onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); setSelectedNodeId(null); setLinkingState(null); setLinkPreviewPosition(null); if (svgRef.current) svgRef.current.focus(); }}
                 style={{ cursor: 'pointer' }}
                 aria-label={`Connection from ${fromNode.name} ${conn.fromDirection} to ${toNode.name} ${conn.toDirection}`}
               />
@@ -1201,6 +1241,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               setSelectedNodeId={setSelectedNodeId}
               setSelectedConnectionId={setSelectedConnectionId}
               setLinkingState={setLinkingState}
+              onPortClick={handlePortClick}
               onNavigateToAsset={onNavigateToAsset}
               onShowContextMenu={onShowContextMenu}
               onStartDrag={handleStartNodeDrag}
@@ -1218,13 +1259,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             if (!fromNode) return null;
             const p1 = getPortPosition(fromNode, linkingState.fromDirection);
 
-            let p2x = p1.x;
-            let p2y = p1.y;
-            switch (linkingState.fromDirection) {
-              case 'north': p2y -= 20; break;
-              case 'south': p2y += 20; break;
-              case 'west': p2x -= 20; break;
-              case 'east': p2x += 20; break;
+            let p2x = linkPreviewPosition?.x ?? p1.x;
+            let p2y = linkPreviewPosition?.y ?? p1.y;
+            if (!linkPreviewPosition) {
+              switch (linkingState.fromDirection) {
+                case 'north': p2y -= 20; break;
+                case 'south': p2y += 20; break;
+                case 'west': p2x -= 20; break;
+                case 'east': p2x += 20; break;
+              }
             }
 
             return (
@@ -1286,7 +1329,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       )}
 
       <div className="p-1 border-t border-msx-border text-xs text-msx-textsecondary pixel-font">
-        Nodes: {nodes.length} | Connections: {connections.length} | Start: {nodes.find(n => n.id === worldMapGraph.startScreenNodeId)?.name || 'None'} | Zoom: {zoomLevel.toFixed(2)}x | Grid: {gridSize}px | Keys: W/A/S/D to move selected node.
+        Nodes: {nodes.length} | Connections: {connections.length} | Start: {nodes.find(n => n.id === worldMapGraph.startScreenNodeId)?.name || 'None'} | Zoom: {zoomLevel.toFixed(2)}x | Grid: {gridSize}px | Keys: W/A/S/D to move selected node | Link: Ctrl+click a port twice (N/S/E/O).
       </div>
 
       {isExportAsmModalOpen && (
