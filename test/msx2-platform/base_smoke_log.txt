@@ -1,0 +1,5 @@
+t4 px=0 py=0
+t6 px=48 py=130
+t8 px=48 py=176
+t10 px=48 py=176
+t12 px=48 py=176

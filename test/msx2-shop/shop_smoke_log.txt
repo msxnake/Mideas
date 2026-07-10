@@ -1,0 +1,6 @@
+boot: screen=0 x=0 y=0 gems=0 inv=0 lock=0
+at_item_no_up: screen=0 x=72 y=95 gems=3 inv=0 lock=0
+after_buy: screen=0 x=72 y=137 gems=3 inv=0 lock=0
+after_second_up: screen=0 x=72 y=176 gems=1 inv=2 lock=0
+at_door_touch_only: screen=0 x=192 y=176 gems=1 inv=2 lock=0
+after_door_up: screen=1 x=48 y=170 gems=1 inv=2 lock=0

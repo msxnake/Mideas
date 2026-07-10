@@ -456,6 +456,8 @@ export interface Msx2LockedDoorConfig {
   requiredKeyId?: string;
   consumeKey?: boolean;
   openOnce?: boolean;
+  /** Transition doors only fire on a fresh UP press while overlapping (shop-style entrance). */
+  requireUpKey?: boolean;
   closedAtlasEntryId?: string;
   openAtlasEntryId?: string;
   lockedMessage?: string;
@@ -470,6 +472,33 @@ export interface Msx2PressureButtonConfig {
   latch?: boolean;
   atlasEntryId?: string;
   pressedAtlasEntryId?: string;
+}
+
+/** Spring/jumper tile in SCREEN 5 bitmap rooms: solid 16x16 cell that launches the player upward when stood on. */
+export interface Msx2JumperConfig {
+  enabled: boolean;
+  /** Idle spring atlas metatile drawn at room load (cell is solid). */
+  atlasEntryId?: string;
+  /** Extended/compressed spring atlas metatile shown ~12 frames after firing. */
+  triggeredAtlasEntryId?: string;
+  /** Upward launch velocity in px/frame (2-15). Normal jumps are usually 5-6. */
+  impulsePx?: number;
+}
+
+/** Wall-jumper tile in SCREEN 5 bitmap rooms: solid 16x16 cell placed against a vertical
+ *  wall that launches the player horizontally on side contact. The launch decays via
+ *  friction each frame while gravity keeps acting, producing an arcing trajectory. */
+export interface Msx2WallJumperConfig {
+  enabled: boolean;
+  /** Idle wall-jumper atlas metatile drawn at room load (cell is solid). */
+  atlasEntryId?: string;
+  /** Extended/compressed wall-jumper atlas metatile shown ~12 frames after firing. */
+  triggeredAtlasEntryId?: string;
+  /** Horizontal launch magnitude in px/frame (2-15). */
+  impulsePx?: number;
+  /** Which way the player is thrown. 'right' = spring on the LEFT side of a wall;
+   *  'left' = spring on the RIGHT side of a wall. Defaults to 'right'. */
+  direction?: 'left' | 'right';
 }
 
 export interface Msx2Screen5BitmapRoom {
@@ -976,8 +1005,10 @@ export interface Msx2HudElement {
   atlasEntryId?: string;
   /** Empty/background icon variant used by iconRow slots (e.g. lives pips). */
   emptyAtlasEntryId?: string;
-  /** For binding 'keyItem': which inventory bit (0..7) this icon mirrors. The
-   *  icon shows its "full" half when bit N of bitmap_key_inventory is set. */
+  /** @deprecated keyItem HUD widgets now reflect the shared key count
+   *  (bitmap_key_count): the icon toggles empty (0 keys) / full (≥1 key) and a
+   *  counter shows the total. This per-bit selector is no longer read; kept only
+   *  so older project JSON still parses. */
   keyBitIndex?: number;
   /** Optional reward program used by experience bars when player XP reaches maxValue. */
   xpReward?: Msx2HudXpRewardConfig;

@@ -1,4 +1,4 @@
-import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
+import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -470,6 +470,377 @@ const BITMAP_INTRO_EFFECT_CALLS: Record<string, string> = {
   screen5_diagonal_pixel_wipe: '    call bitmap_intro_wipe_diagonal\n',
   screen5_mirror_pixel_wipe: '    call bitmap_intro_wipe_mirror\n',
 };
+
+/**
+ * Resolve the bitmap-room Game Flow graph (purpose 'screen4-bitmap-runtime') used
+ * for the compile-time node dispatcher. Returns null when no such graph exists
+ * (standalone bitmap project). The dispatcher walks the graph from Start and
+ * emits static jumps; see buildBitmapGameFlowProgram.
+ */
+function resolveBitmapGameFlow(analysis: ProjectAnalysis): Msx2GameFlowGraph | null {
+  const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
+    .filter(flow => (flow as any)?.purpose === 'screen4-bitmap-runtime');
+  const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
+  if (!flow || !Array.isArray(flow.nodes) || flow.nodes.length === 0) return null;
+  // Only emit a dispatcher when the graph actually has a WorldLink (gameplay entry)
+  // and at least one node after it (the WorldLink's connection target, e.g. End).
+  if (!flow.nodes.some(node => node.type === 'WorldLink')) return null;
+  return flow as Msx2GameFlowGraph;
+}
+
+/**
+ * Build the compile-time Game Flow dispatcher for the bitmap backend. Mirrors the
+ * Screen 4 pattern (buildMsx2GameFlowProgram): the graph is walked from Start and
+ * each node becomes a label with a static jump to its default connection. Only the
+ * node types needed for a Game Over flow are handled in this phase:
+ *   Start/Waypoint/Globals/Screen5Presentation/Transition -> passthrough to default
+ *   WorldLink -> load start room + spawn, then call bitmap_enter_game_loop; on
+ *                return (game-over flag) follow the default connection.
+ *   End       -> draw title/message (GAME OVER / VICTORY) on the bitmap + wait key.
+ *   Restart   -> jp init_rom (soft restart).
+ * Other node types fall through to their default connection with a warning comment.
+ *
+ * Returns '' when no Game Flow graph exists (standalone project).
+ */
+function buildBitmapGameFlowProgram(
+  analysis: ProjectAnalysis,
+  options: {
+    /**
+     * The shared boot-init sequence (bitmapBootInitAsm) built by the caller:
+     * loads the start room + dynamic visuals, spawns enemies/platforms, resets
+     * the full player + composition state, restores R#15 and clears skills. Using
+     * the SAME string as the inline boot keeps the WorldLink entry byte-identical
+     * to a standalone boot, which is what fixes the "spikes cost no hearts /
+     * periodic reposition" regression (composition state must start at 0).
+     */
+    bootInitAsm: string;
+  },
+): string {
+  const flow = resolveBitmapGameFlow(analysis);
+  if (!flow) return '';
+  const { bootInitAsm } = options;
+
+  const nodeById = new Map(flow.nodes.map(node => [node.id, node]));
+  const defaultTarget = (nodeId: string | undefined): string | undefined => {
+    if (!nodeId) return undefined;
+    const connection = (flow.connections || []).find(item => {
+      const fromNodeId = item.from?.nodeId;
+      return fromNodeId === nodeId && !item.from?.sourceId;
+    });
+    return connection?.to?.nodeId;
+  };
+
+  const nodeLabels = new Map<string, string>();
+  flow.nodes.forEach((node, index) => nodeLabels.set(node.id, `bitmap_gf_node_${index}`));
+  const labelFor = (nodeId: string | undefined): string | undefined => nodeId ? nodeLabels.get(nodeId) : undefined;
+  const jumpTo = (nodeId: string | undefined): string => {
+    const label = labelFor(nodeId);
+    return label ? `    jp ${label}` : '    ret';
+  };
+
+  const lines: string[] = [
+    '; ---- Game Flow dispatcher (compile-time, bitmap backend) ----',
+    'bitmap_gf_entry:',
+    jumpTo(flow.startNodeId || flow.nodes.find(n => n.type === 'Start')?.id),
+  ];
+  const dataBlocks: string[] = [];
+  const emitted = new Set<string>();
+  const unsupported = new Set<string>();
+
+  // Full (re)initialisation used by the WorldLink entry (and Restart): the exact
+  // same boot-init the inline path runs, so the composition state, enemies,
+  // R#15 and skills are all correctly set up before the gameplay loop. Clobbers
+  // AF/BC/DE/HL.
+  const loadWorldAsm = bootInitAsm;
+
+  const emitNode = (nodeId: string | undefined): void => {
+    if (!nodeId) return;
+    const node = nodeById.get(nodeId);
+    if (!node || emitted.has(nodeId)) return;
+    emitted.add(nodeId);
+    const label = labelFor(nodeId)!;
+    lines.push(`${label}:`);
+    switch (node.type) {
+      case 'Start':
+      case 'Waypoint':
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+      case 'Globals':
+        // Globals are applied at build time into the ROM data; runtime passthrough.
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+      case 'Screen5Presentation':
+      case 'Screen4Screen':
+        // Presentation scenes are played by the intro before the dispatcher; if a
+        // graph reaches one here, pass through to its default connection.
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+      case 'Transition': {
+        const transitionNode = node as Msx2GameFlowTransitionNode;
+        const effect = String(transitionNode.effect || 'cls');
+        const callLine = BITMAP_INTRO_EFFECT_CALLS[effect];
+        if (!callLine) {
+          throw new Error(`MSX2 bitmap GameFlow Transition effect "${effect}" is not supported; use a SCREEN 5 effect (pixel wipes, fade to black or CLS).`);
+        }
+        lines.push(callLine.trimEnd());
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+      }
+      case 'WorldLink':
+        // Load the start room, reset vitals, and enter the gameplay loop. When the
+        // loop returns (bitmap_game_over_flag armed), follow the WorldLink's default
+        // connection (typically an End:GameOver node).
+        lines.push(loadWorldAsm);
+        lines.push('    call bitmap_enter_game_loop');
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+      case 'End': {
+        const endNode = node as Msx2GameFlowEndNode;
+        const title = String((endNode as any).title || '').trim();
+        const message = String((endNode as any).message || '').trim();
+        const text = (title || message) ? (title || message) : 'GAME OVER';
+        const dataLabel = `${label}_DATA`;
+        dataBlocks.push(buildBitmapEndTextData(dataLabel, text));
+        lines.push(`    ld hl, ${dataLabel}`);
+        lines.push('    call draw_bitmap_end_screen');
+        lines.push('    call bitmap_end_wait_key');
+        lines.push('    ; End node terminates the flow.');
+        lines.push('    jp .bitmap_main_loop');
+        break;
+      }
+      case 'Restart':
+        lines.push('    jp init_rom');
+        break;
+      default:
+        unsupported.add(String(node.type));
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+    }
+    // Recurse into this node's default target so all reachable nodes are emitted.
+    emitNode(defaultTarget(nodeId));
+  };
+
+  const startId = flow.startNodeId || flow.nodes.find(n => n.type === 'Start')?.id;
+  emitNode(startId);
+
+  if (unsupported.size > 0) {
+    lines.push(`    ; Unsupported bitmap GameFlow node types (passed through): ${Array.from(unsupported).join(', ')}`);
+  }
+  return `${lines.join('\n')}\n${dataBlocks.join('')}`;
+}
+
+/**
+ * Build the ROM data block describing an End-node message for the bitmap backend.
+ * Layout: DB charCount, then charCount bytes each = index into the 1bpp font
+ * (DEFAULT_HUD_PATTERNS, exposed at runtime as bitmap_end_font). Spaces map to 0.
+ * Upper-cases the text and clamps to 16 chars (128 px at 8px/char).
+ */
+function buildBitmapEndTextData(label: string, text: string): string {
+  const upper = String(text || 'GAME OVER').toUpperCase().slice(0, 16);
+  const charOrder = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
+  const charIndex = (ch: string): number => {
+    const idx = charOrder.indexOf(ch);
+    return idx >= 0 ? idx : 0;
+  };
+  const indices = Array.from(upper).map(charIndex);
+  const bytes = [indices.length, ...indices];
+  return `${label}:\n    DB ${bytes.map(b => `#${(b & 0xff).toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
+}
+
+/**
+ * Build the runtime ASM for the End-node screen + the font data table. Emits:
+ *   - bitmap_end_font: 38 x 8-byte 1bpp glyph rows (the DEFAULT_HUD_PATTERNS font),
+ *     same order as the charOrder used by buildBitmapEndTextData.
+ *   - draw_bitmap_end_screen: clears the visible page to black, then stamps each
+ *     letter of the message (HL -> charCount + indices) scaled 2x (16x16 per
+ *     glyph) centered horizontally, using HMMV fills (one per lit pixel). Slow but
+ *     runs only once at game end.
+ *   - bitmap_end_wait_key: polls PPI keyboard row 8 (SPACE) until pressed.
+ */
+function buildBitmapEndScreenRuntime(): { dataAsm: string; routinesAsm: string } {
+  // Font data: pack DEFAULT_HUD_PATTERNS in charOrder order, 8 bytes per glyph.
+  const charOrder = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
+  const fontBytes: number[] = [];
+  for (const ch of charOrder) {
+    const pattern = (DEFAULT_HUD_PATTERNS[ch] || DEFAULT_HUD_PATTERNS[' ']).slice(0, 8);
+    while (pattern.length < 8) pattern.push(0);
+    for (const row of pattern) fontBytes.push(row & 0xff);
+  }
+  const dataAsm = `; End-node font (1bpp, 8 rows/glyph, 38 glyphs) for the bitmap GAME OVER text.
+bitmap_end_font:
+${formatBytes('bitmap_end_font_data', fontBytes, '1bpp glyph rows in char-order: space,0-9,A-Z,:,-,/ (8 bytes each)').replace('bitmap_end_font_data:', '').trimEnd()}
+`;
+
+  const routinesAsm = `; ------------------------------------------------------------
+; FUNCTION: draw_bitmap_end_screen
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw the End-node message (GAME OVER / VICTORY / custom) centered on the
+;   visible page. Clears the page to black first, then stamps each glyph scaled
+;   2x (each lit font pixel -> a 2x2 HMMV block) so the text is legible. Runs
+;   once at game end.
+;
+; INPUT:
+;   HL = pointer to message data (DB charCount, charCount index bytes).
+;
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+draw_bitmap_end_screen:
+    ; 1. Clear the visible page (Y 0..191) to colour 1 (black).
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_end_target_page), a
+    ld hl, bitmap_end_fill_cmd
+    ld a, (bitmap_end_target_page)
+    or a
+    jr z, .end_fill_page0
+    ld a, 1
+    ld (bitmap_end_fill_cmd + 7), a
+.end_fill_page0:
+    call bitmap_end_launch_cmd
+    ; 2. Read the message and stamp each glyph.
+    ld b, (hl)               ; B = char count
+    inc hl
+    ; Center X: text is charCount*16 px wide; center = 128 - charCount*8.
+    ld a, b
+    add a, a                 ; *2
+    add a, a                 ; *4
+    add a, a                 ; *8  -> A = charCount*8
+    ld c, a
+    ld a, 128
+    sub c                    ; A = 128 - charCount*8 = centered start X
+    ld (bitmap_end_cursor_x), a
+    xor a
+    ld (bitmap_end_cursor_char), a
+.end_char_loop:
+    ld a, b
+    or a
+    ret z                    ; all chars drawn
+    push bc
+    push hl
+    ld a, (hl)               ; A = glyph index
+    ; DE = font base + glyphIndex*8
+    ld d, 0
+    ld e, a
+    ld hl, bitmap_end_font
+    add hl, de
+    add hl, de
+    add hl, de               ; *3... no, need *8
+    add hl, de
+    add hl, de
+    add hl, de
+    add hl, de
+    add hl, de               ; HL = font + glyphIndex*8 (8 rows)
+    ld (bitmap_end_glyph_ptr), hl
+    ld a, (bitmap_end_cursor_x)
+    ld (bitmap_end_gx), a
+    ld b, 8                  ; 8 font rows
+.end_row_loop:
+    push bc
+    ld hl, (bitmap_end_glyph_ptr)
+    ld c, (hl)               ; C = current row bitmask
+    inc hl
+    ld (bitmap_end_glyph_ptr), hl
+    ld a, 8                  ; row index 0..7
+    sub b
+    ld e, a                  ; E = row index
+    ; Compute Y = centerY + rowIndex*2. centerY = 80 (approx middle).
+    add a, a                 ; rowIndex*2
+    add a, 80
+    ld (bitmap_end_gy), a
+    ld b, 8                  ; 8 columns
+    ld d, #80                ; bit mask start (leftmost pixel)
+.end_col_loop:
+    ld a, c
+    and d
+    jp z, .end_col_skip      ; pixel off -> skip
+    ; Draw a 2x2 block at (gx + (8-b)*2, gy). HMMV fill 2x2 colour 15 (white).
+    push bc
+    push de
+    ld a, 8
+    sub b
+    add a, a                 ; col offset *2
+    ld d, a
+    ld a, (bitmap_end_gx)
+    add a, d
+    ld (bitmap_end_block_cmd + 4), a    ; DX low
+    xor a
+    ld (bitmap_end_block_cmd + 5), a    ; DX high
+    ld a, (bitmap_end_gy)
+    ld (bitmap_end_block_cmd + 6), a    ; DY low
+    ld a, (bitmap_end_target_page)
+    or a
+    jr z, .end_block_page0
+    ld a, 1
+    jr .end_block_page_set
+.end_block_page0:
+    xor a
+.end_block_page_set:
+    ld (bitmap_end_block_cmd + 7), a    ; DY high (page)
+    ld hl, bitmap_end_block_cmd
+    call bitmap_end_launch_cmd
+    pop de
+    pop bc
+.end_col_skip:
+    ld a, d
+    rrca                    ; advance bit mask right
+    ld d, a
+    djnz .end_col_loop
+    pop bc
+    djnz .end_row_loop
+    ; Advance cursor X by 16 px (2x glyph width).
+    ld a, (bitmap_end_cursor_x)
+    add a, 16
+    ld (bitmap_end_cursor_x), a
+    pop hl
+    pop bc
+    inc hl
+    dec b
+    jp .end_char_loop
+
+; Launch a 15-byte V9938 command at HL. Restores R#15 to S#0.
+bitmap_end_launch_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld b, 15
+.end_launch_loop:
+    ld a, (hl)
+    out (#9B), a
+    inc hl
+    djnz .end_launch_loop
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_end_wait_key
+; ------------------------------------------------------------
+; PURPOSE: poll PPI keyboard row 8 until SPACE (bit 0) is pressed.
+; ------------------------------------------------------------
+bitmap_end_wait_key:
+    call bitmap_wait_vblank
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    bit 0, a
+    jp z, bitmap_end_wait_key
+    ret
+
+bitmap_end_target_page:   DB 0
+bitmap_end_cursor_x:      DB 0
+bitmap_end_cursor_char:   DB 0
+bitmap_end_glyph_ptr:     DW 0
+bitmap_end_gx:            DB 0
+bitmap_end_gy:            DB 0
+; Full-page clear to colour 1 (black): DX/DY 0, NX=256, NY=192, HMMV colour 1.
+bitmap_end_fill_cmd:      DB 0,0, 0,0, 0,0, 0,0, 0,0, #C0,0, 1,0, #C0
+; 2x2 white block HMMV: NX=2, NY=2, colour 15. DX/DY patched at runtime.
+bitmap_end_block_cmd:     DB 0,0, 0,0, 0,0, 0,0, 2,0, 2,0, 15,0, #C0
+`;
+  return { dataAsm, routinesAsm };
+}
 
 /**
  * Emits the boot-time GameFlow intro: per-scene palette + full-page bitmap on the
@@ -1344,6 +1715,11 @@ function buildBitmapHudSeedPixels(
       }
       const element = layer.element;
       if (!element.visible) continue;
+      // A standalone 'icon' bound to 'keyItem' is runtime-dynamic (icon toggle,
+      // same iconRow path): do NOT bake it into the seed, or the runtime draw
+      // would double-stamp over the baked pixels. 'iconRow' is already omitted
+      // below because it matches no seed branch.
+      if (element.kind === 'icon' && element.binding === 'keyItem') continue;
       const x = clampInt(element.x, 0, SCREEN_WIDTH - 1, 0);
       const y = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 0);
       const width = clampInt(element.width, 1, SCREEN_WIDTH - x, element.kind === 'bar' ? 64 : 16);
@@ -3221,6 +3597,8 @@ ${enableKeyDoorTransitions ? `    cp 4
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
+    ld (player_vx), a
+    ld (bitmap_game_over_flag), a
     ld a, 2
     ld (player_y), a
     jp .commit_flip_page
@@ -3235,6 +3613,8 @@ ${enableKeyDoorTransitions ? `    cp 4
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
+    ld (player_vx), a
+    ld (bitmap_game_over_flag), a
     ld a, 238
     ld (player_x), a
     jp .commit_flip_page
@@ -3242,6 +3622,8 @@ ${enableKeyDoorTransitions ? `    cp 4
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
+    ld (player_vx), a
+    ld (bitmap_game_over_flag), a
     ld a, 2
     ld (player_x), a
 ${enableKeyDoorTransitions ? `    jp .commit_flip_page
@@ -3249,6 +3631,8 @@ ${enableKeyDoorTransitions ? `    jp .commit_flip_page
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
+    ld (player_vx), a
+    ld (bitmap_game_over_flag), a
     ld a, (bitmap_key_pending_entry_y)
     ld (player_y), a
     ld a, (bitmap_key_pending_entry_x)
@@ -3734,9 +4118,9 @@ ${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invul
     ; layer over the HUD band or partially clipped by the display top, so the
     ; jump arc stays visible over the HUD instead of pinning below it.
     cp #D8                         ; V9938 SAT terminator Y would hide this and later layers
-    jp nz, .slot_${slotIndex}_y_safe
+    jp nz, .ply_slot_${slotIndex}_y_safe
     inc a                          ; nudge 1px: 216->217 stays offscreen but keeps the SAT alive
-.slot_${slotIndex}_y_safe:
+.ply_slot_${slotIndex}_y_safe:
     out (${VDP_DATA_PORT}), a`;
   const yWriteHidden = `    ld a, #D8
     out (${VDP_DATA_PORT}), a`;
@@ -3749,12 +4133,12 @@ ${slotIndex ? `    add a, ${slotIndex * 4}\n` : ''}    out (${VDP_DATA_PORT}), a
   if (enableBlink) {
     return `    ld a, (blink_hide)
     or a
-    jp nz, .slot_${slotIndex}_hide_y
+    jp nz, .ply_slot_${slotIndex}_hide_y
 ${yWriteNormal}
-    jp .slot_${slotIndex}_after_y
-.slot_${slotIndex}_hide_y:
+    jp .ply_slot_${slotIndex}_after_y
+.ply_slot_${slotIndex}_hide_y:
 ${yWriteHidden}
-.slot_${slotIndex}_after_y:
+.ply_slot_${slotIndex}_after_y:
 ${xPatEc}
 `;
   }
@@ -3977,7 +4361,11 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
   // the player is also repositioned to the spawn on each touch:
   //   true  -> reposition every touch (no health reset; hearts keep dropping).
   //   false -> stay in place.
-  // At 0 health -> -1 life + full respawn (reposition + health reset + blink).
+  // At 0 health -> -1 life. If lives remain -> full respawn (reposition + health
+  // reset + blink). If lives also hit 0 -> arm bitmap_game_over_flag (the gameplay
+  // loop exits next frame so the Game Flow follows the WorldLink connection, e.g.
+  // to an End:GameOver node), then still fall through to respawn so the player is
+  // repositioned while the loop detects the flag.
   const takeDamageAsm = vitals.deadlyInstantRespawn
     ? `    ; Instant-respawn mode (health.deadlyInstantRespawn = true): each deadly
     ; touch costs 1 health + blink AND repositions the player to the spawn.
@@ -3993,7 +4381,10 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
 .deadly_dead:
     ld hl, player_lives
     dec (hl)
-    jp .deadly_respawn          ; health 0 -> -1 life + full respawn
+    ld a, (hl)
+    or a
+    jr z, .deadly_game_over     ; lives 0 -> request Game Flow exit
+    jp .deadly_respawn          ; lives remain -> -1 life + full respawn
 `
     : `    ; Action mode (health.deadlyInstantRespawn = false): each deadly touch
     ; costs 1 health + blink; the player stays in place. Full respawn at 0 hp.
@@ -4009,7 +4400,10 @@ blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown.
 .deadly_dead:
     ld hl, player_lives
     dec (hl)
-    jp .deadly_respawn          ; health 0 -> -1 life + full respawn
+    ld a, (hl)
+    or a
+    jr z, .deadly_game_over     ; lives 0 -> request Game Flow exit
+    jp .deadly_respawn          ; lives remain -> -1 life + full respawn
 `;
   const routineAsm = `; ------------------------------------------------------------
 ; FUNCTION: bitmap_check_deadly_contact
@@ -4084,7 +4478,14 @@ ${addA(hbCenter)}    ld b, a
 ${addA(hbRight)}    ld b, a
     call bitmap_probe_deadly
     jp z, .deadly_no_contact   ; no deadly contact in any sample -> exit
-${takeDamageAsm}.deadly_respawn:
+${takeDamageAsm}.deadly_game_over:
+    ; Last life spent: request a Game Flow exit. The gameplay loop checks this
+    ; flag next frame and returns to the Game Flow dispatcher (which follows the
+    ; WorldLink's connection, e.g. to an End:GameOver node). Fall through to the
+    ; respawn so the player is repositioned while the flag is detected.
+    ld a, 1
+    ld (bitmap_game_over_flag), a
+.deadly_respawn:
     ; FULL respawn (health reached 0): reset health, arm blink, zero velocity.
     ld a, ${maxHealthByte}
     ld (player_health), a
@@ -4123,6 +4524,8 @@ interface BitmapKeyPickupRecord {
   y: number;
   keyMask: number;
   flagOffset: number;
+  /** Gem cost (0 = free pickup, collected on touch). Priced pickups need a fresh UP press and enough gems. */
+  price: number;
 }
 
 /**
@@ -4183,6 +4586,7 @@ interface BitmapPressureButtonVisualRecord {
 const KEY_DOOR_FLAG_CONSUME = 0x01;
 const KEY_DOOR_FLAG_OPEN_ONCE = 0x02;
 const KEY_DOOR_FLAG_NO_TRANSITION = 0x04;
+const KEY_DOOR_FLAG_REQUIRE_UP = 0x08;
 const KEY_DOOR_VISUAL_CLOSED = 0x01;
 const KEY_DOOR_VISUAL_OPEN = 0x02;
 const PRESSURE_BUTTON_ACTOR_PLAYER = 0x01;
@@ -4194,6 +4598,7 @@ function normalizeDoorConfig(value: unknown): {
   requiredKeyId: string;
   consumeKey: boolean;
   openOnce: boolean;
+  requireUpKey: boolean;
   targetRoomId: string;
   targetEntryId: string;
   closedAtlasEntryId: string;
@@ -4205,6 +4610,7 @@ function normalizeDoorConfig(value: unknown): {
     requiredKeyId: typeof raw.requiredKeyId === 'string' ? raw.requiredKeyId : '',
     consumeKey: Boolean(raw.consumeKey),
     openOnce: raw.openOnce !== false,
+    requireUpKey: Boolean(raw.requireUpKey),
     targetRoomId: typeof raw.targetRoomId === 'string' ? raw.targetRoomId : '',
     targetEntryId: typeof raw.targetEntryId === 'string' ? raw.targetEntryId : '',
     closedAtlasEntryId: typeof raw.closedAtlasEntryId === 'string' ? raw.closedAtlasEntryId : '',
@@ -4296,7 +4702,8 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
         const bit = keyBits.get(keyId);
         if (bit === undefined) continue;
         const flagOffset = pickups.length;
-        pickups.push({ roomIndex, x, y, keyMask: 1 << bit, flagOffset });
+        const price = clampInt(entity.params?.keyPickupPrice, 0, 255, 0);
+        pickups.push({ roomIndex, x, y, keyMask: 1 << bit, flagOffset, price });
         const atlasEntryId = typeof entity.params?.keyPickupAtlasEntryId === 'string' ? entity.params.keyPickupAtlasEntryId : '';
         const entry = atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === atlasEntryId) : undefined;
         if (entry) {
@@ -4321,7 +4728,8 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
         : { x, y };
       const flags = (door.consumeKey ? KEY_DOOR_FLAG_CONSUME : 0)
         | (door.openOnce ? KEY_DOOR_FLAG_OPEN_ONCE : 0)
-        | (hasTransitionTarget ? 0 : KEY_DOOR_FLAG_NO_TRANSITION);
+        | (hasTransitionTarget ? 0 : KEY_DOOR_FLAG_NO_TRANSITION)
+        | (door.requireUpKey ? KEY_DOOR_FLAG_REQUIRE_UP : 0);
       const openOffset = doors.length;
       if (entity.id) doorOpenOffsetByEntityId.set(entity.id, openOffset);
       const closedCommand = buildDoorVisualCommand(room, door.closedAtlasEntryId, x, y);
@@ -4407,6 +4815,7 @@ function buildBitmapKeyDoorSystemAsm(
   bankedRoomData: boolean,
   enemySlots: number = 0,
   forceInventory: boolean = false,
+  gemCounter: { label: string; wide: boolean } | null = null,
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -4423,14 +4832,15 @@ function buildBitmapKeyDoorSystemAsm(
   const { pickups, pickupVisuals, doors, visuals, pressureButtons, pressureButtonVisuals } = collectBitmapKeyDoorRecords(rooms);
   if (pickups.length === 0 && doors.length === 0) {
     // No key/door entities, but a HUD widget may still bind to 'keyItem'. Emit a
-    // lone inventory byte + equate so the widget has a valid RAM symbol; nothing
-    // ever sets it (no pickups), so the icon stays in its "empty" half forever.
+    // lone key-count byte + equate so the widget has a valid RAM symbol; nothing
+    // ever increments it (no pickups), so the icon stays "empty" and the counter
+    // reads 0 forever.
     if (forceInventory) {
       return {
         enabled: false,
         ramBytes: 1,
-        equates: `bitmap_key_inventory EQU ${hexWord(ramBase)}\n`,
-        initAsm: '    xor a\n    ld (bitmap_key_inventory), a\n',
+        equates: `bitmap_key_count EQU ${hexWord(ramBase)}\n`,
+        initAsm: '    xor a\n    ld (bitmap_key_count), a\n',
         mainLoopCall: '',
         pressureButtonCall: '',
         initialDrawCall: '',
@@ -4443,6 +4853,21 @@ function buildBitmapKeyDoorSystemAsm(
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', pressureButtonCall: '', initialDrawCall: '', pendingPageDrawCall: '', solidProbeCallAsm: '', routinesAsm: '', dataAsm: '' };
   }
 
+  // Priced pickups pay with the HUD 'collectibles' counter (collector_gems). If a
+  // pickup has a price but no counter exists, warn and fall back to a free pickup
+  // so the item can never become uncollectable.
+  for (const pickup of pickups) {
+    if (pickup.price > 0 && !gemCounter) {
+      console.warn(`⚠️ MSX2 bitmap room: key pickup with price ${pickup.price} but no HUD counter bound to 'collectibles'; treating it as a free pickup.`);
+      pickup.price = 0;
+    }
+  }
+  const pricedPickups = pickups.some(item => item.price > 0);
+  const anyRequireUpDoor = doors.some(item => (item.flags & KEY_DOOR_FLAG_REQUIRE_UP) !== 0);
+  // Fresh-press UP gate: shared by "enter with UP" doors and priced pickups. Only
+  // emitted (code + 2 RAM bytes) when some entity uses it, so projects without the
+  // feature keep a byte-identical ROM.
+  const needsUpGate = pricedPickups || anyRequireUpDoor;
   const inventoryAddress = ramBase;
   const pendingXAddress = ramBase + 1;
   const pendingYAddress = ramBase + 2;
@@ -4451,9 +4876,14 @@ function buildBitmapKeyDoorSystemAsm(
   const targetPageAddress = ramBase + 5;
   const probeXAddress = ramBase + 6;
   const probeYAddress = ramBase + 7;
-  const pickupFlagsAddress = ramBase + 8;
+  const countAddress = ramBase + 8;
+  const fixedRamBytes = 9 + (needsUpGate ? 2 : 0) + (pricedPickups ? 1 : 0);
+  const keysAddress = ramBase + 9;
+  const upLockAddress = ramBase + 10;
+  const workPriceAddress = ramBase + 11;
+  const pickupFlagsAddress = ramBase + fixedRamBytes;
   const doorOpenFlagsAddress = pickupFlagsAddress + pickups.length;
-  const ramBytes = 8 + pickups.length + doors.length;
+  const ramBytes = fixedRamBytes + pickups.length + doors.length;
   const hbLeft = hitbox.x;
   const hbRight = hitbox.x + hitbox.w - 1;
   const hbTop = hitbox.y;
@@ -4467,7 +4897,9 @@ function buildBitmapKeyDoorSystemAsm(
   const pressureButtonTables = rooms.map((_room, roomIndex) => pressureButtons.filter(item => item.roomIndex === roomIndex));
   const pressureButtonVisualTables = rooms.map((_room, roomIndex) => pressureButtonVisuals.filter(item => item.roomIndex === roomIndex));
   const pickupDataAsm = pickupTables.map((items, roomIndex) =>
-    formatBytes(`bitmap_key_pickups_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.keyMask, item.flagOffset]), `Room ${roomIndex} key pickup records: x,y,keyMask,pickupFlagOffset`)
+    pricedPickups
+      ? formatBytes(`bitmap_key_pickups_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.keyMask, item.flagOffset, item.price]), `Room ${roomIndex} key pickup records: x,y,keyMask,pickupFlagOffset,gemPrice`)
+      : formatBytes(`bitmap_key_pickups_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.keyMask, item.flagOffset]), `Room ${roomIndex} key pickup records: x,y,keyMask,pickupFlagOffset`)
   ).join('');
   const pickupVisualDataAsm = pickupVisualTables.map((items, roomIndex) =>
     formatBytes(`bitmap_key_pickup_visuals_room_${roomIndex}`, items.flatMap(item => [item.flagOffset, ...item.drawCommand, ...item.eraseCommand]), `Room ${roomIndex} key pickup visual records: pickupFlagOffset,drawCmd(15),eraseCmd(15)`)
@@ -4514,13 +4946,18 @@ bitmap_key_work_offset     EQU ${hexWord(workOffsetAddress)}
 bitmap_key_target_page     EQU ${hexWord(targetPageAddress)}
 bitmap_key_probe_x         EQU ${hexWord(probeXAddress)}
 bitmap_key_probe_y         EQU ${hexWord(probeYAddress)}
-bitmap_key_pickup_flags    EQU ${hexWord(pickupFlagsAddress)}
+bitmap_key_count           EQU ${hexWord(countAddress)}
+${needsUpGate ? `bitmap_key_keys            EQU ${hexWord(keysAddress)}
+bitmap_key_up_lock         EQU ${hexWord(upLockAddress)}
+` : ''}${pricedPickups ? `bitmap_key_work_price      EQU ${hexWord(workPriceAddress)}
+` : ''}bitmap_key_pickup_flags    EQU ${hexWord(pickupFlagsAddress)}
 bitmap_key_door_open_flags EQU ${hexWord(doorOpenFlagsAddress)}
 bitmap_key_cmd_block       EQU #C2C0
 `;
   const initAsm = `    ; Clear key inventory and per-pickup/per-door one-shot flags.
     xor a
     ld (bitmap_key_inventory), a
+    ld (bitmap_key_count), a
     ld (bitmap_key_pending_entry_x), a
     ld (bitmap_key_pending_entry_y), a
     ld (bitmap_key_work_mask), a
@@ -4528,7 +4965,12 @@ bitmap_key_cmd_block       EQU #C2C0
     ld (bitmap_key_target_page), a
     ld (bitmap_key_probe_x), a
     ld (bitmap_key_probe_y), a
-${clearFlagBytes ? `${clearFlagBytes}\n` : ''}`;
+${needsUpGate ? `    ld (bitmap_key_keys), a
+` : ''}${pricedPickups ? `    ld (bitmap_key_work_price), a
+` : ''}${clearFlagBytes ? `${clearFlagBytes}\n` : ''}${needsUpGate ? `    ; UP lock starts armed: a held UP at boot must be released before it can act.
+    ld a, 1
+    ld (bitmap_key_up_lock), a
+` : ''}`;
   const mainLoopCall = `    call bitmap_update_key_doors    ; key pickups + locked-door transitions\n`;
   const pressureButtonCall = pressureButtons.length ? `    call bitmap_update_pressure_buttons    ; floor pressure buttons -> gates\n` : '';
   const initialDrawCall = `${pickupVisuals.length ? `    call bitmap_apply_key_pickup_visuals_visible    ; draw key pickup metatiles on current page\n` : ''}${pressureButtonVisuals.length ? `    call bitmap_apply_pressure_button_visuals_visible    ; draw pressure button metatiles on current page\n` : ''}${visuals.length ? `    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page\n` : ''}`;
@@ -4836,7 +5278,21 @@ bitmap_update_key_doors:
     ld a, (bitmap_composition_state)
     or a
     ret nz
-    call bitmap_check_key_pickups
+${needsUpGate ? `    ; Capture the PPI row-8 pressed mask once per frame (UP=#20). Releasing UP
+    ; re-arms bitmap_key_up_lock so doors/purchases need a FRESH press each time.
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    ld (bitmap_key_keys), a
+    and #20
+    jp nz, .keys_captured
+    xor a
+    ld (bitmap_key_up_lock), a
+.keys_captured:
+` : ''}    call bitmap_check_key_pickups
     jp bitmap_check_locked_doors
 
 ${pickupVisuals.length ? `; ------------------------------------------------------------
@@ -5523,7 +5979,10 @@ bitmap_check_key_pickups:
     ld a, (hl)
     inc hl
     ld (bitmap_key_work_offset), a
-    push hl
+${pricedPickups ? `    ld a, (hl)
+    inc hl
+    ld (bitmap_key_work_price), a
+` : ''}    push hl
     ld a, (bitmap_key_work_offset)
     ld l, a
     ld h, 0
@@ -5535,7 +5994,44 @@ bitmap_check_key_pickups:
     call bitmap_player_overlaps_16
     or a
     jp z, .key_pickup_next
-    ld a, (bitmap_key_inventory)
+${pricedPickups ? `    ld a, (bitmap_key_work_price)
+    or a
+    jp z, .key_pickup_grant    ; free pickup: collect on touch
+    ; Priced pickup (shop item): buy only on a FRESH UP press with enough gems.
+    ld a, (bitmap_key_up_lock)
+    or a
+    jp nz, .key_pickup_next
+    ld a, (bitmap_key_keys)
+    and #20
+    jp z, .key_pickup_next
+${gemCounter!.wide ? `    ld a, (bitmap_key_work_price)
+    ld b, a
+    ld hl, (${gemCounter!.label})
+    ld a, h
+    or a
+    jp nz, .key_pickup_pay     ; >=256 gems: always enough (price <= 255)
+    ld a, l
+    cp b
+    jp c, .key_pickup_next     ; not enough gems
+.key_pickup_pay:
+    ld a, l
+    sub b
+    ld l, a
+    ld a, h
+    sbc a, 0
+    ld h, a
+    ld (${gemCounter!.label}), hl
+` : `    ld a, (bitmap_key_work_price)
+    ld b, a
+    ld a, (${gemCounter!.label})
+    cp b
+    jp c, .key_pickup_next     ; not enough gems
+    sub b
+    ld (${gemCounter!.label}), a
+`}    ld a, 1
+    ld (bitmap_key_up_lock), a
+.key_pickup_grant:
+` : ''}    ld a, (bitmap_key_inventory)
     ld b, a
     ld a, (bitmap_key_work_mask)
     or b
@@ -5546,6 +6042,12 @@ bitmap_check_key_pickups:
     ld bc, bitmap_key_pickup_flags
     add hl, bc
     ld (hl), 1
+    ; +1 on the HUD key counter (bitmap_key_count, 8-bit, saturating at 255).
+    ld a, (bitmap_key_count)
+    inc a
+    jr z, .key_pickup_count_done   ; 255->0 wrap: stay clamped at 255
+    ld (bitmap_key_count), a
+.key_pickup_count_done:
 ${pickupVisuals.length ? `    call bitmap_erase_key_pickup_visual
 ` : ''}.key_pickup_next:
     pop hl
@@ -5701,7 +6203,18 @@ bitmap_check_locked_doors:
     ld a, (hl)
     inc hl
     ld (bitmap_key_work_offset), a
-    bit 1, c
+${anyRequireUpDoor ? `    ; "Enter with UP" doors: ignore the touch entirely (no key consume, no
+    ; transition) unless UP is freshly pressed this frame.
+    bit 3, c
+    jp z, .key_door_up_ok
+    ld a, (bitmap_key_up_lock)
+    or a
+    jp nz, .key_door_done
+    ld a, (bitmap_key_keys)
+    and #20
+    jp z, .key_door_done
+.key_door_up_ok:
+` : ''}    bit 1, c
     jp z, .key_door_check_key
     push hl
     ld a, (bitmap_key_work_offset)
@@ -5729,9 +6242,17 @@ bitmap_check_locked_doors:
     ld a, (bitmap_key_inventory)
     and b
     ld (bitmap_key_inventory), a
+    ; Consuming the key also decrements the HUD key counter (floored at 0).
+    ld a, (bitmap_key_count)
+    or a
+    jr z, .key_door_mark_open
+    dec a
+    ld (bitmap_key_count), a
 .key_door_mark_open:
     bit 1, c
     jp z, .key_door_open
+    push bc                        ; bitmap_apply_door_state_visible destroys BC;
+                                   ; preserve C (door flags) for the bit 2 test below.
     push hl
     ld a, (bitmap_key_work_offset)
     ld l, a
@@ -5739,7 +6260,9 @@ bitmap_check_locked_doors:
     ld de, bitmap_key_door_open_flags
     add hl, de
     ld (hl), 1
-    pop hl
+${visuals.length ? `    call bitmap_apply_door_state_visible    ; redraw the just-opened door on the visible page
+` : ''}    pop hl
+    pop bc                         ; restore C = door flags
 .key_door_open:
     bit 2, c
     jp nz, .key_door_done
@@ -5789,7 +6312,12 @@ bitmap_check_locked_doors:
 ;   bitmap_key_pending_entry_x/y instead of an edge spawn.
 ; ------------------------------------------------------------
 start_key_door_transition:
-    ld a, (bitmap_composition_state)
+${needsUpGate ? `    ; Arm the UP lock on every door transition: if the player lands on another
+    ; door (or holds UP through the room flip) it must NOT re-trigger until UP
+    ; is released and pressed again.
+    ld a, 1
+    ld (bitmap_key_up_lock), a
+` : ''}    ld a, (bitmap_composition_state)
     or a
     jp nz, .key_door_already_composing
     ld a, 4
@@ -6300,7 +6828,901 @@ ${sfxRoutineAsm}`;
 }
 
 // ============================================================================
-// SCREEN 5 bitmap NPC dialogue system.
+// SCREEN 5 bitmap jumper (spring) system.
+//
+// A jumper is an entity with engine 'jumper' (params.jumper /
+// components.msx2_jumper): a 16x16 spring cell. At build time the cell is
+// forced SOLID in the room collision map (the player lands ON TOP of it, see
+// buildCollisionTableBytes) and two 15-byte V9938 commands are baked per
+// spring: the idle metatile (drawn at room load) and the triggered metatile
+// (drawn when it fires). At runtime, a grounded player whose feet rest on the
+// spring's top row is launched upward with the same contract as the jump
+// block (player_vy = -impulsePx, clean fraction, grounded cleared) and the
+// triggered frame shows for BITMAP_JUMPER_TRIGGERED_FRAMES before reverting
+// to idle. The whole system is emitted ONLY when at least one jumper exists,
+// so plain projects stay byte-identical.
+// ============================================================================
+
+const BITMAP_JUMPER_TRIGGERED_FRAMES = 12;
+// Record layout: x, y, impulseByte, idle cmd (15B), triggered cmd (15B).
+const BITMAP_JUMPER_RECORD_SIZE = 33;
+
+interface BitmapJumperRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  impulseByte: number;
+  idleCommand: number[];
+  triggeredCommand: number[];
+}
+
+function normalizeBitmapJumperConfig(value: unknown): {
+  enabled: boolean;
+  atlasEntryId: string;
+  triggeredAtlasEntryId: string;
+  impulsePx: number;
+} {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    enabled: raw.enabled !== false,
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    triggeredAtlasEntryId: typeof raw.triggeredAtlasEntryId === 'string' ? raw.triggeredAtlasEntryId : '',
+    impulsePx: clampInt(raw.impulsePx, 2, 15, 8),
+  };
+}
+
+/** Resolve the jumper config of a placed entity, or null when it is not an (enabled) jumper. */
+function resolveBitmapJumperEntityConfig(entity: {
+  params?: Record<string, unknown>;
+  components?: Record<string, unknown>;
+}): ReturnType<typeof normalizeBitmapJumperConfig> | null {
+  const raw = entity.params?.jumper || entity.components?.msx2_jumper;
+  if (!raw && entity.params?.engine !== 'jumper') return null;
+  const jumper = normalizeBitmapJumperConfig(raw);
+  return jumper.enabled ? jumper : null;
+}
+
+function collectBitmapJumperRecords(rooms: Msx2Screen5BitmapRoom[]): BitmapJumperRecord[] {
+  const records: BitmapJumperRecord[] = [];
+  for (const [roomIndex, room] of rooms.entries()) {
+    for (const entity of room.entities || []) {
+      const jumper = resolveBitmapJumperEntityConfig(entity);
+      if (!jumper) continue;
+      const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
+      const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
+      const x = cellX * TILE_GRID_SIZE;
+      const y = cellY * TILE_GRID_SIZE;
+      const idleEntry = jumper.atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === jumper.atlasEntryId) : undefined;
+      const triggeredEntry = jumper.triggeredAtlasEntryId ? (room.atlas?.entries || []).find(item => item.id === jumper.triggeredAtlasEntryId) : undefined;
+      // Idle falls back to restoring whatever the tile grid paints in the cell
+      // (hand-painted spring tile or plain background); triggered falls back to
+      // the idle command (spring works but shows no visual swap).
+      const idleCommand = idleEntry ? buildGemAtlasCopyCommand(idleEntry.sx, idleEntry.sy, x, y) : buildGemEraseCommand(room, x, y);
+      const triggeredCommand = triggeredEntry ? buildGemAtlasCopyCommand(triggeredEntry.sx, triggeredEntry.sy, x, y) : idleCommand;
+      records.push({
+        roomIndex,
+        x,
+        y,
+        impulseByte: (256 - jumper.impulsePx) & 0xff,
+        idleCommand,
+        triggeredCommand,
+      });
+    }
+  }
+  return records;
+}
+
+// ============================================================================
+// SCREEN 5 bitmap WALL jumper (horizontal spring) system.
+//
+// A wall-jumper is an entity with engine 'wallJumper' (params.wallJumper /
+// components.msx2_wall_jumper): a 16x16 spring cell placed against a vertical
+// wall. At build time the cell is forced SOLID in the room collision map (the
+// player bumps into its side, see buildCollisionTableBytes) and two 15-byte
+// V9938 commands are baked per spring (idle + triggered metatiles). At
+// runtime, a player whose body box touches the spring's open side is launched
+// HORIZONTALLY: the system writes player_vx (a new signed horizontal-velocity
+// register), and the horizontal hook in update_player_movement applies it with
+// per-frame friction while gravity keeps acting, so the launch arcs. The
+// triggered frame shows for BITMAP_JUMPER_TRIGGERED_FRAMES before reverting.
+// Emitted ONLY when at least one wall-jumper exists, so plain projects stay
+// byte-identical.
+// ============================================================================
+
+// Record layout: x, y, impulseByte, directionByte, idle cmd (15B), triggered cmd (15B).
+const BITMAP_WALLJUMPER_RECORD_SIZE = 34;
+
+interface BitmapWallJumperRecord {
+  roomIndex: number;
+  x: number;
+  y: number;
+  impulseByte: number;
+  directionByte: number; // 0 = launches left (spring on a wall's right side), 1 = launches right
+  idleCommand: number[];
+  triggeredCommand: number[];
+}
+
+function normalizeBitmapWallJumperConfig(value: unknown): {
+  enabled: boolean;
+  atlasEntryId: string;
+  triggeredAtlasEntryId: string;
+  impulsePx: number;
+  direction: 'left' | 'right';
+} {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const direction = raw.direction === 'left' || raw.direction === 'right' ? raw.direction : 'right';
+  return {
+    enabled: raw.enabled !== false,
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    triggeredAtlasEntryId: typeof raw.triggeredAtlasEntryId === 'string' ? raw.triggeredAtlasEntryId : '',
+    impulsePx: clampInt(raw.impulsePx, 2, 15, 8),
+    direction,
+  };
+}
+
+/** Resolve the wall-jumper config of a placed entity, or null when it is not an (enabled) wall-jumper. */
+function resolveBitmapWallJumperEntityConfig(entity: {
+  params?: Record<string, unknown>;
+  components?: Record<string, unknown>;
+}): ReturnType<typeof normalizeBitmapWallJumperConfig> | null {
+  const raw = entity.params?.wallJumper || entity.components?.msx2_wall_jumper;
+  if (!raw && entity.params?.engine !== 'wallJumper') return null;
+  const wallJumper = normalizeBitmapWallJumperConfig(raw);
+  return wallJumper.enabled ? wallJumper : null;
+}
+
+function collectBitmapWallJumperRecords(rooms: Msx2Screen5BitmapRoom[]): BitmapWallJumperRecord[] {
+  const records: BitmapWallJumperRecord[] = [];
+  for (const [roomIndex, room] of rooms.entries()) {
+    for (const entity of room.entities || []) {
+      const wallJumper = resolveBitmapWallJumperEntityConfig(entity);
+      if (!wallJumper) continue;
+      const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
+      const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
+      const x = cellX * TILE_GRID_SIZE;
+      const y = cellY * TILE_GRID_SIZE;
+      const idleEntry = wallJumper.atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === wallJumper.atlasEntryId) : undefined;
+      const triggeredEntry = wallJumper.triggeredAtlasEntryId ? (room.atlas?.entries || []).find(item => item.id === wallJumper.triggeredAtlasEntryId) : undefined;
+      // Idle falls back to restoring whatever the tile grid paints in the cell;
+      // triggered falls back to the idle command (spring works but shows no visual swap).
+      const idleCommand = idleEntry ? buildGemAtlasCopyCommand(idleEntry.sx, idleEntry.sy, x, y) : buildGemEraseCommand(room, x, y);
+      const triggeredCommand = triggeredEntry ? buildGemAtlasCopyCommand(triggeredEntry.sx, triggeredEntry.sy, x, y) : idleCommand;
+      // impulseByte is stored SIGNED and ready for player_vx: positive (right) or
+      // negative two's-complement (left). directionByte records which side fires.
+      const directionByte = wallJumper.direction === 'right' ? 1 : 0;
+      const impulseByte = wallJumper.direction === 'right' ? wallJumper.impulsePx : (256 - wallJumper.impulsePx) & 0xff;
+      records.push({
+        roomIndex,
+        x,
+        y,
+        impulseByte,
+        directionByte,
+        idleCommand,
+        triggeredCommand,
+      });
+    }
+  }
+  return records;
+}
+
+function buildBitmapJumperSystemAsm(
+  rooms: Msx2Screen5BitmapRoom[],
+  hitbox: BitmapPlayerHitbox,
+  ramBase: number,
+): {
+  enabled: boolean;
+  ramBytes: number;
+  equates: string;
+  initAsm: string;
+  mainLoopCall: string;
+  initialDrawCall: string;
+  pendingPageDrawCall: string;
+  routinesAsm: string;
+  dataAsm: string;
+} {
+  const jumpers = collectBitmapJumperRecords(rooms);
+  if (jumpers.length === 0) {
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+  }
+
+  const timerAddress = ramBase;
+  const targetPageAddress = ramBase + 1;
+  const activeAddress = ramBase + 2; // 2 bytes: ROM pointer of the last-fired record
+  const ramBytes = 4;
+  // First pixel row BELOW the body collision box: when the player stands on a
+  // solid cell, player_y + feetOffset is exactly the cell's top row.
+  const feetOffset = hitbox.y + hitbox.h;
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  const jumperTables = rooms.map((_room, roomIndex) => jumpers.filter(item => item.roomIndex === roomIndex));
+  const dataAsm = jumperTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_jumpers_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.impulseByte, ...item.idleCommand, ...item.triggeredCommand]), `Room ${roomIndex} jumper records: x,y,impulseByte,idleCmd(15),triggeredCmd(15)`)
+  ).join('') +
+    `bitmap_jumper_ptr_table:\n${jumperTables.map((_items, i) => `    DW bitmap_jumpers_room_${i}`).join('\n')}\n` +
+    `bitmap_jumper_count_table:\n    DB ${jumperTables.map(items => items.length).join(',')}\n`;
+
+  const equates = `; Jumper springs (SCREEN 5 bitmap): ${jumpers.length} spring(s). RAM follows key-door/gem chain.
+bitmap_jumper_timer       EQU ${hexWord(timerAddress)}
+bitmap_jumper_target_page EQU ${hexWord(targetPageAddress)}
+bitmap_jumper_active      EQU ${hexWord(activeAddress)}
+bitmap_jumper_cmd_block   EQU #C2C0
+`;
+  const initAsm = `    ; jumper springs: clear revert timer + active record pointer.
+    xor a
+    ld (bitmap_jumper_timer), a
+    ld (bitmap_jumper_target_page), a
+    ld (bitmap_jumper_active), a
+    ld (bitmap_jumper_active + 1), a
+`;
+
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_jumper_copy_cmd_to_block
+; ------------------------------------------------------------
+; PURPOSE:
+;   Copy one 15-byte command template to bitmap_jumper_cmd_block (#C2C0,
+;   the scratch shared with HUD/key-door/gem launches — all sequential in
+;   the main loop) and patch the DY high byte for the target page.
+;
+; INPUT:
+;   HL = pointer to 15-byte command template. bitmap_jumper_target_page = 0/1.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_jumper_copy_cmd_to_block:
+    ld de, bitmap_jumper_cmd_block
+    ld b, 15
+.jumper_copy_cmd_loop:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    djnz .jumper_copy_cmd_loop
+    ld a, (bitmap_jumper_target_page)
+    or a
+    ret z
+    ld a, 1
+    ld (bitmap_jumper_cmd_block + 7), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_jumper_launch_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Launch the 15-byte V9938 command stored in bitmap_jumper_cmd_block.
+;   Restores R#15 to S#0 (vdp_wait_cmd_ready leaves it at S#2).
+;
+; DESTROYS: AF, B, E, HL.  PRESERVES: C, D, IX, IY.
+; ------------------------------------------------------------
+bitmap_jumper_launch_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_jumper_cmd_block
+    ld b, 15
+.jumper_launch_cmd_loop:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .jumper_launch_cmd_loop
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_jumper_room_table
+; ------------------------------------------------------------
+; PURPOSE:
+;   Resolve the current room's jumper record table.
+;
+; OUTPUT:
+;   HL = first jumper record, B = record count. Z set (and B=0) when empty.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_jumper_room_table:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_jumper_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_jumper_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, b
+    or a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_jumper_restore_active_idle
+; ------------------------------------------------------------
+; PURPOSE:
+;   Redraw the idle frame of the last-fired spring on the displayed page and
+;   clear the revert timer. No-op when no spring has fired yet.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_jumper_restore_active_idle:
+    xor a
+    ld (bitmap_jumper_timer), a
+    ld hl, (bitmap_jumper_active)
+    ld a, h
+    or l
+    ret z
+    ld de, 3                    ; record+3 = idle command
+    add hl, de
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_jumper_target_page), a
+    call bitmap_jumper_copy_cmd_to_block
+    jp bitmap_jumper_launch_cmd
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_jumpers
+; ------------------------------------------------------------
+; PURPOSE:
+;   Per-frame spring runtime: count down the triggered-frame revert timer,
+;   and when the grounded player's feet rest on a spring cell, launch the
+;   player upward (record impulse -> player_vy), swap the cell to the
+;   triggered metatile and arm the revert timer.
+;
+; INPUT:
+;   RAM state: current_screen_index, bitmap_composition_state,
+;   player_x/player_y/player_flags, bitmap_jumper_timer/active.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_update_jumpers:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    ; Revert timer: when it expires, restore the idle frame of the spring
+    ; that fired (the player is usually airborne while this counts down).
+    ld a, (bitmap_jumper_timer)
+    or a
+    jp z, .jumper_timer_done
+    dec a
+    ld (bitmap_jumper_timer), a
+    jp nz, .jumper_timer_done
+    call bitmap_jumper_restore_active_idle
+.jumper_timer_done:
+    ; Only a grounded player can stand on a spring.
+    ld a, (player_flags)
+    and #01
+    ret z
+    call bitmap_jumper_room_table
+    ret z
+.jumper_scan_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld d, a                     ; D = spring X (cell-aligned)
+    ld a, (hl)
+    inc hl
+    ld e, a                     ; E = spring Y (cell-aligned)
+    ; Feet row: the pixel row right below the body box must fall inside the
+    ; spring's 16 px cell row.
+    ld a, (player_y)
+    add a, ${feetOffset}
+    and #F0
+    cp e
+    jp nz, .jumper_scan_next
+    ; Horizontal overlap between the body box and the spring cell.
+    ld a, (player_x)
+${addA(hbRight)}    cp d
+    jp c, .jumper_scan_next
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, (player_x)
+${addA(hbLeft)}    cp b
+    jp z, .jumper_fire
+    jp nc, .jumper_scan_next
+.jumper_fire:
+    dec hl
+    dec hl                      ; HL = record start
+    ; Another spring still showing its triggered frame? Restore it first so
+    ; it does not stay compressed forever.
+    ld a, (bitmap_jumper_timer)
+    or a
+    jp z, .jumper_no_pending
+    push hl
+    call bitmap_jumper_restore_active_idle
+    pop hl
+.jumper_no_pending:
+    ld (bitmap_jumper_active), hl
+    ; Launch: same contract as the jump block (integer vy + clean fraction).
+    inc hl
+    inc hl
+    ld a, (hl)                  ; impulse byte = -(impulsePx)
+    ld (player_vy), a
+    xor a
+    ld (player_vy_frac), a
+    ld a, (player_flags)
+    and #FE                     ; the player leaves the ground
+    ld (player_flags), a
+    ; Show the triggered frame on the displayed page and arm the revert timer.
+    ld hl, (bitmap_jumper_active)
+    ld de, 18                   ; record+3+15 = triggered command
+    add hl, de
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_jumper_target_page), a
+    call bitmap_jumper_copy_cmd_to_block
+    call bitmap_jumper_launch_cmd
+    ld a, ${BITMAP_JUMPER_TRIGGERED_FRAMES}
+    ld (bitmap_jumper_timer), a
+    pop bc
+    ret                         ; airborne now: at most one spring fires per frame
+.jumper_scan_next:
+    inc hl                      ; skip impulse byte
+    ld de, 30
+    add hl, de                  ; skip idle+triggered commands
+    pop bc
+    djnz .jumper_scan_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_jumpers_visible / bitmap_apply_jumpers_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw every spring of the current room in its IDLE frame onto the visible
+;   page (boot load_room / dialogue-close repaint) or onto the pending hidden
+;   page before commit_room_flip publishes it. Entering or repainting a room
+;   also resets the revert timer + active pointer, so a spring fired in the
+;   previous room can never redraw its command over the new room's bitmap.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_apply_jumpers_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_jumper_target_page), a
+    jp bitmap_apply_jumpers_for_current_room
+
+bitmap_apply_jumpers_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_jumper_target_page), a
+bitmap_apply_jumpers_for_current_room:
+    xor a
+    ld (bitmap_jumper_timer), a
+    ld (bitmap_jumper_active), a
+    ld (bitmap_jumper_active + 1), a
+    call bitmap_jumper_room_table
+    ret z
+.jumper_draw_loop:
+    push bc
+    push hl
+    ld de, 3                    ; record+3 = idle command
+    add hl, de
+    call bitmap_jumper_copy_cmd_to_block
+    call bitmap_jumper_launch_cmd
+    pop hl
+    ld de, ${BITMAP_JUMPER_RECORD_SIZE}
+    add hl, de
+    pop bc
+    djnz .jumper_draw_loop
+    ret
+`;
+
+  return {
+    enabled: true,
+    ramBytes,
+    equates,
+    initAsm,
+    mainLoopCall: `    call bitmap_update_jumpers    ; jumper springs: stand-on detect + launch + tile swap\n`,
+    initialDrawCall: `    call bitmap_apply_jumpers_visible    ; draw idle spring metatiles on current page\n`,
+    pendingPageDrawCall: `    call bitmap_apply_jumpers_pending_page    ; draw idle spring metatiles on hidden page before flip\n`,
+    routinesAsm,
+    dataAsm,
+  };
+}
+
+/**
+ * Horizontal-velocity hook for wall-jumper springs. Interpolated at the top of
+ * bitmap_stick_dx (before the pad-driven movement): when player_vx != 0 the player
+ * is being launched horizontally, so we apply that velocity via bitmap_try_move_x
+ * (which honours walls), apply 1px/frame friction toward 0, and skip the normal
+ * pad block for this frame. Gravity (in .apply_gravity / .apply_vertical_velocity,
+ * untouched by this hook) keeps acting, so the launch arcs. Returns '' when no
+ * wall-jumper exists, leaving the player loop byte-identical to the legacy build.
+ */
+function buildBitmapWallJumperHorizontalHookAsm(_hitbox: BitmapPlayerHitbox): string {
+  return `    ; Wall-jumper impulse: when player_vx != 0 the player is mid-launch. Apply the
+    ; impulse velocity (ignoring the pad), decay it by 1px/frame toward 0, then
+    ; skip to the jump/gravity blocks so gravity bends the trajectory. The cell
+    ; solidity is still respected by bitmap_try_move_x, so the player stops at a
+    ; wall while the impulse keeps decaying (it never gets "stuck"). When player_vx
+    ; is 0 this falls through to the normal pad-driven bitmap_stick_dx block.
+.wall_impulse_check:
+    ld a, (player_vx)
+    or a
+    jp z, .wall_impulse_done
+    call bitmap_try_move_x      ; A = signed player_vx (still loaded)
+    ; Friction: move player_vx one step toward 0.
+    ld a, (player_vx)
+    or a
+    jp p, .wall_impulse_pos
+    inc a                       ; negative vx -> toward 0
+    ld (player_vx), a
+    jp .check_jump              ; airborne-or-grounded jump/gravity still runs
+.wall_impulse_pos:
+    dec a                       ; positive vx -> toward 0
+    ld (player_vx), a
+    jp .check_jump
+.wall_impulse_done:
+`;
+}
+
+function buildBitmapWallJumperSystemAsm(
+  rooms: Msx2Screen5BitmapRoom[],
+  hitbox: BitmapPlayerHitbox,
+  ramBase: number,
+): {
+  enabled: boolean;
+  ramBytes: number;
+  equates: string;
+  initAsm: string;
+  mainLoopCall: string;
+  initialDrawCall: string;
+  pendingPageDrawCall: string;
+  routinesAsm: string;
+  dataAsm: string;
+} {
+  const wallJumpers = collectBitmapWallJumperRecords(rooms);
+  if (wallJumpers.length === 0) {
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+  }
+
+  const timerAddress = ramBase;
+  const targetPageAddress = ramBase + 1;
+  const activeAddress = ramBase + 2; // 2 bytes: ROM pointer of the last-fired record
+  const ramBytes = 4;
+  // Body box edges (offsets from the sprite top-left). The contact probes use the
+  // leading horizontal edge (left/right) and the top/bottom rows for vertical overlap.
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbTop = hitbox.y;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  const wallJumperTables = rooms.map((_room, roomIndex) => wallJumpers.filter(item => item.roomIndex === roomIndex));
+  const dataAsm = wallJumperTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_walljumpers_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.impulseByte, item.directionByte, ...item.idleCommand, ...item.triggeredCommand]), `Room ${roomIndex} wall-jumper records: x,y,impulseByte,directionByte,idleCmd(15),triggeredCmd(15)`)
+  ).join('') +
+    `bitmap_walljumper_ptr_table:\n${wallJumperTables.map((_items, i) => `    DW bitmap_walljumpers_room_${i}`).join('\n')}\n` +
+    `bitmap_walljumper_count_table:\n    DB ${wallJumperTables.map(items => items.length).join(',')}\n`;
+
+  const equates = `; Wall-jumper springs (SCREEN 5 bitmap): ${wallJumpers.length} wall-spring(s). RAM follows the jumper-spring chain.
+bitmap_walljumper_timer       EQU ${hexWord(timerAddress)}
+bitmap_walljumper_target_page EQU ${hexWord(targetPageAddress)}
+bitmap_walljumper_active      EQU ${hexWord(activeAddress)}
+bitmap_walljumper_cmd_block   EQU #C2C0
+`;
+  const initAsm = `    ; wall-jumper springs: clear revert timer + active record pointer.
+    xor a
+    ld (bitmap_walljumper_timer), a
+    ld (bitmap_walljumper_target_page), a
+    ld (bitmap_walljumper_active), a
+    ld (bitmap_walljumper_active + 1), a
+    ld (player_vx), a           ; clear any horizontal impulse carried from a previous room
+`;
+
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_walljumper_copy_cmd_to_block
+; ------------------------------------------------------------
+; PURPOSE:
+;   Copy one 15-byte command template to bitmap_walljumper_cmd_block (#C2C0,
+;   scratch shared with HUD/key-door/gem/jumper launches — all sequential in
+;   the main loop) and patch the DY high byte for the target page.
+;
+; INPUT:
+;   HL = pointer to 15-byte command template. bitmap_walljumper_target_page = 0/1.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_walljumper_copy_cmd_to_block:
+    ld de, bitmap_walljumper_cmd_block
+    ld b, 15
+.walljumper_copy_cmd_loop:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    djnz .walljumper_copy_cmd_loop
+    ld a, (bitmap_walljumper_target_page)
+    or a
+    ret z
+    ld a, 1
+    ld (bitmap_walljumper_cmd_block + 7), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_walljumper_launch_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Launch the 15-byte V9938 command stored in bitmap_walljumper_cmd_block.
+;   Restores R#15 to S#0 (vdp_wait_cmd_ready leaves it at S#2).
+;
+; DESTROYS: AF, B, E, HL.  PRESERVES: C, D, IX, IY.
+; ------------------------------------------------------------
+bitmap_walljumper_launch_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_walljumper_cmd_block
+    ld b, 15
+.walljumper_launch_cmd_loop:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .walljumper_launch_cmd_loop
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_walljumper_room_table
+; ------------------------------------------------------------
+; PURPOSE:
+;   Resolve the current room's wall-jumper record table.
+;
+; OUTPUT:
+;   HL = first wall-jumper record, B = record count. Z set (and B=0) when empty.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_walljumper_room_table:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_walljumper_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_walljumper_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, b
+    or a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_walljumper_restore_active_idle
+; ------------------------------------------------------------
+; PURPOSE:
+;   Redraw the idle frame of the last-fired wall-spring on the displayed page
+;   and clear the revert timer. No-op when none has fired yet.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_walljumper_restore_active_idle:
+    xor a
+    ld (bitmap_walljumper_timer), a
+    ld hl, (bitmap_walljumper_active)
+    ld a, h
+    or l
+    ret z
+    ld de, 4                    ; record+4 = idle command (x,y,impulseByte,directionByte)
+    add hl, de
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_walljumper_target_page), a
+    call bitmap_walljumper_copy_cmd_to_block
+    jp bitmap_walljumper_launch_cmd
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_walljumpers
+; ------------------------------------------------------------
+; PURPOSE:
+;   Per-frame wall-spring runtime: count down the triggered-frame revert timer,
+;   and when the player's body box touches a wall-spring's open side, launch the
+;   player horizontally (record impulse -> player_vx) and swap the cell to the
+;   triggered metatile for BITMAP_JUMPER_TRIGGERED_FRAMES.
+;
+;   No grounded gate: a wall-spring fires on side contact (the player walks/jumps
+;   into it). Direction 'right' (directionByte=1) fires when the player's right
+;   edge touches the spring's left column; 'left' (directionByte=0) fires when
+;   the player's left edge touches the spring's right column. In both cases the
+;   body box must overlap the spring's 16px row band vertically.
+;
+; INPUT:
+;   RAM state: current_screen_index, bitmap_composition_state,
+;   player_x/player_y/player_vx, bitmap_walljumper_timer/active.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_update_walljumpers:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    ; Revert timer: when it expires, restore the idle frame of the wall-spring
+    ; that fired (the player is usually away while this counts down).
+    ld a, (bitmap_walljumper_timer)
+    or a
+    jp z, .walljumper_timer_done
+    dec a
+    ld (bitmap_walljumper_timer), a
+    jp nz, .walljumper_timer_done
+    call bitmap_walljumper_restore_active_idle
+.walljumper_timer_done:
+    call bitmap_walljumper_room_table
+    ret z
+.walljumper_scan_loop:
+    push bc                     ; B = remaining record count
+    ; HL = record start. Read the 4-byte header WITHOUT advancing HL so the
+    ; restore/draw offsets (record+4 idle, record+19 triggered) stay valid and
+    ; the next-record skip is a single constant.
+    ld d, (hl)                  ; D = spring X (cell-aligned)
+    inc hl
+    ld e, (hl)                  ; E = spring Y (cell-aligned)
+    inc hl
+    ld b, (hl)                  ; B = impulse byte (signed, direction baked in)
+    inc hl
+    ld a, (hl)                  ; direction byte (0=left, 1=right)
+    inc hl                      ; HL now points at record+4 (idle command)
+    or a
+    jp z, .walljumper_probe_left
+.walljumper_probe_right:
+    ; direction 'right': the spring THROWS the player RIGHT, so the player must be
+    ; touching the spring's RIGHT face (the spring is solid, so the player is
+    ; stopped just outside the cell on its right side, having approached from the
+    ; open space on the right). Probe the body's LEFT edge in [springX+15, springX+16]:
+    ; that is where bitmap_try_move_x parks the player when walking left into the cell.
+    ld a, d
+    add a, 15
+    ld c, a                     ; C = springX + 15 (inclusive lower bound)
+    ld a, (player_x)
+${addA(hbLeft)}    cp c
+    jp c, .walljumper_scan_next          ; player left edge left of springX+15 -> not touching right face
+    ld a, d
+    add a, 17
+    ld c, a                     ; C = springX + 17 (exclusive upper bound: contact if < springX+17, i.e. <= springX+16)
+    ld a, (player_x)
+${addA(hbLeft)}    cp c
+    jp nc, .walljumper_scan_next         ; player left edge beyond springX+16 -> passed through
+    jp .walljumper_check_vertical
+.walljumper_probe_left:
+    ; direction 'left': the spring THROWS the player LEFT, so the player must be
+    ; touching the spring's LEFT face (approached from the open space on the left).
+    ; Probe the body's RIGHT edge in [springX-1, springX]: where bitmap_try_move_x
+    ; parks the player when walking right into the cell.
+    ld a, d
+    dec a
+    ld c, a                     ; C = springX - 1 (inclusive lower bound)
+    ld a, (player_x)
+${addA(hbRight)}    cp c
+    jp c, .walljumper_scan_next          ; player right edge left of springX-1 -> not touching left face
+    ld a, d
+    inc a
+    ld c, a                     ; C = springX + 1 (exclusive upper bound: contact if < springX+1, i.e. <= springX)
+    ld a, (player_x)
+${addA(hbRight)}    cp c
+    jp nc, .walljumper_scan_next         ; player right edge past springX -> passed through
+.walljumper_check_vertical:
+    ; Vertical overlap: body top must be < springY+16 and body bottom >= springY.
+    ld a, e
+    add a, 16
+    ld c, a                     ; C = springY + 16 (exclusive upper bound)
+    ld a, (player_y)
+${addA(hbTop)}    cp c
+    jp nc, .walljumper_scan_next         ; body top at/ below springY+16 -> no vertical overlap
+    ld a, e
+    ld c, a                     ; C = springY (inclusive lower bound)
+    ld a, (player_y)
+${addA(hbBottom)}    cp c
+    jp c, .walljumper_scan_next          ; body bottom above springY -> no vertical overlap
+.walljumper_fire:
+    ; HL points at record+4 (idle command). Rewind to record start so the active
+    ; pointer and the restore/draw offsets all line up.
+    dec hl                      ; record+3 (direction byte)
+    dec hl                      ; record+2 (impulse byte)
+    dec hl                      ; record+1 (y)
+    dec hl                      ; record+0 (x) = record start
+    ; Another wall-spring still showing its triggered frame? Restore it first.
+    ld a, (bitmap_walljumper_timer)
+    or a
+    jp z, .walljumper_no_pending
+    push hl
+    push bc
+    call bitmap_walljumper_restore_active_idle
+    pop bc
+    pop hl
+.walljumper_no_pending:
+    ld (bitmap_walljumper_active), hl
+    ; Launch horizontally: write the signed impulse byte to player_vx. Gravity
+    ; (applied unconditionally in update_player_movement) bends the launch into
+    ; an arc; no grounded/vy changes are needed.
+    ld a, b                     ; B = saved impulse byte
+    ld (player_vx), a
+    ; Show the triggered frame on the displayed page and arm the revert timer.
+    ld hl, (bitmap_walljumper_active)
+    ld de, 19                   ; record+4+15 = triggered command
+    add hl, de
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_walljumper_target_page), a
+    call bitmap_walljumper_copy_cmd_to_block
+    call bitmap_walljumper_launch_cmd
+    ld a, ${BITMAP_JUMPER_TRIGGERED_FRAMES}
+    ld (bitmap_walljumper_timer), a
+    pop bc
+    ret                         ; at most one wall-spring fires per frame
+.walljumper_scan_next:
+    ; HL points at record+4. Skip the idle+triggered commands (30 bytes) to reach
+    ; the next record. (dec/jp nz instead of djnz: the scan body is >126 bytes,
+    ; out of djnz's short branch range.)
+    ld de, 30
+    add hl, de
+    pop bc
+    dec b
+    jp nz, .walljumper_scan_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_walljumpers_visible / bitmap_apply_walljumpers_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw every wall-spring of the current room in its IDLE frame onto the visible
+;   page (boot load_room / dialogue-close repaint) or onto the pending hidden
+;   page before commit_room_flip publishes it. Entering or repainting a room also
+;   resets the revert timer + active pointer + player_vx, so a wall-spring fired
+;   in the previous room can never redraw its command over the new room's bitmap
+;   and no horizontal impulse carries across rooms.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_apply_walljumpers_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_walljumper_target_page), a
+    jp bitmap_apply_walljumpers_for_current_room
+
+bitmap_apply_walljumpers_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_walljumper_target_page), a
+bitmap_apply_walljumpers_for_current_room:
+    xor a
+    ld (bitmap_walljumper_timer), a
+    ld (bitmap_walljumper_active), a
+    ld (bitmap_walljumper_active + 1), a
+    ld (player_vx), a           ; no horizontal impulse carried into a room
+    call bitmap_walljumper_room_table
+    ret z
+.walljumper_draw_loop:
+    push bc
+    push hl
+    ld de, 4                    ; record+4 = idle command
+    add hl, de
+    call bitmap_walljumper_copy_cmd_to_block
+    call bitmap_walljumper_launch_cmd
+    pop hl
+    ld de, ${BITMAP_WALLJUMPER_RECORD_SIZE}
+    add hl, de
+    pop bc
+    djnz .walljumper_draw_loop
+    ret
+`;
+
+  return {
+    enabled: true,
+    ramBytes,
+    equates,
+    initAsm,
+    mainLoopCall: `    call bitmap_update_walljumpers    ; wall-jumper springs: side-contact detect + horizontal launch + tile swap\n`,
+    initialDrawCall: `    call bitmap_apply_walljumpers_visible    ; draw idle wall-spring metatiles on current page\n`,
+    pendingPageDrawCall: `    call bitmap_apply_walljumpers_pending_page    ; draw idle wall-spring metatiles on hidden page before flip\n`,
+    routinesAsm,
+    dataAsm,
+  };
+}
 //
 // A pixel-based re-implementation of the MSX1 Screen 2 dialogue runtime
 // (componentsGenerator.ts generateAutoControlDialogueSystem), designed for the
@@ -7820,7 +9242,13 @@ function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSourc
   for (const layer of [...(hudAsset.layers || [])].reverse()) {
     if (layer.kind !== 'widget' || !layer.visible || !layer.element.visible) continue;
     const kind = layer.element.kind;
-    if (kind === 'iconRow') sources.push({ kind: 'iconRow', element: layer.element });
+    // A standalone 'icon' widget bound to 'keyItem' is an icon TOGGLE (empty/full
+    // halves), rendered by the same iconRow runtime path as a 1-slot iconRow, so
+    // collect it as such. Otherwise a kind:'icon' would be baked statically into the
+    // HUD seed and never reflect key collection at runtime.
+    if (kind === 'iconRow' || (kind === 'icon' && layer.element.binding === 'keyItem')) {
+      sources.push({ kind: 'iconRow', element: layer.element });
+    }
     else if (kind === 'counter' || kind === 'iconCounter') sources.push({ kind: 'counter', element: layer.element });
     else if (kind === 'bar') sources.push({ kind: 'bar', element: layer.element });
   }
@@ -7831,7 +9259,8 @@ function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSourc
  * Maps an element's variable binding to the RAM byte the runtime routine reads.
  * `playerEnergy` (player_health), `lives` (player_lives), `air` (air_timer),
  * `experience`/`level`/`skillPoints` (XP system) and `keyItem`
- * (bitmap_key_inventory) read a real game-mechanic byte. Every other binding
+ * (bitmap_key_count, the number of keys held) read a real game-mechanic byte.
+ * Every other binding
  * (`score`/`bossEnergy`/`collectibles`/`custom`) gets its OWN persistent RAM byte
  * instead — this is NOT a scoring/timer mechanic, just a widget-owned counter
  * seeded from `initialValue` that a future system (skills, tile interactions)
@@ -7845,7 +9274,7 @@ function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex
   if (element.binding === 'experience') return 'player_xp';
   if (element.binding === 'level') return 'player_level';
   if (element.binding === 'skillPoints') return 'player_skill_points';
-  if (element.binding === 'keyItem') return 'bitmap_key_inventory';
+  if (element.binding === 'keyItem') return 'bitmap_key_count';
   return `hud_linked_${instanceIndex}_value`;
 }
 
@@ -8027,7 +9456,8 @@ function linkedCounterSpec(element: Msx2HudElement): { digits: number; wide: boo
     || element.binding === 'air'
     || element.binding === 'experience'
     || element.binding === 'level'
-    || element.binding === 'skillPoints';
+    || element.binding === 'skillPoints'
+    || element.binding === 'keyItem';
   if (requested >= 4 && !byteBinding) {
     return { digits: Math.min(5, requested), wide: true };
   }
@@ -8079,10 +9509,9 @@ function buildBitmapHudLinkedIconRowAsm(
 ): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
   const element = source.element;
   const isToggle = element.kind === 'icon';
-  // keyItem-bound icon toggle: shows the "full" half when bit keyBitIndex of
-  // bitmap_key_inventory is set (key collected), the "empty" half otherwise.
+  // keyItem-bound icon toggle: shows the "full" half when the player holds at
+  // least one key (bitmap_key_count > 0), the "empty" half otherwise.
   const isKeyItem = element.binding === 'keyItem';
-  const keyBit = clampInt(element.keyBitIndex, 0, 7, 0);
   // Clip against the right edge: HMMM DX is written as a low byte only and
   // SCREEN 5 has no x >= 256, so an overflowing 16px slot would WRAP to x=0 and
   // stamp over the left side of the HUD. The editor preview clips the same way.
@@ -8155,12 +9584,12 @@ ${drawPageLabel}:
 ${loopLabel}:
 ${isToggle
     ? (isKeyItem
-      ? `    ; Key item icon toggle: draw the "full" half (SX=0) when bit ${keyBit}
-    ; of bitmap_key_inventory is set (key collected), else the "empty" half
+      ? `    ; Key item icon toggle: draw the "full" half (SX=0) when the player
+    ; holds at least one key (bitmap_key_count > 0), else the "empty" half
     ; (SX=${emptySx}). Requires an icon tile with both halves authored, like
     ; an iconRow slot; the HUD icon editor's emptyAtlasEntryId fills it.
     ld a, (${bindingRamLabel})
-    bit ${keyBit}, a
+    or a
     jr nz, ${fullLabel}
     ld a, ${emptySx}
     jr ${setSxLabel}`
@@ -9424,6 +10853,22 @@ function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
       bytes.push(clampByte(room.collision?.[y]?.[x], 0));
     }
   }
+  // Jumper (spring) entities force their 16x16 cell SOLID so the player can
+  // land on top of the spring (bitmap_update_jumpers fires on feet contact).
+  for (const entity of room.entities || []) {
+    if (!resolveBitmapJumperEntityConfig(entity)) continue;
+    const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
+    const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
+    bytes[cellY * COLLISION_COLS + cellX] |= 0x10;
+  }
+  // Wall-jumper (horizontal spring) entities likewise force their cell SOLID so
+  // the player bumps into its side (bitmap_update_walljumpers fires on side contact).
+  for (const entity of room.entities || []) {
+    if (!resolveBitmapWallJumperEntityConfig(entity)) continue;
+    const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
+    const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
+    bytes[cellY * COLLISION_COLS + cellX] |= 0x10;
+  }
   return bytes;
 }
 
@@ -9574,10 +11019,10 @@ function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBa
     const colorVram = 0xF400 + i * 16;
     const satVram = 0xF600 + i * 4;
     slotBlocks.push(`
-.slot_${i}:
+.fg_slot_${i}:
     ld a, (ix+2)              ; pattern offset (#FF = empty slot for this room)
     cp #FF
-    jp z, .slot_${i}_empty
+    jp z, .fg_slot_${i}_empty
     ; --- upload 32-byte mask pattern -> VRAM ${hexWord(patternVram)} (group ${patGroup}) ---
     ld a, (ix+2)
     call fg_patterns_offset
@@ -9595,11 +11040,11 @@ function buildBitmapLoadForegroundSpritesAsm(fg: { count: number; patternGroupBa
     ld b, a                   ; B = satY
     ld a, (ix+1)
     ld c, a                   ; C = satX
-    jp .slot_${i}_sat
-.slot_${i}_empty:
+    jp .fg_slot_${i}_sat
+.fg_slot_${i}_empty:
     ld b, #${FOREGROUND_EMPTY_SPRITE_Y.toString(16).toUpperCase().padStart(2, '0')}                 ; satY = off-screen (invisible, non-terminator)
     ld c, 0                   ; satX
-.slot_${i}_sat:
+.fg_slot_${i}_sat:
     ld de, ${hexWord(satVram)}
     push de
     ld a, d
@@ -10251,25 +11696,38 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       })
     : null;
   const anyKeyItemHud = linkedHudDynamicSources.some(source => source.element.binding === 'keyItem');
-  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud);
+  // HUD counter bound to 'collectibles': the gem wallet. Shared by the
+  // collector_gems skill (increments) and priced key pickups (purchases).
+  const gemCounterEntry = linkedHudDynamicSources
+    .map((source, index) => ({ source, index }))
+    .find(item => item.source.kind === 'counter' && item.source.element.binding === 'collectibles');
+  const gemCounterRam = gemCounterEntry
+    ? { label: resolveHudElementBindingRamLabel(gemCounterEntry.source.element, gemCounterEntry.index), wide: linkedCounterSpec(gemCounterEntry.source.element).wide }
+    : null;
+  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud, gemCounterRam);
   hudLinkedRamCursor += keyDoorSystem.ramBytes;
   // collector_gems skill: gem collectibles drawn/erased on the room bitmap.
   // Built before the dialogue system so the dialogue-close repaint call chain
   // can include the gem redraw; RAM chains between key-doors and dialogue.
   const collectorGemsConfig = getMsx2CollectorGemsConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
-  const gemCounterEntry = linkedHudDynamicSources
-    .map((source, index) => ({ source, index }))
-    .find(item => item.source.kind === 'counter' && item.source.element.binding === 'collectibles');
   const gemSystem = buildBitmapGemSystemAsm(
     rooms,
     playerHitbox,
     hudLinkedRamCursor,
     collectorGemsConfig,
-    gemCounterEntry
-      ? { label: resolveHudElementBindingRamLabel(gemCounterEntry.source.element, gemCounterEntry.index), wide: linkedCounterSpec(gemCounterEntry.source.element).wide }
-      : null
+    gemCounterRam
   );
   hudLinkedRamCursor += gemSystem.ramBytes;
+  // Jumper springs: solid 16x16 cells that launch the player upward. RAM
+  // chains between the gem system and the dialogue system.
+  const jumperSystem = buildBitmapJumperSystemAsm(rooms, playerHitbox, hudLinkedRamCursor);
+  hudLinkedRamCursor += jumperSystem.ramBytes;
+  // Wall-jumper springs: solid 16x16 cells that launch the player horizontally.
+  // RAM chains after the jumper springs; the horizontal-velocity hook is emitted
+  // only when at least one wall-jumper exists so plain projects stay byte-identical.
+  const wallJumperSystem = buildBitmapWallJumperSystemAsm(rooms, playerHitbox, hudLinkedRamCursor);
+  hudLinkedRamCursor += wallJumperSystem.ramBytes;
+  const wallJumperHorizontalHook = wallJumperSystem.enabled ? buildBitmapWallJumperHorizontalHookAsm(playerHitbox) : '';
   const dialogueSystem = buildBitmapDialogueSystemAsm(
     dialogueData,
     rooms,
@@ -10277,7 +11735,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}`,
+    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
@@ -10292,6 +11750,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     playerHitbox,
     damageInvulnFrames: playerVitals.invulnFrames,
+    maxHealth: playerVitals.maxHealth,
+    lives: playerVitals.lives,
+    respawnOnDeath: true,
     pauseGateAsm: dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
     or a
@@ -10318,8 +11779,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       : '',
   });
   hudLinkedRamCursor += platformSystem.ramBytes;
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/dialogue/enemy/platform systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/enemies/platforms.`);
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/jumper/wall-jumper/dialogue/enemy/platform systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/jumpers/wall-jumpers/enemies/platforms.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
@@ -10341,10 +11802,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${dialogueSystem.equates}`;
-  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${dialogueSystem.initAsm}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}`;
+  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -10379,11 +11840,11 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     hasStateAnimations,
   }, { bankedRle: isKonamiMegaRom }, playerPhysics, playerHitbox, {
     inputGateAsm: inputHooks,
-    horizontalHookAsm: `${iceSlideHorizontalHook}${crouchHorizontalHook}`,
+    horizontalHookAsm: `${wallJumperHorizontalHook}${iceSlideHorizontalHook}${crouchHorizontalHook}`,
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -10436,6 +11897,81 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // GameFlow intro ASM (empty strings when the flow has no presentation scenes,
   // keeping the ROM byte-identical to legacy exports).
   const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom);
+  // Shared boot-init sequence: loads the start room, draws the dynamic pickup/
+  // door/gem visuals, spawns enemies/platforms, resets the full player + room-
+  // composition state, restores R#15=S#0 and clears the skill state. Emitted as
+  // ONE string so the inline boot path (no Game Flow) and the Game Flow WorldLink
+  // node run byte-identical initialisation. It performs NO terminal control flow,
+  // so callers either fall through to bitmap_enter_game_loop (inline boot) or
+  // `call bitmap_enter_game_loop` (WorldLink). NOTE: it does not select a slot or
+  // init the VDP/HUD/tileset (done once at init_rom before either path).
+  const bitmapBootInitAsm = `    ; Render the start room from the shared tileset already in VRAM.
+    xor a
+    ld (bitmap_displayed_page), a
+    ld a, ${startIndex}
+    call load_room
+    ; Re-seed the top HUD band on BOTH pages. A Game Flow intro Transition effect
+    ; (vertical/horizontal wipe, CLS or fade) clears the WHOLE visible page 0,
+    ; including the HUD band (fill starts at DY=0, NY=212), which erases the static
+    ; HUD seed art (e.g. a collectibles/gem icon). Only the dynamic HUD widgets
+    ; redraw themselves afterwards, so without this re-seed the static icons would
+    ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
+    ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
+    call init_bitmap_hud_band
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}
+${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}    ; Place the player at the room spawn point.
+    ld a, ${spawn.y}
+    ld (player_y), a
+    ld a, ${spawn.x}
+    ld (player_x), a
+    xor a
+    ld (player_pat), a
+    ld (player_ec), a
+    ld (player_anim_counter), a
+    ld (player_anim_frame), a
+    ld (player_vy), a
+    ld (player_vy_frac), a
+    ld (player_vx), a
+    ld (bitmap_game_over_flag), a
+    ld (player_flags), a
+    ld (player_jump_lock), a
+    ld (player_moving), a
+    ld (bitmap_displayed_page), a
+    ld (bitmap_composition_state), a
+    ld (bitmap_pending_room), a
+    ld (bitmap_transition_dir), a
+    ld (bitmap_composition_blocks_left), a
+    ld (bitmap_composition_blocks_left + 1), a
+    ld (bitmap_pending_display_page), a
+    ld hl, 0
+    ld (bitmap_composition_block_ptr), hl
+    inc a
+    ld (player_facing), a
+${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+    ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
+    ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
+    ; consume S#0 before the main loop sees it.
+    ld a, #0F
+    ld e, #00
+    call vdp_write_register
+${hasStateAnimations ? `    xor a
+    ld (player_anim_state), a
+    ld (player_anim_abs_frame), a
+    dec a
+    ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
+` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}`;
+
+  // Game Flow dispatcher (compile-time, bitmap backend). When a Game Flow graph
+  // with a WorldLink exists, the ROM boots into the dispatcher (bitmap_gf_entry)
+  // instead of the gameplay loop directly; the WorldLink runs bitmapBootInitAsm
+  // (the SAME init as the inline boot) and calls bitmap_enter_game_loop, which
+  // returns on game-over so the graph follows its connection (e.g. to an
+  // End:GameOver node). Empty when no graph exists.
+  const gameFlowEntryAsm = buildBitmapGameFlowProgram(analysis, {
+    bootInitAsm: bitmapBootInitAsm,
+  });
+  const gameFlowEnabled = gameFlowEntryAsm.length > 0;
+  const bitmapEndRuntime = gameFlowEnabled ? buildBitmapEndScreenRuntime() : { dataAsm: '', routinesAsm: '' };
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
   const hudWidgetCount = hudGloballyHidden
     ? 0
@@ -10516,6 +12052,20 @@ bitmap_composition_block_ptr      EQU #C0D4
 bitmap_composition_blocks_left    EQU #C0D6
 bitmap_pending_display_page       EQU #C0D8
 bitmap_composition_block_bank     EQU #C1F6
+; Horizontal impulse velocity for wall-jumper springs (SCREEN 5 bitmap). Signed
+; byte: 0 = normal pad-driven movement (the default); nonzero = the player is
+; being launched horizontally and the movement hook applies it with per-frame
+; friction while gravity bends the trajectory. Always emitted (harmless zero in
+; projects without wall-jumpers); lives in the safe gap between the composition
+; block bank and blink_phase.
+player_vx                         EQU #C1F7
+; Game-over request flag (Game Flow integration). Set to nonzero by the deadly/enemy
+; damage system when player_lives reaches 0. The gameplay loop (bitmap_enter_game_loop)
+; checks it each frame: when set, it returns to the Game Flow dispatcher so the graph
+; follows the WorldLink's connection (typically to an End:GameOver node). When no Game
+; Flow graph exists (standalone bitmap project), lives==0 triggers a soft restart instead.
+; Always emitted (harmless zero); lives in the last free safe-gap byte before blink_phase.
+bitmap_game_over_flag             EQU #C1F8
 ; Sub-pixel gravity accumulator (low byte of the 8.8 gravityStrength from the Player
 ; Config). Added to player_vy_frac every frame; player_vy only rises by 1 when this
 ; carries, so the fall/jump arc accelerates gradually like SCREEN 4 (default 0.25
@@ -10558,51 +12108,15 @@ ${intro.initCallAsm}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}    ; Render the start room from the shared tileset already in VRAM.
-    xor a
-    ld (bitmap_displayed_page), a
-    ld a, ${startIndex}
-    call load_room
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}
-${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}    ; Place the player at the room spawn point.
-    ld a, ${spawn.y}
-    ld (player_y), a
-    ld a, ${spawn.x}
-    ld (player_x), a
-    xor a
-    ld (player_pat), a
-    ld (player_ec), a
-    ld (player_anim_counter), a
-    ld (player_anim_frame), a
-    ld (player_vy), a
-    ld (player_vy_frac), a
-    ld (player_flags), a
-    ld (player_jump_lock), a
-    ld (player_moving), a
-    ld (bitmap_displayed_page), a
-    ld (bitmap_composition_state), a
-    ld (bitmap_pending_room), a
-    ld (bitmap_transition_dir), a
-    ld (bitmap_composition_blocks_left), a
-    ld (bitmap_composition_blocks_left + 1), a
-    ld (bitmap_pending_display_page), a
-    ld hl, 0
-    ld (bitmap_composition_block_ptr), hl
-    inc a
-    ld (player_facing), a
-${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
-    ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
-    ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
-    ; consume S#0 before the main loop sees it.
-    ld a, #0F
-    ld e, #00
-    call vdp_write_register
-${hasStateAnimations ? `    xor a
-    ld (player_anim_state), a
-    ld (player_anim_abs_frame), a
-    dec a
-    ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
-` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}.main_loop:
+${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
+    ; Game Flow exit gate: when the deadly/enemy damage system arms
+    ; bitmap_game_over_flag (last life spent), leave the gameplay loop. With a
+    ; Game Flow graph, ret returns to the dispatcher (which follows the WorldLink
+    ; connection, e.g. to an End:GameOver node). Without a graph, soft-restart.
+    ld a, (bitmap_game_over_flag)
+    or a
+    ${gameFlowEnabled ? 'ret nz    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp nz, init_rom    ; standalone: last life -> soft restart'}
+.bitmap_main_loop:
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
@@ -10610,7 +12124,7 @@ ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${airDashGate}  
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${platformSystem.detectCallAsm}.skip_player_movement:
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${platformSystem.satCallAsm}${shootBulletSatCall}    jp .main_loop
+${enemySystem.satCallAsm}${platformSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
@@ -10636,6 +12150,7 @@ ${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
 ${enemySystem.routinesAsm}
 ${platformSystem.routinesAsm}
+${bitmapEndRuntime.routinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${intro.dataAsm}bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
@@ -10665,7 +12180,10 @@ ${roomTransitionTableAsm}
 ${roomSpawnTableAsm}
 ${keyDoorSystem.dataAsm}
 ${gemSystem.dataAsm}
+${jumperSystem.dataAsm}
+${wallJumperSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
+${bitmapEndRuntime.dataAsm}
 ; Per-room render programs, collision maps and behavior maps.
 ${roomDataAsm}
 ${foregroundDataAsm}

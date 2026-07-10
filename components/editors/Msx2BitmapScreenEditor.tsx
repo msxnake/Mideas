@@ -10,6 +10,8 @@ import {
   Msx2BitmapRoomForegroundTile,
   Msx2HudAsset,
   Msx2KeyItemDefinition,
+  Msx2JumperConfig,
+  Msx2WallJumperConfig,
   Msx2LockedDoorConfig,
   Msx2PressureButtonConfig,
   Msx2PlayerEntry,
@@ -149,6 +151,7 @@ const normalizeLockedDoorConfig = (value: unknown): Msx2LockedDoorConfig => {
     requiredKeyId: typeof raw.requiredKeyId === 'string' ? raw.requiredKeyId : '',
     consumeKey: Boolean(raw.consumeKey),
     openOnce: raw.openOnce !== false,
+    requireUpKey: Boolean(raw.requireUpKey),
     closedAtlasEntryId: typeof raw.closedAtlasEntryId === 'string' ? raw.closedAtlasEntryId : '',
     openAtlasEntryId: typeof raw.openAtlasEntryId === 'string' ? raw.openAtlasEntryId : '',
     lockedMessage: typeof raw.lockedMessage === 'string' ? raw.lockedMessage : '',
@@ -169,6 +172,36 @@ const normalizePressureButtonConfig = (value: unknown): Msx2PressureButtonConfig
     pressedAtlasEntryId: typeof raw.pressedAtlasEntryId === 'string' ? raw.pressedAtlasEntryId : '',
   };
 };
+
+const normalizeJumperConfig = (value: unknown): Msx2JumperConfig => {
+  const raw = value && typeof value === 'object' ? value as Partial<Msx2JumperConfig> : {};
+  const impulse = Math.round(Number(raw.impulsePx));
+  return {
+    enabled: raw.enabled !== false,
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    triggeredAtlasEntryId: typeof raw.triggeredAtlasEntryId === 'string' ? raw.triggeredAtlasEntryId : '',
+    impulsePx: Number.isFinite(impulse) ? Math.max(2, Math.min(15, impulse)) : 8,
+  };
+};
+
+const isJumperEntity = (entity: Msx2Screen4EntityInstance | null | undefined): boolean =>
+  Boolean(entity && (entity.params?.engine === 'jumper' || entity.params?.jumper || entity.components?.msx2_jumper));
+
+const normalizeWallJumperConfig = (value: unknown): Msx2WallJumperConfig => {
+  const raw = value && typeof value === 'object' ? value as Partial<Msx2WallJumperConfig> : {};
+  const impulse = Math.round(Number(raw.impulsePx));
+  const direction = raw.direction === 'left' || raw.direction === 'right' ? raw.direction : 'right';
+  return {
+    enabled: raw.enabled !== false,
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    triggeredAtlasEntryId: typeof raw.triggeredAtlasEntryId === 'string' ? raw.triggeredAtlasEntryId : '',
+    impulsePx: Number.isFinite(impulse) ? Math.max(2, Math.min(15, impulse)) : 8,
+    direction,
+  };
+};
+
+const isWallJumperEntity = (entity: Msx2Screen4EntityInstance | null | undefined): boolean =>
+  Boolean(entity && (entity.params?.engine === 'wallJumper' || entity.params?.wallJumper || entity.components?.msx2_wall_jumper));
 
 const BEHAVIOR_CODE = {
   none: 0,
@@ -329,6 +362,8 @@ interface Msx2BitmapScreenEditorProps {
   onCreateAdjacentRoom?: (direction: ConnectionDirection, options?: { copySharedEdgeTiles?: boolean }) => void;
   /** Opens an existing room asset for editing (minimap navigation to a neighbour). */
   onOpenRoom?: (assetId: string) => void;
+  /** Deletes a room asset and removes its WorldMap node/incident rails after confirmation. */
+  onDeleteRoom?: (assetId: string) => void;
   /** Marks a room as the world's start screen (sets startScreenNodeId on the owning WorldMap). */
   onSetWorldStartRoom?: (roomId: string) => void;
   /** Rebuilds the WorldMap that owns this room (drops deleted rooms, re-lays the grid). */
@@ -851,12 +886,14 @@ interface RoomMinimapThumbProps {
   paletteSlots: Screen5PaletteSlot[];
   /** When provided (and not the current room), the thumb becomes a clickable "open & edit" target. */
   onOpen?: () => void;
+  /** Opens the delete confirmation on right-click for a non-current room. */
+  onRequestDelete?: () => void;
   /** Whether this room is the world's start screen (renders a ★ badge). */
   isStart?: boolean;
 }
 
 /** Renders a downsampled thumbnail of a bitmap room's composed page for the world minimap. */
-const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, paletteSlots, onOpen, isStart }) => {
+const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, paletteSlots, onOpen, onRequestDelete, isStart }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const room = asset.data as Msx2Screen5BitmapRoom;
   const tw = Math.ceil(SCREEN_W / MINIMAP_STEP);
@@ -875,11 +912,18 @@ const RoomMinimapThumb: React.FC<RoomMinimapThumbProps> = ({ asset, isCurrent, p
     }
   }, [room, paletteSlots, tw, th]);
   const interactive = !!onOpen && !isCurrent;
+  const deletable = !!onRequestDelete && !isCurrent;
   return (
     <div
       title={`${isStart ? '★ Inicio del mundo — ' : ''}${interactive ? `Editar "${asset.name}"` : asset.name}`}
       role={interactive ? 'button' : undefined}
       onClick={interactive ? onOpen : undefined}
+      onContextMenu={event => {
+        if (!deletable) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onRequestDelete?.();
+      }}
       className={`relative rounded border overflow-hidden transition-colors ${
         isCurrent
           ? 'border-msx-highlight ring-1 ring-msx-highlight'
@@ -921,12 +965,13 @@ const EmptySilhouette: React.FC<EmptySilhouetteProps> = ({ direction, interactiv
   </button>
 );
 
-export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, onSetWorldStartRoom, onRecomposeWorld, msx2ProjectProfile = null, worldPaletteAssetId, onSetWorldPaletteAssetId, onUpdatePaletteAsset, onUpdateProjectAsset, onOpenHudAsset }) => {
+export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ room, onUpdate, allAssets = [], setStatusBarMessage, onCreateAdjacentRoom, onOpenRoom, onDeleteRoom, onSetWorldStartRoom, onRecomposeWorld, msx2ProjectProfile = null, worldPaletteAssetId, onSetWorldPaletteAssetId, onUpdatePaletteAsset, onUpdateProjectAsset, onOpenHudAsset }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const autoTerrainRestoreRoomRef = useRef<string | null>(null);
 
   // World-minimap: pending "create screen at <dir>" inline confirm.
   const [pendingCreateDir, setPendingCreateDir] = useState<ConnectionDirection | null>(null);
+  const [pendingDeleteRoom, setPendingDeleteRoom] = useState<{ assetId: string; name: string; connectionCount: number } | null>(null);
   const [copySharedEdgeTiles, setCopySharedEdgeTiles] = useState(true);
 
   // --- Local UI state ---
@@ -1179,6 +1224,18 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     );
     return (worldmapAsset?.data as WorldMapGraph | undefined) || null;
   }, [allAssets, room.id]);
+  const requestDeleteRoom = (asset: ProjectAsset) => {
+    if (!onDeleteRoom || asset.id === room.id) return;
+    const nodeIds = new Set(
+      (currentWorldGraph?.nodes || [])
+        .filter(node => node.screenAssetId === asset.id)
+        .map(node => node.id),
+    );
+    const connectionCount = (currentWorldGraph?.connections || []).filter(connection => (
+      nodeIds.has(connection.fromNodeId) || nodeIds.has(connection.toNodeId)
+    )).length;
+    setPendingDeleteRoom({ assetId: asset.id, name: asset.name, connectionCount });
+  };
   const selectedPlacedEntity = useMemo(
     () => selectedPlacedId ? placedEntities.find(entity => entity.id === selectedPlacedId) || null : null,
     [placedEntities, selectedPlacedId],
@@ -1215,6 +1272,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     : null;
   const selectedPressureButtonConfig = selectedPlacedEntity
     ? normalizePressureButtonConfig(selectedPlacedEntity.params?.pressureButton || selectedPlacedEntity.components?.msx2_pressure_button)
+    : null;
+  const selectedJumperConfig = selectedPlacedEntity && isJumperEntity(selectedPlacedEntity)
+    ? normalizeJumperConfig(selectedPlacedEntity.params?.jumper || selectedPlacedEntity.components?.msx2_jumper)
+    : null;
+  const selectedWallJumperConfig = selectedPlacedEntity && isWallJumperEntity(selectedPlacedEntity)
+    ? normalizeWallJumperConfig(selectedPlacedEntity.params?.wallJumper || selectedPlacedEntity.components?.msx2_wall_jumper)
     : null;
   const pressureButtonTargetDoors = placedEntities.filter(entity => entity.kind === 'door');
   const selectedDoorTargetRoom = selectedDoorConfig?.targetRoomId
@@ -1474,10 +1537,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         }
         const isEnemy = entity.kind === 'enemy';
         const isPlatform = entity.kind === 'platform';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : isPlatform ? '#BA78FF' : '#40A0FF';
+        const isJumper = isJumperEntity(entity);
+        const isWallJumper = isWallJumperEntity(entity);
+        const wallJumperDir = isWallJumper ? normalizeWallJumperConfig(entity.params?.wallJumper || entity.components?.msx2_wall_jumper).direction : 'right';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
         const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : isPlatform ? '=' : '◆';
+        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
         const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
         if (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID)) {
           if (selectedPlacedId === entity.id) {
@@ -1934,6 +2000,40 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
               ...item,
               params: { ...(item.params || {}), engine: item.params?.engine || 'pressureButton', pressureButton: next },
               components: { ...(item.components || {}), msx2_pressure_button: next },
+            }
+          : item
+      ),
+    });
+  };
+
+  const updateJumperConfig = (id: string, patch: Partial<Msx2JumperConfig>) => {
+    const entity = placedEntities.find(item => item.id === id);
+    const current = normalizeJumperConfig(entity?.params?.jumper || entity?.components?.msx2_jumper);
+    const next = { ...current, ...patch };
+    onUpdate({
+      entities: placedEntities.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              params: { ...(item.params || {}), engine: item.params?.engine || 'jumper', jumper: next },
+              components: { ...(item.components || {}), msx2_jumper: next },
+            }
+          : item
+      ),
+    });
+  };
+
+  const updateWallJumperConfig = (id: string, patch: Partial<Msx2WallJumperConfig>) => {
+    const entity = placedEntities.find(item => item.id === id);
+    const current = normalizeWallJumperConfig(entity?.params?.wallJumper || entity?.components?.msx2_wall_jumper);
+    const next = { ...current, ...patch };
+    onUpdate({
+      entities: placedEntities.map(item =>
+        item.id === id
+          ? {
+              ...item,
+              params: { ...(item.params || {}), engine: item.params?.engine || 'wallJumper', wallJumper: next },
+              components: { ...(item.components || {}), msx2_wall_jumper: next },
             }
           : item
       ),
@@ -4370,6 +4470,20 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                       )}
                       {selectedPlacedEntity.params?.keyPickupId && (
                         <>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Precio (gemas)
+                            <input
+                              type="number"
+                              min={0}
+                              max={255}
+                              value={clampInt(Number(selectedPlacedEntity.params?.keyPickupPrice), 0, 255, 0)}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { keyPickupPrice: clampInt(Number(event.target.value), 0, 255, 0) || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            />
+                          </label>
+                          <div className="text-[0.6rem] text-msx-textsecondary">
+                            0 = gratis (se recoge por contacto). Con precio, es un item de tienda: se compra pulsando ARRIBA encima si llevas suficientes gemas (contador HUD collectibles).
+                          </div>
                           <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Tile de llave (atlas)</div>
                           <label className="block text-[0.65rem] text-msx-textsecondary">
                             Metatile de la llave
@@ -4474,6 +4588,14 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                             onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { openOnce: event.target.checked })}
                           />
                           Open once
+                        </label>
+                        <label className="col-span-2 flex items-center gap-1" title="La puerta con Sala destino solo transporta al pulsar ARRIBA encima (estilo tienda); sin esto, transporta por contacto.">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selectedDoorConfig.requireUpKey)}
+                            onChange={event => updateLockedDoorConfig(selectedPlacedEntity.id, { requireUpKey: event.target.checked })}
+                          />
+                          Entrar con ARRIBA
                         </label>
                       </div>
                       <label className="block text-[0.65rem] text-msx-textsecondary">
@@ -4687,6 +4809,174 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     </div>
                   )}
 
+                  {selectedPlacedEntity && selectedJumperConfig && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Saltador (muelle)</div>
+                        <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                          <input
+                            type="checkbox"
+                            checked={selectedJumperConfig.enabled}
+                            onChange={event => updateJumperConfig(selectedPlacedEntity.id, { enabled: event.target.checked })}
+                          />
+                          Activo
+                        </label>
+                      </div>
+                      <div className="text-[0.6rem] text-msx-textsecondary">
+                        La celda es sólida: el player aterriza encima y sale disparado hacia arriba.
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile normal (reposo)
+                        <select
+                          value={selectedJumperConfig.atlasEntryId || ''}
+                          onChange={event => updateJumperConfig(selectedPlacedEntity.id, { atlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None (tile pintado a mano)</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updateJumperConfig(selectedPlacedEntity.id, { atlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado como reposo
+                      </button>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile disparado
+                        <select
+                          value={selectedJumperConfig.triggeredAtlasEntryId || ''}
+                          onChange={event => updateJumperConfig(selectedPlacedEntity.id, { triggeredAtlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None (sin cambio visual)</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updateJumperConfig(selectedPlacedEntity.id, { triggeredAtlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado como disparado
+                      </button>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Impulso (px/frame, 2-15)
+                        <input
+                          type="number"
+                          min={2}
+                          max={15}
+                          value={selectedJumperConfig.impulsePx ?? 8}
+                          onChange={event => {
+                            const value = Math.round(Number(event.target.value));
+                            updateJumperConfig(selectedPlacedEntity.id, { impulsePx: Number.isFinite(value) ? Math.max(2, Math.min(15, value)) : 8 });
+                          }}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        />
+                      </label>
+                      <div className="text-[0.6rem] text-msx-textsecondary">
+                        El salto normal suele ser 5-6 px/frame; usa 8+ para un muelle potente.
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity && selectedWallJumperConfig && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Muelle de pared</div>
+                        <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                          <input
+                            type="checkbox"
+                            checked={selectedWallJumperConfig.enabled}
+                            onChange={event => updateWallJumperConfig(selectedPlacedEntity.id, { enabled: event.target.checked })}
+                          />
+                          Activo
+                        </label>
+                      </div>
+                      <div className="text-[0.6rem] text-msx-textsecondary">
+                        Se coloca a la derecha o izquierda de una pared sólida. Al tocarlo, el player sale
+                        disparado en horizontal y la gravedad lo hace caer en arco.
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Dirección de lanzamiento
+                        <select
+                          value={selectedWallJumperConfig.direction || 'right'}
+                          onChange={event => updateWallJumperConfig(selectedPlacedEntity.id, { direction: event.target.value === 'left' ? 'left' : 'right' })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="right">Derecha (muelle a la izquierda de la pared)</option>
+                          <option value="left">Izquierda (muelle a la derecha de la pared)</option>
+                        </select>
+                      </label>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile normal (reposo)
+                        <select
+                          value={selectedWallJumperConfig.atlasEntryId || ''}
+                          onChange={event => updateWallJumperConfig(selectedPlacedEntity.id, { atlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None (tile pintado a mano)</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updateWallJumperConfig(selectedPlacedEntity.id, { atlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado como reposo
+                      </button>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile disparado
+                        <select
+                          value={selectedWallJumperConfig.triggeredAtlasEntryId || ''}
+                          onChange={event => updateWallJumperConfig(selectedPlacedEntity.id, { triggeredAtlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None (sin cambio visual)</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updateWallJumperConfig(selectedPlacedEntity.id, { triggeredAtlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                      >
+                        Usar tile seleccionado como disparado
+                      </button>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Impulso (px/frame, 2-15)
+                        <input
+                          type="number"
+                          min={2}
+                          max={15}
+                          value={selectedWallJumperConfig.impulsePx ?? 8}
+                          onChange={event => {
+                            const value = Math.round(Number(event.target.value));
+                            updateWallJumperConfig(selectedPlacedEntity.id, { impulsePx: Number.isFinite(value) ? Math.max(2, Math.min(15, value)) : 8 });
+                          }}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        />
+                      </label>
+                      <div className="text-[0.6rem] text-msx-textsecondary">
+                        El impulso decae 1 px/frame por fricción; con 8 recorre ~36 px antes de detenerse.
+                      </div>
+                    </div>
+                  )}
+
                   {selectedPlacedEntity.kind === 'npc' && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
                       <div className="text-[0.7rem] text-msx-highlight">NPC hablador</div>
@@ -4845,7 +5135,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 const renderCell = (direction: ConnectionDirection) => {
                   const neighbour = neighbourRooms[direction];
                   if (neighbour) {
-                    return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} isStart={neighbour.id === worldStart.startRoomId} />;
+                    return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} onRequestDelete={onDeleteRoom ? () => requestDeleteRoom(neighbour) : undefined} isStart={neighbour.id === worldStart.startRoomId} />;
                   }
                   return (
                     <EmptySilhouette
@@ -4858,7 +5148,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 const renderDiagonal = (direction: DiagonalDirection) => {
                   const neighbour = diagonalRooms[direction];
                   if (!neighbour) return <div className="opacity-0" style={{ aspectRatio: '4 / 3' }} />;
-                  return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} isStart={neighbour.id === worldStart.startRoomId} />;
+                  return <RoomMinimapThumb asset={neighbour} isCurrent={false} paletteSlots={slots} onOpen={onOpenRoom ? () => onOpenRoom(neighbour.id) : undefined} onRequestDelete={onDeleteRoom ? () => requestDeleteRoom(neighbour) : undefined} isStart={neighbour.id === worldStart.startRoomId} />;
                 };
                 return (
                   // Scrollable (both axes) so the map can grow without clipping.
@@ -5372,6 +5662,48 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete-neighbour confirm: right-click from the minimap opens this modal. */}
+      {pendingDeleteRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPendingDeleteRoom(null)}>
+          <div className="w-96 max-w-[calc(100vw-2rem)] rounded border border-msx-danger bg-msx-panelbg p-4 space-y-3 shadow-xl" onClick={event => event.stopPropagation()}>
+            <div className="text-sm text-msx-danger text-center font-semibold">
+              Borrar pantalla &quot;{pendingDeleteRoom.name}&quot;?
+            </div>
+            <div className="text-xs text-msx-textprimary space-y-2">
+              <p>Se borrará la pantalla y su nodo del World Map.</p>
+              <p>
+                {pendingDeleteRoom.connectionCount > 0
+                  ? `Se romperán ${pendingDeleteRoom.connectionCount} conexión(es) con otras pantallas.`
+                  : 'Esta pantalla no tiene conexiones registradas.'}
+              </p>
+              <p className="rounded border border-msx-warning/60 bg-msx-warning/10 p-2 text-msx-warning">
+                Las pantallas vecinas no se reconectarán automáticamente. Después tendrás que reparar manualmente los nodos de conexión desde World Map.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const roomId = pendingDeleteRoom.assetId;
+                  setPendingDeleteRoom(null);
+                  onDeleteRoom?.(roomId);
+                }}
+                className="flex-1 rounded px-2 py-1 text-sm border border-msx-danger bg-msx-danger/15 text-msx-danger hover:bg-msx-danger/25"
+              >
+                Borrar pantalla
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingDeleteRoom(null)}
+                className="flex-1 rounded px-2 py-1 text-sm border border-msx-border text-msx-textsecondary hover:border-msx-highlight"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -41,6 +41,8 @@ export type Msx2ComponentId =
   | 'msx2_box2'
   | 'msx2_carryable'
   | 'msx2_pressure_button'
+  | 'msx2_jumper'
+  | 'msx2_wall_jumper'
   | 'msx2_scroll';
 
 export interface Msx2ComponentDefinition {
@@ -142,6 +144,19 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     latch: { kind: 'boolean', label: 'Latch' },
     atlasEntryId: { label: 'Released atlas tile ID' },
     pressedAtlasEntryId: { label: 'Pressed atlas tile ID' },
+  },
+  msx2_jumper: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    atlasEntryId: { label: 'Idle atlas tile ID' },
+    triggeredAtlasEntryId: { label: 'Triggered atlas tile ID' },
+    impulsePx: { label: 'Impulse (px/frame)', min: 2, max: 15 },
+  },
+  msx2_wall_jumper: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    atlasEntryId: { label: 'Idle atlas tile ID' },
+    triggeredAtlasEntryId: { label: 'Triggered atlas tile ID' },
+    impulsePx: { label: 'Impulse (px/frame)', min: 2, max: 15 },
+    direction: { kind: 'select', options: ['left', 'right'], label: 'Launch direction' },
   },
   msx2_hazard: {
     damage: { label: 'Damage', min: 0, max: 255 },
@@ -292,6 +307,8 @@ export type Msx2RuntimeEngine =
   | 'spike'
   | 'door'
   | 'pressureButton'
+  | 'jumper'
+  | 'wallJumper'
   | 'checkpoint'
   | 'npc'
   | 'control_2_players'
@@ -871,6 +888,42 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       runtime: 'MSX2',
       engine: 'pressureButton',
       pressureButton: { enabled: true, actors: 'playerAndEnemies', latch: false, targetDoorId: '', atlasEntryId: '', pressedAtlasEntryId: '' },
+    },
+  },
+  {
+    id: 'jumper',
+    label: 'MSX2 Jumper (Spring)',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'jumper',
+    description: 'Solid 16x16 spring tile (SCREEN 5 bitmap rooms): the player lands on top and is launched upward; the tile swaps to a triggered frame for a moment.',
+    components: {
+      msx2_transform: {},
+      msx2_jumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8 },
+      msx2_collision: { solid: true },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'jumper',
+      jumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8 },
+    },
+  },
+  {
+    id: 'wallJumper',
+    label: 'MSX2 Wall Jumper (Spring)',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'wallJumper',
+    description: 'Solid 16x16 wall-spring tile (SCREEN 5 bitmap rooms): the player touches its side and is launched horizontally; gravity then bends the launch into an arc. Place it against a vertical wall (left or right).',
+    components: {
+      msx2_transform: {},
+      msx2_wall_jumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8, direction: 'right' },
+      msx2_collision: { solid: true },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'wallJumper',
+      wallJumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8, direction: 'right' },
     },
   },
   {

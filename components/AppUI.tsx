@@ -940,6 +940,53 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     setStatusBarMessage(`SCREEN 5: World Map "${wmAsset.name}" reconstruido — ${nextGraph.nodes.length} pantalla(s), ${nextGraph.connections.length} conexión(es).`);
   }, [assets, setAssetsWithHistory, setStatusBarMessage]);
 
+  // SCREEN 5 minimap: deleting a room also removes its WorldMap node and the
+  // rails attached to it. Do not infer a replacement connection: the user must
+  // repair any newly disconnected neighbours explicitly in World Map.
+  const handleDeleteBitmapRoom = useCallback((roomId: string) => {
+    const roomAsset = assets.find(asset => asset.id === roomId && asset.type === 'msx2bitmaproom');
+    if (!roomAsset) return;
+
+    const owningWorlds = assets
+      .filter(asset => asset.type === 'worldmap' && asset.data)
+      .map(asset => ({ asset, graph: asset.data as WorldMapGraph }))
+      .filter(({ graph }) => (graph.nodes || []).some(node => node.screenAssetId === roomId));
+    const removedConnectionCount = owningWorlds.reduce((total, { graph }) => {
+      const roomNodeIds = new Set(
+        graph.nodes.filter(node => node.screenAssetId === roomId).map(node => node.id),
+      );
+      return total + (graph.connections || []).filter(connection => (
+        roomNodeIds.has(connection.fromNodeId) || roomNodeIds.has(connection.toNodeId)
+      )).length;
+    }, 0);
+
+    setAssetsWithHistory(prevAssets => prevAssets
+      .filter(asset => asset.id !== roomId)
+      .map(asset => {
+        if (asset.type !== 'worldmap' || !asset.data) return asset;
+        const graph = asset.data as WorldMapGraph;
+        const removedNodeIds = new Set(
+          graph.nodes.filter(node => node.screenAssetId === roomId).map(node => node.id),
+        );
+        if (removedNodeIds.size === 0) return asset;
+        const nodes = graph.nodes.filter(node => !removedNodeIds.has(node.id));
+        const connections = graph.connections.filter(connection => (
+          !removedNodeIds.has(connection.fromNodeId) && !removedNodeIds.has(connection.toNodeId)
+        ));
+        const startScreenNodeId = removedNodeIds.has(graph.startScreenNodeId || '')
+          ? (nodes[0]?.id || null)
+          : graph.startScreenNodeId;
+        return { ...asset, data: { ...graph, nodes, connections, startScreenNodeId } };
+      }));
+
+    setSelectedAssetId(null);
+    setCurrentEditor(EditorType.None);
+    const connectionMessage = removedConnectionCount > 0
+      ? ` Se eliminaron ${removedConnectionCount} conexión(es); repara manualmente las conexiones rotas desde World Map.`
+      : ' No había conexiones asociadas; revisa World Map si necesitas enlazar las pantallas vecinas.';
+    setStatusBarMessage(`SCREEN 5: pantalla "${roomAsset.name}" borrada.${connectionMessage}`);
+  }, [assets, setAssetsWithHistory, setCurrentEditor, setSelectedAssetId, setStatusBarMessage]);
+
   const dataAssets = assets.filter(a =>
     ['tile', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'msx2bitmaproom', 'msx2player', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
   );
@@ -1432,7 +1479,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
-            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} onSetWorldStartRoom={handleSetWorldStartBitmapRoom} onRecomposeWorld={handleRecomposeBitmapWorld} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} onUpdateProjectAsset={(assetId, data) => handleUpdateAsset(assetId, data)} onOpenHudAsset={(id) => onSelectAsset(id, EditorType.Msx2HudEditor)} />
+            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} onDeleteRoom={handleDeleteBitmapRoom} onSetWorldStartRoom={handleSetWorldStartBitmapRoom} onRecomposeWorld={handleRecomposeBitmapWorld} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} onUpdateProjectAsset={(assetId, data) => handleUpdateAsset(assetId, data)} onOpenHudAsset={(id) => onSelectAsset(id, EditorType.Msx2HudEditor)} />
           )}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} playerAssetName={activeAsset.name} onUpdate={(patch) => {
             const mergedPlayer = mergeMsx2PlayerUpdate(activeAsset.data, patch);

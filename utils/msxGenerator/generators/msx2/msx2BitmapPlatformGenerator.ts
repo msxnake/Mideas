@@ -145,10 +145,10 @@ bitmap_platform_pool  EQU ${asmWord(poolAddr)}
     const patternVram = 0xF800 + patternGroup * 32;
     const colorVram = opts.colorBase + i * maxCells * 16;
     const poolBase = `bitmap_platform_pool + ${i * POOL_STRIDE}`;
-    return `.slot_${i}:
+    return `.bplat_slot_${i}:
     ld a, (bitmap_platform_count)
     cp ${i + 1}
-    jp c, .slot_${i}_done      ; slot unused in this room
+    jp c, .bplat_slot_${i}_done      ; slot unused in this room
     push ix
     pop hl
     ld de, ${poolBase}
@@ -190,7 +190,7 @@ bitmap_platform_pool  EQU ${asmWord(poolAddr)}
     pop hl
     ld de, ${asmWord(colorVram)}
     call copy_to_vram_ext
-.slot_${i}_done:
+.bplat_slot_${i}_done:
     ld de, ${TABLE_STRIDE}
     add ix, de`;
   }).join('\n');

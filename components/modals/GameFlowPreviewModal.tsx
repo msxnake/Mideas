@@ -5231,6 +5231,15 @@ useEffect(() => {
                 entity.vy = -jumpStrength;
                 break;
             }
+            case 'wallJumper': {
+                // Horizontal spring: launch the player sideways. interactionValue
+                // carries the impulse magnitude (px/frame); its sign encodes the
+                // direction (positive = right, negative = left). Gravity keeps
+                // acting so the preview shows the arcing trajectory.
+                const strength = interactionValue !== 0 ? interactionValue : 8;
+                entity.vx = strength > 0 ? Math.min(15, strength) : Math.max(-15, strength);
+                break;
+            }
             default:
                 break;
         }

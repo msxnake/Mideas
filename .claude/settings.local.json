@@ -233,7 +233,14 @@
       "Bash(\"C:/Program Files/openMSX/openmsx.exe\" -machine C-BIOS_MSX2 -carta test/msx2-topedge/t39.rom -romtype konami -script test/msx2-topedge/topedge_smoke.tcl)",
       "Bash(\"C:/Program Files/openMSX/openmsx.exe\" -machine C-BIOS_MSX2 -carta test/msx2-enemy-patrol/enemy.rom -romtype konami -script test/msx2-enemy-patrol/shot.tcl)",
       "Bash(\"C:/Program Files/openMSX/openmsx.exe\" -machine C-BIOS_MSX2+ -cart test/msx2-hudjump/t51.rom -romtype konami -script test/msx2-hudjump/hudjump_smoke.tcl)",
-      "Bash(cp utils/msxGenerator/generators/msx2/msx2Screen5BitmapRoomGenerator.ts /tmp/gen_fixed_backup.ts && echo backup ok)"
+      "Bash(cp utils/msxGenerator/generators/msx2/msx2Screen5BitmapRoomGenerator.ts /tmp/gen_fixed_backup.ts && echo backup ok)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit)",
+      "Bash(git worktree *)",
+      "Bash(\"C:/Program Files/openMSX/openmsx.exe\" -machine C-BIOS_MSX2 -cart test/msx2-shop/shop_smoke.rom -script test/msx2-shop/shop_smoke.tcl)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=12288 npx tsc --noEmit -p tsconfig.json)",
+      "Bash(rm -rf /tmp/ts_build_jumper && npx tsc --pretty false --module commonjs --target ES2020 --outDir /tmp/ts_build_jumper --moduleResolution node --skipLibCheck --noEmitOnError false utils/msxGenerator/index.ts 2>&1 | grep -v \"^$\" | head -30)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --pretty false --module esnext --target ES2020 --jsx react-jsx --outDir /tmp/ts_build_jumper3 --moduleResolution bundler --skipLibCheck --noEmitOnError false components/editors/Msx2BitmapScreenEditor.tsx)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --pretty false --module esnext --target ES2020 --jsx react-jsx --outDir /tmp/ts_build_head --moduleResolution bundler --skipLibCheck --noEmitOnError false components/editors/Msx2BitmapScreenEditor.tsx)"
     ],
     "deny": [],
     "ask": []

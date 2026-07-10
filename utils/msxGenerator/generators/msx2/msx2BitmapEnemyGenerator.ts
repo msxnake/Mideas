@@ -84,6 +84,18 @@ export interface BitmapEnemyRuntimeOptions {
   playerHitbox: { x: number; y: number; w: number; h: number };
   /** I-frame count to arm after a DamageOnTouch hit. */
   damageInvulnFrames: number;
+  /** Player max health byte (matches the deadly system). Used to reset health on
+   *  respawn when enemy contact drains the last heart. Required for lives support. */
+  maxHealth?: number;
+  /** Player starting lives byte (matches the deadly system). When provided,
+   *  enemy contact that drops health to 0 decrements player_lives and, at 0
+   *  lives, arms bitmap_game_over_flag so the Game Flow exits — consistent with
+   *  the deadly-tile damage path. */
+  lives?: number;
+  /** Whether enemy damage should respawn the player (reset health + reposition to
+   *  spawn) when health hits 0, mirroring the deadly system. Defaults to false
+   *  (legacy behaviour: health saturates at 0, no respawn). */
+  respawnOnDeath?: boolean;
   /** Early-return gate prepended to bitmap_update_enemies (e.g. the NPC
    * dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
@@ -135,10 +147,10 @@ bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
     const patternVram = 0xF800 + patternGroup * 32;
     const colorVram = opts.colorBase + i * 16;
     const poolBase = `bitmap_enemy_pool + ${i * POOL_STRIDE}`;
-    return `.slot_${i}:
+    return `.benemy_slot_${i}:
     ld a, (bitmap_enemy_count)
     cp ${i + 1}
-    jp c, .slot_${i}_done      ; slot unused in this room
+    jp c, .benemy_slot_${i}_done      ; slot unused in this room
     push ix
     pop hl
     ld de, ${poolBase}
@@ -193,7 +205,7 @@ bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
     ld de, ${asmWord(colorVram)}
     ld bc, 16
     call copy_to_vram_ext
-.slot_${i}_done:
+.benemy_slot_${i}_done:
     ld de, ${TABLE_STRIDE}
     add ix, de`;
   }).join('\n');
@@ -204,6 +216,12 @@ bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
   const playerRight = Math.max(playerLeft + 1, Math.min(64, playerLeft + (Math.floor(playerHitbox.w) || 16)));
   const playerBottom = Math.max(playerTop + 1, Math.min(64, playerTop + (Math.floor(playerHitbox.h) || 16)));
   const enemyInvulnFrames = asmByte(opts.damageInvulnFrames || 60);
+  // Lives/respawn support (optional). When respawnOnDeath is true, enemy contact
+  // that drains the last heart mirrors the deadly system: -1 life, respawn to
+  // spawn, and at 0 lives arm bitmap_game_over_flag so the Game Flow exits.
+  const respawnOnDeath = opts.respawnOnDeath === true;
+  const maxHealthByte = asmByte(opts.maxHealth ?? 5);
+  void opts.lives; // lives are seeded by the deadly system init; the touch handler only decrements.
 
   // ---- bitmap_update_enemies: SCREEN 4 patrol port (1 px/frame, bounce) ----
   // Check-then-move like the SCREEN 4 slot handler: at the bound the enemy
@@ -529,7 +547,40 @@ ${playerBottom ? `    add a, ${playerBottom}\n` : ''}    cp d                   
 .enemy_touch_zero:
     xor a
     ld (player_health), a
-.enemy_touch_arm_iframes:
+${respawnOnDeath ? `
+    ; Last heart drained by enemy contact: spend a life, like the deadly system.
+    ld hl, player_lives
+    dec (hl)
+    ld a, (hl)
+    or a
+    jr z, .enemy_touch_game_over     ; lives 0 -> request Game Flow exit
+    jp .enemy_touch_respawn
+.enemy_touch_game_over:
+    ld a, 1
+    ld (bitmap_game_over_flag), a
+.enemy_touch_respawn:
+    ; Full respawn: reset health, arm blink, zero velocity, reposition to spawn.
+    ld a, ${maxHealthByte}
+    ld (player_health), a
+    xor a
+    ld (player_vy), a
+    ld (player_vy_frac), a
+    ld (player_vx), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_spawn_x_table
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_spawn_y_table
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+` : ''}.enemy_touch_arm_iframes:
     ld a, ${enemyInvulnFrames}
     ld (player_invuln), a
     ret
