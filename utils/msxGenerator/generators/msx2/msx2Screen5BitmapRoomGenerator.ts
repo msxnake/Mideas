@@ -7028,7 +7028,8 @@ function buildBitmapJumperSystemAsm(
   const timerAddress = ramBase;
   const targetPageAddress = ramBase + 1;
   const activeAddress = ramBase + 2; // 2 bytes: ROM pointer of the last-fired record
-  const ramBytes = 4;
+  const spacePressedAddress = ramBase + 4;
+  const ramBytes = 5;
   // First pixel row BELOW the body collision box: when the player stands on a
   // solid cell, player_y + feetOffset is exactly the cell's top row.
   const feetOffset = hitbox.y + hitbox.h;
@@ -7046,14 +7047,16 @@ function buildBitmapJumperSystemAsm(
 bitmap_jumper_timer       EQU ${hexWord(timerAddress)}
 bitmap_jumper_target_page EQU ${hexWord(targetPageAddress)}
 bitmap_jumper_active      EQU ${hexWord(activeAddress)}
+bitmap_jumper_space_pressed EQU ${hexWord(spacePressedAddress)}
 bitmap_jumper_cmd_block   EQU #C2C0
 `;
-  const initAsm = `    ; jumper springs: clear revert timer + active record pointer.
+  const initAsm = `    ; jumper springs: clear revert timer, active pointer + input latch.
     xor a
     ld (bitmap_jumper_timer), a
     ld (bitmap_jumper_target_page), a
     ld (bitmap_jumper_active), a
     ld (bitmap_jumper_active + 1), a
+    ld (bitmap_jumper_space_pressed), a
 `;
 
   const routinesAsm = `
@@ -7183,6 +7186,17 @@ bitmap_update_jumpers:
     ld a, (bitmap_composition_state)
     or a
     ret nz
+    ; The game A button is SPACE (keyboard row 8, bit 0). Read it here,
+    ; immediately before the stand-on test, so the boost applies only when
+    ; the player collides with the floor jumper on this frame.
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and #01
+    ld (bitmap_jumper_space_pressed), a
     ; Revert timer: when it expires, restore the idle frame of the spring
     ; that fired (the player is usually airborne while this counts down).
     ld a, (bitmap_jumper_timer)
@@ -7239,9 +7253,26 @@ ${addA(hbLeft)}    cp b
 .jumper_no_pending:
     ld (bitmap_jumper_active), hl
     ; Launch: same contract as the jump block (integer vy + clean fraction).
+    ; SPACE/A boosts the configured impulse to 150% (8 -> 12). The record
+    ; stores the negative base impulse, so calculate the positive magnitude,
+    ; add half of it, then convert it back to a signed negative byte.
     inc hl
     inc hl
+    ld a, (bitmap_jumper_space_pressed)
+    or a
+    jp z, .jumper_store_base_impulse
     ld a, (hl)                  ; impulse byte = -(impulsePx)
+    cpl
+    inc a                       ; A = impulsePx
+    ld e, a
+    srl a                       ; A = floor(impulsePx / 2)
+    add a, e                    ; A = floor(impulsePx * 1.5)
+    cpl
+    inc a                       ; A = -floor(impulsePx * 1.5)
+    jp .jumper_store_impulse
+.jumper_store_base_impulse:
+    ld a, (hl)                  ; impulse byte = -(impulsePx)
+.jumper_store_impulse:
     ld (player_vy), a
     xor a
     ld (player_vy_frac), a
@@ -7265,7 +7296,9 @@ ${addA(hbLeft)}    cp b
     ld de, 30
     add hl, de                  ; skip idle+triggered commands
     pop bc
-    djnz .jumper_scan_loop
+    ; The scan body is too large for DJNZ's +/-126-byte relative range.
+    dec b
+    jp nz, .jumper_scan_loop
     ret
 
 ; ------------------------------------------------------------

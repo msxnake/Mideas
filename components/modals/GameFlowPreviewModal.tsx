@@ -5224,11 +5224,17 @@ useEffect(() => {
                 break;
             case 'jumper': {
                 const jumpStrength = Math.max(8, interactionValue > 0 ? interactionValue : 8);
+                // SCREEN 5 jumper A button: SPACE is the Preview mapping for the
+                // game A button. Holding it on the collision frame gives 150% of
+                // the configured launch strength (8 -> 12, for example).
+                const boostedJumpStrength = pressedKeys.current.has(' ')
+                    ? Math.floor(jumpStrength * 1.5)
+                    : jumpStrength;
                 entity.isOnGround = false;
                 entity.platformUnderneath = null;
                 entity.platformGraceFramesLeft = 0;
                 entity.gravityVel = 0;
-                entity.vy = -jumpStrength;
+                entity.vy = -boostedJumpStrength;
                 break;
             }
             case 'wallJumper': {
