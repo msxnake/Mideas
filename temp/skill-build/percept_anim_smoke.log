@@ -1,0 +1,3 @@
+boot: flag_near=0 anim=0 px=48 py=126 room=0
+near_idle: flag_near=1 anim=1 px=132 py=160 room=0
+left_far: flag_near=0 anim=0 px=12 py=160 room=0

@@ -1,0 +1,5 @@
+boot: cnt=0 inv=0 f0=0 f1=0 f2=0 near=0 px=48 py=126
+collected: cnt=1 inv=0 f0=1 f1=0 f2=0 near=0 px=132 py=160
+window_open: cnt=1 inv=1 f0=1 f1=0 f2=0 near=0 px=132 py=160
+frozen_right_held: cnt=1 inv=1 f0=1 f1=0 f2=0 near=0 px=132 py=160
+window_closed: cnt=1 inv=0 f0=1 f1=0 f2=0 near=0 px=132 py=160

@@ -1,0 +1,23 @@
+{
+  "id": "perception",
+  "label": "Perception",
+  "description": "Alien sense: raises flag_near when the player is within radius of a hidden_obj entity, letting the state machine react (e.g. glowing tail sprite)",
+  "required": false,
+  "cycles": 40,
+  "addsStates": ["perceiving"],
+  "icon": "👁️",
+  "category": "sense",
+  "supportedBackends": ["msx2-screen4-bitmap-room"],
+  "parameters": [
+    {
+      "key": "radius",
+      "label": "Detection radius (pixels)",
+      "type": "number",
+      "default": 32,
+      "min": 8,
+      "max": 96,
+      "step": 8,
+      "help": "Player-center to object-center distance that raises flag_near (square radius: |dx| and |dy| both within range)."
+    }
+  ]
+}

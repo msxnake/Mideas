@@ -311,6 +311,7 @@ export type Msx2RuntimeEngine =
   | 'wallJumper'
   | 'checkpoint'
   | 'npc'
+  | 'hiddenObj'
   | 'control_2_players'
   | 'paddleHorizontal'
   | 'ballBounce'
@@ -953,6 +954,18 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_transform: {},
     },
     params: { runtime: 'MSX2', engine: 'npc', npcDialogue: { dialogueAssetId: '', atlasEntryId: '', talkKey: 'up' } },
+  },
+  {
+    id: 'hidden_obj',
+    label: 'MSX2 Hidden Object',
+    kind: 'hidden_obj',
+    runtime: 'MSX2',
+    engine: 'hiddenObj',
+    description: 'SCREEN 5 bitmap-room invisible marker for the Perception skill: when the player enters the skill radius, flag_near is raised and the perceiving animation state can trigger (e.g. glowing tail). Bakes no visual into the room.',
+    components: {
+      msx2_transform: {},
+    },
+    params: { runtime: 'MSX2', engine: 'hiddenObj', hiddenObj: true },
   },
   {
     id: 'checkpoint',

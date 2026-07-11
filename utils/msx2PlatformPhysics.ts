@@ -138,6 +138,22 @@ export interface Msx2CrouchConfig {
 }
 
 /**
+ * Perception skill config (MSX2 SCREEN 5 bitmap rooms).
+ *
+ * Passive skill: no input binding. Every frame the runtime measures the
+ * player-center to object-center distance against each `hidden_obj` entity of
+ * the current room; when both |dx| and |dy| fall within `radius` it raises
+ * `bitmap_flag_near` and (when a 'perceiving' state sprite is mapped) asserts
+ * the perceiving animation state, unless an action skill already owns the
+ * animation state this frame.
+ */
+export interface Msx2PerceptionConfig {
+  enabled: boolean;
+  /** Square detection radius in pixels, center to center. Range 8..96. */
+  radius: number;
+}
+
+/**
  * Carry object skill config (MSX2 platformer).
  *
  * Carryable objects are screen entities flagged with the `msx2_carryable`
@@ -789,6 +805,24 @@ export function getMsx2CrouchConfigFromPlayerEntity(player: any | undefined): Ms
     crouchSpeed: Math.max(0, Math.min(4, Math.trunc(crouchSpeed))),
     crouchHitboxHeight: Math.max(4, Math.min(12, Math.trunc(crouchHitboxHeight || 8))),
     slideDistance: Math.max(0, Math.min(16, Math.trunc(slideDistance))),
+  };
+}
+
+/**
+ * Returns the resolved perception skill config for the given player.
+ *
+ * Reads `player.skillParameters.perception` and clamps `radius` to the range
+ * declared in `perceptionParameters` (handlers/index.ts). The skill is passive
+ * (no control binding): the proximity engine runs every frame while enabled.
+ */
+export function getMsx2PerceptionConfigFromPlayerEntity(player: any | undefined): Msx2PerceptionConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('perception');
+  const params = (player?.skillParameters?.perception || {}) as Record<string, number | boolean>;
+  const radius = pickSkillNumberParam(params, 'perception', ['radius'], 32);
+  return {
+    enabled,
+    radius: Math.max(8, Math.min(96, Math.trunc(radius || 32))),
   };
 }
 

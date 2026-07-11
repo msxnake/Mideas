@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { EditorType, ProjectAsset, ContextMenuItem, Tile, ScreenMap, ComponentDefinition, EntityTemplate } from './types';
+import { EditorType, ProjectAsset, ContextMenuItem, Tile, ScreenMap, ComponentDefinition, EntityTemplate, WorldMapGraph } from './types';
 import { AppUI } from './components/AppUI';
 import { ThemeProvider } from './contexts/ThemeContext';
 
@@ -670,6 +670,9 @@ const App: React.FC = () => {
     if (assetToRenameInfo) {
       const assetToRename = assets.find(asset => asset.id === assetToRenameInfo.id);
       const tileBankDataId = assetToRename?.type === 'tilebank' ? (assetToRename.data as TileBank | undefined)?.id : undefined;
+      const isScreenAsset = assetToRenameInfo.type === 'screenmap'
+        || assetToRenameInfo.type === 'msx2screen'
+        || assetToRenameInfo.type === 'msx2bitmaproom';
 
       setAssetsWithHistory(prevAssets => prevAssets.map(a => {
         if (a.id === assetToRenameInfo.id) {
@@ -679,6 +682,24 @@ const App: React.FC = () => {
           }
           return updatedAsset;
         }
+
+        // WorldMap nodes cache the screen name for rendering. Keep that
+        // denormalized label in sync when a SCREEN 2/4/5 room is renamed,
+        // without changing the node id, position, ports, or connections.
+        if (isScreenAsset && a.type === 'worldmap' && a.data && typeof a.data === 'object') {
+          const worldMap = a.data as WorldMapGraph;
+          if (!Array.isArray(worldMap.nodes)) return a;
+          const updatedNodes = worldMap.nodes.map(node => (
+            node.screenAssetId === assetToRenameInfo.id
+              ? { ...node, name: newName }
+              : node
+          ));
+
+          if (updatedNodes.some((node, index) => node !== worldMap.nodes[index])) {
+            return { ...a, data: { ...worldMap, nodes: updatedNodes } };
+          }
+        }
+
         return a;
       }));
 

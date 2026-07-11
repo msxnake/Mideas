@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, ProjectAsset, PaletteAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
 import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
 import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
@@ -304,6 +304,24 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       position: { x: snapToGrid(newX), y: snapToGrid(newY) },
     };
     onUpdate({ nodes: [...nodes, newNode] });
+  };
+
+  const handleSyncScreenNames = () => {
+    const currentScreenNames = new Map(availableScreenMaps.map(screen => [screen.id, screen.name]));
+    let updatedCount = 0;
+    const updatedNodes = nodes.map(node => {
+      const currentName = currentScreenNames.get(node.screenAssetId);
+      if (!currentName || currentName === node.name) return node;
+      updatedCount += 1;
+      return { ...node, name: currentName };
+    });
+
+    if (updatedCount > 0) {
+      onUpdate({ nodes: updatedNodes });
+      setStatusBarMessage(`Updated ${updatedCount} World Map screen name${updatedCount === 1 ? '' : 's'}.`);
+    } else {
+      setStatusBarMessage('World Map screen names are already up to date.');
+    }
   };
 
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
@@ -1119,6 +1137,16 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             ))}
           </select>
         </div>
+        <Button
+          onClick={handleSyncScreenNames}
+          size="sm"
+          variant="secondary"
+          icon={<RefreshCwIcon className="w-3.5 h-3.5" />}
+          title="Actualizar los nombres de los nodos usando los nombres actuales de las pantallas"
+          aria-label="Actualizar nombres de pantallas del World Map"
+        >
+          Actualizar nombres
+        </Button>
         <Button onClick={handleSetStartScreen} size="sm" disabled={!selectedNodeId} variant="secondary">Set Start</Button>
         <Button onClick={handleDeleteSelected} size="sm" disabled={!selectedNodeId && !selectedConnectionId} variant="danger" icon={<TrashIcon className="w-3 h-3" />}>Delete Sel.</Button>
         <div className="flex items-center space-x-1 border-l border-msx-border pl-2">

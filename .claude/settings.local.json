@@ -240,7 +240,10 @@
       "Bash(NODE_OPTIONS=--max-old-space-size=12288 npx tsc --noEmit -p tsconfig.json)",
       "Bash(rm -rf /tmp/ts_build_jumper && npx tsc --pretty false --module commonjs --target ES2020 --outDir /tmp/ts_build_jumper --moduleResolution node --skipLibCheck --noEmitOnError false utils/msxGenerator/index.ts 2>&1 | grep -v \"^$\" | head -30)",
       "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --pretty false --module esnext --target ES2020 --jsx react-jsx --outDir /tmp/ts_build_jumper3 --moduleResolution bundler --skipLibCheck --noEmitOnError false components/editors/Msx2BitmapScreenEditor.tsx)",
-      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --pretty false --module esnext --target ES2020 --jsx react-jsx --outDir /tmp/ts_build_head --moduleResolution bundler --skipLibCheck --noEmitOnError false components/editors/Msx2BitmapScreenEditor.tsx)"
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --pretty false --module esnext --target ES2020 --jsx react-jsx --outDir /tmp/ts_build_head --moduleResolution bundler --skipLibCheck --noEmitOnError false components/editors/Msx2BitmapScreenEditor.tsx)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --pretty false --module commonjs --target ES2020 --moduleResolution node --skipLibCheck --jsx react-jsx utils/msxGenerator/index.ts utils/msxGenerator/generators/msx2/msx2BitmapPerceptionGenerator.ts)",
+      "Bash(python scripts/build_mideas_unified_rom.py --json temp/skill-build/percept_base.json --project-root . --asm-output temp/skill-build/percept_prechange.asm --rom-output temp/skill-build/percept_prechange.rom --allow-tsc-errors)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --pretty false --module commonjs --target ES2020 --moduleResolution node --skipLibCheck utils/msxGenerator/index.ts)"
     ],
     "deny": [],
     "ask": []

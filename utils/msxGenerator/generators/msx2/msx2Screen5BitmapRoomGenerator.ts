@@ -2,8 +2,9 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2Ga
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
+import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -11751,6 +11752,18 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gemCounterRam
   );
   hudLinkedRamCursor += gemSystem.ramBytes;
+  // PERCEPTION skill: config + parts-window predicate resolved HERE because the
+  // enemy/platform pause gates below must know whether the 'I' window exists;
+  // the system itself is built after the platform pool (its close-repaint needs
+  // the key-door/gem/jumper overlay chain) so its RAM closes the chain.
+  const perceptionConfig = getMsx2PerceptionConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const perceptionWindowEnabled = perceptionConfig.enabled && bitmapPerceptionWindowNeeded(rooms);
+  const perceptionPauseGateAsm = perceptionWindowEnabled
+    ? `    ld a, (bitmap_inv_state)   ; parts window open: freeze
+    or a
+    ret nz
+`
+    : '';
   // Jumper springs: solid 16x16 cells that launch the player upward. RAM
   // chains between the gem system and the dialogue system.
   const jumperSystem = buildBitmapJumperSystemAsm(rooms, playerHitbox, hudLinkedRamCursor);
@@ -11786,12 +11799,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     maxHealth: playerVitals.maxHealth,
     lives: playerVitals.lives,
     respawnOnDeath: true,
-    pauseGateAsm: dialogueSystem.enabled
+    pauseGateAsm: `${dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
     or a
     ret nz
 `
-      : '',
+      : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += enemySystem.ramBytes;
   // Moving-platform runtime state chains after the enemy pool, sharing the same
@@ -11804,16 +11817,29 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     playerHitbox,
     terminalFallPx: playerPhysics.terminalPx,
-    pauseGateAsm: dialogueSystem.enabled
+    pauseGateAsm: `${dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all platforms
     or a
     ret nz
 `
-      : '',
+      : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += platformSystem.ramBytes;
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/jumper/wall-jumper/dialogue/enemy/platform systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/jumpers/wall-jumpers/enemies/platforms.`);
+  // PERCEPTION system: hidden_obj proximity + collection + optional 'I' parts
+  // window. Built last so its close-repaint can chain every overlay redraw and
+  // its RAM closes the optional-system chain (checked against the ceiling below).
+  const perceptionSystem = buildBitmapPerceptionSystemAsm(rooms, perceptionConfig, {
+    ramBase: hudLinkedRamCursor,
+    playerHitbox,
+    perceivingAnimId: stateAnimIds['perceiving'],
+    collectibleCounter: gemCounterRam,
+    keyCountAvailable: keyDoorSystem.ramBytes > 0,
+    bankedRoomData: isKonamiMegaRom,
+    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}`,
+  });
+  hudLinkedRamCursor += perceptionSystem.ramBytes;
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/hidden objects/jumpers/wall-jumpers/enemies/platforms.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
@@ -11835,10 +11861,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}`;
-  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}`;
+  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}`;
   const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -12153,10 +12179,10 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${gameFlowEnabled ? '    
     call bitmap_wait_vblank
     call step_room_composition
     jp c, .skip_player_movement
-${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
+${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${platformSystem.detectCallAsm}.skip_player_movement:
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
+${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
 ${enemySystem.satCallAsm}${platformSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
@@ -12213,6 +12239,7 @@ ${roomTransitionTableAsm}
 ${roomSpawnTableAsm}
 ${keyDoorSystem.dataAsm}
 ${gemSystem.dataAsm}
+${perceptionSystem.dataAsm}
 ${jumperSystem.dataAsm}
 ${wallJumperSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}

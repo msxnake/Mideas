@@ -1554,3 +1554,30 @@ export const iceSlide: SkillDef = {
   supportedBackends: ['msx2-screen4-bitmap-room'],
   parameters: iceSlideParameters,
 };
+
+export const perceptionParameters: SkillParameterDef[] = [
+  {
+    key: 'radius',
+    label: 'Detection radius (pixels)',
+    type: 'number',
+    default: 32,
+    min: 8,
+    max: 96,
+    step: 8,
+    help: 'Player-center to object-center distance that raises flag_near (square radius: |dx| and |dy| both within range).',
+  },
+];
+
+export const perception: SkillDef = {
+  id: 'perception',
+  label: 'Perception',
+  required: false,
+  cycles: 40,
+  addsStates: ['perceiving'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'perceiving', condition: 'flag_near AND no_action_state' },
+    { from: ['perceiving'], to: 'grounded', condition: 'NOT flag_near' },
+  ],
+  supportedBackends: ['msx2-screen4-bitmap-room'],
+  parameters: perceptionParameters,
+};

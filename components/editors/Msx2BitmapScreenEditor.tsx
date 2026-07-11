@@ -1540,10 +1540,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const isJumper = isJumperEntity(entity);
         const isWallJumper = isWallJumperEntity(entity);
         const wallJumperDir = isWallJumper ? normalizeWallJumperConfig(entity.params?.wallJumper || entity.components?.msx2_wall_jumper).direction : 'right';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
         const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
+        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
         const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
         if (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID)) {
           if (selectedPlacedId === entity.id) {
@@ -5039,7 +5039,65 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     </div>
                   )}
 
-                  {selectedPlacedEntity.kind !== 'collectible' && selectedPlacedEntity.kind !== 'door' && selectedPlacedEntity.kind !== 'npc' && (
+                  {selectedPlacedEntity.kind === 'hidden_obj' && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">Objeto oculto (Perception)</div>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        Marcador invisible. Con la skill Perception activa, al entrar en su radio se activa
+                        flag_near y el estado "perceiving"; al pisar su celda se recoge.
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Reward al recoger
+                        <select
+                          value={String((selectedPlacedEntity.params?.hiddenReward as any)?.type || 'shipPart')}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                            hiddenReward: { ...((selectedPlacedEntity.params?.hiddenReward as any) || {}), type: event.target.value },
+                          })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="shipPart">Ship part (counter + ventana I)</option>
+                          <option value="collectible">Collectible (counter gemas HUD)</option>
+                          <option value="keyItem">Key item (bitmap_key_count)</option>
+                        </select>
+                      </label>
+                      {String((selectedPlacedEntity.params?.hiddenReward as any)?.type || 'shipPart') === 'shipPart' && (
+                        <>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Bitmap de la pieza (atlas) — se muestra en la ventana de inventario (tecla I)
+                            <select
+                              value={String((selectedPlacedEntity.params?.hiddenReward as any)?.atlasEntryId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                                hiddenReward: { ...((selectedPlacedEntity.params?.hiddenReward as any) || {}), type: 'shipPart', atlasEntryId: event.target.value || undefined },
+                              })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None (slot blanco al recoger)</option>
+                              {atlasEntries.map(entry => (
+                                <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, {
+                              hiddenReward: { ...((selectedPlacedEntity.params?.hiddenReward as any) || {}), type: 'shipPart', atlasEntryId: selectedAtlasEntry.id },
+                            })}
+                            className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                        </>
+                      )}
+                      {String((selectedPlacedEntity.params?.hiddenReward as any)?.type) === 'keyItem' && (
+                        <div className="text-[0.6rem] text-msx-warning">
+                          Suma a bitmap_key_count: necesita puertas con llave o un widget HUD keyItem en el proyecto.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity.kind !== 'collectible' && selectedPlacedEntity.kind !== 'door' && selectedPlacedEntity.kind !== 'npc' && selectedPlacedEntity.kind !== 'hidden_obj' && (
                     <div className="rounded border border-msx-border px-2 py-1 text-[0.6rem] text-msx-textsecondary">
                       Las llaves se asignan a collectibles; las cerraduras se asignan a puertas.
                     </div>
