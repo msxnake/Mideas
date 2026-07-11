@@ -17,11 +17,15 @@ import {
   EraserIcon,
   EyeIcon,
   EyeOffIcon,
+  FlipHorizontalIcon,
+  FlipVerticalIcon,
   FolderOpenIcon,
   GridIcon,
   LoadIcon,
   PencilIcon,
   PaintBrushIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
   SaveIcon,
   SwapHorizIcon,
   TilesetIcon,
@@ -262,9 +266,11 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     return next;
   };
 
-  const commitGrid = (nextGrid: number[][]) => {
+  const commitGrid = (nextGrid: number[][], nextWidth = width, nextHeight = height) => {
     onUpdate({
       ...tile,
+      width: nextWidth,
+      height: nextHeight,
       pixelData: gridToFlat(nextGrid),
       updatedAt: new Date().toISOString(),
     });
@@ -323,6 +329,28 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
       }
     }
     commitGrid(next);
+  };
+
+  const rotate = (direction: 'clockwise' | 'counterclockwise') => {
+    const nextWidth = height;
+    const nextHeight = width;
+    const next = Array.from({ length: nextHeight }, (_, y) =>
+      Array.from({ length: nextWidth }, (_, x) => (
+        direction === 'clockwise'
+          ? pixelsGrid[height - 1 - x][y]
+          : pixelsGrid[x][width - 1 - y]
+      )),
+    );
+    commitGrid(next, nextWidth, nextHeight);
+    setStatusBarMessage?.(`Rotated tile 90° ${direction === 'clockwise' ? 'right' : 'left'}.`);
+  };
+
+  const mirror = (direction: 'horizontal' | 'vertical') => {
+    const next = direction === 'horizontal'
+      ? pixelsGrid.map(row => [...row].reverse())
+      : [...pixelsGrid].reverse().map(row => [...row]);
+    commitGrid(next);
+    setStatusBarMessage?.(`Mirrored tile ${direction === 'horizontal' ? 'horizontally' : 'vertically'}.`);
   };
 
   const handleSlotDoubleClick = (slotIndex: number) => {
@@ -531,6 +559,46 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               </span>
             )}
             <div className="flex-grow" />
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RotateCcwIcon />}
+              onClick={() => rotate('counterclockwise')}
+              aria-label="Rotate left 90 degrees"
+              title="Rotate left 90°"
+            >
+              Rotate left
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RotateCwIcon />}
+              onClick={() => rotate('clockwise')}
+              aria-label="Rotate right 90 degrees"
+              title="Rotate right 90°"
+            >
+              Rotate right
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<FlipHorizontalIcon />}
+              onClick={() => mirror('horizontal')}
+              aria-label="Mirror horizontally"
+              title="Mirror horizontally"
+            >
+              Mirror horizontal
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<FlipVerticalIcon />}
+              onClick={() => mirror('vertical')}
+              aria-label="Mirror vertically"
+              title="Mirror vertically"
+            >
+              Mirror vertical
+            </Button>
             <Button size="sm" variant="ghost" icon={<ZoomOutIcon />} onClick={() => changeZoom(-1)} aria-label="Zoom out" />
             <span className="w-12 text-center text-xs">{zoom}px</span>
             <Button size="sm" variant="ghost" icon={<ZoomInIcon />} onClick={() => changeZoom(1)} aria-label="Zoom in" />
