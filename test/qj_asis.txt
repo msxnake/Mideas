@@ -1,4 +1,0 @@
-boot y=112 flags=1
-midjump y=76 flags=6
-after y=112 flags=1
-right x=95

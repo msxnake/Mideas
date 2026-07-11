@@ -1,3 +1,0 @@
-initial mode=7 enemy_x=160 enemy_y=96
-near mode=8 player_x=190 player_y=112
-far mode=7 player_x=16 player_y=32

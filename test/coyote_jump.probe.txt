@@ -1,6 +1,0 @@
-player_y=90
-player_vy=00
-flags=01
-coyote=00
-buffer=00
-jump_lock=00

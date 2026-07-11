@@ -20,3 +20,14 @@ screenshots/*.png
 
 # Local one-off MSX build probes
 builds/*_motor_check*
+
+# Generated build and agent outputs
+dist/
+node_modules/
+temp/
+downloads/
+game.rom
+debug-*.log
+test/ts_build_*/
+test/**/out/
+test/**/*_generated/

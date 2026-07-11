@@ -1,5 +1,0 @@
-vy=01
-flags=00
-coyote=04
-buffer=00
-y=1E

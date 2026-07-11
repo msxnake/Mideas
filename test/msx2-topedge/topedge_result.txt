@@ -1,6 +1,0 @@
-fall_y_before=110 (expect >50)
-rise_y_mid=107 (expect < fall_y_before: up move committed)
-rise_y_after=122
-repro_screen_index=3 (expect 3, pre-fix went 4)
-repro_composition=0 (expect 0)
-repro_player_y=0 (expect <159)

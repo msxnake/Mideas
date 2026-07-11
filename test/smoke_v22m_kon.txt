@@ -1,2 +1,0 @@
-pc=43E7
-shot=test/smoke_v22m_kon.png

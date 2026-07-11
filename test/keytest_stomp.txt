@@ -1,1 +1,0 @@
-input_gate_hits_after_keypress=0 y=112 flags=0

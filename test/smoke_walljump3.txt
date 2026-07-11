@@ -1,8 +1,0 @@
-at_wall1 x=68 y=160 side=255 lock=0 keylock=0
-during1 x=68 y=139 side=255 lock=0 keylock=0
-kick1 x=68 y=130 side=255 lock=0 keylock=0
-settle1 x=68 y=160 side=255 lock=0 keylock=0
-at_wall2 x=212 y=160 side=255 lock=0 keylock=0
-during2 x=212 y=139 side=255 lock=0 keylock=0
-kick2 x=212 y=130 side=255 lock=0 keylock=0
-final x=212 y=160 side=255 lock=0 keylock=0

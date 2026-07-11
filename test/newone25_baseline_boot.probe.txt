@@ -1,3 +1,0 @@
-jumps_used=05
-player_flags=01
-player_vy=00

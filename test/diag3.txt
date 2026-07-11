@@ -1,4 +1,0 @@
-active=0 cooldown=0 shake=0
-wall_side=255 lock_timer=0 lock_vx=0 key_lock=0
-coyote=0 jbuf=0
-flags=0 x=71 y=112

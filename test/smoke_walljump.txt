@@ -1,7 +1,0 @@
-at_wall x=109 y=112 side=255 lock=0 keylock=0
-kick_mid x=109 y=84 side=255 lock=0 keylock=0
-kick_end x=109 y=82 side=255 lock=0 keylock=0
-landed x=109 y=112 side=255 lock=0 keylock=0
-at_wall2 x=195 y=144 side=255 lock=0 keylock=0
-kick2_end x=163 y=136 side=255 lock=0 keylock=1
-final x=163 y=144 side=255 lock=0 keylock=1

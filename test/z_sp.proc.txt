@@ -1,4 +1,0 @@
-y=A0
-vy=00
-flags=01
-coyote=00

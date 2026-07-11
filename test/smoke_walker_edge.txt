@@ -1,2 +1,0 @@
-setup base=C2C0 mode0=7 x0=160 y0=80 dx0=1
-result minx=129 maxx=192 span=63 dirflips=4 x_end=156 dx_end=1

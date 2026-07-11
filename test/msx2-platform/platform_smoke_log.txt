@@ -1,5 +1,0 @@
-t4 px=0 py=0 cnt=0 rider=0 platx=0 platy=0 platdx=0
-t6 px=48 py=130 cnt=1 rider=255 platx=80 platy=160 platdx=255
-t8 px=17 py=176 cnt=1 rider=255 platx=90 platy=160 platdx=255
-t10 px=17 py=176 cnt=1 rider=255 platx=93 platy=160 platdx=1
-t12 px=17 py=176 cnt=1 rider=255 platx=83 platy=160 platdx=1

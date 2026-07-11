@@ -1,2 +1,0 @@
-pc=4427
-shot=test/smoke_v21mk.png

@@ -1,1 +1,0 @@
-jiffy_t0=135 jiffy_t1=135 delta=0 (delta~60 => BIOS frame int alive)

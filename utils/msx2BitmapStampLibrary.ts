@@ -11,7 +11,6 @@ export interface Msx2BitmapStampLibraryEntry {
   stamp: BitmapTileStampScreen5;
   palette: Screen5PaletteSlot[];
 }
-
 export interface Msx2BitmapStampLibraryFile {
   version: 1;
   entries: Msx2BitmapStampLibraryEntry[];
@@ -142,7 +141,6 @@ export function buildMsx2BitmapStampEntry(
     palette: palette.map(slot => ({ ...slot })),
   };
 }
-
 export function addStampToMsx2BitmapStampLibrary(
   tiles: Msx2Screen4Tile[],
   palette: Screen5PaletteSlot[],
@@ -289,4 +287,3 @@ export function adaptStampEntryToPalette(
     palette: palette.map(slot => ({ ...slot })),
   };
 }
-

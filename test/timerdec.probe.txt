@@ -1,2 +1,0 @@
-coyote=00
-buffer=00

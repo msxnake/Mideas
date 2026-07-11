@@ -1,6 +1,0 @@
-floor x=208 y=112 side=255 vx=0
-kick1 x=208 y=42 side=0 vx=4
-kick1_rise x=208 y=21 side=0 vx=4
-kick2 x=208 y=0 side=0 vx=4
-kick2_rise x=208 y=4 side=0 vx=4
-rest x=208 y=94 side=1 vx=4

@@ -1,2 +1,0 @@
-pc=AA4B
-shot=test/smoke_pad.png

@@ -1,4 +1,0 @@
-boot x=255 y=0
-right_1s x=255
-right_3s x=48
-left_2s x=48

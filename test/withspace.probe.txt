@@ -1,4 +1,0 @@
-vy=04
-y=56
-flags=00
-coyote=04

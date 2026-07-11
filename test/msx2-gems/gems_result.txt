@@ -1,3 +1,0 @@
-gem_auto_flag=1
-gem_far_flag=0
-collectibles_counter=1

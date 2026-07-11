@@ -1,4 +1,0 @@
-boot x=71 y=112 flags=1
-after_right x=99
-jump_peak y=78
-after_jump y=112
