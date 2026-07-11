@@ -119,7 +119,8 @@ assert(physicsCode.includes('clampMsx2CoyoteFrames') && physicsCode.includes('cl
 // 17) msx2Screen4Generator wires the EQU + decrement + coyote/buffer logic
 assert(handlersCode.includes('parameters: firstJumpParameters'),
   'jump core skill wires its parameters array');
-const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8');
+const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8')
+  .replace(/\r\n/g, '\n');
 // Lesson 2026-06-08 + fix 2026-06-10: the timers were hardcoded at #C047/#C048,
 // which IS msx2_box2_count/msx2_box2_try_dx in pushBox projects (the box2 RAM
 // base is a TS const, invisible to an "EQU #C047" grep). They now resolve
@@ -511,10 +512,14 @@ assert(genCode.includes('parseEnemyFrameList') && genCode.includes('anim.frameLi
 // state-anim block (#C1F0-#C1F5) and the behavior map (#C200), far above the
 // skill chain (which starts at player_vy_frac #C0D9) and clear of every
 // documented 16-bit pointer in the bitmap runtime.
-const bitmapGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts'), 'utf8');
-assert(bitmapGenCode.includes('player_health  EQU #C1FD') && bitmapGenCode.includes('player_lives   EQU #C1FE') && bitmapGenCode.includes('player_invuln  EQU #C1FF'),
+const bitmapGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts'), 'utf8')
+  .replace(/\r\n/g, '\n');
+assert(/player_health\s+EQU\s+#C1FD/.test(bitmapGenCode) && /player_lives\s+EQU\s+#C1FE/.test(bitmapGenCode) && /player_invuln\s+EQU\s+#C1FF/.test(bitmapGenCode),
   'bitmap deadly system reserves 3 fixed bytes at #C1FD-#C1FF (clear of the skill chain and 16-bit pointers)');
-assert(!/EQU\s+#C1F[DEF]/.test(bitmapGenCode.replace('player_health  EQU #C1FD', '').replace('player_lives   EQU #C1FE', '').replace('player_invuln  EQU #C1FF', '')),
+assert(!/EQU\s+#C1F[DEF]/.test(bitmapGenCode
+  .replace(/player_health\s+EQU\s+#C1FD/, '')
+  .replace(/player_lives\s+EQU\s+#C1FE/, '')
+  .replace(/player_invuln\s+EQU\s+#C1FF/, '')),
   'no other bitmap EQU reuses the deadly-system bytes #C1FD-#C1FF');
 assert(bitmapGenCode.includes('function resolveBitmapPlayerVitals') && bitmapGenCode.includes('health.maxHealth') && bitmapGenCode.includes('health.lives') && bitmapGenCode.includes('health.invulnerabilityFrames'),
   'resolveBitmapPlayerVitals reads maxHealth/lives/invulnerabilityFrames from the Player Config');
