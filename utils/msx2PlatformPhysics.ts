@@ -1,5 +1,5 @@
 import { ProjectAnalysis } from './asmTemplateGenerator';
-import { Msx2PlayerControlId, Msx2Screen4TileScreen } from '../types';
+import { Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2Screen4TileScreen } from '../types';
 import { getSkill } from './msxGenerator/skills';
 
 /** MSX1 ROM default: #FC00 (-1024 in 8.8 fixed-point, ~-4 px/frame initial rise). */
@@ -54,6 +54,103 @@ export interface Msx2AirDashConfig {
   invulnerable: boolean;
   primaryControl: Msx2PlayerControlId;
   secondaryControl: Msx2PlayerControlId | 'none';
+  primaryKeyboard?: Msx2BitmapKeyboardBinding;
+  secondaryKeyboard?: Msx2BitmapKeyboardBinding;
+}
+
+export interface Msx2BitmapKeyboardBinding {
+  label: string;
+  row: number;
+  mask: number;
+}
+
+/**
+ * Shoot skill config (MSX2 bitmap-room).
+ *
+ * One bullet is spawned per fire-key press+release cycle. Up to `maxBullets`
+ * simultaneous bullets can be on screen; firing is blocked when the pool is
+ * full. Bullets travel horizontally at `bulletSpeed` px/frame in the player's
+ * facing direction and are deactivated on wall/border collision or on enemy
+ * impact (dealing `bulletDamage`).
+ */
+export interface Msx2ShootConfig {
+  enabled: boolean;
+  bulletSpeed: number;
+  maxBullets: number;
+  shootCooldown: number;
+  requireKeyRelease: boolean;
+  bulletDamage: number;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
+export interface Msx2SlashConfig {
+  enabled: boolean;
+  slashDuration: number;
+  slashCooldown: number;
+  slashDamage: number;
+  requireKeyRelease: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
+export interface Msx2GrabConfig {
+  enabled: boolean;
+  slideSpeed: number;
+}
+
+export interface Msx2HighJumpConfig {
+  enabled: boolean;
+  highJumpPower: number;
+  holdFrames: number;
+}
+
+export interface Msx2WallBreakConfig {
+  enabled: boolean;
+  breakCooldown: number;
+  requireKeyRelease: boolean;
+}
+
+export interface Msx2SpinAttackConfig {
+  enabled: boolean;
+  spinDuration: number;
+  spinDamage: number;
+  spinCooldown: number;
+  requireKeyRelease: boolean;
+}
+
+export interface Msx2IceSlideConfig {
+  enabled: boolean;
+  surfaceCode: number;
+  maxSlideSpeed: number;
+  accelerationFrames: number;
+  frictionFrames: number;
+  footProbeLeftOffset?: number;
+  footProbeRightOffset?: number;
+  footProbeYOffset?: number;
+}
+
+export interface Msx2CrouchConfig {
+  enabled: boolean;
+  crouchSpeed: number;
+  crouchHitboxHeight: number;
+  slideDistance: number;
+}
+
+/**
+ * Perception skill config (MSX2 SCREEN 5 bitmap rooms).
+ *
+ * Passive skill: no input binding. Every frame the runtime measures the
+ * player-center to object-center distance against each `hidden_obj` entity of
+ * the current room; when both |dx| and |dy| fall within `radius` it raises
+ * `bitmap_flag_near` and (when a 'perceiving' state sprite is mapped) asserts
+ * the perceiving animation state, unless an action skill already owns the
+ * animation state this frame.
+ */
+export interface Msx2PerceptionConfig {
+  enabled: boolean;
+  /** Square detection radius in pixels, center to center. Range 8..96. */
+  radius: number;
 }
 
 /**
@@ -427,6 +524,43 @@ function resolveAirDashSkillBinding(player: any | undefined): {
   return resolveMsx2SkillBinding(player, 'air_dash');
 }
 
+const MSX2_BITMAP_DIRECTION_KEYS: Record<Exclude<Msx2PlayerControlId, 'jump' | 'attack'>, Msx2BitmapKeyboardBinding> = {
+  left: { label: 'LEFT', row: 8, mask: 0x10 },
+  up: { label: 'UP', row: 8, mask: 0x20 },
+  down: { label: 'DOWN', row: 8, mask: 0x40 },
+  right: { label: 'RIGHT', row: 8, mask: 0x80 },
+};
+
+const MSX2_BITMAP_BUTTON_KEYS: Record<Msx2PlayerButtonBinding, Msx2BitmapKeyboardBinding | undefined> = {
+  upArrow: MSX2_BITMAP_DIRECTION_KEYS.up,
+  spc: { label: 'SPC', row: 8, mask: 0x01 },
+  n: { label: 'N', row: 4, mask: 0x08 },
+  m: { label: 'M', row: 4, mask: 0x04 },
+  joyA: undefined,
+  joyB: undefined,
+};
+
+export function resolveMsx2BitmapKeyboardBinding(
+  player: any | undefined,
+  control: Msx2PlayerControlId | 'none',
+): Msx2BitmapKeyboardBinding | undefined {
+  if (control === 'none') return undefined;
+  if (player?.inputEnabled?.[control] === false) return undefined;
+  if (control !== 'jump' && control !== 'attack') return MSX2_BITMAP_DIRECTION_KEYS[control];
+  const fallback: Msx2PlayerButtonBinding = control === 'jump' ? 'spc' : 'm';
+  const raw = String(player?.inputMapping?.[control] || fallback).trim();
+  const normalized = raw === 'UP' || raw === 'Up Arrow' || raw === 'CURSOR_UP'
+    ? 'upArrow'
+    : raw === 'SPACE' || raw === 'Space / X' || raw === 'SPC'
+      ? 'spc'
+      : raw === 'joy_a' || raw === 'joystick_a' || raw === 'Joystick Button A'
+        ? 'joyA'
+        : raw === 'joy_b' || raw === 'joystick_b' || raw === 'Joystick Button B'
+          ? 'joyB'
+          : raw.toLowerCase();
+  return MSX2_BITMAP_BUTTON_KEYS[(normalized as Msx2PlayerButtonBinding)] || MSX2_BITMAP_BUTTON_KEYS[fallback];
+}
+
 function resolveTeleportABSkillBinding(player: any | undefined): {
   primary: Msx2PlayerControlId;
   secondary: Msx2PlayerControlId | 'none';
@@ -524,6 +658,171 @@ export function getMsx2AirDashConfigFromPlayerEntity(player: any | undefined): M
     invulnerable: params.invulnerable !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+    primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),
+    secondaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.secondary),
+  };
+}
+
+function resolveShootSkillBinding(player: any | undefined): {
+  primary: Msx2PlayerControlId;
+  secondary: Msx2PlayerControlId | 'none';
+} {
+  return resolveMsx2SkillBinding(player, 'shoot');
+}
+
+/**
+ * Returns the resolved shoot skill config for the given player.
+ *
+ * Reads `player.skillParameters.shoot` and clamps every numeric field to the
+ * range declared in `shootParameters` (handlers/index.ts). The skill fires one
+ * bullet per press+release of the fire key; up to `maxBullets` may coexist on
+ * screen. Default binding follows the skill's controlIcon ('attack').
+ */
+export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx2ShootConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('shoot');
+  const params = (player?.skillParameters?.shoot || {}) as Record<string, number | boolean>;
+  const binding = resolveShootSkillBinding(player);
+  const bulletSpeed = pickSkillNumberParam(params, 'shoot', ['bulletSpeed'], 4);
+  const maxBullets = pickSkillNumberParam(params, 'shoot', ['maxBullets'], 3);
+  const shootCooldown = pickSkillNumberParam(params, 'shoot', ['shootCooldown'], 10);
+  const bulletDamage = pickSkillNumberParam(params, 'shoot', ['bulletDamage'], 1);
+  return {
+    enabled,
+    bulletSpeed: Math.max(1, Math.min(16, bulletSpeed || 4)),
+    maxBullets: Math.max(1, Math.min(8, maxBullets || 3)),
+    shootCooldown: Math.max(0, Math.min(120, shootCooldown || 10)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    bulletDamage: Math.max(0, Math.min(10, bulletDamage || 1)),
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2SlashConfigFromPlayerEntity(player: any | undefined): Msx2SlashConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('slash');
+  const params = (player?.skillParameters?.slash || {}) as Record<string, number | boolean>;
+  const binding = resolveMsx2SkillBinding(player, 'slash');
+  const slashDuration = pickSkillNumberParam(params, 'slash', ['slashDuration'], 10);
+  const slashCooldown = pickSkillNumberParam(params, 'slash', ['slashCooldown'], 30);
+  const slashDamage = pickSkillNumberParam(params, 'slash', ['slashDamage'], 1);
+  return {
+    enabled,
+    slashDuration: Math.max(1, Math.min(60, slashDuration || 10)),
+    slashCooldown: Math.max(0, Math.min(120, slashCooldown || 30)),
+    slashDamage: Math.max(0, Math.min(5, slashDamage || 1)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+export function getMsx2GrabConfigFromPlayerEntity(player: any | undefined): Msx2GrabConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('grab');
+  const params = (player?.skillParameters?.grab || {}) as Record<string, number | boolean>;
+  const slideSpeed = pickSkillNumberParam(params, 'grab', ['slideSpeed'], 1);
+  return { enabled, slideSpeed: Math.max(0, Math.min(4, slideSpeed ?? 1)) };
+}
+
+export function getMsx2HighJumpConfigFromPlayerEntity(player: any | undefined): Msx2HighJumpConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('high_jump');
+  const params = (player?.skillParameters?.high_jump || {}) as Record<string, number | boolean>;
+  const highJumpPower = pickSkillNumberParam(params, 'high_jump', ['highJumpPower'], 1536);
+  const holdFrames = pickSkillNumberParam(params, 'high_jump', ['highJumpRequired', 'holdFrames'], 10);
+  return {
+    enabled,
+    highJumpPower: Math.max(512, Math.min(3072, highJumpPower || 1536)),
+    holdFrames: Math.max(1, Math.min(30, holdFrames || 10)),
+  };
+}
+
+export function getMsx2WallBreakConfigFromPlayerEntity(player: any | undefined): Msx2WallBreakConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('wall_break');
+  const params = (player?.skillParameters?.wall_break || {}) as Record<string, number | boolean>;
+  const breakCooldown = pickSkillNumberParam(params, 'wall_break', ['breakCooldown'], 20);
+  return {
+    enabled,
+    breakCooldown: Math.max(0, Math.min(120, breakCooldown || 20)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+  };
+}
+
+export function getMsx2SpinAttackConfigFromPlayerEntity(player: any | undefined): Msx2SpinAttackConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('spin_attack');
+  const params = (player?.skillParameters?.spin_attack || {}) as Record<string, number | boolean>;
+  const spinDuration = pickSkillNumberParam(params, 'spin_attack', ['spinDuration'], 30);
+  const spinDamage = pickSkillNumberParam(params, 'spin_attack', ['spinDamage'], 1);
+  const spinCooldown = pickSkillNumberParam(params, 'spin_attack', ['spinCooldown'], 40);
+  return {
+    enabled,
+    spinDuration: Math.max(10, Math.min(60, spinDuration || 30)),
+    spinDamage: Math.max(1, Math.min(5, spinDamage || 1)),
+    spinCooldown: Math.max(10, Math.min(120, spinCooldown || 40)),
+    requireKeyRelease: params.requireKeyRelease !== false,
+  };
+}
+
+export function getMsx2IceSlideConfigFromPlayerEntity(player: any | undefined): Msx2IceSlideConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('ice_slide');
+  const params = (player?.skillParameters?.ice_slide || {}) as Record<string, number | boolean>;
+  const surfaceCode = pickSkillNumberParam(params, 'ice_slide', ['surfaceCode'], 3);
+  const maxSlideSpeed = pickSkillNumberParam(params, 'ice_slide', ['maxSlideSpeed'], 4);
+  const accelerationFrames = pickSkillNumberParam(params, 'ice_slide', ['accelerationFrames'], 2);
+  const frictionFrames = pickSkillNumberParam(params, 'ice_slide', ['frictionFrames'], 8);
+  return {
+    enabled,
+    surfaceCode: Math.max(1, Math.min(255, surfaceCode || 3)),
+    maxSlideSpeed: Math.max(1, Math.min(8, maxSlideSpeed || 4)),
+    accelerationFrames: Math.max(1, Math.min(8, accelerationFrames || 2)),
+    frictionFrames: Math.max(1, Math.min(32, frictionFrames || 8)),
+  };
+}
+
+/**
+ * Returns the resolved crouch skill config for the given player.
+ *
+ * Reads `player.skillParameters.crouch` and clamps each numeric field to the
+ * range declared in `crouchParameters` (handlers/index.ts). `crouchHitboxHeight`
+ * is carried for parity with the SCREEN 4 pattern config but has no effect in
+ * the SCREEN 5 bitmap room engine, whose collision grid is 16x16 px cells and
+ * whose player body is exactly 16 px tall (no sub-cell gap to duck under).
+ */
+export function getMsx2CrouchConfigFromPlayerEntity(player: any | undefined): Msx2CrouchConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('crouch');
+  const params = (player?.skillParameters?.crouch || {}) as Record<string, number | boolean>;
+  const crouchSpeed = pickSkillNumberParam(params, 'crouch', ['crouchSpeed'], 1);
+  const crouchHitboxHeight = pickSkillNumberParam(params, 'crouch', ['crouchHitboxHeight'], 8);
+  const slideDistance = pickSkillNumberParam(params, 'crouch', ['slideDistance'], 0);
+  return {
+    enabled,
+    crouchSpeed: Math.max(0, Math.min(4, Math.trunc(crouchSpeed))),
+    crouchHitboxHeight: Math.max(4, Math.min(12, Math.trunc(crouchHitboxHeight || 8))),
+    slideDistance: Math.max(0, Math.min(16, Math.trunc(slideDistance))),
+  };
+}
+
+/**
+ * Returns the resolved perception skill config for the given player.
+ *
+ * Reads `player.skillParameters.perception` and clamps `radius` to the range
+ * declared in `perceptionParameters` (handlers/index.ts). The skill is passive
+ * (no control binding): the proximity engine runs every frame while enabled.
+ */
+export function getMsx2PerceptionConfigFromPlayerEntity(player: any | undefined): Msx2PerceptionConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('perception');
+  const params = (player?.skillParameters?.perception || {}) as Record<string, number | boolean>;
+  const radius = pickSkillNumberParam(params, 'perception', ['radius'], 32);
+  return {
+    enabled,
+    radius: Math.max(8, Math.min(96, Math.trunc(radius || 32))),
   };
 }
 

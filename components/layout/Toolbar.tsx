@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType, ScreenKind, ExportRomMode, Msx2ProjectProfile } from '../../types';
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon } from '../icons/MsxIcons';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon, HudIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
@@ -30,6 +30,8 @@ interface ToolbarProps {
   onExportAllCodeFiles?: () => void;
   /** Callback to export Z80 code. */
   onExportZ80Code: () => void;
+  /** Callback to open the MSX2 Build and Run shortcut. */
+  onBuildAndRunMsx2?: () => void;
   /** Callback to export an intermediate JSON representation of the game structure. */
   onExportGameStructureJson: () => void;
   /** @deprecated OBSOLETO - Callback to compile the current code. */
@@ -98,6 +100,14 @@ interface ToolbarProps {
   onOpenMsx2EntityLibrary: () => void;
   /** Callback to open the global MSX2 sprites library dialog. */
   onOpenMsx2SpriteLibrary: () => void;
+  /** Callback to open the global MSX2 tiles library dialog. */
+  onOpenMsx2TileLibrary: () => void;
+  /** Callback to open the global MSX2 bitmap stamps library dialog. */
+  onOpenMsx2StampLibrary: () => void;
+  /** Callback to open the global MSX2 bitmap terrains library dialog. */
+  onOpenMsx2TerrainLibrary: () => void;
+  /** Callback to open the global MSX2 HUD icons library dialog. */
+  onOpenMsx2HudIconLibrary: () => void;
   /** Callback to open the MSX2 enemy library editor. */
   onOpenEnemyLibrary: () => void;
   /** Callback to open the world view editor. */
@@ -257,11 +267,11 @@ const DropdownSelectItem: React.FC<{
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
   onImportBossPackage,
-  onExportAllCodeFiles, onExportZ80Code, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
+  onExportAllCodeFiles, onExportZ80Code, onBuildAndRunMsx2, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenMsx2TileLibrary, onOpenMsx2StampLibrary, onOpenMsx2TerrainLibrary, onOpenMsx2HudIconLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -441,10 +451,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {shouldShowAssetType('sprite') && <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon />} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white" disabled={!canCreateAsset('sprite')}>MSX1 Sprite</DropdownItem>}
         {shouldShowAssetType('msx2sprite') && <DropdownItem onClick={() => onNewAsset('msx2sprite')} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2sprite')}>MSX2 Sprites</DropdownItem>}
         {shouldShowAssetType('msx2screen') && <DropdownItem onClick={() => onNewAsset('msx2screen')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-600 hover:text-white" disabled={!canCreateAsset('msx2screen')}>MSX2 SCREEN 4 Room (16x12)</DropdownItem>}
-        {shouldShowAssetType('msx2bitmaproom') && <DropdownItem onClick={() => onNewAsset('msx2bitmaproom')} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2bitmaproom')}>MSX2 SCREEN 4 Bitmap Room</DropdownItem>}
+        {shouldShowAssetType('msx2bitmaproom') && <DropdownItem onClick={() => onNewAsset('msx2bitmaproom')} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2bitmaproom')}>MSX2 SCREEN 5 Bitmap Room</DropdownItem>}
+        {shouldShowAssetType('msx2bitmaptile') && <DropdownItem onClick={() => onNewAsset('msx2bitmaptile')} icon={<TilesetIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2bitmaptile')}>MSX2 SCREEN 5 Bitmap Tile (16x16)</DropdownItem>}
+        {shouldShowAssetType('msx2bitmapstamp') && <DropdownItem onClick={() => onNewAsset('msx2bitmapstamp')} icon={<TilesetIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white" disabled={!canCreateAsset('msx2bitmapstamp')}>MSX2 Stamp (metatile 16x16)</DropdownItem>}
         {shouldShowAssetType('msx2player') && <DropdownItem onClick={() => onNewAsset('msx2player')} icon={<SpriteIcon />} colorClass="text-yellow-200 hover:bg-yellow-600 hover:text-white" disabled={!canCreateAsset('msx2player')}>MSX2 Player</DropdownItem>}
         {shouldShowAssetType('msx2enemy') && <DropdownItem onClick={() => onNewAsset('msx2enemy')} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white" disabled={!canCreateAsset('msx2enemy')}>MSX2 Enemy</DropdownItem>}
-        {shouldShowAssetType('msx2hudfont') && <DropdownItem onClick={() => onNewAsset('msx2hudfont')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hudfont')}>MSX2 HUD Font</DropdownItem>}
+        {shouldShowAssetType('msx2dialogue') && <DropdownItem onClick={() => onNewAsset('msx2dialogue')} icon={<PencilIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2dialogue')}>MSX2 Dialogue</DropdownItem>}
+        {shouldShowAssetType('msx2hudfont') && <DropdownItem onClick={() => onNewAsset('msx2hudfont')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hudfont')}>MSX2 Font</DropdownItem>}
+        {shouldShowAssetType('msx2hud') && <DropdownItem onClick={() => onNewAsset('msx2hud')} icon={<PencilIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white" disabled={!canCreateAsset('msx2hud')}>MSX2 HUD</DropdownItem>}
         {shouldShowAssetType('msx2presentation') && <DropdownItem onClick={() => onNewAsset('msx2presentation')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white" disabled={!canCreateAsset('msx2presentation')}>MSX2 SCREEN 5 Presentation</DropdownItem>}
         {shouldShowAssetType('msx2gameflow') && <DropdownItem onClick={() => onNewAsset('msx2gameflow')} icon={<GameFlowIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2gameflow')}>MSX2 Game Flow</DropdownItem>}
         {shouldShowAssetType('font') && <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white" disabled={!canCreateAsset('font')}>MSX1 Font</DropdownItem>}
@@ -503,10 +517,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {shouldShowMsx2Controls && (
         <DropdownMenu label="Libraries">
           <DropdownItem onClick={onOpenMsx2SpriteLibrary} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white">Sprites</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2TileLibrary} icon={<TilesetIcon />} colorClass="text-emerald-200 hover:bg-emerald-600 hover:text-white">Tiles</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2StampLibrary} icon={<TilesetIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white">Stamps</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2TerrainLibrary} icon={<TilesetIcon />} colorClass="text-green-200 hover:bg-green-600 hover:text-white">Terrains</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2HudIconLibrary} icon={<HudIcon />} colorClass="text-lime-200 hover:bg-lime-600 hover:text-white">HUD Icons</DropdownItem>
           <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Components</DropdownItem>
           <DropdownItem onClick={onOpenMsx2EntityLibrary} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entities</DropdownItem>
           <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">Enemies</DropdownItem>
         </DropdownMenu>
+      )}
+      {shouldShowMsx2Controls && onBuildAndRunMsx2 && (
+        <Button
+          onClick={onBuildAndRunMsx2}
+          variant="ghost"
+          size="sm"
+          icon={<PlayIcon />}
+          title="Build and Run MSX2"
+          disabled={!hasActiveProject}
+          className="!text-yellow-300 hover:!bg-yellow-600 hover:!text-black focus:!ring-yellow-500"
+        >
+          Build and Run
+        </Button>
       )}
       {/* MSX1 Last Editor stays inline; MSX2 renders a violet, right-justified
           Last Editor after the spacer (see GROUP 5 area below). */}

@@ -3712,6 +3712,122 @@ def validate_msx2_screen5_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
     }
 
 
+def validate_msx2_screen5_bitmap_room_konami_fixed_bank0_megarom(
+    rom_path: Path,
+    asm_path: Path,
+    sym_path: Path | None = None,
+) -> dict[str, int | bool]:
+    rom_data = rom_path.read_bytes()
+    if len(rom_data) == 0:
+        raise RuntimeError(f"MSX2 SCREEN 5 bitmap-room Konami8K validation failed: ROM is empty: {rom_path}")
+    if len(rom_data) % 8192 != 0:
+        raise RuntimeError(
+            "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: "
+            f"ROM size must be a multiple of 8192 bytes, got {len(rom_data)}"
+        )
+    if len(rom_data) <= 32768:
+        raise RuntimeError(
+            "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: "
+            f"MegaROM output should exceed 32KB, got {len(rom_data)}"
+        )
+    if rom_data[:2] != b"AB":
+        raise RuntimeError("MSX2 SCREEN 5 bitmap-room Konami8K validation failed: missing AB cartridge header at ROM offset 0000h")
+
+    asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
+    required_markers = [
+        "Mideas MSX2 SCREEN 4 bitmap room backend",
+        "; Backend: msx2-screen4-bitmap-room",
+        "; ROM Mode: megarom",
+        "; Mapper Target: konami",
+        "map_page2_to_cart_primary:",
+        "get_cart_slot_value:",
+        "init_konami8k_fixed_bank0_banks:",
+        "mapper_set_bank_p1:",
+        "mapper_set_bank_p2:",
+        "mapper_set_bank_p3:",
+        "bitmap_room_select_data_bank_a:",
+        "bitmap_room_restore_resident_banks:",
+        "BITMAP_ROOM_DATA_BANK_4_ROM_START:",
+        "bitmap_room_tileset_rle_chunk_0_DATA_BANK",
+        "load_room:",
+        "upload_tileset_atlas:",
+    ]
+    missing = [marker for marker in required_markers if marker not in asm_text]
+    if missing:
+        raise RuntimeError(
+            "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: missing fixed-bank0 markers: "
+            + ", ".join(missing)
+        )
+
+    init_match = re.search(r"init_rom:\n(.*?)(?=\n[A-Za-z0-9_.$]+:|\Z)", asm_text, flags=re.DOTALL)
+    init_body = init_match.group(1) if init_match else ""
+    if "call map_page2_to_cart_primary" not in init_body or "call init_konami8k_fixed_bank0_banks" not in init_body:
+        raise RuntimeError(
+            "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: boot must map cart slot page2 before mapper init"
+        )
+    if init_body.find("call map_page2_to_cart_primary") > init_body.find("call init_konami8k_fixed_bank0_banks"):
+        raise RuntimeError(
+            "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: map_page2_to_cart_primary must run before mapper init"
+        )
+
+    required_boot_patterns = [
+        (r"ld\s+a,\s*1\s*\n\s*call\s+mapper_set_bank_p1", "6000h window initialized to bank 1"),
+        (r"ld\s+a,\s*2\s*\n\s*call\s+mapper_set_bank_p2", "8000h window initialized to bank 2"),
+        (r"ld\s+a,\s*3\s*\n\s*jp\s+mapper_set_bank_p3", "A000h window initialized to bank 3"),
+    ]
+    for pattern, description in required_boot_patterns:
+        if not re.search(pattern, asm_text, flags=re.IGNORECASE):
+            raise RuntimeError(f"MSX2 SCREEN 5 bitmap-room Konami8K validation failed: missing boot mapper init for {description}")
+
+    data_bank_equates = re.findall(r"^(bitmap_room_[A-Za-z0-9_]+)_DATA_BANK\s+EQU\s+(\d+)", asm_text, flags=re.MULTILINE)
+    if not data_bank_equates:
+        raise RuntimeError("MSX2 SCREEN 5 bitmap-room Konami8K validation failed: missing bitmap-room data-bank equates")
+    used_banks = sorted({int(value) for _label, value in data_bank_equates})
+    if used_banks[0] < 4:
+        raise RuntimeError(
+            "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: data banks must start after resident 32KB banks"
+        )
+    for bank in used_banks:
+        if f"BITMAP_ROOM_DATA_BANK_{bank}_ROM_START:" not in asm_text or f"BITMAP_ROOM_DATA_BANK_{bank}_USED_END:" not in asm_text:
+            raise RuntimeError(
+                "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: missing data-bank anchors for bank "
+                f"{bank}"
+            )
+
+    symbol_count = 0
+    if sym_path is not None and sym_path.exists():
+        sym_text = sym_path.read_text(encoding="utf-8", errors="ignore")
+        for bank in used_banks:
+            used_end = _sym_equ_value(sym_text, f"BITMAP_ROOM_DATA_BANK_{bank}_USED_END")
+            if used_end < 0x8000 or used_end > 0xA000:
+                raise RuntimeError(
+                    "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: data bank crosses #8000-#9FFF window; "
+                    f"bank={bank} usedEnd=#{used_end:04X}"
+                )
+        for label, bank_value in data_bank_equates:
+            value = _sym_equ_value(sym_text, label)
+            data_bank_value = _sym_equ_value(sym_text, f"{label}_DATA_BANK")
+            if value < 0x8000 or value >= 0xA000:
+                raise RuntimeError(
+                    "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: banked RLE label is outside #8000 window; "
+                    f"label={label} value=#{value:04X}"
+                )
+            if data_bank_value != int(bank_value):
+                raise RuntimeError(
+                    "MSX2 SCREEN 5 bitmap-room Konami8K validation failed: symbol data-bank value differs from ASM equate; "
+                    f"label={label} asm={bank_value} sym={data_bank_value}"
+                )
+            symbol_count += 1
+
+    return {
+        "segment_count": len(rom_data) // 8192,
+        "size_bytes": len(rom_data),
+        "header_ok": True,
+        "data_bank_count": len(used_banks),
+        "banked_rle_symbol_count": symbol_count,
+    }
+
+
 def _require_json_object(path: Path) -> dict:
     if not path.exists():
         raise RuntimeError(f"Konami8K validation failed: missing generated artifact {path.name}")
@@ -5706,19 +5822,24 @@ if (raw.presentationScreen && raw.presentationScreen.data && Array.isArray(raw.p
 }
 
 const hasMsx2Presentation = assets.some(asset => asset && asset.type === "msx2presentation");
+const hasMsx2BitmapRoom = assets.some(asset => asset && asset.type === "msx2bitmaproom");
 const msx2GameFlows = assets.filter(asset => asset && asset.type === "msx2gameflow");
 const currentMsx2GameFlow = msx2GameFlows.find(asset => asset.name === "Main MSX2") || msx2GameFlows[0];
 const currentMsx2GameFlowPurpose = currentMsx2GameFlow && currentMsx2GameFlow.data ? currentMsx2GameFlow.data.purpose : undefined;
 const requestedScreenMode = raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)";
-const exportScreenMode = currentMsx2GameFlowPurpose === "screen4-runtime"
+const exportScreenMode = currentMsx2GameFlowPurpose === "screen4-runtime" || currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
   ? "SCREEN 4 (Graphics II)"
   : (hasMsx2Presentation ? "SCREEN 5 (Graphics III)" : requestedScreenMode);
 const defaultGraphicsBackend = currentMsx2GameFlowPurpose === "screen4-runtime"
   ? "msx2-screen4-pattern"
+  : currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
+  ? "msx2-screen4-bitmap-room"
   : currentMsx2GameFlowPurpose === "screen5-presentation" && hasMsx2Presentation
   ? "msx2-screen5-presentation"
   : hasMsx2Presentation
   ? "msx2-screen5-presentation"
+  : hasMsx2BitmapRoom
+  ? "msx2-screen4-bitmap-room"
   : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(exportScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank");
 
 const files = generator.generateModularASM(name, assets, {
@@ -6944,11 +7065,19 @@ def main() -> int:
             )
             and "init_konami8k_fixed_bank0_banks:" in compiled_text
         )
+        screen5_bitmap_fixed = (
+            args.rom_mode == "megarom"
+            and args.target_format == "konami"
+            and "Mideas MSX2 SCREEN 4 bitmap room backend" in compiled_text
+            and "; Backend: msx2-screen4-bitmap-room" in compiled_text
+            and "init_konami8k_fixed_bank0_banks:" in compiled_text
+        )
         mapper_validation = None
         ascii16_layout = None
         screen4_validation = None
         screen5_validation = None
-        if args.rom_mode == "megarom" and not screen4_fixed and not screen5_fixed:
+        screen5_bitmap_validation = None
+        if args.rom_mode == "megarom" and not screen4_fixed and not screen5_fixed and not screen5_bitmap_fixed:
             mapper_validation = validate_megarom_mapper_artifact_metadata(
                 artifact_dir,
                 args.target_format,
@@ -6969,6 +7098,8 @@ def main() -> int:
             screen4_validation = validate_msx2_screen4_konami_fixed_bank0_megarom(rom_output, selected_asm, sym_output)
         elif screen5_fixed:
             screen5_validation = validate_msx2_screen5_konami_fixed_bank0_megarom(rom_output, selected_asm)
+        elif screen5_bitmap_fixed:
+            screen5_bitmap_validation = validate_msx2_screen5_bitmap_room_konami_fixed_bank0_megarom(rom_output, selected_asm, sym_output)
         elif args.rom_mode == "megarom" and args.target_format == "konami":
             konami_validation = validate_konami8k_megarom(rom_output, selected_asm)
             konami_artifact_validation = validate_konami8k_generated_artifacts(
@@ -6986,6 +7117,8 @@ def main() -> int:
             if screen4_fixed
             else "msx2_screen5_konami_fixed_bank0"
             if screen5_fixed
+            else "msx2_screen5_bitmap_room_konami_fixed_bank0"
+            if screen5_bitmap_fixed
             else f"{args.rom_mode}_{args.target_format}"
         )
         return {
@@ -6993,10 +7126,12 @@ def main() -> int:
             "padded_size": padded,
             "screen4_konami_fixed_bank0_compat": screen4_fixed,
             "screen5_konami_fixed_bank0_compat": screen5_fixed,
+            "screen5_bitmap_room_konami_fixed_bank0_compat": screen5_bitmap_fixed,
             "megarom_mapper_artifact_validation": mapper_validation,
             "ascii16_runtime_layout": ascii16_layout,
             "msx2_screen4_konami_validation": screen4_validation,
             "msx2_screen5_konami_validation": screen5_validation,
+            "msx2_screen5_bitmap_room_konami_validation": screen5_bitmap_validation,
             "konami8k_validation": konami_validation,
             "konami8k_artifact_validation": konami_artifact_validation,
             "validation_kind": kind,
@@ -7030,10 +7165,12 @@ def main() -> int:
     padded_size = int(validation_results["padded_size"])
     screen4_konami_fixed_bank0_compat = bool(validation_results["screen4_konami_fixed_bank0_compat"])
     screen5_konami_fixed_bank0_compat = bool(validation_results["screen5_konami_fixed_bank0_compat"])
+    screen5_bitmap_room_konami_fixed_bank0_compat = bool(validation_results["screen5_bitmap_room_konami_fixed_bank0_compat"])
     megarom_mapper_artifact_validation = validation_results["megarom_mapper_artifact_validation"]
     ascii16_runtime_layout = validation_results["ascii16_runtime_layout"]
     msx2_screen4_konami_validation = validation_results["msx2_screen4_konami_validation"]
     msx2_screen5_konami_validation = validation_results["msx2_screen5_konami_validation"]
+    msx2_screen5_bitmap_room_konami_validation = validation_results["msx2_screen5_bitmap_room_konami_validation"]
     konami8k_validation = validation_results["konami8k_validation"]
     konami8k_artifact_validation = validation_results["konami8k_artifact_validation"]
     validation_kind = str(validation_results["validation_kind"])
@@ -7099,6 +7236,19 @@ def main() -> int:
         print(
             "Konami8K validation: SCREEN 5 presentation fixed-bank0 compatibility path; "
             "ROM has MegaROM-sized 8KB banks and boot initializes 6000h=1 8000h=2 A000h=3"
+            f"{validation_suffix}"
+        )
+    if screen5_bitmap_room_konami_fixed_bank0_compat:
+        validation_suffix = (
+            f"; segments={msx2_screen5_bitmap_room_konami_validation['segment_count']}, "
+            f"dataBanks={msx2_screen5_bitmap_room_konami_validation['data_bank_count']}, "
+            f"bankedRleSymbols={msx2_screen5_bitmap_room_konami_validation['banked_rle_symbol_count']}"
+            if msx2_screen5_bitmap_room_konami_validation
+            else ""
+        )
+        print(
+            "Konami8K validation: SCREEN 5 bitmap-room fixed-bank0 compatibility path; "
+            "boot maps page2 to cart slot before mapper init and RLE data stays in #8000 banks"
             f"{validation_suffix}"
         )
     if konami8k_validation:

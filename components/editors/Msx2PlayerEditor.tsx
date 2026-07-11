@@ -10,8 +10,11 @@ import { StateMachine, StateMachineState, StateMachineStateName } from '../../st
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
-import { getAllSkills } from '../../utils/msxGenerator/skills/index';
+import { getAllSkills, getSkillsForBackend } from '../../utils/msxGenerator/skills/index';
+import { resolveGraphicsBackend } from '../../utils/msxGenerator';
+import type { GraphicsBackend } from '../../utils/msxGenerator/graphicsBackend';
 import type { SkillControlIcon, SkillDef, SkillParameterDef } from '../../utils/msxGenerator/skills/types';
+import { BulletConfigDialog } from '../dialogs/skills/BulletConfigDialog';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
@@ -1218,11 +1221,18 @@ const PlayerPreviewControls: React.FC<{
 
 export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, playerAssetName, onUpdate, allAssets, onUpsertStateMachineAsset }) => {
   const normalized = useMemo(() => normalizeMsx2PlayerDefinition(player), [player]);
+  // Resolve the project's graphics backend from its assets using the SAME rule
+  // as the ASM generator (single source of truth), so the skill list shown here
+  // matches what the generator will actually emit. A skill with no
+  // supportedBackends declared is always shown (backward compatible).
+  const graphicsBackend: GraphicsBackend = useMemo(() => resolveGraphicsBackend({}, allAssets), [allAssets]);
+  const skillsForBackend = useMemo(() => getSkillsForBackend(graphicsBackend), [graphicsBackend]);
   const detailedDocument = useMemo(() => buildDetailedMsx2PlayerDocument(normalized), [normalized]);
   const [selectedAnimationKey, setSelectedAnimationKey] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PlayerConfigSection>('General');
   const [isComponentsDialogOpen, setIsComponentsDialogOpen] = useState(false);
   const [openSkillDialogId, setOpenSkillDialogId] = useState<string | null>(null);
+  const [isBulletConfigOpen, setIsBulletConfigOpen] = useState(false);
   const [selectedAttackFacing, setSelectedAttackFacing] = useState<PlayerAttackFacing>('right');
   const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [newStateName, setNewStateName] = useState('');
@@ -1521,6 +1531,36 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     onUpdate({ animations, animationOrder: nextOrder });
   };
 
+  // Adds a fresh "custom" animation row (frames/speed seeded from the default
+  // sprite) and selects it, so it can be linked to a skill state (e.g. Dashing)
+  // via the Render + State pickers below without overwriting an existing role.
+  const addAnimation = () => {
+    const existing = normalized.animations || {};
+    let counter = animationOrder.length + 1;
+    let key = `custom_${counter}`;
+    while (existing[key]) {
+      counter += 1;
+      key = `custom_${counter}`;
+    }
+    const newAnimation = playerAnimationFromMsx2Sprite(
+      { frames: [0, 1], speed: 6, role: 'custom', customRole: `Animation ${counter}`, playback: 'loop' },
+      selectedSprite,
+    );
+    updateAnimations({ ...existing, [key]: newAnimation }, [...animationOrder, key]);
+    setSelectedAnimationKey(key);
+  };
+
+  // Removes the currently selected animation row (and its order entry), then
+  // selects the first remaining row. Persists because the player now has explicit
+  // animations (normalization no longer re-injects the role defaults).
+  const removeAnimation = () => {
+    if (!selectedKey) return;
+    const { [selectedKey]: _removed, ...rest } = normalized.animations;
+    const nextOrder = animationOrder.filter(key => key !== selectedKey);
+    updateAnimations(rest, nextOrder);
+    setSelectedAnimationKey(nextOrder[0] || null);
+  };
+
   const updateSelectedAnimationRender = (spriteAssetId: string | undefined) => {
     if (!selectedKey) return;
     const selected = normalized.animations[selectedKey];
@@ -1564,10 +1604,19 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       value: stateName,
       label: friendlyStateLabelFromId(stateName),
     }));
+    // Animation-states contributed by the active skills (their `addsStates`). On
+    // the SCREEN 5 bitmap-room backend, linking an animation's sprite to one of
+    // these states gives that state its own player animation at runtime.
+    const fromActiveSkills = (normalized.activeSkills || [])
+      .flatMap(skillId => {
+        const def = skillsForBackend.find(s => s.id === skillId) || getAllSkills().find(s => s.id === skillId);
+        return def?.addsStates || [];
+      })
+      .map(stateName => ({ value: stateName, label: `${friendlyStateLabelFromId(stateName)} (skill)` }));
     const seen = new Set<string>();
-    return [...fromAsset, ...fromTemplate]
+    return [...fromAsset, ...fromTemplate, ...fromActiveSkills]
       .filter(option => option.value && !seen.has(option.value) && seen.add(option.value));
-  }, [selectedStateMachine, normalized.stateMachine]);
+  }, [selectedStateMachine, normalized.stateMachine, normalized.activeSkills, skillsForBackend]);
 
   const stateMachineStateLabelByValue = useMemo(
     () => new Map(stateMachineStateOptions.map(option => [option.value, option.label])),
@@ -2035,6 +2084,25 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                         </tbody>
                       </table>
                     </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-rose-800 bg-rose-900/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-800/60 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={removeAnimation}
+                        disabled={!selectedKey}
+                        title="Remove the selected animation row"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-slate-600 bg-[#242c38] px-3 py-1 text-xs font-semibold text-slate-100 hover:bg-[#2d3747]"
+                        onClick={addAnimation}
+                        title="Add a new custom animation row to link a sprite to a skill state (e.g. Dashing)"
+                      >
+                        + Add Animation
+                      </button>
+                    </div>
                     {selectedAnimation && selectedKey && (
                       <div className="space-y-2 rounded border border-slate-700 bg-[#151b25] p-2">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">Assign Render</div>
@@ -2171,7 +2239,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                   </div>
                   <div className="border-t border-slate-800 pt-2 mt-2">
                     <p className="mb-2 text-[11px] text-slate-400">
-                      Skill button bindings. Primary is always required; set secondary to None for single-button activation.
+                      Skill control bindings. Use + for combos, OR for alternatives; set secondary to None for a single control.
                     </p>
                     {(() => {
                       const CONTROL_OPTIONS = [
@@ -2188,23 +2256,33 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       ];
                       const skillBindings = normalized.skillBindings ?? {};
                       const activeIds = new Set(normalized.activeSkills ?? []);
-                      const bindableSkills = getAllSkills().filter(s => s.controlIcon && !s.required && activeIds.has(s.id));
-                      const resolveBinding = (skillId: string): { primary: string; secondary: string } => {
+                      const bindableSkills = skillsForBackend.filter(s => s.controlIcon && !s.required && activeIds.has(s.id));
+                      const resolveBinding = (skillId: string): { primary: string; secondary: string; operator: 'and' | 'or' } => {
                         const override = skillBindings[skillId];
-                        if (override) return { primary: override.primary, secondary: override.secondary ?? 'none' };
                         const def = getAllSkills().find(s => s.id === skillId);
+                        const defaultOperator = def?.controlOperator === 'or' ? 'or' : 'and';
+                        if (override) {
+                          return {
+                            primary: override.primary,
+                            secondary: override.secondary ?? 'none',
+                            operator: override.operator === 'or' ? 'or' : defaultOperator,
+                          };
+                        }
                         if (!def || !def.controlIcon) return { primary: 'attack', secondary: 'none' };
                         const icons = Array.isArray(def.controlIcon) ? def.controlIcon : [def.controlIcon];
-                        return { primary: icons[0] || 'attack', secondary: icons[1] || 'none' };
+                        return { primary: icons[0] || 'attack', secondary: icons[1] || 'none', operator: defaultOperator };
                       };
-                      const updateBinding = (skillId: string, field: 'primary' | 'secondary', value: string) => {
+                      const updateBinding = (skillId: string, field: 'primary' | 'secondary' | 'operator', value: string) => {
                         const current = resolveBinding(skillId);
                         const next: Record<string, any> = { ...current, [field]: value === 'none' && field === 'secondary' ? 'none' : value };
                         if (field === 'secondary' && value === 'none') delete next.secondary;
                         onUpdate({
                           skillBindings: {
                             ...skillBindings,
-                            [skillId]: { primary: next.primary, ...(next.secondary && next.secondary !== 'none' ? { secondary: next.secondary } : {}) },
+                            [skillId]: {
+                              primary: next.primary,
+                              ...(next.secondary && next.secondary !== 'none' ? { secondary: next.secondary, operator: next.operator === 'or' ? 'or' : 'and' } : {}),
+                            },
                           },
                         });
                       };
@@ -2222,7 +2300,16 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                 >
                                   {CONTROL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
-                                <span className="text-slate-500">+</span>
+                                <select
+                                  className="w-14 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
+                                  value={binding.operator}
+                                  onChange={e => updateBinding(skill.id, 'operator', e.target.value)}
+                                  disabled={binding.secondary === 'none'}
+                                  title="Combinar controles como combo (+) o alternativa (OR)"
+                                >
+                                  <option value="and">+</option>
+                                  <option value="or">OR</option>
+                                </select>
                                 <select
                                   className="w-12 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
                                   value={binding.secondary}
@@ -2254,6 +2341,11 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                   </p>
                   <Field label="I-Time" suffix="frames"><SmallNumber value={normalized.health.invulnerabilityFrames} onChange={value => updateHealth({ invulnerabilityFrames: value })} /></Field>
                   <Field label="Knockback"><SmallNumber step={0.01} value={numberValue(normalized.health.knockbackX, 1)} onChange={value => updateHealth({ knockbackX: value })} /></Field>
+                  <Checkbox
+                    label="Deadly tiles = instant respawn (on). Off = damage + blink, no respawn until 0 health."
+                    checked={normalized.health.deadlyInstantRespawn !== false}
+                    onChange={checked => updateHealth({ deadlyInstantRespawn: checked })}
+                  />
                   <Checkbox label="Can Take Damage" checked={true} onChange={() => undefined} />
                 </div>
               </section>
@@ -2421,12 +2513,18 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                                 </select>
                               </Field>
                               <Field label="Projectile Asset">
-                                <input
-                                  className={inputClass}
-                                  value={selectedWeapon.projectileAssetId || ''}
-                                  onChange={event => updateSelectedWeapon({ projectileAssetId: event.target.value || undefined })}
-                                  placeholder="Optional projectile asset id"
-                                />
+                                <button
+                                  type="button"
+                                  className={`${inputClass} text-left`}
+                                  onClick={() => setIsBulletConfigOpen(true)}
+                                  title="Configure bullet visual (sprite or char)"
+                                >
+                                  {selectedWeapon.bulletVisual
+                                    ? selectedWeapon.bulletVisual.kind === 'sprite'
+                                      ? (selectedWeapon.bulletVisual.spriteAssetId ? `Sprite: ${selectedWeapon.bulletVisual.spriteAssetId}` : 'Sprite: (none)')
+                                      : `Char: ${selectedWeapon.bulletVisual.charCode ?? 0}`
+                                    : (selectedWeapon.projectileAssetId ? `Legacy: ${selectedWeapon.projectileAssetId}` : 'Configure...')}
+                                </button>
                               </Field>
                             </div>
                           </div>
@@ -2554,7 +2652,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                     <p className="mb-2 text-[11px] font-semibold text-slate-300">Skill Parameters</p>
                     <p className="mb-2 text-[11px] text-slate-400">Click a skill to edit its parameters. Core skills (jump, gravity, air resistance, item collection) are always active.</p>
                     <div className="space-y-1">
-                      {getAllSkills().filter(s => s.parameters && s.parameters.length > 0).map(skill => {
+                      {skillsForBackend.filter(s => s.parameters && s.parameters.length > 0).map(skill => {
                         const active = normalized.activeSkills?.includes(skill.id) ?? false;
                         const hasParameters = Boolean(skill.parameters && skill.parameters.length > 0);
                         const isCore = skill.required;
@@ -2802,6 +2900,15 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
             />
           );
         })()}
+        {isBulletConfigOpen && selectedWeapon && (
+          <BulletConfigDialog
+            weapon={selectedWeapon}
+            spriteAssets={spriteAssets}
+            allowCharMode={graphicsBackend !== 'msx2-screen4-bitmap-room'}
+            onPatch={patch => updateSelectedWeapon(patch)}
+            onClose={() => setIsBulletConfigOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

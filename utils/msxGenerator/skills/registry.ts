@@ -1,4 +1,5 @@
 import { SkillDef, PlayerStateMachine, StateTransition } from './types';
+import type { GraphicsBackend } from '../graphicsBackend';
 
 const registry = new Map<string, SkillDef>();
 
@@ -23,6 +24,20 @@ export function getCoreSkills(): SkillDef[] {
 
 export function getOptionalSkills(): SkillDef[] {
   return getAllSkills().filter(s => !s.required);
+}
+
+/**
+ * Skills available for a given graphics backend. A skill with no
+ * `supportedBackends` declared (or an empty array) is treated as universal and
+ * is returned for every backend — this keeps core and unmapped skills visible
+ * everywhere (backward compatible). The Player Config UI and any tooling that
+ * needs "what can be enabled here" should go through this function so there is
+ * a single filter rule.
+ */
+export function getSkillsForBackend(backend: GraphicsBackend): SkillDef[] {
+  return getAllSkills().filter(
+    s => !s.supportedBackends || s.supportedBackends.length === 0 || s.supportedBackends.includes(backend)
+  );
 }
 
 export function hasSkill(id: string): boolean {

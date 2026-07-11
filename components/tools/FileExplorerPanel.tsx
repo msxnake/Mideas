@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile } from '../../types';
+import { ProjectAsset, EditorType, ContextMenuItem, Msx2ProjectProfile, ScreenKind } from '../../types';
 import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon } from '../icons/MsxIcons';
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon, PlusCircleIcon, DocumentDuplicateIcon, HudIcon } from '../icons/MsxIcons';
 import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject, isAssetTypeEnabledForMsx2Project } from '../../utils/projectTarget';
 
 /**
@@ -16,8 +16,12 @@ interface FileExplorerPanelProps {
   selectedAssetId: string | null;
   /** Callback function when an asset is selected. */
   onSelectAsset: (assetId: string | null, editorType?: EditorType) => void;
+  /** Callback to create a new asset of the given type (reuses the real creation logic). */
+  onNewAsset: (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }) => void;
   /** Callback function to request renaming an asset. */
   onRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
+  /** Callback function to duplicate an asset. */
+  onRequestDuplicate: (assetId: string) => void;
   /** Callback function to request deleting an asset. */
   onRequestDelete: (assetId: string) => void;
   /** Callback function to request saving a single tile asset. */
@@ -58,11 +62,16 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'sprite': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'msx2sprite': return <SpriteIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmap': return <MapIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
+    case 'msx2bitmaptile': return <TilesetIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
+    case 'msx2bitmapstamp': return <TilesetIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
+    case 'msx2bitmapterrain': return <TilesetIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
     case 'msx2screen': return <MapIcon className={`${iconClass} text-blue-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmaproom': return <MapIcon className={`${iconClass} text-sky-200 group-hover:text-msx-accent`} />;
     case 'msx2player': return <SpriteIcon className={`${iconClass} text-yellow-300 group-hover:text-msx-accent`} />;
     case 'msx2enemy': return <BugIcon className={`${iconClass} text-red-300 group-hover:text-msx-accent`} />;
     case 'msx2hudfont': return <PencilIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
+    case 'msx2hud': return <HudIcon className={`${iconClass} text-emerald-300 group-hover:text-msx-accent`} />;
+    case 'msx2dialogue': return <ListBulletIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
     case 'msx2presentation': return <MapIcon className={`${iconClass} text-teal-300 group-hover:text-msx-accent`} />;
     case 'msx2gameflow': return <GameFlowIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
     case 'font': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -96,19 +105,24 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2hudfont', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmaptile', 'msx2bitmapstamp', 'msx2bitmapterrain', 'msx2player', 'msx2enemy', 'msx2screen', 'msx2bitmaproom', 'msx2dialogue', 'msx2hudfont', 'msx2hud', 'msx2presentation', 'msx2gameflow', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
   tile: "MSX1 Tiles",
   sprite: "MSX1 Sprites",
   msx2sprite: "MSX2 Sprites",
+  msx2bitmaptile: "MSX2 Bitmap Tiles",
+  msx2bitmapstamp: "MSX2 Bitmap Stamps",
+  msx2bitmapterrain: "MSX2 Autotile Terrains",
   msx2bitmap: "Legacy MSX2 Bitmaps",
   msx2player: "MSX2 Players",
   msx2enemy: "MSX2 Enemies",
   msx2screen: "MSX2 SCREEN 4 Rooms",
-  msx2bitmaproom: "MSX2 SCREEN 4 Bitmap Rooms",
-  msx2hudfont: "MSX2 HUD Fonts",
+  msx2bitmaproom: "MSX2 SCREEN 5 Bitmap Rooms",
+  msx2dialogue: "MSX2 Dialogues",
+  msx2hudfont: "MSX2 Fonts",
+  msx2hud: "MSX2 HUDs",
   msx2presentation: "MSX2 SCREEN 5 Presentations",
   msx2gameflow: "MSX2 Game Flows",
   font: "MSX1 Fonts",
@@ -130,6 +144,37 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   code: "Code Files",
 };
 
+/** Singular call-to-action labels for the per-folder "New" button. @constant */
+const FOLDER_NEW_LABELS: Partial<Record<ProjectAsset['type'], string>> = {
+  statemachine: "New State Machine",
+  sprite: "New MSX1 Sprite",
+  msx2sprite: "New Sprite",
+  msx2player: "New Player",
+  msx2enemy: "New Enemy",
+  msx2screen: "New SCREEN 4 Room",
+  msx2bitmaproom: "New Bitmap Room",
+  msx2bitmapstamp: "New Stamp",
+  msx2dialogue: "New MSX2 Dialogue",
+  msx2hudfont: "New MSX2 Font",
+  msx2hud: "New HUD",
+  msx2presentation: "New SCREEN 5 Presentation",
+  msx2gameflow: "New Game Flow",
+  tile: "New Tile",
+  font: "New Font",
+  boss: "New Boss",
+  screenmap: "New Screen",
+  worldmap: "New World Map",
+  gameflow: "New Game Flow",
+  dialogue: "New Dialogue",
+  portrait: "New Portrait",
+  palette: "New Palette",
+  tilebank: "New Tile Bank",
+  sound: "New Sound FX",
+  track: "New Track",
+  globalvariables: "New Global Variables",
+  code: "New Code File",
+};
+
 /** Maps asset types to their corresponding editor types. @constant */
 const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   statemachine: EditorType.StateMachine,
@@ -137,11 +182,16 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   sprite: EditorType.Sprite,
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
+  msx2bitmaptile: EditorType.Msx2BitmapTile,
+  msx2bitmapstamp: EditorType.Msx2BitmapStamp,
+  msx2bitmapterrain: EditorType.Msx2BitmapTerrain,
   msx2player: EditorType.Msx2Player,
   msx2enemy: EditorType.Msx2Enemy,
   msx2screen: EditorType.Msx2Screen,
   msx2bitmaproom: EditorType.Msx2BitmapRoom,
+  msx2dialogue: EditorType.Msx2Dialogue,
   msx2hudfont: EditorType.Msx2HudFont,
+  msx2hud: EditorType.Msx2HudEditor,
   msx2presentation: EditorType.Msx2Presentation,
   msx2gameflow: EditorType.Msx2GameFlow,
   font: EditorType.Font,
@@ -197,7 +247,9 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   assets,
   selectedAssetId,
   onSelectAsset,
+  onNewAsset,
   onRequestRename,
+  onRequestDuplicate,
   onRequestDelete,
   onRequestSaveTile,
   onRequestSaveTrack,
@@ -444,7 +496,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
         {FOLDER_TYPE_ORDER.map(folderType => {
           const folderTarget = getAssetTarget(folderType);
-          const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
+          const assetsInFolder = groupedAssets[folderType] || [];
           if (folderType === 'msx2bitmap' && assetsInFolder.length === 0) {
             return null;
           }
@@ -455,7 +507,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
             return null;
           }
 
-          // Code Files are managed exclusively via the Export Z80 Code modal
+          // Code Files are created by the Export Z80 Code modal, then shown here
+          // for inspection/editing like any other generated asset.
           const isExpanded = !!expandedFolders[folderType];
           const folderEnabled = isFolderEnabled(folderType);
           const disabledTitle = getDisabledTitle(folderType);
@@ -584,6 +637,26 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
               )}
               {isExpanded && (
                 <ul id={`folder-content-${folderType}`} className="pl-4 mt-0.5 space-y-0.5">
+                  {folderType !== 'code' && (
+                    <li className="pt-1">
+                      <button
+                        onClick={() => {
+                          if (!folderEnabled) return;
+                          if (folderType === 'screenmap') {
+                            onNewAsset('screenmap', { screenKind: 'playable' });
+                          } else {
+                            onNewAsset(folderType);
+                          }
+                        }}
+                        disabled={!folderEnabled}
+                        title={folderEnabled ? undefined : disabledTitle}
+                        className="w-full text-xs px-2 py-1 rounded bg-msx-accent/80 hover:bg-msx-accent text-white font-medium transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <PlusCircleIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{FOLDER_NEW_LABELS[folderType] || `New ${FOLDER_DISPLAY_NAMES[folderType]}`}</span>
+                      </button>
+                    </li>
+                  )}
                   {folderType === 'track' && (
                     <li className="pt-1">
                       <input
@@ -668,6 +741,17 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                             title={`Rename ${asset.name}`}
                           >
                             <PencilIcon className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onRequestDuplicate(asset.id); }}
+                            disabled={!assetEnabled}
+                            className={`p-0.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-msx-accent
+                                        ${isSelected || isTileSelected ? 'text-white hover:bg-msx-highlight/80' : 'text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-accent/30'}
+                                        opacity-0 group-hover:opacity-100 focus-within:opacity-100 disabled:opacity-20 disabled:cursor-not-allowed`}
+                            aria-label={`Duplicate ${asset.name}`}
+                            title={`Duplicate ${asset.name}`}
+                          >
+                            <DocumentDuplicateIcon className="w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); onRequestDelete(asset.id); }}

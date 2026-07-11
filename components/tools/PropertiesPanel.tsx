@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, Msx2HudFontAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Bitmap, BitmapTileScreen5, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, Msx2HudFontAsset, Msx2HudAsset, Msx2Screen5PresentationConfig, Msx2GameFlowGraph, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -251,6 +251,8 @@ const LineAttributesPreview: React.FC<{lineAttributes: LineColorAttribute[][]; t
  * @category Tools
  */
 interface PropertiesPanelProps {
+  /** When true, this panel acts as contextual help only and does not render editable properties. */
+  helpOnly?: boolean;
   /** The currently selected asset, if any. */
   asset: ProjectAsset | undefined;
   /** The currently selected entity instance in the screen editor, if any. */
@@ -318,6 +320,7 @@ interface PropertiesPanelProps {
  * @category Tools
  */
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ 
+  helpOnly = false,
   asset, entityInstance, effectZone, gameFlowNode,
   onUpdateEntityInstance, onUpdateEffectZone, onUpdateGameFlowNode,
   onDeleteEntityInstance, onDeleteEffectZone,
@@ -1061,7 +1064,33 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div><strong className="text-msx-highlight">Base char:</strong> {font.baseChar}</div>
             <div><strong className="text-msx-highlight">Characters:</strong> {font.characters?.length || 0}</div>
             <div><strong className="text-msx-highlight">Patterns:</strong> {Object.keys(font.patterns || {}).length}</div>
+            {font.vdpMode === 'SCREEN5' && <div><strong className="text-msx-highlight">Bitmap glyphs:</strong> {Object.keys(font.bitmapPatterns || {}).length}</div>}
+            {font.paletteAssetId && <div><strong className="text-msx-highlight">Palette:</strong> {font.paletteAssetId}</div>}
             <div><strong className="text-msx-highlight">Color byte:</strong> #{(font.colorByte ?? 0).toString(16).padStart(2, '0').toUpperCase()}</div>
+          </div>
+        );
+      }
+      case 'msx2hud': {
+        const hud = asset.data as Msx2HudAsset;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {hud.width}x{hud.height}</div>
+            <div><strong className="text-msx-highlight">Layers:</strong> {hud.layers?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Icons:</strong> {hud.icons?.length || 0}</div>
+          </div>
+        );
+      }
+      case 'msx2dialogue': {
+        const dlg = asset.data as any;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {dlg?.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 5 bitmap dialogue</div>
+            <div><strong className="text-msx-highlight">Lines:</strong> {dlg?.lines?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Portraits:</strong> {dlg?.portraits?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Box:</strong> {dlg?.box?.width || 0}x{dlg?.box?.height || 0} @ {dlg?.box?.x || 0},{dlg?.box?.y || 0}</div>
+            <div><strong className="text-msx-highlight">Char delay:</strong> {dlg?.exportOptions?.charDelayFrames ?? 3} frames</div>
           </div>
         );
       }
@@ -1091,19 +1120,32 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         );
       }
       case 'msx2bitmaproom': {
-        const room = asset.data as Msx2Screen4BitmapRoom;
+        const room = asset.data as Msx2Screen5BitmapRoom;
         const commandCount = room.composition?.commands?.length || 0;
         const atlasEntries = room.atlas?.entries?.length || 0;
         const collisionRows = room.collision?.length || 0;
         return (
           <div className="space-y-1">
             <div><strong className="text-msx-highlight">Name:</strong> {room.name}</div>
-            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 4 bitmap room</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 5 bitmap room</div>
             <div><strong className="text-msx-highlight">Screen:</strong> {room.width}x{room.height} px</div>
             <div><strong className="text-msx-highlight">Atlas:</strong> {room.atlas?.width || 0}x{room.atlas?.height || 0} px / {atlasEntries} entries</div>
             <div><strong className="text-msx-highlight">Commands:</strong> {commandCount}</div>
             <div><strong className="text-msx-highlight">Export:</strong> PGT/PNT/CGT, 3 banks</div>
             <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
+          </div>
+        );
+      }
+      case 'msx2bitmaptile': {
+        const tile = asset.data as BitmapTileScreen5;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {tile?.name || asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> SCREEN5_BITMAP</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {tile?.width || 0}x{tile?.height || 0} px</div>
+            <div><strong className="text-msx-highlight">Palette:</strong> {tile?.paletteId || 'missing'}</div>
+            <div><strong className="text-msx-highlight">Source:</strong> {tile?.sourceType || 'unknown'}</div>
+            <div><strong className="text-msx-highlight">Pixels:</strong> {tile?.pixelData?.length || 0} indexed slots</div>
           </div>
         );
       }
@@ -2033,12 +2075,48 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         ],
       },
       [EditorType.Msx2BitmapRoom]: {
-        title: 'MSX2 SCREEN 4 Bitmap Room Help',
-        summary: 'Compose bitmap-style SCREEN 4 rooms from atlas commands while preserving the 2-color-per-8-pixel-row constraint.',
+        title: 'MSX2 SCREEN 5 Bitmap Room Help',
+        summary: 'Compose bitmap-style SCREEN 5 rooms from atlas commands while preserving the 2-color-per-8-pixel-row constraint.',
         tips: [
           'Use copy/fill/line commands for compact reusable backgrounds.',
           'Watch color-limit diagnostics before exporting.',
           'Prefer repeated atlas pieces over one-off full-screen art when ROM budget matters.',
+        ],
+      },
+      [EditorType.Msx2BitmapTile]: {
+        title: 'MSX2 SCREEN 5 Bitmap Tile Help',
+        summary: 'Create reusable 16x16 SCREEN 5 bitmap tiles for rooms, stamps, terrains, HUD icons, and dialogue art.',
+        tips: [
+          'Keep slot 0 usage deliberate because many workflows treat it as transparent/background.',
+          'Save coherent palettes as palette assets before reusing tiles across several rooms.',
+          'Use the grid and picker tools to keep small tile edges clean for atlas reuse.',
+        ],
+      },
+      [EditorType.Msx2BitmapStamp]: {
+        title: 'MSX2 SCREEN 5 Bitmap Stamp Help',
+        summary: 'Assemble larger reusable bitmap pieces from 16x16 tiles without copying pixels by hand.',
+        tips: [
+          'Use stamps for repeated props, portrait heads, large decorations, and room set pieces.',
+          'Keep all cells on one coherent palette so later imports render predictably.',
+          'Double-click source tiles when a cell needs pixel-level cleanup.',
+        ],
+      },
+      [EditorType.Msx2BitmapTerrain]: {
+        title: 'MSX2 SCREEN 5 Autotile Terrain Help',
+        summary: 'Inspect saved terrain assets: template masks, reusable terrain tiles, variants, and the palette stored with them.',
+        tips: [
+          'Blob16 is compact; wang47 gives better inner corners at a higher tile cost.',
+          'The grid follows the same order as the import template, so mismatches usually mean a source-template issue.',
+          'Keep terrain palettes aligned with the rooms that will import them.',
+        ],
+      },
+      [EditorType.Msx2Dialogue]: {
+        title: 'MSX2 SCREEN 5 Dialogue Help',
+        summary: 'Author bitmap-dialogue data for typewriter boxes, talking-head portraits, and scripted text moments.',
+        tips: [
+          'Keep box dimensions and portrait size inside the visible 256px-wide area.',
+          'Use SCREEN 5 fonts and palette slots that stay readable over gameplay backgrounds.',
+          'Test mouth animation frames with short lines before wiring long dialogue sequences.',
         ],
       },
       [EditorType.Msx2Bitmap]: {
@@ -2060,12 +2138,21 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         ],
       },
       [EditorType.Msx2HudFont]: {
-        title: 'MSX2 HUD Font Help',
+        title: 'MSX2 Font Help',
         summary: 'Prepare SCREEN 4 text glyphs for menus, HUDs, story panels, and GameFlow runtime text.',
         tips: [
           'Keep menu fonts consistent with the visual style of SCREEN 4 menus.',
           'Import TTF or ZX .ch8 only when the glyph size remains readable at 8x8.',
           'Check colorByte defaults so text has enough contrast on menu backgrounds.',
+        ],
+      },
+      [EditorType.Msx2HudEditor]: {
+        title: 'MSX2 SCREEN 5 HUD Help',
+        summary: 'Build bitmap-friendly HUD layouts with icons, counters, bars, fonts, and runtime bindings.',
+        tips: [
+          'Keep HUD widgets out of the active gameplay path unless the game reserves a fixed HUD band.',
+          'Use linked HUD fonts for counters and labels so exported text matches the editor preview.',
+          'Prefer small icon rows and bars over long labels when SCREEN 5 room space is tight.',
         ],
       },
       [EditorType.Msx2Presentation]: {
@@ -2193,7 +2280,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         summary: 'Edit global MSX1 font patterns and row color attributes.',
         tips: [
           'Focus on Space, digits, and A-Z for HUD/menu readability.',
-          'Use MSX2 HUD Font for SCREEN 4 text workflows.',
+          'Use MSX2 Font for SCREEN 4 text workflows.',
         ],
       },
       [EditorType.ComponentDefinitionEditor]: {
@@ -2257,7 +2344,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         summary: 'Configure gameplay UI elements such as counters, icons, bars, and labels.',
         tips: [
           'Keep HUD regions away from active gameplay space.',
-          'For MSX2 SCREEN 4 HUD text, pair this with MSX2 HUD Font assets.',
+          'For MSX2 SCREEN 4 HUD text, pair this with MSX2 Font assets.',
         ],
       },
       [EditorType.MainMenu]: {
@@ -2333,11 +2420,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const editorHelpContent = renderEditorHelp();
   const hasContextualEditorHelp = !!editorHelpContent;
 
-  let panelTitle = hasContextualEditorHelp ? "Properties / Help" : "Properties";
-  if (gameFlowNode && activeEditorType === EditorType.GameFlow) panelTitle = "Game Flow Node Properties / Help";
-  else if (entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties / Help";
-  else if (effectZone && activeEditorType === EditorType.Screen) panelTitle = "Effect Zone Properties / Help";
-  else if (asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties / Help";
+  let panelTitle = helpOnly ? "Help" : (hasContextualEditorHelp ? "Properties / Help" : "Properties");
+  if (!helpOnly && gameFlowNode && activeEditorType === EditorType.GameFlow) panelTitle = "Game Flow Node Properties / Help";
+  else if (!helpOnly && entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties / Help";
+  else if (!helpOnly && effectZone && activeEditorType === EditorType.Screen) panelTitle = "Effect Zone Properties / Help";
+  else if (!helpOnly && asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties / Help";
 
   /**
    * Renders the properties for the currently selected game flow node.
@@ -2704,6 +2791,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       ) : undefined}
     >
       <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
+        {helpOnly ? (
+          editorHelpContent || <p className="text-msx-textsecondary">Select a SCREEN 5 editor to see contextual help.</p>
+        ) : (
+          <>
           {activeEditorType === EditorType.Screen && screenBlockCatalogAnalysis && tilesetForScreenEditor && (
             <div className="mb-2 space-y-2">
               <div className="rounded border border-msx-border/60 bg-msx-bgcolor/40 p-2 text-xs">
@@ -2808,6 +2899,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <strong className="text-msx-highlight block mb-0.5">Char Codes (Drawing Tile):</strong>
             <div className="text-msx-textsecondary text-[0.7rem] break-all">{charCodesForDrawingTile}</div>
           </div>
+        )}
+          </>
         )}
       </div>
     </Panel>

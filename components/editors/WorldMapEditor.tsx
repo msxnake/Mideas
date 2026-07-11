@@ -1,9 +1,9 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen4BitmapRoom, ProjectAsset } from '../../types';
+import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, WorldMapTransitionBlockedAction, WorldMapTransitionMode, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, Msx2Screen5BitmapRoom, ProjectAsset, PaletteAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
 import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
 import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
@@ -24,12 +24,13 @@ interface WorldMapEditorProps {
   tileset: Tile[];
   currentScreenMode: string;
   dataOutputFormat: DataFormat;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
   onNavigateToAsset: (assetId: string) => void;
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
   setStatusBarMessage: (message: string) => void;
 }
 
-type WorldMapSelectableScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen4BitmapRoom;
+type WorldMapSelectableScreen = ScreenMap | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom;
 
 const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
 
@@ -37,8 +38,8 @@ const isMsx2Screen4TileScreen = (screen: WorldMapSelectableScreen | undefined): 
   return !!screen && isMsx2Screen4Mode((screen as Msx2Screen4TileScreen).vdpMode) && Array.isArray((screen as Msx2Screen4TileScreen).tiles);
 };
 
-const isMsx2Screen4BitmapRoom = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen4BitmapRoom => {
-  return !!screen && (screen as Msx2Screen4BitmapRoom).vdpMode === 'SCREEN4_BITMAP_ROOM' && !!(screen as Msx2Screen4BitmapRoom).composition;
+const isMsx2Screen5BitmapRoom = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen5BitmapRoom => {
+  return !!screen && (screen as Msx2Screen5BitmapRoom).vdpMode === 'SCREEN5_BITMAP_ROOM' && !!(screen as Msx2Screen5BitmapRoom).composition;
 };
 
 const isScreenMap = (screen: WorldMapSelectableScreen | undefined): screen is ScreenMap => {
@@ -102,7 +103,7 @@ const drawMsx2Screen4Preview = (
 
 const drawMsx2BitmapRoomPreview = (
   ctx: CanvasRenderingContext2D,
-  room: Msx2Screen4BitmapRoom,
+  room: Msx2Screen5BitmapRoom,
   previewWidth: number,
   previewHeight: number
 ): void => {
@@ -180,7 +181,7 @@ const createScreenMiniPreviewDataURL = (
     return canvas.toDataURL();
   }
 
-  if (isMsx2Screen4BitmapRoom(screenMap)) {
+  if (isMsx2Screen5BitmapRoom(screenMap)) {
     drawMsx2BitmapRoomPreview(ctx, screenMap, previewWidth, previewHeight);
     return canvas.toDataURL();
   }
@@ -254,6 +255,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   tileset,
   currentScreenMode,
   dataOutputFormat,
+  paletteAssets = [],
   onNavigateToAsset,
   onShowContextMenu,
   setStatusBarMessage
@@ -277,6 +279,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [editingConnectionsForNode, setEditingConnectionsForNode] = useState<WorldMapScreenNode | null>(null);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number, y: number } | null>(null);
+  const [linkPreviewPosition, setLinkPreviewPosition] = useState<{ x: number, y: number } | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragNodeOffset, setDragNodeOffset] = useState<{ x: number, y: number } | null>(null);
 
@@ -301,6 +304,24 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       position: { x: snapToGrid(newX), y: snapToGrid(newY) },
     };
     onUpdate({ nodes: [...nodes, newNode] });
+  };
+
+  const handleSyncScreenNames = () => {
+    const currentScreenNames = new Map(availableScreenMaps.map(screen => [screen.id, screen.name]));
+    let updatedCount = 0;
+    const updatedNodes = nodes.map(node => {
+      const currentName = currentScreenNames.get(node.screenAssetId);
+      if (!currentName || currentName === node.name) return node;
+      updatedCount += 1;
+      return { ...node, name: currentName };
+    });
+
+    if (updatedCount > 0) {
+      onUpdate({ nodes: updatedNodes });
+      setStatusBarMessage(`Updated ${updatedCount} World Map screen name${updatedCount === 1 ? '' : 's'}.`);
+    } else {
+      setStatusBarMessage('World Map screen names are already up to date.');
+    }
   };
 
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
@@ -364,17 +385,27 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   }, [worldMapGraph.nodes, worldMapGraph.connections, worldMapGraph.gridSize, setPendingAutoConnectionProposal]);
 
   const handlePortClick = (nodeId: string, direction: ConnectionDirection) => {
+    const portNode = nodes.find(node => node.id === nodeId);
+    if (!portNode) return;
+
     if (!linkingState) {
       setLinkingState({ fromNodeId: nodeId, fromDirection: direction });
+      setLinkPreviewPosition(getPortPosition(portNode, direction));
       setSelectedNodeId(null);
       setSelectedConnectionId(null);
+      setStatusBarMessage(`Link start: ${portNode.name} / ${direction.toUpperCase()}. Ctrl+click another port to connect.`);
     } else {
       if (linkingState.fromNodeId === nodeId && linkingState.fromDirection === direction) {
-        setLinkingState(null); return;
+        setLinkingState(null);
+        setLinkPreviewPosition(null);
+        setStatusBarMessage('Link cancelled.');
+        return;
       }
       if (linkingState.fromNodeId === nodeId) {
         alert("Cannot connect a node to itself via manual port linking.");
-        setLinkingState(null); return;
+        setLinkingState(null);
+        setLinkPreviewPosition(null);
+        return;
       }
 
       const existing = worldMapGraph.connections.find(c =>
@@ -383,12 +414,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       );
       if (existing) {
         setLinkingState(null);
-        alert("Connection already exists.");
+        setLinkPreviewPosition(null);
+        setSelectedConnectionId(existing.id);
+        setStatusBarMessage('Connection already exists; it has been selected.');
         return;
       }
 
+      const connectionId = `wmconn_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const newConnection: WorldMapConnection = {
-        id: `wmconn_${Date.now()}`,
+        id: connectionId,
         fromNodeId: linkingState.fromNodeId,
         fromDirection: linkingState.fromDirection,
         toNodeId: nodeId,
@@ -398,6 +432,10 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       };
       onUpdate({ connections: [...worldMapGraph.connections, newConnection] });
       setLinkingState(null);
+      setLinkPreviewPosition(null);
+      setSelectedNodeId(null);
+      setSelectedConnectionId(connectionId);
+      setStatusBarMessage(`World Map updated: ${direction.toUpperCase()} port connected.`);
     }
   };
 
@@ -483,6 +521,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setSelectedNodeId(null);
       setSelectedConnectionId(null);
       setLinkingState(null);
+      setLinkPreviewPosition(null);
       setMovingNodeId(null);
       if (svgRef.current) svgRef.current.focus(); // Focus for keyboard events
     }
@@ -516,6 +555,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       if (CTM) {
         const { x, y } = svgPoint.matrixTransform(CTM);
         setMousePosition({ x, y });
+      }
+    } else if (linkingState && svgRef.current) {
+      const svgPoint = svgRef.current.createSVGPoint();
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const CTM = svgRef.current.getScreenCTM()?.inverse();
+      if (CTM) {
+        const { x, y } = svgPoint.matrixTransform(CTM);
+        setLinkPreviewPosition({ x, y });
       }
     }
   };
@@ -608,7 +656,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const handleOpenExportAsmModal = () => {
     const hasMsx2Screens = nodes.some(node => {
       const screen = availableScreenMaps.find(candidate => candidate.id === node.screenAssetId);
-      return isMsx2Screen4TileScreen(screen) || isMsx2Screen4BitmapRoom(screen);
+      return isMsx2Screen4TileScreen(screen) || isMsx2Screen5BitmapRoom(screen);
     });
     if (hasMsx2Screens) {
       setStatusBarMessage('World Map ASM export is MSX1-only for now; MSX2 SCREEN 4 worlds export through the main Z80/ROM pipeline.');
@@ -925,6 +973,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setSelectedNodeId: (id: string | null) => void;
     setSelectedConnectionId: (id: string | null) => void;
     setLinkingState: (state: { fromNodeId: string; fromDirection: ConnectionDirection } | null) => void;
+    onPortClick: (nodeId: string, direction: ConnectionDirection) => void;
     onNavigateToAsset: (assetId: string) => void;
     onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
     onStartDrag: (nodeId: string, svgX: number, svgY: number) => void;
@@ -941,6 +990,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setSelectedNodeId,
     setSelectedConnectionId,
     setLinkingState,
+    onPortClick,
     onNavigateToAsset,
     onShowContextMenu,
     onStartDrag,
@@ -972,6 +1022,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         setSelectedNodeId(node.id);
         setSelectedConnectionId(null);
         setLinkingState(null);
+        setLinkPreviewPosition(null);
         if (svgGlobalRef?.current) svgGlobalRef.current.focus();
         return;
       }
@@ -979,6 +1030,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setSelectedNodeId(node.id);
       setSelectedConnectionId(null);
       setLinkingState(null);
+      setLinkPreviewPosition(null);
 
       if (svgGlobalRef?.current) {
         svgGlobalRef.current.focus(); // Focus SVG for keyboard events
@@ -1045,10 +1097,18 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               fill={linkingState?.fromNodeId === node.id && linkingState?.fromDirection === dir ? "hsl(50, 80%, 60%)" : "hsl(200, 60%, 50%)"}
               stroke="hsl(200, 80%, 70%)"
               strokeWidth="1"
-              onClick={(e) => { e.stopPropagation(); handlePortClick(node.id, dir); }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                // A port click must not bubble to the node: Ctrl+click on the
+                // body is node dragging, while Ctrl+click on a port is linking.
+                e.stopPropagation();
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onPortClick(node.id, dir); }}
               style={{ cursor: 'crosshair' }}
               role="button"
-              aria-label={`Connect ${dir} port`}
+              aria-label={`Connect ${dir} port (Ctrl+click)`}
+              title={`Ctrl+click to start or finish a connection at the ${dir} port`}
             />
           );
         })}
@@ -1072,13 +1132,39 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             <option value="">Select Screen...</option>
             {availableScreenMaps.map(sm => (
               <option key={sm.id} value={sm.id}>
-                {sm.name} {isMsx2Screen4BitmapRoom(sm) ? '[MSX2 SCREEN 4 Bitmap]' : isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
+                {sm.name} {isMsx2Screen5BitmapRoom(sm) ? '[MSX2 SCREEN 5 Bitmap]' : isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
               </option>
             ))}
           </select>
         </div>
+        <Button
+          onClick={handleSyncScreenNames}
+          size="sm"
+          variant="secondary"
+          icon={<RefreshCwIcon className="w-3.5 h-3.5" />}
+          title="Actualizar los nombres de los nodos usando los nombres actuales de las pantallas"
+          aria-label="Actualizar nombres de pantallas del World Map"
+        >
+          Actualizar nombres
+        </Button>
         <Button onClick={handleSetStartScreen} size="sm" disabled={!selectedNodeId} variant="secondary">Set Start</Button>
         <Button onClick={handleDeleteSelected} size="sm" disabled={!selectedNodeId && !selectedConnectionId} variant="danger" icon={<TrashIcon className="w-3 h-3" />}>Delete Sel.</Button>
+        <div className="flex items-center space-x-1 border-l border-msx-border pl-2">
+          <label className="text-xs pixel-font text-msx-textsecondary">World Palette:</label>
+          <select
+            value={worldMapGraph.paletteAssetId || ''}
+            onChange={e => onUpdate({ paletteAssetId: e.target.value || undefined })}
+            className="max-w-44 p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+            title="Paleta MSX2 compartida que se carga una vez al entrar en este mundo"
+          >
+            <option value="">Fallback: start room</option>
+            {paletteAssets
+              .filter(asset => asset.data?.mode === 'SCREEN4' || asset.data?.mode === 'SCREEN5')
+              .map(asset => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+          </select>
+        </div>
         {selectedConnection && (
           <div className="flex items-center gap-1 border-l border-msx-border pl-2">
             <label className="text-xs pixel-font text-msx-textsecondary">Transition:</label>
@@ -1169,7 +1255,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
                 strokeWidth={selectedConnectionId === conn.id ? 3 : 1.5}
                 fill="none"
                 markerEnd="url(#arrowhead)"
-                onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); setSelectedNodeId(null); setLinkingState(null); if (svgRef.current) svgRef.current.focus(); }}
+                onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); setSelectedNodeId(null); setLinkingState(null); setLinkPreviewPosition(null); if (svgRef.current) svgRef.current.focus(); }}
                 style={{ cursor: 'pointer' }}
                 aria-label={`Connection from ${fromNode.name} ${conn.fromDirection} to ${toNode.name} ${conn.toDirection}`}
               />
@@ -1183,6 +1269,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               setSelectedNodeId={setSelectedNodeId}
               setSelectedConnectionId={setSelectedConnectionId}
               setLinkingState={setLinkingState}
+              onPortClick={handlePortClick}
               onNavigateToAsset={onNavigateToAsset}
               onShowContextMenu={onShowContextMenu}
               onStartDrag={handleStartNodeDrag}
@@ -1200,13 +1287,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             if (!fromNode) return null;
             const p1 = getPortPosition(fromNode, linkingState.fromDirection);
 
-            let p2x = p1.x;
-            let p2y = p1.y;
-            switch (linkingState.fromDirection) {
-              case 'north': p2y -= 20; break;
-              case 'south': p2y += 20; break;
-              case 'west': p2x -= 20; break;
-              case 'east': p2x += 20; break;
+            let p2x = linkPreviewPosition?.x ?? p1.x;
+            let p2y = linkPreviewPosition?.y ?? p1.y;
+            if (!linkPreviewPosition) {
+              switch (linkingState.fromDirection) {
+                case 'north': p2y -= 20; break;
+                case 'south': p2y += 20; break;
+                case 'west': p2x -= 20; break;
+                case 'east': p2x += 20; break;
+              }
             }
 
             return (
@@ -1268,7 +1357,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       )}
 
       <div className="p-1 border-t border-msx-border text-xs text-msx-textsecondary pixel-font">
-        Nodes: {nodes.length} | Connections: {connections.length} | Start: {nodes.find(n => n.id === worldMapGraph.startScreenNodeId)?.name || 'None'} | Zoom: {zoomLevel.toFixed(2)}x | Grid: {gridSize}px | Keys: W/A/S/D to move selected node.
+        Nodes: {nodes.length} | Connections: {connections.length} | Start: {nodes.find(n => n.id === worldMapGraph.startScreenNodeId)?.name || 'None'} | Zoom: {zoomLevel.toFixed(2)}x | Grid: {gridSize}px | Keys: W/A/S/D to move selected node | Link: Ctrl+click a port twice (N/S/E/O).
       </div>
 
       {isExportAsmModalOpen && (
@@ -1276,7 +1365,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
           isOpen={isExportAsmModalOpen}
           onClose={() => setIsExportAsmModalOpen(false)}
           worldMapGraph={worldMapGraph}
-          availableScreenMaps={availableScreenMaps.filter(screen => isScreenMap(screen) || isMsx2Screen4TileScreen(screen) || isMsx2Screen4BitmapRoom(screen))}
+          availableScreenMaps={availableScreenMaps.filter(screen => isScreenMap(screen) || isMsx2Screen4TileScreen(screen) || isMsx2Screen5BitmapRoom(screen))}
           dataOutputFormat={dataOutputFormat}
         />
       )}

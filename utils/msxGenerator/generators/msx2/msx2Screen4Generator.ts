@@ -190,13 +190,24 @@ const MSX2_SNAKE_BODY_BASE = 0xC047;
  * `assertMsx2SkillRamWithinLimit` actually guards. History: the reserve was
  * 5 bytes while the limit grew to #C098 (air_dash), leaving a latent overlap
  * window between #C08C and #C098; fixed 2026-06-12 when carry_object moved
- * the limit to #C0A8 — the reserve now anchors the effect base exactly there
- * (#C087 + 33 = #C0A8). The effect scratch stays anchored to `max(0xC200, ...)`
+ * the limit to #C0A8 — the reserve now anchors the skill-region end at #C0A8
+ * (#C087 + 33). One byte at #C0A8 is then taken by the player colour-reload gate
+ * (MSX2_PLAYER_COLORS_LOADED_RAM below), so the effect runtime base starts one
+ * byte higher, at #C0A9. The effect scratch stays anchored to `max(0xC200, ...)`
  * (see `estimateMsx2RuntimeRamEnd`), so small reserve bumps are invisible to
  * the runtime RAM budget for multi-screen projects.
  */
 const MSX2_SKILL_CHAIN_RESERVED_BYTES = 33;
-const MSX2_EFFECT_RUNTIME_BASE = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2) + MSX2_SKILL_CHAIN_RESERVED_BYTES;
+/**
+ * Player animation colour-reload gate (msx2_player_colors_loaded): one byte
+ * directly above the skill reserve and below the effect runtime buffers. Skills
+ * end at or before MSX2_SKILL_RAM_LIMIT (#C0A8 exclusive, msx2SkillRamLayout.ts)
+ * and the effect buffers now start one byte higher (#C0A9), so this byte (#C0A8)
+ * is free in every config. Only read when the player sprite animates with
+ * per-frame OR/CC colours (see getPlayerHardwareSpriteColorAnimation).
+ */
+const MSX2_PLAYER_COLORS_LOADED_RAM = MSX2_SNAKE_BODY_BASE + (MSX2_SNAKE_MAX_BODY_CELLS * 2) + MSX2_SKILL_CHAIN_RESERVED_BYTES;
+const MSX2_EFFECT_RUNTIME_BASE = MSX2_PLAYER_COLORS_LOADED_RAM + 1;
 const MSX2_ENEMY_SPRITE_PATTERN = [
   0x07, 0x1F, 0x3F, 0x7F, 0x67, 0xE7, 0xFF, 0xFF,
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xEE, 0xC6, 0x80,
@@ -1558,7 +1569,7 @@ function getEntityRenderSpriteId(entity: any): string {
   ).trim();
 }
 
-function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string | undefined): Msx2Sprite | undefined {
+export function resolveMsx2SpriteById(analysis: ProjectAnalysis, spriteAssetId: string | undefined): Msx2Sprite | undefined {
   if (!spriteAssetId) return undefined;
   return analysis.msx2Sprites?.find(candidate => candidate.id === spriteAssetId || candidate.name === spriteAssetId);
 }
@@ -1569,7 +1580,7 @@ function unwrapMsx2PlayerAssetData(data: any): Partial<Msx2PlayerDefinition> | u
   return Object.keys(parsed).length ? parsed : undefined;
 }
 
-function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
+export function getMsx2PlayerAssetRecords(analysis: ProjectAnalysis): Array<{
   assetId: string;
   playerId: string;
   name: string;
@@ -1752,7 +1763,7 @@ function collectReferencedMsx2SpriteIds(analysis: ProjectAnalysis): Set<string> 
   return spriteIds;
 }
 
-function getFirstReferencedMsx2Sprite(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+export function getFirstReferencedMsx2Sprite(analysis: ProjectAnalysis): Msx2Sprite | undefined {
   const referencedIds = collectReferencedMsx2SpriteIds(analysis);
   for (const spriteId of referencedIds) {
     const sprite = resolveMsx2SpriteById(analysis, spriteId);
@@ -3127,7 +3138,7 @@ function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite)
   return normalized === normalizeColor(sprite.backgroundColor);
 }
 
-interface Msx2HardwareLayer {
+export interface Msx2HardwareLayer {
   pattern: number[];
   colors: number[];
   xOffset: number;
@@ -3264,7 +3275,7 @@ function buildCellRowComposition(slots: number[], useOrColor: boolean): RowLayer
   return { masks, colors };
 }
 
-function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
+export function buildHardwareSpriteLayersForFrame(sprite: Msx2Sprite, fallbackColor: number, frameIndex: number): Msx2HardwareLayer[] {
   const frame = sprite.frames?.[frameIndex] || sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
   const useOrColor = sprite.hardware?.useOrColor !== false;
   const cellColumns = Math.max(1, Math.ceil((sprite.size?.width || 16) / 16));
@@ -3318,6 +3329,36 @@ function getHardwareSpriteAnimationDelayFrames(sprite: Msx2Sprite): number {
   const speedMs = Number(sprite.animationSpeedMs);
   if (!Number.isFinite(speedMs) || speedMs <= 0) return 8;
   return Math.max(1, Math.min(255, Math.round(speedMs / (1000 / 60))));
+}
+
+/**
+ * Per-frame player sprite colour-animation parameters, computed identically to
+ * buildHardwareSpriteRuntimeAsm / buildHardwareSpriteDataAsm so the colour
+ * table, the runtime upload routine, the init gate and the EQU all agree.
+ *
+ * `enabled` gates the per-frame OR/CC colour fix: V9938 sprite mode 2 stores one
+ * colour byte per sprite line, and CC/OR multi-colour rows differ between
+ * animation frames. The SAT only swaps the pattern index per frame, so the
+ * sprite colour table must be re-uploaded per frame or frames > 0 render with
+ * frame 0's colours (white/garbage lines). It is on when the player actually
+ * animates (frameCount > 1) and the per-frame colour table fits a single OTIR
+ * (stride 1..255). For the (very rare) metasprite whose player colour stride
+ * exceeds 255 the fix is skipped, falling back to the previous frame-0-only
+ * colours rather than emitting an oversized OTIR.
+ */
+function getPlayerHardwareSpriteColorAnimation(analysis: ProjectAnalysis): {
+  enabled: boolean; frameCount: number; layerCount: number; stride: number;
+} {
+  const sprite = getHardwareSpriteSource(analysis);
+  if (!sprite) return { enabled: false, frameCount: 1, layerCount: 0, stride: 0 };
+  const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
+  const color = Math.max(1, Math.min(15, settings.color));
+  const layerCount = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color))
+    .slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS).length;
+  const frameCount = getHardwareSpriteAnimationFrameCount(sprite, layerCount);
+  const stride = layerCount * 16;
+  const enabled = frameCount > 1 && stride >= 1 && stride <= 255;
+  return { enabled, frameCount, layerCount, stride };
 }
 
 function multiplyABySmallConstant(multiplier: number): string {
@@ -3397,6 +3438,7 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis, useKonamiDataBank
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
+  const playerColorAnim = getPlayerHardwareSpriteColorAnimation(analysis);
   const playerHealth = getMsx2PlayerHealthSettings(analysis);
   const platformPlayer = getMsx2PlatformPlayerEntity(analysis);
   const dashConfig = getMsx2DashConfigFromPlayerEntity(platformPlayer);
@@ -3506,7 +3548,7 @@ ${leaveDataBank}
     ld (msx2_score_lo), a
     ld (msx2_score_hi), a
     ld (msx2_runtime_frame_counter), a
-    call msx2_load_current_screen_air
+${playerColorAnim.enabled ? '    ld a, #FF                       ; force update_msx2_player_frame_colors to load frame-0 sprite colours on the first frame\n    ld (msx2_player_colors_loaded), a\n    xor a\n' : ''}    call msx2_load_current_screen_air
     ld a, ${initialLivesByte}
     ld (msx2_lives), a
 ${dashInitClearAsm}${teleportInitClearAsm}${glideInitClearAsm}${wallJumpInitClearAsm}${powerStompInitClearAsm}${screenShakeInitClearAsm}${airDashInitClearAsm}${carryObjectInitClearAsm}${glideInitAsm}    call draw_msx2_lives_hud
@@ -3896,6 +3938,7 @@ function buildHardwareSpriteRuntimeAsm(
   const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, layers.length);
   const animationDelayFrames = getHardwareSpriteAnimationDelayFrames(sprite);
+  const playerColorAnim = getPlayerHardwareSpriteColorAnimation(analysis);
   const animateOnlyWhenMoving = getMsx2PlayerAnimateOnlyWhenMoving(analysis);
   const playerHealth = getMsx2PlayerHealthSettings(analysis);
   const initialLivesByte = formatAsmByte(playerHealth.lives);
@@ -4422,6 +4465,134 @@ ${usePlayerWalkingFlag ? `.reset_player_sprite_frame_idle:
     ld (msx2_player_anim_frame), a
     ret
 ` : ''}` : '';
+  const playerFrameColorsAsm = playerColorAnim.enabled ? `
+; ------------------------------------------------------------
+; FUNCTION: update_msx2_player_frame_colors
+; ------------------------------------------------------------
+; PURPOSE:
+;   Re-upload the player's per-line hardware sprite colour table for the CURRENT
+;   animation frame to the SCREEN 4 sprite colour table (${SCREEN4_SPRCOL_VRAM}),
+;   but ONLY when the frame changed. V9938 sprite mode 2 stores one colour byte
+;   per sprite line and CC/OR multi-colour rows differ between frames; the SAT
+;   only swaps the pattern index per frame, so without this, frames > 0 render
+;   with frame 0's colours (white/garbage lines).
+;
+; INPUT:
+;   msx2_player_anim_frame    = current logical frame (0..${playerColorAnim.frameCount - 1}).
+;   msx2_player_colors_loaded = frame whose colours are currently in VRAM.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF (always); BC, DE, HL only when a frame change triggers the upload.
+;
+; PRESERVES:
+;   IX, IY. The common case (frame unchanged) touches only AF and returns early.
+;
+; CALLS:
+;   msx2_fast_copy_to_vram (only on a frame change).
+;
+; SIDE EFFECTS:
+;   On a frame change: writes ${playerColorAnim.stride} bytes (${playerColorAnim.layerCount} layer(s) x 16 lines)
+;   to the player's sprite colour planes at ${SCREEN4_SPRCOL_VRAM} and updates
+;   msx2_player_colors_loaded.
+;
+; NOTES:
+;   Source = msx2_hw_player_frame_colors + msx2_player_anim_frame * ${playerColorAnim.stride}.
+;   A horizontal-flip mirror reuses the same per-line colours, so the logical
+;   frame indexes the table directly. Self-correcting: any stale
+;   msx2_player_colors_loaded just forces one upload on the first differing
+;   frame. This is the first VRAM access of the main-loop iteration (right after
+;   the wait_frame_busy HALT that ended the previous frame), so it runs during
+;   vertical blank where msx2_fast_copy_to_vram's OTIR rate is safe.
+; ------------------------------------------------------------
+update_msx2_player_frame_colors:
+    ld a, (msx2_player_anim_frame)
+    ld c, a
+    ld a, (msx2_player_colors_loaded)
+    cp c
+    ret z
+    ld a, c
+    ld (msx2_player_colors_loaded), a
+    ld hl, msx2_hw_player_frame_colors
+    or a
+    jp z, .upload_player_frame_colors
+    ld de, ${playerColorAnim.stride}
+.add_player_frame_color_offset:
+    add hl, de
+    dec a
+    jp nz, .add_player_frame_color_offset
+.upload_player_frame_colors:
+    ld de, ${SCREEN4_SPRCOL_VRAM}
+    ld b, ${playerColorAnim.stride}
+    jp msx2_fast_copy_to_vram
+
+; ------------------------------------------------------------
+; FUNCTION: msx2_fast_copy_to_vram
+; ------------------------------------------------------------
+; PURPOSE:
+;   Fast RAM->VRAM block copy of up to 256 bytes via OTIR (~21 cyc/byte vs the
+;   ~50 cyc/byte of copy_to_vram_ext's byte loop). Used for the small per-frame
+;   sprite colour upload, which the main loop performs during vertical blank
+;   (first VRAM access of the iteration, right after wait_frame_busy) when VRAM
+;   is idle and the fast write rate is safe.
+;
+; INPUT:
+;   HL = source RAM/ROM pointer.
+;   DE = absolute VRAM destination (full 16-bit; top 2 bits select R#14 page).
+;   B  = byte count (1..256; 0 means 256).
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   None.
+;
+; SIDE EFFECTS:
+;   Writes B bytes to VRAM and restores R#14 = 0 (matches copy_to_vram_ext so
+;   other VRAM helpers can assume the high VRAM page register is 0). Resets the
+;   VDP control-port write latch before each register pair, like copy_to_vram_ext.
+;
+; NOTES:
+;   MSX I/O is 8-bit decoded, so OTIR streaming to port VDP_DATA_PORT is safe
+;   even though B (the OTIR counter) also drives bus A8-A15.
+; ------------------------------------------------------------
+msx2_fast_copy_to_vram:
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    push af
+    in a, (VDP_CTRL_PORT)
+    pop af
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    in a, (VDP_CTRL_PORT)
+    ld a, e
+    out (VDP_CTRL_PORT), a
+    ld a, d
+    and #3F
+    or #40
+    out (VDP_CTRL_PORT), a
+    ld c, VDP_DATA_PORT
+    otir
+    xor a
+    push af
+    in a, (VDP_CTRL_PORT)
+    pop af
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    ret
+` : '';
   const enemyAnimationRoutine = enemyAnimationFrameCount > 1 ? `
 ; ------------------------------------------------------------
 ; FUNCTION: update_msx2_enemy_sprite_animation
@@ -4859,28 +5030,32 @@ ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_x)
-    add a, 8
     ld c, a
-    ld a, c
-    cp b
-    jp c, .enemy_no_slot_${slot}
     ld a, b
-    add a, 15
+    add a, 16
     cp c
     jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
+    ld a, c
+    add a, 16
+    cp b
+    jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
 ${buildEnemyScreenSlotOffsetAsm(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld b, (hl)
     ld a, (msx2_player_sprite_y)
-    add a, 8
     ld c, a
-    ld a, c
-    cp b
-    jp c, .enemy_no_slot_${slot}
     ld a, b
-    add a, 15
+    add a, 16
     cp c
     jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
+    ld a, c
+    add a, 16
+    cp b
+    jp c, .enemy_no_slot_${slot}
+    jp z, .enemy_no_slot_${slot}
     jp .enemy_damage
 .enemy_no_slot_${slot}:
 `;
@@ -7745,7 +7920,7 @@ ${setPlayerWalkingFlagAsm}    ret
     ld (msx2_player_sprite_dx), a
 ${setPlayerWalkingFlagAsm}    ret
 
-${playerAnimationRoutine}${enemyAnimationRoutine}${pushBoxSatRefresh}write_hardware_sprite_attrs:
+${playerAnimationRoutine}${playerFrameColorsAsm}${enemyAnimationRoutine}${pushBoxSatRefresh}write_hardware_sprite_attrs:
     ; Writes player and enemy sprite attributes to the SCREEN 4 SAT. Clobbers AF/BC/DE/HL.
 ${attrWrites}
 ${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrWrite}${pushBoxAttrWrite}${carryAttrWrites}    ld a, 208
@@ -7754,7 +7929,7 @@ ${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrW
     ret
 
 upload_hardware_sprite_attrs:
-${animationFrameCount > 1 ? '    call update_msx2_player_sprite_animation\n' : ''}${enemyAnimationFrameCount > 1 ? '    call update_msx2_enemy_sprite_animation\n' : ''}${shooterBulletsEnabled ? '    call update_msx2_player_bullet\n' : ''}${enemyBulletsEnabled ? '    call update_msx2_enemy_bullet\n' : ''}
+${animationFrameCount > 1 ? '    call update_msx2_player_sprite_animation\n' : ''}${playerColorAnim.enabled ? '    call update_msx2_player_frame_colors\n' : ''}${enemyAnimationFrameCount > 1 ? '    call update_msx2_enemy_sprite_animation\n' : ''}${shooterBulletsEnabled ? '    call update_msx2_player_bullet\n' : ''}${enemyBulletsEnabled ? '    call update_msx2_enemy_bullet\n' : ''}
     call update_msx2_effect_state
 ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
     or a
@@ -8883,6 +9058,20 @@ function buildHardwareSpriteDataAsm(
     const frameLayers = clampHardwareSpriteCount(buildHardwareSpriteLayersForFrame(sprite, color, frameIndex)).slice(0, layers.length);
     return layers.map((fallbackLayer, layerIndex) => frameLayers[layerIndex] || fallbackLayer);
   });
+  // Per-frame player sprite colour tables (frameCount x layerCount x 16 lines),
+  // matching the per-frame pattern layout. CC/OR multi-colour rows differ
+  // between frames, so the runtime re-uploads the current frame's colours (see
+  // update_msx2_player_frame_colors); emitting only frame 0 left frames > 0 with
+  // frame 0's colours (white/garbage lines).
+  const playerColorAnim = getPlayerHardwareSpriteColorAnimation(analysis);
+  const playerFrameColorsTable = playerColorAnim.enabled ? `
+msx2_hw_player_frame_colors:
+${frameLayerSets.map((frameLayers, frameIndex) => frameLayers.map((layer, layerIndex) => {
+    const lineColors = (layer.colors || []).slice(0, 16);
+    while (lineColors.length < 16) lineColors.push(color);
+    return formatBytes(`msx2_hw_player_frame_${frameIndex}_colors_${layerIndex}`, lineColors, `Player anim frame ${frameIndex} layer ${layerIndex} per-line colours`);
+  }).join('')).join('')}msx2_hw_player_frame_colors_end:
+` : '';
   const horizontalFacing = getHorizontalFacingDirection(sprite);
   const mirrorPatternVariantCount = horizontalFacing ? 2 : 1;
   const enemyPatternVariantCount = enemyHorizontalFacing ? 2 : 1;
@@ -8948,7 +9137,7 @@ msx2_hw_sprite_colors:
 ${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, enemySpriteLayer?.colors || Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), enemySpriteLayer ? `Line colors for enemy/hazard hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}${Array.from({ length: playerBulletSlotCount }, (_unused, index) => formatBytes(`msx2_hw_player_bullet_colors${index === 0 ? '' : `_${index}`}`, control2Players ? (pongBallSpriteLayer?.colors || Array(16).fill(15)) : Array(16).fill(6), control2Players ? (pongBallSpriteLayer ? `Line colors for Pong ball hardware sprite slot ${index} from MSX2 entity sprite asset` : `Line colors for Pong ball hardware sprite slot ${index}`) : `Line colors for player bullet hardware sprite slot ${index}`)).join('')}${formatBytes('msx2_hw_enemy_bullet_colors', Array(16).fill(8), 'Line colors for enemy bullet hardware sprite slot')}${pushBoxLayer ? formatBytes('msx2_hw_push_box_sprite_colors', pushBoxLayer.colors, 'Push box moving hardware sprite line colors') : ''}${hideHud ? '' : Array.from({ length: 3 }, (_unused, index) => formatBytes(`msx2_hw_hud_life_colors_${index}`, Array(16).fill(10), `Line colors for HUD life marker ${index + 1}`)).join('')}msx2_hw_sprite_colors_end:
 
 ${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardware sprite(s), ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} enemy/hazard sprite slots, ${playerBulletSlotCount} player bullet slot, ${MSX2_ENEMY_BULLET_HARDWARE_SLOTS} enemy bullet slot${hideHud ? '' : ', 3 HUD life slots'}; next Y=208 terminates the SAT`)}
-`;
+${playerFrameColorsTable}`;
 }
 
 function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, nodeId: string): string | undefined {
@@ -12473,6 +12662,7 @@ reset_msx2_status_border:
     : 'update_msx2_bg_scroll' as const;
   const snakeCharMovement = usesSnakeCharMovement(analysis);
   const usePlayerWalkingFlagEquate = getMsx2PlayerAnimateOnlyWhenMoving(analysis) && !usesSnakeGrowth(analysis);
+  const playerColorsLoadedEquate = getPlayerHardwareSpriteColorAnimation(analysis).enabled;
   const shooter60HzFrameDispatchAsm = shooter60HzBudget
     ? buildMsx2Shooter60HzFrameDispatchAsm({
       backgroundScrollEnabled: shooterVerticalScrollRow,
@@ -13027,7 +13217,7 @@ msx2_current_behavior_ptr EQU #C01A
 msx2_snake_growth_pending EQU #C01C
 ${usePlayerWalkingFlagEquate ? 'msx2_player_walking_flag EQU #C01C\n' : ''}msx2_player_anim_counter EQU #C01D
 msx2_player_anim_frame EQU #C01E
-msx2_player_bullet_active EQU #C01F
+${playerColorsLoadedEquate ? `msx2_player_colors_loaded EQU ${formatHexWord(MSX2_PLAYER_COLORS_LOADED_RAM)}\n` : ''}msx2_player_bullet_active EQU #C01F
 msx2_player_bullet_x EQU #C020
 msx2_player_bullet_y EQU #C021
 msx2_player_bullet_cooldown EQU #C022

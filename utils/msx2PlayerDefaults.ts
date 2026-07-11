@@ -620,6 +620,7 @@ export const createDefaultMsx2PlayerDefinition = (
       invulnerabilityFrames: 60,
       knockbackX: isShooter ? 0 : 8,
       knockbackY: isShooter ? 0 : 4,
+      deadlyInstantRespawn: true,
     },
     equippedWeaponId: isShooter ? 'player_blaster' : 'short_sword',
     weapons: [{

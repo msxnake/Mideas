@@ -14,6 +14,255 @@ Leccion Aprendida:
 
 ---
 
+Fecha: 2026-07-02
+
+Problema:
+En SCREEN 5 bitmap, el Player Config definia `maxHealth=5`, pero el HUD mostraba
+cantidades distintas segun superficie: el editor de HUD podia dibujar 6 corazones
+por el ancho del widget y la ROM podia dibujar hasta 12 por el limite interno del
+backend.
+
+Causa:
+Los widgets `playerEnergy` mezclaban dos fuentes de verdad. El runtime ya leia
+`player_health` desde Player Config, pero el renderer del HUD y los builders ASM
+seguian usando `element.maxValue`, `element.initialValue`, ancho/spacing del widget
+o el clamp maximo de corazones. Eso hacia que la autoria visual mandase sobre el
+estado real del player.
+
+Solucion:
+Resolver `playerEnergy` contra `health.maxHealth` del Player Config tanto en el
+preview del editor como en `buildBitmapHudSeedPixels`, `buildBitmapHudLinkedBarAsm`
+y `buildBitmapHudLinkedIconRowAsm`. El widget puede conservar su layout, pero el
+contador/escala real sale del player.
+
+Leccion Aprendida:
+En HUDs ligados a gameplay, `binding=playerEnergy` debe usar siempre Player Config
+como fuente de verdad. `maxValue`, `initialValue`, ancho y spacing son datos de
+autoria/layout; si se usan como estado runtime, UI, preview y ROM divergen.
+
+---
+
+Fecha: 2026-07-02
+
+Problema:
+En SCREEN 5 bitmap, al cambiar a una pantalla adyacente el HUD podia mostrar
+valores divergentes o placeholders de seed en la nueva sala, aunque la primera
+pantalla se viera bien.
+
+Causa:
+El backend usa doble buffer por paginas VRAM: la sala nueva se compone en la
+pagina oculta y despues `commit_room_flip` cambia `bitmap_displayed_page`. Los
+widgets dinamicos del HUD redibujan solo si cambia su dirty flag. Tras el flip,
+la pagina nueva podia conservar el HUD seed inicial, pero el dirty flag seguia
+coincidiendo con el valor logico ya dibujado en la pagina anterior, asi que el
+widget no se redibujaba en la pagina visible nueva.
+
+Solucion:
+Invalidar los dirty flags del HUD dinamico dentro de `commit_room_flip`, despues
+de publicar `bitmap_displayed_page`. La invalidacion escribe un valor distinto
+al valor real actual (XOR 1; tambien para counters de 16 bits en el byte bajo),
+de modo que el siguiente frame reutiliza las rutinas existentes y redibuja sobre
+la nueva pagina visible.
+
+Leccion Aprendida:
+Con page flipping, un dirty flag global no prueba que la pagina actualmente
+visible tenga el rectangulo actualizado. Cualquier overlay dinamico dibujado
+solo en la pagina visible debe invalidarse al hacer flip, o mantener dirty/state
+por pagina.
+
+---
+
+Fecha: 2026-06-30
+
+Problema:
+En SCREEN 5 bitmap, con aceleracion/hielo alta durante una transicion entre
+pantallas, a veces se recomponia/cargaba una pantalla incorrecta o parecia
+repetirse la misma sala.
+
+Causa:
+`bitmap_try_move_x` sumaba un `dx` firmado directamente sobre `player_x` byte.
+Al entrar por el borde izquierdo (`player_x=2`) con velocidad residual negativa
+alta, por ejemplo `dx=#F8`, la suma de 8 bits envolvia a `250`. El player saltaba
+al borde derecho y podia disparar una transicion absurda antes de que el flujo de
+salas quedase estable.
+
+Solucion:
+Clampar el candidato X antes de hacer probes y antes de escribir `player_x`:
+velocidad negativa no puede bajar de `x=2`; velocidad positiva no puede pasar de
+`x=238`. La transicion de borde se decide despues por los rails, pero la coordenada
+no puede envolver.
+
+Leccion Aprendida:
+En ASM Z80, cualquier coordenada byte modificada por velocidad firmada debe tener
+clamp explicito antes de guardarse. No basta con comprobar la posicion actual:
+con velocidades mayores de 1-2 px/frame, `player_x + dx` puede envolver y simular
+que el player ha cruzado al borde contrario. Sintoma delator: bugs de transicion
+que solo aparecen con aceleracion/inercia alta.
+
+---
+
+Fecha: 2026-06-30
+
+Problema:
+En el backend SCREEN 5 bitmap, un tile marcado como Deadly en el Screen Editor
+no mataba al player. Ademas, parecia "llevar colision implicita": el player no
+podia pisar los pinchos.
+
+Causa:
+Dos fallos compuestos en `msx2Screen5BitmapRoomGenerator.ts`:
+1. `bitmap_probe_solid` hacia `ld a,(hl); or a; ret`: tratba cualquier byte !=0
+   como solido. Como Deadly = 0x40 (nibble alto), toda celda deadly bloqueaba
+   al player. El body nunca entraba en la celda deadly.
+2. El backend bitmap no tenia NINGUN sistema de deteccion de deadly, ni vidas,
+   ni health, ni respawn (eso solo existe en MSX1/SCREEN 2/4 via
+   `update_deadly_tiles_component`). Aunque el player tocara deadly, no pasaba
+   nada porque el main loop no comprobaba daño.
+
+Solucion:
+1. Enmascarar el bit Deadly antes del test de solidez (`and #BF`; #BF = ~#40).
+   Deadly solo (0x40) -> pasable; Solid+Deadly (0x50) -> sigue solido (Solid
+   0x10 sobrevive la mascara). Preservar A (contrato: devuelve cell value) con
+   `ld e,a; and #BF; ld a,e`.
+2. Rutina nueva `bitmap_check_deadly_contact` cada frame: probe deadly sobre la
+   banda inferior del body, decrementa health, arma i-frames, y al llegar a 0
+   health decrementa lives + respawn al spawn del room actual. 3 bytes RAM
+   fijos (`player_health/lives/invuln`) + tabla ROM de spawns por room.
+
+Leccion Aprendida:
+Un byte de celda con varios flags packeados NO puede testearse con un simple
+`or a` para "es solido": cualquier flag (deadly, breakable, interactable...)
+cuenta como solidez. La solidez es una mascara especifica, no "byte != 0". En
+SCREEN 5 bitmap, el nibble alto (#F0) es la familia/solidez, PERO el bit
+Deadly (0x40) debe excluirse porque un tile puede ser mortal-sin-bloquear
+(pinchos en el suelo). Regla: `solid = (cell & (#F0 & ~#40)) != 0` = `(cell &
+#B0) != 0`.
+
+Ademas: un backend jugable nuevo NO hereda el sistema de daño/vidas del
+backend anterior. Cada backend debe portar explicitamente la deteccion de
+peligros, vidas, respawn y game-over. Que el editor ofrezca el checkbox
+"Deadly" no implica que el runtime lo consuma; verificar siempre que el flag
+de autoría llega al runtime y dispara una accion.
+
+---
+
+## Bug Resuelto: atlas fuente SCREEN 5 recortado antes del repack compartido
+
+Fecha: 2026-06-26
+
+Problema:
+La UI SCREEN 5 mostraba una pantalla con tiles de hielo completos, pero la ROM
+MSX dibujaba solo lineas finas del patron.
+
+Causa:
+El world engine reempaqueta los atlas de todas las rooms en un atlas compartido
+offscreen. Antes de ese repack, `normalizeRoom` recortaba cada atlas fuente al
+maximo exportable de VRAM (512px). En `newOne31.json` la pantalla 4 tenia tiles
+usados con `sy=560`; al recortar primero, `extractAtlasEntryPixels` leia desde el
+borde recortado/filas vacias y el tile compartido se construia mal.
+
+Solucion:
+Separar el limite del atlas de autoria/fuente del limite del atlas compartido
+exportado a VRAM. El atlas fuente se normaliza con altura suficiente para leer
+`atlas.pixels` y `entry.sy + entry.h`; despues el repack compacto sigue obligado
+a caber en el area offscreen de 512px.
+
+Leccion:
+En SCREEN 5, no aplicar limites de VRAM al atlas de autoria antes de extraer los
+tiles. Primero leer los pixels reales guardados por la UI; luego reempaquetar y
+validar contra el limite hardware. Sintoma delator: solo fallan los tiles
+situados muy abajo en el atlas, aunque el atlas compartido final podria caber.
+
+---
+
+## Bug Resuelto: HMMM/HMMV usan coords de pixel, no de byte (mitad de pantalla)
+
+Fecha: 2026-06-24
+
+Problema:
+Al migrar el command engine del bitmap room de LMMM/LMMV a HMMM/HMMV para
+acelerar las transiciones de pantalla, solo se renderizaba la mitad izquierda
+de la sala al cambiar de pantalla.
+
+Causa:
+Asumí (basandome en el comentario del codigo Y en `MSX2_BITMAP_MULTICOLOR_STUDY.md:140`)
+que los comandos H (HMMM/HMMV) del V9938 operan en coordenadas de BYTE (2px/byte
+en SCREEN 5). Dividí SX/DX/NX entre 2 en `buildVdpCommandBlock`. Eso halveó todo:
+NX=8 (media tile), DX=C*8 (tiles apilados en la izquierda).
+
+En realidad HMMM/HMMV usan el MISMO espacio de coordenadas en PIXELS que
+LMMM/LMMV. La unica restriccion es que las X sean PARES (byte-aligned), lo cual
+ya se cumple porque todas nuestras coords son multiplos de 16 o 2.
+
+El comentario original del codigo ("0xD0/0xC0 doubled every X coordinate") y la
+linea 140 del doc del proyecto estaban AMBOS equivocados. El primer analisis del
+agente explore (Opt #1: "just swap the constants, HMMM uses pixels") era CORRECTO
+desde el principio.
+
+Solucion:
+Quitar el `/2` en `buildVdpCommandBlock`. Pasar coords de pixel directamente a
+HMMM/HMMV (commit `908cef24`). Las X ya son pares.
+
+Leccion:
+**HMMM/HMMV usan coordenadas de pixel, no de byte, en SCREEN 5/6/7/8.** Son
+~10x mas rapidos que LMMM/LMMV porque saltan la operacion logica per-pixel, NO
+porque cambien el sistema de coords. La restriccion es X par (byte-aligned).
+
+Variante de proceso: cuando un comentario o doc interno contradice el datasheet
+oficial del V9938, Y hay un bug visual empirico, **el bug empirico gana**. No
+confiar ciegamente en docs internos que pueden haber sido escritos tras un bug
+distinto y mal diagnosticado. El comentario original atribuia a HMMM un
+"doubling" que probablemente venia de otro fallo; se descarto HMMM por la razon
+equivocada y el proyecto se quedo con el LMMM lento durante meses.
+
+Sintoma delator: "solo se ve la mitad izquierda" = coords/widths divididas entre
+2 por error. Siempre que se vea half-screen en V9938 commands, revisar si se
+esta dividiendo X entre 2 sin razon.
+
+---
+
+
+
+Fecha:
+
+Problema:
+
+Causa:
+
+Solucion:
+
+Leccion Aprendida:
+
+---
+
+## Bug Resuelto: MegaROM SCREEN 5 bitmap escribe banco en RAM si page 2 no es cartucho
+
+Fecha: 2026-06-20
+
+Problema:
+SCREEN 5 bitmap-room en simple32k renderizaba bien, pero en MegaROM Konami
+terminaba blanco. El probe de OpenMSX mostraba que tras `ld (#8000),4`, la CPU
+leia `#04` desde `#8000`.
+
+Causa:
+La rutina habia copiado los setters de banco Konami de SCREEN 4, pero no la
+rutina previa que mapea `#8000-#BFFF` al mismo slot del cartucho que `#4000`.
+Sin esa seleccion de slot, `ld (#8000),A` escribia RAM en vez del registro del
+mapper, y el decoder RLE leia basura/blancos desde RAM.
+
+Solucion:
+Antes de inicializar los bancos Konami, llamar a una rutina tipo
+`map_page2_to_cart_primary` que usa `RSLREG`, resuelve slot expandido desde
+`#FCC1`, y llama a `ENASLT` con `H=#80`. Despues ya son validos
+`mapper_set_bank_p1/p2/p3`.
+
+Leccion:
+Al portar rutinas MegaROM entre backends, copiar el ciclo completo:
+seleccion de slot del cartucho + inicializacion de bancos + setters. Si un
+probe tras `ld (#8000),A` lee el mismo valor escrito, no hay mapper activo en
+esa pagina; es RAM visible.
+
+---
+
 ## Criterio de Registro
 
 Registrar solo lecciones esenciales de bugs resueltos.
@@ -786,3 +1035,511 @@ Si un asset visual se anima en el editor pero no en ROM, verificar primero si
 el generador esta empaquetando todos los frames y si el SAT cambia de grupo de
 patron. En sprites hardware 16x16 MSX2, animar significa cambiar indices de
 patron en saltos de 4; no basta con que el JSON tenga `animations`.
+
+---
+
+## Bug Resuelto (diagnostico): entidades colocadas no estan en screen.data.entities sino en screen.data.layers.entities
+
+Fecha: 2026-06-14
+
+Problema:
+Diagnosticando por que el Bat de `push13.json` no soltaba la bomba, inspeccione
+el JSON y conclui erroneamente que "el enemigo no estaba colocado en la pantalla"
+(0 entidades). El usuario corrigio: el Bat SI estaba colocado y se veia en
+OpenMSX volando.
+
+Causa:
+Al inspeccionar una pantalla MSX2 SCREEN 4 busque las entidades en
+`screen.data.entities` y `screen.data.entityInstances`, claves que NO existen.
+Las entidades colocadas (player/enemy/collectible/etc.) viven en
+`screen.data.layers.entities`. `layers` agrupa varias capas:
+`['collision', 'effects', 'behavior', 'entities']`. Mi script solo miro el nivel
+`data.*` y dio 0 entidades, llevandome a un diagnostico falso.
+
+Solucion:
+Releer el JSON recursivamente buscando la entidad real (`kind:'enemy'`,
+`flyerSine`) la localizo en `assets[N].data.layers.entities[i]`. Con la entidad
+ya encontrada, el diagnostico correcto fue otro (snapshot stale: la entidad
+colocada carecia de `msx2_ai.dropBombOnPlayerX` porque se coloco ANTES de marcar
+el check en el Enemy Config).
+
+Leccion:
+Para inspeccionar entidades colocadas en una pantalla MSX2 SCREEN 4, mirar
+SIEMPRE en `screen.data.layers.entities` (no en `data.entities`). `data.layers`
+contiene las capas collision/effects/behavior/entities. Antes de afirmar "no hay
+X en el JSON", hacer una busqueda RECURSIVA por una propiedad caracteristica del
+objeto buscado (p. ej. `flyerSine`, `kind:'enemy'`) en vez de asumir la ruta de
+la clave. Un grep negativo sobre una ruta concreta no prueba ausencia: prueba que
+no esta en ESA ruta.
+
+---
+
+## Tecnica/Trampa: smoke OpenMSX de ROMs Konami DEBE usar -romtype konami
+
+Fecha: 2026-06-14
+
+Problema:
+Depurando por que el player no podia empujar cajas al activar la bala del bat,
+arranque OpenMSX con `-cart rom` SIN `-romtype konami`. El cache de colision en
+RAM (#C2F0) aparecia lleno de CODIGO/basura en vez del mapa (`00 00 00 01...`),
+el player caia 16px de mas y las cajas reposaban una fila distinta. Conclui
+(erroneamente) que la copia de bancos megarom estaba rota y corrompia la
+colision. Casi persigo un bug inexistente.
+
+Causa:
+El generador emite ROMs MegaROM Konami4 cuyo cambio de banco es `ld (#8000), a`.
+Sin `-romtype konami`, OpenMSX auto-detecta MAL el mapper, asi que `ld (#8000),a`
+no pagina el banco de datos esperado y el `ldir` de screen-load copia bytes del
+banco equivocado (codigo) al cache de colision. El ROM en disco era correcto
+(offset 0x8E10 = `00 00 00 01...`); solo el runtime con mapper mal detectado
+producia basura. Al anadir `-romtype konami`, el cache salia correcto en ambos
+ROMs y el bug real (independiente) se reproducia limpiamente.
+
+Leccion:
+Todo smoke/debug OpenMSX de un ROM generado (MegaROM Konami) DEBE pasar
+`-romtype konami` (`openmsx -machine C-BIOS_MSX2+ -cart rom -romtype konami ...`).
+Sin el, el bank switching `ld (#8000),a` no funciona y veras corrupciones
+FALSAS (caches con codigo, saltos de fila en colision, fisica desplazada) que NO
+son bugs del juego sino del mapper mal detectado. Sintoma delator: un cache de
+RAM que deberia tener datos limpios (`00 00 00 01`) contiene secuencias que
+parecen opcodes (`21 xx C6 11 08 00 19 7E` = ld hl/ld de/add hl,de/ld a,(hl)).
+Antes de culpar a la copia de bancos, verificar: (1) el ROM en disco en el offset
+fisico del label tiene el dato correcto, y (2) el smoke usa el romtype correcto.
+
+---
+
+## Bug Resuelto: framebuffer SCREEN 5 cortado por leer datos ROM desde #8000
+
+Fecha: 2026-06-17
+
+Problema:
+El backend `msx2-screen4-bitmap-room` arrancaba en SCREEN 5 y escribia la parte
+superior del framebuffer, pero desde la linea ~128 la pantalla quedaba blanca.
+Parecia una pared de escritura VRAM en #4000.
+
+Causa:
+La escritura extendida a VRAM #4000 funcionaba. El fallo real era la fuente:
+el framebuffer crudo de 24576 bytes colocaba la segunda mitad del dato en
+direccion Z80 #8000+, y el ROM simple del smoke no garantizaba tener esa mitad
+del cartucho mapeada como lectura de ROM. La rutina leia #FF y escribia blanco
+en la zona inferior, aunque el archivo ROM en disco contuviera los bytes reales.
+
+Solucion:
+Emitir el framebuffer como RLE residente y descomprimirlo a VRAM por chunks de
+16KB, rearmando R#14 por chunk. El dato comprimido del smoke queda en la ventana
+ROM accesible y ya no depende de leer la segunda pagina en #8000.
+
+Leccion:
+Si una escritura a VRAM alta parece fallar, aislar primero destino y fuente:
+probar un micro-ROM que escriba un patron constante en VRAM #4000 y otro que lea
+la fuente desde #8000. Un watchpoint de lectura en #8000 no prueba que el dato sea
+correcto; puede estar leyendo #FF por mapeo. Para recursos grandes en ROM simple,
+usar compresion/staging accesible o un mapper real inicializado, no asumir que
+todo el archivo lineal esta visible en el espacio Z80.
+
+---
+
+## Bug Resuelto: paneles laterales no scrollean por cadena flex sin min-h-0
+
+Fecha: 2026-06-18
+
+Problema:
+En el editor SCREEN 5 (Msx2BitmapScreenEditor) los paneles laterales (asides) tenian
+`overflow-y-auto` pero al crecer su contenido (mas miniventanas) las de abajo quedaban
+ocultas y no aparecia scroll: crecia todo el editor.
+
+Causa:
+El componente `Panel` (components/common/Panel.tsx) envuelve a los hijos en un body por
+defecto `p-2 flex-grow overflow-auto` (bloque, NO flex-col). Ademas el div EXTERNO del
+Panel tenia `flex-grow` pero `min-height:auto` (default de flex), por lo que un flex item
+crece con su contenido en vez de acotarse a la altura disponible. Sin un eslabon acotado,
+los asides nunca recibian una altura tope y su `overflow-y-auto` no se activaba.
+
+Solucion:
+Acotar la cadena de alturas de arriba abajo con `min-h-0` y un body flex-col:
+- Pasar al `Panel` `className="... flex-grow flex flex-col min-h-0"` Y
+  `bodyClassName="flex-grow flex flex-col min-h-0 overflow-hidden"`.
+- La fila de columnas: `flex flex-grow min-h-0 overflow-hidden`; cada aside con
+  `overflow-y-auto`. El root del area de editores debe colgar de un contenedor acotado
+  (h-screen / min-h-0 en cada nivel intermedio).
+
+Leccion:
+Para que un `overflow-y-auto` scrollee, TODA la cadena de ancestros flex hasta el viewport
+debe estar acotada: cada flex item que a su vez es contenedor flex necesita `min-h-0`
+(porque `min-height:auto` impide encogerse). El `Panel` por defecto NO crea una columna
+flex acotada: hay que pasarle `bodyClassName` flex-col + `min-h-0`. Sintoma: contenido que
+crece y "empuja" en vez de scrollear.
+
+Variante (mismo dia): mapear clic de canvas a celda SIEMPRE por el tamano renderizado real
+(`rect.width/height`), NUNCA dividiendo por `zoom`. Un `<canvas>` sin tamano CSS explicito
+dentro de un flex con `align-items: stretch` se deforma; dar al canvas width/height CSS
+explicitos (= bitmap*zoom) + `flex:'0 0 auto'` + `alignSelf:'flex-start'`.
+
+---
+
+## Bug Resuelto: player SCREEN 5 bitmap sin paridad de runtime
+
+Fecha: 2026-06-19
+
+Problema:
+El player colocado en el editor beta SCREEN 5 bitmap se veia, pero no animaba y
+el backend no respetaba el contrato esperado de player tipo SCREEN 4.
+
+Causa:
+El backend `msx2-screen4-bitmap-room` era fase 1: empaquetaba solo el frame 0 del
+sprite, mantenia `player_pat` fijo, no generaba patrones mirror, y usaba movimiento
+libre arriba/abajo en vez de fisica de plataforma contra la tabla foreground 16x12.
+
+Solucion:
+Resolver el `msx2player` enlazado desde `playerEntries`, empaquetar frames y mirror
+del `msx2sprite`, actualizar `player_pat` por frame/facing, y usar movimiento de
+plataforma basico con gravedad, salto y probes contra la tabla de colision de 192 bytes.
+
+Leccion:
+Un backend grafico nuevo no hereda automaticamente el contrato del player de SCREEN 4.
+Cada backend jugable debe portar explicitamente: fuente real del sprite, frames, mirror,
+RAM de estado, fisica, input y colision foreground. Un smoke debe probar RAM/SAT/patron,
+no solo que el sprite aparece en una captura.
+
+---
+
+## Bug Resuelto: DE clobbeado a traves de un call (load_room colision basura)
+
+Fecha: 2026-06-20
+
+Problema:
+World engine SCREEN 5: al entrar en una room el player quedaba amurallado, sin gravedad,
+solo animaba ("paredes alrededor").
+
+Causa:
+`load_room` guardaba el indice de room en DE entre los lookups de tablas, pero
+`replay_room_commands` clobbea DE (via `vdp_reinit_cmd_pointer` que hace `ld e,#20`). El
+lookup del puntero de colision uso DE basura -> dereferencio puntero basura -> LDIR de
+colision basura a RAM -> toda celda parecia solida.
+
+Solucion:
+Re-derivar el indice desde `current_screen_index` (RAM) despues del call, sin confiar en DE.
+Corregido tambien el comentario PRESERVES de `replay_room_commands` (clobbea DE).
+
+Leccion:
+Confirma la primera hipotesis del charter: un caller nunca debe asumir que un registro
+sobrevive a un `call` sin leer su DESTROYS. Si el comentario PRESERVES miente, corregir
+codigo Y comentario. Ver tabla de clobbers de helpers VDP en `ai/ASM_GUIDELINES.md`.
+
+---
+
+## Bug Resuelto: estado global del VDP (R#15) no restaurado tras un call -> lag
+
+Fecha: 2026-06-20
+
+Problema:
+World engine SCREEN 5: tras una transicion de pantalla el juego iba lentisimo, como si
+"pintara la pantalla constantemente". El start room iba bien.
+
+Causa:
+`load_room` usa el command engine; `read_vdp_status_2` deja R#15=2 (status select = S#2).
+`init` reseteaba R#15=0 tras el primer load_room, pero `try_room_transition` no. Tras la
+transicion, `bitmap_wait_vblank` (asume R#15=0, lee S#0 bit7) leia S#2, no veia el flag de
+vblank y agotaba el contador de fallback (#4000) cada frame -> lag.
+
+Solucion:
+`load_room` restaura R#15=0 antes de retornar (cubre init y transiciones). Verificado en
+OpenMSX: travesia pant1<->pant2<->pant3 a velocidad normal.
+
+Leccion:
+La regla de "registros no preservados" incluye el ESTADO GLOBAL del VDP, no solo registros
+de CPU. Si una rutina cambia R#15 (status select), R#17 (indirect pointer) o bancos de
+mapper, debe restaurarlo o documentarlo en su cabecera. Ver `ai/ASM_GUIDELINES.md`.
+
+---
+
+## Diagnostico: la fisica del Player vive anidada en data.player.movement
+
+Fecha: 2026-06-20
+
+Problema:
+Al cablear el salto del SCREEN 5 bitmap al Player Config, un grep de `data.movement` del
+asset `msx2player` daba `None` y un test inyectando `data.movement.jumpPower=8` no surtia
+efecto: el generador siempre veia `jumpPower=5`. Parecia que el build "reseteaba" el player.
+
+Causa:
+El asset `msx2player` guarda la config en `data.player.movement` (detallado) y
+`data.compact.movement`, NO en `data.movement`. `parseMsx2PlayerImport` aplana `doc.player`
+(o `doc.compact`), asi que la inyeccion al nivel raiz se ignoraba y se leia el valor real
+(default 5) de la ruta anidada.
+
+Leccion:
+La fuente real de fisica del Player es `data.player.movement` / `data.compact.movement`
+(no `data.movement`). Variante de la leccion 2026-06-14 (entidades en `layers.entities`):
+antes de concluir "no hay config", buscar en la ruta anidada correcta; un grep negativo a
+nivel raiz no prueba ausencia. `getMsx2PlatformPhysicsFromPlayerEntity` devuelve 8.8
+(`jumpImpulse88`/`terminalVelocity88`); el backend bitmap usa px enteros (redondear /256).
+
+---
+
+## Tecnica: capture_openmsx_action.py necesita boot-wait-ms >= 6000 para timing fino
+
+Fecha: 2026-06-25
+
+Problema:
+Verificando coyote_time/jump_buffer en SCREEN 5 bitmap, los tests con
+`capture_openmsx_action.py --boot-wait-ms 4000` y secuencias cortas (WAIT/SPACE de
+80-250ms + capture 0-60ms) daban probes del estado POKEADO intacto (ningun frame
+procesaba tras el poke). P. ej. poke coyote=4, WAIT:200, capture 0 -> probe leia
+coyote=04 (sin decrementar) y player_y=50 (sin moverse). Con WAIT:500 si procesaba.
+
+Causa:
+`after time X` es tiempo de EMULACION. OpenMSX tarda en arrancar (cargar ROM,
+init VDP, etc.), asi que con boot-wait-ms 4000 los primeros `after time` cortos
+(<500ms) se leen antes de que la emulacion haya procesado bastantes frames tras
+el poke. El umbral empirico esta entre 4000 y 6000.
+
+Solucion:
+Para smokes de mecanicas con timing fino (frames concretos tras un poke), usar
+`--boot-wait-ms 6000` (o mas). Con boot 6000, WAIT:200+capture 0 ya procesa
+~12 frames (player se mueve, timers decrementan). Para mecanicas de ventana
+corta (coyote/jump_buffer de 4-8 frames), ampliar la ventana del parametro a
+60 frames en el JSON de test y usar boot 6000 + secuencia ~250ms.
+
+Leccion:
+El capturador OpenMSX necesita margen de arranque. Sintoma delator: probe lee
+exactamente el valor pokeado (sin un solo frame de processing) -> boot-wait-ms
+muy bajo para la duracion del test. No es un bug del juego ni del generador; es
+del harness de smoke. Verificado con coyote_time + jump_buffer SCREEN 5 bitmap.
+
+---
+
+## Bug Resuelto: feel del salto distinto entre SCREEN 4 (8.8) y SCREEN 5 (entero)
+
+Fecha: 2026-06-25
+
+Problema:
+El usuario noto que el salto de su proyecto SCREEN 5 (bitmap room) "se siente
+menos suave" que su proyecto SCREEN 4 (tile). Mismo Player Config, distinto feel.
+
+Causa:
+Los dos backends usaban modelos de fisica vertical INCOMPATIBLES:
+- SCREEN 4 (`msx2_apply_platform_gravity`): acumulador 16-bit 8.8
+  (`msx2_player_gravity_vel`), suma `gravityStrength88` (default `#0040` =
+  0.25 px/frame^2) cada frame. La velocidad en px (parte alta) solo cambia
+  cuando la fraccion se desborda -> arco gradual.
+- SCREEN 5 (`.apply_gravity`): `inc (player_vy)` FIJO cada frame =
+  1 px/frame^2 SIEMPRE, sin fraccion, ignorando `gravityStrength88`.
+Resultado: SCREEN 5 aceleraba 4x mas rapido, arco "cuadrado".
+
+Solucion:
+Anadido sub-acumulador `player_vy_frac` (1 byte fijo) a SCREEN 5. `.apply_gravity`
+acumula la parte baja de `gravityStrength88` y solo `inc (player_vy)` cuando
+carry. Mantiene `player_vy` como byte (sin tocar el path de movimiento pixel a
+pixel). Paridad de MODELO con SCREEN 4.
+
+Leccion:
+**Al portar fisica entre backends, mantener el mismo MODELO (resolucion
+sub-pixel), no solo los mismos valores.** Dos backends que leen el mismo
+`gravityStrength88` del Player Config pero lo aplican con distinta resolucion
+(8.8 vs entero) dan feels distintos aunque el JSON sea identico. La paridad de
+"Play vs ROM" exige paridad de MODELO, no solo de constantes.
+
+Variante: cuando un backend legacy usa un modelo mas tosco (entero) por
+simplicidad historica, portar el modelo fino (8.8 / sub-acumulador) es una
+mejora global que afecta a TODOS los proyectos de ese backend. Documentarlo
+como cambio de feel intencional (no bug) para que el usuario sepa que sus
+proyectos existentes se moveran, y dejarle afinar los valores.
+
+---
+
+## Bug Resuelto: atlas SCREEN 5 deduplicaba tiles distintos por huella ambigua
+
+Fecha: 2026-06-25
+
+Problema:
+Tras intercambiar colores en un tile SCREEN 5, la UI seguia mostrando el mapa
+correcto, pero la ROM podia mostrar otro patron en pantallas 2/3 del mundo.
+
+Causa:
+El export del atlas compartido deduplicaba tiles por una huella construida con
+`row.join('')`. En SCREEN 5 los indices de paleta van de 0 a 15; sin separador o
+codificacion fija, secuencias distintas pueden producir la misma cadena
+(`1,11` y `11,1`, por ejemplo). El empaquetador fusionaba tiles diferentes y las
+pantallas acababan copiando el patron compartido equivocado.
+
+Solucion:
+Codificar cada pixel como nibble hexadecimal fijo (`0..f`) dentro de la huella
+del atlas antes de deduplicar.
+
+Leccion:
+En SCREEN 5 nunca concatenar indices de paleta decimal sin separador para crear
+hashes o fingerprints. Usar separador, byte/nibble fijo o bytes reales; si no,
+la deduplicacion puede corromper visualmente solo el ROM mientras la UI parece
+correcta.
+
+---
+
+## Bug Resuelto: guardar atlas SCREEN 5 cambiaba el significado de tileGrid
+
+Fecha: 2026-06-25
+
+Problema:
+Al usar `Guardar en atlas` desde el editor de tile bitmap, otras pantallas del
+mismo mundo podian mostrar tiles distintos aunque la UI pareciera conservar el
+grid.
+
+Causa:
+El atlas de SCREEN 5 es compartido por mundo, pero `tileGrid` guarda indices
+numericos 1-based hacia `atlas.entries`. Al propagar un atlas actualizado a las
+pantallas hermanas, se copiaban las nuevas entradas sin traducir los indices
+viejos por `entry.id`; una celda que antes apuntaba a la roca en indice 2 podia
+quedarse en 2 aunque la roca hubiese pasado al indice 1.
+
+Solucion:
+Al propagar un atlas compartido, remapear cada `tileGrid` desde el atlas antiguo
+al nuevo usando `entry.id`, y reconstruir los comandos `copy` derivados. Si una
+entrada desaparece, limpiar la celda en vez de apuntar a un tile incorrecto.
+
+Leccion:
+En SCREEN 5, `tileGrid` es compacto pero no estable frente a reordenaciones del
+atlas. Cualquier cambio de `atlas.entries` que se propague entre rooms debe
+llevar remap por ID; copiar solo el atlas conserva los numeros pero corrompe el
+significado visual.
+
+---
+
+## Bug Resuelto: importar PNG SCREEN 5 creaba assets pero no actualizaba atlas
+
+Fecha: 2026-06-25
+
+Problema:
+Al importar un PNG desde una room SCREEN 5 bitmap, los tiles acababan en la
+biblioteca/proyecto pero no aparecian en el `Tile Atlas` de la pantalla activa.
+
+Causa:
+El flujo `onImportBitmapTileAssets` solo anexaba assets `msx2bitmaptile` al
+proyecto. En SCREEN 5 bitmap, el atlas visible y el ROM consumen
+`room.atlas.entries`; crear assets de proyecto no los hace disponibles para
+pintar en la room.
+
+Solucion:
+Cuando hay una `msx2bitmaproom` activa, convertir los `msx2bitmaptile` recien
+creados a tiles de atlas, llamar a `importTilesIntoAtlas`, y guardar a la vez
+el atlas actualizado y los assets de proyecto. Refrescar tambien los stamps
+creados desde PNG.
+
+Leccion:
+En SCREEN 5 hay dos destinos distintos: assets de biblioteca/proyecto y atlas
+de room/mundo. Los flujos de importacion visual con room activa deben actualizar
+ambos; si solo crean assets, la UI no ofrece el tile para pintar.
+
+---
+
+## Bug Resuelto: importar PNG SCREEN 5 debe escribir directo al atlas activo
+
+Fecha: 2026-06-25
+
+Problema:
+Al importar un PNG desde la biblioteca de tiles con una room SCREEN 5 activa, el
+resultado podia quedarse solo en biblioteca/stamps/assets intermedios y no aparecer
+en el Tile Atlas de la pantalla.
+
+Causa:
+El flujo dependia de crear assets `msx2bitmaptile` y de que otro callback los
+reconvirtiera al atlas. Ese rodeo era fragil: el contrato visible del boton
+"Importar PNG" en SCREEN 5 debe ser "queda disponible en el atlas activo", no
+"queda en biblioteca para importarlo despues".
+
+Solucion:
+En modo SCREEN 5 con room activa, el modal importa directamente los tiles no
+vacios al atlas mediante `onImportTiles`, y deja la biblioteca/stamp como copia
+secundaria. Sin room activa, sigue creando assets de proyecto como antes.
+
+Leccion:
+Para SCREEN 5, cualquier accion UI que diga importar PNG mientras hay una room
+activa debe llamar al camino de atlas activo de forma directa. Los assets y la
+biblioteca son persistencia auxiliar, no sustituyen a `room.atlas.entries`.
+
+---
+
+## Bug Resuelto: importador PNG abria en SCREEN 4 aunque la room activa era SCREEN 5
+
+Fecha: 2026-06-25
+
+Problema:
+El flujo real del usuario (`Importar tile` -> `Importar PNG` -> seleccionar un
+tile -> `Aplicar` -> `Auto` -> `Añadir a la biblioteca`) no hacia aparecer el
+tile en el atlas SCREEN 5.
+
+Causa:
+El modal externo de PNG inicializaba siempre `outputMode='screen4'`. Aunque la
+biblioteca estuviera abierta desde una room SCREEN 5, el import terminaba en la
+ruta de biblioteca color-clash SCREEN 4, no en `onImportTiles` de atlas SCREEN 5.
+
+Solucion:
+El modal acepta `defaultOutputMode`; la biblioteca le pasa `screen5` cuando
+`activeTargetMode === 'screen5'` y resetea ese modo cada vez que se abre. Se
+añadio test Playwright recurrente con `plantas_tiles.png` que valida que el
+contador de atlas sube a 1.
+
+Leccion:
+No basta con arreglar el callback final: en flujos con modal intermedio, validar
+tambien el estado inicial del modal. Si una room SCREEN 5 abre un importador PNG,
+el modo seleccionado por defecto debe ser SCREEN 5.
+
+---
+
+## Bug Resuelto: biblioteca global SCREEN 5 solo validaba Color clash en atlas
+
+Fecha: 2026-06-26
+
+Problema:
+En una room SCREEN 5, importar desde la biblioteca global parecia funcionar solo
+con tiles de la carpeta `Color clash`; los tiles de `Bitmap SCREEN 5` no quedaban
+claramente validados como entradas nuevas del atlas.
+
+Causa:
+El flujo de biblioteca tenia dos rutas distintas: `Color clash` usaba
+`handleImport` y `Bitmap SCREEN 5` usaba `handleImportBitmap`. La cobertura de
+test solo verificaba PNG y no comprobaba que ambas carpetas escribieran en el
+mismo destino visible (`room.atlas.entries`). Ademas, si la paleta bitmap diferia,
+el flujo debia pasar por conciliacion antes de llamar a `onImportTiles`.
+
+Solucion:
+Con room SCREEN 5 activa, los bitmap tiles se convierten a `Msx2Screen4Tile`,
+conciliando paleta cuando hace falta, y se importan por `onImportTiles` igual que
+los Color clash. El test Playwright recurrente ahora precarga una entrada de
+cada carpeta y exige que el atlas suba 0 -> 1 -> 2 antes de probar PNG.
+
+Leccion:
+Para SCREEN 5, la biblioteca global tiene dos carpetas pero un unico destino de
+edicion: el atlas activo. Cualquier test de importacion debe cubrir ambas rutas
+(`Color clash` y `Bitmap SCREEN 5`) y no solo el importador PNG.
+
+---
+
+## Bug Resuelto: atlas SCREEN 5 recortado a 256px en export ROM
+
+Fecha: 2026-06-26
+
+Problema:
+La UI SCREEN 5 bitmap mostraba correctamente columna y plantas importadas, pero
+la ROM MSX dibujaba solo parte de la columna y las plantas salian como huecos o
+patrones incorrectos.
+
+Causa:
+El editor permite que el atlas crezca por debajo de 256px de alto. En
+`newOne28(1)4.json` habia tiles usados con `sy=336`, `sy=352` y `sy=368`.
+El generador bitmap normalizaba `atlas.height` con maximo 256, asi que esos
+pixeles no se empaquetaban ni se subian a VRAM, aunque los comandos de room
+siguieran copiando desde esas coordenadas.
+
+Solucion:
+Permitir atlas relativo de hasta 512px en el export SCREEN 5 bitmap. Con
+`BITMAP_ROOM_ATLAS_BASE_Y=512`, esto ocupa como maximo VRAM Y 512..1023
+(`#10000..#1FFFF`), dentro de la VRAM addressable del V9938.
+
+Leccion:
+La UI y el generador deben compartir el mismo limite de atlas. Si el editor
+crece el atlas mas alla de 256px, el export no puede recortarlo silenciosamente:
+debe soportarlo o fallar explicitamente. Sintoma delator: la UI muestra tiles
+nuevos al final del atlas, pero la ROM copia huecos/patrones viejos solo para
+esos tiles.
+
+---

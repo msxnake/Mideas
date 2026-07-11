@@ -33,6 +33,8 @@ import { WaveformEditorModal } from '../tracker/WaveformEditorModal';
 import { Panel } from '../common/Panel';
 import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
 import { CowbellPT3Player } from '../utils/cowbellPt3Player';
+import { useMidiInput } from '../../utils/useMidiInput';
+import { MidiInputPanel, MidiChannelMode, MidiActionId, MidiActionMap } from '../tracker/MidiInputPanel';
 
 const hasFullPT3Header = (bytes: Uint8Array): boolean => {
   const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
@@ -876,32 +878,46 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     setExternalPt3CurrentTime(nextTime);
   }, []);
 
-  const handlePlayStop = async () => {
-    if (synthesizer) {
-      if (isPlaying) {
-        synthesizer.stopAllNotes();
-        setIsPlaying(false);
-        if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
-        playbackIntervalRef.current = null;
-        setPlaybackRow(0);
-        channelPendingNoteCutRef.current = Array(channels.length).fill(false);
-        clearPreviewNoteTimeout();
-        clearPianoHighlights();
-      } else {
-        synthesizer.stopAllNotes();
-        await synthesizer.ensureAudioContext();
-        if (synthesizer['audioContext']?.state === 'running') {
-          clearPreviewNoteTimeout();
-          clearPianoHighlights();
-          setIsPlaying(true);
-          setPlaybackRow(0);
-          channelPendingNoteCutRef.current = Array(channels.length).fill(false);
-        } else {
-          console.warn("AudioContext could not be started or resumed. Playback prevented.");
-        }
-      }
+  // Stop playback. When `resetRow` is true (Stop) the playhead returns to row 0;
+  // when false (Pause) the current row is kept so playback can resume in place.
+  const stopPlayback = useCallback((resetRow: boolean) => {
+    if (synthesizer) synthesizer.stopAllNotes();
+    setIsPlaying(false);
+    if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
+    playbackIntervalRef.current = null;
+    if (resetRow) setPlaybackRow(0);
+    channelPendingNoteCutRef.current = Array(channels.length).fill(false);
+    clearPreviewNoteTimeout();
+    clearPianoHighlights();
+  }, [synthesizer, channels.length, clearPreviewNoteTimeout, clearPianoHighlights]);
+
+  // Start playback. `resetRow` true starts from row 0 (Play); false resumes from
+  // the current playhead (Resume after Pause).
+  const startPlayback = useCallback(async (resetRow: boolean) => {
+    if (!synthesizer) return;
+    synthesizer.stopAllNotes();
+    await synthesizer.ensureAudioContext();
+    if (synthesizer['audioContext']?.state === 'running') {
+      clearPreviewNoteTimeout();
+      clearPianoHighlights();
+      setIsPlaying(true);
+      if (resetRow) setPlaybackRow(0);
+      channelPendingNoteCutRef.current = Array(channels.length).fill(false);
+    } else {
+      console.warn("AudioContext could not be started or resumed. Playback prevented.");
     }
-  };
+  }, [synthesizer, channels.length, clearPreviewNoteTimeout, clearPianoHighlights]);
+
+  const handlePlayStop = useCallback(async () => {
+    if (isPlaying) stopPlayback(true);
+    else await startPlayback(true);
+  }, [isPlaying, startPlayback, stopPlayback]);
+
+  // Pause/resume toggle: unlike Play/Stop it preserves the playhead position.
+  const handlePlayPause = useCallback(async () => {
+    if (isPlaying) stopPlayback(false);
+    else await startPlayback(false);
+  }, [isPlaying, startPlayback, stopPlayback]);
 
   const handleSilenceAllChannels = useCallback(() => {
     if (synthesizer) {
@@ -1347,6 +1363,193 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels, schedulePreviewNoteCut, getResolvedCellValue, mutedChannels]);
 
+  // --- MIDI input (Akai MPK Mini MK3 and other Web MIDI devices) ---
+  const [midiOctaveOffset, setMidiOctaveOffset] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('mideas.tracker.midi.octaveOffset') || '0', 10);
+    return Number.isFinite(v) ? Math.max(-4, Math.min(4, v)) : 0;
+  });
+  const [midiChannelMode, setMidiChannelMode] = useState<MidiChannelMode>(() => {
+    return (localStorage.getItem('mideas.tracker.midi.channelMode') as MidiChannelMode) === 'fixed' ? 'fixed' : 'follow';
+  });
+  const [midiFixedChannelIndex, setMidiFixedChannelIndex] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('mideas.tracker.midi.fixedChannel') || '0', 10);
+    return Number.isFinite(v) ? v : 0;
+  });
+  // When on, the MIDI Note On velocity is written to the cell's volume column
+  // (velocity 1..127 -> volume 1..15). When off, the volume column is untouched.
+  const [midiVelocityToVolume, setMidiVelocityToVolume] = useState<boolean>(() => {
+    return localStorage.getItem('mideas.tracker.midi.velocityToVolume') !== '0';
+  });
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.velocityToVolume', midiVelocityToVolume ? '1' : '0'); }, [midiVelocityToVolume]);
+
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.octaveOffset', String(midiOctaveOffset)); }, [midiOctaveOffset]);
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.channelMode', midiChannelMode); }, [midiChannelMode]);
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.fixedChannel', String(midiFixedChannelIndex)); }, [midiFixedChannelIndex]);
+
+  // CC -> tracker action map (MIDI Learn). Functions are CC-only so they never
+  // collide with note input. Persisted so a learned layout survives reloads.
+  const EMPTY_MIDI_ACTION_MAP: MidiActionMap = {
+    playStop: null, pause: null, recArm: null,
+    instrumentPrev: null, instrumentNext: null, volumeDown: null, volumeUp: null,
+  };
+  const [midiActionMap, setMidiActionMap] = useState<MidiActionMap>(() => {
+    try {
+      const raw = localStorage.getItem('mideas.tracker.midi.actionMap');
+      if (raw) return { ...EMPTY_MIDI_ACTION_MAP, ...JSON.parse(raw) };
+    } catch { /* ignore malformed storage */ }
+    return EMPTY_MIDI_ACTION_MAP;
+  });
+  const [midiLearnTarget, setMidiLearnTarget] = useState<MidiActionId | null>(null);
+  // REC arm: live MIDI notes are written into the pattern during playback only
+  // while this is on. Stopped step-entry editing is unaffected.
+  const [midiRecArmed, setMidiRecArmed] = useState(false);
+  // Tracks the last value per CC so we fire actions on the rising edge only.
+  const ccLastValueRef = useRef<Map<number, number>>(new Map());
+
+  useEffect(() => { localStorage.setItem('mideas.tracker.midi.actionMap', JSON.stringify(midiActionMap)); }, [midiActionMap]);
+
+  // Convert a MIDI note number to a tracker note string (e.g. 60 -> "C-4"),
+  // applying the configured octave offset. MIDI 60 = C4. Returns null if the
+  // resulting octave is outside the tracker's 0..7 range.
+  const midiNoteToTrackerNote = useCallback((midiNote: number): string | null => {
+    const noteIndex = ((midiNote % 12) + 12) % 12;
+    const baseOctave = Math.floor(midiNote / 12) - 1;
+    const octave = baseOctave + midiOctaveOffset;
+    if (octave < 0 || octave > 7) return null;
+    return `${PT3_NOTE_NAMES[noteIndex]}${octave}`;
+  }, [midiOctaveOffset]);
+
+  // Insert a note string at an explicit (row, channel) target, reusing the
+  // exact same logic as the on-screen piano / computer keyboard: write the
+  // cell, preview through the synth, highlight the key, and advance the row.
+  const insertNoteAtChannel = useCallback((channelId: TrackerChannelId, noteName: string, velocity?: number) => {
+    if (!currentPattern) return;
+    const channelIndex = channels.indexOf(channelId);
+    if (channelIndex < 0) return;
+    // Velocity sensitivity: map MIDI velocity (1..127) to PT3 volume (1..15).
+    const velVolume = (midiVelocityToVolume && typeof velocity === 'number')
+      ? Math.max(1, Math.min(15, Math.round((velocity / 127) * 15)))
+      : null;
+    // While playing, record live at tempo: write into the row currently being
+    // played and let the cursor follow the playhead (do NOT advance the edit
+    // cursor per note, which produced the sequential bug). When stopped, behave
+    // as step entry at the focused cell, advancing by editStepJump.
+    const recording = isPlaying;
+    // While playing, only capture live notes when REC is armed. Stopped
+    // step-entry (editing) is always allowed.
+    if (recording && !midiRecArmed) return;
+    const rowIndex = recording
+      ? Math.max(0, Math.min(currentPattern.numRows - 1, playbackRow))
+      : (focusedCell ? focusedCell.rowIndex : 0);
+    const resolvedInstrumentId = getResolvedCellValue(rowIndex, channelId, 'instrument');
+    const resolvedOrnamentId = getResolvedCellValue(rowIndex, channelId, 'ornament');
+    // Manual preview only when stopped. During playback the engine plays the
+    // written note on its next pass, and a manual note-cut would silence the
+    // channel mid-playback.
+    if (!recording && !mutedChannels.has(channelId)) {
+      synthesizer?.playNote(
+        channelIndex as any,
+        noteName,
+        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
+        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
+        velVolume ?? currentPattern.rows[rowIndex]?.[channelId]?.volume ?? 15
+      );
+      schedulePreviewNoteCut(channelIndex);
+    }
+    setActivePianoKeys(prev => new Set(prev).add(noteName));
+    setActivePianoKeyLevels(prev => { const next = new Map(prev); next.set(noteName, 1); return next; });
+    if (activePianoKeysTimeoutRef.current) clearTimeout(activePianoKeysTimeoutRef.current);
+    activePianoKeysTimeoutRef.current = window.setTimeout(() => {
+      setActivePianoKeys(prev => { const next = new Set(prev); next.delete(noteName); return next; });
+      setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteName); return next; });
+    }, 150);
+    handleCellChange(rowIndex, channelId, 'note', noteName);
+    // Translate the played velocity into the cell's volume column.
+    if (velVolume !== null) {
+      handleCellChange(rowIndex, channelId, 'volume', velVolume.toString(16).toUpperCase());
+    }
+    if (!recording) {
+      focusCellAndSelectText(Math.min(currentPattern.numRows - 1, rowIndex + editStepJump), channelId, 'note');
+    }
+  }, [currentPattern, focusedCell, channels, getResolvedCellValue, mutedChannels, synthesizer, activeInstrumentId, activeOrnamentId, schedulePreviewNoteCut, handleCellChange, focusCellAndSelectText, editStepJump, isPlaying, playbackRow, midiRecArmed, midiVelocityToVolume]);
+
+  const handleMidiNoteOn = useCallback((midiNote: number, velocity: number) => {
+    const noteName = midiNoteToTrackerNote(midiNote);
+    if (!noteName) return;
+    // Follow cursor: requires a focused cell; otherwise default to first channel.
+    if (midiChannelMode === 'follow') {
+      const targetChannel = focusedCell ? focusedCell.channelId : channels[0];
+      insertNoteAtChannel(targetChannel, noteName, velocity);
+    } else {
+      const idx = Math.max(0, Math.min(channels.length - 1, midiFixedChannelIndex));
+      insertNoteAtChannel(channels[idx], noteName, velocity);
+    }
+  }, [midiNoteToTrackerNote, midiChannelMode, focusedCell, channels, midiFixedChannelIndex, insertNoteAtChannel]);
+
+  // Note Off: nothing to clean up here. Preview note cuts are scheduled by
+  // the preview timeout; explicit silencing on key release is intentionally
+  // avoided so it does not interfere with row playback / pending cuts.
+  const handleMidiNoteOff = useCallback((_midiNote: number) => { /* no-op: state-safe */ }, []);
+
+  // Cycle the active instrument by dir (+1/-1), wrapping around the list.
+  const cycleInstrument = useCallback((dir: 1 | -1) => {
+    const instruments = songData.instruments || [];
+    if (instruments.length === 0) return;
+    const curIdx = instruments.findIndex(i => i.id === activeInstrumentId);
+    const base = curIdx < 0 ? 0 : curIdx;
+    const nextIdx = (base + dir + instruments.length) % instruments.length;
+    setActiveInstrumentId(instruments[nextIdx].id);
+  }, [songData.instruments, activeInstrumentId]);
+
+  // Nudge the volume column (0..15) of the focused cell by delta. Volume is
+  // stored as a single hex digit, so we pass it as such to handleCellChange.
+  const adjustFocusedVolume = useCallback((delta: number) => {
+    if (!focusedCell || !currentPattern) return;
+    const resolved = getResolvedCellValue(focusedCell.rowIndex, focusedCell.channelId, 'volume');
+    const base = typeof resolved === 'number' ? resolved : 15;
+    const next = Math.max(0, Math.min(15, base + delta));
+    handleCellChange(focusedCell.rowIndex, focusedCell.channelId, 'volume', next.toString(16).toUpperCase());
+  }, [focusedCell, currentPattern, getResolvedCellValue, handleCellChange]);
+
+  const clearMidiAction = useCallback((action: MidiActionId) => {
+    setMidiActionMap(prev => ({ ...prev, [action]: null }));
+  }, []);
+
+  // Control Change handler. When a learn target is armed the next CC binds to
+  // that action; otherwise the CC fires its mapped action on a rising edge
+  // (value crosses 64 upward) so pads/knobs don't double-trigger.
+  const handleMidiControlChange = useCallback((cc: number, value: number) => {
+    if (midiLearnTarget) {
+      setMidiActionMap(prev => {
+        const next = { ...prev };
+        // A CC can only drive one action: clear it elsewhere first.
+        (Object.keys(next) as MidiActionId[]).forEach(k => { if (next[k] === cc) next[k] = null; });
+        next[midiLearnTarget] = cc;
+        return next;
+      });
+      setMidiLearnTarget(null);
+      ccLastValueRef.current.set(cc, value);
+      return;
+    }
+    const prevValue = ccLastValueRef.current.get(cc) ?? 0;
+    ccLastValueRef.current.set(cc, value);
+    const pressed = prevValue < 64 && value >= 64;
+    if (!pressed) return;
+    if (midiActionMap.playStop === cc) { void handlePlayStop(); return; }
+    if (midiActionMap.pause === cc) { void handlePlayPause(); return; }
+    if (midiActionMap.recArm === cc) { setMidiRecArmed(v => !v); return; }
+    if (midiActionMap.instrumentPrev === cc) { cycleInstrument(-1); return; }
+    if (midiActionMap.instrumentNext === cc) { cycleInstrument(1); return; }
+    if (midiActionMap.volumeDown === cc) { adjustFocusedVolume(-1); return; }
+    if (midiActionMap.volumeUp === cc) { adjustFocusedVolume(1); return; }
+  }, [midiLearnTarget, midiActionMap, handlePlayStop, handlePlayPause, cycleInstrument, adjustFocusedVolume]);
+
+  const midi = useMidiInput({
+    onNoteOn: handleMidiNoteOn,
+    onNoteOff: handleMidiNoteOff,
+    onControlChange: handleMidiControlChange,
+  });
+
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
       setEditingInstrument(instrument);
@@ -1762,6 +1965,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             activeOrnamentId={activeOrnamentId}
             onSetActiveOrnamentId={setActiveOrnamentId}
             onOpenOrnamentModal={handleOpenOrnamentModal}
+          />
+          <MidiInputPanel
+            midi={midi}
+            octaveOffset={midiOctaveOffset}
+            onOctaveOffsetChange={setMidiOctaveOffset}
+            channelMode={midiChannelMode}
+            onChannelModeChange={setMidiChannelMode}
+            fixedChannelIndex={midiFixedChannelIndex}
+            onFixedChannelIndexChange={setMidiFixedChannelIndex}
+            channelLabels={channels as unknown as string[]}
+            onActivateAudio={() => { void synthesizer?.ensureAudioContext(); }}
+            actionMap={midiActionMap}
+            learnTarget={midiLearnTarget}
+            onLearnAction={setMidiLearnTarget}
+            onClearAction={clearMidiAction}
+            recArmed={midiRecArmed}
+            velocityToVolume={midiVelocityToVolume}
+            onVelocityToVolumeChange={setMidiVelocityToVolume}
           />
           </div>
         </div>

@@ -6,7 +6,7 @@ import {
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp,
+  powerStomp, iceSlide, perception,
 } from './handlers/index';
 
 for (const skill of [
@@ -16,14 +16,14 @@ for (const skill of [
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp,
+  powerStomp, iceSlide, perception,
 ]) {
   registerSkill(skill);
 }
 
 export {
   registerSkill, getSkill, getAllSkills, getCoreSkills, getOptionalSkills,
-  hasSkill, clearRegistry, buildStateMachine, getTotalCycles,
+  getSkillsForBackend, hasSkill, clearRegistry, buildStateMachine, getTotalCycles,
 } from './registry';
 export type { SkillDef, StateTransition, PlayerStateMachine, PlayerState, SkillControlIcon } from './types';
 export {
@@ -33,5 +33,5 @@ export {
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp,
+  powerStomp, iceSlide, perception,
 } from './handlers/index';

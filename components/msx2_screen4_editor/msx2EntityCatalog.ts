@@ -40,6 +40,9 @@ export type Msx2ComponentId =
   | 'msx2_grid_snap'
   | 'msx2_box2'
   | 'msx2_carryable'
+  | 'msx2_pressure_button'
+  | 'msx2_jumper'
+  | 'msx2_wall_jumper'
   | 'msx2_scroll';
 
 export interface Msx2ComponentDefinition {
@@ -106,7 +109,7 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     paletteSlot: { label: 'Box palette', min: 1, max: 15, ariaLabel: 'MSX2 PushBox palette slot' },
   },
   msx2_movement: {
-    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
+    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
     speed: { label: 'Speed', min: 0, max: 15 },
     direction: { label: 'Direction', min: -1, max: 1 },
     minX: { label: 'Min X', min: 0, max: 255 },
@@ -133,6 +136,27 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     targetScreenId: { label: 'Target screen ID' },
     requiresCollectibles: { kind: 'boolean', label: 'Requires collectibles' },
     locked: { kind: 'boolean', label: 'Locked' },
+  },
+  msx2_pressure_button: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    targetDoorId: { label: 'Target door ID' },
+    actors: { kind: 'select', options: ['playerAndEnemies', 'player', 'enemies'], label: 'Actors' },
+    latch: { kind: 'boolean', label: 'Latch' },
+    atlasEntryId: { label: 'Released atlas tile ID' },
+    pressedAtlasEntryId: { label: 'Pressed atlas tile ID' },
+  },
+  msx2_jumper: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    atlasEntryId: { label: 'Idle atlas tile ID' },
+    triggeredAtlasEntryId: { label: 'Triggered atlas tile ID' },
+    impulsePx: { label: 'Impulse (px/frame)', min: 2, max: 15 },
+  },
+  msx2_wall_jumper: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    atlasEntryId: { label: 'Idle atlas tile ID' },
+    triggeredAtlasEntryId: { label: 'Triggered atlas tile ID' },
+    impulsePx: { label: 'Impulse (px/frame)', min: 2, max: 15 },
+    direction: { kind: 'select', options: ['left', 'right'], label: 'Launch direction' },
   },
   msx2_hazard: {
     damage: { label: 'Damage', min: 0, max: 255 },
@@ -273,13 +297,21 @@ export type Msx2RuntimeEngine =
   | 'staticEnemy'
   | 'ghostMaze'
   | 'patrolX'
+  | 'patrolChaseX'
+  | 'walkerGravity'
   | 'patrolY'
+  | 'movingPlatform'
   | 'hazard'
   | 'collectible'
   | 'pickupItem'
   | 'spike'
   | 'door'
+  | 'pressureButton'
+  | 'jumper'
+  | 'wallJumper'
   | 'checkpoint'
+  | 'npc'
+  | 'hiddenObj'
   | 'control_2_players'
   | 'paddleHorizontal'
   | 'ballBounce'
@@ -580,6 +612,8 @@ export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
   { value: 'snakeChar', label: 'Snake Char Grid' },
   { value: 'control_2_players', label: '2P Pong Controls' },
   { value: 'patrolX', label: 'Patrol X' },
+  { value: 'patrolChaseX', label: 'Patrol Chase X' },
+  { value: 'walkerGravity', label: 'Walker Gravity' },
   { value: 'patrolY', label: 'Patrol Y' },
   { value: 'ghostMaze', label: 'Ghost Maze' },
 ] as const;
@@ -702,6 +736,42 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     params: { runtime: 'MSX2', engine: 'patrolX', movement: 'patrolX', direction: 1 },
   },
   {
+    id: 'patrol_chase_x',
+    label: 'MSX2 Patrol Chase X',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'patrolChaseX',
+    description: 'Horizontal patrol that detects the player inside its patrol span and runs toward them without leaving the bounds.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_animation: { animation: 'patrol_walk', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
+      msx2_movement: { mode: 'patrolChaseX', direction: 1 },
+      msx2_health: {},
+      msx2_damage: {},
+      msx2_collision: { damage: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'patrolChaseX', movement: 'patrolChaseX', direction: 1 },
+  },
+  {
+    id: 'walker_gravity',
+    label: 'MSX2 Walker Gravity',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'walkerGravity',
+    description: 'Horizontal walker that falls when there is no floor and reverses on wall collision.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_animation: { animation: 'walk', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
+      msx2_movement: { mode: 'walkerGravity', direction: 1 },
+      msx2_health: {},
+      msx2_damage: {},
+      msx2_collision: { damage: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'walkerGravity', movement: 'walkerGravity', direction: 1 },
+  },
+  {
     id: 'patrol_y',
     label: 'MSX2 Patrol Y',
     kind: 'enemy',
@@ -718,6 +788,21 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_collision: { damage: 1 },
     },
     params: { runtime: 'MSX2', engine: 'patrolY', movement: 'patrolY', direction: 1 },
+  },
+  {
+    id: 'moving_platform',
+    label: 'MSX2 Moving Platform',
+    kind: 'platform',
+    runtime: 'MSX2',
+    engine: 'movingPlatform',
+    description: 'Hardware-sprite moving platform (patrol X/Y, 16 or 32 px wide) the player can stand on and ride. One-way: solid only from above.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_movement: { mode: 'patrolX', direction: 1, boundsUnit: 'px' },
+      msx2_platform: { carriesPlayer: true, oneWay: true, speed: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'movingPlatform', movement: 'patrolX', direction: 1 },
   },
   {
     id: 'hazard',
@@ -789,6 +874,60 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     params: { runtime: 'MSX2', engine: 'pickupItem', collectible: true, points: 100 },
   },
   {
+    id: 'pressure_button',
+    label: 'MSX2 Pressure Button',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'pressureButton',
+    description: 'Floor pressure button that can be stepped on by the player or bitmap enemies to open a linked gate.',
+    components: {
+      msx2_transform: {},
+      msx2_pressure_button: { enabled: true, actors: 'playerAndEnemies', latch: false, targetDoorId: '', atlasEntryId: '', pressedAtlasEntryId: '' },
+      msx2_collision: { solid: false },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'pressureButton',
+      pressureButton: { enabled: true, actors: 'playerAndEnemies', latch: false, targetDoorId: '', atlasEntryId: '', pressedAtlasEntryId: '' },
+    },
+  },
+  {
+    id: 'jumper',
+    label: 'MSX2 Jumper (Spring)',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'jumper',
+    description: 'Solid 16x16 spring tile (SCREEN 5 bitmap rooms): the player lands on top and is launched upward; the tile swaps to a triggered frame for a moment.',
+    components: {
+      msx2_transform: {},
+      msx2_jumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8 },
+      msx2_collision: { solid: true },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'jumper',
+      jumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8 },
+    },
+  },
+  {
+    id: 'wallJumper',
+    label: 'MSX2 Wall Jumper (Spring)',
+    kind: 'custom',
+    runtime: 'MSX2',
+    engine: 'wallJumper',
+    description: 'Solid 16x16 wall-spring tile (SCREEN 5 bitmap rooms): the player touches its side and is launched horizontally; gravity then bends the launch into an arc. Place it against a vertical wall (left or right).',
+    components: {
+      msx2_transform: {},
+      msx2_wall_jumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8, direction: 'right' },
+      msx2_collision: { solid: true },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'wallJumper',
+      wallJumper: { enabled: true, atlasEntryId: '', triggeredAtlasEntryId: '', impulsePx: 8, direction: 'right' },
+    },
+  },
+  {
     id: 'door',
     label: 'MSX2 Door',
     kind: 'door',
@@ -803,6 +942,30 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_collision: { solid: false },
     },
     params: { runtime: 'MSX2', engine: 'door' },
+  },
+  {
+    id: 'npc',
+    label: 'MSX2 Talking NPC',
+    kind: 'npc',
+    runtime: 'MSX2',
+    engine: 'npc',
+    description: 'SCREEN 5 bitmap-room NPC: the player overlaps its 16x16 cell and presses the talk key (UP/SPACE) to play an MSX2 Dialogue (typewriter box + talking-head portrait). Its visual is an atlas tile baked into the room render.',
+    components: {
+      msx2_transform: {},
+    },
+    params: { runtime: 'MSX2', engine: 'npc', npcDialogue: { dialogueAssetId: '', atlasEntryId: '', talkKey: 'up' } },
+  },
+  {
+    id: 'hidden_obj',
+    label: 'MSX2 Hidden Object',
+    kind: 'hidden_obj',
+    runtime: 'MSX2',
+    engine: 'hiddenObj',
+    description: 'SCREEN 5 bitmap-room invisible marker for the Perception skill: when the player enters the skill radius, flag_near is raised and the perceiving animation state can trigger (e.g. glowing tail). Bakes no visual into the room.',
+    components: {
+      msx2_transform: {},
+    },
+    params: { runtime: 'MSX2', engine: 'hiddenObj', hiddenObj: true },
   },
   {
     id: 'checkpoint',

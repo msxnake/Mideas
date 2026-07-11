@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-VALID_KEYS = {"UP", "DOWN", "LEFT", "RIGHT", "SPACE", "SPC"}
+VALID_KEYS = {"UP", "DOWN", "LEFT", "RIGHT", "SPACE", "SPC", "M"}
 KEY_ALIASES = {"SPC": "SPACE"}
 MSX_KEY_MATRIX = {
     "SPACE": ("8", "0x01"),
@@ -19,6 +19,7 @@ MSX_KEY_MATRIX = {
     "UP": ("8", "0x20"),
     "DOWN": ("8", "0x40"),
     "RIGHT": ("8", "0x80"),
+    "M": ("2", "0x01"),
 }
 DEFAULT_MACHINE = "C-BIOS_MSX2"
 

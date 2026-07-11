@@ -3347,9 +3347,46 @@
           "requiredCollectibles": 2,
           "initialAir": 192,
           "activeAreaX": 0,
-          "activeAreaY": 0,
+          "activeAreaY": 1,
           "activeAreaWidth": 16,
-          "activeAreaHeight": 12
+          "activeAreaHeight": 11,
+          "showHud": true,
+          "statusHud": true,
+          "hudStyle": "statusBars",
+          "playerEnergyMax": 16,
+          "playerEnergyInitial": 8,
+          "hudPrimaryColor": 10,
+          "hudBorderColor": 15,
+          "hudEmptyColor": 4,
+          "hudWidgets": [
+            {
+              "id": "hud_exit_air",
+              "name": "Air",
+              "kind": "bar",
+              "binding": "air",
+              "x": 16,
+              "y": 3,
+              "width": 96,
+              "height": 6,
+              "maxValue": 255,
+              "initialValue": 192,
+              "primaryColor": 10,
+              "borderColor": 15,
+              "emptyColor": 4
+            },
+            {
+              "id": "hud_life_icon",
+              "name": "Life Icon",
+              "kind": "icon",
+              "binding": "lives",
+              "x": 8,
+              "y": 4,
+              "width": 16,
+              "height": 16,
+              "primaryColor": 15,
+              "iconTileIndex": 3
+            }
+          ]
         }
       }
     },
@@ -6618,9 +6655,63 @@
           "requiredCollectibles": 2,
           "initialAir": 255,
           "activeAreaX": 0,
-          "activeAreaY": 0,
+          "activeAreaY": 2,
           "activeAreaWidth": 16,
-          "activeAreaHeight": 12
+          "activeAreaHeight": 10,
+          "showHud": true,
+          "statusHud": true,
+          "hudStyle": "statusBars",
+          "playerEnergyMax": 16,
+          "playerEnergyInitial": 12,
+          "bossEnergyMax": 32,
+          "bossEnergyInitial": 24,
+          "hudPrimaryColor": 10,
+          "hudSecondaryColor": 8,
+          "hudBorderColor": 15,
+          "hudEmptyColor": 4,
+          "hudWidgets": [
+            {
+              "id": "hud_player_energy",
+              "name": "Player Energy",
+              "kind": "bar",
+              "binding": "playerEnergy",
+              "x": 8,
+              "y": 5,
+              "width": 64,
+              "height": 6,
+              "maxValue": 16,
+              "initialValue": 12,
+              "primaryColor": 10,
+              "borderColor": 15,
+              "emptyColor": 4
+            },
+            {
+              "id": "hud_score",
+              "name": "Score",
+              "kind": "counter",
+              "binding": "score",
+              "x": 104,
+              "y": 4,
+              "width": 40,
+              "height": 8,
+              "maxValue": 255,
+              "initialValue": 0,
+              "primaryColor": 15,
+              "secondaryColor": 10
+            },
+            {
+              "id": "hud_label",
+              "name": "Room Label",
+              "kind": "text",
+              "binding": "custom",
+              "x": 176,
+              "y": 4,
+              "width": 64,
+              "height": 8,
+              "primaryColor": 15,
+              "text": "ROOM"
+            }
+          ]
         }
       }
     },

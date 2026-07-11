@@ -2,9 +2,24 @@
 
 Source analysis: `research/vampire_killer_openmsx/report.md`.
 
+> Correction (2026-06-16): Vampire Killer actually runs in **SCREEN 5
+> (GRAPHIC 4, 16-color packed bitmap)**, confirmed by the trace (`R0=0x06`,
+> 128-byte/4bpp stride, active VDP command engine). The command engine only works
+> in bitmap modes (SCREEN 5/6/7/8), never in GRAPHIC 3.
+>
+> Mideas naming caveat: there are two "SCREEN 4" routes. `msx2-screen4-pattern`
+> is real GRAPHIC 3 tile mode (clash, no blitter). `msx2-screen4-bitmap-room` is
+> only *named* SCREEN 4 — at runtime it does `CHGMOD 5` (real SCREEN 5) and
+> composes a 4bpp bitmap with the command engine, i.e. the actual VK technique.
+> So the section titles below saying "SCREEN 4" refer to that bitmap-room route,
+> whose real hardware mode is SCREEN 5. See
+> `docs/project/MSX2_BITMAP_MULTICOLOR_STUDY.md` and the mode note in
+> `docs/project/MSX2_GRAPHICS_BACKEND_PLAN.md`.
+
 ## Core Takeaway
 
-Vampire Killer is a useful model for the Mideas MSX2 path because it treats SCREEN 4 as a composed bitmap scene, not as a live hardware tilemap.
+Vampire Killer is a useful model for the Mideas MSX2 path because it treats
+SCREEN 5 as a composed bitmap scene, not as a live hardware tilemap.
 
 The authoring model can stay tile/cell based in Mideas, but the runtime/export model should be:
 

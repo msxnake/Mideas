@@ -236,6 +236,7 @@ interface AnimatedEntity {
     wallJumpData?: {
         lockFramesRemaining: number;
         lockedVx: number;
+        chainStarted?: boolean;
     };
     isWallGrabbing?: boolean;
     wallGrabReleaseGraceFrames?: number;
@@ -5223,11 +5224,26 @@ useEffect(() => {
                 break;
             case 'jumper': {
                 const jumpStrength = Math.max(8, interactionValue > 0 ? interactionValue : 8);
+                // SCREEN 5 jumper A button: SPACE is the Preview mapping for the
+                // game A button. Holding it on the collision frame gives 150% of
+                // the configured launch strength (8 -> 12, for example).
+                const boostedJumpStrength = pressedKeys.current.has(' ')
+                    ? Math.floor(jumpStrength * 1.5)
+                    : jumpStrength;
                 entity.isOnGround = false;
                 entity.platformUnderneath = null;
                 entity.platformGraceFramesLeft = 0;
                 entity.gravityVel = 0;
-                entity.vy = -jumpStrength;
+                entity.vy = -boostedJumpStrength;
+                break;
+            }
+            case 'wallJumper': {
+                // Horizontal spring: launch the player sideways. interactionValue
+                // carries the impulse magnitude (px/frame); its sign encodes the
+                // direction (positive = right, negative = left). Gravity keeps
+                // acting so the preview shows the arcing trajectory.
+                const strength = interactionValue !== 0 ? interactionValue : 8;
+                entity.vx = strength > 0 ? Math.min(15, strength) : Math.max(-15, strength);
                 break;
             }
             default:
@@ -8453,13 +8469,14 @@ useEffect(() => {
                             const touchingRight = !!entityA.isTouchingWallRight;
                             const touchingWall = touchingLeft || touchingRight;
                             if (!entityA.wallJumpData) {
-                                entityA.wallJumpData = { lockFramesRemaining: 0, lockedVx: 0 };
+                                entityA.wallJumpData = { lockFramesRemaining: 0, lockedVx: 0, chainStarted: false };
                             }
 
                             // Landing clears wall slide and lock state
                             if (onGroundNow) {
                                 entityA.wallJumpData.lockFramesRemaining = 0;
                                 entityA.wallJumpData.lockedVx = 0;
+                                entityA.wallJumpData.chainStarted = false;
                             }
 
                             // Wall slide clamp: cap vy to wallSlideSpeed when sliding
@@ -8483,19 +8500,35 @@ useEffect(() => {
                                 pressedKeys.current,
                                 msx2Player.inputMapping,
                             );
+                            const leftPressed = pressedKeys.current.has('ArrowLeft')
+                                || pressedKeys.current.has('a')
+                                || pressedKeys.current.has('A');
+                            const rightPressed = pressedKeys.current.has('ArrowRight')
+                                || pressedKeys.current.has('d')
+                                || pressedKeys.current.has('D');
+                            const initialWallSide =
+                                touchingLeft && leftPressed ? 'left'
+                                    : touchingRight && rightPressed ? 'right'
+                                        : null;
+                            const chainedWallSide =
+                                touchingLeft ? 'left'
+                                    : touchingRight ? 'right'
+                                        : null;
+                            const wallJumpSide = entityA.wallJumpData.chainStarted ? chainedWallSide : initialWallSide;
                             const jumpUnlocked = !wallJumpConfig.requireKeyRelease || !entityA.msx2WallJumpKeyLock;
-                            if (!onGroundNow && touchingWall && jumpPressed && !jumpKeyProcessed.current && jumpUnlocked) {
+                            if (!onGroundNow && touchingWall && wallJumpSide && jumpPressed && !jumpKeyProcessed.current && jumpUnlocked) {
                                 const wallJumpPower = (wallJumpConfig.wallJumpPower88 >> 8) & 0xFF;
                                 const signedWallJumpPower = wallJumpPower >= 0x80 ? wallJumpPower - 0x100 : wallJumpPower;
                                 const horizontal = Math.max(1, wallJumpConfig.wallJumpHorizontal);
                                 const lockFrames = Math.max(4, Math.min(16, Math.floor(horizontal * 2) || 8));
-                                const jumpVx = touchingLeft ? horizontal : -horizontal;
+                                const jumpVx = wallJumpSide === 'left' ? horizontal : -horizontal;
 
                                 entityA.gravityVel = wallJumpConfig.wallJumpPower88 & 0xFFFF;
                                 entityA.vy = signedWallJumpPower;
                                 entityA.vx = jumpVx;
                                 entityA.wallJumpData.lockedVx = jumpVx;
                                 entityA.wallJumpData.lockFramesRemaining = lockFrames;
+                                entityA.wallJumpData.chainStarted = true;
                                 if (wallJumpConfig.requireKeyRelease) {
                                     entityA.msx2WallJumpKeyLock = true;
                                 }

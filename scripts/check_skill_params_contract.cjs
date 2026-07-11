@@ -119,7 +119,8 @@ assert(physicsCode.includes('clampMsx2CoyoteFrames') && physicsCode.includes('cl
 // 17) msx2Screen4Generator wires the EQU + decrement + coyote/buffer logic
 assert(handlersCode.includes('parameters: firstJumpParameters'),
   'jump core skill wires its parameters array');
-const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8');
+const genCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts'), 'utf8')
+  .replace(/\r\n/g, '\n');
 // Lesson 2026-06-08 + fix 2026-06-10: the timers were hardcoded at #C047/#C048,
 // which IS msx2_box2_count/msx2_box2_try_dx in pushBox projects (the box2 RAM
 // base is a TS const, invisible to an "EQU #C047" grep). They now resolve
@@ -384,6 +385,14 @@ assert(genCode.includes('cp ${MSX2_ENEMY_MOVEMENT_FLYER_SINE}') && genCode.inclu
   'enemy slot dispatch reaches the FlyerSine ASM branch');
 assert(genCode.includes('msx2_enemy_flyer_sine_shared:') && genCode.includes('Shared FlyerSine movement') && genCode.includes('DESTROYS: AF/BC/DE/HL'),
   'FlyerSine emitted shared ASM routine documents its register contract');
+assert(genCode.includes('foreground wall probe at (candidateX+15, y+8): solid -> reverse dx.')
+  && genCode.includes('foreground wall probe at (candidateX, y+8): solid -> reverse dx.')
+  && genCode.includes('foreground floor probe at (x+8, candidateY+15): solid -> reverse dy.')
+  && genCode.includes('foreground ceiling probe at (x+8, candidateY): solid -> reverse dy.')
+  && genCode.includes('.flyer_sine_shared_wall_turn:')
+  && genCode.includes('.flyer_sine_shared_floor_turn:')
+  && genCode.includes('call msx2_collision_at_pixel'),
+  'FlyerSine probes foreground solids on each movement axis and reverses movement on contact');
 assert(genCode.includes('msx2_enemy_screen_slot_offset_from_b:') && genCode.includes('PRESERVES: BC/HL/IX/IY'),
   'shared enemy offset helper documents its preserve contract');
 assert(!layoutCode.includes('FLYER_SINE'),
@@ -497,4 +506,72 @@ assert(catalogCode.includes('selectEnemyRenderRole') && catalogCode.includes('fr
 assert(genCode.includes('parseEnemyFrameList') && genCode.includes('anim.frameList') && genCode.includes('enemyAnimationSettings.frameIndices.map'),
   'MSX2 generator consumes enemy msx2_animation.frameList when emitting shared enemy sprite frames');
 
-console.log('\nAll 65 plumbing checks passed.');
+// SCREEN 5 bitmap Deadly-tile damage system (player_health/lives/invuln).
+// Lesson 2026-06-08: a new RAM EQU must not collide with a 16-bit pointer's
+// HI byte. These 3 fixed bytes live in the safe gap between the optional
+// state-anim block (#C1F0-#C1F5) and the behavior map (#C200), far above the
+// skill chain (which starts at player_vy_frac #C0D9) and clear of every
+// documented 16-bit pointer in the bitmap runtime.
+const bitmapGenCode = fs.readFileSync(path.join(ROOT, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts'), 'utf8')
+  .replace(/\r\n/g, '\n');
+assert(/player_health\s+EQU\s+#C1FD/.test(bitmapGenCode) && /player_lives\s+EQU\s+#C1FE/.test(bitmapGenCode) && /player_invuln\s+EQU\s+#C1FF/.test(bitmapGenCode),
+  'bitmap deadly system reserves 3 fixed bytes at #C1FD-#C1FF (clear of the skill chain and 16-bit pointers)');
+assert(!/EQU\s+#C1F[DEF]/.test(bitmapGenCode
+  .replace(/player_health\s+EQU\s+#C1FD/, '')
+  .replace(/player_lives\s+EQU\s+#C1FE/, '')
+  .replace(/player_invuln\s+EQU\s+#C1FF/, '')),
+  'no other bitmap EQU reuses the deadly-system bytes #C1FD-#C1FF');
+assert(bitmapGenCode.includes('function resolveBitmapPlayerVitals') && bitmapGenCode.includes('health.maxHealth') && bitmapGenCode.includes('health.lives') && bitmapGenCode.includes('health.invulnerabilityFrames'),
+  'resolveBitmapPlayerVitals reads maxHealth/lives/invulnerabilityFrames from the Player Config');
+assert(bitmapGenCode.includes('function buildBitmapDeadlySystemAsm'),
+  'bitmap deadly system has a dedicated ASM builder');
+assert(bitmapGenCode.includes('and #BF') && /bitmap_probe_solid:[\s\S]*?and #BF/.test(bitmapGenCode),
+  'bitmap_probe_solid masks the Deadly bit (#BF = ~#40) so deadly-only tiles are passable');
+assert(bitmapGenCode.includes('bitmap_probe_deadly:') && bitmapGenCode.includes('bit 6, a'),
+  'bitmap_probe_deadly helper tests the Deadly bit (0x40) without altering A');
+assert(bitmapGenCode.includes('FUNCTION: bitmap_check_deadly_contact') && bitmapGenCode.includes('DESTROYS:\n;   AF, DE, HL') && bitmapGenCode.includes('PRESERVES:\n;   BC'),
+  'bitmap_check_deadly_contact has the mandatory ASM contract (DESTROYS/PRESERVES)');
+assert(bitmapGenCode.includes('call bitmap_check_deadly_contact'),
+  'bitmap main loop calls bitmap_check_deadly_contact every frame');
+assert(bitmapGenCode.includes('bitmap_room_spawn_x_table') && bitmapGenCode.includes('bitmap_room_spawn_y_table'),
+  'bitmap deadly respawn reads the per-room spawn tables');
+
+// Blink i-frames + deadlyInstantRespawn option (Player Config health.deadlyInstantRespawn).
+const playerDefaultsCode = fs.readFileSync(path.join(ROOT, 'utils', 'msx2PlayerDefaults.ts'), 'utf8');
+assert(playerDefaultsCode.includes('deadlyInstantRespawn: true'),
+  'msx2PlayerDefaults seeds health.deadlyInstantRespawn = true (platformer-style default)');
+assert(/deadlyInstantRespawn\?:\s*boolean/.test(typesCode),
+  'Msx2PlayerDefinition.health.deadlyInstantRespawn is an optional boolean');
+assert(bitmapGenCode.includes('deadlyInstantRespawn') && bitmapGenCode.includes('health.deadlyInstantRespawn'),
+  'bitmap vitals resolver reads health.deadlyInstantRespawn');
+assert(bitmapGenCode.includes('blink_phase   EQU #C1F9') && bitmapGenCode.includes('blink_ended   EQU #C1FA') && bitmapGenCode.includes('blink_hide    EQU #C1FB'),
+  'bitmap blink reserves 3 fixed bytes at #C1F9-#C1FB (next to the deadly vitals)');
+assert(bitmapGenCode.includes('blink_timer   EQU player_invuln'),
+  'blink_timer aliases player_invuln (in_blink == blink_timer != 0; no extra RAM)');
+assert(bitmapGenCode.includes('enableBlink: boolean = false') && bitmapGenCode.includes('enableBlink: bitmap backend always renders i-frame flicker'),
+  'buildRuntimeAsm gates SAT flicker on enableBlink and generateUnitedFiles turns it on');
+assert(bitmapGenCode.includes('ld a, (blink_hide)') && /bitmap_update_sprite_sat:[\s\S]*?blink_hide/.test(bitmapGenCode),
+  'bitmap_update_sprite_sat reads blink_hide to flicker the player sprite while invulnerable');
+assert(bitmapGenCode.includes('ld (blink_ended), a') && bitmapGenCode.includes('blink ended this frame'),
+  'bitmap_check_deadly_contact pulses blink_ended the frame blink finishes (1 -> 0)');
+
+// Hearts HUD (SCREEN 5 bitmap): one heart per player_health, drawn via HMMM.
+assert(bitmapGenCode.includes('function buildBitmapHeartTilePixels') && bitmapGenCode.includes('HEART_FULL_MASK'),
+  'bitmap hearts bakes a hand-authored 16x16 heart mask (full + outline)');
+assert(bitmapGenCode.includes('BITMAP_HUD_HEART_VRAM') && bitmapGenCode.includes('BITMAP_HUD_HEART_TILE_Y = 224'),
+  'bitmap hearts live in the fixed page-0 offscreen slot (VRAM #7000, Y=224), independent of atlas size');
+assert(bitmapGenCode.includes('function buildBitmapHeartsHudAsm'),
+  'bitmap hearts has a dedicated ASM builder');
+assert(bitmapGenCode.includes('hud_hearts_drawn EQU #C1FC') && bitmapGenCode.includes('hud_cmd_block    EQU #C2C0'),
+  'bitmap hearts reserve a dirty-flag (#C1FC) + 15-byte command scratch (#C2C0, after the behavior map)');
+assert(bitmapGenCode.includes('update_hud_hearts:') && bitmapGenCode.includes('hud_launch_heart_cmd:'),
+  'bitmap hearts runtime has the dirty-flag drawer + command launcher');
+assert(/update_hud_hearts:[\s\S]*?vdp_write_register/.test(bitmapGenCode) && bitmapGenCode.includes('ld a, #0F'),
+  'bitmap hearts restores R#15 = S#0 after the command engine (else vblank polling breaks)');
+assert(bitmapGenCode.includes('call upload_hud_hearts') && bitmapGenCode.includes('call update_hud_hearts'),
+  'bitmap init uploads heart tiles and the main loop redraws them');
+// Revised deadly model: health ALWAYS drops on deadly contact (so hearts move).
+assert(/\.deadly_take_damage:[\s\S]*?ld hl, player_health[\s\S]*?dec \(hl\)/.test(bitmapGenCode),
+  'revised deadly always decrements player_health first (hearts follow health in both modes)');
+
+console.log('\nAll 92 plumbing checks passed.');

@@ -1,3 +1,5 @@
+import type { GraphicsBackend } from '../graphicsBackend';
+
 export type PlayerState = string;
 
 export interface StateTransition {
@@ -34,14 +36,28 @@ export interface SkillDef {
   cycles: number;
   addsStates: PlayerState[];
   transitions: StateTransition[];
-  /** Which control icon(s) this skill responds to. `['down', 'jump']` = Down + A. undefined = automatic. */
+  /** Which control icon(s) this skill responds to. `['down', 'jump']` = Down + A by default. undefined = automatic. */
   controlIcon?: SkillControlIcon | SkillControlIcon[];
+  /** How multiple control icons combine in UI declarations. Default: 'and'. */
+  controlOperator?: 'and' | 'or';
   /**
    * Declarative parameter schema surfaced in the Player Config "Abilities & Items"
    * dialog. Optional skills with parameters (e.g. double_jump) are read by the
    * MSX2 ASM generator when listed in `activeSkills`.
    */
   parameters?: SkillParameterDef[];
+  /**
+   * Graphics backends that actually emit ASM for this skill. When omitted or
+   * empty the skill is considered universal (shown for every backend) — this is
+   * the backward-compatible default for core skills and skills whose backend
+   * support is not yet mapped.
+   *
+   * Single source of truth: the Player Config UI filters the skill list by
+   * comparing the resolved project backend against this field, so adding a new
+   * backend implementation only requires updating the skill definition here —
+   * no separate UI allow-list to maintain.
+   */
+  supportedBackends?: GraphicsBackend[];
 }
 
 export interface PlayerStateMachine {

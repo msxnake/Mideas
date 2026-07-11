@@ -95,7 +95,7 @@ export const MSX2CompositionPanel: React.FC<MSX2CompositionPanelProps> = ({
   return (
     <Panel title={title} collapsible className={`text-xs ${className}`} bodyClassName="p-2 space-y-2">
       <div className="rounded border border-msx-border/60 bg-msx-bgcolor/40 p-2 space-y-1">
-        {renderMetric('Mode', 'SCREEN 4 bitmap', 'accent')}
+        {renderMetric('Mode', 'SCREEN 5 bitmap', 'accent')}
         {renderMetric('Visible grid', `${screenWidth}x${screenHeight} cells`)}
         {renderMetric('Pixel size', `${pixelWidth}x${pixelHeight}`)}
         {renderMetric('Authoring cell', `${cellPixelSize}x${cellPixelSize}`)}

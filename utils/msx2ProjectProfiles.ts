@@ -1,4 +1,4 @@
-import { ComponentDefinition, EntityTemplate, ProjectAsset, Msx2GameFlowGraph, Msx2GameProfileId, Msx2ProjectProfile, Msx2Screen4BitmapRoom, Msx2Screen4Runtime, Msx2Screen4TileScreen } from '../types';
+import { ComponentDefinition, EntityTemplate, ProjectAsset, Msx2GameFlowGraph, Msx2GameProfileId, Msx2ProjectProfile, Msx2Screen5BitmapRoom, Msx2Screen4Runtime, Msx2Screen4TileScreen } from '../types';
 import { createDefaultScreen5PaletteSlots } from './msx2PaletteUtils';
 import { normalizeMsx2ShooterRuntimeConfig } from './msx2ShooterRuntime';
 import {
@@ -13,28 +13,48 @@ export interface Msx2GameProfileOption {
   label: string;
   description: string;
   previewKind: Msx2GameProfileId;
+  /** Shown with an "Experimental" badge; backend not yet feature-complete. */
+  experimental?: boolean;
+  /** Shown with a "Not implemented" badge; profile is not yet available. */
+  notImplemented?: boolean;
 }
 
+// Asset types shared by every MSX2 profile, independent of the chosen graphics mode.
+// The screen-mode-specific types are kept OUT of here on purpose: a project picks ONE
+// graphics mode for the whole ROM (one ROM = one mode, no CHGMOD mid-game, see
+// docs/project/MSX2_GRAPHICS_BACKEND_PLAN.md), so tile SCREEN 4 screens (`msx2screen`)
+// and bitmap SCREEN 5 rooms (`msx2bitmaproom`) must never be offered together.
 const MSX2_SHARED_ASSET_TYPES: ProjectAsset['type'][] = [
   'code',
   'statemachine',
   'globalvariables',
   'palette',
   'msx2sprite',
-  'msx2screen',
+  'msx2bitmaptile',
+  'msx2bitmapstamp',
+  'msx2bitmapterrain',
   'msx2player',
   'msx2enemy',
   'msx2presentation',
   'msx2gameflow',
   'worldmap',
   'msx2hudfont',
+  'msx2hud',
   'sound',
   'track',
 ];
 
-const MSX2_PLATFORM_MAZE_ASSET_TYPES: ProjectAsset['type'][] = [
+// Tile gameplay profiles (GRAPHIC 3 / "SCREEN 4"): name-table tile screens, no bitmap rooms.
+const MSX2_TILE_SCREEN_ASSET_TYPES: ProjectAsset['type'][] = [
+  ...MSX2_SHARED_ASSET_TYPES,
+  'msx2screen',
+];
+
+// Bitmap room gameplay profile (GRAPHIC 4 / SCREEN 5, VK-style command engine): no tile screens.
+const MSX2_BITMAP_ROOM_ASSET_TYPES: ProjectAsset['type'][] = [
   ...MSX2_SHARED_ASSET_TYPES,
   'msx2bitmaproom',
+  'msx2dialogue',
 ];
 
 const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'version'>> = {
@@ -45,7 +65,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'player',
     movementMode: 'platform',
     filters: {
-      allowedAssetTypes: [...MSX2_PLATFORM_MAZE_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'player',
         'player_shooter',
@@ -115,7 +135,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'maze',
     movementMode: 'maze',
     filters: {
-      allowedAssetTypes: [...MSX2_PLATFORM_MAZE_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'player_maze',
         'ghost_maze',
@@ -165,7 +185,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'shooter',
     movementMode: 'shooterVertical',
     filters: {
-      allowedAssetTypes: [...MSX2_SHARED_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'shooter_vertical_player',
         'enemy_static',
@@ -204,22 +224,27 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
   },
   bitmapPlatform: {
     profileId: 'bitmapPlatform',
-    label: 'Action bitmap (VK-style)',
-    description: 'SCREEN 4 bitmap rooms composed with V9938 copy/fill/line commands and hardware sprites.',
+    label: 'Platform Bitmap · SCREEN 5 (VK-style)',
+    description: 'SCREEN 5 (GRAPHIC 4) bitmap rooms composed with V9938 copy/fill/line commands and hardware sprites. Experimental — Phase 1: playable player; HUD text, enemies and room transitions pending.',
     screenEngine: 'player',
     movementMode: 'platform',
     filters: {
-      allowedAssetTypes: [...MSX2_PLATFORM_MAZE_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_BITMAP_ROOM_ASSET_TYPES],
       allowedEntityPresetIds: [
         'player',
         'player_shooter',
         'enemy_static',
         'patrol_x',
         'patrol_y',
+        'moving_platform',
         'collectible',
         'pickup_item',
         'door',
+        'jumper',
+        'wallJumper',
         'checkpoint',
+        'npc',
+        'hidden_obj',
         'hazard',
         'spike_trap',
         'player_bullet',
@@ -231,10 +256,15 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'staticEnemy',
         'patrolX',
         'patrolY',
+        'movingPlatform',
+        'jumper',
+        'wallJumper',
         'collectible',
         'pickupItem',
         'door',
         'checkpoint',
+        'npc',
+        'hiddenObj',
         'hazard',
         'spike',
       ],
@@ -264,6 +294,8 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'msx2_shooter',
         'msx2_projectile',
         'msx2_carryable',
+        'msx2_jumper',
+        'msx2_wall_jumper',
       ],
       defaultEntityPresetId: 'player',
       showBehaviorLayer: true,
@@ -277,7 +309,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
     screenEngine: 'shooter',
     movementMode: 'shooterHorizontal',
     filters: {
-      allowedAssetTypes: [...MSX2_SHARED_ASSET_TYPES],
+      allowedAssetTypes: [...MSX2_TILE_SCREEN_ASSET_TYPES],
       allowedEntityPresetIds: [
         'galaxian_player',
         'galaxian_alien_formation',
@@ -321,9 +353,23 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
   },
 };
 
-/** Profiles offered when creating a new MSX2 project (bitmap starter is internal-only). */
+/**
+ * Profiles offered when creating a new MSX2 project. `bitmapPlatform` (SCREEN 5
+ * bitmap room) is exposed as Experimental — its backend is Phase 1 (player only).
+ */
 export const MSX2_CREATABLE_GAME_PROFILE_IDS: Msx2GameProfileId[] = [
   'platform',
+  'maze',
+  'shooterVertical',
+  'shooterHorizontal',
+  'bitmapPlatform',
+];
+
+/** Profile ids surfaced with an "Experimental" badge in the picker. */
+export const MSX2_EXPERIMENTAL_GAME_PROFILE_IDS: Msx2GameProfileId[] = ['bitmapPlatform'];
+
+/** Profile ids surfaced with a "Not implemented" badge in the picker (backend pending). */
+export const MSX2_NOT_IMPLEMENTED_GAME_PROFILE_IDS: Msx2GameProfileId[] = [
   'maze',
   'shooterVertical',
   'shooterHorizontal',
@@ -334,6 +380,8 @@ export const MSX2_GAME_PROFILE_OPTIONS: Msx2GameProfileOption[] = MSX2_CREATABLE
   label: PROFILE_DEFINITIONS[id].label,
   description: PROFILE_DEFINITIONS[id].description,
   previewKind: id,
+  experimental: MSX2_EXPERIMENTAL_GAME_PROFILE_IDS.includes(id),
+  notImplemented: MSX2_NOT_IMPLEMENTED_GAME_PROFILE_IDS.includes(id),
 }));
 
 export function buildMsx2ProjectProfile(profileId: Msx2GameProfileId): Msx2ProjectProfile {
@@ -369,7 +417,10 @@ export function normalizeMsx2ProjectProfile(
     filters: {
       ...latest.filters,
       ...profile.filters,
-      allowedAssetTypes: mergeUnique(profile.filters?.allowedAssetTypes, latest.filters.allowedAssetTypes),
+      // Screen-mode asset types are mode-defining and baseline-authoritative: do NOT union
+      // with the saved profile, or a legacy project that mixed tile screens and bitmap rooms
+      // would keep offering both and break the "one ROM = one graphics mode" rule.
+      allowedAssetTypes: [...latest.filters.allowedAssetTypes],
       allowedEntityPresetIds: mergeUnique(profile.filters?.allowedEntityPresetIds, latest.filters.allowedEntityPresetIds),
       allowedEntityEngines: mergeUnique(profile.filters?.allowedEntityEngines, latest.filters.allowedEntityEngines),
       allowedComponentIds: mergeUnique(profile.filters?.allowedComponentIds, latest.filters.allowedComponentIds),
@@ -392,6 +443,47 @@ export function isAssetTypeAllowedForMsx2Profile(
 ): boolean {
   if (!profile) return true;
   return profile.filters.allowedAssetTypes.includes(assetType);
+}
+
+export interface Msx2ScreenModeConflict {
+  hasTileScreens: boolean;
+  hasBitmapRooms: boolean;
+  /** True when a project mixes tile SCREEN 4 screens and bitmap SCREEN 5 rooms. */
+  conflict: boolean;
+}
+
+/**
+ * MSX2 graphics modes are mutually exclusive per ROM (one ROM = one mode, no CHGMOD mid-game,
+ * see docs/project/MSX2_GRAPHICS_BACKEND_PLAN.md). A project that holds BOTH tile SCREEN 4
+ * screens (`msx2screen`) and bitmap SCREEN 5 rooms (`msx2bitmaproom`) cannot be exported: the
+ * backend selector targets a single mode and would silently drop the other set of screens.
+ */
+export function detectMsx2ScreenModeConflict(
+  assets: ReadonlyArray<ProjectAsset> | null | undefined
+): Msx2ScreenModeConflict {
+  let hasTileScreens = false;
+  let hasBitmapRooms = false;
+  for (const asset of assets || []) {
+    if (asset?.type === 'msx2screen') hasTileScreens = true;
+    else if (asset?.type === 'msx2bitmaproom') hasBitmapRooms = true;
+  }
+  return { hasTileScreens, hasBitmapRooms, conflict: hasTileScreens && hasBitmapRooms };
+}
+
+/**
+ * Returns a user-facing block message when a project mixes the two MSX2 screen modes, or null
+ * when the project is single-mode (safe to export).
+ */
+export function getMsx2ScreenModeConflictMessage(
+  assets: ReadonlyArray<ProjectAsset> | null | undefined
+): string | null {
+  if (!detectMsx2ScreenModeConflict(assets).conflict) return null;
+  return (
+    'MSX2 export blocked: this project mixes tile SCREEN 4 screens (MSX2 SCREEN 4 Rooms) and ' +
+    'bitmap SCREEN 5 rooms (MSX2 SCREEN 5 Bitmap Rooms). An MSX2 ROM can use only one graphics ' +
+    'mode (one ROM = one mode, no mode switch mid-game). Remove every screen of the mode you are ' +
+    'not exporting, then try again.'
+  );
 }
 
 export const MSX2_ENTITY_TEMPLATE_ID_PREFIX = 'tpl_msx2_';
@@ -613,19 +705,9 @@ function buildStarterPlayerEntity(profile: Msx2ProjectProfile) {
 export function buildStarterMsx2BitmapRoomAsset(
   profile: Msx2ProjectProfile,
   projectName: string
-): Msx2Screen4BitmapRoom {
+): Msx2Screen5BitmapRoom {
   const roomId = `bitmap_room_${profile.profileId}_${projectName.replace(/\s+/g, '_').toLowerCase()}`;
   const atlasPixels = Array.from({ length: 64 }, () => Array.from({ length: 256 }, () => 0));
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 16; x++) {
-      atlasPixels[y][x] = (x + y) % 2 === 0 ? 4 : 5;
-    }
-  }
-  for (let y = 0; y < 8; y++) {
-    for (let x = 0; x < 8; x++) {
-      atlasPixels[16 + y][x] = 15;
-    }
-  }
   const preset = MSX2_ENTITY_REPERTOIRE.find(item => item.id === profile.filters.defaultEntityPresetId)
     || MSX2_ENTITY_REPERTOIRE[0];
   const player = {
@@ -641,34 +723,21 @@ export function buildStarterMsx2BitmapRoomAsset(
     id: roomId,
     name: `${profile.label} Room 1`,
     target: 'MSX2',
-    vdpMode: 'SCREEN4_BITMAP_ROOM',
+    vdpMode: 'SCREEN5_BITMAP_ROOM',
     width: 256,
     height: 192,
     palette: createDefaultScreen5PaletteSlots(),
+    backgroundColor: 1,
     atlas: {
       width: 256,
       height: 64,
       offscreenBaseY: 320,
       pixels: atlasPixels,
-      entries: [
-        { id: 'floor_tile', name: 'Floor 8x8', sx: 0, sy: 0, w: 8, h: 8 },
-        { id: 'hud_glyph', name: 'HUD Glyph 8x8', sx: 0, sy: 16, w: 8, h: 8 },
-        { id: 'door_icon', name: 'Door 16x16', sx: 0, sy: 48, w: 16, h: 16 },
-      ],
+      entries: [],
     },
     composition: {
       source: 'authored',
-      commands: [
-        { id: 'clear', op: 'fill', x: 0, y: 0, w: 256, h: 192, color: 1 },
-        { id: 'floor_row', op: 'copy', atlasEntryId: 'floor_tile', dx: 0, dy: 160, w: 8, h: 8 },
-        { id: 'floor_row_2', op: 'copy', atlasEntryId: 'floor_tile', dx: 8, dy: 160, w: 8, h: 8 },
-        { id: 'floor_row_3', op: 'copy', atlasEntryId: 'floor_tile', dx: 16, dy: 160, w: 8, h: 8 },
-        { id: 'hud_label', op: 'copy', atlasEntryId: 'hud_glyph', dx: 8, dy: 0, w: 8, h: 8 },
-        { id: 'player_bar_bg', op: 'fill', x: 59, y: 13, w: 66, h: 6, color: 0 },
-        { id: 'player_bar', op: 'fill', x: 60, y: 14, w: 64, h: 4, color: 11 },
-        { id: 'player_bar_top', op: 'lineH', x: 59, y: 13, length: 66, color: 14 },
-        { id: 'door', op: 'copy', atlasEntryId: 'door_icon', dx: 64, dy: 128, w: 16, h: 16 },
-      ],
+      commands: [],
     },
     collision: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
     effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),

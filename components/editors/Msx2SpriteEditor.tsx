@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, MSXColorValue, PixelData, Point } from '../../types';
+import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, MSXColorValue, PaletteAsset, PixelData, Point, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { addEntryToMsx2SpriteLibrary } from '../../utils/msx2SpriteLibrary';
+import { Msx2ExternalSpriteImportModal } from '../modals/Msx2ExternalSpriteImportModal';
+import { PaletteEditor } from './PaletteEditor';
+import { Msx2ExternalSpriteImportOptions, Msx2ExternalSpriteImportResult } from '../../utils/msx2ExternalSpriteImport';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import {
   ArrowDownIcon,
@@ -23,15 +26,34 @@ import {
   SaveIcon,
   SphereIcon,
   StopIcon,
+  SwapHorizIcon,
   TrashIcon,
 } from '../icons/MsxIcons';
 
-type Msx2SpriteToolMode = 'draw' | 'erase' | 'sphere';
+type Msx2SpriteToolMode = 'draw' | 'erase' | 'sphere' | 'select';
 type TransformAction = 'shiftUp' | 'shiftDown' | 'shiftLeft' | 'shiftRight' | 'rotate' | 'flipHorizontal' | 'flipVertical';
+
+interface SelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 interface Msx2SpriteEditorProps {
   sprite: Msx2Sprite;
   onUpdate: (data: Partial<Msx2Sprite>) => void;
+  paletteAssets?: Array<{ id: string; name: string; data?: PaletteAsset }>;
+  onSyncPaletteSlots?: (slots: Screen5PaletteSlot[]) => void;
+  onSavePaletteAsset?: (result: Msx2ExternalSpriteImportResult, options: Msx2ExternalSpriteImportOptions) => void;
+  /** Shared SCREEN 5 palette of the current world (the one the ROM actually loads). */
+  worldPalette?: Screen5PaletteSlot[] | null;
+  /** Display name of the current world / world palette, for the import button label. */
+  worldPaletteName?: string;
+  /** Imports {@link worldPalette} into this sprite so the grid colors match the ROM. */
+  onImportWorldPalette?: () => void;
+  /** Saves the sprite's current 16-slot palette as a new SCREEN 5 palette asset. */
+  onSavePaletteAsAsset?: (slots: Screen5PaletteSlot[], name: string) => void;
 }
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -40,6 +62,75 @@ const clonePixels = (data: PixelData): PixelData => data.map(row => [...row]);
 
 const createPixels = (width: number, height: number, color: MSXColorValue): PixelData =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => color));
+
+const normalizeSelectionRect = (start: Point, end: Point): SelectionRect => ({
+  x: Math.min(start.x, end.x),
+  y: Math.min(start.y, end.y),
+  width: Math.abs(end.x - start.x) + 1,
+  height: Math.abs(end.y - start.y) + 1,
+});
+
+const clampSelectionRect = (rect: SelectionRect, width: number, height: number): SelectionRect => ({
+  ...rect,
+  x: Math.max(0, Math.min(width - rect.width, rect.x)),
+  y: Math.max(0, Math.min(height - rect.height, rect.y)),
+});
+
+const pointInSelectionRect = (point: Point, rect: SelectionRect): boolean =>
+  point.x >= rect.x && point.x < rect.x + rect.width && point.y >= rect.y && point.y < rect.y + rect.height;
+
+const PaletteSlotSwatch: React.FC<{ hex: string; className?: string }> = ({ hex, className = '' }) => {
+  const isTransparent = hex === TRANSPARENT_HEX || hex === 'transparent';
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block h-3 w-3 shrink-0 rounded border border-msx-border ${isTransparent ? 'bg-stripes' : ''} ${className}`}
+      style={{ backgroundColor: isTransparent ? undefined : hex }}
+    />
+  );
+};
+
+const PaletteSlotDropdown: React.FC<{
+  label: string;
+  value: number;
+  palette: Screen5PaletteSlot[];
+  onChange: (slotIndex: number) => void;
+  ariaLabel: string;
+}> = ({ label, value, palette, onChange, ariaLabel }) => {
+  const selected = palette.find(slot => slot.slotIndex === value) || palette[0];
+  const formatSlot = (slot: Screen5PaletteSlot) => `S${slot.slotIndex}${slot.slotIndex === 0 ? ' T' : ''} ${slot.hex}`;
+  return (
+    <div className="space-y-1">
+      <span className="block">{label}</span>
+      <details className="group relative">
+        <summary
+          className="flex cursor-pointer list-none items-center gap-2 rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary outline-none focus-visible:ring-1 focus-visible:ring-msx-highlight"
+          aria-label={ariaLabel}
+        >
+          <PaletteSlotSwatch hex={selected?.hex || '#000000'} />
+          <span className="min-w-0 truncate">{selected ? formatSlot(selected) : 'Slot missing'}</span>
+          <span className="ml-auto text-msx-textsecondary">▾</span>
+        </summary>
+        <div className="absolute z-30 mt-1 max-h-64 min-w-full overflow-y-auto rounded border border-msx-border bg-msx-panelbg py-1 shadow-lg">
+          {palette.map(slot => (
+            <button
+              key={slot.slotIndex}
+              type="button"
+              className={`flex w-full items-center gap-2 px-2 py-1 text-left text-xs hover:bg-msx-accent hover:text-white ${slot.slotIndex === value ? 'text-msx-highlight' : 'text-msx-textprimary'}`}
+              onClick={event => {
+                onChange(slot.slotIndex);
+                event.currentTarget.closest('details')?.removeAttribute('open');
+              }}
+            >
+              <PaletteSlotSwatch hex={slot.hex} />
+              <span className="whitespace-nowrap">{formatSlot(slot)}</span>
+            </button>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+};
 
 interface MetaSpritePreset {
   id: Exclude<Msx2SuperSpriteLayout, 'custom'>;
@@ -186,6 +277,13 @@ const visibleRowColors = (row: MSXColorValue[] | undefined, backgroundColor: MSX
 
 const paletteSlotForColor = (color: string, palette: { slotIndex: number; hex: string }[]): number | undefined =>
   palette.find(slot => normalizeColor(slot.hex) === normalizeColor(color))?.slotIndex;
+
+const paletteSlotForSpritePixel = (color: string, palette: { slotIndex: number; hex: string }[]): number | undefined => {
+  const normalized = normalizeColor(color);
+  if (!normalized) return undefined;
+  if (normalized === normalizeColor(TRANSPARENT_HEX)) return 0;
+  return paletteSlotForColor(normalized, palette);
+};
 
 interface HardwareOrColorPair {
   base: number;
@@ -347,25 +445,6 @@ const LayerPreviewGrid: React.FC<{
   </div>
 );
 
-const toAsmBytes = (sprite: Msx2Sprite): string => {
-  const frame = normalizeFrame(sprite);
-  const bytes: number[] = [];
-  const bg = normalizeColor(sprite.backgroundColor);
-  const byteFor = (x0: number, y: number) => {
-    let value = 0;
-    for (let bit = 0; bit < 8; bit++) {
-      const color = normalizeColor(String(frame[y]?.[x0 + bit] || ''));
-      if (color && color !== bg) value |= 0x80 >> bit;
-    }
-    return value;
-  };
-  for (let y = 0; y < 8; y++) bytes.push(byteFor(0, y));
-  for (let y = 0; y < 8; y++) bytes.push(byteFor(8, y));
-  for (let y = 8; y < 16; y++) bytes.push(byteFor(0, y));
-  for (let y = 8; y < 16; y++) bytes.push(byteFor(8, y));
-  return bytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',');
-};
-
 const Msx2PixelGrid: React.FC<{
   frame: PixelData;
   width: number;
@@ -373,11 +452,15 @@ const Msx2PixelGrid: React.FC<{
   zoom: number;
   backgroundColor: MSXColorValue;
   onPixel: (point: Point, isRightClick: boolean) => void;
+  onCellMouseDown?: (point: Point, isRightClick: boolean) => void;
+  onCellMouseEnter?: (point: Point) => void;
+  onCellMouseUp?: () => void;
   onionSkinEnabled: boolean;
   onionSkinOpacity: number;
   prevFrame?: PixelData;
   nextFrame?: PixelData;
   metaSpriteParts?: Msx2SuperSpritePart[];
+  selectionRect?: SelectionRect | null;
 }> = ({
   frame,
   width,
@@ -385,19 +468,26 @@ const Msx2PixelGrid: React.FC<{
   zoom,
   backgroundColor,
   onPixel,
+  onCellMouseDown,
+  onCellMouseEnter,
+  onCellMouseUp,
   onionSkinEnabled,
   onionSkinOpacity,
   prevFrame,
   nextFrame,
   metaSpriteParts = [],
+  selectionRect = null,
 }) => {
   const [dragState, setDragState] = useState<{ active: boolean; right: boolean }>({ active: false, right: false });
 
   useEffect(() => {
-    const stopDrag = () => setDragState({ active: false, right: false });
+    const stopDrag = () => {
+      setDragState({ active: false, right: false });
+      onCellMouseUp?.();
+    };
     window.addEventListener('mouseup', stopDrag);
     return () => window.removeEventListener('mouseup', stopDrag);
-  }, []);
+  }, [onCellMouseUp]);
 
   const renderOnion = (data: PixelData | undefined, keyPrefix: string) => {
     if (!onionSkinEnabled || !data) return null;
@@ -450,15 +540,36 @@ const Msx2PixelGrid: React.FC<{
             onMouseDown={event => {
               const right = event.button === 2;
               setDragState({ active: true, right });
+              if (onCellMouseDown) {
+                onCellMouseDown({ x, y }, right);
+                return;
+              }
               onPixel({ x, y }, right);
             }}
             onMouseEnter={() => {
+              if (dragState.active && onCellMouseEnter) {
+                onCellMouseEnter({ x, y });
+                return;
+              }
               if (dragState.active) onPixel({ x, y }, dragState.right);
             }}
+            onMouseUp={onCellMouseUp}
             title={`${x},${y}`}
           />
         )))}
       </div>
+      {selectionRect && (
+        <div
+          className="pointer-events-none absolute border-2 border-msx-highlight bg-msx-highlight/10"
+          style={{
+            left: selectionRect.x * zoom,
+            top: selectionRect.y * zoom,
+            width: selectionRect.width * zoom,
+            height: selectionRect.height * zoom,
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(0,0,0,0.85)',
+          }}
+        />
+      )}
       {metaSpriteParts.map(part => (
         <div
           key={part.id}
@@ -479,7 +590,7 @@ const Msx2PixelGrid: React.FC<{
   );
 };
 
-export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate }) => {
+export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate, paletteAssets = [], onSyncPaletteSlots, onSavePaletteAsset, worldPalette, worldPaletteName, onImportWorldPalette, onSavePaletteAsAsset }) => {
   const { slots: palette, changed: paletteChanged } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
   const frame = normalizeFrame(sprite);
   const prevFrame = sprite.frames[sprite.currentFrameIndex - 1]?.data;
@@ -494,10 +605,46 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [onionSkinEnabled, setOnionSkinEnabled] = useState(true);
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
   const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
+  const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
+  const [paletteEditorSlot, setPaletteEditorSlot] = useState<number | null>(null);
+  const [selectedSavedPaletteId, setSelectedSavedPaletteId] = useState('');
+  const [isSavePaletteOpen, setIsSavePaletteOpen] = useState(false);
+  const [savePaletteName, setSavePaletteName] = useState('');
+  const [replaceFromSlot, setReplaceFromSlot] = useState(1);
+  const [replaceToSlot, setReplaceToSlot] = useState(0);
+  const [draggedReplaceSlot, setDraggedReplaceSlot] = useState<number | null>(null);
+  const [replaceColorWarning, setReplaceColorWarning] = useState<string | null>(null);
+  const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
+  const [selectionDrag, setSelectionDrag] = useState<{
+    mode: 'select' | 'move';
+    anchor: Point;
+    sourceRect?: SelectionRect;
+    sourceFrame?: PixelData;
+  } | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const animationSpeedMs = sprite.animationSpeedMs || 150;
   const useOrColor = sprite.hardware?.useOrColor !== false;
+  const applySavedPaletteAsset = () => {
+    if (!selectedSavedPaletteId) return;
+    const paletteAsset = paletteAssets.find(asset => asset.id === selectedSavedPaletteId);
+    if (!paletteAsset?.data?.slots?.length) return;
+    const nextSlots = ensureScreen5PaletteSlots(paletteAsset.data.slots).slots;
+    const { slots: currentSlots } = ensureScreen5PaletteSlots(sprite.palette);
+    const remapByColor = new Map<string, MSXColorValue>();
+    currentSlots.forEach((slot, index) => {
+      const nextHex = nextSlots[index]?.hex;
+      if (nextHex) remapByColor.set(normalizeColor(slot.hex), nextHex as MSXColorValue);
+    });
+    onUpdate({
+      palette: nextSlots.map(slot => ({ ...slot })),
+      backgroundColor: (nextSlots[0]?.hex || sprite.backgroundColor) as MSXColorValue,
+      frames: sprite.frames.map(frame => ({
+        ...frame,
+        data: frame.data.map(row => row.map(color => remapByColor.get(normalizeColor(String(color))) || color)),
+      })),
+    });
+  };
   const orPalettePairs = useMemo<HardwareOrColorPalettePair[]>(() => {
     const slotByIndex = new Map(palette.map(slot => [slot.slotIndex, slot]));
     const pairs: HardwareOrColorPalettePair[] = [];
@@ -559,6 +706,81 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       })
     ).flat();
   }, [cellColumns, frame, palette, sprite.backgroundColor, sprite.size.height, useOrColor]);
+  const spritePaletteUsage = useMemo(() => {
+    const usedSlots = new Set<number>();
+    const orBaseSlots = new Set<number>();
+    const orOverlaySlots = new Set<number>();
+    const orResultSlots = new Set<number>();
+
+    sprite.frames.forEach(spriteFrame => {
+      const data = spriteFrame.data || [];
+      data.forEach(row => {
+        row.forEach(color => {
+          const slot = paletteSlotForSpritePixel(String(color || ''), palette);
+          if (typeof slot === 'number') usedSlots.add(slot);
+        });
+      });
+
+      for (let y = 0; y < sprite.size.height; y++) {
+        for (let cellX = 0; cellX < cellColumns; cellX++) {
+          const xOffset = cellX * 16;
+          const row = data[y] || [];
+          const rowSlots = row.slice(xOffset, xOffset + 16)
+            .map(color => {
+              return paletteSlotForSpritePixel(String(color || ''), palette) || 0;
+            })
+            .filter(slot => slot > 0);
+          const orPair = useOrColor ? findHardwareOrColorPair(rowSlots) : undefined;
+          if (!orPair) continue;
+          orBaseSlots.add(orPair.base);
+          orOverlaySlots.add(orPair.overlay);
+          orResultSlots.add(orPair.result);
+        }
+      }
+    });
+
+    return { usedSlots, orBaseSlots, orOverlaySlots, orResultSlots };
+  }, [cellColumns, palette, sprite.frames, sprite.size.height, useOrColor]);
+  const paletteSlotsByColor = useMemo(() => {
+    const slotsByColor = new Map<string, number[]>();
+    palette.forEach(slot => {
+      const key = normalizeColor(slot.hex);
+      slotsByColor.set(key, [...(slotsByColor.get(key) || []), slot.slotIndex]);
+    });
+    return slotsByColor;
+  }, [palette]);
+  // Pixels whose hex matches no palette slot. These render fine in the editor
+  // (raw hex) but the ROM generator matches hex->slot exactly, so it drops them
+  // to transparent — the classic "looks right in Mideas, vanishes in the ROM".
+  const offPalettePixelCount = useMemo(() => {
+    const palHexes = new Set(palette.map(slot => normalizeColor(slot.hex)));
+    const bg = normalizeColor(sprite.backgroundColor);
+    const transparent = normalizeColor(TRANSPARENT_HEX);
+    let count = 0;
+    (sprite.frames || []).forEach(frame => (frame.data || []).forEach(row => row.forEach(color => {
+      const h = normalizeColor(String(color || ''));
+      if (h && h !== bg && h !== transparent && !palHexes.has(h)) count += 1;
+    })));
+    return count;
+  }, [palette, sprite.frames, sprite.backgroundColor]);
+  const snapPixelsToPalette = () => {
+    const palHexes = new Set(palette.map(slot => normalizeColor(slot.hex)));
+    const bg = normalizeColor(sprite.backgroundColor);
+    const transparent = normalizeColor(TRANSPARENT_HEX);
+    const snap = (color: MSXColorValue): MSXColorValue => {
+      const h = normalizeColor(String(color || ''));
+      if (!h || h === bg || h === transparent || palHexes.has(h)) return color;
+      const rgb = parseHexRgb(String(color));
+      if (!rgb) return color;
+      return nearestPaletteColor(rgb.r, rgb.g, rgb.b, palette, sprite.backgroundColor);
+    };
+    onUpdate({ frames: sprite.frames.map(frame => ({ ...frame, data: frame.data.map(row => row.map(snap)) })) });
+  };
+  const duplicatePaletteSlotsFor = (slotIndex: number): number[] => {
+    const slot = palette.find(candidate => candidate.slotIndex === slotIndex);
+    return slot ? (paletteSlotsByColor.get(normalizeColor(slot.hex)) || []) : [];
+  };
+  const isReplaceSlotAmbiguous = (slotIndex: number): boolean => duplicatePaletteSlotsFor(slotIndex).length > 1;
   const invalidLineCount = rowDiagnostics.filter(row => row.invalid).length;
   const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
   const stackedColorLineCount = rowDiagnostics.filter(row => row.layerCount > 1).length;
@@ -592,76 +814,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       );
     }).reduce((sum, value) => sum + value, 0)
   ).reduce((sum, value) => sum + value, 0);
-  const spriteExportContract = useMemo(() => {
-    const cellLayerCounts = Array.from({ length: cellRows }, (_, cellY) =>
-      Array.from({ length: cellColumns }, (_, cellX) => {
-        const firstY = cellY * 16;
-        const lastY = Math.min(sprite.size.height, firstY + 16);
-        const rows = rowDiagnostics.filter(row => row.cellX === cellX && row.y >= firstY && row.y < lastY);
-        return {
-          cell: [cellX, cellY],
-          xOffset: cellX * 16,
-          yOffset: cellY * 16,
-          hardwareLayers: Math.max(0, ...rows.map(row => row.layerCount)),
-          stackedRows: rows.filter(row => row.layerCount > 1).length,
-          threeColorRows: rows.filter(row => row.slots.length >= 3 || row.layerCount >= 3).length,
-          usesOrColor: rows.some(row => row.usesOrColor),
-        };
-      })
-    ).flat();
-    return {
-      sprite: {
-        mode: 'MSX2_SCREEN4_HARDWARE_SPRITE',
-        frame: sprite.currentFrameIndex || 0,
-        size: [sprite.size.width, sprite.size.height],
-        superSpriteLayout,
-        superSpriteParts: superSpriteParts.map(part => ({
-          label: part.label,
-          offset: [part.offsetX, part.offsetY],
-          size: [part.width, part.height],
-        })),
-        baseHardwareCells: superSpriteBaseParts,
-        metaspriteCells: [cellColumns, cellRows],
-        hardwareLayers: estimatedHardwareSprites,
-        separatedLayerPreviewCount: separatedHardwareLayers.length,
-        separatedLayerReasons: separatedHardwareLayers.map(layer => ({
-          layer: layer.index + 1,
-          cell: [layer.cellX, layer.cellY],
-          offset: [layer.xOffset, layer.yOffset],
-          slots: layer.slots,
-          forcedByRows: layer.forcedByRows,
-        })),
-        maxCellLayers: maxCellLayerCount,
-        worstScanlineSprites: maxSpritesPerScanline,
-        scanlineLimit: 8,
-        overflow: scanlineOverflow,
-        colorTable: 'line_color_per_sprite_plane',
-        transparentBit: 'pattern_bit_0_is_transparent',
-        overlapTechnique: 'transparent_masks_plus_v9938_cc_or_color',
-        orColorRule: 'base_palette_slot | overlay_palette_slot = visible_overlap_color',
-        orCompatiblePairs: orPalettePairs.map(pair => [pair.base, pair.overlay, pair.result]),
-        orColorRows: orColorLineCount,
-        cells: cellLayerCounts,
-      },
-    };
-  }, [
-    cellColumns,
-    cellRows,
-    estimatedHardwareSprites,
-    maxCellLayerCount,
-    maxSpritesPerScanline,
-    orColorLineCount,
-    orPalettePairs,
-    rowDiagnostics,
-    scanlineOverflow,
-    separatedHardwareLayers,
-    sprite.currentFrameIndex,
-    sprite.size.height,
-    sprite.size.width,
-    superSpriteBaseParts,
-    superSpriteLayout,
-    superSpriteParts,
-  ]);
 
   useEffect(() => {
     if (paletteChanged) {
@@ -674,6 +826,12 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       setSelectedColor(palette[1]?.hex || palette[0]?.hex || '#FFFFFF');
     }
   }, [palette, selectedColor]);
+
+  useEffect(() => {
+    if (selectedSavedPaletteId && !paletteAssets.some(asset => asset.id === selectedSavedPaletteId)) {
+      setSelectedSavedPaletteId('');
+    }
+  }, [paletteAssets, selectedSavedPaletteId]);
 
   useEffect(() => {
     if (!isAnimationPlaying) {
@@ -690,6 +848,32 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     return () => window.clearInterval(timer);
   }, [isAnimationPlaying, animationSpeedMs, sprite.frames.length, sprite.currentFrameIndex, sprite.loops]);
 
+  useEffect(() => {
+    setSelectionRect(null);
+    setSelectionDrag(null);
+  }, [sprite.currentFrameIndex, sprite.size.height, sprite.size.width]);
+
+  const replaceFromPaletteSlot = palette.find(slot => slot.slotIndex === replaceFromSlot) || palette[0];
+  const replaceToPaletteSlot = palette.find(slot => slot.slotIndex === replaceToSlot) || palette[0];
+  const replaceFromAmbiguous = isReplaceSlotAmbiguous(replaceFromSlot);
+  const describeAmbiguousReplaceSlot = (slotIndex: number): string | null => {
+    const slot = palette.find(candidate => candidate.slotIndex === slotIndex);
+    if (!slot) return null;
+    const duplicates = duplicatePaletteSlotsFor(slotIndex).filter(candidate => candidate !== slotIndex);
+    if (!duplicates.length) return null;
+    return `No se puede reemplazar S${slotIndex}: comparte ${slot.hex} con S${duplicates.join(', S')}. Cambia uno de esos slots antes de reemplazar.`;
+  };
+  const replaceSourcePixelCount = useMemo(() => {
+    if (!replaceFromPaletteSlot) return 0;
+    const source = normalizeColor(replaceFromPaletteSlot.hex);
+    return sprite.frames.reduce((total, spriteFrame) => {
+      const frameData = spriteFrame.data || [];
+      return total + frameData.reduce((frameTotal, row) =>
+        frameTotal + row.reduce((rowTotal, color) =>
+          rowTotal + (normalizeColor(String(color || '')) === source ? 1 : 0), 0), 0);
+    }, 0);
+  }, [replaceFromPaletteSlot, sprite.frames]);
+
   const updateFrameData = (data: PixelData) => {
     const frames = sprite.frames.length > 0 ? [...sprite.frames] : [{ id: `frame_${Date.now()}`, data }];
     const frameIndex = Math.max(0, Math.min(sprite.currentFrameIndex || 0, frames.length - 1));
@@ -704,6 +888,35 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     updateFrameData(next);
   };
 
+  const moveSelectionTo = (sourceFrame: PixelData, sourceRect: SelectionRect, target: Point) => {
+    const targetRect = clampSelectionRect(
+      { ...sourceRect, x: target.x, y: target.y },
+      sprite.size.width,
+      sprite.size.height
+    );
+    const next = clonePixels(sourceFrame);
+    for (let y = 0; y < sourceRect.height; y++) {
+      for (let x = 0; x < sourceRect.width; x++) {
+        const sourceY = sourceRect.y + y;
+        const sourceX = sourceRect.x + x;
+        if (next[sourceY]?.[sourceX] !== undefined) next[sourceY][sourceX] = sprite.backgroundColor;
+      }
+    }
+    for (let y = 0; y < sourceRect.height; y++) {
+      for (let x = 0; x < sourceRect.width; x++) {
+        const sourceY = sourceRect.y + y;
+        const sourceX = sourceRect.x + x;
+        const targetY = targetRect.y + y;
+        const targetX = targetRect.x + x;
+        if (next[targetY]?.[targetX] !== undefined) {
+          next[targetY][targetX] = sourceFrame[sourceY]?.[sourceX] || sprite.backgroundColor;
+        }
+      }
+    }
+    setSelectionRect(targetRect);
+    updateFrameData(next);
+  };
+
   const drawSphere = (center: Point, color: MSXColorValue) => {
     const next = clonePixels(frame);
     for (let y = 0; y < sprite.size.height; y++) {
@@ -715,13 +928,106 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     updateFrameData(next);
   };
 
+  const replaceSpriteSlot = (fromSlot: number, toSlot: number) => {
+    setReplaceColorWarning(null);
+    if (fromSlot === toSlot) return;
+    const sourceSlot = palette.find(slot => slot.slotIndex === fromSlot);
+    const targetSlot = palette.find(slot => slot.slotIndex === toSlot);
+    if (!sourceSlot || !targetSlot) return;
+    const ambiguousWarning = describeAmbiguousReplaceSlot(fromSlot);
+    if (ambiguousWarning) {
+      setReplaceColorWarning(ambiguousWarning);
+      return;
+    }
+    const source = normalizeColor(sourceSlot.hex);
+    const target = targetSlot.hex as MSXColorValue;
+    let changed = false;
+    const sourceFrames = sprite.frames.length
+      ? sprite.frames
+      : [{ id: `frame_${Date.now()}`, data: createPixels(sprite.size.width, sprite.size.height, sprite.backgroundColor) }];
+    const frames = sourceFrames.map(spriteFrame => ({
+      ...spriteFrame,
+      data: (spriteFrame.data || createPixels(sprite.size.width, sprite.size.height, sprite.backgroundColor)).map(row =>
+        row.map(color => {
+          if (normalizeColor(String(color || '')) !== source) return color;
+          changed = true;
+          return target;
+        })
+      ),
+    }));
+    if (!changed) return;
+    setReplaceColorWarning(null);
+    onUpdate({
+      frames,
+      currentFrameIndex: Math.max(0, Math.min(sprite.currentFrameIndex || 0, frames.length - 1)),
+    });
+  };
+
+  const replaceSpriteColor = () => replaceSpriteSlot(replaceFromSlot, replaceToSlot);
+
+  const handlePaletteSlotDrop = (targetSlot: number) => {
+    if (typeof draggedReplaceSlot !== 'number') return;
+    replaceSpriteSlot(draggedReplaceSlot, targetSlot);
+    setReplaceFromSlot(draggedReplaceSlot);
+    setReplaceToSlot(targetSlot);
+    setDraggedReplaceSlot(null);
+  };
+
   const handlePixel = (point: Point, isRightClick: boolean) => {
+    if (toolMode === 'select') return;
     const color = toolMode === 'erase' || isRightClick ? sprite.backgroundColor : selectedColor;
     if (toolMode === 'sphere' && !isRightClick) {
       drawSphere(point, color);
       return;
     }
     paintPixel(point, color);
+  };
+
+  const handleGridMouseDown = (point: Point, isRightClick: boolean) => {
+    if (toolMode !== 'select') {
+      handlePixel(point, isRightClick);
+      return;
+    }
+    if (isRightClick) {
+      setSelectionRect(null);
+      setSelectionDrag(null);
+      return;
+    }
+    if (selectionRect && pointInSelectionRect(point, selectionRect)) {
+      setSelectionDrag({
+        mode: 'move',
+        anchor: { x: point.x - selectionRect.x, y: point.y - selectionRect.y },
+        sourceRect: selectionRect,
+        sourceFrame: clonePixels(frame),
+      });
+      return;
+    }
+    const nextRect = { x: point.x, y: point.y, width: 1, height: 1 };
+    setSelectionRect(nextRect);
+    setSelectionDrag({ mode: 'select', anchor: point });
+  };
+
+  const handleGridMouseEnter = (point: Point) => {
+    if (toolMode !== 'select') return;
+    if (!selectionDrag) return;
+    if (selectionDrag.mode === 'select') {
+      setSelectionRect(normalizeSelectionRect(selectionDrag.anchor, point));
+      return;
+    }
+    if (!selectionDrag.sourceRect || !selectionDrag.sourceFrame) return;
+    moveSelectionTo(selectionDrag.sourceFrame, selectionDrag.sourceRect, {
+      x: point.x - selectionDrag.anchor.x,
+      y: point.y - selectionDrag.anchor.y,
+    });
+  };
+
+  const handleGridMouseUp = () => {
+    setSelectionDrag(null);
+  };
+
+  const cancelSelection = () => {
+    setSelectionRect(null);
+    setSelectionDrag(null);
   };
 
   const setHardware = (field: keyof Msx2Sprite['hardware'], value: number | boolean) => {
@@ -875,11 +1181,32 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     image.src = URL.createObjectURL(file);
   };
 
+  const applyExternalSpriteImport = (
+    result: Msx2ExternalSpriteImportResult,
+    options: Msx2ExternalSpriteImportOptions,
+  ) => {
+    const nextLayout = inferMetaSpriteLayout(options.targetWidth, options.targetHeight);
+    const nextParts = buildMetaSpriteParts(nextLayout, options.targetWidth, options.targetHeight);
+    onUpdate({
+      size: { width: options.targetWidth, height: options.targetHeight },
+      superSpriteLayout: nextLayout,
+      superSpriteParts: nextParts,
+      palette: result.palette.map(slot => ({ ...slot })),
+      backgroundColor: result.backgroundColor,
+      frames: [{ id: `external_import_${Date.now()}`, data: result.pixelData }],
+      currentFrameIndex: 0,
+      hardware: { ...sprite.hardware, useOrColor: options.useOrColor },
+    });
+    if (options.syncProjectPalette !== false && result.generatedSlots.length > 0) {
+      onSyncPaletteSlots?.(result.generatedSlots);
+    }
+    setIsExternalImportOpen(false);
+  };
+
   const previewFrame = sprite.frames[previewFrameIndex]?.data || frame;
   const mirroredPreviewFrame = useMemo(() => mirrorPixelDataHorizontally(previewFrame), [previewFrame]);
   const facingDirection = sprite.facingDirection ?? 'neutral';
   const hasHorizontalFacing = facingDirection === 'right' || facingDirection === 'left';
-  const asmBytes = useMemo(() => toAsmBytes(sprite), [sprite]);
   const isFrameEmpty = frame.every(row => row.every(color => color === sprite.backgroundColor));
   const setAllPanelsCollapsed = (collapsed: boolean) => {
     if (typeof window === 'undefined') return;
@@ -913,9 +1240,11 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       <div className="min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-4">
         <Panel title="Tools" collapsible>
           <div className="p-2 space-y-1">
-            <Button onClick={() => setToolMode('draw')} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">Draw</Button>
-            <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">Sphere</Button>
-            <Button onClick={() => setToolMode('erase')} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">Erase (BG)</Button>
+            <Button onClick={() => { setToolMode('draw'); cancelSelection(); }} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">Draw</Button>
+            <Button onClick={() => { setToolMode('sphere'); cancelSelection(); }} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">Sphere</Button>
+            <Button onClick={() => { setToolMode('erase'); cancelSelection(); }} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">Erase (BG)</Button>
+            <Button onClick={() => setToolMode('select')} variant={toolMode === 'select' ? 'primary' : 'ghost'} size="sm" icon={<CopyIcon />} className="w-full" justify="start">Seleccionar</Button>
+            <Button onClick={cancelSelection} variant="ghost" size="sm" icon={<TrashIcon />} className="w-full" justify="start" disabled={!selectionRect}>Cancelar Seleccion</Button>
             {toolMode === 'sphere' && (
               <label className="block pt-2 text-xs text-msx-textsecondary">Radius
                 <input type="range" min={1} max={8} value={sphereRadius} onChange={e => setSphereRadius(Number(e.target.value))} className="w-full accent-msx-accent" />
@@ -927,17 +1256,248 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         </Panel>
 
         <Panel title="Active Brush" collapsible>
+          {onImportWorldPalette && (
+            <div className="border-b border-msx-border p-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<FolderOpenIcon />}
+                className="w-full"
+                justify="center"
+                disabled={!worldPalette || worldPalette.length === 0}
+                onClick={onImportWorldPalette}
+                title={worldPalette && worldPalette.length
+                  ? `Copia los 16 colores de la paleta del mundo${worldPaletteName ? ` "${worldPaletteName}"` : ' actual'} a este sprite, manteniendo los índices de slot para que el grid coincida con la ROM.`
+                  : 'No hay paleta de mundo SCREEN 5 disponible en el proyecto.'}
+              >
+                Importar paleta del mundo{worldPaletteName ? `: ${worldPaletteName}` : ' actual'}
+              </Button>
+            </div>
+          )}
+          <div className="border-b border-msx-border p-2">
+            {paletteAssets.length > 0 ? (
+              <div className="space-y-2 text-xs">
+                <label className="block text-msx-textsecondary">
+                  Paleta guardada
+                  <select
+                    value={selectedSavedPaletteId}
+                    onChange={event => setSelectedSavedPaletteId(event.target.value)}
+                    className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                  >
+                    <option value="">-- Elegir --</option>
+                    {paletteAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<FolderOpenIcon />}
+                  className="w-full"
+                  justify="center"
+                  disabled={!selectedSavedPaletteId}
+                  onClick={applySavedPaletteAsset}
+                  title="Carga los 16 slots de la paleta seleccionada en este sprite y remapea sus pixels por índice de slot."
+                >
+                  Cargar paleta seleccionada
+                </Button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-msx-textsecondary">
+                No hay paletas guardadas. Crea una en Project Assets &gt; MSX2 Palettes.
+              </p>
+            )}
+          </div>
+          {offPalettePixelCount > 0 && (
+            <div className="border-b border-msx-border p-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<SwapHorizIcon />}
+                className="w-full border border-amber-400/60"
+                justify="center"
+                onClick={snapPixelsToPalette}
+                title="Algunos píxeles usan colores que no están en la paleta; la ROM los vuelve transparentes. Esto los ajusta al color más cercano de la paleta para que el editor coincida con la ROM."
+              >
+                Ajustar {offPalettePixelCount} px fuera de paleta
+              </Button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 p-2">
-            {palette.map(slot => (
-              <button
-                key={slot.slotIndex}
-                type="button"
-                className={`h-8 rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}
-                style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
-                onClick={() => setSelectedColor(slot.hex)}
-                title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}`}
+            {palette.map(slot => {
+              const isTransparentSlot = slot.slotIndex === 0;
+              const isUsed = spritePaletteUsage.usedSlots.has(slot.slotIndex);
+              const isAmbiguousReplaceSource = isReplaceSlotAmbiguous(slot.slotIndex);
+              const ambiguousReplaceWarning = describeAmbiguousReplaceSlot(slot.slotIndex);
+              const isOrBase = spritePaletteUsage.orBaseSlots.has(slot.slotIndex);
+              const isOrOverlay = spritePaletteUsage.orOverlaySlots.has(slot.slotIndex);
+              const isOrResult = spritePaletteUsage.orResultSlots.has(slot.slotIndex);
+              const usageTitle = [
+                isUsed ? (isTransparentSlot ? 'transparent used' : 'used') : '',
+                isOrBase ? 'OR base' : '',
+                isOrOverlay ? 'OR overlay' : '',
+                isOrResult ? 'OR result' : '',
+              ].filter(Boolean).join(', ');
+              return (
+                <button
+                  key={slot.slotIndex}
+                  type="button"
+                  className={`relative h-8 overflow-hidden rounded border ${selectedColor === slot.hex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${isOrResult ? 'ring-1 ring-amber-300' : ''} ${draggedReplaceSlot !== null && draggedReplaceSlot !== slot.slotIndex ? 'outline outline-1 outline-msx-highlight/70' : ''}`}
+                  style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
+                  onClick={() => setSelectedColor(slot.hex)}
+                  onDoubleClick={() => setPaletteEditorSlot(slot.slotIndex)}
+                  onDragOver={event => {
+                    if (draggedReplaceSlot === null || draggedReplaceSlot === slot.slotIndex) return;
+                    event.preventDefault();
+                  }}
+                  onDrop={event => {
+                    event.preventDefault();
+                    handlePaletteSlotDrop(slot.slotIndex);
+                  }}
+                  title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}${usageTitle ? ` (${usageTitle})` : ''} — doble click para editar la paleta`}
+                  aria-label={`Slot ${slot.slotIndex}${usageTitle ? ` ${usageTitle}` : ''}`}
+                >
+                  {isUsed && isTransparentSlot && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-1 top-0.5 rounded bg-black/70 px-1 text-[11px] font-bold leading-4 text-msx-highlight shadow"
+                    >
+                      T
+                    </span>
+                  )}
+                  {isUsed && !isTransparentSlot && (
+                    <span
+                      draggable={!isAmbiguousReplaceSource}
+                      className={`absolute left-1 top-1 h-4 w-4 rounded-full border border-black/70 bg-msx-highlight shadow ${isAmbiguousReplaceSource ? 'cursor-not-allowed opacity-60' : 'cursor-grab active:cursor-grabbing'}`}
+                      title={ambiguousReplaceWarning || `Arrastra para reemplazar S${slot.slotIndex} por otro color`}
+                      aria-label={`Drag used color slot ${slot.slotIndex} to replace it`}
+                      onClick={event => event.stopPropagation()}
+                      onDragStart={event => {
+                        event.stopPropagation();
+                        if (ambiguousReplaceWarning) {
+                          event.preventDefault();
+                          setReplaceColorWarning(ambiguousReplaceWarning);
+                          return;
+                        }
+                        setReplaceColorWarning(null);
+                        setDraggedReplaceSlot(slot.slotIndex);
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', String(slot.slotIndex));
+                      }}
+                      onDragEnd={() => setDraggedReplaceSlot(null)}
+                    />
+                  )}
+                  {isOrResult && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-0 left-0 rounded-tr bg-amber-300 px-1 py-0.5 text-[9px] font-bold leading-none text-black"
+                    >
+                      OR
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {onSavePaletteAsAsset && (
+            <div className="border-t border-msx-border p-2">
+              {isSavePaletteOpen ? (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={savePaletteName}
+                    onChange={event => setSavePaletteName(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' && savePaletteName.trim()) {
+                        onSavePaletteAsAsset(palette.map(slot => ({ ...slot })), savePaletteName.trim());
+                        setIsSavePaletteOpen(false);
+                      } else if (event.key === 'Escape') {
+                        setIsSavePaletteOpen(false);
+                      }
+                    }}
+                    placeholder="Nombre de la paleta"
+                    className="w-full rounded border border-msx-border bg-msx-bg px-2 py-1 text-xs text-msx-textprimary"
+                    aria-label="Nombre de la nueva paleta"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      justify="center"
+                      disabled={!savePaletteName.trim()}
+                      onClick={() => {
+                        onSavePaletteAsAsset(palette.map(slot => ({ ...slot })), savePaletteName.trim());
+                        setIsSavePaletteOpen(false);
+                      }}
+                    >
+                      Guardar
+                    </Button>
+                    <Button size="sm" variant="ghost" justify="center" onClick={() => setIsSavePaletteOpen(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<SaveIcon />}
+                  className="w-full"
+                  justify="center"
+                  onClick={() => {
+                    setSavePaletteName(`${sprite.name || 'Sprite'} Palette`);
+                    setIsSavePaletteOpen(true);
+                  }}
+                  title="Guarda los 16 colores actuales como un nuevo asset de paleta SCREEN 5 con el nombre que indiques."
+                >
+                  Guardar paleta como asset…
+                </Button>
+              )}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Replace Color" collapsible>
+          <div className="space-y-2 p-2 text-xs text-msx-textsecondary">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+              <PaletteSlotDropdown
+                label="From"
+                value={replaceFromSlot}
+                palette={palette}
+                onChange={setReplaceFromSlot}
+                ariaLabel="Replace source color slot"
               />
-            ))}
+              <SwapHorizIcon className="mb-1 h-4 w-4 text-msx-highlight" />
+              <PaletteSlotDropdown
+                label="To"
+                value={replaceToSlot}
+                palette={palette}
+                onChange={setReplaceToSlot}
+                ariaLabel="Replace target color slot"
+              />
+            </div>
+            <Button
+              onClick={replaceSpriteColor}
+              variant="secondary"
+              size="sm"
+              icon={<SwapHorizIcon />}
+              className="w-full"
+              justify="center"
+              disabled={replaceFromSlot === replaceToSlot || replaceSourcePixelCount === 0 || replaceFromAmbiguous}
+              title={replaceFromAmbiguous ? (describeAmbiguousReplaceSlot(replaceFromSlot) || 'Source slot is ambiguous') : `Replace ${replaceSourcePixelCount} pixels across all frames`}
+            >
+              Replace Color
+            </Button>
+            <div className="text-[11px] text-msx-textsecondary">
+              {replaceSourcePixelCount} px in all frames
+            </div>
+            {replaceColorWarning && (
+              <div className="rounded border border-amber-400/50 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+                {replaceColorWarning}
+              </div>
+            )}
           </div>
         </Panel>
 
@@ -973,6 +1533,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <Button size="sm" variant="secondary" icon={<PlusCircleIcon />} onClick={exportToLibrary} title="Export this sprite to the global MSX2 Sprites Library (persists across projects). Reusable via Libraries > Sprites.">Export to Library</Button>
             <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
             <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => importFileRef.current?.click()}>MSX2 Import PNG</Button>
+            <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => setIsExternalImportOpen(true)}>Importar Sprite Exterior</Button>
             <Button size="sm" variant={showSeparatedLayers ? 'primary' : 'secondary'} onClick={() => setShowSeparatedLayers(value => !value)}>
               {showSeparatedLayers ? 'Hide HW Layers' : 'Separate HW Layers'}
             </Button>
@@ -1021,11 +1582,15 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               zoom={zoom}
               backgroundColor={sprite.backgroundColor}
               onPixel={handlePixel}
+              onCellMouseDown={toolMode === 'select' ? handleGridMouseDown : undefined}
+              onCellMouseEnter={toolMode === 'select' ? handleGridMouseEnter : undefined}
+              onCellMouseUp={toolMode === 'select' ? handleGridMouseUp : undefined}
               onionSkinEnabled={onionSkinEnabled}
               onionSkinOpacity={onionSkinOpacity}
               prevFrame={prevFrame}
               nextFrame={nextFrame}
               metaSpriteParts={superSpriteParts}
+              selectionRect={toolMode === 'select' ? selectionRect : null}
             />
           )}
         </div>
@@ -1249,17 +1814,65 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             </div>
           </div>
         </Panel>
-
-        <Panel title="MSX2 Sprite Export Contract" collapsible>
-          <pre className="m-0 max-h-44 overflow-auto p-3 text-[10px] leading-relaxed text-msx-textsecondary whitespace-pre-wrap">
-            {JSON.stringify(spriteExportContract, null, 2)}
-          </pre>
-        </Panel>
-
-        <Panel title="MSX2 Pattern Bytes" collapsible>
-          <pre className="m-0 max-h-28 overflow-auto p-3 text-xs text-msx-textsecondary whitespace-pre-wrap">{asmBytes}</pre>
-        </Panel>
       </div>
+      <Msx2ExternalSpriteImportModal
+        isOpen={isExternalImportOpen}
+        sprite={sprite}
+        paletteAssets={paletteAssets}
+        onClose={() => setIsExternalImportOpen(false)}
+        onApply={applyExternalSpriteImport}
+        onSavePaletteAsset={onSavePaletteAsset}
+      />
+      {paletteEditorSlot !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true">
+          <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col rounded border border-msx-border bg-msx-panelbg shadow-xl">
+            <div className="flex items-center justify-between border-b border-msx-border px-4 py-3">
+              <h2 className="text-base font-semibold text-msx-highlight">Editor de Paleta — Slot {paletteEditorSlot}</h2>
+              <Button size="sm" variant="ghost" onClick={() => setPaletteEditorSlot(null)}>Cerrar</Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <PaletteEditor
+                key={paletteEditorSlot}
+                initialActiveSlot={paletteEditorSlot}
+                paletteAsset={{
+                  id: sprite.id,
+                  name: sprite.name,
+                  data: { slots: palette.map(slot => ({ ...slot })), mode: 'SCREEN5', notes: '' },
+                }}
+                onUpdate={updated => {
+                  if (!updated.slots) return;
+                  const nextSlots = updated.slots.map(slot => ({ ...slot }));
+                  // Remap pixels by slot index: when a slot changes color, the
+                  // pixels that used it must follow. Otherwise they keep the old
+                  // hex, become orphaned (no slot matches) and the ROM generator
+                  // (exact hex->slot match) drops them to transparent — the sprite
+                  // looks right in the editor but vanishes in the ROM.
+                  const remap = new Map<string, MSXColorValue>();
+                  palette.forEach((slot, index) => {
+                    const nextHex = nextSlots[index]?.hex;
+                    if (nextHex && normalizeColor(slot.hex) !== normalizeColor(nextHex)) {
+                      remap.set(normalizeColor(slot.hex), nextHex as MSXColorValue);
+                    }
+                  });
+                  if (remap.size > 0) {
+                    const remapColor = (color: MSXColorValue): MSXColorValue =>
+                      (remap.get(normalizeColor(color)) || color) as MSXColorValue;
+                    onUpdate({
+                      palette: nextSlots,
+                      backgroundColor: remapColor(sprite.backgroundColor),
+                      frames: sprite.frames.map(frame => ({ ...frame, data: frame.data.map(row => row.map(remapColor)) })),
+                    });
+                  } else {
+                    onUpdate({ palette: nextSlots });
+                  }
+                  onSyncPaletteSlots?.(nextSlots);
+                }}
+                setStatusBarMessage={() => {}}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

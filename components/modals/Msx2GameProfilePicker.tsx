@@ -6,6 +6,7 @@ import platformPreviewImg from '../../src/assets/msx2-project-profiles/platform-
 import mazePreviewImg from '../../src/assets/msx2-project-profiles/maze-preview.png';
 import shooterVerticalPreviewImg from '../../src/assets/msx2-project-profiles/shooter-vertical-preview.png';
 import shooterHorizontalPreviewImg from '../../src/assets/msx2-project-profiles/shooter-horizontal-preview.png';
+import bitmapPlatformPreviewImg from '../../src/assets/msx2-project-profiles/bitmap-platform-preview.png';
 
 interface Msx2GameProfilePickerProps {
   projectName: string;
@@ -19,6 +20,7 @@ const PROFILE_PREVIEW_IMAGES: Partial<Record<Msx2GameProfileId, string>> = {
   maze: mazePreviewImg,
   shooterVertical: shooterVerticalPreviewImg,
   shooterHorizontal: shooterHorizontalPreviewImg,
+  bitmapPlatform: bitmapPlatformPreviewImg,
 };
 
 const PREVIEW_COLORS = {
@@ -107,6 +109,44 @@ function drawShooterVerticalPreview(ctx: CanvasRenderingContext2D, width: number
   ctx.fillRect(29, 30, 2, 8);
 }
 
+function drawBitmapPlatformPreview(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  // SCREEN 5 bitmap platformer: smooth multicolor sky, layered platforms, player jumping.
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#1e3a8a');
+  sky.addColorStop(1, '#0b1220');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  // Background stars (bitmap fine detail)
+  ctx.fillStyle = '#cbd5e1';
+  for (let i = 0; i < 8; i += 1) {
+    ctx.fillRect(6 + (i * 23) % width, 4 + (i * 13) % 24, 1, 1);
+  }
+
+  // Ground + floating platforms (grass top, dirt body)
+  const drawPlatform = (x: number, y: number, w: number, h: number) => {
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(x, y, w, 3);
+  };
+  drawPlatform(0, height - 12, width, 12);
+  drawPlatform(14, height - 34, 34, 9);
+  drawPlatform(70, height - 48, 34, 9);
+
+  // Collectible coin on the higher platform
+  ctx.fillStyle = '#facc15';
+  ctx.beginPath();
+  ctx.arc(87, height - 56, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Player mid-jump on the lower platform
+  ctx.fillStyle = PREVIEW_COLORS.player;
+  ctx.fillRect(26, height - 50, 10, 14);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(26, height - 50, 10, 4);
+}
+
 function drawProfilePreview(canvas: HTMLCanvasElement, profileId: Msx2GameProfileId) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -127,6 +167,9 @@ function drawProfilePreview(canvas: HTMLCanvasElement, profileId: Msx2GameProfil
     case 'shooterVertical':
       drawShooterVerticalPreview(ctx, width, height);
       break;
+    case 'bitmapPlatform':
+      drawBitmapPlatformPreview(ctx, width, height);
+      break;
     default:
       drawPlatformPreview(ctx, width, height);
   }
@@ -139,7 +182,7 @@ const ProfilePreview: React.FC<{ profileId: Msx2GameProfileId }> = ({ profileId 
       <img
         src={imageSrc}
         alt=""
-        className="w-full h-auto rounded border border-msx-border bg-black object-cover object-center"
+        className="w-full h-auto max-h-32 rounded border border-msx-border bg-black object-cover object-center"
         style={{ aspectRatio: '16 / 10' }}
       />
     );
@@ -177,7 +220,7 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4">
       <div
-        className="w-full max-w-4xl rounded-lg border border-msx-border bg-msx-panelbg p-6 shadow-xl animate-slideIn"
+        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg border border-msx-border bg-msx-panelbg p-6 shadow-xl animate-slideIn"
         role="dialog"
         aria-modal="true"
         aria-labelledby="msx2GameProfilePickerTitle"
@@ -194,7 +237,7 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {MSX2_GAME_PROFILE_OPTIONS.map(option => {
             const selected = selectedProfileId === option.id;
             return (
@@ -207,7 +250,19 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
                 }`}
               >
                 <ProfilePreview profileId={option.previewKind} />
-                <div className="mt-2 text-sm font-semibold text-msx-textprimary">{option.label}</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm font-semibold text-msx-textprimary">{option.label}</span>
+                  {option.experimental && (
+                    <span className="rounded border border-yellow-500/60 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-300">
+                      Experimental
+                    </span>
+                  )}
+                  {option.notImplemented && (
+                    <span className="rounded border border-red-500/60 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-300">
+                      Not implemented
+                    </span>
+                  )}
+                </div>
                 <div className="mt-1 text-xs text-msx-textsecondary">{option.description}</div>
               </button>
             );

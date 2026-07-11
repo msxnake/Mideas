@@ -4,6 +4,7 @@
  */
 
 import { ProjectAsset } from '../../types';
+import { getMsx2ScreenModeConflictMessage } from '../msx2ProjectProfiles';
 import { analyzeProject, ProjectAnalysis } from '../asmTemplateGenerator';
 import { GeneratedASMFiles, ProjectSummary } from './types/asmTypes';
 
@@ -37,7 +38,7 @@ import { generateBossesFile } from './generators/bossesGenerator';
 import { generatePage0File } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
 import { generateMsx2Screen4Files } from './generators/msx2/msx2Screen4Generator';
-import { generateMsx2Screen4BitmapRoomFiles } from './generators/msx2/msx2Screen4BitmapRoomGenerator';
+import { generateMsx2Screen5BitmapRoomFiles } from './generators/msx2/msx2Screen5BitmapRoomGenerator';
 import { generateMsx2Screen5PresentationFiles } from './generators/msx2/msx2Screen5PresentationGenerator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
@@ -48,8 +49,8 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
-export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern' | 'msx2-screen4-bitmap-room' | 'msx2-screen5-presentation';
-type LegacyGraphicsBackend = 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
+export type { GraphicsBackend, LegacyGraphicsBackend } from './graphicsBackend';
+import type { GraphicsBackend, LegacyGraphicsBackend } from './graphicsBackend';
 
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
@@ -135,7 +136,7 @@ function resolveMsx2GameFlowBackend(assets: ProjectAsset[] | undefined): Graphic
   return undefined;
 }
 
-function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
+export function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
   if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
     console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
     return 'msx2-screen4-pattern';
@@ -281,6 +282,15 @@ export function generateModularASM(
 
   console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
 
+  // One ROM = one MSX2 graphics mode. Block export of projects that mix tile SCREEN 4 screens
+  // and bitmap SCREEN 5 rooms before any backend is selected (the selector would otherwise pick
+  // one mode and silently drop the other set of screens).
+  const screenModeConflict = getMsx2ScreenModeConflictMessage(assets);
+  if (screenModeConflict) {
+    console.error('❌', screenModeConflict);
+    throw new Error(screenModeConflict);
+  }
+
   const targetGraphicsBackend = resolveGraphicsBackend(config, assets);
   if (targetGraphicsBackend === 'msx2-screen5-presentation') {
     const analysis = analyzeProject(projectName, assets);
@@ -293,7 +303,7 @@ export function generateModularASM(
   }
   if (targetGraphicsBackend === 'msx2-screen4-bitmap-room') {
     const analysis = analyzeProject(projectName, assets);
-    return generateMsx2Screen4BitmapRoomFiles(projectName, analysis, {
+    return generateMsx2Screen5BitmapRoomFiles(projectName, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: config.romMode || 'simple32k',
       targetFormat: config.targetFormat || 'konami',
@@ -501,7 +511,7 @@ export function generateModularASMFromSummary(
     });
   }
   if (summaryGraphicsBackend === 'msx2-screen4-bitmap-room') {
-    return generateMsx2Screen4BitmapRoomFiles(summary.projectInfo.name, analysis, {
+    return generateMsx2Screen5BitmapRoomFiles(summary.projectInfo.name, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',
       targetFormat: summaryGraphicsConfig.targetFormat || 'konami',

@@ -3,7 +3,8 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph, Msx2GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
-  DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2Screen4BitmapRoom, Msx2PlayerDefinition
+  DialogueAsset, Msx2DialogueAsset, PortraitAsset, ScreenKind, Boss, Msx2HudFontAsset, Msx2HudAsset, Msx2Screen5BitmapRoom, Msx2PlayerDefinition,
+  BitmapTileScreen5, Msx2BitmapStampAsset
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -22,6 +23,12 @@ import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from
 import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, MSX2_PLAYER_DOCUMENT_SCHEMA } from '../utils/msx2PlayerDocument';
 import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../data/enemyLibrary';
+import { deepCopy } from '../utils/projectUtils';
+import {
+  buildScreen5BitmapTileAsset,
+  createScreen5PaletteAssetForTile,
+  findMatchingScreen5PaletteAsset,
+} from '../utils/msx2Screen5BitmapTileLibrary';
 
 const MSX2_HUD_FONT_CHARACTERS = ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-/';
 const DEFAULT_MSX2_HUD_FONT_PATTERNS: Record<string, number[]> = {
@@ -355,6 +362,46 @@ export const useAssetHandlers = ({
       return undefined;
     }
 
+    // MSX2 bitmap tiles (SCREEN 5) are 16x16 tiles edited in the dedicated
+    // Msx2BitmapTileEditor. Creating one builds a blank tile plus the SCREEN 5
+    // palette asset it references (without a paletteId the tile could never be
+    // imported into a room atlas). When `select` is not explicitly disabled we
+    // also switch the active editor + selection so the user lands in the new
+    // tile editor (per "cuando creo un nuevo tile debe salir este editor").
+    // Callers that only want the asset without leaving the current editor can
+    // pass `{ select: false }`.
+    if (type === 'msx2bitmaptile') {
+      const tileName = 'New Bitmap Tile';
+      const slots = createDefaultScreen5PaletteSlots();
+      const blankPixels = Array.from({ length: 16 }, () => Array.from({ length: 16 }, () => 0));
+      const matchingPalette = findMatchingScreen5PaletteAsset(slots, assets);
+      const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(slots, tileName, 'pending', assets);
+      const tileAsset = buildScreen5BitmapTileAsset({
+        name: tileName,
+        width: 16,
+        height: 16,
+        pixels: blankPixels,
+        paletteId: paletteAsset.id,
+        existingAssets: matchingPalette ? assets : [...assets, paletteAsset],
+        sourceType: 'manual-edit',
+      });
+      if (!matchingPalette) {
+        (paletteAsset.data as PaletteAsset).createdFromTileId = tileAsset.id;
+      }
+      const assetsToAdd = matchingPalette ? [tileAsset] : [paletteAsset, tileAsset];
+      setAssetsWithHistory(prevAssets => [...prevAssets, ...assetsToAdd]);
+      if (options?.select !== false) {
+        setSelectedAssetId(tileAsset.id);
+        setCurrentEditor(EditorType.Msx2BitmapTile);
+      }
+      setStatusBarMessage(
+        matchingPalette
+          ? `Created "${tileAsset.name}" (MSX2 Bitmap Tile 16x16) using palette "${matchingPalette.name}".`
+          : `Created "${tileAsset.name}" (MSX2 Bitmap Tile 16x16) and palette "${paletteAsset.name}".`
+      );
+      return tileAsset;
+    }
+
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
@@ -498,39 +545,58 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Msx2Screen;
         break;
       case 'msx2bitmaproom':
-        defaultName = 'New MSX2 SCREEN 4 Bitmap Room';
+        defaultName = 'New MSX2 SCREEN 5 Bitmap Room';
         newAssetData = {
           id,
           name: defaultName,
           target: 'MSX2',
-          vdpMode: 'SCREEN4_BITMAP_ROOM',
+          vdpMode: 'SCREEN5_BITMAP_ROOM',
           width: 256,
           height: 192,
           palette: createDefaultScreen5PaletteSlots(),
+          backgroundColor: 1,
           atlas: {
             width: 256,
             height: 128,
             offscreenBaseY: 320,
             pixels: Array.from({ length: 128 }, () => Array.from({ length: 256 }, () => 0)),
-            entries: [
-              { id: 'atlas_block_0', name: 'Blank 8x8', sx: 0, sy: 0, w: 8, h: 8 },
-              { id: 'atlas_block_1', name: 'Solid 16x16', sx: 16, sy: 0, w: 16, h: 16 },
-            ],
+            entries: [],
           },
           composition: {
             source: 'authored',
-            commands: [
-              { id: 'clear_screen', op: 'fill', x: 0, y: 0, w: 256, h: 192, color: 1 },
-              { id: 'sample_block', op: 'copy', atlasEntryId: 'atlas_block_1', dx: 32, dy: 128 },
-            ],
+            commands: [],
           },
           collision: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           entities: [],
           playerEntries: createDefaultMsx2PlayerEntries(),
+          runtime: {
+            screenKind: 'playable',
+            screenEngine: 'player',
+            movementMode: 'platform',
+            movementModel: 'platform',
+            activeAreaX: 0,
+            activeAreaY: 1,
+            activeAreaWidth: 16,
+            activeAreaHeight: 12,
+            hideHud: false,
+            showHud: true,
+            statusHud: true,
+            hudStyle: 'statusBars',
+            playerEnergyMax: 16,
+            playerEnergyInitial: 16,
+            bossEnergyMax: 16,
+            bossEnergyInitial: 16,
+            initialAir: 255,
+            hudPrimaryColor: 10,
+            hudSecondaryColor: 8,
+            hudBorderColor: 15,
+            hudEmptyColor: 1,
+            hudWidgets: [],
+          },
           notes: 'Bitmap SCREEN 4 room composer: atlas offscreen, V9938 copy/fill/line command list, sprites above.',
-        } as Msx2Screen4BitmapRoom;
+        } as Msx2Screen5BitmapRoom;
         newEditorType = EditorType.Msx2BitmapRoom;
         break;
       case 'msx2player':
@@ -552,7 +618,7 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Msx2Enemy;
         break;
       case 'msx2hudfont':
-        defaultName = 'New MSX2 HUD Font';
+        defaultName = 'New MSX2 Font';
         newAssetData = {
           target: 'MSX2',
           vdpMode: 'SCREEN4',
@@ -560,10 +626,124 @@ export const useAssetHandlers = ({
           characters: MSX2_HUD_FONT_CHARACTERS,
           patterns: JSON.parse(JSON.stringify(DEFAULT_MSX2_HUD_FONT_PATTERNS)),
           colorByte: 0xF1,
-          notes: 'Generic SCREEN 4 HUD font for counters and text widgets. Separate from MSX1 font assets.',
+          screen5BackgroundSlot: 1,
+          notes: 'Generic MSX2 font for counters and text widgets. SCREEN 4 uses 1bpp patterns; SCREEN 5 can paint 4bpp bitmap glyphs.',
         } as Msx2HudFontAsset;
         newEditorType = EditorType.Msx2HudFont;
         break;
+      case 'msx2hud':
+        defaultName = 'New MSX2 HUD';
+        newAssetData = {
+          target: 'MSX2',
+          width: 256,
+          height: 20,
+          layers: [
+            {
+              id: `hud_layer_${Date.now()}`,
+              name: 'Background',
+              kind: 'paint',
+              visible: true,
+              locked: false,
+              pixels: Array.from({ length: 20 }, () => new Array(256).fill(-1)),
+            },
+          ],
+          hudFontAssetId: null,
+          icons: [],
+          notes: 'Standalone HUD asset for SCREEN 5 bitmap rooms. Link it from a room via runtime.hudAssetId.',
+        } as Msx2HudAsset;
+        newEditorType = EditorType.Msx2HudEditor;
+        break;
+      case 'msx2bitmapstamp': {
+        defaultName = 'New Stamp';
+        const slots = createDefaultScreen5PaletteSlots();
+        const matchingPalette = findMatchingScreen5PaletteAsset(slots, assets);
+        const paletteAsset = matchingPalette ?? createScreen5PaletteAssetForTile(slots, defaultName, id, assets);
+        const now = new Date().toISOString();
+        const blankTile = (row: number, col: number): BitmapTileScreen5 => ({
+          id: `${id}_cell_${row}_${col}`,
+          name: `${defaultName} ${row}_${col}`,
+          mode: 'SCREEN5_BITMAP',
+          width: 16,
+          height: 16,
+          sourceType: 'manual-edit',
+          paletteId: paletteAsset.id,
+          pixelData: new Array(16 * 16).fill(0),
+          createdAt: now,
+          updatedAt: now,
+        });
+        const cols = 2;
+        const rws = 2;
+        const tiles: BitmapTileScreen5[] = [];
+        for (let r = 0; r < rws; r++) for (let c = 0; c < cols; c++) tiles.push(blankTile(r, c));
+        newAssetData = {
+          id,
+          name: defaultName,
+          savedAt: Date.now(),
+          stamp: {
+            id,
+            name: defaultName,
+            mode: 'SCREEN5_BITMAP_STAMP',
+            columns: cols,
+            rows: rws,
+            tileWidth: 16,
+            tileHeight: 16,
+            sourceType: 'manual-edit',
+            paletteId: paletteAsset.id,
+            tiles,
+            createdAt: now,
+            updatedAt: now,
+          },
+          palette: slots,
+        } as Msx2BitmapStampAsset;
+        newEditorType = EditorType.Msx2BitmapStamp;
+        if (!matchingPalette) {
+          setAssetsWithHistory(prevAssets => [...prevAssets, paletteAsset]);
+        }
+        break;
+      }
+      case 'msx2dialogue': {
+        defaultName = 'New MSX2 Dialogue';
+        const blankFrame = () => Array.from({ length: 32 }, () => new Array(32).fill(1));
+        newAssetData = {
+          id,
+          name: defaultName,
+          target: 'MSX2',
+          lines: [
+            { id: `dlg_line_${Date.now()}`, speaker: 'NPC', text: 'HELLO TRAVELLER', waitForInput: true },
+          ],
+          box: {
+            x: 8,
+            y: 8,
+            width: 240,
+            height: 56,
+            backgroundColor: 1,
+            borderColor: 15,
+            textColor: 15,
+            portraitSide: 'left',
+            padding: 4,
+          },
+          portraits: [
+            {
+              id: `dlg_portrait_${Date.now()}`,
+              name: 'Portrait 1',
+              width: 32,
+              height: 32,
+              closedPixels: blankFrame(),
+              openPixels: blankFrame(),
+            },
+          ],
+          defaultPortraitId: undefined,
+          fontAssetId: undefined,
+          exportOptions: {
+            charDelayFrames: 3,
+            mouthToggleEveryChars: 2,
+            stripUnsupportedChars: true,
+          },
+        } as Msx2DialogueAsset;
+        (newAssetData as Msx2DialogueAsset).defaultPortraitId = (newAssetData as Msx2DialogueAsset).portraits[0].id;
+        newEditorType = EditorType.Msx2Dialogue;
+        break;
+      }
       case 'msx2presentation':
         defaultName = 'New MSX2 SCREEN 5 Presentation';
         newAssetData = {
@@ -873,6 +1053,126 @@ export const useAssetHandlers = ({
     return newAsset;
   };
 
+  const buildDuplicateAssetName = (sourceAsset: ProjectAsset): string => {
+    const baseName = sourceAsset.name.replace(/_copy\d+$/i, '');
+    const usedNames = new Set(
+      assets
+        .filter(asset => asset.type === sourceAsset.type)
+        .map(asset => asset.name)
+    );
+
+    let copyIndex = 1;
+    let candidateName = `${baseName}_copy${copyIndex}`;
+    while (usedNames.has(candidateName)) {
+      copyIndex += 1;
+      candidateName = `${baseName}_copy${copyIndex}`;
+    }
+    return candidateName;
+  };
+
+  const cloneAssetDataForDuplicate = (
+    sourceAsset: ProjectAsset,
+    duplicateId: string,
+    duplicateName: string
+  ): ProjectAsset['data'] => {
+    if (sourceAsset.data === undefined) return undefined;
+    if (typeof sourceAsset.data === 'string') return sourceAsset.data;
+
+    const clonedData = deepCopy(sourceAsset.data);
+    if (clonedData && typeof clonedData === 'object') {
+      if (Object.prototype.hasOwnProperty.call(clonedData, 'id')) {
+        clonedData.id = duplicateId;
+      }
+      if (Object.prototype.hasOwnProperty.call(clonedData, 'name')) {
+        clonedData.name = duplicateName;
+      }
+      if (sourceAsset.type === 'msx2player' && clonedData.player?.identity) {
+        clonedData.player.identity.name = duplicateName;
+      }
+    }
+    return clonedData;
+  };
+
+  const getEditorTypeForAsset = (assetType: ProjectAsset['type']): EditorType => {
+    switch (assetType) {
+      case 'tile': return EditorType.Tile;
+      case 'sprite': return EditorType.Sprite;
+      case 'msx2sprite': return EditorType.Msx2Sprite;
+      case 'msx2bitmap': return EditorType.Msx2Bitmap;
+      case 'msx2bitmaptile': return EditorType.Msx2BitmapTile;
+      case 'msx2screen': return EditorType.Msx2Screen;
+      case 'msx2bitmaproom': return EditorType.Msx2BitmapRoom;
+      case 'msx2player': return EditorType.Msx2Player;
+      case 'msx2enemy': return EditorType.Msx2Enemy;
+      case 'msx2hudfont': return EditorType.Msx2HudFont;
+      case 'msx2hud': return EditorType.Msx2HudEditor;
+      case 'msx2presentation': return EditorType.Msx2Presentation;
+      case 'msx2gameflow': return EditorType.Msx2GameFlow;
+      case 'font': return EditorType.Font;
+      case 'boss': return EditorType.Boss;
+      case 'screenmap': return EditorType.Screen;
+      case 'worldmap': return EditorType.WorldMap;
+      case 'gameflow': return EditorType.GameFlow;
+      case 'dialogue': return EditorType.Dialogue;
+      case 'msx2dialogue': return EditorType.Msx2Dialogue;
+      case 'msx2bitmapstamp': return EditorType.Msx2BitmapStamp;
+      case 'portrait': return EditorType.Portrait;
+      case 'tilebank': return EditorType.TileBanks;
+      case 'sound': return EditorType.Sound;
+      case 'track': return EditorType.Track;
+      case 'behavior': return EditorType.BehaviorEditor;
+      case 'componentdefinition': return EditorType.ComponentDefinitionEditor;
+      case 'entitytemplate': return EditorType.EntityTemplateEditor;
+      case 'globalvariables': return EditorType.GlobalVariables;
+      case 'palette': return EditorType.Palette;
+      case 'presentationscreen': return EditorType.PresentationScreen;
+      case 'code': return EditorType.Code;
+      case 'statemachine': return EditorType.StateMachine;
+      default: return EditorType.None;
+    }
+  };
+
+  const handleDuplicateAsset = (assetId: string) => {
+    const sourceAsset = assets.find(asset => asset.id === assetId);
+    if (!sourceAsset) {
+      setStatusBarMessage('Asset duplicate failed: source asset not found.');
+      return;
+    }
+
+    if (!isAssetTypeEnabledForMsx2Project(sourceAsset.type, currentScreenMode, msx2ProjectProfile)) {
+      setStatusBarMessage(`${sourceAsset.type} is disabled for this ${getProjectTargetFromScreenMode(currentScreenMode)} project profile.`);
+      return;
+    }
+
+    const duplicateId = `${sourceAsset.type}_${Date.now()}_copy_${Math.random().toString(36).slice(2, 7)}`;
+    const duplicateName = buildDuplicateAssetName(sourceAsset);
+    const duplicateAsset: ProjectAsset = {
+      ...sourceAsset,
+      id: duplicateId,
+      name: duplicateName,
+      data: cloneAssetDataForDuplicate(sourceAsset, duplicateId, duplicateName),
+    };
+
+    setAssetsWithHistory(prevAssets => {
+      const sourceIndex = prevAssets.findIndex(asset => asset.id === assetId);
+      if (sourceIndex === -1) return [...prevAssets, duplicateAsset];
+      const nextAssets = [...prevAssets];
+      nextAssets.splice(sourceIndex + 1, 0, duplicateAsset);
+      return nextAssets;
+    });
+
+    if (duplicateAsset.type === 'tilebank' && duplicateAsset.data && Array.isArray((duplicateAsset.data as TileBank).banks)) {
+      setTileBanksWithHistory(prevTileBanks => [
+        ...prevTileBanks.filter(tileBank => tileBank.id !== duplicateId),
+        duplicateAsset.data as TileBank
+      ]);
+    }
+
+    setSelectedAssetId(duplicateId);
+    setCurrentEditor(getEditorTypeForAsset(duplicateAsset.type));
+    setStatusBarMessage(`Duplicated asset "${sourceAsset.name}" as "${duplicateName}".`);
+  };
+
   const handleDeleteAsset = (assetId: string) => {
     const assetToDelete = assets.find(a => a.id === assetId);
     if (assetToDelete) {
@@ -1100,6 +1400,7 @@ export const useAssetHandlers = ({
   return {
     handleUpdateAsset,
     handleNewAsset,
+    handleDuplicateAsset,
     handleDeleteAsset,
     handleUpdateSpriteOrder,
     handleReorderSpriteFrames,

@@ -292,8 +292,12 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const connections = gameFlowGraph.connections || [];
   const flowPurpose = gameFlowGraph.purpose || 'screen5-presentation';
   const isScreen5PresentationFlow = flowPurpose === 'screen5-presentation';
-  const isScreen4BitmapRuntimeFlow = flowPurpose === 'screen4-bitmap-runtime';
+  const isScreen5BitmapRuntimeFlow = flowPurpose === 'screen4-bitmap-runtime';
   const isScreen4TileRuntimeFlow = flowPurpose === 'screen4-runtime';
+  // The room node type is the same (`Screen4Screen`) for both tile SCREEN 4 and bitmap SCREEN 5
+  // rooms — only the referenced asset differs. Relabel the add button to the active flow's mode so
+  // a bitmap flow clearly offers a bitmap-room screen instead of a confusing "Add SCREEN 4".
+  const screenRoomNodeButtonLabel = isScreen5BitmapRuntimeFlow ? 'Add SCREEN 5 Room' : 'Add SCREEN 4';
   const selectedNode = nodes.find(node => node.id === selectedNodeId) || null;
   const selectedPresentationNode = selectedNode?.type === 'Screen5Presentation'
     ? selectedNode as Msx2GameFlowScreen5PresentationNode
@@ -331,7 +335,9 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const selectedMusicNode = selectedNode?.type === 'Music'
     ? selectedNode as Msx2GameFlowMusicNode
     : null;
-  const transitionOptions = isScreen5PresentationFlow
+  // The bitmap-room runtime intro renders transitions with V9938 HMMV fills, so it
+  // supports the same SCREEN 5 effect set as the presentation backend.
+  const transitionOptions = isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow
     ? MSX2_SCREEN5_TRANSITION_OPTIONS
     : MSX2_SCREEN4_TRANSITION_OPTIONS;
   const firstPresentationNode = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
@@ -355,7 +361,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       runtime?: { screenEngine?: string; screenKind?: string; movementMode?: string };
       vdpMode?: string;
     } | undefined;
-    if (screen?.vdpMode === 'SCREEN4_BITMAP_ROOM') return true;
+    if (screen?.vdpMode === 'SCREEN5_BITMAP_ROOM') return true;
     const engine = String(screen?.runtime?.screenEngine || '').trim();
     if (engine === 'fakePlayer') return false;
     if (engine === 'player' || engine === 'shooter') return true;
@@ -413,11 +419,18 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     const nodeIds = new Set(nodes.map(node => node.id));
     const startNode = nodes.find(node => node.id === gameFlowGraph.startNodeId) || nodes.find(node => node.type === 'Start');
     if (!isScreen5PresentationFlow) {
-      if (nodes.some(node => node.type === 'Screen5Presentation')) {
+      // The SCREEN 5 bitmap-room runtime plays Screen5Presentation nodes as a boot
+      // intro (presentation -> transition -> game); only the SCREEN 4 tile runtime
+      // still rejects them.
+      if (!isScreen5BitmapRuntimeFlow && nodes.some(node => node.type === 'Screen5Presentation')) {
         issues.push('SCREEN 4 runtime flows should not include SCREEN 5 Presentation nodes.');
       }
       for (const node of nodes) {
-        if (node.type === 'Screen4Screen') {
+        if (node.type === 'Screen5Presentation' && isScreen5BitmapRuntimeFlow) {
+          if (!node.presentationAssetId || !presentationAssets.some(asset => asset.id === node.presentationAssetId)) {
+            issues.push('Screen5Presentation node must select a valid SCREEN 5 presentation asset.');
+          }
+        } else if (node.type === 'Screen4Screen') {
           if (!node.screenAssetId || !screen4Assets.some(asset => asset.id === node.screenAssetId)) {
             issues.push('Screen4Screen node must select a valid SCREEN 4 room.');
           }
@@ -457,7 +470,11 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!node.variableName?.trim()) issues.push('IfThenElse must select a global variable.');
           if (!hasThen || !hasElse) issues.push('IfThenElse needs both THEN and ELSE outgoing connections.');
         } else if (node.type === 'Transition') {
-          if (!MSX2_SCREEN4_TRANSITION_EFFECTS.has(node.effect)) {
+          if (isScreen5BitmapRuntimeFlow) {
+            if (!MSX2_SCREEN5_TRANSITION_EFFECTS.has(node.effect)) {
+              issues.push(`Transition effect "${node.effect}" is not supported by the SCREEN 5 bitmap-room runtime; use a SCREEN 5 effect.`);
+            }
+          } else if (!MSX2_SCREEN4_TRANSITION_EFFECTS.has(node.effect)) {
             issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 4 runtime.`);
           }
         } else if (node.type === 'Music') {
@@ -1388,13 +1405,13 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           <Button
             onClick={() => updateFlowPurpose('screen4-bitmap-runtime')}
             size="sm"
-            variant={isScreen4BitmapRuntimeFlow ? 'primary' : 'ghost'}
+            variant={isScreen5BitmapRuntimeFlow ? 'primary' : 'ghost'}
           >
-            SCREEN 4 Bitmap
+            SCREEN 5 Bitmap
           </Button>
         </div>
-        <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5PresentationFlow}>
-          Add SCREEN 5
+        <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5PresentationFlow && !isScreen5BitmapRuntimeFlow} title="SCREEN 5 still-image presentation node (title/cutscene)">
+          Add Presentation
         </Button>
         <Button onClick={() => addNode('Globals')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Globals
@@ -1402,8 +1419,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add SubMenu
         </Button>
-        <Button onClick={() => addNode('Screen4Screen')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
-          Add SCREEN 4
+        <Button onClick={() => addNode('Screen4Screen')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow} title={isScreen5BitmapRuntimeFlow ? 'Add a SCREEN 5 bitmap-room screen node' : 'Add a SCREEN 4 tile-room screen node'}>
+          {screenRoomNodeButtonLabel}
         </Button>
         <Button onClick={() => addNode('Controls')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
           Add Controls
@@ -2399,11 +2416,19 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
               </div>
             )}
             <p className="text-xs text-msx-textsecondary">
-              Purpose: {isScreen5PresentationFlow ? 'SCREEN 5 presentation/export' : 'SCREEN 4 menu/game runtime'}
+              Purpose: {isScreen5PresentationFlow
+                ? 'SCREEN 5 presentation/export'
+                : isScreen5BitmapRuntimeFlow
+                  ? 'SCREEN 5 bitmap-room runtime'
+                  : 'SCREEN 4 tile menu/game runtime'}
             </p>
             {flowIssues.length === 0 ? (
               <p className="text-xs text-green-300">
-                {isScreen5PresentationFlow ? 'Export path ready for SCREEN 5.' : 'SCREEN 4 runtime scaffold is clean.'}
+                {isScreen5PresentationFlow
+                  ? 'Export path ready for SCREEN 5.'
+                  : isScreen5BitmapRuntimeFlow
+                    ? 'SCREEN 5 bitmap-room runtime scaffold is clean.'
+                    : 'SCREEN 4 runtime scaffold is clean.'}
               </p>
             ) : (
               <ul className="space-y-1 text-xs text-yellow-200">

@@ -95,6 +95,13 @@ export const itemCollection: SkillDef = {
 };
 
 // ── optional skills ──
+// TODO (hacer proximamente): the optional skills marked
+// supportedBackends: ['msx2-screen4-pattern'] below do NOT yet have a SCREEN 5
+// bitmap-room (msx2-screen4-bitmap-room) generator, so the Player Config hides
+// them in Screen 5 projects. When a bitmap-room generator is implemented for
+// any of them, add 'msx2-screen4-bitmap-room' to its supportedBackends so it
+// becomes selectable in Screen 5.
+
 
 export const doubleJumpParameters: SkillParameterDef[] = [
   {
@@ -127,13 +134,22 @@ export const doubleJump: SkillDef = {
     { from: ['jumping', 'falling'], to: 'double_jumping', condition: 'jump_key_pressed AND jump_count < 2' },
     { from: ['double_jumping'], to: 'falling', condition: 'gravity_vel > 0' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: doubleJumpParameters,
 };
+
+export const slashParameters: SkillParameterDef[] = [
+  { key: 'slashDuration', label: 'Slash active duration (frames)', type: 'number', default: 10, min: 1, max: 60, step: 1, help: 'How many frames the slash hitbox stays active.' },
+  { key: 'slashCooldown', label: 'Slash cooldown (frames)', type: 'number', default: 30, min: 0, max: 120, step: 1, help: 'Frames before the next slash.' },
+  { key: 'slashDamage', label: 'Damage per slash hit', type: 'number', default: 1, min: 0, max: 5, step: 1, help: 'Damage dealt to an enemy on hit.' },
+  { key: 'requireKeyRelease', label: 'Require key release between slashes', type: 'boolean', default: true, help: 'Player must release the slash key before slashing again.' },
+];
 
 export const slash: SkillDef = {
   id: 'slash',
   label: 'Melee slash in facing direction',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 200,
   controlIcon: 'attack',
   addsStates: ['slashing'],
@@ -142,12 +158,14 @@ export const slash: SkillDef = {
     { from: ['slashing'], to: 'grounded', condition: 'slash_timer_expired AND grounded' },
     { from: ['slashing'], to: 'falling', condition: 'slash_timer_expired AND NOT grounded' },
   ],
+  parameters: slashParameters,
 };
 
 export const pushBox: SkillDef = {
   id: 'pushBox',
   label: 'Push boxes on contact',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 120,
   addsStates: ['pushing'],
   transitions: [
@@ -161,6 +179,7 @@ export const hitAttack: SkillDef = {
   id: 'hit_attack',
   label: 'Contact damage on collision',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 60,
   controlIcon: 'attack',
   addsStates: [],
@@ -171,6 +190,7 @@ export const block: SkillDef = {
   id: 'block',
   label: 'Reduce damage while held',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 60,
   controlIcon: 'attack',
   addsStates: ['blocking'],
@@ -184,6 +204,7 @@ export const teleport: SkillDef = {
   id: 'teleport',
   label: 'Teleport via portal',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 300,
   addsStates: [],
   transitions: [],
@@ -193,6 +214,7 @@ export const pickUp: SkillDef = {
   id: 'pick_up',
   label: 'Pick up carried objects',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 100,
   controlIcon: 'attack',
   addsStates: ['carrying'],
@@ -207,6 +229,7 @@ export const magicBall: SkillDef = {
   id: 'magic_ball',
   label: 'Fire magic projectile',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 250,
   controlIcon: 'attack',
   addsStates: [],
@@ -217,6 +240,7 @@ export const reverse: SkillDef = {
   id: 'reverse',
   label: 'Reverse movement direction',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 80,
   addsStates: ['reversed'],
   transitions: [
@@ -229,6 +253,7 @@ export const swim: SkillDef = {
   id: 'swim',
   label: 'Buoyant movement in water',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 180,
   controlIcon: 'jump',
   addsStates: ['swimming', 'sinking'],
@@ -240,10 +265,61 @@ export const swim: SkillDef = {
   ],
 };
 
+export const shootParameters: SkillParameterDef[] = [
+  {
+    key: 'bulletSpeed',
+    label: 'Bullet speed (px/frame)',
+    type: 'number',
+    default: 4,
+    min: 1,
+    max: 16,
+    step: 1,
+    help: 'Horizontal velocity of the bullet in pixels per frame. Typical: 3-8.',
+  },
+  {
+    key: 'maxBullets',
+    label: 'Max bullets on screen',
+    type: 'number',
+    default: 3,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Maximum simultaneous bullets allowed on screen at once. When this limit is reached, firing is blocked until one expires.',
+  },
+  {
+    key: 'shootCooldown',
+    label: 'Cooldown between shots (frames)',
+    type: 'number',
+    default: 10,
+    min: 0,
+    max: 120,
+    step: 1,
+    help: 'Frames to wait after firing before the next bullet can be spawned. 0 = only limited by key release.',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between shots',
+    type: 'boolean',
+    default: true,
+    help: 'Player must release the fire key before firing again (one bullet per press).',
+  },
+  {
+    key: 'bulletDamage',
+    label: 'Damage per bullet hit',
+    type: 'number',
+    default: 1,
+    min: 0,
+    max: 10,
+    step: 1,
+    help: 'Damage dealt to an enemy on impact. 0 = harmless bullet.',
+  },
+];
+
 export const shoot: SkillDef = {
   id: 'shoot',
   label: 'Fire bullet in facing direction',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 200,
   controlIcon: 'attack',
   addsStates: ['shooting'],
@@ -252,22 +328,29 @@ export const shoot: SkillDef = {
     { from: ['shooting'], to: 'grounded', condition: 'shoot_done AND grounded' },
     { from: ['shooting'], to: 'falling', condition: 'shoot_done AND NOT grounded' },
   ],
+  parameters: shootParameters,
 };
 
 export const wallBreak: SkillDef = {
   id: 'wall_break',
   label: 'Destroy breakable tiles on contact',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 150,
   controlIcon: 'attack',
   addsStates: [],
   transitions: [],
 };
 
+export const grabParameters: SkillParameterDef[] = [
+  { key: 'slideSpeed', label: 'Wall slide speed (px/frame)', type: 'number', default: 1, min: 0, max: 4, step: 1, help: 'Max fall speed while clinging to a wall. 0 = frozen on wall.' },
+];
+
 export const grab: SkillDef = {
   id: 'grab',
   label: 'Wall grab and wall jump',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 180,
   controlIcon: 'jump',
   addsStates: ['grabbing'],
@@ -276,6 +359,7 @@ export const grab: SkillDef = {
     { from: ['grabbing'], to: 'jumping', condition: 'jump_key_pressed' },
     { from: ['grabbing'], to: 'falling', condition: 'NOT wall_next_to_player OR NOT grab_key_held' },
   ],
+  parameters: grabParameters,
 };
 
 export const dashParameters: SkillParameterDef[] = [
@@ -347,6 +431,7 @@ export const dash: SkillDef = {
     { from: ['dashing'], to: 'grounded', condition: 'dash_timer_expired AND grounded' },
     { from: ['dashing'], to: 'falling', condition: 'dash_timer_expired AND NOT grounded' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: dashParameters,
 };
 
@@ -415,6 +500,7 @@ export const wallJump: SkillDef = {
     { from: ['wall_jumping'], to: 'falling', condition: 'gravity_vel > 0' },
     { from: ['wall_sliding'], to: 'falling', condition: 'NOT wall_contact OR (NOT left_held AND NOT right_held)' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: wallJumpParameters,
 };
 
@@ -483,6 +569,7 @@ export const airDash: SkillDef = {
     { from: ['jumping', 'falling', 'double_jumping'], to: 'air_dashing', condition: 'dash_key_pressed AND air_dash_cooldown = 0 AND NOT grounded' },
     { from: ['air_dashing'], to: 'falling', condition: 'air_dash_timer_expired' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: airDashParameters,
 };
 
@@ -530,6 +617,7 @@ export const chargeAttack: SkillDef = {
   id: 'charge_attack',
   label: 'Charge attack',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 250,
   controlIcon: 'attack',
   addsStates: ['charging', 'charged_attack'],
@@ -586,6 +674,7 @@ export const glide: SkillDef = {
     { from: ['falling'], to: 'gliding', condition: 'jump_key_held AND glide_cooldown = 0 AND NOT grounded' },
     { from: ['gliding'], to: 'falling', condition: 'NOT jump_key_held OR stamina = 0' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: glideParameters,
 };
 
@@ -636,6 +725,7 @@ export const spinAttack: SkillDef = {
   id: 'spin_attack',
   label: 'Spin attack',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 200,
   controlIcon: 'attack',
   addsStates: ['spinning'],
@@ -694,6 +784,7 @@ export const parry: SkillDef = {
   id: 'parry',
   label: 'Parry',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 80,
   controlIcon: 'attack',
   addsStates: ['parrying'],
@@ -742,6 +833,7 @@ export const crouch: SkillDef = {
   id: 'crouch',
   label: 'Crouch',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 40,
   controlIcon: 'down',
   addsStates: ['crouching', 'sliding'],
@@ -791,6 +883,7 @@ export const climb: SkillDef = {
   id: 'climb',
   label: 'Climb ladders',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 80,
   controlIcon: 'up',
   addsStates: ['climbing', 'on_ladder'],
@@ -842,6 +935,7 @@ export const highJump: SkillDef = {
   id: 'high_jump',
   label: 'High jump',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   cycles: 100,
   controlIcon: 'jump',
   addsStates: ['high_jumping'],
@@ -901,6 +995,7 @@ export const collectorGems: SkillDef = {
   controlIcon: 'attack',
   addsStates: [],
   transitions: [],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: collectorGemsParameters,
 };
 
@@ -948,6 +1043,7 @@ export const collectorItems: SkillDef = {
   id: 'collector_items',
   label: 'Collector Items',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 80,
   controlIcon: 'attack',
   addsStates: [],
@@ -1002,6 +1098,7 @@ export const pushWall: SkillDef = {
   id: 'push_wall',
   label: 'Push Wall',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 120,
   controlIcon: 'right',
   addsStates: ['pushing'],
@@ -1054,6 +1151,7 @@ export const pushDoor: SkillDef = {
   id: 'push_door',
   label: 'Push Door',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 100,
   controlIcon: 'up',
   addsStates: ['opening_door'],
@@ -1132,6 +1230,7 @@ export const carryObject: SkillDef = {
     { from: ['throwing'], to: 'grounded', condition: 'throw_complete AND grounded' },
     { from: ['throwing'], to: 'falling', condition: 'throw_complete AND NOT grounded' },
   ],
+  supportedBackends: ['msx2-screen4-pattern'],
   parameters: carryObjectParameters,
 };
 
@@ -1201,6 +1300,7 @@ export const teleportAB: SkillDef = {
     { from: ['teleporting'], to: 'grounded', condition: 'teleport_complete AND grounded' },
     { from: ['teleporting'], to: 'falling', condition: 'teleport_complete AND NOT grounded' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: teleportABParameters,
 };
 
@@ -1282,6 +1382,7 @@ export const carryAndThrow: SkillDef = {
   id: 'carry_and_throw',
   label: 'Carry & Throw Through',
   required: false,
+  supportedBackends: ['msx2-screen4-pattern'],
   cycles: 100,
   controlIcon: 'attack',
   addsStates: ['lifting', 'carrying_throw', 'throwing'],
@@ -1391,5 +1492,92 @@ export const powerStomp: SkillDef = {
     { from: ['stomp_impact'], to: 'grounded', condition: 'impact_complete AND grounded' },
     { from: ['stomp_impact'], to: 'falling', condition: 'impact_complete AND NOT grounded AND ricochet_on_miss' },
   ],
+  supportedBackends: ['msx2-screen4-pattern', 'msx2-screen4-bitmap-room'],
   parameters: powerStompParameters,
+};
+
+export const iceSlideParameters: SkillParameterDef[] = [
+  {
+    key: 'surfaceCode',
+    label: 'Ice behavior code',
+    type: 'number',
+    default: 3,
+    min: 1,
+    max: 255,
+    step: 1,
+    help: 'Behavior-layer cell value treated as slippery ice under the player feet.',
+  },
+  {
+    key: 'maxSlideSpeed',
+    label: 'Max slide speed (px/frame)',
+    type: 'number',
+    default: 4,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Maximum horizontal inertia while standing on ice.',
+  },
+  {
+    key: 'accelerationFrames',
+    label: 'Acceleration frames',
+    type: 'number',
+    default: 2,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'Frames between each 1px/frame acceleration step on ice.',
+  },
+  {
+    key: 'frictionFrames',
+    label: 'Friction frames',
+    type: 'number',
+    default: 8,
+    min: 1,
+    max: 32,
+    step: 1,
+    help: 'Frames between each 1px/frame slowdown step after releasing input on ice.',
+  },
+];
+
+export const iceSlide: SkillDef = {
+  id: 'ice_slide',
+  label: 'Ice slide',
+  required: false,
+  cycles: 60,
+  controlIcon: ['left', 'right'],
+  controlOperator: 'or',
+  addsStates: ['sliding'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'sliding', condition: 'on_ice AND horizontal_speed != 0' },
+    { from: ['sliding'], to: 'grounded', condition: 'NOT on_ice OR horizontal_speed = 0' },
+  ],
+  supportedBackends: ['msx2-screen4-bitmap-room'],
+  parameters: iceSlideParameters,
+};
+
+export const perceptionParameters: SkillParameterDef[] = [
+  {
+    key: 'radius',
+    label: 'Detection radius (pixels)',
+    type: 'number',
+    default: 32,
+    min: 8,
+    max: 96,
+    step: 8,
+    help: 'Player-center to object-center distance that raises flag_near (square radius: |dx| and |dy| both within range).',
+  },
+];
+
+export const perception: SkillDef = {
+  id: 'perception',
+  label: 'Perception',
+  required: false,
+  cycles: 40,
+  addsStates: ['perceiving'],
+  transitions: [
+    { from: ['grounded', 'running'], to: 'perceiving', condition: 'flag_near AND no_action_state' },
+    { from: ['perceiving'], to: 'grounded', condition: 'NOT flag_near' },
+  ],
+  supportedBackends: ['msx2-screen4-bitmap-room'],
+  parameters: perceptionParameters,
 };

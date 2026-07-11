@@ -1,5 +1,18 @@
 # Vampire Killer MSX2 - OpenMSX debug notes
 
+> Correction (2026-06-16): an earlier version of this report labelled the
+> gameplay mode as `SCREEN 4 / Graphic 3`. That was wrong. The register value
+> `R0=0x06` selects **GRAPHIC 4 = SCREEN 5**, and the 128-byte stride per
+> 256-pixel row (4 bits/pixel packed bitmap) plus active **VDP command engine**
+> use confirm it: the command engine only runs in bitmap modes (GRAPHIC 4/5/6/7),
+> never in the GRAPHIC 3 tile mode. All `SCREEN 4` references below have been
+> corrected to `SCREEN 5`. Mideas has two MSX2 "SCREEN 4" routes, do not confuse
+> them: `msx2-screen4-pattern` is a genuine GRAPHIC 3 tile mode (no command
+> engine, has clash), while `msx2-screen4-bitmap-room` is only *named* SCREEN 4
+> but at runtime does `CHGMOD 5` (real SCREEN 5/Graphic 4) and composes a 4bpp
+> bitmap with the V9938 command engine — i.e. it IS the Vampire Killer technique.
+> See the mode note in `docs/project/MSX2_GRAPHICS_BACKEND_PLAN.md`.
+
 ROM investigated:
 
 - Path: `C:\Users\salam\Downloads\Vampire Killer (Japan, Europe)\Vampire Killer (Japan, Europe).rom`
@@ -20,17 +33,24 @@ During title and gameplay, the VDP registers are stable around:
 
 `R00=06 R01=62 R02=1F R03=80 R04=00 R05=EF R06=1F R07=00/0F R08=08 R09=80 R14=03`
 
-This is V9938/MSX2 bitmap mode, consistent with MSX2 `SCREEN 4` / Graphic 3 style rendering, not MSX1 tiled SCREEN 2. Evidence:
+This is V9938/MSX2 bitmap mode, specifically `GRAPHIC 4 = SCREEN 5` (16-color
+packed bitmap), not MSX1 tiled SCREEN 2 and not GRAPHIC 3. Evidence:
 
-- `R00=06` selects the V9938 graphic mode path.
-- The visible image is present in physical VRAM page 0 as packed pixel bitmap data.
-- There is no active TMS9918-style pattern/name/color tile table driving the final game screen.
+- `R00=06` selects **GRAPHIC 4 (SCREEN 5)**. GRAPHIC 3 (SCREEN 4) would be `R00=0x04`.
+- The visible image is present in physical VRAM page 0 as packed pixel bitmap data,
+  with a **128-byte stride per 256-pixel row = 4 bits/pixel**, which is the SCREEN 5
+  layout.
+- There is no active TMS9918-style pattern/name/color tile table driving the final
+  game screen.
+- The game drives the **VDP command engine** (see HUD/room sections), and the
+  command engine only operates in bitmap modes (GRAPHIC 4/5/6/7), never in the
+  GRAPHIC 3 tile mode — further confirming SCREEN 5.
 
 Physical VRAM at gameplay (`game_22s_physical_vram.bin`) shows visible screen data from base `0x00000`; row samples using 128 bytes per 256-pixel row line up with the HUD and stage image. Example: y=16 and y=24 already contain the HUD text pixels, while y=64+ contains the room graphics.
 
 ## Fonts/text placement
 
-The title/gameplay text is not placed as hardware character names in a SCREEN 2 name table. It is rendered as pixels into the SCREEN 4 bitmap page.
+The title/gameplay text is not placed as hardware character names in a SCREEN 2 name table. It is rendered as pixels into the SCREEN 5 bitmap page.
 
 Observed placement:
 
@@ -168,7 +188,7 @@ Interpretation: the fixed bank contains low-level VDP command helpers around `48
 
 To implement a similar HUD in Mideas/MSX2:
 
-1. Use SCREEN 4 bitmap mode.
+1. Use SCREEN 5 bitmap mode.
 2. Keep a small font/icon atlas in offscreen VRAM, e.g. source rows beyond visible y=212.
 3. For text, map each character to an 8x8 source rectangle and issue V9938 HMMM-style VRAM-to-VRAM copies to visible `(x, y)`.
 4. For health bars and boxes, use V9938 fill and line commands instead of drawing each pixel manually.
@@ -208,7 +228,7 @@ The transition is not a continuous tile-scroll. It is a room/screen load:
 - SPACE on the title enters a loading path.
 - The game maps banks `0E/0F`, `09/0A`, and `0B/0C/0D`.
 - It performs tens of thousands of VDP data/control writes while building the new bitmap page.
-- At gameplay it returns to stable SCREEN 4 registers and active runtime code.
+- At gameplay it returns to stable SCREEN 5 registers and active runtime code.
 
 The screen image is therefore built by bulk bitmap/command transfers into VRAM, likely from banked compressed or packed graphics data, plus later per-frame sprite/object updates.
 
@@ -216,7 +236,7 @@ The screen image is therefore built by bulk bitmap/command transfers into VRAM, 
 
 Confirmed model for gameplay screen creation:
 
-1. The game sets V9938/MSX2 bitmap mode, equivalent to SCREEN 4 / Graphic 3 style rendering.
+1. The game sets V9938/MSX2 bitmap mode, equivalent to SCREEN 5 / Graphic 4 style rendering.
 2. The visible page is physical VRAM base `0x00000`, with a 128-byte stride for each 256-pixel row.
 3. It clears the visible page with a V9938 fill command:
    - `cmd=C0`, helper `PC=4943`
@@ -235,11 +255,11 @@ Confirmed model for gameplay screen creation:
    - sprite patterns at `0xF800`;
    - sprite color table at `0xF400`.
 
-The screen is therefore not a live hardware tilemap. It is a composed SCREEN 4 bitmap: room background plus HUD pixels in VRAM, with moving actors handled by hardware sprites on top.
+The screen is therefore not a live hardware tilemap. It is a composed SCREEN 5 bitmap: room background plus HUD pixels in VRAM, with moving actors handled by hardware sprites on top.
 
 ## Background tile/block construction
 
-The game does not use MSX1-style hardware tiles for the final playfield. In gameplay it is in MSX2/V9938 SCREEN 4 bitmap mode, so the room is a bitmap page. However, the bitmap is composed from small reusable offscreen graphic blocks using V9938 command transfers.
+The game does not use MSX1-style hardware tiles for the final playfield. In gameplay it is in MSX2/V9938 SCREEN 5 bitmap mode, so the room is a bitmap page. However, the bitmap is composed from small reusable offscreen graphic blocks using V9938 command transfers.
 
 Focused command-size trace: `probe_tile_block_sizes.log`.
 
@@ -254,7 +274,7 @@ Observed during initial gameplay plus the garden-to-interior transition:
 
 Interpretation:
 
-- The main room graphics are effectively built from `8x8` bitmap cells copied from an offscreen atlas into the visible SCREEN 4 page.
+- The main room graphics are effectively built from `8x8` bitmap cells copied from an offscreen atlas into the visible SCREEN 5 page.
 - `16x16` blocks are also used, but the trace suggests they are special/animated/larger objects or grouped decorative pieces rather than the universal map unit. Door graphics are a confirmed example: `sx=032/048 sy=368 -> dx=064 dy=144 nx=016 ny=016`.
 - Larger scenery such as walls, floors, columns, windows, and room patterns are not copied as native `32x32` blocks. They appear to be assembled from repeated `8x8` cells, and possibly higher-level metatiles in game data expand into multiple `8x8` copies.
 
@@ -264,7 +284,7 @@ Practical model:
 2. The renderer resolves those IDs to source rectangles in an offscreen bitmap atlas.
 3. Most background writes are `8x8` VRAM-to-VRAM copies.
 4. Some interactive/decorative elements use `16x16` copies.
-5. The final result is normal SCREEN 4 bitmap pixels, not a live tilemap.
+5. The final result is normal SCREEN 5 bitmap pixels, not a live tilemap.
 
 ### Real gameplay start
 
@@ -334,7 +354,7 @@ The object loader/state code frequently maps:
 
 ## Hardware sprites and Simon composition
 
-Vampire Killer uses MSX2/V9938 hardware sprites over the SCREEN 4 bitmap background. The sprite setup observed in real gameplay is:
+Vampire Killer uses MSX2/V9938 hardware sprites over the SCREEN 5 bitmap background. The sprite setup observed in real gameplay is:
 
 - `R01=62`: 16x16 sprite mode, no magnification.
 - `R05=EF` plus `R11=01`: sprite attribute table at physical VRAM `0xF600`.
@@ -357,7 +377,7 @@ Likely creation pipeline:
 1. Player/object state in `C4xx` chooses animation frame, body half, X/Y, and facing/state.
 2. The game writes SAT entries into VRAM `0xF600`.
 3. It writes or selects per-line sprite colors in VRAM `0xF400`.
-4. V9938 composites those sprites over the SCREEN 4 bitmap room and HUD.
+4. V9938 composites those sprites over the SCREEN 5 bitmap room and HUD.
 
 The exact RAM-to-SAT copy routine still needs a tighter watchpoint trace, but the visible hardware composition and VRAM locations are confirmed.
 

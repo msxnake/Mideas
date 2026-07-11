@@ -1,4 +1,4 @@
-import React, { startTransition, useState } from 'react';
+import React, { startTransition, useEffect, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
@@ -35,6 +35,10 @@ interface CodeExportModalProps {
   activeAssetId?: string | null;
   onEditFile?: (filename: string, content: string) => void;
   defaultRomMode?: ExportRomMode;
+  /** When true, auto-trigger Build and Run on open (toolbar shortcut). */
+  autoBuildAndRun?: boolean;
+  /** Save generated ASM into Project Assets without closing this modal. */
+  onSaveGeneratedCodeFile?: (filename: string, content: string) => void;
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
@@ -103,7 +107,7 @@ const getCurrentMsx2GameFlowPurpose = (assets: ProjectAsset[], activeAssetId?: s
 
 const shouldExportMsx2Screen5Presentation = (assets: ProjectAsset[], activeAssetId?: string | null): boolean => {
   const purpose = getCurrentMsx2GameFlowPurpose(assets, activeAssetId);
-  if (purpose === 'screen4-runtime') return false;
+  if (purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime') return false;
   if (purpose === 'screen5-presentation') return hasMsx2PresentationAsset(assets);
   return hasMsx2PresentationAsset(assets);
 };
@@ -111,7 +115,26 @@ const shouldExportMsx2Screen5Presentation = (assets: ProjectAsset[], activeAsset
 const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const presentations = assets.filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
   const flows = assets.filter(asset => asset.type === 'msx2gameflow');
-  const screen5Flows = flows.filter(asset => (asset.data as any)?.purpose !== 'screen4-runtime');
+  const hasScreen4RuntimeFlow = flows.some(asset => {
+    const purpose = (asset.data as any)?.purpose;
+    return purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime';
+  });
+  const screen5Flows = flows.filter(asset => (asset.data as any)?.purpose === 'screen5-presentation');
+  if (presentations.length === 0 || (screen5Flows.length === 0 && hasScreen4RuntimeFlow)) {
+    return {
+      hasScreen5Presentation: false,
+      hasMsx2GameFlow: false,
+      flowName: null,
+      hasScreen5Node: false,
+      screen5NodeId: null,
+      presentationAssetId: null,
+      presentationName: null,
+      missingPresentation: false,
+      transitionEffect: null,
+      transitionDurationFrames: null,
+      invalidFlowShape: false,
+    };
+  }
   const flow = screen5Flows.find(asset => asset.name === 'Main MSX2') || screen5Flows[0];
   const flowData = flow?.data as any;
   const nodes = Array.isArray(flowData?.nodes) ? flowData.nodes : [];
@@ -370,7 +393,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   projectData,
   activeAssetId,
   onEditFile,
+  onSaveGeneratedCodeFile,
   defaultRomMode = 'simple32k',
+  autoBuildAndRun = false,
 }) => {
   const [exportType, setExportType] = useState<ExportType>('asm_all_in_one');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
@@ -396,12 +421,19 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [isQuickValidating, setIsQuickValidating] = useState(false);
   const [quickValidationSummary, setQuickValidationSummary] = useState<string | null>(null);
   const [isBuildingAndRunning, setIsBuildingAndRunning] = useState(false);
+  const autoBuildAndRunStartedRef = useRef(false);
   const [pipelineProgress, setPipelineProgress] = useState(0);
   const [pipelineStatus, setPipelineStatus] = useState('Ready');
   const [zx0Options, setZx0Options] = useState<Zx0CompressionOptions>(DEFAULT_ZX0_OPTIONS);
 
   const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isPostAsmAnalyzing || isPostAsmOptimizing || isQuickValidating || isBuildingAndRunning;
   const msx2Screen5ExportInfo = getMsx2Screen5ExportInfo(assets);
+  const hasMsx2BitmapRoom = assets.some(asset => asset.type === 'msx2bitmaproom');
+  const isMsx2BitmapRoomExport = hasMsx2BitmapRoom && !shouldExportMsx2Screen5Presentation(assets, activeAssetId);
+  const effectiveMsxModel = isMsx2BitmapRoomExport ? 'MSX2' : options.msxModel;
+  const effectiveRomMode: RomMode = isMsx2BitmapRoomExport ? 'megarom' : romMode;
+  const effectiveMapperFormat: MapperFormat = isMsx2BitmapRoomExport ? 'konami' : mapperFormat;
+  const effectiveRomSizeKB = isMsx2BitmapRoomExport ? undefined : romSizeKB;
   const backendBaseUrl = (() => {
     const env = import.meta.env as Record<string, string | undefined>;
     const configuredBaseUrl = env.VITE_BACKEND_URL?.trim() || env.VITE_API_BASE_URL?.trim();
@@ -529,11 +561,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   };
 
   const buildCurrentRomConfig = (): RomBuildConfig => ({
-    romMode,
-    targetFormat: mapperFormat,
-    autoMegaROM: romMode === 'auto',
+    romMode: effectiveRomMode,
+    targetFormat: effectiveMapperFormat,
+    autoMegaROM: effectiveRomMode === 'auto',
     executionMode,
-    romSizeKB
+    romSizeKB: effectiveRomSizeKB
   });
 
   const isRomConfigDifferent = (generatedConfig: RomBuildConfig | null, currentConfig: RomBuildConfig) => {
@@ -623,9 +655,16 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     const enhancedAssets = getEnhancedAssets();
     const rawScreenMode = projectData?.screenMode || projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)';
     const hasScreen5Presentation = shouldExportMsx2Screen5Presentation(enhancedAssets, activeAssetId);
-    const currentScreenMode = hasScreen5Presentation ? LEGACY_SCREEN5_MODE : normalizeMsx2ExportScreenMode(rawScreenMode);
+    const hasMsx2BitmapRoom = enhancedAssets.some(asset => asset.type === 'msx2bitmaproom');
+    const currentScreenMode = hasScreen5Presentation
+      ? LEGACY_SCREEN5_MODE
+      : hasMsx2BitmapRoom
+      ? 'SCREEN 4 (Graphics II)'
+      : normalizeMsx2ExportScreenMode(rawScreenMode);
     const targetGraphicsBackend = hasScreen5Presentation
       ? 'msx2-screen5-presentation'
+      : hasMsx2BitmapRoom
+      ? 'msx2-screen4-bitmap-room'
       : isMsx2Screen4ExportMode(currentScreenMode)
       ? 'msx2-screen4-pattern'
       : 'screen2-tilebank';
@@ -656,6 +695,25 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       mainCode,
       activeIndex: preferredIndex >= 0 ? preferredIndex : 0
     };
+  };
+
+  const saveUnitedFilesToProjectAssets = (bundle: MapperReadyBundle) => {
+    const unitedFiles = bundle.modularFiles['unitedFiles.asm'];
+    if (!unitedFiles || !onSaveGeneratedCodeFile) return;
+    onSaveGeneratedCodeFile('unitedFiles.asm', unitedFiles);
+  };
+
+  const saveCurrentUnitedFilesToProjectAssets = () => {
+    if (!onSaveGeneratedCodeFile) return;
+    const activeFile = generatedFiles[activeFileIndex];
+    if (activeFile?.name === 'unitedFiles.asm') {
+      onSaveGeneratedCodeFile('unitedFiles.asm', generatedCode);
+      return;
+    }
+    const unitedFile = generatedFiles.find(file => file.name === 'unitedFiles.asm');
+    if (unitedFile?.content) {
+      onSaveGeneratedCodeFile('unitedFiles.asm', unitedFile.content);
+    }
   };
 
   const runCompileRequest = async (sourceCode: string, romConfig: RomBuildConfig, projectNameInput?: string) => {
@@ -1358,6 +1416,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       }
 
       const result = await runCompileRequest(generatedCode, currentRomConfig);
+      saveCurrentUnitedFilesToProjectAssets();
       setCompilationResult(result);
     } catch (error) {
       setCompilationResult({
@@ -1396,6 +1455,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       setGeneratedFiles(bundle.files);
       setActiveFileIndex(bundle.activeIndex);
       setLastGeneratedRomConfig(bundle.romConfig);
+      saveUnitedFilesToProjectAssets(bundle);
       setPipelineProgress(28);
       setPipelineStatus('ASM generated');
 
@@ -1491,6 +1551,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         setGeneratedFiles(cleanBundle.files);
         setActiveFileIndex(cleanBundle.activeIndex);
         setLastGeneratedRomConfig(cleanBundle.romConfig);
+        saveUnitedFilesToProjectAssets(cleanBundle);
         setRomMode('simple32k');
         summary += '\nAuto-clean: regenerated ASM in simple32k mode (minimal mapper stubs).';
       }
@@ -1587,6 +1648,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const handleBuildAndRun = async () => {
     await runMapperPipeline(true);
   };
+
+  useEffect(() => {
+    if (!isOpen || !autoBuildAndRun || autoBuildAndRunStartedRef.current) return;
+    autoBuildAndRunStartedRef.current = true;
+    void handleBuildAndRun();
+  }, [isOpen, autoBuildAndRun]);
 
   const handleCompressUnifiedAsm = async () => {
     const unifiedFile = generatedFiles.find(f => f.name === 'unitedFiles.asm');
@@ -1837,14 +1904,20 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     MSX Model:
                   </label>
                   <select
-                    value={options.msxModel}
+                    value={effectiveMsxModel}
                     onChange={(e) => setOptions({ ...options, msxModel: e.target.value as 'MSX1' | 'MSX2' | 'MSX2+' })}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
-                    <option value="MSX1">MSX1</option>
+                    {!isMsx2BitmapRoomExport && <option value="MSX1">MSX1</option>}
                     <option value="MSX2">MSX2</option>
-                    <option value="MSX2+">MSX2+</option>
+                    {!isMsx2BitmapRoomExport && <option value="MSX2+">MSX2+</option>}
                   </select>
+                  {isMsx2BitmapRoomExport && (
+                    <p className="mt-1 text-[11px] text-msx-textsecondary">
+                      SCREEN 5 bitmap-room requiere MSX2/V9938; MSX1 no es un target valido.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1911,15 +1984,21 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     ROM Mode:
                   </label>
                   <select
-                    value={romMode}
+                    value={effectiveRomMode}
                     onChange={(e) => setRomMode(e.target.value as RomMode)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
-                    <option value="auto">Auto (32KB -&gt; MegaROM)</option>
-                    <option value="simple32k">Force Simple 32KB</option>
-                    <option value="plain48k">Force Plain 48KB</option>
+                    {!isMsx2BitmapRoomExport && <option value="auto">Auto (32KB -&gt; MegaROM)</option>}
+                    {!isMsx2BitmapRoomExport && <option value="simple32k">Force Simple 32KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value="plain48k">Force Plain 48KB</option>}
                     <option value="megarom">Force MegaROM</option>
                   </select>
+                  {isMsx2BitmapRoomExport && (
+                    <p className="mt-1 text-[11px] text-msx-textsecondary">
+                      SCREEN 5 bitmap-room usa siempre MegaROM Konami; 32K/48K no son builds validos para este backend.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1927,13 +2006,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     Mapper Target:
                   </label>
                   <select
-                    value={mapperFormat}
+                    value={effectiveMapperFormat}
                     onChange={(e) => setMapperFormat(e.target.value as MapperFormat)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
                     <option value="konami">Konami 8KB</option>
-                    <option value="ascii8">ASCII 8KB</option>
-                    <option value="ascii16">ASCII 16KB</option>
+                    {!isMsx2BitmapRoomExport && <option value="ascii8">ASCII 8KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value="ascii16">ASCII 16KB</option>}
                   </select>
                 </div>
 
@@ -1942,24 +2022,30 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     ROM Size:
                   </label>
                   <select
-                    value={romSizeKB ?? 0}
+                    value={effectiveRomSizeKB ?? 0}
                     onChange={(e) => {
                       const v = parseInt(e.target.value, 10);
                       setRomSizeKB(v === 0 ? undefined : v);
                     }}
-                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                    disabled={isMsx2BitmapRoomExport}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary disabled:opacity-70"
                   >
-                    <option value={0}>Auto (32KB / 48KB / power-of-two)</option>
-                    <option value={32}>32 KB</option>
-                    <option value={48}>48 KB (plain48k)</option>
-                    <option value={64}>64 KB</option>
-                    <option value={128}>128 KB</option>
-                    <option value={256}>256 KB</option>
+                    <option value={0}>{isMsx2BitmapRoomExport ? 'Auto MegaROM (power-of-two)' : 'Auto (32KB / 48KB / power-of-two)'}</option>
+                    {!isMsx2BitmapRoomExport && <option value={32}>32 KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value={48}>48 KB (plain48k)</option>}
+                    {!isMsx2BitmapRoomExport && <option value={64}>64 KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value={128}>128 KB</option>}
+                    {!isMsx2BitmapRoomExport && <option value={256}>256 KB</option>}
                   </select>
                 </div>
 
                 <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
-                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, size=<strong>{romSizeKB ? `${romSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
+                  Active ROM config: mode=<strong>{effectiveRomMode}</strong>, mapper=<strong>{effectiveMapperFormat}</strong>, size=<strong>{effectiveRomSizeKB ? `${effectiveRomSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
+                  {isMsx2BitmapRoomExport && (
+                    <div className="mt-1 text-msx-highlight">
+                      SCREEN 5 bitmap-room fixed export: MSX2 + MegaROM Konami.
+                    </div>
+                  )}
                   {msx2Screen5ExportInfo.hasScreen5Presentation && (
                     <>
                       <div className="mt-1">
@@ -2096,11 +2182,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <li>• 🎯 Ready to compile with glass.jar</li>
                       <li>• 🚀 Game Flow integration for main menu</li>
                       <li>• 💾 Creates .ROM file for MSX emulators/flash carts</li>
-                      <li>• ROM mode selected: <strong>{romMode}</strong></li>
-                      <li>• Mapper selected: <strong>{mapperFormat}</strong></li>
+                      <li>• ROM mode selected: <strong>{effectiveRomMode}</strong></li>
+                      <li>• Mapper selected: <strong>{effectiveMapperFormat}</strong></li>
                       <li>• Engine selected: <strong>{executionMode}</strong></li>
                     </ul>
-                    {romMode === 'simple32k' && (
+                    {effectiveRomMode === 'simple32k' && (
                       <p className="mt-2 text-yellow-300">
                         ⚠️ Force Simple 32KB is active. If the compiled ROM exceeds 32KB, a mapper conflict warning will appear.
                       </p>
