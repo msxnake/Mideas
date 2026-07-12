@@ -34,6 +34,7 @@ import { filterMsx2EntityPresetsForProfile } from '../../utils/msx2ProjectProfil
 import { createDefaultMsx2PlayerEntries, normalizeMsx2PlayerEntries } from '../../utils/msx2PlayerDefaults';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Msx2BitmapTileEditor } from './Msx2BitmapTileEditor';
 import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { importTilesIntoAtlas } from '../../utils/msx2BitmapAtlasImport';
 import {
@@ -594,6 +595,13 @@ interface BitmapTileEditorModalProps {
   onSaveAsset: (name: string, pixels: number[][]) => void;
   /** Appends the draft as a NEW atlas entry (the edited tile stays untouched). */
   onSaveAtlasCopy: (name: string, pixels: number[][]) => void;
+  /** Project assets, needed by the extended bitmap tile editor (palette lookups). */
+  allAssets: ProjectAsset[];
+  /** World palette asset used to render the extended editor with the room's colors. */
+  worldPaletteAsset?: ProjectAsset;
+  /** Persists assets created from the extended editor (e.g. "create palette asset"). */
+  onAddAssets?: (assets: ProjectAsset[]) => void;
+  setStatusBarMessage?: (message: string) => void;
 }
 
 const clonePixelGrid = (pixels: number[][], width: number, height: number): number[][] =>
@@ -609,6 +617,10 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
   onSaveAtlas,
   onSaveAsset,
   onSaveAtlasCopy,
+  allAssets,
+  worldPaletteAsset,
+  onAddAssets,
+  setStatusBarMessage,
 }) => {
   const width = Math.max(1, Math.trunc(entry?.w || GRID));
   const height = Math.max(1, Math.trunc(entry?.h || GRID));
@@ -622,12 +634,21 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
   const [paintingTool, setPaintingTool] = useState<BitmapTileTool>('brush');
   // Slot index currently being dragged from its "used color" handle (drag-to-replace).
   const [draggedSlot, setDraggedSlot] = useState<number | null>(null);
+  // Non-null while the "Extended" full bitmap tile editor overlay is open; holds the
+  // live draft edited there (rotation may change width/height until it returns).
+  const [extendedTile, setExtendedTile] = useState<BitmapTileScreen5 | null>(null);
 
+  // Reset the draft only when the edited entry changes (open/close/switch tile). Depending
+  // on the `pixels` identity would reset it on every parent re-render — e.g. when the
+  // extended editor emits a status-bar message — wiping in-progress edits.
   useEffect(() => {
-    setName(entry?.name || 'Bitmap Tile');
+    if (!entry) return;
+    setName(entry.name || 'Bitmap Tile');
     setDraftPixels(clonePixelGrid(pixels, width, height));
     setIsPainting(false);
-  }, [entry?.id, pixels, width, height]);
+    setExtendedTile(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.id]);
 
   useEffect(() => {
     const stop = () => setIsPainting(false);
@@ -646,7 +667,54 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
     return used;
   }, [draftPixels]);
 
+  // In-memory palette asset exposing the room's current slots, so the extended editor
+  // renders with the right colors when the world has no palette asset linked.
+  const fallbackPaletteAsset = useMemo<ProjectAsset>(() => ({
+    id: '__bitmap_room_screen_palette__',
+    name: 'Paleta de la pantalla (temporal)',
+    type: 'palette',
+    data: { mode: 'SCREEN5', slots: slots.map(slot => ({ ...slot })) } as PaletteAsset,
+  }), [slots]);
+
   if (!entry) return null;
+
+  const openExtendedEditor = () => {
+    const now = new Date().toISOString();
+    setExtendedTile({
+      id: `atlas_ext_${entry.id}`,
+      name: name.trim() || entry.name,
+      mode: 'SCREEN5_BITMAP',
+      width,
+      height,
+      sourceType: 'manual-edit',
+      paletteId: worldPaletteAsset?.id || fallbackPaletteAsset.id,
+      pixelData: draftPixels.flatMap(row => row.map(value => Math.max(0, Math.min(15, Math.trunc(Number(value) || 0))))),
+      collisionFlags: entry.collisionFlags,
+      behaviorCode: entry.behaviorCode,
+      createdAt: now,
+      updatedAt: now,
+    });
+  };
+
+  // "Volver al atlas": brings the extended draft back into this modal (cropping/padding
+  // to the atlas entry size if a rotation changed the dimensions). Saving to the atlas
+  // is still done here with "Guardar en atlas".
+  const applyExtendedDraft = () => {
+    if (!extendedTile) return;
+    const extW = Math.max(1, Math.trunc(extendedTile.width) || width);
+    const extH = Math.max(1, Math.trunc(extendedTile.height) || height);
+    const next = Array.from({ length: height }, (_row, y) =>
+      Array.from({ length: width }, (_col, x) => {
+        const value = y < extH && x < extW ? Number(extendedTile.pixelData[y * extW + x]) || 0 : 0;
+        return Math.max(0, Math.min(15, Math.trunc(value)));
+      }));
+    setDraftPixels(next);
+    if (extendedTile.name.trim()) setName(extendedTile.name.trim());
+    if (extW !== width || extH !== height) {
+      setStatusBarMessage?.(`El tile extendido era ${extW}x${extH}; se ha ajustado a ${width}x${height} (tamaño del atlas).`);
+    }
+    setExtendedTile(null);
+  };
 
   const applyAt = (x: number, y: number, nextTool = tool) => {
     setDraftPixels(current => {
@@ -710,9 +778,19 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
             <div className="pixel-font text-sm text-msx-highlight">SCREEN 5 Bitmap Tile Editor</div>
             <div className="text-[0.7rem] text-msx-textsecondary">{width}x{height} px · slot {activeSlot}</div>
           </div>
-          <button type="button" className="rounded border border-msx-border px-2 py-1 text-xs text-msx-textsecondary hover:border-msx-highlight" onClick={onClose}>
-            Cerrar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-msx-highlight px-2 py-1 text-xs text-msx-highlight hover:bg-msx-highlight/20"
+              title="Abrir este tile en el editor bitmap completo (rotación, espejo, mover patrón, biblioteca...). Al volver, guarda aquí con 'Guardar en atlas'."
+              onClick={openExtendedEditor}
+            >
+              Extended
+            </button>
+            <button type="button" className="rounded border border-msx-border px-2 py-1 text-xs text-msx-textsecondary hover:border-msx-highlight" onClick={onClose}>
+              Cerrar
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1fr_220px]">
@@ -874,6 +952,37 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
           </div>
         </div>
       </div>
+
+      {extendedTile && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-msx-bgcolor">
+          <div className="flex items-center justify-between gap-3 border-b border-msx-border px-3 py-2">
+            <div className="min-w-0">
+              <div className="pixel-font text-sm text-msx-highlight truncate">Edición extendida — {extendedTile.name}</div>
+              <div className="text-[0.7rem] text-msx-textsecondary">Tile del atlas "{entry.name}". Al volver, guarda con "Guardar en atlas".</div>
+            </div>
+            <button
+              type="button"
+              className="flex-shrink-0 rounded border border-msx-highlight px-3 py-1 text-xs text-msx-highlight hover:bg-msx-highlight/20"
+              onClick={applyExtendedDraft}
+            >
+              Volver al atlas
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Msx2BitmapTileEditor
+              tileAsset={{ id: extendedTile.id, name: extendedTile.name, type: 'msx2bitmaptile', data: extendedTile }}
+              allAssets={worldPaletteAsset ? allAssets : [...allAssets, fallbackPaletteAsset]}
+              worldPaletteAsset={worldPaletteAsset}
+              onUpdate={(data, newAssets) => {
+                setExtendedTile(data);
+                if (newAssets?.length) onAddAssets?.(newAssets);
+              }}
+              onSelectAsset={() => setStatusBarMessage?.('Vuelve al atlas y cierra el editor de tile para abrir otros assets.')}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -5694,6 +5803,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         onSaveAtlas={saveBitmapTileEditorToAtlas}
         onSaveAsset={saveBitmapTileEditorAsAsset}
         onSaveAtlasCopy={saveBitmapTileEditorAsAtlasCopy}
+        allAssets={allAssets}
+        worldPaletteAsset={worldPaletteAsset}
+        onAddAssets={assets => onUpdate({}, assets)}
+        setStatusBarMessage={setStatusBarMessage}
       />
 
       {/* Inline palette picker (project palette assets → Screen5PaletteSlot[16]). */}

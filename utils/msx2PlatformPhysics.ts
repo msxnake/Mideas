@@ -178,6 +178,20 @@ export interface Msx2CarryObjectConfig {
   secondaryControl: Msx2PlayerControlId | 'none';
 }
 
+/** SCREEN 5 ballistic carry-and-throw skill. */
+export interface Msx2CarryAndThrowConfig {
+  enabled: boolean;
+  throwSpeed: number;
+  throwVertical: number;
+  throwGravity: number;
+  throwCooldown: number;
+  pickupRadius: number;
+  objectCollision: boolean;
+  enemyCollision: boolean;
+  primaryControl: Msx2PlayerControlId;
+  secondaryControl: Msx2PlayerControlId | 'none';
+}
+
 /**
  * Collector gems skill config (MSX2 platformer).
  *
@@ -844,6 +858,35 @@ export function getMsx2CarryObjectConfigFromPlayerEntity(player: any | undefined
     enabled,
     throwPower: Math.max(2, Math.min(16, throwPower || 8)),
     throwCooldown: Math.max(5, Math.min(60, throwCooldown || 20)),
+    primaryControl: binding.primary,
+    secondaryControl: binding.secondary,
+  };
+}
+
+/**
+ * Resolves the SCREEN 5 carry_and_throw skill. The authored skill already
+ * exposes a parabolic trajectory; SCREEN 5 uses the ballistic path whenever
+ * this skill is active and keeps the legacy linear option out of the runtime.
+ */
+export function getMsx2CarryAndThrowConfigFromPlayerEntity(player: any | undefined): Msx2CarryAndThrowConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('carry_and_throw');
+  const params = (player?.skillParameters?.carry_and_throw || {}) as Record<string, number | boolean>;
+  const binding = resolveMsx2SkillBinding(player, 'carry_and_throw');
+  const throwSpeed = pickSkillNumberParam(params, 'carry_and_throw', ['throwSpeed'], 12);
+  const throwVertical = pickSkillNumberParam(params, 'carry_and_throw', ['throwVertical'], 8);
+  const throwGravity = pickSkillNumberParam(params, 'carry_and_throw', ['throwGravity'], 1);
+  const throwCooldown = pickSkillNumberParam(params, 'carry_and_throw', ['throwCooldown'], 30);
+  const pickupRadius = pickSkillNumberParam(params, 'carry_and_throw', ['pickupRadius'], 20);
+  return {
+    enabled,
+    throwSpeed: Math.max(2, Math.min(24, Math.trunc(throwSpeed || 12))),
+    throwVertical: Math.max(1, Math.min(24, Math.trunc(throwVertical || 8))),
+    throwGravity: Math.max(1, Math.min(8, Math.trunc(throwGravity || 1))),
+    throwCooldown: Math.max(1, Math.min(120, Math.trunc(throwCooldown || 30))),
+    pickupRadius: Math.max(8, Math.min(32, Math.trunc(pickupRadius || 20))),
+    objectCollision: params.objectCollision !== false,
+    enemyCollision: params.enemyCollision !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
   };

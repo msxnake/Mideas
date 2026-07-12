@@ -42,7 +42,8 @@ import {
 
 export const BITMAP_MAX_ENEMY_SLOTS = 4;
 export const BITMAP_MAX_ENEMY_FRAMES = 4;
-const POOL_STRIDE = 21;  // RAM bytes per slot
+export const BITMAP_ENEMY_POOL_STRIDE = 21;  // RAM bytes per slot
+const POOL_STRIDE = BITMAP_ENEMY_POOL_STRIDE;
 const TABLE_STRIDE = 20; // ROM bytes per slot
 /** Same off-screen non-terminator Y the foreground empty slots use. */
 const ENEMY_EMPTY_SPRITE_Y = 0xD4;
@@ -247,6 +248,9 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     ld b, a
     ld ix, bitmap_enemy_pool
 .enemy_step_loop:
+    ld a, (ix+13)             ; #FF = killed by a thrown object
+    cp #FF
+    jp z, .enemy_step_next
     ld a, (ix+13)             ; movement mode
     cp ${MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X}
     jp z, .enemy_step_patrol_chase_x
@@ -492,6 +496,9 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     ld b, a
     ld ix, bitmap_enemy_pool
 .enemy_touch_loop:
+    ld a, (ix+13)             ; #FF = killed by a thrown object
+    cp #FF
+    jp z, .enemy_touch_next
     ld a, (ix+16)              ; damage
     or a
     jp z, .enemy_touch_next
@@ -602,6 +609,9 @@ ${respawnOnDeath ? `
     ld a, (bitmap_enemy_count)
     cp ${i + 1}
     jp c, .sat_slot_${i}_hidden
+    ld a, (${poolBase} + 13)  ; killed enemy stays in the pool but is invisible
+    cp #FF
+    jp z, .sat_slot_${i}_hidden
     ld a, (${poolBase} + 1)
     add a, ${opts.gameYOffset}
     out (VDP_DATA_PORT), a    ; Y
