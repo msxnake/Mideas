@@ -771,7 +771,7 @@ const BitmapTileEditorModal: React.FC<BitmapTileEditorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onMouseDown={event => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 select-none" onMouseDown={event => event.stopPropagation()}>
       <div className="w-[min(92vw,760px)] max-h-[90vh] overflow-auto rounded border border-msx-highlight bg-msx-panelbg p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>

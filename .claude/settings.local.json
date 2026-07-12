@@ -158,7 +158,11 @@
       "Bash(cd:*)",
       "Bash(npx esbuild:*)",
       "Bash(head -10 grep -n \"render_menu\\\\|init_menu_system\" /c/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/gameFlowGenerator.js)",
-      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit)"
+      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit)",
+      "Bash(git branch *)",
+      "Bash(xargs -I {} git push origin --delete {})",
+      "Bash(git fetch *)",
+      "Bash(git symbolic-ref *)"
     ],
     "deny": [],
     "ask": []
