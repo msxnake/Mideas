@@ -342,6 +342,92 @@ export const wallBreak: SkillDef = {
   transitions: [],
 };
 
+export const destroyTileParameters: SkillParameterDef[] = [
+  {
+    key: 'digKey',
+    label: 'Dig key (0=SPACE 1=B 2=N 3=Z 4=X 5=M)',
+    type: 'number',
+    default: 1,
+    min: 0,
+    max: 5,
+    step: 1,
+    help: 'Keyboard key that swings the pick: 0=SPACE, 1=B, 2=N, 3=Z, 4=X, 5=M. Avoid keys used by other active skills (M=dash, N=shoot, R=wall_break).',
+  },
+  {
+    key: 'hitsPerTile',
+    label: 'Hits to destroy a tile',
+    type: 'number',
+    default: 3,
+    min: 1,
+    max: 8,
+    step: 1,
+    help: 'How many pick swings a destructible 16x16 tile takes before it dissolves.',
+  },
+  {
+    key: 'digCooldown',
+    label: 'Swing cooldown (frames)',
+    type: 'number',
+    default: 12,
+    min: 4,
+    max: 60,
+    step: 1,
+    help: 'Frames between pick swings. 12 = 5 swings/second at 60 fps.',
+  },
+  {
+    key: 'requireKeyRelease',
+    label: 'Require key release between swings',
+    type: 'boolean',
+    default: false,
+    help: 'If true, the key must be released between swings. If false, holding the key keeps digging at the cooldown rate.',
+  },
+  {
+    key: 'destroyedLimit',
+    label: 'Max destroyed tiles remembered',
+    type: 'number',
+    default: 64,
+    min: 16,
+    max: 128,
+    step: 16,
+    help: 'Capacity of the persistence list (2 bytes of RAM per tile). Tiles destroyed beyond this limit reappear when re-entering the screen.',
+  },
+  {
+    key: 'digSound',
+    label: 'Pick hit sound (PSG)',
+    type: 'boolean',
+    default: true,
+    help: 'Fire-and-forget PSG thud on every pick hit.',
+  },
+];
+
+/**
+ * Terraria-style digging for SCREEN 5 bitmap rooms: pick at the wall ahead
+ * (facing direction, top body cell first, then the bottom one), spawn debris
+ * chips (hardware sprites), dissolve the 16x16 bitmap tile to the room
+ * background colour and flip the collision cell to no-solid. Destroyed tiles
+ * are remembered per room (destroyedLimit entries) and re-applied every time
+ * the room is composed again, so holes are permanent within the play session.
+ * Only atlas tiles marked "Destructible" in the SCREEN 5 screen editor react.
+ * The optional 'digging' row of the Player Animations table selects a
+ * dedicated pick-swing sprite; the debris chip sprite comes from
+ * `player.render.debrisSpriteAssetId` or a sprite asset literally named
+ * "debris" (a built-in 4-pixel chip is used as fallback).
+ */
+export const destroyTile: SkillDef = {
+  id: 'destroy_tile',
+  label: 'Destroy tile (dig ahead)',
+  required: false,
+  supportedBackends: ['msx2-screen4-bitmap-room'],
+  cycles: 220,
+  controlIcon: 'attack',
+  addsStates: ['digging'],
+  transitions: [
+    { from: ['grounded', 'running', 'jumping', 'falling'], to: 'digging', condition: 'dig_key_pressed AND destructible_tile_ahead' },
+    { from: ['digging'], to: 'grounded', condition: 'dig_anim_done AND grounded' },
+    { from: ['digging'], to: 'falling', condition: 'dig_anim_done AND NOT grounded' },
+  ],
+  parameters: destroyTileParameters,
+};
+
 export const grabParameters: SkillParameterDef[] = [
   { key: 'slideSpeed', label: 'Wall slide speed (px/frame)', type: 'number', default: 1, min: 0, max: 4, step: 1, help: 'Max fall speed while clinging to a wall. 0 = frozen on wall.' },
 ];

@@ -406,6 +406,8 @@ export interface Msx2BitmapRoomAtlasEntry {
   collisionFlags?: number;
   /** Optional SCREEN 5 bitmap-room behavior code applied when this atlas tile is painted. 3 = ice_slide surface. */
   behaviorCode?: number;
+  /** SCREEN 5 bitmap-room destroy_tile skill: cells painted with this tile can be dug out by the player. */
+  destructible?: boolean;
 }
 
 /**

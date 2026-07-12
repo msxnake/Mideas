@@ -3503,6 +3503,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     onUpdateProjectAsset(selectedStampAsset.id, updatedEntry);
     return true;
   };
+  const selectedAtlasEntryDestructible = selectedAtlasEntry?.destructible === true;
   const selectedCellBehaviorCode = selectedCollisionCell
     ? readCell(room.behavior, selectedCollisionCell.x, selectedCollisionCell.y)
     : 0;
@@ -3524,9 +3525,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const next: Record<string, boolean> = {};
     PROPERTY_FLAGS.forEach(flag => { next[flag.key] = (configFlags & PROP_BIT[flag.key]) !== 0; });
     next.ice = configBehaviorCode === BEHAVIOR_CODE.ice;
+    next.destructible = configTarget !== 'cell' && selectedAtlasEntryDestructible;
     setCellProps(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode]);
+  }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode, selectedAtlasEntryDestructible]);
 
   const toggleProp = (key: string) => {
     const bit = PROP_BIT[key];
@@ -3644,6 +3646,34 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
       (persistedStamp ? '; metatile actualizado.' : '.')
     );
+  };
+
+  // destroy_tile skill: per-atlas-entry "diggable" mark. Pure tile metadata (the
+  // ASM generator derives destructible CELLS from tileGrid + this flag at build
+  // time), so unlike Ice there is no per-cell grid to sync.
+  const toggleDestructible = () => {
+    if (configTarget === 'cell') {
+      setStatusBarMessage?.('Destructible se marca en el TILE del atlas (cambia a "Usar tile").');
+      return;
+    }
+    const targetEntryIds = getConfigAtlasEntryIds();
+    if (targetEntryIds.length === 0) {
+      setStatusBarMessage?.('Selecciona un tile del atlas primero.');
+      return;
+    }
+    const targetSet = new Set(targetEntryIds);
+    const current = selectedAtlasEntry && targetSet.has(selectedAtlasEntry.id)
+      ? selectedAtlasEntry.destructible === true
+      : atlasEntries.find(entry => targetSet.has(entry.id))?.destructible === true;
+    const turnOn = !current;
+    const entries = atlasEntries.map(entry => targetSet.has(entry.id)
+      ? { ...entry, destructible: turnOn || undefined }
+      : entry);
+    onUpdate({ atlas: { ...room.atlas, entries } });
+    const targetLabel = targetEntryIds.length > 1
+      ? `${targetEntryIds.length} tiles del metatile`
+      : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
+    setStatusBarMessage?.(`SCREEN 5: Destructible ${turnOn ? 'ON' : 'OFF'} en ${targetLabel} (skill destroy_tile).`);
   };
 
   const selectedCellSlot = selectedCell ? composedPixels[selectedCell.y * GRID]?.[selectedCell.x * GRID] ?? 0 : 0;
@@ -5437,6 +5467,18 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
               <label className="flex items-center gap-1 text-xs text-msx-textsecondary">
                 <input type="checkbox" checked={!!cellProps.ice} onChange={toggleIceSurface} />
                 Ice (behavior=3)
+              </label>
+              <label
+                className={`flex items-center gap-1 text-xs ${configTarget === 'cell' ? 'text-msx-textsecondary/50' : 'text-msx-textsecondary'}`}
+                title="Skill destroy_tile: el player puede picar y disolver las celdas pintadas con este tile."
+              >
+                <input
+                  type="checkbox"
+                  checked={!!cellProps.destructible}
+                  disabled={configTarget === 'cell'}
+                  onChange={toggleDestructible}
+                />
+                Destructible (pico)
               </label>
             </div>
             <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-[0.65rem] text-msx-textsecondary">
