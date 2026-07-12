@@ -627,7 +627,9 @@ const renderWidgetLayer = (
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = slotHex(slots, el.colors.empty, '#000');
     ctx.fillRect(x + scale, y + scale, w - 2 * scale, h - 2 * scale);
-    const icon = icons.find(i => i.id === el.atlasEntryId);
+    const icon = el.binding === 'carriedObject'
+      ? icons.find(i => i.id === el.emptyAtlasEntryId)
+      : icons.find(i => i.id === el.atlasEntryId);
     if (icon) {
       drawIconPixels(ctx, icon, el.x + 1, el.y + 1, scale, slots);
     } else if (editMode) {
@@ -665,7 +667,7 @@ const renderWidgetLayer = (
   }
 };
 
-const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'custom'];
+const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'carriedObject', 'custom'];
 const XP_REWARD_ACTION_LABELS: Record<Msx2HudXpRewardActionType, string> = {
   incrementLevel: 'Level +',
   incrementSkillPoints: 'Skill points +',
@@ -1475,12 +1477,12 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                         </div>
                       )}
                       {((selectedLayer.element.kind === 'iconRow') ||
-                        (selectedLayer.element.kind === 'icon' && selectedLayer.element.binding === 'keyItem')) && (
+                        (selectedLayer.element.kind === 'icon' && (selectedLayer.element.binding === 'keyItem' || selectedLayer.element.binding === 'carriedObject'))) && (
                         <div className="pt-1 border-t border-msx-border">
                           <div className="text-msx-textsecondary mb-1">
                             {selectedLayer.element.kind === 'iconRow'
                               ? 'Empty Icon (unfilled slots)'
-                              : 'Empty Icon (key not collected)'}
+                              : selectedLayer.element.binding === 'carriedObject' ? 'Empty Icon (object not held)' : 'Empty Icon (key not collected)'}
                           </div>
                           <IconAssetPicker
                             icons={icons}
@@ -1535,6 +1537,11 @@ export const Msx2HudEditor: React.FC<Msx2HudEditorProps> = ({ asset, onUpdate, a
                             {selectedLayer.element.kind === 'icon'
                               ? 'Icon toggles empty (0 keys) / full (≥1 key) from the shared key count.'
                               : 'Shows the total number of keys held (0–255).'}
+                          </p>
+                        )}
+                        {selectedLayer.element.binding === 'carriedObject' && (
+                          <p className="text-[0.6rem] text-msx-textsecondary mb-1 leading-tight">
+                            The icon is full while the player is carrying a carryable object and empty otherwise.
                           </p>
                         )}
                         {selectedLayer.element.kind === 'text' && (

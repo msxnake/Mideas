@@ -918,6 +918,7 @@ export type Msx2HudWidgetBinding =
   | 'lives'
   | 'collectibles'
   | 'keyItem'
+  | 'carriedObject'
   | 'custom';
 
 export interface Msx2HudWidget {

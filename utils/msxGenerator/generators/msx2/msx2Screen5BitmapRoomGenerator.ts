@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2Ga
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
 import {
@@ -154,6 +154,7 @@ import {
 import {
   BITMAP_MAX_ENEMY_FRAMES,
   BITMAP_MAX_ENEMY_SLOTS,
+  BITMAP_ENEMY_POOL_STRIDE,
   BitmapEnemyRoomData,
   buildBitmapEnemySystemAsm,
 } from './msx2BitmapEnemyGenerator';
@@ -170,6 +171,10 @@ import {
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
+import {
+  buildBitmapCarryAndThrowSystemAsm,
+  buildBitmapCarryAndThrowData,
+} from './msx2BitmapCarryAndThrowGenerator';
 
 interface Msx2BitmapRoomConfig {
   screenMode: 'SCREEN 4 (Graphics II)';
@@ -1720,7 +1725,7 @@ function buildBitmapHudSeedPixels(
       // same iconRow path): do NOT bake it into the seed, or the runtime draw
       // would double-stamp over the baked pixels. 'iconRow' is already omitted
       // below because it matches no seed branch.
-      if (element.kind === 'icon' && element.binding === 'keyItem') continue;
+      if (element.kind === 'icon' && (element.binding === 'keyItem' || element.binding === 'carriedObject')) continue;
       const x = clampInt(element.x, 0, SCREEN_WIDTH - 1, 0);
       const y = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 0);
       const width = clampInt(element.width, 1, SCREEN_WIDTH - x, element.kind === 'bar' ? 64 : 16);
@@ -9280,7 +9285,7 @@ function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSourc
     // halves), rendered by the same iconRow runtime path as a 1-slot iconRow, so
     // collect it as such. Otherwise a kind:'icon' would be baked statically into the
     // HUD seed and never reflect key collection at runtime.
-    if (kind === 'iconRow' || (kind === 'icon' && layer.element.binding === 'keyItem')) {
+    if (kind === 'iconRow' || (kind === 'icon' && (layer.element.binding === 'keyItem' || layer.element.binding === 'carriedObject'))) {
       sources.push({ kind: 'iconRow', element: layer.element });
     }
     else if (kind === 'counter' || kind === 'iconCounter') sources.push({ kind: 'counter', element: layer.element });
@@ -9292,8 +9297,9 @@ function collectLinkedHudDynamicSources(hudAsset: Msx2HudAsset): HudDynamicSourc
 /**
  * Maps an element's variable binding to the RAM byte the runtime routine reads.
  * `playerEnergy` (player_health), `lives` (player_lives), `air` (air_timer),
- * `experience`/`level`/`skillPoints` (XP system) and `keyItem`
- * (bitmap_key_count, the number of keys held) read a real game-mechanic byte.
+ * `experience`/`level`/`skillPoints` (XP system), `keyItem`
+ * (bitmap_key_count, the number of keys held) and `carriedObject`
+ * (bitmap_carry_held) read a real game-mechanic byte.
  * Every other binding
  * (`score`/`bossEnergy`/`collectibles`/`custom`) gets its OWN persistent RAM byte
  * instead — this is NOT a scoring/timer mechanic, just a widget-owned counter
@@ -9309,6 +9315,7 @@ function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex
   if (element.binding === 'level') return 'player_level';
   if (element.binding === 'skillPoints') return 'player_skill_points';
   if (element.binding === 'keyItem') return 'bitmap_key_count';
+  if (element.binding === 'carriedObject') return 'bitmap_carry_held';
   return `hud_linked_${instanceIndex}_value`;
 }
 
@@ -9491,7 +9498,8 @@ function linkedCounterSpec(element: Msx2HudElement): { digits: number; wide: boo
     || element.binding === 'experience'
     || element.binding === 'level'
     || element.binding === 'skillPoints'
-    || element.binding === 'keyItem';
+    || element.binding === 'keyItem'
+    || element.binding === 'carriedObject';
   if (requested >= 4 && !byteBinding) {
     return { digits: Math.min(5, requested), wide: true };
   }
@@ -9546,6 +9554,7 @@ function buildBitmapHudLinkedIconRowAsm(
   // keyItem-bound icon toggle: shows the "full" half when the player holds at
   // least one key (bitmap_key_count > 0), the "empty" half otherwise.
   const isKeyItem = element.binding === 'keyItem';
+  const isCarriedObject = element.binding === 'carriedObject';
   // Clip against the right edge: HMMM DX is written as a low byte only and
   // SCREEN 5 has no x >= 256, so an overflowing 16px slot would WRAP to x=0 and
   // stamp over the left side of the HUD. The editor preview clips the same way.
@@ -9617,7 +9626,7 @@ ${drawPageLabel}:
     ld c, 0
 ${loopLabel}:
 ${isToggle
-    ? (isKeyItem
+    ? (isKeyItem || isCarriedObject
       ? `    ; Key item icon toggle: draw the "full" half (SX=0) when the player
     ; holds at least one key (bitmap_key_count > 0), else the "empty" half
     ; (SX=${emptySx}). Requires an icon tile with both halves authored, like
@@ -11531,6 +11540,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Enemy patrol runtime (SCREEN 4 port): SAT slots sit right after the player
   // layers (bullets shift past them), pattern groups after the foreground ones.
   const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
+  const carryAndThrowConfig = getMsx2CarryAndThrowConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const carryAndThrowData = buildBitmapCarryAndThrowData(analysis, rooms);
   const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
   const enemyPatternGroupCount = enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * 2;
   if (enemyData.maxSlots > 0 && enemyPatternGroupBase + enemyPatternGroupCount > 64) {
@@ -11559,6 +11570,16 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const platformHardwareSlots = platformData.maxSlots * platformData.maxCells;
   const platformSatBase = enemySatBase + enemyData.maxSlots * 4;
   const platformColorBase = enemyColorBase + enemyData.maxSlots * 16;
+  const carryPatternGroupBase = platformPatternGroupBase + platformPatternGroupCount;
+  const carryPatternGroupCount = carryAndThrowData.maxSlots;
+  if (carryAndThrowData.maxSlots > 0 && carryPatternGroupBase + carryPatternGroupCount > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room carry-and-throw objects need sprite pattern groups ${carryPatternGroupBase}..${carryPatternGroupBase + carryPatternGroupCount - 1}, ` +
+      'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation or carryable objects.',
+    );
+  }
+  const carrySatBase = platformSatBase + platformHardwareSlots * 4;
+  const carryColorBase = platformColorBase + platformHardwareSlots * 16;
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -11570,6 +11591,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     foregroundSlotCount: foregroundCount,
     enemySlotCount: enemyData.maxSlots,
     platformSlotCount: platformHardwareSlots,
+    carrySlotCount: carryAndThrowData.maxSlots,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
@@ -11825,6 +11847,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += platformSystem.ramBytes;
+  // CARRY & THROW skill: SCREEN 5 ballistic object runtime. It is chained after
+  // platforms so its RAM and SAT/pattern ranges cannot overlap existing systems.
+  const carryAndThrowSystem = buildBitmapCarryAndThrowSystemAsm(carryAndThrowConfig, carryAndThrowData, {
+    ramBase: hudLinkedRamCursor,
+    satBase: carrySatBase,
+    colorBase: carryColorBase,
+    patternGroupBase: carryPatternGroupBase,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    screenWidth: SCREEN_WIDTH,
+    enemySlotCount: enemyData.maxSlots,
+    enemyPoolStride: BITMAP_ENEMY_POOL_STRIDE,
+    pauseGateAsm: `${dialogueSystem.enabled
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze carried objects
+    or a
+    ret nz
+`
+      : ''}${perceptionPauseGateAsm}`,
+  });
+  hudLinkedRamCursor += carryAndThrowSystem.ramBytes;
   // PERCEPTION system: hidden_obj proximity + collection + optional 'I' parts
   // window. Built last so its close-repaint can chain every overlay redraw and
   // its RAM closes the optional-system chain (checked against the ceiling below).
@@ -11838,8 +11879,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce key pickups/locked doors/gems/hidden objects/jumpers/wall-jumpers/enemies/platforms.`);
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled || carryAndThrowSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/carry systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
@@ -11903,7 +11944,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -11978,7 +12019,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
 ${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}
-${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}    ; Place the player at the room spawn point.
+${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
@@ -12148,7 +12189,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${platformSystem.equates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}    org #4000
 
     db "AB"
     dw init_rom
@@ -12182,8 +12223,8 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${gameFlowEnabled ? '    
 ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${platformSystem.detectCallAsm}.skip_player_movement:
-${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${platformSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
+${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
+${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
@@ -12192,6 +12233,7 @@ ${glideRuntime}
 ${wallJumpRuntime}
 ${powerStompRuntime}
 ${shootRuntime}
+${carryAndThrowSystem.routinesAsm}
 ${wallClimbRuntime}
 ${teleportRuntime}
 ${slashRuntime}
@@ -12209,6 +12251,7 @@ ${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
 ${enemySystem.routinesAsm}
 ${platformSystem.routinesAsm}
+${carryAndThrowSystem.dataAsm}
 ${bitmapEndRuntime.routinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${intro.dataAsm}bitmap_room_hud_seed_data:
