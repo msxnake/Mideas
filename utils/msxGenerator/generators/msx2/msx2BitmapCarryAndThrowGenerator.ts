@@ -2,7 +2,6 @@ import { Msx2CarryAndThrowConfig } from '../../../msx2PlatformPhysics';
 import { Msx2Screen5BitmapRoom } from '../../../../types';
 import { buildHardwareSpriteLayersForFrame, resolveMsx2SpriteById } from './msx2Screen4Generator';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
-import { buildMsx2SkillPressedRoutine } from './msx2SkillControlsGenerator';
 
 /** Maximum number of carryable objects exported per SCREEN 5 room. */
 export const BITMAP_MAX_CARRY_AND_THROW_SLOTS = 2;
@@ -21,6 +20,31 @@ function asmByte(value: number): string {
 
 function asmWord(value: number): string {
   return `#${Math.max(0, Math.min(0xFFFF, Math.floor(Number(value) || 0))).toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+function buildCarryInputRoutine(config: Msx2CarryAndThrowConfig): string {
+  const key = config.primaryKeyboard || { label: 'M', row: 4, mask: 0x04 };
+  const mask = asmByte(key.mask);
+  return `bitmap_carry_and_throw_pressed:
+    ; ------------------------------------------------------------
+    ; FUNCTION: bitmap_carry_and_throw_pressed
+    ; PURPOSE: Reads the configured carry/throw keyboard binding directly from PPI.
+    ; INPUT: none.
+    ; OUTPUT: A=1 while pressed, A=0 otherwise (Z set when released).
+    ; DESTROYS: AF.
+    ; PRESERVES: BC, DE, HL, IX, IY.
+    ; ------------------------------------------------------------
+    in a, (PPI_C)
+    and #F0
+    or ${key.row}
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and ${mask}
+    ret z
+    ld a, 1
+    ret
+`;
 }
 
 function clampTile(value: unknown, max: number): number {
@@ -334,12 +358,7 @@ bitmap_carry_check_enemy_collision:
     ret
 `;
 
-  const routinesAsm = `${buildMsx2SkillPressedRoutine(
-    'bitmap_carry_and_throw_pressed',
-    'SCREEN 5 carry and throw skill',
-    config!.primaryControl,
-    config!.secondaryControl,
-  )}
+  const routinesAsm = `${buildCarryInputRoutine(config!)}
 ; FUNCTION: bitmap_load_carry_objects
 ; PURPOSE: Loads the active room's carryable positions and sprite graphics.
 ; INPUT: current_screen_index.

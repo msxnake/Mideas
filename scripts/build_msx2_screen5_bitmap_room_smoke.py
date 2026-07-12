@@ -466,6 +466,7 @@ def enable_all_bitmap_skills(project: dict[str, object]) -> None:
         "high_jump",
         "wall_break",
         "spin_attack",
+        "carry_and_throw",
     ]:
         if skill_id not in active_skills:
             active_skills.append(skill_id)
@@ -508,8 +509,37 @@ def enable_all_bitmap_skills(project: dict[str, object]) -> None:
             "spinCooldown": 30,
             "requireKeyRelease": True,
         },
+        "carry_and_throw": {
+            "throwSpeed": 12,
+            "throwVertical": 8,
+            "throwGravity": 1,
+            "throwCooldown": 30,
+            "pickupRadius": 20,
+            "objectCollision": True,
+            "enemyCollision": True,
+        },
     })
     player["skillParameters"] = skill_parameters
+    for asset in project["assets"]:
+        if asset.get("type") != "msx2bitmaproom":
+            continue
+        asset["data"]["entities"] = [
+            {
+                "kind": "carryable",
+                "position": {"x": 4, "y": 9},
+                "components": {
+                    "msx2_carryable": {"enabled": True},
+                    "msx2_hardware_sprite": {"msx2SpriteAssetId": "smoke_player_sprite"},
+                },
+            },
+            {
+                "kind": "enemy",
+                "position": {"x": 9, "y": 9},
+                "components": {
+                    "msx2_hardware_sprite": {"msx2SpriteAssetId": "smoke_player_sprite"},
+                },
+            },
+        ]
 
 
 def render_smoke_room_data(room: dict[str, object]) -> list[list[int]]:
@@ -832,6 +862,9 @@ def validate_all_bitmap_skill_markers(asm_text: str) -> None:
         "bitmap_highjump_arm",
         "bitmap_try_wall_break",
         "bitmap_try_spin_attack",
+        "update_bitmap_carry_and_throw",
+        "bitmap_update_carry_sat",
+        "bitmap_carry_check_enemy_collision",
     ):
         if marker not in asm_text:
             raise RuntimeError(f"All-bitmap-skills smoke is missing ASM marker: {marker}")

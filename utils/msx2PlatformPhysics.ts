@@ -190,6 +190,8 @@ export interface Msx2CarryAndThrowConfig {
   enemyCollision: boolean;
   primaryControl: Msx2PlayerControlId;
   secondaryControl: Msx2PlayerControlId | 'none';
+  primaryKeyboard?: Msx2BitmapKeyboardBinding;
+  secondaryKeyboard?: Msx2BitmapKeyboardBinding;
 }
 
 /**
@@ -889,6 +891,8 @@ export function getMsx2CarryAndThrowConfigFromPlayerEntity(player: any | undefin
     enemyCollision: params.enemyCollision !== false,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+    primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),
+    secondaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.secondary),
   };
 }
 
