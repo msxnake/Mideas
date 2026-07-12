@@ -14,6 +14,12 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowUpIcon,
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  BlendIcon,
+  CopyIcon,
+  DropletIcon,
+  EllipseShapeIcon,
   EraserIcon,
   EyeIcon,
   EyeOffIcon,
@@ -21,12 +27,19 @@ import {
   FlipVerticalIcon,
   FolderOpenIcon,
   GridIcon,
+  LineToolIcon,
   LoadIcon,
+  PasteIcon,
   PencilIcon,
   PaintBrushIcon,
+  RectShapeIcon,
   RotateCcwIcon,
   RotateCwIcon,
   SaveIcon,
+  ScissorsIcon,
+  SelectionIcon,
+  SprayIcon,
+  StampIcon,
   SwapHorizIcon,
   TilesetIcon,
   TrashIcon,
@@ -47,7 +60,20 @@ import {
 } from '../../utils/msx2BitmapTileLibrary';
 import { createScreen5PaletteAssetForTile } from '../../utils/msx2Screen5BitmapTileLibrary';
 
-type TileTool = 'brush' | 'erase' | 'fill' | 'picker';
+type TileTool =
+  | 'brush'
+  | 'erase'
+  | 'fill'
+  | 'gradient'
+  | 'picker'
+  | 'line'
+  | 'rect'
+  | 'ellipse'
+  | 'spray'
+  | 'select'
+  | 'clone'
+  | 'smudge'
+  | 'zoom';
 type BrushSize = 1 | 2 | 'dither';
 
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -55,6 +81,9 @@ const DEFAULT_TILE_W = 16;
 const DEFAULT_TILE_H = 16;
 const ZOOM_OPTIONS = [8, 16, 24, 32];
 const DITHER_PATTERN: Array<[number, number]> = [[0, 0], [1, 1]];
+const HISTORY_LIMIT = 60;
+const SPRAY_RADIUS = 3;
+const SPRAY_DOTS = 4;
 
 interface Msx2BitmapTileEditorProps {
   tileAsset: ProjectAsset;
@@ -64,6 +93,23 @@ interface Msx2BitmapTileEditorProps {
   onUpdate: (data: BitmapTileScreen5, newAssets?: ProjectAsset[]) => void;
   onSelectAsset: (assetId: string, editorType?: EditorType) => void;
   setStatusBarMessage?: (message: string) => void;
+}
+
+interface SelectionRect { x: number; y: number; w: number; h: number; }
+interface FloatingSelection { pixels: number[][]; w: number; h: number; x: number; y: number; }
+interface HistorySnapshot { pixelData: number[]; width: number; height: number; }
+interface ShapePreview { x0: number; y0: number; x1: number; y1: number; }
+type DragMode = 'paint' | 'shape' | 'marquee' | 'float' | 'clone' | 'smudge';
+interface DragState {
+  mode: DragMode;
+  button: number;
+  start: { x: number; y: number };
+  last: { x: number; y: number };
+  grabDX?: number;
+  grabDY?: number;
+  cloneDX?: number;
+  cloneDY?: number;
+  sourceGrid?: number[][];
 }
 
 const cloneGrid = (grid: number[][]): number[][] => grid.map(row => [...row]);
@@ -87,6 +133,71 @@ const gridToFlat = (grid: number[][]): number[] => {
 const resolveSlotHexForRender = (slots: Screen5PaletteSlot[], slot: number): string => {
   const hex = slots[slot]?.hex;
   return !hex || hex === TRANSPARENT_HEX ? '#05070b' : hex;
+};
+
+const normalizeRect = (x0: number, y0: number, x1: number, y1: number): SelectionRect => ({
+  x: Math.min(x0, x1),
+  y: Math.min(y0, y1),
+  w: Math.abs(x1 - x0) + 1,
+  h: Math.abs(y1 - y0) + 1,
+});
+
+const pointInRect = (x: number, y: number, r: SelectionRect): boolean =>
+  x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+
+const linePoints = (x0: number, y0: number, x1: number, y1: number): Array<[number, number]> => {
+  const points: Array<[number, number]> = [];
+  let x = x0;
+  let y = y0;
+  const dx = Math.abs(x1 - x0);
+  const dy = -Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    points.push([x, y]);
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+  return points;
+};
+
+const rectCells = (r: SelectionRect, filled: boolean): Array<[number, number]> => {
+  const out: Array<[number, number]> = [];
+  for (let y = r.y; y < r.y + r.h; y++) {
+    for (let x = r.x; x < r.x + r.w; x++) {
+      if (filled || y === r.y || y === r.y + r.h - 1 || x === r.x || x === r.x + r.w - 1) out.push([x, y]);
+    }
+  }
+  return out;
+};
+
+const ellipseCells = (r: SelectionRect, filled: boolean): Array<[number, number]> => {
+  const cx = r.x + (r.w - 1) / 2;
+  const cy = r.y + (r.h - 1) / 2;
+  const rx = Math.max(0.5, r.w / 2);
+  const ry = Math.max(0.5, r.h / 2);
+  const inside = (x: number, y: number) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1.0000001;
+  const out: Array<[number, number]> = [];
+  for (let y = r.y; y < r.y + r.h; y++) {
+    for (let x = r.x; x < r.x + r.w; x++) {
+      if (!inside(x, y)) continue;
+      if (filled || !inside(x + 1, y) || !inside(x - 1, y) || !inside(x, y + 1) || !inside(x, y - 1)) out.push([x, y]);
+    }
+  }
+  return out;
+};
+
+const shapeCells = (
+  kind: 'line' | 'rect' | 'ellipse',
+  preview: ShapePreview,
+  filled: boolean,
+): Array<[number, number]> => {
+  if (kind === 'line') return linePoints(preview.x0, preview.y0, preview.x1, preview.y1);
+  const r = normalizeRect(preview.x0, preview.y0, preview.x1, preview.y1);
+  return kind === 'rect' ? rectCells(r, filled) : ellipseCells(r, filled);
 };
 
 interface CollapsiblePanelProps {
@@ -134,6 +245,8 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   const [tool, setTool] = useState<TileTool>('brush');
   const [brushSize, setBrushSize] = useState<BrushSize>(1);
   const [activeSlot, setActiveSlot] = useState(1);
+  const [bgSlot, setBgSlot] = useState(0);
+  const [shapeFilled, setShapeFilled] = useState(false);
   const [zoom, setZoom] = useState<number>(16);
   const [showGrid, setShowGrid] = useState(true);
   const [cursor, setCursor] = useState<{ x: number; y: number; slot: number } | null>(null);
@@ -142,12 +255,24 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     active: false,
     firstSlot: null,
   });
+  const [selection, setSelection] = useState<SelectionRect | null>(null);
+  const [floating, setFloating] = useState<FloatingSelection | null>(null);
+  const [shapePreview, setShapePreview] = useState<ShapePreview | null>(null);
+  const [cloneSource, setCloneSource] = useState<{ x: number; y: number } | null>(null);
+  // Bumped whenever the undo/redo stacks (refs) change, so buttons re-render.
+  const [, setHistVersion] = useState(0);
   const [showLibraryModal, setShowLibraryModal] = useState(false);
   const [showCreatePaletteDialog, setShowCreatePaletteDialog] = useState(false);
   const [libraryEntries, setLibraryEntries] = useState<Msx2BitmapTileLibraryEntry[]>([]);
   const [palettePickerForSlot, setPalettePickerForSlot] = useState<number | null>(null);
 
+  const undoStackRef = useRef<HistorySnapshot[]>([]);
+  const redoStackRef = useRef<HistorySnapshot[]>([]);
+  const clipboardRef = useRef<{ pixels: number[][]; w: number; h: number } | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+
   const [openTools, setOpenTools] = useState(true);
+  const [openEdit, setOpenEdit] = useState(true);
   const [openBrush, setOpenBrush] = useState(true);
   const [openSwap, setOpenSwap] = useState(false);
   const [openMove, setOpenMove] = useState(false);
@@ -180,6 +305,487 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     [tile.pixelData, width, height],
   );
 
+  // Reset the per-tile editing session when another asset is opened.
+  useEffect(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    dragRef.current = null;
+    setSelection(null);
+    setFloating(null);
+    setShapePreview(null);
+    setCloneSource(null);
+    setIsDrawing(false);
+    setHistVersion(v => v + 1);
+  }, [tileAsset.id]);
+
+  // --- History (undo/redo) ---
+  const takeSnapshot = (): HistorySnapshot => ({ pixelData: [...tile.pixelData], width, height });
+
+  const beginHistoryEntry = () => {
+    undoStackRef.current.push(takeSnapshot());
+    if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    setHistVersion(v => v + 1);
+  };
+
+  const restoreSnapshot = (snap: HistorySnapshot) => {
+    onUpdate({
+      ...tile,
+      width: snap.width,
+      height: snap.height,
+      pixelData: [...snap.pixelData],
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const undo = () => {
+    const snap = undoStackRef.current.pop();
+    if (!snap) return;
+    redoStackRef.current.push(takeSnapshot());
+    restoreSnapshot(snap);
+    setSelection(null);
+    setFloating(null);
+    setShapePreview(null);
+    setHistVersion(v => v + 1);
+  };
+
+  const redo = () => {
+    const snap = redoStackRef.current.pop();
+    if (!snap) return;
+    undoStackRef.current.push(takeSnapshot());
+    restoreSnapshot(snap);
+    setSelection(null);
+    setFloating(null);
+    setShapePreview(null);
+    setHistVersion(v => v + 1);
+  };
+
+  const commitGrid = (nextGrid: number[][], nextWidth = width, nextHeight = height) => {
+    onUpdate({
+      ...tile,
+      width: nextWidth,
+      height: nextHeight,
+      pixelData: gridToFlat(nextGrid),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  // --- Brush footprint (shared by pencil, eraser, clone, smudge and line) ---
+  const brushCells = (x: number, y: number): Array<[number, number]> => {
+    const cells: Array<[number, number]> = [];
+    const push = (cx: number, cy: number) => {
+      if (cx >= 0 && cy >= 0 && cx < width && cy < height) cells.push([cx, cy]);
+    };
+    if (brushSize === 1) push(x, y);
+    else if (brushSize === 2) {
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) push(x + dx, y + dy);
+    } else {
+      for (const [dx, dy] of DITHER_PATTERN) push(x + dx, y + dy);
+    }
+    return cells;
+  };
+
+  const applyBrushStroke = (x: number, y: number, rightClick: boolean) => {
+    const value = tool === 'erase' ? 0 : rightClick ? bgSlot : activeSlot;
+    const next = cloneGrid(pixelsGrid);
+    for (const [bx, by] of brushCells(x, y)) next[by][bx] = value;
+    commitGrid(next);
+  };
+
+  const applySprayAt = (x: number, y: number, rightClick: boolean) => {
+    const value = rightClick ? bgSlot : activeSlot;
+    const next = cloneGrid(pixelsGrid);
+    for (let i = 0; i < SPRAY_DOTS; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.sqrt(Math.random()) * SPRAY_RADIUS;
+      const px = Math.round(x + Math.cos(angle) * radius);
+      const py = Math.round(y + Math.sin(angle) * radius);
+      if (px >= 0 && py >= 0 && px < width && py < height) next[py][px] = value;
+    }
+    commitGrid(next);
+  };
+
+  const applyCloneAt = (x: number, y: number) => {
+    const drag = dragRef.current;
+    if (!drag || drag.cloneDX === undefined || drag.cloneDY === undefined || !drag.sourceGrid) return;
+    const next = cloneGrid(pixelsGrid);
+    for (const [px, py] of brushCells(x, y)) {
+      const sx = px + drag.cloneDX;
+      const sy = py + drag.cloneDY;
+      if (sx >= 0 && sy >= 0 && sy < drag.sourceGrid.length && sx < (drag.sourceGrid[0]?.length || 0)) {
+        next[py][px] = drag.sourceGrid[sy][sx];
+      }
+    }
+    commitGrid(next);
+  };
+
+  // Indexed-palette "smudge": pull the neighbour colour along the drag direction,
+  // but only on checkerboard cells, so edges blend as a dither instead of smearing.
+  const applySmudgeAt = (x: number, y: number) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = Math.sign(x - drag.last.x);
+    const dy = Math.sign(y - drag.last.y);
+    if (dx === 0 && dy === 0) return;
+    const next = cloneGrid(pixelsGrid);
+    for (const [px, py] of brushCells(x, y)) {
+      if (((px + py) & 1) !== 0) continue;
+      const sx = px - dx;
+      const sy = py - dy;
+      if (sx >= 0 && sy >= 0 && sy < height && sx < width) next[py][px] = pixelsGrid[sy][sx];
+    }
+    commitGrid(next);
+  };
+
+  const floodFill = (source: number[][], x: number, y: number, value: number): number[][] => {
+    const target = source[y][x];
+    if (target === value) return source;
+    const next = cloneGrid(source);
+    const stack: Array<[number, number]> = [[x, y]];
+    while (stack.length) {
+      const [cx, cy] = stack.pop()!;
+      if (cx < 0 || cy < 0 || cx >= width || cy >= height || next[cy][cx] !== target) continue;
+      next[cy][cx] = value;
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+    return next;
+  };
+
+  // Flood-fills the clicked region with an FG/BG checkerboard (classic dither gradient).
+  const applyGradientFill = (x: number, y: number, rightClick: boolean) => {
+    const fg = rightClick ? bgSlot : activeSlot;
+    const bg = rightClick ? activeSlot : bgSlot;
+    const target = pixelsGrid[y][x];
+    const next = cloneGrid(pixelsGrid);
+    const visited = new Set<number>();
+    const stack: Array<[number, number]> = [[x, y]];
+    while (stack.length) {
+      const [cx, cy] = stack.pop()!;
+      if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+      const key = cy * width + cx;
+      if (visited.has(key) || pixelsGrid[cy][cx] !== target) continue;
+      visited.add(key);
+      next[cy][cx] = ((cx + cy) & 1) === 0 ? fg : bg;
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+    beginHistoryEntry();
+    commitGrid(next);
+  };
+
+  // --- Selection helpers ---
+  const extractRect = (r: SelectionRect): number[][] =>
+    Array.from({ length: r.h }, (_row, y) => Array.from({ length: r.w }, (_col, x) => pixelsGrid[r.y + y][r.x + x]));
+
+  const blitFloating = (base: number[][], float: FloatingSelection): number[][] => {
+    for (let y = 0; y < float.h; y++) {
+      for (let x = 0; x < float.w; x++) {
+        const py = float.y + y;
+        const px = float.x + x;
+        if (py >= 0 && px >= 0 && py < height && px < width) base[py][px] = float.pixels[y][x];
+      }
+    }
+    return base;
+  };
+
+  const stampFloating = () => {
+    if (!floating) return;
+    beginHistoryEntry();
+    commitGrid(blitFloating(cloneGrid(pixelsGrid), floating));
+    setFloating(null);
+    setStatusBarMessage?.('Selección fijada en el tile.');
+  };
+
+  const copySelection = () => {
+    if (floating) {
+      clipboardRef.current = { pixels: floating.pixels.map(row => [...row]), w: floating.w, h: floating.h };
+      setStatusBarMessage?.(`Copiado ${floating.w}x${floating.h} al portapapeles.`);
+      return;
+    }
+    if (!selection) {
+      setStatusBarMessage?.('No hay selección que copiar (herramienta Select).');
+      return;
+    }
+    clipboardRef.current = { pixels: extractRect(selection), w: selection.w, h: selection.h };
+    setStatusBarMessage?.(`Copiado ${selection.w}x${selection.h} al portapapeles.`);
+  };
+
+  const fillSelectionWith = (r: SelectionRect, value: number) => {
+    beginHistoryEntry();
+    const next = cloneGrid(pixelsGrid);
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) next[y][x] = value;
+    commitGrid(next);
+  };
+
+  const cutSelection = () => {
+    if (!selection) {
+      setStatusBarMessage?.('No hay selección que cortar (herramienta Select).');
+      return;
+    }
+    clipboardRef.current = { pixels: extractRect(selection), w: selection.w, h: selection.h };
+    fillSelectionWith(selection, bgSlot);
+    setSelection(null);
+    setStatusBarMessage?.('Selección cortada al portapapeles.');
+  };
+
+  const deleteSelection = () => {
+    if (!selection) {
+      setStatusBarMessage?.('No hay selección que borrar (herramienta Select).');
+      return;
+    }
+    fillSelectionWith(selection, bgSlot);
+    setSelection(null);
+  };
+
+  const pasteClipboard = () => {
+    const clip = clipboardRef.current;
+    if (!clip) {
+      setStatusBarMessage?.('Portapapeles vacío: copia una selección primero.');
+      return;
+    }
+    if (floating) stampFloating();
+    setSelection(null);
+    setFloating({ pixels: clip.pixels.map(row => [...row]), w: clip.w, h: clip.h, x: 0, y: 0 });
+    setTool('select');
+    setStatusBarMessage?.('Pegado: arrastra la selección y haz clic fuera para fijarla.');
+  };
+
+  const swapFgBg = () => {
+    setActiveSlot(bgSlot);
+    setBgSlot(activeSlot);
+  };
+
+  const pointFromEvent = (event: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } | null => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const x = Math.floor((event.clientX - rect.left) * (width / rect.width));
+    const y = Math.floor((event.clientY - rect.top) * (height / rect.height));
+    if (x < 0 || y < 0 || x >= width || y >= height) return null;
+    return { x, y };
+  };
+
+  const handleSwapClick = (x: number, y: number) => {
+    const clickedSlot = pixelsGrid[y][x];
+    if (swapState.firstSlot === null) {
+      setSwapState({ active: true, firstSlot: clickedSlot });
+      setStatusBarMessage?.(`Color swap: first slot ${clickedSlot}. Click a pixel of another slot to swap.`);
+    } else if (swapState.firstSlot === clickedSlot) {
+      setStatusBarMessage?.('Color swap: same slot, cancelled.');
+      setSwapState({ active: false, firstSlot: null });
+    } else {
+      const a = swapState.firstSlot;
+      const b = clickedSlot;
+      beginHistoryEntry();
+      const next = pixelsGrid.map(row => row.map(value => (value === a ? b : value === b ? a : value)));
+      commitGrid(next);
+      setStatusBarMessage?.(`Swapped slots ${a} <-> ${b} in this tile (palette untouched).`);
+      setSwapState({ active: false, firstSlot: null });
+    }
+  };
+
+  const handleSelectMouseDown = (x: number, y: number, rightClick: boolean) => {
+    if (rightClick) {
+      if (floating) stampFloating();
+      setSelection(null);
+      return;
+    }
+    if (floating) {
+      if (pointInRect(x, y, { x: floating.x, y: floating.y, w: floating.w, h: floating.h })) {
+        dragRef.current = { mode: 'float', button: 0, start: { x, y }, last: { x, y }, grabDX: x - floating.x, grabDY: y - floating.y };
+        setIsDrawing(true);
+        return;
+      }
+      stampFloating();
+    }
+    if (selection && pointInRect(x, y, selection)) {
+      // Lift the selection into a floating buffer (source hole = BG slot) and start moving it.
+      beginHistoryEntry();
+      const lifted = extractRect(selection);
+      const next = cloneGrid(pixelsGrid);
+      for (let sy = selection.y; sy < selection.y + selection.h; sy++) {
+        for (let sx = selection.x; sx < selection.x + selection.w; sx++) next[sy][sx] = bgSlot;
+      }
+      commitGrid(next);
+      setFloating({ pixels: lifted, w: selection.w, h: selection.h, x: selection.x, y: selection.y });
+      dragRef.current = { mode: 'float', button: 0, start: { x, y }, last: { x, y }, grabDX: x - selection.x, grabDY: y - selection.y };
+      setSelection(null);
+      setIsDrawing(true);
+      return;
+    }
+    dragRef.current = { mode: 'marquee', button: 0, start: { x, y }, last: { x, y } };
+    setSelection({ x, y, w: 1, h: 1 });
+    setIsDrawing(true);
+  };
+
+  const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (event.button !== 0 && event.button !== 2) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    event.preventDefault();
+    const rightClick = event.button === 2;
+    setCursor({ ...point, slot: pixelsGrid[point.y][point.x] });
+
+    if (swapState.active) {
+      handleSwapClick(point.x, point.y);
+      return;
+    }
+
+    switch (tool) {
+      case 'picker':
+        if (rightClick) setBgSlot(pixelsGrid[point.y][point.x] || 0);
+        else setActiveSlot(pixelsGrid[point.y][point.x] || 0);
+        return;
+      case 'zoom':
+        changeZoom(rightClick ? -1 : 1);
+        return;
+      case 'fill':
+        beginHistoryEntry();
+        commitGrid(floodFill(pixelsGrid, point.x, point.y, rightClick ? bgSlot : activeSlot));
+        return;
+      case 'gradient':
+        applyGradientFill(point.x, point.y, rightClick);
+        return;
+      case 'line':
+      case 'rect':
+      case 'ellipse':
+        dragRef.current = { mode: 'shape', button: event.button, start: point, last: point };
+        setShapePreview({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+        setIsDrawing(true);
+        return;
+      case 'select':
+        handleSelectMouseDown(point.x, point.y, rightClick);
+        return;
+      case 'clone':
+        if (event.altKey) {
+          setCloneSource(point);
+          setStatusBarMessage?.(`Clone: origen fijado en (${point.x},${point.y}). Pinta para copiar desde ahí.`);
+          return;
+        }
+        if (!cloneSource) {
+          setStatusBarMessage?.('Clone: Alt+clic para fijar el origen primero.');
+          return;
+        }
+        beginHistoryEntry();
+        dragRef.current = {
+          mode: 'clone',
+          button: event.button,
+          start: point,
+          last: point,
+          cloneDX: cloneSource.x - point.x,
+          cloneDY: cloneSource.y - point.y,
+          sourceGrid: cloneGrid(pixelsGrid),
+        };
+        applyCloneAt(point.x, point.y);
+        setIsDrawing(true);
+        return;
+      case 'smudge':
+        beginHistoryEntry();
+        dragRef.current = { mode: 'smudge', button: event.button, start: point, last: point };
+        setIsDrawing(true);
+        return;
+      case 'spray':
+        beginHistoryEntry();
+        dragRef.current = { mode: 'paint', button: event.button, start: point, last: point };
+        applySprayAt(point.x, point.y, rightClick);
+        setIsDrawing(true);
+        return;
+      default:
+        beginHistoryEntry();
+        dragRef.current = { mode: 'paint', button: event.button, start: point, last: point };
+        applyBrushStroke(point.x, point.y, rightClick);
+        setIsDrawing(true);
+    }
+  };
+
+  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const point = pointFromEvent(event);
+    if (!point) return;
+    setCursor({ ...point, slot: pixelsGrid[point.y][point.x] });
+    const drag = dragRef.current;
+    if (!isDrawing || !drag) return;
+    switch (drag.mode) {
+      case 'paint':
+        if (tool === 'spray') applySprayAt(point.x, point.y, drag.button === 2);
+        else applyBrushStroke(point.x, point.y, drag.button === 2);
+        drag.last = point;
+        break;
+      case 'shape':
+        setShapePreview({ x0: drag.start.x, y0: drag.start.y, x1: point.x, y1: point.y });
+        drag.last = point;
+        break;
+      case 'marquee':
+        setSelection(normalizeRect(drag.start.x, drag.start.y, point.x, point.y));
+        drag.last = point;
+        break;
+      case 'float':
+        setFloating(current => current && ({ ...current, x: point.x - (drag.grabDX || 0), y: point.y - (drag.grabDY || 0) }));
+        drag.last = point;
+        break;
+      case 'clone':
+        applyCloneAt(point.x, point.y);
+        drag.last = point;
+        break;
+      case 'smudge':
+        applySmudgeAt(point.x, point.y);
+        drag.last = point;
+        break;
+    }
+  };
+
+  const commitShapeFromDrag = (drag: DragState, preview: ShapePreview) => {
+    if (tool !== 'line' && tool !== 'rect' && tool !== 'ellipse') return;
+    const value = drag.button === 2 ? bgSlot : activeSlot;
+    const cells = shapeCells(tool, preview, shapeFilled);
+    beginHistoryEntry();
+    const next = cloneGrid(pixelsGrid);
+    if (tool === 'line') {
+      for (const [x, y] of cells) for (const [bx, by] of brushCells(x, y)) next[by][bx] = value;
+    } else {
+      for (const [x, y] of cells) {
+        if (x >= 0 && y >= 0 && x < width && y < height) next[y][x] = value;
+      }
+    }
+    commitGrid(next);
+    setShapePreview(null);
+  };
+
+  // Global mouseup finishes strokes/drags. Registered every render so the handler
+  // always sees fresh state (shape commits need the current preview and grid).
+  useEffect(() => {
+    const stop = () => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      setIsDrawing(false);
+      if (drag?.mode === 'shape' && shapePreview) commitShapeFromDrag(drag, shapePreview);
+    };
+    window.addEventListener('mouseup', stop);
+    return () => window.removeEventListener('mouseup', stop);
+  });
+
+  // Keyboard shortcuts: Ctrl+Z/Y undo-redo, Ctrl+C/X/V clipboard, Supr delete, X swap FG/BG.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+      const ctrl = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      if (ctrl && key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); }
+      else if ((ctrl && key === 'y') || (ctrl && event.shiftKey && key === 'z')) { event.preventDefault(); redo(); }
+      else if (ctrl && key === 'c') { if (selection || floating) { event.preventDefault(); copySelection(); } }
+      else if (ctrl && key === 'x') { if (selection) { event.preventDefault(); cutSelection(); } }
+      else if (ctrl && key === 'v') { event.preventDefault(); pasteClipboard(); }
+      else if (event.key === 'Delete' && selection) { event.preventDefault(); deleteSelection(); }
+      else if (event.key === 'Escape') {
+        if (floating) setStatusBarMessage?.('Selección flotante descartada (Ctrl+Z para recuperar el hueco).');
+        setFloating(null);
+        setSelection(null);
+        setShapePreview(null);
+      } else if (!ctrl && key === 'x') { swapFgBg(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // --- Canvas rendering (base pixels + overlays) ---
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -194,6 +800,27 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
         ctx.fillStyle = resolveSlotHexForRender(slots, slot);
         ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
       }
+    }
+    if (floating) {
+      for (let y = 0; y < floating.h; y++) {
+        for (let x = 0; x < floating.w; x++) {
+          ctx.fillStyle = resolveSlotHexForRender(slots, floating.pixels[y][x] & 0x0f);
+          ctx.fillRect((floating.x + x) * zoom, (floating.y + y) * zoom, zoom, zoom);
+        }
+      }
+    }
+    if (shapePreview && (tool === 'line' || tool === 'rect' || tool === 'ellipse')) {
+      const value = dragRef.current?.button === 2 ? bgSlot : activeSlot;
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = resolveSlotHexForRender(slots, value);
+      for (const [x, y] of shapeCells(tool, shapePreview, shapeFilled)) {
+        if (tool === 'line') {
+          for (const [bx, by] of brushCells(x, y)) ctx.fillRect(bx * zoom, by * zoom, zoom, zoom);
+        } else if (x >= 0 && y >= 0 && x < width && y < height) {
+          ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
+        }
+      }
+      ctx.globalAlpha = 1;
     }
     if (showGrid && zoom >= 4) {
       ctx.strokeStyle = 'rgba(255,255,255,0.18)';
@@ -211,112 +838,42 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
         ctx.stroke();
       }
     }
-  }, [pixelsGrid, slots, zoom, showGrid, width, height]);
-
-  useEffect(() => {
-    const stop = () => setIsDrawing(false);
-    window.addEventListener('mouseup', stop);
-    return () => window.removeEventListener('mouseup', stop);
-  }, []);
-
-  const pointFromEvent = (event: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } | null => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return null;
-    const x = Math.floor((event.clientX - rect.left) * (width / rect.width));
-    const y = Math.floor((event.clientY - rect.top) * (height / rect.height));
-    if (x < 0 || y < 0 || x >= width || y >= height) return null;
-    return { x, y };
-  };
-
-  const applyBrushAt = (grid: number[][], x: number, y: number, value: number): number[][] => {
-    const next = cloneGrid(grid);
-    if (brushSize === 1) {
-      next[y][x] = value;
-      return next;
+    const drawAnts = (x: number, y: number, w: number, h: number) => {
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = '#000000';
+      ctx.strokeRect(x * zoom + 0.5, y * zoom + 0.5, w * zoom - 1, h * zoom - 1);
+      ctx.lineDashOffset = 4;
+      ctx.strokeStyle = '#ffffff';
+      ctx.strokeRect(x * zoom + 0.5, y * zoom + 0.5, w * zoom - 1, h * zoom - 1);
+      ctx.lineDashOffset = 0;
+      ctx.setLineDash([]);
+    };
+    if (selection) drawAnts(selection.x, selection.y, selection.w, selection.h);
+    if (floating) drawAnts(floating.x, floating.y, floating.w, floating.h);
+    if (tool === 'clone' && cloneSource) {
+      const cx = (cloneSource.x + 0.5) * zoom;
+      const cy = (cloneSource.y + 0.5) * zoom;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - zoom * 0.4, cy);
+      ctx.lineTo(cx + zoom * 0.4, cy);
+      ctx.moveTo(cx, cy - zoom * 0.4);
+      ctx.lineTo(cx, cy + zoom * 0.4);
+      ctx.stroke();
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cloneSource.x * zoom + 0.5, cloneSource.y * zoom + 0.5, zoom - 1, zoom - 1);
     }
-    if (brushSize === 2) {
-      for (let dy = 0; dy < 2; dy++) {
-        for (let dx = 0; dx < 2; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx >= 0 && ny >= 0 && nx < width && ny < height) next[ny][nx] = value;
-        }
-      }
-      return next;
-    }
-    for (const [dx, dy] of DITHER_PATTERN) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && ny >= 0 && nx < width && ny < height) next[ny][nx] = value;
-    }
-    return next;
-  };
-
-  const floodFill = (source: number[][], x: number, y: number, value: number): number[][] => {
-    const target = source[y][x];
-    if (target === value) return source;
-    const next = cloneGrid(source);
-    const stack: Array<[number, number]> = [[x, y]];
-    while (stack.length) {
-      const [cx, cy] = stack.pop()!;
-      if (cx < 0 || cy < 0 || cx >= width || cy >= height || next[cy][cx] !== target) continue;
-      next[cy][cx] = value;
-      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-    }
-    return next;
-  };
-
-  const commitGrid = (nextGrid: number[][], nextWidth = width, nextHeight = height) => {
-    onUpdate({
-      ...tile,
-      width: nextWidth,
-      height: nextHeight,
-      pixelData: gridToFlat(nextGrid),
-      updatedAt: new Date().toISOString(),
-    });
-  };
-
-  const applyTool = (x: number, y: number, rightClick: boolean) => {
-    if (swapState.active) {
-      const clickedSlot = pixelsGrid[y][x];
-      if (swapState.firstSlot === null) {
-        setSwapState({ active: true, firstSlot: clickedSlot });
-        setStatusBarMessage?.(`Color swap: first slot ${clickedSlot}. Click a pixel of another slot to swap.`);
-      } else if (swapState.firstSlot === clickedSlot) {
-        setStatusBarMessage?.('Color swap: same slot, cancelled.');
-        setSwapState({ active: false, firstSlot: null });
-      } else {
-        const a = swapState.firstSlot;
-        const b = clickedSlot;
-        const next = pixelsGrid.map(row => row.map(value => (value === a ? b : value === b ? a : value)));
-        commitGrid(next);
-        setStatusBarMessage?.(`Swapped slots ${a} <-> ${b} in this tile (palette untouched).`);
-        setSwapState({ active: false, firstSlot: null });
-      }
-      return;
-    }
-    const value = rightClick || tool === 'erase' ? 0 : activeSlot;
-    if (tool === 'picker') {
-      setActiveSlot(pixelsGrid[y][x] || 0);
-      return;
-    }
-    if (tool === 'fill') {
-      commitGrid(floodFill(pixelsGrid, x, y, value));
-      return;
-    }
-    commitGrid(applyBrushAt(pixelsGrid, x, y, value));
-  };
-
-  const handleMouse = (event: React.MouseEvent<HTMLCanvasElement>, force = false) => {
-    const point = pointFromEvent(event);
-    if (!point) return;
-    setCursor({ ...point, slot: pixelsGrid[point.y][point.x] });
-    if (!force && (!isDrawing || tool === 'fill' || tool === 'picker' || swapState.active)) return;
-    applyTool(point.x, point.y, event.button === 2);
-  };
+  }, [pixelsGrid, slots, zoom, showGrid, width, height, floating, selection, shapePreview, cloneSource, tool, activeSlot, bgSlot, shapeFilled, brushSize]);
 
   const shift = (direction: 'up' | 'down' | 'left' | 'right') => {
-    const next = cloneGrid(pixelsGrid);
+    beginHistoryEntry();
+    const source = floating ? blitFloating(cloneGrid(pixelsGrid), floating) : pixelsGrid;
+    setFloating(null);
+    setSelection(null);
+    const next = cloneGrid(source);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         let sx = x;
@@ -325,20 +882,24 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
         else if (direction === 'down') sy = (y - 1 + height) % height;
         else if (direction === 'left') sx = (x + 1) % width;
         else if (direction === 'right') sx = (x - 1 + width) % width;
-        next[y][x] = pixelsGrid[sy][sx];
+        next[y][x] = source[sy][sx];
       }
     }
     commitGrid(next);
   };
 
   const rotate = (direction: 'clockwise' | 'counterclockwise') => {
+    beginHistoryEntry();
+    const source = floating ? blitFloating(cloneGrid(pixelsGrid), floating) : pixelsGrid;
+    setFloating(null);
+    setSelection(null);
     const nextWidth = height;
     const nextHeight = width;
     const next = Array.from({ length: nextHeight }, (_, y) =>
       Array.from({ length: nextWidth }, (_, x) => (
         direction === 'clockwise'
-          ? pixelsGrid[height - 1 - x][y]
-          : pixelsGrid[x][width - 1 - y]
+          ? source[height - 1 - x][y]
+          : source[x][width - 1 - y]
       )),
     );
     commitGrid(next, nextWidth, nextHeight);
@@ -346,9 +907,13 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   };
 
   const mirror = (direction: 'horizontal' | 'vertical') => {
+    beginHistoryEntry();
+    const source = floating ? blitFloating(cloneGrid(pixelsGrid), floating) : pixelsGrid;
+    setFloating(null);
+    setSelection(null);
     const next = direction === 'horizontal'
-      ? pixelsGrid.map(row => [...row].reverse())
-      : [...pixelsGrid].reverse().map(row => [...row]);
+      ? source.map(row => [...row].reverse())
+      : [...source].reverse().map(row => [...row]);
     commitGrid(next);
     setStatusBarMessage?.(`Mirrored tile ${direction === 'horizontal' ? 'horizontally' : 'vertically'}.`);
   };
@@ -404,6 +969,9 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     if (libW !== width || libH !== height) {
       setStatusBarMessage?.(`Library tile is ${libW}x${libH}; current is ${width}x${height}. Imported with resize.`);
     }
+    beginHistoryEntry();
+    setFloating(null);
+    setSelection(null);
     const next: number[][] = [];
     for (let y = 0; y < height; y++) {
       const row: number[] = [];
@@ -449,12 +1017,44 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
     setZoom(ZOOM_OPTIONS[nextIndex]);
   };
 
-  const tools: Array<{ id: TileTool; label: string; icon: React.ReactNode }> = [
+  const toolHints: Partial<Record<TileTool, string>> = {
+    gradient: 'Relleno con trama FG/BG (clic en una zona).',
+    line: 'Arrastra para trazar una línea recta.',
+    rect: 'Arrastra para dibujar un rectángulo.',
+    ellipse: 'Arrastra para dibujar una elipse.',
+    spray: 'Mantén pulsado para rociar píxeles aleatorios.',
+    select: 'Arrastra para seleccionar; arrastra dentro para mover. Ctrl+C/X/V, Supr.',
+    clone: 'Alt+clic fija el origen; luego pinta para clonar.',
+    smudge: 'Arrastra sobre un borde para difuminarlo con trama.',
+    zoom: 'Clic = acercar, clic derecho = alejar.',
+  };
+
+  const selectTool = (id: TileTool) => {
+    setTool(id);
+    setSwapState({ active: false, firstSlot: null });
+    setShapePreview(null);
+    if (id !== 'select' && floating) stampFloating();
+    if (toolHints[id]) setStatusBarMessage?.(toolHints[id]!);
+  };
+
+  const tools: Array<{ id: TileTool; label: string; icon: React.ReactNode; title?: string }> = [
     { id: 'brush', label: 'Pencil', icon: <PencilIcon /> },
     { id: 'erase', label: 'Eraser', icon: <EraserIcon /> },
     { id: 'fill', label: 'Fill', icon: <PaintBrushIcon /> },
-    { id: 'picker', label: 'Picker', icon: <ViewfinderCircleIcon /> },
+    { id: 'gradient', label: 'Dither fill', icon: <BlendIcon />, title: 'Relleno degradado con trama FG/BG' },
+    { id: 'line', label: 'Line', icon: <LineToolIcon /> },
+    { id: 'rect', label: 'Rect', icon: <RectShapeIcon /> },
+    { id: 'ellipse', label: 'Ellipse', icon: <EllipseShapeIcon /> },
+    { id: 'spray', label: 'Spray', icon: <SprayIcon /> },
+    { id: 'select', label: 'Select', icon: <SelectionIcon />, title: 'Selección rectangular: mover, copiar, pegar' },
+    { id: 'clone', label: 'Clone', icon: <StampIcon />, title: 'Tampón de clonar (Alt+clic = origen)' },
+    { id: 'smudge', label: 'Smudge', icon: <DropletIcon />, title: 'Difuminar bordes con trama' },
+    { id: 'picker', label: 'Picker', icon: <ViewfinderCircleIcon />, title: 'Clic = FG, clic derecho = BG' },
+    { id: 'zoom', label: 'Zoom', icon: <ZoomInIcon />, title: 'Clic = acercar, clic derecho = alejar' },
   ];
+
+  const canUndo = undoStackRef.current.length > 0;
+  const canRedo = redoStackRef.current.length > 0;
 
   return (
     <Panel
@@ -463,10 +1063,12 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
       className="h-full min-h-0 flex flex-col bg-msx-bgcolor"
       bodyClassName="flex-grow flex flex-col min-h-0 overflow-hidden p-0"
     >
-      <div className="flex flex-grow min-h-0 overflow-hidden">
+      {/* select-none: dragging on the canvas must never start a browser text selection
+          (Chrome shows its Gemini popup over selected text, hijacking the drawing). */}
+      <div className="flex flex-grow min-h-0 overflow-hidden select-none">
         <aside className="w-56 border-r border-msx-border p-2 overflow-y-auto space-y-2 flex-shrink-0">
           <CollapsiblePanel title="Tools" isOpen={openTools} onToggle={() => setOpenTools(v => !v)}>
-            <div className="p-2 space-y-1">
+            <div className="p-1 grid grid-cols-2 gap-1">
               {tools.map(entry => (
                 <Button
                   key={entry.id}
@@ -475,14 +1077,39 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                   icon={entry.icon}
                   className="w-full"
                   justify="start"
-                  onClick={() => {
-                    setTool(entry.id);
-                    setSwapState({ active: false, firstSlot: null });
-                  }}
+                  title={entry.title || entry.label}
+                  onClick={() => selectTool(entry.id)}
                 >
-                  {entry.label}
+                  <span className="truncate text-[0.65rem]">{entry.label}</span>
                 </Button>
               ))}
+            </div>
+            {(tool === 'rect' || tool === 'ellipse') && (
+              <div className="grid grid-cols-2 gap-1 px-1 pt-1">
+                <Button size="sm" variant={!shapeFilled ? 'primary' : 'ghost'} onClick={() => setShapeFilled(false)}>Contorno</Button>
+                <Button size="sm" variant={shapeFilled ? 'primary' : 'ghost'} onClick={() => setShapeFilled(true)}>Relleno</Button>
+              </div>
+            )}
+            {tool === 'clone' && (
+              <div className="px-1 pt-1 text-[0.6rem] text-msx-textsecondary">
+                {cloneSource ? `Origen: (${cloneSource.x},${cloneSource.y})` : 'Alt+clic para fijar el origen.'}
+              </div>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Edición" isOpen={openEdit} onToggle={() => setOpenEdit(v => !v)}>
+            <div className="p-1 space-y-1">
+              <div className="grid grid-cols-2 gap-1">
+                <Button size="sm" variant="secondary" icon={<ArrowUturnLeftIcon />} disabled={!canUndo} onClick={undo} title="Deshacer (Ctrl+Z)">Undo</Button>
+                <Button size="sm" variant="secondary" icon={<ArrowUturnRightIcon />} disabled={!canRedo} onClick={redo} title="Rehacer (Ctrl+Y)">Redo</Button>
+                <Button size="sm" variant="ghost" icon={<CopyIcon />} disabled={!selection && !floating} onClick={copySelection} title="Copiar selección (Ctrl+C)">Copy</Button>
+                <Button size="sm" variant="ghost" icon={<ScissorsIcon />} disabled={!selection} onClick={cutSelection} title="Cortar selección (Ctrl+X)">Cut</Button>
+                <Button size="sm" variant="ghost" icon={<PasteIcon />} onClick={pasteClipboard} title="Pegar (Ctrl+V)">Paste</Button>
+                <Button size="sm" variant="ghost" icon={<TrashIcon />} disabled={!selection} onClick={deleteSelection} title="Borrar selección (Supr)">Del</Button>
+              </div>
+              <div className="text-[0.6rem] text-msx-textsecondary">
+                Ctrl+Z/Y deshacer/rehacer · Ctrl+C/X/V · Supr borra · Esc descarta · X intercambia FG/BG.
+              </div>
             </div>
           </CollapsiblePanel>
 
@@ -491,7 +1118,7 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               <Button size="sm" variant={brushSize === 1 ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setBrushSize(1)}>1 pixel</Button>
               <Button size="sm" variant={brushSize === 2 ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setBrushSize(2)}>2x2 pixels</Button>
               <Button size="sm" variant={brushSize === 'dither' ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setBrushSize('dither')}>Dither 2x2 (10/01)</Button>
-              <div className="text-[0.65rem] text-msx-textsecondary pt-1">Brush size applies to Pencil only. Eraser is 1px. Right-click erases with active brush.</div>
+              <div className="text-[0.65rem] text-msx-textsecondary pt-1">Applies to Pencil, Line, Clone and Smudge. Right-click paints with BG color.</div>
             </div>
           </CollapsiblePanel>
 
@@ -549,7 +1176,14 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               aria-label="Tile name"
             />
             <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-xs">{width} x {height}</span>
-            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-xs">Active slot: {activeSlot}</span>
+            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-xs flex items-center gap-1">
+              FG
+              <span className="inline-block h-3.5 w-3.5 rounded-sm border border-msx-border align-middle" style={{ backgroundColor: resolveSlotHexForRender(slots, activeSlot) }} />
+              {activeSlot}
+              · BG
+              <span className="inline-block h-3.5 w-3.5 rounded-sm border border-msx-border align-middle" style={{ backgroundColor: resolveSlotHexForRender(slots, bgSlot) }} />
+              {bgSlot}
+            </span>
             {cursor && (
               <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-xs">({cursor.x},{cursor.y}) = {cursor.slot}</span>
             )}
@@ -559,6 +1193,8 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               </span>
             )}
             <div className="flex-grow" />
+            <Button size="sm" variant="ghost" icon={<ArrowUturnLeftIcon />} disabled={!canUndo} onClick={undo} aria-label="Undo" title="Deshacer (Ctrl+Z)" />
+            <Button size="sm" variant="ghost" icon={<ArrowUturnRightIcon />} disabled={!canRedo} onClick={redo} aria-label="Redo" title="Rehacer (Ctrl+Y)" />
             <Button
               size="sm"
               variant="ghost"
@@ -619,11 +1255,8 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                 alignSelf: 'flex-start',
               }}
               onContextMenu={event => event.preventDefault()}
-              onMouseDown={event => {
-                setIsDrawing(true);
-                handleMouse(event, true);
-              }}
-              onMouseMove={event => handleMouse(event)}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
             />
           </div>
         </main>
@@ -691,23 +1324,51 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                   This tile uses another palette; choose the current world palette to keep colors identical when placed.
                 </div>
               )}
+              <div className="flex items-center gap-3">
+                <div className="relative h-11 w-14 flex-shrink-0" title={`FG slot ${activeSlot} · BG slot ${bgSlot}`}>
+                  <span
+                    className="absolute right-0 bottom-0 h-7 w-7 rounded border border-msx-border"
+                    style={{ backgroundColor: resolveSlotHexForRender(slots, bgSlot) }}
+                  />
+                  <span
+                    className="absolute left-0 top-0 h-8 w-8 rounded border-2 border-white shadow"
+                    style={{ backgroundColor: resolveSlotHexForRender(slots, activeSlot) }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight"
+                  onClick={swapFgBg}
+                  title="Intercambia FG y BG (tecla X)"
+                >
+                  <SwapHorizIcon />
+                </button>
+                <div className="text-[0.6rem] text-msx-textsecondary">FG {activeSlot} · BG {bgSlot}</div>
+              </div>
               <div className="grid grid-cols-4 gap-1">
                 {slots.map(slot => (
                   <button
                     key={slot.slotIndex}
                     type="button"
-                    className={`h-9 rounded border text-[0.65rem] ${activeSlot === slot.slotIndex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${palettePickerForSlot === slot.slotIndex ? 'outline outline-1 outline-msx-accent' : ''}`}
+                    className={`relative h-9 rounded border text-[0.65rem] ${activeSlot === slot.slotIndex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'} ${palettePickerForSlot === slot.slotIndex ? 'outline outline-1 outline-msx-accent' : ''}`}
                     style={{ backgroundColor: slot.hex === TRANSPARENT_HEX ? '#111827' : slot.hex }}
                     onClick={() => setActiveSlot(slot.slotIndex)}
+                    onContextMenu={event => {
+                      event.preventDefault();
+                      setBgSlot(slot.slotIndex);
+                    }}
                     onDoubleClick={() => handleSlotDoubleClick(slot.slotIndex)}
-                    title={`Slot ${slot.slotIndex}: ${slot.hex}. Double-click to ${paletteAsset ? 'open palette asset' : 'create a palette asset'}.`}
+                    title={`Slot ${slot.slotIndex}: ${slot.hex}. Clic = FG, clic derecho = BG. Double-click to ${paletteAsset ? 'open palette asset' : 'create a palette asset'}.`}
                   >
                     <span className="bg-black/40 px-1 rounded text-white">{slot.slotIndex}</span>
+                    {bgSlot === slot.slotIndex && (
+                      <span className="absolute right-0.5 bottom-0.5 rounded bg-black/60 px-0.5 text-[0.5rem] leading-tight text-white">BG</span>
+                    )}
                   </button>
                 ))}
               </div>
               <div className="text-[0.65rem] text-msx-textsecondary">
-                Single click = select active color. Double-click = open (or create) palette asset. Slot 0 ignored.
+                Click = FG color. Right-click = BG color. Double-click = open (or create) palette asset.
               </div>
             </div>
           </CollapsiblePanel>
