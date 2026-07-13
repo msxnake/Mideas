@@ -248,8 +248,13 @@ export function buildBitmapDestroyTileRuntimeAsm(
   const animFrames = Math.min(cooldown, 12);
   const limit = Math.max(16, Math.min(128, config.destroyedLimit));
   const hb = opts.hitbox;
-  const rightProbeAdd = Math.max(1, Math.min(48, hb.x + hb.w)); // first pixel beyond the right edge
-  const leftDelta = hb.x - 1;                                    // pixel just left of the left edge
+  // Pick reach: 4px beyond the hitbox edge. The walk moves in 2px steps, so the
+  // player can stop up to 3px short of the cell boundary; probing just 1px past
+  // the edge then lands in the player's OWN column and the wall is never hit
+  // (caught by the OpenMSX smoke on a staircase wall). 4px still stays inside
+  // the adjacent 16px cell when the player is flush against it.
+  const rightProbeAdd = Math.max(1, Math.min(48, hb.x + hb.w + 3));
+  const leftDelta = hb.x - 4;
   const topOffset = Math.max(0, Math.min(31, hb.y));
   const bottomOffset = Math.max(0, Math.min(47, hb.y + hb.h - 1));
   const gameYOffset = asmByte(opts.gameYOffset);
@@ -269,7 +274,14 @@ export function buildBitmapDestroyTileRuntimeAsm(
     ld (bitmap_destroy_lock), a
 `
     : '';
-  const sfxCall = config.digSound ? `    call bitmap_destroy_sfx
+  // HL holds the collision-cell pointer across the hit path and the PSG sfx
+  // clobbers HL: without the push/pop the destroy step wrote its collision
+  // clear through a stale ROM address inside the Konami bank-switch window
+  // (#6000+), silently remapping the resident data bank instead of opening
+  // the cell (caught by the OpenMSX smoke).
+  const sfxCall = config.digSound ? `    push hl
+    call bitmap_destroy_sfx
+    pop hl
 ` : '';
   const sfxRoutine = config.digSound
     ? `
