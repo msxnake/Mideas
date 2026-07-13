@@ -2083,20 +2083,37 @@ function buildBankedRleDataBlocks(chunks: RleChunk[], description: string): Bank
   }));
 }
 
+// Konami SCC mapper: while the P2 bank register (#9000) holds a value whose
+// low 6 bits are #3F, reads of #9800-#9FFF return SCC registers instead of
+// ROM. Data banks are read through the P2 window, so those bank numbers must
+// never hold data (they stay as #FF padding in the ROM image).
+function isSccWindowBank(bank: number): boolean {
+  return (bank & 0x3f) === 0x3f;
+}
+
+// Konami SCC bank register is 8-bit: 256 banks x 8KB = 2MB.
+const BITMAP_ROOM_MEGAROM_MAX_BANK = 255;
+
 function packBitmapRoomDataBanks(blocks: BankedDataBlock[]): PackedDataBank[] {
   const banks: PackedDataBank[] = [];
   let current: PackedDataBank | undefined;
+  let nextBank = BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
   for (const block of blocks) {
     if (block.bytes.length > ROM_DATA_BANK_BYTES) {
       throw new Error(`Bitmap-room data block ${block.label} is ${block.bytes.length} bytes and exceeds one 8KB MegaROM bank`);
     }
     if (!current || current.used + block.bytes.length > ROM_DATA_BANK_BYTES) {
+      while (isSccWindowBank(nextBank)) nextBank++;
+      if (nextBank > BITMAP_ROOM_MEGAROM_MAX_BANK) {
+        throw new Error(`Bitmap-room data exceeds the 2MB Konami SCC MegaROM limit (bank ${nextBank} > ${BITMAP_ROOM_MEGAROM_MAX_BANK})`);
+      }
       current = {
-        bank: BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK + banks.length,
+        bank: nextBank,
         used: 0,
         blocks: [],
       };
       banks.push(current);
+      nextBank++;
     }
     current.blocks.push(block);
     current.used += block.bytes.length;
@@ -2126,8 +2143,15 @@ function formatBankedDataEquates(banks: PackedDataBank[]): string {
 
 function formatBankedDataBanks(banks: PackedDataBank[]): string {
   if (!banks.length) return '';
-  const lines: string[] = ['; --- SCREEN 5 bitmap-room Konami MegaROM data banks ---'];
+  const lines: string[] = ['; --- SCREEN 5 bitmap-room Konami SCC MegaROM data banks ---'];
+  let expectedBank = BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
   for (const bank of banks) {
+    while (expectedBank < bank.bank) {
+      lines.push(`; Bank ${expectedBank} reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.`);
+      lines.push(`    ds #2000, #FF`);
+      expectedBank++;
+    }
+    expectedBank++;
     lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_PHYS_START:`);
     lines.push(`    org #8000`);
     lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_ROM_START:`);
@@ -2605,8 +2629,8 @@ init_plain32k_page2_slot:
 ;   Changes the active slot for #8000-#BFFF.
 ;
 ; NOTES:
-;   Required before Konami mapper writes. Without this, ld (#8000),A writes RAM
-;   instead of the cartridge mapper register on machines where page 2 still
+;   Required before Konami SCC mapper writes. Without this, ld (#9000),A writes
+;   RAM instead of the cartridge mapper register on machines where page 2 still
 ;   points to RAM after boot. Stack use is only the BIOS CALL/RET nesting.
 ; ------------------------------------------------------------
 map_page2_to_cart_primary:
@@ -2670,7 +2694,7 @@ get_cart_slot_value:
 ; FUNCTION: init_konami8k_fixed_bank0_banks
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Initialize a Konami 8KB MegaROM with bank 0 fixed at #4000 and the
+;   Initialize a Konami SCC 8KB MegaROM: bank 0 at #4000 and the
 ;   resident startup banks mapped in #6000/#8000/#A000.
 ;
 ; INPUT:
@@ -2689,12 +2713,18 @@ get_cart_slot_value:
 ;   mapper_set_bank_p1, mapper_set_bank_p2, mapper_set_bank_p3.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper registers #6000, #8000 and #A000.
+;   Writes Konami SCC mapper registers #5000, #7000, #9000 and #B000.
 ;
 ; NOTES:
-;   Stack is not used here. Bank 0 remains fixed by the cartridge mapper.
+;   Stack is not used here. Unlike Konami4, the Konami SCC mapper does NOT
+;   fix bank 0: the #4000 window has its own register at #5000. The reset
+;   state is 0/1/2/3 on emulators, but flash carts may leave garbage, so
+;   bank 0 is selected explicitly. This runs from the #4000 page itself,
+;   which is only safe because the boot code is reachable in bank 0.
 ; ------------------------------------------------------------
 init_konami8k_fixed_bank0_banks:
+    xor a
+    ld (#5000), a
     ld a, 1
     call mapper_set_bank_p1
     ld a, 2
@@ -2724,13 +2754,13 @@ init_konami8k_fixed_bank0_banks:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper register #6000.
+;   Writes Konami SCC mapper register #7000.
 ;
 ; NOTES:
 ;   No PUSH/POP. LD (nn),A does not modify flags.
 ; ------------------------------------------------------------
 mapper_set_bank_p1:
-    ld (#6000), a
+    ld (#7000), a
     ret
 
 ; ------------------------------------------------------------
@@ -2755,13 +2785,16 @@ mapper_set_bank_p1:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper register #8000.
+;   Writes Konami SCC mapper register #9000.
 ;
 ; NOTES:
 ;   P2 is the bitmap-room data read window for banked RLE sources.
+;   Selecting a bank whose low 6 bits are #3F would expose the SCC at
+;   #9800-#9FFF instead of ROM; the data-bank packer never allocates
+;   those bank numbers (see packBitmapRoomDataBanks).
 ; ------------------------------------------------------------
 mapper_set_bank_p2:
-    ld (#8000), a
+    ld (#9000), a
     ret
 
 ; ------------------------------------------------------------
@@ -2786,13 +2819,13 @@ mapper_set_bank_p2:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper register #A000.
+;   Writes Konami SCC mapper register #B000.
 ;
 ; NOTES:
 ;   Present for symmetry with the fixed-bank0 SCREEN 4 MegaROM runtime.
 ; ------------------------------------------------------------
 mapper_set_bank_p3:
-    ld (#A000), a
+    ld (#B000), a
     ret
 
 ; ------------------------------------------------------------
