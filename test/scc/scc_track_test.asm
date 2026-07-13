@@ -15,6 +15,7 @@ marker_ready    EQU #C005
 frame_counter   EQU #C006
 marker_stopped  EQU #C008
 req_stop        EQU #C010
+mapper_bank_p2_current EQU #C083
 
 ; ---- SCC music runtime RAM (EQU chain) ----
 scc_music_active             EQU #C040
@@ -42,6 +43,7 @@ scc_ch_envlen                EQU #C06E
 scc_ch_envloop               EQU #C073
 scc_ch_envstep               EQU #C078
 scc_ch_volout                EQU #C07D
+scc_music_loop_enabled       EQU #C082
 
     org #4000
     db "AB"
@@ -64,6 +66,7 @@ INIT:
     call enable_page2_cart
     ld a, 2
     ld (marker_slot), a
+    ld (mapper_bank_p2_current), a
 
     call scc_music_init_system
     ld a, 3
@@ -123,6 +126,12 @@ enable_page2_cart:
     or c
     ld h, #80
     call ENASLT
+    ret
+
+; Standalone-test mapper subset. Integrated Mideas ROMs use mapper.asm.
+mapper_set_bank_p2:
+    ld (mapper_bank_p2_current), a
+    ld (#9000), a
     ret
 
 ; ---- SCC original register map (mirror of utils/audio/sccConstants.js) ------
@@ -244,6 +253,8 @@ SCC_LoadWaveform32_ch:
 ; traffic goes through shadows: nothing is rewritten unless it changed.
 ; ==================================================================
 
+SCC_MUSIC_TRACK_COUNT EQU 1
+
 scc_music_track_ptr_table:
     DW scc_track_0_scc_fixture_data
 
@@ -258,9 +269,18 @@ scc_music_init_system:
     ld (scc_music_active), a
     ld (scc_music_muted), a
     ld (scc_music_loop_count), a
+    ld (scc_music_loop_enabled), a
     ld (scc_music_mixer_shadow), a
     call scc_music_reset_channels
+    ; The SCC shares the P2 bank register. Keep the caller's mapper bank on
+    ; the CPU stack so nested resource loads cannot corrupt a global save slot.
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     call SCC_Init           ; #3F -> #9000 + mixer/volumes to 0
+    pop af
+    call mapper_set_bank_p2
     ret
 
 ; ------------------------------------------------------------------
@@ -311,12 +331,21 @@ scc_music_reset_volout_loop:
 
 ; ------------------------------------------------------------------
 ; scc_music_play_track
-; What:   Start SCC song A (0-based). B = loop flag (stored; Fase 1
-;         always loops at the song restart position).
+; What:   Start SCC song A (0-based). B bit 0 = loop flag.
 ; Destroys: AF, BC, DE, HL   Preserves: IX, IY
 ; ------------------------------------------------------------------
 scc_music_play_track:
     push bc
+    ld c, a
+    ld a, b
+    and 1
+    ld (scc_music_loop_enabled), a
+    ld a, c
+    cp SCC_MUSIC_TRACK_COUNT
+    jp c, scc_music_play_track_valid
+    pop bc
+    jp scc_music_stop
+scc_music_play_track_valid:
     add a, a
     ld e, a
     ld d, 0
@@ -356,7 +385,13 @@ scc_music_play_track:
     xor a
     ld (scc_music_muted), a
     ld (scc_music_mixer_shadow), a
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     call SCC_Stop
+    pop af
+    call mapper_set_bank_p2
     xor a
     call scc_music_set_order_pos
     ld a, 1
@@ -416,7 +451,13 @@ scc_music_mute:
     ld a, 1
     ld (scc_music_muted), a
     push bc
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     call SCC_Stop
+    pop af
+    call mapper_set_bank_p2
     pop bc
     ret
 
@@ -457,16 +498,25 @@ scc_music_update:
     ld a, (scc_music_muted)
     or a
     ret nz
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     ld hl, scc_music_row_countdown
     dec (hl)
     jp nz, scc_music_update_effects
     ld a, (scc_music_row_frames)
     ld (hl), a
     call scc_music_advance_row
+    ld a, (scc_music_active)
+    or a
+    jp z, scc_music_update_restore_bank
 scc_music_update_effects:
     call scc_music_update_envelopes
     call scc_music_apply_mixer
-    ret
+scc_music_update_restore_bank:
+    pop af
+    jp mapper_set_bank_p2
 
 ; ------------------------------------------------------------------
 ; scc_music_advance_row
@@ -509,6 +559,9 @@ scc_music_row_ch_loop:
     jp nz, scc_music_advance_order_set
     ld hl, scc_music_loop_count
     inc (hl)
+    ld a, (scc_music_loop_enabled)
+    or a
+    jp z, scc_music_stop
     ld a, (scc_music_restart_pos)
     ld e, a
 scc_music_advance_order_set:
@@ -547,7 +600,7 @@ scc_music_apply_cell:
     ld e, (hl)              ; E = new waveform index
     push hl
     ld hl, scc_ch_wave
-    call scc_ch_ptr
+    call scc_wave_cache_ptr
     ld a, (hl)
     cp e
     jp z, scc_music_cell_wave_same
@@ -665,6 +718,24 @@ scc_music_cell_note_cut:
 ; ------------------------------------------------------------------
 scc_ch_ptr:
     ld a, c
+    add a, l
+    ld l, a
+    ret nc
+    inc h
+    ret
+
+; ------------------------------------------------------------------
+; scc_wave_cache_ptr
+; What:   HL = HL + min(C, 3). SCC original channels 4/5 share both
+;         hardware waveform RAM and one cache entry.
+; Destroys: AF   Preserves: BC, DE, IX, IY
+; ------------------------------------------------------------------
+scc_wave_cache_ptr:
+    ld a, c
+    cp 4
+    jp c, scc_wave_cache_ptr_add
+    ld a, 3
+scc_wave_cache_ptr_add:
     add a, l
     ld l, a
     ret nc

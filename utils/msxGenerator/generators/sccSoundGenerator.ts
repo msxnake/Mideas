@@ -1,11 +1,11 @@
 /**
  * @fileoverview SCC Sound Generator — Konami SCC (K051649) music backend.
  *
- * Fase 1 of docs/MIDEAS_SCC_KONAMI_STUDY.md: converts Mideas tracker songs
+ * Fase 2 of docs/msx/MAPPER_KONAMI_SCC_2MB.md: converts Mideas tracker songs
  * with soundChip 'SCC' into compact ROM data plus a Z80 runtime built on the
  * driver primitives validated by test/scc/scc_probe.asm and the VGM player
- * (real Konami music). Not yet wired into generateSoundFile: the engine
- * integration (music_update dispatch + Konami SCC mapper) is the next phase.
+ * (real Konami music). The public Mideas music API is emitted by
+ * buildSccIntegratedMusicBlock() for SCC-only projects.
  *
  * Study rules honoured:
  *  - runtime-mutable state in RAM via EQU, data tables in ROM
@@ -42,6 +42,10 @@ export interface SccMusicBuildResult {
 function clampByte(value: number, min = 0, max = 255): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function scaleSccVolume(value: number, globalVolume: number): number {
+  return clampByte((clampByte(value, 0, 15) * clampByte(globalVolume, 0, 15)) / 15, 0, 15);
 }
 
 function toAsmByte(value: number): string {
@@ -213,6 +217,7 @@ function buildSccTrackData(
   const patterns = Array.isArray(song.patterns) && song.patterns.length > 0
     ? song.patterns
     : [{ id: `${labelBase}_fallback`, name: 'Fallback', numRows: 1, rows: [] }];
+  const globalVolume = clampByte(song.globalVolume ?? 15, 0, 15);
 
   const instrumentMap = new Map<number, SCCInstrument>();
   for (const instrument of song.instruments || []) {
@@ -278,7 +283,9 @@ function buildSccTrackData(
           }
         }
         rowBytes.push(instrumentField);
-        rowBytes.push(cell.volume === null || cell.volume === undefined ? 0xff : clampByte(cell.volume, 0, 15));
+        rowBytes.push(cell.volume === null || cell.volume === undefined
+          ? 0xff
+          : scaleSccVolume(cell.volume, globalVolume));
       });
       lines.push(`    DB ${rowBytes.map((v) => toAsmByte(v)).join(',')}`);
     }
@@ -287,11 +294,14 @@ function buildSccTrackData(
 
   Array.from(instrumentMap.entries()).sort((a, b) => a[0] - b[0]).forEach(([instrumentId, instrument]) => {
     const waveIndex = waveIndexFor(instrument);
-    const volumeEnvelope = (instrument.volumeEnvelope || []).map((v) => clampByte(v, 0, 15));
+    const volumeEnvelope = (instrument.volumeEnvelope || []).map((v) => scaleSccVolume(v, globalVolume));
     const volumeLoop = volumeEnvelope.length > 0 && typeof instrument.volumeLoop === 'number' && instrument.volumeLoop !== 0xff
       ? clampByte(instrument.volumeLoop, 0, volumeEnvelope.length - 1)
       : 0xff;
-    const defaultVolume = clampByte(instrument.volume ?? (volumeEnvelope.length > 0 ? volumeEnvelope[0] : 15), 0, 15);
+    const defaultVolume = scaleSccVolume(
+      instrument.volume ?? (instrument.volumeEnvelope?.[0] ?? 15),
+      globalVolume
+    );
     lines.push(`${labelBase}_inst_${instrumentId}:`);
     lines.push(`    DB ${toAsmByte(waveIndex)}          ; +0 waveform table index`);
     lines.push(`    DB ${toAsmByte(defaultVolume)}          ; +1 default volume`);
@@ -313,7 +323,8 @@ function buildSccTrackData(
 
 /**
  * Emit the SCC music runtime RAM as EQU chained from `baseAddress`.
- * 21 scalar bytes + 9 arrays of 5 = 66 bytes total.
+ * Existing probe-visible fields stay stable; the loop-enabled flag is appended
+ * after the channel arrays. Total: 67 bytes.
  */
 export function buildSccMusicRam(baseAddress: number): { asm: string; bytesUsed: number; nextFree: number } {
   const vars: Array<[string, number]> = [
@@ -343,6 +354,7 @@ export function buildSccMusicRam(baseAddress: number): { asm: string; bytesUsed:
     ['scc_ch_envloop', 5],
     ['scc_ch_envstep', 5],
     ['scc_ch_volout', 5],
+    ['scc_music_loop_enabled', 1],
   ];
   const lines: string[] = ['; ---- SCC music runtime RAM (EQU chain) ----'];
   let address = baseAddress;
@@ -491,6 +503,8 @@ export function buildSccMusicRuntime(trackDataLabels: string[]): string {
 ; traffic goes through shadows: nothing is rewritten unless it changed.
 ; ==================================================================
 
+SCC_MUSIC_TRACK_COUNT EQU ${trackDataLabels.length}
+
 ${trackTable}
 
 ; ------------------------------------------------------------------
@@ -504,9 +518,18 @@ scc_music_init_system:
     ld (scc_music_active), a
     ld (scc_music_muted), a
     ld (scc_music_loop_count), a
+    ld (scc_music_loop_enabled), a
     ld (scc_music_mixer_shadow), a
     call scc_music_reset_channels
+    ; The SCC shares the P2 bank register. Keep the caller's mapper bank on
+    ; the CPU stack so nested resource loads cannot corrupt a global save slot.
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     call SCC_Init           ; #3F -> #9000 + mixer/volumes to 0
+    pop af
+    call mapper_set_bank_p2
     ret
 
 ; ------------------------------------------------------------------
@@ -557,12 +580,21 @@ scc_music_reset_volout_loop:
 
 ; ------------------------------------------------------------------
 ; scc_music_play_track
-; What:   Start SCC song A (0-based). B = loop flag (stored; Fase 1
-;         always loops at the song restart position).
+; What:   Start SCC song A (0-based). B bit 0 = loop flag.
 ; Destroys: AF, BC, DE, HL   Preserves: IX, IY
 ; ------------------------------------------------------------------
 scc_music_play_track:
     push bc
+    ld c, a
+    ld a, b
+    and 1
+    ld (scc_music_loop_enabled), a
+    ld a, c
+    cp SCC_MUSIC_TRACK_COUNT
+    jp c, scc_music_play_track_valid
+    pop bc
+    jp scc_music_stop
+scc_music_play_track_valid:
     add a, a
     ld e, a
     ld d, 0
@@ -602,7 +634,13 @@ scc_music_play_track:
     xor a
     ld (scc_music_muted), a
     ld (scc_music_mixer_shadow), a
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     call SCC_Stop
+    pop af
+    call mapper_set_bank_p2
     xor a
     call scc_music_set_order_pos
     ld a, 1
@@ -662,7 +700,13 @@ scc_music_mute:
     ld a, 1
     ld (scc_music_muted), a
     push bc
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     call SCC_Stop
+    pop af
+    call mapper_set_bank_p2
     pop bc
     ret
 
@@ -703,16 +747,25 @@ scc_music_update:
     ld a, (scc_music_muted)
     or a
     ret nz
+    ld a, (mapper_bank_p2_current)
+    push af
+    ld a, SCC_ENABLE_VAL
+    call mapper_set_bank_p2
     ld hl, scc_music_row_countdown
     dec (hl)
     jp nz, scc_music_update_effects
     ld a, (scc_music_row_frames)
     ld (hl), a
     call scc_music_advance_row
+    ld a, (scc_music_active)
+    or a
+    jp z, scc_music_update_restore_bank
 scc_music_update_effects:
     call scc_music_update_envelopes
     call scc_music_apply_mixer
-    ret
+scc_music_update_restore_bank:
+    pop af
+    jp mapper_set_bank_p2
 
 ; ------------------------------------------------------------------
 ; scc_music_advance_row
@@ -755,6 +808,9 @@ scc_music_row_ch_loop:
     jp nz, scc_music_advance_order_set
     ld hl, scc_music_loop_count
     inc (hl)
+    ld a, (scc_music_loop_enabled)
+    or a
+    jp z, scc_music_stop
     ld a, (scc_music_restart_pos)
     ld e, a
 scc_music_advance_order_set:
@@ -793,7 +849,7 @@ scc_music_apply_cell:
     ld e, (hl)              ; E = new waveform index
     push hl
     ld hl, scc_ch_wave
-    call scc_ch_ptr
+    call scc_wave_cache_ptr
     ld a, (hl)
     cp e
     jp z, scc_music_cell_wave_same
@@ -911,6 +967,24 @@ scc_music_cell_note_cut:
 ; ------------------------------------------------------------------
 scc_ch_ptr:
     ld a, c
+    add a, l
+    ld l, a
+    ret nc
+    inc h
+    ret
+
+; ------------------------------------------------------------------
+; scc_wave_cache_ptr
+; What:   HL = HL + min(C, 3). SCC original channels 4/5 share both
+;         hardware waveform RAM and one cache entry.
+; Destroys: AF   Preserves: BC, DE, IX, IY
+; ------------------------------------------------------------------
+scc_wave_cache_ptr:
+    ld a, c
+    cp 4
+    jp c, scc_wave_cache_ptr_add
+    ld a, 3
+scc_wave_cache_ptr_add:
     add a, l
     ld l, a
     ret nc
@@ -1074,6 +1148,125 @@ export function buildSccMusicData(tracks: TrackerSongData[]): SccMusicBuildResul
 }
 
 /**
+ * Emit the SCC backend behind the stable Mideas music_* API. Projects mixing
+ * PSG/PT3 music and SCC music are rejected by soundGenerator.ts; PSG sound
+ * effects remain available because they use the separate sfx_* API.
+ */
+export function buildSccIntegratedMusicBlock(tracks: TrackerSongData[]): SccMusicBuildResult {
+  const data = buildSccMusicData(tracks);
+  const warningComments = data.warnings.length > 0
+    ? data.warnings.map((warning) => `; WARNING SCC: ${warning.replace(/[\r\n]+/g, ' ')}`).join('\n')
+    : '; SCC validation: no warnings';
+
+  const publicApi = `; ==================================================================
+; MIDEAS PUBLIC MUSIC API -> SCC BACKEND
+; Game Flow, State Machines and world transitions keep using music_*.
+; ==================================================================
+; @mideas:block id=runtime.sound.music_scc_public kind=routine owner=sound roots=music_init_system,music_play_track,music_execute_command,music_update,music_stop,music_mute,music_resume
+
+; Inputs: none. Destroys: AF, B, HL. Preserves: C, DE, IX, IY.
+music_init_system:
+    call scc_music_init_system
+    xor a
+    ld (music_active), a
+    ld (music_muted), a
+    ld (music_loop), a
+    ld (music_track_index), a
+    ret
+
+; Inputs: A = track index, B bit 0 = loop. Destroys: AF, BC, DE, HL.
+music_play_track:
+    ld (music_track_index), a
+    push af
+    ld a, b
+    and 1
+    ld (music_loop), a
+    pop af
+    call scc_music_play_track
+    ld a, (scc_music_active)
+    ld (music_active), a
+    xor a
+    ld (music_muted), a
+    ret
+
+; Inputs: none. Destroys: AF, BC, HL. Preserves: DE, IX, IY.
+music_stop:
+    call scc_music_stop
+    xor a
+    ld (music_active), a
+    ld (music_muted), a
+    ld (music_loop), a
+    ret
+
+music_mute:
+    call scc_music_mute
+    ld a, (scc_music_muted)
+    ld (music_muted), a
+    ret
+
+music_resume:
+    call scc_music_resume
+    ld a, (scc_music_muted)
+    ld (music_muted), a
+    ret
+
+; Inputs: none. Destroys: AF, BC, DE, HL. Call once per frame outside H.TIMI.
+music_update:
+    call scc_music_update
+    ld a, (scc_music_active)
+    ld (music_active), a
+    ld a, (scc_music_muted)
+    ld (music_muted), a
+    ret
+
+; Input: DE -> [command, trackIndex, loopFlag].
+; Commands: 0=stop, 1=play, 2=mute, 3=resume, #FF=no-op.
+; Destroys: AF, BC (play path), DE (play path), HL.
+music_execute_command:
+    ld a, (de)
+    cp #FF
+    ret z
+    or a
+    jp z, music_stop
+    cp 1
+    jp z, music_execute_scc_play
+    cp 2
+    jp z, music_mute
+    cp 3
+    jp z, music_resume
+    ret
+music_execute_scc_play:
+    inc de
+    ld a, (de)
+    ld c, a
+    inc de
+    ld a, (de)
+    ld b, a
+    ld a, c
+    jp music_play_track
+
+music_track_count:
+    DB ${toAsmByte(tracks.length)}
+; @mideas:endblock id=runtime.sound.music_scc_public`;
+
+  return {
+    asm: [
+      warningComments,
+      buildSccDriverPrimitives(),
+      buildSccMusicRuntime(data.trackDataLabels),
+      publicApi,
+      '; ==================================================================',
+      '; SCC MUSIC DATA',
+      '; ==================================================================',
+      data.asm,
+    ].join('\n\n'),
+    trackCount: data.trackCount,
+    waveformCount: data.waveformCount,
+    warnings: data.warnings,
+  };
+}
+
+/**
  * Build a complete standalone Konami SCC test ROM that boots, starts track 0
  * and exposes the player state as RAM markers for the OpenMSX smoke script.
  * Same marker map as test/scc/scc_vgm_play.asm.
@@ -1098,6 +1291,7 @@ marker_ready    EQU #C005
 frame_counter   EQU #C006
 marker_stopped  EQU #C008
 req_stop        EQU #C010
+mapper_bank_p2_current EQU ${toAsmWord(ram.nextFree)}
 
 ${ram.asm}
 
@@ -1122,6 +1316,7 @@ INIT:
     call enable_page2_cart
     ld a, 2
     ld (marker_slot), a
+    ld (mapper_bank_p2_current), a
 
     call scc_music_init_system
     ld a, 3
@@ -1181,6 +1376,12 @@ enable_page2_cart:
     or c
     ld h, #80
     call ENASLT
+    ret
+
+; Standalone-test mapper subset. Integrated Mideas ROMs use mapper.asm.
+mapper_set_bank_p2:
+    ld (mapper_bank_p2_current), a
+    ld (#9000), a
     ret
 
 ${buildSccDriverPrimitives()}

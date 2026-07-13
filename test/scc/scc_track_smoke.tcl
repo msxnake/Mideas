@@ -6,7 +6,8 @@
 # RAM map: markers #C000.., player RAM chained from #C040 (buildSccMusicRam):
 #   C040 active, C042 loop_count, C044 row_countdown, C045 order_pos,
 #   C048 pattern_row, C049 pattern_rows, C054 mixer_shadow,
-#   C055 ch_note[5], C05F ch_volbase[5], C07D ch_volout[5]
+#   C055 ch_note[5], C05F ch_volbase[5], C07D ch_volout[5],
+#   C082 loop_enabled, C083 mapper P2 mirror.
 set result_path "test/scc/scc_track_result.txt"
 set fh_lines [list]
 proc log_line {line} { global fh_lines; lappend fh_lines $line }
@@ -31,11 +32,15 @@ after time 8 {
     log_line "pattern_rows=[debug read memory 0xC049] (expect 16)"
     set ::vol_a [debug read memory 0xC07D]
     log_line "volout_ch1_a=$::vol_a (envelope-driven)"
+    set ::saved_p2 [debug read memory 0xC083]
+    log_line "mapper_p2_before_probe=$::saved_p2 (expect 2: restored after SCC tick)"
+    debug write memory 0x9000 0x3F
     set w {}
     foreach off {0 1 2 3} {
         lappend w [format %02X [debug read memory [expr {0x9800 + $off}]]]
     }
     log_line "wave_ch1_first4=$w (expect triangle instrument samples)"
+    debug write memory 0x9000 $::saved_p2
     log_line "ch_note_4=[debug read memory 0xC058] ch_note_5=[debug read memory 0xC059] (expect 255: unused channels)"
 }
 after time 8.45 {

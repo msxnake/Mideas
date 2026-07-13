@@ -210,7 +210,8 @@ Este documento lista todas las funcionalidades implementadas en GameFlowPreviewM
 - ✅ `PLAY_MUSIC`, `MUTE_MUSIC`, `STOP_MUSIC` ya generan runtime ASM y controlan música PSG global
 - ✅ Los nodos `Music` de GameFlow ya emiten comandos reales hacia `sound.asm`
 - ⚠️ Limitación actual: prioridad total de música sobre SFX (sin mezcla)
-- ⚠️ Limitación actual: solo tracks `PSG` (tracks `SCC` se ignoran con warning)
+- ✅ Tracks nativos `SCC` integrados con el runtime musical y exportación MegaROM Konami SCC
+- ⚠️ La música SCC no se mezcla con música PSG/PT3 en una misma ROM; los SFX PSG siguen disponibles
 
 #### 2.8. Acciones de Tiles
 **Implementadas en GameFlowPreviewModal**:

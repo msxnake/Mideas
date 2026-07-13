@@ -106,9 +106,16 @@ Conclusió: la cadena glass.jar → ROM → OpenMSX suporta el rang complet de
 
 - **Fase 1 (FETA)**: mapper Konami SCC 2MB com a default de la ruta SCREEN 5
   bitmap. So PSG intacte.
-- **Fase 2 (pendent)**: integrar el driver SCC ja validat
-  (`test/scc/scc_driver.inc`, `sccSoundGenerator.ts`) — ara el mapper ja
-  exposa l'SCC del propi cartutx (`#3F` → `#9000` amb push/pop del banc P2).
+- **Fase 2 (FETA, 2026-07-13)**: `sccSoundGenerator.ts` està connectat a
+  `generateSoundFile()` i a les dues rutes de `utils/msxGenerator/index.ts`.
+  `generateMapperFile()` emet registres Konami SCC (`#7000/#9000/#B000`) i
+  el runner d'OpenMSX força `-romtype KonamiSCC`.
+- El runtime SCC conserva la API `music_*`, reserva 67 bytes de RAM pròpia,
+  s'actualitza fora de `H.TIMI` i exposa/restaura P2 amb el banc `#3F` només
+  durant l'accés als registres SCC.
+- Smoke integrat PASS: projecte Mideas `Start -> Music -> ...`, MegaROM de
+  256 KB, Glass OK, `scc_music_active=1`, mixer `#07`, waveform llegible,
+  loops avançant, P2 restaurat a banc 2 després del tick i cap reset.
 
 ## Fonts
 

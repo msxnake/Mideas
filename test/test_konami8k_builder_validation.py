@@ -18,9 +18,9 @@ def load_builder_module():
 
 
 VALID_ASM = """
-MAPPER_REG_P1       EQU #6000
-MAPPER_REG_P2       EQU #8000
-MAPPER_REG_P3       EQU #A000
+MAPPER_REG_P1       EQU #7000
+MAPPER_REG_P2       EQU #9000
+MAPPER_REG_P3       EQU #B000
 mapper_runtime_init:
     ld a, 1
     call mapper_set_bank_p1
@@ -506,9 +506,9 @@ def main() -> int:
         rom, asm = write_case(tmpdir, unexpected_table_line)
         expect_failure(builder, rom, asm, "malformed resource_table entry")
 
-        bad_mapper_register = VALID_ASM.replace("MAPPER_REG_P2       EQU #8000", "MAPPER_REG_P2       EQU #A000")
+        bad_mapper_register = VALID_ASM.replace("MAPPER_REG_P2       EQU #9000", "MAPPER_REG_P2       EQU #A000")
         rom, asm = write_case(tmpdir, bad_mapper_register)
-        expect_failure(builder, rom, asm, "P2 mapper register must be #8000")
+        expect_failure(builder, rom, asm, "P2 Konami SCC mapper register must be #9000")
 
         bad_mapper = VALID_ASM.replace("Accessed through mapper P3", "Accessed through mapper P2")
         rom, asm = write_case(tmpdir, bad_mapper)

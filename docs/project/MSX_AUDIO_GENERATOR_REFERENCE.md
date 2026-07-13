@@ -25,6 +25,7 @@ Generadores ASM registrados hoy:
 - `hudGenerator.ts` -> `hud.asm`
 - `menusGenerator.ts` -> `menus.asm`
 - `soundGenerator.ts` -> `sound.asm`
+- `sccSoundGenerator.ts` -> backend SCC integrat dins `sound.asm` quan els tracks són SCC
 - `scrollGenerator.ts` -> `scroll.asm`
 - `animatedTilesGenerator.ts` -> `animtiles.asm`
 - `stateMachineGenerator.ts` -> `statemachine.asm`
@@ -36,7 +37,8 @@ Generadores ASM registrados hoy:
 
 Comparando el pipeline real con la documentación histórica, estos módulos eran los menos cubiertos por docs de proyecto y conviene tratarlos como "nuevos" a efectos de mantenimiento:
 
-- `soundGenerator.ts`: runtime PSG y serialización tracker.
+- `soundGenerator.ts`: dispatch PSG/PT3/SCC, runtime PSG i efectes.
+- `sccSoundGenerator.ts`: serialització de tracks SCC, waveforms i runtime K051649 de cinc canals.
 - `worldGenerator.ts`: arranque de pantallas/mundos y helpers de transición.
 - `scrollGenerator.ts`: soporte de scroll horizontal/vertical.
 - `animatedTilesGenerator.ts`: actualización de tiles animados por frame.
@@ -69,6 +71,25 @@ Archivo fuente: [soundGenerator.ts](/c:/Users/salam/Documents/Programacion/Midea
 - Emite primitivas PSG de bajo nivel (`psg_write`, `psg_set_tone`, `psg_set_volume`, `psg_set_mixer`).
 - Expone SFX simples y el runtime tracker "Phase 1".
 - Mantiene el estado musical en RAM usando símbolos `music_*` definidos en `variables.asm`.
+- Quan tots els tracks musicals són SCC natius, delega en `sccSoundGenerator.ts`
+  i manté la mateixa API pública `music_*`. Els efectes PSG continuen disponibles.
+
+### Backend SCC Konami
+
+- Requereix `targetFormat=konami`; aquest target emet el mapper Konami SCC de
+  8 KB amb registres `#7000/#9000/#B000`.
+- No es permet barrejar música SCC amb música PSG/PT3 en una mateixa ROM. Sí
+  que es poden combinar música SCC i efectes PSG.
+- `music_update` SCC s'executa al mainline sincronitzat amb `HALT`, mai dins
+  `H.TIMI`, perquè pot carregar una waveform de 32 bytes.
+- Cada accés SCC exposa temporalment el banc `#3F` a P2 i restaura el banc
+  anterior des de la pila. El mirror `mapper_bank_p2_current` queda coherent.
+- Els canals lògics 4 i 5 comparteixen waveform com al SCC original; el cache
+  del runtime també és compartit per evitar saltar una recàrrega necessària.
+- El volum global del tracker es preaplica a volums i envelopes durant la
+  serialització. Una envelope sense loop conserva l'últim valor.
+- La RAM SCC (`scc_music_*`, `scc_ch_*`) es reserva dinàmicament a
+  `variables.asm` només quan hi ha tracks SCC exportables.
 
 ### Estado RAM requerido
 

@@ -115,7 +115,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
       const rawTrack = asset.data as TrackerSongData | undefined;
       if (!rawTrack) return;
       const soundChip = rawTrack.soundChip || 'PSG';
-      if (soundChip !== 'PSG') return;
+      if (soundChip !== 'PSG' && soundChip !== 'SCC') return;
 
       const normalizedTrack: TrackerSongData = {
         ...rawTrack,
@@ -127,10 +127,17 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
 
       tracks.push(normalizedTrack);
     });
-  const pt3Tracks = tracks.filter((track) => track.playbackBackend === 'external-pt3');
-  const runtimeTracks = pt3Tracks.length > 0
-    ? pt3Tracks
-    : tracks.filter((track) => track.playbackBackend !== 'external-pt3');
+  const sccTracks = tracks.filter(
+    (track) => track.soundChip === 'SCC' && track.playbackBackend !== 'external-pt3'
+  );
+  const pt3Tracks = tracks.filter(
+    (track) => track.soundChip === 'PSG' && track.playbackBackend === 'external-pt3'
+  );
+  const runtimeTracks = sccTracks.length > 0
+    ? sccTracks
+    : pt3Tracks.length > 0
+      ? pt3Tracks
+      : tracks.filter((track) => track.soundChip === 'PSG' && track.playbackBackend !== 'external-pt3');
   runtimeTracks.forEach((track, index) => {
     const assetId = (track as any).assetId;
     if (assetId) {

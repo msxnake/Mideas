@@ -168,14 +168,17 @@ function resolveMapperRegisterLayout(format: MapperFormat): MapperRegisterLayout
   }
 
   return {
-    regP1: '#6000',
-    regP2: '#8000',
-    regP3: '#A000',
-    regP4: '#A000',
+    regP1: '#7000',
+    regP2: '#9000',
+    regP3: '#B000',
+    regP4: '#B000',
     notes: [
-      '; Konami (without SCC) write window references:',
-      ';   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.',
-      '; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.'
+      '; Konami SCC 8KB mapper write-window references:',
+      ';   #6000-#7FFF <- #7000-#77FF',
+      ';   #8000-#9FFF <- #9000-#97FF (bank low 6 bits #3F exposes SCC)',
+      ';   #A000-#BFFF <- #B000-#B7FF.',
+      '; Bank 0 remains fixed at #4000-#5FFF. These writes are also accepted',
+      '; by the classic Konami4 mapper, preserving emulator compatibility.'
     ]
   };
 }
@@ -309,7 +312,7 @@ mapper_call_hl_auto:
   const layout = resolveMapperRegisterLayout(targetFormat);
   const mapperAutoCallSection = buildMapperAutoCallSection(targetFormat);
   const mapperRuntimeInit = targetFormat === 'konami'
-    ? `    ; Konami4 / Konami 8K without SCC:
+    ? `    ; Konami SCC 8KB mapper:
     ;   bank 0 is fixed at #4000-#5FFF.
     ;   p1/p2/p3 are the selectable #6000/#8000/#A000 windows.
     ld a, 1

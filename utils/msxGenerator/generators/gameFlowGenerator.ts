@@ -6803,11 +6803,9 @@ ${nodeLabel}:
           trackIndex = trackIndexMap[trackAssetId];
         } else if (trackAssetId) {
           const sameIdTrack = trackAssets.find((track: any) => track?.id === trackAssetId);
-          if (sameIdTrack?.soundChip === 'SCC') {
-            warning = `; WARNING: Track "${trackAssetId}" uses SCC and is ignored in ROM export`;
-          } else {
-            warning = `; WARNING: Track "${trackAssetId}" not found / not exportable as PSG`;
-          }
+          warning = sameIdTrack
+            ? `; WARNING: Track "${trackAssetId}" is not compatible with the selected ROM music backend`
+            : `; WARNING: Track "${trackAssetId}" not found / not exportable`;
         } else {
           warning = '; WARNING: Music node has no trackAssetId -> no-op';
         }

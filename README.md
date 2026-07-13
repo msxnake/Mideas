@@ -15,7 +15,8 @@ Mideas is a web-based Integrated Development Environment (IDE) designed for crea
     *   **Main Menu Editor:** Configure the game's main menu, options, and appearance.
     *   **Font Editor:** Edit the MSX1 character set for custom in-game fonts.
 *   **Audio Tools:**
-    *   **PT3 Music Tracker:** Compose chiptune music with instruments, ornaments, and patterns.
+    *   **PT3 Music Tracker:** Compose PSG chiptune music with instruments, ornaments, and patterns.
+    *   **SCC Music Tracker:** Compose five-channel wavetable music and export it in Konami SCC MegaROMs.
     *   **PSG Sound FX Editor:** Create sound effects for the Programmable Sound Generator.
 *   **Entity Component System (ECS) Tools:**
     *   Define reusable **Component Definitions** for game logic.
