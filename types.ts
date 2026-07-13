@@ -750,6 +750,19 @@ export interface Msx2PlayerDefinition {
     spriteSize: Msx2PlayerSpriteSize;
     paletteAssetId?: string;
     usesFlipX: boolean;
+    /**
+     * Optional sprite asset used for the destroy_tile skill's debris chips.
+     * When omitted the generator falls back to a sprite named /debris|viruta/i,
+     * then to its built-in 3x3 grey chip. Consumed by resolveBitmapDebrisSprite.
+     */
+    debrisSpriteAssetId?: string;
+    /**
+     * Explicit per-animation-state sprite overrides (state name -> sprite asset
+     * id) for SCREEN 5 bitmap rooms. Wins over the Player Animations table.
+     * e.g. { digging: 'pick_swing_sprite' }. Consumed by
+     * resolveBitmapRoomStateAnimations.
+     */
+    stateSprites?: Record<string, string>;
   };
   animations: Record<string, Msx2PlayerAnimation>;
   /** Stable row order for the animation table and MSX export. */

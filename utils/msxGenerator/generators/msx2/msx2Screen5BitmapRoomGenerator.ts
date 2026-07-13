@@ -11739,11 +11739,28 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     destructibleMasks: rooms.map(roomItem => {
       const entries = roomItem.atlas?.entries || [];
       const grid = buildRoomTileIndexGrid(roomItem);
+      const collision = roomItem.collision || [];
       const mask = Array(COLLISION_COLS * COLLISION_ROWS / 8).fill(0);
+      // Per-cell destructible bit (0x80 in the collision grid) is the source of truth:
+      // it lets the SAME visual tile be diggable in one cell and only-solid in another
+      // (secret paths). The editor stamps this bit when painting a "Destructible" atlas
+      // tile and lets the Select tool toggle it per cell.
+      let anyCellBit = false;
+      for (let y = 0; y < COLLISION_ROWS && !anyCellBit; y++) {
+        for (let x = 0; x < COLLISION_COLS; x++) {
+          if (((collision[y]?.[x] ?? 0) & 0x80) !== 0) { anyCellBit = true; break; }
+        }
+      }
       for (let y = 0; y < COLLISION_ROWS; y++) {
         for (let x = 0; x < COLLISION_COLS; x++) {
           const value = grid[y][x];
-          if (!value || entries[value - 1]?.destructible !== true) continue;
+          // Prefer the authored per-cell bit; fall back to the atlas flag only for rooms
+          // saved before the per-cell bit existed (no 0x80 anywhere) so old projects keep
+          // their masks unchanged.
+          const destructible = anyCellBit
+            ? ((collision[y]?.[x] ?? 0) & 0x80) !== 0
+            : (!!value && entries[value - 1]?.destructible === true);
+          if (!destructible) continue;
           const cell = y * COLLISION_COLS + x;
           mask[cell >> 3] |= 1 << (cell & 7);
         }

@@ -73,6 +73,7 @@ import {
   PencilIcon,
   PlusCircleIcon,
   SaveIcon,
+  SelectionIcon,
   SpriteIcon,
   ZoomInIcon,
   ZoomOutIcon,
@@ -90,7 +91,7 @@ import {
  * label says "SCREEN 5" (this is the MSX2 bitmap SCREEN 5 mode).
  */
 
-type BrushTool = 'brush' | 'eraser' | 'fill';
+type BrushTool = 'brush' | 'eraser' | 'fill' | 'select';
 type LayerKey = 'visual' | 'collision' | 'objects' | 'foreground';
 type CategoryKey = 'suelo' | 'pared' | 'decoracion' | 'interactivos';
 type CategoryFilterKey = 'all' | CategoryKey;
@@ -126,6 +127,11 @@ const PROP_BIT: Record<string, number> = {
   solid: 0x10,        // high nibble = family/solidity
   platform: 0x20,
   deadly: 0x40,
+  // destroy_tile (pico) diggable bit, per collision CELL. High-nibble bit, so it also
+  // reads as SOLID at runtime (probe `and #BF`) — a dug wall is solid until destroyed.
+  // This lets the SAME visual tile be diggable in one cell and only-solid in another
+  // (secret paths). Painting a "Destructible" atlas tile stamps it; Select toggles it.
+  destructible: 0x80,
 };
 
 const PROPERTY_FLAGS: { key: string; label: string }[] = [
@@ -2805,8 +2811,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       return;
     }
     if (activeLayer === 'visual') {
-      paintVisualAt(px, py);
-      setStatusBarMessage?.(`SCREEN 5: ${tool} en celda (${cellX}, ${cellY}).`);
+      if (tool === 'select') {
+        setStatusBarMessage?.(`SCREEN 5: tile seleccionado en celda (${cellX}, ${cellY}).`);
+      } else {
+        paintVisualAt(px, py);
+        setStatusBarMessage?.(`SCREEN 5: ${tool} en celda (${cellX}, ${cellY}).`);
+      }
     } else if (activeLayer === 'foreground') {
       paintForegroundAt(px, py, false);
     } else {
@@ -2825,7 +2835,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const handleCanvasMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isPainting) return;
     // Drag-fill would re-clear the whole page each move; only stamp for brush/eraser.
-    if (tool === 'fill') return;
+    if (tool === 'fill' || tool === 'select') return;
     if (activeLayer === 'visual' && tool === 'brush' && preparedStamp) return;
     // Entities layer places/selects on click only — never on drag (avoids spamming entities).
     if (activeLayer === 'objects') {
@@ -3471,7 +3481,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       }
     : null;
 
-  const selectedAtlasEntryFlags = selectedAtlasEntry ? clampByte(selectedAtlasEntry.collisionFlags, 0) : 0;
+  // Painting a "Destructible" atlas tile stamps the per-cell destructible bit (0x80)
+  // into the cell's collision byte, so the dug-mask default follows the atlas checkbox
+  // while the Select tool can still toggle individual cells (secret paths).
+  const selectedAtlasEntryFlags = selectedAtlasEntry
+    ? clampByte(selectedAtlasEntry.collisionFlags, 0) | (selectedAtlasEntry.destructible === true ? PROP_BIT.destructible : 0)
+    : 0;
   const selectedAtlasEntryBehaviorCode = selectedAtlasEntry ? clampByte(selectedAtlasEntry.behaviorCode, 0) : 0;
   const getConfigAtlasEntryIds = (): string[] => {
     if (configTarget !== 'tile') return [];
@@ -3525,7 +3540,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const next: Record<string, boolean> = {};
     PROPERTY_FLAGS.forEach(flag => { next[flag.key] = (configFlags & PROP_BIT[flag.key]) !== 0; });
     next.ice = configBehaviorCode === BEHAVIOR_CODE.ice;
-    next.destructible = configTarget !== 'cell' && selectedAtlasEntryDestructible;
+    // Destructible reads the per-cell 0x80 bit for a cell, or the atlas tile flag for a tile.
+    next.destructible = configTarget === 'cell'
+      ? (configFlags & PROP_BIT.destructible) !== 0
+      : selectedAtlasEntryDestructible;
     setCellProps(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode, selectedAtlasEntryDestructible]);
@@ -3648,12 +3666,24 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     );
   };
 
-  // destroy_tile skill: per-atlas-entry "diggable" mark. Pure tile metadata (the
-  // ASM generator derives destructible CELLS from tileGrid + this flag at build
-  // time), so unlike Ice there is no per-cell grid to sync.
+  // destroy_tile skill: "diggable" mark. Two scopes:
+  //  - CELL: toggles the per-cell 0x80 bit in the collision grid (source of truth for
+  //    the generator's dug-mask). Lets the same visual tile be diggable in one cell and
+  //    only-solid in another → secret paths.
+  //  - TILE: toggles the atlas entry's `destructible` flag, which becomes the painting
+  //    default (paint stamps the 0x80 bit) for every cell drawn with that tile.
   const toggleDestructible = () => {
     if (configTarget === 'cell') {
-      setStatusBarMessage?.('Destructible se marca en el TILE del atlas (cambia a "Usar tile").');
+      if (!selectedCollisionCell) {
+        setStatusBarMessage?.('Selecciona una celda del lienzo primero (herramienta Select).');
+        return;
+      }
+      const bit = PROP_BIT.destructible;
+      const current = readCell(room.collision, selectedCollisionCell.x, selectedCollisionCell.y);
+      const nextValue = (current & bit) ? (current & ~bit) : (current | bit);
+      const grown = writeCell(room.collision, selectedCollisionCell.x, selectedCollisionCell.y, nextValue, collisionCols, collisionRows);
+      onUpdate({ collision: grown });
+      setStatusBarMessage?.(`SCREEN 5: Destructible ${(nextValue & bit) ? 'ON' : 'OFF'} en celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}) (skill destroy_tile).`);
       return;
     }
     const targetEntryIds = getConfigAtlasEntryIds();
@@ -3669,11 +3699,38 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const entries = atlasEntries.map(entry => targetSet.has(entry.id)
       ? { ...entry, destructible: turnOn || undefined }
       : entry);
-    onUpdate({ atlas: { ...room.atlas, entries } });
+    // Sync the per-cell 0x80 bit into every cell already using this tile (mirrors the Ice
+    // sync), so the atlas checkbox reliably stamps the source-of-truth bit even for cells
+    // painted before the toggle. Individual cells can still be overridden with Select.
+    const bit = PROP_BIT.destructible;
+    let syncedCells = 0;
+    let nextCollision = room.collision;
+    atlasEntries.forEach((entry, index) => {
+      if (!targetSet.has(entry.id)) return;
+      const tileIndexToSync = index + 1;
+      tileGrid.forEach((row, y) => {
+        row.forEach((tileIndex, x) => {
+          if (tileIndex !== tileIndexToSync) return;
+          const before = readCell(nextCollision, x, y);
+          const after = turnOn ? (before | bit) : (before & ~bit);
+          if (after === before) return;
+          nextCollision = writeCell(nextCollision, x, y, after, collisionCols, collisionRows);
+          syncedCells++;
+        });
+      });
+    });
+    onUpdate({
+      atlas: { ...room.atlas, entries },
+      ...(syncedCells > 0 ? { collision: nextCollision } : {}),
+    });
     const targetLabel = targetEntryIds.length > 1
       ? `${targetEntryIds.length} tiles del metatile`
       : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
-    setStatusBarMessage?.(`SCREEN 5: Destructible ${turnOn ? 'ON' : 'OFF'} en ${targetLabel} (skill destroy_tile).`);
+    setStatusBarMessage?.(
+      `SCREEN 5: Destructible ${turnOn ? 'ON' : 'OFF'} en ${targetLabel}` +
+      (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
+      ' (skill destroy_tile).'
+    );
   };
 
   const selectedCellSlot = selectedCell ? composedPixels[selectedCell.y * GRID]?.[selectedCell.x * GRID] ?? 0 : 0;
@@ -3736,6 +3793,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         <aside className="w-60 border-r border-msx-border p-2 overflow-y-auto space-y-2">
           <CollapsiblePanel title="Herramientas" isOpen={openTools} onToggle={() => setOpenTools(v => !v)}>
             <div className="grid grid-cols-1 gap-1">
+              {toolBtn('select', 'Select', <SelectionIcon />)}
               {toolBtn('brush', 'Pincel', <PencilIcon />)}
               {toolBtn('eraser', 'Borrador', <EraserIcon />)}
               {toolBtn('fill', 'Rellenar', <PaintBrushIcon />)}
@@ -5469,13 +5527,14 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 Ice (behavior=3)
               </label>
               <label
-                className={`flex items-center gap-1 text-xs ${configTarget === 'cell' ? 'text-msx-textsecondary/50' : 'text-msx-textsecondary'}`}
-                title="Skill destroy_tile: el player puede picar y disolver las celdas pintadas con este tile."
+                className="flex items-center gap-1 text-xs text-msx-textsecondary"
+                title={configTarget === 'cell'
+                  ? 'Skill destroy_tile: SOLO esta celda se puede picar. Usa el mismo tile solido en otra celda para caminos secretos.'
+                  : 'Skill destroy_tile: al pintar este tile, las celdas quedan picables por defecto (puedes desmarcar celdas sueltas con Select).'}
               >
                 <input
                   type="checkbox"
                   checked={!!cellProps.destructible}
-                  disabled={configTarget === 'cell'}
                   onChange={toggleDestructible}
                 />
                 Destructible (pico)
