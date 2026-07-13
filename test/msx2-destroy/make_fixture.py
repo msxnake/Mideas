@@ -11,8 +11,9 @@ backend). Then:
   python ../../scripts/build_mideas_unified_rom.py --json fixture_on.json \
       --project-root ../.. --asm-output on.asm --rom-output on.rom \
       --allow-tsc-errors --rom-mode megarom --target-format konami
-  openmsx -machine C-BIOS_MSX2 -cart on.rom -romtype konami \
+  openmsx -machine C-BIOS_MSX2 -cart on.rom -romtype KonamiSCC \
       -script destroy_persist2.tcl     # or destroy_diag3.tcl
+      # (mapper Konami SCC since branch mapper_2m; -romtype konami also boots)
 """
 import json, io, sys
 
