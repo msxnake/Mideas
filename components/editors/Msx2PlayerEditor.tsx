@@ -15,6 +15,7 @@ import { resolveGraphicsBackend } from '../../utils/msxGenerator';
 import type { GraphicsBackend } from '../../utils/msxGenerator/graphicsBackend';
 import type { SkillControlIcon, SkillDef, SkillParameterDef } from '../../utils/msxGenerator/skills/types';
 import { BulletConfigDialog } from '../dialogs/skills/BulletConfigDialog';
+import { DestroyTileDialog } from '../dialogs/skills/DestroyTileDialog';
 
 interface Msx2PlayerEditorProps {
   player: Msx2PlayerDefinition | Record<string, unknown>;
@@ -497,6 +498,7 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   teleport_a_b: { icon: '🌀', category: 'movement', description: 'Teleport between two saved positions' },
   carry_and_throw: { icon: '🏋️', category: 'utility', description: 'Lift objects and throw them through gaps' },
   power_stomp: { icon: '💥', category: 'attack', description: 'Fall with impact, break tiles and damage enemies' },
+  destroy_tile: { icon: '⛏️', category: 'utility', description: 'Pick at the wall ahead to dissolve destructible tiles' },
 };
 
 const categoryColors: Record<string, string> = {
@@ -1354,6 +1356,14 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
         [skillId]: skillEntry,
       },
     });
+  };
+  // Patch a single per-state sprite override on render.stateSprites without
+  // clobbering the other states. Passing undefined removes the entry.
+  const updateRenderStateSprite = (state: string, spriteAssetId: string | undefined) => {
+    const currentStateSprites = { ...((normalized.render.stateSprites as Record<string, string> | undefined) || {}) };
+    if (spriteAssetId) currentStateSprites[state] = spriteAssetId;
+    else delete currentStateSprites[state];
+    updateRender({ stateSprites: currentStateSprites });
   };
   const addWeapon = () => {
     const existingIds = new Set(weapons.map(weapon => weapon.id));
@@ -2891,6 +2901,24 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
           const skill = (getAllSkills() as SkillDef[]).find(s => s.id === openSkillDialogId);
           if (!skill || !skill.parameters?.length) return null;
           const skillValues = normalized.skillParameters?.[skill.id] || {};
+          // destroy_tile needs two sprite-asset selectors (debris chip + digging
+          // animation) the generic number/boolean dialog cannot render.
+          if (skill.id === 'destroy_tile') {
+            const diggingSpriteAssetId = (normalized.render.stateSprites as Record<string, string> | undefined)?.digging;
+            return (
+              <DestroyTileDialog
+                parameters={skill.parameters}
+                values={skillValues}
+                onPatch={(key, value) => updateSkillParameter(skill.id, key, value)}
+                spriteAssets={spriteAssets}
+                debrisSpriteAssetId={normalized.render.debrisSpriteAssetId}
+                diggingSpriteAssetId={diggingSpriteAssetId}
+                onDebrisChange={spriteAssetId => updateRender({ debrisSpriteAssetId: spriteAssetId })}
+                onDiggingChange={spriteAssetId => updateRenderStateSprite('digging', spriteAssetId)}
+                onClose={() => setOpenSkillDialogId(null)}
+              />
+            );
+          }
           return (
             <SkillParametersDialog
               skill={skill}

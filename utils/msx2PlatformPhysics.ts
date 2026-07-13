@@ -138,6 +138,21 @@ export interface Msx2CrouchConfig {
 }
 
 /**
+ * Destroy-tile (dig) skill config for SCREEN 5 bitmap rooms. `digKey` is a
+ * keyboard selector index (0=SPACE 1=B 2=N 3=Z 4=X 5=M) resolved to a PPI
+ * matrix row/mask by the ASM generator.
+ */
+export interface Msx2DestroyTileConfig {
+  enabled: boolean;
+  digKey: number;
+  hitsPerTile: number;
+  digCooldown: number;
+  requireKeyRelease: boolean;
+  destroyedLimit: number;
+  digSound: boolean;
+}
+
+/**
  * Perception skill config (MSX2 SCREEN 5 bitmap rooms).
  *
  * Passive skill: no input binding. Every frame the runtime measures the
@@ -819,6 +834,31 @@ export function getMsx2CrouchConfigFromPlayerEntity(player: any | undefined): Ms
     crouchSpeed: Math.max(0, Math.min(4, Math.trunc(crouchSpeed))),
     crouchHitboxHeight: Math.max(4, Math.min(12, Math.trunc(crouchHitboxHeight || 8))),
     slideDistance: Math.max(0, Math.min(16, Math.trunc(slideDistance))),
+  };
+}
+
+/**
+ * Returns the resolved destroy_tile (dig) skill config for the given player.
+ *
+ * Reads `player.skillParameters.destroy_tile` and clamps every value to the
+ * ranges declared in `destroyTileParameters` (handlers/index.ts).
+ */
+export function getMsx2DestroyTileConfigFromPlayerEntity(player: any | undefined): Msx2DestroyTileConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('destroy_tile');
+  const params = (player?.skillParameters?.destroy_tile || {}) as Record<string, number | boolean>;
+  const digKey = pickSkillNumberParam(params, 'destroy_tile', ['digKey'], 1);
+  const hitsPerTile = pickSkillNumberParam(params, 'destroy_tile', ['hitsPerTile'], 3);
+  const digCooldown = pickSkillNumberParam(params, 'destroy_tile', ['digCooldown'], 12);
+  const destroyedLimit = pickSkillNumberParam(params, 'destroy_tile', ['destroyedLimit'], 64);
+  return {
+    enabled,
+    digKey: Math.max(0, Math.min(5, Math.trunc(digKey))),
+    hitsPerTile: Math.max(1, Math.min(8, Math.trunc(hitsPerTile || 3))),
+    digCooldown: Math.max(4, Math.min(60, Math.trunc(digCooldown || 12))),
+    requireKeyRelease: params.requireKeyRelease === true,
+    destroyedLimit: Math.max(16, Math.min(128, Math.trunc(destroyedLimit || 64))),
+    digSound: params.digSound !== false,
   };
 }
 
