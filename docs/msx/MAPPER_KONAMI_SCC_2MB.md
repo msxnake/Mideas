@@ -85,6 +85,23 @@ boot + menú Game Flow (SPACE) + moviment del jugador (px `#C001`: 147→195
 mantenint DRETA) + render correcte de sala i HUD
 (`test/mapper-2m/smoke_kscc.tcl`).
 
+### Prova d'estrès de 2MB (PASS 2026-07-13)
+
+`test/mapper-2m/gen_2mb_stress.py` genera un ROM sintètic de **2.097.152
+bytes (256 bancs)** amb el mateix patró d'emissió que el generador
+(`PHYS_START` + `org #8000` + `org PHYS_START + #2000`), signatura
+`[banc, 255-banc]` a cada banc i els 4 bancs finestra-SCC com a padding.
+Resultats (`smoke_2mb.tcl`, `-romtype KonamiSCC`):
+
+- glass.jar compila el 2MB sense error (gestiona `org` de 21 bits).
+- Signatures correctes llegides per la finestra P2 als bancs 4, 62, 64,
+  100, 128, 190, 192 i **254** (extrem alt del 2MB).
+- SCC verificat: `#3F` → `#9000` i readback `#AA`/`#55` a la waveform RAM
+  `#9800`.
+
+Conclusió: la cadena glass.jar → ROM → OpenMSX suporta el rang complet de
+2MB del mapper.
+
 ## Fases
 
 - **Fase 1 (FETA)**: mapper Konami SCC 2MB com a default de la ruta SCREEN 5
