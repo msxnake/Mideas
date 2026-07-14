@@ -7,6 +7,8 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { PT3Instrument, PT3Ornament, TrackerCell, TrackerSongData } from '../../../types';
 import type { ExecutionPlan } from '../types/executionTypes';
 import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
+import { buildSccIntegratedMusicBlock, collectSccTracks } from './sccSoundGenerator';
+import type { MapperFormat } from './mapperGenerator';
 
 const ASM_NOTE_KEEP = 0xFF;
 const ASM_NOTE_CUT = 0xFE;
@@ -52,21 +54,39 @@ function countAsmDataBytes(asm: string): number {
 export function generateSoundFile(
   analysis: ProjectAnalysis,
   executionPlan?: ExecutionPlan,
-  _romMode: string = 'simple32k'
+  romMode: string = 'simple32k',
+  targetFormat: MapperFormat = 'konami'
 ): string {
+  const sccExternalTracks = (analysis.tracks || []).filter(
+    (track: any) => track?.soundChip === 'SCC' && track?.playbackBackend === 'external-pt3'
+  );
+  if (sccExternalTracks.length > 0) {
+    throw new Error('SCC export does not support playbackBackend="external-pt3"; use the native SCC tracker backend.');
+  }
+
+  const sccTracks = collectSccTracks(analysis);
   const pt3Tracks = collectPT3Tracks(analysis);
   const tracks = pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
+  if (sccTracks.length > 0 && (pt3Tracks.length > 0 || tracks.length > 0)) {
+    throw new Error('A ROM cannot currently mix SCC music tracks with PSG/PT3 music tracks. Keep PSG sound effects, but choose one music backend.');
+  }
+  if (sccTracks.length > 0 && targetFormat !== 'konami') {
+    throw new Error(`SCC music requires the Konami SCC mapper; received targetFormat="${targetFormat}".`);
+  }
+
   const bankedTrackData = false;
-  const musicBlock = pt3Tracks.length > 0
-    ? buildPT3MusicBlock(pt3Tracks)
-    : tracks.length > 0
-      ? buildTrackerMusicBlock(tracks, bankedTrackData)
-      : buildNoMusicBlock();
+  const musicBlock = sccTracks.length > 0
+    ? buildSccIntegratedMusicBlock(sccTracks).asm
+    : pt3Tracks.length > 0
+      ? buildPT3MusicBlock(pt3Tracks)
+      : tracks.length > 0
+        ? buildTrackerMusicBlock(tracks, bankedTrackData)
+        : buildNoMusicBlock();
   const usesInterruptAudio = executionPlan?.tasks.some((task) => task.responsibility === 'audio') ?? false;
   return `; ==================================================================
-; PSG SOUND SYSTEM
+; ${sccTracks.length > 0 ? 'KONAMI SCC MUSIC + PSG SOUND EFFECTS' : 'PSG SOUND SYSTEM'}
 ; File: sound.asm
-; Description: AY-3-8910 PSG control and sound effects
+; Description: ${sccTracks.length > 0 ? `Native SCC tracker backend (${romMode}) with AY-3-8910 sound effects` : 'AY-3-8910 PSG control and sound effects'}
 ; Engine Audio Tick: ${usesInterruptAudio ? 'IRQ task_manager' : 'GameFlow/game loop'}
 ; ==================================================================
 

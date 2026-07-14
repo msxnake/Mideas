@@ -9,6 +9,7 @@ import {
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Modal } from '../modals/Modal';
+import { Tooltip } from '../common/Tooltip';
 import {
   ArrowDownIcon,
   ArrowLeftIcon,
@@ -275,7 +276,6 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   const [openEdit, setOpenEdit] = useState(true);
   const [openBrush, setOpenBrush] = useState(true);
   const [openSwap, setOpenSwap] = useState(false);
-  const [openMove, setOpenMove] = useState(false);
   const [openLibrary, setOpenLibrary] = useState(false);
   const [openPalette, setOpenPalette] = useState(true);
   const [openLibraryFile, setOpenLibraryFile] = useState(false);
@@ -1144,21 +1144,6 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
             </div>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Move pattern (wrap)" isOpen={openMove} onToggle={() => setOpenMove(v => !v)}>
-            <div className="p-2">
-              <div className="grid grid-cols-3 gap-1 max-w-[160px] mx-auto">
-                <div />
-                <Button size="sm" variant="secondary" onClick={() => shift('up')} aria-label="Shift up"><ArrowUpIcon /></Button>
-                <div />
-                <Button size="sm" variant="secondary" onClick={() => shift('left')} aria-label="Shift left"><ArrowLeftIcon /></Button>
-                <Button size="sm" variant="secondary" onClick={() => shift('right')} aria-label="Shift right"><ArrowRightIcon /></Button>
-                <Button size="sm" variant="secondary" onClick={() => shift('down')} aria-label="Shift down"><ArrowDownIcon /></Button>
-                <div />
-              </div>
-              <div className="text-[0.65rem] text-msx-textsecondary mt-2 text-center">Toroidal: outgoing edge wraps to the opposite side.</div>
-            </div>
-          </CollapsiblePanel>
-
           <CollapsiblePanel title="Library" isOpen={openLibrary} onToggle={() => setOpenLibrary(v => !v)}>
             <div className="p-2 space-y-1">
               <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} className="w-full" justify="start" onClick={openLibraryModal}>Import from library</Button>
@@ -1195,46 +1180,6 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
             <div className="flex-grow" />
             <Button size="sm" variant="ghost" icon={<ArrowUturnLeftIcon />} disabled={!canUndo} onClick={undo} aria-label="Undo" title="Deshacer (Ctrl+Z)" />
             <Button size="sm" variant="ghost" icon={<ArrowUturnRightIcon />} disabled={!canRedo} onClick={redo} aria-label="Redo" title="Rehacer (Ctrl+Y)" />
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<RotateCcwIcon />}
-              onClick={() => rotate('counterclockwise')}
-              aria-label="Rotate left 90 degrees"
-              title="Rotate left 90°"
-            >
-              Rotate left
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<RotateCwIcon />}
-              onClick={() => rotate('clockwise')}
-              aria-label="Rotate right 90 degrees"
-              title="Rotate right 90°"
-            >
-              Rotate right
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<FlipHorizontalIcon />}
-              onClick={() => mirror('horizontal')}
-              aria-label="Mirror horizontally"
-              title="Mirror horizontally"
-            >
-              Mirror horizontal
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<FlipVerticalIcon />}
-              onClick={() => mirror('vertical')}
-              aria-label="Mirror vertically"
-              title="Mirror vertically"
-            >
-              Mirror vertical
-            </Button>
             <Button size="sm" variant="ghost" icon={<ZoomOutIcon />} onClick={() => changeZoom(-1)} aria-label="Zoom out" />
             <span className="w-12 text-center text-xs">{zoom}px</span>
             <Button size="sm" variant="ghost" icon={<ZoomInIcon />} onClick={() => changeZoom(1)} aria-label="Zoom in" />
@@ -1243,6 +1188,110 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
               <input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)} />
             </label>
           </div>
+
+          {/* --- Transforms toolbar: rotate / mirror / shift (icon-only, tooltip) --- */}
+          <div className="flex items-center gap-3 px-2 py-1 border-b border-msx-border bg-msx-panelbg/50">
+            <span className="text-[0.65rem] uppercase tracking-wide text-msx-textsecondary select-none pr-1">Transforms</span>
+
+            {/* Rotate */}
+            <div className="flex items-center gap-1">
+              <Tooltip text="Rotar 90° a l'esquerra" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => rotate('counterclockwise')}
+                  aria-label="Rotar 90° a l'esquerra"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <RotateCcwIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text="Rotar 90° a la dreta" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => rotate('clockwise')}
+                  aria-label="Rotar 90° a la dreta"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <RotateCwIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            </div>
+
+            <div className="h-5 w-px bg-msx-border" />
+
+            {/* Mirror / Flip */}
+            <div className="flex items-center gap-1">
+              <Tooltip text="Espill horitzontal (Flip H)" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => mirror('horizontal')}
+                  aria-label="Espill horitzontal"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <FlipHorizontalIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text="Espill vertical (Flip V)" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => mirror('vertical')}
+                  aria-label="Espill vertical"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <FlipVerticalIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            </div>
+
+            <div className="h-5 w-px bg-msx-border" />
+
+            {/* Shift (toroidal) */}
+            <div className="flex items-center gap-1">
+              <Tooltip text="Desplaçar patró amunt (cíclic)" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => shift('up')}
+                  aria-label="Desplaçar amunt"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <ArrowUpIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text="Desplaçar patró avall (cíclic)" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => shift('down')}
+                  aria-label="Desplaçar avall"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <ArrowDownIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text="Desplaçar patró a l'esquerra (cíclic)" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => shift('left')}
+                  aria-label="Desplaçar a l'esquerra"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <ArrowLeftIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text="Desplaçar patró a la dreta (cíclic)" position="bottom">
+                <button
+                  type="button"
+                  onClick={() => shift('right')}
+                  aria-label="Desplaçar a la dreta"
+                  className="flex h-8 w-8 items-center justify-center rounded text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary transition-colors duration-150"
+                >
+                  <ArrowRightIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            </div>
+
+            <span className="text-[0.65rem] text-msx-textsecondary select-none">Desplaçament cíclic (toroïdal)</span>
+          </div>
+
           <div className="min-h-0 flex-1 overflow-auto bg-black/30 p-2 flex items-start justify-center">
             <canvas
               ref={canvasRef}

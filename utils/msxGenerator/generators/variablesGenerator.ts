@@ -6,6 +6,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 import { getSerializedTrackerMusicBufferSize } from './soundGenerator';
+import { buildSccMusicRam, collectSccTracks } from './sccSoundGenerator';
 import { usesMapperBanking } from './romModeUtils';
 import { getRuntimeSecretRestoreBufferSize, shouldKeepRuntimeBackgroundLayout } from './runtimeLayoutPolicy';
 
@@ -1787,6 +1788,12 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
       code += `${def.prefix}_${channelName}_${def.suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
     });
     currentAddress += 3;
+  }
+
+  if (collectSccTracks(analysis).length > 0) {
+    const sccRam = buildSccMusicRam(currentAddress);
+    code += `\n${sccRam.asm}\n`;
+    currentAddress = sccRam.nextFree;
   }
 
   if (serializedTrackerMusicBufferSize > 0) {

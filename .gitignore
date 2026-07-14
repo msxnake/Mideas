@@ -31,3 +31,6 @@ debug-*.log
 test/ts_build_*/
 test/**/out/
 test/**/*_generated/
+
+# Copyrighted VGM rips used only for local SCC driver testing (do not commit)
+test/scc/vgm/

@@ -10,8 +10,14 @@ export function buildInterruptTasks(
   const interruptConfig = config.interruptConfig ?? {};
   const hasExternalPt3Audio = (analysis.tracks || [])
     .some((track: any) => track?.playbackBackend === 'external-pt3');
+  const hasNativeSccAudio = (analysis.tracks || [])
+    .some((track: any) => track?.soundChip === 'SCC' && track?.playbackBackend !== 'external-pt3');
   const defaultEnableAudioTask = hasExternalPt3Audio && config.romMode !== 'megarom';
-  const enableAudioTask = interruptConfig.enableAudioTask ?? defaultEnableAudioTask;
+  // SCC updates can load a 32-byte waveform and temporarily expose the SCC in
+  // mapper P2. Keep that work in the HALT-synchronised mainline, never H.TIMI.
+  const enableAudioTask = hasNativeSccAudio
+    ? false
+    : (interruptConfig.enableAudioTask ?? defaultEnableAudioTask);
   const enableFrameCounterTask = interruptConfig.enableFrameCounterTask ?? true;
   const hasFrameAudio =
     ((analysis.tracks?.length || 0) > 0) ||

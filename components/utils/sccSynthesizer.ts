@@ -33,6 +33,8 @@ export class SCCSynthesizer {
     private channelActiveInstrument: (SCCInstrument | null)[] = [null, null, null, null, null];
     private channelCurrentPeriod: (number | null)[] = [null, null, null, null, null];
     private channelSilentTickCounter: number[] = [0, 0, 0, 0, 0];
+    // SCC original has one physical waveform RAM shared by logical channels 4/5.
+    private sharedOriginalWaveform: number[] | null = null;
 
     // Default stereo panning positions for the 5 channels to create a wide field
     // Ch 1: Left-Mid (-0.5), Ch 2: Right-Mid (0.5), Ch 3: Center (0), Ch 4: Left (-0.8), Ch 5: Right (0.8)
@@ -102,8 +104,6 @@ export class SCCSynthesizer {
         for (let ch = 0; ch < 5; ch++) {
             const channel = ch as 0 | 1 | 2 | 3 | 4;
             let currentVolume = this.channelBaseVolumeForEffects[channel];
-            let shouldStop = false;
-
             // Process Software Envelope
             const envState = this.channelSoftwareVolumeEnvelopeState[channel];
             if (envState) {
@@ -114,9 +114,11 @@ export class SCCSynthesizer {
                     envState.currentStep = envState.loopPosition;
                     currentVolume = envState.envelope[envState.currentStep];
                     envState.currentStep++;
-                } else {
-                    currentVolume = 0;
-                    shouldStop = true; // Envelope finished and no loop, stop the sound
+                } else if (envState.envelope.length > 0) {
+                    // Native ROM export holds the last envelope value when
+                    // volumeLoop is absent/#FF; mirror that hardware behavior.
+                    currentVolume = envState.envelope[envState.envelope.length - 1];
+                    envState.currentStep = envState.envelope.length;
                 }
             }
 
@@ -143,7 +145,7 @@ export class SCCSynthesizer {
                 this.channelSilentTickCounter[channel] = 0;
             }
 
-            if (shouldStop || (this.channelSilentTickCounter[channel] >= 2 && this.channelSources[channel])) {
+            if (this.channelSilentTickCounter[channel] >= 2 && this.channelSources[channel]) {
                 this.stopChannel(channel);
             }
         }
@@ -173,9 +175,7 @@ export class SCCSynthesizer {
             if (!Number.isFinite(v)) return 0;
             return Math.max(-128, Math.min(127, Math.round(v)));
         });
-        const dcOffset = clamped.reduce((acc, val) => acc + val, 0) / SCC_WAVE_SIZE;
-        const centered = clamped.map(v => Math.max(-128, Math.min(127, Math.round(v - dcOffset))));
-        return centered;
+        return clamped;
     }
 
     private createWaveformBuffer(waveform: number[]): AudioBuffer | null {
@@ -192,6 +192,31 @@ export class SCCSynthesizer {
         }
 
         return buffer;
+    }
+
+    private restartChannelSourceWithWaveform(channel: number, waveform: number[]): void {
+        if (!this.audioContext || !this.channelGains[channel]) return;
+        const period = this.channelCurrentPeriod[channel];
+        if (period === null) return;
+
+        if (this.channelSources[channel]) {
+            try { this.channelSources[channel]!.stop(); } catch (e) { }
+            this.channelSources[channel]!.disconnect();
+            this.channelSources[channel] = null;
+        }
+
+        const buffer = this.createWaveformBuffer(waveform);
+        if (!buffer) return;
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        const frequency = this.getFrequencyFromPeriod(period);
+        if (frequency) {
+            source.playbackRate.value = frequency / (this.audioContext.sampleRate / SCC_WAVE_SIZE);
+        }
+        source.connect(this.channelGains[channel]!);
+        source.start();
+        this.channelSources[channel] = source;
     }
 
     private stopChannel(channel: number) {
@@ -235,6 +260,7 @@ export class SCCSynthesizer {
         }
 
         // Update Instrument or Refresh Reference
+        let loadedExplicitInstrument = false;
         if (this.songDataRef) {
             let instrumentId = instrumentIdFromCell;
 
@@ -247,7 +273,16 @@ export class SCCSynthesizer {
                 const newInstrument = this.songDataRef.instruments.find(i => i.id === instrumentId) as SCCInstrument;
                 if (newInstrument) {
                     this.channelActiveInstrument[channel] = newInstrument;
+                    loadedExplicitInstrument = instrumentIdFromCell !== null && instrumentIdFromCell > 0;
                 }
+            }
+        }
+
+        if (loadedExplicitInstrument && channel >= 3 && this.channelActiveInstrument[channel]) {
+            this.sharedOriginalWaveform = this.sanitizeWaveform(this.channelActiveInstrument[channel]!.waveform);
+            const peer = channel === 3 ? 4 : 3;
+            if (this.channelSources[peer]) {
+                this.restartChannelSourceWithWaveform(peer, this.sharedOriginalWaveform);
             }
         }
 
@@ -322,22 +357,10 @@ export class SCCSynthesizer {
                         this.channelGains[channel]!.gain.setValueAtTime(this.getVolumeFactor(initialVol), this.audioContext.currentTime);
                     }
 
-                    const buffer = this.createWaveformBuffer(instrument.waveform);
-                    if (buffer) {
-                        const source = this.audioContext.createBufferSource();
-                        source.buffer = buffer;
-                        source.loop = true;
-
-                        const freq = this.getFrequencyFromPeriod(period);
-                        if (freq) {
-                            const baseFreq = this.audioContext.sampleRate / SCC_WAVE_SIZE;
-                            source.playbackRate.value = freq / baseFreq;
-                        }
-
-                        source.connect(this.channelGains[channel]!);
-                        source.start();
-                        this.channelSources[channel] = source;
-                    }
+                    const effectiveWaveform = channel >= 3
+                        ? (this.sharedOriginalWaveform ?? instrument.waveform)
+                        : instrument.waveform;
+                    this.restartChannelSourceWithWaveform(channel, effectiveWaveform);
                 }
             }
         } else if (isKeepNote && this.channelSources[channel] && this.channelCurrentPeriod[channel]) {
@@ -353,6 +376,7 @@ export class SCCSynthesizer {
             clearInterval(this.effectsUpdateIntervalId);
             this.effectsUpdateIntervalId = null;
         }
+        this.sharedOriginalWaveform = null;
     }
 
     public async previewInstrument(instrument: SCCInstrument, noteString: string = 'C-4'): Promise<void> {

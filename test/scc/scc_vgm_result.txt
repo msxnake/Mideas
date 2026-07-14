@@ -1,0 +1,12 @@
+boot=1 (expect 1)
+slot=2 (expect 2)
+scc_init=3 (expect 3)
+ready=5 (expect 5)
+bad_token=0 (expect 0)
+frames_a=254
+scc_wave_ch1_first8=00 40 7F 40 01 C0 81 C0 (expect real waveform data, not FF/00 fill)
+mixer_shadow_loops=0
+loop_count=2 (expect >=1: ~5.9s track wrapped)
+bad_token_end=0 (expect 0)
+frames_b=205 (expect != frames_a: main loop alive)
+stopped=1 (expect 1)
