@@ -2,7 +2,7 @@ import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2Ga
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
-import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
+import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2DestroyTileConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
 import {
@@ -144,6 +144,21 @@ import {
   buildBitmapCrouchRuntimeAsm,
   MSX2_BITMAP_CROUCH_RAM_BYTES,
 } from './msx2BitmapCrouchGenerator';
+import {
+  bitmapDestroyTileEnabled,
+  buildBitmapDestroyTileApplyPendingCallAsm,
+  buildBitmapDestroyTileApplyVisibleCallAsm,
+  buildBitmapDestroyTileDataAsm,
+  buildBitmapDestroyTileEquates,
+  buildBitmapDestroyTileGateAsm,
+  buildBitmapDestroyTileInitClearAsm,
+  buildBitmapDestroyTileInitUploadAsm,
+  buildBitmapDestroyTileRuntimeAsm,
+  buildBitmapDestroyTileSatCallAsm,
+  MSX2_BITMAP_DESTROY_DEBRIS_SLOTS,
+  type BitmapDestroyDebrisSprite,
+  type BitmapDestroyTileOptions,
+} from './msx2BitmapDestroyTileGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -2068,20 +2083,37 @@ function buildBankedRleDataBlocks(chunks: RleChunk[], description: string): Bank
   }));
 }
 
+// Konami SCC mapper: while the P2 bank register (#9000) holds a value whose
+// low 6 bits are #3F, reads of #9800-#9FFF return SCC registers instead of
+// ROM. Data banks are read through the P2 window, so those bank numbers must
+// never hold data (they stay as #FF padding in the ROM image).
+function isSccWindowBank(bank: number): boolean {
+  return (bank & 0x3f) === 0x3f;
+}
+
+// Konami SCC bank register is 8-bit: 256 banks x 8KB = 2MB.
+const BITMAP_ROOM_MEGAROM_MAX_BANK = 255;
+
 function packBitmapRoomDataBanks(blocks: BankedDataBlock[]): PackedDataBank[] {
   const banks: PackedDataBank[] = [];
   let current: PackedDataBank | undefined;
+  let nextBank = BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
   for (const block of blocks) {
     if (block.bytes.length > ROM_DATA_BANK_BYTES) {
       throw new Error(`Bitmap-room data block ${block.label} is ${block.bytes.length} bytes and exceeds one 8KB MegaROM bank`);
     }
     if (!current || current.used + block.bytes.length > ROM_DATA_BANK_BYTES) {
+      while (isSccWindowBank(nextBank)) nextBank++;
+      if (nextBank > BITMAP_ROOM_MEGAROM_MAX_BANK) {
+        throw new Error(`Bitmap-room data exceeds the 2MB Konami SCC MegaROM limit (bank ${nextBank} > ${BITMAP_ROOM_MEGAROM_MAX_BANK})`);
+      }
       current = {
-        bank: BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK + banks.length,
+        bank: nextBank,
         used: 0,
         blocks: [],
       };
       banks.push(current);
+      nextBank++;
     }
     current.blocks.push(block);
     current.used += block.bytes.length;
@@ -2111,8 +2143,15 @@ function formatBankedDataEquates(banks: PackedDataBank[]): string {
 
 function formatBankedDataBanks(banks: PackedDataBank[]): string {
   if (!banks.length) return '';
-  const lines: string[] = ['; --- SCREEN 5 bitmap-room Konami MegaROM data banks ---'];
+  const lines: string[] = ['; --- SCREEN 5 bitmap-room Konami SCC MegaROM data banks ---'];
+  let expectedBank = BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
   for (const bank of banks) {
+    while (expectedBank < bank.bank) {
+      lines.push(`; Bank ${expectedBank} reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.`);
+      lines.push(`    ds #2000, #FF`);
+      expectedBank++;
+    }
+    expectedBank++;
     lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_PHYS_START:`);
     lines.push(`    org #8000`);
     lines.push(`BITMAP_ROOM_DATA_BANK_${bank.bank}_ROM_START:`);
@@ -2590,8 +2629,8 @@ init_plain32k_page2_slot:
 ;   Changes the active slot for #8000-#BFFF.
 ;
 ; NOTES:
-;   Required before Konami mapper writes. Without this, ld (#8000),A writes RAM
-;   instead of the cartridge mapper register on machines where page 2 still
+;   Required before Konami SCC mapper writes. Without this, ld (#9000),A writes
+;   RAM instead of the cartridge mapper register on machines where page 2 still
 ;   points to RAM after boot. Stack use is only the BIOS CALL/RET nesting.
 ; ------------------------------------------------------------
 map_page2_to_cart_primary:
@@ -2655,7 +2694,7 @@ get_cart_slot_value:
 ; FUNCTION: init_konami8k_fixed_bank0_banks
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Initialize a Konami 8KB MegaROM with bank 0 fixed at #4000 and the
+;   Initialize a Konami SCC 8KB MegaROM: bank 0 at #4000 and the
 ;   resident startup banks mapped in #6000/#8000/#A000.
 ;
 ; INPUT:
@@ -2674,12 +2713,18 @@ get_cart_slot_value:
 ;   mapper_set_bank_p1, mapper_set_bank_p2, mapper_set_bank_p3.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper registers #6000, #8000 and #A000.
+;   Writes Konami SCC mapper registers #5000, #7000, #9000 and #B000.
 ;
 ; NOTES:
-;   Stack is not used here. Bank 0 remains fixed by the cartridge mapper.
+;   Stack is not used here. Unlike Konami4, the Konami SCC mapper does NOT
+;   fix bank 0: the #4000 window has its own register at #5000. The reset
+;   state is 0/1/2/3 on emulators, but flash carts may leave garbage, so
+;   bank 0 is selected explicitly. This runs from the #4000 page itself,
+;   which is only safe because the boot code is reachable in bank 0.
 ; ------------------------------------------------------------
 init_konami8k_fixed_bank0_banks:
+    xor a
+    ld (#5000), a
     ld a, 1
     call mapper_set_bank_p1
     ld a, 2
@@ -2709,13 +2754,13 @@ init_konami8k_fixed_bank0_banks:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper register #6000.
+;   Writes Konami SCC mapper register #7000.
 ;
 ; NOTES:
 ;   No PUSH/POP. LD (nn),A does not modify flags.
 ; ------------------------------------------------------------
 mapper_set_bank_p1:
-    ld (#6000), a
+    ld (#7000), a
     ret
 
 ; ------------------------------------------------------------
@@ -2740,13 +2785,16 @@ mapper_set_bank_p1:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper register #8000.
+;   Writes Konami SCC mapper register #9000.
 ;
 ; NOTES:
 ;   P2 is the bitmap-room data read window for banked RLE sources.
+;   Selecting a bank whose low 6 bits are #3F would expose the SCC at
+;   #9800-#9FFF instead of ROM; the data-bank packer never allocates
+;   those bank numbers (see packBitmapRoomDataBanks).
 ; ------------------------------------------------------------
 mapper_set_bank_p2:
-    ld (#8000), a
+    ld (#9000), a
     ret
 
 ; ------------------------------------------------------------
@@ -2771,13 +2819,13 @@ mapper_set_bank_p2:
 ;   None.
 ;
 ; SIDE EFFECTS:
-;   Writes Konami mapper register #A000.
+;   Writes Konami SCC mapper register #B000.
 ;
 ; NOTES:
 ;   Present for symmetry with the fixed-bank0 SCREEN 4 MegaROM runtime.
 ; ------------------------------------------------------------
 mapper_set_bank_p3:
-    ld (#A000), a
+    ld (#B000), a
     ret
 
 ; ------------------------------------------------------------
@@ -10185,6 +10233,34 @@ function resolveBitmapBulletSprite(
 }
 
 /**
+ * Resolves the user-authored debris chip sprite for the destroy_tile skill:
+ * `player.render.debrisSpriteAssetId` wins; otherwise the first sprite asset
+ * whose name contains "debris" or "viruta" (case-insensitive). Undefined falls
+ * back to the generator's built-in 3x3 chip.
+ */
+function resolveBitmapDebrisSprite(
+  analysis: ProjectAnalysis,
+  player: Partial<Msx2PlayerDefinition> | undefined,
+): BitmapDestroyDebrisSprite | undefined {
+  const explicitId = String((player?.render as any)?.debrisSpriteAssetId || '').trim();
+  let sprite = explicitId ? resolveMsx2SpriteById(analysis, explicitId) : undefined;
+  if (!sprite) {
+    sprite = (analysis.msx2Sprites || []).find(item => /debris|viruta/i.test(String(item?.name || '')));
+  }
+  if (!sprite) return undefined;
+  const layers = buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, 0)
+    .filter(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
+  const primary = layers[0];
+  if (!primary || !Array.isArray(primary.pattern) || primary.pattern.length !== 32) return undefined;
+  const colors = (primary.colors || []).slice(0, 16);
+  while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+  return {
+    patternBytes: primary.pattern.map(v => v & 0xff),
+    colorBytes: colors.map(v => v & 0xff),
+  };
+}
+
+/**
  * Collect per-room enemy patrol slots for the bitmap-room enemy runtime.
  *
  * Geometry (x/y/bounds/dx/dy/mode) comes from the SAME resolver the SCREEN 4
@@ -11600,6 +11676,20 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   }
   const carrySatBase = platformSatBase + platformHardwareSlots * 4;
   const carryColorBase = platformColorBase + platformHardwareSlots * 16;
+  // DESTROY TILE (dig) skill: 4 debris-chip sprites between carry and the
+  // bullets (one shared pattern group). Fixed RAM region at #C2D0 (see the
+  // generator module header); everything is emitted only when the skill is on.
+  const destroyTileConfig = getMsx2DestroyTileConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
+  const destroyDebrisSlots = bitmapDestroyTileEnabled(destroyTileConfig) ? MSX2_BITMAP_DESTROY_DEBRIS_SLOTS : 0;
+  const destroyPatternGroup = carryPatternGroupBase + carryPatternGroupCount;
+  if (destroyDebrisSlots > 0 && destroyPatternGroup + 1 > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room destroy_tile debris needs sprite pattern group ${destroyPatternGroup}, ` +
+      'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation or carryable objects.',
+    );
+  }
+  const destroySatBase = carrySatBase + carryAndThrowData.maxSlots * 4;
+  const destroyColorBase = carryColorBase + carryAndThrowData.maxSlots * 16;
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -11612,6 +11702,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     enemySlotCount: enemyData.maxSlots,
     platformSlotCount: platformHardwareSlots,
     carrySlotCount: carryAndThrowData.maxSlots,
+    destroySlotCount: destroyDebrisSlots,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
@@ -11686,6 +11777,64 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     crouching: stateAnimIds['crouching'],
     sliding: stateAnimIds['sliding'],
   });
+  // DESTROY TILE (dig) skill pieces. The per-room destructible masks come from
+  // the authoritative tileGrid + the atlas entries' "Destructible" checkbox;
+  // the dissolve colour is each room's background colour duplicated into both
+  // HMMV nibbles. RAM is the fixed #C2D0 region (module header documents it).
+  const destroyTileOptions: BitmapDestroyTileOptions = {
+    ramBase: 0xC2D0,
+    hitbox: playerHitbox,
+    digAnimId: stateAnimIds['digging'],
+    debrisPatternNumber: destroyPatternGroup * 4,
+    debrisSatBase: destroySatBase,
+    debrisColorBase: destroyColorBase,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    destructibleMasks: rooms.map(roomItem => {
+      const entries = roomItem.atlas?.entries || [];
+      const grid = buildRoomTileIndexGrid(roomItem);
+      const collision = roomItem.collision || [];
+      const mask = Array(COLLISION_COLS * COLLISION_ROWS / 8).fill(0);
+      // Per-cell destructible bit (0x80 in the collision grid) is the source of truth:
+      // it lets the SAME visual tile be diggable in one cell and only-solid in another
+      // (secret paths). The editor stamps this bit when painting a "Destructible" atlas
+      // tile and lets the Select tool toggle it per cell.
+      let anyCellBit = false;
+      for (let y = 0; y < COLLISION_ROWS && !anyCellBit; y++) {
+        for (let x = 0; x < COLLISION_COLS; x++) {
+          if (((collision[y]?.[x] ?? 0) & 0x80) !== 0) { anyCellBit = true; break; }
+        }
+      }
+      for (let y = 0; y < COLLISION_ROWS; y++) {
+        for (let x = 0; x < COLLISION_COLS; x++) {
+          const value = grid[y][x];
+          // Prefer the authored per-cell bit; fall back to the atlas flag only for rooms
+          // saved before the per-cell bit existed (no 0x80 anywhere) so old projects keep
+          // their masks unchanged.
+          const destructible = anyCellBit
+            ? ((collision[y]?.[x] ?? 0) & 0x80) !== 0
+            : (!!value && entries[value - 1]?.destructible === true);
+          if (!destructible) continue;
+          const cell = y * COLLISION_COLS + x;
+          mask[cell >> 3] |= 1 << (cell & 7);
+        }
+      }
+      return mask;
+    }),
+    bgColorBytes: rooms.map(roomItem => {
+      const bg = clampByte(roomItem.backgroundColor, 0) & 0x0f;
+      return (bg << 4) | bg;
+    }),
+  };
+  const destroyDebrisSprite = resolveBitmapDebrisSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
+  const destroyTileEquates = buildBitmapDestroyTileEquates(destroyTileConfig, destroyTileOptions);
+  const destroyTileInitClear = buildBitmapDestroyTileInitClearAsm(destroyTileConfig);
+  const destroyTileGate = buildBitmapDestroyTileGateAsm(destroyTileConfig);
+  const destroyTileSatCall = buildBitmapDestroyTileSatCallAsm(destroyTileConfig);
+  const destroyTileApplyVisibleCall = buildBitmapDestroyTileApplyVisibleCallAsm(destroyTileConfig);
+  const destroyTileApplyPendingCall = buildBitmapDestroyTileApplyPendingCallAsm(destroyTileConfig);
+  const destroyTileInitUpload = buildBitmapDestroyTileInitUploadAsm(destroyTileConfig, destroyTileOptions);
+  const destroyTileRuntime = buildBitmapDestroyTileRuntimeAsm(destroyTileConfig, destroyTileOptions);
+  const destroyTileDataAsm = buildBitmapDestroyTileDataAsm(destroyTileConfig, destroyTileOptions, destroyDebrisSprite);
   // Linked MSX2 HUD asset dynamic widgets: RAM follows crouch (the last skill in
   // the chain). Per widget: dirty-flag (1 byte, or 2 for wide 16-bit counters so a
   // high-byte-only change is detected) + value byte(s) for bindings without a real
@@ -11823,7 +11972,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}`,
+    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
@@ -11898,7 +12047,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     collectibleCounter: gemCounterRam,
     keyCountAvailable: keyDoorSystem.ramBytes > 0,
     bankedRoomData: isKonamiMegaRom,
-    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}`,
+    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
   if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled || carryAndThrowSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
@@ -11966,7 +12115,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -12040,7 +12189,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
 ${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
@@ -12096,7 +12245,7 @@ ${hasStateAnimations ? `    xor a
     ld (player_anim_abs_frame), a
     dec a
     ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
-` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}`;
+` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}${destroyTileInitClear}`;
 
   // Game Flow dispatcher (compile-time, bitmap backend). When a Game Flow graph
   // with a WorldLink exists, the ROM boots into the dispatcher (bitmap_gf_entry)
@@ -12228,7 +12377,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -12247,7 +12396,7 @@ ${intro.initCallAsm}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
+${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
     ; Game Flow exit gate: when the deadly/enemy damage system arms
     ; bitmap_game_over_flag (last life spent), leave the gameplay loop. With a
     ; Game Flow graph, ret returns to the dispatcher (which follows the WorldLink
@@ -12261,9 +12410,9 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${gameFlowEnabled ? '    
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
-${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${platformSystem.detectCallAsm}.skip_player_movement:
+${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}.skip_player_movement:
 ${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
+${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${shootBulletSatCall}    jp .bitmap_main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
@@ -12282,6 +12431,7 @@ ${wallBreakRuntime}
 ${spinAttackRuntime}
 ${iceSlideRuntime}
 ${crouchRuntime}
+${destroyTileRuntime}
 ${deadlySystem.routineAsm}
 ${heartsHud.routinesAsm}
 ${linkedHudRoutinesAsm}
@@ -12321,7 +12471,7 @@ ${roomTransitionTableAsm}
 ${roomSpawnTableAsm}
 ${keyDoorSystem.dataAsm}
 ${gemSystem.dataAsm}
-${perceptionSystem.dataAsm}
+${destroyTileDataAsm}${perceptionSystem.dataAsm}
 ${jumperSystem.dataAsm}
 ${wallJumperSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}

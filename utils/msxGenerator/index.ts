@@ -98,6 +98,8 @@ function buildValidatedExecutionPlan(
 }
 
 function buildRuntimeTrackIndexByAssetId(tracks: any[]): Record<string, number> {
+  const sccTracks = (tracks || [])
+    .filter((track: any) => track?.soundChip === 'SCC' && track?.playbackBackend !== 'external-pt3');
   const psgTracks = (tracks || [])
     .filter((track: any) => (track?.soundChip || 'PSG') === 'PSG')
     .map((track: any) => ({
@@ -105,9 +107,11 @@ function buildRuntimeTrackIndexByAssetId(tracks: any[]): Record<string, number> 
       soundChip: track?.soundChip || 'PSG'
     }));
   const pt3Tracks = psgTracks.filter((track: any) => track?.playbackBackend === 'external-pt3');
-  const runtimeTracks = pt3Tracks.length > 0
-    ? pt3Tracks
-    : psgTracks.filter((track: any) => track?.playbackBackend !== 'external-pt3');
+  const runtimeTracks = sccTracks.length > 0
+    ? sccTracks
+    : pt3Tracks.length > 0
+      ? pt3Tracks
+      : psgTracks.filter((track: any) => track?.playbackBackend !== 'external-pt3');
 
   return runtimeTracks.reduce((map: Record<string, number>, track: any, index: number) => {
     if (track?.id) {
@@ -200,7 +204,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
   const globalVariables = unwrapSummaryAssets(summaryAssets.globalVariables || summaryAssets.globalvariables);
 
   const tracks = (summaryAssets.tracks || [])
-    .filter((track: any) => (track?.soundChip || 'PSG') === 'PSG')
+    .filter((track: any) => ['PSG', 'SCC'].includes(track?.soundChip || 'PSG'))
     .map((track: any) => ({
       ...track,
       soundChip: track?.soundChip || 'PSG'
@@ -432,7 +436,7 @@ export function generateModularASM(
     'font.asm': generateFontFile(analysis, romMode, fontInPage0, fontInBank4, targetFormat),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
+    'sound.asm': generateSoundFile(analysis, executionPlan, romMode, targetFormat),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
     'bosses.asm': generateBossesFile(analysis, { includeBossData: romMode !== 'megarom' }),
@@ -594,7 +598,7 @@ export function generateModularASMFromSummary(
     'font.asm': generateFontFile(analysis, romMode, fontInPage02, fontInBank42, targetFormat),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
+    'sound.asm': generateSoundFile(analysis, executionPlan, romMode, targetFormat),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
     'bosses.asm': generateBossesFile(analysis, { includeBossData: romMode !== 'megarom' }),

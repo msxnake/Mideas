@@ -61,6 +61,8 @@ export interface BitmapShootRuntimeOptions {
   platformSlotCount?: number;
   /** Carry-and-throw SAT slots reserved between platforms and the bullets. */
   carrySlotCount?: number;
+  /** destroy_tile debris SAT slots reserved between carry and the bullets. */
+  destroySlotCount?: number;
 }
 
 export interface BitmapShootSpriteData {
@@ -127,7 +129,7 @@ export function buildBitmapBulletInitUploadAsm(
   // first slot left the 2nd+ simultaneous bullets with an uninitialised (black)
   // colour table.
   const colorUploads = Array.from({ length: maxBullets }, (_unused, i) => {
-    const colorVram = opts.colorBase + (opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + i) * 16;
+    const colorVram = opts.colorBase + (opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0) + i) * 16;
     return `    ; bullet colour -> sprite slot ${opts.playerLayerCount + i} (VRAM ${asmWord(colorVram)})
     ld hl, bitmap_bullet_color_data
     ld de, ${asmWord(colorVram)}
@@ -179,7 +181,7 @@ export function buildBitmapShootRuntimeAsm(
   const shootCooldown = asmByte(Math.max(0, Math.min(120, Math.floor(config.shootCooldown) || 10)));
   const requireKeyRelease = config.requireKeyRelease !== false;
   const patternNumber = asmByte(opts.bulletPatternNumber);
-  const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0)) * 4;
+  const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0)) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
 
   const lockGate = requireKeyRelease

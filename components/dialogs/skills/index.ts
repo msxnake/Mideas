@@ -16,3 +16,4 @@ export { CarryObjectDialog } from './CarryObjectDialog';
 export { TeleportABDialog } from './TeleportABDialog';
 export { CarryAndThrowDialog } from './CarryAndThrowDialog';
 export { PowerStompDialog } from './PowerStompDialog';
+export { DestroyTileDialog } from './DestroyTileDialog';

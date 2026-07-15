@@ -1,0 +1,13 @@
+boot=1 (expect 1)
+slot=2 (expect 2)
+scc_init=3 (expect 3)
+wave_ok=1 (expect 1)
+wave_mismatch_idx=0 (only meaningful if wave_ok=0)
+ready=5 (expect 5)
+scc_wave_9800..9808=00 10 20 30 40 50 60 70 7F (expect 00 10 20 30 40 50 60 70 7F)
+frames_a=254 (expect >0)
+note_idx_a=2
+note_idx_b=1 (expect != note_idx_a: sequencer advances)
+stopped=1 (expect 1)
+frames_at_stop=118
+frames_after_stop=118 (expect == frames_at_stop: loop halted)

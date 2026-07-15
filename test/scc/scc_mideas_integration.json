@@ -1,0 +1,73 @@
+{
+  "name": "scc_mideas_integration",
+  "screenMode": "SCREEN 2 (Graphics I)",
+  "assets": [
+    {
+      "id": "scc_track_integration",
+      "name": "SCC Integration Track",
+      "type": "track",
+      "data": {
+        "id": "scc_track_integration",
+        "name": "SCC Integration Track",
+        "playbackBackend": "native",
+        "soundChip": "SCC",
+        "bpm": 150,
+        "speed": 6,
+        "globalVolume": 12,
+        "patterns": [
+          {
+            "id": "scc_pattern_0",
+            "name": "Pattern 0",
+            "numRows": 8,
+            "rows": [
+              { "1": { "note": "C-4", "instrument": 1, "ornament": null, "volume": 15 }, "2": { "note": "E-4", "instrument": 1, "ornament": null, "volume": 12 }, "3": { "note": "G-4", "instrument": 1, "ornament": null, "volume": 10 }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": null, "instrument": null, "ornament": null, "volume": null }, "2": { "note": null, "instrument": null, "ornament": null, "volume": null }, "3": { "note": null, "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": "E-4", "instrument": null, "ornament": null, "volume": null }, "2": { "note": "G-4", "instrument": null, "ornament": null, "volume": null }, "3": { "note": "C-5", "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": null, "instrument": null, "ornament": null, "volume": null }, "2": { "note": null, "instrument": null, "ornament": null, "volume": null }, "3": { "note": null, "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": "G-4", "instrument": null, "ornament": null, "volume": null }, "2": { "note": "C-5", "instrument": null, "ornament": null, "volume": null }, "3": { "note": "E-5", "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": null, "instrument": null, "ornament": null, "volume": null }, "2": { "note": null, "instrument": null, "ornament": null, "volume": null }, "3": { "note": null, "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": "C-5", "instrument": null, "ornament": null, "volume": null }, "2": { "note": "E-5", "instrument": null, "ornament": null, "volume": null }, "3": { "note": "G-5", "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } },
+              { "1": { "note": "===", "instrument": null, "ornament": null, "volume": null }, "2": { "note": "===", "instrument": null, "ornament": null, "volume": null }, "3": { "note": "===", "instrument": null, "ornament": null, "volume": null }, "4": { "note": null, "instrument": null, "ornament": null, "volume": null }, "5": { "note": null, "instrument": null, "ornament": null, "volume": null } }
+            ]
+          }
+        ],
+        "order": [0],
+        "lengthInPatterns": 1,
+        "restartPosition": 0,
+        "currentPatternIndexInOrder": 0,
+        "instruments": [
+          {
+            "id": 1,
+            "name": "Integration Triangle",
+            "waveform": [-127, -111, -94, -77, -60, -43, -26, -9, 9, 26, 43, 60, 77, 94, 111, 127, 127, 111, 94, 77, 60, 43, 26, 9, -9, -26, -43, -60, -77, -94, -111, -127],
+            "volume": 15,
+            "volumeEnvelope": [15, 14, 13, 12, 11, 10, 9, 8],
+            "volumeLoop": 4
+          }
+        ],
+        "ornaments": []
+      }
+    },
+    {
+      "id": "scc_gameflow",
+      "name": "Main SCC Flow",
+      "type": "gameflow",
+      "data": {
+        "id": "scc_gameflow",
+        "name": "Main SCC Flow",
+        "nodes": [
+          { "id": "start", "type": "Start", "position": { "x": 40, "y": 40 } },
+          { "id": "music", "type": "Music", "position": { "x": 220, "y": 40 }, "trackAssetId": "scc_track_integration", "loop": true, "autoPlay": true },
+          { "id": "end", "type": "End", "position": { "x": 400, "y": 40 } }
+        ],
+        "connections": [
+          { "id": "start_music", "from": { "nodeId": "start" }, "to": { "nodeId": "music" } },
+          { "id": "music_end", "from": { "nodeId": "music" }, "to": { "nodeId": "end" } }
+        ],
+        "startNodeId": "start",
+        "panOffset": { "x": 0, "y": 0 },
+        "zoomLevel": 1
+      }
+    }
+  ]
+}

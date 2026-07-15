@@ -3124,7 +3124,7 @@ def _find_scattered_mapper_register_writes(asm_text: str) -> list[str]:
     active_code = _strip_asm_comments(asm_text)
     label_pattern = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):\s*$")
     mapper_write_pattern = re.compile(
-        r"\bld\s+\(\s*(?:MAPPER_REG_P[1-4]|#(?:6000|8000|A000))\s*\)\s*,\s*a\b",
+        r"\bld\s+\(\s*(?:MAPPER_REG_P[1-4]|#(?:7000|9000|B000))\s*\)\s*,\s*a\b",
         flags=re.IGNORECASE,
     )
     allowed_labels = {
@@ -3132,6 +3132,7 @@ def _find_scattered_mapper_register_writes(asm_text: str) -> list[str]:
         "mapper_set_bank_p2",
         "mapper_set_bank_p3",
         "mapper_set_bank_p4",
+        "SCC_Init",
     }
 
     findings: list[str] = []
@@ -3194,9 +3195,9 @@ def validate_konami8k_megarom(rom_path: Path, asm_path: Path) -> dict[str, int |
             raise RuntimeError(f"Konami8K validation failed: missing boot mapper init for {description}")
 
     required_mapper_registers = [
-        (r"MAPPER_REG_P1\s+EQU\s+#6000", "P1 mapper register must be #6000"),
-        (r"MAPPER_REG_P2\s+EQU\s+#8000", "P2 mapper register must be #8000"),
-        (r"MAPPER_REG_P3\s+EQU\s+#A000", "P3 mapper register must be #A000"),
+        (r"MAPPER_REG_P1\s+EQU\s+#7000", "P1 Konami SCC mapper register must be #7000"),
+        (r"MAPPER_REG_P2\s+EQU\s+#9000", "P2 Konami SCC mapper register must be #9000"),
+        (r"MAPPER_REG_P3\s+EQU\s+#B000", "P3 Konami SCC mapper register must be #B000"),
     ]
     for pattern, description in required_mapper_registers:
         if not re.search(pattern, asm_text, flags=re.IGNORECASE):
@@ -6356,7 +6357,7 @@ def launch_openmsx(
         cmd.extend(["-romtype", "Plain"])
     elif rom_mode == "megarom":
         mapper_to_romtype = {
-            "konami": "konami",
+            "konami": "KonamiSCC",
             "ascii8": "ascii8",
             "ascii16": "ascii16",
         }
@@ -6386,7 +6387,7 @@ def _openmsx_cart_command(
         cmd.extend(["-romtype", "Plain"])
     elif rom_mode == "megarom":
         mapper_to_romtype = {
-            "konami": "konami",
+            "konami": "KonamiSCC",
             "ascii8": "ascii8",
             "ascii16": "ascii16",
         }
