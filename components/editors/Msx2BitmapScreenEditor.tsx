@@ -1349,6 +1349,33 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => selectedPlacedId ? placedEntities.find(entity => entity.id === selectedPlacedId) || null : null,
     [placedEntities, selectedPlacedId],
   );
+  const isSelectedCarryable = Boolean(selectedPlacedEntity && (
+    selectedPlacedEntity.components?.msx2_carryable?.enabled !== false
+    && selectedPlacedEntity.components?.msx2_carryable?.enabled !== 'false'
+    && (
+      selectedPlacedEntity.components?.msx2_carryable
+      || selectedPlacedEntity.params?.carryable === true
+      || selectedPlacedEntity.params?.carryable === 'true'
+      || selectedPlacedEntity.kind === 'carryable'
+    )
+  ));
+  const carryableBitmapEntries = useMemo(
+    () => (room.atlas?.entries || []).filter(entry => Number(entry.w) >= 16 && Number(entry.h) >= 16),
+    [room.atlas?.entries],
+  );
+  const selectedCarryableRenderMode = String(selectedPlacedEntity?.params?.carryableRenderMode || '').toLowerCase() === 'bitmap_sprite'
+    || String(selectedPlacedEntity?.params?.carryableRenderMode || '').toLowerCase() === 'bitmap'
+    ? 'bitmap_sprite'
+    : 'hardware_sprite';
+  const selectedCarryableBitmapEntryId = String(
+    selectedPlacedEntity?.params?.carryableBitmapAtlasEntryId
+      || selectedPlacedEntity?.params?.bitmapSpriteAtlasEntryId
+      || '',
+  ).trim();
+  const carryableBitmapOptions = selectedCarryableBitmapEntryId
+    && !carryableBitmapEntries.some(entry => entry.id === selectedCarryableBitmapEntryId)
+    ? [{ id: selectedCarryableBitmapEntryId, name: `${selectedCarryableBitmapEntryId} (current)` } as Msx2BitmapRoomAtlasEntry, ...carryableBitmapEntries]
+    : carryableBitmapEntries;
   const getEntityMovementMode = (entity: Msx2Screen4EntityInstance | null | undefined): string =>
     String(entity?.components?.msx2_movement?.mode ?? entity?.params?.movement ?? entity?.params?.movementMode ?? 'static');
 
@@ -2040,6 +2067,35 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
             }
           : entity
       ),
+    });
+  };
+
+  const updatePlacedEntityCarryableVisual = (
+    id: string,
+    renderMode: 'hardware_sprite' | 'bitmap_sprite',
+    patch: { spriteAssetId?: string; bitmapAtlasEntryId?: string } = {},
+  ) => {
+    onUpdate({
+      entities: placedEntities.map(entity => {
+        if (entity.id !== id) return entity;
+        const nextParams = {
+          ...(entity.params || {}),
+          carryableRenderMode: renderMode,
+          ...(patch.bitmapAtlasEntryId !== undefined
+            ? { carryableBitmapAtlasEntryId: patch.bitmapAtlasEntryId }
+            : {}),
+        };
+        const nextComponents = patch.spriteAssetId === undefined
+          ? entity.components
+          : {
+              ...(entity.components || {}),
+              msx2_hardware_sprite: {
+                ...(entity.components?.msx2_hardware_sprite || {}),
+                msx2SpriteAssetId: patch.spriteAssetId,
+              },
+            };
+        return { ...entity, params: nextParams, components: nextComponents };
+      }),
     });
   };
 
@@ -4406,6 +4462,87 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     <div className="truncate text-xs text-msx-textprimary">{selectedPlacedEntity.name}</div>
                     <div>{selectedPlacedEntity.kind} @ {selectedPlacedEntity.position?.x},{selectedPlacedEntity.position?.y}</div>
                   </div>
+
+                  {isSelectedCarryable && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">Render del carryable</div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tipo de render
+                        <select
+                          value={selectedCarryableRenderMode}
+                          onChange={event => {
+                            const nextMode = event.target.value === 'bitmap_sprite' ? 'bitmap_sprite' : 'hardware_sprite';
+                            updatePlacedEntityCarryableVisual(
+                              selectedPlacedEntity.id,
+                              nextMode,
+                              nextMode === 'hardware_sprite'
+                                ? { bitmapAtlasEntryId: '' }
+                                : undefined,
+                            );
+                          }}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          aria-label="Tipo de render del carryable"
+                        >
+                          <option value="hardware_sprite">Hardware sprite (4 colores)</option>
+                          <option value="bitmap_sprite">Bitmap atlas (16 colores)</option>
+                        </select>
+                      </label>
+
+                      {selectedCarryableRenderMode === 'hardware_sprite' ? (
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Sprite hardware
+                          <select
+                            value={String(selectedPlacedEntity.components?.msx2_hardware_sprite?.msx2SpriteAssetId || '')}
+                            onChange={event => updatePlacedEntityCarryableVisual(
+                              selectedPlacedEntity.id,
+                              'hardware_sprite',
+                              { spriteAssetId: event.target.value, bitmapAtlasEntryId: '' },
+                            )}
+                            className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            aria-label="Sprite hardware del carryable"
+                          >
+                            <option value="">(placeholder / tile de mapa)</option>
+                            {spriteLibraryAssets.map(asset => (
+                              <option key={asset.id} value={asset.id}>{asset.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : (
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Bitmap de l’atlas
+                          <select
+                            value={selectedCarryableBitmapEntryId}
+                            onChange={event => {
+                              const entryId = event.target.value;
+                              if (!entryId) return;
+                              updatePlacedEntityCarryableVisual(
+                                selectedPlacedEntity.id,
+                                'bitmap_sprite',
+                                { bitmapAtlasEntryId: entryId },
+                              );
+                            }}
+                            disabled={carryableBitmapOptions.length === 0}
+                            className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary disabled:opacity-60"
+                            aria-label="Bitmap atlas del carryable"
+                          >
+                            {carryableBitmapOptions.length === 0 ? (
+                              <option value="">(cap entrada 16x16 a l’atlas)</option>
+                            ) : (
+                              <>
+                                <option value="">Selecciona una entrada...</option>
+                                {carryableBitmapOptions.map(entry => (
+                                  <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                                ))}
+                              </>
+                            )}
+                          </select>
+                        </label>
+                      )}
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        Bitmap atlas: 16 colors i moviment píxel a píxel. Hardware sprite: més ràpid però limitat a la paleta del sprite.
+                      </div>
+                    </div>
+                  )}
 
                   {['enemy', 'hazard', 'custom', 'platform'].includes(selectedPlacedEntity.kind) && selectedPatrolBounds && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">

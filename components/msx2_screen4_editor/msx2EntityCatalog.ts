@@ -566,7 +566,7 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   {
     id: 'msx2_carryable',
     label: 'Carryable',
-    description: 'Marks this entity (rock, key, ball...) as a carryable object for the player carry_object skill: pick it up with the attack key, carry it above the head and throw it. Uses the Render hardware sprite; max 2 carryables per screen.',
+    description: 'Marks this entity (rock, key, ball...) as a carryable object for the player carry_object skill: pick it up with the attack key, carry it above the head and throw it. The SCREEN 5 editor can render it as a hardware sprite or a 16-colour bitmap atlas patch; max 2 carryables per screen.',
     defaults: { enabled: true },
   },
   {
@@ -1176,7 +1176,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     kind: 'enemy',
     runtime: 'MSX2',
     engine: 'staticEnemy',
-    description: 'Harmless prop (rock, key, ball...) the player can pick up and throw with the carry_object skill. Renders as a hardware sprite; never damages the player and never joins the enemy slots.',
+    description: 'Harmless prop (rock, key, ball...) the player can pick up and throw with the carry_object skill. The SCREEN 5 editor can choose a hardware sprite or 16-colour bitmap atlas patch; never damages the player and never joins the enemy slots.',
     components: {
       msx2_transform: {},
       msx2_hardware_sprite: { paletteSlot: 9 },

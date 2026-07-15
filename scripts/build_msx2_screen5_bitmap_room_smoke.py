@@ -113,7 +113,7 @@ SMOKE_HUD_FONT_PATTERNS = {
 }
 
 
-def build_atlas_pixels(width: int = 128, height: int = 16) -> list[list[int]]:
+def build_atlas_pixels(width: int = 256, height: int = 16) -> list[list[int]]:
     pixels = [[0 for _x in range(width)] for _y in range(height)]
 
     mortar = 1
@@ -125,6 +125,18 @@ def build_atlas_pixels(width: int = 128, height: int = 16) -> list[list[int]]:
                 is_mortar = y in (0, 8, 15) or x in (0, 15) or x == split
                 pixels[y][x0 + x] = mortar if is_mortar else color
 
+    # A deliberately multicolour 16x16 carryable visual. It lives in the free
+    # half of the 256px shared atlas row so the bitmap carry renderer can copy
+    # it from SCREEN 5 with colour-0 transparency.
+    for y in range(16):
+        for x in range(16):
+            if 2 <= x <= 13 and 1 <= y <= 14:
+                pixels[y][128 + x] = 15
+            if 4 <= x <= 11 and 3 <= y <= 12:
+                pixels[y][128 + x] = 10
+            if 6 <= x <= 9 and 5 <= y <= 10:
+                pixels[y][128 + x] = 13
+
     return pixels
 
 
@@ -132,7 +144,7 @@ def build_brick_entries() -> list[dict[str, object]]:
     return [
         {"id": brick_id, "name": brick_id.replace("_", " ").title(), "sx": index * 16, "sy": 0, "w": 16, "h": 16}
         for index, (brick_id, _color) in enumerate(BRICK_VARIANTS)
-    ]
+    ] + [{"id": "carryable_multicolor", "name": "Multicolour Carryable", "sx": 128, "sy": 0, "w": 16, "h": 16}]
 
 
 def build_player_sprite_frame(frame_index: int) -> list[list[str]]:
@@ -336,9 +348,9 @@ def build_project() -> dict[str, object]:
         "palette": default_palette(),
         "backgroundColor": 1,
         "atlas": {
-            "width": 128,
-            "height": 16,
-            "offscreenBaseY": 320,
+                "width": 256,
+                "height": 16,
+                "offscreenBaseY": 320,
             "pixels": atlas_pixels,
             "entries": build_brick_entries(),
         },
@@ -530,6 +542,10 @@ def enable_all_bitmap_skills(project: dict[str, object]) -> None:
                 "components": {
                     "msx2_carryable": {"enabled": True},
                     "msx2_hardware_sprite": {"msx2SpriteAssetId": "smoke_player_sprite"},
+                },
+                "params": {
+                    "carryableRenderMode": "bitmap_sprite",
+                    "carryableBitmapAtlasEntryId": "carryable_multicolor",
                 },
             },
             {

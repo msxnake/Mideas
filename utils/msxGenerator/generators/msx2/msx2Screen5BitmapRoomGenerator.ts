@@ -3012,8 +3012,16 @@ init_screen5_bitmap_vdp:
     ; This backend composes 4bpp bitmap pages with V9938 commands (128 bytes per
     ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The editor
     ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
+    ; CHGMOD may leave the display disabled while changing mode. Keep the mode
+    ; switch blanked, then explicitly re-enable the display after boot uploads.
+    call DISSCR
     ld a, #05
     call CHGMOD
+    ; CHGMOD is a BIOS routine and may return with IRQs enabled. This runtime
+    ; polls VBlank directly and command helpers temporarily select VDP S#2;
+    ; allowing the BIOS ISR here causes an interrupt storm before the intro RLE
+    ; upload can finish. Reassert the init_rom DI contract immediately.
+    di
     ; Enable 16x16 hardware sprites (R#1 bit1 = SI). CHGMOD 5 leaves R#1=#60 (8x8),
     ; which would render only the top-left 8x8 quadrant of the 16x16 player pattern.
     ld a, #01
@@ -11542,6 +11550,18 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
   const carryAndThrowConfig = getMsx2CarryAndThrowConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
   const carryAndThrowData = buildBitmapCarryAndThrowData(analysis, rooms);
+  // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
+  // bitmap visual. Place those rectangles after the atlas and any linked-HUD
+  // source tiles, but before the dialogue blob that grows down from VRAM row
+  // 1024. Hardware-sprite carryables do not consume this space.
+  const carryBitmapScratchSlots = carryAndThrowData.bitmapSlots;
+  const carryBitmapScratchBaseY = BITMAP_ROOM_ATLAS_BASE_Y
+    + atlasRows16
+    + Math.max(0, tileBasedHudSources.length - 3) * 16;
+  const carryBitmapScratchEndY = carryBitmapScratchBaseY + carryBitmapScratchSlots * 16;
+  if (carryBitmapScratchSlots > 0 && carryBitmapScratchEndY > dialogueVramBaseRow) {
+    throw new Error(`SCREEN 5 bitmap carryables need ${carryBitmapScratchSlots} scratch tile(s) after the atlas, but the dialogue blob starts at VRAM row ${dialogueVramBaseRow}. Reduce the atlas/dialogue size or use hardware-sprite carryables.`);
+  }
   const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
   const enemyPatternGroupCount = enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * 2;
   if (enemyData.maxSlots > 0 && enemyPatternGroupBase + enemyPatternGroupCount > 64) {
@@ -11858,6 +11878,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     screenWidth: SCREEN_WIDTH,
     enemySlotCount: enemyData.maxSlots,
     enemyPoolStride: BITMAP_ENEMY_POOL_STRIDE,
+    bitmapAtlasBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
+    bitmapScratchBaseY: carryBitmapScratchSlots > 0 ? carryBitmapScratchBaseY : undefined,
     pauseGateAsm: `${dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze carried objects
     or a
@@ -12047,7 +12069,22 @@ ${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}$
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
-${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
+    ; BIOS/VDP state left by CHGMOD or command-engine setup.
+    ld a, #02
+    ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
+    call vdp_write_register
+    call ENASCR
+    ; ENASCR is another BIOS boundary that may return with IRQs enabled. Keep
+    ; the bitmap runtime on its documented polling-only interrupt contract.
+    di
+    ; ENASCR reloads R#1 from the BIOS shadow, whose SCREEN 5 value is #60
+    ; (8x8 sprites), undoing the #62 selected in init_screen5_bitmap_vdp.
+    ; Restore SI after the BIOS call so 16x16 player/object patterns are whole.
+    ld a, #01
+    ld e, #62
+    call vdp_write_register
+    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.
@@ -12101,6 +12138,8 @@ ${hasStateAnimations ? `    xor a
 ; ==================================================================
 
 CHGMOD  EQU #005F
+DISSCR  EQU #0041
+ENASCR  EQU #0044
 ENASLT  EQU #0024
 GTSTCK  EQU #00DC
 RSLREG  EQU #0138
@@ -12223,7 +12262,7 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${gameFlowEnabled ? '    
 ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${platformSystem.detectCallAsm}.skip_player_movement:
-${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
+${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}    call bitmap_update_sprite_sat
 ${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}

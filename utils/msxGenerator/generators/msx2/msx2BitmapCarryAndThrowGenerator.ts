@@ -5,7 +5,10 @@ import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 
 /** Maximum number of carryable objects exported per SCREEN 5 room. */
 export const BITMAP_MAX_CARRY_AND_THROW_SLOTS = 2;
-export const BITMAP_CARRY_AND_THROW_POOL_STRIDE = 6;
+export const BITMAP_CARRY_AND_THROW_POOL_STRIDE = 12;
+export const BITMAP_CARRY_ROOM_RECORD_STRIDE = 6;
+const BITMAP_CARRY_RAM_HEADER_BYTES = 5;
+const BITMAP_CARRY_COMMAND_BYTES = 15;
 
 const DEFAULT_PATTERN = [
   0x00, 0x03, 0x0F, 0x1F, 0x3F, 0x3F, 0x7F, 0x7F,
@@ -63,14 +66,39 @@ function spriteIdForEntity(entity: any): string {
   ).trim();
 }
 
+function bitmapAtlasEntryIdForEntity(entity: any): string {
+  return String(
+    entity?.components?.msx2_bitmap_sprite?.atlasEntryId
+      || entity?.components?.msx2_bitmap_sprite?.bitmapAtlasEntryId
+      || entity?.components?.msx2_render?.bitmapAtlasEntryId
+      || entity?.params?.carryableBitmapAtlasEntryId
+      || entity?.params?.bitmapSpriteAtlasEntryId
+      || '',
+  ).trim();
+}
+
+function bitmapAtlasEntryForEntity(entity: any, room: Msx2Screen5BitmapRoom): any | undefined {
+  const renderMode = String(
+    entity?.components?.msx2_bitmap_sprite?.renderMode
+      || entity?.components?.msx2_render?.renderMode
+      || entity?.params?.carryableRenderMode
+      || '',
+  ).trim().toLowerCase();
+  if (renderMode !== 'bitmap_sprite' && renderMode !== 'bitmap') return undefined;
+  const entryId = bitmapAtlasEntryIdForEntity(entity);
+  const entry = entryId ? (room.atlas?.entries || []).find(item => item.id === entryId) : undefined;
+  return entry && Number(entry.w) >= 16 && Number(entry.h) >= 16 ? entry : undefined;
+}
+
 export interface BitmapCarryAndThrowRoomData {
   maxSlots: number;
+  bitmapSlots: number;
   roomTables: number[][];
   patternBytes: number[];
   colorBytes: number[];
 }
 
-/** Collects one 16x16 hardware sprite per carryable entity. */
+/** Collects one 16x16 hardware or bitmap visual per carryable entity. */
 export function buildBitmapCarryAndThrowData(
   analysis: any,
   rooms: Msx2Screen5BitmapRoom[],
@@ -101,23 +129,28 @@ export function buildBitmapCarryAndThrowData(
         patternBytes.push(...pattern.map(value => value & 0xff));
         colorBytes.push(...colors.map(value => value & 0xff));
       }
+      const bitmapEntry = bitmapAtlasEntryForEntity(entity, room);
       return {
         x: clampTile(entity.position?.x, 15) * 16,
         y: clampTile(entity.position?.y, 11) * 16,
         patternOffset,
+        bitmapMode: bitmapEntry ? 1 : 0,
+        bitmapSourceX: bitmapEntry ? clampTile(bitmapEntry.sx, 255) : 0,
+        bitmapSourceRow: bitmapEntry ? clampTile(Math.floor(Number(bitmapEntry.sy || 0) / 16), 63) : 0,
       };
     }));
   const maxSlots = Math.max(0, ...roomSlots.map(slots => slots.length));
-  if (!maxSlots) return { maxSlots: 0, roomTables: [], patternBytes: [], colorBytes: [] };
+  const bitmapSlots = Math.max(0, ...roomSlots.map(slots => slots.filter(item => item.bitmapMode).length));
+  if (!maxSlots) return { maxSlots: 0, bitmapSlots: 0, roomTables: [], patternBytes: [], colorBytes: [] };
   const roomTables = roomSlots.map(slots => {
     const bytes = [slots.length & 0xff];
     for (let slot = 0; slot < maxSlots; slot++) {
       const item = slots[slot];
-      bytes.push(item?.x || 0, item?.y || 0, item?.patternOffset || 0);
+      bytes.push(item?.x || 0, item?.y || 0, item?.patternOffset || 0, item?.bitmapMode || 0, item?.bitmapSourceX || 0, item?.bitmapSourceRow || 0);
     }
     return bytes;
   });
-  return { maxSlots, roomTables, patternBytes, colorBytes };
+  return { maxSlots, bitmapSlots, roomTables, patternBytes, colorBytes };
 }
 
 export interface BitmapCarryAndThrowRuntimeOptions {
@@ -129,6 +162,8 @@ export interface BitmapCarryAndThrowRuntimeOptions {
   screenWidth: number;
   enemySlotCount: number;
   enemyPoolStride: number;
+  bitmapAtlasBaseY?: number;
+  bitmapScratchBaseY?: number;
   pauseGateAsm?: string;
 }
 
@@ -139,6 +174,7 @@ export interface BitmapCarryAndThrowSystemAsm {
   loadCallAsm: string;
   updateCallAsm: string;
   satCallAsm: string;
+  bitmapDrawCallAsm: string;
   initClearAsm: string;
   routinesAsm: string;
   dataAsm: string;
@@ -156,7 +192,9 @@ export function bitmapCarryAndThrowRamBytes(
   data: BitmapCarryAndThrowRoomData | undefined,
 ): number {
   return bitmapCarryAndThrowEnabled(config, data)
-    ? 4 + (data!.maxSlots * BITMAP_CARRY_AND_THROW_POOL_STRIDE)
+    ? BITMAP_CARRY_RAM_HEADER_BYTES
+      + (data!.maxSlots * BITMAP_CARRY_AND_THROW_POOL_STRIDE)
+      + (data!.bitmapSlots > 0 ? BITMAP_CARRY_COMMAND_BYTES : 0)
     : 0;
 }
 
@@ -167,27 +205,45 @@ export function buildBitmapCarryAndThrowEquates(
 ): string {
   if (!bitmapCarryAndThrowEnabled(config, data)) return '';
   const slots = data!.maxSlots;
-  const x = ramBase + 4;
+  const drawPage = ramBase + 4;
+  const x = ramBase + BITMAP_CARRY_RAM_HEADER_BYTES;
   const y = x + slots;
   const vx = y + slots;
   const vy = vx + slots;
   const state = vy + slots;
   const pattern = state + slots;
+  const render = pattern + slots;
+  const sourceX = render + slots;
+  const sourceRow = sourceX + slots;
+  const drawn = sourceRow + slots;
+  const oldX = drawn + slots;
+  const oldY = oldX + slots;
+  const commandBuffer = oldY + slots;
   return `; --- SCREEN 5 CARRY & THROW runtime (${bitmapCarryAndThrowRamBytes(config, data)} bytes) ---
 bitmap_carry_slot     EQU ${asmWord(ramBase)}
 bitmap_carry_lock     EQU ${asmWord(ramBase + 1)}
 bitmap_carry_cooldown EQU ${asmWord(ramBase + 2)}
 bitmap_carry_count    EQU ${asmWord(ramBase + 3)}
+bitmap_carry_draw_page EQU ${asmWord(drawPage)}
 bitmap_carry_x        EQU ${asmWord(x)}
 bitmap_carry_y        EQU ${asmWord(y)}
 bitmap_carry_vx       EQU ${asmWord(vx)}
 bitmap_carry_vy       EQU ${asmWord(vy)}
 bitmap_carry_state    EQU ${asmWord(state)}
 bitmap_carry_pattern  EQU ${asmWord(pattern)}
+bitmap_carry_render   EQU ${asmWord(render)}
+bitmap_carry_source_x EQU ${asmWord(sourceX)}
+bitmap_carry_source_row EQU ${asmWord(sourceRow)}
+bitmap_carry_drawn    EQU ${asmWord(drawn)}
+bitmap_carry_old_x    EQU ${asmWord(oldX)}
+bitmap_carry_old_y    EQU ${asmWord(oldY)}
+${data!.bitmapSlots > 0 ? `bitmap_carry_cmd_buffer EQU ${asmWord(commandBuffer)}
+` : ''}
 ; Shared HUD state. #C1FC is the classic hearts dirty byte when no linked HUD
 ; exists; linked carry HUDs disable that legacy renderer, so the byte is safe.
 bitmap_carry_held     EQU #C1FC
 BITMAP_MAX_CARRY_AND_THROW_SLOTS EQU ${slots}
+BITMAP_CARRY_BITMAP_SLOTS EQU ${data!.bitmapSlots}
 `;
 }
 
@@ -204,7 +260,7 @@ export function buildBitmapCarryAndThrowDataAsm(data: BitmapCarryAndThrowRoomDat
   return data.roomTables.map((table, index) => emitBytes(
     `bitmap_room_carry_table_${index}`,
     table,
-    `Room ${index} carryable objects: count + ${data.maxSlots} slot(s) x 3 bytes (x,y,pattern)`,
+    `Room ${index} carryable objects: count + ${data.maxSlots} slot(s) x ${BITMAP_CARRY_ROOM_RECORD_STRIDE} bytes (x,y,pattern,render,sourceX,sourceRow)`,
   )).join('')
     + `bitmap_room_carry_ptr_table:\n${data.roomTables.map((_table, index) => `    DW bitmap_room_carry_table_${index}`).join('\n')}\n`
     + emitBytes('bitmap_carry_sprite_patterns', data.patternBytes, 'SCREEN 5 carryable object patterns')
@@ -217,27 +273,41 @@ export function buildBitmapCarryAndThrowSystemAsm(
   opts: BitmapCarryAndThrowRuntimeOptions,
 ): BitmapCarryAndThrowSystemAsm {
   if (!bitmapCarryAndThrowEnabled(config, data)) {
-    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', initClearAsm: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', bitmapDrawCallAsm: '', initClearAsm: '', routinesAsm: '', dataAsm: '' };
   }
   const slots = data.maxSlots;
   const stride = BITMAP_CARRY_AND_THROW_POOL_STRIDE;
-  const poolBase = opts.ramBase + 3;
   const xOff = 0;
   const yOff = slots;
   const vxOff = slots * 2;
   const vyOff = slots * 3;
   const stateOff = slots * 4;
   const patternOff = slots * 5;
+  const renderOff = slots * 6;
+  const sourceXOff = slots * 7;
+  const sourceRowOff = slots * 8;
+  const drawnOff = slots * 9;
+  const oldXOff = slots * 10;
+  const oldYOff = slots * 11;
   const speed = asmByte(Math.max(1, Math.min(24, config!.throwSpeed)));
   const gravity = asmByte(Math.max(1, Math.min(8, config!.throwGravity)));
   const initialVy = asmByte((256 - Math.max(1, Math.min(24, config!.throwVertical))) & 0xff);
   const cooldown = asmByte(Math.max(1, Math.min(120, config!.throwCooldown)));
   const pickupRadius = Math.max(8, Math.min(32, Math.floor(config!.pickupRadius)));
+  const objectCollision = config!.objectCollision;
   const patternBase = opts.patternGroupBase * 32;
   const satStart = opts.satBase;
   const colorStart = opts.colorBase;
   const hiddenY = 0xd4;
-  const slotAddress = (offset: number, slot: number) => `bitmap_carry_${offset === xOff ? 'x' : offset === yOff ? 'y' : offset === vxOff ? 'vx' : offset === vyOff ? 'vy' : offset === stateOff ? 'state' : 'pattern'} + ${slot}`;
+  const fieldNames = new Map<number, string>([
+    [xOff, 'x'], [yOff, 'y'], [vxOff, 'vx'], [vyOff, 'vy'], [stateOff, 'state'],
+    [patternOff, 'pattern'], [renderOff, 'render'], [sourceXOff, 'source_x'],
+    [sourceRowOff, 'source_row'], [drawnOff, 'drawn'], [oldXOff, 'old_x'], [oldYOff, 'old_y'],
+  ]);
+  const slotAddress = (offset: number, slot: number) => `bitmap_carry_${fieldNames.get(offset)} + ${slot}`;
+  const bitmapEnabled = data.bitmapSlots > 0 && opts.bitmapScratchBaseY !== undefined;
+  const bitmapAtlasBaseY = Math.max(0, Math.min(1023, Math.trunc(opts.bitmapAtlasBaseY ?? 512)));
+  const bitmapScratchBaseY = Math.max(0, Math.min(1023, Math.trunc(opts.bitmapScratchBaseY ?? 0)));
 
   const loadSlots = Array.from({ length: slots }, (_unused, slot) => {
     const tableGuard = `.carry_load_slot_${slot}`;
@@ -255,8 +325,23 @@ export function buildBitmapCarryAndThrowSystemAsm(
     ld a, (ix+0)
     ld (${slotAddress(patternOff, slot)}), a
     inc ix
+    ld a, (ix+0)
+    ld (${slotAddress(renderOff, slot)}), a
+    inc ix
+    ld a, (ix+0)
+    ld (${slotAddress(sourceXOff, slot)}), a
+    inc ix
+    ld a, (ix+0)
+    ld (${slotAddress(sourceRowOff, slot)}), a
+    inc ix
     xor a
     ld (${slotAddress(stateOff, slot)}), a
+    ld (${slotAddress(drawnOff, slot)}), a
+    ld (${slotAddress(oldXOff, slot)}), a
+    ld (${slotAddress(oldYOff, slot)}), a
+    ld a, (${slotAddress(renderOff, slot)})
+    or a
+    jp nz, .carry_load_slot_${slot}_bitmap
     ld a, (${slotAddress(patternOff, slot)})
     call bitmap_carry_patterns_offset
     ld de, ${asmWord(patternVram)}
@@ -268,9 +353,16 @@ export function buildBitmapCarryAndThrowSystemAsm(
     ld bc, 16
     call copy_to_vram_ext
     jp ${tableGuard}_done
+.carry_load_slot_${slot}_bitmap:
+    ; Bitmap visuals are copied from the SCREEN 5 atlas at runtime. They do not
+    ; consume a hardware SAT pattern or colour-table slot.
+    jp ${tableGuard}_done
 .carry_load_slot_${slot}_inactive:
     ld a, #FF
     ld (${slotAddress(stateOff, slot)}), a
+    xor a
+    ld (${slotAddress(renderOff, slot)}), a
+    ld (${slotAddress(drawnOff, slot)}), a
 ${tableGuard}_done:`;
   }).join('\n');
 
@@ -291,6 +383,9 @@ ${tableGuard}_done:`;
     ld a, (bitmap_carry_state + ${slot})
     cp #FF
     jp z, .carry_sat_${slot}_hidden
+    ld a, (bitmap_carry_render + ${slot})
+    or a
+    jp nz, .carry_sat_${slot}_hidden
     ld a, (bitmap_carry_y + ${slot})
     add a, ${asmByte(opts.gameYOffset)}
     out (VDP_DATA_PORT), a
@@ -310,6 +405,160 @@ ${tableGuard}_done:`;
     out (VDP_DATA_PORT), a
 .carry_sat_${slot}_done:`;
   }).join('\n');
+
+  const bitmapCommandByte = (offset: number) => `bitmap_carry_cmd_buffer + ${offset}`;
+  const setCommandImmediate = (offset: number, value: number) => `    ld a, ${asmByte(value)}
+    ld (${bitmapCommandByte(offset)}), a
+`;
+  const setCommandMemory = (offset: number, label: string) => `    ld a, (${label})
+    ld (${bitmapCommandByte(offset)}), a
+`;
+  const setCommandWordImmediate = (offset: number, value: number) => `${setCommandImmediate(offset, value & 0xff)}${setCommandImmediate(offset + 1, (value >> 8) & 0xff)}`;
+  const setCommandSourceAtlasY = (slot: number) => `    ld a, (${slotAddress(sourceRowOff, slot)})
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    add a, ${asmByte(bitmapAtlasBaseY & 0xff)}
+    ld (${bitmapCommandByte(2)}), a
+    ld a, (${slotAddress(sourceRowOff, slot)})
+    srl a
+    srl a
+    srl a
+    srl a
+    add a, ${asmByte((bitmapAtlasBaseY >> 8) & 0xff)}
+    ld (${bitmapCommandByte(3)}), a
+`;
+  // X coordinates fed to the VDP commands are forced EVEN (and #FE): HMMM is a
+  // byte command and in SCREEN 5 it ignores bit 0 of SX/DX, while the LMMM draw
+  // is pixel-accurate. With an odd X the drawn rectangle would extend one pixel
+  // past the saved/restored rectangle, leaving a 1px column trail behind moving
+  // carryables. Masking all three commands keeps the rectangles coincident.
+  const setCommandDestinationCurrent = (slot: number) => `    ld a, (${slotAddress(xOff, slot)})
+    and #FE
+    ld (${bitmapCommandByte(4)}), a
+    xor a
+    ld (${bitmapCommandByte(5)}), a
+    ld a, (${slotAddress(yOff, slot)})
+    add a, ${asmByte(opts.gameYOffset)}
+    ld (${bitmapCommandByte(6)}), a
+    ld a, (bitmap_displayed_page)
+    ld (${bitmapCommandByte(7)}), a
+`;
+  const setCommandSourceCurrent = (slot: number) => `    ld a, (${slotAddress(xOff, slot)})
+    and #FE
+    ld (${bitmapCommandByte(0)}), a
+    xor a
+    ld (${bitmapCommandByte(1)}), a
+    ld a, (${slotAddress(yOff, slot)})
+    add a, ${asmByte(opts.gameYOffset)}
+    ld (${bitmapCommandByte(2)}), a
+    ld a, (bitmap_displayed_page)
+    ld (${bitmapCommandByte(3)}), a
+`;
+  const setCommandDestinationOld = (slot: number) => `    ld a, (${slotAddress(oldXOff, slot)})
+    and #FE
+    ld (${bitmapCommandByte(4)}), a
+    xor a
+    ld (${bitmapCommandByte(5)}), a
+    ld a, (${slotAddress(oldYOff, slot)})
+    add a, ${asmByte(opts.gameYOffset)}
+    ld (${bitmapCommandByte(6)}), a
+    ld a, (bitmap_displayed_page)
+    ld (${bitmapCommandByte(7)}), a
+`;
+  const setCommandScratchSource = (scratchY: number) => `${setCommandWordImmediate(0, 0)}${setCommandWordImmediate(2, scratchY)}`;
+  const setCommandScratchDestination = (scratchY: number) => `${setCommandWordImmediate(4, 0)}${setCommandWordImmediate(6, scratchY)}`;
+  const setCommandSizeAndOp = (command: number) => `${setCommandWordImmediate(8, 16)}${setCommandWordImmediate(10, 16)}${setCommandImmediate(12, 0)}${setCommandImmediate(13, 0)}${setCommandImmediate(14, command)}`;
+  const bitmapIssueCommandAsm = bitmapEnabled ? `
+; FUNCTION: bitmap_carry_issue_command
+; PURPOSE: Executes the 15-byte command in bitmap_carry_cmd_buffer.
+; INPUT: command buffer populated by bitmap_draw_carry_objects.
+; OUTPUT: None.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; SIDE EFFECTS: Uses VDP status 2 while waiting and restores R#15=S#0.
+bitmap_carry_issue_command:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_carry_cmd_buffer
+    ld b, 15
+.carry_cmd_write:
+    ld a, (hl)
+    out (VDP_CMD_PORT), a
+    inc hl
+    djnz .carry_cmd_write
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+` : '';
+  const bitmapDrawAsm = bitmapEnabled ? `
+${bitmapIssueCommandAsm}
+; FUNCTION: bitmap_draw_carry_objects
+; PURPOSE: Restores and redraws multicolour carryables as SCREEN 5 bitmap patches.
+; INPUT: carry runtime state and bitmap_displayed_page.
+; OUTPUT: Current page contains the active bitmap carryables.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; NOTES: Each slot uses one scratch 16x16 rectangle after the atlas. The old
+; background is restored before saving the new background and applying TIMP.
+bitmap_draw_carry_objects:
+    ld a, (bitmap_displayed_page)
+    ld b, a
+    ld a, (bitmap_carry_draw_page)
+    cp b
+    jp z, .carry_draw_page_ready
+    ld a, b
+    ld (bitmap_carry_draw_page), a
+${Array.from({ length: slots }, (_unused, slot) => `    xor a
+    ld (${slotAddress(drawnOff, slot)}), a`).join('\n')}
+.carry_draw_page_ready:
+${Array.from({ length: slots }, (_unused, slot) => {
+    const scratchY = bitmapScratchBaseY + (slot * 16);
+    const restore = `${setCommandScratchSource(scratchY)}${setCommandDestinationOld(slot)}${setCommandSizeAndOp(0xD0)}    call bitmap_carry_issue_command
+`;
+    const save = `${setCommandSourceCurrent(slot)}${setCommandScratchDestination(scratchY)}${setCommandSizeAndOp(0xD0)}    call bitmap_carry_issue_command
+`;
+    const draw = `${setCommandMemory(0, slotAddress(sourceXOff, slot))}    xor a
+    ld (${bitmapCommandByte(1)}), a
+${setCommandSourceAtlasY(slot)}${setCommandDestinationCurrent(slot)}${setCommandSizeAndOp(0x98)}    call bitmap_carry_issue_command
+`;
+    return `    ld a, (${slotAddress(renderOff, slot)})
+    or a
+    jp z, .carry_bitmap_slot_${slot}_done
+    ld a, (${slotAddress(stateOff, slot)})
+    cp #FF
+    jp z, .carry_bitmap_slot_${slot}_hide
+    ld a, (${slotAddress(drawnOff, slot)})
+    or a
+    jp z, .carry_bitmap_slot_${slot}_changed
+    ld a, (${slotAddress(oldXOff, slot)})
+    ld b, a
+    ld a, (${slotAddress(xOff, slot)})
+    cp b
+    jp nz, .carry_bitmap_slot_${slot}_changed
+    ld a, (${slotAddress(oldYOff, slot)})
+    ld b, a
+    ld a, (${slotAddress(yOff, slot)})
+    cp b
+    jp z, .carry_bitmap_slot_${slot}_done
+.carry_bitmap_slot_${slot}_changed:
+${restore}
+${save}    ld a, (${slotAddress(xOff, slot)})
+    ld (${slotAddress(oldXOff, slot)}), a
+    ld a, (${slotAddress(yOff, slot)})
+    ld (${slotAddress(oldYOff, slot)}), a
+${draw}    ld a, 1
+    ld (${slotAddress(drawnOff, slot)}), a
+    jp .carry_bitmap_slot_${slot}_done
+.carry_bitmap_slot_${slot}_hide:
+    ld a, (${slotAddress(drawnOff, slot)})
+    or a
+    jp z, .carry_bitmap_slot_${slot}_done
+${restore}    xor a
+    ld (${slotAddress(drawnOff, slot)}), a
+.carry_bitmap_slot_${slot}_done:`;
+  }).join('\n')}
+    ret
+` : '';
 
   const enemyCollision = opts.enemySlotCount > 0 && config!.enemyCollision
     ? `
@@ -385,6 +634,8 @@ bitmap_load_carry_objects:
     ld (bitmap_carry_cooldown), a
     ld (bitmap_carry_held), a
     ld a, #FF
+    ld (bitmap_carry_draw_page), a
+    ld a, #FF
     ld (bitmap_carry_slot), a
 ${loadSlots}
     ld a, #FF
@@ -455,7 +706,13 @@ bitmap_carry_pickup_probe:
 bitmap_carry_step:
     ld a, (ix+${stateOff})
     cp 2
+    jp z, .carry_step_active
+    ; State 3 is the launch frame. It follows the same ballistic update,
+    ; but skips the initial solid probe so the object cannot collide with the
+    ; player's support cell before it has visibly left the player.
+    cp 3
     ret nz
+.carry_step_active:
     ld a, (ix+${vxOff})
     bit 7, a
     jp nz, .carry_step_left
@@ -492,6 +749,9 @@ bitmap_carry_step:
     ld a, (ix+${vyOff})
     add a, ${gravity}
     ld (ix+${vyOff}), a
+    ld a, (ix+${stateOff})
+    cp 3
+    jp z, .carry_step_launch_done
     ld a, (ix+${yOff})
     cp 176
     jp nc, .carry_step_land
@@ -502,13 +762,18 @@ bitmap_carry_step:
     ld a, (ix+${yOff})
     add a, 8
     ld c, a
-    call bitmap_probe_solid
+${objectCollision ? `    call bitmap_probe_solid
     pop ix
     or a
     jp nz, .carry_step_land
-    call bitmap_carry_check_enemy_collision
+` : `    pop ix
+`}${objectCollision ? '' : ''}    call bitmap_carry_check_enemy_collision
     or a
     ret z
+.carry_step_launch_done:
+    ld a, 2
+    ld (ix+${stateOff}), a
+    ret
 .carry_step_land:
     ld a, (ix+${yOff})
     cp 176
@@ -543,6 +808,20 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_carry_cooldown)
     jp z, .carry_try_pickup
     ld e, a
     ld d, 0
+    ; A held object must keep its last carried position when the throw is
+    ; accepted. The old order followed the player first, so player movement
+    ; in this frame teleported the launch origin before the arc started.
+    call bitmap_carry_and_throw_pressed
+    or a
+    jp z, .carry_follow_player
+    ld a, (bitmap_carry_lock)
+    or a
+    jp nz, .carry_follow_player
+    ld a, (bitmap_carry_cooldown)
+    or a
+    jp nz, .carry_follow_player
+    jp .carry_throw
+.carry_follow_player:
     ld hl, bitmap_carry_x
     add hl, de
     ld a, (player_x)
@@ -555,15 +834,8 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_carry_cooldown)
     xor a
 .carry_follow_y_ok:
     ld (hl), a
-    call bitmap_carry_and_throw_pressed
-    or a
-    jp z, .carry_update_phases
-    ld a, (bitmap_carry_lock)
-    or a
-    jp nz, .carry_update_phases
-    ld a, (bitmap_carry_cooldown)
-    or a
-    jp nz, .carry_update_phases
+    jp .carry_update_phases
+.carry_throw:
     ld a, (bitmap_carry_slot)
     ld e, a
     ld d, 0
@@ -583,7 +855,7 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_carry_cooldown)
     ld (hl), a
     ld hl, bitmap_carry_state
     add hl, de
-    ld (hl), 2
+    ld (hl), 3
     ld a, #FF
     ld (bitmap_carry_slot), a
     xor a
@@ -624,6 +896,7 @@ ${phaseCalls}
     ret
 
 ${enemyCollision}
+${bitmapDrawAsm}
 
 ; FUNCTION: bitmap_update_carry_sat
 ; PURPOSE: Appends carryable object sprites to the SCREEN 5 SAT stream.
@@ -670,6 +943,7 @@ ${satSlots}
     loadCallAsm: '    call bitmap_load_carry_objects\n',
     updateCallAsm: '    call update_bitmap_carry_and_throw\n',
     satCallAsm: '    call bitmap_update_carry_sat\n',
+    bitmapDrawCallAsm: bitmapEnabled ? '    call bitmap_draw_carry_objects\n' : '',
     initClearAsm: '',
     routinesAsm,
     dataAsm: buildBitmapCarryAndThrowDataAsm(data),

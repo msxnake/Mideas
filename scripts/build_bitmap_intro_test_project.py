@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a bitmap-room GameFlow intro test project.
 
-Takes test/newOne25_ice_slide.json (bitmap world + 'screen4-bitmap-runtime'
+Takes test/newOne31_start_room4.json (bitmap world + 'screen4-bitmap-runtime'
 GameFlow) and inserts a synthetic SCREEN 5 presentation scene + Transition
 between Start and WorldLink:
 
@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "test" / "newOne25_ice_slide.json"
+SOURCE = ROOT / "test" / "newOne31_start_room4.json"
 OUT_DIR = ROOT / "test" / "msx2-bitmap-intro"
 OUT_JSON = OUT_DIR / "bitmap_intro_test.json"
 
