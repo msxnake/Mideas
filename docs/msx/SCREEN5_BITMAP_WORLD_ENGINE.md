@@ -84,6 +84,17 @@ Portada de SCREEN 4 (`msx2_try_world_edge_transition_*`):
 
 ## Gotchas / bugs resueltos
 
+- **Presentación negra con fragmentos por IRQ tras `CHGMOD` (2026-07-14)** — la BIOS puede
+  devolver el control de `CHGMOD` con interrupciones activadas aunque `init_rom` empezara con
+  `DI`. El intro usa el command engine, que selecciona temporalmente S#2 mediante R#15; si la
+  IRQ de BIOS entra durante la descompresión RLE, no reconoce/limpia el VBlank y provoca una
+  tormenta de interrupciones. Síntoma: solo aparecen unas líneas de la presentación y el resto
+  queda negro. Fix: ejecutar `DI` inmediatamente después de `CHGMOD` en
+  `init_screen5_bitmap_vdp` y repetir `DI` tras `ENASCR`; el runtime bitmap sincroniza por
+  polling y restaura R#15 cuando toca.
+- **Sprites 8x8 después de la presentación (2026-07-14)** — `ENASCR` restaura R#1 desde la
+  sombra BIOS (`#60` en SCREEN 5) y pisa el `#62` configurado al inicializar el VDP. Reaplicar
+  R#1=`#62` justo después de `ENASCR` mantiene los sprites hardware en 16x16.
 - **`load_room` colisión basura por clobber de DE (2026-06-20)** — `replay_room_commands`
   destruye `DE` (vía `vdp_reinit_cmd_pointer` que hace `ld e,#20`); `load_room` no debe
   reutilizar `DE` como índice de room tras llamarlo. Síntoma: player amurallado, sin gravedad,
