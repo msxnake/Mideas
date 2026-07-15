@@ -802,7 +802,7 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                         {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                       </select>
                     </Field>
-                    <Field label="Separation" suffix="px"><SmallNumber value={enemy.attack.turretMinSeparation ?? 8} min={4} max={32} onChange={value => patch({ attack: { ...enemy.attack, turretMinSeparation: value } })} /></Field>
+                    <Field label="Separation" suffix="px"><SmallNumber value={enemy.attack.turretMinSeparation ?? 8} min={0} max={32} onChange={value => patch({ attack: { ...enemy.attack, turretMinSeparation: value } })} /></Field>
                     <Field label="Centre Angle" suffix="deg"><SmallNumber value={enemy.attack.turretBaseAngle ?? 0} min={0} max={359} onChange={value => patch({ attack: { ...enemy.attack, turretBaseAngle: value } })} /></Field>
                     <Field label="Max Opening" suffix="deg"><SmallNumber value={enemy.attack.turretMaxAngle ?? 360} min={0} max={360} onChange={value => patch({ attack: { ...enemy.attack, turretMaxAngle: value } })} /></Field>
                     <Field label="Fire Rate" suffix="frames"><SmallNumber value={enemy.attack.fireRate ?? 60} min={1} max={255} onChange={value => patch({ attack: { ...enemy.attack, fireRate: value } })} /></Field>

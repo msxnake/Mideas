@@ -10353,7 +10353,7 @@ function buildBitmapRoomTurretData(analysis: ProjectAnalysis, rooms: Msx2Screen5
         headColor: head.colorOff,
         baseDir: ((Math.round(baseAngle / 45) % 8) + 8) % 8,
         halfArc: maxAngle >= 360 ? 4 : Math.max(0, Math.min(4, Math.floor(maxAngle / 90))),
-        separation: Math.max(4, Math.min(32, Math.floor(Number(ai.turretMinSeparation ?? params.turretMinSeparation ?? attack.turretMinSeparation ?? 8)))),
+        separation: Math.max(0, Math.min(32, Math.floor(Number(attack.turretMinSeparation ?? ai.turretMinSeparation ?? params.turretMinSeparation ?? 8)))),
         fireRate: Math.max(1, Math.min(255, Math.floor(Number(ai.fireRate ?? params.turretFireRate ?? attack.fireRate ?? 60)))),
         bulletSpeed: Math.max(1, Math.min(8, Math.floor(Number(ai.bulletSpeed ?? params.turretBulletSpeed ?? attack.bulletSpeed ?? 2)))),
       };

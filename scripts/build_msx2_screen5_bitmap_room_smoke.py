@@ -591,7 +591,7 @@ def inject_aimed_turret(project: dict[str, object]) -> None:
                 "turretBaseSpriteId": "smoke_turret_centre",
                 "turretHeadSpriteId": "smoke_turret_aim",
                 "bulletSpriteId": "smoke_turret_bullet",
-                "turretMinSeparation": 8,
+                "turretMinSeparation": 3,
                 "turretBaseAngle": 180,
                 "turretMaxAngle": 180,
                 "fireRate": 30,
@@ -614,9 +614,9 @@ def inject_aimed_turret(project: dict[str, object]) -> None:
             "msx2_transform": {"tileX": 12, "tileY": 5, "pixelX": 192, "pixelY": 80},
             "msx2_movement": {"mode": "static", "direction": 1, "speed": 0},
             "msx2_hardware_sprite": {"msx2SpriteAssetId": "smoke_turret_centre", "visible": True},
-            "msx2_ai": {"turretAim": True},
+            "msx2_ai": {"turretAim": True, "turretMinSeparation": 8},
         },
-        "params": {"runtime": "MSX2", "enemyAssetId": "smoke_turret_enemy", "enemyTurretAim": True},
+        "params": {"runtime": "MSX2", "enemyAssetId": "smoke_turret_enemy", "enemyTurretAim": True, "turretMinSeparation": 8},
     })
 
 
@@ -1199,6 +1199,10 @@ def main() -> int:
         ):
             if marker not in asm_text:
                 raise RuntimeError(f"Aimed turret marker missing in ASM: {marker}")
+        turret_table = re.search(r"bitmap_room_turret_table_0:\s+DB ([^\r\n]+)", asm_text)
+        turret_bytes = [value.strip() for value in turret_table.group(1).split(",")] if turret_table else []
+        if len(turret_bytes) < 8 or turret_bytes[7] != "#03":
+            raise RuntimeError("Aimed turret Separation=3 was not preserved in the generated room table.")
 
     if not args.skip_openmsx:
         probe_output = screenshot_output.with_suffix(".probe.txt")
