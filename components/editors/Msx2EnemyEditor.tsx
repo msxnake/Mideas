@@ -36,7 +36,7 @@ const navItems = [
 
 type EnemyConfigSection = typeof navItems[number];
 
-const BEHAVIOR_OPTIONS: EnemyBehaviorType[] = ['None', 'PatrolHorizontal', 'WalkerTurnOnEdge', 'FlyerSine', 'BounceDiagonal', 'Jumper', 'HopperTowardsPlayer', 'ShooterStatic', 'ChaseHorizontal', 'DropFromCeiling', 'EmergeFromGround', 'CustomBehavior'];
+const BEHAVIOR_OPTIONS: EnemyBehaviorType[] = ['None', 'PatrolHorizontal', 'WalkerTurnOnEdge', 'FlyerSine', 'BounceDiagonal', 'Jumper', 'HopperTowardsPlayer', 'ShooterStatic', 'TurretAim', 'ChaseHorizontal', 'SlimeCeiling', 'DropFromCeiling', 'EmergeFromGround', 'CustomBehavior'];
 const ATTACK_OPTIONS: EnemyAttackType[] = ['None', 'DamageOnTouch', 'ShooterStatic', 'ProjectileEmitter', 'MeleeBox', 'ExplosionOnTouch'];
 const CATEGORY_OPTIONS: EnemyCategory[] = ['simpleEnemy', 'boss', 'hazard', 'projectileLike'];
 const SCOPE_OPTIONS: EnemyLibraryScope[] = ['common', 'perWorld', 'boss'];
@@ -270,6 +270,9 @@ const validateEnemy = (enemy: EnemyDefinition, allAssets: ProjectAsset[]): strin
   if (roles.some(role => role.spriteId && !allAssets.some(asset => asset.id === role.spriteId))) issues.push('A render role references a missing sprite.');
   if (roles.some(role => role.frames.length === 0)) issues.push('Every render role needs at least one frame.');
   if (enemy.attack.bulletSpriteId && !allAssets.some(asset => asset.id === enemy.attack.bulletSpriteId)) issues.push('The Bullet Sprite references a missing sprite.');
+  if (enemy.behavior.type === 'TurretAim' && !String(enemy.attack.turretHeadSpriteId || '').trim()) issues.push('TurretAim requires an Aim Sprite.');
+  if (enemy.attack.turretBaseSpriteId && !allAssets.some(asset => asset.id === enemy.attack.turretBaseSpriteId)) issues.push('The Turret Centre Sprite references a missing sprite.');
+  if (enemy.attack.turretHeadSpriteId && !allAssets.some(asset => asset.id === enemy.attack.turretHeadSpriteId)) issues.push('The Turret Aim Sprite references a missing sprite.');
   if (enemy.hitboxes.body.w <= 0 || enemy.hitboxes.body.h <= 0) issues.push('Body hitbox must have width and height.');
   if (enemy.budget.sprites > 4) issues.push('Sprite budget is high for MSX2 hardware sprites.');
   return issues;
@@ -697,6 +700,8 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
               <Field label="Custom Routine"><input className={inputClass} value={enemy.behavior.customRoutine || ''} onChange={event => patch({ behavior: { ...enemy.behavior, customRoutine: event.target.value } })} /></Field>
               <div className="rounded border border-slate-700 bg-[#111821] p-3 text-xs text-slate-300">
                 `FlyerSine` is the recommended movement for Bat Enemy. `PatrolHorizontal` and `WalkerTurnOnEdge` are cheaper for ground enemies.
+                `SlimeCeiling` crawls along the floor, hops to the ceiling every N px (Slime hop distance on the placed entity) and sticks upside down, then drops back and repeats.
+                `TurretAim` uses two round hardware sprites, tracks the Player in 8 directions and fires only while the Player is inside its configured aiming arc.
               </div>
               <div className="space-y-2 rounded border border-slate-700 bg-[#111821] p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -778,6 +783,33 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
               <div className="text-[11px] text-slate-500">
                 Bullet Sprite is the graphic/animation linked to this enemy's firing routine. Leave it on <span className="text-slate-300">None</span> if this enemy never shoots. The firing trigger (e.g. the drop-bomb check below) decides when it fires.
               </div>
+              {enemy.behavior.type === 'TurretAim' && (
+                <div className="space-y-3 rounded border border-cyan-800/70 bg-cyan-950/20 p-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-cyan-200">Aimed Turret (SCREEN 5)</div>
+                    <div className="text-[11px] text-slate-400">Two round hardware sprites show the aim in 8 hardware directions. The bullet itself follows the exact signed vector from turret to Player at the configured speed. Tiles do not block vision, but the fired bullet is removed when it later hits a collision tile.</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Centre Sprite">
+                      <select className={selectClass} value={enemy.attack.turretBaseSpriteId || enemy.render.spriteId || ''} onChange={event => patch({ attack: { ...enemy.attack, turretBaseSpriteId: event.target.value || undefined } })}>
+                        <option value="">Use Default Sprite</option>
+                        {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Aim Sprite">
+                      <select className={selectClass} value={enemy.attack.turretHeadSpriteId || ''} onChange={event => patch({ attack: { ...enemy.attack, turretHeadSpriteId: event.target.value || undefined } })}>
+                        <option value="">Select sprite</option>
+                        {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Separation" suffix="px"><SmallNumber value={enemy.attack.turretMinSeparation ?? 8} min={4} max={32} onChange={value => patch({ attack: { ...enemy.attack, turretMinSeparation: value } })} /></Field>
+                    <Field label="Centre Angle" suffix="deg"><SmallNumber value={enemy.attack.turretBaseAngle ?? 0} min={0} max={359} onChange={value => patch({ attack: { ...enemy.attack, turretBaseAngle: value } })} /></Field>
+                    <Field label="Max Opening" suffix="deg"><SmallNumber value={enemy.attack.turretMaxAngle ?? 360} min={0} max={360} onChange={value => patch({ attack: { ...enemy.attack, turretMaxAngle: value } })} /></Field>
+                    <Field label="Fire Rate" suffix="frames"><SmallNumber value={enemy.attack.fireRate ?? 60} min={1} max={255} onChange={value => patch({ attack: { ...enemy.attack, fireRate: value } })} /></Field>
+                    <Field label="Bullet Speed" suffix="px/frame"><SmallNumber value={enemy.attack.bulletSpeed ?? 2} min={1} max={8} onChange={value => patch({ attack: { ...enemy.attack, bulletSpeed: value } })} /></Field>
+                  </div>
+                </div>
+              )}
               <div className="rounded border border-slate-700 bg-[#111821] p-3">
                 <Checkbox
                   label="Drop bomb when aligned with player X"

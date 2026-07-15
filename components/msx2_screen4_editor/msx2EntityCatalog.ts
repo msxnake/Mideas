@@ -109,7 +109,7 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     paletteSlot: { label: 'Box palette', min: 1, max: 15, ariaLabel: 'MSX2 PushBox palette slot' },
   },
   msx2_movement: {
-    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
+    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'slimeCeiling', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
     speed: { label: 'Speed', min: 0, max: 15 },
     direction: { label: 'Direction', min: -1, max: 1 },
     minX: { label: 'Min X', min: 0, max: 255 },
@@ -117,6 +117,7 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     minY: { label: 'Min Y', min: 0, max: 191 },
     maxY: { label: 'Max Y', min: 0, max: 191 },
     boundsUnit: { kind: 'select', options: ['tile', 'px'] },
+    travelPx: { label: 'Slime hop distance (px)', min: 4, max: 255 },
   },
   msx2_collision: {
     hitboxW: { label: 'Hitbox width', min: 1, max: 32 },
@@ -299,6 +300,7 @@ export type Msx2RuntimeEngine =
   | 'patrolX'
   | 'patrolChaseX'
   | 'walkerGravity'
+  | 'slimeCeiling'
   | 'patrolY'
   | 'movingPlatform'
   | 'hazard'
@@ -614,6 +616,7 @@ export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
   { value: 'patrolX', label: 'Patrol X' },
   { value: 'patrolChaseX', label: 'Patrol Chase X' },
   { value: 'walkerGravity', label: 'Walker Gravity' },
+  { value: 'slimeCeiling', label: 'Slime Ceiling' },
   { value: 'patrolY', label: 'Patrol Y' },
   { value: 'ghostMaze', label: 'Ghost Maze' },
 ] as const;
@@ -770,6 +773,24 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_collision: { damage: 1 },
     },
     params: { runtime: 'MSX2', engine: 'walkerGravity', movement: 'walkerGravity', direction: 1 },
+  },
+  {
+    id: 'slime_ceiling',
+    label: 'MSX2 Slime Ceiling',
+    kind: 'enemy',
+    runtime: 'MSX2',
+    engine: 'slimeCeiling',
+    description: 'Slime that crawls along the floor, hops to the ceiling every N px and sticks upside down, then drops back and repeats. Turns at walls and patrol bounds.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_animation: { animation: 'slime_crawl', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
+      msx2_movement: { mode: 'slimeCeiling', direction: 1, travelPx: 48 },
+      msx2_health: {},
+      msx2_damage: {},
+      msx2_collision: { damage: 1 },
+    },
+    params: { runtime: 'MSX2', engine: 'slimeCeiling', movement: 'slimeCeiling', direction: 1, travelPx: 48 },
   },
   {
     id: 'patrol_y',
@@ -1257,6 +1278,7 @@ export function mapEnemyBehaviorToMovementMode(
     case 'Jumper': return { movementName: 'jumper', implemented: true };
     case 'BounceDiagonal': return { movementName: 'ballBounce', implemented: true };
     case 'ChaseHorizontal': return { movementName: 'chaseH', implemented: true };
+    case 'TurretAim': return { movementName: 'static', implemented: true };
     case 'None': return { movementName: 'static', implemented: true };
     // HopperTowardsPlayer / DropFromCeiling / EmergeFromGround / ShooterStatic /
     // CustomBehavior: no runtime movement yet -> stationary fallback.
@@ -1318,7 +1340,8 @@ export function buildMsx2EnemyEntityFromAsset(
   const roleFrames = Array.isArray(renderRole?.frames) && renderRole.frames.length ? renderRole.frames : [0];
   const spriteId = renderRole?.spriteId || def.render?.spriteId || '';
   const dropBombOnPlayerX = Boolean(def.attack?.dropBombOnPlayerX);
-  const aiComponent = (stateSwitch || dropBombOnPlayerX) ? {
+  const turretAim = def.behavior?.type === 'TurretAim';
+  const aiComponent = (stateSwitch || dropBombOnPlayerX || turretAim) ? {
     ...(stateSwitch ? {
       engine: 'stateSwitch',
       trigger: 'playerNear',
@@ -1329,6 +1352,17 @@ export function buildMsx2EnemyEntityFromAsset(
       rangeY: stateSwitch.rangeY,
     } : {}),
     ...(dropBombOnPlayerX ? { dropBombOnPlayerX: true } : {}),
+    ...(turretAim ? {
+      turretAim: true,
+      turretBaseSpriteId: def.attack?.turretBaseSpriteId || def.render?.spriteId || '',
+      turretHeadSpriteId: def.attack?.turretHeadSpriteId || '',
+      turretMinSeparation: def.attack?.turretMinSeparation ?? 8,
+      turretBaseAngle: def.attack?.turretBaseAngle ?? 0,
+      turretMaxAngle: def.attack?.turretMaxAngle ?? 360,
+      fireRate: def.attack?.fireRate ?? 60,
+      bulletSpeed: def.attack?.bulletSpeed ?? 2,
+      bulletSpriteId: def.attack?.bulletSpriteId || '',
+    } : {}),
   } : undefined;
   return {
     id: `msx2_enemy_${Date.now()}`,
@@ -1366,6 +1400,17 @@ export function buildMsx2EnemyEntityFromAsset(
         enemyStateRangeY: stateSwitch.rangeY,
       } : {}),
       ...(dropBombOnPlayerX ? { enemyDropBombOnPlayerX: true } : {}),
+      ...(turretAim ? {
+        enemyTurretAim: true,
+        turretBaseSpriteId: def.attack?.turretBaseSpriteId || def.render?.spriteId || '',
+        turretHeadSpriteId: def.attack?.turretHeadSpriteId || '',
+        turretMinSeparation: def.attack?.turretMinSeparation ?? 8,
+        turretBaseAngle: def.attack?.turretBaseAngle ?? 0,
+        turretMaxAngle: def.attack?.turretMaxAngle ?? 360,
+        turretFireRate: def.attack?.fireRate ?? 60,
+        turretBulletSpeed: def.attack?.bulletSpeed ?? 2,
+        turretBulletSpriteId: def.attack?.bulletSpriteId || '',
+      } : {}),
     },
   };
 }

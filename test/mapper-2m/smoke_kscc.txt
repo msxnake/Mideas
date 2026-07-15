@@ -1,0 +1,2 @@
+in_game pos=(147,144)
+after_right pos=(195,144)

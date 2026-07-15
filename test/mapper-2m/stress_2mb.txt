@@ -1,0 +1,19 @@
+done_marker=0x77 (expect 0x77)
+byte0=4 expect=4 OK
+byte1=251 expect=251 OK
+byte2=62 expect=62 OK
+byte3=193 expect=193 OK
+byte4=64 expect=64 OK
+byte5=191 expect=191 OK
+byte6=100 expect=100 OK
+byte7=155 expect=155 OK
+byte8=128 expect=128 OK
+byte9=127 expect=127 OK
+byte10=190 expect=190 OK
+byte11=65 expect=65 OK
+byte12=192 expect=192 OK
+byte13=63 expect=63 OK
+byte14=254 expect=254 OK
+byte15=1 expect=1 OK
+scc_readback=0xAA,0x55 (expect 0xAA,0x55)
+RESULT: PASS

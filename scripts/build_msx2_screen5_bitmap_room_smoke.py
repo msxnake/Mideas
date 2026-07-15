@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Link a msx2hud asset with a playerEnergy bar (dynamic HMMV) to room A.",
     )
+    parser.add_argument(
+        "--include-aimed-turret",
+        action="store_true",
+        help="Add a two-hardware-sprite TurretAim enemy and compile its shared diagonal bullet runtime.",
+    )
     parser.add_argument("--boot-wait-ms", type=int, default=8000, help="Wait before screenshot")
     return parser.parse_args()
 
@@ -558,6 +563,63 @@ def enable_all_bitmap_skills(project: dict[str, object]) -> None:
         ]
 
 
+def inject_aimed_turret(project: dict[str, object]) -> None:
+    """Add a TurretAim Enemy Asset plus a placed room entity for ASM smoke tests."""
+    source_sprite = next(asset for asset in project["assets"] if asset.get("id") == "smoke_player_sprite")
+    for sprite_id, name in (
+        ("smoke_turret_centre", "Smoke Turret Centre"),
+        ("smoke_turret_aim", "Smoke Turret Aim"),
+        ("smoke_turret_bullet", "Smoke Turret Bullet"),
+    ):
+        sprite = copy.deepcopy(source_sprite)
+        sprite["id"] = sprite_id
+        sprite["name"] = name
+        sprite["data"]["id"] = sprite_id
+        sprite["data"]["name"] = name
+        sprite["data"]["frames"] = sprite["data"]["frames"][:1]
+        project["assets"].append(sprite)
+    enemy_asset = {
+        "id": "smoke_turret_enemy",
+        "name": "Smoke Aimed Turret",
+        "type": "msx2enemy",
+        "data": {
+            "enemyId": "smoke_aimed_turret",
+            "name": "Smoke Aimed Turret",
+            "behavior": {"type": "TurretAim"},
+            "attack": {
+                "type": "ShooterStatic",
+                "turretBaseSpriteId": "smoke_turret_centre",
+                "turretHeadSpriteId": "smoke_turret_aim",
+                "bulletSpriteId": "smoke_turret_bullet",
+                "turretMinSeparation": 8,
+                "turretBaseAngle": 180,
+                "turretMaxAngle": 180,
+                "fireRate": 30,
+                "bulletSpeed": 2,
+            },
+            "render": {"renderMode": "hardwareSprite", "spriteId": "smoke_turret_centre", "size": "16x16", "palette": "", "animations": {}},
+            "hitboxes": {"body": {"x": 0, "y": 0, "w": 16, "h": 16}, "damage": {"x": 0, "y": 0, "w": 16, "h": 16}},
+            "stats": {"hp": 1, "damage": 0},
+        },
+    }
+    project["assets"].append(enemy_asset)
+    room = next(asset["data"] for asset in project["assets"] if asset.get("type") == "msx2bitmaproom")
+    room.setdefault("entities", []).append({
+        "id": "placed_smoke_turret",
+        "name": "Smoke Aimed Turret",
+        "kind": "enemy",
+        "position": {"x": 12, "y": 5},
+        "spriteAssetId": "smoke_turret_centre",
+        "components": {
+            "msx2_transform": {"tileX": 12, "tileY": 5, "pixelX": 192, "pixelY": 80},
+            "msx2_movement": {"mode": "static", "direction": 1, "speed": 0},
+            "msx2_hardware_sprite": {"msx2SpriteAssetId": "smoke_turret_centre", "visible": True},
+            "msx2_ai": {"turretAim": True},
+        },
+        "params": {"runtime": "MSX2", "enemyAssetId": "smoke_turret_enemy", "enemyTurretAim": True},
+    })
+
+
 def render_smoke_room_data(room: dict[str, object]) -> list[list[int]]:
     width = int(room["width"])
     height = int(room["height"])
@@ -1038,6 +1100,8 @@ def main() -> int:
         enable_all_bitmap_skills(project)
     if args.include_linked_hud_bar:
         inject_linked_hud_bar(project)
+    if args.include_aimed_turret:
+        inject_aimed_turret(project)
     validate_bitmap_palette_indices(render_smoke_bitmap_room(project))
 
     json_output.parent.mkdir(parents=True, exist_ok=True)
@@ -1118,6 +1182,23 @@ def main() -> int:
         ):
             if forbidden in asm_text:
                 raise RuntimeError(f"Linked HUD asset must disable the automatic hearts HUD, but ASM still contains: {forbidden}")
+    if args.include_aimed_turret:
+        for marker in (
+            "bitmap_load_turrets:",
+            "bitmap_update_turrets:",
+            "bitmap_turret_choose_direction:",
+            "bitmap_turret_step_bullet:",
+            "bitmap_turret_step_vector_pixel:",
+            "bitmap_turret_bullet_hits_player:",
+            "bitmap_update_turret_sat:",
+            "bitmap_turret_bullet_active EQU",
+            "bitmap_turret_bullet_abs_dx EQU",
+            "bitmap_turret_bullet_abs_dy EQU",
+            "bitmap_turret_bullet_speed  EQU",
+            "Single shared enemy bullet pattern",
+        ):
+            if marker not in asm_text:
+                raise RuntimeError(f"Aimed turret marker missing in ASM: {marker}")
 
     if not args.skip_openmsx:
         probe_output = screenshot_output.with_suffix(".probe.txt")

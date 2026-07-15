@@ -1,0 +1,1352 @@
+; 2MB Konami SCC mapper stress ROM (synthetic, generated)
+RSLREG  EQU #0138
+ENASLT  EQU #0024
+
+    org #4000
+STRESS_BANK0_PHYS_START:
+    db "AB"
+    dw init_rom
+    dw 0
+    dw 0
+    dw 0
+    dw 0
+    dw 0
+    dw 0
+
+init_rom:
+    di
+    ld sp, #F380
+    call map_page2_to_cart_primary
+    ; Konami SCC resident bank init (same as generator)
+    xor a
+    ld (#5000), a
+    ld a, 1
+    ld (#7000), a
+    ld a, 2
+    ld (#9000), a
+    ld a, 3
+    ld (#B000), a
+    ; Read the [bank, 255-bank] signature of each test bank through P2
+    ld hl, test_bank_list
+    ld de, #C000
+.bank_loop:
+    ld a, (hl)
+    cp #FF
+    jp z, .scc_test
+    ld (#9000), a
+    push hl
+    ld hl, (#8000)
+    ld a, l
+    ld (de), a
+    inc de
+    ld a, h
+    ld (de), a
+    inc de
+    pop hl
+    inc hl
+    jp .bank_loop
+.scc_test:
+    ; Bank #3F in P2 exposes the SCC: waveform RAM #9800 must read back
+    ld a, #3F
+    ld (#9000), a
+    ld a, #AA
+    ld (#9800), a
+    ld a, (#9800)
+    ld (de), a
+    inc de
+    ld a, #55
+    ld (#9800), a
+    ld a, (#9800)
+    ld (de), a
+    ; Done marker
+    ld a, #77
+    ld (#C0FF), a
+.halt_loop:
+    jp .halt_loop
+
+map_page2_to_cart_primary:
+    call RSLREG
+    rrca
+    rrca
+    call get_cart_slot_value
+    ld h, #80
+    jp ENASLT
+
+get_cart_slot_value:
+    and #03
+    ld c, a
+    ld b, 0
+    ld hl, #FCC1
+    add hl, bc
+    ld a, (hl)
+    and #80
+    jp z, .slot_ready
+    or c
+    ld c, a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    ld a, (hl)
+    and #0C
+.slot_ready:
+    or c
+    ret
+
+test_bank_list:
+    db 4, 62, 64, 100, 128, 190, 192, 254, #FF
+    ds #6000 - $, #FF
+; banks 1-3: resident padding
+    ds #2000, #FF
+    ds #2000, #FF
+    ds #2000, #FF
+
+STRESS_DATA_BANK_4_PHYS_START:
+    org #8000
+    db 4, 251
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_4_PHYS_START + #2000
+STRESS_DATA_BANK_5_PHYS_START:
+    org #8000
+    db 5, 250
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_5_PHYS_START + #2000
+STRESS_DATA_BANK_6_PHYS_START:
+    org #8000
+    db 6, 249
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_6_PHYS_START + #2000
+STRESS_DATA_BANK_7_PHYS_START:
+    org #8000
+    db 7, 248
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_7_PHYS_START + #2000
+STRESS_DATA_BANK_8_PHYS_START:
+    org #8000
+    db 8, 247
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_8_PHYS_START + #2000
+STRESS_DATA_BANK_9_PHYS_START:
+    org #8000
+    db 9, 246
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_9_PHYS_START + #2000
+STRESS_DATA_BANK_10_PHYS_START:
+    org #8000
+    db 10, 245
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_10_PHYS_START + #2000
+STRESS_DATA_BANK_11_PHYS_START:
+    org #8000
+    db 11, 244
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_11_PHYS_START + #2000
+STRESS_DATA_BANK_12_PHYS_START:
+    org #8000
+    db 12, 243
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_12_PHYS_START + #2000
+STRESS_DATA_BANK_13_PHYS_START:
+    org #8000
+    db 13, 242
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_13_PHYS_START + #2000
+STRESS_DATA_BANK_14_PHYS_START:
+    org #8000
+    db 14, 241
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_14_PHYS_START + #2000
+STRESS_DATA_BANK_15_PHYS_START:
+    org #8000
+    db 15, 240
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_15_PHYS_START + #2000
+STRESS_DATA_BANK_16_PHYS_START:
+    org #8000
+    db 16, 239
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_16_PHYS_START + #2000
+STRESS_DATA_BANK_17_PHYS_START:
+    org #8000
+    db 17, 238
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_17_PHYS_START + #2000
+STRESS_DATA_BANK_18_PHYS_START:
+    org #8000
+    db 18, 237
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_18_PHYS_START + #2000
+STRESS_DATA_BANK_19_PHYS_START:
+    org #8000
+    db 19, 236
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_19_PHYS_START + #2000
+STRESS_DATA_BANK_20_PHYS_START:
+    org #8000
+    db 20, 235
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_20_PHYS_START + #2000
+STRESS_DATA_BANK_21_PHYS_START:
+    org #8000
+    db 21, 234
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_21_PHYS_START + #2000
+STRESS_DATA_BANK_22_PHYS_START:
+    org #8000
+    db 22, 233
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_22_PHYS_START + #2000
+STRESS_DATA_BANK_23_PHYS_START:
+    org #8000
+    db 23, 232
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_23_PHYS_START + #2000
+STRESS_DATA_BANK_24_PHYS_START:
+    org #8000
+    db 24, 231
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_24_PHYS_START + #2000
+STRESS_DATA_BANK_25_PHYS_START:
+    org #8000
+    db 25, 230
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_25_PHYS_START + #2000
+STRESS_DATA_BANK_26_PHYS_START:
+    org #8000
+    db 26, 229
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_26_PHYS_START + #2000
+STRESS_DATA_BANK_27_PHYS_START:
+    org #8000
+    db 27, 228
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_27_PHYS_START + #2000
+STRESS_DATA_BANK_28_PHYS_START:
+    org #8000
+    db 28, 227
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_28_PHYS_START + #2000
+STRESS_DATA_BANK_29_PHYS_START:
+    org #8000
+    db 29, 226
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_29_PHYS_START + #2000
+STRESS_DATA_BANK_30_PHYS_START:
+    org #8000
+    db 30, 225
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_30_PHYS_START + #2000
+STRESS_DATA_BANK_31_PHYS_START:
+    org #8000
+    db 31, 224
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_31_PHYS_START + #2000
+STRESS_DATA_BANK_32_PHYS_START:
+    org #8000
+    db 32, 223
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_32_PHYS_START + #2000
+STRESS_DATA_BANK_33_PHYS_START:
+    org #8000
+    db 33, 222
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_33_PHYS_START + #2000
+STRESS_DATA_BANK_34_PHYS_START:
+    org #8000
+    db 34, 221
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_34_PHYS_START + #2000
+STRESS_DATA_BANK_35_PHYS_START:
+    org #8000
+    db 35, 220
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_35_PHYS_START + #2000
+STRESS_DATA_BANK_36_PHYS_START:
+    org #8000
+    db 36, 219
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_36_PHYS_START + #2000
+STRESS_DATA_BANK_37_PHYS_START:
+    org #8000
+    db 37, 218
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_37_PHYS_START + #2000
+STRESS_DATA_BANK_38_PHYS_START:
+    org #8000
+    db 38, 217
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_38_PHYS_START + #2000
+STRESS_DATA_BANK_39_PHYS_START:
+    org #8000
+    db 39, 216
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_39_PHYS_START + #2000
+STRESS_DATA_BANK_40_PHYS_START:
+    org #8000
+    db 40, 215
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_40_PHYS_START + #2000
+STRESS_DATA_BANK_41_PHYS_START:
+    org #8000
+    db 41, 214
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_41_PHYS_START + #2000
+STRESS_DATA_BANK_42_PHYS_START:
+    org #8000
+    db 42, 213
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_42_PHYS_START + #2000
+STRESS_DATA_BANK_43_PHYS_START:
+    org #8000
+    db 43, 212
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_43_PHYS_START + #2000
+STRESS_DATA_BANK_44_PHYS_START:
+    org #8000
+    db 44, 211
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_44_PHYS_START + #2000
+STRESS_DATA_BANK_45_PHYS_START:
+    org #8000
+    db 45, 210
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_45_PHYS_START + #2000
+STRESS_DATA_BANK_46_PHYS_START:
+    org #8000
+    db 46, 209
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_46_PHYS_START + #2000
+STRESS_DATA_BANK_47_PHYS_START:
+    org #8000
+    db 47, 208
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_47_PHYS_START + #2000
+STRESS_DATA_BANK_48_PHYS_START:
+    org #8000
+    db 48, 207
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_48_PHYS_START + #2000
+STRESS_DATA_BANK_49_PHYS_START:
+    org #8000
+    db 49, 206
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_49_PHYS_START + #2000
+STRESS_DATA_BANK_50_PHYS_START:
+    org #8000
+    db 50, 205
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_50_PHYS_START + #2000
+STRESS_DATA_BANK_51_PHYS_START:
+    org #8000
+    db 51, 204
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_51_PHYS_START + #2000
+STRESS_DATA_BANK_52_PHYS_START:
+    org #8000
+    db 52, 203
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_52_PHYS_START + #2000
+STRESS_DATA_BANK_53_PHYS_START:
+    org #8000
+    db 53, 202
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_53_PHYS_START + #2000
+STRESS_DATA_BANK_54_PHYS_START:
+    org #8000
+    db 54, 201
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_54_PHYS_START + #2000
+STRESS_DATA_BANK_55_PHYS_START:
+    org #8000
+    db 55, 200
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_55_PHYS_START + #2000
+STRESS_DATA_BANK_56_PHYS_START:
+    org #8000
+    db 56, 199
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_56_PHYS_START + #2000
+STRESS_DATA_BANK_57_PHYS_START:
+    org #8000
+    db 57, 198
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_57_PHYS_START + #2000
+STRESS_DATA_BANK_58_PHYS_START:
+    org #8000
+    db 58, 197
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_58_PHYS_START + #2000
+STRESS_DATA_BANK_59_PHYS_START:
+    org #8000
+    db 59, 196
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_59_PHYS_START + #2000
+STRESS_DATA_BANK_60_PHYS_START:
+    org #8000
+    db 60, 195
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_60_PHYS_START + #2000
+STRESS_DATA_BANK_61_PHYS_START:
+    org #8000
+    db 61, 194
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_61_PHYS_START + #2000
+STRESS_DATA_BANK_62_PHYS_START:
+    org #8000
+    db 62, 193
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_62_PHYS_START + #2000
+; Bank 63 reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.
+    ds #2000, #FF
+STRESS_DATA_BANK_64_PHYS_START:
+    org #8000
+    db 64, 191
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_64_PHYS_START + #2000
+STRESS_DATA_BANK_65_PHYS_START:
+    org #8000
+    db 65, 190
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_65_PHYS_START + #2000
+STRESS_DATA_BANK_66_PHYS_START:
+    org #8000
+    db 66, 189
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_66_PHYS_START + #2000
+STRESS_DATA_BANK_67_PHYS_START:
+    org #8000
+    db 67, 188
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_67_PHYS_START + #2000
+STRESS_DATA_BANK_68_PHYS_START:
+    org #8000
+    db 68, 187
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_68_PHYS_START + #2000
+STRESS_DATA_BANK_69_PHYS_START:
+    org #8000
+    db 69, 186
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_69_PHYS_START + #2000
+STRESS_DATA_BANK_70_PHYS_START:
+    org #8000
+    db 70, 185
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_70_PHYS_START + #2000
+STRESS_DATA_BANK_71_PHYS_START:
+    org #8000
+    db 71, 184
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_71_PHYS_START + #2000
+STRESS_DATA_BANK_72_PHYS_START:
+    org #8000
+    db 72, 183
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_72_PHYS_START + #2000
+STRESS_DATA_BANK_73_PHYS_START:
+    org #8000
+    db 73, 182
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_73_PHYS_START + #2000
+STRESS_DATA_BANK_74_PHYS_START:
+    org #8000
+    db 74, 181
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_74_PHYS_START + #2000
+STRESS_DATA_BANK_75_PHYS_START:
+    org #8000
+    db 75, 180
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_75_PHYS_START + #2000
+STRESS_DATA_BANK_76_PHYS_START:
+    org #8000
+    db 76, 179
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_76_PHYS_START + #2000
+STRESS_DATA_BANK_77_PHYS_START:
+    org #8000
+    db 77, 178
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_77_PHYS_START + #2000
+STRESS_DATA_BANK_78_PHYS_START:
+    org #8000
+    db 78, 177
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_78_PHYS_START + #2000
+STRESS_DATA_BANK_79_PHYS_START:
+    org #8000
+    db 79, 176
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_79_PHYS_START + #2000
+STRESS_DATA_BANK_80_PHYS_START:
+    org #8000
+    db 80, 175
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_80_PHYS_START + #2000
+STRESS_DATA_BANK_81_PHYS_START:
+    org #8000
+    db 81, 174
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_81_PHYS_START + #2000
+STRESS_DATA_BANK_82_PHYS_START:
+    org #8000
+    db 82, 173
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_82_PHYS_START + #2000
+STRESS_DATA_BANK_83_PHYS_START:
+    org #8000
+    db 83, 172
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_83_PHYS_START + #2000
+STRESS_DATA_BANK_84_PHYS_START:
+    org #8000
+    db 84, 171
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_84_PHYS_START + #2000
+STRESS_DATA_BANK_85_PHYS_START:
+    org #8000
+    db 85, 170
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_85_PHYS_START + #2000
+STRESS_DATA_BANK_86_PHYS_START:
+    org #8000
+    db 86, 169
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_86_PHYS_START + #2000
+STRESS_DATA_BANK_87_PHYS_START:
+    org #8000
+    db 87, 168
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_87_PHYS_START + #2000
+STRESS_DATA_BANK_88_PHYS_START:
+    org #8000
+    db 88, 167
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_88_PHYS_START + #2000
+STRESS_DATA_BANK_89_PHYS_START:
+    org #8000
+    db 89, 166
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_89_PHYS_START + #2000
+STRESS_DATA_BANK_90_PHYS_START:
+    org #8000
+    db 90, 165
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_90_PHYS_START + #2000
+STRESS_DATA_BANK_91_PHYS_START:
+    org #8000
+    db 91, 164
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_91_PHYS_START + #2000
+STRESS_DATA_BANK_92_PHYS_START:
+    org #8000
+    db 92, 163
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_92_PHYS_START + #2000
+STRESS_DATA_BANK_93_PHYS_START:
+    org #8000
+    db 93, 162
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_93_PHYS_START + #2000
+STRESS_DATA_BANK_94_PHYS_START:
+    org #8000
+    db 94, 161
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_94_PHYS_START + #2000
+STRESS_DATA_BANK_95_PHYS_START:
+    org #8000
+    db 95, 160
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_95_PHYS_START + #2000
+STRESS_DATA_BANK_96_PHYS_START:
+    org #8000
+    db 96, 159
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_96_PHYS_START + #2000
+STRESS_DATA_BANK_97_PHYS_START:
+    org #8000
+    db 97, 158
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_97_PHYS_START + #2000
+STRESS_DATA_BANK_98_PHYS_START:
+    org #8000
+    db 98, 157
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_98_PHYS_START + #2000
+STRESS_DATA_BANK_99_PHYS_START:
+    org #8000
+    db 99, 156
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_99_PHYS_START + #2000
+STRESS_DATA_BANK_100_PHYS_START:
+    org #8000
+    db 100, 155
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_100_PHYS_START + #2000
+STRESS_DATA_BANK_101_PHYS_START:
+    org #8000
+    db 101, 154
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_101_PHYS_START + #2000
+STRESS_DATA_BANK_102_PHYS_START:
+    org #8000
+    db 102, 153
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_102_PHYS_START + #2000
+STRESS_DATA_BANK_103_PHYS_START:
+    org #8000
+    db 103, 152
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_103_PHYS_START + #2000
+STRESS_DATA_BANK_104_PHYS_START:
+    org #8000
+    db 104, 151
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_104_PHYS_START + #2000
+STRESS_DATA_BANK_105_PHYS_START:
+    org #8000
+    db 105, 150
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_105_PHYS_START + #2000
+STRESS_DATA_BANK_106_PHYS_START:
+    org #8000
+    db 106, 149
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_106_PHYS_START + #2000
+STRESS_DATA_BANK_107_PHYS_START:
+    org #8000
+    db 107, 148
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_107_PHYS_START + #2000
+STRESS_DATA_BANK_108_PHYS_START:
+    org #8000
+    db 108, 147
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_108_PHYS_START + #2000
+STRESS_DATA_BANK_109_PHYS_START:
+    org #8000
+    db 109, 146
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_109_PHYS_START + #2000
+STRESS_DATA_BANK_110_PHYS_START:
+    org #8000
+    db 110, 145
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_110_PHYS_START + #2000
+STRESS_DATA_BANK_111_PHYS_START:
+    org #8000
+    db 111, 144
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_111_PHYS_START + #2000
+STRESS_DATA_BANK_112_PHYS_START:
+    org #8000
+    db 112, 143
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_112_PHYS_START + #2000
+STRESS_DATA_BANK_113_PHYS_START:
+    org #8000
+    db 113, 142
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_113_PHYS_START + #2000
+STRESS_DATA_BANK_114_PHYS_START:
+    org #8000
+    db 114, 141
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_114_PHYS_START + #2000
+STRESS_DATA_BANK_115_PHYS_START:
+    org #8000
+    db 115, 140
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_115_PHYS_START + #2000
+STRESS_DATA_BANK_116_PHYS_START:
+    org #8000
+    db 116, 139
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_116_PHYS_START + #2000
+STRESS_DATA_BANK_117_PHYS_START:
+    org #8000
+    db 117, 138
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_117_PHYS_START + #2000
+STRESS_DATA_BANK_118_PHYS_START:
+    org #8000
+    db 118, 137
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_118_PHYS_START + #2000
+STRESS_DATA_BANK_119_PHYS_START:
+    org #8000
+    db 119, 136
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_119_PHYS_START + #2000
+STRESS_DATA_BANK_120_PHYS_START:
+    org #8000
+    db 120, 135
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_120_PHYS_START + #2000
+STRESS_DATA_BANK_121_PHYS_START:
+    org #8000
+    db 121, 134
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_121_PHYS_START + #2000
+STRESS_DATA_BANK_122_PHYS_START:
+    org #8000
+    db 122, 133
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_122_PHYS_START + #2000
+STRESS_DATA_BANK_123_PHYS_START:
+    org #8000
+    db 123, 132
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_123_PHYS_START + #2000
+STRESS_DATA_BANK_124_PHYS_START:
+    org #8000
+    db 124, 131
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_124_PHYS_START + #2000
+STRESS_DATA_BANK_125_PHYS_START:
+    org #8000
+    db 125, 130
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_125_PHYS_START + #2000
+STRESS_DATA_BANK_126_PHYS_START:
+    org #8000
+    db 126, 129
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_126_PHYS_START + #2000
+; Bank 127 reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.
+    ds #2000, #FF
+STRESS_DATA_BANK_128_PHYS_START:
+    org #8000
+    db 128, 127
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_128_PHYS_START + #2000
+STRESS_DATA_BANK_129_PHYS_START:
+    org #8000
+    db 129, 126
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_129_PHYS_START + #2000
+STRESS_DATA_BANK_130_PHYS_START:
+    org #8000
+    db 130, 125
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_130_PHYS_START + #2000
+STRESS_DATA_BANK_131_PHYS_START:
+    org #8000
+    db 131, 124
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_131_PHYS_START + #2000
+STRESS_DATA_BANK_132_PHYS_START:
+    org #8000
+    db 132, 123
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_132_PHYS_START + #2000
+STRESS_DATA_BANK_133_PHYS_START:
+    org #8000
+    db 133, 122
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_133_PHYS_START + #2000
+STRESS_DATA_BANK_134_PHYS_START:
+    org #8000
+    db 134, 121
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_134_PHYS_START + #2000
+STRESS_DATA_BANK_135_PHYS_START:
+    org #8000
+    db 135, 120
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_135_PHYS_START + #2000
+STRESS_DATA_BANK_136_PHYS_START:
+    org #8000
+    db 136, 119
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_136_PHYS_START + #2000
+STRESS_DATA_BANK_137_PHYS_START:
+    org #8000
+    db 137, 118
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_137_PHYS_START + #2000
+STRESS_DATA_BANK_138_PHYS_START:
+    org #8000
+    db 138, 117
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_138_PHYS_START + #2000
+STRESS_DATA_BANK_139_PHYS_START:
+    org #8000
+    db 139, 116
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_139_PHYS_START + #2000
+STRESS_DATA_BANK_140_PHYS_START:
+    org #8000
+    db 140, 115
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_140_PHYS_START + #2000
+STRESS_DATA_BANK_141_PHYS_START:
+    org #8000
+    db 141, 114
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_141_PHYS_START + #2000
+STRESS_DATA_BANK_142_PHYS_START:
+    org #8000
+    db 142, 113
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_142_PHYS_START + #2000
+STRESS_DATA_BANK_143_PHYS_START:
+    org #8000
+    db 143, 112
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_143_PHYS_START + #2000
+STRESS_DATA_BANK_144_PHYS_START:
+    org #8000
+    db 144, 111
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_144_PHYS_START + #2000
+STRESS_DATA_BANK_145_PHYS_START:
+    org #8000
+    db 145, 110
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_145_PHYS_START + #2000
+STRESS_DATA_BANK_146_PHYS_START:
+    org #8000
+    db 146, 109
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_146_PHYS_START + #2000
+STRESS_DATA_BANK_147_PHYS_START:
+    org #8000
+    db 147, 108
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_147_PHYS_START + #2000
+STRESS_DATA_BANK_148_PHYS_START:
+    org #8000
+    db 148, 107
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_148_PHYS_START + #2000
+STRESS_DATA_BANK_149_PHYS_START:
+    org #8000
+    db 149, 106
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_149_PHYS_START + #2000
+STRESS_DATA_BANK_150_PHYS_START:
+    org #8000
+    db 150, 105
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_150_PHYS_START + #2000
+STRESS_DATA_BANK_151_PHYS_START:
+    org #8000
+    db 151, 104
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_151_PHYS_START + #2000
+STRESS_DATA_BANK_152_PHYS_START:
+    org #8000
+    db 152, 103
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_152_PHYS_START + #2000
+STRESS_DATA_BANK_153_PHYS_START:
+    org #8000
+    db 153, 102
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_153_PHYS_START + #2000
+STRESS_DATA_BANK_154_PHYS_START:
+    org #8000
+    db 154, 101
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_154_PHYS_START + #2000
+STRESS_DATA_BANK_155_PHYS_START:
+    org #8000
+    db 155, 100
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_155_PHYS_START + #2000
+STRESS_DATA_BANK_156_PHYS_START:
+    org #8000
+    db 156, 99
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_156_PHYS_START + #2000
+STRESS_DATA_BANK_157_PHYS_START:
+    org #8000
+    db 157, 98
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_157_PHYS_START + #2000
+STRESS_DATA_BANK_158_PHYS_START:
+    org #8000
+    db 158, 97
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_158_PHYS_START + #2000
+STRESS_DATA_BANK_159_PHYS_START:
+    org #8000
+    db 159, 96
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_159_PHYS_START + #2000
+STRESS_DATA_BANK_160_PHYS_START:
+    org #8000
+    db 160, 95
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_160_PHYS_START + #2000
+STRESS_DATA_BANK_161_PHYS_START:
+    org #8000
+    db 161, 94
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_161_PHYS_START + #2000
+STRESS_DATA_BANK_162_PHYS_START:
+    org #8000
+    db 162, 93
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_162_PHYS_START + #2000
+STRESS_DATA_BANK_163_PHYS_START:
+    org #8000
+    db 163, 92
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_163_PHYS_START + #2000
+STRESS_DATA_BANK_164_PHYS_START:
+    org #8000
+    db 164, 91
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_164_PHYS_START + #2000
+STRESS_DATA_BANK_165_PHYS_START:
+    org #8000
+    db 165, 90
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_165_PHYS_START + #2000
+STRESS_DATA_BANK_166_PHYS_START:
+    org #8000
+    db 166, 89
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_166_PHYS_START + #2000
+STRESS_DATA_BANK_167_PHYS_START:
+    org #8000
+    db 167, 88
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_167_PHYS_START + #2000
+STRESS_DATA_BANK_168_PHYS_START:
+    org #8000
+    db 168, 87
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_168_PHYS_START + #2000
+STRESS_DATA_BANK_169_PHYS_START:
+    org #8000
+    db 169, 86
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_169_PHYS_START + #2000
+STRESS_DATA_BANK_170_PHYS_START:
+    org #8000
+    db 170, 85
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_170_PHYS_START + #2000
+STRESS_DATA_BANK_171_PHYS_START:
+    org #8000
+    db 171, 84
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_171_PHYS_START + #2000
+STRESS_DATA_BANK_172_PHYS_START:
+    org #8000
+    db 172, 83
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_172_PHYS_START + #2000
+STRESS_DATA_BANK_173_PHYS_START:
+    org #8000
+    db 173, 82
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_173_PHYS_START + #2000
+STRESS_DATA_BANK_174_PHYS_START:
+    org #8000
+    db 174, 81
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_174_PHYS_START + #2000
+STRESS_DATA_BANK_175_PHYS_START:
+    org #8000
+    db 175, 80
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_175_PHYS_START + #2000
+STRESS_DATA_BANK_176_PHYS_START:
+    org #8000
+    db 176, 79
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_176_PHYS_START + #2000
+STRESS_DATA_BANK_177_PHYS_START:
+    org #8000
+    db 177, 78
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_177_PHYS_START + #2000
+STRESS_DATA_BANK_178_PHYS_START:
+    org #8000
+    db 178, 77
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_178_PHYS_START + #2000
+STRESS_DATA_BANK_179_PHYS_START:
+    org #8000
+    db 179, 76
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_179_PHYS_START + #2000
+STRESS_DATA_BANK_180_PHYS_START:
+    org #8000
+    db 180, 75
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_180_PHYS_START + #2000
+STRESS_DATA_BANK_181_PHYS_START:
+    org #8000
+    db 181, 74
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_181_PHYS_START + #2000
+STRESS_DATA_BANK_182_PHYS_START:
+    org #8000
+    db 182, 73
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_182_PHYS_START + #2000
+STRESS_DATA_BANK_183_PHYS_START:
+    org #8000
+    db 183, 72
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_183_PHYS_START + #2000
+STRESS_DATA_BANK_184_PHYS_START:
+    org #8000
+    db 184, 71
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_184_PHYS_START + #2000
+STRESS_DATA_BANK_185_PHYS_START:
+    org #8000
+    db 185, 70
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_185_PHYS_START + #2000
+STRESS_DATA_BANK_186_PHYS_START:
+    org #8000
+    db 186, 69
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_186_PHYS_START + #2000
+STRESS_DATA_BANK_187_PHYS_START:
+    org #8000
+    db 187, 68
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_187_PHYS_START + #2000
+STRESS_DATA_BANK_188_PHYS_START:
+    org #8000
+    db 188, 67
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_188_PHYS_START + #2000
+STRESS_DATA_BANK_189_PHYS_START:
+    org #8000
+    db 189, 66
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_189_PHYS_START + #2000
+STRESS_DATA_BANK_190_PHYS_START:
+    org #8000
+    db 190, 65
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_190_PHYS_START + #2000
+; Bank 191 reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.
+    ds #2000, #FF
+STRESS_DATA_BANK_192_PHYS_START:
+    org #8000
+    db 192, 63
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_192_PHYS_START + #2000
+STRESS_DATA_BANK_193_PHYS_START:
+    org #8000
+    db 193, 62
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_193_PHYS_START + #2000
+STRESS_DATA_BANK_194_PHYS_START:
+    org #8000
+    db 194, 61
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_194_PHYS_START + #2000
+STRESS_DATA_BANK_195_PHYS_START:
+    org #8000
+    db 195, 60
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_195_PHYS_START + #2000
+STRESS_DATA_BANK_196_PHYS_START:
+    org #8000
+    db 196, 59
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_196_PHYS_START + #2000
+STRESS_DATA_BANK_197_PHYS_START:
+    org #8000
+    db 197, 58
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_197_PHYS_START + #2000
+STRESS_DATA_BANK_198_PHYS_START:
+    org #8000
+    db 198, 57
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_198_PHYS_START + #2000
+STRESS_DATA_BANK_199_PHYS_START:
+    org #8000
+    db 199, 56
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_199_PHYS_START + #2000
+STRESS_DATA_BANK_200_PHYS_START:
+    org #8000
+    db 200, 55
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_200_PHYS_START + #2000
+STRESS_DATA_BANK_201_PHYS_START:
+    org #8000
+    db 201, 54
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_201_PHYS_START + #2000
+STRESS_DATA_BANK_202_PHYS_START:
+    org #8000
+    db 202, 53
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_202_PHYS_START + #2000
+STRESS_DATA_BANK_203_PHYS_START:
+    org #8000
+    db 203, 52
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_203_PHYS_START + #2000
+STRESS_DATA_BANK_204_PHYS_START:
+    org #8000
+    db 204, 51
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_204_PHYS_START + #2000
+STRESS_DATA_BANK_205_PHYS_START:
+    org #8000
+    db 205, 50
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_205_PHYS_START + #2000
+STRESS_DATA_BANK_206_PHYS_START:
+    org #8000
+    db 206, 49
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_206_PHYS_START + #2000
+STRESS_DATA_BANK_207_PHYS_START:
+    org #8000
+    db 207, 48
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_207_PHYS_START + #2000
+STRESS_DATA_BANK_208_PHYS_START:
+    org #8000
+    db 208, 47
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_208_PHYS_START + #2000
+STRESS_DATA_BANK_209_PHYS_START:
+    org #8000
+    db 209, 46
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_209_PHYS_START + #2000
+STRESS_DATA_BANK_210_PHYS_START:
+    org #8000
+    db 210, 45
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_210_PHYS_START + #2000
+STRESS_DATA_BANK_211_PHYS_START:
+    org #8000
+    db 211, 44
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_211_PHYS_START + #2000
+STRESS_DATA_BANK_212_PHYS_START:
+    org #8000
+    db 212, 43
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_212_PHYS_START + #2000
+STRESS_DATA_BANK_213_PHYS_START:
+    org #8000
+    db 213, 42
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_213_PHYS_START + #2000
+STRESS_DATA_BANK_214_PHYS_START:
+    org #8000
+    db 214, 41
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_214_PHYS_START + #2000
+STRESS_DATA_BANK_215_PHYS_START:
+    org #8000
+    db 215, 40
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_215_PHYS_START + #2000
+STRESS_DATA_BANK_216_PHYS_START:
+    org #8000
+    db 216, 39
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_216_PHYS_START + #2000
+STRESS_DATA_BANK_217_PHYS_START:
+    org #8000
+    db 217, 38
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_217_PHYS_START + #2000
+STRESS_DATA_BANK_218_PHYS_START:
+    org #8000
+    db 218, 37
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_218_PHYS_START + #2000
+STRESS_DATA_BANK_219_PHYS_START:
+    org #8000
+    db 219, 36
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_219_PHYS_START + #2000
+STRESS_DATA_BANK_220_PHYS_START:
+    org #8000
+    db 220, 35
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_220_PHYS_START + #2000
+STRESS_DATA_BANK_221_PHYS_START:
+    org #8000
+    db 221, 34
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_221_PHYS_START + #2000
+STRESS_DATA_BANK_222_PHYS_START:
+    org #8000
+    db 222, 33
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_222_PHYS_START + #2000
+STRESS_DATA_BANK_223_PHYS_START:
+    org #8000
+    db 223, 32
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_223_PHYS_START + #2000
+STRESS_DATA_BANK_224_PHYS_START:
+    org #8000
+    db 224, 31
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_224_PHYS_START + #2000
+STRESS_DATA_BANK_225_PHYS_START:
+    org #8000
+    db 225, 30
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_225_PHYS_START + #2000
+STRESS_DATA_BANK_226_PHYS_START:
+    org #8000
+    db 226, 29
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_226_PHYS_START + #2000
+STRESS_DATA_BANK_227_PHYS_START:
+    org #8000
+    db 227, 28
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_227_PHYS_START + #2000
+STRESS_DATA_BANK_228_PHYS_START:
+    org #8000
+    db 228, 27
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_228_PHYS_START + #2000
+STRESS_DATA_BANK_229_PHYS_START:
+    org #8000
+    db 229, 26
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_229_PHYS_START + #2000
+STRESS_DATA_BANK_230_PHYS_START:
+    org #8000
+    db 230, 25
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_230_PHYS_START + #2000
+STRESS_DATA_BANK_231_PHYS_START:
+    org #8000
+    db 231, 24
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_231_PHYS_START + #2000
+STRESS_DATA_BANK_232_PHYS_START:
+    org #8000
+    db 232, 23
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_232_PHYS_START + #2000
+STRESS_DATA_BANK_233_PHYS_START:
+    org #8000
+    db 233, 22
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_233_PHYS_START + #2000
+STRESS_DATA_BANK_234_PHYS_START:
+    org #8000
+    db 234, 21
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_234_PHYS_START + #2000
+STRESS_DATA_BANK_235_PHYS_START:
+    org #8000
+    db 235, 20
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_235_PHYS_START + #2000
+STRESS_DATA_BANK_236_PHYS_START:
+    org #8000
+    db 236, 19
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_236_PHYS_START + #2000
+STRESS_DATA_BANK_237_PHYS_START:
+    org #8000
+    db 237, 18
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_237_PHYS_START + #2000
+STRESS_DATA_BANK_238_PHYS_START:
+    org #8000
+    db 238, 17
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_238_PHYS_START + #2000
+STRESS_DATA_BANK_239_PHYS_START:
+    org #8000
+    db 239, 16
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_239_PHYS_START + #2000
+STRESS_DATA_BANK_240_PHYS_START:
+    org #8000
+    db 240, 15
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_240_PHYS_START + #2000
+STRESS_DATA_BANK_241_PHYS_START:
+    org #8000
+    db 241, 14
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_241_PHYS_START + #2000
+STRESS_DATA_BANK_242_PHYS_START:
+    org #8000
+    db 242, 13
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_242_PHYS_START + #2000
+STRESS_DATA_BANK_243_PHYS_START:
+    org #8000
+    db 243, 12
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_243_PHYS_START + #2000
+STRESS_DATA_BANK_244_PHYS_START:
+    org #8000
+    db 244, 11
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_244_PHYS_START + #2000
+STRESS_DATA_BANK_245_PHYS_START:
+    org #8000
+    db 245, 10
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_245_PHYS_START + #2000
+STRESS_DATA_BANK_246_PHYS_START:
+    org #8000
+    db 246, 9
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_246_PHYS_START + #2000
+STRESS_DATA_BANK_247_PHYS_START:
+    org #8000
+    db 247, 8
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_247_PHYS_START + #2000
+STRESS_DATA_BANK_248_PHYS_START:
+    org #8000
+    db 248, 7
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_248_PHYS_START + #2000
+STRESS_DATA_BANK_249_PHYS_START:
+    org #8000
+    db 249, 6
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_249_PHYS_START + #2000
+STRESS_DATA_BANK_250_PHYS_START:
+    org #8000
+    db 250, 5
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_250_PHYS_START + #2000
+STRESS_DATA_BANK_251_PHYS_START:
+    org #8000
+    db 251, 4
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_251_PHYS_START + #2000
+STRESS_DATA_BANK_252_PHYS_START:
+    org #8000
+    db 252, 3
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_252_PHYS_START + #2000
+STRESS_DATA_BANK_253_PHYS_START:
+    org #8000
+    db 253, 2
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_253_PHYS_START + #2000
+STRESS_DATA_BANK_254_PHYS_START:
+    org #8000
+    db 254, 1
+    ds #2000 - 2, #FF
+    org STRESS_DATA_BANK_254_PHYS_START + #2000
+; Bank 255 reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.
+    ds #2000, #FF
+    end

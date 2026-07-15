@@ -2118,7 +2118,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const updatePlacedEntityMovement = (id: string, patch: Record<string, unknown>) => {
     const movementPatch: Record<string, unknown> = {};
     if (patch.movement !== undefined) movementPatch.mode = patch.movement;
-    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed'].forEach(key => {
+    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx'].forEach(key => {
       if (patch[key] !== undefined) movementPatch[key] = patch[key];
     });
 
@@ -4653,6 +4653,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           <option value="patrolX">Patrol X</option>
                           {selectedPlacedEntity.kind !== 'platform' && <option value="patrolChaseX">Patrol chase X</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="walkerGravity">Walker gravity</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="slimeCeiling">Slime ceiling (suelo↔techo)</option>}
                           <option value="patrolY">Patrol Y</option>
                           {selectedPlacedEntity.kind !== 'platform' && <option value="walkerEdge">Walker edge</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="flyerSine">Flyer sine</option>}
@@ -4748,8 +4749,23 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           />
                         </label>
                       </div>
+                      {selectedMovementMode === 'slimeCeiling' && (
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Distancia antes de saltar (px)
+                          <input
+                            type="number"
+                            min={4}
+                            max={255}
+                            value={clampInt(selectedPlacedEntity.components?.msx2_movement?.travelPx ?? selectedPlacedEntity.params?.travelPx, 4, 255, 48)}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { travelPx: clampInt(event.target.value, 4, 255, 48) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                      )}
                       <div className="text-[0.6rem] text-msx-textsecondary">
-                        Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.
+                        {selectedMovementMode === 'slimeCeiling'
+                          ? 'Slime ceiling: se arrastra por el suelo, cada N px salta al techo y se pega boca abajo (flip automático), se arrastra de nuevo y cae al suelo. Gira en paredes y en W1.X/W2.X.'
+                          : 'Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.'}
                       </div>
                     </div>
                   )}
