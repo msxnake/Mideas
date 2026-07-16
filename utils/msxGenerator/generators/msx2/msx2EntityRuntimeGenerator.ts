@@ -60,9 +60,14 @@ const getMovementBoundPixel = (
   tileMax: number,
   pixelClamp: (value: number) => number
 ): number => {
-  const rawValue = getComponentValue(entity, 'msx2_movement', key, getEntityParamNumber(entity.params, key, tileFallback));
+  const usesPixels = movementBoundsUsePixels(entity);
+  // The fallback arguments are expressed in tile coordinates. When an entity
+  // selects pixel bounds but omits min/max, convert the defaults as well;
+  // otherwise maxX=15 tiles was accidentally exported as maxX=15 pixels.
+  const unitFallback = usesPixels ? tileFallback * 16 : tileFallback;
+  const rawValue = getComponentValue(entity, 'msx2_movement', key, getEntityParamNumber(entity.params, key, unitFallback));
   const numeric = Number(rawValue);
-  if (movementBoundsUsePixels(entity) && Number.isFinite(numeric)) {
+  if (usesPixels && Number.isFinite(numeric)) {
     return pixelClamp(Math.floor(numeric));
   }
   return pixelClamp(clampTileCoordinate(rawValue, tileMax) * 16);

@@ -28,16 +28,16 @@ import {
  *   bitmap_enemy_pool    21 bytes/slot: x, y, dx, dy, minX, maxX, minY, maxY,
  *                        animTick, animFrame, frameCount, animDelay, colorOff,
  *                        mode, visualXOff, visualYOff, damage, hitX, hitY,
- *                        hitW, hitH
+ *                        hitW, hitH, speed, updateLane
  *                        (+3 when a SlimeCeiling enemy exists anywhere:
- *                        travelPx, travelCount, phase -> 24 bytes/slot)
+ *                        travelPx, travelCount, phase -> 26 bytes/slot)
  *
  * ROM (resident, like the foreground tables):
- *   bitmap_room_enemy_table_N   1 + maxSlots*20 bytes: count + per-slot
+ *   bitmap_room_enemy_table_N   count + maxSlots*(22 bytes, or 23 with slime)
  *                               x,y,dx,dy,minX,maxX,minY,maxY,
  *                               patGroupOff,colorOff,frameCount,animDelay,
  *                               mode,visualXOff,visualYOff,damage,hitX,hitY,
- *                               hitW,hitH (+travelPx byte on slime builds)
+ *                               hitW,hitH,speed,updateLane (+travelPx on slime builds)
  *   bitmap_room_enemy_ptr_table DW per room
  *   bitmap_enemy_sprite_patterns  frames*2 variants x 32 bytes per unique sprite
  *                                 (frames*4 on slime builds: vertical-flip pair)
@@ -47,9 +47,9 @@ import {
 
 export const BITMAP_MAX_ENEMY_SLOTS = 4;
 export const BITMAP_MAX_ENEMY_FRAMES = 4;
-export const BITMAP_ENEMY_POOL_STRIDE = 21;  // RAM bytes per slot (base build)
+export const BITMAP_ENEMY_POOL_STRIDE = 23;  // RAM bytes per slot (base build)
 /** Slime builds append travelPx/travelCount/phase to every pool slot. */
-export const BITMAP_ENEMY_POOL_STRIDE_SLIME = 24;
+export const BITMAP_ENEMY_POOL_STRIDE_SLIME = 26;
 
 /** RAM pool stride actually used by the generated runtime for this project. */
 export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): number {
@@ -79,7 +79,7 @@ export interface BitmapEnemyRoomData {
   maxSlots: number;
   /** Max animation frames across the unique enemy sprites (>= 1). */
   maxFrames: number;
-  /** Per-room table bytes: [count] + maxSlots * table stride (20, or 21 with slime). */
+  /** Per-room table bytes: [count] + maxSlots * table stride (22, or 23 with slime). */
   roomTables: number[][];
   /** frames * variants x 32 bytes per unique enemy sprite ([right, left] per frame,
    *  plus [ceilRight, ceilLeft] vertical flips when slimeEnabled). */
@@ -155,17 +155,19 @@ export function buildBitmapEnemySystemAsm(
   const maxFrames = Math.max(1, data.maxFrames);
   const slime = Boolean(data.slimeEnabled);
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
-  const TABLE_STRIDE = slime ? 21 : 20; // ROM bytes per slot
+  const TABLE_STRIDE = slime ? 23 : 22; // ROM bytes per slot
   const variantsPerFrame = bitmapEnemyVariantsPerFrame(data);
   const groupsPerSlot = maxFrames * variantsPerFrame;
-  const ramBytes = 1 + maxSlots * POOL_STRIDE;
+  const ramBytes = 2 + maxSlots * POOL_STRIDE;
   const countAddr = opts.ramBase;
   const poolAddr = opts.ramBase + 1;
+  const updateLaneAddr = poolAddr + maxSlots * POOL_STRIDE;
 
-  const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH${slime ? ',travelPx,travelCount,phase' : ''}) ---
+  const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE} + update lane
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx,travelCount,phase' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
+bitmap_enemy_update_lane EQU ${asmWord(updateLaneAddr)}
 `;
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
@@ -208,11 +210,15 @@ bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
     ld (${poolBase} + 19), a
     ld a, (ix+19)             ; damage hitbox height
     ld (${poolBase} + 20), a
-${slime ? `    ld a, (ix+20)             ; slime hop distance in px (0 on non-slime slots)
+    ld a, (ix+20)             ; authored movement speed in px/update
     ld (${poolBase} + 21), a
+    ld a, (ix+21)             ; logical enemy update lane (0 or 1)
+    ld (${poolBase} + 22), a
+${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-slime slots)
+    ld (${poolBase} + 23), a
     xor a
-    ld (${poolBase} + 22), a  ; travelCount = 0
-    ld (${poolBase} + 23), a  ; phase = ground crawl
+    ld (${poolBase} + 24), a  ; travelCount = 0
+    ld (${poolBase} + 25), a  ; phase = ground crawl
 ` : ''}    ; --- upload frameCount*${variantsPerFrame} pattern groups -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ld a, (ix+8)
     call bitmap_enemy_patterns_offset
@@ -256,33 +262,42 @@ ${slime ? `    ld a, (ix+20)             ; slime hop distance in px (0 on non-sl
   const maxHealthByte = asmByte(opts.maxHealth ?? 5);
   void opts.lives; // lives are seeded by the deadly system init; the touch handler only decrements.
 
-  // ---- bitmap_update_enemies: SCREEN 4 patrol port (1 px/frame, bounce) ----
+  // ---- bitmap_update_enemies: alternating logical-enemy movement lanes ----
   // Check-then-move like the SCREEN 4 slot handler: at the bound the enemy
   // turns without moving, so positions can never overshoot minX/maxX.
   const updateAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemies
 ; ------------------------------------------------------------
-; PURPOSE: Steps every active enemy slot with the SCREEN 4 PATROL rules:
-;   dx != 0 -> move 1px horizontally, turning at minX/maxX;
-;   dy != 0 -> move 1px vertically, turning at minY/maxY;
-;   then ticks the slot's frame animation (animDelay frames per step).
+; PURPOSE: Ticks animation for every active slot, but moves only one logical
+;   enemy lane per video frame. Lanes 0/1 alternate, so authored speed N means
+;   N pixels every two frames (N/2 pixels per video frame on average). Every
+;   hardware layer belonging to one logical enemy shares the same lane.
 ;   Paused entirely (movement + animation) while a pause gate holds, e.g.
 ;   an open NPC dialogue; the SAT writer keeps drawing the frozen sprites.
-; INPUT: bitmap_enemy_count, bitmap_enemy_pool.
+; INPUT: bitmap_enemy_count, bitmap_enemy_pool, bitmap_enemy_update_lane.
 ; OUTPUT: pool x/y/dx/dy/anim state updated in RAM.
-; DESTROYS: AF, B, DE, IX. PRESERVES: C, HL, IY.
+; DESTROYS: AF, DE, IX. PRESERVES: BC, HL, IY.
 ; ------------------------------------------------------------
 bitmap_update_enemies:
 ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     or a
     ret z
+    push bc
+    ld a, (bitmap_enemy_update_lane)
+    xor 1
+    and 1
+    ld (bitmap_enemy_update_lane), a
+    ld a, (bitmap_enemy_count)
     ld b, a
     ld ix, bitmap_enemy_pool
 .enemy_step_loop:
     ld a, (ix+13)             ; #FF = killed by a thrown object
     cp #FF
     jp z, .enemy_step_next
+    ld a, (bitmap_enemy_update_lane)
+    cp (ix+22)                ; other lane: animate, but defer movement
+    jp nz, .enemy_anim
     ld a, (ix+13)             ; movement mode
     cp ${MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X}
     jp z, .enemy_step_patrol_chase_x
@@ -295,12 +310,17 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     ld a, (ix+2)              ; dx
     or a
     jp z, .enemy_step_y
+    ld d, (ix+21)             ; authored pixels per alternating update
+.enemy_step_x_px:
+    ld a, (ix+2)
     bit 7, a
     jp nz, .enemy_step_left
     ld a, (ix+0)
     cp (ix+5)                 ; x vs maxX
     jp nc, .enemy_turn_left
     inc (ix+0)
+    dec d
+    jp nz, .enemy_step_x_px
     jp .enemy_step_y
 .enemy_turn_left:
     ld (ix+2), #FF
@@ -311,6 +331,8 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp z, .enemy_turn_right
     jp c, .enemy_turn_right
     dec (ix+0)
+    dec d
+    jp nz, .enemy_step_x_px
     jp .enemy_step_y
 .enemy_turn_right:
     ld (ix+2), #01
@@ -319,12 +341,17 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     ld a, (ix+3)              ; dy
     or a
     jp z, .enemy_anim
+    ld d, (ix+21)
+.enemy_step_y_px:
+    ld a, (ix+3)
     bit 7, a
     jp nz, .enemy_step_up
     ld a, (ix+1)
     cp (ix+7)                 ; y vs maxY
     jp nc, .enemy_turn_up
     inc (ix+1)
+    dec d
+    jp nz, .enemy_step_y_px
     jp .enemy_anim
 .enemy_turn_up:
     ld (ix+3), #FF
@@ -335,13 +362,15 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp z, .enemy_turn_down
     jp c, .enemy_turn_down
     dec (ix+1)
+    dec d
+    jp nz, .enemy_step_y_px
     jp .enemy_anim
 .enemy_turn_down:
     ld (ix+3), #01
     jp .enemy_anim
 .enemy_step_patrol_chase_x:
     ; Detects player only inside this slot's patrol span. Outside that active
-    ; zone it behaves like normal patrol; inside it runs horizontally at 2px/frame.
+    ; zone it behaves like normal patrol; inside it uses authored speed.
     ld a, (player_x)
     cp (ix+4)                 ; player_x < minX -> patrol
     jp c, .enemy_step_patrol
@@ -355,21 +384,21 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp c, .enemy_chase_left
 .enemy_chase_right:
     ld (ix+2), #01
+    ld d, (ix+21)
+.enemy_chase_right_px:
     ld a, (ix+0)
     cp (ix+5)
     jp nc, .enemy_anim
     cp c
     jp nc, .enemy_anim
     inc (ix+0)
-    ld a, (ix+0)
-    cp (ix+5)
-    jp nc, .enemy_anim
-    cp c
-    jp nc, .enemy_anim
-    inc (ix+0)
+    dec d
+    jp nz, .enemy_chase_right_px
     jp .enemy_anim
 .enemy_chase_left:
     ld (ix+2), #FF
+    ld d, (ix+21)
+.enemy_chase_left_px:
     ld a, (ix+0)
     cp (ix+4)
     jp z, .enemy_anim
@@ -377,25 +406,22 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     cp c
     jp c, .enemy_anim
     dec (ix+0)
-    ld a, (ix+0)
-    cp (ix+4)
-    jp z, .enemy_anim
-    jp c, .enemy_anim
-    cp c
-    jp z, .enemy_anim
-    jp c, .enemy_anim
-    dec (ix+0)
+    dec d
+    jp nz, .enemy_chase_left_px
     jp .enemy_anim
 .enemy_step_walker_gravity:
     ; Logical origin = SAT x/y minus the visual cell offset. This keeps multi-cell
     ; hardware sprites moving as one physics body.
-    ; Gravity: if there is no solid tile below the body, fall 1px and skip walking.
+    ; Gravity probes every traversed pixel at the authored speed.
+    ld d, (ix+21)
+.walker_fall_px:
     ld a, (ix+1)
     ld e, (ix+15)
     sub e                      ; A = logical top Y
     cp 176
     jp nc, .walker_on_ground
     push bc                    ; preserve enemy loop counter in B
+    push de                    ; preserve remaining speed pixels in D
     add a, 16                  ; probe one pixel row under 16px body
     ld c, a
     ld a, (ix+0)
@@ -405,11 +431,15 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     ld b, a
     call bitmap_probe_solid
     or a
+    pop de
     pop bc
     jp nz, .walker_on_ground
     inc (ix+1)
+    dec d
+    jp nz, .walker_fall_px
     jp .enemy_anim
 .walker_on_ground:
+    ld d, (ix+21)
     ld a, (ix+2)
     or a
     jp z, .walker_set_right
@@ -421,6 +451,7 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     cp (ix+5)
     jp nc, .walker_turn_left
     push bc                    ; preserve enemy loop counter in B
+    push de
     ld e, (ix+14)
     sub e
     add a, 16
@@ -432,9 +463,12 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     ld c, a
     call bitmap_probe_solid
     or a
+    pop de
     pop bc
     jp nz, .walker_turn_left
     inc (ix+0)
+    dec d
+    jp nz, .walker_right
     jp .enemy_anim
 .walker_turn_left:
     ld (ix+2), #FF
@@ -449,6 +483,7 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp z, .walker_turn_right
     jp c, .walker_turn_right
     push bc                    ; preserve enemy loop counter in B
+    push de
     ld e, (ix+14)
     sub e
     dec a
@@ -460,21 +495,25 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     ld c, a
     call bitmap_probe_solid
     or a
+    pop de
     pop bc
     jp nz, .walker_turn_right
     dec (ix+0)
+    dec d
+    jp nz, .walker_left
     jp .enemy_anim
 .walker_turn_right:
     ld (ix+2), #01
 ${slime ? `    jp .enemy_anim
 .enemy_step_slime:
-    ; SlimeCeiling: crawls (+21) px along the floor, hops to the ceiling and
+    ; SlimeCeiling: crawls its authored travel distance along the floor, then
     ; sticks (Metroid-style gravity flip look), crawls the same distance upside
     ; down, then drops back to the floor and repeats. Pool extras:
-    ;   +21 travelPx, +22 travelCount, +23 phase
-    ;   phase: 0 = floor crawl, 1 = rising (3px/f), 2 = ceiling crawl, 3 = falling (3px/f)
+    ;   +21 speed, +22 updateLane, +23 travelPx, +24 travelCount, +25 phase
+    ;   phase: 0 = floor crawl, 1 = rising, 2 = ceiling crawl, 3 = falling
+    ;   All phases use the authored speed and probe every traversed pixel.
     ; Logical origin = SAT x/y minus the visual cell offset, like the walker.
-    ld a, (ix+23)
+    ld a, (ix+25)
     or a
     jp z, .slime_ground
     cp 1
@@ -492,33 +531,38 @@ ${slime ? `    jp .enemy_anim
     push bc                    ; preserve enemy loop counter in B
     add a, 16                  ; probe one pixel row under the 16px body
     ld c, a
-    ld a, (ix+0)
-    ld e, (ix+14)
-    sub e
-    add a, 8
-    ld b, a
-    call bitmap_probe_solid
+    call .slime_probe_body_width
     or a
     pop bc
     jp z, .slime_start_fall
 .slime_ground_crawl:
+    push bc                    ; B is the outer enemy counter; C is caller-owned
+    ld b, (ix+21)              ; apply authored speed pixel-by-pixel
+.slime_ground_speed_loop:
     call .slime_crawl_step
-    jp c, .enemy_anim          ; turned at a wall/bound: no distance gained
-    inc (ix+22)
-    ld a, (ix+22)
-    cp (ix+21)
-    jp c, .enemy_anim
+    jp c, .slime_ground_speed_done ; turned at a wall/bound: stop this frame
+    inc (ix+24)
+    ld a, (ix+24)
+    cp (ix+23)
+    jp nc, .slime_ground_travel_done
+    dec b
+    jp nz, .slime_ground_speed_loop
+.slime_ground_speed_done:
+    pop bc
+    jp .enemy_anim
+.slime_ground_travel_done:
     xor a
-    ld (ix+22), a
-    ld (ix+23), 1              ; hop: start rising to the ceiling
+    ld (ix+24), a
+    ld (ix+25), 1              ; hop: start rising to the ceiling
+    pop bc
     jp .enemy_anim
 .slime_start_fall:
     xor a
-    ld (ix+22), a
-    ld (ix+23), 3
+    ld (ix+24), a
+    ld (ix+25), 3
     jp .enemy_anim
 .slime_rise:
-    ld d, 3                    ; 3 px per frame, probing every pixel
+    ld d, (ix+21)              ; authored px/update, probing every pixel
 .slime_rise_px:
     ld a, (ix+1)
     ld e, (ix+15)
@@ -529,12 +573,7 @@ ${slime ? `    jp .enemy_anim
     push bc
     push de
     ld c, a
-    ld a, (ix+0)
-    ld e, (ix+14)
-    sub e
-    add a, 8
-    ld b, a
-    call bitmap_probe_solid
+    call .slime_probe_body_width
     or a
     pop de
     pop bc
@@ -545,8 +584,8 @@ ${slime ? `    jp .enemy_anim
     jp .enemy_anim
 .slime_attach:
     xor a
-    ld (ix+22), a
-    ld (ix+23), 2              ; stuck to the ceiling
+    ld (ix+24), a
+    ld (ix+25), 2              ; stuck to the ceiling
     jp .enemy_anim
 .slime_ceiling:
     ; Ceiling still there (head-row probe)? A destroyed tile drops the slime.
@@ -558,28 +597,33 @@ ${slime ? `    jp .enemy_anim
     dec a
     push bc
     ld c, a
-    ld a, (ix+0)
-    ld e, (ix+14)
-    sub e
-    add a, 8
-    ld b, a
-    call bitmap_probe_solid
+    call .slime_probe_body_width
     or a
     pop bc
     jp z, .slime_start_fall
 .slime_ceiling_crawl:
+    push bc                    ; preserve outer counter and caller-owned C
+    ld b, (ix+21)
+.slime_ceiling_speed_loop:
     call .slime_crawl_step
-    jp c, .enemy_anim
-    inc (ix+22)
-    ld a, (ix+22)
-    cp (ix+21)
-    jp c, .enemy_anim
+    jp c, .slime_ceiling_speed_done
+    inc (ix+24)
+    ld a, (ix+24)
+    cp (ix+23)
+    jp nc, .slime_ceiling_travel_done
+    dec b
+    jp nz, .slime_ceiling_speed_loop
+.slime_ceiling_speed_done:
+    pop bc
+    jp .enemy_anim
+.slime_ceiling_travel_done:
     xor a
-    ld (ix+22), a
-    ld (ix+23), 3              ; detach: drop back to the floor
+    ld (ix+24), a
+    ld (ix+25), 3              ; detach: drop back to the floor
+    pop bc
     jp .enemy_anim
 .slime_fall:
-    ld d, 3                    ; 3 px per frame, probing every pixel
+    ld d, (ix+21)              ; authored px/update, probing every pixel
 .slime_fall_px:
     ld a, (ix+1)
     ld e, (ix+15)
@@ -590,12 +634,7 @@ ${slime ? `    jp .enemy_anim
     push bc
     push de
     ld c, a
-    ld a, (ix+0)
-    ld e, (ix+14)
-    sub e
-    add a, 8
-    ld b, a
-    call bitmap_probe_solid
+    call .slime_probe_body_width
     or a
     pop de
     pop bc
@@ -606,9 +645,37 @@ ${slime ? `    jp .enemy_anim
     jp .enemy_anim
 .slime_land:
     xor a
-    ld (ix+22), a
-    ld (ix+23), a              ; phase = floor crawl
+    ld (ix+24), a
+    ld (ix+25), a              ; phase = floor crawl
     jp .enemy_anim
+.slime_probe_body_width:
+    ; ------------------------------------------------------------
+    ; PURPOSE: Probe one vertical collision row across the full 16px body.
+    ; INPUT: C = logical probe Y, IX = current slime slot.
+    ; OUTPUT: A = first solid cell or right-edge cell; Z when both edges pass.
+    ; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+    ; CALLS: bitmap_probe_solid.
+    ; NOTES: Samples logical X and X+15, so landing/attachment reflects the
+    ; complete sprite width instead of treating the slime as a centre point.
+    ; ------------------------------------------------------------
+    push bc
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e                      ; logical left edge X
+    ld b, a
+    call bitmap_probe_solid
+    or a
+    jp nz, .slime_probe_body_width_done
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e
+    add a, 15                 ; logical right edge X (16px body)
+    ld b, a
+    call bitmap_probe_solid
+    or a
+.slime_probe_body_width_done:
+    pop bc
+    ret
 .slime_crawl_step:
     ; Shared floor/ceiling crawl: 1px towards dx with wall/bound turns, exactly
     ; the walker rules. Returns NC when the slime advanced 1px, C when it only
@@ -693,6 +760,7 @@ ${slime ? `    jp .enemy_anim
     add ix, de
     dec b                     ; loop body exceeds djnz's -128 range
     jp nz, .enemy_step_loop
+    pop bc
     ret
 `;
 
@@ -872,7 +940,7 @@ ${slime ? `    add a, a                  ; frame * 16 (4 variants x 4 pattern nu
     xor a
 .sat_slot_${i}_pat:
 ${slime ? `    ld d, a
-    ld a, (${poolBase} + 23)  ; slime phase 1/2 (rising/ceiling) = flipped pose
+    ld a, (${poolBase} + 25)  ; slime phase 1/2 (rising/ceiling) = flipped pose
     dec a
     cp 2
     ld a, d
@@ -907,7 +975,7 @@ ${slime ? `    ld d, a
     ld a, (${poolBase} + 9)   ; animFrame
     add a, e
 ${slime ? `    ld e, a
-    ld a, (${poolBase} + 23)  ; slime phase 1/2 = flipped line-colour table
+    ld a, (${poolBase} + 25)  ; slime phase 1/2 = flipped line-colour table
     dec a
     cp 2
     jp nc, .color_slot_${i}_noflip
@@ -951,6 +1019,8 @@ bitmap_load_enemies:
     ld l, a
     ld a, (hl)                ; count byte
     ld (bitmap_enemy_count), a
+    ld a, #FF                 ; first gameplay frame selects update lane 0
+    ld (bitmap_enemy_update_lane), a
     inc hl
     push hl
     pop ix                    ; IX -> slot 0 (${TABLE_STRIDE} bytes/slot)
@@ -1042,7 +1112,7 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH${slime ? ',travelPx' : ''})`)
+    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx' : ''})`)
   ).join('')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
     + emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)

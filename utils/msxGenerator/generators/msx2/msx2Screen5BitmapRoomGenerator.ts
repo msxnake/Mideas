@@ -10402,6 +10402,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     spriteId: string;
     spriteLayerIndex: number;
     offset: EnemySpriteCell;
+    updateLane: number;
     contact: { damage: number; hitX: number; hitY: number; hitW: number; hitH: number };
   }
   const spriteRecords = new Map<string, EnemySpriteRecord>();
@@ -10600,7 +10601,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     }
     const expanded: EnemyHardwareSlot[] = [];
     let truncatedHardwareSlots = 0;
+    let logicalEnemyIndex = 0;
     for (const pair of paired.filter(pair => isBitmapEnemyMovementSupported(pair.slot.mode))) {
+      const updateLane = logicalEnemyIndex & 1;
+      logicalEnemyIndex++;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
       const spriteId = spriteIdForEntity(pair.entity);
       const grid = spriteGrid(spriteId);
@@ -10617,6 +10621,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
           spriteId,
           spriteLayerIndex,
           offset: hardwareSlots[spriteLayerIndex],
+          updateLane,
           contact,
         });
       }
@@ -10634,10 +10639,11 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       const pair = slots[i];
       if (!pair) {
         table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 16, 16);
+        table.push(1, 0);
         if (slimeEnabled) table.push(0);
         continue;
       }
-      const { slot, spriteId, spriteLayerIndex, offset, contact } = pair;
+      const { slot, spriteId, spriteLayerIndex, offset, updateLane, contact } = pair;
       const spriteRecord = resolveSpriteRecord(spriteId, spriteLayerIndex);
       table.push(
         slot.x & 0xff,
@@ -10660,6 +10666,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         contact.hitY & 0xff,
         contact.hitW & 0xff,
         contact.hitH & 0xff,
+        Math.max(1, slot.speed) & 0xff,
+        updateLane & 1,
       );
       if (slimeEnabled) {
         table.push(slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING ? (slot.travelPx & 0xff) : 0);
