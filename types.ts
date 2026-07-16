@@ -1442,7 +1442,7 @@ export interface ProjectPlayerDefinition {
 }
 
 export type EnemyCategory = 'simpleEnemy' | 'boss' | 'hazard' | 'projectileLike';
-export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'ChaseHorizontal' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
+export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'TurretAim' | 'ChaseHorizontal' | 'SlimeCeiling' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
 export type EnemyAttackType = 'None' | 'DamageOnTouch' | 'ShooterStatic' | 'ProjectileEmitter' | 'MeleeBox' | 'ExplosionOnTouch';
 export type EnemyRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type EnemySpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
@@ -1537,7 +1537,26 @@ export interface EnemyDefinition {
   category: EnemyCategory;
   scope: EnemyLibraryScope;
   behavior: { type: EnemyBehaviorType; customRoutine?: string; stateTransitions?: EnemyBehaviorStateTransition[] };
-  attack: { type: EnemyAttackType; projectileType?: string; fireRate?: number; maxProjectiles?: number; dropBombOnPlayerX?: boolean; bulletSpriteId?: string };
+  attack: {
+    type: EnemyAttackType;
+    projectileType?: string;
+    fireRate?: number;
+    maxProjectiles?: number;
+    dropBombOnPlayerX?: boolean;
+    bulletSpriteId?: string;
+    /** TurretAim: inner/base round hardware sprite. Falls back to render.spriteId. */
+    turretBaseSpriteId?: string;
+    /** TurretAim: outer round hardware sprite that marks the aiming vector. */
+    turretHeadSpriteId?: string;
+    /** Distance in pixels between the two turret sprite centres. */
+    turretMinSeparation?: number;
+    /** Centre of the allowed aiming arc, degrees: 0=right, 90=down. */
+    turretBaseAngle?: number;
+    /** Total allowed aiming arc in degrees (0..360). */
+    turretMaxAngle?: number;
+    /** Bullet speed in pixels per frame. */
+    bulletSpeed?: number;
+  };
   render: EnemyRenderConfig;
   hitboxes: EnemyHitboxes;
   stats: { hp: number; damage: number; invulnerabilityFrames?: number; knockback?: number };

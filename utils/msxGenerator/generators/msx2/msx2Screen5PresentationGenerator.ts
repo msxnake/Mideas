@@ -32,6 +32,16 @@ const clampLevel = (value: unknown, fallback = 0): number => {
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
 const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
 
+function selectScreen5DisplayPageAsm(vramPage: number): string {
+  // CHGMOD may reset VDP R#2. Keep the display page aligned with the VRAM
+  // destination used by the presentation upload routine.
+  const r2Value = vramPage === 1 ? 0x3f : 0x1f;
+  return `    ; Re-select SCREEN 5 display page ${vramPage} through VDP R#2
+    ld bc, ${hexWord((r2Value << 8) | 0x02)}
+    call WRTVDP
+`;
+}
+
 interface ResolvedPresentationFlow {
   presentation?: Msx2Screen5PresentationConfig;
   flow?: Msx2GameFlowGraph;
@@ -1417,7 +1427,7 @@ ${scene.label}_end_loop:
       : '';
     return `${scene.label}:
     call DISSCR
-    call load_screen5_palette_scene_${scene.sceneIndex}
+${selectScreen5DisplayPageAsm(scene.presentation.runtime.vramPage)}    call load_screen5_palette_scene_${scene.sceneIndex}
     call upload_screen5_scene_${scene.sceneIndex}_bitmap
     call ENASCR
 ${generateSceneWaitStep(scene.label, scene.presentation, nextLabel)}
@@ -1491,7 +1501,7 @@ SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
 ${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call DISSCR
     ld a, 5
     call CHGMOD
-    ld bc, #0007
+${selectScreen5DisplayPageAsm(firstScene.presentation.runtime.vramPage)}    ld bc, #0007
     call WRTVDP
     ei
     jp ${firstScene.label}
@@ -1785,7 +1795,7 @@ ${usesKonamiMegaRom ? '    call init_konami8k_fixed_bank0_banks\n' : ''}    call
     call DISSCR
     ld a, 5
     call CHGMOD
-    ld bc, #0007
+${selectScreen5DisplayPageAsm(presentation.runtime.vramPage)}    ld bc, #0007
     call WRTVDP
     call load_screen5_palette
     call upload_screen5_presentation_bitmap

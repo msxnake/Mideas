@@ -171,6 +171,8 @@ import {
   BITMAP_MAX_ENEMY_SLOTS,
   BITMAP_ENEMY_POOL_STRIDE,
   BitmapEnemyRoomData,
+  bitmapEnemyPoolStride,
+  bitmapEnemyVariantsPerFrame,
   buildBitmapEnemySystemAsm,
 } from './msx2BitmapEnemyGenerator';
 import {
@@ -183,6 +185,7 @@ import {
   MSX2_ENEMY_MOVEMENT_PATROL,
   MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X,
   MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY,
+  MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
@@ -190,6 +193,13 @@ import {
   buildBitmapCarryAndThrowSystemAsm,
   buildBitmapCarryAndThrowData,
 } from './msx2BitmapCarryAndThrowGenerator';
+import {
+  BITMAP_MAX_TURRET_SLOTS,
+  BitmapTurretRoomData,
+  bitmapTurretHardwareSlots,
+  bitmapTurretPatternGroups,
+  buildBitmapTurretSystemAsm,
+} from './msx2BitmapTurretGenerator';
 
 interface Msx2BitmapRoomConfig {
   screenMode: 'SCREEN 4 (Graphics II)';
@@ -3060,8 +3070,16 @@ init_screen5_bitmap_vdp:
     ; This backend composes 4bpp bitmap pages with V9938 commands (128 bytes per
     ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The editor
     ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
+    ; CHGMOD may leave the display disabled while changing mode. Keep the mode
+    ; switch blanked, then explicitly re-enable the display after boot uploads.
+    call DISSCR
     ld a, #05
     call CHGMOD
+    ; CHGMOD is a BIOS routine and may return with IRQs enabled. This runtime
+    ; polls VBlank directly and command helpers temporarily select VDP S#2;
+    ; allowing the BIOS ISR here causes an interrupt storm before the intro RLE
+    ; upload can finish. Reassert the init_rom DI contract immediately.
+    di
     ; Enable 16x16 hardware sprites (R#1 bit1 = SI). CHGMOD 5 leaves R#1=#60 (8x8),
     ; which would render only the top-left 8x8 quadrant of the 16x16 player pattern.
     ld a, #01
@@ -4176,8 +4194,8 @@ ${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invul
     inc a                          ; nudge 1px: 216->217 stays offscreen but keeps the SAT alive
 .ply_slot_${slotIndex}_y_safe:
     out (${VDP_DATA_PORT}), a`;
-  const yWriteHidden = `    ld a, #D8
-    out (${VDP_DATA_PORT}), a`;
+  const yWriteHidden = `    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
+    out (${VDP_DATA_PORT}), a      ; enemy/platform/bullet sprites after the player must stay visible`;
   const xPatEc = `    ld a, (player_x)${offset.x ? `\n    add a, ${offset.x}                   ; cell col +${offset.x}px` : ''}
     out (${VDP_DATA_PORT}), a
     ld a, (player_pat)
@@ -4870,6 +4888,7 @@ function buildBitmapKeyDoorSystemAsm(
   enemySlots: number = 0,
   forceInventory: boolean = false,
   gemCounter: { label: string; wide: boolean } | null = null,
+  enemyPoolStride: number = BITMAP_ENEMY_POOL_STRIDE,
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -5285,7 +5304,7 @@ bitmap_pressure_any_enemy_overlaps:
     or a
     jp nz, .pressure_enemy_yes
     push de
-    ld de, 16
+    ld de, ${enemyPoolStride}
     add ix, de
     pop de
     dec c
@@ -10252,6 +10271,107 @@ function resolveBitmapDebrisSprite(
   };
 }
 
+function resolveBitmapEnemyAssetForEntity(analysis: ProjectAnalysis, entity: any): any | undefined {
+  const enemyId = String(entity?.params?.enemyAssetId || entity?.enemyAssetId || '').trim();
+  if (!enemyId) return undefined;
+  return (analysis.assets || []).find(candidate =>
+    candidate.type === 'msx2enemy'
+    && (candidate.id === enemyId
+      || candidate.name === enemyId
+      || String((candidate.data as any)?.assetId || '').trim() === enemyId
+      || String((candidate.data as any)?.enemyId || '').trim() === enemyId)
+  )?.data;
+}
+
+function isBitmapTurretEntity(analysis: ProjectAnalysis, entity: any): boolean {
+  const def = resolveBitmapEnemyAssetForEntity(analysis, entity);
+  return entity?.params?.enemyTurretAim === true
+    || entity?.components?.msx2_ai?.turretAim === true
+    || String(def?.behavior?.type || '') === 'TurretAim';
+}
+
+/** Collects up to two aimed turrets per room. Every turret reserves two fixed
+ * hardware sprites (centre + aim marker); all turrets share one bullet slot. */
+function buildBitmapRoomTurretData(analysis: ProjectAnalysis, rooms: Msx2Screen5BitmapRoom[]): BitmapTurretRoomData {
+  const patternBytes: number[] = [];
+  const colorBytes: number[] = [];
+  const records = new Map<string, { patternOff: number; colorOff: number }>();
+  let bulletPatternBytes = Array(32).fill(0);
+  let bulletColorBytes = Array(16).fill(15);
+  let bulletResolved = false;
+  const spriteRecord = (spriteId: string): { patternOff: number; colorOff: number } => {
+    const key = spriteId || '__empty__';
+    const found = records.get(key);
+    if (found) return found;
+    const sprite = spriteId ? resolveMsx2SpriteById(analysis, spriteId) : undefined;
+    const layer = sprite
+      ? buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, 0)
+          .find(candidate => Array.isArray(candidate.pattern) && candidate.pattern.length === 32)
+      : undefined;
+    const pattern = (layer?.pattern || Array(32).fill(0)).slice(0, 32).map(value => value & 0xff);
+    const colors = (layer?.colors || Array(16).fill(BITMAP_ROOM_DEFAULT_SPRITE_COLOR)).slice(0, 16).map(value => value & 0xff);
+    while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+    const record = { patternOff: patternBytes.length / 32, colorOff: colorBytes.length / 16 };
+    patternBytes.push(...pattern);
+    colorBytes.push(...colors);
+    records.set(key, record);
+    return record;
+  };
+  const roomEntries = rooms.map(room => {
+    const entities = (room.entities || []).filter((entity: any) =>
+      entity?.kind === 'enemy' && entity?.position && isBitmapTurretEntity(analysis, entity)
+    ).slice(0, BITMAP_MAX_TURRET_SLOTS);
+    if ((room.entities || []).filter((entity: any) => entity?.kind === 'enemy' && entity?.position && isBitmapTurretEntity(analysis, entity)).length > BITMAP_MAX_TURRET_SLOTS) {
+      console.warn(`MSX2 bitmap room "${room.name}": only ${BITMAP_MAX_TURRET_SLOTS} aimed turrets are supported; extra placements were skipped.`);
+    }
+    const geometry = getMsx2EnemyHazardRuntimeSlots({ layers: { entities } } as any);
+    return entities.map((entity: any, index: number) => {
+      const def = resolveBitmapEnemyAssetForEntity(analysis, entity) || {};
+      const attack = def.attack || {};
+      const ai = entity?.components?.msx2_ai || {};
+      const params = entity?.params || {};
+      const baseId = String(ai.turretBaseSpriteId || params.turretBaseSpriteId || attack.turretBaseSpriteId || def.render?.spriteId || entity.spriteAssetId || '').trim();
+      const headId = String(ai.turretHeadSpriteId || params.turretHeadSpriteId || attack.turretHeadSpriteId || baseId).trim();
+      const bulletId = String(ai.bulletSpriteId || params.turretBulletSpriteId || attack.bulletSpriteId || '').trim();
+      if (!bulletResolved && bulletId) {
+        const bullet = spriteRecord(bulletId);
+        bulletPatternBytes = patternBytes.slice(bullet.patternOff * 32, bullet.patternOff * 32 + 32);
+        bulletColorBytes = colorBytes.slice(bullet.colorOff * 16, bullet.colorOff * 16 + 16);
+        bulletResolved = true;
+      }
+      const base = spriteRecord(baseId);
+      const head = spriteRecord(headId);
+      const slot = geometry[index] || { x: 0, y: 0 };
+      const baseAngle = Number(ai.turretBaseAngle ?? params.turretBaseAngle ?? attack.turretBaseAngle ?? 0);
+      const maxAngle = Math.max(0, Math.min(360, Number(ai.turretMaxAngle ?? params.turretMaxAngle ?? attack.turretMaxAngle ?? 360)));
+      return {
+        x: clampByte(slot.x, 0),
+        y: clampByte(slot.y, 0),
+        basePattern: base.patternOff,
+        headPattern: head.patternOff,
+        baseColor: base.colorOff,
+        headColor: head.colorOff,
+        baseDir: ((Math.round(baseAngle / 45) % 8) + 8) % 8,
+        halfArc: maxAngle >= 360 ? 4 : Math.max(0, Math.min(4, Math.floor(maxAngle / 90))),
+        separation: Math.max(0, Math.min(32, Math.floor(Number(attack.turretMinSeparation ?? ai.turretMinSeparation ?? params.turretMinSeparation ?? 8)))),
+        fireRate: Math.max(1, Math.min(255, Math.floor(Number(ai.fireRate ?? params.turretFireRate ?? attack.fireRate ?? 60)))),
+        bulletSpeed: Math.max(1, Math.min(8, Math.floor(Number(ai.bulletSpeed ?? params.turretBulletSpeed ?? attack.bulletSpeed ?? 2)))),
+      };
+    });
+  });
+  const maxSlots = Math.max(0, ...roomEntries.map(entries => entries.length));
+  const roomTables = roomEntries.map(entries => {
+    const table: number[] = [entries.length & 0xff];
+    for (let i = 0; i < maxSlots; i++) {
+      const entry = entries[i];
+      if (!entry) table.push(0, 0, 0, 0, 0, 0, 0, 0, 8, 60, 2);
+      else table.push(entry.x, entry.y, entry.basePattern, entry.headPattern, entry.baseDir, entry.halfArc, entry.separation, entry.fireRate, entry.bulletSpeed, entry.baseColor, entry.headColor);
+    }
+    return table;
+  });
+  return { maxSlots, roomTables, patternBytes, colorBytes, bulletPatternBytes, bulletColorBytes };
+}
+
 /**
  * Collect per-room enemy patrol slots for the bitmap-room enemy runtime.
  *
@@ -10282,6 +10402,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     spriteId: string;
     spriteLayerIndex: number;
     offset: EnemySpriteCell;
+    updateLane: number;
     contact: { damage: number; hitX: number; hitY: number; hitW: number; hitH: number };
   }
   const spriteRecords = new Map<string, EnemySpriteRecord>();
@@ -10292,7 +10413,11 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   const isBitmapEnemyMovementSupported = (mode: number): boolean =>
     mode === MSX2_ENEMY_MOVEMENT_PATROL
     || mode === MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X
-    || mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY;
+    || mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY
+    || mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING;
+  // Set BEFORE any resolveSpriteRecord runs (they all run while emitting the
+  // room tables below): slime builds emit vertical-flip pattern/colour variants.
+  let slimeEnabled = false;
   const emptyPattern = Array(32).fill(0);
   const spriteIdForEntity = (entity: any): string => String(
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
@@ -10433,9 +10558,22 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       const rightVariant = facingLeft ? mirrored : pattern;
       const leftVariant = facingLeft ? pattern : mirrored;
       patternBytes.push(...rightVariant, ...leftVariant);
+      if (slimeEnabled) {
+        // Ceiling pose: vertical flips right after the facing pair.
+        patternBytes.push(
+          ...mirrorHardwareSpritePatternVertically(rightVariant),
+          ...mirrorHardwareSpritePatternVertically(leftVariant),
+        );
+      }
     }
     for (const colors of frameColors) {
       colorBytes.push(...colors);
+    }
+    if (slimeEnabled) {
+      // Flipped line-colour tables follow the normal ones (frameCount blocks later).
+      for (const colors of frameColors) {
+        colorBytes.push(...colors.slice().reverse());
+      }
     }
     maxFrames = Math.max(maxFrames, record.frameCount);
     spriteRecords.set(key, record);
@@ -10446,6 +10584,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     const entities = (room.entities || []).filter((entity: any) =>
       (entity.kind === 'enemy' || entity.kind === 'hazard')
       && entity.position
+      && !isBitmapTurretEntity(analysis, entity)
       && !entity.components?.msx2_push_box
       && !entity.components?.msx2_box2
       && entity.params?.engine !== 'pushBox'
@@ -10462,7 +10601,11 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     }
     const expanded: EnemyHardwareSlot[] = [];
     let truncatedHardwareSlots = 0;
+    let logicalEnemyIndex = 0;
     for (const pair of paired.filter(pair => isBitmapEnemyMovementSupported(pair.slot.mode))) {
+      const updateLane = logicalEnemyIndex & 1;
+      logicalEnemyIndex++;
+      if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
       const spriteId = spriteIdForEntity(pair.entity);
       const grid = spriteGrid(spriteId);
       const hardwareSlots = grid.slots.length ? grid.slots : [{ x: 0, y: 0 }];
@@ -10478,6 +10621,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
           spriteId,
           spriteLayerIndex,
           offset: hardwareSlots[spriteLayerIndex],
+          updateLane,
           contact,
         });
       }
@@ -10488,16 +10632,18 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     maxSlots = Math.max(maxSlots, expanded.length);
     return expanded;
   });
-  if (maxSlots === 0) return { maxSlots: 0, maxFrames: 1, roomTables: [], patternBytes: [], colorBytes: [] };
+  if (maxSlots === 0) return { maxSlots: 0, maxFrames: 1, roomTables: [], patternBytes: [], colorBytes: [], slimeEnabled: false };
   const roomTables = roomSlotSets.map(slots => {
     const table: number[] = [slots.length & 0xff];
     for (let i = 0; i < maxSlots; i++) {
       const pair = slots[i];
       if (!pair) {
         table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 16, 16);
+        table.push(1, 0);
+        if (slimeEnabled) table.push(0);
         continue;
       }
-      const { slot, spriteId, spriteLayerIndex, offset, contact } = pair;
+      const { slot, spriteId, spriteLayerIndex, offset, updateLane, contact } = pair;
       const spriteRecord = resolveSpriteRecord(spriteId, spriteLayerIndex);
       table.push(
         slot.x & 0xff,
@@ -10520,11 +10666,16 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         contact.hitY & 0xff,
         contact.hitW & 0xff,
         contact.hitH & 0xff,
+        Math.max(1, slot.speed) & 0xff,
+        updateLane & 1,
       );
+      if (slimeEnabled) {
+        table.push(slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING ? (slot.travelPx & 0xff) : 0);
+      }
     }
     return table;
   });
-  return { maxSlots, maxFrames, roomTables, patternBytes, colorBytes };
+  return { maxSlots, maxFrames, roomTables, patternBytes, colorBytes, slimeEnabled };
 }
 
 /**
@@ -10673,6 +10824,22 @@ function reverseSpritePatternByte(value: number): number {
     if (value & (1 << bit)) result |= 0x80 >> bit;
   }
   return result;
+}
+
+/** Vertical flip of a 16x16 mode-2 sprite pattern (32 bytes = TL,BL,TR,BR
+ *  quadrants of 8 rows each): swap top/bottom quadrants and reverse row order.
+ *  Used for the SlimeCeiling upside-down pose. */
+function mirrorHardwareSpritePatternVertically(pattern: number[]): number[] {
+  const topLeft = pattern.slice(0, 8);
+  const bottomLeft = pattern.slice(8, 16);
+  const topRight = pattern.slice(16, 24);
+  const bottomRight = pattern.slice(24, 32);
+  return [
+    ...bottomLeft.slice().reverse(),
+    ...topLeft.slice().reverse(),
+    ...bottomRight.slice().reverse(),
+    ...topRight.slice().reverse(),
+  ];
 }
 
 function mirrorHardwareSpritePatternHorizontally(pattern: number[]): number[] {
@@ -11616,14 +11783,28 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Enemy patrol runtime (SCREEN 4 port): SAT slots sit right after the player
   // layers (bullets shift past them), pattern groups after the foreground ones.
   const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
+  const turretData = buildBitmapRoomTurretData(analysis, rooms);
   const carryAndThrowConfig = getMsx2CarryAndThrowConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
   const carryAndThrowData = buildBitmapCarryAndThrowData(analysis, rooms);
+  // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
+  // bitmap visual. Place those rectangles after the atlas and any linked-HUD
+  // source tiles, but before the dialogue blob that grows down from VRAM row
+  // 1024. Hardware-sprite carryables do not consume this space.
+  const carryBitmapScratchSlots = carryAndThrowData.bitmapSlots;
+  const carryBitmapScratchBaseY = BITMAP_ROOM_ATLAS_BASE_Y
+    + atlasRows16
+    + Math.max(0, tileBasedHudSources.length - 3) * 16;
+  const carryBitmapScratchEndY = carryBitmapScratchBaseY + carryBitmapScratchSlots * 16;
+  if (carryBitmapScratchSlots > 0 && carryBitmapScratchEndY > dialogueVramBaseRow) {
+    throw new Error(`SCREEN 5 bitmap carryables need ${carryBitmapScratchSlots} scratch tile(s) after the atlas, but the dialogue blob starts at VRAM row ${dialogueVramBaseRow}. Reduce the atlas/dialogue size or use hardware-sprite carryables.`);
+  }
   const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
-  const enemyPatternGroupCount = enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * 2;
+  const enemyVariantsPerFrame = bitmapEnemyVariantsPerFrame(enemyData);
+  const enemyPatternGroupCount = enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * enemyVariantsPerFrame;
   if (enemyData.maxSlots > 0 && enemyPatternGroupBase + enemyPatternGroupCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room enemies need sprite pattern groups ${enemyPatternGroupBase}..${enemyPatternGroupBase + enemyPatternGroupCount - 1} ` +
-      `(${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} frame(s) x 2 facing variants), but the V9938 sprite pattern table only holds 64 groups ` +
+      `(${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} frame(s) x ${enemyVariantsPerFrame} variants${enemyData.slimeEnabled ? ', slime ceiling flips included' : ''}), but the V9938 sprite pattern table only holds 64 groups ` +
       `(player uses ${playerPatternGroups}, +1 bullet reserve, +${foregroundCount} foreground). ` +
       `Reduce player animation frames/layers, foreground tiles, enemy frames or enemies per room.`,
     );
@@ -11670,6 +11851,20 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   }
   const destroySatBase = carrySatBase + carryAndThrowData.maxSlots * 4;
   const destroyColorBase = carryColorBase + carryAndThrowData.maxSlots * 16;
+  // AIMED TURRET: two hardware sprites per placement and one shared projectile.
+  // It follows destroy debris in SAT/pattern space so existing player/enemy/
+  // platform/carry allocations remain stable for projects without turrets.
+  const turretPatternGroupBase = destroyPatternGroup + (destroyDebrisSlots > 0 ? 1 : 0);
+  const turretPatternGroupCount = bitmapTurretPatternGroups(turretData);
+  if (turretPatternGroupCount > 0 && turretPatternGroupBase + turretPatternGroupCount > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room aimed turrets need sprite pattern groups ${turretPatternGroupBase}..${turretPatternGroupBase + turretPatternGroupCount - 1}, ` +
+      'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation, carryables or turrets.',
+    );
+  }
+  const turretHardwareSlotCount = bitmapTurretHardwareSlots(turretData);
+  const turretSatBase = destroySatBase + destroyDebrisSlots * 4;
+  const turretColorBase = destroyColorBase + destroyDebrisSlots * 16;
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -11682,7 +11877,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     enemySlotCount: enemyData.maxSlots,
     platformSlotCount: platformHardwareSlots,
     carrySlotCount: carryAndThrowData.maxSlots,
-    destroySlotCount: destroyDebrisSlots,
+    destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
   const shootBulletSatCall = buildBitmapBulletSatCallAsm(shootConfig);
@@ -11909,7 +12104,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const gemCounterRam = gemCounterEntry
     ? { label: resolveHudElementBindingRamLabel(gemCounterEntry.source.element, gemCounterEntry.index), wide: linkedCounterSpec(gemCounterEntry.source.element).wide }
     : null;
-  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud, gemCounterRam);
+  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud, gemCounterRam, bitmapEnemyPoolStride(enemyData));
   hudLinkedRamCursor += keyDoorSystem.ramBytes;
   // collector_gems skill: gem collectibles drawn/erased on the room bitmap.
   // Built before the dialogue system so the dialogue-close repaint call chain
@@ -11978,6 +12173,24 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += enemySystem.ramBytes;
+  const turretSystem = buildBitmapTurretSystemAsm(turretData, {
+    ramBase: hudLinkedRamCursor,
+    satBase: turretSatBase,
+    colorBase: turretColorBase,
+    patternBase: 0xF800,
+    patternGroupBase: turretPatternGroupBase,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    playerHitbox,
+    damageInvulnFrames: playerVitals.invulnFrames,
+    maxHealth: playerVitals.maxHealth,
+    pauseGateAsm: `${dialogueSystem.enabled
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze turrets
+    or a
+    ret nz
+`
+      : ''}${perceptionPauseGateAsm}`,
+  });
+  hudLinkedRamCursor += turretSystem.ramBytes;
   // Moving-platform runtime state chains after the enemy pool, sharing the same
   // NPC-dialogue pause gate so the world freezes with an open conversation.
   const platformSystem = buildBitmapPlatformSystemAsm(platformData, {
@@ -12006,7 +12219,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     screenWidth: SCREEN_WIDTH,
     enemySlotCount: enemyData.maxSlots,
-    enemyPoolStride: BITMAP_ENEMY_POOL_STRIDE,
+    enemyPoolStride: bitmapEnemyPoolStride(enemyData),
+    bitmapAtlasBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
+    bitmapScratchBaseY: carryBitmapScratchSlots > 0 ? carryBitmapScratchBaseY : undefined,
     pauseGateAsm: `${dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze carried objects
     or a
@@ -12028,7 +12243,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || platformSystem.enabled || carryAndThrowSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || carryAndThrowSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/carry systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
@@ -12093,7 +12308,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -12168,7 +12383,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
 ${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
-${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
+${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
@@ -12196,7 +12411,22 @@ ${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${platformSystem.loadCallAsm}$
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
-${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
+    ; BIOS/VDP state left by CHGMOD or command-engine setup.
+    ld a, #02
+    ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
+    call vdp_write_register
+    call ENASCR
+    ; ENASCR is another BIOS boundary that may return with IRQs enabled. Keep
+    ; the bitmap runtime on its documented polling-only interrupt contract.
+    di
+    ; ENASCR reloads R#1 from the BIOS shadow, whose SCREEN 5 value is #60
+    ; (8x8 sprites), undoing the #62 selected in init_screen5_bitmap_vdp.
+    ; Restore SI after the BIOS call so 16x16 player/object patterns are whole.
+    ld a, #01
+    ld e, #62
+    call vdp_write_register
+    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.
@@ -12250,6 +12480,8 @@ ${hasStateAnimations ? `    xor a
 ; ==================================================================
 
 CHGMOD  EQU #005F
+DISSCR  EQU #0041
+ENASCR  EQU #0044
 ENASLT  EQU #0024
 GTSTCK  EQU #00DC
 RSLREG  EQU #0138
@@ -12338,7 +12570,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -12372,8 +12604,8 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}$
 ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}.skip_player_movement:
-${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${shootBulletSatCall}    jp .bitmap_main_loop
+${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}    call bitmap_update_sprite_sat
+${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
 ${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
@@ -12400,6 +12632,7 @@ ${dialogueSystem.routinesAsm}
 ${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
 ${enemySystem.routinesAsm}
+${turretSystem.routinesAsm}
 ${platformSystem.routinesAsm}
 ${carryAndThrowSystem.dataAsm}
 ${bitmapEndRuntime.routinesAsm}
@@ -12441,6 +12674,7 @@ ${bitmapEndRuntime.dataAsm}
 ${roomDataAsm}
 ${foregroundDataAsm}
 ${enemySystem.dataAsm}
+${turretSystem.dataAsm}
 ${platformSystem.dataAsm}
 ${formatBytes('bitmap_room_sprite_colors', combinedColors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
 bitmap_room_sprite_colors_end:
