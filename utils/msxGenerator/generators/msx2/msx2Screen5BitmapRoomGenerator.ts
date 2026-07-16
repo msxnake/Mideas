@@ -4194,8 +4194,8 @@ ${enableBlink ? `    ; Blink i-frames feedback: while invulnerable (player_invul
     inc a                          ; nudge 1px: 216->217 stays offscreen but keeps the SAT alive
 .ply_slot_${slotIndex}_y_safe:
     out (${VDP_DATA_PORT}), a`;
-  const yWriteHidden = `    ld a, #D8
-    out (${VDP_DATA_PORT}), a`;
+  const yWriteHidden = `    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
+    out (${VDP_DATA_PORT}), a      ; enemy/platform/bullet sprites after the player must stay visible`;
   const xPatEc = `    ld a, (player_x)${offset.x ? `\n    add a, ${offset.x}                   ; cell col +${offset.x}px` : ''}
     out (${VDP_DATA_PORT}), a
     ld a, (player_pat)

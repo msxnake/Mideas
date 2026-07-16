@@ -1,0 +1,10 @@
+slime x=6D y=40 phase=02 count=02
+sat_player_F600 base=0F600: D8 93 00 00 D8 93 04 00 D8 93 08 00 D8 93 0C 00
+sat_enemy_F610 base=0F610: 54 6D 90 00 54 6D B0 00 62 C0 C4 00 D4 00 00 00
+sat_turret_F620 base=0F620: 54 70 CC 00 57 70 D0 00 6D 7B D4 00 D8 00 00 00
+col_enemy0 base=0F440: 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B 0F 0F 0F 0F 0F 0F
+col_enemy1 base=0F450: 0F 0C 0C 0C 4C 4C 4C 4C 0C 0F 0F 0F 0F 0F 0F 0F
+pat_grp33_FC20 base=0FC20: 00 00 00 00 00 00 0F 30 40 80 80 80 80 40 20 1F 00 00 00 00 00 00 FC 02 1D 3B 3B 1D 01 01 02 FC
+pat_grp41_FD20 base=0FD20: 00 00 00 00 00 00 00 0F 3F 7F 7F 7F 7F 3F 1F 00 00 00 00 00 00 00 00 FC FE FA FA FE FE FE FC 00
+vdp_r8=08
+shot=C:/Users/salam/Documents/Programacion/Mideas/test/msx2-slime/slime_probe.png

@@ -15,7 +15,7 @@
 ; Bitmap room game area: 256x192 at visual Y=20
 ; Bitmap room game band VRAM base: #0A00
 ; World rooms: 13; start room index: 1
-; Shared tileset bytes: 18432 at VRAM #10000
+; Shared tileset bytes: 14336 at VRAM #10000
 ; MSX2_GAMEFLOW_INTRO_SCENES: 1
 ; ==================================================================
 
@@ -37,25 +37,23 @@ bitmap_room_hud_seed_p0_rle_chunk_0_DATA_BANK EQU 4
 bitmap_room_hud_seed_p1_rle_chunk_0_DATA_BANK EQU 4
 bitmap_room_tileset_rle_chunk_0_DATA_BANK EQU 4
 bitmap_room_tileset_rle_chunk_1_DATA_BANK EQU 5
-bitmap_room_tileset_rle_chunk_2_DATA_BANK EQU 6
-bitmap_room_tileset_rle_chunk_3_DATA_BANK EQU 6
-bitmap_room_hud_linked_0_rle_chunk_0_DATA_BANK EQU 6
-bitmap_room_hud_linked_1_rle_chunk_0_DATA_BANK EQU 6
-bitmap_room_hud_linked_2_rle_chunk_0_DATA_BANK EQU 6
-bitmap_room_hud_linked_3_rle_chunk_0_DATA_BANK EQU 6
+bitmap_room_hud_linked_0_rle_chunk_0_DATA_BANK EQU 5
+bitmap_room_hud_linked_1_rle_chunk_0_DATA_BANK EQU 5
+bitmap_room_hud_linked_2_rle_chunk_0_DATA_BANK EQU 5
+bitmap_room_hud_linked_3_rle_chunk_0_DATA_BANK EQU 5
 bitmap_room_render_0_p0_DATA_BANK EQU 6
 bitmap_room_render_0_p1_DATA_BANK EQU 6
 bitmap_room_collision_0_DATA_BANK EQU 6
 bitmap_room_behavior_0_DATA_BANK EQU 6
 bitmap_room_render_1_p0_DATA_BANK EQU 6
-bitmap_room_render_1_p1_DATA_BANK EQU 7
-bitmap_room_collision_1_DATA_BANK EQU 7
-bitmap_room_behavior_1_DATA_BANK EQU 7
-bitmap_room_render_2_p0_DATA_BANK EQU 7
-bitmap_room_render_2_p1_DATA_BANK EQU 7
-bitmap_room_collision_2_DATA_BANK EQU 7
-bitmap_room_behavior_2_DATA_BANK EQU 7
-bitmap_room_render_3_p0_DATA_BANK EQU 7
+bitmap_room_render_1_p1_DATA_BANK EQU 6
+bitmap_room_collision_1_DATA_BANK EQU 6
+bitmap_room_behavior_1_DATA_BANK EQU 6
+bitmap_room_render_2_p0_DATA_BANK EQU 6
+bitmap_room_render_2_p1_DATA_BANK EQU 6
+bitmap_room_collision_2_DATA_BANK EQU 6
+bitmap_room_behavior_2_DATA_BANK EQU 6
+bitmap_room_render_3_p0_DATA_BANK EQU 6
 bitmap_room_render_3_p1_DATA_BANK EQU 7
 bitmap_room_collision_3_DATA_BANK EQU 7
 bitmap_room_behavior_3_DATA_BANK EQU 7
@@ -63,44 +61,44 @@ bitmap_room_render_4_p0_DATA_BANK EQU 7
 bitmap_room_render_4_p1_DATA_BANK EQU 7
 bitmap_room_collision_4_DATA_BANK EQU 7
 bitmap_room_behavior_4_DATA_BANK EQU 7
-bitmap_room_render_5_p0_DATA_BANK EQU 8
-bitmap_room_render_5_p1_DATA_BANK EQU 8
-bitmap_room_collision_5_DATA_BANK EQU 8
-bitmap_room_behavior_5_DATA_BANK EQU 8
-bitmap_room_render_6_p0_DATA_BANK EQU 8
-bitmap_room_render_6_p1_DATA_BANK EQU 8
-bitmap_room_collision_6_DATA_BANK EQU 8
-bitmap_room_behavior_6_DATA_BANK EQU 8
+bitmap_room_render_5_p0_DATA_BANK EQU 7
+bitmap_room_render_5_p1_DATA_BANK EQU 7
+bitmap_room_collision_5_DATA_BANK EQU 7
+bitmap_room_behavior_5_DATA_BANK EQU 7
+bitmap_room_render_6_p0_DATA_BANK EQU 7
+bitmap_room_render_6_p1_DATA_BANK EQU 7
+bitmap_room_collision_6_DATA_BANK EQU 7
+bitmap_room_behavior_6_DATA_BANK EQU 7
 bitmap_room_render_7_p0_DATA_BANK EQU 8
 bitmap_room_render_7_p1_DATA_BANK EQU 8
 bitmap_room_collision_7_DATA_BANK EQU 8
 bitmap_room_behavior_7_DATA_BANK EQU 8
-bitmap_room_render_8_p0_DATA_BANK EQU 9
-bitmap_room_render_8_p1_DATA_BANK EQU 9
-bitmap_room_collision_8_DATA_BANK EQU 9
-bitmap_room_behavior_8_DATA_BANK EQU 9
-bitmap_room_render_9_p0_DATA_BANK EQU 9
-bitmap_room_render_9_p1_DATA_BANK EQU 9
-bitmap_room_collision_9_DATA_BANK EQU 9
-bitmap_room_behavior_9_DATA_BANK EQU 9
+bitmap_room_render_8_p0_DATA_BANK EQU 8
+bitmap_room_render_8_p1_DATA_BANK EQU 8
+bitmap_room_collision_8_DATA_BANK EQU 8
+bitmap_room_behavior_8_DATA_BANK EQU 8
+bitmap_room_render_9_p0_DATA_BANK EQU 8
+bitmap_room_render_9_p1_DATA_BANK EQU 8
+bitmap_room_collision_9_DATA_BANK EQU 8
+bitmap_room_behavior_9_DATA_BANK EQU 8
 bitmap_room_render_10_p0_DATA_BANK EQU 9
 bitmap_room_render_10_p1_DATA_BANK EQU 9
 bitmap_room_collision_10_DATA_BANK EQU 9
 bitmap_room_behavior_10_DATA_BANK EQU 9
 bitmap_room_render_11_p0_DATA_BANK EQU 9
 bitmap_room_render_11_p1_DATA_BANK EQU 9
-bitmap_room_collision_11_DATA_BANK EQU 10
-bitmap_room_behavior_11_DATA_BANK EQU 10
-bitmap_room_render_12_p0_DATA_BANK EQU 10
-bitmap_room_render_12_p1_DATA_BANK EQU 10
-bitmap_room_collision_12_DATA_BANK EQU 10
-bitmap_room_behavior_12_DATA_BANK EQU 10
-bitmap_intro_scene0_rle_chunk_0_DATA_BANK EQU 11
-bitmap_intro_scene0_rle_chunk_1_DATA_BANK EQU 12
-bitmap_intro_scene0_rle_chunk_2_DATA_BANK EQU 13
-bitmap_intro_scene0_rle_chunk_3_DATA_BANK EQU 13
-bitmap_dlg_gfx_rle_chunk_0_DATA_BANK EQU 14
-bitmap_dlg_gfx_rle_chunk_1_DATA_BANK EQU 15
+bitmap_room_collision_11_DATA_BANK EQU 9
+bitmap_room_behavior_11_DATA_BANK EQU 9
+bitmap_room_render_12_p0_DATA_BANK EQU 9
+bitmap_room_render_12_p1_DATA_BANK EQU 9
+bitmap_room_collision_12_DATA_BANK EQU 9
+bitmap_room_behavior_12_DATA_BANK EQU 9
+bitmap_intro_scene0_rle_chunk_0_DATA_BANK EQU 10
+bitmap_intro_scene0_rle_chunk_1_DATA_BANK EQU 11
+bitmap_intro_scene0_rle_chunk_2_DATA_BANK EQU 12
+bitmap_intro_scene0_rle_chunk_3_DATA_BANK EQU 12
+bitmap_dlg_gfx_rle_chunk_0_DATA_BANK EQU 13
+bitmap_dlg_gfx_rle_chunk_1_DATA_BANK EQU 14
 
 
 ; Player SAT image in RAM (kept contiguous so the 4 bytes copy straight to the
@@ -217,15 +215,6 @@ bitmap_gem_work_offset EQU #C0F0
 bitmap_gem_target_page EQU #C0F1
 bitmap_gem_flags       EQU #C0F2
 bitmap_gem_cmd_block   EQU #C2C0
-; perception skill (SCREEN 5 bitmap): 2 hidden_obj marker(s), radius 64px, 2 ship part(s) + 'I' window.
-bitmap_flag_near         EQU #C168
-bitmap_percept_work_flag EQU #C169
-bitmap_percept_work_type EQU #C16A
-bitmap_hidden_count      EQU #C16B
-bitmap_inv_state         EQU #C16C
-bitmap_inv_key_lock      EQU #C16D
-bitmap_inv_cmd_block     EQU #C2C0
-bitmap_hidden_flags      EQU #C16E
 ; Jumper springs (SCREEN 5 bitmap): 1 spring(s). RAM follows key-door/gem chain.
 bitmap_jumper_timer       EQU #C0FD
 bitmap_jumper_target_page EQU #C0FE
@@ -283,6 +272,31 @@ bitmap_enemy_pool  EQU #C12B
 bitmap_platform_count EQU #C15B
 bitmap_platform_rider EQU #C15C
 bitmap_platform_pool  EQU #C15D
+; --- SCREEN 5 CARRY & THROW runtime (32 bytes) ---
+bitmap_carry_slot     EQU #C168
+bitmap_carry_lock     EQU #C169
+bitmap_carry_cooldown EQU #C16A
+bitmap_carry_count    EQU #C16B
+bitmap_carry_draw_page EQU #C16C
+bitmap_carry_x        EQU #C16D
+bitmap_carry_y        EQU #C16E
+bitmap_carry_vx       EQU #C16F
+bitmap_carry_vy       EQU #C170
+bitmap_carry_state    EQU #C171
+bitmap_carry_pattern  EQU #C172
+bitmap_carry_render   EQU #C173
+bitmap_carry_source_x EQU #C174
+bitmap_carry_source_row EQU #C175
+bitmap_carry_drawn    EQU #C176
+bitmap_carry_old_x    EQU #C177
+bitmap_carry_old_y    EQU #C178
+bitmap_carry_cmd_buffer EQU #C179
+
+; Shared HUD state. #C1FC is the classic hearts dirty byte when no linked HUD
+; exists; linked carry HUDs disable that legacy renderer, so the byte is safe.
+bitmap_carry_held     EQU #C1FC
+BITMAP_MAX_CARRY_AND_THROW_SLOTS EQU 1
+BITMAP_CARRY_BITMAP_SLOTS EQU 1
     org #4000
 
     db "AB"
@@ -346,6 +360,7 @@ bitmap_gf_node_3:
 
     call bitmap_load_enemies
     call bitmap_load_platforms
+    call bitmap_load_carry_objects
     ; Place the player at the room spawn point.
     ld a, 146
     ld (player_y), a
@@ -430,14 +445,6 @@ bitmap_gf_node_3:
     ld (bitmap_gem_flags + 8), a
     ld (bitmap_gem_flags + 9), a
     ld (bitmap_gem_flags + 10), a
-    ; perception: clear near flag, counters and per-object collected flags.
-    xor a
-    ld (bitmap_flag_near), a
-    ld (bitmap_hidden_count), a
-    ld (bitmap_inv_state), a
-    ld (bitmap_inv_key_lock), a
-    ld (bitmap_hidden_flags + 0), a
-    ld (bitmap_hidden_flags + 1), a
     ; jumper springs: clear revert timer, active pointer + input latch.
     xor a
     ld (bitmap_jumper_timer), a
@@ -513,13 +520,10 @@ bitmap_enter_game_loop:
     call bitmap_update_platforms
     call bitmap_dialogue_frame      ; NPC talk: open/advance dialogue; carry = player paused
     jp c, .skip_player_movement
-    call bitmap_inventory_frame     ; 'I' parts window: toggle/draw; carry = player paused
-    jp c, .skip_player_movement
     ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
     call bitmap_platform_ride_detect
 .skip_player_movement:
-    call bitmap_update_perception    ; perception: hidden_obj proximity/collect -> flag_near
     call bitmap_update_player_sprite_animation
     call bitmap_upload_player_frame_colors
     call bitmap_check_deadly_contact    ; deadly-tile damage + respawn (SCREEN 5 bitmap)
@@ -533,9 +537,12 @@ bitmap_enter_game_loop:
     call bitmap_update_walljumpers    ; wall-jumper springs: side-contact detect + horizontal launch + tile swap
     call bitmap_update_enemies
     call bitmap_check_enemy_touch
+    call update_bitmap_carry_and_throw
+    call bitmap_draw_carry_objects
     call bitmap_update_sprite_sat
     call bitmap_update_enemy_sat
     call bitmap_update_platform_sat
+    call bitmap_update_carry_sat
     jp .bitmap_main_loop
 
 ; ------------------------------------------------------------
@@ -1413,22 +1420,8 @@ upload_tileset_atlas:
     call bitmap_room_select_data_bank_a
     ld hl, bitmap_room_tileset_rle_chunk_1
     ld a, 4
-    ld de, #1B3A
+    ld de, #1C05
     ld bc, bitmap_room_tileset_rle_chunk_1_end - bitmap_room_tileset_rle_chunk_1
-    call decompress_bitmap_rle_to_vram
-    ld a, bitmap_room_tileset_rle_chunk_2_DATA_BANK
-    call bitmap_room_select_data_bank_a
-    ld hl, bitmap_room_tileset_rle_chunk_2
-    ld a, 4
-    ld de, #3DD3
-    ld bc, bitmap_room_tileset_rle_chunk_2_end - bitmap_room_tileset_rle_chunk_2
-    call decompress_bitmap_rle_to_vram
-    ld a, bitmap_room_tileset_rle_chunk_3_DATA_BANK
-    call bitmap_room_select_data_bank_a
-    ld hl, bitmap_room_tileset_rle_chunk_3
-    ld a, 5
-    ld de, #0000
-    ld bc, bitmap_room_tileset_rle_chunk_3_end - bitmap_room_tileset_rle_chunk_3
     call decompress_bitmap_rle_to_vram
     call bitmap_room_restore_resident_banks
     ret
@@ -1963,6 +1956,7 @@ commit_room_flip:
     ld (bitmap_composition_blocks_left + 1), a
     call bitmap_load_enemies
     call bitmap_load_platforms
+    call bitmap_load_carry_objects
     scf
     ret
 
@@ -2776,8 +2770,8 @@ bitmap_update_sprite_sat:
     out (#98), a
     jp .ply_slot_0_after_y
 .ply_slot_0_hide_y:
-    ld a, #D8
-    out (#98), a
+    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
+    out (#98), a      ; enemy/platform/bullet sprites after the player must stay visible
 .ply_slot_0_after_y:
     ld a, (player_x)
     out (#98), a
@@ -2800,8 +2794,8 @@ bitmap_update_sprite_sat:
     out (#98), a
     jp .ply_slot_1_after_y
 .ply_slot_1_hide_y:
-    ld a, #D8
-    out (#98), a
+    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
+    out (#98), a      ; enemy/platform/bullet sprites after the player must stay visible
 .ply_slot_1_after_y:
     ld a, (player_x)
     out (#98), a
@@ -2826,8 +2820,8 @@ bitmap_update_sprite_sat:
     out (#98), a
     jp .ply_slot_2_after_y
 .ply_slot_2_hide_y:
-    ld a, #D8
-    out (#98), a
+    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
+    out (#98), a      ; enemy/platform/bullet sprites after the player must stay visible
 .ply_slot_2_after_y:
     ld a, (player_x)
     out (#98), a
@@ -2852,8 +2846,8 @@ bitmap_update_sprite_sat:
     out (#98), a
     jp .ply_slot_3_after_y
 .ply_slot_3_hide_y:
-    ld a, #D8
-    out (#98), a
+    ld a, #D4                      ; off-screen but NOT the #D8 SAT terminator:
+    out (#98), a      ; enemy/platform/bullet sprites after the player must stay visible
 .ply_slot_3_after_y:
     ld a, (player_x)
     out (#98), a
@@ -2880,6 +2874,692 @@ bitmap_update_sprite_sat:
 
 
 
+bitmap_carry_and_throw_pressed:
+    ; ------------------------------------------------------------
+    ; FUNCTION: bitmap_carry_and_throw_pressed
+    ; PURPOSE: Reads the configured carry/throw keyboard binding directly from PPI.
+    ; INPUT: none.
+    ; OUTPUT: A=1 while pressed, A=0 otherwise (Z set when released).
+    ; DESTROYS: AF.
+    ; PRESERVES: BC, DE, HL, IX, IY.
+    ; ------------------------------------------------------------
+    in a, (PPI_C)
+    and #F0
+    or 4
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and #08
+    ret z
+    ld a, 1
+    ret
+
+; FUNCTION: bitmap_load_carry_objects
+; PURPOSE: Loads the active room's carryable positions and sprite graphics.
+; INPUT: current_screen_index.
+; OUTPUT: carryable slot state/position arrays initialized.
+; DESTROYS: AF, BC, DE, HL, IX. PRESERVES: IY.
+bitmap_load_carry_objects:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_carry_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, (hl)
+    ld (bitmap_carry_count), a
+    inc hl
+    push hl
+    pop ix
+    xor a
+    ld (bitmap_carry_lock), a
+    ld (bitmap_carry_cooldown), a
+    ld (bitmap_carry_held), a
+    ld a, #FF
+    ld (bitmap_carry_draw_page), a
+    ld a, #FF
+    ld (bitmap_carry_slot), a
+    ld a, (bitmap_carry_count)
+    cp 1
+    jp c, .carry_load_slot_0_inactive
+    ld a, (ix+0)
+    ld (bitmap_carry_x + 0), a
+    inc ix
+    ld a, (ix+0)
+    ld (bitmap_carry_y + 0), a
+    inc ix
+    ld a, (ix+0)
+    ld (bitmap_carry_pattern + 0), a
+    inc ix
+    ld a, (ix+0)
+    ld (bitmap_carry_render + 0), a
+    inc ix
+    ld a, (ix+0)
+    ld (bitmap_carry_source_x + 0), a
+    inc ix
+    ld a, (ix+0)
+    ld (bitmap_carry_source_row + 0), a
+    inc ix
+    xor a
+    ld (bitmap_carry_state + 0), a
+    ld (bitmap_carry_drawn + 0), a
+    ld (bitmap_carry_old_x + 0), a
+    ld (bitmap_carry_old_y + 0), a
+    ld a, (bitmap_carry_render + 0)
+    or a
+    jp nz, .carry_load_slot_0_bitmap
+    ld a, (bitmap_carry_pattern + 0)
+    call bitmap_carry_patterns_offset
+    ld de, #0640
+    ld bc, 32
+    call copy_to_vram_ext
+    ld a, (bitmap_carry_pattern + 0)
+    call bitmap_carry_colors_offset
+    ld de, #F470
+    ld bc, 16
+    call copy_to_vram_ext
+    jp .carry_load_slot_0_done
+.carry_load_slot_0_bitmap:
+    ; Bitmap visuals are copied from the SCREEN 5 atlas at runtime. They do not
+    ; consume a hardware SAT pattern or colour-table slot.
+    jp .carry_load_slot_0_done
+.carry_load_slot_0_inactive:
+    ld a, #FF
+    ld (bitmap_carry_state + 0), a
+    xor a
+    ld (bitmap_carry_render + 0), a
+    ld (bitmap_carry_drawn + 0), a
+.carry_load_slot_0_done:
+    ld a, #FF
+    ld (bitmap_carry_slot), a
+    ret
+
+bitmap_carry_patterns_offset:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_carry_sprite_patterns
+    add hl, de
+    ret
+
+bitmap_carry_colors_offset:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_carry_sprite_colors
+    add hl, de
+    ret
+
+; FUNCTION: bitmap_carry_pickup_probe
+; PURPOSE: Tests whether the player overlaps the idle carryable in IX.
+; INPUT: IX = bitmap_carry_x + slot.
+; OUTPUT: A = 1 on overlap, A = 0 otherwise.
+; DESTROYS: AF, BC. PRESERVES: IX, IY.
+bitmap_carry_pickup_probe:
+    ld a, (ix+4)
+    or a
+    jp nz, .carry_probe_no
+    ld a, (ix+0)
+    ld b, a
+    ld a, (player_x)
+    sub b
+    jp nc, .carry_probe_dx
+    neg
+.carry_probe_dx:
+    cp 20
+    jp nc, .carry_probe_no
+    ld a, (ix+1)
+    ld b, a
+    ld a, (player_y)
+    sub b
+    jp nc, .carry_probe_dy
+    neg
+.carry_probe_dy:
+    cp 28
+    jp nc, .carry_probe_no
+    ld a, 1
+    ret
+.carry_probe_no:
+    xor a
+    ret
+
+; FUNCTION: bitmap_carry_step
+; PURPOSE: Advances one flying carryable through its ballistic arc.
+; INPUT: IX = bitmap_carry_x + slot.
+; OUTPUT: slot position/state updated.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+bitmap_carry_step:
+    ld a, (ix+4)
+    cp 2
+    jp z, .carry_step_active
+    ; State 3 is the launch frame. It follows the same ballistic update,
+    ; but skips the initial solid probe so the object cannot collide with the
+    ; player's support cell before it has visibly left the player.
+    cp 3
+    ret nz
+.carry_step_active:
+    ld a, (ix+2)
+    bit 7, a
+    jp nz, .carry_step_left
+    ld a, (ix+0)
+    add a, #0C
+    jp c, .carry_step_land
+    cp 240
+    jp nc, .carry_step_land
+    ld (ix+0), a
+    jp .carry_step_vertical
+.carry_step_left:
+    ld a, (ix+0)
+    sub #0C
+    jp c, .carry_step_land
+    ld (ix+0), a
+.carry_step_vertical:
+    ld a, (ix+3)
+    bit 7, a
+    jp nz, .carry_step_up
+    ld d, a
+    ld a, (ix+1)
+    add a, d
+    jp c, .carry_step_land
+    ld (ix+1), a
+    jp .carry_step_gravity
+.carry_step_up:
+    neg
+    ld d, a
+    ld a, (ix+1)
+    sub d
+    jp c, .carry_step_land
+    ld (ix+1), a
+.carry_step_gravity:
+    ld a, (ix+3)
+    add a, #01
+    ld (ix+3), a
+    ld a, (ix+4)
+    cp 3
+    jp z, .carry_step_launch_done
+    ld a, (ix+1)
+    cp 176
+    jp nc, .carry_step_land
+    push ix
+    ld a, (ix+0)
+    add a, 8
+    ld b, a
+    ld a, (ix+1)
+    add a, 8
+    ld c, a
+    call bitmap_probe_solid
+    pop ix
+    or a
+    jp nz, .carry_step_land
+    call bitmap_carry_check_enemy_collision
+    or a
+    ret z
+.carry_step_launch_done:
+    ld a, 2
+    ld (ix+4), a
+    ret
+.carry_step_land:
+    ld a, (ix+1)
+    cp 176
+    jp c, .carry_step_land_store
+    ld a, 176
+.carry_step_land_store:
+    ld (ix+1), a
+    xor a
+    ld (ix+4), a
+    ret
+
+; FUNCTION: update_bitmap_carry_and_throw
+; PURPOSE: Handles B-button pickup/throw state and advances every object.
+; INPUT: player position/facing and carry runtime RAM.
+; OUTPUT: held HUD state and object slots updated.
+; DESTROYS: AF, BC, DE, HL, IX, IY. PRESERVES: none.
+update_bitmap_carry_and_throw:
+    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze carried objects
+    or a
+    ret nz
+    ld a, (bitmap_carry_cooldown)
+    or a
+    jp z, .carry_cooldown_done
+    dec a
+    ld (bitmap_carry_cooldown), a
+.carry_cooldown_done:
+    call bitmap_carry_and_throw_pressed
+    or a
+    jp nz, .carry_pressed
+    xor a
+    ld (bitmap_carry_lock), a
+.carry_pressed:
+    ld a, (bitmap_carry_slot)
+    cp #FF
+    jp z, .carry_try_pickup
+    ld e, a
+    ld d, 0
+    ; A held object must keep its last carried position when the throw is
+    ; accepted. The old order followed the player first, so player movement
+    ; in this frame teleported the launch origin before the arc started.
+    call bitmap_carry_and_throw_pressed
+    or a
+    jp z, .carry_follow_player
+    ld a, (bitmap_carry_lock)
+    or a
+    jp nz, .carry_follow_player
+    ld a, (bitmap_carry_cooldown)
+    or a
+    jp nz, .carry_follow_player
+    jp .carry_throw
+.carry_follow_player:
+    ld hl, bitmap_carry_x
+    add hl, de
+    ld a, (player_x)
+    ld (hl), a
+    ld hl, bitmap_carry_y
+    add hl, de
+    ld a, (player_y)
+    sub 16
+    jp nc, .carry_follow_y_ok
+    xor a
+.carry_follow_y_ok:
+    ld (hl), a
+    jp .carry_update_phases
+.carry_throw:
+    ld a, (bitmap_carry_slot)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_carry_vx
+    add hl, de
+    ld a, (player_facing)
+    or a
+    jp z, .carry_throw_left
+    ld (hl), 1
+    jp .carry_throw_vertical
+.carry_throw_left:
+    ld (hl), #FF
+.carry_throw_vertical:
+    ld hl, bitmap_carry_vy
+    add hl, de
+    ld a, #F8
+    ld (hl), a
+    ld hl, bitmap_carry_state
+    add hl, de
+    ld (hl), 3
+    ld a, #FF
+    ld (bitmap_carry_slot), a
+    xor a
+    ld (bitmap_carry_held), a
+    ld a, #1E
+    ld (bitmap_carry_cooldown), a
+    ld a, 1
+    ld (bitmap_carry_lock), a
+    jp .carry_update_phases
+.carry_try_pickup:
+    call bitmap_carry_and_throw_pressed
+    or a
+    jp z, .carry_update_phases
+    ld a, (bitmap_carry_lock)
+    or a
+    jp nz, .carry_update_phases
+    ld a, (bitmap_carry_cooldown)
+    or a
+    jp nz, .carry_update_phases
+    ld ix, bitmap_carry_x + 0
+    call bitmap_carry_pickup_probe
+    or a
+    jp z, .carry_pickup_miss_0
+    ld a, 0
+    jp .carry_pickup_hit
+.carry_pickup_miss_0:
+    jp .carry_update_phases
+.carry_pickup_hit:
+    ld (bitmap_carry_slot), a
+    ld a, 1
+    ld (bitmap_carry_held), a
+    ld a, (bitmap_carry_slot)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_carry_state
+    add hl, de
+    ld (hl), 1
+    ld a, 1
+    ld (bitmap_carry_lock), a
+    ld a, #1E
+    ld (bitmap_carry_cooldown), a
+.carry_update_phases:
+    ld ix, bitmap_carry_x + 0
+    call bitmap_carry_step
+    ret
+
+
+; FUNCTION: bitmap_carry_check_enemy_collision
+; PURPOSE: Kills the first active enemy overlapping the flying object in IX.
+; INPUT: IX = bitmap_carry_x + slot; bitmap_enemy_pool/count.
+; OUTPUT: A = 1 when an enemy is marked dead (#FF movement mode).
+; DESTROYS: AF, BC, DE, IY. PRESERVES: IX, HL.
+bitmap_carry_check_enemy_collision:
+    ld a, (bitmap_enemy_count)
+    or a
+    ret z
+    ld b, a
+    ld iy, bitmap_enemy_pool
+.carry_enemy_loop:
+    ld a, (iy+13)
+    cp #FF
+    jp z, .carry_enemy_next
+    ld a, (ix+0)
+    sub (iy+0)
+    jp nc, .carry_enemy_dx_ok
+    neg
+.carry_enemy_dx_ok:
+    cp 16
+    jp nc, .carry_enemy_next
+    ld a, (ix+1)
+    sub (iy+1)
+    jp nc, .carry_enemy_dy_ok
+    neg
+.carry_enemy_dy_ok:
+    cp 16
+    jp nc, .carry_enemy_next
+    ld (iy+13), #FF
+    ld a, 1
+    ret
+.carry_enemy_next:
+    ld de, 24
+    add iy, de
+    djnz .carry_enemy_loop
+    xor a
+    ret
+
+
+
+; FUNCTION: bitmap_carry_issue_command
+; PURPOSE: Executes the 15-byte command in bitmap_carry_cmd_buffer.
+; INPUT: command buffer populated by bitmap_draw_carry_objects.
+; OUTPUT: None.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; SIDE EFFECTS: Uses VDP status 2 while waiting and restores R#15=S#0.
+bitmap_carry_issue_command:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_carry_cmd_buffer
+    ld b, 15
+.carry_cmd_write:
+    ld a, (hl)
+    out (VDP_CMD_PORT), a
+    inc hl
+    djnz .carry_cmd_write
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; FUNCTION: bitmap_draw_carry_objects
+; PURPOSE: Restores and redraws multicolour carryables as SCREEN 5 bitmap patches.
+; INPUT: carry runtime state and bitmap_displayed_page.
+; OUTPUT: Current page contains the active bitmap carryables.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; NOTES: Each slot uses one scratch 16x16 rectangle after the atlas. The old
+; background is restored before saving the new background and applying TIMP.
+bitmap_draw_carry_objects:
+    ld a, (bitmap_displayed_page)
+    ld b, a
+    ld a, (bitmap_carry_draw_page)
+    cp b
+    jp z, .carry_draw_page_ready
+    ld a, b
+    ld (bitmap_carry_draw_page), a
+    xor a
+    ld (bitmap_carry_drawn + 0), a
+.carry_draw_page_ready:
+    ld a, (bitmap_carry_render + 0)
+    or a
+    jp z, .carry_bitmap_slot_0_done
+    ld a, (bitmap_carry_state + 0)
+    cp #FF
+    jp z, .carry_bitmap_slot_0_hide
+    ld a, (bitmap_carry_drawn + 0)
+    or a
+    jp z, .carry_bitmap_slot_0_changed
+    ld a, (bitmap_carry_old_x + 0)
+    ld b, a
+    ld a, (bitmap_carry_x + 0)
+    cp b
+    jp nz, .carry_bitmap_slot_0_changed
+    ld a, (bitmap_carry_old_y + 0)
+    ld b, a
+    ld a, (bitmap_carry_y + 0)
+    cp b
+    jp z, .carry_bitmap_slot_0_done
+.carry_bitmap_slot_0_changed:
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 0), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 1), a
+    ld a, #80
+    ld (bitmap_carry_cmd_buffer + 2), a
+    ld a, #02
+    ld (bitmap_carry_cmd_buffer + 3), a
+    ld a, (bitmap_carry_old_x + 0)
+    and #FE
+    ld (bitmap_carry_cmd_buffer + 4), a
+    xor a
+    ld (bitmap_carry_cmd_buffer + 5), a
+    ld a, (bitmap_carry_old_y + 0)
+    add a, #14
+    ld (bitmap_carry_cmd_buffer + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_carry_cmd_buffer + 7), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 8), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 9), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 10), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 11), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 12), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 13), a
+    ld a, #D0
+    ld (bitmap_carry_cmd_buffer + 14), a
+    call bitmap_carry_issue_command
+
+    ld a, (bitmap_carry_x + 0)
+    and #FE
+    ld (bitmap_carry_cmd_buffer + 0), a
+    xor a
+    ld (bitmap_carry_cmd_buffer + 1), a
+    ld a, (bitmap_carry_y + 0)
+    add a, #14
+    ld (bitmap_carry_cmd_buffer + 2), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_carry_cmd_buffer + 3), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 4), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 5), a
+    ld a, #80
+    ld (bitmap_carry_cmd_buffer + 6), a
+    ld a, #02
+    ld (bitmap_carry_cmd_buffer + 7), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 8), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 9), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 10), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 11), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 12), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 13), a
+    ld a, #D0
+    ld (bitmap_carry_cmd_buffer + 14), a
+    call bitmap_carry_issue_command
+    ld a, (bitmap_carry_x + 0)
+    ld (bitmap_carry_old_x + 0), a
+    ld a, (bitmap_carry_y + 0)
+    ld (bitmap_carry_old_y + 0), a
+    ld a, (bitmap_carry_source_x + 0)
+    ld (bitmap_carry_cmd_buffer + 0), a
+    xor a
+    ld (bitmap_carry_cmd_buffer + 1), a
+    ld a, (bitmap_carry_source_row + 0)
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    add a, #00
+    ld (bitmap_carry_cmd_buffer + 2), a
+    ld a, (bitmap_carry_source_row + 0)
+    srl a
+    srl a
+    srl a
+    srl a
+    add a, #02
+    ld (bitmap_carry_cmd_buffer + 3), a
+    ld a, (bitmap_carry_x + 0)
+    and #FE
+    ld (bitmap_carry_cmd_buffer + 4), a
+    xor a
+    ld (bitmap_carry_cmd_buffer + 5), a
+    ld a, (bitmap_carry_y + 0)
+    add a, #14
+    ld (bitmap_carry_cmd_buffer + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_carry_cmd_buffer + 7), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 8), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 9), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 10), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 11), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 12), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 13), a
+    ld a, #98
+    ld (bitmap_carry_cmd_buffer + 14), a
+    call bitmap_carry_issue_command
+    ld a, 1
+    ld (bitmap_carry_drawn + 0), a
+    jp .carry_bitmap_slot_0_done
+.carry_bitmap_slot_0_hide:
+    ld a, (bitmap_carry_drawn + 0)
+    or a
+    jp z, .carry_bitmap_slot_0_done
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 0), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 1), a
+    ld a, #80
+    ld (bitmap_carry_cmd_buffer + 2), a
+    ld a, #02
+    ld (bitmap_carry_cmd_buffer + 3), a
+    ld a, (bitmap_carry_old_x + 0)
+    and #FE
+    ld (bitmap_carry_cmd_buffer + 4), a
+    xor a
+    ld (bitmap_carry_cmd_buffer + 5), a
+    ld a, (bitmap_carry_old_y + 0)
+    add a, #14
+    ld (bitmap_carry_cmd_buffer + 6), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_carry_cmd_buffer + 7), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 8), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 9), a
+    ld a, #10
+    ld (bitmap_carry_cmd_buffer + 10), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 11), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 12), a
+    ld a, #00
+    ld (bitmap_carry_cmd_buffer + 13), a
+    ld a, #D0
+    ld (bitmap_carry_cmd_buffer + 14), a
+    call bitmap_carry_issue_command
+    xor a
+    ld (bitmap_carry_drawn + 0), a
+.carry_bitmap_slot_0_done:
+    ret
+
+
+; FUNCTION: bitmap_update_carry_sat
+; PURPOSE: Appends carryable object sprites to the SCREEN 5 SAT stream.
+; INPUT: bitmap_carry_state/x/y/pattern arrays.
+; OUTPUT: carry slots plus a SAT terminator written to VRAM.
+; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
+bitmap_update_carry_sat:
+    ld de, #F61C
+    push bc
+    push de
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop de
+    ld a, e
+    out (VDP_CTRL_PORT), a
+    ld a, d
+    and #3F
+    or #40
+    out (VDP_CTRL_PORT), a
+.carry_sat_0:
+    ld a, (bitmap_carry_state + 0)
+    cp #FF
+    jp z, .carry_sat_0_hidden
+    ld a, (bitmap_carry_render + 0)
+    or a
+    jp nz, .carry_sat_0_hidden
+    ld a, (bitmap_carry_y + 0)
+    add a, #14
+    out (VDP_DATA_PORT), a
+    ld a, (bitmap_carry_x + 0)
+    out (VDP_DATA_PORT), a
+    ld a, #C8
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    jp .carry_sat_0_done
+.carry_sat_0_hidden:
+    ld a, #D4
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+.carry_sat_0_done:
+    ld a, #D8
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    xor a
+    ld e, a
+    ld a, #0E
+    call vdp_write_register
+    pop bc
+    ret
 
 
 
@@ -3336,8 +4016,8 @@ upload_hud_linked_3:
     ld a, bitmap_room_hud_linked_3_rle_chunk_0_DATA_BANK
     call bitmap_room_select_data_bank_a
     ld hl, bitmap_room_hud_linked_3_rle_chunk_0
-    ld a, 5
-    ld de, #0800
+    ld a, 4
+    ld de, #3800
     ld bc, bitmap_room_hud_linked_3_rle_chunk_0_end - bitmap_room_hud_linked_3_rle_chunk_0
     call decompress_bitmap_rle_to_vram
     call bitmap_room_restore_resident_banks
@@ -3397,7 +4077,7 @@ update_hud_linked_3:
 hud_linked_3_cmd_template:
     ; SY is a full 10-bit word: glyph sources may live past VRAM row 255
     ; (page-1 offscreen band or after the shared atlas).
-    DB 0,0, #90,#02, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
+    DB 0,0, #70,#02, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_player_overlaps_16
@@ -4741,438 +5421,6 @@ bitmap_sfx_gem:
 
 bitmap_sfx_gem_data:
     db 7,#3E,0,#1C,1,#00,11,#28,12,#00,8,#10,13,#09
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_percept_room_table
-; ------------------------------------------------------------
-; PURPOSE:
-;   Resolve the current room's hidden_obj record table (4 bytes/record).
-;
-; OUTPUT:
-;   HL = first record, B = record count. Z set (and B=0) when empty.
-;
-; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
-; ------------------------------------------------------------
-bitmap_percept_room_table:
-    ld a, (current_screen_index)
-    ld e, a
-    ld d, 0
-    ld hl, bitmap_percept_count_table
-    add hl, de
-    ld b, (hl)
-    ld a, (current_screen_index)
-    ld e, a
-    ld d, 0
-    ld hl, bitmap_percept_ptr_table
-    add hl, de
-    add hl, de
-    ld a, (hl)
-    inc hl
-    ld h, (hl)
-    ld l, a
-    ld a, b
-    or a
-    ret
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_hidden_player_overlaps_16
-; ------------------------------------------------------------
-; PURPOSE:
-;   Test the configured player body hitbox against a 16x16 hidden-object
-;   cell (perception-owned copy of the gem overlap test).
-;
-; INPUT:
-;   D = cell X in pixels, E = cell Y in pixels (top-left corner).
-;
-; OUTPUT:
-;   A = 1 and NZ when overlapping; A = 0 and Z when separated.
-;
-; DESTROYS: AF, B.  PRESERVES: C, DE, HL, IX, IY.
-; ------------------------------------------------------------
-bitmap_hidden_player_overlaps_16:
-    ld a, (player_x)
-    add a, 11
-    cp d
-    jp c, .hidden_overlap_no
-    ld a, d
-    add a, 15
-    ld b, a
-    ld a, (player_x)
-    add a, 3
-    cp b
-    jp z, .hidden_overlap_x_ok
-    jp nc, .hidden_overlap_no
-.hidden_overlap_x_ok:
-    ld a, (player_y)
-    add a, 31
-    cp e
-    jp c, .hidden_overlap_no
-    ld a, e
-    add a, 15
-    ld b, a
-    ld a, (player_y)
-    add a, 3
-    cp b
-    jp z, .hidden_overlap_yes
-    jp nc, .hidden_overlap_no
-.hidden_overlap_yes:
-    ld a, 1
-    or a
-    ret
-.hidden_overlap_no:
-    xor a
-    ret
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_update_perception
-; ------------------------------------------------------------
-; PURPOSE:
-;   Per-frame Perception scan over the current room's hidden objects:
-;   uncollected object within the 64px square radius -> bitmap_flag_near = 1
-;   (+ perceiving animation when no action skill owns the state); stepping on
-;   its 16x16 cell collects it (latch flag, pay reward, PSG blip).
-;
-; INPUT:
-;   RAM state: current_screen_index, bitmap_composition_state,
-;   player_x/player_y, bitmap_hidden_flags.
-;
-; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
-;
-; NOTES:
-;   |dx|/|dy| are exact 8-bit absolute differences (sub + conditional neg),
-;   so the test is wrap-safe across the whole 0..255 pixel range. The collect
-;   overlap only runs on near objects (pickup zone ⊆ radius square).
-; ------------------------------------------------------------
-bitmap_update_perception:
-    xor a
-    ld (bitmap_flag_near), a
-    ld a, (bitmap_composition_state)
-    or a
-    ret nz                   ; room transition in progress: sense off
-    call bitmap_percept_room_table
-    ret z
-.percept_loop:
-    push bc
-    ld a, (hl)               ; D = object center X
-    inc hl
-    ld d, a
-    ld a, (hl)               ; E = object center Y
-    inc hl
-    ld e, a
-    ld a, (hl)               ; record flag offset
-    inc hl
-    ld (bitmap_percept_work_flag), a
-    ld a, (hl)               ; record reward type
-    inc hl
-    ld (bitmap_percept_work_type), a
-    push hl                  ; save record walker
-    ; collected objects neither glow nor re-trigger
-    ld a, (bitmap_percept_work_flag)
-    ld l, a
-    ld h, 0
-    ld bc, bitmap_hidden_flags
-    add hl, bc
-    ld a, (hl)
-    or a
-    jp nz, .percept_next
-    ; |player_cx - object_cx| within radius?
-    ld a, (player_x)
-    add a, 7
-    sub d
-    jp nc, .percept_dx_abs
-    neg
-.percept_dx_abs:
-    cp 65
-    jp nc, .percept_next
-    ; |player_cy - object_cy| within radius?
-    ld a, (player_y)
-    add a, 17
-    sub e
-    jp nc, .percept_dy_abs
-    neg
-.percept_dy_abs:
-    cp 65
-    jp nc, .percept_next
-    ; NEAR: latch the frame flag and assert the perceiving clip.
-    ld a, 1
-    ld (bitmap_flag_near), a
-    ld a, (player_anim_state)
-    or a
-    jp nz, .percept_anim_done  ; an action skill owns the animation this frame
-    ld a, 1
-    ld (player_anim_state), a
-.percept_anim_done:
-    ; stepping on the cell collects it: D/E center -> top-left corner
-    ld a, d
-    sub 8
-    ld d, a
-    ld a, e
-    sub 8
-    ld e, a
-    call bitmap_hidden_player_overlaps_16
-    or a
-    jp z, .percept_next
-    ; COLLECT: latch the per-object flag so it never re-triggers.
-    ld a, (bitmap_percept_work_flag)
-    ld l, a
-    ld h, 0
-    ld bc, bitmap_hidden_flags
-    add hl, bc
-    ld (hl), 1
-    ; reward dispatch by record type
-    ld a, (bitmap_percept_work_type)
-    or a
-    jp nz, .percept_rw_not_part
-    ld a, (bitmap_hidden_count)
-    inc a
-    jp z, .percept_reward_done
-    ld (bitmap_hidden_count), a
-    jp .percept_reward_done
-.percept_rw_not_part:
-    cp 1
-    jp nz, .percept_rw_key
-    ld a, (hud_linked_1_value)
-    inc a
-    jp z, .percept_reward_done
-    ld (hud_linked_1_value), a
-    jp .percept_reward_done
-.percept_rw_key:
-    ld a, (bitmap_key_count)
-    inc a
-    jp z, .percept_reward_done
-    ld (bitmap_key_count), a
-.percept_reward_done:
-    call bitmap_sfx_hidden
-.percept_next:
-    pop hl
-    pop bc
-    dec b                    ; loop body exceeds djnz's -128 range
-    jp nz, .percept_loop
-    ret
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_sfx_hidden
-; ------------------------------------------------------------
-; PURPOSE:
-;   Hidden-object pickup PSG blip (fire-and-forget register writes; same
-;   envelope recipe as the collector_gems blip, one octave lower).
-; DESTROYS: AF, B, HL.  PRESERVES: C, DE, IX, IY.
-; ------------------------------------------------------------
-bitmap_sfx_hidden:
-    ld hl, bitmap_sfx_hidden_data
-    ld b, 7
-.hidden_sfx_loop:
-    ld a, (hl)
-    out (#A0), a
-    inc hl
-    ld a, (hl)
-    out (#A1), a
-    inc hl
-    djnz .hidden_sfx_loop
-    ret
-
-bitmap_sfx_hidden_data:
-    db 7,#3E,0,#38,1,#00,11,#40,12,#00,8,#10,13,#09
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_inventory_frame
-; ------------------------------------------------------------
-; PURPOSE:
-;   Parts-window driver, called every frame next to the dialogue gate.
-;   Fresh 'I' press (keyboard row 3 bit 6) toggles the window: opening
-;   draws the box + one slot per ship part on the DISPLAYED page; closing
-;   replays the room render program (same mechanism as the NPC dialogue)
-;   and the overlay redraw chain.
-;
-; OUTPUT:
-;   Carry set while the window is open -> caller skips player movement
-;   (enemies/platforms pause through their bitmap_inv_state gate).
-;
-; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
-; ------------------------------------------------------------
-bitmap_inventory_frame:
-    ld a, (bitmap_composition_state)
-    or a
-    jp nz, .inv_not_open     ; no toggling during room transitions
-    in a, (PPI_C)
-    and #F0                  ; preserve CAPS LED / cassette / key-click bits
-    or 3                     ; select keyboard row 3 (C..J) in the low nibble
-    out (PPI_C), a
-    in a, (PPI_B)
-    cpl
-    and #40                  ; bit 6 = 'I'
-    jp z, .inv_released
-    ld a, (bitmap_inv_key_lock)
-    or a
-    jp nz, .inv_state_gate
-    ld a, 1
-    ld (bitmap_inv_key_lock), a
-    ld a, (bitmap_inv_state)
-    or a
-    jp nz, .inv_do_close
-    ld a, 1
-    ld (bitmap_inv_state), a
-    call bitmap_inv_draw_window
-    jp .inv_state_gate
-.inv_do_close:
-    xor a
-    ld (bitmap_inv_state), a
-    call bitmap_inv_repaint_room
-    jp .inv_state_gate
-.inv_released:
-    xor a
-    ld (bitmap_inv_key_lock), a
-.inv_state_gate:
-    ld a, (bitmap_inv_state)
-    or a
-    jp nz, .inv_paused
-.inv_not_open:
-    or a                     ; carry clear -> player runs
-    ret
-.inv_paused:
-    scf
-    ret
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_inv_draw_window
-; ------------------------------------------------------------
-; PURPOSE:
-;   Draw the parts window on the displayed page: white box + dark body,
-;   then one 16x16 slot per ship part (collected -> atlas tile HMMM,
-;   missing -> dark placeholder fill).
-; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
-; ------------------------------------------------------------
-bitmap_inv_draw_window:
-    ld hl, bitmap_inv_cmd_box
-    call bitmap_inv_copy_submit
-    ld hl, bitmap_inv_cmd_box + 15
-    call bitmap_inv_copy_submit
-    ld hl, bitmap_inv_slot_cmds
-    ld b, 2
-.inv_slot_loop:
-    push bc
-    ld a, (hl)               ; part flag offset
-    inc hl                   ; HL -> empty cmd (record base + 1)
-    push hl                  ; keep base+1 to advance the walker afterwards
-    ld e, a
-    ld d, 0
-    ld hl, bitmap_hidden_flags
-    add hl, de
-    ld a, (hl)
-    pop hl
-    push hl                  ; base+1 stays on the stack across the submit
-    or a
-    jp z, .inv_slot_pick
-    ld de, 15                ; collected -> use the draw command
-    add hl, de
-.inv_slot_pick:
-    call bitmap_inv_copy_submit
-    pop hl                   ; HL = base+1
-    ld de, 30                ; -> next record's flagOffset (31-byte records)
-    add hl, de
-    pop bc
-    djnz .inv_slot_loop
-    ret
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_inv_copy_submit
-; ------------------------------------------------------------
-; PURPOSE:
-;   Copy the 15-byte command template at HL to bitmap_inv_cmd_block, patch
-;   the DY high byte for the displayed page, and stream it to the VDP.
-;   Restores R#15 to S#0 (vdp_wait_cmd_ready leaves it at S#2).
-; INPUT: HL = command template.  PRESERVES: IX, IY.
-; DESTROYS: AF, B, DE, HL.
-; ------------------------------------------------------------
-bitmap_inv_copy_submit:
-    ld de, bitmap_inv_cmd_block
-    ld b, 15
-.inv_copy_loop:
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    djnz .inv_copy_loop
-    ld a, (bitmap_displayed_page)
-    or a
-    jp z, .inv_copy_launch
-    ld a, 1
-    ld (bitmap_inv_cmd_block + 7), a
-.inv_copy_launch:
-    call vdp_wait_cmd_ready
-    call vdp_reinit_cmd_pointer
-    ld hl, bitmap_inv_cmd_block
-    ld b, 15
-.inv_launch_loop:
-    ld a, (hl)
-    out (#9B), a
-    inc hl
-    djnz .inv_launch_loop
-    ld a, #0F
-    ld e, #00
-    jp vdp_write_register
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_inv_repaint_room
-; ------------------------------------------------------------
-; PURPOSE:
-;   Close the parts window: replay the current room's render program on
-;   the DISPLAYED page (same blocks load_room uses; same mechanism as
-;   bitmap_dlg_close_box) and re-apply the overlay draw chain.
-; DESTROYS: AF, BC, DE, HL
-; ------------------------------------------------------------
-bitmap_inv_repaint_room:
-    ; BISECT: boot-proven path
-    ld a, (current_screen_index)
-    jp load_room
-    ld a, (bitmap_displayed_page)
-    or a
-    jp z, .inv_close_p0
-    ld hl, bitmap_room_render_ptr_table_p1
-    ld bc, bitmap_room_render_bank_table_p1
-    jp .inv_close_have_table
-.inv_close_p0:
-    ld hl, bitmap_room_render_ptr_table_p0
-    ld bc, bitmap_room_render_bank_table_p0
-
-.inv_close_have_table:
-    ld a, (current_screen_index)
-    ld e, a
-    ld d, 0
-    add hl, de
-    add hl, de
-    ld a, (hl)
-    inc hl
-    ld h, (hl)
-    ld l, a
-    push hl
-    ld h, b
-    ld l, c
-    add hl, de
-    ld a, (hl)
-    call bitmap_room_select_data_bank_a
-    pop hl
-
-    push hl
-    ld hl, bitmap_room_blockcount_table
-    add hl, de
-    add hl, de
-    ld c, (hl)
-    inc hl
-    ld b, (hl)
-    pop hl
-    call replay_room_commands
-    call bitmap_room_restore_resident_banks
-    call bitmap_apply_key_pickup_visuals_visible    ; draw key pickup metatiles on current page
-    call bitmap_apply_door_state_visible    ; draw closed/open door metatiles on current page
-    call bitmap_apply_gems_visible    ; draw uncollected gems on current page
-    call bitmap_apply_jumpers_visible    ; draw idle spring metatiles on current page
-    call bitmap_apply_walljumpers_visible    ; draw idle wall-spring metatiles on current page
-    ; Command-engine polls left R#15 at S#2; the main loop's vblank wait
-    ; assumes S#0 (same contract as bitmap_dlg_close_box's caller).
-    ld a, #0F
-    ld e, #00
-    jp vdp_write_register
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_jumper_copy_cmd_to_block
@@ -6798,9 +7046,6 @@ bitmap_update_enemies:
     ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
     or a
     ret nz
-    ld a, (bitmap_inv_state)   ; parts window open: freeze
-    or a
-    ret nz
     ld a, (bitmap_enemy_count)
     or a
     ret z
@@ -7255,9 +7500,6 @@ bitmap_check_enemy_touch:
     ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
     or a
     ret nz
-    ld a, (bitmap_inv_state)   ; parts window open: freeze
-    or a
-    ret nz
     ld a, (bitmap_enemy_count)
     or a
     ret z
@@ -7564,6 +7806,7 @@ bitmap_update_enemy_sat:
     ret
 
 
+
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_load_platforms
 ; ------------------------------------------------------------
@@ -7739,9 +7982,6 @@ bitmap_update_platforms:
     ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all platforms
     or a
     ret nz
-    ld a, (bitmap_inv_state)   ; parts window open: freeze
-    or a
-    ret nz
     ld a, (bitmap_platform_count)
     or a
     ret z
@@ -7874,9 +8114,6 @@ bitmap_platform_ride_detect:
     ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all platforms
     or a
     ret nz
-    ld a, (bitmap_inv_state)   ; parts window open: freeze
-    or a
-    ret nz
     ld a, (player_vy)
     bit 7, a
     jp nz, .detect_clear      ; moving up: never grab a platform
@@ -7981,6 +8218,66 @@ bitmap_update_platform_sat:
     pop de
     ret
 
+; Room 0 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_0:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 1 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_1:
+    DB #01,#40,#10,#00,#01,#E0,#04
+; Room 2 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_2:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 3 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_3:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 4 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_4:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 5 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_5:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 6 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_6:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 7 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_7:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 8 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_8:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 9 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_9:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 10 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_10:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 11 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_11:
+    DB #00,#00,#00,#00,#00,#00,#00
+; Room 12 carryable objects: count + 1 slot(s) x 6 bytes (x,y,pattern,render,sourceX,sourceRow)
+bitmap_room_carry_table_12:
+    DB #00,#00,#00,#00,#00,#00,#00
+bitmap_room_carry_ptr_table:
+    DW bitmap_room_carry_table_0
+    DW bitmap_room_carry_table_1
+    DW bitmap_room_carry_table_2
+    DW bitmap_room_carry_table_3
+    DW bitmap_room_carry_table_4
+    DW bitmap_room_carry_table_5
+    DW bitmap_room_carry_table_6
+    DW bitmap_room_carry_table_7
+    DW bitmap_room_carry_table_8
+    DW bitmap_room_carry_table_9
+    DW bitmap_room_carry_table_10
+    DW bitmap_room_carry_table_11
+    DW bitmap_room_carry_table_12
+; SCREEN 5 carryable object patterns
+bitmap_carry_sprite_patterns:
+    DB #00,#03,#0F,#1F,#3F,#3F,#7F,#7F,#7F,#7F,#3F,#3F,#1F,#0F,#03,#00
+    DB #00,#C0,#F0,#F8,#FC,#FC,#FE,#FE,#FE,#FE,#FC,#FC,#F8,#F0,#C0,#00
+; SCREEN 5 carryable object line colours
+bitmap_carry_sprite_colors:
+    DB #0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E,#0E
 
 ; ------------------------------------------------------------
 ; FUNCTION: draw_bitmap_end_screen
@@ -8219,14 +8516,14 @@ bitmap_room_render_bank_table_p1:
 
 bitmap_room_blockcount_table:
     DW 88
-    DW 46
-    DW 52
+    DW 44
+    DW 49
     DW 60
     DW 63
-    DW 55
+    DW 47
     DW 62
     DW 90
-    DW 59
+    DW 60
     DW 58
     DW 56
     DW 60
@@ -8312,7 +8609,7 @@ bitmap_key_pickups_room_11:
 bitmap_key_pickups_room_12:
 ; Room 0 key pickup visual records: pickupFlagOffset,drawCmd(15),eraseCmd(15)
 bitmap_key_pickup_visuals_room_0:
-    DB #00,#A0,#00,#50,#02,#20,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #00,#80,#00,#40,#02,#20,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0
     DB #00,#00,#00,#00,#20,#00,#74,#00,#10,#00,#10,#00,#11,#00,#C0
 ; Room 1 key pickup visual records: pickupFlagOffset,drawCmd(15),eraseCmd(15)
 bitmap_key_pickup_visuals_room_1:
@@ -8330,7 +8627,7 @@ bitmap_key_pickup_visuals_room_6:
 bitmap_key_pickup_visuals_room_7:
 ; Room 8 key pickup visual records: pickupFlagOffset,drawCmd(15),eraseCmd(15)
 bitmap_key_pickup_visuals_room_8:
-    DB #01,#A0,#00,#50,#02,#40,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #01,#80,#00,#40,#02,#40,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0
     DB #00,#00,#00,#00,#40,#00,#24,#00,#10,#00,#10,#00,#00,#00,#C0
 ; Room 9 key pickup visual records: pickupFlagOffset,drawCmd(15),eraseCmd(15)
 bitmap_key_pickup_visuals_room_9:
@@ -8375,8 +8672,8 @@ bitmap_key_door_visuals_room_0:
 bitmap_key_door_visuals_room_1:
 ; Room 2 door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)
 bitmap_key_door_visuals_room_2:
-    DB #00,#03,#80,#00,#50,#02,#80,#00,#94,#00,#10,#00,#20,#00,#00,#00
-    DB #D0,#90,#00,#50,#02,#80,#00,#94,#00,#10,#00,#20,#00,#00,#00,#D0
+    DB #00,#03,#60,#00,#40,#02,#80,#00,#94,#00,#10,#00,#20,#00,#00,#00
+    DB #D0,#70,#00,#40,#02,#80,#00,#94,#00,#10,#00,#20,#00,#00,#00,#D0
 ; Room 3 door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)
 bitmap_key_door_visuals_room_3:
 ; Room 4 door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)
@@ -8395,8 +8692,8 @@ bitmap_key_door_visuals_room_9:
 bitmap_key_door_visuals_room_10:
 ; Room 11 door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)
 bitmap_key_door_visuals_room_11:
-    DB #02,#03,#80,#00,#50,#02,#C0,#00,#44,#00,#10,#00,#20,#00,#00,#00
-    DB #D0,#90,#00,#50,#02,#C0,#00,#44,#00,#10,#00,#20,#00,#00,#00,#D0
+    DB #02,#03,#60,#00,#40,#02,#C0,#00,#44,#00,#10,#00,#20,#00,#00,#00
+    DB #D0,#70,#00,#40,#02,#C0,#00,#44,#00,#10,#00,#20,#00,#00,#00,#D0
 ; Room 12 door visual records: openFlagOffset,flags,closedHMMM(15),openHMMM(15)
 bitmap_key_door_visuals_room_12:
 ; Room 0 pressure button records: x,y,targetDoorOpenOffset,flags
@@ -8550,23 +8847,23 @@ bitmap_pressure_button_visual_count_table:
 
 ; Room 0 gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)
 bitmap_gems_room_0:
-    DB #A0,#10,#00,#70,#00,#50,#02,#A0,#00,#24,#00,#10,#00,#10,#00,#00
+    DB #A0,#10,#00,#50,#00,#40,#02,#A0,#00,#24,#00,#10,#00,#10,#00,#00
     DB #00,#D0,#00,#00,#00,#00,#A0,#00,#24,#00,#10,#00,#10,#00,#11,#00
     DB #C0
 ; Room 1 gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)
 bitmap_gems_room_1:
-    DB #90,#10,#01,#70,#00,#50,#02,#90,#00,#24,#00,#10,#00,#10,#00,#00
+    DB #90,#10,#01,#50,#00,#40,#02,#90,#00,#24,#00,#10,#00,#10,#00,#00
     DB #00,#D0,#00,#00,#00,#00,#90,#00,#24,#00,#10,#00,#10,#00,#00,#00
-    DB #C0,#40,#A0,#02,#70,#00,#50,#02,#40,#00,#B4,#00,#10,#00,#10,#00
+    DB #C0,#40,#A0,#02,#50,#00,#40,#02,#40,#00,#B4,#00,#10,#00,#10,#00
     DB #00,#00,#D0,#00,#00,#00,#00,#40,#00,#B4,#00,#10,#00,#10,#00,#00
     DB #00,#C0
 ; Room 2 gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)
 bitmap_gems_room_2:
-    DB #40,#60,#03,#70,#00,#50,#02,#40,#00,#74,#00,#10,#00,#10,#00,#00
+    DB #40,#60,#03,#50,#00,#40,#02,#40,#00,#74,#00,#10,#00,#10,#00,#00
     DB #00,#D0,#00,#00,#00,#00,#40,#00,#74,#00,#10,#00,#10,#00,#00,#00
-    DB #C0,#D0,#40,#04,#70,#00,#50,#02,#D0,#00,#54,#00,#10,#00,#10,#00
+    DB #C0,#D0,#40,#04,#50,#00,#40,#02,#D0,#00,#54,#00,#10,#00,#10,#00
     DB #00,#00,#D0,#00,#00,#00,#00,#D0,#00,#54,#00,#10,#00,#10,#00,#00
-    DB #00,#C0,#90,#10,#05,#70,#00,#50,#02,#90,#00,#24,#00,#10,#00,#10
+    DB #00,#C0,#90,#10,#05,#50,#00,#40,#02,#90,#00,#24,#00,#10,#00,#10
     DB #00,#00,#00,#D0,#00,#00,#00,#00,#90,#00,#24,#00,#10,#00,#10,#00
     DB #00,#00,#C0
 ; Room 3 gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)
@@ -8585,15 +8882,15 @@ bitmap_gems_room_8:
 bitmap_gems_room_9:
 ; Room 10 gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)
 bitmap_gems_room_10:
-    DB #20,#30,#06,#70,#00,#50,#02,#20,#00,#44,#00,#10,#00,#10,#00,#00
+    DB #20,#30,#06,#50,#00,#40,#02,#20,#00,#44,#00,#10,#00,#10,#00,#00
     DB #00,#D0,#00,#00,#00,#00,#20,#00,#44,#00,#10,#00,#10,#00,#00,#00
-    DB #C0,#70,#40,#07,#70,#00,#50,#02,#70,#00,#54,#00,#10,#00,#10,#00
+    DB #C0,#70,#40,#07,#50,#00,#40,#02,#70,#00,#54,#00,#10,#00,#10,#00
     DB #00,#00,#D0,#00,#00,#00,#00,#70,#00,#54,#00,#10,#00,#10,#00,#00
-    DB #00,#C0,#B0,#60,#08,#70,#00,#50,#02,#B0,#00,#74,#00,#10,#00,#10
+    DB #00,#C0,#B0,#60,#08,#50,#00,#40,#02,#B0,#00,#74,#00,#10,#00,#10
     DB #00,#00,#00,#D0,#00,#00,#00,#00,#B0,#00,#74,#00,#10,#00,#10,#00
-    DB #00,#00,#C0,#20,#20,#09,#70,#00,#50,#02,#20,#00,#34,#00,#10,#00
+    DB #00,#00,#C0,#20,#20,#09,#50,#00,#40,#02,#20,#00,#34,#00,#10,#00
     DB #10,#00,#00,#00,#D0,#00,#00,#00,#00,#20,#00,#34,#00,#10,#00,#10
-    DB #00,#00,#00,#C0,#20,#10,#0A,#70,#00,#50,#02,#20,#00,#24,#00,#10
+    DB #00,#00,#00,#C0,#20,#10,#0A,#50,#00,#40,#02,#20,#00,#24,#00,#10
     DB #00,#10,#00,#00,#00,#D0,#00,#00,#00,#00,#20,#00,#24,#00,#10,#00
     DB #10,#00,#00,#00,#C0
 ; Room 11 gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)
@@ -8617,49 +8914,6 @@ bitmap_gem_ptr_table:
 bitmap_gem_count_table:
     DB 1,2,3,0,0,0,0,0,0,0,5,0,0
 
-bitmap_percept_room_0:    ; no hidden_obj in this room
-bitmap_percept_room_1:    ; no hidden_obj in this room
-bitmap_percept_room_2:    ; no hidden_obj in this room
-; Room 3 hidden_obj records: centerX, centerY, flagOffset, rewardType(0 part/1 gem/2 key)
-bitmap_percept_room_3:
-    DB #58,#98,#00,#00
-bitmap_percept_room_4:    ; no hidden_obj in this room
-bitmap_percept_room_5:    ; no hidden_obj in this room
-bitmap_percept_room_6:    ; no hidden_obj in this room
-bitmap_percept_room_7:    ; no hidden_obj in this room
-; Room 8 hidden_obj records: centerX, centerY, flagOffset, rewardType(0 part/1 gem/2 key)
-bitmap_percept_room_8:
-    DB #88,#A8,#01,#00
-bitmap_percept_room_9:    ; no hidden_obj in this room
-bitmap_percept_room_10:    ; no hidden_obj in this room
-bitmap_percept_room_11:    ; no hidden_obj in this room
-bitmap_percept_room_12:    ; no hidden_obj in this room
-bitmap_percept_ptr_table:
-    DW bitmap_percept_room_0
-    DW bitmap_percept_room_1
-    DW bitmap_percept_room_2
-    DW bitmap_percept_room_3
-    DW bitmap_percept_room_4
-    DW bitmap_percept_room_5
-    DW bitmap_percept_room_6
-    DW bitmap_percept_room_7
-    DW bitmap_percept_room_8
-    DW bitmap_percept_room_9
-    DW bitmap_percept_room_10
-    DW bitmap_percept_room_11
-    DW bitmap_percept_room_12
-bitmap_percept_count_table:
-    DB 0,0,0,1,0,0,0,0,1,0,0,0,0
-; Parts window box: outer 15-fill + inner 1-fill, 52x32 at (102,64)
-bitmap_inv_cmd_box:
-    DB #00,#00,#00,#00,#66,#00,#54,#00,#34,#00,#20,#00,#FF,#00,#C0,#00
-    DB #00,#00,#00,#68,#00,#56,#00,#30,#00,#1C,#00,#11,#00,#C0
-; 2 part slot(s): flagOffset, emptyCmd(15), collectedCmd(15)
-bitmap_inv_slot_cmds:
-    DB #00,#00,#00,#00,#00,#6E,#00,#5C,#00,#10,#00,#10,#00,#EE,#00,#C0
-    DB #00,#00,#00,#00,#6E,#00,#5C,#00,#10,#00,#10,#00,#FF,#00,#C0,#01
-    DB #00,#00,#00,#00,#82,#00,#5C,#00,#10,#00,#10,#00,#EE,#00,#C0,#00
-    DB #00,#00,#00,#82,#00,#5C,#00,#10,#00,#10,#00,#FF,#00,#C0
 
 ; Room 0 jumper records: x,y,impulseByte,idleCmd(15),triggeredCmd(15)
 bitmap_jumpers_room_0:
@@ -8669,8 +8923,8 @@ bitmap_jumpers_room_1:
 bitmap_jumpers_room_2:
 ; Room 3 jumper records: x,y,impulseByte,idleCmd(15),triggeredCmd(15)
 bitmap_jumpers_room_3:
-    DB #30,#90,#F8,#B0,#00,#50,#02,#30,#00,#A4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#50,#02,#30,#00,#A4,#00,#10,#00,#10,#00,#00,#00
+    DB #30,#90,#F8,#90,#00,#40,#02,#30,#00,#A4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#A0,#00,#40,#02,#30,#00,#A4,#00,#10,#00,#10,#00,#00,#00
     DB #D0
 ; Room 4 jumper records: x,y,impulseByte,idleCmd(15),triggeredCmd(15)
 bitmap_jumpers_room_4:
@@ -8713,8 +8967,8 @@ bitmap_walljumpers_room_0:
 bitmap_walljumpers_room_1:
 ; Room 2 wall-jumper records: x,y,impulseByte,directionByte,idleCmd(15),triggeredCmd(15)
 bitmap_walljumpers_room_2:
-    DB #70,#60,#F8,#00,#70,#00,#70,#02,#70,#00,#74,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#70,#02,#70,#00,#74,#00,#10,#00,#10,#00,#00
+    DB #70,#60,#F8,#00,#C0,#00,#40,#02,#70,#00,#74,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#40,#02,#70,#00,#74,#00,#10,#00,#10,#00,#00
     DB #00,#D0
 ; Room 3 wall-jumper records: x,y,impulseByte,directionByte,idleCmd(15),triggeredCmd(15)
 bitmap_walljumpers_room_3:
@@ -8861,18 +9115,18 @@ bitmap_end_font:
 
 ; Room 0 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
 bitmap_room_enemy_table_0:
-    DB #02,#60,#90,#01,#00,#10,#A0,#90,#90,#00,#00,#02,#08,#0B,#00,#00
-    DB #01,#00,#00,#10,#10,#20,#60,#90,#01,#00,#10,#A0,#90,#90,#08,#04
-    DB #02,#08,#0B,#00,#00,#01,#00,#00,#10,#10,#20
-; Room 1 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
-bitmap_room_enemy_table_1:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00
     DB #00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#01,#00,#00,#00,#00,#00,#00,#10,#10,#00
+; Room 1 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
+bitmap_room_enemy_table_1:
+    DB #02,#60,#A0,#01,#00,#10,#A0,#A0,#A0,#00,#00,#02,#08,#0B,#00,#00
+    DB #01,#00,#00,#10,#10,#20,#60,#A0,#01,#00,#10,#A0,#A0,#A0,#08,#04
+    DB #02,#08,#0B,#00,#00,#01,#00,#00,#10,#10,#20
 ; Room 2 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
 bitmap_room_enemy_table_2:
-    DB #02,#30,#A0,#01,#00,#30,#64,#A0,#A0,#00,#00,#02,#08,#00,#00,#00
-    DB #01,#01,#01,#0E,#0E,#00,#30,#A0,#01,#00,#30,#64,#A0,#A0,#08,#04
+    DB #02,#30,#A0,#01,#00,#30,#64,#A0,#A0,#10,#08,#02,#08,#00,#00,#00
+    DB #01,#01,#01,#0E,#0E,#00,#30,#A0,#01,#00,#30,#64,#A0,#A0,#18,#0C
     DB #02,#08,#00,#00,#00,#01,#01,#01,#0E,#0E,#00
 ; Room 3 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
 bitmap_room_enemy_table_3:
@@ -8891,8 +9145,8 @@ bitmap_room_enemy_table_5:
     DB #00,#01,#00,#00,#00,#00,#00,#00,#10,#10,#00
 ; Room 6 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
 bitmap_room_enemy_table_6:
-    DB #02,#50,#20,#01,#00,#00,#F0,#20,#20,#00,#00,#02,#08,#00,#00,#00
-    DB #01,#01,#01,#0E,#0E,#00,#50,#20,#01,#00,#00,#F0,#20,#20,#08,#04
+    DB #02,#50,#20,#01,#00,#00,#F0,#20,#20,#10,#08,#02,#08,#00,#00,#00
+    DB #01,#01,#01,#0E,#0E,#00,#50,#20,#01,#00,#00,#F0,#20,#20,#18,#0C
     DB #02,#08,#00,#00,#00,#01,#01,#01,#0E,#0E,#00
 ; Room 7 enemies: count + 2 slot(s) x 21 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,travelPx)
 bitmap_room_enemy_table_7:
@@ -8938,8 +9192,40 @@ bitmap_room_enemy_ptr_table:
     DW bitmap_room_enemy_table_10
     DW bitmap_room_enemy_table_11
     DW bitmap_room_enemy_table_12
-; Enemy sprites: 16 pattern group(s), [right, left, ceilRight, ceilLeft] variants per frame (mode 2 quadrants)
+; Enemy sprites: 32 pattern group(s), [right, left, ceilRight, ceilLeft] variants per frame (mode 2 quadrants)
 bitmap_enemy_sprite_patterns:
+    DB #00,#00,#00,#00,#00,#00,#0F,#30,#40,#80,#80,#80,#80,#40,#20,#1F
+    DB #00,#00,#00,#00,#00,#00,#FC,#02,#1D,#3B,#3B,#1D,#01,#01,#02,#FC
+    DB #00,#00,#00,#00,#00,#00,#3F,#40,#B8,#DC,#DC,#B8,#80,#80,#40,#3F
+    DB #00,#00,#00,#00,#00,#00,#F0,#0C,#02,#01,#01,#01,#01,#02,#04,#F8
+    DB #1F,#20,#40,#80,#80,#80,#80,#40,#30,#0F,#00,#00,#00,#00,#00,#00
+    DB #FC,#02,#01,#01,#1D,#3B,#3B,#1D,#02,#FC,#00,#00,#00,#00,#00,#00
+    DB #3F,#40,#80,#80,#B8,#DC,#DC,#B8,#40,#3F,#00,#00,#00,#00,#00,#00
+    DB #F8,#04,#02,#01,#01,#01,#01,#02,#0C,#F0,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#03,#04,#08,#10,#20,#40,#40,#40,#40,#20,#10,#08,#07
+    DB #00,#00,#00,#F0,#0C,#02,#1D,#3B,#3B,#1D,#01,#01,#01,#41,#A2,#1C
+    DB #00,#00,#00,#0F,#30,#40,#B8,#DC,#DC,#B8,#80,#80,#80,#82,#45,#38
+    DB #00,#00,#00,#C0,#20,#10,#08,#04,#02,#02,#02,#02,#04,#08,#10,#E0
+    DB #07,#08,#10,#20,#40,#40,#40,#40,#20,#10,#08,#04,#03,#00,#00,#00
+    DB #1C,#A2,#41,#01,#01,#01,#1D,#3B,#3B,#1D,#02,#0C,#F0,#00,#00,#00
+    DB #38,#45,#82,#80,#80,#80,#B8,#DC,#DC,#B8,#40,#30,#0F,#00,#00,#00
+    DB #E0,#10,#08,#04,#02,#02,#02,#02,#04,#08,#10,#20,#C0,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#0F,#3F,#7F,#7F,#7F,#7F,#3F,#1F,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#FC,#FE,#FA,#FA,#FE,#FE,#FE,#FC,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#3F,#7F,#5F,#5F,#7F,#7F,#7F,#3F,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#F0,#FC,#FE,#FE,#FE,#FE,#FC,#F8,#00
+    DB #00,#1F,#3F,#7F,#7F,#7F,#7F,#3F,#0F,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#FC,#FE,#FE,#FE,#FA,#FA,#FE,#FC,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#3F,#7F,#7F,#7F,#5F,#5F,#7F,#3F,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#F8,#FC,#FE,#FE,#FE,#FE,#FC,#F0,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#03,#07,#0F,#1F,#3F,#3F,#3F,#3F,#1F,#0F,#07,#00
+    DB #00,#00,#00,#00,#F0,#FC,#FE,#FA,#FA,#FE,#FE,#FE,#FE,#BE,#1C,#00
+    DB #00,#00,#00,#00,#0F,#3F,#7F,#5F,#5F,#7F,#7F,#7F,#7F,#7D,#38,#00
+    DB #00,#00,#00,#00,#C0,#E0,#F0,#F8,#FC,#FC,#FC,#FC,#F8,#F0,#E0,#00
+    DB #00,#07,#0F,#1F,#3F,#3F,#3F,#3F,#1F,#0F,#07,#03,#00,#00,#00,#00
+    DB #00,#1C,#BE,#FE,#FE,#FE,#FE,#FA,#FA,#FE,#FC,#F0,#00,#00,#00,#00
+    DB #00,#38,#7D,#7F,#7F,#7F,#7F,#5F,#5F,#7F,#3F,#0F,#00,#00,#00,#00
+    DB #00,#E0,#F0,#F8,#FC,#FC,#FC,#FC,#F8,#F0,#E0,#C0,#00,#00,#00,#00
     DB #1F,#3F,#30,#27,#0E,#00,#0E,#07,#07,#03,#00,#00,#06,#07,#03,#07
     DB #80,#FC,#00,#C0,#C0,#40,#60,#A0,#C0,#80,#00,#00,#00,#00,#C0,#C0
     DB #01,#3F,#00,#03,#03,#02,#06,#05,#03,#01,#00,#00,#00,#00,#03,#03
@@ -8974,6 +9260,14 @@ bitmap_enemy_sprite_patterns:
     DB #00,#04,#0E,#06,#00,#00,#00,#00,#00,#08,#08,#00,#E0,#00,#00,#00
 ; Enemy sprites: 16-byte line colour tables per unique sprite layer frame (normal tables then vertical flips)
 bitmap_enemy_sprite_colors:
+    DB #0F,#0F,#0F,#0F,#0F,#0F,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B
+    DB #0F,#0F,#0F,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B
+    DB #0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0F,#0F,#0F,#0F,#0F,#0F
+    DB #0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0F,#0F,#0F
+    DB #0F,#0F,#0F,#0F,#0F,#0F,#0F,#0C,#4C,#4C,#4C,#4C,#0C,#0C,#0C,#0F
+    DB #0F,#0F,#0F,#0F,#0C,#0C,#4C,#4C,#4C,#4C,#0C,#0C,#0C,#0C,#0C,#0F
+    DB #0F,#0C,#0C,#0C,#4C,#4C,#4C,#4C,#0C,#0F,#0F,#0F,#0F,#0F,#0F,#0F
+    DB #0F,#0C,#0C,#0C,#0C,#0C,#4C,#4C,#4C,#4C,#0C,#0C,#0F,#0F,#0F,#0F
     DB #02,#02,#02,#02,#02,#02,#02,#02,#02,#02,#0F,#0F,#02,#02,#0D,#0F
     DB #0F,#02,#02,#02,#02,#02,#02,#02,#02,#02,#02,#02,#02,#02,#0D,#0F
     DB #0F,#0D,#02,#02,#0F,#0F,#02,#02,#02,#02,#02,#02,#02,#02,#02,#02
@@ -8982,6 +9276,7 @@ bitmap_enemy_sprite_colors:
     DB #0F,#0F,#0F,#0D,#0F,#4D,#0D,#0F,#0F,#0F,#0F,#0F,#4D,#4D,#0F,#0F
     DB #0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0D,#4D,#0F,#0D,#0F,#0F
     DB #0F,#0F,#4D,#4D,#0F,#0F,#0F,#0F,#0F,#0D,#4D,#0F,#0D,#0F,#0F,#0F
+
 
 ; Room 0 platforms: count + 1 slot(s) x 11 (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,patOff,colorOff)
 bitmap_room_platform_table_0:
@@ -9044,12 +9339,12 @@ bitmap_platform_sprite_patterns:
 bitmap_platform_sprite_colors:
     DB #09,#09,#09,#09,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F
 
-; Sprite 0 line color table (mode 2): configured player sprite "demon1 2" + 1 state clip(s)
+; Sprite 0 line color table (mode 2): configured player sprite "demon_destroy" + 1 state clip(s)
 bitmap_room_sprite_colors:
     DB #0F,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B
     DB #0F,#0F,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#4D,#4D,#4D,#0D,#4D
-    DB #0B,#0B,#0B,#0B,#0B,#0B,#0B,#0D,#0B,#0B,#0B,#0B,#0D,#0D,#0D,#0B
-    DB #4D,#0D,#0D,#0D,#0D,#0D,#0D,#0F,#0F,#0D,#0D,#0D,#0F,#0F,#0F,#0F
+    DB #0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0D,#0D,#0D,#0B
+    DB #4D,#0D,#0D,#0D,#0D,#0D,#0D,#4D,#4D,#0D,#0D,#0D,#0F,#0F,#0F,#0F
     DB #0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B,#0B
     DB #0F,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#0D,#4D,#4D,#4D,#0D,#4D,#4D
     DB #0B,#0B,#0B,#0B,#0B,#0B,#0D,#0B,#0B,#0B,#0B,#0D,#0D,#0D,#0D,#0B
@@ -9072,16 +9367,16 @@ bitmap_room_sprite_attrs:
 
 bitmap_room_sprite_attrs_end:
 
-; Sprite 0 pattern (16x16, mode 2 quadrants): configured player sprite "demon1 2" + 1 state clip(s)
+; Sprite 0 pattern (16x16, mode 2 quadrants): configured player sprite "demon_destroy" + 1 state clip(s)
 bitmap_room_sprite_patterns:
-    DB #00,#01,#01,#01,#00,#00,#1F,#20,#C3,#05,#09,#11,#12,#00,#00,#40
-    DB #00,#01,#02,#02,#40,#A7,#42,#80,#01,#31,#39,#1F,#17,#94,#10,#06
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#40,#E0
-    DB #00,#00,#81,#81,#82,#58,#3C,#7E,#FE,#8E,#86,#68,#F4,#76,#66,#78
-    DB #E0,#A0,#01,#02,#02,#06,#06,#1C,#0C,#00,#06,#04,#04,#04,#07,#07
-    DB #CA,#44,#20,#40,#46,#21,#19,#00,#00,#90,#10,#00,#20,#20,#38,#38
-    DB #40,#40,#40,#41,#41,#41,#21,#02,#01,#03,#01,#03,#00,#00,#00,#00
-    DB #30,#98,#C0,#A0,#A0,#D6,#E4,#A0,#40,#20,#A0,#20,#00,#00,#00,#00
+    DB #00,#02,#02,#02,#00,#01,#3E,#01,#C6,#0A,#12,#22,#24,#01,#00,#40
+    DB #00,#02,#04,#04,#80,#4E,#84,#00,#02,#62,#72,#3E,#2E,#28,#20,#0C
+    DB #00,#00,#01,#01,#01,#00,#00,#00,#01,#01,#01,#00,#01,#00,#40,#C0
+    DB #00,#00,#02,#02,#04,#B0,#78,#FC,#FC,#1C,#0C,#D0,#E8,#EC,#CC,#F0
+    DB #C1,#80,#01,#02,#02,#06,#06,#02,#0D,#00,#06,#04,#04,#04,#07,#07
+    DB #94,#88,#20,#40,#40,#20,#06,#A1,#59,#90,#10,#00,#20,#20,#38,#38
+    DB #40,#41,#40,#41,#41,#41,#21,#1E,#01,#03,#01,#03,#00,#00,#00,#00
+    DB #60,#30,#C0,#A0,#A0,#C0,#E0,#B6,#44,#20,#A0,#20,#00,#00,#00,#00
     DB #01,#01,#01,#00,#00,#0F,#10,#23,#45,#49,#09,#0A,#08,#00,#40,#E0
     DB #01,#02,#02,#40,#A7,#42,#80,#01,#31,#39,#1F,#17,#94,#10,#06,#CA
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#40,#E0,#40
@@ -9106,14 +9401,14 @@ bitmap_room_sprite_patterns:
     DB #44,#20,#40,#46,#21,#19,#00,#00,#80,#80,#80,#00,#00,#00,#C0,#C0
     DB #28,#78,#51,#41,#41,#21,#02,#01,#03,#01,#01,#00,#00,#00,#00,#00
     DB #98,#C0,#A0,#A0,#D6,#E4,#A0,#40,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#80,#40,#40,#02,#E5,#42,#01,#80,#8C,#9C,#F8,#E8,#29,#08,#60
-    DB #00,#80,#80,#80,#00,#00,#F8,#04,#C3,#A0,#90,#88,#48,#00,#00,#02
-    DB #00,#00,#81,#81,#41,#1A,#3C,#7E,#7F,#71,#61,#16,#2F,#6E,#66,#1E
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#02,#07
-    DB #53,#22,#04,#02,#62,#84,#98,#00,#00,#09,#08,#00,#04,#04,#1C,#1C
-    DB #07,#05,#80,#40,#40,#60,#60,#38,#30,#00,#60,#20,#20,#20,#E0,#E0
-    DB #0C,#19,#03,#05,#05,#6B,#27,#05,#02,#04,#05,#04,#00,#00,#00,#00
-    DB #02,#02,#02,#82,#82,#82,#84,#40,#80,#C0,#80,#C0,#00,#00,#00,#00
+    DB #00,#40,#20,#20,#01,#72,#21,#00,#40,#46,#4E,#7C,#74,#14,#04,#30
+    DB #00,#40,#40,#40,#00,#80,#7C,#80,#63,#50,#48,#44,#24,#80,#00,#02
+    DB #00,#00,#40,#40,#20,#0D,#1E,#3F,#3F,#38,#30,#0B,#17,#37,#33,#0F
+    DB #00,#00,#80,#80,#80,#00,#00,#00,#80,#80,#80,#00,#80,#00,#02,#03
+    DB #29,#11,#04,#02,#02,#04,#60,#85,#9A,#09,#08,#00,#04,#04,#1C,#1C
+    DB #83,#01,#80,#40,#40,#60,#60,#40,#B0,#00,#60,#20,#20,#20,#E0,#E0
+    DB #06,#0C,#03,#05,#05,#03,#07,#6D,#22,#04,#05,#04,#00,#00,#00,#00
+    DB #02,#82,#02,#82,#82,#82,#84,#78,#80,#C0,#80,#C0,#00,#00,#00,#00
     DB #80,#40,#40,#02,#E5,#42,#01,#80,#8C,#9C,#F8,#E8,#29,#08,#60,#53
     DB #80,#80,#80,#00,#00,#F0,#08,#C4,#A2,#92,#90,#50,#10,#00,#02,#07
     DB #00,#81,#81,#41,#1A,#3C,#7E,#7F,#71,#61,#16,#2F,#6E,#66,#1E,#0C
@@ -9171,504 +9466,504 @@ bitmap_room_hud_seed_p1_rle_chunk_0:
     DB #80,#FF
 bitmap_room_hud_seed_p1_rle_chunk_0_end:
 
-; Shared world tileset (atlas), packed 4bpp RLE; VRAM #10000, raw 6970 bytes, RLE 7936 bytes
+; Shared world tileset (atlas), packed 4bpp RLE; VRAM #10000, raw 7173 bytes, RLE 7936 bytes
 bitmap_room_tileset_rle_chunk_0:
     DB #01,#06,#06,#66,#01,#60,#03,#00,#01,#90,#01,#04,#01,#90,#05,#00
-    DB #01,#E0,#01,#04,#01,#E0,#09,#00,#01,#0F,#01,#F0,#07,#00,#01,#06
-    DB #01,#22,#01,#55,#01,#54,#01,#05,#01,#55,#01,#04,#01,#34,#01,#43
-    DB #02,#55,#01,#44,#01,#55,#01,#62,#01,#22,#01,#00,#03,#66,#01,#76
-    DB #04,#66,#01,#6E,#05,#EE,#01,#6E,#01,#EE,#01,#01,#07,#11,#01,#00
-    DB #01,#05,#01,#33,#01,#35,#01,#88,#01,#35,#01,#55,#01,#53,#01,#35
-    DB #01,#53,#01,#33,#01,#55,#01,#35,#01,#55,#01,#33,#09,#00,#01,#06
-    DB #01,#66,#01,#60,#01,#06,#01,#66,#01,#60,#01,#00,#02,#06,#01,#66
-    DB #01,#60,#01,#06,#01,#66,#01,#60,#01,#00,#01,#06,#08,#00,#01,#60
+    DB #01,#E0,#01,#04,#01,#E0,#02,#00,#03,#66,#01,#76,#04,#66,#01,#6E
+    DB #05,#EE,#01,#6E,#01,#EE,#01,#00,#01,#05,#01,#33,#01,#35,#01,#88
+    DB #01,#35,#01,#55,#01,#53,#01,#35,#01,#53,#01,#33,#01,#55,#01,#35
+    DB #01,#55,#01,#33,#09,#00,#01,#06,#01,#66,#01,#60,#01,#06,#01,#66
+    DB #01,#60,#01,#00,#02,#06,#01,#66,#01,#60,#01,#06,#01,#66,#01,#60
+    DB #01,#00,#01,#06,#21,#00,#0A,#33,#01,#83,#03,#33,#01,#30,#01,#60
     DB #05,#00,#01,#07,#01,#77,#02,#00,#01,#04,#02,#44,#01,#40,#04,#00
-    DB #01,#04,#02,#44,#01,#40,#09,#00,#01,#06,#01,#26,#08,#00,#01,#66
-    DB #01,#54,#01,#44,#01,#50,#01,#55,#01,#54,#01,#34,#01,#43,#01,#45
-    DB #01,#54,#01,#64,#01,#45,#01,#52,#01,#60,#01,#00,#03,#66,#01,#7E
-    DB #01,#77,#01,#76,#02,#66,#01,#EE,#07,#77,#02,#01,#01,#F0,#01,#01
-    DB #01,#10,#01,#0F,#01,#11,#01,#00,#01,#08,#01,#85,#02,#00,#01,#88
-    DB #01,#80,#01,#0F,#02,#00,#01,#08,#01,#80,#03,#00,#01,#38,#01,#80
-    DB #01,#66,#05,#EE,#01,#E6,#01,#EE,#01,#06,#01,#6E,#03,#66,#01,#E6
-    DB #02,#66,#01,#06,#05,#EE,#02,#66,#08,#00,#01,#60,#06,#00,#01,#77
-    DB #02,#00,#01,#04,#01,#47,#01,#77,#01,#40,#04,#00,#01,#04,#01,#46
-    DB #01,#66,#01,#40,#05,#00,#01,#06,#01,#60,#01,#00,#01,#06,#01,#66
-    DB #01,#26,#08,#00,#01,#06,#01,#54,#01,#44,#01,#45,#01,#55,#01,#54
-    DB #01,#34,#01,#44,#01,#40,#01,#56,#01,#44,#01,#45,#01,#52,#01,#30
-    DB #01,#00,#03,#66,#01,#11,#05,#66,#01,#77,#02,#66,#01,#67,#01,#76
-    DB #02,#66,#01,#1F,#01,#11,#01,#21,#02,#11,#01,#12,#01,#01,#01,#0F
-    DB #01,#53,#05,#00,#01,#0F,#04,#00,#01,#F0,#02,#00,#01,#88,#01,#35
-    DB #01,#6E,#06,#66,#01,#E6,#01,#06,#01,#E4,#01,#E6,#03,#66,#01,#6E
-    DB #01,#46,#01,#06,#02,#EE,#01,#AE,#02,#EE,#01,#6E,#01,#E6,#08,#00
-    DB #01,#60,#06,#00,#01,#77,#02,#00,#02,#44,#01,#47,#01,#77,#01,#90
-    DB #03,#00,#02,#44,#01,#46,#01,#66,#01,#E0,#03,#00,#01,#06,#01,#62
-    DB #01,#20,#01,#30,#01,#02,#02,#66,#01,#20,#01,#00,#01,#03,#01,#60
-    DB #05,#00,#01,#45,#01,#44,#01,#45,#01,#55,#01,#54,#01,#34,#01,#44
-    DB #01,#40,#01,#55,#01,#44,#01,#55,#01,#33,#02,#00,#03,#66,#01,#11
-    DB #04,#66,#01,#E6,#01,#66,#01,#E6,#02,#66,#01,#6E,#02,#66,#01,#12
-    DB #01,#11,#01,#21,#01,#1F,#01,#11,#01,#12,#01,#61,#01,#12,#01,#53
-    DB #01,#8F,#03,#88,#01,#F0,#01,#F8,#03,#88,#01,#0F,#02,#88,#01,#F8
-    DB #01,#88,#01,#55,#08,#66,#01,#06,#02,#66,#01,#6E,#01,#66,#01,#E6
-    DB #01,#76,#01,#66,#01,#06,#02,#66,#01,#6E,#02,#E6,#01,#76,#01,#66
-    DB #08,#00,#01,#60,#06,#00,#01,#77,#01,#00,#01,#09,#01,#74,#02,#44
-    DB #01,#77,#01,#40,#02,#00,#01,#0E,#01,#64,#02,#44,#01,#66,#01,#40
-    DB #03,#00,#01,#22,#01,#62,#01,#66,#01,#20,#01,#02,#02,#22,#01,#20
-    DB #01,#00,#01,#06,#01,#20,#03,#00,#01,#44,#01,#40,#01,#64,#01,#54
-    DB #01,#45,#01,#55,#01,#04,#01,#34,#01,#44,#01,#40,#01,#54,#01,#45
-    DB #01,#54,#03,#00,#02,#66,#01,#16,#01,#E6,#05,#66,#01,#76,#06,#66
-    DB #01,#62,#01,#11,#01,#21,#01,#12,#01,#11,#01,#12,#01,#61,#01,#12
+    DB #01,#04,#02,#44,#01,#40,#02,#00,#03,#66,#01,#7E,#01,#77,#01,#76
+    DB #02,#66,#01,#EE,#07,#77,#01,#08,#01,#85,#02,#00,#01,#88,#01,#80
+    DB #01,#0F,#02,#00,#01,#08,#01,#80,#03,#00,#01,#38,#01,#80,#01,#66
+    DB #05,#EE,#01,#E6,#01,#EE,#01,#06,#01,#6E,#03,#66,#01,#E6,#02,#66
+    DB #01,#06,#05,#EE,#02,#66,#20,#00,#01,#03,#0D,#00,#01,#08,#01,#33
+    DB #01,#60,#06,#00,#01,#77,#02,#00,#01,#04,#01,#47,#01,#77,#01,#40
+    DB #04,#00,#01,#04,#01,#46,#01,#66,#01,#40,#02,#00,#03,#66,#01,#11
+    DB #05,#66,#01,#77,#02,#66,#01,#67,#01,#76,#02,#66,#01,#53,#05,#00
+    DB #01,#0F,#04,#00,#01,#F0,#02,#00,#01,#88,#01,#35,#01,#6E,#06,#66
+    DB #01,#E6,#01,#06,#01,#E4,#01,#E6,#03,#66,#01,#6E,#01,#46,#01,#06
+    DB #02,#EE,#01,#AE,#02,#EE,#01,#6E,#01,#E6,#20,#00,#01,#38,#01,#00
+    DB #01,#80,#02,#00,#01,#08,#01,#00,#01,#08,#01,#00,#01,#08,#01,#00
+    DB #01,#80,#02,#00,#01,#88,#01,#35,#01,#60,#06,#00,#01,#77,#02,#00
+    DB #02,#44,#01,#47,#01,#77,#01,#90,#03,#00,#02,#44,#01,#46,#01,#66
+    DB #01,#E0,#01,#00,#03,#66,#01,#11,#04,#66,#01,#E6,#01,#66,#01,#E6
+    DB #02,#66,#01,#6E,#02,#66,#01,#53,#01,#8F,#03,#88,#01,#F0,#01,#F8
+    DB #03,#88,#01,#0F,#02,#88,#01,#F8,#01,#88,#01,#55,#08,#66,#01,#06
+    DB #02,#66,#01,#6E,#01,#66,#01,#E6,#01,#76,#01,#66,#01,#06,#02,#66
+    DB #01,#6E,#02,#E6,#01,#76,#01,#66,#20,#00,#01,#58,#01,#83,#01,#38
+    DB #02,#88,#01,#83,#01,#88,#01,#83,#01,#88,#01,#83,#03,#88,#01,#38
+    DB #01,#33,#01,#35,#01,#60,#06,#00,#01,#77,#01,#00,#01,#09,#01,#74
+    DB #02,#44,#01,#77,#01,#40,#02,#00,#01,#0E,#01,#64,#02,#44,#01,#66
+    DB #01,#40,#01,#00,#02,#66,#01,#16,#01,#E6,#05,#66,#01,#76,#06,#66
     DB #01,#53,#01,#88,#01,#33,#01,#88,#01,#35,#01,#38,#01,#83,#01,#53
     DB #01,#35,#01,#53,#01,#88,#01,#33,#01,#83,#01,#88,#01,#35,#01,#53
     DB #01,#76,#08,#66,#01,#06,#01,#67,#01,#66,#01,#67,#01,#66,#01,#47
-    DB #02,#66,#02,#77,#01,#66,#01,#67,#01,#66,#01,#77,#01,#66,#08,#00
-    DB #01,#60,#06,#00,#01,#77,#01,#00,#01,#04,#03,#44,#01,#77,#01,#70
-    DB #02,#00,#01,#04,#03,#44,#01,#66,#01,#60,#03,#00,#01,#22,#01,#26
-    DB #01,#22,#01,#20,#01,#04,#01,#25,#01,#02,#01,#50,#01,#00,#01,#66
-    DB #01,#20,#03,#00,#01,#54,#01,#44,#04,#55,#01,#54,#01,#34,#01,#44
-    DB #01,#45,#03,#55,#01,#43,#01,#44,#01,#30,#02,#66,#01,#11,#05,#66
-    DB #01,#67,#07,#66,#01,#62,#01,#11,#01,#21,#01,#12,#01,#11,#01,#12
-    DB #01,#61,#01,#12,#01,#05,#01,#83,#01,#53,#01,#33,#01,#53,#01,#33
-    DB #01,#85,#01,#33,#01,#53,#01,#33,#01,#88,#01,#55,#01,#35,#01,#33
-    DB #01,#55,#01,#50,#01,#76,#08,#66,#01,#60,#01,#67,#01,#66,#01,#76
-    DB #02,#66,#01,#76,#01,#B6,#01,#77,#01,#67,#01,#76,#03,#77,#01,#76
-    DB #08,#00,#01,#60,#06,#00,#01,#77,#01,#04,#04,#44,#01,#77,#01,#74
-    DB #01,#00,#01,#04,#04,#44,#01,#66,#01,#64,#03,#00,#02,#22,#01,#24
-    DB #01,#60,#01,#00,#01,#54,#01,#56,#01,#00,#01,#66,#02,#62,#01,#60
-    DB #02,#00,#01,#04,#01,#44,#01,#34,#01,#44,#01,#45,#01,#55,#01,#54
-    DB #01,#34,#01,#44,#01,#40,#02,#55,#01,#54,#01,#44,#01,#45,#01,#56
-    DB #02,#66,#01,#11,#03,#66,#01,#6E,#01,#66,#01,#67,#01,#76,#06,#66
-    DB #01,#62,#01,#11,#01,#21,#01,#12,#01,#11,#01,#12,#01,#61,#01,#12
-    DB #01,#05,#01,#83,#07,#33,#01,#88,#03,#33,#01,#35,#01,#53,#01,#50
-    DB #0B,#66,#01,#06,#01,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#76
-    DB #01,#66,#01,#77,#02,#76,#01,#67,#01,#76,#08,#00,#01,#60,#06,#00
-    DB #01,#77,#01,#44,#01,#47,#01,#77,#01,#44,#01,#74,#01,#77,#01,#70
-    DB #01,#00,#01,#44,#01,#46,#01,#66,#01,#44,#01,#64,#01,#66,#01,#60
-    DB #03,#00,#01,#66,#01,#25,#01,#54,#01,#00,#01,#04,#01,#43,#01,#55
-    DB #01,#40,#01,#62,#01,#26,#01,#22,#01,#60,#03,#00,#01,#04,#01,#55
-    DB #01,#43,#01,#34,#01,#50,#01,#04,#01,#44,#01,#54,#01,#50,#01,#55
-    DB #01,#53,#01,#34,#01,#45,#01,#44,#01,#46,#09,#66,#01,#76,#06,#66
-    DB #01,#62,#01,#11,#01,#21,#01,#62,#01,#21,#01,#12,#01,#61,#01,#12
-    DB #01,#05,#04,#33,#01,#38,#02,#33,#01,#88,#01,#83,#02,#33,#01,#38
-    DB #01,#83,#01,#53,#01,#50,#01,#76,#07,#66,#01,#60,#02,#66,#01,#00
-    DB #01,#66,#01,#70,#01,#66,#01,#46,#01,#67,#01,#76,#01,#66,#01,#76
-    DB #01,#66,#01,#76,#01,#77,#01,#76,#08,#00,#01,#60,#06,#00,#01,#77
-    DB #01,#44,#01,#74,#01,#77,#01,#74,#02,#77,#01,#74,#01,#00,#01,#44
-    DB #01,#64,#01,#66,#01,#64,#02,#66,#01,#64,#04,#00,#01,#54,#01,#34
-    DB #01,#56,#01,#05,#01,#43,#01,#55,#01,#40,#01,#66,#01,#55,#01,#25
-    DB #01,#60,#04,#00,#01,#45,#01,#44,#01,#33,#01,#44,#01,#55,#01,#45
-    DB #01,#54,#01,#00,#01,#54,#01,#34,#01,#45,#01,#54,#02,#00,#02,#66
-    DB #01,#06,#06,#66,#01,#76,#06,#66,#01,#22,#01,#11,#01,#21,#01,#62
-    DB #01,#21,#01,#12,#01,#21,#01,#12,#01,#05,#06,#33,#02,#88,#02,#33
+    DB #02,#66,#02,#77,#01,#66,#01,#67,#01,#66,#01,#77,#01,#66,#20,#00
+    DB #01,#33,#01,#35,#01,#55,#01,#83,#01,#58,#01,#35,#01,#53,#01,#55
+    DB #01,#38,#01,#35,#03,#33,#01,#53,#02,#55,#01,#60,#06,#00,#01,#77
+    DB #01,#00,#01,#04,#03,#44,#01,#77,#01,#70,#02,#00,#01,#04,#03,#44
+    DB #01,#66,#01,#60,#01,#00,#02,#66,#01,#11,#05,#66,#01,#67,#07,#66
+    DB #01,#05,#01,#83,#01,#53,#01,#33,#01,#53,#01,#33,#01,#85,#01,#33
+    DB #01,#53,#01,#33,#01,#88,#01,#55,#01,#35,#01,#33,#01,#55,#01,#50
+    DB #01,#76,#08,#66,#01,#60,#01,#67,#01,#66,#01,#76,#02,#66,#01,#76
+    DB #01,#B6,#01,#77,#01,#67,#01,#76,#03,#77,#01,#76,#0D,#00,#01,#0B
+    DB #02,#BB,#01,#B0,#0F,#00,#02,#35,#01,#33,#01,#35,#01,#33,#01,#53
+    DB #01,#33,#01,#53,#01,#33,#01,#53,#03,#33,#01,#53,#01,#35,#01,#55
+    DB #01,#60,#06,#00,#01,#77,#01,#04,#04,#44,#01,#77,#01,#74,#01,#00
+    DB #01,#04,#04,#44,#01,#66,#01,#64,#01,#00,#02,#66,#01,#11,#03,#66
+    DB #01,#6E,#01,#66,#01,#67,#01,#76,#06,#66,#01,#05,#01,#83,#07,#33
+    DB #01,#88,#03,#33,#01,#35,#01,#53,#01,#50,#0B,#66,#01,#06,#01,#66
+    DB #01,#76,#01,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77,#02,#76
+    DB #01,#67,#01,#76,#0C,#00,#01,#0A,#01,#AE,#04,#AA,#01,#A0,#0D,#00
+    DB #07,#33,#01,#38,#06,#33,#01,#35,#01,#53,#01,#60,#06,#00,#01,#77
+    DB #01,#44,#01,#47,#01,#77,#01,#44,#01,#74,#01,#77,#01,#70,#01,#00
+    DB #01,#44,#01,#46,#01,#66,#01,#44,#01,#64,#01,#66,#01,#60,#01,#00
+    DB #09,#66,#01,#76,#06,#66,#01,#05,#04,#33,#01,#38,#02,#33,#01,#88
+    DB #01,#83,#02,#33,#01,#38,#01,#83,#01,#53,#01,#50,#01,#76,#07,#66
+    DB #01,#60,#02,#66,#01,#00,#01,#66,#01,#70,#01,#66,#01,#46,#01,#67
+    DB #01,#76,#01,#66,#01,#76,#01,#66,#01,#76,#01,#77,#01,#76,#0C,#00
+    DB #06,#AA,#01,#AB,#01,#B0,#0C,#00,#0F,#33,#01,#53,#01,#60,#06,#00
+    DB #01,#77,#01,#44,#01,#74,#01,#77,#01,#74,#02,#77,#01,#74,#01,#00
+    DB #01,#44,#01,#64,#01,#66,#01,#64,#02,#66,#01,#64,#01,#00,#02,#66
+    DB #01,#06,#06,#66,#01,#76,#06,#66,#01,#05,#06,#33,#02,#88,#02,#33
     DB #01,#38,#01,#33,#01,#38,#01,#55,#01,#50,#01,#76,#01,#77,#01,#67
     DB #01,#76,#05,#66,#01,#60,#01,#66,#01,#00,#01,#66,#01,#60,#01,#07
     DB #02,#66,#01,#77,#01,#67,#01,#76,#01,#66,#01,#76,#01,#77,#01,#76
-    DB #08,#00,#01,#60,#06,#00,#01,#77,#01,#07,#02,#44,#01,#47,#01,#77
-    DB #01,#44,#01,#77,#01,#40,#01,#06,#02,#44,#01,#46,#01,#66,#01,#44
-    DB #01,#66,#01,#40,#03,#00,#01,#44,#01,#34,#01,#54,#01,#05,#01,#44
-    DB #01,#45,#01,#40,#01,#44,#01,#45,#01,#36,#04,#00,#01,#46,#01,#34
-    DB #02,#55,#01,#43,#02,#45,#01,#55,#01,#05,#01,#44,#01,#45,#01,#54
-    DB #03,#00,#02,#66,#01,#77,#01,#76,#05,#66,#01,#76,#05,#66,#01,#E6
-    DB #01,#22,#01,#11,#01,#21,#01,#62,#01,#21,#01,#22,#01,#21,#01,#12
-    DB #01,#05,#01,#38,#01,#33,#01,#38,#02,#33,#01,#58,#01,#83,#06,#33
-    DB #01,#55,#01,#30,#02,#66,#01,#77,#01,#76,#02,#66,#01,#67,#01,#66
-    DB #01,#67,#01,#66,#01,#67,#02,#66,#01,#60,#01,#00,#01,#66,#02,#67
-    DB #01,#77,#03,#66,#01,#77,#01,#76,#07,#00,#01,#0B,#01,#60,#06,#00
-    DB #02,#77,#01,#44,#02,#47,#01,#74,#01,#44,#01,#47,#01,#74,#01,#66
-    DB #01,#44,#02,#46,#01,#64,#01,#44,#01,#46,#01,#64,#02,#00,#01,#06
-    DB #01,#54,#01,#34,#01,#55,#01,#45,#01,#44,#01,#35,#01,#44,#01,#53
-    DB #01,#45,#01,#40,#03,#00,#01,#06,#01,#55,#01,#45,#02,#55,#02,#44
-    DB #02,#55,#01,#53,#01,#45,#01,#50,#02,#45,#02,#00,#01,#66,#02,#77
-    DB #01,#76,#01,#67,#04,#66,#01,#76,#06,#66,#02,#22,#01,#21,#01,#62
-    DB #01,#21,#01,#22,#01,#21,#01,#62,#01,#03,#01,#38,#01,#33,#01,#88
-    DB #04,#33,#01,#38,#05,#33,#01,#55,#01,#30,#02,#76,#01,#67,#01,#77
-    DB #01,#76,#01,#66,#01,#77,#03,#66,#01,#46,#01,#66,#01,#67,#01,#66
-    DB #01,#60,#02,#66,#01,#67,#01,#77,#01,#66,#01,#67,#02,#77,#01,#66
-    DB #07,#00,#01,#BE,#01,#60,#06,#00,#01,#77,#01,#07,#01,#44,#01,#47
-    DB #01,#77,#01,#74,#01,#44,#01,#47,#01,#77,#01,#06,#01,#44,#01,#46
-    DB #01,#66,#01,#64,#01,#44,#01,#46,#01,#66,#03,#00,#01,#65,#01,#34
-    DB #01,#45,#01,#44,#01,#64,#01,#35,#01,#65,#01,#34,#01,#45,#01,#50
-    DB #03,#00,#01,#35,#03,#44,#01,#55,#01,#54,#01,#44,#02,#55,#01,#45
-    DB #02,#55,#01,#44,#01,#45,#01,#43,#01,#00,#02,#77,#01,#66,#01,#67
-    DB #01,#77,#01,#76,#02,#66,#01,#76,#02,#77,#02,#66,#02,#77,#01,#67
-    DB #02,#22,#01,#21,#03,#22,#01,#21,#01,#62,#01,#05,#01,#88,#03,#33
-    DB #01,#38,#01,#33,#01,#35,#06,#33,#01,#53,#01,#50,#01,#07,#07,#77
-    DB #01,#60,#01,#00,#01,#66,#01,#67,#01,#66,#01,#6E,#01,#66,#01,#07
-    DB #01,#66,#01,#77,#01,#66,#01,#67,#01,#77,#01,#76,#01,#67,#01,#77
-    DB #07,#00,#01,#E4,#01,#60,#06,#00,#01,#77,#03,#47,#01,#77,#01,#74
-    DB #01,#44,#01,#77,#01,#79,#03,#46,#01,#66,#01,#64,#01,#44,#01,#66
-    DB #01,#6E,#03,#00,#01,#45,#01,#44,#01,#45,#01,#55,#01,#34,#01,#35
-    DB #01,#55,#01,#44,#01,#55,#01,#40,#03,#00,#01,#04,#01,#30,#04,#55
-    DB #01,#54,#01,#55,#01,#54,#02,#55,#01,#54,#01,#55,#01,#44,#01,#53
-    DB #01,#00,#02,#77,#02,#66,#01,#76,#01,#67,#02,#77,#08,#66,#07,#22
-    DB #01,#62,#01,#05,#01,#88,#01,#33,#01,#35,#01,#33,#01,#38,#01,#83
+    DB #08,#00,#01,#FA,#01,#EA,#01,#AE,#01,#A4,#01,#EA,#07,#AA,#0C,#00
+    DB #01,#33,#01,#83,#0D,#33,#01,#55,#01,#60,#06,#00,#01,#77,#01,#07
+    DB #02,#44,#01,#47,#01,#77,#01,#44,#01,#77,#01,#40,#01,#06,#02,#44
+    DB #01,#46,#01,#66,#01,#44,#01,#66,#01,#40,#02,#66,#01,#77,#01,#76
+    DB #05,#66,#01,#76,#05,#66,#01,#E6,#01,#05,#01,#38,#01,#33,#01,#38
+    DB #02,#33,#01,#58,#01,#83,#06,#33,#01,#55,#01,#30,#02,#66,#01,#77
+    DB #01,#76,#02,#66,#01,#67,#01,#66,#01,#67,#01,#66,#01,#67,#02,#66
+    DB #01,#60,#01,#00,#01,#66,#02,#67,#01,#77,#03,#66,#01,#77,#01,#76
+    DB #07,#00,#01,#0B,#02,#EA,#01,#AA,#01,#A4,#01,#44,#04,#AA,#01,#AE
+    DB #01,#AA,#01,#AE,#0C,#00,#01,#33,#01,#83,#03,#33,#01,#38,#01,#83
+    DB #08,#33,#01,#55,#01,#60,#06,#00,#02,#77,#01,#44,#02,#47,#01,#74
+    DB #01,#44,#01,#47,#01,#74,#01,#66,#01,#44,#02,#46,#01,#64,#01,#44
+    DB #01,#46,#01,#64,#01,#66,#02,#77,#01,#76,#01,#67,#04,#66,#01,#76
+    DB #06,#66,#01,#03,#01,#38,#01,#33,#01,#88,#04,#33,#01,#38,#05,#33
+    DB #01,#55,#01,#30,#02,#76,#01,#67,#01,#77,#01,#76,#01,#66,#01,#77
+    DB #03,#66,#01,#46,#01,#66,#01,#67,#01,#66,#01,#60,#02,#66,#01,#67
+    DB #01,#77,#01,#66,#01,#67,#02,#77,#01,#66,#07,#00,#01,#BE,#04,#AA
+    DB #01,#AE,#01,#A4,#03,#EE,#01,#E4,#01,#44,#01,#EB,#01,#00,#02,#AA
+    DB #01,#AE,#01,#B0,#07,#00,#0E,#33,#01,#35,#01,#58,#01,#60,#06,#00
+    DB #01,#77,#01,#07,#01,#44,#01,#47,#01,#77,#01,#74,#01,#44,#01,#47
+    DB #01,#77,#01,#06,#01,#44,#01,#46,#01,#66,#01,#64,#01,#44,#01,#46
+    DB #01,#66,#02,#77,#01,#66,#01,#67,#01,#77,#01,#76,#02,#66,#01,#76
+    DB #02,#77,#02,#66,#02,#77,#01,#67,#01,#05,#01,#88,#03,#33,#01,#38
+    DB #01,#33,#01,#35,#06,#33,#01,#53,#01,#50,#01,#07,#07,#77,#01,#60
+    DB #01,#00,#01,#66,#01,#67,#01,#66,#01,#6E,#01,#66,#01,#07,#01,#66
+    DB #01,#77,#01,#66,#01,#67,#01,#77,#01,#76,#01,#67,#01,#77,#07,#00
+    DB #01,#E4,#01,#EE,#03,#AA,#02,#AE,#02,#EA,#01,#AA,#01,#44,#01,#64
+    DB #01,#4E,#01,#BA,#04,#AA,#01,#A0,#06,#00,#01,#33,#01,#83,#06,#33
+    DB #01,#38,#05,#33,#01,#35,#01,#50,#01,#60,#06,#00,#01,#77,#03,#47
+    DB #01,#77,#01,#74,#01,#44,#01,#77,#01,#79,#03,#46,#01,#66,#01,#64
+    DB #01,#44,#01,#66,#01,#6E,#02,#77,#02,#66,#01,#76,#01,#67,#02,#77
+    DB #08,#66,#01,#05,#01,#88,#01,#33,#01,#35,#01,#33,#01,#38,#01,#83
     DB #05,#33,#02,#38,#01,#53,#01,#50,#01,#00,#05,#66,#01,#60,#01,#06
     DB #01,#67,#01,#00,#01,#06,#01,#46,#01,#66,#01,#77,#01,#00,#01,#06
     DB #01,#67,#01,#77,#01,#76,#01,#77,#01,#66,#02,#77,#01,#76,#05,#00
-    DB #01,#0B,#01,#B0,#01,#EE,#01,#60,#06,#00,#01,#77,#01,#04,#03,#77
-    DB #01,#07,#02,#77,#01,#40,#01,#04,#03,#66,#01,#06,#02,#66,#01,#40
-    DB #01,#00,#01,#66,#01,#60,#01,#64,#01,#54,#01,#44,#01,#54,#02,#34
-    DB #01,#05,#01,#45,#01,#55,#01,#00,#01,#06,#05,#00,#01,#65,#04,#55
-    DB #01,#05,#01,#50,#02,#55,#01,#44,#03,#00,#08,#77,#01,#66,#03,#EE
-    DB #01,#E6,#02,#EE,#01,#E6,#08,#22,#01,#05,#01,#83,#01,#33,#01,#53
-    DB #01,#88,#01,#83,#02,#33,#01,#35,#04,#33,#01,#38,#01,#33,#01,#50
-    DB #01,#0E,#03,#EE,#02,#E6,#01,#EE,#01,#6E,#01,#66,#01,#76,#01,#66
-    DB #01,#67,#02,#77,#01,#67,#02,#66,#05,#77,#01,#67,#01,#66,#04,#00
-    DB #01,#0E,#01,#EB,#01,#AE,#01,#AA,#08,#77,#01,#04,#06,#77,#01,#44
-    DB #01,#04,#06,#66,#01,#44,#01,#02,#01,#66,#01,#24,#01,#06,#02,#44
-    DB #01,#54,#01,#34,#01,#43,#01,#05,#01,#45,#01,#54,#01,#32,#01,#62
-    DB #01,#60,#03,#00,#01,#04,#01,#64,#01,#44,#01,#45,#01,#05,#01,#50
-    DB #01,#05,#01,#00,#01,#55,#01,#44,#01,#66,#01,#30,#02,#00,#01,#70
-    DB #03,#77,#01,#70,#03,#77,#01,#66,#06,#77,#01,#7E,#08,#22,#01,#03
-    DB #02,#33,#01,#53,#01,#33,#01,#35,#01,#53,#01,#55,#01,#35,#01,#53
-    DB #01,#33,#01,#55,#02,#33,#01,#53,#01,#30,#01,#6E,#01,#E6,#02,#66
-    DB #01,#67,#01,#66,#01,#77,#01,#66,#01,#67,#01,#77,#01,#67,#01,#77
-    DB #01,#76,#02,#77,#01,#76,#01,#67,#01,#77,#01,#67,#01,#77,#01,#76
-    DB #02,#77,#01,#76,#03,#00,#01,#BA,#02,#AA,#01,#EE,#01,#E4,#01,#07
-    DB #06,#77,#01,#70,#01,#09,#01,#44,#01,#77,#02,#44,#01,#77,#01,#44
-    DB #01,#40,#01,#0E,#01,#44,#01,#66,#02,#44,#01,#66,#01,#44,#01,#40
-    DB #01,#02,#01,#26,#01,#24,#01,#00,#01,#34,#01,#45,#01,#04,#01,#34
-    DB #01,#43,#02,#55,#01,#50,#01,#32,#02,#26,#03,#00,#01,#04,#01,#46
-    DB #01,#66,#01,#34,#01,#50,#01,#05,#01,#55,#01,#46,#01,#44,#01,#66
-    DB #01,#36,#0B,#00,#01,#66,#01,#77,#02,#66,#01,#76,#01,#66,#01,#77
-    DB #01,#66,#08,#22,#01,#00,#01,#85,#01,#35,#01,#88,#01,#35,#01,#53
-    DB #01,#38,#03,#88,#01,#55,#01,#58,#01,#85,#01,#55,#01,#58,#01,#00
-    DB #01,#6E,#05,#66,#01,#67,#01,#66,#01,#06,#01,#66,#01,#6E,#05,#66
-    DB #01,#06,#01,#66,#01,#6E,#01,#E6,#01,#66,#01,#EE,#02,#66,#03,#00
-    DB #01,#EA,#02,#AA,#01,#A4,#01,#46,#1A,#00,#02,#A7,#02,#AA,#01,#74
-    DB #01,#4A,#01,#AA,#01,#A4,#01,#44,#01,#66,#01,#46,#01,#44,#01,#77
-    DB #01,#A7,#01,#A4,#02,#66,#01,#EA,#02,#AA,#01,#E6,#02,#66,#01,#6E
-    DB #01,#40,#01,#AA,#0D,#00,#01,#E6,#02,#66,#01,#0E,#01,#66,#02,#77
-    DB #01,#67,#01,#66,#01,#E0,#01,#00,#01,#66,#01,#EF,#0B,#00,#01,#04
-    DB #01,#44,#01,#64,#04,#66,#01,#44,#01,#48,#01,#00,#01,#67,#01,#76
-    DB #02,#66,#01,#06,#01,#76,#01,#66,#01,#E0,#01,#06,#02,#66,#01,#67
-    DB #01,#77,#01,#67,#01,#76,#01,#67,#01,#66,#01,#46,#01,#64,#01,#4E
-    DB #02,#00,#07,#33,#19,#00,#01,#07,#01,#E4,#01,#44,#02,#EE,#01,#AA
-    DB #01,#A4,#01,#44,#01,#46,#01,#44,#01,#66,#01,#64,#05,#AA,#01,#46
-    DB #01,#E4,#01,#44,#01,#AA,#01,#AE,#01,#EA,#01,#E6,#01,#4E,#02,#EA
-    DB #01,#AB,#0C,#00,#01,#0E,#01,#76,#01,#66,#01,#00,#01,#E7,#01,#66
-    DB #01,#77,#01,#86,#01,#66,#01,#E0,#01,#0E,#01,#66,#01,#60,#0B,#00
-    DB #01,#0E,#01,#44,#01,#66,#01,#77,#01,#E6,#01,#60,#01,#E6,#01,#46
-    DB #01,#E6,#01,#04,#01,#77,#01,#76,#02,#66,#01,#06,#01,#76,#01,#66
-    DB #01,#6E,#01,#00,#01,#04,#01,#66,#01,#77,#01,#66,#01,#E7,#01,#66
-    DB #02,#77,#01,#67,#01,#77,#01,#4E,#01,#00,#01,#03,#20,#00,#01,#0B
-    DB #01,#E4,#01,#46,#01,#64,#01,#EA,#01,#E4,#01,#4E,#02,#46,#01,#76
-    DB #01,#67,#04,#AA,#01,#EA,#01,#AA,#01,#AE,#01,#66,#01,#64,#02,#EE
-    DB #01,#AE,#01,#A4,#01,#AA,#01,#A4,#01,#EA,#01,#AA,#01,#A0,#09,#00
-    DB #01,#06,#01,#6E,#01,#06,#01,#66,#01,#60,#01,#00,#02,#66,#01,#77
-    DB #01,#0E,#01,#76,#01,#6E,#02,#66,#01,#60,#0C,#00,#01,#04,#02,#66
-    DB #01,#EE,#02,#6E,#02,#00,#01,#08,#01,#77,#01,#76,#03,#66,#01,#76
-    DB #01,#66,#01,#68,#01,#00,#01,#0E,#01,#66,#01,#E7,#01,#68,#01,#76
-    DB #02,#66,#01,#77,#01,#64,#01,#8E,#01,#E0,#01,#00,#01,#38,#01,#00
-    DB #01,#80,#02,#00,#01,#08,#01,#00,#01,#08,#19,#00,#01,#FE,#01,#AE
-    DB #01,#44,#01,#4E,#02,#AA,#01,#44,#01,#66,#01,#67,#01,#7E,#01,#AE
-    DB #01,#AA,#01,#EA,#01,#AA,#01,#7A,#01,#AA,#01,#A4,#01,#6E,#01,#67
-    DB #01,#66,#01,#44,#01,#46,#01,#44,#01,#66,#01,#EA,#01,#AA,#01,#AE
-    DB #01,#EE,#01,#EB,#09,#00,#01,#06,#01,#7E,#01,#E6,#01,#66,#01,#E0
-    DB #01,#00,#01,#06,#01,#66,#01,#77,#01,#0E,#03,#66,#01,#76,#0D,#00
-    DB #01,#06,#03,#66,#01,#76,#01,#60,#02,#00,#01,#06,#01,#67,#01,#76
-    DB #02,#66,#01,#60,#01,#67,#02,#66,#01,#00,#01,#06,#01,#EE,#01,#06
-    DB #02,#76,#01,#6B,#01,#E7,#01,#E6,#01,#66,#01,#E0,#02,#00,#01,#58
-    DB #01,#83,#01,#38,#02,#88,#01,#83,#01,#88,#01,#83,#18,#00,#01,#0B
-    DB #01,#EE,#01,#EA,#01,#AA,#01,#AE,#01,#64,#01,#E4,#01,#46,#01,#67
-    DB #01,#77,#01,#E7,#01,#AE,#01,#EE,#01,#7E,#01,#AE,#01,#64,#01,#AA
-    DB #01,#EE,#01,#E4,#01,#67,#01,#77,#03,#66,#01,#64,#01,#4E,#01,#E4
-    DB #01,#EA,#01,#AE,#01,#EA,#0A,#00,#02,#66,#01,#6E,#01,#70,#01,#00
-    DB #01,#06,#01,#66,#01,#77,#01,#0F,#01,#67,#02,#66,#01,#60,#0E,#00
-    DB #01,#06,#01,#00,#01,#6E,#01,#66,#01,#6E,#01,#64,#01,#0E,#01,#66
-    DB #01,#67,#01,#76,#01,#67,#01,#66,#01,#6E,#01,#67,#02,#66,#01,#80
-    DB #01,#00,#01,#60,#01,#0E,#01,#66,#01,#67,#01,#E6,#01,#76,#01,#0A
-    DB #01,#6E,#03,#00,#01,#33,#01,#35,#01,#55,#01,#83,#01,#58,#01,#35
-    DB #01,#53,#01,#55,#05,#00,#01,#0B,#02,#BB,#01,#B0,#0F,#00,#01,#BE
-    DB #01,#EE,#01,#AA,#01,#A4,#01,#46,#02,#66,#01,#67,#01,#77,#01,#76
-    DB #01,#E4,#01,#4E,#01,#64,#02,#46,#01,#66,#01,#64,#01,#4A,#01,#AE
-    DB #01,#46,#04,#77,#01,#76,#01,#66,#01,#4E,#01,#6E,#01,#4A,#01,#AE
-    DB #01,#B0,#09,#00,#01,#E6,#01,#76,#01,#66,#02,#00,#01,#E6,#01,#66
-    DB #01,#70,#01,#0F,#01,#E7,#02,#66,#03,#00,#01,#64,#01,#E0,#01,#0A
-    DB #01,#EE,#0B,#00,#01,#67,#01,#6E,#01,#64,#01,#06,#01,#76,#01,#67
-    DB #01,#7E,#01,#67,#01,#66,#01,#7E,#01,#77,#02,#66,#01,#E6,#01,#60
-    DB #01,#0E,#01,#EE,#01,#66,#02,#67,#01,#68,#01,#00,#01,#E8,#03,#00
-    DB #02,#35,#01,#33,#01,#35,#01,#33,#01,#53,#01,#33,#01,#53,#04,#00
-    DB #01,#0A,#01,#AE,#04,#AA,#01,#A0,#0D,#00,#01,#EA,#01,#A4,#01,#E4
-    DB #01,#46,#01,#67,#01,#66,#03,#77,#01,#76,#01,#64,#03,#66,#01,#76
-    DB #03,#66,#01,#44,#01,#66,#05,#77,#01,#67,#01,#66,#01,#46,#01,#44
-    DB #01,#EA,#01,#E6,#09,#00,#01,#0E,#01,#76,#01,#66,#01,#60,#01,#0E
-    DB #02,#66,#01,#77,#01,#00,#01,#07,#02,#66,#02,#00,#01,#0E,#02,#EE
-    DB #01,#EA,#01,#AA,#01,#E0,#09,#00,#01,#0A,#01,#A6,#01,#76,#01,#4E
-    DB #01,#66,#01,#67,#01,#77,#01,#6E,#01,#67,#01,#76,#01,#67,#01,#76
-    DB #01,#66,#01,#76,#01,#6E,#01,#E0,#01,#66,#01,#E6,#02,#76,#01,#BA
-    DB #01,#BE,#05,#00,#07,#33,#01,#38,#04,#00,#06,#AA,#01,#AB,#01,#B0
-    DB #0C,#00,#01,#EE,#02,#46,#01,#66,#06,#77,#02,#76,#01,#67,#04,#77
-    DB #02,#66,#01,#77,#01,#76,#01,#66,#01,#67,#03,#77,#01,#76,#01,#67
-    DB #02,#64,#01,#46,#06,#00,#01,#AA,#02,#00,#01,#0E,#01,#76,#01,#66
-    DB #01,#EE,#01,#E6,#01,#66,#01,#67,#01,#77,#01,#00,#01,#06,#02,#66
-    DB #02,#00,#03,#EE,#01,#EA,#01,#AA,#01,#EE,#01,#80,#08,#00,#01,#BA
-    DB #01,#E6,#01,#76,#01,#6E,#01,#66,#01,#67,#01,#77,#01,#66,#01,#67
-    DB #01,#77,#03,#66,#01,#76,#02,#66,#01,#6E,#01,#66,#02,#76,#02,#AE
-    DB #05,#00,#08,#33,#01,#FA,#01,#EA,#01,#AE,#01,#A4,#01,#EA,#07,#AA
-    DB #0C,#00,#01,#44,#02,#67,#02,#77,#01,#70,#01,#77,#03,#66,#03,#77
-    DB #01,#76,#04,#77,#01,#66,#01,#76,#01,#6E,#01,#EE,#03,#67,#01,#76
-    DB #01,#67,#01,#77,#01,#76,#01,#64,#01,#E6,#04,#00,#01,#0B,#01,#BE
-    DB #01,#AE,#01,#BA,#01,#E6,#01,#00,#05,#66,#01,#77,#01,#70,#01,#00
-    DB #01,#67,#02,#66,#01,#00,#01,#0E,#01,#64,#01,#46,#01,#EA,#01,#AE
-    DB #02,#44,#01,#E0,#07,#00,#01,#BA,#01,#AA,#02,#66,#01,#E6,#02,#67
-    DB #02,#66,#01,#67,#01,#76,#01,#77,#01,#66,#02,#67,#02,#66,#01,#64
-    DB #03,#66,#01,#44,#01,#4A,#01,#AA,#04,#00,#01,#33,#01,#83,#06,#33
-    DB #02,#EA,#01,#AA,#01,#A4,#01,#44,#04,#AA,#01,#AE,#01,#AA,#01,#AE
-    DB #0C,#00,#02,#66,#03,#77,#01,#67,#01,#66,#02,#67,#01,#7E,#01,#67
-    DB #01,#77,#01,#66,#01,#76,#01,#67,#01,#76,#01,#47,#01,#76,#02,#66
-    DB #01,#6E,#01,#B0,#01,#E7,#01,#67,#01,#E7,#01,#77,#01,#67,#03,#66
-    DB #01,#60,#04,#00,#01,#0A,#01,#EA,#01,#AE,#01,#AA,#01,#EE,#01,#00
-    DB #01,#E6,#02,#66,#01,#76,#01,#67,#01,#00,#01,#70,#01,#00,#01,#67
-    DB #02,#66,#01,#00,#01,#08,#01,#E6,#04,#44,#01,#4E,#07,#00,#01,#0B
-    DB #01,#AE,#01,#E4,#03,#66,#01,#67,#01,#44,#01,#66,#01,#67,#01,#E7
-    DB #01,#7E,#01,#67,#01,#66,#01,#76,#01,#A7,#05,#66,#01,#6E,#01,#64
-    DB #01,#6E,#01,#EA,#01,#A0,#03,#00,#01,#33,#01,#83,#03,#33,#01,#38
-    DB #01,#83,#01,#33,#04,#AA,#01,#AE,#01,#A4,#03,#EE,#01,#E4,#01,#44
-    DB #01,#EB,#01,#00,#02,#AA,#01,#AE,#01,#B0,#07,#00,#01,#88,#01,#B7
-    DB #01,#67,#01,#77,#01,#76,#01,#66,#01,#76,#01,#80,#01,#88,#01,#67
-    DB #01,#B7,#01,#76,#01,#66,#01,#76,#01,#67,#01,#6B,#01,#E6,#01,#76
-    DB #01,#E6,#01,#66,#01,#68,#01,#08,#01,#E7,#01,#6E,#01,#BE,#01,#7E
-    DB #02,#66,#01,#60,#06,#00,#01,#EE,#01,#4A,#01,#EA,#01,#AE,#01,#46
-    DB #01,#E0,#01,#0E,#01,#67,#02,#66,#01,#77,#01,#07,#01,#00,#01,#06
-    DB #02,#66,#01,#E0,#01,#00,#01,#EE,#02,#64,#01,#E4,#01,#AE,#01,#66
-    DB #01,#4B,#01,#AE,#01,#A0,#05,#00,#01,#0A,#01,#BE,#02,#EE,#01,#E6
-    DB #01,#66,#01,#EA,#01,#66,#02,#76,#02,#E6,#01,#EE,#03,#66,#01,#E6
-    DB #01,#66,#01,#76,#01,#AE,#01,#EE,#01,#4E,#02,#EE,#01,#AA,#01,#A0
-    DB #03,#00,#08,#33,#01,#EE,#03,#AA,#02,#AE,#02,#EA,#01,#AA,#01,#44
-    DB #01,#64,#01,#4E,#01,#BA,#04,#AA,#01,#A0,#07,#00,#01,#07,#01,#66
-    DB #01,#77,#01,#66,#01,#77,#01,#76,#01,#70,#01,#00,#01,#E7,#01,#67
-    DB #01,#6E,#01,#EE,#01,#67,#01,#76,#01,#E0,#01,#0E,#01,#66,#01,#67
-    DB #01,#E6,#01,#6E,#01,#E6,#01,#76,#01,#E0,#01,#66,#01,#6E,#01,#46
-    DB #01,#66,#07,#00,#01,#AE,#02,#44,#01,#E4,#01,#44,#01,#60,#01,#00
-    DB #01,#E7,#01,#76,#01,#66,#01,#67,#01,#07,#01,#00,#01,#06,#01,#76
-    DB #01,#66,#01,#60,#01,#0E,#01,#EE,#01,#E4,#01,#46,#02,#AA,#01,#E4
-    DB #01,#EE,#01,#AE,#01,#E8,#06,#00,#01,#0B,#01,#BE,#01,#EE,#01,#E6
-    DB #02,#EE,#01,#6E,#02,#66,#04,#EE,#01,#66,#01,#EE,#01,#EA,#01,#AE
-    DB #02,#EE,#01,#AA,#01,#EA,#01,#AA,#01,#EA,#01,#B0,#04,#00,#01,#33
-    DB #01,#83,#06,#33,#02,#44,#01,#4E,#01,#EA,#01,#AA,#01,#EE,#01,#AA
-    DB #01,#EA,#01,#AA,#03,#EE,#01,#A4,#05,#AA,#08,#00,#01,#76,#01,#67
-    DB #01,#F6,#01,#66,#01,#67,#01,#66,#01,#00,#01,#E7,#01,#76,#01,#E0
-    DB #01,#00,#01,#E6,#01,#77,#01,#6E,#01,#0E,#01,#67,#01,#66,#01,#B8
-    DB #01,#76,#04,#66,#01,#E0,#01,#06,#01,#60,#06,#00,#01,#0B,#01,#AE
-    DB #01,#66,#01,#44,#01,#AA,#01,#44,#01,#AA,#01,#60,#01,#06,#01,#76
-    DB #02,#66,#01,#07,#01,#00,#01,#67,#01,#66,#01,#6E,#01,#00,#01,#64
-    DB #01,#4E,#02,#66,#01,#44,#01,#4A,#01,#A4,#01,#EA,#01,#AE,#01,#4E
-    DB #08,#00,#01,#0B,#03,#AA,#01,#BA,#01,#AA,#01,#A6,#01,#BA,#01,#EE
-    DB #01,#00,#01,#0B,#01,#EA,#01,#AA,#01,#F0,#01,#AA,#01,#AE,#01,#BA
-    DB #01,#AA,#01,#0A,#01,#A0,#06,#00,#01,#33,#01,#83,#01,#33,#01,#38
-    DB #04,#33,#01,#E4,#02,#44,#01,#4A,#01,#AA,#01,#E4,#02,#44,#01,#E4
-    DB #01,#4A,#02,#AA,#01,#AE,#01,#44,#03,#AA,#01,#EA,#01,#B0,#07,#00
-    DB #01,#07,#01,#77,#01,#06,#02,#67,#01,#77,#03,#66,#02,#00,#01,#06
-    DB #03,#66,#01,#77,#01,#EF,#01,#F0,#01,#67,#03,#66,#01,#6E,#01,#00
-    DB #01,#06,#07,#00,#01,#0E,#01,#AA,#01,#EA,#01,#A4,#01,#AA,#01,#EA
-    DB #01,#AA,#01,#E0,#01,#06,#03,#66,#01,#77,#01,#70,#01,#67,#01,#66
-    DB #01,#7E,#01,#00,#01,#E4,#01,#44,#01,#6E,#01,#4E,#01,#E6,#01,#4E
-    DB #01,#A4,#01,#EA,#01,#AA,#01,#EB,#0D,#00,#01,#60,#05,#00,#02,#BB
-    DB #0D,#00,#01,#33,#01,#83,#01,#35,#05,#33,#01,#EA,#01,#EE,#02,#AA
-    DB #01,#A4,#01,#46,#02,#66,#01,#46,#01,#4E,#02,#EA,#01,#AA,#01,#4E
-    DB #01,#4A,#01,#4E,#01,#4A,#01,#64,#01,#EB,#0A,#00,#01,#76,#03,#77
-    DB #01,#76,#01,#66,#01,#80,#01,#00,#01,#E8,#01,#E7,#01,#76,#02,#66
-    DB #01,#EF,#01,#00,#01,#E7,#01,#66,#01,#E0,#01,#E6,#01,#E0,#09,#00
-    DB #01,#AE,#01,#AA,#01,#AE,#01,#46,#01,#4E,#01,#6A,#01,#AE,#01,#EE
-    DB #01,#00,#01,#67,#02,#66,#01,#67,#01,#70,#02,#66,#01,#60,#01,#0E
-    DB #04,#44,#01,#67,#01,#4E,#01,#E6,#01,#EA,#01,#EE,#01,#AE,#01,#A0
-    DB #21,#00,#02,#33,#01,#35,#05,#33,#01,#AA,#01,#EA,#01,#AA,#01,#4E
-    DB #01,#44,#01,#66,#01,#76,#01,#A4,#01,#66,#01,#64,#02,#44,#01,#AA
-    DB #01,#E4,#01,#44,#01,#46,#02,#66,#01,#E0,#0C,#00,#02,#76,#01,#77
-    DB #01,#66,#01,#EE,#01,#0E,#01,#6E,#01,#67,#02,#66,#01,#6E,#02,#00
-    DB #01,#86,#01,#66,#0B,#00,#01,#0E,#01,#EE,#02,#44,#01,#77,#01,#66
-    DB #01,#64,#01,#44,#01,#6E,#01,#00,#01,#67,#01,#76,#01,#66,#01,#67
-    DB #01,#77,#01,#76,#01,#66,#01,#E0,#01,#04,#01,#44,#01,#46,#01,#66
-    DB #01,#67,#01,#77,#01,#64,#02,#66,#01,#46,#01,#4E,#01,#4B,#21,#00
-    DB #01,#03,#01,#55,#01,#58,#05,#55,#03,#33,#01,#83,#03,#33,#01,#30
-    DB #02,#00,#01,#0F,#01,#BF,#01,#0E,#01,#BF,#17,#00,#01,#70,#0C,#00
-    DB #01,#67,#01,#AD,#01,#DB,#01,#A4,#03,#DD,#01,#DB,#01,#AB,#01,#E4
-    DB #01,#DA,#01,#77,#01,#70,#02,#00,#01,#07,#01,#0A,#01,#A7,#01,#70
-    DB #04,#00,#01,#4D,#01,#DD,#01,#DA,#01,#AD,#02,#DD,#01,#D4,#03,#00
-    DB #01,#07,#01,#00,#01,#0D,#01,#D4,#08,#00,#01,#77,#01,#70,#02,#00
-    DB #01,#77,#01,#70,#0D,#00,#01,#77,#01,#22,#01,#27,#02,#22,#01,#07
-    DB #01,#70,#01,#07,#01,#77,#01,#07,#01,#77,#01,#67,#01,#76,#01,#67
-    DB #06,#00,#01,#08,#01,#33,#02,#00,#01,#0E,#02,#EE,#01,#E0,#08,#00
-    DB #01,#06,#01,#00,#01,#07,#0A,#00,#01,#77,#01,#BD,#01,#77,#06,#00
-    DB #01,#EA,#02,#AA,#01,#00,#01,#07,#02,#00,#01,#AD,#01,#DB,#01,#BD
-    DB #04,#DD,#01,#BB,#01,#DA,#01,#D7,#01,#E0,#05,#00,#01,#07,#04,#00
-    DB #01,#EA,#01,#DA,#01,#AA,#01,#74,#03,#DD,#01,#D4,#03,#00,#01,#07
-    DB #01,#00,#01,#0D,#01,#D4,#08,#00,#01,#07,#01,#27,#02,#00,#01,#07
-    DB #01,#70,#0E,#00,#01,#72,#01,#22,#01,#72,#01,#77,#01,#07,#01,#70
-    DB #01,#77,#01,#67,#01,#69,#04,#66,#01,#00,#01,#08,#01,#00,#01,#80
-    DB #02,#00,#01,#88,#01,#35,#02,#00,#01,#0E,#01,#E7,#01,#77,#01,#E0
-    DB #08,#00,#01,#60,#01,#BB,#01,#77,#0A,#00,#01,#07,#01,#BD,#01,#77
+    DB #01,#0B,#01,#B0,#01,#EE,#02,#44,#01,#4E,#01,#EA,#01,#AA,#01,#EE
+    DB #01,#AA,#01,#EA,#01,#AA,#03,#EE,#01,#A4,#05,#AA,#06,#00,#01,#33
+    DB #01,#83,#01,#33,#01,#38,#04,#33,#01,#38,#05,#33,#01,#35,#01,#50
+    DB #01,#60,#06,#00,#01,#77,#01,#04,#03,#77,#01,#07,#02,#77,#01,#40
+    DB #01,#04,#03,#66,#01,#06,#02,#66,#01,#40,#08,#77,#01,#66,#03,#EE
+    DB #01,#E6,#02,#EE,#01,#E6,#01,#05,#01,#83,#01,#33,#01,#53,#01,#88
+    DB #01,#83,#02,#33,#01,#35,#04,#33,#01,#38,#01,#33,#01,#50,#01,#0E
+    DB #03,#EE,#02,#E6,#01,#EE,#01,#6E,#01,#66,#01,#76,#01,#66,#01,#67
+    DB #02,#77,#01,#67,#02,#66,#05,#77,#01,#67,#01,#66,#04,#00,#01,#0E
+    DB #01,#EB,#01,#AE,#01,#AA,#01,#E4,#02,#44,#01,#4A,#01,#AA,#01,#E4
+    DB #02,#44,#01,#E4,#01,#4A,#02,#AA,#01,#AE,#01,#44,#03,#AA,#01,#EA
+    DB #01,#B0,#05,#00,#01,#33,#01,#83,#01,#35,#0B,#33,#01,#35,#01,#50
+    DB #08,#77,#01,#04,#06,#77,#01,#44,#01,#04,#06,#66,#01,#44,#01,#70
+    DB #03,#77,#01,#70,#03,#77,#01,#66,#06,#77,#01,#7E,#01,#03,#02,#33
+    DB #01,#53,#01,#33,#01,#35,#01,#53,#01,#55,#01,#35,#01,#53,#01,#33
+    DB #01,#55,#02,#33,#01,#53,#01,#30,#01,#6E,#01,#E6,#02,#66,#01,#67
+    DB #01,#66,#01,#77,#01,#66,#01,#67,#01,#77,#01,#67,#01,#77,#01,#76
+    DB #02,#77,#01,#76,#01,#67,#01,#77,#01,#67,#01,#77,#01,#76,#02,#77
+    DB #01,#76,#03,#00,#01,#BA,#02,#AA,#01,#EE,#01,#E4,#01,#EA,#01,#EE
+    DB #02,#AA,#01,#A4,#01,#46,#02,#66,#01,#46,#01,#4E,#02,#EA,#01,#AA
+    DB #01,#4E,#01,#4A,#01,#4E,#01,#4A,#01,#64,#01,#EB,#05,#00,#02,#33
+    DB #01,#35,#06,#33,#01,#35,#02,#33,#01,#53,#01,#33,#01,#35,#01,#50
+    DB #01,#07,#06,#77,#01,#70,#01,#09,#01,#44,#01,#77,#02,#44,#01,#77
+    DB #01,#44,#01,#40,#01,#0E,#01,#44,#01,#66,#02,#44,#01,#66,#01,#44
+    DB #01,#40,#08,#00,#01,#66,#01,#77,#02,#66,#01,#76,#01,#66,#01,#77
+    DB #01,#66,#01,#00,#01,#85,#01,#35,#01,#88,#01,#35,#01,#53,#01,#38
+    DB #03,#88,#01,#55,#01,#58,#01,#85,#01,#55,#01,#58,#01,#00,#01,#6E
+    DB #05,#66,#01,#67,#01,#66,#01,#06,#01,#66,#01,#6E,#05,#66,#01,#06
+    DB #01,#66,#01,#6E,#01,#E6,#01,#66,#01,#EE,#02,#66,#03,#00,#01,#EA
+    DB #02,#AA,#01,#A4,#01,#46,#01,#AA,#01,#EA,#01,#AA,#01,#4E,#01,#44
+    DB #01,#66,#01,#76,#01,#A4,#01,#66,#01,#64,#02,#44,#01,#AA,#01,#E4
+    DB #01,#44,#01,#46,#02,#66,#01,#E0,#05,#00,#01,#03,#01,#55,#01,#58
+    DB #07,#55,#01,#53,#04,#55,#01,#30,#15,#00,#01,#70,#0C,#00,#01,#67
+    DB #01,#AD,#01,#DB,#01,#A4,#03,#DD,#01,#DB,#01,#AB,#01,#E4,#01,#DA
+    DB #01,#77,#01,#70,#02,#00,#01,#07,#01,#0A,#01,#A7,#01,#70,#04,#00
+    DB #01,#4D,#01,#DD,#01,#DA,#01,#AD,#02,#DD,#01,#D4,#03,#00,#01,#07
+    DB #01,#00,#01,#0D,#01,#D4,#08,#00,#01,#77,#01,#70,#02,#00,#01,#77
+    DB #01,#70,#0D,#00,#01,#77,#01,#22,#01,#27,#02,#22,#01,#07,#01,#70
+    DB #01,#07,#01,#77,#01,#07,#01,#77,#01,#67,#01,#76,#03,#67,#01,#77
+    DB #02,#00,#02,#77,#01,#70,#01,#00,#01,#06,#01,#66,#01,#77,#01,#69
+    DB #02,#99,#07,#00,#01,#06,#01,#00,#01,#07,#0A,#00,#01,#77,#01,#BD
+    DB #01,#77,#06,#00,#01,#EA,#02,#AA,#01,#00,#01,#07,#02,#00,#01,#AD
+    DB #01,#DB,#01,#BD,#04,#DD,#01,#BB,#01,#DA,#01,#D7,#01,#E0,#05,#00
+    DB #01,#07,#04,#00,#01,#EA,#01,#DA,#01,#AA,#01,#74,#03,#DD,#01,#D4
+    DB #03,#00,#01,#07,#01,#00,#01,#0D,#01,#D4,#08,#00,#01,#07,#01,#27
+    DB #02,#00,#01,#07,#01,#70,#0E,#00,#01,#72,#01,#22,#01,#72,#01,#77
+    DB #01,#07,#01,#70,#01,#77,#01,#67,#01,#69,#07,#66,#01,#77,#02,#07
+    DB #01,#77,#01,#70,#01,#00,#01,#66,#01,#99,#01,#66,#03,#99,#01,#90
+    DB #06,#00,#01,#60,#01,#BB,#01,#77,#0A,#00,#01,#07,#01,#BD,#01,#77
     DB #03,#00,#01,#70,#01,#7A,#01,#AA,#03,#BB,#01,#AA,#01,#A4,#01,#76
     DB #01,#74,#01,#7A,#01,#DD,#01,#BD,#06,#DD,#01,#DA,#01,#77,#09,#00
     DB #01,#AA,#01,#DD,#01,#47,#01,#77,#01,#44,#03,#DD,#01,#D4,#05,#00
     DB #01,#0D,#01,#D4,#08,#00,#01,#07,#01,#22,#01,#70,#01,#00,#01,#07
     DB #01,#22,#01,#70,#0D,#00,#01,#07,#01,#72,#01,#27,#01,#77,#01,#00
-    DB #01,#76,#01,#66,#04,#99,#01,#96,#01,#66,#01,#88,#01,#83,#03,#88
-    DB #01,#38,#01,#33,#01,#35,#01,#00,#01,#F0,#02,#EE,#01,#E7,#01,#77
-    DB #01,#B0,#07,#00,#01,#60,#01,#DD,#01,#B4,#01,#70,#08,#00,#01,#70
-    DB #01,#07,#01,#BD,#01,#77,#02,#00,#01,#70,#01,#4E,#01,#AB,#01,#BA
-    DB #03,#44,#01,#AD,#01,#BA,#01,#47,#02,#4A,#09,#DD,#01,#A7,#01,#70
-    DB #06,#00,#01,#07,#01,#7A,#01,#BD,#01,#47,#01,#74,#01,#44,#01,#AA
-    DB #03,#DD,#01,#D4,#01,#40,#04,#00,#01,#4D,#01,#D4,#08,#00,#01,#07
-    DB #01,#22,#01,#27,#01,#70,#01,#07,#01,#22,#01,#27,#01,#70,#01,#07
-    DB #01,#77,#0A,#00,#02,#77,#01,#20,#01,#70,#01,#76,#01,#69,#07,#99
-    DB #01,#38,#01,#35,#03,#33,#01,#53,#02,#55,#01,#00,#01,#0B,#01,#7E
-    DB #02,#EE,#01,#77,#01,#E0,#07,#00,#01,#60,#01,#DD,#01,#B4,#09,#00
-    DB #01,#04,#01,#47,#01,#BA,#01,#77,#02,#00,#01,#04,#01,#AB,#01,#BD
-    DB #01,#44,#01,#70,#01,#00,#01,#07,#01,#44,#01,#4E,#01,#A4,#01,#4A
-    DB #0A,#DD,#01,#BE,#01,#67,#06,#00,#01,#76,#01,#AB,#01,#D4,#02,#77
-    DB #02,#AA,#04,#DD,#01,#47,#04,#00,#01,#4D,#01,#47,#01,#70,#02,#00
-    DB #01,#07,#03,#77,#01,#70,#01,#07,#01,#72,#01,#22,#01,#77,#01,#07
-    DB #02,#22,#01,#77,#01,#07,#01,#27,#09,#00,#01,#07,#01,#79,#01,#97
-    DB #02,#77,#09,#99,#01,#33,#01,#53,#03,#33,#01,#53,#01,#35,#01,#55
-    DB #01,#00,#01,#0E,#03,#EE,#01,#77,#01,#70,#07,#00,#01,#60,#01,#DD
-    DB #01,#B4,#09,#00,#01,#0A,#01,#AA,#01,#BA,#01,#47,#01,#70,#01,#00
-    DB #01,#0A,#01,#DA,#01,#44,#02,#70,#03,#00,#01,#07,#01,#44,#01,#4D
-    DB #0A,#DD,#01,#DB,#01,#40,#06,#00,#01,#06,#01,#BD,#01,#47,#01,#00
-    DB #01,#07,#01,#7A,#01,#AA,#04,#DD,#01,#A7,#04,#00,#01,#AB,#01,#40
-    DB #04,#00,#01,#77,#02,#22,#01,#70,#01,#77,#01,#72,#02,#22,#01,#77
-    DB #01,#72,#01,#22,#01,#27,#01,#07,#01,#22,#01,#70,#08,#00,#01,#07
-    DB #01,#99,#01,#96,#01,#76,#01,#69,#09,#99,#06,#33,#01,#35,#01,#53
-    DB #01,#0E,#04,#EE,#01,#77,#01,#7E,#07,#00,#01,#60,#01,#DD,#01,#DA
-    DB #01,#47,#08,#00,#01,#0A,#01,#BD,#01,#DA,#01,#A7,#01,#70,#01,#00
-    DB #01,#74,#01,#44,#01,#07,#06,#00,#01,#74,#0C,#DD,#01,#A6,#01,#70
-    DB #05,#00,#01,#77,#01,#DD,#01,#07,#02,#00,#01,#74,#01,#AA,#01,#AD
-    DB #03,#DD,#01,#DE,#01,#70,#02,#00,#01,#70,#01,#AB,#01,#40,#05,#00
-    DB #01,#72,#02,#22,#01,#70,#01,#07,#02,#22,#01,#20,#01,#72,#02,#22
-    DB #01,#77,#01,#22,#01,#76,#01,#70,#07,#00,#01,#76,#02,#99,#01,#69
-    DB #0A,#99,#07,#33,#01,#53,#01,#EE,#01,#E7,#01,#77,#01,#EE,#01,#7E
-    DB #01,#77,#01,#70,#07,#00,#01,#60,#01,#AD,#01,#DB,#01,#E0,#08,#00
-    DB #01,#0A,#01,#BD,#01,#DA,#01,#A7,#01,#70,#01,#00,#01,#07,#07,#00
-    DB #01,#70,#01,#7A,#0C,#DD,#01,#BE,#06,#00,#01,#07,#01,#DA,#01,#07
-    DB #02,#00,#01,#07,#01,#44,#01,#AA,#04,#DD,#01,#44,#02,#00,#01,#0A
-    DB #01,#DB,#01,#40,#01,#00,#01,#07,#02,#00,#01,#70,#01,#77,#03,#22
-    DB #01,#70,#03,#22,#01,#02,#02,#22,#01,#77,#01,#22,#01,#70,#01,#77
-    DB #01,#07,#01,#70,#05,#00,#01,#69,#0D,#99,#07,#33,#01,#55,#01,#EE
-    DB #01,#7E,#01,#77,#01,#7E,#02,#77,#01,#7E,#01,#F0,#06,#00,#01,#07
-    DB #01,#4D,#01,#DB,#01,#A4,#01,#70,#07,#00,#01,#0A,#01,#BD,#01,#DA
-    DB #01,#A7,#01,#70,#05,#00,#01,#77,#03,#44,#01,#77,#01,#4A,#0C,#DD
-    DB #01,#BE,#01,#67,#05,#00,#01,#07,#01,#44,#01,#70,#03,#00,#01,#74
-    DB #01,#4A,#04,#DD,#01,#DA,#01,#44,#01,#4E,#01,#DD,#01,#DE,#01,#67
-    DB #01,#00,#01,#72,#02,#22,#01,#27,#01,#70,#03,#22,#01,#27,#01,#72
-    DB #02,#22,#01,#72,#04,#22,#02,#20,#01,#07,#01,#70,#04,#00,#01,#07
-    DB #01,#69,#06,#99,#01,#67,#01,#77,#01,#69,#04,#99,#07,#33,#01,#55
-    DB #01,#07,#02,#EE,#01,#E7,#01,#77,#01,#EE,#01,#77,#01,#E0,#07,#00
-    DB #01,#0A,#01,#DD,#01,#BA,#01,#67,#07,#00,#01,#0A,#01,#BD,#01,#DA
-    DB #01,#47,#01,#70,#05,#00,#01,#67,#01,#EB,#01,#BA,#01,#AA,#01,#44
-    DB #01,#AA,#02,#DD,#01,#A4,#01,#AD,#08,#DD,#01,#DB,#01,#A0,#06,#00
-    DB #01,#07,#05,#00,#01,#4A,#01,#AD,#07,#DD,#01,#D7,#02,#00,#01,#07
-    DB #01,#77,#01,#22,#01,#92,#01,#22,#01,#72,#03,#22,#01,#72,#07,#22
-    DB #01,#27,#01,#20,#01,#72,#01,#70,#04,#00,#01,#07,#01,#66,#05,#99
-    DB #01,#67,#01,#76,#02,#66,#04,#99,#06,#33,#01,#35,#01,#58,#01,#77
-    DB #01,#EE,#02,#E7,#01,#7E,#01,#EE,#01,#E7,#01,#7E,#07,#00,#01,#04
+    DB #01,#76,#01,#66,#04,#99,#01,#96,#04,#66,#01,#67,#01,#70,#01,#07
+    DB #01,#77,#02,#00,#01,#79,#01,#96,#05,#99,#06,#00,#01,#60,#01,#DD
+    DB #01,#B4,#01,#70,#08,#00,#01,#70,#01,#07,#01,#BD,#01,#77,#02,#00
+    DB #01,#70,#01,#4E,#01,#AB,#01,#BA,#03,#44,#01,#AD,#01,#BA,#01,#47
+    DB #02,#4A,#09,#DD,#01,#A7,#01,#70,#06,#00,#01,#07,#01,#7A,#01,#BD
+    DB #01,#47,#01,#74,#01,#44,#01,#AA,#03,#DD,#01,#D4,#01,#40,#04,#00
+    DB #01,#4D,#01,#D4,#08,#00,#01,#07,#01,#22,#01,#27,#01,#70,#01,#07
+    DB #01,#22,#01,#27,#01,#70,#01,#07,#01,#77,#0A,#00,#02,#77,#01,#20
+    DB #01,#70,#01,#76,#01,#69,#07,#99,#01,#96,#03,#66,#01,#67,#01,#00
+    DB #02,#70,#01,#07,#01,#69,#01,#96,#01,#69,#04,#99,#06,#00,#01,#60
+    DB #01,#DD,#01,#B4,#09,#00,#01,#04,#01,#47,#01,#BA,#01,#77,#02,#00
+    DB #01,#04,#01,#AB,#01,#BD,#01,#44,#01,#70,#01,#00,#01,#07,#01,#44
+    DB #01,#4E,#01,#A4,#01,#4A,#0A,#DD,#01,#BE,#01,#67,#06,#00,#01,#76
+    DB #01,#AB,#01,#D4,#02,#77,#02,#AA,#04,#DD,#01,#47,#04,#00,#01,#4D
+    DB #01,#47,#01,#70,#02,#00,#01,#07,#03,#77,#01,#70,#01,#07,#01,#72
+    DB #01,#22,#01,#77,#01,#07,#02,#22,#01,#77,#01,#07,#01,#27,#09,#00
+    DB #01,#07,#01,#79,#01,#97,#02,#77,#09,#99,#05,#66,#01,#70,#01,#07
+    DB #01,#77,#01,#07,#01,#69,#01,#99,#01,#96,#01,#66,#03,#99,#06,#00
+    DB #01,#60,#01,#DD,#01,#B4,#09,#00,#01,#0A,#01,#AA,#01,#BA,#01,#47
+    DB #01,#70,#01,#00,#01,#0A,#01,#DA,#01,#44,#02,#70,#03,#00,#01,#07
+    DB #01,#44,#01,#4D,#0A,#DD,#01,#DB,#01,#40,#06,#00,#01,#06,#01,#BD
+    DB #01,#47,#01,#00,#01,#07,#01,#7A,#01,#AA,#04,#DD,#01,#A7,#04,#00
+    DB #01,#AB,#01,#40,#04,#00,#01,#77,#02,#22,#01,#70,#01,#77,#01,#72
+    DB #02,#22,#01,#77,#01,#72,#01,#22,#01,#27,#01,#07,#01,#22,#01,#70
+    DB #08,#00,#01,#07,#01,#99,#01,#96,#01,#76,#01,#69,#0A,#99,#01,#96
+    DB #03,#66,#01,#77,#01,#00,#01,#70,#01,#07,#01,#69,#06,#99,#06,#00
+    DB #01,#60,#01,#DD,#01,#DA,#01,#47,#08,#00,#01,#0A,#01,#BD,#01,#DA
+    DB #01,#A7,#01,#70,#01,#00,#01,#74,#01,#44,#01,#07,#06,#00,#01,#74
+    DB #0C,#DD,#01,#A6,#01,#70,#05,#00,#01,#77,#01,#DD,#01,#07,#02,#00
+    DB #01,#74,#01,#AA,#01,#AD,#03,#DD,#01,#DE,#01,#70,#02,#00,#01,#70
+    DB #01,#AB,#01,#40,#05,#00,#01,#72,#02,#22,#01,#70,#01,#07,#02,#22
+    DB #01,#20,#01,#72,#02,#22,#01,#77,#01,#22,#01,#76,#01,#70,#07,#00
+    DB #01,#76,#02,#99,#01,#69,#0A,#99,#01,#96,#04,#66,#01,#67,#01,#77
+    DB #01,#70,#01,#07,#01,#69,#06,#99,#06,#00,#01,#60,#01,#AD,#01,#DB
+    DB #01,#E0,#08,#00,#01,#0A,#01,#BD,#01,#DA,#01,#A7,#01,#70,#01,#00
+    DB #01,#07,#07,#00,#01,#70,#01,#7A,#0C,#DD,#01,#BE,#06,#00,#01,#07
+    DB #01,#DA,#01,#07,#02,#00,#01,#07,#01,#44,#01,#AA,#04,#DD,#01,#44
+    DB #02,#00,#01,#0A,#01,#DB,#01,#40,#01,#00,#01,#07,#02,#00,#01,#70
+    DB #01,#77,#03,#22,#01,#70,#03,#22,#01,#02,#02,#22,#01,#77,#01,#22
+    DB #01,#70,#01,#77,#01,#07,#01,#70,#05,#00,#01,#69,#0E,#99,#01,#69
+    DB #04,#66,#01,#70,#01,#76,#01,#00,#01,#69,#05,#99,#01,#66,#06,#00
+    DB #01,#07,#01,#4D,#01,#DB,#01,#A4,#01,#70,#07,#00,#01,#0A,#01,#BD
+    DB #01,#DA,#01,#A7,#01,#70,#05,#00,#01,#77,#03,#44,#01,#77,#01,#4A
+    DB #0C,#DD,#01,#BE,#01,#67,#05,#00,#01,#07,#01,#44,#01,#70,#03,#00
+    DB #01,#74,#01,#4A,#04,#DD,#01,#DA,#01,#44,#01,#4E,#01,#DD,#01,#DE
+    DB #01,#67,#01,#00,#01,#72,#02,#22,#01,#27,#01,#70,#03,#22,#01,#27
+    DB #01,#72,#02,#22,#01,#72,#04,#22,#02,#20,#01,#07,#01,#70,#04,#00
+    DB #01,#07,#01,#69,#06,#99,#01,#67,#01,#77,#01,#69,#04,#99,#01,#96
+    DB #04,#66,#01,#67,#01,#77,#01,#07,#01,#00,#01,#76,#02,#99,#02,#66
+    DB #01,#69,#01,#99,#07,#00,#01,#0A,#01,#DD,#01,#BA,#01,#67,#07,#00
+    DB #01,#0A,#01,#BD,#01,#DA,#01,#47,#01,#70,#05,#00,#01,#67,#01,#EB
+    DB #01,#BA,#01,#AA,#01,#44,#01,#AA,#02,#DD,#01,#A4,#01,#AD,#08,#DD
+    DB #01,#DB,#01,#A0,#06,#00,#01,#07,#05,#00,#01,#4A,#01,#AD,#07,#DD
+    DB #01,#D7,#02,#00,#01,#07,#01,#77,#01,#22,#01,#92,#01,#22,#01,#72
+    DB #03,#22,#01,#72,#07,#22,#01,#27,#01,#20,#01,#72,#01,#70,#04,#00
+    DB #01,#07,#01,#66,#05,#99,#01,#67,#01,#76,#02,#66,#05,#99,#01,#96
+    DB #04,#66,#01,#77,#01,#70,#01,#00,#01,#07,#06,#99,#07,#00,#01,#04
     DB #01,#AD,#01,#DB,#01,#B6,#01,#70,#06,#00,#01,#0A,#01,#BD,#01,#A4
     DB #01,#77,#05,#00,#01,#07,#01,#EB,#01,#DA,#01,#A0,#01,#00,#01,#44
     DB #01,#AA,#02,#DD,#01,#40,#01,#7D,#03,#DD,#01,#AA,#01,#AD,#03,#DD
     DB #01,#DB,#01,#A0,#0B,#00,#01,#07,#01,#44,#01,#AA,#07,#DD,#01,#47
     DB #03,#00,#01,#06,#01,#72,#02,#22,#01,#27,#05,#22,#01,#72,#06,#22
     DB #01,#70,#01,#22,#01,#76,#01,#70,#03,#00,#01,#07,#01,#77,#01,#69
-    DB #03,#99,#01,#97,#01,#76,#07,#99,#01,#38,#05,#33,#01,#35,#01,#50
-    DB #01,#07,#01,#EE,#01,#E7,#01,#77,#01,#7E,#01,#EE,#01,#E7,#01,#77
-    DB #07,#00,#01,#07,#01,#4A,#01,#DD,#01,#DB,#01,#77,#06,#00,#01,#0A
-    DB #01,#BD,#01,#A0,#06,#00,#01,#0A,#01,#BD,#01,#40,#02,#00,#01,#44
-    DB #01,#4A,#02,#DD,#01,#40,#01,#4D,#02,#DD,#01,#DA,#01,#00,#01,#04
-    DB #01,#AD,#02,#DD,#01,#DB,#01,#A0,#0C,#00,#01,#77,#01,#4A,#01,#AD
-    DB #02,#DD,#01,#DA,#01,#AA,#01,#AD,#01,#DD,#01,#07,#04,#00,#01,#77
-    DB #01,#72,#07,#22,#01,#72,#04,#22,#01,#72,#01,#22,#01,#77,#01,#22
-    DB #01,#77,#01,#70,#03,#00,#01,#07,#01,#99,#01,#79,#03,#99,#01,#77
-    DB #08,#99,#01,#38,#05,#33,#01,#35,#01,#50,#03,#E7,#01,#77,#01,#7E
-    DB #01,#EE,#01,#77,#01,#7B,#08,#00,#01,#04,#01,#AD,#01,#DD,#01,#B7
-    DB #01,#70,#05,#00,#01,#0A,#01,#BD,#01,#A0,#01,#77,#04,#00,#01,#07
-    DB #01,#7B,#01,#D4,#01,#70,#02,#00,#01,#4A,#01,#AA,#02,#DD,#01,#40
-    DB #01,#4D,#02,#DD,#01,#47,#01,#00,#01,#07,#01,#04,#02,#DD,#01,#DB
-    DB #01,#A0,#0C,#00,#01,#07,#01,#74,#01,#4A,#02,#DD,#01,#D4,#01,#44
-    DB #01,#4D,#01,#D4,#01,#77,#04,#00,#01,#77,#01,#07,#04,#22,#01,#72
-    DB #02,#22,#01,#77,#01,#22,#01,#27,#01,#22,#01,#27,#01,#72,#01,#27
-    DB #01,#72,#01,#27,#01,#72,#01,#70,#03,#00,#01,#07,#01,#69,#01,#96
-    DB #01,#99,#01,#96,#01,#60,#01,#69,#08,#99,#06,#33,#01,#35,#01,#50
-    DB #01,#0E,#03,#77,#01,#07,#02,#77,#01,#E0,#09,#00,#01,#4A,#01,#DD
-    DB #01,#DB,#01,#47,#01,#07,#02,#00,#01,#07,#01,#00,#01,#0A,#01,#BD
-    DB #01,#A0,#01,#00,#01,#70,#03,#00,#01,#70,#01,#BB,#01,#40,#03,#00
-    DB #01,#4A,#01,#AA,#01,#AD,#01,#DD,#01,#40,#01,#4D,#01,#DD,#01,#D4
-    DB #03,#00,#01,#07,#01,#7D,#01,#DD,#01,#DB,#01,#A0,#0E,#00,#01,#04
-    DB #01,#AA,#03,#DD,#01,#AA,#01,#40,#03,#00,#03,#77,#01,#70,#04,#22
-    DB #01,#77,#02,#22,#01,#77,#01,#22,#01,#77,#01,#22,#01,#70,#01,#72
-    DB #01,#70,#01,#22,#01,#77,#01,#27,#02,#77,#03,#00,#01,#76,#01,#67
-    DB #02,#99,#01,#66,#01,#96,#01,#69,#01,#99,#01,#66,#05,#99,#01,#33
-    DB #01,#35,#02,#33,#01,#53,#01,#33,#01,#35,#01,#50,#01,#0E,#06,#77
-    DB #01,#EE,#09,#00,#01,#77,#01,#AD,#01,#DD,#01,#B4,#03,#00,#01,#07
-    DB #01,#00,#01,#0A,#01,#BD,#01,#40,#01,#DD,#01,#40,#03,#00,#01,#67
-    DB #01,#DD,#01,#47,#02,#00,#01,#07,#01,#4A,#01,#AA,#01,#A4,#01,#DD
-    DB #01,#D4,#01,#4D,#01,#DD,#01,#D4,#05,#00,#01,#AD,#01,#DD,#01,#A0
-    DB #0F,#00,#01,#04,#03,#AA,#01,#40,#01,#70,#03,#00,#01,#77,#01,#72
-    DB #01,#22,#01,#27,#01,#72,#03,#22,#01,#70,#01,#22,#01,#27,#01,#70
-    DB #01,#77,#01,#00,#01,#77,#01,#00,#01,#77,#01,#07,#01,#77,#01,#07
-    DB #01,#70,#01,#72,#01,#77,#03,#00,#01,#70,#01,#96,#01,#69,#01,#99
-    DB #01,#96,#01,#76,#01,#90,#01,#07,#02,#79,#04,#99,#02,#55,#01,#53
-    DB #04,#55,#01,#30,#01,#0B,#01,#EE,#01,#77,#02,#EE,#01,#77,#01,#EE
-    DB #01,#E0,#09,#00,#01,#07,#01,#7A,#01,#DD,#01,#BE,#01,#4D,#02,#DD
-    DB #01,#DB,#01,#B0,#01,#00,#01,#4D,#02,#DD,#01,#40,#02,#00,#01,#07
-    DB #01,#0A,#01,#D7,#01,#70,#03,#00,#01,#07,#01,#40,#01,#00,#01,#0A
-    DB #03,#DD,#01,#D4,#03,#00,#01,#70,#01,#00,#01,#0D,#01,#DD,#01,#40
-    DB #0F,#00,#01,#07,#09,#00,#01,#07,#02,#22,#01,#77,#02,#22,#01,#72
-    DB #01,#20,#01,#77,#01,#70,#01,#00,#01,#70,#01,#07,#01,#70,#02,#07
-    DB #03,#00,#02,#77,#04,#00,#02,#77,#01,#69,#01,#99,#01,#97,#01,#60
-    DB #01,#00,#01,#77,#01,#00,#01,#79,#04,#99,#02,#67,#01,#77,#02,#00
-    DB #02,#77,#01,#70,#01,#00,#01,#06,#01,#66,#01,#77,#01,#69,#02,#99
-    DB #02,#00,#01,#70,#01,#00,#01,#79,#06,#99,#02,#66,#01,#69,#01,#97
-    DB #01,#77,#0B,#00,#01,#76,#01,#60,#0D,#00,#01,#07,#01,#70,#01,#06
-    DB #01,#EE,#01,#FF,#01,#FE,#01,#66,#01,#69,#01,#9E,#01,#EE,#02,#9F
-    DB #01,#F9,#01,#99,#01,#9E,#01,#EF,#02,#FF,#01,#EE,#01,#6E,#01,#E6
-    DB #02,#00,#01,#77,#01,#70,#01,#06,#01,#E7,#02,#66,#01,#6E,#01,#EE
-    DB #01,#E6,#01,#69,#01,#99,#01,#66,#02,#EE,#01,#9E,#01,#69,#01,#99
-    DB #01,#6E,#01,#69,#01,#66,#01,#6E,#01,#77,#01,#E7,#19,#00,#03,#66
-    DB #01,#77,#02,#07,#01,#77,#01,#70,#01,#00,#01,#66,#01,#99,#01,#66
-    DB #03,#99,#01,#90,#01,#09,#01,#67,#01,#66,#06,#99,#01,#96,#01,#79
+    DB #03,#99,#01,#97,#01,#76,#08,#99,#01,#96,#03,#66,#01,#67,#01,#77
+    DB #01,#70,#02,#00,#01,#76,#05,#99,#07,#00,#01,#07,#01,#4A,#01,#DD
+    DB #01,#DB,#01,#77,#06,#00,#01,#0A,#01,#BD,#01,#A0,#06,#00,#01,#0A
+    DB #01,#BD,#01,#40,#02,#00,#01,#44,#01,#4A,#02,#DD,#01,#40,#01,#4D
+    DB #02,#DD,#01,#DA,#01,#00,#01,#04,#01,#AD,#02,#DD,#01,#DB,#01,#A0
+    DB #0C,#00,#01,#77,#01,#4A,#01,#AD,#02,#DD,#01,#DA,#01,#AA,#01,#AD
+    DB #01,#DD,#01,#07,#04,#00,#01,#77,#01,#72,#07,#22,#01,#72,#04,#22
+    DB #01,#72,#01,#22,#01,#77,#01,#22,#01,#77,#01,#70,#03,#00,#01,#07
+    DB #01,#99,#01,#79,#03,#99,#01,#77,#09,#99,#01,#96,#04,#66,#01,#77
+    DB #03,#00,#01,#07,#01,#69,#04,#99,#08,#00,#01,#04,#01,#AD,#01,#DD
+    DB #01,#B7,#01,#70,#05,#00,#01,#0A,#01,#BD,#01,#A0,#01,#77,#04,#00
+    DB #01,#07,#01,#7B,#01,#D4,#01,#70,#02,#00,#01,#4A,#01,#AA,#02,#DD
+    DB #01,#40,#01,#4D,#02,#DD,#01,#47,#01,#00,#01,#07,#01,#04,#02,#DD
+    DB #01,#DB,#01,#A0,#0C,#00,#01,#07,#01,#74,#01,#4A,#02,#DD,#01,#D4
+    DB #01,#44,#01,#4D,#01,#D4,#01,#77,#04,#00,#01,#77,#01,#07,#04,#22
+    DB #01,#72,#02,#22,#01,#77,#01,#22,#01,#27,#01,#22,#01,#27,#01,#72
+    DB #01,#27,#01,#72,#01,#27,#01,#72,#01,#70,#03,#00,#01,#07,#01,#69
+    DB #01,#96,#01,#99,#01,#96,#01,#60,#01,#69,#09,#99,#05,#66,#01,#77
+    DB #01,#70,#03,#00,#01,#76,#04,#99,#09,#00,#01,#4A,#01,#DD,#01,#DB
+    DB #01,#47,#01,#07,#02,#00,#01,#07,#01,#00,#01,#0A,#01,#BD,#01,#A0
+    DB #01,#00,#01,#70,#03,#00,#01,#70,#01,#BB,#01,#40,#03,#00,#01,#4A
+    DB #01,#AA,#01,#AD,#01,#DD,#01,#40,#01,#4D,#01,#DD,#01,#D4,#03,#00
+    DB #01,#07,#01,#7D,#01,#DD,#01,#DB,#01,#A0,#0E,#00,#01,#04,#01,#AA
+    DB #03,#DD,#01,#AA,#01,#40,#03,#00,#03,#77,#01,#70,#04,#22,#01,#77
+    DB #02,#22,#01,#77,#01,#22,#01,#77,#01,#22,#01,#70,#01,#72,#01,#70
+    DB #01,#22,#01,#77,#01,#27,#02,#77,#03,#00,#01,#76,#01,#67,#02,#99
+    DB #01,#66,#01,#96,#01,#69,#01,#99,#01,#66,#06,#99,#01,#66,#01,#76
+    DB #01,#99,#01,#67,#01,#66,#01,#77,#04,#00,#01,#07,#01,#76,#03,#99
+    DB #09,#00,#01,#77,#01,#AD,#01,#DD,#01,#B4,#03,#00,#01,#07,#01,#00
+    DB #01,#0A,#01,#BD,#01,#40,#01,#DD,#01,#40,#03,#00,#01,#67,#01,#DD
+    DB #01,#47,#02,#00,#01,#07,#01,#4A,#01,#AA,#01,#A4,#01,#DD,#01,#D4
+    DB #01,#4D,#01,#DD,#01,#D4,#05,#00,#01,#AD,#01,#DD,#01,#A0,#0F,#00
+    DB #01,#04,#03,#AA,#01,#40,#01,#70,#03,#00,#01,#77,#01,#72,#01,#22
+    DB #01,#27,#01,#72,#03,#22,#01,#70,#01,#22,#01,#27,#01,#70,#01,#77
+    DB #01,#00,#01,#77,#01,#00,#01,#77,#01,#07,#01,#77,#01,#07,#01,#70
+    DB #01,#72,#01,#77,#03,#00,#01,#70,#01,#96,#01,#69,#01,#99,#01,#96
+    DB #01,#76,#01,#90,#01,#07,#02,#79,#04,#99,#01,#96,#01,#66,#03,#99
+    DB #01,#77,#02,#70,#04,#00,#01,#07,#01,#76,#01,#69,#01,#99,#09,#00
+    DB #01,#07,#01,#7A,#01,#DD,#01,#BE,#01,#4D,#02,#DD,#01,#DB,#01,#B0
+    DB #01,#00,#01,#4D,#02,#DD,#01,#40,#02,#00,#01,#07,#01,#0A,#01,#D7
+    DB #01,#70,#03,#00,#01,#07,#01,#40,#01,#00,#01,#0A,#03,#DD,#01,#D4
+    DB #03,#00,#01,#70,#01,#00,#01,#0D,#01,#DD,#01,#40,#0F,#00,#01,#07
+    DB #09,#00,#01,#07,#02,#22,#01,#77,#02,#22,#01,#72,#01,#20,#01,#77
+    DB #01,#70,#01,#00,#01,#70,#01,#07,#01,#70,#02,#07,#03,#00,#02,#77
+    DB #04,#00,#02,#77,#01,#69,#01,#99,#01,#97,#01,#60,#01,#00,#01,#77
+    DB #01,#00,#01,#79,#04,#99,#01,#96,#01,#69,#01,#96,#01,#77,#01,#99
+    DB #01,#67,#01,#70,#06,#00,#01,#07,#01,#76,#01,#77,#01,#00,#01,#70
+    DB #01,#00,#01,#79,#06,#99,#02,#66,#01,#69,#01,#97,#01,#77,#0B,#00
+    DB #01,#76,#01,#60,#0D,#00,#01,#07,#01,#70,#01,#06,#01,#EE,#01,#FF
+    DB #01,#FE,#01,#66,#01,#69,#01,#9E,#01,#EE,#02,#9F,#01,#F9,#01,#99
+    DB #01,#9E,#01,#EF,#02,#FF,#01,#EE,#01,#6E,#01,#E6,#02,#00,#01,#77
+    DB #01,#70,#01,#06,#01,#E7,#02,#66,#01,#6E,#01,#EE,#01,#E6,#01,#69
+    DB #01,#99,#01,#66,#02,#EE,#01,#9E,#01,#69,#01,#99,#01,#6E,#01,#69
+    DB #01,#66,#01,#6E,#01,#77,#01,#E7,#1B,#00,#01,#06,#01,#00,#01,#6E
+    DB #01,#FE,#01,#EE,#01,#E6,#01,#E9,#01,#99,#01,#F9,#02,#99,#01,#9F
+    DB #01,#99,#01,#9E,#01,#09,#01,#67,#01,#66,#06,#99,#01,#96,#01,#79
     DB #02,#99,#01,#97,#01,#07,#0B,#00,#01,#66,#01,#EE,#01,#70,#02,#00
     DB #01,#70,#09,#00,#01,#07,#01,#00,#01,#76,#01,#EF,#02,#FE,#01,#66
     DB #02,#99,#01,#9F,#04,#99,#01,#9E,#01,#EE,#03,#FF,#01,#FE,#01,#EE
     DB #01,#60,#03,#00,#01,#06,#01,#67,#01,#76,#01,#67,#01,#6E,#01,#FE
     DB #01,#E6,#01,#E9,#01,#99,#02,#6E,#01,#EF,#01,#E6,#01,#E9,#01,#9E
     DB #01,#69,#01,#9E,#01,#66,#01,#E6,#01,#00,#01,#E7,#0B,#00,#01,#76
-    DB #01,#E6,#0C,#00,#03,#66,#01,#67,#01,#70,#01,#07,#01,#77,#02,#00
-    DB #01,#79,#01,#96,#0E,#99,#01,#97,#01,#66,#02,#99,#01,#97,#01,#70
-    DB #0B,#00,#01,#70,#01,#6E,#01,#E0,#01,#00,#02,#77,#09,#00,#01,#77
-    DB #01,#07,#01,#6E,#02,#EE,#01,#FE,#01,#6E,#04,#99,#01,#9F,#01,#FE
-    DB #01,#E9,#01,#99,#01,#EE,#01,#EF,#02,#EE,#01,#E6,#01,#76,#01,#E7
-    DB #03,#00,#01,#06,#01,#60,#01,#06,#01,#66,#01,#6E,#01,#F9,#01,#E6
-    DB #03,#99,#02,#66,#01,#6E,#01,#99,#01,#96,#03,#66,#01,#E7,#01,#07
-    DB #01,#67,#0B,#00,#01,#77,#01,#6E,#01,#60,#01,#00,#01,#06,#01,#60
-    DB #08,#00,#01,#96,#03,#66,#01,#67,#01,#00,#02,#70,#01,#07,#01,#69
-    DB #01,#96,#01,#69,#0D,#99,#01,#96,#01,#66,#01,#69,#01,#99,#01,#67
-    DB #01,#60,#08,#00,#01,#77,#01,#70,#02,#00,#01,#7E,#01,#E7,#01,#00
-    DB #01,#70,#01,#07,#08,#00,#02,#70,#01,#0E,#03,#EE,#01,#E6,#01,#6E
-    DB #02,#99,#01,#F9,#02,#99,#02,#EE,#01,#99,#01,#EE,#01,#EF,#01,#FE
-    DB #01,#EE,#01,#E7,#01,#00,#01,#67,#03,#00,#01,#07,#01,#67,#01,#07
-    DB #02,#76,#02,#66,#02,#99,#01,#96,#01,#69,#01,#9E,#01,#66,#01,#99
-    DB #01,#E6,#01,#67,#02,#66,#01,#67,#01,#76,#01,#70,#0C,#00,#01,#0E
-    DB #01,#E7,#01,#00,#01,#60,#01,#06,#08,#00,#05,#66,#01,#70,#01,#07
-    DB #01,#77,#01,#07,#01,#69,#01,#99,#01,#96,#01,#66,#04,#99,#01,#96
-    DB #07,#99,#01,#96,#01,#66,#02,#99,#01,#77,#08,#00,#01,#07,#02,#70
-    DB #02,#00,#01,#7E,#01,#E7,#01,#07,#01,#70,#01,#00,#01,#07,#01,#77
-    DB #01,#70,#05,#00,#01,#77,#01,#00,#01,#0E,#01,#EE,#01,#EF,#01,#E6
-    DB #01,#76,#01,#9F,#04,#99,#01,#FE,#01,#E6,#01,#76,#01,#E9,#01,#EE
-    DB #01,#EF,#01,#FF,#01,#FE,#01,#EE,#01,#60,#05,#00,#01,#76,#01,#00
-    DB #01,#07,#01,#76,#01,#99,#01,#66,#02,#99,#01,#66,#01,#99,#01,#F9
-    DB #01,#E7,#01,#99,#01,#96,#01,#77,#02,#66,#01,#00,#01,#77,#09,#00
-    DB #02,#66,#02,#00,#01,#06,#01,#E6,#01,#00,#01,#60,#09,#00,#01,#99
-    DB #01,#96,#03,#66,#01,#77,#01,#00,#01,#70,#01,#07,#01,#69,#07,#99
-    DB #01,#66,#01,#69,#09,#99,#01,#96,#01,#70,#0A,#00,#01,#77,#01,#6E
-    DB #01,#67,#01,#EE,#01,#E7,#01,#67,#01,#00,#01,#07,#01,#6F,#01,#FE
-    DB #01,#60,#08,#00,#01,#EE,#01,#FE,#01,#E6,#01,#7E,#01,#66,#01,#EF
-    DB #02,#9E,#01,#9F,#01,#EE,#01,#66,#01,#99,#01,#69,#02,#EE,#02,#FF
-    DB #01,#FE,#01,#60,#01,#77,#04,#00,#01,#76,#01,#00,#01,#06,#01,#77
-    DB #02,#66,#01,#69,#01,#96,#01,#69,#01,#FF,#01,#99,#01,#6E,#01,#99
-    DB #01,#97,#01,#76,#01,#66,#01,#E6,#01,#00,#01,#77,#01,#70,#09,#00
-    DB #02,#06,#01,#67,#01,#6E,#01,#E7,#01,#66,#01,#70,#01,#07,#01,#EE
-    DB #01,#E6,#01,#70,#05,#00,#01,#96,#04,#66,#01,#67,#01,#77,#01,#70
-    DB #01,#07,#01,#69,#06,#99,#01,#96,#08,#99,#01,#96,#02,#99,#01,#67
-    DB #07,#00,#01,#07,#01,#77,#01,#66,#01,#00,#01,#6E,#01,#FF,#01,#FE
-    DB #01,#EF,#02,#66,#01,#E6,#01,#76,#01,#FF,#01,#E7,#01,#70,#07,#00
+    DB #01,#E6,#0E,#00,#01,#66,#01,#06,#03,#EE,#01,#66,#01,#E9,#03,#99
+    DB #01,#9F,#01,#E6,#01,#6E,#01,#9E,#09,#99,#01,#97,#01,#66,#02,#99
+    DB #01,#97,#01,#70,#0B,#00,#01,#70,#01,#6E,#01,#E0,#01,#00,#02,#77
+    DB #09,#00,#01,#77,#01,#07,#01,#6E,#02,#EE,#01,#FE,#01,#6E,#04,#99
+    DB #01,#9F,#01,#FE,#01,#E9,#01,#99,#01,#EE,#01,#EF,#02,#EE,#01,#E6
+    DB #01,#76,#01,#E7,#03,#00,#01,#06,#01,#60,#01,#06,#01,#66,#01,#6E
+    DB #01,#F9,#01,#E6,#03,#99,#02,#66,#01,#6E,#01,#99,#01,#96,#03,#66
+    DB #01,#E7,#01,#07,#01,#67,#0B,#00,#01,#77,#01,#6E,#01,#60,#01,#00
+    DB #01,#06,#01,#60,#09,#00,#01,#66,#01,#60,#01,#0E,#02,#EE,#01,#66
+    DB #01,#6E,#04,#99,#01,#9E,#02,#66,#01,#E9,#09,#99,#01,#96,#01,#66
+    DB #01,#69,#01,#99,#01,#67,#01,#60,#08,#00,#01,#77,#01,#70,#02,#00
+    DB #01,#7E,#01,#E7,#01,#00,#01,#70,#01,#07,#08,#00,#02,#70,#01,#0E
+    DB #03,#EE,#01,#E6,#01,#6E,#02,#99,#01,#F9,#02,#99,#02,#EE,#01,#99
+    DB #01,#EE,#01,#EF,#01,#FE,#01,#EE,#01,#E7,#01,#00,#01,#67,#03,#00
+    DB #01,#07,#01,#67,#01,#07,#02,#76,#02,#66,#02,#99,#01,#96,#01,#69
+    DB #01,#9E,#01,#66,#01,#99,#01,#E6,#01,#67,#02,#66,#01,#67,#01,#76
+    DB #01,#70,#0C,#00,#01,#0E,#01,#E7,#01,#00,#01,#60,#01,#06,#09,#00
+    DB #01,#06,#01,#00,#01,#06,#01,#EE,#01,#FE,#01,#E7,#01,#6E,#01,#EE
+    DB #03,#99,#01,#F6,#01,#66,#01,#EE,#01,#69,#01,#99,#01,#96,#07,#99
+    DB #01,#96,#01,#66,#02,#99,#01,#77,#08,#00,#01,#07,#02,#70,#02,#00
+    DB #01,#7E,#01,#E7,#01,#07,#01,#70,#01,#00,#01,#07,#01,#77,#01,#70
+    DB #05,#00,#01,#77,#01,#00,#01,#0E,#01,#EE,#01,#EF,#01,#E6,#01,#76
+    DB #01,#9F,#04,#99,#01,#FE,#01,#E6,#01,#76,#01,#E9,#01,#EE,#01,#EF
+    DB #01,#FF,#01,#FE,#01,#EE,#01,#60,#05,#00,#01,#76,#01,#00,#01,#07
+    DB #01,#76,#01,#99,#01,#66,#02,#99,#01,#66,#01,#99,#01,#F9,#01,#E7
+    DB #01,#99,#01,#96,#01,#77,#02,#66,#01,#00,#01,#77,#09,#00,#02,#66
+    DB #02,#00,#01,#06,#01,#E6,#01,#00,#01,#60,#0C,#00,#01,#06,#01,#EE
+    DB #01,#FE,#03,#66,#01,#EF,#01,#99,#01,#9F,#01,#E6,#01,#6E,#01,#9F
+    DB #02,#99,#01,#66,#01,#69,#09,#99,#01,#96,#01,#70,#0A,#00,#01,#77
+    DB #01,#6E,#01,#67,#01,#EE,#01,#E7,#01,#67,#01,#00,#01,#07,#01,#6F
+    DB #01,#FE,#01,#60,#08,#00,#01,#EE,#01,#FE,#01,#E6,#01,#7E,#01,#66
+    DB #01,#EF,#02,#9E,#01,#9F,#01,#EE,#01,#66,#01,#99,#01,#69,#02,#EE
+    DB #02,#FF,#01,#FE,#01,#60,#01,#77,#04,#00,#01,#76,#01,#00,#01,#06
+    DB #01,#77,#02,#66,#01,#69,#01,#96,#01,#69,#01,#FF,#01,#99,#01,#6E
+    DB #01,#99,#01,#97,#01,#76,#01,#66,#01,#E6,#01,#00,#01,#77,#01,#70
+    DB #09,#00,#02,#06,#01,#67,#01,#6E,#01,#E7,#01,#66,#01,#70,#01,#07
+    DB #01,#EE,#01,#E6,#01,#70,#07,#00,#01,#07,#01,#6E,#01,#EF,#01,#EE
+    DB #01,#E7,#01,#6E,#01,#66,#01,#6E,#01,#99,#01,#EE,#01,#67,#01,#66
+    DB #01,#69,#01,#F9,#01,#96,#08,#99,#01,#96,#02,#99,#01,#67,#07,#00
+    DB #01,#07,#01,#77,#01,#66,#01,#00,#01,#6E,#01,#FF,#01,#FE,#01,#EF
+    DB #02,#66,#01,#E6,#01,#76,#01,#FF,#01,#E7,#01,#70,#07,#00,#01,#07
+    DB #01,#EE,#01,#FE,#01,#E6,#01,#66,#01,#76,#01,#EE,#01,#F9,#01,#99
+    DB #01,#FF,#01,#66,#01,#6E,#01,#9F,#01,#99,#01,#EE,#01,#FF,#01,#EE
+    DB #02,#FF,#01,#E6,#01,#07,#01,#70,#02,#00,#01,#07,#01,#77,#01,#00
+    DB #01,#76,#02,#06,#03,#66,#01,#E9,#01,#F9,#01,#E6,#02,#99,#01,#E7
+    DB #01,#76,#01,#E6,#01,#60,#02,#00,#01,#70,#06,#00,#01,#06,#01,#07
+    DB #01,#67,#01,#06,#01,#EF,#01,#FE,#01,#6F,#01,#E7,#02,#66,#01,#7E
+    DB #01,#FE,#01,#67,#08,#00,#01,#6E,#01,#EF,#01,#FE,#01,#EE,#01,#66
+    DB #01,#E9,#01,#E6,#01,#76,#01,#99,#01,#E6,#01,#76,#02,#66,#0A,#99
+    DB #01,#66,#01,#69,#01,#67,#01,#70,#07,#00,#01,#77,#01,#7E,#01,#FF
+    DB #01,#EE,#03,#FF,#01,#EE,#01,#6E,#02,#EE,#01,#EF,#01,#EE,#08,#00
+    DB #01,#07,#01,#6E,#01,#EE,#01,#FE,#01,#E6,#01,#66,#01,#9E,#01,#66
+    DB #01,#E9,#01,#99,#01,#EE,#01,#67,#01,#66,#01,#69,#01,#99,#01,#EE
+    DB #01,#EF,#01,#FF,#01,#EF,#01,#FF,#01,#EE,#01,#70,#03,#00,#01,#70
+    DB #02,#00,#01,#70,#01,#07,#01,#06,#01,#96,#01,#66,#01,#69,#01,#99
+    DB #01,#E6,#01,#69,#02,#99,#01,#67,#01,#76,#01,#67,#01,#66,#01,#00
+    DB #01,#07,#01,#70,#06,#00,#01,#67,#01,#EF,#01,#FE,#01,#EF,#02,#FF
+    DB #01,#EE,#01,#6E,#01,#EE,#01,#6E,#01,#EE,#01,#E6,#08,#00,#01,#07
+    DB #04,#EE,#01,#67,#01,#EE,#02,#66,#01,#9F,#01,#9E,#01,#66,#01,#EF
+    DB #01,#E7,#01,#69,#08,#99,#01,#67,#01,#76,#02,#77,#08,#00,#01,#70
+    DB #01,#7E,#01,#EF,#04,#FF,#01,#EE,#01,#6E,#01,#EE,#01,#EF,#01,#FE
+    DB #01,#E7,#01,#76,#07,#00,#01,#6E,#01,#EF,#01,#FF,#01,#EE,#01,#E6
+    DB #01,#69,#01,#99,#01,#67,#01,#6E,#01,#99,#01,#66,#01,#76,#02,#66
+    DB #01,#99,#01,#E6,#01,#EE,#01,#FF,#01,#FE,#02,#EE,#01,#E7,#03,#00
+    DB #01,#70,#02,#00,#01,#77,#02,#00,#04,#66,#01,#69,#01,#9F,#01,#99
+    DB #01,#96,#01,#76,#01,#77,#01,#00,#01,#76,#01,#60,#09,#00,#01,#6E
+    DB #01,#EF,#03,#FF,#01,#EE,#01,#6E,#01,#EE,#01,#FF,#01,#FE,#01,#E7
+    DB #01,#67,#07,#00,#01,#07,#01,#E6,#01,#07,#01,#6E,#01,#EE,#01,#E7
+    DB #01,#66,#01,#6E,#01,#66,#01,#69,#01,#9E,#01,#6F,#01,#FF,#01,#FE
+    DB #01,#6E,#08,#99,#01,#67,#01,#09,#01,#66,#01,#67,#09,#00,#01,#06
+    DB #01,#EE,#03,#FF,#01,#FE,#01,#EE,#01,#6E,#01,#EF,#01,#FF,#03,#EE
+    DB #01,#70,#05,#00,#01,#07,#04,#EE,#01,#E6,#01,#69,#01,#96,#01,#66
+    DB #01,#7E,#01,#99,#01,#96,#01,#66,#01,#EF,#01,#E7,#01,#69,#01,#96
+    DB #02,#EE,#01,#EF,#01,#FE,#01,#6E,#01,#EE,#01,#70,#05,#00,#01,#07
+    DB #01,#70,#01,#00,#01,#7E,#01,#EE,#01,#6E,#02,#99,#01,#FF,#01,#99
+    DB #01,#E7,#01,#00,#01,#77,#01,#00,#01,#07,#01,#70,#09,#00,#01,#0E
+    DB #01,#FE,#03,#FF,#01,#EE,#01,#6E,#01,#EF,#01,#FE,#02,#EE,#01,#E6
+    DB #07,#00,#01,#07,#01,#60,#01,#07,#01,#EF,#01,#EE,#01,#66,#01,#67
+    DB #01,#FF,#01,#FE,#01,#69,#01,#9E,#01,#6F,#01,#E7,#01,#EE,#01,#6E
+    DB #07,#99,#01,#96,#02,#77,#01,#66,#01,#70,#09,#00,#01,#76,#01,#EE
+    DB #01,#EF,#03,#FF,#01,#E6,#01,#EE,#01,#FF,#04,#EE,#01,#67,#01,#00
+    DB #01,#6E,#01,#60,#02,#00,#01,#06,#01,#E6,#01,#76,#01,#6E,#01,#FE
+    DB #01,#EE,#01,#69,#03,#66,#01,#99,#01,#96,#01,#6F,#01,#FF,#01,#FE
+    DB #01,#69,#01,#96,#01,#6E,#01,#EE,#01,#66,#01,#EE,#01,#66,#01,#EE
+    DB #01,#E7,#05,#00,#01,#07,#01,#70,#01,#00,#01,#06,#01,#69,#02,#EE
+    DB #01,#99,#01,#F9,#01,#99,#01,#70,#03,#00,#01,#77,#01,#70,#08,#00
+    DB #01,#07,#01,#6E,#01,#EF,#02,#FF,#01,#FE,#01,#E6,#01,#EE,#01,#FF
+    DB #01,#E6,#03,#EE,#01,#67,#01,#7E,#01,#E6,#01,#70,#04,#00,#01,#70
+    DB #01,#07,#01,#FE,#01,#E6,#01,#E7,#01,#76,#01,#FF,#01,#EE,#01,#6E
+    DB #01,#9E,#01,#6E,#01,#EE,#01,#66,#01,#E6,#07,#99,#01,#66,#01,#70
+    DB #01,#07,#01,#77,#0A,#00,#01,#6E,#01,#EE,#01,#FE,#02,#FF,#01,#FE
+    DB #01,#E6,#01,#EE,#01,#FE,#01,#EE,#01,#EF,#01,#FE,#02,#EE,#01,#76
+    DB #01,#E6,#01,#66,#02,#00,#01,#07,#01,#E7,#01,#00,#01,#6F,#01,#FE
+    DB #01,#E6,#01,#66,#01,#7E,#01,#FF,#01,#66,#01,#E9,#01,#96,#01,#EF
+    DB #01,#FE,#01,#FF,#01,#7E,#01,#96,#03,#66,#01,#6E,#01,#E7,#01,#77
+    DB #01,#70,#05,#00,#01,#77,#02,#00,#01,#07,#01,#69,#02,#99,#01,#9F
+    DB #01,#99,#01,#E7,#04,#00,#01,#70,#09,#00,#01,#07,#01,#EE,#01,#FF
+    DB #01,#EE,#01,#FF,#01,#FE,#01,#E6,#01,#EE,#01,#FE,#01,#6E,#01,#FF
+    DB #01,#FE,#01,#E6,#01,#67,#01,#EE,#01,#77,#01,#70,#04,#00,#01,#66
+    DB #01,#06,#01,#EE,#03,#66,#01,#6E,#01,#EE,#02,#66,#01,#6E,#01,#FE
+    DB #01,#E6,#01,#66,#06,#99,#01,#66,#01,#70,#0B,#00,#01,#66,#01,#00
+    DB #01,#EE,#01,#EF,#02,#EE,#01,#FF,#01,#FE,#01,#EE,#01,#EF,#02,#EE
+    DB #01,#EF,#01,#FF,#01,#EE,#01,#E6,#01,#6E,#01,#67,#01,#07,#01,#70
+    DB #01,#00,#01,#07,#01,#70,#01,#00,#02,#EE,#01,#66,#01,#76,#01,#7F
+    DB #01,#FF,#01,#F6,#01,#69,#01,#96,#01,#EE,#01,#E7,#01,#EE,#01,#6E
+    DB #01,#66,#01,#6E,#02,#66,#01,#6E,#01,#E6,#01,#77,#0A,#00,#01,#69
+    DB #02,#FF,#01,#F9,#01,#E6,#05,#00,#01,#77,#07,#00,#01,#7E,#01,#EE
+    DB #01,#66,#01,#EF,#01,#FE,#01,#EE,#01,#EF,#01,#FE,#01,#EE,#01,#EF
+    DB #03,#EE,#02,#FF,#01,#EE,#01,#E7,#06,#00,#01,#60,#01,#00,#01,#E6
+    DB #01,#67,#01,#76,#01,#6E,#01,#EF,#01,#66,#01,#6E,#01,#66,#01,#6E
+    DB #01,#EE,#01,#E6,#01,#6E,#05,#99,#01,#67,#01,#70,#0B,#00,#01,#6E
+    DB #01,#FF,#01,#E6,#01,#EE,#01,#FE,#01,#E6,#01,#EE,#01,#EF,#01,#FE
+    DB #05,#EE,#01,#EF,#02,#FF,#01,#FE,#01,#70,#04,#00,#01,#77,#01,#00
+    DB #01,#EE,#02,#E6,#01,#76,#01,#6F,#01,#FE,#02,#6E,#01,#E6,#01,#6E
+    DB #01,#EF,#01,#E6,#02,#66,#01,#E6,#03,#66,#01,#E6,#01,#77,#01,#70
+    DB #09,#00,#01,#69,#02,#FF,#01,#F9,#01,#60,#0C,#00,#01,#07,#02,#EE
+    DB #01,#FE,#01,#EF,#01,#E6,#01,#66,#01,#6E,#01,#FE,#01,#6E,#04,#EE
+    DB #01,#EF,#01,#FF,#01,#FE,#01,#66,#05,#00,#01,#66,#01,#60,#01,#0E
+    DB #01,#E0,#02,#66,#02,#EE,#01,#66,#01,#99,#01,#96,#01,#6E,#01,#EE
+    DB #01,#E6,#01,#E9,#03,#99,#01,#66,#01,#67,#01,#70,#0B,#00,#01,#07
+    DB #02,#EE,#01,#FF,#01,#EE,#01,#FE,#02,#66,#01,#EF,#07,#EE,#01,#FF
+    DB #01,#FE,#01,#E6,#01,#67,#04,#00,#01,#77,#01,#07,#01,#EE,#04,#66
+    DB #01,#EE,#01,#E6,#02,#66,#01,#6E,#01,#EE,#01,#E6,#01,#66,#01,#EE
+    DB #02,#66,#01,#E6,#01,#66,#01,#EE,#01,#60,#01,#77,#09,#00,#01,#76
+    DB #02,#99,#01,#E6,#01,#70,#0C,#00,#01,#0E,#01,#60,#01,#6E,#01,#EE
+    DB #01,#EF,#01,#E6,#02,#66,#02,#EE,#02,#F9,#01,#9E,#01,#EE,#01,#EF
+    DB #01,#FF,#01,#E6,#01,#66,#01,#77,#06,#00,#01,#0E,#01,#70,#02,#66
+    DB #01,#EF,#01,#EE,#01,#69,#02,#99,#01,#66,#01,#EF,#01,#E6,#01,#99
+    DB #02,#76,#02,#77,#01,#70,#0C,#00,#01,#0E,#01,#60,#01,#6E,#02,#EE
+    DB #01,#FE,#02,#66,#01,#6E,#02,#EE,#01,#9F,#02,#99,#01,#EE,#01,#EF
+    DB #01,#FF,#01,#FE,#01,#66,#01,#67,#04,#00,#01,#70,#01,#00,#01,#E6
+    DB #01,#66,#01,#77,#01,#66,#01,#EE,#01,#FE,#01,#66,#01,#EE,#01,#66
+    DB #02,#EE,#01,#E6,#01,#66,#01,#99,#02,#6E,#01,#96,#01,#66,#01,#6E
+    DB #01,#E7,#01,#77,#09,#00,#01,#07,#01,#67,#01,#66,#01,#70,#0D,#00
+    DB #01,#07,#01,#00,#01,#06,#01,#EF,#01,#FF,#01,#E6,#01,#6E,#01,#99
+    DB #01,#EE,#01,#EF,#01,#9F,#01,#F9,#01,#99,#01,#9E,#01,#EF,#02,#FF
+    DB #01,#EE,#01,#FE,#01,#60,#05,#00,#01,#06,#01,#60,#01,#06,#01,#67
+    DB #01,#6E,#01,#E6,#01,#69,#02,#99,#04,#66,#01,#EE,#01,#FE,#01,#EF
+    DB #01,#FE,#02,#E6,#06,#00,#01,#66,#01,#07,#01,#77,#01,#6E,#01,#66
+    DB #01,#69,#01,#99,#01,#96,#01,#69,#01,#F9,#01,#67,#01,#69,#01,#96
+    DB #02,#76,#01,#67,#01,#06,#01,#70,#07,#00,#02,#D0,#02,#00,#01,#0D
+    DB #06,#00,#02,#0D,#10,#00,#03,#44,#06,#66,#01,#4C,#06,#66,#01,#64
+    DB #02,#44,#01,#C4,#01,#40,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44
+    DB #01,#40,#02,#00,#01,#04,#02,#44,#01,#46,#0E,#66,#01,#64,#02,#44
+    DB #01,#40,#01,#B0,#01,#00,#01,#0C,#01,#44,#01,#46,#01,#66,#01,#44
+    DB #01,#40,#01,#00,#01,#EE,#01,#FE,#02,#EE,#01,#70,#01,#66,#06,#00
+    DB #01,#66,#01,#00,#01,#76,#01,#7E,#01,#E6,#01,#69,#01,#99,#01,#66
+    DB #01,#9F,#01,#96,#01,#77,#01,#69,#01,#97,#02,#76,#01,#60,#01,#06
+    DB #01,#60,#04,#00,#01,#0D,#01,#00,#01,#0D,#01,#0C,#01,#D0,#01,#0D
+    DB #02,#00,#01,#D0,#01,#0D,#01,#D0,#04,#00,#01,#D0,#0F,#00,#01,#04
+    DB #01,#40,#01,#C0,#01,#44,#0E,#66,#01,#64,#02,#44,#01,#40,#02,#00
+    DB #01,#0C,#01,#A4,#02,#66,#01,#D4,#01,#40,#02,#00,#01,#04,#01,#C4
+    DB #01,#44,#01,#46,#01,#B4,#01,#66,#01,#46,#03,#66,#01,#B6,#05,#66
+    DB #01,#6B,#01,#66,#01,#64,#01,#44,#01,#C4,#01,#4B,#01,#9B,#01,#00
+    DB #01,#04,#01,#D4,#01,#46,#01,#66,#01,#44,#01,#C0,#01,#00,#01,#EE
+    DB #01,#FF,#01,#FE,#01,#EE,#01,#67,#01,#07,#05,#00,#01,#06,#01,#60
+    DB #01,#07,#01,#67,#01,#77,#03,#66,#01,#69,#01,#96,#01,#0E,#01,#76
+    DB #01,#99,#01,#67,#01,#69,#01,#66,#01,#70,#01,#00,#01,#66,#04,#00
+    DB #01,#0D,#01,#00,#01,#CD,#01,#4C,#01,#D0,#01,#0C,#02,#00,#02,#D0
+    DB #01,#0C,#02,#00,#01,#0D,#01,#00,#01,#D0,#01,#00,#01,#0D,#07,#00
+    DB #01,#4D,#01,#04,#04,#00,#01,#04,#02,#0C,#01,#44,#02,#66,#01,#46
+    DB #09,#66,#01,#64,#01,#66,#01,#64,#01,#44,#01,#4C,#03,#00,#01,#04
+    DB #02,#66,#01,#64,#01,#44,#01,#40,#02,#00,#01,#0D,#02,#44,#01,#46
+    DB #0E,#66,#01,#64,#02,#44,#01,#40,#01,#B0,#01,#00,#01,#04,#01,#0C
+    DB #02,#66,#01,#44,#01,#40,#01,#00,#01,#EE,#01,#EF,#01,#FF,#01,#FE
+    DB #01,#E6,#01,#76,#05,#00,#01,#60,#01,#00,#01,#07,#02,#70,#01,#6E
+    DB #01,#60,#01,#76,#01,#77,#01,#7F,#01,#00,#01,#79,#01,#99,#01,#77
+    DB #01,#76,#01,#66,#01,#60,#01,#00,#01,#66,#03,#00,#01,#0D,#01,#1D
+    DB #01,#C1,#01,#D4,#01,#4C,#01,#D4,#01,#4C,#01,#04,#01,#44,#01,#DD
+    DB #02,#44,#01,#04,#01,#4C,#01,#0D,#03,#44,#01,#CD,#01,#00,#01,#A0
+    DB #04,#00,#01,#0C,#02,#44,#01,#C0,#03,#00,#01,#04,#01,#D4,#01,#4C
+    DB #01,#46,#04,#66,#01,#64,#01,#66,#01,#C6,#03,#66,#01,#C6,#03,#66
+    DB #01,#46,#02,#44,#01,#40,#02,#00,#01,#04,#02,#66,#01,#64,#01,#44
+    DB #01,#C0,#01,#00,#01,#0D,#01,#DD,#02,#44,#01,#46,#01,#C6,#02,#66
+    DB #01,#6C,#04,#66,#01,#46,#01,#66,#01,#6C,#03,#66,#03,#44,#01,#40
+    DB #02,#00,#01,#04,#01,#44,#02,#66,#01,#64,#01,#40,#01,#00,#02,#EE
+    DB #01,#EF,#01,#FF,#01,#FE,#01,#76,#01,#60,#04,#00,#01,#60,#01,#00
+    DB #01,#07,#01,#70,#01,#00,#01,#76,#01,#66,#01,#06,#01,#70,#01,#76
+    DB #01,#77,#01,#E9,#01,#9E,#01,#77,#01,#70,#01,#07,#01,#66,#05,#00
+    DB #01,#0C,#01,#11,#01,#DC,#01,#D4,#02,#44,#01,#4C,#02,#44,#01,#D4
+    DB #02,#44,#01,#4C,#01,#44,#01,#D4,#01,#4C,#02,#44,#01,#C4,#01,#D4
+    DB #05,#00,#04,#44,#03,#00,#01,#04,#02,#44,#01,#46,#0F,#66,#02,#44
+    DB #01,#40,#02,#00,#01,#04,#02,#66,#01,#64,#01,#44,#01,#40,#01,#00
+    DB #01,#DD,#01,#04,#03,#44,#01,#46,#01,#66,#01,#46,#01,#C0,#01,#46
+    DB #01,#66,#01,#46,#01,#C6,#02,#66,#01,#40,#01,#6B,#02,#66,#01,#44
+    DB #01,#C4,#01,#44,#01,#D0,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44
+    DB #01,#40,#01,#00,#01,#EE,#01,#FF,#01,#FE,#01,#EF,#01,#EE,#01,#E7
+    DB #08,#00,#01,#77,#01,#00,#01,#07,#01,#E6,#01,#70,#01,#77,#01,#76
+    DB #01,#E6,#01,#99,#01,#96,#03,#00,#01,#77,#05,#00,#01,#01,#01,#C4
+    DB #01,#4C,#01,#C4,#03,#44,#01,#4C,#04,#44,#01,#4D,#01,#44,#01,#DC
+    DB #03,#44,#01,#C4,#01,#D4,#01,#44,#01,#4C,#01,#A0,#02,#00,#02,#44
+    DB #01,#4C,#01,#44,#01,#40,#03,#00,#02,#44,#02,#46,#03,#66,#01,#46
+    DB #04,#66,#01,#76,#03,#66,#01,#C6,#01,#46,#01,#64,#01,#44,#01,#D0
+    DB #02,#00,#01,#04,#01,#46,#03,#66,#01,#40,#01,#00,#01,#B0,#01,#0D
+    DB #01,#C4,#02,#44,#01,#66,#01,#46,#01,#66,#01,#64,#02,#66,#01,#64
+    DB #02,#66,#01,#B6,#01,#64,#02,#66,#01,#64,#03,#44,#01,#4D,#02,#00
+    DB #01,#04,#01,#44,#02,#66,#01,#44,#01,#40,#01,#00,#01,#6E,#01,#EF
+    DB #01,#FF,#01,#FE,#01,#EE,#01,#E6,#01,#70,#07,#00,#01,#77,#02,#00
+    DB #01,#66,#01,#67,#02,#66,#01,#E9,#01,#99,#01,#67,#02,#00,#01,#06
+    DB #01,#60,#04,#00,#01,#0D,#01,#11,#01,#C4,#01,#44,#01,#4C,#08,#44
+    DB #01,#4D,#01,#44,#01,#D4,#03,#44,#01,#C4,#01,#4D,#01,#44,#03,#00
+    DB #01,#0C,#01,#44,#01,#C4,#02,#44,#01,#D0,#03,#00,#01,#04,#01,#44
+    DB #01,#46,#04,#66,#01,#6C,#07,#66,#01,#46,#02,#66,#01,#64,#01,#44
+    DB #01,#40,#02,#00,#01,#04,#01,#46,#01,#66,#01,#A6,#01,#66,#01,#4B
+    DB #01,#00,#01,#2B,#01,#00,#03,#44,#02,#66,#01,#6C,#03,#66,#01,#C6
+    DB #01,#46,#01,#66,#01,#46,#02,#66,#01,#64,#01,#44,#02,#4C,#01,#B4
+    DB #01,#40,#01,#D0,#01,#00,#01,#0C,#01,#D4,#02,#66,#01,#44,#01,#40
+    DB #01,#00,#04,#EE,#01,#E6,#01,#EE,#01,#E7,#07,#00,#01,#70,#02,#00
+    DB #01,#76,#01,#99,#01,#E9,#01,#99,#01,#F9,#01,#9E,#01,#70,#02,#00
+    DB #01,#06,#01,#60,#05,#00,#01,#DC,#02,#44,#01,#46,#01,#66,#01,#6D
+    DB #01,#66,#01,#44,#01,#46,#01,#66,#05,#44,#01,#04,#05,#44,#01,#00
+    DB #01,#DD,#01,#00,#01,#04,#04,#44,#01,#40,#03,#00,#01,#C4,#01,#44
+    DB #01,#46,#01,#66,#01,#46,#07,#66,#01,#C6,#05,#66,#02,#44,#03,#00
+    DB #01,#04,#01,#44,#03,#66,#01,#40,#01,#00,#01,#B0,#01,#00,#01,#44
+    DB #01,#D4,#01,#44,#01,#46,#01,#66,#01,#B6,#02,#44,#03,#66,#01,#6C
+    DB #01,#0C,#07,#44,#01,#40,#01,#30,#01,#00,#01,#04,#01,#44,#02,#66
+    DB #01,#44,#01,#40,#01,#20,#01,#96,#01,#6E,#01,#E6,#01,#66,#01,#E6
 bitmap_room_tileset_rle_chunk_0_end:
 
 BITMAP_ROOM_DATA_BANK_4_USED_END:
@@ -9678,687 +9973,370 @@ BITMAP_ROOM_DATA_BANK_4_USED_END:
 BITMAP_ROOM_DATA_BANK_5_PHYS_START:
     org #8000
 BITMAP_ROOM_DATA_BANK_5_ROM_START:
-; Shared world tileset (atlas), packed 4bpp RLE; VRAM #11B3A, raw 8857 bytes, RLE 7936 bytes
+; Shared world tileset (atlas), packed 4bpp RLE; VRAM #11C05, raw 7163 bytes, RLE 5768 bytes
 bitmap_room_tileset_rle_chunk_1:
-    DB #01,#07,#01,#EE,#01,#FE,#01,#E6,#01,#66,#01,#76,#01,#EE,#01,#F9
-    DB #01,#99,#01,#FF,#01,#66,#01,#6E,#01,#9F,#01,#99,#01,#EE,#01,#FF
-    DB #01,#EE,#02,#FF,#01,#E6,#01,#07,#01,#70,#02,#00,#01,#07,#01,#77
-    DB #01,#00,#01,#76,#02,#06,#03,#66,#01,#E9,#01,#F9,#01,#E6,#02,#99
-    DB #01,#E7,#01,#76,#01,#E6,#01,#60,#02,#00,#01,#70,#06,#00,#01,#06
-    DB #01,#07,#01,#67,#01,#06,#01,#EF,#01,#FE,#01,#6F,#01,#E7,#02,#66
-    DB #01,#7E,#01,#FE,#01,#67,#06,#00,#01,#99,#01,#69,#04,#66,#01,#70
-    DB #01,#76,#01,#00,#01,#69,#05,#99,#01,#66,#09,#99,#01,#66,#01,#69
-    DB #01,#67,#01,#70,#07,#00,#01,#77,#01,#7E,#01,#FF,#01,#EE,#03,#FF
-    DB #01,#EE,#01,#6E,#02,#EE,#01,#EF,#01,#EE,#08,#00,#01,#07,#01,#6E
-    DB #01,#EE,#01,#FE,#01,#E6,#01,#66,#01,#9E,#01,#66,#01,#E9,#01,#99
-    DB #01,#EE,#01,#67,#01,#66,#01,#69,#01,#99,#01,#EE,#01,#EF,#01,#FF
-    DB #01,#EF,#01,#FF,#01,#EE,#01,#70,#03,#00,#01,#70,#02,#00,#01,#70
-    DB #01,#07,#01,#06,#01,#96,#01,#66,#01,#69,#01,#99,#01,#E6,#01,#69
-    DB #02,#99,#01,#67,#01,#76,#01,#67,#01,#66,#01,#00,#01,#07,#01,#70
-    DB #06,#00,#01,#67,#01,#EF,#01,#FE,#01,#EF,#02,#FF,#01,#EE,#01,#6E
-    DB #01,#EE,#01,#6E,#01,#EE,#01,#E6,#07,#00,#01,#96,#04,#66,#01,#67
-    DB #01,#77,#01,#07,#01,#00,#01,#76,#02,#99,#02,#66,#01,#69,#09,#99
-    DB #01,#67,#01,#76,#02,#77,#08,#00,#01,#70,#01,#7E,#01,#EF,#04,#FF
-    DB #01,#EE,#01,#6E,#01,#EE,#01,#EF,#01,#FE,#01,#E7,#01,#76,#07,#00
-    DB #01,#6E,#01,#EF,#01,#FF,#01,#EE,#01,#E6,#01,#69,#01,#99,#01,#67
-    DB #01,#6E,#01,#99,#01,#66,#01,#76,#02,#66,#01,#99,#01,#E6,#01,#EE
-    DB #01,#FF,#01,#FE,#02,#EE,#01,#E7,#03,#00,#01,#70,#02,#00,#01,#77
-    DB #02,#00,#04,#66,#01,#69,#01,#9F,#01,#99,#01,#96,#01,#76,#01,#77
-    DB #01,#00,#01,#76,#01,#60,#09,#00,#01,#6E,#01,#EF,#03,#FF,#01,#EE
-    DB #01,#6E,#01,#EE,#01,#FF,#01,#FE,#01,#E7,#01,#67,#06,#00,#01,#99
-    DB #01,#96,#04,#66,#01,#77,#01,#70,#01,#00,#01,#07,#0E,#99,#01,#67
-    DB #01,#09,#01,#66,#01,#67,#09,#00,#01,#06,#01,#EE,#03,#FF,#01,#FE
-    DB #01,#EE,#01,#6E,#01,#EF,#01,#FF,#03,#EE,#01,#70,#05,#00,#01,#07
-    DB #04,#EE,#01,#E6,#01,#69,#01,#96,#01,#66,#01,#7E,#01,#99,#01,#96
-    DB #01,#66,#01,#EF,#01,#E7,#01,#69,#01,#96,#02,#EE,#01,#EF,#01,#FE
-    DB #01,#6E,#01,#EE,#01,#70,#05,#00,#01,#07,#01,#70,#01,#00,#01,#7E
-    DB #01,#EE,#01,#6E,#02,#99,#01,#FF,#01,#99,#01,#E7,#01,#00,#01,#77
-    DB #01,#00,#01,#07,#01,#70,#09,#00,#01,#0E,#01,#FE,#03,#FF,#01,#EE
-    DB #01,#6E,#01,#EF,#01,#FE,#02,#EE,#01,#E6,#06,#00,#01,#99,#01,#96
-    DB #03,#66,#01,#67,#01,#77,#01,#70,#02,#00,#01,#76,#0C,#99,#01,#96
-    DB #02,#77,#01,#66,#01,#70,#09,#00,#01,#76,#01,#EE,#01,#EF,#03,#FF
-    DB #01,#E6,#01,#EE,#01,#FF,#04,#EE,#01,#67,#01,#00,#01,#6E,#01,#60
-    DB #02,#00,#01,#06,#01,#E6,#01,#76,#01,#6E,#01,#FE,#01,#EE,#01,#69
-    DB #03,#66,#01,#99,#01,#96,#01,#6F,#01,#FF,#01,#FE,#01,#69,#01,#96
-    DB #01,#6E,#01,#EE,#01,#66,#01,#EE,#01,#66,#01,#EE,#01,#E7,#05,#00
-    DB #01,#07,#01,#70,#01,#00,#01,#06,#01,#69,#02,#EE,#01,#99,#01,#F9
-    DB #01,#99,#01,#70,#03,#00,#01,#77,#01,#70,#08,#00,#01,#07,#01,#6E
-    DB #01,#EF,#02,#FF,#01,#FE,#01,#E6,#01,#EE,#01,#FF,#01,#E6,#03,#EE
-    DB #01,#67,#01,#7E,#01,#E6,#01,#70,#02,#00,#01,#99,#01,#96,#04,#66
-    DB #01,#77,#03,#00,#01,#07,#01,#69,#0B,#99,#01,#66,#01,#70,#01,#07
-    DB #01,#77,#0A,#00,#01,#6E,#01,#EE,#01,#FE,#02,#FF,#01,#FE,#01,#E6
-    DB #01,#EE,#01,#FE,#01,#EE,#01,#EF,#01,#FE,#02,#EE,#01,#76,#01,#E6
-    DB #01,#66,#02,#00,#01,#07,#01,#E7,#01,#00,#01,#6F,#01,#FE,#01,#E6
-    DB #01,#66,#01,#7E,#01,#FF,#01,#66,#01,#E9,#01,#96,#01,#EF,#01,#FE
-    DB #01,#FF,#01,#7E,#01,#96,#03,#66,#01,#6E,#01,#E7,#01,#77,#01,#70
-    DB #05,#00,#01,#77,#02,#00,#01,#07,#01,#69,#02,#99,#01,#9F,#01,#99
-    DB #01,#E7,#04,#00,#01,#70,#09,#00,#01,#07,#01,#EE,#01,#FF,#01,#EE
-    DB #01,#FF,#01,#FE,#01,#E6,#01,#EE,#01,#FE,#01,#6E,#01,#FF,#01,#FE
-    DB #01,#E6,#01,#67,#01,#EE,#01,#77,#01,#70,#02,#00,#01,#99,#05,#66
-    DB #01,#77,#01,#70,#03,#00,#01,#76,#0A,#99,#01,#66,#01,#70,#0B,#00
-    DB #01,#66,#01,#00,#01,#EE,#01,#EF,#02,#EE,#01,#FF,#01,#FE,#01,#EE
-    DB #01,#EF,#02,#EE,#01,#EF,#01,#FF,#01,#EE,#01,#E6,#01,#6E,#01,#67
-    DB #01,#07,#01,#70,#01,#00,#01,#07,#01,#70,#01,#00,#02,#EE,#01,#66
-    DB #01,#76,#01,#7F,#01,#FF,#01,#F6,#01,#69,#01,#96,#01,#EE,#01,#E7
-    DB #01,#EE,#01,#6E,#01,#66,#01,#6E,#02,#66,#01,#6E,#01,#E6,#01,#77
-    DB #0A,#00,#01,#69,#02,#FF,#01,#F9,#01,#E6,#05,#00,#01,#77,#07,#00
-    DB #01,#7E,#01,#EE,#01,#66,#01,#EF,#01,#FE,#01,#EE,#01,#EF,#01,#FE
-    DB #01,#EE,#01,#EF,#03,#EE,#02,#FF,#01,#EE,#01,#E7,#04,#00,#01,#99
-    DB #01,#66,#01,#76,#01,#99,#01,#67,#01,#66,#01,#77,#04,#00,#01,#07
-    DB #01,#76,#08,#99,#01,#67,#01,#70,#0B,#00,#01,#6E,#01,#FF,#01,#E6
-    DB #01,#EE,#01,#FE,#01,#E6,#01,#EE,#01,#EF,#01,#FE,#05,#EE,#01,#EF
-    DB #02,#FF,#01,#FE,#01,#70,#04,#00,#01,#77,#01,#00,#01,#EE,#02,#E6
-    DB #01,#76,#01,#6F,#01,#FE,#02,#6E,#01,#E6,#01,#6E,#01,#EF,#01,#E6
-    DB #02,#66,#01,#E6,#03,#66,#01,#E6,#01,#77,#01,#70,#09,#00,#01,#69
-    DB #02,#FF,#01,#F9,#01,#60,#0C,#00,#01,#07,#02,#EE,#01,#FE,#01,#EF
-    DB #01,#E6,#01,#66,#01,#6E,#01,#FE,#01,#6E,#04,#EE,#01,#EF,#01,#FF
-    DB #01,#FE,#01,#66,#04,#00,#01,#96,#01,#66,#03,#99,#01,#77,#02,#70
-    DB #04,#00,#01,#07,#01,#76,#01,#69,#04,#99,#01,#66,#01,#67,#01,#70
-    DB #0B,#00,#01,#07,#02,#EE,#01,#FF,#01,#EE,#01,#FE,#02,#66,#01,#EF
-    DB #07,#EE,#01,#FF,#01,#FE,#01,#E6,#01,#67,#04,#00,#01,#77,#01,#07
-    DB #01,#EE,#04,#66,#01,#EE,#01,#E6,#02,#66,#01,#6E,#01,#EE,#01,#E6
-    DB #01,#66,#01,#EE,#02,#66,#01,#E6,#01,#66,#01,#EE,#01,#60,#01,#77
-    DB #09,#00,#01,#76,#02,#99,#01,#E6,#01,#70,#0C,#00,#01,#0E,#01,#60
-    DB #01,#6E,#01,#EE,#01,#EF,#01,#E6,#02,#66,#02,#EE,#02,#F9,#01,#9E
-    DB #01,#EE,#01,#EF,#01,#FF,#01,#E6,#01,#66,#01,#77,#03,#00,#01,#96
-    DB #01,#69,#01,#96,#01,#77,#01,#99,#01,#67,#01,#70,#06,#00,#01,#07
-    DB #01,#76,#01,#77,#02,#76,#02,#77,#01,#70,#0C,#00,#01,#0E,#01,#60
-    DB #01,#6E,#02,#EE,#01,#FE,#02,#66,#01,#6E,#02,#EE,#01,#9F,#02,#99
-    DB #01,#EE,#01,#EF,#01,#FF,#01,#FE,#01,#66,#01,#67,#04,#00,#01,#70
-    DB #01,#00,#01,#E6,#01,#66,#01,#77,#01,#66,#01,#EE,#01,#FE,#01,#66
-    DB #01,#EE,#01,#66,#02,#EE,#01,#E6,#01,#66,#01,#99,#02,#6E,#01,#96
-    DB #01,#66,#01,#6E,#01,#E7,#01,#77,#09,#00,#01,#07,#01,#67,#01,#66
-    DB #01,#70,#0D,#00,#01,#07,#01,#00,#01,#06,#01,#EF,#01,#FF,#01,#E6
-    DB #01,#6E,#01,#99,#01,#EE,#01,#EF,#01,#9F,#01,#F9,#01,#99,#01,#9E
-    DB #01,#EF,#02,#FF,#01,#EE,#01,#FE,#01,#60,#04,#00,#01,#06,#01,#00
-    DB #01,#6E,#01,#FE,#01,#EE,#01,#E6,#01,#E9,#01,#99,#01,#F9,#02,#99
-    DB #01,#9F,#01,#99,#01,#9E,#01,#EE,#01,#FE,#01,#EF,#01,#FE,#02,#E6
-    DB #06,#00,#01,#66,#01,#07,#01,#77,#01,#6E,#01,#66,#01,#69,#01,#99
-    DB #01,#96,#01,#69,#01,#F9,#01,#67,#01,#69,#01,#96,#02,#76,#01,#67
-    DB #01,#06,#01,#70,#07,#00,#02,#D0,#02,#00,#01,#0D,#06,#00,#02,#0D
-    DB #10,#00,#03,#44,#06,#66,#01,#4C,#06,#66,#01,#64,#02,#44,#01,#C4
-    DB #01,#40,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#40,#02,#00
-    DB #01,#04,#02,#44,#01,#46,#0B,#66,#02,#00,#01,#66,#01,#06,#03,#EE
-    DB #01,#66,#01,#E9,#03,#99,#01,#9F,#01,#E6,#01,#6E,#01,#9E,#01,#EE
-    DB #01,#FE,#02,#EE,#01,#70,#01,#66,#06,#00,#01,#66,#01,#00,#01,#76
-    DB #01,#7E,#01,#E6,#01,#69,#01,#99,#01,#66,#01,#9F,#01,#96,#01,#77
-    DB #01,#69,#01,#97,#02,#76,#01,#60,#01,#06,#01,#60,#04,#00,#01,#0D
-    DB #01,#00,#01,#0D,#01,#0C,#01,#D0,#01,#0D,#02,#00,#01,#D0,#01,#0D
-    DB #01,#D0,#04,#00,#01,#D0,#0F,#00,#01,#04,#01,#40,#01,#C0,#01,#44
-    DB #0E,#66,#01,#64,#02,#44,#01,#40,#02,#00,#01,#0C,#01,#A4,#02,#66
-    DB #01,#D4,#01,#40,#02,#00,#01,#04,#01,#C4,#01,#44,#01,#46,#01,#B4
-    DB #01,#66,#01,#46,#03,#66,#01,#B6,#04,#66,#01,#00,#01,#66,#01,#60
-    DB #01,#0E,#02,#EE,#01,#66,#01,#6E,#04,#99,#01,#9E,#02,#66,#01,#E9
-    DB #01,#EE,#01,#FF,#01,#FE,#01,#EE,#01,#67,#01,#07,#05,#00,#01,#06
-    DB #01,#60,#01,#07,#01,#67,#01,#77,#03,#66,#01,#69,#01,#96,#01,#0E
-    DB #01,#76,#01,#99,#01,#67,#01,#69,#01,#66,#01,#70,#01,#00,#01,#66
-    DB #04,#00,#01,#0D,#01,#00,#01,#CD,#01,#4C,#01,#D0,#01,#0C,#02,#00
-    DB #02,#D0,#01,#0C,#02,#00,#01,#0D,#01,#00,#01,#D0,#01,#00,#01,#0D
-    DB #07,#00,#01,#4D,#01,#04,#04,#00,#01,#04,#02,#0C,#01,#44,#02,#66
-    DB #01,#46,#09,#66,#01,#64,#01,#66,#01,#64,#01,#44,#01,#4C,#03,#00
-    DB #01,#04,#02,#66,#01,#64,#01,#44,#01,#40,#02,#00,#01,#0D,#02,#44
-    DB #01,#46,#0B,#66,#01,#00,#01,#06,#01,#00,#01,#06,#01,#EE,#01,#FE
-    DB #01,#E7,#01,#6E,#01,#EE,#03,#99,#01,#F6,#01,#66,#01,#EE,#01,#69
-    DB #01,#EE,#01,#EF,#01,#FF,#01,#FE,#01,#E6,#01,#76,#05,#00,#01,#60
-    DB #01,#00,#01,#07,#02,#70,#01,#6E,#01,#60,#01,#76,#01,#77,#01,#7F
-    DB #01,#00,#01,#79,#01,#99,#01,#77,#01,#76,#01,#66,#01,#60,#01,#00
-    DB #01,#66,#03,#00,#01,#0D,#01,#1D,#01,#C1,#01,#D4,#01,#4C,#01,#D4
-    DB #01,#4C,#01,#04,#01,#44,#01,#DD,#02,#44,#01,#04,#01,#4C,#01,#0D
-    DB #03,#44,#01,#CD,#01,#00,#01,#A0,#04,#00,#01,#0C,#02,#44,#01,#C0
-    DB #03,#00,#01,#04,#01,#D4,#01,#4C,#01,#46,#04,#66,#01,#64,#01,#66
-    DB #01,#C6,#03,#66,#01,#C6,#03,#66,#01,#46,#02,#44,#01,#40,#02,#00
-    DB #01,#04,#02,#66,#01,#64,#01,#44,#01,#C0,#01,#00,#01,#0D,#01,#DD
-    DB #02,#44,#01,#46,#01,#C6,#02,#66,#01,#6C,#04,#66,#01,#46,#01,#66
-    DB #01,#6C,#03,#00,#01,#06,#01,#EE,#01,#FE,#03,#66,#01,#EF,#01,#99
-    DB #01,#9F,#01,#E6,#01,#6E,#01,#9F,#01,#99,#02,#EE,#01,#EF,#01,#FF
-    DB #01,#FE,#01,#76,#01,#60,#04,#00,#01,#60,#01,#00,#01,#07,#01,#70
-    DB #01,#00,#01,#76,#01,#66,#01,#06,#01,#70,#01,#76,#01,#77,#01,#E9
-    DB #01,#9E,#01,#77,#01,#70,#01,#07,#01,#66,#05,#00,#01,#0C,#01,#11
-    DB #01,#DC,#01,#D4,#02,#44,#01,#4C,#02,#44,#01,#D4,#02,#44,#01,#4C
-    DB #01,#44,#01,#D4,#01,#4C,#02,#44,#01,#C4,#01,#D4,#05,#00,#04,#44
-    DB #03,#00,#01,#04,#02,#44,#01,#46,#0F,#66,#02,#44,#01,#40,#02,#00
-    DB #01,#04,#02,#66,#01,#64,#01,#44,#01,#40,#01,#00,#01,#DD,#01,#04
-    DB #03,#44,#01,#46,#01,#66,#01,#46,#01,#C0,#01,#46,#01,#66,#01,#46
-    DB #01,#C6,#02,#66,#01,#40,#02,#00,#01,#07,#01,#6E,#01,#EF,#01,#EE
-    DB #01,#E7,#01,#6E,#01,#66,#01,#6E,#01,#99,#01,#EE,#01,#67,#01,#66
-    DB #01,#69,#01,#F9,#01,#EE,#01,#FF,#01,#FE,#01,#EF,#01,#EE,#01,#E7
-    DB #08,#00,#01,#77,#01,#00,#01,#07,#01,#E6,#01,#70,#01,#77,#01,#76
-    DB #01,#E6,#01,#99,#01,#96,#03,#00,#01,#77,#05,#00,#01,#01,#01,#C4
-    DB #01,#4C,#01,#C4,#03,#44,#01,#4C,#04,#44,#01,#4D,#01,#44,#01,#DC
-    DB #03,#44,#01,#C4,#01,#D4,#01,#44,#01,#4C,#01,#A0,#02,#00,#02,#44
-    DB #01,#4C,#01,#44,#01,#40,#03,#00,#02,#44,#02,#46,#03,#66,#01,#46
-    DB #04,#66,#01,#76,#03,#66,#01,#C6,#01,#46,#01,#64,#01,#44,#01,#D0
-    DB #02,#00,#01,#04,#01,#46,#03,#66,#01,#40,#01,#00,#01,#B0,#01,#0D
-    DB #01,#C4,#02,#44,#01,#66,#01,#46,#01,#66,#01,#64,#02,#66,#01,#64
-    DB #02,#66,#01,#B6,#01,#64,#02,#00,#01,#6E,#01,#EF,#01,#FE,#01,#EE
-    DB #01,#66,#01,#E9,#01,#E6,#01,#76,#01,#99,#01,#E6,#01,#76,#02,#66
-    DB #01,#99,#01,#6E,#01,#EF,#01,#FF,#01,#FE,#01,#EE,#01,#E6,#01,#70
-    DB #07,#00,#01,#77,#02,#00,#01,#66,#01,#67,#02,#66,#01,#E9,#01,#99
-    DB #01,#67,#02,#00,#01,#06,#01,#60,#04,#00,#01,#0D,#01,#11,#01,#C4
-    DB #01,#44,#01,#4C,#08,#44,#01,#4D,#01,#44,#01,#D4,#03,#44,#01,#C4
-    DB #01,#4D,#01,#44,#03,#00,#01,#0C,#01,#44,#01,#C4,#02,#44,#01,#D0
-    DB #03,#00,#01,#04,#01,#44,#01,#46,#04,#66,#01,#6C,#07,#66,#01,#46
-    DB #02,#66,#01,#64,#01,#44,#01,#40,#02,#00,#01,#04,#01,#46,#01,#66
-    DB #01,#A6,#01,#66,#01,#4B,#01,#00,#01,#2B,#01,#00,#03,#44,#02,#66
-    DB #01,#6C,#03,#66,#01,#C6,#01,#46,#01,#66,#01,#46,#01,#66,#01,#00
-    DB #01,#07,#04,#EE,#01,#67,#01,#EE,#02,#66,#01,#9F,#01,#9E,#01,#66
-    DB #01,#EF,#01,#E7,#01,#69,#04,#EE,#01,#E6,#01,#EE,#01,#E7,#07,#00
-    DB #01,#70,#02,#00,#01,#76,#01,#99,#01,#E9,#01,#99,#01,#F9,#01,#9E
-    DB #01,#70,#02,#00,#01,#06,#01,#60,#05,#00,#01,#DC,#02,#44,#01,#46
-    DB #01,#66,#01,#6D,#01,#66,#01,#44,#01,#46,#01,#66,#05,#44,#01,#04
-    DB #05,#44,#01,#00,#01,#DD,#01,#00,#01,#04,#04,#44,#01,#40,#03,#00
-    DB #01,#C4,#01,#44,#01,#46,#01,#66,#01,#46,#07,#66,#01,#C6,#05,#66
-    DB #02,#44,#03,#00,#01,#04,#01,#44,#03,#66,#01,#40,#01,#00,#01,#B0
-    DB #01,#00,#01,#44,#01,#D4,#01,#44,#01,#46,#01,#66,#01,#B6,#02,#44
-    DB #03,#66,#01,#6C,#01,#0C,#01,#44,#01,#00,#01,#07,#01,#E6,#01,#07
-    DB #01,#6E,#01,#EE,#01,#E7,#01,#66,#01,#6E,#01,#66,#01,#69,#01,#9E
-    DB #01,#6F,#01,#FF,#01,#FE,#01,#6E,#01,#96,#01,#6E,#01,#E6,#01,#66
-    DB #01,#E6,#01,#66,#01,#67,#0A,#00,#01,#06,#02,#99,#01,#9F,#01,#9E
-    DB #01,#E7,#0A,#00,#01,#1D,#02,#44,#01,#46,#01,#44,#01,#66,#01,#6C
-    DB #01,#46,#01,#66,#01,#44,#01,#66,#01,#64,#01,#66,#03,#44,#01,#04
-    DB #04,#44,#01,#0D,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#4C
-    DB #02,#00,#01,#04,#02,#44,#09,#66,#01,#64,#05,#66,#01,#64,#01,#C4
-    DB #01,#44,#01,#4D,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#40
-    DB #03,#00,#01,#4D,#03,#44,#01,#66,#01,#64,#08,#44,#01,#00,#01,#07
-    DB #01,#60,#01,#07,#01,#EF,#01,#EE,#01,#66,#01,#67,#01,#FF,#01,#FE
-    DB #01,#69,#01,#9E,#01,#6F,#01,#E7,#01,#EE,#01,#6E,#04,#66,#01,#E6
-    DB #01,#70,#0B,#00,#01,#06,#01,#9F,#02,#FF,#01,#96,#0B,#00,#01,#0D
-    DB #02,#44,#03,#66,#01,#44,#01,#46,#02,#64,#01,#66,#01,#64,#01,#66
-    DB #01,#64,#01,#46,#02,#44,#01,#40,#01,#44,#01,#4C,#01,#CC,#01,#D0
-    DB #02,#00,#01,#04,#01,#46,#01,#64,#01,#66,#01,#64,#01,#40,#02,#00
-    DB #01,#04,#02,#44,#01,#66,#01,#46,#05,#66,#01,#67,#06,#66,#02,#64
-    DB #03,#44,#02,#00,#01,#0D,#01,#44,#02,#66,#01,#4C,#01,#40,#03,#00
-    DB #01,#DC,#01,#44,#01,#B4,#0B,#44,#02,#00,#01,#70,#01,#07,#01,#FE
-    DB #01,#E6,#01,#E7,#01,#76,#01,#FF,#01,#EE,#01,#6E,#01,#9E,#01,#6E
-    DB #01,#EE,#01,#66,#01,#E6,#04,#66,#01,#EE,#01,#66,#01,#60,#0A,#00
-    DB #01,#06,#01,#9F,#01,#FF,#01,#F9,#01,#60,#0A,#00,#01,#0D,#01,#04
-    DB #01,#44,#01,#46,#02,#64,#02,#66,#01,#64,#04,#66,#01,#64,#04,#66
-    DB #01,#64,#01,#66,#02,#CD,#01,#40,#02,#00,#01,#04,#01,#46,#02,#66
-    DB #01,#64,#01,#40,#02,#00,#01,#0D,#02,#44,#01,#66,#01,#6C,#01,#66
-    DB #01,#46,#01,#66,#01,#64,#09,#66,#01,#64,#02,#44,#01,#4C,#02,#00
-    DB #01,#0C,#01,#44,#01,#46,#01,#66,#01,#44,#01,#40,#02,#00,#02,#0D
-    DB #01,#4B,#01,#44,#01,#C4,#0A,#44,#02,#00,#01,#66,#01,#06,#01,#EE
-    DB #03,#66,#01,#6E,#01,#EE,#02,#66,#01,#6E,#01,#FE,#01,#E6,#01,#66
-    DB #02,#E6,#01,#6E,#01,#66,#01,#6E,#01,#E7,#01,#66,#0A,#00,#01,#07
-    DB #03,#66,#0C,#00,#01,#D4,#01,#44,#01,#46,#01,#66,#01,#D6,#06,#66
-    DB #03,#64,#03,#66,#02,#64,#01,#44,#01,#CC,#01,#C0,#02,#00,#01,#04
-    DB #02,#46,#01,#66,#01,#64,#01,#C0,#02,#00,#01,#04,#02,#44,#01,#46
-    DB #04,#66,#01,#6C,#0A,#66,#01,#C4,#01,#44,#01,#40,#02,#00,#01,#04
-    DB #01,#44,#03,#66,#01,#40,#02,#00,#01,#0D,#01,#00,#01,#B4,#01,#44
-    DB #01,#CD,#01,#44,#01,#4C,#05,#44,#01,#04,#02,#44,#02,#00,#01,#60
-    DB #01,#00,#01,#E6,#01,#67,#01,#76,#01,#6E,#01,#EF,#01,#66,#01,#6E
-    DB #01,#66,#01,#6E,#01,#EE,#01,#E6,#01,#6E,#01,#9E,#01,#66,#01,#69
-    DB #02,#66,#01,#E6,#01,#06,#0C,#00,#01,#77,#01,#70,#0C,#00,#01,#0D
-    DB #01,#D4,#01,#44,#01,#64,#01,#6C,#03,#66,#01,#64,#01,#66,#01,#46
-    DB #01,#66,#01,#64,#05,#66,#01,#64,#02,#44,#01,#4D,#01,#DC,#01,#00
-    DB #01,#C4,#01,#46,#02,#66,#01,#64,#01,#40,#03,#00,#02,#44,#08,#66
-    DB #01,#6C,#02,#66,#01,#6C,#04,#66,#02,#44,#03,#00,#01,#04,#01,#46
-    DB #03,#66,#01,#C0,#04,#00,#01,#B4,#02,#4D,#01,#D4,#02,#44,#01,#4B
-    DB #01,#04,#02,#44,#01,#00,#01,#04,#01,#44,#01,#00,#01,#66,#01,#60
-    DB #01,#0E,#01,#E0,#02,#66,#02,#EE,#01,#66,#01,#99,#01,#96,#01,#6E
-    DB #01,#EE,#01,#E6,#01,#E9,#01,#96,#01,#E6,#01,#96,#01,#66,#01,#60
-    DB #01,#6E,#1A,#00,#01,#0D,#01,#D4,#02,#44,#01,#46,#02,#66,#01,#6D
-    DB #03,#66,#01,#46,#02,#66,#01,#64,#02,#66,#01,#64,#02,#66,#02,#44
-    DB #01,#40,#02,#00,#01,#04,#01,#46,#02,#66,#01,#44,#01,#40,#03,#00
-    DB #01,#44,#01,#C4,#01,#66,#01,#46,#01,#64,#06,#66,#01,#44,#05,#66
-    DB #01,#46,#02,#44,#03,#00,#01,#04,#01,#46,#02,#66,#01,#A6,#01,#40
-    DB #04,#00,#01,#B0,#02,#00,#01,#D0,#02,#00,#01,#0B,#09,#00,#01,#0E
-    DB #01,#70,#02,#66,#01,#EF,#01,#EE,#01,#69,#02,#99,#01,#66,#01,#EF
-    DB #01,#E6,#01,#99,#01,#E6,#01,#9E,#01,#E6,#01,#6E,#01,#70,#01,#66
-    DB #1B,#00,#01,#04,#02,#44,#01,#66,#01,#46,#03,#66,#01,#46,#03,#66
-    DB #02,#64,#03,#66,#01,#46,#01,#66,#02,#44,#01,#40,#02,#00,#01,#04
-    DB #01,#46,#02,#66,#01,#64,#01,#40,#03,#00,#02,#44,#01,#46,#02,#66
-    DB #01,#64,#02,#66,#01,#6C,#07,#66,#01,#46,#01,#66,#01,#44,#01,#C4
-    DB #01,#40,#02,#00,#01,#0A,#01,#C6,#02,#66,#01,#64,#01,#40,#03,#00
-    DB #01,#0B,#01,#2B,#02,#00,#01,#D0,#02,#00,#01,#A2,#01,#A0,#08,#00
-    DB #01,#06,#01,#60,#01,#06,#01,#67,#01,#6E,#01,#E6,#01,#69,#02,#99
-    DB #04,#66,#01,#E6,#01,#6E,#01,#66,#01,#6E,#01,#07,#01,#67,#1B,#00
-    DB #01,#04,#02,#44,#01,#46,#01,#66,#01,#46,#01,#66,#01,#46,#01,#66
-    DB #02,#64,#01,#46,#02,#66,#01,#46,#03,#66,#01,#46,#01,#64,#01,#44
-    DB #01,#40,#02,#00,#01,#04,#01,#46,#01,#66,#02,#64,#01,#40,#02,#00
-    DB #01,#04,#01,#4D,#02,#44,#03,#66,#01,#4C,#05,#66,#01,#6C,#03,#66
-    DB #02,#64,#02,#44,#01,#C0,#02,#00,#01,#04,#01,#46,#02,#66,#01,#64
-    DB #01,#40,#04,#00,#01,#B0,#01,#00,#02,#0D,#02,#00,#01,#0A,#06,#00
-    DB #03,#66,#01,#64,#02,#44,#01,#40,#01,#B0,#01,#00,#01,#0C,#01,#44
-    DB #01,#46,#01,#66,#01,#44,#01,#40,#19,#00,#04,#66,#01,#76,#01,#64
+    DB #01,#66,#01,#67,#0A,#00,#01,#06,#02,#99,#01,#9F,#01,#9E,#01,#E7
+    DB #0A,#00,#01,#1D,#02,#44,#01,#46,#01,#44,#01,#66,#01,#6C,#01,#46
+    DB #01,#66,#01,#44,#01,#66,#01,#64,#01,#66,#03,#44,#01,#04,#04,#44
+    DB #01,#0D,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#4C,#02,#00
+    DB #01,#04,#02,#44,#09,#66,#01,#64,#05,#66,#01,#64,#01,#C4,#01,#44
+    DB #01,#4D,#02,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#40,#03,#00
+    DB #01,#4D,#03,#44,#01,#66,#01,#64,#0C,#44,#01,#D4,#01,#44,#01,#03
+    DB #01,#23,#01,#00,#01,#04,#02,#44,#01,#66,#01,#44,#01,#CD,#01,#00
+    DB #04,#66,#01,#E6,#01,#70,#0B,#00,#01,#06,#01,#9F,#02,#FF,#01,#96
+    DB #0B,#00,#01,#0D,#02,#44,#03,#66,#01,#44,#01,#46,#02,#64,#01,#66
+    DB #01,#64,#01,#66,#01,#64,#01,#46,#02,#44,#01,#40,#01,#44,#01,#4C
+    DB #01,#CC,#01,#D0,#02,#00,#01,#04,#01,#46,#01,#64,#01,#66,#01,#64
+    DB #01,#40,#02,#00,#01,#04,#02,#44,#01,#66,#01,#46,#05,#66,#01,#67
+    DB #06,#66,#02,#64,#03,#44,#02,#00,#01,#0D,#01,#44,#02,#66,#01,#4C
+    DB #01,#40,#03,#00,#01,#DC,#01,#44,#01,#B4,#0D,#44,#01,#DC,#01,#44
+    DB #01,#D4,#01,#44,#01,#00,#01,#30,#01,#00,#01,#04,#04,#44,#01,#40
+    DB #01,#00,#04,#66,#01,#EE,#01,#66,#01,#60,#0A,#00,#01,#06,#01,#9F
+    DB #01,#FF,#01,#F9,#01,#60,#0A,#00,#01,#0D,#01,#04,#01,#44,#01,#46
+    DB #02,#64,#02,#66,#01,#64,#04,#66,#01,#64,#04,#66,#01,#64,#01,#66
+    DB #02,#CD,#01,#40,#02,#00,#01,#04,#01,#46,#02,#66,#01,#64,#01,#40
+    DB #02,#00,#01,#0D,#02,#44,#01,#66,#01,#6C,#01,#66,#01,#46,#01,#66
+    DB #01,#64,#09,#66,#01,#64,#02,#44,#01,#4C,#02,#00,#01,#0C,#01,#44
+    DB #01,#46,#01,#66,#01,#44,#01,#40,#02,#00,#02,#0D,#01,#4B,#01,#44
+    DB #01,#C4,#0B,#44,#01,#C4,#01,#4D,#01,#44,#01,#4D,#01,#40,#03,#00
+    DB #01,#0D,#01,#40,#03,#44,#01,#40,#01,#00,#02,#E6,#01,#6E,#01,#66
+    DB #01,#6E,#01,#E7,#01,#66,#0A,#00,#01,#07,#03,#66,#0C,#00,#01,#D4
+    DB #01,#44,#01,#46,#01,#66,#01,#D6,#06,#66,#03,#64,#03,#66,#02,#64
+    DB #01,#44,#01,#CC,#01,#C0,#02,#00,#01,#04,#02,#46,#01,#66,#01,#64
+    DB #01,#C0,#02,#00,#01,#04,#02,#44,#01,#46,#04,#66,#01,#6C,#0A,#66
+    DB #01,#C4,#01,#44,#01,#40,#02,#00,#01,#04,#01,#44,#03,#66,#01,#40
+    DB #02,#00,#01,#0D,#01,#00,#01,#B4,#01,#44,#01,#CD,#01,#44,#01,#4C
+    DB #05,#44,#01,#04,#04,#44,#01,#4D,#01,#44,#01,#0D,#05,#00,#01,#4C
+    DB #03,#44,#02,#00,#01,#9E,#01,#66,#01,#69,#02,#66,#01,#E6,#01,#06
+    DB #0C,#00,#01,#77,#01,#70,#0C,#00,#01,#0D,#01,#D4,#01,#44,#01,#64
+    DB #01,#6C,#03,#66,#01,#64,#01,#66,#01,#46,#01,#66,#01,#64,#05,#66
+    DB #01,#64,#02,#44,#01,#4D,#01,#DC,#01,#00,#01,#C4,#01,#46,#02,#66
+    DB #01,#64,#01,#40,#03,#00,#02,#44,#08,#66,#01,#6C,#02,#66,#01,#6C
+    DB #04,#66,#02,#44,#03,#00,#01,#04,#01,#46,#03,#66,#01,#C0,#04,#00
+    DB #01,#B4,#02,#4D,#01,#D4,#02,#44,#01,#4B,#01,#04,#02,#44,#01,#00
+    DB #01,#04,#03,#44,#01,#40,#01,#D0,#01,#0D,#05,#00,#01,#04,#01,#4D
+    DB #01,#4C,#03,#00,#01,#96,#01,#E6,#01,#96,#01,#66,#01,#60,#01,#6E
+    DB #1A,#00,#01,#0D,#01,#D4,#02,#44,#01,#46,#02,#66,#01,#6D,#03,#66
+    DB #01,#46,#02,#66,#01,#64,#02,#66,#01,#64,#02,#66,#02,#44,#01,#40
+    DB #02,#00,#01,#04,#01,#46,#02,#66,#01,#44,#01,#40,#03,#00,#01,#44
+    DB #01,#C4,#01,#66,#01,#46,#01,#64,#06,#66,#01,#44,#05,#66,#01,#46
+    DB #02,#44,#03,#00,#01,#04,#01,#46,#02,#66,#01,#A6,#01,#40,#04,#00
+    DB #01,#B0,#02,#00,#01,#D0,#02,#00,#01,#0B,#0B,#00,#01,#D0,#0A,#00
+    DB #01,#E6,#01,#9E,#01,#E6,#01,#6E,#01,#70,#01,#66,#1B,#00,#01,#04
+    DB #02,#44,#01,#66,#01,#46,#03,#66,#01,#46,#03,#66,#02,#64,#03,#66
+    DB #01,#46,#01,#66,#02,#44,#01,#40,#02,#00,#01,#04,#01,#46,#02,#66
+    DB #01,#64,#01,#40,#03,#00,#02,#44,#01,#46,#02,#66,#01,#64,#02,#66
+    DB #01,#6C,#07,#66,#01,#46,#01,#66,#01,#44,#01,#C4,#01,#40,#02,#00
+    DB #01,#0A,#01,#C6,#02,#66,#01,#64,#01,#40,#03,#00,#01,#0B,#01,#2B
+    DB #02,#00,#01,#D0,#02,#00,#01,#A2,#01,#A0,#15,#00,#01,#E6,#01,#6E
+    DB #01,#66,#01,#6E,#01,#07,#01,#67,#1B,#00,#01,#04,#02,#44,#01,#46
+    DB #01,#66,#01,#46,#01,#66,#01,#46,#01,#66,#02,#64,#01,#46,#02,#66
+    DB #01,#46,#03,#66,#01,#46,#01,#64,#01,#44,#01,#40,#02,#00,#01,#04
+    DB #01,#46,#01,#66,#02,#64,#01,#40,#02,#00,#01,#04,#01,#4D,#02,#44
+    DB #03,#66,#01,#4C,#05,#66,#01,#6C,#03,#66,#02,#64,#02,#44,#01,#C0
+    DB #02,#00,#01,#04,#01,#46,#02,#66,#01,#64,#01,#40,#04,#00,#01,#B0
+    DB #01,#00,#02,#0D,#02,#00,#01,#0A,#2E,#00,#04,#66,#01,#76,#01,#64
     DB #05,#66,#01,#46,#04,#66,#0A,#00,#01,#07,#01,#7A,#01,#A7,#01,#70
     DB #1A,#00,#01,#FE,#06,#EE,#01,#EF,#01,#00,#01,#0C,#01,#40,#01,#44
-    DB #01,#CD,#01,#0C,#01,#C0,#03,#00,#02,#AE,#02,#AA,#01,#E4,#01,#4A
-    DB #01,#AA,#01,#A4,#01,#44,#01,#66,#01,#46,#01,#44,#01,#EE,#01,#AA
-    DB #01,#66,#01,#6B,#01,#66,#01,#64,#01,#44,#01,#C4,#01,#4B,#01,#9B
-    DB #01,#00,#01,#04,#01,#D4,#01,#46,#01,#66,#01,#44,#01,#C0,#0A,#00
-    DB #01,#0D,#03,#00,#01,#30,#01,#00,#01,#04,#08,#00,#03,#66,#01,#67
-    DB #0C,#66,#03,#00,#01,#0F,#01,#B0,#05,#00,#01,#07,#01,#7A,#01,#AA
-    DB #01,#70,#1A,#00,#08,#FF,#01,#00,#01,#CC,#02,#44,#01,#D2,#01,#D0
-    DB #01,#4C,#02,#00,#01,#0E,#01,#E4,#01,#44,#02,#EE,#01,#AA,#01,#A4
-    DB #01,#44,#01,#46,#01,#44,#01,#66,#01,#64,#03,#AA,#03,#66,#01,#64
-    DB #02,#44,#01,#40,#01,#B0,#01,#00,#01,#04,#01,#0C,#02,#66,#01,#44
-    DB #01,#40,#05,#00,#01,#D0,#02,#00,#01,#02,#01,#00,#01,#0D,#02,#00
+    DB #01,#CD,#01,#0C,#01,#C0,#06,#00,#01,#FF,#01,#00,#01,#10,#01,#FF
+    DB #01,#00,#01,#10,#08,#00,#03,#77,#02,#00,#01,#7E,#01,#E6,#01,#6E
+    DB #02,#EE,#01,#67,#01,#6E,#01,#EE,#09,#00,#01,#0D,#03,#00,#01,#30
+    DB #01,#00,#01,#04,#08,#00,#03,#66,#01,#67,#0C,#66,#03,#00,#01,#0F
+    DB #01,#B0,#05,#00,#01,#07,#01,#7A,#01,#AA,#01,#70,#1A,#00,#08,#FF
+    DB #01,#00,#01,#CC,#02,#44,#01,#D2,#01,#D0,#01,#4C,#06,#00,#01,#EF
+    DB #01,#00,#01,#10,#01,#EF,#01,#00,#01,#10,#07,#00,#01,#07,#01,#E8
+    DB #01,#EE,#01,#67,#02,#00,#01,#6E,#01,#E6,#03,#EE,#01,#E6,#01,#AE
+    DB #01,#EE,#04,#00,#01,#D0,#02,#00,#01,#02,#01,#00,#01,#0D,#02,#00
     DB #01,#03,#02,#00,#01,#04,#03,#00,#01,#A0,#04,#00,#01,#46,#0F,#66
     DB #03,#00,#01,#FB,#01,#BB,#05,#00,#01,#07,#01,#7A,#01,#AA,#01,#70
     DB #1C,#00,#01,#0F,#06,#00,#02,#C4,#01,#4C,#01,#CD,#01,#00,#01,#4C
-    DB #01,#40,#01,#00,#01,#0B,#01,#E4,#01,#46,#01,#64,#01,#EA,#01,#E4
-    DB #01,#4E,#02,#46,#01,#76,#01,#6E,#04,#AA,#03,#66,#03,#44,#01,#40
-    DB #02,#00,#01,#04,#01,#44,#02,#66,#01,#64,#01,#40,#04,#00,#03,#44
-    DB #01,#4C,#02,#44,#01,#4C,#01,#D0,#01,#00,#01,#0D,#01,#00,#01,#04
-    DB #01,#C4,#02,#44,#01,#C4,#01,#44,#01,#4C,#03,#00,#01,#66,#01,#64
-    DB #01,#66,#01,#47,#01,#64,#01,#44,#01,#4B,#06,#66,#01,#6A,#01,#66
-    DB #01,#C6,#02,#00,#01,#0F,#02,#BB,#01,#B0,#04,#00,#01,#07,#01,#7A
-    DB #01,#A7,#01,#70,#0F,#00,#01,#0E,#01,#B0,#0C,#00,#02,#FF,#01,#E0
-    DB #02,#00,#01,#04,#01,#44,#01,#C4,#01,#4C,#01,#44,#01,#04,#01,#4C
-    DB #01,#40,#01,#00,#01,#FE,#01,#AE,#01,#44,#01,#4E,#02,#AA,#01,#44
-    DB #01,#66,#01,#67,#01,#7E,#01,#AE,#01,#AA,#01,#EA,#01,#AA,#01,#EA
-    DB #01,#6B,#02,#66,#01,#44,#01,#C4,#01,#44,#01,#D0,#02,#00,#01,#04
-    DB #01,#44,#02,#66,#01,#44,#01,#40,#03,#00,#09,#44,#01,#00,#01,#0D
-    DB #01,#00,#08,#44,#02,#00,#01,#66,#02,#64,#01,#76,#02,#44,#01,#B6
-    DB #09,#66,#02,#00,#01,#0B,#02,#BB,#01,#EA,#04,#00,#01,#07,#01,#AA
-    DB #01,#A7,#01,#70,#0F,#00,#01,#AB,#01,#BB,#0E,#00,#01,#F0,#02,#00
-    DB #03,#44,#01,#CC,#01,#44,#01,#CC,#02,#44,#01,#0B,#01,#EE,#01,#EA
-    DB #01,#AA,#01,#AE,#01,#64,#01,#E4,#01,#46,#01,#67,#01,#77,#01,#EE
-    DB #01,#AE,#02,#EE,#01,#AE,#01,#64,#02,#66,#01,#64,#03,#44,#01,#4D
-    DB #02,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#40,#02,#00,#01,#04
-    DB #01,#C4,#01,#66,#01,#6C,#01,#46,#01,#64,#05,#44,#01,#4D,#01,#A4
-    DB #02,#44,#03,#66,#03,#44,#01,#D0,#01,#00,#01,#66,#01,#64,#01,#44
-    DB #01,#47,#01,#44,#04,#66,#01,#6A,#06,#66,#02,#00,#01,#AE,#01,#BB
-    DB #01,#BE,#01,#AA,#04,#00,#01,#07,#01,#7A,#01,#77,#01,#70,#0E,#00
-    DB #01,#0A,#01,#BB,#0C,#00,#01,#0E,#02,#FF,#03,#00,#02,#4C,#01,#44
-    DB #01,#C4,#03,#44,#01,#4C,#01,#BE,#01,#EE,#01,#AA,#01,#A4,#01,#46
-    DB #02,#66,#01,#67,#01,#77,#01,#76,#01,#E4,#01,#4E,#01,#64,#02,#46
-    DB #02,#66,#01,#64,#01,#44,#02,#4C,#01,#B4,#01,#40,#01,#D0,#01,#00
-    DB #01,#0C,#01,#D4,#02,#66,#01,#44,#01,#40,#02,#00,#01,#04,#01,#44
-    DB #05,#66,#05,#44,#01,#DA,#02,#44,#03,#66,#03,#44,#01,#40,#01,#00
-    DB #01,#66,#01,#64,#01,#06,#01,#64,#01,#74,#01,#44,#0A,#66,#02,#00
-    DB #01,#AA,#01,#EB,#01,#EA,#01,#AA,#04,#00,#01,#07,#01,#7A,#01,#77
-    DB #01,#A0,#01,#07,#01,#70,#0C,#00,#01,#AB,#02,#B0,#0B,#00,#01,#0F
-    DB #05,#00,#08,#44,#01,#EA,#01,#A4,#01,#E4,#01,#46,#01,#67,#01,#66
-    DB #03,#77,#01,#76,#01,#64,#03,#66,#01,#76,#01,#66,#06,#44,#01,#40
-    DB #01,#30,#01,#00,#01,#04,#01,#44,#02,#66,#01,#44,#01,#40,#01,#20
-    DB #01,#00,#01,#04,#01,#46,#05,#66,#01,#6A,#03,#66,#01,#6A,#03,#66
-    DB #01,#6A,#03,#66,#02,#44,#01,#40,#01,#00,#02,#66,#01,#64,#01,#44
-    DB #01,#40,#01,#04,#01,#46,#09,#66,#02,#00,#01,#AA,#01,#AE,#01,#AA
-    DB #01,#AB,#04,#00,#01,#07,#01,#7A,#01,#A7,#01,#A0,#01,#07,#01,#70
-    DB #0B,#00,#01,#0A,#01,#BB,#03,#00,#01,#FE,#06,#EE,#01,#EF,#03,#00
-    DB #02,#FF,#01,#E0,#02,#00,#01,#44,#01,#46,#01,#66,#02,#44,#01,#4C
-    DB #02,#44,#01,#EE,#02,#46,#01,#66,#06,#77,#02,#76,#01,#67,#03,#77
-    DB #04,#44,#01,#D4,#01,#44,#01,#03,#01,#23,#01,#00,#01,#04,#02,#44
-    DB #01,#66,#01,#44,#01,#CD,#02,#00,#01,#04,#01,#D4,#03,#66,#01,#6B
+    DB #01,#40,#05,#00,#01,#EF,#02,#00,#01,#EF,#09,#00,#01,#0E,#01,#BB
+    DB #01,#88,#01,#EE,#01,#77,#01,#00,#01,#6E,#01,#EE,#01,#6E,#02,#EE
+    DB #01,#E6,#02,#EE,#03,#00,#03,#44,#01,#4C,#02,#44,#01,#4C,#01,#D0
+    DB #01,#00,#01,#0D,#01,#00,#01,#04,#01,#C4,#02,#44,#01,#C4,#01,#44
+    DB #01,#4C,#03,#00,#01,#66,#01,#64,#01,#66,#01,#47,#01,#64,#01,#44
+    DB #01,#4B,#06,#66,#01,#6A,#01,#66,#01,#C6,#02,#00,#01,#0F,#02,#BB
+    DB #01,#B0,#04,#00,#01,#07,#01,#7A,#01,#A7,#01,#70,#0F,#00,#01,#0E
+    DB #01,#B0,#0C,#00,#02,#FF,#01,#E0,#02,#00,#01,#04,#01,#44,#01,#C4
+    DB #01,#4C,#01,#44,#01,#04,#01,#4C,#01,#40,#05,#00,#01,#EF,#02,#00
+    DB #01,#EF,#08,#00,#01,#07,#01,#6B,#02,#8E,#01,#EE,#01,#67,#01,#00
+    DB #01,#76,#01,#66,#03,#77,#01,#70,#02,#77,#02,#00,#09,#44,#01,#00
+    DB #01,#0D,#01,#00,#08,#44,#02,#00,#01,#66,#02,#64,#01,#76,#02,#44
+    DB #01,#B6,#09,#66,#02,#00,#01,#0B,#02,#BB,#01,#EA,#04,#00,#01,#07
+    DB #01,#AA,#01,#A7,#01,#70,#0F,#00,#01,#AB,#01,#BB,#0E,#00,#01,#F0
+    DB #02,#00,#03,#44,#01,#CC,#01,#44,#01,#CC,#02,#44,#05,#00,#01,#EF
+    DB #02,#00,#01,#EF,#08,#00,#01,#76,#01,#8E,#01,#88,#01,#8E,#01,#EE
+    DB #01,#66,#01,#00,#01,#6E,#01,#E6,#01,#70,#01,#77,#01,#70,#01,#77
+    DB #01,#70,#01,#77,#01,#00,#01,#04,#01,#C4,#01,#66,#01,#6C,#01,#46
+    DB #01,#64,#05,#44,#01,#4D,#01,#A4,#02,#44,#03,#66,#03,#44,#01,#D0
+    DB #01,#00,#01,#66,#01,#64,#01,#44,#01,#47,#01,#44,#04,#66,#01,#6A
+    DB #06,#66,#02,#00,#01,#AE,#01,#BB,#01,#BE,#01,#AA,#04,#00,#01,#07
+    DB #01,#7A,#01,#77,#01,#70,#0E,#00,#01,#0A,#01,#BB,#0C,#00,#01,#0E
+    DB #02,#FF,#03,#00,#02,#4C,#01,#44,#01,#C4,#03,#44,#01,#4C,#05,#00
+    DB #01,#EF,#02,#00,#01,#EF,#08,#00,#01,#EB,#01,#EE,#01,#8E,#01,#EE
+    DB #01,#E6,#01,#66,#01,#70,#01,#6E,#01,#E6,#01,#77,#01,#66,#01,#77
+    DB #01,#66,#01,#67,#01,#66,#01,#00,#01,#04,#01,#44,#05,#66,#05,#44
+    DB #01,#DA,#02,#44,#03,#66,#03,#44,#01,#40,#01,#00,#01,#66,#01,#64
+    DB #01,#06,#01,#64,#01,#74,#01,#44,#0A,#66,#02,#00,#01,#AA,#01,#EB
+    DB #01,#EA,#01,#AA,#04,#00,#01,#07,#01,#7A,#01,#77,#01,#A0,#01,#07
+    DB #01,#70,#0C,#00,#01,#AB,#02,#B0,#0B,#00,#01,#0F,#05,#00,#08,#44
+    DB #05,#00,#01,#EF,#02,#00,#01,#EF,#07,#00,#01,#76,#01,#8E,#02,#EE
+    DB #01,#E6,#01,#EE,#01,#66,#01,#67,#01,#6E,#01,#E6,#01,#77,#03,#66
+    DB #01,#67,#01,#66,#01,#00,#01,#04,#01,#46,#05,#66,#01,#6A,#03,#66
+    DB #01,#6A,#03,#66,#01,#6A,#03,#66,#02,#44,#01,#40,#01,#00,#02,#66
+    DB #01,#64,#01,#44,#01,#40,#01,#04,#01,#46,#09,#66,#02,#00,#01,#AA
+    DB #01,#AE,#01,#AA,#01,#AB,#04,#00,#01,#07,#01,#7A,#01,#A7,#01,#A0
+    DB #01,#07,#01,#70,#0B,#00,#01,#0A,#01,#BB,#03,#00,#01,#FE,#06,#EE
+    DB #01,#EF,#03,#00,#02,#FF,#01,#E0,#02,#00,#01,#44,#01,#46,#01,#66
+    DB #02,#44,#01,#4C,#02,#44,#05,#00,#01,#EF,#01,#FF,#01,#0F,#01,#EF
+    DB #01,#FF,#01,#0F,#01,#FF,#01,#0F,#01,#FF,#01,#0F,#01,#FF,#01,#7E
+    DB #01,#8E,#03,#EE,#01,#E6,#01,#6E,#01,#67,#01,#6E,#01,#E6,#01,#77
+    DB #03,#66,#01,#67,#01,#66,#01,#00,#01,#04,#01,#D4,#03,#66,#01,#6B
     DB #0C,#66,#01,#A6,#01,#44,#01,#C4,#01,#40,#01,#00,#02,#66,#01,#44
     DB #01,#D4,#01,#44,#01,#74,#01,#76,#06,#66,#01,#64,#02,#66,#02,#00
     DB #01,#AA,#01,#EF,#01,#EA,#01,#AA,#04,#00,#01,#07,#01,#7A,#01,#77
     DB #01,#70,#0D,#00,#01,#AB,#01,#E0,#01,#B0,#02,#00,#08,#FF,#05,#00
     DB #01,#F0,#02,#00,#01,#46,#01,#66,#01,#44,#01,#66,#01,#64,#01,#66
-    DB #03,#44,#02,#67,#02,#77,#01,#70,#01,#77,#03,#66,#03,#77,#01,#76
-    DB #02,#77,#02,#44,#01,#DC,#01,#44,#01,#D4,#01,#44,#01,#00,#01,#30
-    DB #01,#00,#01,#04,#04,#44,#01,#40,#02,#00,#01,#04,#01,#44,#01,#46
-    DB #05,#66,#01,#64,#01,#46,#04,#66,#01,#B6,#04,#66,#02,#44,#01,#40
-    DB #01,#00,#02,#64,#01,#CD,#01,#2D,#01,#46,#01,#67,#01,#47,#04,#66
-    DB #01,#6D,#04,#66,#02,#00,#01,#AE,#01,#FB,#01,#BE,#01,#AA,#04,#00
-    DB #01,#07,#01,#7A,#01,#A7,#01,#70,#0C,#00,#01,#0A,#01,#BE,#06,#00
-    DB #01,#0F,#07,#00,#01,#0E,#02,#FF,#03,#00,#01,#46,#02,#64,#01,#66
-    DB #01,#64,#01,#66,#01,#64,#01,#46,#02,#66,#03,#77,#01,#67,#01,#66
-    DB #01,#6E,#01,#67,#01,#7E,#01,#67,#01,#77,#01,#66,#01,#76,#01,#67
-    DB #01,#76,#01,#44,#01,#C4,#01,#4D,#01,#44,#01,#4D,#01,#40,#03,#00
-    DB #01,#0D,#01,#40,#03,#44,#01,#40,#03,#00,#02,#44,#01,#46,#02,#66
-    DB #09,#44,#02,#66,#04,#44,#01,#C0,#01,#00,#01,#66,#01,#64,#01,#44
-    DB #01,#D4,#02,#64,#01,#7F,#09,#66,#02,#00,#01,#0F,#02,#BB,#01,#EA
-    DB #04,#00,#01,#07,#01,#7A,#01,#A7,#01,#70,#0B,#00,#01,#EA,#01,#AA
-    DB #01,#E0,#07,#00,#02,#FF,#01,#E0,#04,#00,#01,#0F,#05,#00,#01,#64
-    DB #04,#66,#01,#64,#02,#66,#01,#88,#01,#BE,#01,#67,#01,#77,#01,#76
-    DB #01,#66,#01,#76,#01,#80,#01,#88,#01,#67,#01,#B7,#01,#76,#01,#66
-    DB #01,#76,#01,#67,#01,#6B,#02,#44,#01,#4D,#01,#44,#01,#0D,#05,#00
-    DB #01,#4C,#03,#44,#04,#00,#01,#04,#08,#44,#01,#04,#09,#44,#01,#D4
-    DB #02,#00,#01,#66,#01,#64,#02,#44,#01,#66,#01,#44,#01,#F6,#03,#66
-    DB #01,#62,#05,#66,#02,#00,#01,#0B,#02,#BB,#01,#B0,#04,#00,#01,#07
-    DB #01,#77,#01,#A7,#01,#70,#0A,#00,#01,#0E,#01,#B0,#01,#0B,#01,#E0
-    DB #09,#00,#01,#F0,#05,#00,#02,#FF,#01,#E0,#02,#00,#04,#66,#03,#64
-    DB #01,#66,#01,#00,#01,#0E,#01,#66,#01,#77,#01,#66,#01,#EE,#01,#76
-    DB #01,#E0,#01,#00,#01,#E7,#01,#67,#01,#6E,#01,#EE,#01,#67,#01,#76
-    DB #01,#E0,#02,#44,#01,#40,#01,#D0,#01,#0D,#05,#00,#01,#04,#01,#4D
-    DB #01,#4C,#06,#00,#01,#C4,#02,#44,#01,#4C,#01,#44,#01,#4C,#01,#44
-    DB #01,#40,#01,#00,#01,#4D,#01,#44,#01,#D0,#01,#C4,#03,#44,#01,#C4
-    DB #01,#44,#03,#00,#01,#66,#01,#64,#01,#B4,#01,#44,#01,#46,#01,#4C
-    DB #01,#46,#09,#66,#03,#00,#02,#BB,#05,#00,#01,#07,#01,#77,#01,#A7
-    DB #01,#70,#0A,#00,#01,#0B,#01,#B0,#01,#AB,#01,#E0,#06,#00,#01,#0E
-    DB #02,#FF,#08,#00,#01,#F0,#02,#00,#01,#66,#01,#64,#01,#66,#01,#46
-    DB #01,#66,#01,#64,#02,#66,#02,#00,#01,#E6,#01,#6E,#01,#F6,#01,#66
-    DB #01,#67,#01,#66,#01,#00,#01,#E7,#01,#76,#01,#E0,#01,#00,#01,#E6
-    DB #01,#77,#01,#6E,#05,#00,#01,#D0,#16,#00,#01,#0D,#06,#00,#01,#20
-    DB #04,#00,#02,#66,#01,#6B,#0A,#66,#01,#44,#02,#66,#03,#00,#01,#0B
-    DB #01,#B0,#05,#00,#01,#07,#01,#77,#01,#AA,#01,#70,#0B,#00,#01,#BA
-    DB #01,#BE,#07,#00,#01,#0F,#07,#00,#01,#0E,#02,#FF,#03,#00,#03,#66
-    DB #01,#46,#02,#66,#01,#64,#01,#66,#02,#00,#01,#0E,#01,#EE,#01,#06
-    DB #02,#67,#01,#77,#03,#66,#02,#00,#01,#06,#02,#66,#1C,#00,#01,#D2
-    DB #01,#D0,#0A,#00,#01,#64,#01,#46,#01,#66,#01,#64,#03,#66,#01,#46
-    DB #08,#66,#0A,#00,#01,#07,#01,#77,#01,#A7,#01,#70,#0B,#00,#01,#0B
-    DB #01,#E0,#08,#00,#02,#FF,#01,#F0,#04,#00,#01,#0F,#05,#00,#01,#66
-    DB #01,#46,#03,#66,#02,#64,#01,#66,#05,#00,#01,#E6,#01,#EE,#01,#E7
-    DB #01,#77,#01,#76,#01,#66,#01,#80,#01,#00,#01,#E8,#01,#E7,#01,#76
-    DB #1C,#00,#01,#0D,#0B,#00,#10,#66,#0A,#00,#01,#07,#01,#7A,#01,#A7
-    DB #01,#70,#15,#00,#02,#FF,#01,#F0,#05,#00,#02,#FF,#01,#F0,#02,#00
-    DB #01,#46,#01,#66,#02,#64,#01,#46,#02,#66,#01,#46,#07,#00,#01,#E6
-    DB #01,#76,#01,#77,#01,#66,#01,#EE,#01,#0E,#01,#6E,#01,#67,#01,#66
-    DB #42,#00,#01,#07,#01,#7A,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#7A
-    DB #01,#AA,#01,#70,#7C,#00,#01,#07,#01,#7A,#01,#AA,#01,#70,#7C,#00
-    DB #01,#07,#01,#7A,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#AA,#01,#A7
-    DB #01,#70,#7C,#00,#01,#07,#01,#7A,#01,#77,#01,#70,#7C,#00,#01,#07
-    DB #01,#7A,#01,#77,#01,#A0,#01,#07,#01,#70,#7A,#00,#01,#07,#01,#7A
-    DB #01,#A7,#01,#A0,#01,#07,#01,#70,#7A,#00,#01,#07,#01,#7A,#01,#77
-    DB #01,#70,#7C,#00,#01,#07,#01,#7A,#01,#A7,#01,#70,#7C,#00,#01,#07
-    DB #01,#7A,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#77,#01,#A7,#01,#70
-    DB #7C,#00,#01,#07,#01,#77,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#77
-    DB #01,#AA,#01,#70,#7C,#00,#01,#07,#01,#77,#01,#A7,#01,#70,#7C,#00
-    DB #01,#07,#01,#7A,#01,#A7,#01,#70,#3A,#00,#01,#66,#01,#6E,#01,#80
-    DB #01,#AA,#0D,#00,#01,#E6,#02,#66,#01,#0E,#01,#66,#01,#77,#01,#EE
-    DB #01,#67,#01,#66,#01,#E0,#01,#00,#01,#66,#01,#EF,#03,#00,#01,#04
-    DB #01,#44,#01,#64,#04,#66,#01,#44,#01,#48,#01,#00,#01,#67,#01,#76
-    DB #02,#66,#01,#0F,#01,#76,#01,#66,#01,#E0,#01,#06,#02,#66,#01,#67
-    DB #01,#77,#05,#00,#01,#FF,#01,#00,#01,#10,#01,#FF,#01,#00,#01,#10
-    DB #08,#00,#03,#77,#02,#00,#01,#7E,#01,#E6,#01,#6E,#02,#EE,#01,#67
-    DB #01,#6E,#01,#EE,#08,#00,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67
-    DB #04,#66,#01,#77,#01,#B7,#01,#07,#01,#EE,#01,#E6,#02,#EE,#01,#76
-    DB #02,#EE,#01,#E6,#01,#6E,#01,#67,#01,#6E,#01,#E6,#01,#77,#03,#66
-    DB #01,#67,#01,#66,#01,#E6,#01,#4E,#02,#EA,#01,#AB,#0C,#00,#01,#0E
-    DB #01,#76,#01,#66,#01,#00,#01,#E7,#01,#66,#01,#00,#01,#86,#01,#66
-    DB #01,#E0,#01,#0E,#01,#66,#01,#60,#03,#00,#01,#0E,#01,#44,#01,#66
-    DB #01,#77,#01,#E6,#01,#60,#01,#E6,#01,#46,#01,#EF,#01,#0B,#01,#77
-    DB #01,#76,#02,#66,#01,#0F,#01,#76,#01,#66,#01,#6E,#01,#00,#01,#04
-    DB #01,#66,#01,#77,#01,#66,#05,#00,#01,#EF,#01,#00,#01,#10,#01,#EF
-    DB #01,#00,#01,#10,#07,#00,#01,#07,#01,#E8,#01,#EE,#01,#67,#02,#00
-    DB #01,#6E,#01,#E6,#03,#EE,#01,#E6,#01,#AE,#01,#EE,#08,#00,#01,#6E
-    DB #01,#E6,#01,#77,#01,#66,#01,#67,#01,#66,#01,#67,#02,#66,#01,#76
-    DB #01,#66,#01,#77,#01,#A7,#01,#77,#01,#6E,#01,#E6,#02,#EE,#01,#6E
-    DB #02,#EE,#01,#E6,#01,#6E,#01,#E6,#01,#6E,#01,#E6,#01,#77,#01,#66
-    DB #01,#67,#01,#66,#01,#67,#01,#66,#01,#A4,#01,#AA,#01,#A4,#01,#EA
-    DB #01,#AA,#01,#A0,#09,#00,#01,#06,#01,#6E,#01,#06,#01,#66,#01,#60
-    DB #01,#00,#01,#B6,#01,#66,#01,#00,#01,#0E,#01,#76,#01,#6E,#02,#66
-    DB #01,#60,#04,#00,#01,#04,#02,#66,#01,#EE,#02,#6E,#02,#00,#01,#08
-    DB #01,#77,#01,#76,#02,#66,#01,#EF,#01,#76,#01,#66,#01,#68,#01,#00
-    DB #01,#0E,#01,#66,#01,#E7,#01,#68,#05,#00,#01,#EF,#02,#00,#01,#EF
-    DB #09,#00,#01,#0E,#01,#BB,#01,#88,#01,#EE,#01,#77,#01,#00,#01,#6E
-    DB #01,#EE,#01,#6E,#02,#EE,#01,#E6,#04,#EE,#01,#6E,#02,#EE,#01,#E6
-    DB #01,#EE,#01,#E6,#01,#76,#01,#66,#01,#07,#08,#66,#01,#76,#01,#67
-    DB #01,#00,#01,#66,#01,#67,#02,#EE,#01,#6E,#02,#EE,#01,#E6,#01,#EE
-    DB #01,#E6,#01,#76,#01,#66,#01,#07,#06,#66,#01,#EA,#01,#AA,#01,#AE
-    DB #01,#EE,#01,#EB,#09,#00,#01,#06,#01,#7E,#01,#E6,#01,#66,#01,#E0
-    DB #01,#00,#01,#06,#01,#66,#01,#E0,#01,#0E,#03,#66,#01,#7E,#05,#00
-    DB #01,#06,#01,#66,#01,#A6,#01,#66,#01,#76,#01,#60,#02,#00,#01,#06
-    DB #01,#67,#01,#76,#02,#66,#01,#E0,#01,#67,#02,#66,#01,#00,#01,#0B
-    DB #01,#EE,#01,#06,#01,#76,#05,#00,#01,#EF,#02,#00,#01,#EF,#08,#00
-    DB #01,#07,#01,#6B,#02,#8E,#01,#EE,#01,#67,#01,#00,#01,#76,#01,#66
-    DB #03,#77,#01,#70,#03,#77,#01,#67,#01,#07,#03,#77,#01,#66,#01,#60
-    DB #01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#04,#66,#01,#76,#01,#66
-    DB #01,#07,#01,#6E,#01,#E6,#01,#77,#01,#67,#01,#07,#03,#77,#01,#66
-    DB #01,#60,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#01,#66,#01,#64
-    DB #01,#4E,#01,#E4,#01,#EA,#01,#AE,#01,#EA,#0A,#00,#02,#66,#01,#6E
-    DB #01,#F0,#01,#00,#01,#06,#01,#66,#01,#E0,#01,#0F,#01,#67,#02,#66
-    DB #01,#E0,#06,#00,#01,#0F,#01,#00,#01,#BE,#01,#66,#01,#6E,#01,#FB
-    DB #01,#0E,#01,#66,#01,#67,#01,#76,#01,#67,#01,#66,#01,#6E,#01,#67
-    DB #02,#66,#01,#80,#01,#00,#01,#F0,#01,#0E,#01,#66,#05,#00,#01,#EF
-    DB #02,#00,#01,#EF,#08,#00,#01,#76,#01,#8E,#01,#88,#01,#8E,#01,#EE
-    DB #01,#66,#01,#00,#01,#6E,#01,#E6,#01,#70,#01,#77,#01,#70,#01,#77
-    DB #01,#70,#02,#77,#01,#07,#01,#77,#01,#07,#01,#77,#01,#07,#01,#6E
+    DB #02,#44,#05,#00,#01,#EF,#02,#0F,#01,#EF,#07,#0F,#01,#68,#04,#EE
+    DB #01,#67,#01,#66,#01,#67,#01,#76,#01,#66,#01,#07,#01,#77,#03,#67
+    DB #01,#66,#01,#00,#01,#04,#01,#44,#01,#46,#05,#66,#01,#64,#01,#46
+    DB #04,#66,#01,#B6,#04,#66,#02,#44,#01,#40,#01,#00,#02,#64,#01,#CD
+    DB #01,#2D,#01,#46,#01,#67,#01,#47,#04,#66,#01,#6D,#04,#66,#02,#00
+    DB #01,#AE,#01,#FB,#01,#BE,#01,#AA,#04,#00,#01,#07,#01,#7A,#01,#A7
+    DB #01,#70,#0C,#00,#01,#0A,#01,#BE,#06,#00,#01,#0F,#07,#00,#01,#0E
+    DB #02,#FF,#03,#00,#01,#46,#02,#64,#01,#66,#01,#64,#01,#66,#01,#64
+    DB #01,#46,#05,#00,#01,#EF,#01,#0F,#01,#FF,#01,#EF,#01,#0F,#01,#FF
+    DB #01,#0F,#01,#FF,#01,#0F,#01,#FF,#01,#0F,#01,#7E,#04,#EE,#01,#67
+    DB #01,#66,#01,#77,#01,#6E,#01,#E6,#01,#70,#05,#77,#02,#00,#02,#44
+    DB #01,#46,#02,#66,#09,#44,#02,#66,#04,#44,#01,#C0,#01,#00,#01,#66
+    DB #01,#64,#01,#44,#01,#D4,#02,#64,#01,#7F,#09,#66,#02,#00,#01,#0F
+    DB #02,#BB,#01,#EA,#04,#00,#01,#07,#01,#7A,#01,#A7,#01,#70,#0B,#00
+    DB #01,#EA,#01,#AA,#01,#E0,#07,#00,#02,#FF,#01,#E0,#04,#00,#01,#0F
+    DB #05,#00,#01,#64,#04,#66,#01,#64,#02,#66,#05,#00,#01,#EF,#02,#00
+    DB #01,#EF,#07,#00,#01,#7E,#01,#EE,#01,#E6,#01,#EE,#02,#66,#01,#67
+    DB #01,#70,#01,#6E,#01,#E6,#02,#70,#01,#77,#01,#70,#01,#77,#01,#70
+    DB #02,#00,#01,#04,#08,#44,#01,#04,#09,#44,#01,#D4,#02,#00,#01,#66
+    DB #01,#64,#02,#44,#01,#66,#01,#44,#01,#F6,#03,#66,#01,#62,#05,#66
+    DB #02,#00,#01,#0B,#02,#BB,#01,#B0,#04,#00,#01,#07,#01,#77,#01,#A7
+    DB #01,#70,#0A,#00,#01,#0E,#01,#B0,#01,#0B,#01,#E0,#09,#00,#01,#F0
+    DB #05,#00,#02,#FF,#01,#E0,#02,#00,#04,#66,#03,#64,#01,#66,#05,#00
+    DB #01,#EF,#02,#00,#01,#EF,#07,#00,#01,#76,#01,#EE,#01,#66,#01,#E6
+    DB #02,#66,#01,#67,#01,#70,#01,#6E,#01,#E6,#01,#77,#01,#76,#01,#67
+    DB #01,#66,#01,#67,#01,#66,#03,#00,#01,#C4,#02,#44,#01,#4C,#01,#44
+    DB #01,#4C,#01,#44,#01,#40,#01,#00,#01,#4D,#01,#44,#01,#D0,#01,#C4
+    DB #03,#44,#01,#C4,#01,#44,#03,#00,#01,#66,#01,#64,#01,#B4,#01,#44
+    DB #01,#46,#01,#4C,#01,#46,#09,#66,#03,#00,#02,#BB,#05,#00,#01,#07
+    DB #01,#77,#01,#A7,#01,#70,#0A,#00,#01,#0B,#01,#B0,#01,#AB,#01,#E0
+    DB #06,#00,#01,#0E,#02,#FF,#08,#00,#01,#F0,#02,#00,#01,#66,#01,#64
+    DB #01,#66,#01,#46,#01,#66,#01,#64,#02,#66,#05,#00,#01,#EF,#02,#00
+    DB #01,#EF,#07,#00,#01,#77,#01,#66,#01,#76,#03,#66,#01,#70,#01,#00
+    DB #01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#01,#66,#0C,#00,#01,#0D
+    DB #06,#00,#01,#20,#04,#00,#02,#66,#01,#6B,#0A,#66,#01,#44,#02,#66
+    DB #03,#00,#01,#0B,#01,#B0,#05,#00,#01,#07,#01,#77,#01,#AA,#01,#70
+    DB #0B,#00,#01,#BA,#01,#BE,#07,#00,#01,#0F,#07,#00,#01,#0E,#02,#FF
+    DB #03,#00,#03,#66,#01,#46,#02,#66,#01,#64,#01,#66,#05,#00,#01,#EF
+    DB #02,#00,#01,#EF,#08,#00,#01,#77,#01,#76,#01,#67,#01,#66,#01,#77
+    DB #01,#70,#01,#00,#01,#76,#01,#67,#01,#07,#01,#66,#01,#67,#01,#66
+    DB #01,#67,#01,#66,#0C,#00,#01,#D2,#01,#D0,#0A,#00,#01,#64,#01,#46
+    DB #01,#66,#01,#64,#03,#66,#01,#46,#08,#66,#0A,#00,#01,#07,#01,#77
+    DB #01,#A7,#01,#70,#0B,#00,#01,#0B,#01,#E0,#08,#00,#02,#FF,#01,#F0
+    DB #04,#00,#01,#0F,#05,#00,#01,#66,#01,#46,#03,#66,#02,#64,#01,#66
+    DB #05,#00,#01,#EF,#02,#00,#01,#EF,#09,#00,#03,#77,#03,#00,#01,#6E
+    DB #01,#E6,#01,#77,#01,#66,#01,#67,#01,#66,#01,#67,#01,#66,#0C,#00
+    DB #01,#0D,#0B,#00,#10,#66,#0A,#00,#01,#07,#01,#7A,#01,#A7,#01,#70
+    DB #15,#00,#02,#FF,#01,#F0,#05,#00,#02,#FF,#01,#F0,#02,#00,#01,#46
+    DB #01,#66,#02,#64,#01,#46,#02,#66,#01,#46,#05,#00,#01,#FF,#02,#00
+    DB #01,#FF,#09,#00,#01,#07,#01,#00,#01,#07,#03,#00,#01,#6E,#01,#E6
+    DB #01,#77,#03,#66,#01,#67,#01,#66,#32,#00,#01,#07,#01,#7A,#01,#A7
+    DB #01,#70,#7C,#00,#01,#07,#01,#7A,#01,#AA,#01,#70,#7C,#00,#01,#07
+    DB #01,#7A,#01,#AA,#01,#70,#7C,#00,#01,#07,#01,#7A,#01,#A7,#01,#70
+    DB #7C,#00,#01,#07,#01,#AA,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#7A
+    DB #01,#77,#01,#70,#7C,#00,#01,#07,#01,#7A,#01,#77,#01,#A0,#01,#07
+    DB #01,#70,#7A,#00,#01,#07,#01,#7A,#01,#A7,#01,#A0,#01,#07,#01,#70
+    DB #7A,#00,#01,#07,#01,#7A,#01,#77,#01,#70,#7C,#00,#01,#07,#01,#7A
+    DB #01,#A7,#01,#70,#7C,#00,#01,#07,#01,#7A,#01,#A7,#01,#70,#7C,#00
+    DB #01,#07,#01,#77,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#77,#01,#A7
+    DB #01,#70,#7C,#00,#01,#07,#01,#77,#01,#AA,#01,#70,#7C,#00,#01,#07
+    DB #01,#77,#01,#A7,#01,#70,#7C,#00,#01,#07,#01,#7A,#01,#A7,#01,#70
+    DB #52,#00,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#04,#66,#01,#77
+    DB #01,#B7,#01,#07,#01,#EE,#01,#E6,#02,#EE,#01,#76,#02,#EE,#01,#E6
+    DB #01,#6E,#01,#67,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#01,#66
+    DB #01,#76,#04,#66,#01,#06,#09,#66,#02,#67,#02,#66,#01,#76,#02,#66
+    DB #01,#76,#01,#66,#05,#77,#01,#0A,#01,#A0,#02,#76,#04,#66,#01,#06
+    DB #04,#66,#01,#60,#01,#06,#03,#66,#01,#67,#01,#07,#0C,#77,#01,#0A
+    DB #01,#A0,#01,#70,#03,#00,#01,#07,#01,#77,#03,#00,#01,#22,#01,#44
+    DB #01,#77,#01,#4D,#01,#AC,#01,#57,#01,#44,#01,#22,#02,#66,#01,#60
+    DB #01,#66,#01,#64,#01,#C6,#02,#66,#08,#00,#01,#6E,#01,#E6,#01,#77
+    DB #01,#66,#01,#67,#01,#66,#01,#67,#02,#66,#01,#76,#01,#66,#01,#77
+    DB #01,#A7,#01,#77,#01,#6E,#01,#E6,#02,#EE,#01,#6E,#02,#EE,#01,#E6
+    DB #01,#6E,#01,#E6,#01,#6E,#01,#E6,#01,#77,#01,#66,#01,#67,#01,#66
+    DB #01,#67,#01,#66,#01,#67,#08,#77,#01,#70,#02,#77,#01,#70,#02,#77
+    DB #01,#76,#01,#07,#01,#76,#01,#66,#01,#76,#05,#66,#01,#67,#02,#66
+    DB #01,#67,#01,#0A,#01,#A0,#01,#76,#01,#67,#08,#77,#01,#70,#02,#77
+    DB #01,#70,#02,#77,#01,#70,#01,#67,#01,#76,#01,#66,#01,#76,#01,#67
+    DB #01,#66,#01,#77,#02,#66,#01,#67,#02,#66,#01,#67,#01,#0A,#01,#06
+    DB #01,#70,#03,#00,#01,#77,#01,#27,#03,#00,#02,#44,#01,#E0,#01,#7D
+    DB #01,#A4,#01,#74,#01,#BA,#01,#77,#03,#66,#01,#06,#04,#66,#02,#EE
+    DB #01,#6E,#02,#EE,#01,#E6,#01,#EE,#01,#E6,#01,#76,#01,#66,#01,#07
+    DB #08,#66,#01,#76,#01,#67,#01,#00,#01,#66,#01,#67,#02,#EE,#01,#6E
+    DB #02,#EE,#01,#E6,#01,#EE,#01,#E6,#01,#76,#01,#66,#01,#07,#05,#66
+    DB #01,#07,#01,#76,#01,#67,#01,#76,#02,#66,#01,#76,#01,#66,#01,#76
+    DB #01,#67,#01,#66,#01,#76,#03,#67,#01,#76,#01,#67,#01,#76,#01,#66
+    DB #01,#76,#06,#66,#01,#76,#01,#66,#01,#77,#01,#0A,#01,#A0,#01,#76
+    DB #01,#67,#01,#76,#01,#67,#01,#76,#02,#66,#01,#76,#01,#66,#01,#76
+    DB #01,#67,#01,#66,#01,#76,#02,#67,#01,#66,#01,#70,#01,#67,#01,#76
+    DB #01,#66,#01,#76,#01,#67,#01,#66,#01,#77,#02,#66,#01,#67,#02,#66
+    DB #01,#60,#01,#A0,#01,#66,#01,#70,#02,#00,#01,#07,#01,#7A,#01,#AE
+    DB #01,#70,#02,#00,#01,#47,#01,#7A,#01,#A4,#01,#7D,#01,#A4,#01,#74
+    DB #01,#A7,#01,#70,#03,#66,#01,#00,#04,#66,#01,#77,#01,#67,#01,#07
+    DB #03,#77,#01,#66,#01,#60,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67
+    DB #04,#66,#01,#76,#01,#66,#01,#07,#01,#6E,#01,#E6,#01,#77,#01,#67
+    DB #01,#07,#03,#77,#01,#66,#01,#60,#01,#6E,#01,#E6,#01,#77,#03,#66
+    DB #01,#67,#01,#66,#01,#07,#01,#7A,#01,#AA,#01,#7A,#01,#AA,#01,#A6
+    DB #01,#AA,#01,#A6,#01,#6A,#01,#AA,#01,#A6,#01,#6A,#01,#AA,#01,#A6
+    DB #01,#67,#01,#76,#01,#67,#02,#66,#01,#76,#02,#66,#01,#76,#03,#66
+    DB #01,#76,#01,#67,#01,#70,#01,#A0,#01,#0A,#01,#76,#01,#67,#02,#66
+    DB #01,#76,#05,#66,#01,#67,#02,#66,#01,#67,#02,#66,#01,#70,#01,#67
+    DB #01,#76,#01,#67,#01,#76,#01,#67,#01,#66,#01,#76,#02,#66,#01,#67
+    DB #02,#66,#01,#67,#01,#06,#01,#66,#01,#70,#02,#00,#01,#06,#01,#70
+    DB #01,#BE,#01,#70,#03,#00,#01,#77,#01,#40,#01,#7D,#01,#A4,#01,#07
+    DB #01,#77,#01,#00,#01,#66,#01,#46,#01,#66,#01,#46,#01,#0C,#02,#66
+    DB #01,#C0,#01,#77,#01,#07,#01,#77,#01,#07,#01,#77,#01,#07,#01,#6E
     DB #01,#E7,#01,#6E,#01,#E6,#01,#77,#01,#66,#01,#67,#01,#66,#01,#67
     DB #04,#66,#01,#76,#02,#77,#01,#6E,#01,#E6,#01,#77,#01,#07,#01,#77
     DB #01,#07,#01,#77,#01,#07,#01,#6E,#01,#E7,#01,#6E,#01,#E6,#01,#77
-    DB #01,#66,#01,#67,#01,#66,#01,#67,#01,#66,#01,#76,#01,#66,#01,#4E
-    DB #01,#6E,#01,#4A,#01,#AE,#01,#B0,#09,#00,#01,#E6,#01,#76,#01,#68
-    DB #02,#00,#01,#E6,#01,#66,#01,#E0,#01,#0F,#01,#E7,#01,#66,#01,#6E
-    DB #03,#00,#01,#A4,#06,#00,#01,#67,#01,#6E,#01,#FB,#01,#06,#01,#76
-    DB #01,#67,#01,#7E,#01,#67,#01,#66,#01,#7E,#01,#77,#02,#66,#01,#EF
-    DB #01,#B0,#01,#0E,#01,#EE,#01,#66,#05,#00,#01,#EF,#02,#00,#01,#EF
-    DB #08,#00,#01,#EB,#01,#EE,#01,#8E,#01,#EE,#01,#E6,#01,#66,#01,#70
-    DB #01,#6E,#01,#E6,#01,#77,#01,#66,#01,#77,#01,#66,#01,#67,#02,#66
-    DB #01,#76,#01,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#6E
-    DB #01,#E6,#01,#77,#01,#66,#01,#67,#01,#66,#01,#67,#02,#66,#01,#76
-    DB #01,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#66,#01,#76
+    DB #01,#66,#01,#67,#01,#66,#01,#67,#01,#66,#01,#07,#01,#A0,#01,#00
+    DB #01,#A0,#01,#00,#01,#0A,#01,#00,#01,#0A,#01,#A0,#01,#00,#01,#0A
+    DB #01,#A0,#01,#00,#01,#0A,#01,#67,#01,#76,#01,#67,#02,#66,#01,#76
+    DB #02,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#77,#01,#0A,#01,#A0
+    DB #01,#76,#01,#67,#01,#76,#01,#66,#01,#76,#08,#66,#01,#67,#02,#66
+    DB #01,#70,#01,#67,#01,#76,#01,#66,#01,#76,#01,#66,#02,#76,#02,#66
+    DB #01,#67,#02,#66,#02,#67,#01,#77,#01,#70,#02,#00,#01,#76,#01,#4B
+    DB #01,#BA,#01,#47,#04,#00,#01,#77,#01,#4D,#01,#C4,#01,#70,#02,#00
+    DB #01,#66,#01,#6C,#02,#66,#01,#40,#02,#66,#01,#06,#01,#66,#01,#76
     DB #01,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#6E,#01,#E6
-    DB #01,#77,#01,#66,#01,#67,#01,#66,#01,#67,#01,#66,#01,#77,#01,#67
-    DB #01,#66,#01,#46,#01,#44,#02,#EA,#09,#00,#01,#0E,#01,#76,#01,#66
-    DB #01,#B0,#01,#0E,#02,#66,#02,#00,#01,#07,#01,#66,#01,#6B,#02,#00
-    DB #01,#0E,#01,#EE,#05,#00,#01,#0A,#01,#A6,#01,#76,#01,#AE,#01,#66
-    DB #01,#67,#01,#77,#01,#6E,#01,#67,#01,#76,#01,#67,#01,#76,#01,#66
-    DB #01,#76,#01,#6E,#01,#E0,#01,#BA,#01,#E6,#01,#76,#05,#00,#01,#EF
-    DB #02,#00,#01,#EF,#07,#00,#01,#76,#01,#8E,#02,#EE,#01,#E6,#01,#EE
-    DB #01,#66,#01,#67,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#02,#66
-    DB #01,#76,#01,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#76
-    DB #01,#66,#03,#77,#01,#66,#03,#67,#01,#77,#01,#67,#01,#76,#02,#77
-    DB #01,#6E,#01,#67,#01,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77
-    DB #01,#6E,#01,#E6,#01,#76,#01,#66,#03,#77,#01,#66,#02,#67,#02,#77
-    DB #01,#76,#01,#67,#02,#64,#01,#4E,#06,#00,#01,#AA,#02,#00,#01,#0E
-    DB #01,#76,#01,#66,#01,#EE,#01,#E6,#01,#66,#01,#6E,#02,#00,#01,#06
-    DB #01,#66,#01,#6F,#02,#00,#02,#EE,#05,#00,#01,#BA,#01,#E6,#01,#76
-    DB #01,#6E,#01,#66,#01,#67,#01,#77,#01,#66,#01,#67,#01,#77,#03,#66
-    DB #01,#76,#01,#66,#01,#6B,#01,#EE,#01,#A6,#01,#76,#05,#00,#01,#EF
-    DB #01,#FF,#01,#0F,#01,#EF,#01,#FF,#01,#0F,#01,#FF,#01,#0F,#01,#FF
-    DB #01,#0F,#01,#FF,#01,#7E,#01,#8E,#03,#EE,#01,#E6,#01,#6E,#01,#67
-    DB #01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#02,#66,#01,#76,#01,#66
+    DB #01,#77,#01,#66,#01,#67,#01,#66,#01,#67,#02,#66,#01,#76,#01,#66
+    DB #01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#66,#01,#76,#01,#66
+    DB #01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#6E,#01,#E6,#01,#77
+    DB #01,#66,#01,#67,#01,#66,#01,#67,#01,#66,#01,#77,#01,#00,#01,#66
+    DB #01,#06,#01,#00,#01,#60,#01,#76,#01,#00,#01,#60,#01,#06,#01,#00
+    DB #01,#60,#01,#06,#02,#67,#01,#76,#01,#67,#02,#66,#01,#76,#02,#66
+    DB #01,#76,#02,#66,#01,#67,#02,#66,#01,#67,#01,#70,#01,#07,#01,#76
+    DB #01,#77,#01,#76,#01,#66,#02,#76,#01,#66,#01,#77,#01,#66,#01,#67
+    DB #01,#77,#02,#67,#01,#77,#02,#67,#01,#70,#01,#67,#01,#76,#01,#66
+    DB #01,#76,#02,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#67,#02,#66
+    DB #01,#70,#02,#00,#01,#77,#01,#4A,#01,#44,#01,#07,#04,#00,#01,#77
+    DB #01,#DD,#01,#C4,#01,#77,#01,#70,#01,#00,#04,#66,#01,#40,#02,#00
+    DB #02,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6
+    DB #01,#76,#01,#66,#03,#77,#01,#66,#03,#67,#01,#77,#01,#67,#01,#76
+    DB #02,#77,#01,#6E,#01,#67,#01,#66,#01,#76,#01,#66,#01,#76,#01,#66
+    DB #01,#77,#01,#6E,#01,#E6,#01,#76,#01,#66,#03,#77,#01,#66,#03,#67
+    DB #01,#00,#02,#66,#01,#00,#01,#60,#01,#66,#01,#00,#01,#60,#01,#06
+    DB #01,#00,#01,#60,#01,#06,#01,#66,#01,#67,#01,#76,#01,#67,#02,#77
+    DB #01,#76,#01,#77,#01,#76,#02,#77,#01,#67,#01,#77,#01,#76,#04,#77
+    DB #01,#76,#01,#67,#0E,#66,#01,#70,#01,#67,#07,#77,#01,#67,#01,#77
+    DB #01,#76,#02,#77,#01,#67,#01,#77,#01,#70,#02,#00,#01,#77,#01,#47
+    DB #01,#77,#02,#70,#03,#00,#01,#74,#01,#DA,#01,#45,#01,#70,#02,#00
+    DB #03,#66,#01,#64,#01,#40,#01,#00,#01,#76,#02,#66,#01,#76,#01,#66
     DB #01,#76,#01,#66,#01,#77,#01,#6E,#01,#E7,#01,#6E,#01,#E6,#01,#70
     DB #01,#76,#01,#77,#01,#76,#01,#77,#01,#76,#04,#77,#01,#67,#01,#07
     DB #01,#6E,#01,#E7,#01,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77
     DB #01,#6E,#01,#E7,#01,#6E,#01,#E6,#01,#70,#01,#76,#01,#77,#01,#76
-    DB #01,#77,#01,#76,#01,#67,#01,#76,#01,#67,#01,#77,#01,#76,#01,#64
-    DB #01,#EB,#04,#00,#01,#0B,#01,#BE,#01,#AE,#01,#BA,#01,#E8,#01,#00
-    DB #05,#66,#01,#E0,#02,#00,#01,#B7,#01,#66,#01,#6B,#01,#00,#01,#0E
-    DB #01,#64,#01,#4A,#04,#00,#01,#BA,#01,#AA,#02,#66,#01,#E6,#02,#67
-    DB #02,#66,#01,#67,#01,#76,#01,#77,#01,#66,#02,#67,#02,#66,#01,#64
-    DB #02,#66,#05,#00,#01,#EF,#02,#0F,#01,#EF,#07,#0F,#01,#68,#04,#EE
-    DB #01,#67,#01,#66,#01,#67,#01,#76,#01,#66,#01,#07,#01,#77,#03,#67
+    DB #01,#77,#01,#76,#01,#67,#01,#77,#01,#00,#01,#77,#01,#00,#01,#70
+    DB #01,#77,#01,#00,#01,#70,#01,#00,#01,#07,#01,#70,#01,#00,#01,#07
+    DB #01,#77,#01,#76,#01,#07,#0D,#66,#01,#67,#01,#76,#01,#60,#01,#77
+    DB #01,#67,#01,#77,#01,#76,#01,#67,#01,#77,#01,#76,#02,#77,#01,#7E
+    DB #02,#77,#01,#76,#01,#77,#01,#70,#01,#67,#01,#76,#0D,#66,#01,#70
+    DB #02,#00,#01,#77,#01,#A4,#01,#47,#01,#70,#03,#00,#01,#07,#01,#7D
+    DB #01,#A4,#01,#57,#01,#77,#02,#00,#03,#66,#01,#40,#02,#00,#01,#76
     DB #01,#66,#01,#67,#02,#77,#01,#76,#01,#77,#01,#70,#01,#66,#01,#67
     DB #01,#6E,#01,#E6,#02,#70,#01,#77,#01,#70,#01,#77,#01,#70,#01,#77
     DB #01,#70,#01,#07,#01,#77,#02,#07,#01,#6E,#01,#E6,#01,#67,#02,#77
     DB #01,#76,#01,#77,#01,#70,#01,#66,#01,#67,#01,#6E,#01,#E6,#02,#70
-    DB #01,#77,#01,#70,#01,#77,#01,#70,#01,#E7,#01,#77,#01,#67,#01,#66
-    DB #01,#6E,#01,#EE,#01,#E0,#04,#00,#01,#0A,#01,#EA,#01,#AE,#01,#AA
-    DB #01,#EE,#01,#00,#01,#E6,#02,#66,#01,#76,#01,#6E,#03,#00,#01,#E7
-    DB #01,#66,#01,#6B,#01,#00,#01,#08,#01,#E6,#01,#44,#03,#00,#01,#0B
-    DB #01,#AE,#01,#E4,#03,#66,#01,#67,#01,#44,#01,#66,#01,#67,#01,#E7
-    DB #01,#7E,#01,#67,#01,#66,#01,#76,#01,#A7,#05,#66,#05,#00,#01,#EF
-    DB #01,#0F,#01,#FF,#01,#EF,#01,#0F,#01,#FF,#01,#0F,#01,#FF,#01,#0F
-    DB #01,#FF,#01,#0F,#01,#7E,#04,#EE,#01,#67,#01,#66,#01,#77,#01,#6E
-    DB #01,#E6,#01,#70,#0A,#77,#01,#07,#01,#6E,#01,#E6,#01,#6E,#01,#E6
-    DB #0B,#77,#01,#07,#01,#6E,#01,#E6,#05,#77,#01,#07,#01,#6E,#01,#E6
-    DB #01,#6E,#01,#E6,#06,#77,#01,#BE,#01,#7E,#02,#66,#01,#80,#06,#00
-    DB #01,#EE,#01,#4A,#01,#EA,#01,#AE,#01,#46,#01,#E0,#01,#0E,#01,#67
-    DB #02,#66,#01,#7B,#02,#00,#01,#0E,#02,#66,#01,#E0,#01,#00,#01,#EE
-    DB #01,#A4,#01,#64,#03,#00,#01,#0A,#01,#BE,#02,#EE,#01,#E6,#01,#66
-    DB #01,#EA,#01,#66,#02,#76,#02,#E6,#01,#EE,#03,#66,#01,#E6,#01,#66
-    DB #01,#76,#01,#AE,#01,#EE,#05,#00,#01,#EF,#02,#00,#01,#EF,#07,#00
-    DB #01,#7E,#01,#EE,#01,#E6,#01,#EE,#02,#66,#01,#67,#01,#70,#01,#6E
-    DB #01,#E6,#02,#70,#01,#77,#01,#70,#01,#77,#01,#70,#01,#77,#01,#70
-    DB #01,#07,#01,#77,#02,#07,#01,#6E,#01,#E6,#01,#7E,#01,#E6,#01,#77
-    DB #01,#66,#01,#67,#01,#66,#01,#67,#02,#66,#01,#76,#01,#66,#01,#76
-    DB #01,#66,#01,#77,#01,#6E,#01,#E7,#01,#77,#01,#70,#01,#07,#01,#77
-    DB #02,#07,#01,#6E,#01,#E6,#01,#7E,#01,#E6,#01,#77,#01,#66,#01,#67
-    DB #01,#66,#01,#67,#02,#66,#01,#6E,#01,#86,#01,#6E,#07,#00,#01,#AE
-    DB #02,#44,#01,#E4,#01,#44,#01,#B0,#01,#00,#01,#E7,#01,#76,#01,#66
-    DB #01,#6B,#02,#00,#01,#0E,#01,#76,#01,#66,#01,#B0,#01,#0E,#01,#EE
-    DB #01,#E4,#01,#4A,#04,#00,#01,#0B,#01,#BE,#01,#EE,#01,#E6,#02,#EE
-    DB #01,#6E,#02,#66,#04,#EE,#01,#66,#01,#EE,#01,#EA,#01,#AE,#02,#EE
-    DB #01,#AA,#05,#00,#01,#EF,#02,#00,#01,#EF,#07,#00,#01,#76,#01,#EE
-    DB #01,#66,#01,#E6,#02,#66,#01,#67,#01,#70,#01,#6E,#01,#E6,#01,#77
-bitmap_room_tileset_rle_chunk_1_end:
-
-BITMAP_ROOM_DATA_BANK_5_USED_END:
-    ds 256, #FF
-    org BITMAP_ROOM_DATA_BANK_5_PHYS_START + #2000
-
-BITMAP_ROOM_DATA_BANK_6_PHYS_START:
-    org #8000
-BITMAP_ROOM_DATA_BANK_6_ROM_START:
-; Shared world tileset (atlas), packed 4bpp RLE; VRAM #13DD3, raw 557 bytes, RLE 652 bytes
-bitmap_room_tileset_rle_chunk_2:
-    DB #01,#76,#01,#67,#01,#66,#01,#67,#02,#66,#01,#76,#01,#66,#01,#76
-    DB #01,#66,#01,#77,#01,#6E,#01,#E6,#01,#76,#01,#E6,#01,#07,#01,#66
-    DB #01,#67,#01,#66,#01,#67,#02,#66,#01,#76,#01,#66,#01,#76,#01,#66
-    DB #01,#70,#01,#6E,#01,#67,#01,#66,#01,#76,#01,#66,#01,#76,#01,#66
-    DB #01,#77,#01,#6E,#01,#E6,#01,#76,#01,#E6,#01,#07,#01,#66,#01,#67
-    DB #01,#66,#01,#67,#02,#66,#01,#E0,#01,#0F,#01,#B0,#06,#00,#01,#0B
-    DB #01,#AE,#01,#66,#01,#44,#01,#AA,#01,#44,#01,#AA,#01,#B0,#01,#08
-    DB #01,#76,#02,#66,#02,#00,#01,#87,#01,#66,#01,#6E,#01,#00,#01,#A4
-    DB #01,#4E,#02,#AA,#06,#00,#01,#0B,#03,#AA,#01,#BA,#01,#AA,#01,#AF
-    DB #01,#BA,#01,#EE,#01,#00,#01,#0B,#01,#EA,#01,#AA,#01,#F0,#01,#AA
-    DB #01,#AE,#01,#BA,#01,#AA,#05,#00,#01,#EF,#02,#00,#01,#EF,#07,#00
-    DB #01,#77,#01,#66,#01,#76,#03,#66,#01,#70,#01,#00,#01,#6E,#01,#E6
-    DB #01,#77,#03,#66,#01,#67,#04,#66,#01,#76,#01,#66,#01,#77,#01,#6E
-    DB #01,#E6,#01,#6E,#01,#E6,#01,#77,#01,#76,#01,#77,#01,#66,#01,#67
-    DB #02,#66,#01,#76,#01,#66,#01,#77,#01,#67,#01,#77,#01,#6E,#01,#E6
-    DB #03,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#6E,#01,#E6
-    DB #01,#77,#01,#76,#01,#77,#01,#66,#01,#67,#01,#66,#01,#6E,#01,#00
-    DB #01,#0F,#07,#00,#01,#0E,#01,#AA,#01,#EA,#01,#A4,#01,#AA,#01,#EA
-    DB #01,#AA,#01,#E0,#01,#0B,#03,#66,#01,#E0,#01,#00,#01,#87,#01,#66
-    DB #01,#7E,#01,#00,#01,#E4,#01,#44,#01,#AE,#01,#4E,#0B,#00,#01,#F0
-    DB #05,#00,#02,#BB,#0A,#00,#01,#EF,#02,#00,#01,#EF,#08,#00,#01,#77
-    DB #01,#76,#01,#67,#01,#66,#01,#77,#01,#70,#01,#00,#01,#76,#01,#67
-    DB #01,#07,#01,#66,#01,#67,#01,#66,#01,#67,#04,#66,#01,#76,#01,#66
-    DB #01,#70,#01,#66,#01,#67,#01,#76,#01,#66,#01,#70,#08,#77,#01,#07
-    DB #01,#77,#01,#07,#01,#66,#01,#67,#03,#66,#01,#76,#01,#66,#01,#70
-    DB #01,#66,#01,#67,#01,#76,#01,#66,#01,#70,#05,#77,#01,#E0,#09,#00
-    DB #01,#AE,#01,#AA,#01,#AE,#01,#46,#01,#4E,#01,#6A,#01,#AE,#01,#EE
-    DB #01,#00,#01,#67,#02,#66,#01,#6B,#01,#00,#02,#66,#01,#60,#01,#0E
-    DB #04,#44,#1D,#00,#01,#EF,#02,#00,#01,#EF,#09,#00,#03,#77,#03,#00
-    DB #01,#6E,#01,#E6,#01,#77,#01,#66,#01,#67,#01,#66,#01,#67,#04,#66
-    DB #01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#7E,#01,#E6,#01,#74
-    DB #01,#60,#01,#04,#01,#6E,#02,#46,#01,#EE,#01,#E0,#01,#EE,#01,#E6
-    DB #01,#6E,#01,#07,#01,#6E,#01,#E7,#03,#66,#01,#76,#01,#66,#01,#77
-    DB #01,#6E,#01,#E6,#01,#7E,#01,#E6,#01,#74,#01,#6E,#01,#E4,#01,#6E
-    DB #02,#46,#09,#00,#01,#0E,#01,#EE,#02,#44,#01,#77,#01,#66,#01,#64
-    DB #01,#44,#01,#6E,#01,#00,#01,#67,#01,#76,#01,#66,#01,#6E,#01,#0F
-    DB #01,#76,#01,#66,#01,#E0,#01,#04,#01,#44,#01,#46,#01,#66,#01,#67
-    DB #1D,#00,#01,#FF,#02,#00,#01,#FF,#09,#00,#01,#07,#01,#00,#01,#07
-    DB #03,#00,#01,#6E,#01,#E6,#01,#77,#03,#66,#01,#67,#04,#66,#01,#7E
-    DB #01,#66,#01,#07,#01,#6E,#01,#A6,#10,#00,#03,#66,#01,#7E,#01,#66
-    DB #01,#07,#01,#6E,#01,#A6,#02,#77,#01,#07,#05,#77
-bitmap_room_tileset_rle_chunk_2_end:
-
-; Shared world tileset (atlas), packed 4bpp RLE; VRAM #14000, raw 2048 bytes, RLE 2004 bytes
-bitmap_room_tileset_rle_chunk_3:
-    DB #01,#76,#04,#66,#01,#06,#09,#66,#02,#67,#02,#66,#01,#76,#02,#66
-    DB #01,#76,#01,#66,#05,#77,#01,#0A,#01,#A0,#02,#76,#04,#66,#01,#06
-    DB #04,#66,#01,#60,#01,#06,#03,#66,#01,#67,#01,#07,#0C,#77,#01,#0A
-    DB #01,#A0,#01,#70,#04,#00,#01,#02,#03,#22,#03,#00,#01,#07,#01,#77
-    DB #03,#00,#01,#22,#01,#44,#01,#77,#01,#4D,#01,#AC,#01,#57,#01,#44
-    DB #01,#22,#02,#66,#01,#60,#01,#66,#01,#64,#01,#C6,#02,#66,#20,#00
-    DB #01,#67,#08,#77,#01,#70,#02,#77,#01,#70,#02,#77,#01,#76,#01,#07
-    DB #01,#76,#01,#66,#01,#76,#05,#66,#01,#67,#02,#66,#01,#67,#01,#0A
-    DB #01,#A0,#01,#76,#01,#67,#08,#77,#01,#70,#02,#77,#01,#70,#02,#77
-    DB #01,#70,#01,#67,#01,#76,#01,#66,#01,#76,#01,#67,#01,#66,#01,#77
-    DB #02,#66,#01,#67,#02,#66,#01,#67,#01,#0A,#01,#06,#01,#70,#03,#00
-    DB #01,#02,#03,#22,#01,#26,#03,#00,#01,#77,#01,#27,#03,#00,#02,#44
-    DB #01,#E0,#01,#7D,#01,#A4,#01,#74,#01,#BA,#01,#77,#03,#66,#01,#06
-    DB #04,#66,#20,#00,#01,#07,#01,#76,#01,#67,#01,#76,#02,#66,#01,#76
-    DB #01,#66,#01,#76,#01,#67,#01,#66,#01,#76,#03,#67,#01,#76,#01,#67
-    DB #01,#76,#01,#66,#01,#76,#06,#66,#01,#76,#01,#66,#01,#77,#01,#0A
-    DB #01,#A0,#01,#76,#01,#67,#01,#76,#01,#67,#01,#76,#02,#66,#01,#76
-    DB #01,#66,#01,#76,#01,#67,#01,#66,#01,#76,#02,#67,#01,#66,#01,#70
-    DB #01,#67,#01,#76,#01,#66,#01,#76,#01,#67,#01,#66,#01,#77,#02,#66
-    DB #01,#67,#02,#66,#01,#60,#01,#A0,#01,#66,#01,#70,#04,#00,#01,#02
-    DB #03,#22,#02,#00,#01,#07,#01,#7A,#01,#AE,#01,#70,#02,#00,#01,#47
-    DB #01,#7A,#01,#A4,#01,#7D,#01,#A4,#01,#74,#01,#A7,#01,#70,#03,#66
-    DB #01,#00,#04,#66,#20,#00,#01,#07,#01,#7A,#01,#AA,#01,#7A,#01,#AA
-    DB #01,#A6,#01,#AA,#01,#A6,#01,#6A,#01,#AA,#01,#A6,#01,#6A,#01,#AA
-    DB #01,#A6,#01,#67,#01,#76,#01,#67,#02,#66,#01,#76,#02,#66,#01,#76
-    DB #03,#66,#01,#76,#01,#67,#01,#70,#01,#A0,#01,#0A,#01,#76,#01,#67
-    DB #02,#66,#01,#76,#05,#66,#01,#67,#02,#66,#01,#67,#02,#66,#01,#70
-    DB #01,#67,#01,#76,#01,#67,#01,#76,#01,#67,#01,#66,#01,#76,#02,#66
-    DB #01,#67,#02,#66,#01,#67,#01,#06,#01,#66,#01,#70,#02,#00,#04,#22
-    DB #01,#26,#01,#22,#02,#00,#01,#06,#01,#70,#01,#BE,#01,#70,#03,#00
-    DB #01,#77,#01,#40,#01,#7D,#01,#A4,#01,#07,#01,#77,#01,#00,#01,#66
-    DB #01,#46,#01,#66,#01,#46,#01,#0C,#02,#66,#01,#C0,#20,#00,#01,#07
-    DB #01,#A0,#01,#00,#01,#A0,#01,#00,#01,#0A,#01,#00,#01,#0A,#01,#A0
-    DB #01,#00,#01,#0A,#01,#A0,#01,#00,#01,#0A,#01,#67,#01,#76,#01,#67
-    DB #02,#66,#01,#76,#02,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#77
-    DB #01,#0A,#01,#A0,#01,#76,#01,#67,#01,#76,#01,#66,#01,#76,#08,#66
-    DB #01,#67,#02,#66,#01,#70,#01,#67,#01,#76,#01,#66,#01,#76,#01,#66
-    DB #02,#76,#02,#66,#01,#67,#02,#66,#02,#67,#01,#77,#01,#70,#04,#00
-    DB #04,#22,#02,#00,#01,#76,#01,#4B,#01,#BA,#01,#47,#04,#00,#01,#77
-    DB #01,#4D,#01,#C4,#01,#70,#02,#00,#01,#66,#01,#6C,#02,#66,#01,#40
-    DB #02,#66,#01,#06,#20,#00,#01,#77,#01,#00,#01,#66,#01,#06,#01,#00
-    DB #01,#60,#01,#76,#01,#00,#01,#60,#01,#06,#01,#00,#01,#60,#01,#06
-    DB #02,#67,#01,#76,#01,#67,#02,#66,#01,#76,#02,#66,#01,#76,#02,#66
-    DB #01,#67,#02,#66,#01,#67,#01,#70,#01,#07,#01,#76,#01,#77,#01,#76
-    DB #01,#66,#02,#76,#01,#66,#01,#77,#01,#66,#01,#67,#01,#77,#02,#67
-    DB #01,#77,#02,#67,#01,#70,#01,#67,#01,#76,#01,#66,#01,#76,#02,#66
-    DB #01,#76,#02,#66,#01,#67,#02,#66,#01,#67,#02,#66,#01,#70,#05,#00
-    DB #01,#02,#02,#22,#02,#00,#01,#77,#01,#4A,#01,#44,#01,#07,#04,#00
-    DB #01,#77,#01,#DD,#01,#C4,#01,#77,#01,#70,#01,#00,#04,#66,#01,#40
-    DB #02,#00,#01,#66,#20,#00,#01,#67,#01,#00,#02,#66,#01,#00,#01,#60
-    DB #01,#66,#01,#00,#01,#60,#01,#06,#01,#00,#01,#60,#01,#06,#01,#66
-    DB #01,#67,#01,#76,#01,#67,#02,#77,#01,#76,#01,#77,#01,#76,#02,#77
-    DB #01,#67,#01,#77,#01,#76,#04,#77,#01,#76,#01,#67,#0E,#66,#01,#70
-    DB #01,#67,#07,#77,#01,#67,#01,#77,#01,#76,#02,#77,#01,#67,#01,#77
-    DB #01,#70,#03,#00,#05,#22,#02,#00,#01,#77,#01,#47,#01,#77,#02,#70
-    DB #03,#00,#01,#74,#01,#DA,#01,#45,#01,#70,#02,#00,#03,#66,#01,#64
-    DB #01,#40,#01,#00,#01,#76,#01,#66,#20,#00,#01,#67,#01,#77,#01,#00
-    DB #01,#77,#01,#00,#01,#70,#01,#77,#01,#00,#01,#70,#01,#00,#01,#07
-    DB #01,#70,#01,#00,#01,#07,#01,#77,#01,#76,#01,#07,#0D,#66,#01,#67
-    DB #01,#76,#01,#60,#01,#77,#01,#67,#01,#77,#01,#76,#01,#67,#01,#77
-    DB #01,#76,#02,#77,#01,#7E,#02,#77,#01,#76,#01,#77,#01,#70,#01,#67
-    DB #01,#76,#0D,#66,#01,#70,#04,#00,#01,#02,#02,#22,#01,#62,#02,#00
-    DB #01,#77,#01,#A4,#01,#47,#01,#70,#03,#00,#01,#07,#01,#7D,#01,#A4
-    DB #01,#57,#01,#77,#02,#00,#03,#66,#01,#40,#02,#00,#01,#76,#01,#66
-    DB #20,#00,#01,#67,#02,#77,#01,#07,#01,#00,#01,#70,#01,#77,#01,#00
-    DB #01,#70,#01,#07,#02,#70,#01,#07,#02,#77,#01,#76,#01,#67,#01,#77
-    DB #01,#67,#01,#77,#01,#76,#01,#67,#01,#77,#01,#76,#07,#77,#01,#76
-    DB #01,#60,#0E,#77,#01,#70,#01,#67,#09,#77,#01,#76,#02,#77,#01,#76
-    DB #01,#77,#01,#70,#02,#00,#01,#02,#05,#22,#02,#00,#01,#74,#01,#DA
+    DB #01,#77,#01,#70,#01,#77,#01,#70,#01,#67,#02,#77,#01,#07,#01,#00
+    DB #01,#70,#01,#77,#01,#00,#01,#70,#01,#07,#02,#70,#01,#07,#02,#77
+    DB #01,#76,#01,#67,#01,#77,#01,#67,#01,#77,#01,#76,#01,#67,#01,#77
+    DB #01,#76,#07,#77,#01,#76,#01,#60,#0E,#77,#01,#70,#01,#67,#09,#77
+    DB #01,#76,#02,#77,#01,#76,#01,#77,#01,#70,#02,#00,#01,#74,#01,#DA
     DB #01,#47,#01,#77,#01,#44,#01,#20,#02,#00,#01,#4D,#01,#C4,#01,#77
-    DB #02,#44,#01,#22,#03,#66,#01,#40,#02,#00,#01,#76,#01,#66,#20,#00
+    DB #02,#44,#01,#22,#03,#66,#01,#40,#02,#00,#01,#76,#01,#66,#05,#77
+    DB #01,#07,#01,#6E,#01,#E6,#01,#6E,#01,#E6,#0B,#77,#01,#07,#01,#6E
+    DB #01,#E6,#05,#77,#01,#07,#01,#6E,#01,#E6,#01,#6E,#01,#E6,#06,#77
     DB #01,#67,#01,#06,#01,#60,#01,#06,#01,#00,#01,#60,#01,#06,#01,#00
     DB #01,#60,#01,#06,#02,#60,#01,#06,#02,#67,#01,#76,#01,#60,#07,#77
     DB #01,#70,#05,#77,#01,#70,#01,#76,#01,#67,#01,#77,#01,#66,#01,#76
     DB #01,#66,#01,#76,#02,#66,#01,#67,#01,#77,#02,#66,#02,#67,#01,#66
     DB #01,#70,#01,#67,#02,#77,#01,#06,#03,#77,#01,#67,#07,#77,#01,#70
-    DB #05,#00,#01,#02,#02,#22,#01,#24,#01,#44,#01,#7D,#01,#DC,#01,#77
-    DB #01,#4E,#01,#E2,#01,#40,#01,#22,#01,#40,#01,#4D,#01,#C5,#01,#76
-    DB #02,#A4,#01,#70,#03,#66,#01,#40,#01,#00,#01,#07,#02,#66,#20,#00
-    DB #01,#67,#01,#A0,#01,#00,#01,#AA,#01,#00,#01,#AA,#01,#00,#01,#0A
-    DB #01,#A0,#01,#06,#01,#60,#01,#A0,#01,#00,#01,#0A,#01,#67,#01,#76
-    DB #01,#67,#01,#77,#01,#67,#01,#76,#01,#66,#01,#67,#01,#76,#01,#67
-    DB #01,#66,#01,#76,#02,#66,#01,#67,#01,#77,#01,#60,#01,#76,#01,#67
-    DB #02,#66,#01,#76,#05,#66,#01,#67,#02,#66,#01,#67,#02,#66,#01,#70
-    DB #01,#07,#01,#70,#03,#66,#01,#76,#01,#66,#01,#67,#01,#66,#01,#76
-    DB #02,#66,#03,#67,#01,#70,#03,#00,#01,#02,#04,#22,#01,#42,#01,#A4
-    DB #01,#4A,#01,#C4,#01,#77,#01,#AA,#01,#66,#01,#00,#01,#44,#01,#EA
-    DB #01,#A4,#01,#44,#01,#74,#01,#A4,#01,#77,#01,#00,#01,#66,#01,#46
-    DB #01,#64,#02,#00,#01,#07,#02,#66,#20,#00,#01,#67,#01,#7A,#01,#AA
-    DB #01,#66,#01,#AA,#01,#66,#01,#AA,#01,#A6,#01,#6A,#02,#AA,#01,#6A
-    DB #01,#AA,#01,#A6,#01,#67,#01,#76,#01,#67,#01,#76,#0C,#66,#01,#60
-    DB #01,#76,#01,#67,#05,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#67
-    DB #02,#66,#01,#70,#01,#07,#01,#70,#0D,#66,#01,#70,#05,#00,#03,#22
-    DB #01,#00,#01,#74,#01,#BA,#01,#44,#01,#77,#01,#74,#01,#70,#01,#00
-    DB #01,#07,#01,#4B,#01,#B7,#01,#44,#01,#57,#01,#70,#02,#00,#01,#66
-    DB #01,#C6,#01,#64,#01,#00,#01,#0C,#01,#76,#01,#06,#01,#6C,#20,#00
-    DB #01,#67,#01,#70,#01,#66,#01,#76,#02,#66,#01,#76,#05,#66,#01,#67
-    DB #01,#70,#01,#07,#01,#76,#01,#07,#01,#76,#0C,#66,#01,#60,#01,#76
-    DB #01,#07,#02,#66,#01,#76,#02,#66,#01,#76,#05,#66,#01,#67,#02,#66
-    DB #01,#70,#01,#07,#01,#70,#0D,#66,#01,#70,#04,#00,#01,#02,#01,#22
-    DB #01,#26,#01,#22,#01,#00,#01,#07,#01,#44,#01,#74,#01,#57,#04,#00
-    DB #01,#77,#01,#47,#01,#44,#01,#57,#03,#00,#02,#66,#01,#70,#02,#66
-    DB #01,#44,#01,#60,#01,#66,#20,#00,#01,#67,#01,#70,#01,#66,#01,#76
-    DB #02,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#77,#01,#0A,#01,#A0
-    DB #01,#76,#01,#67,#01,#76,#01,#66,#01,#76,#01,#66,#01,#76,#01,#77
-    DB #01,#66,#01,#67,#01,#77,#02,#66,#01,#77,#01,#66,#01,#60,#01,#76
-    DB #01,#67,#02,#66,#01,#76,#02,#66,#01,#76,#02,#66,#01,#67,#02,#66
-    DB #01,#67,#01,#6A,#01,#A6,#01,#70,#01,#67,#01,#70,#01,#66,#01,#76
-    DB #01,#66,#01,#76,#01,#67,#02,#66,#01,#77,#02,#66,#01,#77,#02,#66
-    DB #01,#70,#03,#00,#01,#02,#04,#22,#02,#00,#01,#07,#01,#4A,#01,#45
-    DB #01,#77,#03,#00,#02,#07,#01,#4C,#01,#47,#03,#00,#02,#66,#01,#06
-    DB #04,#66,#01,#06,#20,#00,#01,#07,#01,#70,#01,#66,#01,#76,#02,#66
-    DB #01,#67,#02,#66,#01,#67,#01,#66,#01,#67,#01,#70,#02,#AA,#01,#76
-    DB #01,#67,#01,#76,#01,#67,#01,#76,#01,#67,#02,#76,#01,#67,#07,#77
-    DB #01,#76,#01,#67,#02,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#67
-    DB #03,#66,#01,#A6,#01,#AA,#01,#70,#01,#67,#07,#77,#02,#76,#01,#66
-    DB #01,#76,#01,#70,#01,#76,#01,#67,#01,#70,#05,#00,#01,#02,#01,#22
-    DB #01,#26,#02,#00,#01,#77,#01,#DD,#01,#C4,#02,#70,#03,#00,#01,#07
-    DB #01,#AA,#01,#44,#02,#70,#01,#00,#01,#66,#01,#00,#01,#6C,#03,#66
-    DB #01,#6C,#01,#66,#20,#00,#01,#07,#01,#76,#01,#66,#01,#76,#02,#66
-    DB #01,#77,#02,#66,#01,#67,#01,#66,#01,#67,#01,#70,#01,#A0,#01,#0A
-    DB #02,#76,#0E,#66,#02,#67,#02,#66,#01,#76,#02,#66,#01,#77,#02,#66
-    DB #01,#67,#02,#66,#01,#67,#01,#AB,#01,#B6,#01,#70,#01,#76,#0F,#66
-    DB #06,#00,#02,#22,#02,#00,#01,#77,#01,#CD,#01,#A4,#01,#70,#01,#74
-    DB #01,#44,#02,#00,#01,#04,#01,#44,#01,#77,#02,#70,#01,#00,#01,#4C
-    DB #07,#66,#20,#00
-bitmap_room_tileset_rle_chunk_3_end:
+    DB #01,#24,#01,#44,#01,#7D,#01,#DC,#01,#77,#01,#4E,#01,#E2,#01,#40
+    DB #01,#22,#01,#40,#01,#4D,#01,#C5,#01,#76,#02,#A4,#01,#70,#03,#66
+    DB #01,#40,#01,#00,#01,#07,#02,#66,#01,#77,#01,#70,#01,#07,#01,#77
+    DB #02,#07,#01,#6E,#01,#E6,#01,#7E,#01,#E6,#01,#77,#01,#66,#01,#67
+    DB #01,#66,#01,#67,#02,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77
+    DB #01,#6E,#01,#E7,#01,#77,#01,#70,#01,#07,#01,#77,#02,#07,#01,#6E
+    DB #01,#E6,#01,#7E,#01,#E6,#01,#77,#01,#66,#01,#67,#01,#66,#01,#67
+    DB #01,#66,#01,#67,#01,#A0,#01,#00,#01,#AA,#01,#00,#01,#AA,#01,#00
+    DB #01,#0A,#01,#A0,#01,#06,#01,#60,#01,#A0,#01,#00,#01,#0A,#01,#67
+    DB #01,#76,#01,#67,#01,#77,#01,#67,#01,#76,#01,#66,#01,#67,#01,#76
+    DB #01,#67,#01,#66,#01,#76,#02,#66,#01,#67,#01,#77,#01,#60,#01,#76
+    DB #01,#67,#02,#66,#01,#76,#05,#66,#01,#67,#02,#66,#01,#67,#02,#66
+    DB #01,#70,#01,#07,#01,#70,#03,#66,#01,#76,#01,#66,#01,#67,#01,#66
+    DB #01,#76,#02,#66,#03,#67,#01,#70,#01,#42,#01,#A4,#01,#4A,#01,#C4
+    DB #01,#77,#01,#AA,#01,#66,#01,#00,#01,#44,#01,#EA,#01,#A4,#01,#44
+    DB #01,#74,#01,#A4,#01,#77,#01,#00,#01,#66,#01,#46,#01,#64,#02,#00
+    DB #01,#07,#03,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77,#01,#6E
+    DB #01,#E6,#01,#76,#01,#E6,#01,#07,#01,#66,#01,#67,#01,#66,#01,#67
+    DB #02,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#70,#01,#6E,#01,#67
+    DB #01,#66,#01,#76,#01,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6
+    DB #01,#76,#01,#E6,#01,#07,#01,#66,#01,#67,#01,#66,#01,#67,#01,#66
+    DB #01,#67,#01,#7A,#01,#AA,#01,#66,#01,#AA,#01,#66,#01,#AA,#01,#A6
+    DB #01,#6A,#02,#AA,#01,#6A,#01,#AA,#01,#A6,#01,#67,#01,#76,#01,#67
+    DB #01,#76,#0C,#66,#01,#60,#01,#76,#01,#67,#05,#66,#01,#76,#02,#66
+    DB #01,#67,#02,#66,#01,#67,#02,#66,#01,#70,#01,#07,#01,#70,#0D,#66
+    DB #01,#70,#01,#00,#01,#74,#01,#BA,#01,#44,#01,#77,#01,#74,#01,#70
+    DB #01,#00,#01,#07,#01,#4B,#01,#B7,#01,#44,#01,#57,#01,#70,#02,#00
+    DB #01,#66,#01,#C6,#01,#64,#01,#00,#01,#0C,#01,#76,#01,#06,#01,#6C
+    DB #03,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#6E,#01,#E6
+    DB #01,#77,#01,#76,#01,#77,#01,#66,#01,#67,#02,#66,#01,#76,#01,#66
+    DB #01,#77,#01,#67,#01,#77,#01,#6E,#01,#E6,#03,#66,#01,#76,#01,#66
+    DB #01,#77,#01,#6E,#01,#E6,#01,#6E,#01,#E6,#01,#77,#01,#76,#01,#77
+    DB #01,#66,#01,#67,#01,#66,#01,#67,#01,#70,#01,#66,#01,#76,#02,#66
+    DB #01,#76,#05,#66,#01,#67,#01,#70,#01,#07,#01,#76,#01,#07,#01,#76
+    DB #0C,#66,#01,#60,#01,#76,#01,#07,#02,#66,#01,#76,#02,#66,#01,#76
+    DB #05,#66,#01,#67,#02,#66,#01,#70,#01,#07,#01,#70,#0D,#66,#01,#70
+    DB #01,#00,#01,#07,#01,#44,#01,#74,#01,#57,#04,#00,#01,#77,#01,#47
+    DB #01,#44,#01,#57,#03,#00,#02,#66,#01,#70,#02,#66,#01,#44,#01,#60
+    DB #04,#66,#01,#76,#01,#66,#01,#70,#01,#66,#01,#67,#01,#76,#01,#66
+    DB #01,#70,#08,#77,#01,#07,#01,#77,#01,#07,#01,#66,#01,#67,#03,#66
+    DB #01,#76,#01,#66,#01,#70,#01,#66,#01,#67,#01,#76,#01,#66,#01,#70
+    DB #05,#77,#01,#67,#01,#70,#01,#66,#01,#76,#02,#66,#01,#76,#02,#66
+    DB #01,#67,#02,#66,#01,#77,#01,#0A,#01,#A0,#01,#76,#01,#67,#01,#76
+    DB #01,#66,#01,#76,#01,#66,#01,#76,#01,#77,#01,#66,#01,#67,#01,#77
+    DB #02,#66,#01,#77,#01,#66,#01,#60,#01,#76,#01,#67,#02,#66,#01,#76
+    DB #02,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#67,#01,#6A,#01,#A6
+    DB #01,#70,#01,#67,#01,#70,#01,#66,#01,#76,#01,#66,#01,#76,#01,#67
+    DB #02,#66,#01,#77,#02,#66,#01,#77,#02,#66,#01,#70,#02,#00,#01,#07
+    DB #01,#4A,#01,#45,#01,#77,#03,#00,#02,#07,#01,#4C,#01,#47,#03,#00
+    DB #02,#66,#01,#06,#04,#66,#01,#06,#03,#66,#01,#76,#01,#66,#01,#77
+    DB #01,#6E,#01,#E6,#01,#7E,#01,#E6,#01,#74,#01,#60,#01,#04,#01,#6E
+    DB #02,#46,#01,#EE,#01,#E0,#01,#EE,#01,#E6,#01,#6E,#01,#07,#01,#6E
+    DB #01,#E7,#03,#66,#01,#76,#01,#66,#01,#77,#01,#6E,#01,#E6,#01,#7E
+    DB #01,#E6,#01,#74,#01,#6E,#01,#E4,#01,#6E,#02,#46,#01,#07,#01,#70
+    DB #01,#66,#01,#76,#02,#66,#01,#67,#02,#66,#01,#67,#01,#66,#01,#67
+    DB #01,#70,#02,#AA,#01,#76,#01,#67,#01,#76,#01,#67,#01,#76,#01,#67
+    DB #02,#76,#01,#67,#07,#77,#01,#76,#01,#67,#02,#66,#01,#76,#02,#66
+    DB #01,#67,#02,#66,#01,#67,#03,#66,#01,#A6,#01,#AA,#01,#70,#01,#67
+    DB #07,#77,#02,#76,#01,#66,#01,#76,#01,#70,#01,#76,#01,#67,#01,#70
+    DB #02,#00,#01,#77,#01,#DD,#01,#C4,#02,#70,#03,#00,#01,#07,#01,#AA
+    DB #01,#44,#02,#70,#01,#00,#01,#66,#01,#00,#01,#6C,#03,#66,#01,#6C
+    DB #04,#66,#01,#7E,#01,#66,#01,#07,#01,#6E,#01,#A6,#10,#00,#03,#66
+    DB #01,#7E,#01,#66,#01,#07,#01,#6E,#01,#A6,#02,#77,#01,#07,#05,#77
+    DB #01,#07,#01,#76,#01,#66,#01,#76,#02,#66,#01,#77,#02,#66,#01,#67
+    DB #01,#66,#01,#67,#01,#70,#01,#A0,#01,#0A,#02,#76,#0E,#66,#02,#67
+    DB #02,#66,#01,#76,#02,#66,#01,#77,#02,#66,#01,#67,#02,#66,#01,#67
+    DB #01,#AB,#01,#B6,#01,#70,#01,#76,#0F,#66,#02,#00,#01,#77,#01,#CD
+    DB #01,#A4,#01,#70,#01,#74,#01,#44,#02,#00,#01,#04,#01,#44,#01,#77
+    DB #02,#70,#01,#00,#01,#4C,#07,#66
+bitmap_room_tileset_rle_chunk_1_end:
 
 ; Linked HUD dynamic widget #0 (iconRow) tile/glyph data, packed 4bpp RLE; VRAM #06A00, raw 2048 bytes, RLE 298 bytes
 bitmap_room_hud_linked_0_rle_chunk_0:
@@ -10443,7 +10421,7 @@ bitmap_room_hud_linked_2_rle_chunk_0:
     DB #01,#E1,#01,#1E,#01,#EE,#70,#00
 bitmap_room_hud_linked_2_rle_chunk_0_end:
 
-; Linked HUD dynamic widget #3 (counter) tile/glyph data, packed 4bpp RLE; VRAM #14800, raw 1024 bytes, RLE 452 bytes
+; Linked HUD dynamic widget #3 (counter) tile/glyph data, packed 4bpp RLE; VRAM #13800, raw 1024 bytes, RLE 452 bytes
 bitmap_room_hud_linked_3_rle_chunk_0:
     DB #01,#11,#02,#22,#02,#11,#01,#12,#01,#21,#02,#11,#02,#22,#02,#11
     DB #02,#22,#03,#11,#01,#22,#01,#11,#01,#12,#02,#22,#01,#21,#01,#11
@@ -10476,177 +10454,184 @@ bitmap_room_hud_linked_3_rle_chunk_0:
     DB #28,#11,#58,#00
 bitmap_room_hud_linked_3_rle_chunk_0_end:
 
+BITMAP_ROOM_DATA_BANK_5_USED_END:
+    ds 862, #FF
+    org BITMAP_ROOM_DATA_BANK_5_PHYS_START + #2000
+
+BITMAP_ROOM_DATA_BANK_6_PHYS_START:
+    org #8000
+BITMAP_ROOM_DATA_BANK_6_ROM_START:
 ; Room 0 page 0 render program: 88 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_0_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#11,#00,#C0,#B0
-    DB #00,#40,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#40
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#50,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#60,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#24,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#80,#02,#10,#00,#24,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#40,#02,#20,#00,#24,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#E0,#00,#40,#02,#50,#00,#24,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#F0,#00,#40,#02,#60,#00,#24,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#70,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#40,#02,#80,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#90
-    DB #00,#80,#02,#90,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#00,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#10,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #20,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#70
-    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#80,#00
-    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50,#02,#90,#00,#34
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#A0,#00,#34,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#00,#00,#44,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#10,#00,#44,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#44,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#80,#00,#40,#02,#30,#00,#44,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#E0,#00,#40,#02,#70,#00,#44,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#50,#00,#50,#02,#80,#00,#44,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#90,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #00,#00,#50,#02,#A0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#70,#02,#00,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #70,#02,#10,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#20,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02
-    DB #30,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#80
-    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02,#90,#00
-    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#80,#02,#00,#00,#64
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#80,#02,#10,#00,#64,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#80,#02,#00,#00,#74,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#30,#00,#80,#02,#10,#00,#74,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#70,#02,#00,#00,#84,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#70,#02,#10,#00,#84,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#40,#02,#20,#00,#84,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#80,#00,#40,#02,#30,#00,#84,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#00,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#10,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#20,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #40,#02,#30,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40
-    DB #02,#F0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #00,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#10
-    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#20,#00
-    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#30,#00,#A4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#70,#02,#80,#00,#A4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#D0,#00,#A4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#A4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#A4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#B4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#10,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#20,#00,#B4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#30,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #80,#00,#40,#02,#40,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
-    DB #00,#80,#02,#50,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
-    DB #80,#02,#60,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40
-    DB #02,#70,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02
-    DB #80,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#90
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#40,#02,#A0,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#D0,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#F0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#10,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#40,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#40,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#D0
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#C4
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#11,#00,#C0,#90
+    DB #00,#30,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#40
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#50,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#60,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#24,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#F0,#00,#60,#02,#10,#00,#24,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#A0,#00,#30,#02,#20,#00,#24,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#C0,#00,#30,#02,#50,#00,#24,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#30,#02,#60,#00,#24,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#70,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #A0,#00,#30,#02,#80,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#60,#02,#90,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#00,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#10,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #20,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#70
+    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#80,#00
+    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#90,#00,#34
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#A0,#00,#34,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#00,#00,#44,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#10,#00,#44,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#20,#00,#44,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#60,#00,#30,#02,#30,#00,#44,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#C0,#00,#30,#02,#70,#00,#44,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#40,#02,#80,#00,#44,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#90,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #E0,#00,#30,#02,#A0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#20
+    DB #00,#60,#02,#00,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#20,#00
+    DB #60,#02,#10,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#20,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02
+    DB #30,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#80
+    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02,#90,#00
+    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#60,#02,#00,#00,#64
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#60,#02,#10,#00,#64,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#60,#02,#00,#00,#74,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#60,#02,#10,#00,#74,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#00,#00,#60,#02,#00,#00,#84,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#00,#00,#60,#02,#10,#00,#84,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#20,#00,#84,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#60,#00,#30,#02,#30,#00,#84,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#00,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#10,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#20,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
+    DB #30,#02,#30,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30
+    DB #02,#F0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #00,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#10
+    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#20,#00
+    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#30,#00,#A4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#80,#00,#A4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#D0,#00,#A4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#A4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#A4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#B4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#10,#00,#B4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#20,#00,#B4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#30,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #60,#00,#30,#02,#40,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#60,#02,#50,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
+    DB #60,#02,#60,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30
+    DB #02,#70,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02
+    DB #80,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#90
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#30,#02,#A0,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#D0,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#E0,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#F0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#10,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#20,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#D0
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#E0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#C4
     DB #00,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_0_p0_end:
 
 ; Room 0 page 1 render program: 88 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_0_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#11,#00,#C0,#B0
-    DB #00,#40,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#40
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#50,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#60,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#24,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#80,#02,#10,#00,#24,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#40,#02,#20,#00,#24,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#E0,#00,#40,#02,#50,#00,#24,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#F0,#00,#40,#02,#60,#00,#24,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#70,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#40,#02,#80,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#90
-    DB #00,#80,#02,#90,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#00,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#10,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #20,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#70
-    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#80,#00
-    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50,#02,#90,#00,#34
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#A0,#00,#34,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#00,#00,#44,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#10,#00,#44,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#44,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#80,#00,#40,#02,#30,#00,#44,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#E0,#00,#40,#02,#70,#00,#44,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#50,#00,#50,#02,#80,#00,#44,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#90,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #00,#00,#50,#02,#A0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#70,#02,#00,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #70,#02,#10,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#20,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02
-    DB #30,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#80
-    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02,#90,#00
-    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#80,#02,#00,#00,#64
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#80,#02,#10,#00,#64,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#80,#02,#00,#00,#74,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#30,#00,#80,#02,#10,#00,#74,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#70,#02,#00,#00,#84,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#70,#02,#10,#00,#84,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#40,#02,#20,#00,#84,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#80,#00,#40,#02,#30,#00,#84,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#00,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#10,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#20,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #40,#02,#30,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40
-    DB #02,#F0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #00,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#10
-    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#20,#00
-    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#30,#00,#A4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#70,#02,#80,#00,#A4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#D0,#00,#A4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#A4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#A4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#B4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#10,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#20,#00,#B4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#30,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #80,#00,#40,#02,#40,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
-    DB #00,#80,#02,#50,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
-    DB #80,#02,#60,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40
-    DB #02,#70,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02
-    DB #80,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#90
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#40,#02,#A0,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#D0,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#F0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#10,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#40,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#40,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#D0
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#C4
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#11,#00,#C0,#90
+    DB #00,#30,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#40
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#50,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#60,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#24,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#F0,#00,#60,#02,#10,#00,#24,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#A0,#00,#30,#02,#20,#00,#24,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#C0,#00,#30,#02,#50,#00,#24,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#30,#02,#60,#00,#24,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#70,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #A0,#00,#30,#02,#80,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#60,#02,#90,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#00,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#10,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #20,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#70
+    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#80,#00
+    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#90,#00,#34
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#A0,#00,#34,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#00,#00,#44,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#10,#00,#44,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#20,#00,#44,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#60,#00,#30,#02,#30,#00,#44,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#C0,#00,#30,#02,#70,#00,#44,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#40,#02,#80,#00,#44,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#90,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #E0,#00,#30,#02,#A0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#20
+    DB #00,#60,#02,#00,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#20,#00
+    DB #60,#02,#10,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#20,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02
+    DB #30,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#80
+    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02,#90,#00
+    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#60,#02,#00,#00,#64
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#60,#02,#10,#00,#64,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#60,#02,#00,#00,#74,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#60,#02,#10,#00,#74,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#00,#00,#60,#02,#00,#00,#84,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#00,#00,#60,#02,#10,#00,#84,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#20,#00,#84,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#60,#00,#30,#02,#30,#00,#84,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#00,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#10,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#20,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
+    DB #30,#02,#30,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30
+    DB #02,#F0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #00,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#10
+    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#20,#00
+    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#30,#00,#A4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#80,#00,#A4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#D0,#00,#A4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#A4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#A4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#B4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#10,#00,#B4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#20,#00,#B4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#30,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #60,#00,#30,#02,#40,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#60,#02,#50,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
+    DB #60,#02,#60,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30
+    DB #02,#70,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02
+    DB #80,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#90
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#30,#02,#A0,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#D0,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#E0,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#F0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#10,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#20,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#D0
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#E0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#C4
     DB #01,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_0_p1_end:
 
@@ -10682,113 +10667,102 @@ bitmap_room_behavior_0:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_0_end:
 
-; Room 1 page 0 render program: 46 V9938 command blocks (clear + 16x16 tile copies)
+; Room 1 page 0 render program: 44 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_1_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#90
-    DB #00,#70,#02,#40,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00
-    DB #00,#02,#70,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40
-    DB #02,#40,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #50,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#60
-    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#70,#00
-    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#80,#00,#34
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#90,#00,#34,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#A0,#00,#34,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#40,#00,#44,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#50,#00,#44,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#F0,#00,#40,#02,#60,#00,#44,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#70,#00,#44,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#F0,#00,#40,#02,#80,#00,#44,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#F0,#00,#40,#02,#90,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #00,#00,#50,#02,#A0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80
-    DB #00,#40,#02,#00,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00
-    DB #50,#02,#00,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#10,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02
-    DB #20,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#10,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#50,#02,#20,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#30,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#00,#00,#00,#02,#C0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#D0,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#50,#02,#E0,#00,#B4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#F0,#00,#B4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#60,#00,#50,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#60,#00,#50,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#80
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50,#02,#90,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#A0,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#B0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#50,#02,#D0,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#50,#00,#50,#02,#F0,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#00,#00,#00,#02,#C0,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#00
+    DB #00,#00,#02,#40,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #30,#02,#40,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#50,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #60,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#70
+    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#80,#00
+    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#90,#00,#34
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#A0,#00,#34,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#40,#00,#44,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#50,#00,#44,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#D0,#00,#30,#02,#60,#00,#44,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#30,#02,#70,#00,#44,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#30,#02,#80,#00,#44,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#30,#02,#90,#00,#44,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#E0,#00,#30,#02,#A0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #60,#00,#30,#02,#00,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#40,#02,#00,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#10,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30
+    DB #02,#20,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#10
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#40,#02,#20,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#30,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#D0,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#F0,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#40,#02,#00,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#40,#00,#40,#02,#10,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50
+    DB #00,#30,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
+    DB #90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#A0
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#B0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#40,#02,#D0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#E0,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#F0,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#00,#00,#00,#02,#C0,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0
 bitmap_room_render_1_p0_end:
 
-BITMAP_ROOM_DATA_BANK_6_USED_END:
-    ds 260, #FF
-    org BITMAP_ROOM_DATA_BANK_6_PHYS_START + #2000
-
-BITMAP_ROOM_DATA_BANK_7_PHYS_START:
-    org #8000
-BITMAP_ROOM_DATA_BANK_7_ROM_START:
-; Room 1 page 1 render program: 46 V9938 command blocks (clear + 16x16 tile copies)
+; Room 1 page 1 render program: 44 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_1_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#90
-    DB #00,#70,#02,#40,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00
-    DB #00,#02,#70,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40
-    DB #02,#40,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #50,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#60
-    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#70,#00
-    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#80,#00,#34
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#90,#00,#34,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#A0,#00,#34,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#40,#00,#44,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#50,#00,#44,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#F0,#00,#40,#02,#60,#00,#44,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#70,#00,#44,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#F0,#00,#40,#02,#80,#00,#44,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#F0,#00,#40,#02,#90,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #00,#00,#50,#02,#A0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80
-    DB #00,#40,#02,#00,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00
-    DB #50,#02,#00,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#10,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02
-    DB #20,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#10,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#50,#02,#20,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#30,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#00,#00,#00,#02,#C0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#D0,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#50,#02,#E0,#00,#B4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#F0,#00,#B4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#60,#00,#50,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#60,#00,#50,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#80
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50,#02,#90,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#A0,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#B0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#50,#02,#D0,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#50,#00,#50,#02,#F0,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#00,#00,#00,#02,#C0,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#00
+    DB #00,#00,#02,#40,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #30,#02,#40,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#50,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #60,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#70
+    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#80,#00
+    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#90,#00,#34
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#A0,#00,#34,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#40,#00,#44,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#50,#00,#44,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#D0,#00,#30,#02,#60,#00,#44,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#30,#02,#70,#00,#44,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#30,#02,#80,#00,#44,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#30,#02,#90,#00,#44,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#E0,#00,#30,#02,#A0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #60,#00,#30,#02,#00,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#40,#02,#00,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#10,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30
+    DB #02,#20,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#10
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#40,#02,#20,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#30,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#D0,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#E0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#F0,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#40,#02,#00,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#40,#00,#40,#02,#10,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50
+    DB #00,#30,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
+    DB #90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#A0
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#B0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#40,#02,#D0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#E0,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#F0,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#00,#00,#00,#02,#C0,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0
 bitmap_room_render_1_p1_end:
 
 ; Room 1 16x12 collision grid (16x16 px cells), row-major, 0=empty
 bitmap_room_collision_1:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
@@ -10817,110 +10791,104 @@ bitmap_room_behavior_1:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_1_end:
 
-; Room 2 page 0 render program: 52 V9938 command blocks (clear + 16x16 tile copies)
+; Room 2 page 0 render program: 49 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_2_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#A0
-    DB #00,#40,#02,#70,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #40,#02,#80,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40
-    DB #02,#70,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #80,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#70
-    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00
-    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#10,#02,#90,#00,#34
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#70,#00,#44,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#44,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#10,#02,#90,#00,#44,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#40,#02,#80,#00,#54,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#40,#02,#80,#00,#64,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#40,#02,#80,#00,#74,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#10,#00,#50,#02,#80,#00,#84,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#90,#00,#40,#02,#B0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #90,#00,#80,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#00
-    DB #00,#00,#02,#80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #10,#02,#A0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#40
-    DB #02,#B0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02
-    DB #C0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#20
-    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#40,#02,#B0,#00
-    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02,#C0,#00,#A4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#D0,#00,#A4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#00,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#10,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#50,#02,#20,#00,#B4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#00,#00,#00,#02,#30,#00,#B4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#60,#00,#40,#02,#70,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#40,#02,#80,#00,#B4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#40,#02,#90,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#40,#02,#A0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#B0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#C0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50
-    DB #02,#D0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#50,#02
-    DB #00,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#10
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#50,#02,#20,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#80,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#80,#02,#90,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#50,#00,#50,#02,#B0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#C0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#D0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#E0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#80
+    DB #00,#30,#02,#70,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
+    DB #30,#02,#80,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30
+    DB #02,#70,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #80,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#70
+    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00
+    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#70,#00,#44
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#44,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#30,#02,#80,#00,#54,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#30,#02,#80,#00,#64,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#B0,#00,#30,#02,#80,#00,#74,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#F0,#00,#30,#02,#80,#00,#84,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#30,#02,#B0,#00,#84,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#60,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#00,#00,#00,#02,#80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #B0,#00,#30,#02,#B0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#E0
+    DB #00,#60,#02,#C0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00
+    DB #00,#02,#20,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#30
+    DB #02,#B0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#60,#02
+    DB #C0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#D0
+    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#00,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#10,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#00,#00,#00,#02,#30,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#70,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#50,#00,#30,#02,#80,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#90,#00,#B4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#A0,#00,#B4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#B0,#00,#B4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#C0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #B0,#00,#40,#02,#D0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#40,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #40,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#40
+    DB #02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#40
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#50,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#80,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#90,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#A0,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#40,#02,#B0,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#C0,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#D0,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#E0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_2_p0_end:
 
-; Room 2 page 1 render program: 52 V9938 command blocks (clear + 16x16 tile copies)
+; Room 2 page 1 render program: 49 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_2_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#A0
-    DB #00,#40,#02,#70,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #40,#02,#80,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40
-    DB #02,#70,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #80,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#70
-    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00
-    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#10,#02,#90,#00,#34
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#70,#00,#44,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#44,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#10,#02,#90,#00,#44,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#40,#02,#80,#00,#54,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#40,#02,#80,#00,#64,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#40,#02,#80,#00,#74,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#10,#00,#50,#02,#80,#00,#84,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#90,#00,#40,#02,#B0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #90,#00,#80,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#00
-    DB #00,#00,#02,#80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #10,#02,#A0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#40
-    DB #02,#B0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02
-    DB #C0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#20
-    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#40,#02,#B0,#00
-    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02,#C0,#00,#A4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#D0,#00,#A4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#00,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#10,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#50,#02,#20,#00,#B4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#00,#00,#00,#02,#30,#00,#B4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#60,#00,#40,#02,#70,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#40,#02,#80,#00,#B4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#40,#02,#90,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#40,#02,#A0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#B0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#C0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50
-    DB #02,#D0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#50,#02
-    DB #00,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#10
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#50,#02,#20,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#80,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#80,#02,#90,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#50,#00,#50,#02,#B0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#C0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#D0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#E0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#80
+    DB #00,#30,#02,#70,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
+    DB #30,#02,#80,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30
+    DB #02,#70,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #80,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#70
+    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00
+    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#70,#00,#44
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#44,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#30,#02,#80,#00,#54,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#30,#02,#80,#00,#64,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#B0,#00,#30,#02,#80,#00,#74,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#F0,#00,#30,#02,#80,#00,#84,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#30,#02,#B0,#00,#84,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#60,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#00,#00,#00,#02,#80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #B0,#00,#30,#02,#B0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#E0
+    DB #00,#60,#02,#C0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00
+    DB #00,#02,#20,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#30
+    DB #02,#B0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#60,#02
+    DB #C0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#D0
+    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#00,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#10,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#00,#00,#00,#02,#30,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#70,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#50,#00,#30,#02,#80,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#90,#00,#B4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#A0,#00,#B4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#B0,#00,#B4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#C0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #B0,#00,#40,#02,#D0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#40,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #40,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#40
+    DB #02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#40
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#50,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#80,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#90,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#A0,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#40,#02,#B0,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#C0,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#D0,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#E0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_2_p1_end:
 
 ; Room 2 16x12 collision grid (16x16 px cells), row-major, 0=empty
@@ -10957,123 +10925,130 @@ bitmap_room_behavior_2_end:
 
 ; Room 3 page 0 render program: 60 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_3_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#20
-    DB #00,#50,#02,#B0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
-    DB #50,#02,#C0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#50
-    DB #02,#D0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#50,#02
-    DB #E0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#50
-    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#60,#00
-    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#70,#00,#54
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#40,#00,#64,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#50,#00,#64,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#60,#00,#64,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#40,#02,#70,#00,#64,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#80,#02,#40,#00,#74,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#A0,#00,#40,#02,#50,#00,#74,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#60,#00,#74,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#70,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #80,#00,#40,#02,#80,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#A0
-    DB #00,#80,#02,#40,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#50,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#60,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #70,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80
-    DB #00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02,#40,#00
-    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#50,#00,#94
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#60,#00,#94,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#70,#00,#94,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#94,#00,#10,#00
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#00
+    DB #00,#40,#02,#B0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00
+    DB #40,#02,#C0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#40
+    DB #02,#D0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#40,#02
+    DB #E0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#50
+    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#60,#00
+    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#70,#00,#54
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#40,#00,#64,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#50,#00,#64,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#60,#00,#64,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#A0,#00,#30,#02,#70,#00,#64,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#E0,#00,#60,#02,#40,#00,#74,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#30,#02,#50,#00,#74,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#60,#00,#74,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#70,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #60,#00,#30,#02,#80,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#E0
+    DB #00,#60,#02,#40,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#50,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#60,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #70,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80
+    DB #00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#60,#02,#40,#00
+    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#50,#00,#94
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#60,#00,#94,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#70,#00,#94,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#94,#00,#10,#00
     DB #10,#00,#00,#00,#D0,#00,#00,#00,#02,#30,#00,#A4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#80,#02,#40,#00,#A4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#A0,#00,#40,#02,#50,#00,#A4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#60,#00,#A4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#70,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#40,#02,#80,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#60
-    DB #00,#40,#02,#10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#20,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50
-    DB #02,#30,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #40,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#50
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#60,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#50,#02,#D0,#00,#B4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#B4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#40,#02,#F0,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#40,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#C0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#D0,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#E0,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#E0,#00,#60,#02,#40,#00,#A4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#30,#02,#50,#00,#A4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#60,#00,#A4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#70,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #A0,#00,#30,#02,#80,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#30,#02,#10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#20,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
+    DB #02,#30,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #40,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#50
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#60,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#B0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#D0,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#B4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#F0,#00,#B4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#50,#00,#30,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#C0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#D0,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#E0,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#C4,#00,#10,#00,#10
     DB #00,#00,#00,#D0
 bitmap_room_render_3_p0_end:
 
+BITMAP_ROOM_DATA_BANK_6_USED_END:
+    ds 710, #FF
+    org BITMAP_ROOM_DATA_BANK_6_PHYS_START + #2000
+
+BITMAP_ROOM_DATA_BANK_7_PHYS_START:
+    org #8000
+BITMAP_ROOM_DATA_BANK_7_ROM_START:
 ; Room 3 page 1 render program: 60 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_3_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#20
-    DB #00,#50,#02,#B0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
-    DB #50,#02,#C0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#50
-    DB #02,#D0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#50,#02
-    DB #E0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#50
-    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#60,#00
-    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#70,#00,#54
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#40,#00,#64,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#50,#00,#64,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#60,#00,#64,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#40,#02,#70,#00,#64,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#80,#02,#40,#00,#74,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#A0,#00,#40,#02,#50,#00,#74,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#60,#00,#74,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#70,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #80,#00,#40,#02,#80,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#A0
-    DB #00,#80,#02,#40,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#50,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#60,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #70,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80
-    DB #00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02,#40,#00
-    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#50,#00,#94
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#60,#00,#94,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#70,#00,#94,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#94,#01,#10,#00
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#00
+    DB #00,#40,#02,#B0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00
+    DB #40,#02,#C0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#40
+    DB #02,#D0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#40,#02
+    DB #E0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#50
+    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#60,#00
+    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#70,#00,#54
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#40,#00,#64,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#50,#00,#64,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#60,#00,#64,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#A0,#00,#30,#02,#70,#00,#64,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#E0,#00,#60,#02,#40,#00,#74,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#30,#02,#50,#00,#74,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#60,#00,#74,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#70,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #60,#00,#30,#02,#80,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#E0
+    DB #00,#60,#02,#40,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#50,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#60,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #70,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80
+    DB #00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#60,#02,#40,#00
+    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#50,#00,#94
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#60,#00,#94,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#70,#00,#94,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#94,#01,#10,#00
     DB #10,#00,#00,#00,#D0,#00,#00,#00,#02,#30,#00,#A4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#80,#02,#40,#00,#A4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#A0,#00,#40,#02,#50,#00,#A4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#60,#00,#A4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#70,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#40,#02,#80,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#60
-    DB #00,#40,#02,#10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#20,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#50
-    DB #02,#30,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #40,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#50
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#60,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#50,#02,#D0,#00,#B4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#B4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#40,#02,#F0,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#40,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#80,#02,#C0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#D0,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#E0,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#E0,#00,#60,#02,#40,#00,#A4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#30,#02,#50,#00,#A4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#60,#00,#A4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#70,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #A0,#00,#30,#02,#80,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#30,#02,#10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#20,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
+    DB #02,#30,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #40,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#50
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#60,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#B0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#D0,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#B4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#F0,#00,#B4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#50,#00,#30,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#70
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#60,#02,#C0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#D0,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#E0,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#C4,#01,#10,#00,#10
     DB #00,#00,#00,#D0
 bitmap_room_render_3_p1_end:
 
@@ -11111,129 +11086,129 @@ bitmap_room_behavior_3_end:
 
 ; Room 4 page 0 render program: 63 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_4_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#D0
-    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#40
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#50,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#60,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#70,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#80,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#C0,#00,#14,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#80,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#80,#00,#24,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#C0,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#80,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#C0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#00,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#40,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #50,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60
-    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#70,#00
-    DB #44,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#44
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#44,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#00,#00,#54,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#54,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#54,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#00,#00,#64,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#00,#02,#80,#00,#64,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#D0,#00,#00,#02,#00,#00,#74,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#10,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #80,#00,#00,#02,#80,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#00,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#10,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#70,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #80,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0
-    DB #00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#00,#00
-    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#10,#00,#94
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#20,#00,#94,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#C0,#00,#94,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#94,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#A4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#A4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#00,#02,#E0,#00,#A4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#80,#00,#00,#02,#C0,#00,#B4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#D0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#E0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#80
-    DB #00,#00,#02,#F0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#C0,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#E0,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#80,#00,#00,#02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#80
+    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
+    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#50,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#60,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#80,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#C0,#00,#14,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#40,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#80,#00,#24,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#C0,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#80,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#C0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#00,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#40,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #50,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60
+    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00
+    DB #44,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#80,#00,#44
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#44,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#00,#00,#54,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#54,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#54,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#00,#00,#64,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#40,#00,#00,#02,#80,#00,#64,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#80,#00,#00,#02,#00,#00,#74,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#10,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #40,#00,#00,#02,#80,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#00,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#10,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#70,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #80,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0
+    DB #00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#00,#00
+    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#10,#00,#94
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#20,#00,#94,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#C0,#00,#94,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#94,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#A4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#A4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#00,#02,#E0,#00,#A4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#40,#00,#00,#02,#C0,#00,#B4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#D0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#E0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#00,#02,#F0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#30
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#40,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#50,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#80,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#00,#02,#C0,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#40,#00,#00,#02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00,#00
     DB #D0
 bitmap_room_render_4_p0_end:
 
 ; Room 4 page 1 render program: 63 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_4_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#D0
-    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#40
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#50,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#60,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#70,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#80,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#C0,#00,#14,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#80,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#80,#00,#24,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#C0,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#80,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#C0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#00,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#40,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #50,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60
-    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#70,#00
-    DB #44,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#44
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#44,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#00,#00,#54,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#54,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#54,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#00,#00,#64,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#00,#02,#80,#00,#64,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#D0,#00,#00,#02,#00,#00,#74,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#10,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #80,#00,#00,#02,#80,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#00,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#10,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#70,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #80,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0
-    DB #00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#00,#00
-    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#10,#00,#94
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#20,#00,#94,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#C0,#00,#94,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#94,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#A4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#A4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#00,#02,#E0,#00,#A4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#80,#00,#00,#02,#C0,#00,#B4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#D0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#E0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#80
-    DB #00,#00,#02,#F0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#C0,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#E0,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#80,#00,#00,#02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#80
+    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
+    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#50,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#60,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#80,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#C0,#00,#14,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#40,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#80,#00,#24,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#C0,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#80,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#C0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#00,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#40,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #50,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60
+    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00
+    DB #44,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#80,#00,#44
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#44,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#00,#00,#54,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#54,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#54,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#00,#00,#64,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#40,#00,#00,#02,#80,#00,#64,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#80,#00,#00,#02,#00,#00,#74,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#10,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #40,#00,#00,#02,#80,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#00,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#10,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#70,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #80,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0
+    DB #00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#00,#00
+    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#10,#00,#94
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#20,#00,#94,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#C0,#00,#94,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#94,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#A4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#A4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#00,#02,#E0,#00,#A4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#40,#00,#00,#02,#C0,#00,#B4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#D0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#E0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#00,#02,#F0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#30
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#40,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#50,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#80,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#00,#02,#C0,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#40,#00,#00,#02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00,#00
     DB #D0
 bitmap_room_render_4_p1_end:
 
@@ -11269,123 +11244,102 @@ bitmap_room_behavior_4:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_4_end:
 
-BITMAP_ROOM_DATA_BANK_7_USED_END:
-    ds 716, #FF
-    org BITMAP_ROOM_DATA_BANK_7_PHYS_START + #2000
-
-BITMAP_ROOM_DATA_BANK_8_PHYS_START:
-    org #8000
-BITMAP_ROOM_DATA_BANK_8_ROM_START:
-; Room 5 page 0 render program: 55 V9938 command blocks (clear + 16x16 tile copies)
+; Room 5 page 0 render program: 47 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_5_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#70
-    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#14,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#30,#00,#10,#02,#20,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #40,#00,#10,#02,#30,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#60
-    DB #00,#10,#02,#40,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
-    DB #10,#02,#30,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#10
-    DB #02,#40,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#10,#02
-    DB #A0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#10,#02,#B0
-    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#10,#02,#E0,#00
-    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#10,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#B4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#B4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#90,#00,#80,#02,#60,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#90,#00,#80,#02,#70,#00,#B4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#90,#00,#80,#02,#80,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#90,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#A0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#B0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#C0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #D0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#E0
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#10,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#00,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#B0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#C0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #D0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#E0
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#30
+    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#40
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#50,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#14,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#30,#00,#00,#02,#00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#20,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#30,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#40,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #50,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#60
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#70,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#80,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#B4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#B4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#F0,#00,#B4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#30,#00,#00,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0
 bitmap_room_render_5_p0_end:
 
-; Room 5 page 1 render program: 55 V9938 command blocks (clear + 16x16 tile copies)
+; Room 5 page 1 render program: 47 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_5_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#70
-    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#14,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#30,#00,#10,#02,#20,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #40,#00,#10,#02,#30,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#60
-    DB #00,#10,#02,#40,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
-    DB #10,#02,#30,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#10
-    DB #02,#40,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#10,#02
-    DB #A0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#10,#02,#B0
-    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#10,#02,#E0,#00
-    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#10,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#B4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#B4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#90,#00,#80,#02,#60,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#90,#00,#80,#02,#70,#00,#B4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#90,#00,#80,#02,#80,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#90,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#A0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#B0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#C0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #D0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#E0
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#10,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#00,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#B0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#C0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #D0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#E0
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#30
+    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#40
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#50,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#14,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#30,#00,#00,#02,#00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#20,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#30,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#40,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #50,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#60
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#70,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#80,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#B4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#B4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#F0,#00,#B4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#30,#00,#00,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#E0,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0
 bitmap_room_render_5_p1_end:
 
 ; Room 5 16x12 collision grid (16x16 px cells), row-major, 0=empty
@@ -11422,40 +11376,40 @@ bitmap_room_behavior_5_end:
 
 ; Room 6 page 0 render program: 62 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_6_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#E0
-    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
-    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#40
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#50,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#70,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#80,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#90,#00,#14,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#E0,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#E0,#00,#00,#02,#B0,#00,#14,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#E0,#00,#00,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#90
+    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#40
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#90,#00,#14,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#00,#02,#B0,#00,#14,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#00,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70
     DB #00,#00,#02,#00,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00
-    DB #00,#02,#30,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#00,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #00,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#10
-    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#20,#00
-    DB #44,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#30,#00,#44
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#40,#00,#44,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#50,#00,#44,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#60,#00,#44,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#00,#02,#70,#00,#44,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#00,#02,#80,#00,#44,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#90,#00,#44,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#A0,#00,#44,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#E0,#00,#00,#02,#B0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#C0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#D0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#E0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
+    DB #00,#02,#30,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#00,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #00,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#10
+    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#20,#00
+    DB #44,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#30,#00,#44
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#44,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00,#44,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#60,#00,#44,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#44,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#44,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#90,#00,#44,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#A0,#00,#44,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#00,#02,#B0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#C0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#D0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#E0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
     DB #00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#40
     DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#50,#00
     DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#70,#00,#B4
@@ -11465,60 +11419,60 @@ bitmap_room_render_6_p0:
     DB #10,#00,#00,#00,#D0,#10,#00,#00,#02,#B0,#00,#B4,#00,#10,#00,#10
     DB #00,#00,#00,#D0,#20,#00,#00,#02,#C0,#00,#B4,#00,#10,#00,#10,#00
     DB #00,#00,#D0,#10,#00,#00,#02,#D0,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#B0,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#E0,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#00,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#E0,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#F0,#00,#C4,#00,#10,#00,#10,#00,#00
     DB #00,#D0
 bitmap_room_render_6_p0_end:
 
 ; Room 6 page 1 render program: 62 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_6_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#E0
-    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
-    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#40
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#50,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#70,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#80,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#90,#00,#14,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#E0,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#E0,#00,#00,#02,#B0,#00,#14,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#E0,#00,#00,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#90
+    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#40
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#90,#00,#14,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#00,#02,#B0,#00,#14,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#00,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70
     DB #00,#00,#02,#00,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00
-    DB #00,#02,#30,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#00,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #00,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#10
-    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#20,#00
-    DB #44,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#30,#00,#44
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#40,#00,#44,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#50,#00,#44,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#60,#00,#44,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#00,#02,#70,#00,#44,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#00,#02,#80,#00,#44,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#90,#00,#44,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#A0,#00,#44,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#E0,#00,#00,#02,#B0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#C0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#D0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#E0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
+    DB #00,#02,#30,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#00,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #00,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#10
+    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#20,#00
+    DB #44,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#30,#00,#44
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40,#00,#44,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00,#44,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#60,#00,#44,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#44,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#44,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#90,#00,#44,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#A0,#00,#44,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#00,#02,#B0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#C0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#D0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#E0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
     DB #00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#40
     DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#50,#00
     DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#00,#02,#70,#00,#B4
@@ -11528,21 +11482,21 @@ bitmap_room_render_6_p1:
     DB #10,#00,#00,#00,#D0,#10,#00,#00,#02,#B0,#00,#B4,#01,#10,#00,#10
     DB #00,#00,#00,#D0,#20,#00,#00,#02,#C0,#00,#B4,#01,#10,#00,#10,#00
     DB #00,#00,#D0,#10,#00,#00,#02,#D0,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#B0,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#E0,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#00,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#70
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#A0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#C0,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#E0,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#F0,#00,#C4,#01,#10,#00,#10,#00,#00
     DB #00,#D0
 bitmap_room_render_6_p1_end:
 
@@ -11578,181 +11532,188 @@ bitmap_room_behavior_6:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_6_end:
 
+BITMAP_ROOM_DATA_BANK_7_USED_END:
+    ds 596, #FF
+    org BITMAP_ROOM_DATA_BANK_7_PHYS_START + #2000
+
+BITMAP_ROOM_DATA_BANK_8_PHYS_START:
+    org #8000
+BITMAP_ROOM_DATA_BANK_8_ROM_START:
 ; Room 7 page 0 render program: 90 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_7_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#80
-    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
-    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#40
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#60,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#70,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#80,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#14,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#B0,#00,#14,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0
-    DB #00,#00,#02,#00,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#10,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00
-    DB #02,#20,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #30,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#40
-    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00
-    DB #44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#44
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#70,#00,#44,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#44,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#90,#00,#44,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#A0,#00,#44,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#B0,#00,#44,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#C0,#00,#44,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#00,#02,#D0,#00,#44,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#40,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0
-    DB #00,#00,#02,#50,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #00,#02,#60,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#70,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #80,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#90
-    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#A0,#00
-    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#B0,#00,#54
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#54,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#D0,#00,#54,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#54,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#00,#02,#40,#00,#64,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#00,#02,#50,#00,#64,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#60,#00,#64,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#70,#00,#64,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#80,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#90,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#A0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #00,#02,#D0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00
-    DB #02,#F0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #40,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#50
-    DB #00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00
-    DB #74,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#70,#00,#74
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0,#00,#74,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#74,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#40,#00,#84,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#50,#00,#84,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#84,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#70,#00,#84,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#00,#02,#D0,#00,#84,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #D0,#00,#00,#02,#40,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#50,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#60,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#70,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#90
-    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#A0,#00
-    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#B0,#00,#94
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#94,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#94,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#00,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#10,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#E0,#00,#00,#02,#20,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#00,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#E0
-    DB #00,#00,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00
-    DB #02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02
-    DB #A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#B0
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#D0,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#E0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#C4,#00,#10
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#40
+    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#40
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#50,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#60,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#70,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#14,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#14,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#30,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#00,#02,#00,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#10,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00
+    DB #02,#20,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #30,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40
+    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#50,#00
+    DB #44,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#44
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#44,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#44,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#44,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#44,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#B0,#00,#44,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#C0,#00,#44,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#70,#00,#00,#02,#D0,#00,#44,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#40,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70
+    DB #00,#00,#02,#50,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
+    DB #00,#02,#60,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#70,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #80,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90
+    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00
+    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#B0,#00,#54
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#54,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0,#00,#54,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#54,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#40,#00,#64,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#64,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#60,#00,#64,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#70,#00,#64,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#80,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#90,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#A0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
+    DB #00,#02,#D0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
+    DB #02,#F0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #40,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50
+    DB #00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00
+    DB #74,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#74
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#D0,#00,#74,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#74,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#40,#00,#84,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#84,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#84,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#70,#00,#84,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#70,#00,#00,#02,#D0,#00,#84,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#00,#02,#40,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#50,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#60,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#70,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90
+    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#A0,#00
+    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#B0,#00,#94
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#94,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#94,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#10,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#00,#02,#20,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#00,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#00,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00
+    DB #02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02
+    DB #A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#B0
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#E0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#C4,#00,#10
     DB #00,#10,#00,#00,#00,#D0
 bitmap_room_render_7_p0_end:
 
 ; Room 7 page 1 render program: 90 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_7_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#80
-    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
-    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#40
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#60,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#70,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#80,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#14,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#B0,#00,#14,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0
-    DB #00,#00,#02,#00,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#10,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00
-    DB #02,#20,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #30,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#40
-    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00
-    DB #44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#44
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#70,#00,#44,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#44,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#90,#00,#44,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#A0,#00,#44,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#B0,#00,#44,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#C0,#00,#44,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#00,#02,#D0,#00,#44,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#40,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0
-    DB #00,#00,#02,#50,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #00,#02,#60,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00
-    DB #02,#70,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #80,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#90
-    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#A0,#00
-    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#B0,#00,#54
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#54,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#D0,#00,#54,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#54,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#00,#02,#40,#00,#64,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#00,#02,#50,#00,#64,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#00,#02,#60,#00,#64,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#70,#00,#64,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#80,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #C0,#00,#00,#02,#90,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#A0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #00,#02,#D0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00
-    DB #02,#F0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #40,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#50
-    DB #00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00
-    DB #74,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#70,#00,#74
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0,#00,#74,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#74,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#40,#00,#84,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#50,#00,#84,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#84,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#70,#00,#84,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#00,#02,#D0,#00,#84,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#D0,#00,#00,#02,#F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #D0,#00,#00,#02,#40,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#50,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#60,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#70,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02
-    DB #80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#90
-    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#A0,#00
-    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02,#B0,#00,#94
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#D0,#00,#94,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#94,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#00,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#10,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#E0,#00,#00,#02,#20,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#00,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#00,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #E0,#00,#00,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#E0
-    DB #00,#00,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00
-    DB #02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#00,#02
-    DB #A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#B0
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#C0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#D0,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#E0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#C4,#01,#10
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#40
+    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#40
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#50,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#60,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#70,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#80,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#90,#00,#14,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#B0,#00,#14,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#30,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#00,#02,#00,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#10,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00
+    DB #02,#20,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #30,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#40
+    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#50,#00
+    DB #44,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00,#44
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#44,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#80,#00,#44,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90,#00,#44,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00,#44,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#B0,#00,#44,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#C0,#00,#44,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#70,#00,#00,#02,#D0,#00,#44,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#40,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70
+    DB #00,#00,#02,#50,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
+    DB #00,#02,#60,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
+    DB #02,#70,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #80,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90
+    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#A0,#00
+    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#B0,#00,#54
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00,#54,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0,#00,#54,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#54,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#40,#00,#64,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#64,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#30,#00,#00,#02,#60,#00,#64,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#70,#00,#64,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#80,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #70,#00,#00,#02,#90,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#A0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
+    DB #00,#02,#D0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
+    DB #02,#F0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #40,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#50
+    DB #00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#60,#00
+    DB #74,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#70,#00,#74
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#D0,#00,#74,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#74,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#40,#00,#84,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#50,#00,#84,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#84,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#70,#00,#84,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#70,#00,#00,#02,#D0,#00,#84,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#00,#02,#F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#00,#02,#40,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#50,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#60,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#70,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
+    DB #80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#90
+    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#A0,#00
+    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02,#B0,#00,#94
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#D0,#00,#94,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#94,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#10,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#00,#02,#20,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#00,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#00,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#00,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#00,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00
+    DB #02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#00,#02
+    DB #A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#B0
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#C0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#E0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#C4,#01,#10
     DB #00,#10,#00,#00,#00,#D0
 bitmap_room_render_7_p1_end:
 
@@ -11788,131 +11749,126 @@ bitmap_room_behavior_7:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_7_end:
 
-BITMAP_ROOM_DATA_BANK_8_USED_END:
-    ds 830, #FF
-    org BITMAP_ROOM_DATA_BANK_8_PHYS_START + #2000
-
-BITMAP_ROOM_DATA_BANK_9_PHYS_START:
-    org #8000
-BITMAP_ROOM_DATA_BANK_9_ROM_START:
-; Room 8 page 0 render program: 59 V9938 command blocks (clear + 16x16 tile copies)
+; Room 8 page 0 render program: 60 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_8_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#20
-    DB #00,#50,#02,#30,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
-    DB #50,#02,#40,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#50
-    DB #02,#50,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#50,#02
-    DB #90,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#50,#02,#A0
-    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#50,#02,#B0,#00
-    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#F0,#00,#54
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#64,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#E0,#00,#74,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#74,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00,#84,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#84,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#40,#02,#D0,#00,#84,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#E0,#00,#84,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#50,#00,#50,#02,#F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #60,#00,#40,#02,#60,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#70,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#90,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #A0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#B0
-    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#C0,#00
-    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#D0,#00,#94
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#E0,#00,#94,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#F0,#00,#94,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#60,#00,#A4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#A4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#F0,#00,#40,#02,#80,#00,#A4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#90,#00,#A4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#A0,#00,#A4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#B0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #00,#00,#50,#02,#C0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#20,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #30,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#40
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#50,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#60,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#70,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#A0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#B0,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#10,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#50,#00,#50,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#80,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50
-    DB #00,#50,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#A0
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#B0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#C0,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#D0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#E0,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#F0,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#00
+    DB #00,#40,#02,#30,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00
+    DB #40,#02,#40,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#40
+    DB #02,#50,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#40,#02
+    DB #90,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#40,#02,#A0
+    DB #00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#40,#02,#B0,#00
+    DB #34,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#F0,#00,#54
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#64,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#E0,#00,#74,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#74,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#30,#02,#90,#00,#84,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#A0,#00,#84,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#B0,#00,#84,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#50,#00,#30,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#D0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#E0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#40,#02,#F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #30,#02,#60,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#70,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#90
+    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#A0,#00
+    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#B0,#00,#94
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#C0,#00,#94,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#D0,#00,#94,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#E0,#00,#94,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#D0,#00,#30,#02,#F0,#00,#94,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#30,#02,#60,#00,#A4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#70,#00,#A4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#30,#02,#80,#00,#A4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#D0,#00,#30,#02,#90,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#A0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0
+    DB #00,#30,#02,#B0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #20,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#30
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#40,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#50,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#60,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#70,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#A0,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#A0,#00,#30,#02,#B0,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#40,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #F0,#00,#60,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #40,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#90
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#A0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#B0,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#C0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#D0,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#E0,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#F0,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0
 bitmap_room_render_8_p0_end:
 
-; Room 8 page 1 render program: 59 V9938 command blocks (clear + 16x16 tile copies)
+; Room 8 page 1 render program: 60 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_8_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#20
-    DB #00,#50,#02,#30,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
-    DB #50,#02,#40,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#50
-    DB #02,#50,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#50,#02
-    DB #90,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#50,#02,#A0
-    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#50,#02,#B0,#00
-    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#F0,#00,#54
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#64,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#E0,#00,#74,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#74,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00,#84,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#84,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#70,#00,#40,#02,#D0,#00,#84,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#E0,#00,#84,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#50,#00,#50,#02,#F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #60,#00,#40,#02,#60,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#70,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#90,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #A0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#B0
-    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#C0,#00
-    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#D0,#00,#94
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#E0,#00,#94,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#F0,#00,#94,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#60,#00,#A4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#70,#00,#A4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#F0,#00,#40,#02,#80,#00,#A4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#90,#00,#A4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#A0,#00,#A4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#B0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #00,#00,#50,#02,#C0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#20,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #30,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#40
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#50,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#60,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#70,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#A0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#B0,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#10,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#50,#00,#50,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#80,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50
-    DB #00,#50,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#A0
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#B0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#C0,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#D0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#E0,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#F0,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#00
+    DB #00,#40,#02,#30,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00
+    DB #40,#02,#40,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#40
+    DB #02,#50,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#40,#02
+    DB #90,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#40,#02,#A0
+    DB #00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#20,#00,#40,#02,#B0,#00
+    DB #34,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#F0,#00,#54
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#64,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#E0,#00,#74,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#74,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#30,#02,#90,#00,#84,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#A0,#00,#84,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#50,#00,#30,#02,#B0,#00,#84,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#50,#00,#30,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#D0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#E0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#40,#02,#F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #30,#02,#60,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#70,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#90
+    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#A0,#00
+    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#B0,#00,#94
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#C0,#00,#94,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#D0,#00,#94,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#E0,#00,#94,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#D0,#00,#30,#02,#F0,#00,#94,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#30,#02,#60,#00,#A4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#70,#00,#A4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#30,#02,#80,#00,#A4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#D0,#00,#30,#02,#90,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#A0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0
+    DB #00,#30,#02,#B0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #20,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#30
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#40,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#50,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#60,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#70,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#A0,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#A0,#00,#30,#02,#B0,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#40,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #F0,#00,#60,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #40,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#90
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#A0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#B0,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#C0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#D0,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#E0,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#F0,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0
 bitmap_room_render_8_p1_end:
 
 ; Room 8 16x12 collision grid (16x16 px cells), row-major, 0=empty
@@ -11924,10 +11880,10 @@ bitmap_room_collision_8:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
     DB #00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
-    DB #00,#00,#00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#10,#10,#00,#00,#90,#90,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#90,#90,#00,#00,#00,#00
     DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
 bitmap_room_collision_8_end:
 
@@ -11949,119 +11905,119 @@ bitmap_room_behavior_8_end:
 
 ; Room 9 page 0 render program: 58 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_9_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#70
-    DB #00,#40,#02,#00,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#10,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#20,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02
-    DB #30,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#60
-    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#70,#00
-    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#80,#00,#54
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00,#54,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#54,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#D0,#00,#54,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#64,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#10,#00,#64,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#20,#00,#64,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#40,#02,#30,#00,#64,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#A0,#00,#40,#02,#60,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #50,#00,#50,#02,#70,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#C0
-    DB #00,#40,#02,#80,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#B0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#C0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #D0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00
-    DB #00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#10,#00
-    DB #74,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#74
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#30,#00,#74,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#60,#00,#74,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#70,#00,#74,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#00,#00,#50,#02,#80,#00,#74,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#E0,#00,#40,#02,#B0,#00,#74,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#C0,#00,#74,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#00,#00,#50,#02,#D0,#00,#74,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#00,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#10,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#20,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #40,#02,#30,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#00,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02
-    DB #10,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#20
-    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02,#30,#00
-    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#50,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#80,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#B0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#00,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#A0,#00,#70,#02,#10,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#90,#00,#80,#02,#20,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#90,#00,#80,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#90,#00,#80,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#A0,#00,#80,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #90,#00,#80,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
-    DB #00,#80,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #80,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80
-    DB #02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02
-    DB #A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02,#B0
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#C0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#D0,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#E0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#F0,#00,#C4,#00,#10
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#50
+    DB #00,#30,#02,#00,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#10,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#20,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02
+    DB #30,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#60
+    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#70,#00
+    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#80,#00,#54
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#B0,#00,#54,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00,#54,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#D0,#00,#54,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#64,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#10,#00,#64,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#20,#00,#64,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#A0,#00,#30,#02,#30,#00,#64,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#30,#02,#60,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#40,#02,#70,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#A0
+    DB #00,#30,#02,#80,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#B0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#C0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #D0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00
+    DB #00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#10,#00
+    DB #74,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#20,#00,#74
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#30,#00,#74,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#60,#00,#74,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#70,#00,#74,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#E0,#00,#30,#02,#80,#00,#74,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#C0,#00,#30,#02,#B0,#00,#74,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#30,#02,#C0,#00,#74,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#E0,#00,#30,#02,#D0,#00,#74,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#00,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#10,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#20,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
+    DB #30,#02,#30,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#00,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02
+    DB #10,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#20
+    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02,#30,#00
+    DB #94,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#50,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#80,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#B0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#00,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#10,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#60,#02,#20,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#60,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#60,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#E0,#00,#60,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #D0,#00,#60,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#60,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
+    DB #60,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60
+    DB #02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02
+    DB #A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#60,#02,#B0
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#C0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#D0,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#E0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#F0,#00,#C4,#00,#10
     DB #00,#10,#00,#00,#00,#D0
 bitmap_room_render_9_p0_end:
 
 ; Room 9 page 1 render program: 58 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_9_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#70
-    DB #00,#40,#02,#00,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#10,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#20,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02
-    DB #30,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#60
-    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#70,#00
-    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#80,#00,#54
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00,#54,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00,#54,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#D0,#00,#54,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#64,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#10,#00,#64,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#20,#00,#64,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#C0,#00,#40,#02,#30,#00,#64,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#A0,#00,#40,#02,#60,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #50,#00,#50,#02,#70,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#C0
-    DB #00,#40,#02,#80,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#B0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#C0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02
-    DB #D0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00
-    DB #00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#10,#00
-    DB #74,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#20,#00,#74
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#30,#00,#74,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#60,#00,#74,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#70,#00,#74,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#00,#00,#50,#02,#80,#00,#74,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#E0,#00,#40,#02,#B0,#00,#74,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#C0,#00,#74,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#00,#00,#50,#02,#D0,#00,#74,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#00,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#10,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#20,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
-    DB #40,#02,#30,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#00,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02
-    DB #10,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#20
-    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02,#30,#00
-    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#50,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#80,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#B0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#70,#02,#00,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#A0,#00,#70,#02,#10,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#90,#00,#80,#02,#20,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#90,#00,#80,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#90,#00,#80,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#A0,#00,#80,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #90,#00,#80,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
-    DB #00,#80,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #80,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80
-    DB #02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02
-    DB #A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#80,#02,#B0
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#C0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#D0,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#E0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#80,#02,#F0,#00,#C4,#01,#10
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#50
+    DB #00,#30,#02,#00,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#10,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#20,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02
+    DB #30,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#60
+    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#70,#00
+    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#80,#00,#54
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#B0,#00,#54,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00,#54,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#D0,#00,#54,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#64,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#10,#00,#64,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#20,#00,#64,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#A0,#00,#30,#02,#30,#00,#64,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#30,#02,#60,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#40,#02,#70,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#A0
+    DB #00,#30,#02,#80,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#B0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#C0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02
+    DB #D0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00
+    DB #00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#10,#00
+    DB #74,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#20,#00,#74
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#30,#00,#74,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#60,#00,#74,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#70,#00,#74,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#E0,#00,#30,#02,#80,#00,#74,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#C0,#00,#30,#02,#B0,#00,#74,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#30,#02,#C0,#00,#74,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#E0,#00,#30,#02,#D0,#00,#74,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#00,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#10,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#20,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
+    DB #30,#02,#30,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#00,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02
+    DB #10,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#20
+    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02,#30,#00
+    DB #94,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#50,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#80,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#B0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#00,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#10,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#60,#02,#20,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#60,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#60,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#E0,#00,#60,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #D0,#00,#60,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#60,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
+    DB #60,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60
+    DB #02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02
+    DB #A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#60,#02,#B0
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#C0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#D0,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#E0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#60,#02,#F0,#00,#C4,#01,#10
     DB #00,#10,#00,#00,#00,#D0
 bitmap_room_render_9_p1_end:
 
@@ -12097,117 +12053,124 @@ bitmap_room_behavior_9:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_9_end:
 
+BITMAP_ROOM_DATA_BANK_8_USED_END:
+    ds 800, #FF
+    org BITMAP_ROOM_DATA_BANK_8_PHYS_START + #2000
+
+BITMAP_ROOM_DATA_BANK_9_PHYS_START:
+    org #8000
+BITMAP_ROOM_DATA_BANK_9_ROM_START:
 ; Room 10 page 0 render program: 56 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_10_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#70
-    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#40
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#50,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#90,#00,#14,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#B0,#00,#14,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#F0,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#F0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00
-    DB #02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #10,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#20
-    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00
-    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#54
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#64,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#64,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#80,#00,#64,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#64,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00,#74,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#00,#02,#A0,#00,#84,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#B0,#00,#84,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #D0,#00,#00,#02,#F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#80
-    DB #00,#00,#02,#F0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#F0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#20
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#30,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#10,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#20,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#30,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#40,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#00,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#B0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #C0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#E0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#F0,#00,#C4
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#30
+    DB #00,#00,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#40
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#70,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#80,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#90,#00,#14,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#A0,#00,#14,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#B0,#00,#14,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#F0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#F0,#00,#24,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#F0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
+    DB #02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #10,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20
+    DB #00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#30,#00
+    DB #54,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#54
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#64,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#70,#00,#64,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#64,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#00,#02,#F0,#00,#64,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#F0,#00,#74,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#40,#00,#00,#02,#A0,#00,#84,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#B0,#00,#84,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#00,#02,#F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#00,#02,#F0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#F0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#00,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #10,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#00,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#10,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#20,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#40,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#00,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#B0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #C0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#D0
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#E0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00,#C4
     DB #00,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_10_p0_end:
 
 ; Room 10 page 1 render program: 56 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_10_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#70
-    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#40
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#50,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#90,#00,#14,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#D0,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#B0,#00,#14,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#00,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
-    DB #00,#00,#02,#F0,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #00,#02,#F0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00
-    DB #02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #10,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#20
-    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00
-    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#54
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#60,#00,#64,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#70,#00,#64,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#80,#00,#64,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#64,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00,#74,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#00,#02,#A0,#00,#84,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#B0,#00,#84,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#00,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #D0,#00,#00,#02,#F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#80
-    DB #00,#00,#02,#F0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
-    DB #00,#02,#F0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02
-    DB #10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#20
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#30,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#F0,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#00,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#10,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#20,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#00,#02,#30,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#D0,#00,#00,#02,#40,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#D0,#00,#00,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#00,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#80,#00,#00,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#00,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#00,#02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00
-    DB #00,#02,#A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
-    DB #02,#B0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02
-    DB #C0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#D0
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#00,#02,#E0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#00,#02,#F0,#00,#C4
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#30
+    DB #00,#00,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#40
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#50,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#70,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#80,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#90,#00,#14,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#00,#02,#A0,#00,#14,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#B0,#00,#14,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#70,#00,#00,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#F0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#00,#02,#F0,#00,#24,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00
+    DB #00,#02,#F0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00
+    DB #02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #10,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20
+    DB #00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#30,#00
+    DB #54,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#54
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#60,#00,#64,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#70,#00,#64,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#80,#00,#64,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#40,#00,#00,#02,#F0,#00,#64,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#30,#00,#00,#02,#F0,#00,#74,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#40,#00,#00,#02,#A0,#00,#84,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#B0,#00,#84,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#70,#00,#00,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#00,#02,#F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#00,#02,#F0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00
+    DB #00,#02,#F0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#00,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02
+    DB #10,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#20
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#F0,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02,#00,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#10,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#20,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#70,#00,#00,#02,#30,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#00,#02,#40,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#80,#00,#00,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#30,#00,#00,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#40,#00,#00,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #30,#00,#00,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30
+    DB #00,#00,#02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #00,#02,#A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00
+    DB #02,#B0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#00,#02
+    DB #C0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#00,#02,#D0
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#00,#02,#E0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#00,#02,#F0,#00,#C4
     DB #01,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_10_p1_end:
 
@@ -12245,133 +12208,126 @@ bitmap_room_behavior_10_end:
 
 ; Room 11 page 0 render program: 60 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_11_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#E0
-    DB #00,#40,#02,#B0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#C0,#00
-    DB #24,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#D0,#00,#24
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#E0,#00,#24,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#24,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#20,#00,#50,#02,#40,#00,#34,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#40,#02,#50,#00,#34,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#60,#00,#34,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#40,#02,#70,#00,#34,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#40,#02,#C0,#00,#34,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#F0,#00,#40,#02,#D0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #F0,#00,#40,#02,#E0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#F0
-    DB #00,#40,#02,#F0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
-    DB #40,#02,#50,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#60,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#C0
+    DB #00,#30,#02,#B0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#C0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#D0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #E0,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#C0,#00
+    DB #24,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#D0,#00,#24
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#E0,#00,#24,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#24,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#00,#00,#40,#02,#40,#00,#34,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#50,#00,#30,#02,#50,#00,#34,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#60,#00,#34,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#60,#00,#30,#02,#70,#00,#34,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#C0,#00,#30,#02,#C0,#00,#34,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#D0,#00,#30,#02,#D0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #D0,#00,#30,#02,#E0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#30,#02,#F0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
+    DB #30,#02,#50,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#60,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02
     DB #70,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#00,#02,#C0
-    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00
-    DB #64,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#C0,#00,#64
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#74,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#C0,#00,#74,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#70,#00,#84,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#80,#00,#40,#02,#80,#00,#84,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#84,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#40,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#A0,#00,#40,#02,#70,#00,#94,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#40,#02,#80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #A0,#00,#40,#02,#B0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#C0
-    DB #00,#40,#02,#C0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#70,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40
-    DB #02,#80,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02
-    DB #B0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#C0
-    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#F0,#00
-    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#70,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#C0,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#B4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#90,#00,#80,#02,#00,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#90,#00,#80,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#90,#00,#80,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#90,#00,#80,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #90,#00,#80,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#60
-    DB #00,#40,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#90
-    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#A0,#00
-    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#B0,#00,#C4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#C0,#00,#C4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#D0,#00,#C4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#C4,#00,#10,#00,#10
+    DB #00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#B0,#00
+    DB #64,#00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#C0,#00,#64
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#74,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#C0,#00,#74,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#70,#00,#84,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#60,#00,#30,#02,#80,#00,#84,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#84,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#A0,#00,#30,#02,#C0,#00,#84,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#80,#00,#30,#02,#70,#00,#94,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#A0,#00,#30,#02,#80,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#30,#02,#B0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#A0
+    DB #00,#30,#02,#C0,#00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#70,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30
+    DB #02,#80,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02
+    DB #B0,#00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#C0
+    DB #00,#A4,#00,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#F0,#00
+    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#70,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#C0,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#60,#02,#00,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#60,#02,#10,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#60,#02,#20,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#D0,#00,#60,#02,#30,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #D0,#00,#60,#02,#40,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#30,#02,#50,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#90
+    DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#A0,#00
+    DB #C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#B0,#00,#C4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#C0,#00,#C4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#D0,#00,#C4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#C4,#00,#10,#00,#10
     DB #00,#00,#00,#D0
 bitmap_room_render_11_p0_end:
 
 ; Room 11 page 1 render program: 60 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_11_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#E0
-    DB #00,#40,#02,#B0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#C0,#00
-    DB #24,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#D0,#00,#24
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#50,#02,#E0,#00,#24,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#24,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#20,#00,#50,#02,#40,#00,#34,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#70,#00,#40,#02,#50,#00,#34,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#70,#00,#40,#02,#60,#00,#34,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#80,#00,#40,#02,#70,#00,#34,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#E0,#00,#40,#02,#C0,#00,#34,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#F0,#00,#40,#02,#D0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #F0,#00,#40,#02,#E0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#F0
-    DB #00,#40,#02,#F0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00
-    DB #40,#02,#50,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#60,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#C0
+    DB #00,#30,#02,#B0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#C0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#D0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #E0,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#C0,#00
+    DB #24,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#D0,#00,#24
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#40,#02,#E0,#00,#24,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#24,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#00,#00,#40,#02,#40,#00,#34,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#50,#00,#30,#02,#50,#00,#34,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#50,#00,#30,#02,#60,#00,#34,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#60,#00,#30,#02,#70,#00,#34,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#C0,#00,#30,#02,#C0,#00,#34,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#D0,#00,#30,#02,#D0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #D0,#00,#30,#02,#E0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#D0
+    DB #00,#30,#02,#F0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00
+    DB #30,#02,#50,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#60,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02
     DB #70,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#00,#02,#C0
-    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#B0,#00
-    DB #64,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#C0,#00,#64
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#74,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#C0,#00,#74,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#70,#00,#84,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#80,#00,#40,#02,#80,#00,#84,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#84,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#C0,#00,#40,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#A0,#00,#40,#02,#70,#00,#94,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#C0,#00,#40,#02,#80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #A0,#00,#40,#02,#B0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#C0
-    DB #00,#40,#02,#C0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#70,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40
-    DB #02,#80,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02
-    DB #B0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#C0
-    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#40,#02,#F0,#00
-    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#70,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#80,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#B0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#C0,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#B4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#90,#00,#80,#02,#00,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#90,#00,#80,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#90,#00,#80,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#90,#00,#80,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #90,#00,#80,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#60
-    DB #00,#40,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40
-    DB #02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02
-    DB #80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#90
-    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#A0,#00
-    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#B0,#00,#C4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#C0,#00,#C4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#D0,#00,#C4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#C4,#01,#10,#00,#10
+    DB #00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#B0,#00
+    DB #64,#01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#C0,#00,#64
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#74,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#C0,#00,#74,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#70,#00,#84,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#60,#00,#30,#02,#80,#00,#84,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#84,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#A0,#00,#30,#02,#C0,#00,#84,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#80,#00,#30,#02,#70,#00,#94,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#A0,#00,#30,#02,#80,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#30,#02,#B0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#A0
+    DB #00,#30,#02,#C0,#00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#70,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30
+    DB #02,#80,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02
+    DB #B0,#00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#C0
+    DB #00,#A4,#01,#10,#00,#10,#00,#00,#00,#D0,#40,#00,#30,#02,#F0,#00
+    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#70,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#80,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#B0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#C0,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#60,#02,#00,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#60,#02,#10,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#D0,#00,#60,#02,#20,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#D0,#00,#60,#02,#30,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #D0,#00,#60,#02,#40,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#40
+    DB #00,#30,#02,#50,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30
+    DB #02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02
+    DB #80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#90
+    DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#A0,#00
+    DB #C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#B0,#00,#C4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#C0,#00,#C4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#D0,#00,#C4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#C4,#01,#10,#00,#10
     DB #00,#00,#00,#D0
 bitmap_room_render_11_p1_end:
 
-BITMAP_ROOM_DATA_BANK_9_USED_END:
-    ds 50, #FF
-    org BITMAP_ROOM_DATA_BANK_9_PHYS_START + #2000
-
-BITMAP_ROOM_DATA_BANK_10_PHYS_START:
-    org #8000
-BITMAP_ROOM_DATA_BANK_10_ROM_START:
 ; Room 11 16x12 collision grid (16x16 px cells), row-major, 0=empty
 bitmap_room_collision_11:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10
@@ -12406,111 +12362,111 @@ bitmap_room_behavior_11_end:
 
 ; Room 12 page 0 render program: 54 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_12_p0:
-    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#B0
-    DB #00,#40,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02
-    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#B0
-    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#C0,#00
-    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#D0,#00,#14
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#E0,#00,#14,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#14,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#24,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#40,#02,#10,#00,#24,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#24,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#00,#00,#34,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#00,#00,#50,#02,#10,#00,#34,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#A0,#00,#40,#02,#F0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #A0,#00,#40,#02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#A0
-    DB #00,#40,#02,#F0,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#F0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40
-    DB #02,#F0,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02
-    DB #F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0
-    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#00,#00
-    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#10,#00,#A4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#20,#00,#A4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#A4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#B4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#10,#00,#B4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#F0,#00,#40,#02,#20,#00,#B4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#30,#00,#50,#02,#30,#00,#B4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#40,#02,#40,#00,#B4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#40,#02,#50,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#40,#02,#60,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#70,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#80,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#90,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #A0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#B0
-    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00
-    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#50,#02,#D0,#00,#B4
-    DB #00,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#B4,#00
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#B4,#00,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#00,#00,#C4,#00,#10,#00
-    DB #10,#00,#00,#00,#D0,#A0,#00,#40,#02,#40,#00,#C4,#00,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#50,#00,#C4,#00,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#B0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40
-    DB #02,#C0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02
-    DB #E0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0
+    DB #00,#00,#00,#00,#00,#00,#14,#00,#00,#01,#C0,#00,#00,#00,#C0,#90
+    DB #00,#30,#02,#00,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#10,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#20,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02
+    DB #30,#00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#B0
+    DB #00,#14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#C0,#00
+    DB #14,#00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#D0,#00,#14
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#E0,#00,#14,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#14,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#24,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#A0,#00,#30,#02,#10,#00,#24,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#24,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#30,#02,#00,#00,#34,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#E0,#00,#30,#02,#10,#00,#34,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#30,#02,#F0,#00,#34,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#30,#02,#F0,#00,#44,#00,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#30,#02,#F0,#00,#54,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#F0,#00,#64,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30
+    DB #02,#F0,#00,#74,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02
+    DB #F0,#00,#84,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0
+    DB #00,#94,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#00,#00
+    DB #A4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#10,#00,#A4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#20,#00,#A4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#A4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#B4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#D0,#00,#30,#02,#10,#00,#B4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#30,#02,#20,#00,#B4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#10,#00,#40,#02,#30,#00,#B4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#50,#00,#30,#02,#40,#00,#B4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#50,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#60,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50
+    DB #00,#30,#02,#70,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#80,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#90,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #A0,#00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#B0
+    DB #00,#B4,#00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00
+    DB #B4,#00,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#40,#02,#D0,#00,#B4
+    DB #00,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#B4,#00
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#B4,#00,#10
+    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#00,#00,#C4,#00,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#30,#02,#40,#00,#C4,#00,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#50,#00,#C4,#00,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#60,#00,#C4,#00,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#70,#00,#C4,#00,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#80,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#90,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#A0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#B0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30
+    DB #02,#C0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02
+    DB #E0,#00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0
     DB #00,#C4,#00,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_12_p0_end:
 
 ; Room 12 page 1 render program: 54 V9938 command blocks (clear + 16x16 tile copies)
 bitmap_room_render_12_p1:
-    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#B0
-    DB #00,#40,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40
-    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#00,#00,#50,#02
-    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#40,#02,#B0
-    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#C0,#00
-    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#D0,#00,#14
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#F0,#00,#40,#02,#E0,#00,#14,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#14,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#24,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#C0,#00,#40,#02,#10,#00,#24,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#24,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#F0,#00,#40,#02,#00,#00,#34,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#00,#00,#50,#02,#10,#00,#34,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#A0,#00,#40,#02,#F0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #A0,#00,#40,#02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#A0
-    DB #00,#40,#02,#F0,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00
-    DB #40,#02,#F0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40
-    DB #02,#F0,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02
-    DB #F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0
-    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#00,#00
-    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#10,#00,#A4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#40,#02,#20,#00,#A4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02,#F0,#00,#A4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#00,#00,#B4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#F0,#00,#40,#02,#10,#00,#B4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#F0,#00,#40,#02,#20,#00,#B4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#30,#00,#50,#02,#30,#00,#B4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#70,#00,#40,#02,#40,#00,#B4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#70,#00,#40,#02,#50,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #70,#00,#40,#02,#60,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70
-    DB #00,#40,#02,#70,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00
-    DB #40,#02,#80,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40
-    DB #02,#90,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02
-    DB #A0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#B0
-    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#C0,#00
-    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#30,#00,#50,#02,#D0,#00,#B4
-    DB #01,#10,#00,#10,#00,#00,#00,#D0,#70,#00,#40,#02,#E0,#00,#B4,#01
-    DB #10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0,#00,#B4,#01,#10
-    DB #00,#10,#00,#00,#00,#D0,#C0,#00,#40,#02,#00,#00,#C4,#01,#10,#00
-    DB #10,#00,#00,#00,#D0,#A0,#00,#40,#02,#40,#00,#C4,#01,#10,#00,#10
-    DB #00,#00,#00,#D0,#B0,#00,#40,#02,#50,#00,#C4,#01,#10,#00,#10,#00
-    DB #00,#00,#D0,#B0,#00,#40,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00
-    DB #00,#D0,#B0,#00,#40,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00
-    DB #D0,#B0,#00,#40,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
-    DB #B0,#00,#40,#02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0
-    DB #00,#40,#02,#A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00
-    DB #40,#02,#B0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#40
-    DB #02,#C0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#40,#02
-    DB #E0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#B0,#00,#40,#02,#F0
+    DB #00,#00,#00,#00,#00,#00,#14,#01,#00,#01,#C0,#00,#00,#00,#C0,#90
+    DB #00,#30,#02,#00,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#10,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30
+    DB #02,#20,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#E0,#00,#30,#02
+    DB #30,#00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#C0,#00,#30,#02,#B0
+    DB #00,#14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#C0,#00
+    DB #14,#01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#D0,#00,#14
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#D0,#00,#30,#02,#E0,#00,#14,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#14,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#24,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#A0,#00,#30,#02,#10,#00,#24,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#24,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#D0,#00,#30,#02,#00,#00,#34,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#E0,#00,#30,#02,#10,#00,#34,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#80,#00,#30,#02,#F0,#00,#34,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #80,#00,#30,#02,#F0,#00,#44,#01,#10,#00,#10,#00,#00,#00,#D0,#80
+    DB #00,#30,#02,#F0,#00,#54,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00
+    DB #30,#02,#F0,#00,#64,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30
+    DB #02,#F0,#00,#74,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02
+    DB #F0,#00,#84,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0
+    DB #00,#94,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#00,#00
+    DB #A4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#10,#00,#A4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#60,#00,#30,#02,#20,#00,#A4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02,#F0,#00,#A4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#00,#00,#B4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#D0,#00,#30,#02,#10,#00,#B4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#D0,#00,#30,#02,#20,#00,#B4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#10,#00,#40,#02,#30,#00,#B4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#50,#00,#30,#02,#40,#00,#B4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#50,#00,#30,#02,#50,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #50,#00,#30,#02,#60,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50
+    DB #00,#30,#02,#70,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00
+    DB #30,#02,#80,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30
+    DB #02,#90,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02
+    DB #A0,#00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#B0
+    DB #00,#B4,#01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#C0,#00
+    DB #B4,#01,#10,#00,#10,#00,#00,#00,#D0,#10,#00,#40,#02,#D0,#00,#B4
+    DB #01,#10,#00,#10,#00,#00,#00,#D0,#50,#00,#30,#02,#E0,#00,#B4,#01
+    DB #10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0,#00,#B4,#01,#10
+    DB #00,#10,#00,#00,#00,#D0,#A0,#00,#30,#02,#00,#00,#C4,#01,#10,#00
+    DB #10,#00,#00,#00,#D0,#80,#00,#30,#02,#40,#00,#C4,#01,#10,#00,#10
+    DB #00,#00,#00,#D0,#90,#00,#30,#02,#50,#00,#C4,#01,#10,#00,#10,#00
+    DB #00,#00,#D0,#90,#00,#30,#02,#60,#00,#C4,#01,#10,#00,#10,#00,#00
+    DB #00,#D0,#90,#00,#30,#02,#70,#00,#C4,#01,#10,#00,#10,#00,#00,#00
+    DB #D0,#90,#00,#30,#02,#80,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
+    DB #90,#00,#30,#02,#90,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90
+    DB #00,#30,#02,#A0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00
+    DB #30,#02,#B0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#A0,#00,#30
+    DB #02,#C0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#80,#00,#30,#02
+    DB #E0,#00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0,#90,#00,#30,#02,#F0
     DB #00,#C4,#01,#10,#00,#10,#00,#00,#00,#D0
 bitmap_room_render_12_p1_end:
 
@@ -12546,13 +12502,13 @@ bitmap_room_behavior_12:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 bitmap_room_behavior_12_end:
 
-BITMAP_ROOM_DATA_BANK_10_USED_END:
-    ds 5804, #FF
-    org BITMAP_ROOM_DATA_BANK_10_PHYS_START + #2000
+BITMAP_ROOM_DATA_BANK_9_USED_END:
+    ds 1940, #FF
+    org BITMAP_ROOM_DATA_BANK_9_PHYS_START + #2000
 
-BITMAP_ROOM_DATA_BANK_11_PHYS_START:
+BITMAP_ROOM_DATA_BANK_10_PHYS_START:
     org #8000
-BITMAP_ROOM_DATA_BANK_11_ROM_START:
+BITMAP_ROOM_DATA_BANK_10_ROM_START:
 ; GameFlow intro scene #0 SCREEN 5 bitmap, packed 4bpp RLE; VRAM #00000, raw 10549 bytes, RLE 7936 bytes
 bitmap_intro_scene0_rle_chunk_0:
     DB #0B,#11,#01,#14,#07,#11,#01,#14,#06,#11,#01,#14,#01,#11,#01,#14
@@ -13053,13 +13009,13 @@ bitmap_intro_scene0_rle_chunk_0:
     DB #01,#14,#01,#41,#01,#11,#01,#14,#09,#44,#01,#C4,#01,#4C,#05,#CC
 bitmap_intro_scene0_rle_chunk_0_end:
 
-BITMAP_ROOM_DATA_BANK_11_USED_END:
+BITMAP_ROOM_DATA_BANK_10_USED_END:
     ds 256, #FF
-    org BITMAP_ROOM_DATA_BANK_11_PHYS_START + #2000
+    org BITMAP_ROOM_DATA_BANK_10_PHYS_START + #2000
 
-BITMAP_ROOM_DATA_BANK_12_PHYS_START:
+BITMAP_ROOM_DATA_BANK_11_PHYS_START:
     org #8000
-BITMAP_ROOM_DATA_BANK_12_ROM_START:
+BITMAP_ROOM_DATA_BANK_11_ROM_START:
 ; GameFlow intro scene #0 SCREEN 5 bitmap, packed 4bpp RLE; VRAM #02935, raw 5835 bytes, RLE 4856 bytes
 bitmap_intro_scene0_rle_chunk_1:
     DB #01,#C2,#01,#33,#01,#32,#01,#2C,#01,#11,#01,#1A,#0E,#AA,#01,#BF
@@ -13368,13 +13324,13 @@ bitmap_intro_scene0_rle_chunk_1:
     DB #0D,#44,#01,#47,#01,#74,#15,#44
 bitmap_intro_scene0_rle_chunk_1_end:
 
-BITMAP_ROOM_DATA_BANK_12_USED_END:
+BITMAP_ROOM_DATA_BANK_11_USED_END:
     ds 3336, #FF
-    org BITMAP_ROOM_DATA_BANK_12_PHYS_START + #2000
+    org BITMAP_ROOM_DATA_BANK_11_PHYS_START + #2000
 
-BITMAP_ROOM_DATA_BANK_13_PHYS_START:
+BITMAP_ROOM_DATA_BANK_12_PHYS_START:
     org #8000
-BITMAP_ROOM_DATA_BANK_13_ROM_START:
+BITMAP_ROOM_DATA_BANK_12_ROM_START:
 ; GameFlow intro scene #0 SCREEN 5 bitmap, packed 4bpp RLE; VRAM #04000, raw 9353 bytes, RLE 7936 bytes
 bitmap_intro_scene0_rle_chunk_2:
     DB #01,#D4,#03,#11,#01,#14,#02,#11,#12,#44,#01,#42,#01,#1C,#01,#CA
@@ -13894,13 +13850,13 @@ bitmap_intro_scene0_rle_chunk_3:
     DB #56,#11
 bitmap_intro_scene0_rle_chunk_3_end:
 
-BITMAP_ROOM_DATA_BANK_13_USED_END:
+BITMAP_ROOM_DATA_BANK_12_USED_END:
     ds 30, #FF
-    org BITMAP_ROOM_DATA_BANK_13_PHYS_START + #2000
+    org BITMAP_ROOM_DATA_BANK_12_PHYS_START + #2000
 
-BITMAP_ROOM_DATA_BANK_14_PHYS_START:
+BITMAP_ROOM_DATA_BANK_13_PHYS_START:
     org #8000
-BITMAP_ROOM_DATA_BANK_14_ROM_START:
+BITMAP_ROOM_DATA_BANK_13_ROM_START:
 ; NPC dialogue glyph strips + portrait frames, packed 4bpp RLE; VRAM #1B000, raw 4096 bytes, RLE 2406 bytes
 bitmap_dlg_gfx_rle_chunk_0:
     DB #04,#11,#01,#1F,#02,#FF,#02,#11,#02,#FF,#01,#11,#01,#1F,#01,#F1
@@ -14056,13 +14012,13 @@ bitmap_dlg_gfx_rle_chunk_0:
     DB #0C,#DD,#01,#BE,#51,#00
 bitmap_dlg_gfx_rle_chunk_0_end:
 
-BITMAP_ROOM_DATA_BANK_14_USED_END:
+BITMAP_ROOM_DATA_BANK_13_USED_END:
     ds 5786, #FF
-    org BITMAP_ROOM_DATA_BANK_14_PHYS_START + #2000
+    org BITMAP_ROOM_DATA_BANK_13_PHYS_START + #2000
 
-BITMAP_ROOM_DATA_BANK_15_PHYS_START:
+BITMAP_ROOM_DATA_BANK_14_PHYS_START:
     org #8000
-BITMAP_ROOM_DATA_BANK_15_ROM_START:
+BITMAP_ROOM_DATA_BANK_14_ROM_START:
 ; NPC dialogue glyph strips + portrait frames, packed 4bpp RLE; VRAM #1C000, raw 15360 bytes, RLE 6498 bytes
 bitmap_dlg_gfx_rle_chunk_1:
     DB #04,#00,#01,#77,#03,#44,#01,#77,#01,#4A,#0C,#DD,#01,#BE,#01,#67
@@ -14474,8 +14430,8 @@ bitmap_dlg_gfx_rle_chunk_1:
     DB #5B,#00
 bitmap_dlg_gfx_rle_chunk_1_end:
 
-BITMAP_ROOM_DATA_BANK_15_USED_END:
+BITMAP_ROOM_DATA_BANK_14_USED_END:
     ds 1694, #FF
-    org BITMAP_ROOM_DATA_BANK_15_PHYS_START + #2000
+    org BITMAP_ROOM_DATA_BANK_14_PHYS_START + #2000
 
     end
