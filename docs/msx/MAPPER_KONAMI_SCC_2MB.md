@@ -110,12 +110,32 @@ Conclusió: la cadena glass.jar → ROM → OpenMSX suporta el rang complet de
   `generateSoundFile()` i a les dues rutes de `utils/msxGenerator/index.ts`.
   `generateMapperFile()` emet registres Konami SCC (`#7000/#9000/#B000`) i
   el runner d'OpenMSX força `-romtype KonamiSCC`.
-- El runtime SCC conserva la API `music_*`, reserva 67 bytes de RAM pròpia,
-  s'actualitza fora de `H.TIMI` i exposa/restaura P2 amb el banc `#3F` només
-  durant l'accés als registres SCC.
+- El runtime SCC conserva la API `music_*`, reserva RAM pròpia (~130 bytes des
+  de Fase 3), s'actualitza fora de `H.TIMI` i exposa/restaura P2 amb el banc
+  `#3F` només durant l'accés als registres SCC.
 - Smoke integrat PASS: projecte Mideas `Start -> Music -> ...`, MegaROM de
   256 KB, Glass OK, `scc_music_active=1`, mixer `#07`, waveform llegible,
   loops avançant, P2 restaurat a banc 2 després del tick i cap reset.
+- **Fase 3 (FETA, 2026-07-17)**: efectes de tracker de qualitat comunitat
+  (model TriloTracker: mirall d'estat per canal + motor de pitch per frame).
+  Files de pattern passen a 4 bytes/canal (nota, instrument, **ornament**,
+  volum). **Arpeggio** via ornaments (offsets de semitò amb signe, id 1..15,
+  loop). **Vibrato** per instrument (`vibratoDepth` 0..5, `vibratoSpeed`,
+  `vibratoDelay`; LFO triangular escalat per shift). Nou `scc_music_update_pitch`
+  escriu el període només quan canvia el shadow per canal. Editor: controls de
+  vibrato al `WaveformEditorModal`. Preview PC (`sccSynthesizer`) replica el
+  motor de pitch per paritat amb el ROM. Verificat OpenMSX standalone
+  (`test/scc/scc_fx_smoke.tcl`) i integrat (`test/scc/build_integrated_check.mjs`):
+  el shadow de període oscil·la (vibrato) i escalona (arpeggio).
+
+### Gotchas d'smoke OpenMSX (Fase 3)
+
+- El `open` de TCL usa el CWD d'openMSX = **arrel del repo**, no el CWD del
+  shell. Executa els smokes des de l'arrel amb ruta absoluta al fitxer de
+  resultat, o l'escriptura falla en silenci.
+- C-BIOS arrenca ~4-5 segons emulats abans d'executar el cartutx: mostreja la
+  RAM a t>=8, no a t<4 (un mostreig massa d'hora ensenya un "reset loop"
+  fantasma que només és l'arrencada del BIOS).
 
 ## Fonts
 
