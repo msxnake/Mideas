@@ -244,6 +244,13 @@ bitmap_load_turrets:
     push hl
     pop ix
 ${loadBlocks}    ; Shared bullet pattern and colour (one hardware slot per screen).
+    ; The turret pattern-group range may be reused by another subsystem
+    ; (enemies/platforms) in rooms without turrets, so this upload must not
+    ; touch VRAM when the room has no turret: it would corrupt whichever
+    ; sprite patterns currently live in the shared groups.
+    ld a, (bitmap_turret_count)
+    or a
+    jp z, .turret_load_no_bullet
     ld hl, bitmap_turret_bullet_pattern
     ld de, ${word(opts.patternBase + (opts.patternGroupBase + maxSlots * 2) * 32)}
     ld bc, 32
@@ -252,6 +259,7 @@ ${loadBlocks}    ; Shared bullet pattern and colour (one hardware slot per scree
     ld de, ${word(bulletColor)}
     ld bc, 16
     call copy_to_vram_ext
+.turret_load_no_bullet:
     pop ix
     ret
 

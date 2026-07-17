@@ -2,6 +2,7 @@ import {
   MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X,
   MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY,
   MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
+  MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
 } from './msx2EntityRuntimeGenerator';
 
 /**
@@ -20,8 +21,9 @@ import {
  * VRAM layout (sprite mode 2):
  *   SAT slots     [foreground][player layers][ENEMIES][bullets][terminator]
  *   colour table  current 16-byte line-colour block per enemy SAT slot
- *   patterns      maxFrames*2 32-byte groups per enemy slot, uploaded per room
- *                 by bitmap_load_enemies from the unique-sprite pattern table
+ *   patterns      per-slot maxFrames*2 (or *4 for slime-capable slots)
+ *                 32-byte groups, uploaded per room by bitmap_load_enemies
+ *                 from the unique-sprite pattern table
  *
  * RAM (chained after the dialogue system, below the #C1F0 ceiling):
  *   bitmap_enemy_count   1 byte  active slots in the current room
@@ -30,14 +32,16 @@ import {
  *                        mode, visualXOff, visualYOff, damage, hitX, hitY,
  *                        hitW, hitH, speed, updateLane
  *                        (+3 when a SlimeCeiling enemy exists anywhere:
- *                        travelPx, travelCount, phase -> 26 bytes/slot)
+ *                        travelPx, travelCount, phase; +5 for GearWheel:
+ *                        state, cooldownLo/Hi, delayLo/Hi)
  *
  * ROM (resident, like the foreground tables):
  *   bitmap_room_enemy_table_N   count + maxSlots*(22 bytes, or 23 with slime)
  *                               x,y,dx,dy,minX,maxX,minY,maxY,
  *                               patGroupOff,colorOff,frameCount,animDelay,
  *                               mode,visualXOff,visualYOff,damage,hitX,hitY,
- *                               hitW,hitH,speed,updateLane (+travelPx on slime builds)
+ *                               hitW,hitH,speed,updateLane (+travelPx on slime builds,
+ *                               +respawnFramesLo/Hi on GearWheel builds)
  *   bitmap_room_enemy_ptr_table DW per room
  *   bitmap_enemy_sprite_patterns  frames*2 variants x 32 bytes per unique sprite
  *                                 (frames*4 on slime builds: vertical-flip pair)
@@ -50,9 +54,15 @@ export const BITMAP_MAX_ENEMY_FRAMES = 4;
 export const BITMAP_ENEMY_POOL_STRIDE = 23;  // RAM bytes per slot (base build)
 /** Slime builds append travelPx/travelCount/phase to every pool slot. */
 export const BITMAP_ENEMY_POOL_STRIDE_SLIME = 26;
+/** Gear builds append state/cooldown/delay (5 bytes) to every pool slot. */
+export const BITMAP_ENEMY_POOL_STRIDE_GEAR = 28;
+/** Combined Slime + Gear build. */
+export const BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR = 31;
 
 /** RAM pool stride actually used by the generated runtime for this project. */
 export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): number {
+  if (data?.slimeEnabled && data?.gearEnabled) return BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR;
+  if (data?.gearEnabled) return BITMAP_ENEMY_POOL_STRIDE_GEAR;
   return data?.slimeEnabled ? BITMAP_ENEMY_POOL_STRIDE_SLIME : BITMAP_ENEMY_POOL_STRIDE;
 }
 
@@ -79,7 +89,7 @@ export interface BitmapEnemyRoomData {
   maxSlots: number;
   /** Max animation frames across the unique enemy sprites (>= 1). */
   maxFrames: number;
-  /** Per-room table bytes: [count] + maxSlots * table stride (22, or 23 with slime). */
+  /** Per-room table bytes: [count] + maxSlots * table stride (22 base, +1 slime, +2 gear). */
   roomTables: number[][];
   /** frames * variants x 32 bytes per unique enemy sprite ([right, left] per frame,
    *  plus [ceilRight, ceilLeft] vertical flips when slimeEnabled). */
@@ -91,6 +101,17 @@ export interface BitmapEnemyRoomData {
   /** True when any room places a SlimeCeiling (mode 11) enemy: widens the RAM
    *  pool/ROM table strides and doubles the per-frame sprite variants. */
   slimeEnabled: boolean;
+  /** True when any room places a GearWheel emitter (mode 12). */
+  gearEnabled: boolean;
+  /** Per-hardware-slot destination offset (in 32-byte pattern groups).
+   * Slots with a SlimeCeiling sprite reserve four variants per frame;
+   * ordinary enemies reserve two.  Keeping these offsets sparse avoids
+   * wasting the final V9938 groups on non-slime slots. */
+  patternGroupOffsets?: number[];
+  /** Per-hardware-slot pattern variant count (2 or 4). */
+  patternVariantCounts?: number[];
+  /** Total number of groups reserved by the compact per-slot allocation. */
+  patternGroupCount?: number;
 }
 
 export interface BitmapEnemyRuntimeOptions {
@@ -101,6 +122,10 @@ export interface BitmapEnemyRuntimeOptions {
   colorBase: number;
   /** First V9938 sprite pattern group reserved for enemy slots. */
   patternGroupBase: number;
+  /** Optional compact per-slot destination offsets, relative to patternGroupBase. */
+  patternGroupOffsets?: number[];
+  /** Optional per-slot variant counts (2 for normal, 4 for slime-capable slots). */
+  patternVariantCounts?: number[];
   /** HUD band offset added to logical Y before the SAT write. */
   gameYOffset: number;
   /** Player body hitbox in local player coordinates. */
@@ -154,17 +179,32 @@ export function buildBitmapEnemySystemAsm(
   const maxSlots = data.maxSlots;
   const maxFrames = Math.max(1, data.maxFrames);
   const slime = Boolean(data.slimeEnabled);
+  const gear = Boolean(data.gearEnabled);
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
-  const TABLE_STRIDE = slime ? 23 : 22; // ROM bytes per slot
+  const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0); // ROM bytes per slot
+  const GEAR_STATE_OFFSET = 23 + (slime ? 3 : 0);
+  const GEAR_COOLDOWN_LO_OFFSET = GEAR_STATE_OFFSET + 1;
+  const GEAR_COOLDOWN_HI_OFFSET = GEAR_STATE_OFFSET + 2;
+  const GEAR_DELAY_LO_OFFSET = GEAR_STATE_OFFSET + 3;
+  const GEAR_DELAY_HI_OFFSET = GEAR_STATE_OFFSET + 4;
   const variantsPerFrame = bitmapEnemyVariantsPerFrame(data);
   const groupsPerSlot = maxFrames * variantsPerFrame;
-  const ramBytes = 2 + maxSlots * POOL_STRIDE;
+  const slotPatternVariants = Array.from({ length: maxSlots }, (_unused, i) =>
+    Math.max(2, Number(opts.patternVariantCounts?.[i] || variantsPerFrame) || variantsPerFrame)
+  );
+  const slotPatternOffsets = Array.from({ length: maxSlots }, (_unused, i) =>
+    Number.isFinite(Number(opts.patternGroupOffsets?.[i]))
+      ? Math.max(0, Math.floor(Number(opts.patternGroupOffsets?.[i])))
+      : i * groupsPerSlot
+  );
+  // count + slot pool + the shared alternating-update lane byte.
+  const ramBytes = 3 + maxSlots * POOL_STRIDE;
   const countAddr = opts.ramBase;
   const poolAddr = opts.ramBase + 1;
   const updateLaneAddr = poolAddr + maxSlots * POOL_STRIDE;
 
   const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE} + update lane
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx,travelCount,phase' : ''}) ---
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 bitmap_enemy_update_lane EQU ${asmWord(updateLaneAddr)}
@@ -172,7 +212,8 @@ bitmap_enemy_update_lane EQU ${asmWord(updateLaneAddr)}
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
   const loadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
-    const patternGroup = opts.patternGroupBase + i * groupsPerSlot;
+    const patternGroup = opts.patternGroupBase + slotPatternOffsets[i];
+    const slotVariants = slotPatternVariants[i];
     const patternVram = 0xF800 + patternGroup * 32;
     const colorVram = opts.colorBase + i * 16;
     const poolBase = `bitmap_enemy_pool + ${i * POOL_STRIDE}`;
@@ -219,11 +260,45 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     xor a
     ld (${poolBase} + 24), a  ; travelCount = 0
     ld (${poolBase} + 25), a  ; phase = ground crawl
-` : ''}    ; --- upload frameCount*${variantsPerFrame} pattern groups -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
+` : ''}${gear ? `    ; GearWheel state: 1=falling, 2=rolling, 3=stopped, 0=waiting.
+    ld a, (ix+${22 + (slime ? 1 : 0)})       ; respawn delay frames (lo)
+    ld (${poolBase} + ${GEAR_DELAY_LO_OFFSET}), a
+    ld a, (ix+${23 + (slime ? 1 : 0)})       ; respawn delay frames (hi)
+    ld (${poolBase} + ${GEAR_DELAY_HI_OFFSET}), a
+    xor a
+    ld (${poolBase} + ${GEAR_COOLDOWN_LO_OFFSET}), a
+    ld (${poolBase} + ${GEAR_COOLDOWN_HI_OFFSET}), a
+    ld a, 1
+    ld (${poolBase} + ${GEAR_STATE_OFFSET}), a
+` : ''}${slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
+    ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
+    ; EVERY sprite, but this slot only reserves the facing pair: copy 64 of
+    ; every 128 source bytes so frame N lands on group ${patternGroup}+N*2.
+    ld a, (ix+8)
+    call bitmap_enemy_patterns_offset
+    ld de, ${asmWord(patternVram)}
+    ld a, (ix+10)             ; frameCount (>= 1 on used slots)
+.benemy_slot_${i}_patstride:
+    push af
+    push hl
+    push de
+    ld bc, 64                 ; one [right, left] pair
+    call copy_to_vram_ext
+    pop de
+    pop hl
+    ld bc, 128                ; ROM stride: 4 variants x 32 bytes
+    add hl, bc
+    ex de, hl
+    ld bc, 64                 ; VRAM stride: 2 variants x 32 bytes
+    add hl, bc
+    ex de, hl
+    pop af
+    dec a
+    jp nz, .benemy_slot_${i}_patstride` : `    ; --- upload frameCount*${slotVariants} pattern groups -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ld a, (ix+8)
     call bitmap_enemy_patterns_offset
     ld a, (ix+10)             ; frameCount
-    add a, a                  ; *2 variants${slime ? `
+    add a, a                  ; *2 variants${slotVariants >= 4 ? `
     add a, a                  ; *4 variants (ceiling flips)` : ''}
     push hl
     ld l, a
@@ -237,7 +312,7 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     ld c, l
     pop hl
     ld de, ${asmWord(patternVram)}
-    call copy_to_vram_ext
+    call copy_to_vram_ext`}
     ; --- upload 16-byte colour table -> VRAM ${asmWord(colorVram)} (slot ${i}) ---
     ld a, (ix+9)
     call bitmap_enemy_colors_offset
@@ -295,7 +370,18 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     ld a, (ix+13)             ; #FF = killed by a thrown object
     cp #FF
     jp z, .enemy_step_next
-    ld a, (bitmap_enemy_update_lane)
+.enemy_step_lane_gate:
+${gear ? `    ; Gear cooldowns are real video-frame seconds, independent of the
+    ; alternating movement lane. Once active, movement still obeys the lane.
+    ld a, (ix+13)
+    cp ${MSX2_ENEMY_MOVEMENT_GEAR_WHEEL}
+    jp nz, .enemy_step_lane_compare
+    call .gear_pre_frame
+    ld a, (ix+${GEAR_STATE_OFFSET})
+    or a
+    jp z, .enemy_anim
+.enemy_step_lane_compare:
+` : ''}    ld a, (bitmap_enemy_update_lane)
     cp (ix+22)                ; other lane: animate, but defer movement
     jp nz, .enemy_anim
     ld a, (ix+13)             ; movement mode
@@ -305,6 +391,8 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     jp z, .enemy_step_walker_gravity
 ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp z, .enemy_step_slime
+` : ''}${gear ? `    cp ${MSX2_ENEMY_MOVEMENT_GEAR_WHEEL}
+    jp z, .enemy_step_gear
 ` : ''}    ; --- X axis ---
 .enemy_step_patrol:
     ld a, (ix+2)              ; dx
@@ -504,7 +592,270 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp .enemy_anim
 .walker_turn_right:
     ld (ix+2), #01
-${slime ? `    jp .enemy_anim
+${gear ? `    jp .enemy_anim
+.enemy_step_gear:
+    ; GearWheel uses one logical 16x16 body per emitter. State 1 falls,
+    ; state 2 rolls, state 3 is a bottom stop, and state 0 waits to respawn.
+    ld a, (ix+${GEAR_STATE_OFFSET})
+    cp 1
+    jp z, .gear_fall
+    cp 2
+    jp z, .gear_roll
+    jp .enemy_anim
+.gear_fall:
+    ld d, (ix+21)             ; authored speed: px per selected lane update
+.gear_fall_px:
+    ; An exit below either edge consumes the wheel before solid landing.
+    ld a, (ix+1)
+    add a, 16
+    ld c, a
+    push de
+    call .gear_probe_exit_body
+    or a
+    pop de
+    jp nz, .gear_despawn
+    ld a, (ix+1)
+    cp 176
+    jp nc, .gear_stop
+    add a, 16
+    ld c, a
+    push de
+    call .gear_probe_body
+    or a
+    pop de
+    jp nz, .gear_land
+    inc (ix+1)
+    dec d
+    jp nz, .gear_fall_px
+    jp .enemy_anim
+.gear_land:
+    ld a, 2
+    ld (ix+${GEAR_STATE_OFFSET}), a
+    jp .enemy_anim
+.gear_stop:
+    ld (ix+1), 176
+    ld a, 3
+    ld (ix+${GEAR_STATE_OFFSET}), a
+    jp .enemy_anim
+.gear_roll:
+    ; A missing floor makes the wheel fall again. Exits are checked first.
+    ld a, (ix+1)
+    add a, 16
+    ld c, a
+    push de
+    call .gear_probe_exit_body
+    or a
+    pop de
+    jp nz, .gear_despawn
+    ld a, (ix+1)
+    cp 176
+    jp nc, .gear_stop
+    add a, 16
+    ld c, a
+    call .gear_probe_body
+    or a
+    jp z, .gear_start_fall
+    ld d, (ix+21)
+.gear_roll_px:
+    call .gear_roll_one
+    jp c, .enemy_anim          ; wall: direction already inverted
+    ld a, (ix+1)
+    add a, 16
+    ld c, a
+    push de
+    call .gear_probe_exit_body
+    or a
+    pop de
+    jp nz, .gear_despawn
+    dec d
+    jp nz, .gear_roll_px
+    jp .enemy_anim
+.gear_start_fall:
+    ld a, 1
+    ld (ix+${GEAR_STATE_OFFSET}), a
+    jp .gear_fall
+.gear_roll_one:
+    ; One-pixel horizontal step. Carry means blocked and dx was inverted.
+    ld a, (ix+2)
+    or a
+    jp z, .gear_set_right
+    bit 7, a
+    jp nz, .gear_roll_left
+.gear_roll_right:
+    ld a, (ix+0)
+    cp (ix+5)
+    jp nc, .gear_turn_left
+    push bc
+    ld b, a
+    add a, 16
+    ld b, a
+    ld a, (ix+1)
+    add a, 8
+    ld c, a
+    push de
+    call bitmap_probe_solid
+    pop de
+    or a
+    pop bc
+    jp nz, .gear_turn_left
+    inc (ix+0)
+    or a
+    ret
+.gear_turn_left:
+    ld (ix+2), #FF
+    scf
+    ret
+.gear_set_right:
+    ld (ix+2), #01
+    jp .gear_roll_right
+.gear_roll_left:
+    ld a, (ix+0)
+    cp (ix+4)
+    jp z, .gear_turn_right
+    jp c, .gear_turn_right
+    push bc
+    dec a
+    ld b, a
+    ld a, (ix+1)
+    add a, 8
+    ld c, a
+    push de
+    call bitmap_probe_solid
+    pop de
+    or a
+    pop bc
+    jp nz, .gear_turn_right
+    dec (ix+0)
+    or a
+    ret
+.gear_turn_right:
+    ld (ix+2), #01
+    scf
+    ret
+.gear_despawn:
+    xor a
+    ld (ix+${GEAR_STATE_OFFSET}), a
+    ld (ix+${GEAR_COOLDOWN_LO_OFFSET}), a
+    ld a, (ix+${GEAR_DELAY_LO_OFFSET})
+    ld (ix+${GEAR_COOLDOWN_LO_OFFSET}), a
+    ld a, (ix+${GEAR_DELAY_HI_OFFSET})
+    ld (ix+${GEAR_COOLDOWN_HI_OFFSET}), a
+    ld a, (ix+6)              ; emitter X (stored in minY)
+    ld (ix+0), a
+    ld (ix+1), ${asmByte(ENEMY_EMPTY_SPRITE_Y)}
+    jp .enemy_anim
+.gear_pre_frame:
+    ; Decrements respawn cooldown every video frame, not every movement lane.
+    ; INPUT IX. DESTROYS AF/DE/HL. PRESERVES BC/IX/IY.
+    push bc
+    push de
+    push hl
+    ld a, (ix+${GEAR_STATE_OFFSET})
+    or a
+    jp nz, .gear_pre_done
+    ld l, (ix+${GEAR_COOLDOWN_LO_OFFSET})
+    ld h, (ix+${GEAR_COOLDOWN_HI_OFFSET})
+    ld a, h
+    or l
+    jp z, .gear_respawn
+    dec hl
+    ld (ix+${GEAR_COOLDOWN_LO_OFFSET}), l
+    ld (ix+${GEAR_COOLDOWN_HI_OFFSET}), h
+    ld a, h
+    or l
+    jp nz, .gear_pre_done
+.gear_respawn:
+    ld a, (ix+6)              ; emitter X
+    ld (ix+0), a
+    ld a, (ix+7)              ; emitter Y
+    ld (ix+1), a
+    ld a, (ix+3)              ; initial direction is kept in dy
+    ld (ix+2), a
+    ld a, 1
+    ld (ix+${GEAR_STATE_OFFSET}), a
+    xor a
+    ld (ix+${GEAR_COOLDOWN_LO_OFFSET}), a
+    ld (ix+${GEAR_COOLDOWN_HI_OFFSET}), a
+.gear_pre_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+.gear_probe_body:
+    ; INPUT C=probe Y, IX=slot. OUTPUT A=solid byte/NZ, preserves BC/IX/IY.
+    push bc
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e
+    ld b, a
+    call bitmap_probe_solid
+    or a
+    jp nz, .gear_probe_body_done
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e
+    add a, 15
+    ld b, a
+    call bitmap_probe_solid
+    or a
+.gear_probe_body_done:
+    pop bc
+    ret
+.gear_probe_exit_body:
+    ; INPUT C=probe Y. Returns A=1/NZ when either edge is an EXIT cell.
+    push bc
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e
+    ld b, a
+    call .gear_probe_exit_cell
+    or a
+    jp nz, .gear_probe_exit_done
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e
+    add a, 15
+    ld b, a
+    call .gear_probe_exit_cell
+    or a
+.gear_probe_exit_done:
+    pop bc
+    ret
+.gear_probe_exit_cell:
+    ; INPUT B=pixel X, C=pixel Y. EXIT = behavior code 4 (exit_enemy).
+    ; The legacy effect=2 encoding is accepted as a compatibility fallback.
+    ; Reads the active 16x12 behavior/collision maps; preserves BC/IY.
+    call bitmap_probe_behavior
+    cp 4
+    jp z, .gear_exit_yes
+    ld a, c
+    cp 192
+    jp nc, .gear_exit_no
+    and #F0
+    ld l, a
+    ld a, b
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    add a, l
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de
+    ld a, (hl)
+    and #06
+    cp #04
+    jp z, .gear_exit_yes
+.gear_exit_no:
+    xor a
+    ret
+.gear_exit_yes:
+    ld a, 1
+    or a
+    ret
+` : ''}${slime ? `    jp .enemy_anim
 .enemy_step_slime:
     ; SlimeCeiling: crawls its authored travel distance along the floor, then
     ; sticks (Metroid-style gravity flip look), crawls the same distance upside
@@ -911,7 +1262,9 @@ ${respawnOnDeath ? `
   // Pattern byte = slot base group *4 + animFrame*8 (2 variants/frame) + 4
   // when patrolling left (variant 1 = mirrored/facing-left).
   const satSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
-    const patternByteBase = ((opts.patternGroupBase + i * groupsPerSlot) * 4) & 0xff;
+    const slotVariants = slotPatternVariants[i];
+    const slotUsesCeilingVariants = slotVariants >= 4;
+    const patternByteBase = ((opts.patternGroupBase + slotPatternOffsets[i]) * 4) & 0xff;
     const poolBase = `bitmap_enemy_pool + ${i * POOL_STRIDE}`;
     return `.sat_slot_${i}:
     ld a, (bitmap_enemy_count)
@@ -920,7 +1273,10 @@ ${respawnOnDeath ? `
     ld a, (${poolBase} + 13)  ; killed enemy stays in the pool but is invisible
     cp #FF
     jp z, .sat_slot_${i}_hidden
-    ld a, (${poolBase} + 1)
+${gear ? `    ld a, (${poolBase} + ${GEAR_STATE_OFFSET}) ; GearWheel state 0 waits off-screen
+    or a
+    jp z, .sat_slot_${i}_hidden
+` : ''}    ld a, (${poolBase} + 1)
     add a, ${opts.gameYOffset}
     out (VDP_DATA_PORT), a    ; Y
     ld a, (${poolBase})
@@ -929,7 +1285,7 @@ ${respawnOnDeath ? `
     add a, a
     add a, a
     add a, a                  ; frame * 8 (2 variants x 4 pattern numbers)
-${slime ? `    add a, a                  ; frame * 16 (4 variants x 4 pattern numbers)
+${slotUsesCeilingVariants ? `    add a, a                  ; frame * 16 (4 variants x 4 pattern numbers)
 ` : ''}    ld e, a
     ld a, (${poolBase} + 2)   ; dx: bit7 set = moving left = mirrored variant
     and #80
@@ -939,7 +1295,7 @@ ${slime ? `    add a, a                  ; frame * 16 (4 variants x 4 pattern nu
 .sat_slot_${i}_right:
     xor a
 .sat_slot_${i}_pat:
-${slime ? `    ld d, a
+${slotUsesCeilingVariants ? `    ld d, a
     ld a, (${poolBase} + 25)  ; slime phase 1/2 (rising/ceiling) = flipped pose
     dec a
     cp 2
@@ -964,6 +1320,7 @@ ${slime ? `    ld d, a
   }).join('\n');
 
   const colorUploadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
+    const slotUsesCeilingVariants = slotPatternVariants[i] >= 4;
     const colorVram = opts.colorBase + i * 16;
     const poolBase = `bitmap_enemy_pool + ${i * POOL_STRIDE}`;
     return `.color_slot_${i}:
@@ -974,7 +1331,7 @@ ${slime ? `    ld d, a
     ld e, a
     ld a, (${poolBase} + 9)   ; animFrame
     add a, e
-${slime ? `    ld e, a
+${slotUsesCeilingVariants ? `    ld e, a
     ld a, (${poolBase} + 25)  ; slime phase 1/2 = flipped line-colour table
     dec a
     cp 2
@@ -1001,7 +1358,8 @@ ${slime ? `    ld e, a
 ;   VRAM groups. Called after load_room at init and on every room-transition
 ;   commit (same sites as the foreground sprite loader).
 ; INPUT: current_screen_index.
-; OUTPUT: bitmap_enemy_count/pool + VRAM pattern groups ${opts.patternGroupBase}..${opts.patternGroupBase + maxSlots * groupsPerSlot - 1}.
+; OUTPUT: bitmap_enemy_count/pool + VRAM pattern groups reserved by the
+; compact per-slot enemy allocation.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY (IX saved/restored).
 ; CALLS: copy_to_vram_ext, bitmap_enemy_patterns_offset, bitmap_enemy_colors_offset.
 ; ------------------------------------------------------------
@@ -1112,7 +1470,7 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx' : ''})`)
+    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''})`)
   ).join('')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
     + emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
