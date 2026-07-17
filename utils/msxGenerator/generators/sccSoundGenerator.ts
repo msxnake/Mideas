@@ -193,6 +193,20 @@ export function buildSccNotePeriodTable(): string {
   return lines.join('\n');
 }
 
+/**
+ * 64-entry signed sine LFO for vibrato, peak amplitude ~31 period units.
+ * The driver indexes it with (phase >> 2) & 63 and scales by an arithmetic
+ * right shift, so shift=5 gives the full +-31 (~2 semitones at A4) and shift=1
+ * a subtle +-1. Emitted as two's-complement bytes.
+ */
+export function buildSccVibratoTable(): string {
+  const values: number[] = [];
+  for (let i = 0; i < 64; i++) {
+    values.push(Math.round(31 * Math.sin((2 * Math.PI * i) / 64)) & 0xff);
+  }
+  return buildDbLines('scc_vib_table', values);
+}
+
 // ---------------------------------------------------------------------------
 // track data serialization
 // ---------------------------------------------------------------------------
@@ -226,6 +240,21 @@ function buildSccTrackData(
     instrumentMap.set(clampByte(instrument.id, 1, 31), instrument);
   }
 
+  // Ornaments drive arpeggio: each is a signed semitone-offset sequence added
+  // to the base note every frame (PT3/TriloTracker chord model). Ids 1..15.
+  const ornamentMap = new Map<number, { data: number[]; loop: number }>();
+  for (const ornament of song.ornaments || []) {
+    if (!ornament || typeof ornament.id !== 'number') continue;
+    const data = Array.isArray(ornament.data)
+      ? ornament.data.slice(0, 64).map((v) => clampByte(v, -128, 127) & 0xff)
+      : [];
+    if (data.length === 0) continue;
+    const loop = typeof ornament.loopPosition === 'number' && ornament.loopPosition >= 0 && ornament.loopPosition < data.length
+      ? ornament.loopPosition
+      : 0; // default: loop the whole ornament (classic arpeggio)
+    ornamentMap.set(clampByte(ornament.id, 1, 15), { data, loop });
+  }
+
   const waveIndexFor = (instrument: SCCInstrument): number => {
     const wave = normalizeWaveform(instrument.waveform);
     const key = wave.join(',');
@@ -248,6 +277,7 @@ function buildSccTrackData(
   lines.push(`    DW ${labelBase}_order_table          ; +4`);
   lines.push(`    DW ${labelBase}_pattern_table          ; +6`);
   lines.push(`    DW ${labelBase}_instrument_ptr_table  ; +8`);
+  lines.push(`    DW ${labelBase}_ornament_ptr_table    ; +10`);
   lines.push('');
   lines.push(buildDbLines(`${labelBase}_order_table`, order.map((v) => clampByte(v, 0, Math.max(0, patterns.length - 1)))));
   lines.push('');
@@ -262,6 +292,20 @@ function buildSccTrackData(
     lines.push(`    DW ${instrumentId > 0 && instrumentMap.has(instrumentId) ? `${labelBase}_inst_${instrumentId}` : '0'}`);
   }
   lines.push('');
+  // Ornament pointer table: ids 0..15 (0 = none). Each record: DB len, DB loop,
+  // then `len` signed semitone offsets.
+  lines.push(`${labelBase}_ornament_ptr_table:`);
+  for (let ornamentId = 0; ornamentId <= 15; ornamentId++) {
+    lines.push(`    DW ${ornamentId > 0 && ornamentMap.has(ornamentId) ? `${labelBase}_orn_${ornamentId}` : '0'}`);
+  }
+  lines.push('');
+  Array.from(ornamentMap.entries()).sort((a, b) => a[0] - b[0]).forEach(([ornamentId, ornament]) => {
+    lines.push(`${labelBase}_orn_${ornamentId}:`);
+    lines.push(`    DB ${toAsmByte(ornament.data.length)}          ; length`);
+    lines.push(`    DB ${toAsmByte(ornament.loop)}          ; loop index`);
+    lines.push(buildDbLines(`${labelBase}_orn_${ornamentId}_data`, ornament.data));
+    lines.push('');
+  });
 
   patterns.forEach((pattern, patternIndex) => {
     const rowCount = clampByte(pattern?.numRows || pattern?.rows?.length || 1, 1, 255);
@@ -283,6 +327,19 @@ function buildSccTrackData(
           }
         }
         rowBytes.push(instrumentField);
+        // ornament field: #FF keep, 0 clear, 1..15 select
+        let ornamentField = 0xff;
+        if (cell.ornament === 0) {
+          ornamentField = 0;
+        } else if (cell.ornament !== null && cell.ornament !== undefined) {
+          const clamped = clampByte(cell.ornament, 1, 15);
+          if (!ornamentMap.has(clamped)) {
+            warnings.push(`${context}: SCC ornament ${clamped} not found, ignored`);
+          } else {
+            ornamentField = clamped;
+          }
+        }
+        rowBytes.push(ornamentField);
         rowBytes.push(cell.volume === null || cell.volume === undefined
           ? 0xff
           : scaleSccVolume(cell.volume, globalVolume));
@@ -302,12 +359,18 @@ function buildSccTrackData(
       instrument.volume ?? (instrument.volumeEnvelope?.[0] ?? 15),
       globalVolume
     );
+    const vibratoDepth = clampByte(instrument.vibratoDepth ?? 0, 0, 5);
+    const vibratoSpeed = clampByte(instrument.vibratoSpeed ?? 16, 0, 255);
+    const vibratoDelay = clampByte(instrument.vibratoDelay ?? 0, 0, 255);
     lines.push(`${labelBase}_inst_${instrumentId}:`);
     lines.push(`    DB ${toAsmByte(waveIndex)}          ; +0 waveform table index`);
     lines.push(`    DB ${toAsmByte(defaultVolume)}          ; +1 default volume`);
     lines.push(`    DW ${volumeEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_vol_env` : '0'}          ; +2 volume envelope ptr`);
     lines.push(`    DB ${toAsmByte(volumeEnvelope.length)}          ; +4 envelope length`);
     lines.push(`    DB ${toAsmByte(volumeLoop)}          ; +5 envelope loop (#FF = hold last)`);
+    lines.push(`    DB ${toAsmByte(vibratoDepth)}          ; +6 vibrato depth (0=off..5)`);
+    lines.push(`    DB ${toAsmByte(vibratoSpeed)}          ; +7 vibrato speed (phase inc/frame)`);
+    lines.push(`    DB ${toAsmByte(vibratoDelay)}          ; +8 vibrato delay frames`);
     if (volumeEnvelope.length > 0) {
       lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_vol_env`, volumeEnvelope));
     }
@@ -323,8 +386,9 @@ function buildSccTrackData(
 
 /**
  * Emit the SCC music runtime RAM as EQU chained from `baseAddress`.
- * Existing probe-visible fields stay stable; the loop-enabled flag is appended
- * after the channel arrays. Total: 67 bytes.
+ * Layout: 17 song/global bytes, then 21 per-channel arrays (5 bytes each) for
+ * note/wave/volume/envelope + the arpeggio, vibrato and pitch-shadow engines,
+ * then the loop-enabled flag. ~130 bytes total.
  */
 export function buildSccMusicRam(baseAddress: number): { asm: string; bytesUsed: number; nextFree: number } {
   const vars: Array<[string, number]> = [
@@ -342,10 +406,11 @@ export function buildSccMusicRam(baseAddress: number): { asm: string; bytesUsed:
     ['scc_music_order_ptr', 2],
     ['scc_music_pattern_table_ptr', 2],
     ['scc_music_inst_table_ptr', 2],
+    ['scc_music_orn_table_ptr', 2],
     ['scc_music_row_ptr', 2],
     ['scc_music_mixer_shadow', 1],
     // per-channel arrays, 5 bytes each, indexed by channel 0..4
-    ['scc_ch_note', 5],
+    ['scc_ch_note', 5],       // base note as authored (#FF = silent, #FE handled at cut)
     ['scc_ch_wave', 5],
     ['scc_ch_volbase', 5],
     ['scc_ch_envlo', 5],
@@ -354,6 +419,21 @@ export function buildSccMusicRam(baseAddress: number): { asm: string; bytesUsed:
     ['scc_ch_envloop', 5],
     ['scc_ch_envstep', 5],
     ['scc_ch_volout', 5],
+    // --- arpeggio (ornament) engine, per channel ---
+    ['scc_ch_arp_lo', 5],     // ornament data pointer low (0 = no ornament)
+    ['scc_ch_arp_hi', 5],     // ornament data pointer high
+    ['scc_ch_arp_len', 5],    // ornament length (0 = inactive)
+    ['scc_ch_arp_loop', 5],   // ornament loop index (#FF = hold last)
+    ['scc_ch_arp_step', 5],   // current ornament step
+    // --- vibrato engine (per-instrument), per channel ---
+    ['scc_ch_vib_shift', 5],  // amplitude shift 0=off..5=strong (delta = tri >> (5-shift))
+    ['scc_ch_vib_speed', 5],  // phase increment per frame
+    ['scc_ch_vib_delay', 5],  // frames to hold before vibrato starts
+    ['scc_ch_vib_ctr', 5],    // remaining delay frames
+    ['scc_ch_vib_phase', 5],  // triangle LFO phase 0..255
+    // --- pitch shadow (period written only on change) ---
+    ['scc_ch_period_lo', 5],
+    ['scc_ch_period_hi', 5],
     ['scc_music_loop_enabled', 1],
   ];
   const lines: string[] = ['; ---- SCC music runtime RAM (EQU chain) ----'];
@@ -576,6 +656,32 @@ scc_music_reset_volout_loop:
     ld (hl), #FF            ; sentinel: force first real write
     inc hl
     djnz scc_music_reset_volout_loop
+    ; arpeggio + vibrato disabled, period shadow forced to rewrite
+    xor a
+    ld hl, scc_ch_arp_len
+    ld b, 5
+scc_music_reset_arplen_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_arplen_loop
+    ld hl, scc_ch_vib_shift
+    ld b, 5
+scc_music_reset_vibshift_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_vibshift_loop
+    ld hl, scc_ch_vib_phase
+    ld b, 5
+scc_music_reset_vibphase_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_vibphase_loop
+    ld hl, scc_ch_period_hi
+    ld b, 5
+scc_music_reset_period_loop:
+    ld (hl), #FF           ; sentinel: force first period write
+    inc hl
+    djnz scc_music_reset_period_loop
     ret
 
 ; ------------------------------------------------------------------
@@ -629,7 +735,12 @@ scc_music_play_track_valid:
     ld e, (hl)
     inc hl
     ld d, (hl)
+    inc hl
     ld (scc_music_inst_table_ptr), de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (scc_music_orn_table_ptr), de
     call scc_music_reset_channels
     xor a
     ld (scc_music_muted), a
@@ -761,6 +872,7 @@ scc_music_update:
     or a
     jp z, scc_music_update_restore_bank
 scc_music_update_effects:
+    call scc_music_update_pitch
     call scc_music_update_envelopes
     call scc_music_apply_mixer
 scc_music_update_restore_bank:
@@ -769,9 +881,9 @@ scc_music_update_restore_bank:
 
 ; ------------------------------------------------------------------
 ; scc_music_advance_row
-; What:   Decode the current row (5 channels x 3 bytes: note,
-;         instrument, volume) and fire channel events, then advance
-;         row/order position with restart wrap.
+; What:   Decode the current row (5 channels x 4 bytes: note,
+;         instrument, ornament, volume) and fire channel events, then
+;         advance row/order position with restart wrap.
 ; Destroys: AF, BC, DE, HL   Preserves: IX, IY
 ; ------------------------------------------------------------------
 scc_music_advance_row:
@@ -782,6 +894,16 @@ scc_music_row_ch_loop:
     inc hl
     ld d, (hl)              ; instrument field
     inc hl
+    ld e, (hl)              ; ornament field
+    inc hl
+    push hl
+    push bc                 ; save note (B) + channel (C)
+    push de                 ; save instrument (D)
+    ld a, e                 ; ornament field -> arp arrays for this channel
+    call scc_music_apply_ornament
+    pop de                  ; D = instrument field
+    pop bc                  ; B = note, C = channel
+    pop hl
     ld e, (hl)              ; volume field
     inc hl
     push hl
@@ -883,8 +1005,10 @@ scc_music_cell_wave_same:
     inc hl                  ; +4 envelope length
     ld b, (hl)              ; note field already saved on stack
     inc hl                  ; +5 envelope loop
-    ld a, (hl)
-    push af                 ; save loop position
+    ld a, (hl)              ; A = envelope loop
+    inc hl                  ; HL = instrument record +6 (vibrato block)
+    push hl                 ; save record+6 for the vibrato read below
+    push af                 ; save envelope loop
     push de
     ld hl, scc_ch_envlo
     call scc_ch_ptr
@@ -898,11 +1022,27 @@ scc_music_cell_wave_same:
     ld hl, scc_ch_envlen
     call scc_ch_ptr
     ld (hl), b
-    pop af                  ; loop position
+    pop af                  ; envelope loop
     ld e, a
     ld hl, scc_ch_envloop
     call scc_ch_ptr
     ld (hl), e
+    ; ---- cache per-instrument vibrato (depth/speed/delay) for this channel ----
+    pop hl                  ; HL = instrument record +6
+    ld e, (hl)              ; +6 vibrato depth/shift
+    inc hl
+    ld b, (hl)              ; +7 vibrato speed
+    inc hl
+    ld d, (hl)              ; +8 vibrato delay
+    ld hl, scc_ch_vib_shift
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_vib_speed
+    call scc_ch_ptr
+    ld (hl), b
+    ld hl, scc_ch_vib_delay
+    call scc_ch_ptr
+    ld (hl), d
 scc_music_cell_inst_done:
     pop de
     pop bc
@@ -923,32 +1063,40 @@ scc_music_cell_note:
     ret z                   ; keep playing
     cp #FE
     jp z, scc_music_cell_note_cut
-    ; note on: store note, set period, restart envelope
+    ; note on: store the base note; the per-frame pitch engine computes the
+    ; effective period (base note + arpeggio + vibrato) and writes it this
+    ; same frame. Restart envelope, arpeggio and vibrato phase.
     ld e, a
     ld hl, scc_ch_note
     call scc_ch_ptr
     ld (hl), e
-    ld a, e                 ; period lookup (note max 95: *2 never carries)
-    add a, a
-    ld l, a
-    ld h, 0
-    ld de, scc_note_period_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, c
-    push bc
-    call SCC_SetPeriod
-    pop bc
     ld hl, scc_ch_envstep
     call scc_ch_ptr
     ld (hl), 0
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld (hl), 0
+    ld hl, scc_ch_vib_phase
+    call scc_ch_ptr
+    ld (hl), 0
+    ld hl, scc_ch_vib_delay
+    call scc_ch_ptr
+    ld e, (hl)
+    ld hl, scc_ch_vib_ctr
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_period_hi
+    call scc_ch_ptr
+    ld (hl), #FF            ; force the pitch engine to write the period
     ret
 scc_music_cell_note_cut:
     ld hl, scc_ch_note
     call scc_ch_ptr
     ld (hl), #FF
+    ; stop arpeggio so a silenced channel does not keep stepping
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld (hl), 0
     ; force volume 0 now and refresh shadow
     ld hl, scc_ch_volout
     call scc_ch_ptr
@@ -989,6 +1137,218 @@ scc_wave_cache_ptr_add:
     ld l, a
     ret nc
     inc h
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_apply_ornament
+; What:   Bind an ornament (arpeggio) to a channel from a row cell.
+; Inputs: A = ornament field (#FF keep, 0 clear, 1..15 select),
+;         C = channel 0..4. Ornament pointer table = scc_music_orn_table_ptr.
+; Destroys: AF, DE, HL   Preserves: BC, IX, IY
+; ------------------------------------------------------------------
+scc_music_apply_ornament:
+    cp #FF
+    ret z                    ; keep current ornament
+    or a
+    jp z, scc_music_orn_clear
+    ; look up ornament ptr table[A] (2 bytes/entry)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, (scc_music_orn_table_ptr)
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)               ; DE = ornament record pointer (0 = none)
+    ld a, e
+    or d
+    jp z, scc_music_orn_clear
+    ex de, hl                ; HL = ornament record (+0 len, +1 loop, +2 data)
+    ld a, (hl)               ; len
+    inc hl                   ; -> loop
+    ld d, (hl)               ; D = loop
+    inc hl                   ; HL = data pointer
+    ld e, a                  ; E = len
+    push hl                  ; save data pointer
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld (hl), e               ; arp_len = len
+    ld hl, scc_ch_arp_loop
+    call scc_ch_ptr
+    ld (hl), d               ; arp_loop = loop
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld (hl), 0               ; restart the arpeggio
+    pop de                   ; DE = data pointer
+    ld hl, scc_ch_arp_lo
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_arp_hi
+    call scc_ch_ptr
+    ld (hl), d
+    ret
+scc_music_orn_clear:
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld (hl), 0               ; inactive
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_update_pitch
+; What:   Per-frame pitch for every live channel: effective note =
+;         base note + arpeggio step offset, converted to a period, then
+;         a triangle-LFO vibrato offset is added. The SCC period is
+;         written only when it differs from the per-channel shadow.
+; Inputs: scc_ch_note / arp / vib arrays, scc_note_period_table, scc_vib_table.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_music_update_pitch:
+    ld c, 0                  ; channel index
+scc_pitch_ch_loop:
+    ld hl, scc_ch_note
+    call scc_ch_ptr
+    ld a, (hl)
+    cp #FF
+    jp z, scc_pitch_next     ; silent channel: nothing to pitch
+    ld b, a                  ; B = effective note (base to start)
+    ; ---- arpeggio ----
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp z, scc_pitch_no_arp
+    ld d, a                  ; D = len (>=1)
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld a, (hl)               ; step
+    cp d
+    jp c, scc_pitch_arp_step_ok
+    ; step past end: wrap to loop, or hold the last entry
+    ld hl, scc_ch_arp_loop
+    call scc_ch_ptr
+    ld a, (hl)
+    cp #FF
+    jp nz, scc_pitch_arp_step_ok
+    ld a, d
+    dec a                    ; hold last (len-1)
+scc_pitch_arp_step_ok:
+    ld e, a                  ; E = effective step (0..len-1)
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld a, e
+    inc a
+    ld (hl), a               ; store step+1 for next frame
+    ld hl, scc_ch_arp_lo
+    call scc_ch_ptr
+    ld a, (hl)
+    ld hl, scc_ch_arp_hi
+    call scc_ch_ptr
+    ld h, (hl)
+    ld l, a                  ; HL = ornament data base
+    ld d, 0                  ; DE = step (E)
+    add hl, de
+    ld a, (hl)               ; signed semitone offset
+    add a, b
+    ld b, a                  ; effective note += offset
+scc_pitch_no_arp:
+    ; ---- base period lookup (clamp note to 0..95) ----
+    ld a, b
+    cp 96
+    jp c, scc_pitch_note_ok
+    ld a, 95
+scc_pitch_note_ok:
+    add a, a
+    ld l, a
+    ld h, 0
+    ld de, scc_note_period_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)               ; DE = base period
+    ; ---- vibrato (triangle LFO scaled by shift) ----
+    ld hl, scc_ch_vib_shift
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp z, scc_pitch_write    ; vibrato disabled
+    ld hl, scc_ch_vib_ctr
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp z, scc_pitch_vib_active
+    dec (hl)                 ; delay still counting down
+    jp scc_pitch_write
+scc_pitch_vib_active:
+    push de                  ; save base period across the delta math
+    ld hl, scc_ch_vib_speed
+    call scc_ch_ptr
+    ld a, (hl)
+    ld hl, scc_ch_vib_phase
+    call scc_ch_ptr
+    add a, (hl)
+    ld (hl), a               ; phase += speed
+    rrca
+    rrca
+    and #3F                  ; idx = (phase >> 2) & 63
+    ld l, a
+    ld h, 0
+    ld de, scc_vib_table
+    add hl, de
+    ld a, (hl)               ; signed triangle value
+    ld e, a                  ; E = value
+    ld hl, scc_ch_vib_shift
+    call scc_ch_ptr
+    ld a, 5
+    sub (hl)                 ; N = 5 - shift (0..4)
+    ld b, a
+    ld a, e                  ; A = triangle value
+    inc b
+    jr scc_pitch_vib_sra_test
+scc_pitch_vib_sra:
+    sra a                    ; arithmetic (sign-preserving) shift right
+scc_pitch_vib_sra_test:
+    dec b
+    jr nz, scc_pitch_vib_sra
+    pop de                   ; DE = base period
+    ld l, a
+    ld h, 0
+    bit 7, a
+    jr z, scc_pitch_vib_pos
+    ld h, #FF                ; sign-extend a negative delta
+scc_pitch_vib_pos:
+    add hl, de
+    ex de, hl                ; DE = period + vibrato delta
+scc_pitch_write:
+    ; write DE to the SCC only when it differs from the channel shadow
+    ld hl, scc_ch_period_lo
+    call scc_ch_ptr
+    ld a, e
+    cp (hl)
+    jp nz, scc_pitch_do_write
+    ld a, d
+    and #0F
+    ld hl, scc_ch_period_hi
+    call scc_ch_ptr
+    cp (hl)
+    jp z, scc_pitch_next
+scc_pitch_do_write:
+    ld hl, scc_ch_period_lo
+    call scc_ch_ptr
+    ld (hl), e
+    ld a, d
+    and #0F
+    ld hl, scc_ch_period_hi
+    call scc_ch_ptr
+    ld (hl), a
+    ld a, c
+    push bc
+    call SCC_SetPeriod
+    pop bc
+scc_pitch_next:
+    inc c
+    ld a, c
+    cp 5
+    jp c, scc_pitch_ch_loop
     ret
 
 ; ------------------------------------------------------------------
@@ -1133,6 +1493,8 @@ export function buildSccMusicData(tracks: TrackerSongData[]): SccMusicBuildResul
   for (const wave of waveTable) for (const sample of wave) waveBytes.push(sample & 0xff);
   const parts: string[] = [];
   parts.push(buildSccNotePeriodTable());
+  parts.push('');
+  parts.push(buildSccVibratoTable());
   parts.push('');
   parts.push(`; ${waveTable.length} unique waveform(s), 32 bytes each (signed two's complement)`);
   parts.push(buildDbLines('scc_wave_table', waveBytes));

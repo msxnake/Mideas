@@ -329,7 +329,7 @@ export interface BitmapTileScreen5 {
   pixelData: number[];
   /** Optional SCREEN 5 bitmap-room collision flags carried by stamps/metatiles. */
   collisionFlags?: number;
-  /** Optional SCREEN 5 bitmap-room behavior code carried by stamps/metatiles. 3 = ice_slide surface. */
+  /** Optional SCREEN 5 bitmap-room behavior code carried by stamps/metatiles. 3 = ice_slide surface, 4 = exit_enemy. */
   behaviorCode?: number;
   previewImage?: string;
   tags?: string[];
@@ -404,7 +404,7 @@ export interface Msx2BitmapRoomAtlasEntry {
   h: number;
   /** Optional SCREEN 5 bitmap-room collision/behavior flags applied when this atlas tile is painted. */
   collisionFlags?: number;
-  /** Optional SCREEN 5 bitmap-room behavior code applied when this atlas tile is painted. 3 = ice_slide surface. */
+  /** Optional SCREEN 5 bitmap-room behavior code applied when this atlas tile is painted. 3 = ice_slide surface, 4 = exit_enemy. */
   behaviorCode?: number;
   /** SCREEN 5 bitmap-room destroy_tile skill: cells painted with this tile can be dug out by the player. */
   destructible?: boolean;
@@ -694,6 +694,31 @@ export interface Msx2PlayerWeaponDurability {
   brokenState?: string;
 }
 
+/**
+ * Declarative visual and collision contract for a directional melee attack.
+ * The sprite is rendered relative to the player while the attack animation is
+ * active; the runtime can use the facing-specific hitbox to apply damage to
+ * enemies and destructible world tiles.
+ */
+export interface Msx2PlayerWeaponAttackVisual {
+  /** msx2sprite asset id used for the slash animation. */
+  spriteAssetId?: string;
+  /** Consecutive (or explicit) sprite frame indices used by the slash. */
+  frames: number[];
+  /** Number of game frames each slash sprite frame remains visible. */
+  frameDelay: number;
+  /** Position of the visual relative to the player for each facing. */
+  offsetByFacing: Partial<Record<Exclude<Msx2PlayerFacing, 'neutral'>, { x: number; y: number }>>;
+  /** Damage rectangle relative to the player for each facing. */
+  hitboxByFacing: Partial<Record<Exclude<Msx2PlayerFacing, 'neutral'>, Msx2PlayerHitbox>>;
+  /** Whether this attack can damage enemy entities. */
+  affectsEnemies: boolean;
+  /** Whether this attack can interact with solid/destructible world tiles. */
+  affectsWalls: boolean;
+  /** Whether a matching destructible tile should be broken on contact. */
+  breaksDestructibleTiles: boolean;
+}
+
 export interface Msx2PlayerWeaponDefinition {
   id: string;
   name: string;
@@ -720,6 +745,8 @@ export interface Msx2PlayerWeaponDefinition {
     /** Screen char code 0-255 (kind === 'char'). */
     charCode?: number;
   };
+  /** Directional melee/sword slash visual and impact metadata. */
+  attackVisual?: Msx2PlayerWeaponAttackVisual;
   ammo?: Msx2PlayerWeaponAmmo;
   durability?: Msx2PlayerWeaponDurability;
   notes?: string;
@@ -1442,7 +1469,7 @@ export interface ProjectPlayerDefinition {
 }
 
 export type EnemyCategory = 'simpleEnemy' | 'boss' | 'hazard' | 'projectileLike';
-export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'TurretAim' | 'ChaseHorizontal' | 'SlimeCeiling' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
+export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'TurretAim' | 'ChaseHorizontal' | 'SlimeCeiling' | 'GearWheel' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
 export type EnemyAttackType = 'None' | 'DamageOnTouch' | 'ShooterStatic' | 'ProjectileEmitter' | 'MeleeBox' | 'ExplosionOnTouch';
 export type EnemyRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type EnemySpriteSize = '16x16' | '16x32' | '32x16' | '32x32';
@@ -2040,6 +2067,12 @@ export interface SCCInstrument {
   volumeEnvelope?: number[];
   /** The loop position for the volume envelope. */
   volumeLoop?: number;
+  /** Vibrato amplitude 0=off..5=strong (triangle LFO on the note period). */
+  vibratoDepth?: number;
+  /** Vibrato phase increment per frame (LFO speed, e.g. 8-32). */
+  vibratoSpeed?: number;
+  /** Frames to hold after note-on before vibrato begins. */
+  vibratoDelay?: number;
 }
 
 /**

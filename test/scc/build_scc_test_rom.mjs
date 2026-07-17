@@ -25,16 +25,18 @@ for (let i = 0; i < 32; i++) {
 const square = [];
 for (let i = 0; i < 32; i++) square.push(i < 16 ? 112 : -112);
 
-const cell = (note = null, instrument = null, volume = null) => ({ note, instrument, ornament: null, volume });
+const cell = (note = null, instrument = null, volume = null, ornament = null) => ({ note, instrument, ornament, volume });
 const emptyRow = () => ({ 1: cell(), 2: cell(), 3: cell(), 4: cell(), 5: cell() });
 
 function makePattern(id, name, notes1, notes2, notes3) {
   const rows = [];
   for (let r = 0; r < 16; r++) {
     const row = emptyRow();
+    // Channel 1 melody uses instrument 1 (vibrato). Channel 3 uses the arp
+    // ornament (id 1) so the smoke can observe the period stepping each frame.
     if (notes1[r]) row['1'] = cell(notes1[r], 1, null);
     if (notes2[r]) row['2'] = cell(notes2[r], 2, null);
-    if (notes3[r]) row['3'] = cell(notes3[r], 1, 10);
+    if (notes3[r]) row['3'] = cell(notes3[r], 1, 10, 1);
     rows.push(row);
   }
   return { id, name, numRows: 16, rows };
@@ -64,10 +66,14 @@ const song = {
   restartPosition: 0,
   currentPatternIndexInOrder: 0,
   instruments: [
-    { id: 1, name: 'triangle', waveform: triangle, volume: 15, volumeEnvelope: [15, 14, 12, 10, 8, 7, 6, 5, 4, 4, 3, 3], volumeLoop: 0xff },
+    { id: 1, name: 'triangle', waveform: triangle, volume: 15, volumeEnvelope: [15, 14, 12, 10, 8, 7, 6, 5, 4, 4, 3, 3], volumeLoop: 0xff,
+      vibratoDepth: 4, vibratoSpeed: 24, vibratoDelay: 3 },
     { id: 2, name: 'square', waveform: square, volume: 13, volumeEnvelope: [13, 13, 12, 11, 10, 9], volumeLoop: 4 },
   ],
-  ornaments: [],
+  // Major-chord arpeggio (root, +4, +7 semitones), looping.
+  ornaments: [
+    { id: 1, name: 'maj', data: [0, 4, 7], loopPosition: 0 },
+  ],
 };
 
 // collectSccTracks must pick it up exactly like the future analysis path
