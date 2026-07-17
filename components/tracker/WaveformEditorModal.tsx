@@ -138,7 +138,14 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
   const [volumeEnvelope, setVolumeEnvelope] = useState('');
   const [volumeLoop, setVolumeLoop] = useState<number | ''>('');
   const [envelopeValues, setEnvelopeValues] = useState<number[]>([]);
+  const [vibratoDepth, setVibratoDepth] = useState<number>(0);
+  const [vibratoSpeed, setVibratoSpeed] = useState<number>(16);
+  const [vibratoDelay, setVibratoDelay] = useState<number>(0);
   const synthRef = useRef<SCCSynthesizer | null>(null);
+
+  const clampVibDepth = (value: number) => Math.max(0, Math.min(5, Math.round(value)));
+  const clampVibSpeed = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+  const clampVibDelay = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
   const clampWaveValue = (value: number) => Math.max(-128, Math.min(127, Math.round(value)));
   const clampBaseVolume = (value: number) => Math.max(0, Math.min(15, Math.round(value)));
@@ -165,6 +172,9 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       setVolumeEnvelope(envStr);
       setEnvelopeValues(instrument.volumeEnvelope ? instrument.volumeEnvelope.map(clampEnvelopeValue).slice(0, 32) : []);
       setVolumeLoop(instrument.volumeLoop !== undefined ? instrument.volumeLoop : '');
+      setVibratoDepth(clampVibDepth(instrument.vibratoDepth ?? 0));
+      setVibratoSpeed(clampVibSpeed(instrument.vibratoSpeed ?? 16));
+      setVibratoDelay(clampVibDelay(instrument.vibratoDelay ?? 0));
     } else {
       // Default for new instrument
       setName('New Waveform');
@@ -173,6 +183,9 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       setVolumeEnvelope('');
       setEnvelopeValues([]);
       setVolumeLoop('');
+      setVibratoDepth(0);
+      setVibratoSpeed(16);
+      setVibratoDelay(0);
     }
   }, [instrument]);
 
@@ -247,7 +260,10 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       waveform: sanitizedWave,
       volume: clampBaseVolume(volume),
       volumeEnvelope: sanitizedEnvelope,
-      volumeLoop: parsedLoop
+      volumeLoop: parsedLoop,
+      vibratoDepth: clampVibDepth(vibratoDepth),
+      vibratoSpeed: clampVibSpeed(vibratoSpeed),
+      vibratoDelay: clampVibDelay(vibratoDelay),
     };
   };
 
@@ -465,6 +481,44 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
               className="w-full p-2 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent text-sm"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-msx-textprimary mb-1">Vibrato (LFO de tono por instrumento)</label>
+          <div className="grid grid-cols-3 gap-4 bg-msx-bgcolor border border-msx-border rounded p-3">
+            <div>
+              <label className="block text-[11px] text-msx-textsecondary mb-1">Profundidad (0=off..5)</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="range" min={0} max={5} value={vibratoDepth}
+                  onChange={(e) => setVibratoDepth(clampVibDepth(parseInt(e.target.value, 10)))}
+                  className="flex-1"
+                />
+                <input
+                  type="number" min={0} max={5} value={vibratoDepth}
+                  onChange={(e) => setVibratoDepth(clampVibDepth(parseInt(e.target.value || '0', 10)))}
+                  className="w-14 p-1 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-msx-textsecondary mb-1">Velocidad (fase/frame)</label>
+              <input
+                type="number" min={0} max={255} value={vibratoSpeed}
+                onChange={(e) => setVibratoSpeed(clampVibSpeed(parseInt(e.target.value || '0', 10)))}
+                className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-msx-textsecondary mb-1">Retardo (frames)</label>
+              <input
+                type="number" min={0} max={255} value={vibratoDelay}
+                onChange={(e) => setVibratoDelay(clampVibDelay(parseInt(e.target.value || '0', 10)))}
+                className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-sm"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-msx-textsecondary mt-1">Depth 0 desactiva el vibrato. Velocidad tipica 8-32; el retardo espera N frames tras cada nota.</p>
         </div>
 
         <div className="flex justify-end space-x-2 pt-2 border-t border-msx-border">

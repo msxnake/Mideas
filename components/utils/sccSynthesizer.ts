@@ -33,6 +33,12 @@ export class SCCSynthesizer {
     private channelActiveInstrument: (SCCInstrument | null)[] = [null, null, null, null, null];
     private channelCurrentPeriod: (number | null)[] = [null, null, null, null, null];
     private channelSilentTickCounter: number[] = [0, 0, 0, 0, 0];
+    // Pitch effects (mirror the ROM driver): arpeggio via ornament semitone
+    // offsets, and a per-instrument triangle-LFO vibrato. Re-applied to the
+    // source playbackRate every effects tick so the preview matches the ROM.
+    private channelOrnamentState: ({ data: number[], loop: number, step: number } | null)[] = [null, null, null, null, null];
+    private channelVibrato: ({ depth: number, speed: number, delay: number, phase: number, ctr: number } | null)[] = [null, null, null, null, null];
+    private channelBaseFrequency: (number | null)[] = [null, null, null, null, null];
     // SCC original has one physical waveform RAM shared by logical channels 4/5.
     private sharedOriginalWaveform: number[] | null = null;
 
@@ -135,6 +141,10 @@ export class SCCSynthesizer {
                 }
             }
 
+            // Apply pitch effects (arpeggio + vibrato) — mirrors the ROM's
+            // per-frame pitch engine so the preview matches the exported song.
+            this.applyPitchEffects(channel);
+
             if (!envState) {
                 if (currentVolume <= 0) {
                     this.channelSilentTickCounter[channel] = Math.min(this.channelSilentTickCounter[channel] + 1, 10);
@@ -154,6 +164,55 @@ export class SCCSynthesizer {
     private getVolumeFactor(volume: number): number {
         const clamped = Math.max(0, Math.min(15, Math.round(volume)));
         return SCC_VOLUME_TABLE[clamped] ?? 0;
+    }
+
+    // Triangle LFO for vibrato: phase 0..255 -> -1..+1.
+    private triangleLfo(phase: number): number {
+        const p = (phase & 0xff) / 255;
+        return p < 0.5 ? (p * 4 - 1) : (3 - p * 4);
+    }
+
+    // Re-derives a channel's playback rate from its base note plus the current
+    // arpeggio (ornament) semitone offset and vibrato, matching the ROM's
+    // per-frame pitch engine. Runs at the 50Hz effects rate.
+    private applyPitchEffects(channel: number): void {
+        const source = this.channelSources[channel];
+        const base = this.channelBaseFrequency[channel];
+        if (!source || base === null || !this.audioContext) return;
+
+        let semitoneOffset = 0;
+        const orn = this.channelOrnamentState[channel];
+        if (orn && orn.data.length > 0) {
+            let step = orn.step;
+            if (step >= orn.data.length) {
+                step = (orn.loop >= 0 && orn.loop < orn.data.length) ? orn.loop : orn.data.length - 1;
+            }
+            semitoneOffset += orn.data[step] || 0;
+            orn.step = step + 1;
+        }
+
+        let vibratoCents = 0;
+        const vib = this.channelVibrato[channel];
+        if (vib && vib.depth > 0) {
+            if (vib.ctr > 0) {
+                vib.ctr--;
+            } else {
+                vib.phase = (vib.phase + vib.speed) & 0xff;
+                // depth 1..5 -> ~+-8..+-40 cents peak (subtle to strong)
+                vibratoCents = this.triangleLfo(vib.phase) * vib.depth * 8;
+            }
+        }
+
+        const freq = base * Math.pow(2, semitoneOffset / 12) * Math.pow(2, vibratoCents / 1200);
+        try {
+            source.playbackRate.setTargetAtTime(
+                freq / (this.audioContext.sampleRate / SCC_WAVE_SIZE),
+                this.audioContext.currentTime,
+                0.003
+            );
+        } catch (e) {
+            // Ignore if context is closed/invalid
+        }
     }
 
     private getFrequencyFromPeriod(period: number | null): number | null {
@@ -238,6 +297,9 @@ export class SCCSynthesizer {
         this.channelCurrentPeriod[channel] = null;
         this.channelBaseVolumeForEffects[channel] = 0;
         this.channelSilentTickCounter[channel] = 0;
+        this.channelOrnamentState[channel] = null;
+        this.channelVibrato[channel] = null;
+        this.channelBaseFrequency[channel] = null;
     }
 
     public async playNote(
@@ -308,6 +370,35 @@ export class SCCSynthesizer {
             } else {
                 this.channelSoftwareVolumeEnvelopeState[channel] = null;
             }
+
+            // Vibrato from the active instrument (restarts on every note).
+            if (instrument && (instrument.vibratoDepth ?? 0) > 0) {
+                this.channelVibrato[channel] = {
+                    depth: instrument.vibratoDepth ?? 0,
+                    speed: instrument.vibratoSpeed ?? 16,
+                    delay: instrument.vibratoDelay ?? 0,
+                    phase: 0,
+                    ctr: instrument.vibratoDelay ?? 0,
+                };
+            } else {
+                this.channelVibrato[channel] = null;
+            }
+        }
+
+        // Arpeggio ornament: 0 clears, an id selects, null keeps but restarts.
+        if (ornamentIdFromCell === 0) {
+            this.channelOrnamentState[channel] = null;
+        } else if (ornamentIdFromCell !== null && ornamentIdFromCell !== undefined && this.songDataRef) {
+            const orn = (this.songDataRef.ornaments || []).find(o => o.id === ornamentIdFromCell);
+            if (orn && Array.isArray(orn.data) && orn.data.length > 0) {
+                this.channelOrnamentState[channel] = {
+                    data: orn.data.slice(),
+                    loop: typeof orn.loopPosition === 'number' && orn.loopPosition >= 0 ? orn.loopPosition : 0,
+                    step: 0,
+                };
+            }
+        } else if (isNewActualNote && this.channelOrnamentState[channel]) {
+            this.channelOrnamentState[channel]!.step = 0;
         }
 
         // Apply volume (initial)
@@ -335,6 +426,8 @@ export class SCCSynthesizer {
             const period = this.getNotePeriod(noteStringFromCell);
             if (period !== null) {
                 this.channelCurrentPeriod[channel] = period;
+                // Base frequency for the pitch engine (arpeggio/vibrato modulate this).
+                this.channelBaseFrequency[channel] = this.getFrequencyFromPeriod(period);
 
                 const instrument = this.channelActiveInstrument[channel];
                 if (instrument) {
