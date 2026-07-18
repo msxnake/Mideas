@@ -395,6 +395,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   currentProjectName,
   projectData,
   activeAssetId,
+  activeAsset,
   onEditFile,
   onSaveGeneratedCodeFile,
   defaultRomMode = 'simple32k',
