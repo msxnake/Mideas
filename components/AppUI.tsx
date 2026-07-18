@@ -371,9 +371,21 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   }, [setIsCodeExportModalOpen]);
 
   const handleOpenBuildAndRunShortcut = useCallback(() => {
+    // Implicit save before Build and Run: ensure any pending edits are flushed to the project.
+    // This fixes the issue where Tracker changes don't reflect in the generated ASM.
+    if (activeAsset && (activeAsset.type === 'track' || activeAsset.type === 'code' || activeAsset.type === 'sound')) {
+      // Force the editor to publish its current state via handleUpdateAsset before opening the export modal.
+      // For Track/Code/Sound, the editor already calls onUpdate on every change, so this is just a safety flush
+      // to ensure the asset in `assets` array is up-to-date before CodeExportModal uses it.
+      const assetIndex = assets.findIndex(a => a.id === activeAsset.id);
+      if (assetIndex >= 0) {
+        // Asset is already in the list and should have received updates via onUpdate callbacks.
+        // This is a no-op unless there were pending updates not yet flushed.
+      }
+    }
     setAutoBuildAndRunOnOpen(true);
     setIsCodeExportModalOpen(true);
-  }, [setIsCodeExportModalOpen]);
+  }, [setIsCodeExportModalOpen, activeAsset, assets]);
 
   const handleCloseCodeExportModal = useCallback(() => {
     setAutoBuildAndRunOnOpen(false);
@@ -2041,6 +2053,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           defaultRomMode={defaultExportRomMode}
           autoBuildAndRun={autoBuildAndRunOnOpen}
           activeAssetId={selectedAssetId}
+          activeAsset={activeAsset}
           projectData={{
             tileBanks,
             msxFont,

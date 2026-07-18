@@ -33,6 +33,9 @@ interface CodeExportModalProps {
   currentProjectName?: string | null;
   projectData?: any; // Full project data including tileBanks
   activeAssetId?: string | null;
+  /** Current asset being edited. If provided and is a track/sound, this value takes priority
+   *  over the asset found in the assets array (ensures unsaved editor changes are included). */
+  activeAsset?: ProjectAsset | null;
   onEditFile?: (filename: string, content: string) => void;
   defaultRomMode?: ExportRomMode;
   /** When true, auto-trigger Build and Run on open (toolbar shortcut). */
@@ -585,6 +588,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const getEnhancedAssets = () => {
     const enhancedAssets = [...assets];
+
+    // If a track/sound is currently being edited, use the activeAsset version instead of the one
+    // in the assets array. This ensures unsaved changes made in the Tracker/SoundEditor are included.
+    if (activeAsset && (activeAsset.type === 'track' || activeAsset.type === 'sound')) {
+      const existingIndex = enhancedAssets.findIndex(a => a.id === activeAsset.id);
+      if (existingIndex >= 0) {
+        enhancedAssets[existingIndex] = activeAsset;
+      }
+    }
 
     if (projectData?.entityTemplates && Array.isArray(projectData.entityTemplates)) {
       projectData.entityTemplates.forEach((template: any) => {
