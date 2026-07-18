@@ -204,7 +204,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
   const globalVariables = unwrapSummaryAssets(summaryAssets.globalVariables || summaryAssets.globalvariables);
 
   const tracks = (summaryAssets.tracks || [])
-    .filter((track: any) => ['PSG', 'SCC'].includes(track?.soundChip || 'PSG'))
+    .filter((track: any) => ['PSG', 'SCC', 'PSG+SCC'].includes(track?.soundChip || 'PSG'))
     .map((track: any) => ({
       ...track,
       soundChip: track?.soundChip || 'PSG'

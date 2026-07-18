@@ -66,10 +66,13 @@ export function generateSoundFile(
   const dualChipTracks = (analysis.tracks || []).filter(
     (track: any) => track?.soundChip === 'PSG+SCC'
   );
-  if (dualChipTracks.length > 0) {
+  const bitmapRouteHandlesMusic = ((analysis as any).msx2BitmapRooms || []).length > 0;
+  if (dualChipTracks.length > 0 && !bitmapRouteHandlesMusic) {
     // Fail loudly: silently dropping tracks is exactly the "why is my ROM
-    // mute" failure mode the dual-chip work is meant to kill.
-    throw new Error('PSG+SCC dual-chip songs are not exportable yet (buffered PSG+SCC runtime pending). Keep the song as PSG or SCC for this export.');
+    // mute" failure mode the dual-chip work is meant to kill. The SCREEN 5
+    // bitmap-room backend is the exception: it emits its own dual PSG+SCC
+    // runtime inside unitedFiles.asm and never includes this sound.asm.
+    throw new Error('PSG+SCC dual-chip songs are not exportable yet on this backend (dual runtime available in the SCREEN 5 bitmap route). Keep the song as PSG or SCC for this export.');
   }
 
   const sccTracks = collectSccTracks(analysis);

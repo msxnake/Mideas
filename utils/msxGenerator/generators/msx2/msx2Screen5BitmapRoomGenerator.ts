@@ -12904,7 +12904,7 @@ ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSyst
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}.skip_player_movement:
 ${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${musicUpdateCall}    jp .bitmap_main_loop
-${sccMusic ? `\n; ==================================================================\n; SCC MUSIC (Fase 5): driver + row player + public music_* API + data\n; ==================================================================\n${sccMusic.asm}\n` : ''}${intro.routinesAsm}
+${sccMusic ? `\n; ==================================================================\n; SCC MUSIC (Fase 5): driver + row players + public music_* API\n; (song DATA is emitted at #A000 near the end of the boot image: the\n; resident #4000-#7FFF window must keep the room tables below #8000)\n; ==================================================================\n${sccMusic.runtimeAsm}\n` : ''}${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
 ${airDashRuntime}
@@ -12987,7 +12987,20 @@ ${hasStateAnimations ? `
 ; clips. 3 bytes/entry: frameBase, frameCount, delayFrames. Indexed by player_anim_state.
 ${formatBytes('bitmap_player_anim_clip_table', animClipTableBytes, stateAnimations.map(b => `${b.animId}=${b.state}(base ${b.frameBase},${b.frameCount}f)`).join(', '))}` : ''}
 
-${shootBulletDataTables}    ds #C000 - $, #FF
+${shootBulletDataTables}${sccMusic ? `; ==================================================================
+; MUSIC DATA (note/wave tables + serialized songs), pinned at #A000.
+; Constraints (see SccIntegratedMusicResult):
+;  - must NOT sit in #8000-#9FFF: music_update runs during transitions with a
+;    room data bank mapped there, and the SCC driver maps #3F there while it
+;    touches the chip registers;
+;  - the #A000-#BFFF window always holds boot-image bank 3 whenever music_*
+;    runs (every banked load restores the resident banks before returning).
+; The 'ds' guard fails the Glass build loudly if the resident stream ever
+; grows past #A000 (instead of silently corrupting the room tables again).
+; ==================================================================
+    ds #A000 - $, #FF
+${sccMusic.dataAsm}
+` : ''}    ds #C000 - $, #FF
 ${bankedDataAsm}
     end
 `;

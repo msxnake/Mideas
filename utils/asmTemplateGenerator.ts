@@ -115,7 +115,10 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
       const rawTrack = asset.data as TrackerSongData | undefined;
       if (!rawTrack) return;
       const soundChip = rawTrack.soundChip || 'PSG';
-      if (soundChip !== 'PSG' && soundChip !== 'SCC') return;
+      // 'PSG+SCC' dual-chip songs ride through: the SCREEN 5 bitmap route
+      // plays them (SCC half + psg_music_* runtime); other routes reject them
+      // loudly in soundGenerator.
+      if (soundChip !== 'PSG' && soundChip !== 'SCC' && soundChip !== 'PSG+SCC') return;
 
       const normalizedTrack: TrackerSongData = {
         ...rawTrack,

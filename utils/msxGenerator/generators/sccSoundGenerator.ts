@@ -34,6 +34,18 @@ export interface SccMusicBuildResult {
   warnings: string[];
 }
 
+export interface SccIntegratedMusicResult extends SccMusicBuildResult {
+  /** Driver + row players + public music_* API. MUST stay in the resident
+   *  #4000-#7FFF window (it runs while data banks are mapped at #8000). */
+  runtimeAsm: string;
+  /** Note/wave tables + serialized songs. Read by music_update, which can run
+   *  with a data bank mapped in the #8000-#9FFF window (transition keep-alive)
+   *  and with #3F (SCC) mapped there during register access — so this block
+   *  must live OUTSIDE #8000-#9FFF: either below #8000 or in the #A000-#BFFF
+   *  boot-image region (bank 3, never remapped during music reads). */
+  dataAsm: string;
+}
+
 // ---------------------------------------------------------------------------
 // helpers (local on purpose: this module stays dependency-free until the SCC
 // backend is wired into the main generator)
@@ -2575,7 +2587,7 @@ export function buildSccMusicData(tracks: TrackerSongData[]): SccMusicBuildResul
 export function buildSccIntegratedMusicBlock(
   tracks: TrackerSongData[],
   dualTracks: TrackerSongData[] = []
-): SccMusicBuildResult {
+): SccIntegratedMusicResult {
   // Combined track index space: SCC-only tracks first, then dual-chip tracks.
   // The SCC serializer reads channels '1'..'5' + SCC instruments, so it works
   // unchanged on dual songs (their SCC half); the PSG half gets its own data.
@@ -2723,26 +2735,26 @@ music_track_count:
     DB ${toAsmByte(combined.length)}
 ; @mideas:endblock id=runtime.sound.music_scc_public`;
 
-  const parts = [
+  const runtimeParts = [
     warningComments,
     buildSccDriverPrimitives(),
     buildSccMusicRuntime(data.trackDataLabels),
   ];
   if (hasDual) {
-    parts.push(buildPsgMusicRuntime());
+    runtimeParts.push(buildPsgMusicRuntime());
   }
-  parts.push(publicApi);
+  runtimeParts.push(publicApi);
   if (hasDual) {
-    parts.push(psgPtrTable);
+    runtimeParts.push(psgPtrTable);
   }
-  parts.push(
+  const dataParts = [
     '; ==================================================================',
     '; SCC MUSIC DATA',
     '; ==================================================================',
     data.asm,
-  );
+  ];
   if (hasDual) {
-    parts.push(
+    dataParts.push(
       '; ==================================================================',
       '; PSG MUSIC DATA (dual-chip halves)',
       '; ==================================================================',
@@ -2750,8 +2762,12 @@ music_track_count:
       ...psgSerialized.map((track) => track.asm),
     );
   }
+  const runtimeAsm = runtimeParts.join('\n\n');
+  const dataAsm = dataParts.join('\n\n');
   return {
-    asm: parts.join('\n\n'),
+    asm: `${runtimeAsm}\n\n${dataAsm}`,
+    runtimeAsm,
+    dataAsm,
     trackCount: data.trackCount,
     waveformCount: data.waveformCount,
     warnings: data.warnings,

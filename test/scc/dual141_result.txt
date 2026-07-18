@@ -1,0 +1,19 @@
+=== t=12 music state ===
+music_active=1 scc_active=1 psg_active=1
+psg_notes=255,255,255 psg_volout=0,0,0
+psg_row=0/64 scc_order=0 psg_order=0
+AY: R0=0 R1=0 R7=BF R8=0 R9=0 R10=0
+=== t=16 progress ===
+music_active=1 scc_active=1 psg_active=1
+psg_notes=52,26,30 psg_volout=12,15,10
+psg_row=43 scc_order=0 psg_order=0
+row_moved=1 verdict=OK
+AY samples:
+  R0=0 R8=0 R9=0 R10=0 R7=BF
+  R0=172 R8=15 R9=15 R10=15 R7=B8
+  R0=172 R8=0 R9=15 R10=10 R7=B8
+  R0=64 R8=8 R9=15 R10=15 R7=B8
+  R0=214 R8=12 R9=15 R10=14 R7=B8
+  R0=226 R8=1 R9=15 R10=15 R7=B8
+  R0=190 R8=15 R9=15 R10=10 R7=B8
+  R0=214 R8=5 R9=15 R10=10 R7=B8
