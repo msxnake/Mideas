@@ -18,7 +18,7 @@ import { resolveTileAssignmentCharCode } from '../../utils/tileBankOptimization'
 import { BEHAVIOR_DIRECTION_OPTIONS, BEHAVIOR_TYPE_OPTIONS, isBehaviorComponentProperty } from '../../utils/behaviorComponentOptions';
 import { generateScreenMapLayoutBytes } from '../utils/screenUtils';
 import { buildScreenBlockMapFromBytes, buildSharedScreenBlockMaps } from '../../utils/screenOptimization/blockMapBuilder';
-import { getScreenModeMetrics } from '../../utils/screenModeConfig';
+import { getScreenModeDisplayName, getScreenModeMetrics } from '../../utils/screenModeConfig';
 import { ScreenBlockCatalogPanel } from '../screen_editor/ScreenBlockCatalogPanel';
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
@@ -1099,7 +1099,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         return (
           <div className="space-y-1">
             <div><strong className="text-msx-highlight">Name:</strong> {presentation.name || asset.name}</div>
-            <div><strong className="text-msx-highlight">Mode:</strong> {presentation.screenMode}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> {getScreenModeDisplayName(presentation.screenMode)}</div>
             <div><strong className="text-msx-highlight">Target:</strong> {presentation.width}x{presentation.height}</div>
             <div><strong className="text-msx-highlight">Source:</strong> {presentation.sourceFileName || 'None'}</div>
             <div><strong className="text-msx-highlight">Fit:</strong> {presentation.fitMode}</div>

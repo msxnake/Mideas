@@ -200,7 +200,7 @@ function extractUsedScreensFromWorldMap(worldMap: any, assets: ProjectAsset[], u
           name: screenAsset.name,
           data: screenAsset.data
         });
-        console.log(`MSX2 SCREEN 4 Bitmap Room added: "${screenAsset.name}"`);
+        console.log(`MSX2 SCREEN 5 Bitmap Room added: "${screenAsset.name}"`);
         return;
       }
       if (screenAsset) {

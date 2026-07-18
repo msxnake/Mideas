@@ -137,6 +137,15 @@ export function collectSccTracks(analysis: SccAnalysisLike): TrackerSongData[] {
   );
 }
 
+/** Dual-chip 'PSG+SCC' songs (Fase 3): the SCC half plays through the SCC
+ *  player, the PSG half through the psg_music_* runtime emitted alongside. */
+export function collectDualChipTracks(analysis: SccAnalysisLike): TrackerSongData[] {
+  const projectTracks = Array.isArray(analysis.tracks) ? analysis.tracks : [];
+  return projectTracks.filter(
+    (track) => track?.soundChip === 'PSG+SCC' && track?.playbackBackend !== 'external-pt3'
+  );
+}
+
 export function validateSccTrack(song: TrackerSongData): string[] {
   const warnings: string[] = [];
   const instruments = (song.instruments || []).filter(isSccInstrument);
@@ -1743,6 +1752,788 @@ scc_music_mixer_bit_done:
 }
 
 // ---------------------------------------------------------------------------
+// PSG half of dual-chip 'PSG+SCC' songs (Fase 3)
+// ---------------------------------------------------------------------------
+
+const PSG_TRACK_CHANNELS = ['A', 'B', 'C'] as const;
+
+/**
+ * AY-3-8910 note period table (96 notes, C0..B7). MSX PSG clock 1.7897725 MHz:
+ * period = clock / (16 * f). Same note indexing as the SCC table.
+ */
+export function buildPsgNotePeriodTable(): string {
+  const clock = 1789772.5;
+  const c0Frequency = 16.351597831287414;
+  const periods: number[] = [];
+  for (let noteIndex = 0; noteIndex < SCC_NOTE_COUNT; noteIndex++) {
+    const frequency = c0Frequency * Math.pow(2, noteIndex / 12);
+    const period = Math.round(clock / (16 * frequency));
+    periods.push(Math.min(4095, Math.max(1, period)));
+  }
+  const lines: string[] = ['psg_note_period_table:'];
+  for (let index = 0; index < periods.length; index += 8) {
+    lines.push(`    DW ${periods.slice(index, index + 8).map((v) => toAsmWord(v)).join(',')}`);
+  }
+  return lines.join('\n');
+}
+
+interface PsgSerializedTrack {
+  labelBase: string;
+  dataLabel: string;
+  asm: string;
+}
+
+/**
+ * Serialize the PSG half (columns A/B/C + PSG instruments) of a dual-chip
+ * song. Same header/pattern-table/row layout as the SCC serializer (4 bytes
+ * per cell, ornament byte reserved) so both players advance in lockstep.
+ * PSG v1 supports: note/cut, instrument default volume + volume envelope,
+ * tone/noise enables + noise period, per-cell volume. Ornaments, tone
+ * envelopes and AY hardware envelopes are ignored with a warning.
+ */
+function buildPsgTrackData(
+  song: TrackerSongData,
+  trackIndex: number,
+  warnings: string[]
+): PsgSerializedTrack {
+  const labelBase = `psg_track_${trackIndex}_${sanitizeLabel(song.name || `track_${trackIndex}`)}`;
+  const dataLabel = `${labelBase}_data`;
+  const order = Array.isArray(song.order) && song.order.length > 0 ? song.order : [0];
+  const restartPosition = clampByte(song.restartPosition ?? 0, 0, Math.max(0, order.length - 1));
+  const patterns = Array.isArray(song.patterns) && song.patterns.length > 0
+    ? song.patterns
+    : [{ id: `${labelBase}_fallback`, name: 'Fallback', numRows: 1, rows: [] }];
+  const globalVolume = clampByte(song.globalVolume ?? 15, 0, 15);
+
+  const instrumentMap = new Map<number, any>();
+  for (const instrument of song.instruments || []) {
+    if (isSccInstrument(instrument)) continue;
+    if (typeof instrument.id !== 'number') continue;
+    instrumentMap.set(clampByte(instrument.id, 1, 31), instrument);
+  }
+
+  let ornamentWarned = false;
+  const lines: string[] = [];
+  lines.push(`; ------------------------------------------------------------------`);
+  lines.push(`; PSG half of dual song ${trackIndex}: ${song.name}`);
+  lines.push(`; ------------------------------------------------------------------`);
+  lines.push(`${dataLabel}:`);
+  lines.push(`    DB ${toAsmByte(computeRowFrames(song))}          ; +0 frames per row`);
+  lines.push(`    DB ${toAsmByte(order.length)}          ; +1 order length`);
+  lines.push(`    DB ${toAsmByte(restartPosition)}          ; +2 restart position`);
+  lines.push(`    DB ${toAsmByte(patterns.length)}          ; +3 pattern count`);
+  lines.push(`    DW ${labelBase}_order_table          ; +4`);
+  lines.push(`    DW ${labelBase}_pattern_table          ; +6`);
+  lines.push(`    DW ${labelBase}_instrument_ptr_table  ; +8`);
+  lines.push(`    DW 0          ; +10 ornament table (unused on the PSG half, v1)`);
+  lines.push('');
+  lines.push(buildDbLines(`${labelBase}_order_table`, order.map((v) => clampByte(v, 0, Math.max(0, patterns.length - 1)))));
+  lines.push('');
+  lines.push(`${labelBase}_pattern_table:`);
+  patterns.forEach((pattern, patternIndex) => {
+    lines.push(`    DW ${labelBase}_pattern_${patternIndex}_rows`);
+    lines.push(`    DB ${toAsmByte(clampByte(pattern?.numRows || pattern?.rows?.length || 1, 1, 255))}`);
+  });
+  lines.push('');
+  lines.push(`${labelBase}_instrument_ptr_table:`);
+  for (let instrumentId = 0; instrumentId <= 31; instrumentId++) {
+    lines.push(`    DW ${instrumentId > 0 && instrumentMap.has(instrumentId) ? `${labelBase}_inst_${instrumentId}` : '0'}`);
+  }
+  lines.push('');
+
+  patterns.forEach((pattern, patternIndex) => {
+    const rowCount = clampByte(pattern?.numRows || pattern?.rows?.length || 1, 1, 255);
+    lines.push(`${labelBase}_pattern_${patternIndex}_rows:`);
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+      const row = pattern?.rows?.[rowIndex] as Record<string, TrackerCell> | undefined;
+      const rowBytes: number[] = [];
+      PSG_TRACK_CHANNELS.forEach((channelId) => {
+        const cell = getCellValue(row, channelId);
+        const context = `${song.name}/pattern${patternIndex}/row${rowIndex}/ch${channelId}`;
+        rowBytes.push(getNoteIndex(cell.note));
+        let instrumentField = 0xff;
+        if (cell.instrument !== null && cell.instrument !== undefined && cell.instrument !== 0) {
+          const clamped = clampByte(cell.instrument, 1, 31);
+          if (!instrumentMap.has(clamped)) {
+            warnings.push(`${context}: PSG instrument ${clamped} not found, ignored`);
+          } else {
+            instrumentField = clamped;
+          }
+        }
+        rowBytes.push(instrumentField);
+        if (!ornamentWarned && cell.ornament !== null && cell.ornament !== undefined && cell.ornament !== 0) {
+          warnings.push(`${song.name}: ornaments on PSG columns A-C are not supported yet (ignored)`);
+          ornamentWarned = true;
+        }
+        rowBytes.push(0xff);   // ornament byte reserved (stride parity with SCC cells)
+        rowBytes.push(cell.volume === null || cell.volume === undefined
+          ? 0xff
+          : scaleSccVolume(cell.volume, globalVolume));
+      });
+      lines.push(`    DB ${rowBytes.map((v) => toAsmByte(v)).join(',')}`);
+    }
+    lines.push('');
+  });
+
+  Array.from(instrumentMap.entries()).sort((a, b) => a[0] - b[0]).forEach(([instrumentId, instrument]) => {
+    const volumeEnvelope = (instrument.volumeEnvelope || []).map((v: number) => scaleSccVolume(v, globalVolume));
+    const volumeLoop = volumeEnvelope.length > 0 && typeof instrument.volumeLoop === 'number' && instrument.volumeLoop !== 0xff
+      ? clampByte(instrument.volumeLoop, 0, volumeEnvelope.length - 1)
+      : 0xff;
+    const defaultVolume = scaleSccVolume(volumeEnvelope.length > 0 ? (instrument.volumeEnvelope?.[0] ?? 15) : 15, globalVolume);
+    const toneEnabled = instrument.ayToneEnabled !== false;
+    const noiseEnabled = instrument.ayNoiseEnabled === true;
+    const flags = (toneEnabled ? 0x01 : 0) | (noiseEnabled ? 0x02 : 0);
+    const noisePeriod = clampByte(instrument.noiseBaseFrequency ?? (song as any).ayNoisePeriod ?? 15, 0, 31);
+    if (Array.isArray(instrument.toneEnvelope) && instrument.toneEnvelope.length > 0) {
+      warnings.push(`${song.name}: PSG instrument ${instrumentId} tone envelope not supported yet (ignored)`);
+    }
+    if (typeof instrument.ayEnvelopeShape === 'number' || typeof instrument.hardwareEnvelopePeriod === 'number') {
+      warnings.push(`${song.name}: PSG instrument ${instrumentId} AY hardware envelope not supported yet (ignored)`);
+    }
+    lines.push(`${labelBase}_inst_${instrumentId}:`);
+    lines.push(`    DB ${toAsmByte(flags)}          ; +0 flags (bit0 tone, bit1 noise)`);
+    lines.push(`    DB ${toAsmByte(defaultVolume)}          ; +1 default volume`);
+    lines.push(`    DW ${volumeEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_vol_env` : '0'}          ; +2 volume envelope ptr`);
+    lines.push(`    DB ${toAsmByte(volumeEnvelope.length)}          ; +4 envelope length`);
+    lines.push(`    DB ${toAsmByte(volumeLoop)}          ; +5 envelope loop (#FF = hold last)`);
+    lines.push(`    DB ${toAsmByte(noisePeriod)}          ; +6 AY noise period (R6)`);
+    if (volumeEnvelope.length > 0) {
+      lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_vol_env`, volumeEnvelope));
+    }
+    lines.push('');
+  });
+
+  return { labelBase, dataLabel, asm: lines.join('\n') };
+}
+
+/**
+ * PSG music runtime RAM as an EQU chain from `baseAddress` (chain it after
+ * buildSccMusicRam().nextFree). ~55 bytes.
+ */
+export function buildPsgMusicRam(baseAddress: number): { asm: string; bytesUsed: number; nextFree: number } {
+  const vars: Array<[string, number]> = [
+    ['psg_music_active', 1],
+    ['psg_music_muted', 1],
+    ['psg_music_loop_enabled', 1],
+    ['psg_music_row_frames', 1],
+    ['psg_music_row_countdown', 1],
+    ['psg_music_order_pos', 1],
+    ['psg_music_order_len', 1],
+    ['psg_music_restart_pos', 1],
+    ['psg_music_pattern_row', 1],
+    ['psg_music_pattern_rows', 1],
+    ['psg_music_order_ptr', 2],
+    ['psg_music_pattern_table_ptr', 2],
+    ['psg_music_inst_table_ptr', 2],
+    ['psg_music_row_ptr', 2],
+    ['psg_music_noise_period', 1],
+    // per-channel arrays, 3 bytes each (channels A/B/C = 0..2)
+    ['psg_ch_note', 3],
+    ['psg_ch_flags', 3],      // bit0 tone enabled, bit1 noise enabled
+    ['psg_ch_noiseper', 3],
+    ['psg_ch_volbase', 3],
+    ['psg_ch_envlo', 3],
+    ['psg_ch_envhi', 3],
+    ['psg_ch_envlen', 3],
+    ['psg_ch_envloop', 3],
+    ['psg_ch_envstep', 3],
+    ['psg_ch_volout', 3],
+    ['psg_ch_period_lo', 3],
+    ['psg_ch_period_hi', 3],
+  ];
+  const lines: string[] = ['; ---- PSG music runtime RAM (dual-chip Fase 3, EQU chain) ----'];
+  let address = baseAddress;
+  for (const [name, size] of vars) {
+    lines.push(`${name.padEnd(28)} EQU ${toAsmWord(address)}`);
+    address += size;
+  }
+  return { asm: lines.join('\n'), bytesUsed: address - baseAddress, nextFree: address };
+}
+
+/**
+ * PSG half runtime: psg_music_init_system / psg_music_play_ptr (HL=data,
+ * B bit0=loop) / psg_music_stop / psg_music_mute / psg_music_resume /
+ * psg_music_update. Registers R0..R10 are re-asserted EVERY frame
+ * (write-through, no shadows): fire-and-forget PSG sound effects (gem blip,
+ * dialogue typewriter) can stomp AY registers freely and the music heals on
+ * the next frame. DI assumed (the bitmap engine never enables IRQs).
+ */
+export function buildPsgMusicRuntime(): string {
+  return `; ==================================================================
+; PSG MUSIC RUNTIME (dual-chip Fase 3)
+; Plays the PSG half (columns A-C) of a 'PSG+SCC' song in lockstep with
+; the SCC player: same header layout, same frames-per-row cadence.
+; ==================================================================
+
+PSG_REG_PORT EQU #A0
+PSG_VAL_PORT EQU #A1
+
+; psg_reg_write: A = register 0..13, E = value.
+; Destroys: AF   Preserves: BC, DE, HL, IX, IY
+psg_reg_write:
+    out (PSG_REG_PORT), a
+    ld a, e
+    out (PSG_VAL_PORT), a
+    ret
+
+; psg_ch_ptr: HL = array base, C = channel 0..2 -> HL += C.
+; Destroys: AF   Preserves: BC, DE, IX, IY
+psg_ch_ptr:
+    ld a, c
+    add a, l
+    ld l, a
+    ret nc
+    inc h
+    ret
+
+; ------------------------------------------------------------------
+; psg_music_init_system
+; What:   Reset the PSG music RAM and silence the AY (R7=#BF, vols 0).
+; Destroys: AF, DE, HL   Preserves: BC, IX, IY
+; ------------------------------------------------------------------
+psg_music_init_system:
+    xor a
+    ld (psg_music_active), a
+    ld (psg_music_muted), a
+    ld (psg_music_loop_enabled), a
+    call psg_music_reset_channels
+    ; fall through to silence
+; psg_music_silence: R7 all off (#BF keeps MSX I/O port directions), vols 0.
+; Destroys: AF, E   Preserves: BC, D, HL, IX, IY
+psg_music_silence:
+    ld e, #BF
+    ld a, 7
+    call psg_reg_write
+    ld e, 0
+    ld a, 8
+    call psg_reg_write
+    ld e, 0
+    ld a, 9
+    call psg_reg_write
+    ld e, 0
+    ld a, 10
+    jp psg_reg_write
+
+; Destroys: AF, B, HL   Preserves: C, DE, IX, IY
+psg_music_reset_channels:
+    ld hl, psg_ch_note
+    ld a, #FF
+    ld b, 3
+psg_music_reset_note_loop:
+    ld (hl), a
+    inc hl
+    djnz psg_music_reset_note_loop
+    ld hl, psg_ch_flags
+    ld a, #01               ; tone enabled by default
+    ld b, 3
+psg_music_reset_flags_loop:
+    ld (hl), a
+    inc hl
+    djnz psg_music_reset_flags_loop
+    ld hl, psg_ch_volbase
+    ld a, #0F
+    ld b, 3
+psg_music_reset_volbase_loop:
+    ld (hl), a
+    inc hl
+    djnz psg_music_reset_volbase_loop
+    ; envelope state, volout and cached periods all to 0
+    xor a
+    ld hl, psg_ch_envlen
+    ld b, 3 * 6             ; envlen,envloop,envstep,volout,period_lo,period_hi
+psg_music_reset_zero_loop:
+    ld (hl), a
+    inc hl
+    djnz psg_music_reset_zero_loop
+    ld (psg_music_noise_period), a
+    ld hl, psg_ch_noiseper
+    ld (hl), a
+    inc hl
+    ld (hl), a
+    inc hl
+    ld (hl), a
+    ret
+
+; ------------------------------------------------------------------
+; psg_music_play_ptr
+; What:   Start the PSG half. HL = psg track data, B bit0 = loop flag.
+;         Header layout shared with the SCC serializer.
+; Destroys: AF, DE, HL   Preserves: BC, IX, IY
+; ------------------------------------------------------------------
+psg_music_play_ptr:
+    ld a, b
+    and 1
+    ld (psg_music_loop_enabled), a
+    ld a, (hl)              ; +0 frames per row
+    ld (psg_music_row_frames), a
+    inc hl
+    ld a, (hl)              ; +1 order length
+    ld (psg_music_order_len), a
+    inc hl
+    ld a, (hl)              ; +2 restart position
+    ld (psg_music_restart_pos), a
+    inc hl
+    inc hl                  ; +3 pattern count (implicit via tables)
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld (psg_music_order_ptr), de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld (psg_music_pattern_table_ptr), de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (psg_music_inst_table_ptr), de
+    push bc
+    call psg_music_reset_channels
+    pop bc
+    call psg_music_silence
+    xor a
+    ld (psg_music_muted), a
+    call psg_music_set_order_pos
+    ld a, 1
+    ld (psg_music_row_countdown), a   ; first update plays row 0
+    ld (psg_music_active), a
+    ret
+
+; Destroys: AF, DE, HL   Preserves: BC, IX, IY
+psg_music_set_order_pos:
+    ld (psg_music_order_pos), a
+    ld e, a
+    ld d, 0
+    ld hl, (psg_music_order_ptr)
+    add hl, de
+    ld a, (hl)              ; pattern index
+    ld e, a
+    ld d, 0
+    ld hl, (psg_music_pattern_table_ptr)
+    add hl, de
+    add hl, de
+    add hl, de              ; entries are 3 bytes: DW rows, DB numRows
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld a, (hl)
+    ld (psg_music_pattern_rows), a
+    ld (psg_music_row_ptr), de
+    xor a
+    ld (psg_music_pattern_row), a
+    ret
+
+; Destroys: nothing (all registers preserved)
+psg_music_stop:
+    push af
+    push bc
+    push de
+    push hl
+    xor a
+    ld (psg_music_active), a
+    ld (psg_music_muted), a
+    call psg_music_silence
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; Destroys: AF, E   Preserves: BC, D, HL, IX, IY
+psg_music_mute:
+    ld a, (psg_music_active)
+    or a
+    ret z
+    ld a, 1
+    ld (psg_music_muted), a
+    jp psg_music_silence
+
+; Destroys: AF   Preserves: BC, DE, HL, IX, IY
+psg_music_resume:
+    ld a, (psg_music_active)
+    or a
+    ret z
+    xor a
+    ld (psg_music_muted), a  ; write-through re-asserts registers next frame
+    ret
+
+; ------------------------------------------------------------------
+; psg_music_update
+; What:   Advance the PSG half one frame: row timing + cell events,
+;         volume envelopes, then re-assert R0..R10.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+psg_music_update:
+    ld a, (psg_music_active)
+    or a
+    ret z
+    ld a, (psg_music_muted)
+    or a
+    ret nz
+    ld hl, psg_music_row_countdown
+    dec (hl)
+    jp nz, psg_music_apply_frame
+    ld a, (psg_music_row_frames)
+    ld (hl), a
+    call psg_music_advance_row
+    ld a, (psg_music_active)
+    or a
+    ret z
+psg_music_apply_frame:
+    call psg_music_update_envelopes
+    jp psg_music_apply_registers
+
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+psg_music_advance_row:
+    ld hl, (psg_music_row_ptr)
+    ld c, 0                 ; channel index
+psg_music_row_ch_loop:
+    ld b, (hl)              ; note field
+    inc hl
+    ld d, (hl)              ; instrument field
+    inc hl
+    inc hl                  ; ornament byte: reserved, ignored in v1
+    ld e, (hl)              ; volume field
+    inc hl
+    push hl
+    push bc
+    call psg_music_apply_cell
+    pop bc
+    pop hl
+    inc c
+    ld a, c
+    cp 3
+    jp c, psg_music_row_ch_loop
+    ld (psg_music_row_ptr), hl
+    ld hl, psg_music_pattern_row
+    inc (hl)
+    ld a, (psg_music_pattern_rows)
+    cp (hl)
+    ret nz
+    ; end of pattern: next order entry (wrap to restart position)
+    ld a, (psg_music_order_pos)
+    inc a
+    ld e, a
+    ld a, (psg_music_order_len)
+    cp e
+    jp nz, psg_music_advance_order_set
+    ld a, (psg_music_loop_enabled)
+    or a
+    jp z, psg_music_stop
+    ld a, (psg_music_restart_pos)
+    ld e, a
+psg_music_advance_order_set:
+    ld a, e
+    jp psg_music_set_order_pos
+
+; ------------------------------------------------------------------
+; psg_music_apply_cell
+; Inputs: C = channel 0..2, B = note field, D = instrument field,
+;         E = volume field.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+psg_music_apply_cell:
+    ; ---- instrument field first (note-on may use its volume/flags) ----
+    ld a, d
+    cp #FF
+    jp z, psg_music_cell_volume
+    or a
+    jp z, psg_music_cell_volume
+    push bc                 ; keep note (B) + channel (C)
+    push de                 ; keep volume field (E)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, (psg_music_inst_table_ptr)
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    or d
+    jp z, psg_music_cell_inst_done   ; null instrument pointer
+    ex de, hl               ; HL = instrument record
+    ld e, (hl)              ; +0 flags
+    push hl
+    ld hl, psg_ch_flags
+    call psg_ch_ptr
+    ld (hl), e
+    pop hl
+    inc hl                  ; +1 default volume
+    ld e, (hl)
+    push hl
+    ld hl, psg_ch_volbase
+    call psg_ch_ptr
+    ld (hl), e
+    pop hl
+    inc hl                  ; +2 envelope ptr low
+    ld e, (hl)
+    inc hl                  ; +3 envelope ptr high
+    ld d, (hl)
+    inc hl                  ; +4 envelope length
+    ld b, (hl)
+    inc hl                  ; +5 envelope loop
+    ld a, (hl)
+    inc hl                  ; +6 noise period
+    push hl
+    push af                 ; save envelope loop
+    push de
+    ld hl, psg_ch_envlo
+    call psg_ch_ptr
+    pop de
+    ld (hl), e
+    push de
+    ld hl, psg_ch_envhi
+    call psg_ch_ptr
+    pop de
+    ld (hl), d
+    ld hl, psg_ch_envlen
+    call psg_ch_ptr
+    ld (hl), b
+    pop af                  ; envelope loop
+    ld e, a
+    ld hl, psg_ch_envloop
+    call psg_ch_ptr
+    ld (hl), e
+    pop hl                  ; instrument record +6
+    ld e, (hl)              ; noise period
+    ld hl, psg_ch_noiseper
+    call psg_ch_ptr
+    ld (hl), e
+psg_music_cell_inst_done:
+    pop de
+    pop bc
+psg_music_cell_volume:
+    ; ---- volume field: overrides the channel volume base ----
+    ld a, e
+    cp #FF
+    jp z, psg_music_cell_note
+    and #0F
+    ld e, a
+    ld hl, psg_ch_volbase
+    call psg_ch_ptr
+    ld (hl), e
+psg_music_cell_note:
+    ; ---- note field ----
+    ld a, b
+    cp #FF
+    ret z                   ; keep playing
+    cp #FE
+    jp z, psg_music_cell_note_cut
+    ; note on: store note, restart envelope, cache the AY period, arm noise
+    ld e, a
+    ld hl, psg_ch_note
+    call psg_ch_ptr
+    ld (hl), e
+    ld hl, psg_ch_envstep
+    call psg_ch_ptr
+    ld (hl), 0
+    ld l, e
+    ld h, 0
+    add hl, hl
+    ld de, psg_note_period_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld hl, psg_ch_period_lo
+    call psg_ch_ptr
+    ld (hl), e
+    ld hl, psg_ch_period_hi
+    call psg_ch_ptr
+    ld (hl), d
+    ; noise-capable instrument: latch R6 (single global noise register)
+    ld hl, psg_ch_flags
+    call psg_ch_ptr
+    bit 1, (hl)
+    ret z
+    ld hl, psg_ch_noiseper
+    call psg_ch_ptr
+    ld a, (hl)
+    ld (psg_music_noise_period), a
+    ret
+psg_music_cell_note_cut:
+    ld hl, psg_ch_note
+    call psg_ch_ptr
+    ld (hl), #FF            ; envelope engine outputs volume 0 for silent notes
+    ret
+
+; ------------------------------------------------------------------
+; psg_music_update_envelopes
+; What:   Per-frame volume per channel into psg_ch_volout (no port
+;         writes here; psg_music_apply_registers flushes everything).
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+psg_music_update_envelopes:
+    ld c, 0
+psg_music_env_ch_loop:
+    ld hl, psg_ch_note
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jp nz, psg_music_env_live
+    xor a                   ; silent channel -> volume 0
+    jp psg_music_env_store
+psg_music_env_live:
+    ld hl, psg_ch_envlen
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, psg_music_env_use_base
+    ld b, a                 ; B = length
+    ld hl, psg_ch_envstep
+    add hl, de
+    ld a, (hl)
+    cp b
+    jp c, psg_music_env_step_ok
+    push hl
+    ld hl, psg_ch_envloop
+    add hl, de
+    ld a, (hl)
+    pop hl
+    cp #FF
+    jp nz, psg_music_env_step_ok
+    ld a, b
+    dec a                   ; hold last value
+psg_music_env_step_ok:
+    ld (hl), a
+    inc (hl)                ; advance for next frame
+    push de
+    ld hl, psg_ch_envlo
+    add hl, de
+    ld e, (hl)
+    ld hl, psg_ch_envhi
+    push af
+    ld a, c
+    add a, l
+    ld l, a
+    ld a, 0
+    adc a, h
+    ld h, a
+    pop af
+    ld d, (hl)
+    ld l, a
+    ld h, 0
+    add hl, de
+    ld a, (hl)
+    pop de
+    ; attenuate by volume base: vol = min(env, volbase)
+    ld hl, psg_ch_volbase
+    add hl, de
+    cp (hl)
+    jp c, psg_music_env_store
+    ld a, (hl)
+    jp psg_music_env_store
+psg_music_env_use_base:
+    ld hl, psg_ch_volbase
+    add hl, de
+    ld a, (hl)
+psg_music_env_store:
+    ld hl, psg_ch_volout
+    add hl, de
+    ld (hl), a
+    inc c
+    ld a, c
+    cp 3
+    jp c, psg_music_env_ch_loop
+    ret
+
+; ------------------------------------------------------------------
+; psg_music_apply_registers
+; What:   Re-assert R0..R10 from cached state (write-through: heals any
+;         register a fire-and-forget SFX blip may have stomped).
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+psg_music_apply_registers:
+    ld c, 0
+psg_music_apply_ch_loop:
+    ld e, c
+    ld d, 0
+    ld hl, psg_ch_period_lo
+    add hl, de
+    ld b, (hl)              ; B = period low
+    ld hl, psg_ch_period_hi
+    add hl, de
+    ld d, (hl)              ; D = period high (E still = channel)
+    ld a, c
+    add a, a                ; register 2*c
+    push de
+    ld e, b
+    call psg_reg_write      ; R(2c) = period low
+    pop de
+    ld a, c
+    add a, a
+    inc a
+    ld e, d
+    call psg_reg_write      ; R(2c+1) = period high
+    ld e, c
+    ld d, 0
+    ld hl, psg_ch_volout
+    add hl, de
+    ld e, (hl)
+    ld a, 8
+    add a, c
+    call psg_reg_write      ; R(8+c) = volume (0 when silent)
+    inc c
+    ld a, c
+    cp 3
+    jp c, psg_music_apply_ch_loop
+    ; R6 noise period
+    ld a, (psg_music_noise_period)
+    and #1F
+    ld e, a
+    ld a, 6
+    call psg_reg_write
+    ; R7 mixer from live notes + per-channel flags. #BF base keeps the MSX
+    ; AY I/O port directions (bit7=1, bit6=0); tone bits 0-2, noise bits 3-5.
+    ld d, #BF
+    ld a, (psg_ch_note)
+    cp #FF
+    jp z, psg_music_mixer_chB
+    ld a, (psg_ch_flags)
+    bit 0, a
+    jp z, psg_music_mixer_chA_noise
+    res 0, d
+psg_music_mixer_chA_noise:
+    bit 1, a
+    jp z, psg_music_mixer_chB
+    res 3, d
+psg_music_mixer_chB:
+    ld a, (psg_ch_note + 1)
+    cp #FF
+    jp z, psg_music_mixer_chC
+    ld a, (psg_ch_flags + 1)
+    bit 0, a
+    jp z, psg_music_mixer_chB_noise
+    res 1, d
+psg_music_mixer_chB_noise:
+    bit 1, a
+    jp z, psg_music_mixer_chC
+    res 4, d
+psg_music_mixer_chC:
+    ld a, (psg_ch_note + 2)
+    cp #FF
+    jp z, psg_music_mixer_write
+    ld a, (psg_ch_flags + 2)
+    bit 0, a
+    jp z, psg_music_mixer_chC_noise
+    res 2, d
+psg_music_mixer_chC_noise:
+    bit 1, a
+    jp z, psg_music_mixer_write
+    res 5, d
+psg_music_mixer_write:
+    ld e, d
+    ld a, 7
+    jp psg_reg_write`;
+}
+
+// ---------------------------------------------------------------------------
 // standalone test ROM (Fase 1 proof: Mideas model -> ROM -> OpenMSX)
 // ---------------------------------------------------------------------------
 
@@ -1781,14 +2572,32 @@ export function buildSccMusicData(tracks: TrackerSongData[]): SccMusicBuildResul
  * PSG/PT3 music and SCC music are rejected by soundGenerator.ts; PSG sound
  * effects remain available because they use the separate sfx_* API.
  */
-export function buildSccIntegratedMusicBlock(tracks: TrackerSongData[]): SccMusicBuildResult {
-  const data = buildSccMusicData(tracks);
+export function buildSccIntegratedMusicBlock(
+  tracks: TrackerSongData[],
+  dualTracks: TrackerSongData[] = []
+): SccMusicBuildResult {
+  // Combined track index space: SCC-only tracks first, then dual-chip tracks.
+  // The SCC serializer reads channels '1'..'5' + SCC instruments, so it works
+  // unchanged on dual songs (their SCC half); the PSG half gets its own data.
+  const combined = [...tracks, ...dualTracks];
+  const hasDual = dualTracks.length > 0;
+  const data = buildSccMusicData(combined);
+  const psgSerialized = dualTracks.map((track, index) =>
+    buildPsgTrackData(track, tracks.length + index, data.warnings)
+  );
+  const psgPtrTable = hasDual
+    ? `; PSG half pointer per combined track index (0 = SCC-only track)
+music_psg_ptr_table:
+${combined.map((_, index) => `    DW ${index >= tracks.length ? psgSerialized[index - tracks.length].dataLabel : '0'}`).join('\n')}`
+    : '';
   const warningComments = data.warnings.length > 0
     ? data.warnings.map((warning) => `; WARNING SCC: ${warning.replace(/[\r\n]+/g, ' ')}`).join('\n')
     : '; SCC validation: no warnings';
 
+  // Dual variants drive BOTH chips behind the same public API; the SCC-only
+  // variants below stay byte-identical to the pre-dual output.
   const publicApi = `; ==================================================================
-; MIDEAS PUBLIC MUSIC API -> SCC BACKEND
+; MIDEAS PUBLIC MUSIC API -> ${hasDual ? 'SCC + PSG DUAL' : 'SCC'} BACKEND
 ; Game Flow, State Machines and world transitions keep using music_*.
 ; ==================================================================
 ; @mideas:block id=runtime.sound.music_scc_public kind=routine owner=sound roots=music_init_system,music_play_track,music_execute_command,music_update,music_stop,music_mute,music_resume
@@ -1796,7 +2605,8 @@ export function buildSccIntegratedMusicBlock(tracks: TrackerSongData[]): SccMusi
 ; Inputs: none. Destroys: AF, B, HL. Preserves: C, DE, IX, IY.
 music_init_system:
     call scc_music_init_system
-    xor a
+${hasDual ? `    call psg_music_init_system
+` : ''}    xor a
     ld (music_active), a
     ld (music_muted), a
     ld (music_loop), a
@@ -1811,17 +2621,45 @@ music_play_track:
     and 1
     ld (music_loop), a
     pop af
+${hasDual ? `    push af
+    push bc
     call scc_music_play_track
+    pop bc
+    pop af
+    ; PSG half: resolve the dual pointer for this combined index
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, music_psg_ptr_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    or d
+    jp z, music_play_track_no_psg
+    ex de, hl
+    call psg_music_play_ptr    ; HL = psg data, B bit0 = loop
+    jp music_play_track_done
+music_play_track_no_psg:
+    call psg_music_stop
+music_play_track_done:
+    ld a, (scc_music_active)
+    ld hl, psg_music_active
+    or (hl)
+    ld (music_active), a
+` : `    call scc_music_play_track
     ld a, (scc_music_active)
     ld (music_active), a
-    xor a
+`}    xor a
     ld (music_muted), a
     ret
 
 ; Inputs: none. Destroys: AF, BC, HL. Preserves: DE, IX, IY.
 music_stop:
     call scc_music_stop
-    xor a
+${hasDual ? `    call psg_music_stop
+` : ''}    xor a
     ld (music_active), a
     ld (music_muted), a
     ld (music_loop), a
@@ -1829,22 +2667,29 @@ music_stop:
 
 music_mute:
     call scc_music_mute
-    ld a, (scc_music_muted)
+${hasDual ? `    call psg_music_mute
+` : ''}    ld a, (scc_music_muted)
     ld (music_muted), a
     ret
 
 music_resume:
     call scc_music_resume
-    ld a, (scc_music_muted)
+${hasDual ? `    call psg_music_resume
+` : ''}    ld a, (scc_music_muted)
     ld (music_muted), a
     ret
 
 ; Inputs: none. Destroys: AF, BC, DE, HL. Call once per frame outside H.TIMI.
 music_update:
     call scc_music_update
+${hasDual ? `    call psg_music_update
     ld a, (scc_music_active)
+    ld hl, psg_music_active
+    or (hl)
     ld (music_active), a
-    ld a, (scc_music_muted)
+` : `    ld a, (scc_music_active)
+    ld (music_active), a
+`}    ld a, (scc_music_muted)
     ld (music_muted), a
     ret
 
@@ -1875,20 +2720,38 @@ music_execute_scc_play:
     jp music_play_track
 
 music_track_count:
-    DB ${toAsmByte(tracks.length)}
+    DB ${toAsmByte(combined.length)}
 ; @mideas:endblock id=runtime.sound.music_scc_public`;
 
+  const parts = [
+    warningComments,
+    buildSccDriverPrimitives(),
+    buildSccMusicRuntime(data.trackDataLabels),
+  ];
+  if (hasDual) {
+    parts.push(buildPsgMusicRuntime());
+  }
+  parts.push(publicApi);
+  if (hasDual) {
+    parts.push(psgPtrTable);
+  }
+  parts.push(
+    '; ==================================================================',
+    '; SCC MUSIC DATA',
+    '; ==================================================================',
+    data.asm,
+  );
+  if (hasDual) {
+    parts.push(
+      '; ==================================================================',
+      '; PSG MUSIC DATA (dual-chip halves)',
+      '; ==================================================================',
+      buildPsgNotePeriodTable(),
+      ...psgSerialized.map((track) => track.asm),
+    );
+  }
   return {
-    asm: [
-      warningComments,
-      buildSccDriverPrimitives(),
-      buildSccMusicRuntime(data.trackDataLabels),
-      publicApi,
-      '; ==================================================================',
-      '; SCC MUSIC DATA',
-      '; ==================================================================',
-      data.asm,
-    ].join('\n\n'),
+    asm: parts.join('\n\n'),
     trackCount: data.trackCount,
     waveformCount: data.waveformCount,
     warnings: data.warnings,

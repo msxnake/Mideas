@@ -3736,7 +3736,7 @@ def validate_msx2_screen5_bitmap_room_konami_fixed_bank0_megarom(
 
     asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
     required_markers = [
-        "Mideas MSX2 SCREEN 4 bitmap room backend",
+        "Mideas MSX2 SCREEN 5 bitmap room backend",
         "; Backend: msx2-screen4-bitmap-room",
         "; ROM Mode: megarom",
         "; Mapper Target: konami",
@@ -7069,7 +7069,7 @@ def main() -> int:
         screen5_bitmap_fixed = (
             args.rom_mode == "megarom"
             and args.target_format == "konami"
-            and "Mideas MSX2 SCREEN 4 bitmap room backend" in compiled_text
+            and "Mideas MSX2 SCREEN 5 bitmap room backend" in compiled_text
             and "; Backend: msx2-screen4-bitmap-room" in compiled_text
             and "init_konami8k_fixed_bank0_banks:" in compiled_text
         )

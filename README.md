@@ -1,6 +1,6 @@
 # Mideas - MSX Retro Game IDE
 
-**Version 0.267**
+**Version 0.501**
 
 Mideas is a web-based Integrated Development Environment (IDE) designed for creating games for the MSX (MSX1/MSX2) platform. It provides a comprehensive suite of visual editors and tools to streamline the game development process, from asset creation to level design.
 

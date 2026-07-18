@@ -118,6 +118,23 @@ export const isScreen2Mode = (screenMode: string): boolean => screenMode === SCR
 export const isScreen4Mode = (screenMode: string): boolean => screenMode === SCREEN_4_LABEL;
 export const isScreen5Mode = (screenMode: string): boolean => screenMode === LEGACY_SCREEN_5_LABEL;
 
+/**
+ * Convert persisted legacy mode keys into hardware-accurate user-facing text.
+ * The old strings remain valid project-data identifiers for backwards compatibility.
+ */
+export const getScreenModeDisplayName = (screenMode: string): string => {
+  if (screenMode === SCREEN_2_LABEL) {
+    return 'SCREEN 2 (VDP Graphic 2)';
+  }
+  if (screenMode === SCREEN_4_LABEL) {
+    return 'MSX2 (SCREEN 4 tile / SCREEN 5 bitmap)';
+  }
+  if (screenMode === LEGACY_SCREEN_5_LABEL) {
+    return 'SCREEN 5 (VDP Graphic 4)';
+  }
+  return screenMode;
+};
+
 const getPaletteForMode = (screenMode: string) =>
   isScreen2Mode(screenMode) ? MSX1_PALETTE : MSX_SCREEN5_PALETTE;
 

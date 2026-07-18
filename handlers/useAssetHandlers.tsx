@@ -353,7 +353,7 @@ export const useAssetHandlers = ({
 
   const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }): ProjectAsset | undefined => {
     if (type === 'msx2bitmap') {
-      setStatusBarMessage('MSX2 bitmap assets are legacy import-only; use MSX2 SCREEN 4 Room (16x12) for new projects.');
+      setStatusBarMessage('Legacy MSX2 bitmap assets are import-only; use an MSX2 SCREEN 5 Bitmap Room for new bitmap projects.');
       return undefined;
     }
 
@@ -595,7 +595,7 @@ export const useAssetHandlers = ({
             hudEmptyColor: 1,
             hudWidgets: [],
           },
-          notes: 'Bitmap SCREEN 4 room composer: atlas offscreen, V9938 copy/fill/line command list, sprites above.',
+          notes: 'SCREEN 5 bitmap room composer: offscreen atlas, V9938 copy/fill/line command list, sprites above.',
         } as Msx2Screen5BitmapRoom;
         newEditorType = EditorType.Msx2BitmapRoom;
         break;

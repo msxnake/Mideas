@@ -1,3 +1,9 @@
+Versión 0.5 - 18/07/2026
+- Corrige la nomenclatura de SCREEN 4 y SCREEN 5 en la UI, documentación y código ASM generado.
+- Identifica SCREEN 5 bitmap como VDP Graphic 4 con CHGMOD 5.
+- Conserva el soporte real de SCREEN 4 tile y los identificadores internos heredados compatibles.
+- Actualiza la versión visible de Mideas a 0.5.
+
 Versión 0.265 - 13/11/2025
 - docs: update changeLog.txt for v0.265
 - chore: add CHANGELOG for v0.265

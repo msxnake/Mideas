@@ -1,6 +1,7 @@
 
 
 import React from 'react';
+import { getScreenModeDisplayName } from '../../utils/screenModeConfig';
 
 /**
  * Props for the StatusBar component.
@@ -22,7 +23,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message, details, screenMo
     <div className="bg-msx-panelbg border-t border-msx-border px-3 py-1.5 text-xs text-msx-textsecondary flex items-center gap-3 shadow-inner">
       {screenMode && (
         <span className="font-sans text-msx-textsecondary shrink-0">
-          Mode: <span className="text-msx-highlight">{screenMode}</span>
+          Mode: <span className="text-msx-highlight">{getScreenModeDisplayName(screenMode)}</span>
           <span className="opacity-50 ml-1">(locked)</span>
         </span>
       )}

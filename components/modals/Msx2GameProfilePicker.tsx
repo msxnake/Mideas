@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '../common/Button';
 import { Msx2GameProfileId } from '../../types';
 import { MSX2_GAME_PROFILE_OPTIONS } from '../../utils/msx2ProjectProfiles';
+import { getScreenModeDisplayName } from '../../utils/screenModeConfig';
 import platformPreviewImg from '../../src/assets/msx2-project-profiles/platform-preview.png';
 import mazePreviewImg from '../../src/assets/msx2-project-profiles/maze-preview.png';
 import shooterVerticalPreviewImg from '../../src/assets/msx2-project-profiles/shooter-vertical-preview.png';
@@ -230,7 +231,7 @@ export const Msx2GameProfilePicker: React.FC<Msx2GameProfilePickerProps> = ({
             Choose MSX2 game type
           </h2>
           <p className="mt-1 text-xs text-msx-textsecondary">
-            Project <strong className="text-msx-textprimary">{projectName}</strong> · {screenMode}
+            Project <strong className="text-msx-textprimary">{projectName}</strong> · {getScreenModeDisplayName(screenMode)}
           </p>
           <p className="mt-2 text-xs text-msx-textsecondary">
             This choice sets the starter screen, entity palette and asset filters saved in the project JSON.

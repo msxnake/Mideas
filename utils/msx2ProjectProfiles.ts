@@ -758,7 +758,7 @@ export function buildStarterMsx2BitmapRoomAsset(
       hudStyle: 'statusBars',
       playerEnergyMax: 64,
       playerEnergyInitial: 64,
-      notes: `Starter bitmap SCREEN 4 room for ${profile.label}.`,
+      notes: `Starter SCREEN 5 bitmap room for ${profile.label}.`,
     },
     notes: 'V9938 bitmap room: atlas in offscreen VRAM, visible page composed by command list.',
   };

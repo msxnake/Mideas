@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a minimal MSX2 SCREEN 4 Bitmap Room smoke ROM.
+"""Build a minimal MSX2 SCREEN 5 Bitmap Room smoke ROM.
 
 This verifies the authoring workflow where atlas pixels and composition commands
 are exported as a V9938 bitmap-room runtime (VRAM page + command engine).
@@ -37,7 +37,7 @@ def run_command(cmd: list[str], cwd: Path, timeout: float | None = None) -> subp
 def parse_args() -> argparse.Namespace:
     root = repo_root_from_script()
     out = root / "test" / "msx2-screen4" / "out"
-    parser = argparse.ArgumentParser(description="Build an MSX2 SCREEN 4 Bitmap Room smoke project")
+    parser = argparse.ArgumentParser(description="Build an MSX2 SCREEN 5 Bitmap Room smoke project")
     parser.add_argument("--project-root", default=str(root), help="Mideas repository root")
     parser.add_argument("--json-output", default=str(out / "msx2_bitmap_room_smoke.json"), help="Output project JSON path")
     parser.add_argument("--asm-output", default=str(out / "msx2_bitmap_room_smoke.asm"), help="Output ASM path")
@@ -392,7 +392,7 @@ def build_project() -> dict[str, object]:
                 {"id": "hud_time", "name": "Time", "kind": "counter", "binding": "air", "variableName": "time", "x": 208, "y": 4, "width": 24, "height": 8, "initialValue": 180, "primaryColor": 11},
             ],
         },
-        "notes": "Smoke for SCREEN 4 V9938 bitmap-room export.",
+        "notes": "Smoke for SCREEN 5 / VDP Graphic 4 bitmap-room export.",
     }
     room_data_b = copy.deepcopy(room_data)
     room_data_b["id"] = "bitmap_room_smoke_b"
@@ -1131,7 +1131,7 @@ def main() -> int:
         "replay_room_commands",
         "bitmap_room_render_ptr_table_p0",
         "bitmap_room_render_ptr_table_p1",
-        "Mideas MSX2 SCREEN 4 bitmap room backend (V9938 command engine)",
+        "Mideas MSX2 SCREEN 5 bitmap room backend (V9938 Graphic 4 command engine)",
     ):
         if marker not in asm_text:
             raise RuntimeError(f"Generated ASM is missing marker: {marker}")

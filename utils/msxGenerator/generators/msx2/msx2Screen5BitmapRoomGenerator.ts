@@ -192,8 +192,10 @@ import {
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 import {
   collectSccTracks,
+  collectDualChipTracks,
   buildSccIntegratedMusicBlock,
   buildSccMusicRam,
+  buildPsgMusicRam,
 } from '../sccSoundGenerator';
 import {
   bitmapCarryAndThrowEnabled,
@@ -209,6 +211,7 @@ import {
 } from './msx2BitmapTurretGenerator';
 
 interface Msx2BitmapRoomConfig {
+  /** Legacy persisted project-family key; this backend always initializes BASIC SCREEN 5. */
   screenMode: 'SCREEN 4 (Graphics II)';
   romMode: MSXRomMode;
   targetFormat: MSXMapperFormat;
@@ -1270,7 +1273,7 @@ function normalizeRoom(room: Msx2Screen5BitmapRoom | undefined): Msx2Screen5Bitm
   const height = room?.height === 212 ? 212 : SCREEN_HEIGHT_DEFAULT;
   return {
     id: room?.id || 'bitmap_room_0',
-    name: room?.name || 'MSX2 SCREEN 4 Bitmap Room',
+    name: room?.name || 'MSX2 SCREEN 5 Bitmap Room',
     target: 'MSX2',
     vdpMode: 'SCREEN5_BITMAP_ROOM',
     width: SCREEN_WIDTH,
@@ -2617,7 +2620,7 @@ bitmap_upload_player_frame_colors:
 ` : '';
 
   return `
-; --- V9938 bitmap SCREEN 4 runtime (Vampire Killer style) ---
+; --- V9938 SCREEN 5 bitmap runtime (VDP Graphic 4, Vampire Killer style) ---
 
 ; ------------------------------------------------------------
 ; FUNCTION: init_plain32k_page2_slot
@@ -3116,8 +3119,8 @@ vdp_wait_cmd_ready:
 
 init_screen5_bitmap_vdp:
     ; This backend composes 4bpp bitmap pages with V9938 commands (128 bytes per
-    ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The editor
-    ; route is still named SCREEN 4 bitmap-room while this branch is bifurcated.
+    ; 256px row), so the actual VDP mode must be SCREEN 5/Graphic 4. The
+    ; persisted backend route still uses its legacy bitmap-room id.
     ; CHGMOD may leave the display disabled while changing mode. Keep the mode
     ; switch blanked, then explicitly re-enable the display after boot uploads.
     call DISSCR
@@ -12521,9 +12524,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}${coyoteBufferLandHook}`;
   const leaveGroundHooks = `${coyoteBufferLeaveGroundHook}`;
   // step_room_composition ticks music_update between VDP blocks so the song
-  // stays at 60Hz during transitions; only when the SCC driver is emitted
-  // (same condition as sccMusic below: SCC tracks + Konami SCC MegaROM).
-  const sccMusicTickEnabled = isKonamiMegaRom && collectSccTracks(analysis as any).length > 0;
+  // stays at 60Hz during transitions; only when the music driver is emitted
+  // (same condition as sccMusic below: SCC/dual tracks + Konami SCC MegaROM).
+  const sccMusicTickEnabled = isKonamiMegaRom
+    && (collectSccTracks(analysis as any).length > 0 || collectDualChipTracks(analysis as any).length > 0);
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -12677,21 +12681,27 @@ ${hasStateAnimations ? `    xor a
   // public music_* API consumed by Game Flow Music nodes; RAM sits at #C400
   // (above the destroy-tile block, far below the BIOS stack).
   const sccTracks = collectSccTracks(analysis as any);
-  if (sccTracks.length > 0 && !isKonamiMegaRom) {
-    console.warn('⚠️ MSX2 bitmap route: SCC tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
+  // Dual-chip 'PSG+SCC' songs (Fase 3): the SCC half rides the SCC player and
+  // the PSG half plays through psg_music_* in lockstep. Combined track index
+  // space: SCC-only tracks first, then dual tracks.
+  const dualChipTracks = collectDualChipTracks(analysis as any);
+  const anyMusicTracks = sccTracks.length > 0 || dualChipTracks.length > 0;
+  if (anyMusicTracks && !isKonamiMegaRom) {
+    console.warn('⚠️ MSX2 bitmap route: SCC/dual-chip tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
   }
-  const dualChipTracks = (((analysis as any).tracks || []) as any[]).filter(
-    (track: any) => track?.soundChip === 'PSG+SCC'
-  );
-  if (dualChipTracks.length > 0) {
-    console.warn('⚠️ MSX2 bitmap route: PSG+SCC dual-chip tracks are not exportable yet (buffered runtime pending); they are skipped.');
-  }
-  const sccMusic = sccTracks.length > 0 && isKonamiMegaRom ? buildSccIntegratedMusicBlock(sccTracks) : null;
+  const sccMusic = anyMusicTracks && isKonamiMegaRom
+    ? buildSccIntegratedMusicBlock(sccTracks, dualChipTracks)
+    : null;
   for (const warning of sccMusic?.warnings || []) {
     console.warn(`⚠️ SCC music: ${warning}`);
   }
-  const sccTrackIndexById = new Map(sccTracks.map((track, index) => [String(track.id), index]));
+  const sccTrackIndexById = new Map(
+    [...sccTracks, ...dualChipTracks].map((track, index) => [String(track.id), index])
+  );
   const sccMusicRam = sccMusic ? buildSccMusicRam(0xC404) : null;
+  const psgMusicRam = sccMusic && sccMusicRam && dualChipTracks.length > 0
+    ? buildPsgMusicRam(sccMusicRam.nextFree)
+    : null;
   const sccMusicEquates = sccMusic && sccMusicRam ? `
 ; ---- SCC music: public API status bytes + player runtime RAM (Fase 5) ----
 ; The bitmap engine keeps P2 on resident bank 2 whenever music_* runs (every
@@ -12704,7 +12714,7 @@ music_muted          EQU #C401
 music_loop           EQU #C402
 music_track_index    EQU #C403
 ${sccMusicRam.asm}
-` : '';
+${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   const bitmapFlowForMusic = resolveBitmapGameFlow(analysis);
   const flowHasMusicNode = Boolean(bitmapFlowForMusic?.nodes?.some(node => (node as any).type === 'Music'));
   // Boot: init the SCC through the mapper (page 2 is already the cart slot).
@@ -12742,11 +12752,11 @@ ${sccMusicRam.asm}
 
   return `; File: unitedFiles.asm
 ; ==================================================================
-; Mideas MSX2 SCREEN 4 bitmap room backend (V9938 command engine)
+; Mideas MSX2 SCREEN 5 bitmap room backend (V9938 Graphic 4 command engine)
 ; Project: ${projectName}
 ; Room: ${room.name}
-; Screen mode: ${config.screenMode}
-; Backend: msx2-screen4-bitmap-room
+; Screen mode: SCREEN 5 (VDP Graphic 4, CHGMOD 5)
+; Backend: msx2-screen4-bitmap-room (legacy internal id)
 ; ROM Mode: ${config.romMode}
 ; Mapper Target: ${config.targetFormat}
 ; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
@@ -12990,7 +13000,7 @@ export function generateMsx2Screen5BitmapRoomFiles(
 ): GeneratedASMFiles {
   const unitedFiles = generateUnitedFiles(projectName, analysis, config);
   return {
-    'page0.asm': '; MSX2 SCREEN 4 bitmap-room backend: page0 not used.\n',
+    'page0.asm': '; MSX2 SCREEN 5 bitmap-room backend: page0 not used.\n',
     'bios.asm': '; BIOS equates emitted in unitedFiles.asm.\n',
     'constants.asm': '; Constants emitted in unitedFiles.asm.\n',
     'variables.asm': '; Runtime RAM variables reserved for future bitmap-room gameplay.\n',

@@ -67,7 +67,7 @@ BANK world.LOGIC → scripts / state machines
 
 ## Transición multi-pantalla
 
-Portada de SCREEN 4 (`msx2_try_world_edge_transition_*`):
+Portada desde el runtime SCREEN 4 (`msx2_try_world_edge_transition_*`):
 
 - RAM `current_screen_index`.
 - Tabla de transiciones construida desde las `connections` del `worldmap` (W/E/N/S → índice

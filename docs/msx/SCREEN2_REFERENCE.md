@@ -100,7 +100,8 @@ Esto permite hasta **768 tiles únicos** (256 tiles × 3 sectores).
 | Screen 1  | 256×192    | 2 por tile   | 6 KB  | Juegos simples|
 | Screen 2  | 256×192    | 2 por línea  | 16 KB | Juegos avanzados|
 | Screen 3  | 64×48      | 16 por píxel | 12 KB | Gráficos/arte |
-| Screen 4  | 256×192    | 16 por píxel | 12 KB | MSX2 bitmap   |
+| Screen 4  | 256×192    | 2 por línea de patrón | 16 KB | MSX2 tile/pattern (VDP Graphic 3) |
+| Screen 5  | 256×212    | 16 por píxel | 27 KB aprox. | MSX2 bitmap (VDP Graphic 4) |
 
 ### Uso en Mideas
 

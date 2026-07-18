@@ -25,7 +25,7 @@ Two MSX2 game modes (plus the presentation backend):
 | **Bitmap room (SCREEN 5)** | `msx2-screen4-bitmap-room` | **SCREEN 5 / GRAPHIC 4** (`CHGMOD 5`, 4bpp) | Action, platformers, rich art (Pampas, Vampire Killer, Maze of Galious) | **16 colors free per pixel, no clash**; needs command-engine block composition at room load |
 | Presentation | `msx2-screen5-presentation` | SCREEN 5 | Title/cutscene still images | Not a gameplay mode |
 
-Naming note: `msx2-screen4-bitmap-room` is a route/UI label only; at runtime it does
+Naming note: `msx2-screen4-bitmap-room` is now only a legacy internal route id; at runtime it does
 `CHGMOD 5`, so its **actual hardware mode is SCREEN 5**. The UI label for this mode
 should read "SCREEN 5 (bitmap room)" to match reality and avoid the historical
 SCREEN-4-vs-SCREEN-5 confusion (see `MSX2_BITMAP_MULTICOLOR_STUDY.md`).

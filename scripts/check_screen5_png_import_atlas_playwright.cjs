@@ -163,7 +163,7 @@ async function main() {
 
     await page.getByRole('button', { name: 'File' }).click();
     await page.getByText('New Project', { exact: true }).click();
-    await page.getByText('MSX2 (Graphics II / Bitmap)').click();
+    await page.getByText('MSX2 (SCREEN 4 tile / SCREEN 5 bitmap)').click();
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByText('Action bitmap').click();
     await page.locator('button').filter({ hasText: 'Create MSX2 Project' }).nth(0).click();

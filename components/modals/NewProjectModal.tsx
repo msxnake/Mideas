@@ -28,13 +28,14 @@ interface NewProjectModalProps {
 const SCREEN_MODE_OPTIONS = [
   {
     value: 'SCREEN 2 (Graphics I)',
-    title: 'MSX1 SCREEN 2 (Graphics I)',
-    description: 'Modo tileado (256×192, 4 colores) ideal para compatibilidad MSX-1 y VRAM mínima.',
+    title: 'MSX1 SCREEN 2 (VDP Graphic 2)',
+    description: 'Modo tileado 256×192 con color por línea de patrón, ideal para compatibilidad MSX1.',
   },
   {
+    // Keep the legacy value as the persisted MSX2 project-family key.
     value: 'SCREEN 4 (Graphics II)',
-    title: 'MSX2 (Graphics II / Bitmap)',
-    description: 'SCREEN 4 tileado (256×192, paleta MSX2, sprites tipo 2) o SCREEN 5 bitmap (rooms VK-style). Eliges el tipo de juego en el siguiente paso.',
+    title: 'MSX2 (SCREEN 4 tile / SCREEN 5 bitmap)',
+    description: 'SCREEN 4 tileado (VDP Graphic 3, 256×192) o SCREEN 5 bitmap (VDP Graphic 4, rooms VK-style). El tipo de juego del siguiente paso elige el modo real.',
   },
 ];
 
