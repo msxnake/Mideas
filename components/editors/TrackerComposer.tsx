@@ -10,10 +10,11 @@ import {
 } from '../../constants';
 import { AYRegisterSynthesizer } from '../utils/ayRegisterSynthesizer';
 import { SCCSynthesizer } from '../utils/sccSynthesizer';
+import { DualChipSynthesizer } from '../utils/dualChipSynthesizer';
 import {
   createEmptyRow, createDefaultTrackerPattern,
   NOTE_REGEX, INSTRUMENT_REGEX, ORNAMENT_REGEX, VOLUME_REGEX,
-  createEmptyCell
+  createEmptyCell, getSongChannels, toDualChipSong
 } from '../utils/trackerUtils';
 import { LogModal } from '../modals/LogModal'; // Import the new LogModal
 
@@ -54,6 +55,9 @@ interface TrackerComposerProps {
   songData: TrackerSongData;
   /** Callback function to update the song data. */
   onUpdate: (data: Partial<TrackerSongData> | ((currentSong: TrackerSongData) => Partial<TrackerSongData>)) => void;
+  /** Optional: create a NEW track asset with the dual-chip (PSG+SCC) version
+   *  of this song, keeping the original untouched. */
+  onCreateDualChipCopy?: (dualSong: TrackerSongData) => void;
 }
 
 /**
@@ -293,7 +297,7 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
  * @returns A React component.
  * @category Editors
  */
-export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUpdate }) => {
+export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUpdate, onCreateDualChipCopy }) => {
   const [localSongName, setLocalSongName] = useState(songData.name);
   const [localSongTitle, setLocalSongTitle] = useState(songData.title || "");
   const [localSongAuthor, setLocalSongAuthor] = useState(songData.author || "");
@@ -302,7 +306,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [mutedChannels, setMutedChannels] = useState<Set<TrackerChannelId>>(new Set());
 
   const [focusedCell, setFocusedCell] = useState<{ rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell } | null>(null);
-  const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | null>(null);
+  const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | DualChipSynthesizer | null>(null);
 
   const playbackIntervalRef = useRef<number | null>(null);
   const patternEditorRef = useRef<HTMLDivElement>(null);
@@ -337,7 +341,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const channelPendingNoteCutRef = useRef<boolean[]>(Array(SCC_CHANNELS.length).fill(false));
   const previewNoteTimeoutsRef = useRef<(number | null)[]>([]);
-  const channels = useMemo(() => songData.soundChip === 'SCC' ? SCC_CHANNELS : PT3_CHANNELS, [songData.soundChip]);
+  const channels = useMemo(
+    () => getSongChannels(songData, true),
+    [songData.soundChip, songData.sccEnabled]
+  );
 
   const silencePlaybackChannel = useCallback((channelId: TrackerChannelId) => {
     const channelIndex = channels.indexOf(channelId);
@@ -577,9 +584,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
 
   useEffect(() => {
-    const synth = songData.soundChip === 'SCC'
-      ? new SCCSynthesizer(songData.globalVolume / 15)
-      : new AYRegisterSynthesizer(songData.globalVolume / 15);
+    const synth = songData.soundChip === 'PSG+SCC'
+      ? new DualChipSynthesizer(songData.globalVolume / 15)
+      : songData.soundChip === 'SCC'
+        ? new SCCSynthesizer(songData.globalVolume / 15)
+        : new AYRegisterSynthesizer(songData.globalVolume / 15);
 
     synth.setSongData(songData);
     setSynthesizer(synth);
@@ -1278,6 +1287,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       hardwareEnvelopePeriod: instrumentModalBuffer.hardwareEnvelopePeriod,
       hardwareEnvelopeRatio: instrumentModalBuffer.hardwareEnvelopeRatio,
     };
+    if (songData.soundChip === 'PSG+SCC') {
+      newInstrumentData.chip = 'PSG';
+    }
 
     let updatedInstruments;
     if (editingInstrument) {
@@ -1611,6 +1623,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [songData.instruments]);
 
   const handleSaveSccInstrument = useCallback((instrument: SCCInstrument) => {
+    if (songData.soundChip === 'PSG+SCC' && !instrument.chip) {
+      instrument = { ...instrument, chip: 'SCC' };
+    }
     let updatedInstruments;
     const existing = songData.instruments.find(i => i.id === instrument.id);
 
@@ -1915,12 +1930,26 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onLoadSampleSong={handleLoadSampleSong}
         onSilenceAllChannels={handleSilenceAllChannels}
         soundChip={songData.soundChip}
-        onSoundChipChange={(chip) => onUpdate({ soundChip: chip, instruments: [] })}
+        onSoundChipChange={(chip) => {
+          if (chip === songData.soundChip) return;
+          if (chip === 'PSG+SCC') {
+            // Dual conversion is non-destructive: keep every cell and tag
+            // the existing instruments with their chip.
+            onUpdate(toDualChipSong(songData));
+          } else {
+            onUpdate({ soundChip: chip, instruments: [] });
+          }
+        }}
+        sccEnabled={songData.sccEnabled !== false}
+        onSccEnabledChange={(enabled) => onUpdate({ sccEnabled: enabled })}
+        onDuplicateAsDualChip={onCreateDualChipCopy && songData.soundChip !== 'PSG+SCC'
+          ? () => onCreateDualChipCopy(toDualChipSong(songData))
+          : undefined}
         onImportPT3File={handleImportPT3File}
         onLoadDemoPT3File={handleLoadDemoPT3File}
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
-      {songData.soundChip === 'PSG' && songData.playbackBackend !== 'external-pt3' && (
+      {songData.soundChip !== 'SCC' && songData.playbackBackend !== 'external-pt3' && (
         <PsgOscilloscopePanel
           channels={channels}
           mutedChannels={mutedChannels}

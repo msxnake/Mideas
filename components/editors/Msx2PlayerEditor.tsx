@@ -7,7 +7,7 @@ import {
   syncPlayerAnimationsFromLinkedSprites,
 } from '../../utils/msx2SpriteAnimation';
 import { StateMachine, StateMachineState, StateMachineStateName } from '../../statemachine.types';
-import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
+import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2PlayerWeaponAttackVisual, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { getAllSkills, getSkillsForBackend } from '../../utils/msxGenerator/skills/index';
@@ -48,6 +48,7 @@ type PlayerWeaponHitboxSource = PlayerWeaponDefinition['hitboxSource'];
 type PlayerWeaponAvailability = NonNullable<PlayerWeaponDefinition['availability']>;
 type PlayerWeaponEmptyBehavior = NonNullable<NonNullable<PlayerWeaponDefinition['ammo']>['emptyBehavior']>;
 type PlayerWeaponBreakBehavior = NonNullable<NonNullable<PlayerWeaponDefinition['durability']>['breakBehavior']>;
+type PlayerWeaponAttackVisual = Msx2PlayerWeaponAttackVisual;
 
 const inputClass = 'h-7 w-full rounded border border-slate-700 bg-[#111821] px-2 text-xs text-slate-100 outline-none focus:border-blue-500';
 const selectClass = `${inputClass} pr-6`;
@@ -59,6 +60,27 @@ const PLAYER_ATTACK_FACING_OPTIONS: ReadonlyArray<{ value: PlayerAttackFacing; l
   { value: 'up', label: 'Up' },
   { value: 'down', label: 'Down' },
 ];
+
+const createDefaultWeaponAttackVisual = (): PlayerWeaponAttackVisual => ({
+  spriteAssetId: undefined,
+  frames: [0, 1, 2],
+  frameDelay: 4,
+  offsetByFacing: {
+    right: { x: 16, y: 8 },
+    left: { x: -16, y: 8 },
+    up: { x: 4, y: -16 },
+    down: { x: 4, y: 16 },
+  },
+  hitboxByFacing: {
+    right: { x: 16, y: 8, w: 16, h: 12 },
+    left: { x: -16, y: 8, w: 16, h: 12 },
+    up: { x: 4, y: -16, w: 12, h: 16 },
+    down: { x: 4, y: 16, w: 12, h: 16 },
+  },
+  affectsEnemies: true,
+  affectsWalls: false,
+  breaksDestructibleTiles: false,
+});
 const PLAYER_WEAPON_TYPE_OPTIONS: ReadonlyArray<{ value: PlayerWeaponType; label: string }> = [
   { value: 'melee', label: 'Melee' },
   { value: 'projectile', label: 'Projectile' },
@@ -1236,6 +1258,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [openSkillDialogId, setOpenSkillDialogId] = useState<string | null>(null);
   const [isBulletConfigOpen, setIsBulletConfigOpen] = useState(false);
   const [selectedAttackFacing, setSelectedAttackFacing] = useState<PlayerAttackFacing>('right');
+  const [selectedWeaponFacing, setSelectedWeaponFacing] = useState<PlayerAttackFacing>('right');
   const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [newStateName, setNewStateName] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
@@ -1277,6 +1300,30 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     weapons.find(weapon => weapon.id === selectedWeaponId)
     || weapons[0]
     || null;
+  const selectedWeaponAttackVisual = useMemo<PlayerWeaponAttackVisual>(() => {
+    const defaults = createDefaultWeaponAttackVisual();
+    const saved = selectedWeapon?.attackVisual;
+    return {
+      ...defaults,
+      ...(saved || {}),
+      frames: Array.isArray(saved?.frames) && saved.frames.length > 0 ? saved.frames : defaults.frames,
+      frameDelay: numberValue(saved?.frameDelay, defaults.frameDelay),
+      offsetByFacing: { ...defaults.offsetByFacing, ...(saved?.offsetByFacing || {}) },
+      hitboxByFacing: { ...defaults.hitboxByFacing, ...(saved?.hitboxByFacing || {}) },
+      affectsEnemies: saved?.affectsEnemies !== false,
+      affectsWalls: saved?.affectsWalls === true,
+      breaksDestructibleTiles: saved?.breaksDestructibleTiles === true,
+    };
+  }, [selectedWeapon?.attackVisual]);
+  const selectedWeaponAttackOffset = selectedWeaponAttackVisual.offsetByFacing[selectedWeaponFacing] || { x: 0, y: 0 };
+  const selectedWeaponAttackHitbox = selectedWeaponAttackVisual.hitboxByFacing[selectedWeaponFacing]
+    || { x: 0, y: 0, w: 16, h: 16 };
+  const selectedWeaponAttackSprite = useMemo(
+    () => spriteAssets.find(asset => asset.id === selectedWeaponAttackVisual.spriteAssetId)?.data as Msx2Sprite | undefined,
+    [selectedWeaponAttackVisual.spriteAssetId, spriteAssets],
+  );
+  const selectedWeaponAttackFrameStart = selectedWeaponAttackVisual.frames[0] ?? 0;
+  const selectedWeaponAttackFrameCount = Math.max(3, selectedWeaponAttackVisual.frames.length || 3);
   const weaponStateOptions = useMemo(() => {
     const names = selectedStateMachine
       ? selectedStateMachine.states.map(state => state.name || state.id)
@@ -1387,6 +1434,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       cooldownFrames: 15,
       activeFrames: { start: 2, end: 6 },
       hitboxSource: 'attackByFacing',
+      attackVisual: createDefaultWeaponAttackVisual(),
       ammo: { enabled: false, initial: 0, max: 0, consumePerUse: 0, refillAmount: 0, emptyBehavior: 'block' },
       durability: { enabled: false, initial: 0, max: 0, consumePerUse: 0, repairAmount: 0, breakBehavior: 'unequip' },
       notes: 'Declarative weapon metadata. ASM runtime support pending.',
@@ -1410,6 +1458,41 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
     if (patch.id) {
       setSelectedWeaponId(nextWeapon.id);
     }
+  };
+  const updateSelectedWeaponAttackVisual = (patch: Partial<PlayerWeaponAttackVisual>) => {
+    if (!selectedWeapon) return;
+    const current = selectedWeaponAttackVisual;
+    updateSelectedWeapon({
+      attackVisual: {
+        ...current,
+        ...patch,
+        offsetByFacing: { ...current.offsetByFacing, ...(patch.offsetByFacing || {}) },
+        hitboxByFacing: { ...current.hitboxByFacing, ...(patch.hitboxByFacing || {}) },
+      },
+    });
+  };
+  const updateSelectedWeaponAttackOffset = (patch: Partial<{ x: number; y: number }>) => {
+    updateSelectedWeaponAttackVisual({
+      offsetByFacing: {
+        ...selectedWeaponAttackVisual.offsetByFacing,
+        [selectedWeaponFacing]: { ...selectedWeaponAttackOffset, ...patch },
+      },
+    });
+  };
+  const updateSelectedWeaponAttackHitbox = (patch: Partial<{ x: number; y: number; w: number; h: number }>) => {
+    updateSelectedWeaponAttackVisual({
+      hitboxByFacing: {
+        ...selectedWeaponAttackVisual.hitboxByFacing,
+        [selectedWeaponFacing]: { ...selectedWeaponAttackHitbox, ...patch },
+      },
+    });
+  };
+  const updateSelectedWeaponAttackFrames = (start: number, count: number) => {
+    const safeStart = Math.max(0, Math.trunc(numberValue(start, selectedWeaponAttackFrameStart)));
+    const safeCount = Math.max(3, Math.min(32, Math.trunc(numberValue(count, selectedWeaponAttackFrameCount))));
+    updateSelectedWeaponAttackVisual({
+      frames: Array.from({ length: safeCount }, (_, index) => safeStart + index),
+    });
   };
   const renameSelectedWeaponId = (value: string) => {
     if (!selectedWeapon) return;
@@ -2539,6 +2622,68 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                             </div>
                           </div>
                         </div>
+
+                        {(selectedWeapon.type === 'melee' || selectedWeapon.type === 'arc') && (
+                          <div className="rounded border border-sky-800/70 bg-[#111821] p-3">
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <div className="text-[11px] font-bold uppercase tracking-wide text-sky-300">{selectedWeapon.type === 'arc' ? 'Sword Arc / Melee Attack Visual' : 'Sword / Melee Attack Visual'}</div>
+                              <span className="rounded border border-sky-800 bg-sky-950/40 px-1.5 py-0.5 text-[10px] text-sky-200">3+ frames</span>
+                            </div>
+                            <p className="mb-3 text-[10px] leading-relaxed text-slate-400">
+                              The sprite is placed in front of the player while the attack is active. Configure its animation, facing offset and damage rectangle independently from the player body hitbox.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Field label="Sprite">
+                                  <select
+                                    className={selectClass}
+                                    value={selectedWeaponAttackVisual.spriteAssetId || ''}
+                                    onChange={event => updateSelectedWeaponAttackVisual({ spriteAssetId: event.target.value || undefined })}
+                                  >
+                                    <option value="">(none)</option>
+                                    {spriteAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name || asset.id}</option>)}
+                                  </select>
+                                </Field>
+                                <Field label="Frame start"><SmallNumber value={selectedWeaponAttackFrameStart} onChange={value => updateSelectedWeaponAttackFrames(value, selectedWeaponAttackFrameCount)} /></Field>
+                                <Field label="Frame count" suffix="min 3"><SmallNumber value={selectedWeaponAttackFrameCount} onChange={value => updateSelectedWeaponAttackFrames(selectedWeaponAttackFrameStart, value)} /></Field>
+                                <Field label="Frame delay" suffix="game frames"><SmallNumber value={selectedWeaponAttackVisual.frameDelay} onChange={value => updateSelectedWeaponAttackVisual({ frameDelay: Math.max(1, Math.min(60, Math.trunc(numberValue(value, 4)))) })} /></Field>
+                              </div>
+                              <div className="flex min-h-[130px] items-center justify-center rounded border border-slate-700 bg-[#0f141c] p-2">
+                                {selectedWeaponAttackSprite
+                                  ? <SpriteFramePreview sprite={selectedWeaponAttackSprite} frameIndex={selectedWeaponAttackFrameStart} pixelScale={3} />
+                                  : <span className="text-center text-[10px] text-slate-500">Select an MSX2 sprite asset<br />to preview the first slash frame.</span>}
+                              </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-3">
+                              <div className="rounded border border-slate-700 bg-[#151b25] p-2">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <div className="text-[10px] font-bold uppercase tracking-wide text-slate-300">Placement</div>
+                                  <select className={`${selectClass} w-28`} value={selectedWeaponFacing} onChange={event => setSelectedWeaponFacing(event.target.value as PlayerAttackFacing)}>
+                                    {PLAYER_ATTACK_FACING_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                  </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Field label="Offset X"><SmallNumber value={selectedWeaponAttackOffset.x} onChange={value => updateSelectedWeaponAttackOffset({ x: numberValue(value) })} /></Field>
+                                  <Field label="Offset Y"><SmallNumber value={selectedWeaponAttackOffset.y} onChange={value => updateSelectedWeaponAttackOffset({ y: numberValue(value) })} /></Field>
+                                </div>
+                              </div>
+                              <div className="rounded border border-slate-700 bg-[#151b25] p-2">
+                                <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-300">Damage zone</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Field label="X"><SmallNumber value={selectedWeaponAttackHitbox.x} onChange={value => updateSelectedWeaponAttackHitbox({ x: numberValue(value) })} /></Field>
+                                  <Field label="Y"><SmallNumber value={selectedWeaponAttackHitbox.y} onChange={value => updateSelectedWeaponAttackHitbox({ y: numberValue(value) })} /></Field>
+                                  <Field label="Width"><SmallNumber value={selectedWeaponAttackHitbox.w} onChange={value => updateSelectedWeaponAttackHitbox({ w: Math.max(1, numberValue(value, 1)) })} /></Field>
+                                  <Field label="Height"><SmallNumber value={selectedWeaponAttackHitbox.h} onChange={value => updateSelectedWeaponAttackHitbox({ h: Math.max(1, numberValue(value, 1)) })} /></Field>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-3 gap-2 rounded border border-slate-700 bg-[#151b25] p-2">
+                              <Checkbox label="Affects enemies" checked={selectedWeaponAttackVisual.affectsEnemies} onChange={checked => updateSelectedWeaponAttackVisual({ affectsEnemies: checked })} />
+                              <Checkbox label="Affects walls" checked={selectedWeaponAttackVisual.affectsWalls} onChange={checked => updateSelectedWeaponAttackVisual({ affectsWalls: checked })} />
+                              <Checkbox label="Breaks destructible tiles" checked={selectedWeaponAttackVisual.breaksDestructibleTiles} onChange={checked => updateSelectedWeaponAttackVisual({ breaksDestructibleTiles: checked })} />
+                            </div>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded border border-slate-700 bg-[#111821] p-3">

@@ -2287,7 +2287,7 @@ function buildRuntimeAsm(
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean },
-  options: { bankedRle: boolean },
+  options: { bankedRle: boolean; sccMusicTick?: boolean },
   playerPhysics: BitmapPlayerPhysics,
   playerHitbox: BitmapPlayerHitbox,
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
@@ -3557,7 +3557,10 @@ ${options.bankedRle ? `    call bitmap_room_restore_resident_banks
 ; NOTES:
 ;   The routine keeps the old page visible while commands run. Stack balance:
 ;   one PUSH BC per command block, matched by one POP BC before the block count
-;   is decremented.
+;   is decremented.${options.sccMusicTick ? `
+;   With SCC music, S#0 is polled between blocks and music_update is ticked
+;   once per elapsed vblank (the block budget can overrun a frame), keeping
+;   the song tempo linear during transitions.` : ''}
 ; ------------------------------------------------------------
 step_room_composition:
     ld a, (bitmap_composition_state)
@@ -3596,7 +3599,27 @@ ${options.bankedRle ? `    ld a, (bitmap_composition_block_bank)
     dec hl
     ld (bitmap_composition_blocks_left), hl
     pop hl
-    dec c
+${options.sccMusicTick ? `    ; --- SCC music keep-alive: a full block budget can overrun the 60Hz frame
+    ; (LMMM with the display active), which audibly dragged the song tempo
+    ; during room transitions. Poll S#0 between blocks and tick the driver once
+    ; per elapsed vblank so playback stays linear; frames with no boundary in
+    ; here are covered by the main loop's unconditional music_update call.
+    push hl
+    push bc
+    xor a
+    out (${VDP_CTRL_PORT}), a
+    ld a, #8F
+    out (${VDP_CTRL_PORT}), a       ; R#15 = 0 -> status port reads S#0
+    in a, (${VDP_CTRL_PORT})        ; frame flag (bit 7); reading clears it
+    bit 7, a
+    call nz, music_update           ; destroys AF/BC/DE/HL
+${options.bankedRle ? `    ; music_update restores P2 to the resident bank (mapper_bank_p2_current);
+    ; re-map the composition data bank before reading the next block.
+    ld a, (bitmap_composition_block_bank)
+    call bitmap_room_select_data_bank_a
+` : ''}    pop bc
+    pop hl
+` : ''}    dec c
     jp nz, .process_block
     ld (bitmap_composition_block_ptr), hl
     ld hl, (bitmap_composition_blocks_left)
@@ -12497,6 +12520,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // settle first; a buffered-jump fire then clears grounded and arms player_vy.
   const landClearHooks = `${wallJumpLandClear}${powerStompLandClear}${highJumpLandClear}${coyoteBufferLandHook}`;
   const leaveGroundHooks = `${coyoteBufferLeaveGroundHook}`;
+  // step_room_composition ticks music_update between VDP blocks so the song
+  // stays at 60Hz during transitions; only when the SCC driver is emitted
+  // (same condition as sccMusic below: SCC tracks + Konami SCC MegaROM).
+  const sccMusicTickEnabled = isKonamiMegaRom && collectSccTracks(analysis as any).length > 0;
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -12506,7 +12533,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     spriteOffsets: spriteTables.spriteOffsets,
     totalFrameCount: combinedFrameCount,
     hasStateAnimations,
-  }, { bankedRle: isKonamiMegaRom }, playerPhysics, playerHitbox, {
+  }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled }, playerPhysics, playerHitbox, {
     inputGateAsm: inputHooks,
     horizontalHookAsm: `${wallJumperHorizontalHook}${iceSlideHorizontalHook}${crouchHorizontalHook}`,
     gravityHookAsm: gravityHooks,
@@ -12652,6 +12679,12 @@ ${hasStateAnimations ? `    xor a
   const sccTracks = collectSccTracks(analysis as any);
   if (sccTracks.length > 0 && !isKonamiMegaRom) {
     console.warn('⚠️ MSX2 bitmap route: SCC tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
+  }
+  const dualChipTracks = (((analysis as any).tracks || []) as any[]).filter(
+    (track: any) => track?.soundChip === 'PSG+SCC'
+  );
+  if (dualChipTracks.length > 0) {
+    console.warn('⚠️ MSX2 bitmap route: PSG+SCC dual-chip tracks are not exportable yet (buffered runtime pending); they are skipped.');
   }
   const sccMusic = sccTracks.length > 0 && isKonamiMegaRom ? buildSccIntegratedMusicBlock(sccTracks) : null;
   for (const warning of sccMusic?.warnings || []) {
@@ -12848,13 +12881,19 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}$
     ${gameFlowEnabled ? 'ret nz    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp nz, init_rom    ; standalone: last life -> soft restart'}
 .bitmap_main_loop:
     call bitmap_wait_vblank
-${musicUpdateCall}    call step_room_composition
+    ; ---- VRAM phase: runs inside the blanking window ----
+    ; Sprite pattern/colour uploads and every SAT write go FIRST, right after
+    ; the S#0 frame flag, so the raster never races them (mid-display SAT and
+    ; pattern writes glitched the top third of the frame on jump/move). They
+    ; consume last frame's game state: a uniform 1-frame latency at 60Hz.
+${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_sprite_sat
+${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
+    call step_room_composition
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}.skip_player_movement:
-${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
+${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${musicUpdateCall}    jp .bitmap_main_loop
 ${sccMusic ? `\n; ==================================================================\n; SCC MUSIC (Fase 5): driver + row player + public music_* API + data\n; ==================================================================\n${sccMusic.asm}\n` : ''}${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}

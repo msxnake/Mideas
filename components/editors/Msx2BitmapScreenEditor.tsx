@@ -213,6 +213,7 @@ const isWallJumperEntity = (entity: Msx2Screen4EntityInstance | null | undefined
 const BEHAVIOR_CODE = {
   none: 0,
   ice: 3,
+  exitEnemy: 4,
 } as const;
 
 // Collision/behavior grids are addressed on a 16px cell grid (16 cols x 12 rows for a 192px page).
@@ -2118,7 +2119,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const updatePlacedEntityMovement = (id: string, patch: Record<string, unknown>) => {
     const movementPatch: Record<string, unknown> = {};
     if (patch.movement !== undefined) movementPatch.mode = patch.movement;
-    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx'].forEach(key => {
+    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx', 'respawnSeconds'].forEach(key => {
       if (patch[key] !== undefined) movementPatch[key] = patch[key];
     });
 
@@ -3584,8 +3585,11 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const configBehaviorCode = configTarget === 'cell' && selectedCollisionCell
     ? selectedCellBehaviorCode
     : selectedAtlasEntryBehaviorCode;
-  const formatBehaviorCode = (value: number) =>
-    value === BEHAVIOR_CODE.ice ? `${value} (Ice)` : `${value}`;
+  const formatBehaviorCode = (value: number) => {
+    if (value === BEHAVIOR_CODE.ice) return `${value} (Ice)`;
+    if (value === BEHAVIOR_CODE.exitEnemy) return `${value} (Exit enemy)`;
+    return `${value}`;
+  };
 
   // Reflect the selected tile/cell stored collision flags into the checkbox state.
   useEffect(() => {
@@ -3596,6 +3600,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const next: Record<string, boolean> = {};
     PROPERTY_FLAGS.forEach(flag => { next[flag.key] = (configFlags & PROP_BIT[flag.key]) !== 0; });
     next.ice = configBehaviorCode === BEHAVIOR_CODE.ice;
+    next.exitEnemy = configBehaviorCode === BEHAVIOR_CODE.exitEnemy;
     // Destructible reads the per-cell 0x80 bit for a cell, or the atlas tile flag for a tile.
     next.destructible = configTarget === 'cell'
       ? (configFlags & PROP_BIT.destructible) !== 0
@@ -3717,6 +3722,59 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
     setStatusBarMessage?.(
       `SCREEN 5: Ice ${nextValue === BEHAVIOR_CODE.ice ? 'ON' : 'OFF'} en ${targetLabel}` +
+      (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
+      (persistedStamp ? '; metatile actualizado.' : '.')
+    );
+  };
+
+  const toggleExitEnemySurface = () => {
+    const nextValue = configBehaviorCode === BEHAVIOR_CODE.exitEnemy ? BEHAVIOR_CODE.none : BEHAVIOR_CODE.exitEnemy;
+    if (configTarget === 'cell' && selectedCollisionCell) {
+      const grown = writeCell(room.behavior, selectedCollisionCell.x, selectedCollisionCell.y, nextValue, collisionCols, collisionRows);
+      onUpdate({ behavior: grown });
+      setStatusBarMessage?.(`SCREEN 5: exit_enemy ${nextValue === BEHAVIOR_CODE.exitEnemy ? 'ON' : 'OFF'} en celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}).`);
+      return;
+    }
+
+    const targetEntryIds = getConfigAtlasEntryIds();
+    if (targetEntryIds.length === 0) {
+      setStatusBarMessage?.('Selecciona un tile del atlas o una celda del lienzo primero.');
+      return;
+    }
+    const targetSet = new Set(targetEntryIds);
+    const beforeById = new Map(atlasEntries.map(entry => [entry.id, clampByte(entry.behaviorCode, 0)]));
+    const entries = atlasEntries.map(entry => targetSet.has(entry.id)
+      ? { ...entry, behaviorCode: nextValue || undefined }
+      : entry);
+    let syncedCells = 0;
+    let nextBehavior = room.behavior;
+    atlasEntries.forEach((entry, index) => {
+      if (!targetSet.has(entry.id)) return;
+      const tileIndexToSync = index + 1;
+      const before = beforeById.get(entry.id) ?? 0;
+      tileGrid.forEach((row, y) => {
+        row.forEach((tileIndex, x) => {
+          if (tileIndex !== tileIndexToSync) return;
+          if (readCell(nextBehavior, x, y) !== before) return;
+          nextBehavior = writeCell(nextBehavior, x, y, nextValue, collisionCols, collisionRows);
+          syncedCells++;
+        });
+      });
+    });
+    onUpdate({
+      atlas: { ...room.atlas, entries },
+      ...(syncedCells > 0 ? { behavior: nextBehavior } : {}),
+    });
+    const persistedStamp = persistPreparedStampTileMetadata(targetEntryIds, tile => ({
+      ...tile,
+      behaviorCode: nextValue || undefined,
+      updatedAt: new Date().toISOString(),
+    }));
+    const targetLabel = targetEntryIds.length > 1
+      ? `${targetEntryIds.length} tiles del metatile`
+      : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
+    setStatusBarMessage?.(
+      `SCREEN 5: exit_enemy ${nextValue === BEHAVIOR_CODE.exitEnemy ? 'ON' : 'OFF'} en ${targetLabel}` +
       (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
       (persistedStamp ? '; metatile actualizado.' : '.')
     );
@@ -4654,6 +4712,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           {selectedPlacedEntity.kind !== 'platform' && <option value="patrolChaseX">Patrol chase X</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="walkerGravity">Walker gravity</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="slimeCeiling">Slime ceiling (suelo↔techo)</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="gearWheel">GearWheel (emisor)</option>}
                           <option value="patrolY">Patrol Y</option>
                           {selectedPlacedEntity.kind !== 'platform' && <option value="walkerEdge">Walker edge</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="flyerSine">Flyer sine</option>}
@@ -4762,10 +4821,25 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           />
                         </label>
                       )}
+                      {selectedMovementMode === 'gearWheel' && (
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Respawn tras desaparecer (segundos)
+                          <input
+                            type="number"
+                            min={1}
+                            max={255}
+                            value={clampInt(selectedPlacedEntity.components?.msx2_movement?.respawnSeconds ?? selectedPlacedEntity.params?.respawnSeconds, 1, 255, 3)}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { respawnSeconds: clampInt(event.target.value, 1, 255, 3) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                      )}
                       <div className="text-[0.6rem] text-msx-textsecondary">
                         {selectedMovementMode === 'slimeCeiling'
                           ? 'Slime ceiling: se arrastra por el suelo, cada N px salta al techo y se pega boca abajo (flip automático), se arrastra de nuevo y cae al suelo. Gira en paredes y en W1.X/W2.X.'
-                          : 'Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.'}
+                          : selectedMovementMode === 'gearWheel'
+                            ? 'GearWheel: cae desde el emisor, rueda al tocar suelo, invierte en paredes y desaparece al tocar una celda Exit enemy (behavior=4). Si no hay salida, queda detenida y reaparece tras el tiempo indicado.'
+                            : 'Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.'}
                       </div>
                     </div>
                   )}
@@ -5679,6 +5753,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 <input type="checkbox" checked={!!cellProps.ice} onChange={toggleIceSurface} />
                 Ice (behavior=3)
               </label>
+              <label className="flex items-center gap-1 text-xs text-msx-textsecondary">
+                <input type="checkbox" checked={!!cellProps.exitEnemy} onChange={toggleExitEnemySurface} />
+                Exit enemy (behavior=4)
+              </label>
               <label
                 className="flex items-center gap-1 text-xs text-msx-textsecondary"
                 title={configTarget === 'cell'
@@ -5695,8 +5773,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
             </div>
             <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-[0.65rem] text-msx-textsecondary">
               {configTarget === 'cell' && selectedCollisionCell
-                ? 'Editas solo la celda seleccionada; marca Ice para escribir behavior=3 en esa celda.'
-                : 'Editas el tile del atlas; marca Ice para que ese tile pinte behavior=3 y sincronice sus celdas ya colocadas.'}
+                ? 'Editas solo la celda seleccionada; marca Ice o Exit enemy para escribir behavior=3 o behavior=4 en esa celda.'
+                : 'Editas el tile del atlas; marca Ice o Exit enemy para que ese tile pinte behavior=3 o behavior=4 y sincronice sus celdas ya colocadas.'}
             </div>
           </CollapsiblePanel>
 

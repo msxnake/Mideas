@@ -1,0 +1,4 @@
+active=1 (expect 1)
+mixer=3 (expect nonzero)
+period1_samples=173 173 168 168 168 167 171 171 171
+distinct=4 (expect >=2)

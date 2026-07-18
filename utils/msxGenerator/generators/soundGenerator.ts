@@ -63,6 +63,14 @@ export function generateSoundFile(
   if (sccExternalTracks.length > 0) {
     throw new Error('SCC export does not support playbackBackend="external-pt3"; use the native SCC tracker backend.');
   }
+  const dualChipTracks = (analysis.tracks || []).filter(
+    (track: any) => track?.soundChip === 'PSG+SCC'
+  );
+  if (dualChipTracks.length > 0) {
+    // Fail loudly: silently dropping tracks is exactly the "why is my ROM
+    // mute" failure mode the dual-chip work is meant to kill.
+    throw new Error('PSG+SCC dual-chip songs are not exportable yet (buffered PSG+SCC runtime pending). Keep the song as PSG or SCC for this export.');
+  }
 
   const sccTracks = collectSccTracks(analysis);
   const pt3Tracks = collectPT3Tracks(analysis);

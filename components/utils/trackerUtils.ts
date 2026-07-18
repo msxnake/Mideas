@@ -1,6 +1,76 @@
 
-import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, PT3Ornament, TrackerChannelId } from '../../types';
-import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_CHANNELS, PT3_NOTE_NAMES } from '../../constants';
+import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, SCCInstrument, PT3Ornament, TrackerChannelId } from '../../types';
+import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_CHANNELS, SCC_CHANNELS, PSG_SCC_CHANNELS, PT3_NOTE_NAMES } from '../../constants';
+
+/**
+ * Chip a tracker channel belongs to: PSG letters (A-C) vs SCC digits (1-5).
+ */
+export const channelChip = (channelId: TrackerChannelId): 'PSG' | 'SCC' =>
+  (PT3_CHANNELS as readonly string[]).includes(channelId) ? 'PSG' : 'SCC';
+
+/**
+ * Type guard: SCC wavetable instrument vs PSG (PT3) instrument.
+ * Explicit chip tag wins; legacy instruments fall back to waveform presence.
+ */
+export const isSccInstrument = (
+  instrument: PT3Instrument | SCCInstrument
+): instrument is SCCInstrument => {
+  if (instrument.chip) return instrument.chip === 'SCC';
+  return Array.isArray((instrument as SCCInstrument).waveform);
+};
+
+/**
+ * Channel columns for a song. Dual-chip songs expose the PSG trio plus the
+ * SCC block; with the SCC switch off only the PSG trio remains active.
+ * @param includeDisabled Keep SCC columns of a dual-chip song even when the
+ *                        SCC switch is off (the editor renders them grayed).
+ */
+export const getSongChannels = (
+  song: Pick<TrackerSongData, 'soundChip' | 'sccEnabled'>,
+  includeDisabled: boolean = false
+): readonly TrackerChannelId[] => {
+  switch (song.soundChip) {
+    case 'SCC': return SCC_CHANNELS;
+    case 'PSG+SCC':
+      return (song.sccEnabled !== false || includeDisabled) ? PSG_SCC_CHANNELS : PT3_CHANNELS;
+    default: return PT3_CHANNELS;
+  }
+};
+
+/**
+ * Migrates a PSG-only or SCC-only song into a dual-chip 'PSG+SCC' song.
+ * Non-destructive: returns a new object; existing rows keep their channel
+ * keys (PSG rows already use A-C, SCC rows 1-5 — no collision) and every row
+ * gains empty cells for the channels it lacks. Instruments get chip tags so
+ * each channel group only offers its own. Already-dual songs are returned
+ * normalized the same way (safe to call on load).
+ */
+export const toDualChipSong = (song: TrackerSongData): TrackerSongData => {
+  const legacyChip: 'PSG' | 'SCC' = song.soundChip === 'SCC' ? 'SCC' : 'PSG';
+  return {
+    ...song,
+    soundChip: 'PSG+SCC',
+    sccEnabled: song.sccEnabled !== false,
+    instruments: song.instruments.map((inst) => (
+      inst.chip ? inst : {
+        ...inst,
+        chip: song.soundChip === 'PSG+SCC'
+          ? (isSccInstrument(inst) ? 'SCC' : 'PSG')
+          : legacyChip,
+      }
+    )),
+    patterns: song.patterns.map((pattern) => ({
+      ...pattern,
+      rows: pattern.rows.map((row) => {
+        const fullRow: TrackerRow = {};
+        for (const chId of PSG_SCC_CHANNELS) {
+          fullRow[chId] = row[chId] ?? createEmptyCell();
+        }
+        return fullRow;
+      }),
+    })),
+  };
+};
 
 /**
  * Creates an empty tracker cell with all fields initialized to null.
@@ -164,6 +234,7 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
     id: `song_imported_${Date.now()}`,
     name: parsedData.title || fileName.replace(/\.[^/.]+$/, "") || "Imported Song",
     playbackBackend: parsedData.playbackBackend || 'native',
+    soundChip: parsedData.soundChip || 'PSG',
     title: parsedData.title || fileName.replace(/\.[^/.]+$/, "") || "Imported Song",
     author: parsedData.author || "Unknown Author",
     bpm: parsedData.bpm || DEFAULT_PT3_BPM,

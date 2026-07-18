@@ -15,7 +15,7 @@ interface EnemyLibraryViewProps {
   setStatusBarMessage?: (message: string) => void;
 }
 
-const BEHAVIOR_OPTIONS: EnemyBehaviorType[] = ['None', 'PatrolHorizontal', 'WalkerTurnOnEdge', 'FlyerSine', 'BounceDiagonal', 'Jumper', 'HopperTowardsPlayer', 'ShooterStatic', 'TurretAim', 'ChaseHorizontal', 'DropFromCeiling', 'EmergeFromGround', 'CustomBehavior'];
+const BEHAVIOR_OPTIONS: EnemyBehaviorType[] = ['None', 'PatrolHorizontal', 'WalkerTurnOnEdge', 'FlyerSine', 'BounceDiagonal', 'Jumper', 'HopperTowardsPlayer', 'ShooterStatic', 'TurretAim', 'ChaseHorizontal', 'SlimeCeiling', 'GearWheel', 'DropFromCeiling', 'EmergeFromGround', 'CustomBehavior'];
 const ATTACK_OPTIONS: EnemyAttackType[] = ['None', 'DamageOnTouch', 'ShooterStatic', 'ProjectileEmitter', 'MeleeBox', 'ExplosionOnTouch'];
 const SCOPE_OPTIONS: EnemyLibraryScope[] = ['common', 'perWorld', 'boss'];
 const SOUND_EVENTS = ['onSpawn', 'onAttack', 'onHit', 'onDeath', 'onBounce', 'onDespawn'];

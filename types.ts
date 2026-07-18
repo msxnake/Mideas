@@ -2023,6 +2023,9 @@ export interface PT3Instrument {
   id: number;
   /** The name of the instrument. */
   name: string;
+  /** Chip this instrument targets. Optional for legacy songs (PSG assumed);
+   *  dual-chip songs tag every instrument so channel groups only offer their own. */
+  chip?: 'PSG' | 'SCC';
   /** An array of volume envelope points. */
   volumeEnvelope?: number[];
   /** An array of tone envelope points (pitch offsets). */
@@ -2059,6 +2062,9 @@ export interface SCCInstrument {
   id: number;
   /** The name of the instrument. */
   name: string;
+  /** Chip this instrument targets. Optional for legacy songs (SCC implied by
+   *  the waveform); dual-chip songs tag every instrument explicitly. */
+  chip?: 'PSG' | 'SCC';
   /** 32-byte wavetable data. Each value should be between -128 and 127. */
   waveform: number[];
   /** Optional volume for the instrument (0-15). */
@@ -2142,8 +2148,12 @@ export interface TrackerSongData {
   name: string;
   /** Playback backend used by the music asset. */
   playbackBackend?: 'native' | 'external-pt3';
-  /** The sound chip to target. */
-  soundChip: 'PSG' | 'SCC';
+  /** The sound chip to target. 'PSG+SCC' = dual-chip song: channels A-C on the
+   *  PSG plus channels 1-5 on the SCC, like real Konami SCC games. */
+  soundChip: 'PSG' | 'SCC' | 'PSG+SCC';
+  /** Dual-chip songs only: when false, the SCC channels 1-5 are inactive
+   *  (collapsed in the editor, skipped on export). Defaults to true. */
+  sccEnabled?: boolean;
   /** The display title of the song. */
   title?: string;
   /** The author of the song. */

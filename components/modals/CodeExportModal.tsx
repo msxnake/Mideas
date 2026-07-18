@@ -799,10 +799,21 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   ) => {
     try {
       const normalizedMapper = (mapperTargetFormat || '').toLowerCase();
+      // Konami MegaROMs need -romtype KonamiSCC (not plain Konami) whenever the
+      // ROM carries the SCC chip or the Konami SCC bank registers:
+      //  - projects with SCC music (the chip is silent under romtype Konami),
+      //  - every SCREEN 5 bitmap-room MegaROM (its mapper writes #5000, which
+      //    plain Konami4 ignores -> corrupted banking, glitchy player/visuals).
+      const hasSccMusic = assets.some(asset =>
+        asset.type === 'track'
+        && ((asset.data as any)?.soundChip === 'SCC' || (asset.data as any)?.soundChip === 'PSG+SCC')
+        && (asset.data as any)?.playbackBackend !== 'external-pt3'
+      );
+      const needsKonamiScc = hasSccMusic || isMsx2BitmapRoomExport;
       const romType = resolvedRomMode === 'plain48k'
         ? 'Plain'
         : resolvedRomMode === 'megarom' && normalizedMapper === 'konami'
-          ? 'konami'
+          ? (needsKonamiScc ? 'KonamiSCC' : 'konami')
           : resolvedRomMode === 'megarom' && normalizedMapper === 'ascii8'
             ? 'ASCII8'
             : resolvedRomMode === 'megarom' && normalizedMapper === 'ascii16'

@@ -64,9 +64,15 @@ interface TrackerHeaderProps {
   /** Callback to silence all channels. */
   onSilenceAllChannels: () => void;
   /** The sound chip to target. */
-  soundChip: 'PSG' | 'SCC';
+  soundChip: 'PSG' | 'SCC' | 'PSG+SCC';
   /** Callback to update the sound chip. */
-  onSoundChipChange: (chip: 'PSG' | 'SCC') => void;
+  onSoundChipChange: (chip: 'PSG' | 'SCC' | 'PSG+SCC') => void;
+  /** Dual-chip songs: whether the SCC channel block (1-5) is active. */
+  sccEnabled?: boolean;
+  /** Dual-chip songs: toggle the SCC channel block. */
+  onSccEnabledChange?: (enabled: boolean) => void;
+  /** Optional: duplicate this song as a new PSG+SCC track asset (original kept). */
+  onDuplicateAsDualChip?: () => void;
   /** Optional callback to import a PT3 file as external backend. */
   onImportPT3File?: () => void;
   /** Optional callback to load the bundled PT3 demo track. */
@@ -90,7 +96,8 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   ayNoisePeriod, onAyNoisePeriodChange,
   isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
   channels, mutedChannels, onToggleChannelMute,
-  soundChip, onSoundChipChange, onImportPT3File, onLoadDemoPT3File, isExternalPT3
+  soundChip, onSoundChipChange, sccEnabled, onSccEnabledChange,
+  onDuplicateAsDualChip, onImportPT3File, onLoadDemoPT3File, isExternalPT3
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -138,11 +145,26 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
         <div className={clusterClass}>
           <div>
             <label className={labelClass}>Chip</label>
-            <select value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC')} className={`${fieldClass} w-20`}>
+            <select value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC' | 'PSG+SCC')} className={`${fieldClass} w-24`}>
               <option value="PSG">PSG</option>
               <option value="SCC">SCC</option>
+              <option value="PSG+SCC">PSG+SCC</option>
             </select>
           </div>
+          {soundChip === 'PSG+SCC' && onSccEnabledChange && (
+            <div>
+              <label className={labelClass} title="Toggle the SCC channel block (1-5). Off = PSG-only song.">SCC</label>
+              <Button
+                onClick={() => onSccEnabledChange(!(sccEnabled ?? true))}
+                size="sm"
+                variant={(sccEnabled ?? true) ? 'primary' : 'ghost'}
+                className="!h-8 !px-2 font-mono"
+                title={(sccEnabled ?? true) ? 'SCC channels active (click to disable)' : 'SCC channels off (click to enable)'}
+              >
+                {(sccEnabled ?? true) ? 'SCC ON' : 'SCC OFF'}
+              </Button>
+            </div>
+          )}
           <div>
             <label className={labelClass}>BPM</label>
             <input type="number" value={isNaN(bpm) ? '' : bpm} min="30" max="300" onChange={e => onBpmChange(e.target.value)} className={`${fieldClass} w-16`} />
@@ -192,7 +214,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
             <label className={labelClass}>Vol</label>
             <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className={`${fieldClass} w-14`} />
           </div>
-          {soundChip === 'PSG' && onAyHardwareEnvelopePeriodChange && (
+          {soundChip !== 'SCC' && onAyHardwareEnvelopePeriodChange && (
             <div>
               <label className={labelClass} title="Hardware Envelope Period (1-65535)">HW Env</label>
               <input
@@ -206,7 +228,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
               />
             </div>
           )}
-          {soundChip === 'PSG' && onAyNoisePeriodChange && (
+          {soundChip !== 'SCC' && onAyNoisePeriodChange && (
             <div>
               <label className={labelClass} title="Noise Generator Period (0-31)">Noise</label>
               <input
@@ -243,6 +265,16 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
 
         <div className="flex min-w-[15rem] flex-grow flex-wrap items-end justify-end gap-1">
           <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<ListBulletIcon />} title="Load 'Ode to Joy' Sample">Sample</Button>
+          {onDuplicateAsDualChip && (
+            <Button
+              onClick={onDuplicateAsDualChip}
+              size="sm"
+              variant="ghost"
+              title="Create a copy of this song as a PSG+SCC dual-chip track (this song stays untouched)"
+            >
+              → PSG+SCC copy
+            </Button>
+          )}
           {onImportPT3File && soundChip === 'PSG' && (
             <Button
               onClick={onImportPT3File}

@@ -13,6 +13,8 @@ export const MSX2_ENEMY_MOVEMENT_CHASE_H = 8;
 export const MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X = 9;
 export const MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY = 10;
 export const MSX2_ENEMY_MOVEMENT_SLIME_CEILING = 11;
+/** Gear wheel emitter: one falling/rolling wheel with an optional respawn. */
+export const MSX2_ENEMY_MOVEMENT_GEAR_WHEEL = 12;
 
 /** Default horizontal distance (px) a slime crawls before hopping floor<->ceiling. */
 export const MSX2_SLIME_CEILING_DEFAULT_TRAVEL_PX = 48;
@@ -37,6 +39,8 @@ export interface Msx2EnemyHazardRuntimeSlot {
   dropBombOnPlayerX: boolean;
   /** SlimeCeiling: horizontal px crawled before hopping floor<->ceiling. */
   travelPx: number;
+  /** GearWheel: seconds before the emitter respawns its single wheel. */
+  respawnSeconds: number;
 }
 
 const clampTileCoordinate = (value: unknown, max: number): number =>
@@ -101,6 +105,7 @@ const movementModeToRuntimeByte = (movement: string): number => {
   if (normalized === 'walkerturnonedge' || normalized === 'walker' || normalized === 'walkeredge' || normalized === 'turnonedge' || normalized === 'edgewalker') return MSX2_ENEMY_MOVEMENT_WALKER_EDGE;
   if (normalized === 'walkergravity' || normalized === 'gravitywalker' || normalized === 'platformwalker' || normalized === 'walkfall') return MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY;
   if (normalized === 'slimeceiling' || normalized === 'ceilingslime' || normalized === 'slime' || normalized === 'gravityflipslime') return MSX2_ENEMY_MOVEMENT_SLIME_CEILING;
+  if (normalized === 'gearwheel' || normalized === 'gear' || normalized === 'wheel' || normalized === 'ruedadentada' || normalized === 'rueda') return MSX2_ENEMY_MOVEMENT_GEAR_WHEEL;
   if (normalized === 'patrolchasex' || normalized === 'patrolchase' || normalized === 'chasepatrolx' || normalized === 'chasepatrol') return MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X;
   if (normalized === 'chaseh' || normalized === 'chasehorizontal' || normalized === 'chasex' || normalized === 'followx') return MSX2_ENEMY_MOVEMENT_CHASE_H;
   if (normalized === 'ghostmaze' || normalized === 'mazeghost' || normalized === 'ghost' || normalized === 'pacmanghost' || normalized === 'puckghost' || normalized === 'chase') return MSX2_ENEMY_MOVEMENT_GHOST_MAZE;
@@ -180,6 +185,11 @@ export function getMsx2EnemyHazardRuntimeSlots(
         || movement === 'ceilingslime'
         || movement === 'slime'
         || movement === 'gravityflipslime';
+      const hasGearWheel = movement === 'gearwheel'
+        || movement === 'gear'
+        || movement === 'wheel'
+        || movement === 'ruedadentada'
+        || movement === 'rueda';
       // NOTE: 'chase' alone is already ghost-maze; ChaseHorizontal uses explicit names.
       const hasChaseH = movement === 'chaseh'
         || movement === 'chasehorizontal'
@@ -221,7 +231,10 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const jumperBaseY = clampHardwareSpriteY(yTile * 16);
       const jumperMinY = clampHardwareSpriteY(jumperBaseY - jumperHeight);
       const jumperMaxY = jumperBaseY;
-      const direction = Number(getComponentValue(entity, 'msx2_movement', 'direction', getEntityParamNumber(entity.params, 'direction', 1))) < 0 ? -1 : 1;
+      const rawDirection = getComponentValue(entity, 'msx2_movement', 'direction', entity.params?.direction ?? entity.params?.initialDirection ?? entity.params?.startDirection ?? 1);
+      const direction = (typeof rawDirection === 'string'
+        ? (['left', 'l', 'izquierda'].includes(rawDirection.trim().toLowerCase()) ? -1 : 1)
+        : Number(rawDirection) < 0 ? -1 : 1);
       const flyerSpeedX = Math.max(1, Math.min(4, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'speedX', entity.params?.speedX ?? entity.params?.speed ?? 1)
       ) || 1)));
@@ -240,7 +253,10 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const slimeTravelPx = Math.max(4, Math.min(255, Math.floor(Number(
         getComponentValue(entity, 'msx2_movement', 'travelPx', entity.params?.travelPx ?? MSX2_SLIME_CEILING_DEFAULT_TRAVEL_PX)
       ) || MSX2_SLIME_CEILING_DEFAULT_TRAVEL_PX)));
-      const usesHorizontalBounds = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasWalkerGravity || hasSlimeCeiling || hasChaseH || hasPatrolChaseX || stateSwitch;
+      const gearRespawnSeconds = Math.max(1, Math.min(255, Math.floor(Number(
+        getComponentValue(entity, 'msx2_movement', 'respawnSeconds', entity.params?.respawnSeconds ?? entity.params?.respawnDelaySeconds ?? 3)
+      ) || 3)));
+      const usesHorizontalBounds = hasPatrolX || hasBallBounce || hasFlyerSine || hasWalkerEdge || hasWalkerGravity || hasSlimeCeiling || hasGearWheel || hasChaseH || hasPatrolChaseX || stateSwitch;
       const minX = usesHorizontalBounds ? getMovementBoundPixel(entity, 'minX', 0, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
       const maxX = usesHorizontalBounds ? getMovementBoundPixel(entity, 'maxX', 15, 15, clampHardwareSpriteX) : clampHardwareSpriteX(xTile * 16);
       const minY = hasFlyerSine ? sineMinY : hasJumper ? jumperMinY : hasPatrolY || hasBallBounce ? getMovementBoundPixel(entity, 'minY', 0, 11, clampHardwareSpriteY) : clampHardwareSpriteY(yTile * 16);
@@ -270,16 +286,21 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const score = Math.max(1, Math.min(255, Math.floor(Number(
         getComponentValue(entity, 'msx2_score', 'points', entity.params?.points ?? entity.params?.score ?? 1)
       ) || 1)));
+      const gearX = clampHardwareSpriteX(xTile * 16);
+      const gearY = clampHardwareSpriteY(yTile * 16);
       return {
         x: clampHardwareSpriteX(xTile * 16),
         y: clampHardwareSpriteY(yTile * 16),
-        minX: Math.min(minX, maxX),
-        maxX: Math.max(minX, maxX),
-        minY: Math.min(minY, maxY),
-        maxY: Math.max(minY, maxY),
-        dx: hasBallBounce ? signedByte(ballSpeedX) : hasFlyerSine ? signedByte(direction * flyerSpeedX) : hasWalkerEdge || hasWalkerGravity || hasSlimeCeiling || hasChaseH || hasPatrolChaseX ? signedByte(direction) : hasGhostMaze ? ghostDx : hasPatrolX ? direction : 0,
-        dy: hasBallBounce ? signedByte(ballSpeedY) : hasFlyerSine ? signedByte(flyerPhase >= 16 ? -flyerFrequency : flyerFrequency) : hasJumper ? signedByte(-jumperSpeedY) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
-        mode: hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : hasWalkerEdge ? MSX2_ENEMY_MOVEMENT_WALKER_EDGE : hasWalkerGravity ? MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY : hasSlimeCeiling ? MSX2_ENEMY_MOVEMENT_SLIME_CEILING : hasPatrolChaseX ? MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X : hasChaseH ? MSX2_ENEMY_MOVEMENT_CHASE_H : MSX2_ENEMY_MOVEMENT_PATROL,
+        // Gear uses minY/maxY as its immutable emitter X/Y and minX/maxX as
+        // the horizontal rail. Other movement modes retain normal bounds.
+        minX: hasGearWheel ? 0 : Math.min(minX, maxX),
+        maxX: hasGearWheel ? 240 : Math.max(minX, maxX),
+        minY: hasGearWheel ? gearX : Math.min(minY, maxY),
+        maxY: hasGearWheel ? gearY : Math.max(minY, maxY),
+        dx: hasGearWheel ? signedByte(direction) : hasBallBounce ? signedByte(ballSpeedX) : hasFlyerSine ? signedByte(direction * flyerSpeedX) : hasWalkerEdge || hasWalkerGravity || hasSlimeCeiling || hasChaseH || hasPatrolChaseX ? signedByte(direction) : hasGhostMaze ? ghostDx : hasPatrolX ? direction : 0,
+        // Gear keeps its initial direction in dy so a respawn restores it.
+        dy: hasGearWheel ? signedByte(direction) : hasBallBounce ? signedByte(ballSpeedY) : hasFlyerSine ? signedByte(flyerPhase >= 16 ? -flyerFrequency : flyerFrequency) : hasJumper ? signedByte(-jumperSpeedY) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
+        mode: hasGearWheel ? MSX2_ENEMY_MOVEMENT_GEAR_WHEEL : hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : hasWalkerEdge ? MSX2_ENEMY_MOVEMENT_WALKER_EDGE : hasWalkerGravity ? MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY : hasSlimeCeiling ? MSX2_ENEMY_MOVEMENT_SLIME_CEILING : hasPatrolChaseX ? MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X : hasChaseH ? MSX2_ENEMY_MOVEMENT_CHASE_H : MSX2_ENEMY_MOVEMENT_PATROL,
         speed,
         score,
         stateSwitch,
@@ -289,6 +310,7 @@ export function getMsx2EnemyHazardRuntimeSlots(
         stateRangeY,
         dropBombOnPlayerX,
         travelPx: slimeTravelPx,
+        respawnSeconds: hasGearWheel ? gearRespawnSeconds : 0,
       };
     });
 }

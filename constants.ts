@@ -386,6 +386,8 @@ export const PT3_MAX_ORNAMENTS = 15;
 export const PT3_CHANNELS = ['A', 'B', 'C'] as const;
 /** The SCC channel identifiers. */
 export const SCC_CHANNELS = ['1', '2', '3', '4', '5'] as const;
+/** Dual-chip song channels: PSG A-C first, then SCC 1-5 (8 columns). */
+export const PSG_SCC_CHANNELS = [...PT3_CHANNELS, ...SCC_CHANNELS] as const;
 
 /** The names of notes in an octave for display. */
 export const PT3_NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];

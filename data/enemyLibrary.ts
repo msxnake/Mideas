@@ -114,6 +114,22 @@ export const GLOBAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
     budget: { cpu: 2, ram: 18, sprites: 1 },
     renderPlaceholder: { spriteSize: '16x16', defaultAnimation: 'idle' },
   },
+  {
+    templateId: 'gear_wheel_emitter',
+    name: 'Rueda dentada',
+    category: 'hazard',
+    behavior: { type: 'GearWheel', requiresRoutine: 'Move_GearWheelEmitter' },
+    attack: { type: 'DamageOnTouch' },
+    spawnParamsSchema: [
+      { name: 'speed', label: 'Speed (px/2 frames)', type: 'byte', default: 1, min: 1, max: 15, exportParam: 'p0' },
+      { name: 'direction', label: 'Initial Direction', type: 'enum', values: ['left', 'right'], default: 'right', exportParam: 'p1' },
+      { name: 'respawnSeconds', label: 'Respawn Delay (seconds)', type: 'byte', default: 3, min: 1, max: 255, exportParam: 'p2' },
+    ],
+    requiredRoutines: ['Move_GearWheelEmitter', 'DamageOnTouch_Update', 'Enemy_Animate', 'GetSolidCell', 'GetExitCell'],
+    budget: { cpu: 3, ram: 28, sprites: 1 },
+    renderPlaceholder: { spriteSize: '16x16', defaultAnimation: 'roll' },
+    description: 'Emisor de una rueda dentada: cae, rueda por el suelo, invierte en paredes y desaparece en salidas. Solo hay una rueda activa por emisor.',
+  },
 ];
 
 const slugify = (value: string): string =>

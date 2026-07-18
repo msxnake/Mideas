@@ -636,6 +636,25 @@ export const createDefaultMsx2PlayerDefinition = (
       cooldownFrames: isShooter ? 12 : 15,
       activeFrames: { start: isShooter ? 0 : 2, end: isShooter ? 1 : 6 },
       hitboxSource: isShooter ? 'none' : 'attackByFacing',
+      attackVisual: isShooter ? undefined : {
+        frames: [0, 1, 2],
+        frameDelay: 4,
+        offsetByFacing: {
+          right: { x: 16, y: 8 },
+          left: { x: -16, y: 8 },
+          up: { x: 4, y: -16 },
+          down: { x: 4, y: 16 },
+        },
+        hitboxByFacing: {
+          right: { x: 16, y: 8, w: 16, h: 12 },
+          left: { x: -16, y: 8, w: 16, h: 12 },
+          up: { x: 4, y: -16, w: 12, h: 16 },
+          down: { x: 4, y: 16, w: 12, h: 16 },
+        },
+        affectsEnemies: true,
+        affectsWalls: false,
+        breaksDestructibleTiles: false,
+      },
       projectileAssetId: isShooter ? 'player_bullet' : undefined,
       ammo: {
         enabled: isShooter,

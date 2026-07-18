@@ -13,7 +13,7 @@ interface InstrumentsPanelProps {
   /** The list of instruments in the song. */
   instruments: (PT3Instrument | SCCInstrument)[];
   /** The sound chip being used. */
-  soundChip: 'PSG' | 'SCC';
+  soundChip: 'PSG' | 'SCC' | 'PSG+SCC';
   /** The ID of the currently active instrument. */
   activeInstrumentId: number | null;
   /** Callback function to set the active instrument. */
@@ -42,17 +42,17 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
 }) => {
 
   const isPT3Instrument = (instr: PT3Instrument | SCCInstrument): instr is PT3Instrument => {
+    if (instr.chip) return instr.chip === 'PSG';
     return !Array.isArray((instr as SCCInstrument).waveform);
   };
 
   const formatSubtitle = (instr: PT3Instrument | SCCInstrument) => {
-    if (soundChip === 'SCC') {
+    if (!isPT3Instrument(instr)) {
       const vol = (instr as SCCInstrument).volume ?? 15;
       const wave = (instr as SCCInstrument).waveform || [];
       const dc = wave.length ? (wave.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / Math.max(1, wave.length)) : 0;
       return `vol ${vol} | dc ${dc >= 0 ? '+' : ''}${dc.toFixed(1)}`;
     }
-    if (!isPT3Instrument(instr)) return '';
     const parts = [
       `Vol ${instr.volumeEnvelope?.length ?? 0}`,
       `Tone ${instr.toneEnvelope?.length ?? 0}`,
@@ -63,7 +63,7 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   };
 
   const getInstrumentFlags = (instr: PT3Instrument | SCCInstrument) => {
-    if (soundChip === 'SCC' || !isPT3Instrument(instr)) return [];
+    if (!isPT3Instrument(instr)) return [];
     return [
       instr.ayToneEnabled === false ? null : 'Tone',
       instr.ayNoiseEnabled ? 'Noise' : null,
@@ -81,14 +81,16 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   };
 
   const handleEdit = (instr: PT3Instrument | SCCInstrument) => {
-    if (soundChip === 'SCC') {
-      onOpenWaveformModal(instr as SCCInstrument);
-    } else {
+    // Dual songs mix both instrument kinds: pick the editor per instrument.
+    if (isPT3Instrument(instr)) {
       onOpenInstrumentModal(instr as PT3Instrument);
+    } else {
+      onOpenWaveformModal(instr as SCCInstrument);
     }
   };
 
-  const panelTitle = soundChip === 'SCC' ? "SCC Waves" : "PSG Instruments";
+  const isDual = soundChip === 'PSG+SCC';
+  const panelTitle = isDual ? "Instruments (PSG+SCC)" : soundChip === 'SCC' ? "SCC Waves" : "PSG Instruments";
   const panelIcon = soundChip === 'SCC' ? <WaveformIcon /> : <PencilIcon />;
 
   return (
@@ -108,6 +110,11 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1 min-w-0">
                           <span className="font-mono text-msx-highlight bg-black/25 px-1 rounded">{String(instr.id).padStart(2, '0')}</span>
+                          {isDual && (
+                            <span className={`px-1 rounded border text-[0.55rem] font-bold ${isPT3Instrument(instr) ? 'border-msx-border text-msx-textsecondary' : 'border-msx-highlight/60 text-msx-highlight'}`}>
+                              {isPT3Instrument(instr) ? 'PSG' : 'SCC'}
+                            </span>
+                          )}
                           <span className="truncate">{instr.name}</span>
                           {instr.id === activeInstrumentId && (
                             <span className="rounded border border-white/40 px-1 text-[0.55rem] uppercase tracking-wider text-white/85">Active</span>
@@ -132,7 +139,14 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
              ))}
              {instruments.length === 0 && <p className="text-msx-textsecondary italic text-center">No instruments.</p>}
          </div>
-         <Button onClick={handleAddNew} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="mt-1 w-full text-[0.65rem]">Add New</Button>
+         {isDual ? (
+           <div className="mt-1 flex gap-1">
+             <Button onClick={() => onOpenInstrumentModal(null)} size="sm" variant="secondary" icon={<PencilIcon/>} className="w-1/2 text-[0.65rem]" title="Add a PSG (AY) instrument">Add PSG</Button>
+             <Button onClick={() => onOpenWaveformModal(null)} size="sm" variant="secondary" icon={<WaveformIcon/>} className="w-1/2 text-[0.65rem]" title="Add an SCC wavetable instrument">Add SCC</Button>
+           </div>
+         ) : (
+           <Button onClick={handleAddNew} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="mt-1 w-full text-[0.65rem]">Add New</Button>
+         )}
     </Panel>
   );
 };
