@@ -39,6 +39,9 @@ export class SCCSynthesizer {
     private channelOrnamentState: ({ data: number[], loop: number, step: number } | null)[] = [null, null, null, null, null];
     private channelVibrato: ({ depth: number, speed: number, delay: number, phase: number, ctr: number } | null)[] = [null, null, null, null, null];
     private channelBaseFrequency: (number | null)[] = [null, null, null, null, null];
+    // Waveform morphing (mirrors the ROM's global morph engine, but per
+    // channel in the preview): 16 steps from the base to the target waveform.
+    private channelMorph: ({ start: number[], target: number[], step: number, timer: number, speed: number } | null)[] = [null, null, null, null, null];
     // SCC original has one physical waveform RAM shared by logical channels 4/5.
     private sharedOriginalWaveform: number[] | null = null;
 
@@ -144,6 +147,9 @@ export class SCCSynthesizer {
             // Apply pitch effects (arpeggio + vibrato) — mirrors the ROM's
             // per-frame pitch engine so the preview matches the exported song.
             this.applyPitchEffects(channel);
+
+            // Advance waveform morphing (16 interpolation steps, ROM parity).
+            this.advanceMorph(channel);
 
             if (!envState) {
                 if (currentVolume <= 0) {
@@ -253,6 +259,19 @@ export class SCCSynthesizer {
         return buffer;
     }
 
+    // 2048-sample white-noise buffer: preview equivalent of the ROM rewriting
+    // the 32-byte waveform with fresh random bytes every frame. Played at the
+    // same per-sample rate as a waveform (freq * 32 samples/s) so the note
+    // period still controls the noise colour, like on real hardware.
+    private createNoiseBuffer(): AudioBuffer | null {
+        if (!this.audioContext) return null;
+        const N = 2048;
+        const buffer = this.audioContext.createBuffer(1, N, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < N; i++) data[i] = Math.random() * 2 - 1;
+        return buffer;
+    }
+
     private restartChannelSourceWithWaveform(channel: number, waveform: number[]): void {
         if (!this.audioContext || !this.channelGains[channel]) return;
         const period = this.channelCurrentPeriod[channel];
@@ -264,7 +283,8 @@ export class SCCSynthesizer {
             this.channelSources[channel] = null;
         }
 
-        const buffer = this.createWaveformBuffer(waveform);
+        const isNoise = this.channelActiveInstrument[channel]?.noiseMode === true;
+        const buffer = isNoise ? this.createNoiseBuffer() : this.createWaveformBuffer(waveform);
         if (!buffer) return;
         const source = this.audioContext.createBufferSource();
         source.buffer = buffer;
@@ -276,6 +296,26 @@ export class SCCSynthesizer {
         source.connect(this.channelGains[channel]!);
         source.start();
         this.channelSources[channel] = source;
+    }
+
+    // One 50Hz tick of the morph engine for a channel: every `speed` ticks
+    // interpolate one of 16 steps towards the target and swap the buffer.
+    private advanceMorph(channel: number): void {
+        const morph = this.channelMorph[channel];
+        if (!morph || !this.channelSources[channel]) return;
+        if (this.channelActiveInstrument[channel]?.noiseMode) return; // noise wins
+        morph.timer--;
+        if (morph.timer > 0) return;
+        morph.timer = morph.speed;
+        morph.step++;
+        if (morph.step >= 16) {
+            this.restartChannelSourceWithWaveform(channel, morph.target);
+            this.channelMorph[channel] = null;
+            return;
+        }
+        const t = morph.step / 16;
+        const mixed = morph.start.map((v, i) => Math.round(v + ((morph.target[i] ?? 0) - v) * t));
+        this.restartChannelSourceWithWaveform(channel, mixed);
     }
 
     private stopChannel(channel: number) {
@@ -300,6 +340,7 @@ export class SCCSynthesizer {
         this.channelOrnamentState[channel] = null;
         this.channelVibrato[channel] = null;
         this.channelBaseFrequency[channel] = null;
+        this.channelMorph[channel] = null;
     }
 
     public async playNote(
@@ -382,6 +423,22 @@ export class SCCSynthesizer {
                 };
             } else {
                 this.channelVibrato[channel] = null;
+            }
+
+            // Waveform morphing (restarts on every note, like the ROM engine).
+            if (instrument
+                && Array.isArray(instrument.morphToWaveform)
+                && instrument.morphToWaveform.length > 0
+                && (instrument.morphSpeed ?? 0) >= 1) {
+                this.channelMorph[channel] = {
+                    start: this.sanitizeWaveform(instrument.waveform),
+                    target: this.sanitizeWaveform(instrument.morphToWaveform),
+                    step: 0,
+                    speed: instrument.morphSpeed ?? 4,
+                    timer: instrument.morphSpeed ?? 4,
+                };
+            } else {
+                this.channelMorph[channel] = null;
             }
         }
 

@@ -141,11 +141,16 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
   const [vibratoDepth, setVibratoDepth] = useState<number>(0);
   const [vibratoSpeed, setVibratoSpeed] = useState<number>(16);
   const [vibratoDelay, setVibratoDelay] = useState<number>(0);
+  const [noiseMode, setNoiseMode] = useState<boolean>(false);
+  const [morphEnabled, setMorphEnabled] = useState<boolean>(false);
+  const [morphWaveform, setMorphWaveform] = useState<number[]>(Array(32).fill(0));
+  const [morphSpeed, setMorphSpeed] = useState<number>(4);
   const synthRef = useRef<SCCSynthesizer | null>(null);
 
   const clampVibDepth = (value: number) => Math.max(0, Math.min(5, Math.round(value)));
   const clampVibSpeed = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
   const clampVibDelay = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+  const clampMorphSpeed = (value: number) => Math.max(1, Math.min(255, Math.round(value)));
 
   const clampWaveValue = (value: number) => Math.max(-128, Math.min(127, Math.round(value)));
   const clampBaseVolume = (value: number) => Math.max(0, Math.min(15, Math.round(value)));
@@ -175,6 +180,13 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       setVibratoDepth(clampVibDepth(instrument.vibratoDepth ?? 0));
       setVibratoSpeed(clampVibSpeed(instrument.vibratoSpeed ?? 16));
       setVibratoDelay(clampVibDelay(instrument.vibratoDelay ?? 0));
+      setNoiseMode(instrument.noiseMode === true);
+      const morphValid = Array.isArray(instrument.morphToWaveform) && instrument.morphToWaveform.length > 0;
+      setMorphEnabled(morphValid);
+      setMorphWaveform(morphValid
+        ? [...instrument.morphToWaveform!, ...Array(32).fill(0)].slice(0, 32).map(clampWaveValue)
+        : Array(32).fill(0));
+      setMorphSpeed(clampMorphSpeed(instrument.morphSpeed ?? 4));
     } else {
       // Default for new instrument
       setName('New Waveform');
@@ -186,6 +198,10 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       setVibratoDepth(0);
       setVibratoSpeed(16);
       setVibratoDelay(0);
+      setNoiseMode(false);
+      setMorphEnabled(false);
+      setMorphWaveform(Array(32).fill(0));
+      setMorphSpeed(4);
     }
   }, [instrument]);
 
@@ -264,6 +280,11 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       vibratoDepth: clampVibDepth(vibratoDepth),
       vibratoSpeed: clampVibSpeed(vibratoSpeed),
       vibratoDelay: clampVibDelay(vibratoDelay),
+      noiseMode: noiseMode || undefined,
+      morphToWaveform: morphEnabled
+        ? Array(32).fill(0).map((_, idx) => clampWaveValue(morphWaveform[idx] ?? 0))
+        : undefined,
+      morphSpeed: morphEnabled ? clampMorphSpeed(morphSpeed) : undefined,
     };
   };
 
@@ -520,6 +541,75 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
           </div>
           <p className="text-[10px] text-msx-textsecondary mt-1">Depth 0 desactiva el vibrato. Velocidad tipica 8-32; el retardo espera N frames tras cada nota.</p>
         </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-msx-bgcolor border border-msx-border rounded p-3">
+            <label className="flex items-center space-x-2 text-sm font-medium text-msx-textprimary">
+              <input
+                type="checkbox"
+                checked={noiseMode}
+                onChange={(e) => setNoiseMode(e.target.checked)}
+              />
+              <span>Ruido real (percusion/hi-hat)</span>
+            </label>
+            <p className="text-[10px] text-msx-textsecondary mt-1">
+              El driver reescribe la waveform del canal con bytes aleatorios en
+              cada frame (ruido blanco autentico). El periodo de la nota sigue
+              controlando el color del ruido.
+            </p>
+          </div>
+          <div className="bg-msx-bgcolor border border-msx-border rounded p-3">
+            <label className="flex items-center space-x-2 text-sm font-medium text-msx-textprimary">
+              <input
+                type="checkbox"
+                checked={morphEnabled}
+                onChange={(e) => setMorphEnabled(e.target.checked)}
+              />
+              <span>Morphing de waveform</span>
+            </label>
+            <p className="text-[10px] text-msx-textsecondary mt-1">
+              En cada nota, el timbre evoluciona de la waveform base a la
+              destino en 16 pasos (estilo TriloTracker).
+            </p>
+            {morphEnabled && (
+              <div className="mt-2 flex items-center space-x-2 text-[11px]">
+                <span className="text-msx-textsecondary">Frames por paso</span>
+                <input
+                  type="number" min={1} max={255} value={morphSpeed}
+                  onChange={(e) => setMorphSpeed(clampMorphSpeed(parseInt(e.target.value || '1', 10)))}
+                  className="w-16 p-1 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                />
+                <span className="text-msx-textsecondary">(total = 16 x N frames)</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {morphEnabled && (
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-msx-textprimary">Waveform destino del morph</label>
+              <div className="flex flex-wrap items-center gap-1">
+                {Object.keys(PRESETS).map(preset => (
+                  <button
+                    key={`morph-${preset}`}
+                    onClick={() => setMorphWaveform(Array(32).fill(0).map((_, i) => PRESETS[preset as keyof typeof PRESETS](i)))}
+                    className="text-[10px] px-2 py-1 bg-msx-bgcolor border border-msx-border rounded hover:bg-msx-highlight hover:text-black transition-colors"
+                  >
+                    {preset}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setMorphWaveform([...waveform])}
+                  className="text-[10px] px-2 py-1 bg-msx-bgcolor border border-msx-border rounded hover:bg-msx-highlight hover:text-black transition-colors"
+                >
+                  Copiar base
+                </button>
+              </div>
+            </div>
+            <WaveformGraphEditor waveform={morphWaveform} onWaveformChange={setMorphWaveform} />
+          </div>
+        )}
 
         <div className="flex justify-end space-x-2 pt-2 border-t border-msx-border">
           <Button onClick={onClose} variant="secondary">

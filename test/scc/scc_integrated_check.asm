@@ -45,7 +45,20 @@ scc_ch_vib_ctr               EQU #C07C
 scc_ch_vib_phase             EQU #C081
 scc_ch_period_lo             EQU #C086
 scc_ch_period_hi             EQU #C08B
-scc_music_loop_enabled       EQU #C090
+scc_ch_flags                 EQU #C090
+scc_ch_morph_wave            EQU #C095
+scc_ch_morph_speed           EQU #C09A
+scc_noise_phase              EQU #C09F
+scc_morph_chan               EQU #C0A0
+scc_morph_step               EQU #C0A1
+scc_morph_timer              EQU #C0A2
+scc_morph_speed_cur          EQU #C0A3
+scc_morph_tgt_idx            EQU #C0A4
+scc_morph_tgt_lo             EQU #C0A5
+scc_morph_tgt_hi             EQU #C0A6
+scc_morph_buf                EQU #C0A7
+scc_morph_delta              EQU #C0C7
+scc_music_loop_enabled       EQU #C0E7
     org #4000
     db "AB"
     dw INIT
@@ -313,6 +326,16 @@ scc_music_reset_period_loop:
     ld (hl), #FF           ; sentinel: force first period write
     inc hl
     djnz scc_music_reset_period_loop
+    ; noise/morph engines idle
+    xor a
+    ld hl, scc_ch_flags
+    ld b, 5
+scc_music_reset_flags_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_flags_loop
+    ld a, #FF
+    ld (scc_morph_chan), a  ; morph engine inactive
     ret
 
 ; ------------------------------------------------------------------
@@ -504,6 +527,8 @@ scc_music_update:
     jp z, scc_music_update_restore_bank
 scc_music_update_effects:
     call scc_music_update_pitch
+    call scc_music_update_morph
+    call scc_music_update_noise
     call scc_music_update_envelopes
     call scc_music_apply_mixer
 scc_music_update_restore_bank:
@@ -620,6 +645,12 @@ scc_music_apply_cell:
     push bc
     call SCC_LoadWaveform32
     pop bc
+    ; a fresh waveform load cancels a running morph on this channel
+    ld a, (scc_morph_chan)
+    cp c
+    jp nz, scc_music_cell_wave_same
+    ld a, #FF
+    ld (scc_morph_chan), a
 scc_music_cell_wave_same:
     pop hl                  ; instrument record +0
     inc hl                  ; +1 default volume
@@ -665,6 +696,8 @@ scc_music_cell_wave_same:
     ld b, (hl)              ; +7 vibrato speed
     inc hl
     ld d, (hl)              ; +8 vibrato delay
+    inc hl
+    push hl                 ; save record +9 for the noise/morph block
     ld hl, scc_ch_vib_shift
     call scc_ch_ptr
     ld (hl), e
@@ -672,6 +705,22 @@ scc_music_cell_wave_same:
     call scc_ch_ptr
     ld (hl), b
     ld hl, scc_ch_vib_delay
+    call scc_ch_ptr
+    ld (hl), d
+    ; ---- cache noise/morph config (+9 flags, +10 morph wave, +11 speed) ----
+    pop hl                  ; HL = instrument record +9
+    ld e, (hl)              ; flags: bit0 noise, bit1 morph
+    inc hl
+    ld b, (hl)              ; morph target waveform index
+    inc hl
+    ld d, (hl)              ; morph frames per step
+    ld hl, scc_ch_flags
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_morph_wave
+    call scc_ch_ptr
+    ld (hl), b
+    ld hl, scc_ch_morph_speed
     call scc_ch_ptr
     ld (hl), d
 scc_music_cell_inst_done:
@@ -719,6 +768,17 @@ scc_music_cell_note:
     ld hl, scc_ch_period_hi
     call scc_ch_ptr
     ld (hl), #FF            ; force the pitch engine to write the period
+    ; morph trigger (instrument flag bit1); a note-on without the flag
+    ; cancels any morph still running on this channel.
+    ld hl, scc_ch_flags
+    call scc_ch_ptr
+    bit 1, (hl)
+    jp nz, scc_morph_start  ; C = channel; tail call
+    ld a, (scc_morph_chan)
+    cp c
+    ret nz
+    ld a, #FF
+    ld (scc_morph_chan), a
     ret
 scc_music_cell_note_cut:
     ld hl, scc_ch_note
@@ -768,6 +828,183 @@ scc_wave_cache_ptr_add:
     ld l, a
     ret nc
     inc h
+    ret
+
+; ------------------------------------------------------------------
+; scc_morph_start
+; What:   Arm the global morph engine for channel C (TriloTracker-style,
+;         one morph at a time): copy the channel's current ROM waveform
+;         into scc_morph_buf and precompute 16-step per-sample deltas
+;         towards the instrument's morph target waveform.
+; Inputs: C = channel 0..4; scc_ch_wave / scc_ch_morph_wave / _speed caches.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_morph_start:
+    ld hl, scc_ch_wave
+    call scc_wave_cache_ptr
+    ld a, (hl)
+    cp #FF
+    ret z                   ; no waveform loaded yet: nothing to morph
+    ld b, a                 ; B = source waveform index
+    ld hl, scc_ch_morph_wave
+    call scc_ch_ptr
+    ld a, (hl)
+    cp b
+    ret z                   ; source == target: nothing to do
+    ld (scc_morph_tgt_idx), a
+    push bc                 ; keep B = source idx, C = channel
+    ld l, a                 ; target ROM ptr = scc_wave_table + idx*32
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, scc_wave_table
+    add hl, de
+    ld a, l
+    ld (scc_morph_tgt_lo), a
+    ld a, h
+    ld (scc_morph_tgt_hi), a
+    pop bc
+    ld l, b                 ; source ROM ptr = scc_wave_table + idx*32
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, scc_wave_table
+    add hl, de
+    ld de, scc_morph_buf
+    push bc
+    ld bc, 32
+    ldir                    ; working buffer = source waveform
+    pop bc
+    ; deltas: (target[i] - buf[i]) asr 4 (16 steps; final step is exact)
+    push bc                 ; C = channel, restored after the loop
+    ld hl, (scc_morph_tgt_lo)
+    ld de, scc_morph_buf
+    ld b, 32
+scc_morph_delta_loop:
+    ld a, (de)
+    ld c, a                 ; C = current sample (channel saved on stack)
+    ld a, (hl)
+    sub c                   ; target - current, signed
+    sra a
+    sra a
+    sra a
+    sra a                   ; /16 keeping the sign
+    push hl
+    ld hl, scc_morph_delta - scc_morph_buf
+    add hl, de              ; matching slot in the delta array
+    ld (hl), a
+    pop hl
+    inc hl
+    inc de
+    djnz scc_morph_delta_loop
+    pop bc
+    ; arm the engine
+    ld hl, scc_ch_morph_speed
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp nz, scc_morph_speed_ok
+    inc a                   ; speed 0 would never tick: clamp to 1
+scc_morph_speed_ok:
+    ld (scc_morph_speed_cur), a
+    ld (scc_morph_timer), a
+    ld a, 16
+    ld (scc_morph_step), a
+    ld a, c
+    ld (scc_morph_chan), a  ; set LAST: engine now live
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_update_morph
+; What:   Advance the global waveform morph: every speed_cur frames add
+;         the per-sample deltas to the working buffer and upload it to
+;         the morphing channel; the FINAL step uploads the exact target
+;         (kills rounding drift) and updates the channel wave cache.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_music_update_morph:
+    ld a, (scc_morph_chan)
+    cp #FF
+    ret z
+    ld hl, scc_morph_timer
+    dec (hl)
+    ret nz
+    ld a, (scc_morph_speed_cur)
+    ld (hl), a
+    ld hl, scc_morph_step
+    dec (hl)
+    jp z, scc_morph_finish
+    ld hl, scc_morph_buf
+    ld de, scc_morph_delta
+    ld b, 32
+scc_morph_add_loop:
+    ld a, (de)
+    add a, (hl)
+    ld (hl), a
+    inc hl
+    inc de
+    djnz scc_morph_add_loop
+    ld hl, scc_morph_buf
+    ld a, (scc_morph_chan)
+    jp SCC_LoadWaveform32   ; A = channel, HL = source
+scc_morph_finish:
+    ld hl, (scc_morph_tgt_lo)
+    ld a, (scc_morph_chan)
+    push af
+    call SCC_LoadWaveform32
+    pop af
+    ld c, a
+    ld hl, scc_ch_wave      ; cache = target idx: same-instrument reloads skip
+    call scc_wave_cache_ptr
+    ld a, (scc_morph_tgt_idx)
+    ld (hl), a
+    ld a, #FF
+    ld (scc_morph_chan), a
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_update_noise
+; What:   Real white noise (manual cap. 7): for every live channel with
+;         the noise flag, upload 32 fresh pseudo-random bytes from
+;         scc_noise_table. The offset advances by a prime (37) so
+;         consecutive frames never repeat the same slice.
+; Cost:   One 32-byte LDIR per noise channel per frame.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_music_update_noise:
+    ld c, 0
+scc_noise_ch_loop:
+    ld hl, scc_ch_flags
+    call scc_ch_ptr
+    bit 0, (hl)
+    jp z, scc_noise_next
+    ld hl, scc_ch_note
+    call scc_ch_ptr
+    ld a, (hl)
+    cp #FF
+    jp z, scc_noise_next    ; silent channel: skip the upload
+    ld a, (scc_noise_phase)
+    add a, 37
+    ld (scc_noise_phase), a
+    ld l, a
+    ld h, 0
+    ld de, scc_noise_table
+    add hl, de
+    ld a, c
+    push bc
+    call SCC_LoadWaveform32
+    pop bc
+scc_noise_next:
+    inc c
+    ld a, c
+    cp 5
+    jp c, scc_noise_ch_loop
     ret
 
 ; ------------------------------------------------------------------
@@ -1224,6 +1461,26 @@ scc_vib_table:
     DB #00,#FD,#FA,#F7,#F4,#F1,#EF,#EC,#EA,#E8,#E6,#E5,#E3,#E2,#E2,#E1
     DB #E1,#E1,#E2,#E2,#E3,#E5,#E6,#E8,#EA,#EC,#EF,#F1,#F4,#F7,#FA,#FD
 
+scc_noise_table:
+    DB #2B,#D3,#12,#FA,#B3,#82,#EC,#BC,#96,#43,#E7,#DE,#D1,#60,#61,#8A
+    DB #20,#E6,#74,#AD,#FE,#A1,#FD,#F3,#A8,#1D,#97,#C7,#1A,#A5,#A0,#56
+    DB #10,#46,#32,#8C,#06,#CC,#2A,#15,#37,#C2,#23,#5C,#A0,#76,#7A,#8E
+    DB #FD,#F2,#4C,#97,#C9,#02,#72,#23,#41,#34,#8B,#9D,#61,#D2,#F1,#32
+    DB #E5,#E9,#C2,#CE,#49,#45,#D7,#1D,#C8,#72,#CF,#8B,#5F,#BB,#04,#43
+    DB #C9,#2D,#93,#32,#84,#94,#58,#03,#CA,#7B,#EF,#24,#98,#30,#B3,#BF
+    DB #AA,#BD,#C1,#C1,#7B,#EF,#F5,#D5,#49,#51,#EB,#69,#0E,#30,#FE,#A7
+    DB #86,#98,#4B,#7C,#2F,#55,#AE,#94,#43,#F3,#C3,#5A,#BF,#BD,#E5,#FB
+    DB #5F,#C0,#31,#63,#9E,#C8,#83,#3E,#B9,#60,#77,#F7,#AC,#D6,#68,#BB
+    DB #33,#34,#73,#76,#CA,#47,#74,#D4,#AC,#9A,#07,#40,#D6,#7A,#87,#E8
+    DB #04,#F3,#11,#B6,#B1,#D1,#81,#56,#1A,#A0,#73,#36,#3B,#AB,#42,#80
+    DB #D0,#FF,#0B,#21,#55,#68,#AA,#C4,#05,#72,#BB,#D7,#DD,#68,#99,#84
+    DB #99,#57,#61,#B8,#B4,#0B,#EF,#1F,#6B,#0F,#DF,#24,#BA,#B0,#8C,#F4
+    DB #5D,#FB,#13,#7B,#CF,#B9,#50,#65,#4E,#79,#DE,#1D,#D4,#85,#1B,#D0
+    DB #1D,#EA,#21,#6A,#A7,#74,#CD,#97,#AC,#AF,#BA,#C2,#29,#E6,#46,#19
+    DB #DA,#26,#8B,#85,#3A,#3B,#66,#B5,#87,#B0,#72,#14,#BB,#D3,#0D,#CD
+    DB #92,#AE,#51,#CD,#8A,#0D,#1B,#BF,#DD,#7E,#06,#11,#88,#4B,#70,#ED
+    DB #47,#81,#73,#40,#95,#EC,#EC,#B6,#AF,#18,#76,#BA,#91,#50,#6F
+
 ; 1 unique waveform(s), 32 bytes each (signed two's complement)
 scc_wave_table:
     DB #88,#98,#A8,#B8,#C8,#D8,#E8,#F8,#08,#18,#28,#38,#48,#58,#68,#78
@@ -1334,6 +1591,9 @@ scc_track_0_integrated_inst_1:
     DB #03          ; +6 vibrato depth (0=off..5)
     DB #14          ; +7 vibrato speed (phase inc/frame)
     DB #02          ; +8 vibrato delay frames
+    DB #00          ; +9 flags (bit0 noise, bit1 morph)
+    DB #00          ; +10 morph target waveform index
+    DB #01          ; +11 morph frames per step
 scc_track_0_integrated_inst_1_vol_env:
     DB #0F,#0C,#0A,#08
 

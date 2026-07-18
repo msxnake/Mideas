@@ -1,0 +1,7 @@
+active=1 (expect 1)
+mixer=15 (expect nonzero)
+note0=48 note2=72
+samples_ch0=28 28 13 39 12 32 40 14 25 82 82 82 67 93 66 86 94 68
+samples_ch2=28 41 17 18 27 27 27 12 37 12 28 41 17 18 27 27 27 12
+distinct_ch0_vibrato=15 (expect >=3: vibrato oscillates)
+distinct_ch2_arp=7 (expect >=3: arpeggio steps root/+4/+7)

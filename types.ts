@@ -2073,6 +2073,14 @@ export interface SCCInstrument {
   vibratoSpeed?: number;
   /** Frames to hold after note-on before vibrato begins. */
   vibratoDelay?: number;
+  /** Noise mode: the driver rewrites the channel waveform with pseudo-random
+   *  bytes every frame while a note is active (real white noise). */
+  noiseMode?: boolean;
+  /** Morph target waveform (32 samples, -128..127). When set with morphSpeed,
+   *  every note-on morphs from the base waveform to this one in 16 steps. */
+  morphToWaveform?: number[];
+  /** Frames between morph steps (1-255). Total morph = 16 * morphSpeed frames. */
+  morphSpeed?: number;
 }
 
 /**

@@ -15,7 +15,7 @@ marker_ready    EQU #C005
 frame_counter   EQU #C006
 marker_stopped  EQU #C008
 req_stop        EQU #C010
-mapper_bank_p2_current EQU #C083
+mapper_bank_p2_current EQU #C118
 
 ; ---- SCC music runtime RAM (EQU chain) ----
 scc_music_active             EQU #C040
@@ -32,18 +32,44 @@ scc_music_track_ptr          EQU #C04A
 scc_music_order_ptr          EQU #C04C
 scc_music_pattern_table_ptr  EQU #C04E
 scc_music_inst_table_ptr     EQU #C050
-scc_music_row_ptr            EQU #C052
-scc_music_mixer_shadow       EQU #C054
-scc_ch_note                  EQU #C055
-scc_ch_wave                  EQU #C05A
-scc_ch_volbase               EQU #C05F
-scc_ch_envlo                 EQU #C064
-scc_ch_envhi                 EQU #C069
-scc_ch_envlen                EQU #C06E
-scc_ch_envloop               EQU #C073
-scc_ch_envstep               EQU #C078
-scc_ch_volout                EQU #C07D
-scc_music_loop_enabled       EQU #C082
+scc_music_orn_table_ptr      EQU #C052
+scc_music_row_ptr            EQU #C054
+scc_music_mixer_shadow       EQU #C056
+scc_ch_note                  EQU #C057
+scc_ch_wave                  EQU #C05C
+scc_ch_volbase               EQU #C061
+scc_ch_envlo                 EQU #C066
+scc_ch_envhi                 EQU #C06B
+scc_ch_envlen                EQU #C070
+scc_ch_envloop               EQU #C075
+scc_ch_envstep               EQU #C07A
+scc_ch_volout                EQU #C07F
+scc_ch_arp_lo                EQU #C084
+scc_ch_arp_hi                EQU #C089
+scc_ch_arp_len               EQU #C08E
+scc_ch_arp_loop              EQU #C093
+scc_ch_arp_step              EQU #C098
+scc_ch_vib_shift             EQU #C09D
+scc_ch_vib_speed             EQU #C0A2
+scc_ch_vib_delay             EQU #C0A7
+scc_ch_vib_ctr               EQU #C0AC
+scc_ch_vib_phase             EQU #C0B1
+scc_ch_period_lo             EQU #C0B6
+scc_ch_period_hi             EQU #C0BB
+scc_ch_flags                 EQU #C0C0
+scc_ch_morph_wave            EQU #C0C5
+scc_ch_morph_speed           EQU #C0CA
+scc_noise_phase              EQU #C0CF
+scc_morph_chan               EQU #C0D0
+scc_morph_step               EQU #C0D1
+scc_morph_timer              EQU #C0D2
+scc_morph_speed_cur          EQU #C0D3
+scc_morph_tgt_idx            EQU #C0D4
+scc_morph_tgt_lo             EQU #C0D5
+scc_morph_tgt_hi             EQU #C0D6
+scc_morph_buf                EQU #C0D7
+scc_morph_delta              EQU #C0F7
+scc_music_loop_enabled       EQU #C117
 
     org #4000
     db "AB"
@@ -327,6 +353,42 @@ scc_music_reset_volout_loop:
     ld (hl), #FF            ; sentinel: force first real write
     inc hl
     djnz scc_music_reset_volout_loop
+    ; arpeggio + vibrato disabled, period shadow forced to rewrite
+    xor a
+    ld hl, scc_ch_arp_len
+    ld b, 5
+scc_music_reset_arplen_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_arplen_loop
+    ld hl, scc_ch_vib_shift
+    ld b, 5
+scc_music_reset_vibshift_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_vibshift_loop
+    ld hl, scc_ch_vib_phase
+    ld b, 5
+scc_music_reset_vibphase_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_vibphase_loop
+    ld hl, scc_ch_period_hi
+    ld b, 5
+scc_music_reset_period_loop:
+    ld (hl), #FF           ; sentinel: force first period write
+    inc hl
+    djnz scc_music_reset_period_loop
+    ; noise/morph engines idle
+    xor a
+    ld hl, scc_ch_flags
+    ld b, 5
+scc_music_reset_flags_loop:
+    ld (hl), a
+    inc hl
+    djnz scc_music_reset_flags_loop
+    ld a, #FF
+    ld (scc_morph_chan), a  ; morph engine inactive
     ret
 
 ; ------------------------------------------------------------------
@@ -380,7 +442,12 @@ scc_music_play_track_valid:
     ld e, (hl)
     inc hl
     ld d, (hl)
+    inc hl
     ld (scc_music_inst_table_ptr), de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (scc_music_orn_table_ptr), de
     call scc_music_reset_channels
     xor a
     ld (scc_music_muted), a
@@ -512,6 +579,9 @@ scc_music_update:
     or a
     jp z, scc_music_update_restore_bank
 scc_music_update_effects:
+    call scc_music_update_pitch
+    call scc_music_update_morph
+    call scc_music_update_noise
     call scc_music_update_envelopes
     call scc_music_apply_mixer
 scc_music_update_restore_bank:
@@ -520,9 +590,9 @@ scc_music_update_restore_bank:
 
 ; ------------------------------------------------------------------
 ; scc_music_advance_row
-; What:   Decode the current row (5 channels x 3 bytes: note,
-;         instrument, volume) and fire channel events, then advance
-;         row/order position with restart wrap.
+; What:   Decode the current row (5 channels x 4 bytes: note,
+;         instrument, ornament, volume) and fire channel events, then
+;         advance row/order position with restart wrap.
 ; Destroys: AF, BC, DE, HL   Preserves: IX, IY
 ; ------------------------------------------------------------------
 scc_music_advance_row:
@@ -533,6 +603,16 @@ scc_music_row_ch_loop:
     inc hl
     ld d, (hl)              ; instrument field
     inc hl
+    ld e, (hl)              ; ornament field
+    inc hl
+    push hl
+    push bc                 ; save note (B) + channel (C)
+    push de                 ; save instrument (D)
+    ld a, e                 ; ornament field -> arp arrays for this channel
+    call scc_music_apply_ornament
+    pop de                  ; D = instrument field
+    pop bc                  ; B = note, C = channel
+    pop hl
     ld e, (hl)              ; volume field
     inc hl
     push hl
@@ -618,6 +698,12 @@ scc_music_apply_cell:
     push bc
     call SCC_LoadWaveform32
     pop bc
+    ; a fresh waveform load cancels a running morph on this channel
+    ld a, (scc_morph_chan)
+    cp c
+    jp nz, scc_music_cell_wave_same
+    ld a, #FF
+    ld (scc_morph_chan), a
 scc_music_cell_wave_same:
     pop hl                  ; instrument record +0
     inc hl                  ; +1 default volume
@@ -634,8 +720,10 @@ scc_music_cell_wave_same:
     inc hl                  ; +4 envelope length
     ld b, (hl)              ; note field already saved on stack
     inc hl                  ; +5 envelope loop
-    ld a, (hl)
-    push af                 ; save loop position
+    ld a, (hl)              ; A = envelope loop
+    inc hl                  ; HL = instrument record +6 (vibrato block)
+    push hl                 ; save record+6 for the vibrato read below
+    push af                 ; save envelope loop
     push de
     ld hl, scc_ch_envlo
     call scc_ch_ptr
@@ -649,11 +737,45 @@ scc_music_cell_wave_same:
     ld hl, scc_ch_envlen
     call scc_ch_ptr
     ld (hl), b
-    pop af                  ; loop position
+    pop af                  ; envelope loop
     ld e, a
     ld hl, scc_ch_envloop
     call scc_ch_ptr
     ld (hl), e
+    ; ---- cache per-instrument vibrato (depth/speed/delay) for this channel ----
+    pop hl                  ; HL = instrument record +6
+    ld e, (hl)              ; +6 vibrato depth/shift
+    inc hl
+    ld b, (hl)              ; +7 vibrato speed
+    inc hl
+    ld d, (hl)              ; +8 vibrato delay
+    inc hl
+    push hl                 ; save record +9 for the noise/morph block
+    ld hl, scc_ch_vib_shift
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_vib_speed
+    call scc_ch_ptr
+    ld (hl), b
+    ld hl, scc_ch_vib_delay
+    call scc_ch_ptr
+    ld (hl), d
+    ; ---- cache noise/morph config (+9 flags, +10 morph wave, +11 speed) ----
+    pop hl                  ; HL = instrument record +9
+    ld e, (hl)              ; flags: bit0 noise, bit1 morph
+    inc hl
+    ld b, (hl)              ; morph target waveform index
+    inc hl
+    ld d, (hl)              ; morph frames per step
+    ld hl, scc_ch_flags
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_morph_wave
+    call scc_ch_ptr
+    ld (hl), b
+    ld hl, scc_ch_morph_speed
+    call scc_ch_ptr
+    ld (hl), d
 scc_music_cell_inst_done:
     pop de
     pop bc
@@ -674,32 +796,51 @@ scc_music_cell_note:
     ret z                   ; keep playing
     cp #FE
     jp z, scc_music_cell_note_cut
-    ; note on: store note, set period, restart envelope
+    ; note on: store the base note; the per-frame pitch engine computes the
+    ; effective period (base note + arpeggio + vibrato) and writes it this
+    ; same frame. Restart envelope, arpeggio and vibrato phase.
     ld e, a
     ld hl, scc_ch_note
     call scc_ch_ptr
     ld (hl), e
-    ld a, e                 ; period lookup (note max 95: *2 never carries)
-    add a, a
-    ld l, a
-    ld h, 0
-    ld de, scc_note_period_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, c
-    push bc
-    call SCC_SetPeriod
-    pop bc
     ld hl, scc_ch_envstep
     call scc_ch_ptr
     ld (hl), 0
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld (hl), 0
+    ld hl, scc_ch_vib_phase
+    call scc_ch_ptr
+    ld (hl), 0
+    ld hl, scc_ch_vib_delay
+    call scc_ch_ptr
+    ld e, (hl)
+    ld hl, scc_ch_vib_ctr
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_period_hi
+    call scc_ch_ptr
+    ld (hl), #FF            ; force the pitch engine to write the period
+    ; morph trigger (instrument flag bit1); a note-on without the flag
+    ; cancels any morph still running on this channel.
+    ld hl, scc_ch_flags
+    call scc_ch_ptr
+    bit 1, (hl)
+    jp nz, scc_morph_start  ; C = channel; tail call
+    ld a, (scc_morph_chan)
+    cp c
+    ret nz
+    ld a, #FF
+    ld (scc_morph_chan), a
     ret
 scc_music_cell_note_cut:
     ld hl, scc_ch_note
     call scc_ch_ptr
     ld (hl), #FF
+    ; stop arpeggio so a silenced channel does not keep stepping
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld (hl), 0
     ; force volume 0 now and refresh shadow
     ld hl, scc_ch_volout
     call scc_ch_ptr
@@ -740,6 +881,395 @@ scc_wave_cache_ptr_add:
     ld l, a
     ret nc
     inc h
+    ret
+
+; ------------------------------------------------------------------
+; scc_morph_start
+; What:   Arm the global morph engine for channel C (TriloTracker-style,
+;         one morph at a time): copy the channel's current ROM waveform
+;         into scc_morph_buf and precompute 16-step per-sample deltas
+;         towards the instrument's morph target waveform.
+; Inputs: C = channel 0..4; scc_ch_wave / scc_ch_morph_wave / _speed caches.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_morph_start:
+    ld hl, scc_ch_wave
+    call scc_wave_cache_ptr
+    ld a, (hl)
+    cp #FF
+    ret z                   ; no waveform loaded yet: nothing to morph
+    ld b, a                 ; B = source waveform index
+    ld hl, scc_ch_morph_wave
+    call scc_ch_ptr
+    ld a, (hl)
+    cp b
+    ret z                   ; source == target: nothing to do
+    ld (scc_morph_tgt_idx), a
+    push bc                 ; keep B = source idx, C = channel
+    ld l, a                 ; target ROM ptr = scc_wave_table + idx*32
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, scc_wave_table
+    add hl, de
+    ld a, l
+    ld (scc_morph_tgt_lo), a
+    ld a, h
+    ld (scc_morph_tgt_hi), a
+    pop bc
+    ld l, b                 ; source ROM ptr = scc_wave_table + idx*32
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, scc_wave_table
+    add hl, de
+    ld de, scc_morph_buf
+    push bc
+    ld bc, 32
+    ldir                    ; working buffer = source waveform
+    pop bc
+    ; deltas: (target[i] - buf[i]) asr 4 (16 steps; final step is exact)
+    push bc                 ; C = channel, restored after the loop
+    ld hl, (scc_morph_tgt_lo)
+    ld de, scc_morph_buf
+    ld b, 32
+scc_morph_delta_loop:
+    ld a, (de)
+    ld c, a                 ; C = current sample (channel saved on stack)
+    ld a, (hl)
+    sub c                   ; target - current, signed
+    sra a
+    sra a
+    sra a
+    sra a                   ; /16 keeping the sign
+    push hl
+    ld hl, scc_morph_delta - scc_morph_buf
+    add hl, de              ; matching slot in the delta array
+    ld (hl), a
+    pop hl
+    inc hl
+    inc de
+    djnz scc_morph_delta_loop
+    pop bc
+    ; arm the engine
+    ld hl, scc_ch_morph_speed
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp nz, scc_morph_speed_ok
+    inc a                   ; speed 0 would never tick: clamp to 1
+scc_morph_speed_ok:
+    ld (scc_morph_speed_cur), a
+    ld (scc_morph_timer), a
+    ld a, 16
+    ld (scc_morph_step), a
+    ld a, c
+    ld (scc_morph_chan), a  ; set LAST: engine now live
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_update_morph
+; What:   Advance the global waveform morph: every speed_cur frames add
+;         the per-sample deltas to the working buffer and upload it to
+;         the morphing channel; the FINAL step uploads the exact target
+;         (kills rounding drift) and updates the channel wave cache.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_music_update_morph:
+    ld a, (scc_morph_chan)
+    cp #FF
+    ret z
+    ld hl, scc_morph_timer
+    dec (hl)
+    ret nz
+    ld a, (scc_morph_speed_cur)
+    ld (hl), a
+    ld hl, scc_morph_step
+    dec (hl)
+    jp z, scc_morph_finish
+    ld hl, scc_morph_buf
+    ld de, scc_morph_delta
+    ld b, 32
+scc_morph_add_loop:
+    ld a, (de)
+    add a, (hl)
+    ld (hl), a
+    inc hl
+    inc de
+    djnz scc_morph_add_loop
+    ld hl, scc_morph_buf
+    ld a, (scc_morph_chan)
+    jp SCC_LoadWaveform32   ; A = channel, HL = source
+scc_morph_finish:
+    ld hl, (scc_morph_tgt_lo)
+    ld a, (scc_morph_chan)
+    push af
+    call SCC_LoadWaveform32
+    pop af
+    ld c, a
+    ld hl, scc_ch_wave      ; cache = target idx: same-instrument reloads skip
+    call scc_wave_cache_ptr
+    ld a, (scc_morph_tgt_idx)
+    ld (hl), a
+    ld a, #FF
+    ld (scc_morph_chan), a
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_update_noise
+; What:   Real white noise (manual cap. 7): for every live channel with
+;         the noise flag, upload 32 fresh pseudo-random bytes from
+;         scc_noise_table. The offset advances by a prime (37) so
+;         consecutive frames never repeat the same slice.
+; Cost:   One 32-byte LDIR per noise channel per frame.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_music_update_noise:
+    ld c, 0
+scc_noise_ch_loop:
+    ld hl, scc_ch_flags
+    call scc_ch_ptr
+    bit 0, (hl)
+    jp z, scc_noise_next
+    ld hl, scc_ch_note
+    call scc_ch_ptr
+    ld a, (hl)
+    cp #FF
+    jp z, scc_noise_next    ; silent channel: skip the upload
+    ld a, (scc_noise_phase)
+    add a, 37
+    ld (scc_noise_phase), a
+    ld l, a
+    ld h, 0
+    ld de, scc_noise_table
+    add hl, de
+    ld a, c
+    push bc
+    call SCC_LoadWaveform32
+    pop bc
+scc_noise_next:
+    inc c
+    ld a, c
+    cp 5
+    jp c, scc_noise_ch_loop
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_apply_ornament
+; What:   Bind an ornament (arpeggio) to a channel from a row cell.
+; Inputs: A = ornament field (#FF keep, 0 clear, 1..15 select),
+;         C = channel 0..4. Ornament pointer table = scc_music_orn_table_ptr.
+; Destroys: AF, DE, HL   Preserves: BC, IX, IY
+; ------------------------------------------------------------------
+scc_music_apply_ornament:
+    cp #FF
+    ret z                    ; keep current ornament
+    or a
+    jp z, scc_music_orn_clear
+    ; look up ornament ptr table[A] (2 bytes/entry)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, (scc_music_orn_table_ptr)
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)               ; DE = ornament record pointer (0 = none)
+    ld a, e
+    or d
+    jp z, scc_music_orn_clear
+    ex de, hl                ; HL = ornament record (+0 len, +1 loop, +2 data)
+    ld a, (hl)               ; len
+    inc hl                   ; -> loop
+    ld d, (hl)               ; D = loop
+    inc hl                   ; HL = data pointer
+    ld e, a                  ; E = len
+    push hl                  ; save data pointer
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld (hl), e               ; arp_len = len
+    ld hl, scc_ch_arp_loop
+    call scc_ch_ptr
+    ld (hl), d               ; arp_loop = loop
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld (hl), 0               ; restart the arpeggio
+    pop de                   ; DE = data pointer
+    ld hl, scc_ch_arp_lo
+    call scc_ch_ptr
+    ld (hl), e
+    ld hl, scc_ch_arp_hi
+    call scc_ch_ptr
+    ld (hl), d
+    ret
+scc_music_orn_clear:
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld (hl), 0               ; inactive
+    ret
+
+; ------------------------------------------------------------------
+; scc_music_update_pitch
+; What:   Per-frame pitch for every live channel: effective note =
+;         base note + arpeggio step offset, converted to a period, then
+;         a triangle-LFO vibrato offset is added. The SCC period is
+;         written only when it differs from the per-channel shadow.
+; Inputs: scc_ch_note / arp / vib arrays, scc_note_period_table, scc_vib_table.
+; Destroys: AF, BC, DE, HL   Preserves: IX, IY
+; ------------------------------------------------------------------
+scc_music_update_pitch:
+    ld c, 0                  ; channel index
+scc_pitch_ch_loop:
+    ld hl, scc_ch_note
+    call scc_ch_ptr
+    ld a, (hl)
+    cp #FF
+    jp z, scc_pitch_next     ; silent channel: nothing to pitch
+    ld b, a                  ; B = effective note (base to start)
+    ; ---- arpeggio ----
+    ld hl, scc_ch_arp_len
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp z, scc_pitch_no_arp
+    ld d, a                  ; D = len (>=1)
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld a, (hl)               ; step
+    cp d
+    jp c, scc_pitch_arp_step_ok
+    ; step past end: wrap to loop, or hold the last entry
+    ld hl, scc_ch_arp_loop
+    call scc_ch_ptr
+    ld a, (hl)
+    cp #FF
+    jp nz, scc_pitch_arp_step_ok
+    ld a, d
+    dec a                    ; hold last (len-1)
+scc_pitch_arp_step_ok:
+    ld e, a                  ; E = effective step (0..len-1)
+    ld hl, scc_ch_arp_step
+    call scc_ch_ptr
+    ld a, e
+    inc a
+    ld (hl), a               ; store step+1 for next frame
+    ld hl, scc_ch_arp_lo
+    call scc_ch_ptr
+    ld a, (hl)
+    ld hl, scc_ch_arp_hi
+    call scc_ch_ptr
+    ld h, (hl)
+    ld l, a                  ; HL = ornament data base
+    ld d, 0                  ; DE = step (E)
+    add hl, de
+    ld a, (hl)               ; signed semitone offset
+    add a, b
+    ld b, a                  ; effective note += offset
+scc_pitch_no_arp:
+    ; ---- base period lookup (clamp note to 0..95) ----
+    ld a, b
+    cp 96
+    jp c, scc_pitch_note_ok
+    ld a, 95
+scc_pitch_note_ok:
+    add a, a
+    ld l, a
+    ld h, 0
+    ld de, scc_note_period_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)               ; DE = base period
+    ; ---- vibrato (triangle LFO scaled by shift) ----
+    ld hl, scc_ch_vib_shift
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp z, scc_pitch_write    ; vibrato disabled
+    ld hl, scc_ch_vib_ctr
+    call scc_ch_ptr
+    ld a, (hl)
+    or a
+    jp z, scc_pitch_vib_active
+    dec (hl)                 ; delay still counting down
+    jp scc_pitch_write
+scc_pitch_vib_active:
+    push de                  ; save base period across the delta math
+    ld hl, scc_ch_vib_speed
+    call scc_ch_ptr
+    ld a, (hl)
+    ld hl, scc_ch_vib_phase
+    call scc_ch_ptr
+    add a, (hl)
+    ld (hl), a               ; phase += speed
+    rrca
+    rrca
+    and #3F                  ; idx = (phase >> 2) & 63
+    ld l, a
+    ld h, 0
+    ld de, scc_vib_table
+    add hl, de
+    ld a, (hl)               ; signed triangle value
+    ld e, a                  ; E = value
+    ld hl, scc_ch_vib_shift
+    call scc_ch_ptr
+    ld a, 5
+    sub (hl)                 ; N = 5 - shift (0..4)
+    ld b, a
+    ld a, e                  ; A = triangle value
+    inc b
+    jr scc_pitch_vib_sra_test
+scc_pitch_vib_sra:
+    sra a                    ; arithmetic (sign-preserving) shift right
+scc_pitch_vib_sra_test:
+    dec b
+    jr nz, scc_pitch_vib_sra
+    pop de                   ; DE = base period
+    ld l, a
+    ld h, 0
+    bit 7, a
+    jr z, scc_pitch_vib_pos
+    ld h, #FF                ; sign-extend a negative delta
+scc_pitch_vib_pos:
+    add hl, de
+    ex de, hl                ; DE = period + vibrato delta
+scc_pitch_write:
+    ; write DE to the SCC only when it differs from the channel shadow
+    ld hl, scc_ch_period_lo
+    call scc_ch_ptr
+    ld a, e
+    cp (hl)
+    jp nz, scc_pitch_do_write
+    ld a, d
+    and #0F
+    ld hl, scc_ch_period_hi
+    call scc_ch_ptr
+    cp (hl)
+    jp z, scc_pitch_next
+scc_pitch_do_write:
+    ld hl, scc_ch_period_lo
+    call scc_ch_ptr
+    ld (hl), e
+    ld a, d
+    and #0F
+    ld hl, scc_ch_period_hi
+    call scc_ch_ptr
+    ld (hl), a
+    ld a, c
+    push bc
+    call SCC_SetPeriod
+    pop bc
+scc_pitch_next:
+    inc c
+    ld a, c
+    cp 5
+    jp c, scc_pitch_ch_loop
     ret
 
 ; ------------------------------------------------------------------
@@ -884,6 +1414,32 @@ scc_note_period_table:
     DW #0042,#003F,#003B,#0038,#0034,#0031,#002F,#002C
     DW #0029,#0027,#0025,#0023,#0021,#001F,#001D,#001B
 
+scc_vib_table:
+    DB #00,#03,#06,#09,#0C,#0F,#11,#14,#16,#18,#1A,#1B,#1D,#1E,#1E,#1F
+    DB #1F,#1F,#1E,#1E,#1D,#1B,#1A,#18,#16,#14,#11,#0F,#0C,#09,#06,#03
+    DB #00,#FD,#FA,#F7,#F4,#F1,#EF,#EC,#EA,#E8,#E6,#E5,#E3,#E2,#E2,#E1
+    DB #E1,#E1,#E2,#E2,#E3,#E5,#E6,#E8,#EA,#EC,#EF,#F1,#F4,#F7,#FA,#FD
+
+scc_noise_table:
+    DB #2B,#D3,#12,#FA,#B3,#82,#EC,#BC,#96,#43,#E7,#DE,#D1,#60,#61,#8A
+    DB #20,#E6,#74,#AD,#FE,#A1,#FD,#F3,#A8,#1D,#97,#C7,#1A,#A5,#A0,#56
+    DB #10,#46,#32,#8C,#06,#CC,#2A,#15,#37,#C2,#23,#5C,#A0,#76,#7A,#8E
+    DB #FD,#F2,#4C,#97,#C9,#02,#72,#23,#41,#34,#8B,#9D,#61,#D2,#F1,#32
+    DB #E5,#E9,#C2,#CE,#49,#45,#D7,#1D,#C8,#72,#CF,#8B,#5F,#BB,#04,#43
+    DB #C9,#2D,#93,#32,#84,#94,#58,#03,#CA,#7B,#EF,#24,#98,#30,#B3,#BF
+    DB #AA,#BD,#C1,#C1,#7B,#EF,#F5,#D5,#49,#51,#EB,#69,#0E,#30,#FE,#A7
+    DB #86,#98,#4B,#7C,#2F,#55,#AE,#94,#43,#F3,#C3,#5A,#BF,#BD,#E5,#FB
+    DB #5F,#C0,#31,#63,#9E,#C8,#83,#3E,#B9,#60,#77,#F7,#AC,#D6,#68,#BB
+    DB #33,#34,#73,#76,#CA,#47,#74,#D4,#AC,#9A,#07,#40,#D6,#7A,#87,#E8
+    DB #04,#F3,#11,#B6,#B1,#D1,#81,#56,#1A,#A0,#73,#36,#3B,#AB,#42,#80
+    DB #D0,#FF,#0B,#21,#55,#68,#AA,#C4,#05,#72,#BB,#D7,#DD,#68,#99,#84
+    DB #99,#57,#61,#B8,#B4,#0B,#EF,#1F,#6B,#0F,#DF,#24,#BA,#B0,#8C,#F4
+    DB #5D,#FB,#13,#7B,#CF,#B9,#50,#65,#4E,#79,#DE,#1D,#D4,#85,#1B,#D0
+    DB #1D,#EA,#21,#6A,#A7,#74,#CD,#97,#AC,#AF,#BA,#C2,#29,#E6,#46,#19
+    DB #DA,#26,#8B,#85,#3A,#3B,#66,#B5,#87,#B0,#72,#14,#BB,#D3,#0D,#CD
+    DB #92,#AE,#51,#CD,#8A,#0D,#1B,#BF,#DD,#7E,#06,#11,#88,#4B,#70,#ED
+    DB #47,#81,#73,#40,#95,#EC,#EC,#B6,#AF,#18,#76,#BA,#91,#50,#6F
+
 ; 2 unique waveform(s), 32 bytes each (signed two's complement)
 scc_wave_table:
     DB #81,#92,#A3,#B4,#C5,#D6,#E7,#F8,#08,#19,#2A,#3B,#4C,#5D,#6E,#7F
@@ -902,6 +1458,7 @@ scc_track_0_scc_fixture_data:
     DW scc_track_0_scc_fixture_order_table          ; +4
     DW scc_track_0_scc_fixture_pattern_table          ; +6
     DW scc_track_0_scc_fixture_instrument_ptr_table  ; +8
+    DW scc_track_0_scc_fixture_ornament_ptr_table    ; +10
 
 scc_track_0_scc_fixture_order_table:
     DB #00,#01
@@ -916,6 +1473,7 @@ scc_track_0_scc_fixture_instrument_ptr_table:
     DW 0
     DW scc_track_0_scc_fixture_inst_1
     DW scc_track_0_scc_fixture_inst_2
+    DW scc_track_0_scc_fixture_inst_3
     DW 0
     DW 0
     DW 0
@@ -944,43 +1502,66 @@ scc_track_0_scc_fixture_instrument_ptr_table:
     DW 0
     DW 0
     DW 0
+
+scc_track_0_scc_fixture_ornament_ptr_table:
     DW 0
+    DW scc_track_0_scc_fixture_orn_1
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+
+scc_track_0_scc_fixture_orn_1:
+    DB #03          ; length
+    DB #00          ; loop index
+scc_track_0_scc_fixture_orn_1_data:
+    DB #00,#04,#07
 
 scc_track_0_scc_fixture_pattern_0_rows:
-    DB #30,#01,#FF,#18,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#40,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #34,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#43,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #37,#01,#FF,#1F,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #3C,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #3B,#01,#FF,#18,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#40,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #37,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#43,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #34,#01,#FF,#1F,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #30,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FE,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #30,#01,#FF,#FF,#18,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#40,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #34,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#43,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #37,#01,#FF,#FF,#1F,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #3C,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #3B,#01,#FF,#FF,#18,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#40,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #37,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#43,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #34,#01,#FF,#FF,#1F,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #30,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FE,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
 
 scc_track_0_scc_fixture_pattern_1_rows:
-    DB #39,#01,#FF,#15,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#45,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #3C,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #40,#01,#FF,#1C,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#4C,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #45,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #43,#01,#FF,#15,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#45,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #40,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #3C,#01,#FF,#1C,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#4C,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #39,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FE,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #39,#01,#FF,#FF,#15,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#45,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #3C,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #40,#01,#FF,#FF,#1C,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#4C,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #45,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #43,#01,#FF,#FF,#15,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#45,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #40,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#48,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #3C,#01,#FF,#FF,#1C,#02,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#4C,#01,#01,#0A,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #39,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#3C,#03,#FF,#09,#FF,#FF,#FF,#FF
+    DB #FE,#01,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
 
 scc_track_0_scc_fixture_inst_1:
     DB #00          ; +0 waveform table index
@@ -988,6 +1569,12 @@ scc_track_0_scc_fixture_inst_1:
     DW scc_track_0_scc_fixture_inst_1_vol_env          ; +2 volume envelope ptr
     DB #0C          ; +4 envelope length
     DB #FF          ; +5 envelope loop (#FF = hold last)
+    DB #04          ; +6 vibrato depth (0=off..5)
+    DB #18          ; +7 vibrato speed (phase inc/frame)
+    DB #03          ; +8 vibrato delay frames
+    DB #00          ; +9 flags (bit0 noise, bit1 morph)
+    DB #00          ; +10 morph target waveform index
+    DB #01          ; +11 morph frames per step
 scc_track_0_scc_fixture_inst_1_vol_env:
     DB #0F,#0E,#0C,#0A,#08,#07,#06,#05,#04,#04,#03,#03
 
@@ -997,8 +1584,29 @@ scc_track_0_scc_fixture_inst_2:
     DW scc_track_0_scc_fixture_inst_2_vol_env          ; +2 volume envelope ptr
     DB #06          ; +4 envelope length
     DB #04          ; +5 envelope loop (#FF = hold last)
+    DB #00          ; +6 vibrato depth (0=off..5)
+    DB #10          ; +7 vibrato speed (phase inc/frame)
+    DB #00          ; +8 vibrato delay frames
+    DB #02          ; +9 flags (bit0 noise, bit1 morph)
+    DB #00          ; +10 morph target waveform index
+    DB #03          ; +11 morph frames per step
 scc_track_0_scc_fixture_inst_2_vol_env:
     DB #0D,#0D,#0C,#0B,#0A,#09
+
+scc_track_0_scc_fixture_inst_3:
+    DB #01          ; +0 waveform table index
+    DB #0C          ; +1 default volume
+    DW scc_track_0_scc_fixture_inst_3_vol_env          ; +2 volume envelope ptr
+    DB #04          ; +4 envelope length
+    DB #FF          ; +5 envelope loop (#FF = hold last)
+    DB #00          ; +6 vibrato depth (0=off..5)
+    DB #10          ; +7 vibrato speed (phase inc/frame)
+    DB #00          ; +8 vibrato delay frames
+    DB #01          ; +9 flags (bit0 noise, bit1 morph)
+    DB #00          ; +10 morph target waveform index
+    DB #01          ; +11 morph frames per step
+scc_track_0_scc_fixture_inst_3_vol_env:
+    DB #0C,#09,#06,#03
 
 
 ; Pad to 32 KB = 4 Konami SCC banks of 8 KB.

@@ -32,11 +32,13 @@ function makePattern(id, name, notes1, notes2, notes3) {
   const rows = [];
   for (let r = 0; r < 16; r++) {
     const row = emptyRow();
-    // Channel 1 melody uses instrument 1 (vibrato). Channel 3 uses the arp
-    // ornament (id 1) so the smoke can observe the period stepping each frame.
+    // Channel 1 melody uses instrument 1 (vibrato). Channel 2 uses instrument
+    // 2 (morphs square->triangle). Channel 3 uses the arp ornament (id 1).
+    // Channel 4 plays the noise instrument (3) as a hi-hat-ish pulse.
     if (notes1[r]) row['1'] = cell(notes1[r], 1, null);
     if (notes2[r]) row['2'] = cell(notes2[r], 2, null);
     if (notes3[r]) row['3'] = cell(notes3[r], 1, 10, 1);
+    if (r % 4 === 2) row['4'] = cell('C-5', 3, 9);
     rows.push(row);
   }
   return { id, name, numRows: 16, rows };
@@ -68,7 +70,9 @@ const song = {
   instruments: [
     { id: 1, name: 'triangle', waveform: triangle, volume: 15, volumeEnvelope: [15, 14, 12, 10, 8, 7, 6, 5, 4, 4, 3, 3], volumeLoop: 0xff,
       vibratoDepth: 4, vibratoSpeed: 24, vibratoDelay: 3 },
-    { id: 2, name: 'square', waveform: square, volume: 13, volumeEnvelope: [13, 13, 12, 11, 10, 9], volumeLoop: 4 },
+    { id: 2, name: 'square-morph', waveform: square, volume: 13, volumeEnvelope: [13, 13, 12, 11, 10, 9], volumeLoop: 4,
+      morphToWaveform: triangle, morphSpeed: 3 },
+    { id: 3, name: 'noise', waveform: square, volume: 12, volumeEnvelope: [12, 9, 6, 3], volumeLoop: 0xff, noiseMode: true },
   ],
   // Major-chord arpeggio (root, +4, +7 semitones), looping.
   ornaments: [

@@ -1,0 +1,9 @@
+active=1 (expect 1)
+morph_chan=1 (0xFF idle or 1 while morphing ch2)
+wave_ch2_a=74 78 7C 80 84 88 8C 50
+wave_ch2_b=72 74 76 78 7A 7C 7E 60
+noise_a=72 14 BB D3 0D CD 92 AE
+noise_b=51 EB 69 0E 30 FE A7 86
+MORPH_PASS: ch2 waveform evolves
+NOISE_PASS: ch4 waveform rewritten
+MORPH_SHAPE_PASS: not a pure square
