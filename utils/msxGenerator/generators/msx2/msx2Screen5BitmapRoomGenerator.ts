@@ -186,10 +186,17 @@ import {
   MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X,
   MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY,
   MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
+  MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 import {
+  collectSccTracks,
+  buildSccIntegratedMusicBlock,
+  buildSccMusicRam,
+} from '../sccSoundGenerator';
+import {
+  bitmapCarryAndThrowEnabled,
   buildBitmapCarryAndThrowSystemAsm,
   buildBitmapCarryAndThrowData,
 } from './msx2BitmapCarryAndThrowGenerator';
@@ -447,7 +454,10 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[]
   const nextExport = (node: Msx2GameFlowNode): Msx2GameFlowNode | undefined => {
     let next = nextOf(node);
     const visited = new Set<string>();
-    while (next && (next.type === 'Waypoint' || next.type === 'Globals') && !visited.has(next.id)) {
+    // Music nodes are non-visual: the dispatcher fires them at runtime, so the
+    // intro scene scan must walk straight through them (a Music node between
+    // Start and the presentations used to silently kill the whole intro).
+    while (next && (next.type === 'Waypoint' || next.type === 'Globals' || next.type === 'Music') && !visited.has(next.id)) {
       visited.add(next.id);
       next = nextOf(next);
     }
@@ -545,11 +555,18 @@ function buildBitmapGameFlowProgram(
      * periodic reposition" regression (composition state must start at 0).
      */
     bootInitAsm: string;
+    /** SCC music: enabled + trackAssetId -> track index map (music_play_track order). */
+    music?: { enabled: boolean; trackIndexById: Map<string, number> };
+    /** Transition effects whose intro helper routines are actually emitted. */
+    availableIntroEffects?: Set<string>;
   },
 ): string {
   const flow = resolveBitmapGameFlow(analysis);
   if (!flow) return '';
   const { bootInitAsm } = options;
+  const musicEnabled = options.music?.enabled === true;
+  const trackIndexById = options.music?.trackIndexById || new Map<string, number>();
+  const availableIntroEffects = options.availableIntroEffects || new Set<string>();
 
   const nodeById = new Map(flow.nodes.map(node => [node.id, node]));
   const defaultTarget = (nodeId: string | undefined): string | undefined => {
@@ -613,7 +630,33 @@ function buildBitmapGameFlowProgram(
         if (!callLine) {
           throw new Error(`MSX2 bitmap GameFlow Transition effect "${effect}" is not supported; use a SCREEN 5 effect (pixel wipes, fade to black or CLS).`);
         }
-        lines.push(callLine.trimEnd());
+        if (availableIntroEffects.has(effect)) {
+          lines.push(callLine.trimEnd());
+        } else {
+          // The helper lives in the intro runtime, which is only emitted when
+          // intro scenes exist. Degrade to a passthrough instead of emitting a
+          // call to a missing symbol (previous behaviour: glass compile error).
+          lines.push(`    ; Transition "${effect}" skipped: intro helper routines not emitted in this build.`);
+        }
+        lines.push(jumpTo(defaultTarget(nodeId)));
+        break;
+      }
+      case 'Music': {
+        const musicNode = node as any;
+        if (!musicEnabled) {
+          lines.push('    ; Music node skipped: no SCC tracks in this project (add a track asset with soundChip SCC).');
+        } else if (musicNode.stop === true || musicNode.autoPlay === false) {
+          lines.push('    call music_stop');
+        } else {
+          const requestedId = String(musicNode.trackAssetId || '').trim();
+          const trackIndex = trackIndexById.has(requestedId) ? trackIndexById.get(requestedId)! : 0;
+          if (requestedId && !trackIndexById.has(requestedId)) {
+            lines.push(`    ; Music node track "${requestedId}" not found among SCC tracks; falling back to track 0.`);
+          }
+          lines.push(`    ld a, ${trackIndex}`);
+          lines.push(`    ld b, ${musicNode.loop === false ? 0 : 1}`);
+          lines.push('    call music_play_track');
+        }
         lines.push(jumpTo(defaultTarget(nodeId)));
         break;
       }
@@ -632,6 +675,11 @@ function buildBitmapGameFlowProgram(
         const text = (title || message) ? (title || message) : 'GAME OVER';
         const dataLabel = `${label}_DATA`;
         dataBlocks.push(buildBitmapEndTextData(dataLabel, text));
+        if (musicEnabled) {
+          // The End screen busy-waits without music_update ticks: silence the
+          // SCC instead of freezing whatever volumes the song left behind.
+          lines.push('    call music_stop');
+        }
         lines.push(`    ld hl, ${dataLabel}`);
         lines.push('    call draw_bitmap_end_screen');
         lines.push('    call bitmap_end_wait_key');
@@ -4088,7 +4136,8 @@ bitmap_probe_deadly:
 
 bitmap_probe_behavior:
     ; B = pixel X, C = pixel Y. Returns A = behavior cell value with Z set
-    ; when empty. Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.
+    ; when empty. behavior=3 is the ice surface; behavior=4 is exit_enemy.
+    ; Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.
     ld a, c
     cp 192
     jp c, .behavior_probe_y_visible
@@ -10414,10 +10463,33 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     mode === MSX2_ENEMY_MOVEMENT_PATROL
     || mode === MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X
     || mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY
-    || mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING;
+    || mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING
+    || mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL;
+  // Enemy placements intentionally keep a snapshot of their movement fields,
+  // but that snapshot can predate a later change in the linked Enemy Library
+  // asset.  Special bitmap enemies must use the linked asset as the source of
+  // truth: otherwise a wheel placed before it was configured as GearWheel is
+  // emitted as walkerGravity and never reaches the exit probe.  Keep authored
+  // position/speed/direction/respawn values while refreshing only the movement
+  // mode (the same migration is harmless for newly placed wheels).
+  const normalizeBitmapEnemyEntity = (entity: any): any => {
+    const def = resolveBitmapEnemyAssetForEntity(analysis, entity);
+    if (String(def?.behavior?.type || '') !== 'GearWheel') return entity;
+    const movement = entity?.components?.msx2_movement || {};
+    const params = entity?.params || {};
+    return {
+      ...entity,
+      params: { ...params, movement: 'gearWheel' },
+      components: {
+        ...(entity?.components || {}),
+        msx2_movement: { ...movement, mode: 'gearWheel' },
+      },
+    };
+  };
   // Set BEFORE any resolveSpriteRecord runs (they all run while emitting the
   // room tables below): slime builds emit vertical-flip pattern/colour variants.
   let slimeEnabled = false;
+  let gearEnabled = false;
   const emptyPattern = Array(32).fill(0);
   const spriteIdForEntity = (entity: any): string => String(
     entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId
@@ -10527,8 +10599,10 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     y: clampInt(slot.y + offset.y, 0, 191, 0),
     minX: clampByte(slot.minX + offset.x, 0),
     maxX: clampByte(slot.maxX + offset.x, 0),
-    minY: clampInt(slot.minY + offset.y, 0, 191, 0),
-    maxY: clampInt(slot.maxY + offset.y, 0, 191, 0),
+    // GearWheel stores emitter X/Y in minY/maxY; those values must not be
+    // shifted by a hardware layer offset.
+    minY: slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL ? slot.minY : clampInt(slot.minY + offset.y, 0, 191, 0),
+    maxY: slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL ? slot.maxY : clampInt(slot.maxY + offset.y, 0, 191, 0),
   });
   // Per unique sprite layer: every animation frame as a [facing-right, facing-left]
   // 32-byte variant pair (mirroring reuses the player's quadrant mirror), plus
@@ -10580,6 +10654,12 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     return record;
   };
   let maxSlots = 0;
+  // Pattern groups are allocated per fixed hardware slot, not from the
+  // global slime flag. A room may put a normal enemy in slot 1 while another
+  // room puts a ceiling slime there; reserve the larger span for that slot,
+  // but do not make every other slot pay for the slime's two extra variants.
+  const slotMaxFrameCounts: number[] = [];
+  const slotNeedsCeilingVariants: boolean[] = [];
   const roomSlotSets = rooms.map(room => {
     const entities = (room.entities || []).filter((entity: any) =>
       (entity.kind === 'enemy' || entity.kind === 'hazard')
@@ -10592,7 +10672,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       && entity.params?.pushBox !== true
       && entity.params?.box2 !== true
       && !isMsx2CarryableEntity(entity)
-    );
+    ).map(normalizeBitmapEnemyEntity);
     const geometry = getMsx2EnemyHazardRuntimeSlots({ layers: { entities } } as any);
     const paired = geometry.map((slot, index) => ({ slot, entity: entities[index] as any }));
     const skipped = paired.filter(pair => !isBitmapEnemyMovementSupported(pair.slot.mode));
@@ -10606,6 +10686,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       const updateLane = logicalEnemyIndex & 1;
       logicalEnemyIndex++;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
+      if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL) gearEnabled = true;
       const spriteId = spriteIdForEntity(pair.entity);
       const grid = spriteGrid(spriteId);
       const hardwareSlots = grid.slots.length ? grid.slots : [{ x: 0, y: 0 }];
@@ -10614,6 +10695,15 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         if (expanded.length >= BITMAP_MAX_ENEMY_SLOTS) {
           truncatedHardwareSlots++;
           continue;
+        }
+        const slotIndex = expanded.length;
+        slotMaxFrameCounts[slotIndex] = Math.max(
+          1,
+          slotMaxFrameCounts[slotIndex] || 1,
+          grid.frameIndices.length,
+        );
+        if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) {
+          slotNeedsCeilingVariants[slotIndex] = true;
         }
         expanded.push({
           slot: offsetRuntimeSlot(pair.slot, hardwareSlots[spriteLayerIndex]),
@@ -10632,7 +10722,34 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     maxSlots = Math.max(maxSlots, expanded.length);
     return expanded;
   });
-  if (maxSlots === 0) return { maxSlots: 0, maxFrames: 1, roomTables: [], patternBytes: [], colorBytes: [], slimeEnabled: false };
+  if (maxSlots === 0) return {
+    maxSlots: 0,
+    maxFrames: 1,
+    roomTables: [],
+    patternBytes: [],
+    colorBytes: [],
+    slimeEnabled: false,
+    gearEnabled: false,
+    patternGroupOffsets: [],
+    patternVariantCounts: [],
+    patternGroupCount: 0,
+  };
+  const patternGroupOffsets: number[] = [];
+  const patternVariantCounts: number[] = [];
+  let patternGroupCount = 0;
+  for (let slotIndex = 0; slotIndex < maxSlots; slotIndex++) {
+    const frameCount = Math.max(1, slotMaxFrameCounts[slotIndex] || 1);
+    const variants = slotNeedsCeilingVariants[slotIndex] ? 4 : 2;
+    patternGroupOffsets.push(patternGroupCount);
+    patternVariantCounts.push(variants);
+    patternGroupCount += frameCount * variants;
+  }
+  const gearDelayBytes = (slot: Msx2EnemyHazardRuntimeSlot | undefined): [number, number] => {
+    const frames = slot?.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL
+      ? Math.max(60, Math.min(0xffff, Math.floor(Number(slot.respawnSeconds || 3) * 60)))
+      : 0;
+    return [frames & 0xff, (frames >>> 8) & 0xff];
+  };
   const roomTables = roomSlotSets.map(slots => {
     const table: number[] = [slots.length & 0xff];
     for (let i = 0; i < maxSlots; i++) {
@@ -10641,6 +10758,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 16, 16);
         table.push(1, 0);
         if (slimeEnabled) table.push(0);
+        if (gearEnabled) table.push(0, 0);
         continue;
       }
       const { slot, spriteId, spriteLayerIndex, offset, updateLane, contact } = pair;
@@ -10672,10 +10790,22 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       if (slimeEnabled) {
         table.push(slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING ? (slot.travelPx & 0xff) : 0);
       }
+      if (gearEnabled) table.push(...gearDelayBytes(slot));
     }
     return table;
   });
-  return { maxSlots, maxFrames, roomTables, patternBytes, colorBytes, slimeEnabled };
+  return {
+    maxSlots,
+    maxFrames,
+    roomTables,
+    patternBytes,
+    colorBytes,
+    slimeEnabled,
+    gearEnabled,
+    patternGroupOffsets,
+    patternVariantCounts,
+    patternGroupCount,
+  };
 }
 
 /**
@@ -11136,7 +11266,14 @@ function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < COLLISION_ROWS; y++) {
     for (let x = 0; x < COLLISION_COLS; x++) {
-      bytes.push(clampByte(room.collision?.[y]?.[x], 0));
+      const collision = clampByte(room.collision?.[y]?.[x], 0);
+      // SCREEN 5 keeps solidity/danger flags in the high nibble while the
+      // semantic Effects layer uses the shared MSX2 cell encoding in bits 2..1
+      // (1=hazard, 2=exit, 3=collectible). Preserve authored collision bits
+      // and merge the effect so runtime hazards such as GearWheel can consume
+      // an exit cell directly from bitmap_room_collision_map.
+      const effect = Math.max(0, Math.min(3, Math.floor(Number(room.effects?.[y]?.[x]) || 0)));
+      bytes.push((collision & 0xf9) | ((effect << 1) & 0x06));
     }
   }
   // Jumper (spring) entities force their 16x16 cell SOLID so the player can
@@ -11755,6 +11892,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const shootGate = buildBitmapShootGateAsm(shootConfig);
   const bulletSprite = resolveBitmapBulletSprite(analysis, resolveBitmapRoomPlayer(analysis, room));
   const playerPatternGroups = combinedFrameCount * spriteTables.layerCount * (spriteTables.mirror ? 2 : 1);
+  // Reserve a hardware pattern group for the bullet only when the shoot skill
+  // is enabled. Keeping this slot unconditionally consumed the last available
+  // group in enemy-only rooms (player=48, enemies needing groups 49..64).
+  const bulletPatternGroupCount = shootConfig.enabled ? 1 : 0;
   const bulletPatternNumber = playerPatternGroups * 4;
   // Foreground hardware-sprite tiles (player walks behind them). foregroundCount
   // is the MAX tile count across all rooms (capped at 3); 0 disables the feature
@@ -11762,11 +11903,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const foregroundCount = rooms.length
     ? Math.min(BITMAP_ROOM_FOREGROUND_MAX, Math.max(0, ...rooms.map(r => (Array.isArray(r.foregroundTiles) ? r.foregroundTiles.length : 0))))
     : 0;
-  const foregroundPatternGroupBase = playerPatternGroups + 1;
+  const foregroundPatternGroupBase = playerPatternGroups + bulletPatternGroupCount;
   if (foregroundCount > 0 && foregroundPatternGroupBase + foregroundCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room foreground sprites need pattern groups ${foregroundPatternGroupBase}..${foregroundPatternGroupBase + foregroundCount - 1}, ` +
-      `but the V9938 sprite pattern table only holds 64 groups (player uses ${playerPatternGroups}, +1 bullet reserve). Reduce player animation frames/layers or foreground tiles.`,
+      `but the V9938 sprite pattern table only holds 64 groups (player uses ${playerPatternGroups}, +${bulletPatternGroupCount} bullet reserve). Reduce player animation frames/layers or foreground tiles.`,
     );
   }
   const playerSatBase = 0xF600 + foregroundCount * 4;
@@ -11786,11 +11927,18 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const turretData = buildBitmapRoomTurretData(analysis, rooms);
   const carryAndThrowConfig = getMsx2CarryAndThrowConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
   const carryAndThrowData = buildBitmapCarryAndThrowData(analysis, rooms);
+  const carryAndThrowRuntimeEnabled = bitmapCarryAndThrowEnabled(carryAndThrowConfig, carryAndThrowData);
+  // Placed carryables only participate in the hardware SAT stream when the
+  // player's carry/throw runtime is enabled. Reserving their slots without
+  // emitting bitmap_update_carry_sat leaves the previous subsystem's #D8
+  // terminator in the gap, so every sprite after it (turrets/bullets) vanishes.
+  const carryRuntimeSlots = carryAndThrowRuntimeEnabled ? carryAndThrowData.maxSlots : 0;
+  const platformData = buildBitmapRoomPlatformData(analysis, rooms);
   // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
   // bitmap visual. Place those rectangles after the atlas and any linked-HUD
   // source tiles, but before the dialogue blob that grows down from VRAM row
   // 1024. Hardware-sprite carryables do not consume this space.
-  const carryBitmapScratchSlots = carryAndThrowData.bitmapSlots;
+  const carryBitmapScratchSlots = carryAndThrowRuntimeEnabled ? carryAndThrowData.bitmapSlots : 0;
   const carryBitmapScratchBaseY = BITMAP_ROOM_ATLAS_BASE_Y
     + atlasRows16
     + Math.max(0, tileBasedHudSources.length - 3) * 16;
@@ -11800,36 +11948,84 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   }
   const enemyPatternGroupBase = foregroundPatternGroupBase + foregroundCount;
   const enemyVariantsPerFrame = bitmapEnemyVariantsPerFrame(enemyData);
-  const enemyPatternGroupCount = enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * enemyVariantsPerFrame;
+  // Slime ceiling variants are reserved only for the fixed slots that can
+  // actually host a slime. This keeps normal enemy slots at two variants per
+  // frame and leaves room for platform/carry hardware sprites.
+  const enemyPatternGroupCount = Math.max(
+    0,
+    Number(enemyData.patternGroupCount) ||
+      enemyData.maxSlots * Math.max(1, enemyData.maxFrames) * enemyVariantsPerFrame,
+  );
+  const enemyPatternVariantSummary = enemyData.patternVariantCounts?.length
+    ? enemyData.patternVariantCounts.join('/')
+    : String(enemyVariantsPerFrame);
   if (enemyData.maxSlots > 0 && enemyPatternGroupBase + enemyPatternGroupCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room enemies need sprite pattern groups ${enemyPatternGroupBase}..${enemyPatternGroupBase + enemyPatternGroupCount - 1} ` +
-      `(${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} frame(s) x ${enemyVariantsPerFrame} variants${enemyData.slimeEnabled ? ', slime ceiling flips included' : ''}), but the V9938 sprite pattern table only holds 64 groups ` +
-      `(player uses ${playerPatternGroups}, +1 bullet reserve, +${foregroundCount} foreground). ` +
+      `(${enemyData.maxSlots} slot(s) x ${enemyData.maxFrames} max frame(s) x ${enemyPatternVariantSummary} variants/slot${enemyData.slimeEnabled ? ', slime ceiling flips included' : ''}), but the V9938 sprite pattern table only holds 64 groups ` +
+      `(player uses ${playerPatternGroups}, +${bulletPatternGroupCount} bullet reserve, +${foregroundCount} foreground). ` +
       `Reduce player animation frames/layers, foreground tiles, enemy frames or enemies per room.`,
     );
   }
   const enemySatBase = playerSatBase + spriteTables.layerCount * 4;
   const enemyColorBase = playerColorBase + spriteTables.layerCount * 16;
-  // Moving-platform runtime: SAT slots sit right after the enemy block (bullets
-  // shift past them), pattern groups after the enemy groups.
-  const platformData = buildBitmapRoomPlatformData(analysis, rooms);
-  const platformPatternGroupBase = enemyPatternGroupBase + enemyPatternGroupCount;
+  // Pattern groups are a per-screen VRAM cache. Different categories may
+  // reuse a range when no screen contains both categories; only co-active
+  // systems need disjoint groups. This matters for a world with a two-layer
+  // slime on one screen and a moving platform on another.
+  const roomHasData = (tables: number[][]): boolean[] => rooms.map((_room, index) => Number(tables[index]?.[0] || 0) > 0);
+  const roomHasEnemy = roomHasData(enemyData.roomTables);
+  const roomHasPlatform = roomHasData(platformData.roomTables);
+  const roomHasCarry = carryAndThrowRuntimeEnabled
+    ? roomHasData(carryAndThrowData.roomTables)
+    : rooms.map(() => false);
+  const roomHasTurret = roomHasData(turretData.roomTables);
+  const allRoomsActive = rooms.map(() => true);
+  type BitmapPatternRange = { base: number; count: number; active: boolean[] };
+  const patternRanges: BitmapPatternRange[] = [];
+  if (enemyPatternGroupCount > 0) {
+    patternRanges.push({ base: enemyPatternGroupBase, count: enemyPatternGroupCount, active: roomHasEnemy });
+  }
+  const rangesCoActive = (a: boolean[], b: boolean[]): boolean =>
+    a.some((enabled, index) => enabled && Boolean(b[index]));
+  const allocatePatternRange = (count: number, active: boolean[]): number => {
+    if (count <= 0) return enemyPatternGroupBase;
+    let candidate = enemyPatternGroupBase;
+    // First-fit after every range that is co-active with this category.
+    // Non-co-active ranges are deliberately allowed to overlap (they are
+    // re-uploaded on room transitions and never render simultaneously).
+    while (true) {
+      const conflict = patternRanges.find(range =>
+        rangesCoActive(range.active, active)
+        && candidate < range.base + range.count
+        && candidate + count > range.base
+      );
+      if (!conflict) return candidate;
+      candidate = conflict.base + conflict.count;
+    }
+  };
   const platformPatternGroupCount = platformData.maxSlots * platformData.maxCells;
+  const platformPatternGroupBase = allocatePatternRange(platformPatternGroupCount, roomHasPlatform);
+  if (platformPatternGroupCount > 0) {
+    patternRanges.push({ base: platformPatternGroupBase, count: platformPatternGroupCount, active: roomHasPlatform });
+  }
   if (platformData.maxSlots > 0 && platformPatternGroupBase + platformPatternGroupCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room moving platforms need sprite pattern groups ${platformPatternGroupBase}..${platformPatternGroupBase + platformPatternGroupCount - 1} ` +
       `(${platformData.maxSlots} slot(s) x ${platformData.maxCells} cell(s)), but the V9938 sprite pattern table only holds 64 groups ` +
-      `(player uses ${playerPatternGroups}, +1 bullet reserve, +${foregroundCount} foreground, +${enemyPatternGroupCount} enemies). ` +
+      `(player uses ${playerPatternGroups}, +${bulletPatternGroupCount} bullet reserve, +${foregroundCount} foreground, +${enemyPatternGroupCount} enemies). ` +
       `Reduce player animation frames/layers, foreground tiles, enemies or platforms per room.`,
     );
   }
   const platformHardwareSlots = platformData.maxSlots * platformData.maxCells;
   const platformSatBase = enemySatBase + enemyData.maxSlots * 4;
   const platformColorBase = enemyColorBase + enemyData.maxSlots * 16;
-  const carryPatternGroupBase = platformPatternGroupBase + platformPatternGroupCount;
-  const carryPatternGroupCount = carryAndThrowData.maxSlots;
-  if (carryAndThrowData.maxSlots > 0 && carryPatternGroupBase + carryPatternGroupCount > 64) {
+  const carryPatternGroupCount = carryRuntimeSlots;
+  const carryPatternGroupBase = allocatePatternRange(carryPatternGroupCount, roomHasCarry);
+  if (carryPatternGroupCount > 0) {
+    patternRanges.push({ base: carryPatternGroupBase, count: carryPatternGroupCount, active: roomHasCarry });
+  }
+  if (carryRuntimeSlots > 0 && carryPatternGroupBase + carryPatternGroupCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room carry-and-throw objects need sprite pattern groups ${carryPatternGroupBase}..${carryPatternGroupBase + carryPatternGroupCount - 1}, ` +
       'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation or carryable objects.',
@@ -11842,20 +12038,26 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // generator module header); everything is emitted only when the skill is on.
   const destroyTileConfig = getMsx2DestroyTileConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
   const destroyDebrisSlots = bitmapDestroyTileEnabled(destroyTileConfig) ? MSX2_BITMAP_DESTROY_DEBRIS_SLOTS : 0;
-  const destroyPatternGroup = carryPatternGroupBase + carryPatternGroupCount;
+  const destroyPatternGroup = allocatePatternRange(destroyDebrisSlots > 0 ? 1 : 0, allRoomsActive);
+  if (destroyDebrisSlots > 0) {
+    patternRanges.push({ base: destroyPatternGroup, count: 1, active: allRoomsActive });
+  }
   if (destroyDebrisSlots > 0 && destroyPatternGroup + 1 > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room destroy_tile debris needs sprite pattern group ${destroyPatternGroup}, ` +
       'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation or carryable objects.',
     );
   }
-  const destroySatBase = carrySatBase + carryAndThrowData.maxSlots * 4;
-  const destroyColorBase = carryColorBase + carryAndThrowData.maxSlots * 16;
+  const destroySatBase = carrySatBase + carryRuntimeSlots * 4;
+  const destroyColorBase = carryColorBase + carryRuntimeSlots * 16;
   // AIMED TURRET: two hardware sprites per placement and one shared projectile.
   // It follows destroy debris in SAT/pattern space so existing player/enemy/
   // platform/carry allocations remain stable for projects without turrets.
-  const turretPatternGroupBase = destroyPatternGroup + (destroyDebrisSlots > 0 ? 1 : 0);
   const turretPatternGroupCount = bitmapTurretPatternGroups(turretData);
+  const turretPatternGroupBase = allocatePatternRange(turretPatternGroupCount, roomHasTurret);
+  if (turretPatternGroupCount > 0) {
+    patternRanges.push({ base: turretPatternGroupBase, count: turretPatternGroupCount, active: roomHasTurret });
+  }
   if (turretPatternGroupCount > 0 && turretPatternGroupBase + turretPatternGroupCount > 64) {
     throw new Error(
       `SCREEN 5 bitmap-room aimed turrets need sprite pattern groups ${turretPatternGroupBase}..${turretPatternGroupBase + turretPatternGroupCount - 1}, ` +
@@ -11876,7 +12078,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     foregroundSlotCount: foregroundCount,
     enemySlotCount: enemyData.maxSlots,
     platformSlotCount: platformHardwareSlots,
-    carrySlotCount: carryAndThrowData.maxSlots,
+    carrySlotCount: carryRuntimeSlots,
     destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
@@ -12159,6 +12361,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     satBase: enemySatBase,
     colorBase: enemyColorBase,
     patternGroupBase: enemyPatternGroupBase,
+    patternGroupOffsets: enemyData.patternGroupOffsets,
+    patternVariantCounts: enemyData.patternVariantCounts,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     playerHitbox,
     damageInvulnFrames: playerVitals.invulnFrames,
@@ -12440,6 +12644,49 @@ ${hasStateAnimations ? `    xor a
     ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
 ` : ''}${dashInitClear}${doubleJumpInitClear}${coyoteBufferInitClear}${airDashInitClear}${glideInitClear}${wallJumpInitClear}${powerStompInitClear}${shootInitClear}${teleportInitClear}${slashInitClear}${grabInitClear}${highJumpInitClear}${wallBreakInitClear}${spinAttackInitClear}${iceSlideInitClear}${crouchInitClear}${destroyTileInitClear}`;
 
+  // ---- SCC music (Fase 5): full tracker playback in the bitmap route ----
+  // Emitted only when the project has SCC tracks AND the Konami SCC mapper is
+  // in use (the SCC chip only exists on that cartridge type). Exposes the
+  // public music_* API consumed by Game Flow Music nodes; RAM sits at #C400
+  // (above the destroy-tile block, far below the BIOS stack).
+  const sccTracks = collectSccTracks(analysis as any);
+  if (sccTracks.length > 0 && !isKonamiMegaRom) {
+    console.warn('⚠️ MSX2 bitmap route: SCC tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
+  }
+  const sccMusic = sccTracks.length > 0 && isKonamiMegaRom ? buildSccIntegratedMusicBlock(sccTracks) : null;
+  for (const warning of sccMusic?.warnings || []) {
+    console.warn(`⚠️ SCC music: ${warning}`);
+  }
+  const sccTrackIndexById = new Map(sccTracks.map((track, index) => [String(track.id), index]));
+  const sccMusicRam = sccMusic ? buildSccMusicRam(0xC404) : null;
+  const sccMusicEquates = sccMusic && sccMusicRam ? `
+; ---- SCC music: public API status bytes + player runtime RAM (Fase 5) ----
+; The bitmap engine keeps P2 on resident bank 2 whenever music_* runs (every
+; banked load ends in bitmap_room_restore_resident_banks), so this mirror is
+; seeded once at boot and stays truthful; the SCC driver saves it, maps #3F to
+; reach the chip and restores it after every access.
+mapper_bank_p2_current EQU #C3FF
+music_active         EQU #C400
+music_muted          EQU #C401
+music_loop           EQU #C402
+music_track_index    EQU #C403
+${sccMusicRam.asm}
+` : '';
+  const bitmapFlowForMusic = resolveBitmapGameFlow(analysis);
+  const flowHasMusicNode = Boolean(bitmapFlowForMusic?.nodes?.some(node => (node as any).type === 'Music'));
+  // Boot: init the SCC through the mapper (page 2 is already the cart slot).
+  // Without any Music node in the flow, autoplay track 0 looped so a project
+  // with music but no explicit node still sounds.
+  const musicBootCall = sccMusic
+    ? `    ld a, 2                   ; seed the P2 mirror: resident data bank\n    ld (mapper_bank_p2_current), a\n    call music_init_system\n${flowHasMusicNode ? '' : '    xor a\n    ld b, 1\n    call music_play_track    ; no Music node in the flow: autoplay track 0 (loop)\n'}`
+    : '';
+  const musicUpdateCall = sccMusic ? '    call music_update\n' : '';
+  // Transition helpers live in the intro runtime: only effects the intro block
+  // actually emits are callable from the Game Flow dispatcher.
+  const availableIntroEffects = introScenes.length > 0
+    ? new Set<string>(['cls', ...introScenes.map(scene => scene.transition?.effect).filter(Boolean) as string[]])
+    : new Set<string>();
+
   // Game Flow dispatcher (compile-time, bitmap backend). When a Game Flow graph
   // with a WorldLink exists, the ROM boots into the dispatcher (bitmap_gf_entry)
   // instead of the gameplay loop directly; the WorldLink runs bitmapBootInitAsm
@@ -12448,6 +12695,8 @@ ${hasStateAnimations ? `    xor a
   // End:GameOver node). Empty when no graph exists.
   const gameFlowEntryAsm = buildBitmapGameFlowProgram(analysis, {
     bootInitAsm: bitmapBootInitAsm,
+    music: { enabled: Boolean(sccMusic), trackIndexById: sccTrackIndexById },
+    availableIntroEffects,
   });
   const gameFlowEnabled = gameFlowEntryAsm.length > 0;
   const bitmapEndRuntime = gameFlowEnabled ? buildBitmapEndScreenRuntime() : { dataAsm: '', routinesAsm: '' };
@@ -12570,7 +12819,7 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}${sccMusicEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -12589,7 +12838,7 @@ ${intro.initCallAsm}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
+${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
     ; Game Flow exit gate: when the deadly/enemy damage system arms
     ; bitmap_game_over_flag (last life spent), leave the gameplay loop. With a
     ; Game Flow graph, ret returns to the dispatcher (which follows the WorldLink
@@ -12599,14 +12848,14 @@ ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}$
     ${gameFlowEnabled ? 'ret nz    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp nz, init_rom    ; standalone: last life -> soft restart'}
 .bitmap_main_loop:
     call bitmap_wait_vblank
-    call step_room_composition
+${musicUpdateCall}    call step_room_composition
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}.skip_player_movement:
 ${perceptionSystem.mainLoopCall}${playerAnimationUpdateCall}${playerColorsUpdateCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}    call bitmap_update_sprite_sat
 ${enemySystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shootBulletSatCall}    jp .bitmap_main_loop
-${intro.routinesAsm}
+${sccMusic ? `\n; ==================================================================\n; SCC MUSIC (Fase 5): driver + row player + public music_* API + data\n; ==================================================================\n${sccMusic.asm}\n` : ''}${intro.routinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
 ${airDashRuntime}

@@ -1,0 +1,5 @@
+record_start=Recording to C:/Users/salam/Documents/Programacion/Mideas/test/scc/minisong.wav
+boot=1 active=1
+order_pos=1 row=19 rows=32 (expect 32)
+t20_active=1 loop_count=1 order_pos=2
+record_stop=

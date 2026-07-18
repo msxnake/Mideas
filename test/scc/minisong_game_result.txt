@@ -1,0 +1,8 @@
+music_active=1 (expect 1)
+scc_music_active=1 (expect 1)
+mixer_shadow=31 (expect nonzero)
+period_ch1_samples=225 189 189 189 225 225 distinct=2 (expect >=2)
+player_x_before=147
+player_x_after=195 (expect != before: player moves with music on)
+record=Recording to C:/Users/salam/Documents/Programacion/Mideas/test/scc/minisong_game.wav
+t19_music_active=1 loop=0

@@ -3,6 +3,7 @@ import { Modal } from '../modals/Modal';
 import { Button } from '../common/Button';
 import { SCCInstrument } from '../../types';
 import { SCCSynthesizer } from '../utils/sccSynthesizer';
+import { SCC_INSTRUMENT_PRESETS } from '../../utils/audio/sccInstrumentPresets';
 
 // Waveform presets
 const PRESETS = {
@@ -307,6 +308,22 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
     setWaveform(newWaveform);
   };
 
+  /** Load a full curated instrument (waveform + envelope + vibrato + noise). */
+  const applyInstrumentPreset = (preset: SCCInstrument) => {
+    setName(preset.name);
+    setWaveform([...preset.waveform]);
+    setVolume(clampBaseVolume(preset.volume ?? 15));
+    const env = preset.volumeEnvelope || [];
+    setEnvelopeValues(env.map(clampEnvelopeValue));
+    setVolumeEnvelope(env.join(' '));
+    setVolumeLoop(preset.volumeLoop !== undefined && preset.volumeLoop !== 0xff ? preset.volumeLoop : '');
+    setVibratoDepth(clampVibDepth(preset.vibratoDepth ?? 0));
+    setVibratoSpeed(clampVibSpeed(preset.vibratoSpeed ?? 16));
+    setVibratoDelay(clampVibDelay(preset.vibratoDelay ?? 0));
+    setNoiseMode(preset.noiseMode === true);
+    setMorphEnabled(false);
+  };
+
   const handleEnvValueChange = (idx: number, newVal: number) => {
     setEnvelopeValues(prev => {
       const next = [...(prev.length ? prev : Array(16).fill(15))];
@@ -362,6 +379,23 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
               className="w-full p-2 bg-msx-bgcolor border border-msx-border rounded text-msx-textsecondary"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-msx-textprimary mb-1">Instrumentos predefinidos</label>
+          <div className="flex flex-wrap items-center gap-1 mb-2">
+            {SCC_INSTRUMENT_PRESETS.map(preset => (
+              <button
+                key={`inst-${preset.name}`}
+                onClick={() => applyInstrumentPreset(preset)}
+                className="text-[10px] px-2 py-1 bg-msx-accent/20 border border-msx-accent rounded hover:bg-msx-accent hover:text-black transition-colors"
+                title="Carga waveform + envolvente + vibrato/ruido del preset"
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-msx-textsecondary mb-2">Piano/Flauta/Bajo melodicos; Bombo/Caja/Hi-Hat usan ruido real (tocarlos en nota grave/media/aguda).</p>
         </div>
 
         <div>
