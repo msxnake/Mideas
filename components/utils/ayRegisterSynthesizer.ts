@@ -1,5 +1,13 @@
 import { getFrequencyForNoteString } from './noteFrequencies';
 import { PT3Instrument, PT3Ornament, TrackerSongData } from '../../types';
+import type { AyFrameOutput } from './ayFrameReducer';
+import {
+  createPT3PreviewDriverState,
+  stepPT3PreviewFrame,
+  type PT3PreviewChannelCommand,
+  type PT3PreviewDriverState,
+  type PT3PreviewStepResult,
+} from './pt3PreviewDriver';
 
 const AY_CLOCK_FREQUENCY = 3579545 / 2;
 const DEFAULT_TRACKER_TICK_MS = 20;
@@ -69,6 +77,17 @@ export class AYRegisterSynthesizer {
 
   private registers = new Uint8Array(14);
   private channelStates: ChannelState[] = [createChannelState(), createChannelState(), createChannelState()];
+  private pt3DriverState: PT3PreviewDriverState = createPT3PreviewDriverState();
+  private pt3ChannelModes = [false, false, false];
+  private pt3PendingCommands: [
+    PT3PreviewChannelCommand | undefined,
+    PT3PreviewChannelCommand | undefined,
+    PT3PreviewChannelCommand | undefined,
+  ] = [undefined, undefined, undefined];
+  private pt3FlushScheduled = false;
+  private pt3SongId: string | null = null;
+  private pt3FrameCaptureHook: ((frame: AyFrameOutput, index: number) => void) | null = null;
+  private pt3FrameIndex = 0;
 
   private toneCounters = [8, 8, 8];
   private toneOutputs = [0, 0, 0];
@@ -100,7 +119,10 @@ export class AYRegisterSynthesizer {
   }
 
   public setSongData(songData: TrackerSongData): void {
+    const songChanged = this.pt3SongId !== null && this.pt3SongId !== songData.id;
+    this.pt3SongId = songData.id;
     this.songDataRef = songData;
+    if (songChanged) this.resetPT3PlaybackState();
     this.channelStates.forEach(channel => {
       if (!channel.instrument) return;
       const replacement = songData.instruments.find(instrument => instrument.id === channel.instrument?.id) as PT3Instrument | undefined;
@@ -111,6 +133,12 @@ export class AYRegisterSynthesizer {
 
   public getSongData(): TrackerSongData | null {
     return this.songDataRef;
+  }
+
+  /** Optional byte-frame tap for future Preview/OpenMSX trace comparisons. */
+  public setPT3FrameCaptureHook(hook: ((frame: AyFrameOutput, index: number) => void) | null): void {
+    this.pt3FrameCaptureHook = hook;
+    this.pt3FrameIndex = 0;
   }
 
   public async ensureAudioContext(): Promise<boolean> {
@@ -159,6 +187,37 @@ export class AYRegisterSynthesizer {
     const isCut = noteStringFromCell === '===';
     const isKeep = noteStringFromCell === '---' || noteStringFromCell === null;
     const isNewNote = !isCut && !isKeep;
+
+    const explicitInstrument = instrumentIdFromCell !== null && instrumentIdFromCell > 0 && this.songDataRef
+      ? this.songDataRef.instruments.find(instrument => instrument.id === instrumentIdFromCell) as PT3Instrument | undefined
+      : undefined;
+    const currentPT3InstrumentId = this.pt3DriverState.channels[channel].instrumentId;
+    const currentPT3Instrument = currentPT3InstrumentId !== null && this.songDataRef
+      ? this.songDataRef.instruments.find(instrument => instrument.id === currentPT3InstrumentId) as PT3Instrument | undefined
+      : undefined;
+    const resolvedInstrument = instrumentIdFromCell !== null
+      ? explicitInstrument
+      : (this.pt3ChannelModes[channel] ? currentPT3Instrument : state.instrument ?? undefined);
+    const usesPT3Sample = resolvedInstrument?.instrumentMode === 'pt3-sample' && !!resolvedInstrument.pt3Sample;
+
+    if (usesPT3Sample || this.pt3ChannelModes[channel]) {
+      if (usesPT3Sample) {
+        if (!this.pt3ChannelModes[channel]) this.resetChannel(channel);
+        this.pt3ChannelModes[channel] = true;
+        this.queuePT3Command(channel, {
+          note: noteStringFromCell,
+          instrumentId: instrumentIdFromCell,
+          ornamentId: ornamentIdFromCell,
+          volume: volumeFromCell,
+        });
+        return;
+      }
+
+      // An explicit non-PT3/zero instrument hands this channel back to the
+      // untouched legacy route after cutting the old PT3 voice in driver state.
+      this.queuePT3Command(channel, { note: '===', instrumentId: 0 });
+      this.pt3ChannelModes[channel] = false;
+    }
 
     if (isCut) {
       this.resetChannel(channel);
@@ -214,6 +273,7 @@ export class AYRegisterSynthesizer {
     this.registers[8] = 0;
     this.registers[9] = 0;
     this.registers[10] = 0;
+    this.resetPT3PlaybackState();
   }
 
   public getOscilloscopeSnapshot(): Float32Array[] {
@@ -334,11 +394,86 @@ export class AYRegisterSynthesizer {
 
   private advanceTrackerFrame(): void {
     for (let channel = 0; channel < CHANNELS; channel++) {
+      if (this.pt3ChannelModes[channel]) continue;
       const state = this.channelStates[channel];
       if (!state.keyOn || !state.instrument) continue;
       this.advanceChannelState(state);
       this.writeChannelRegisters(channel as 0 | 1 | 2);
     }
+    this.flushPT3Frame();
+  }
+
+  private queuePT3Command(channel: 0 | 1 | 2, command: PT3PreviewChannelCommand): void {
+    this.pt3PendingCommands[channel] = {
+      ...this.pt3PendingCommands[channel],
+      ...command,
+    };
+    // While the 50Hz frame timer runs, commands wait for the next frame
+    // boundary like in the reference replayer; an immediate flush here would
+    // add an extra engine tick to every held PT3 voice on note-heavy rows.
+    if (this.frameIntervalId !== null) return;
+    if (this.pt3FlushScheduled) return;
+    this.pt3FlushScheduled = true;
+    queueMicrotask(() => {
+      if (!this.pt3FlushScheduled) return;
+      this.flushPT3Frame();
+    });
+  }
+
+  private flushPT3Frame(): void {
+    const hasPendingCommand = this.pt3PendingCommands.some(command => command !== undefined);
+    const hasPT3Channel = this.pt3ChannelModes.some(Boolean);
+    this.pt3FlushScheduled = false;
+    if (!hasPendingCommand && !hasPT3Channel) return;
+
+    const result = stepPT3PreviewFrame(this.pt3DriverState, {
+      instruments: (this.songDataRef?.instruments ?? []).filter((instrument): instrument is PT3Instrument => 'id' in instrument),
+      ornaments: this.songDataRef?.ornaments ?? [],
+      noiseBase: this.songDataRef?.ayNoisePeriod ?? 16,
+      envelopePeriodBase: this.songDataRef?.ayHardwareEnvelopePeriod ?? 100,
+      envelopeShape: this.registers[13] & 0x0f,
+    }, {
+      channels: this.pt3PendingCommands,
+    });
+    this.pt3PendingCommands = [undefined, undefined, undefined];
+    this.pt3DriverState = result.state;
+
+    if (hasPT3Channel) {
+      this.applyPT3Frame(result);
+      this.pt3FrameCaptureHook?.(result.frame, this.pt3FrameIndex++);
+    }
+  }
+
+  /** The only PT3 Preview write site: copy reducer output into the AY shadow. */
+  private applyPT3Frame(result: PT3PreviewStepResult): void {
+    const { frame } = result;
+    for (let channel = 0; channel < CHANNELS; channel++) {
+      if (!this.pt3ChannelModes[channel]) continue;
+      this.registers[channel * 2] = frame.registers[channel * 2];
+      this.registers[channel * 2 + 1] = frame.registers[channel * 2 + 1];
+      this.registers[8 + channel] = frame.registers[8 + channel];
+
+      const toneMask = 1 << channel;
+      const noiseMask = 1 << (channel + 3);
+      this.registers[7] = (this.registers[7] & ~toneMask) | (frame.registers[7] & toneMask);
+      this.registers[7] = (this.registers[7] & ~noiseMask) | (frame.registers[7] & noiseMask);
+    }
+
+    // R6 and R11-R13 are chip-global. Whenever a PT3 sample channel is active,
+    // their sole source is the common reducer frame, just like the real AY.
+    this.registers[6] = frame.registers[6];
+    this.registers[11] = frame.registers[11];
+    this.registers[12] = frame.registers[12];
+    this.registers[7] &= 0x3f;
+    if (frame.writeRegister13) this.writeEnvelopeShape(frame.registers[13], true);
+  }
+
+  private resetPT3PlaybackState(): void {
+    this.pt3DriverState = createPT3PreviewDriverState();
+    this.pt3ChannelModes = [false, false, false];
+    this.pt3PendingCommands = [undefined, undefined, undefined];
+    this.pt3FlushScheduled = false;
+    this.pt3FrameIndex = 0;
   }
 
   private restartTrackerFrameTimer(): void {

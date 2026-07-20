@@ -2015,6 +2015,35 @@ export type SCCChannelId = '1' | '2' | '3' | '4' | '5';
 /** A type representing any channel identifier in the tracker. */
 export type TrackerChannelId = PT3ChannelId | SCCChannelId;
 
+/** Compatibility mode for PT3 hardware-envelope slide accumulation. */
+export type PT3EnvelopeSlideMode = 'pt3-legacy-8bit' | 'corrected-16bit';
+
+/** One decoded four-byte ProTracker 3 sample line. */
+export interface PT3SampleStep {
+  /** Original PT3 bytes (C, B, tone low, tone high), kept for lossless round-trips. */
+  raw: [number, number, number, number];
+  volume: number;
+  amplitudeSlide: -1 | 0 | 1;
+  /** Signed raw AY tone-period delta, not a semitone offset. */
+  tonePeriodOffset: number;
+  accumulateTone: boolean;
+  toneEnabled: boolean;
+  noiseEnabled: boolean;
+  hardwareEnvelopeEnabled: boolean;
+  /** Signed envelope delta when E is active; otherwise the PT3 noise offset. */
+  noiseOrEnvelopeOffset: number;
+  accumulateNoiseOrEnvelope: boolean;
+}
+
+/** Native Mideas representation of a tick-programmed PT3 sample. */
+export interface PT3SampleMacro {
+  loop: number;
+  steps: PT3SampleStep[];
+  envelopeSlideMode: PT3EnvelopeSlideMode;
+  sourceSampleId?: number;
+  sourcePointer?: number;
+}
+
 /**
  * Represents a PT3 instrument (PSG).
  */
@@ -2040,6 +2069,10 @@ export interface PT3Instrument {
   noiseLoop?: number;
   /** (Not implemented) Sample data for the instrument. */
   sampleData?: any;
+  /** Selects the backwards-compatible envelope engine or the exact PT3 step engine. */
+  instrumentMode?: 'legacy-envelopes' | 'pt3-sample';
+  /** Exact per-tick PT3 sample program when instrumentMode is pt3-sample. */
+  pt3Sample?: PT3SampleMacro;
   /** The AY hardware envelope shape (0-15). */
   ayEnvelopeShape?: number;
   /** Whether the AY noise channel is enabled for this instrument. */

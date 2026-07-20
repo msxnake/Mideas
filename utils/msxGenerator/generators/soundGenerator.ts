@@ -854,6 +854,52 @@ function normalizeNoiseEnvelopeData(values: number[]): number[] {
   return values.map((value) => clampByte(value, 0, 31));
 }
 
+function buildPT3VolumeTableData(): number[] {
+  const table = Array(256).fill(0);
+  let base = 0x0011;
+  let delta = 0;
+  let index = 16;
+
+  for (let channelVolume = 1; channelVolume <= 15; channelVolume += 1) {
+    delta = (delta + base) & 0xffff;
+    let accumulator = 0;
+    for (let sampleVolume = 0; sampleVolume < 16; sampleVolume += 1) {
+      table[index++] = ((accumulator + 0x80) >>> 8) & 0xff;
+      accumulator = (accumulator + delta) & 0xffff;
+    }
+    if ((delta & 0xff) === 0x77) delta = (delta + 1) & 0xffff;
+  }
+
+  return table;
+}
+
+function hasPT3SampleMacro(instrument: PT3Instrument): boolean {
+  return instrument.instrumentMode === 'pt3-sample' && !!instrument.pt3Sample?.steps.length;
+}
+
+function serializePT3SampleSteps(instrument: PT3Instrument): number[] {
+  if (!hasPT3SampleMacro(instrument) || !instrument.pt3Sample) return [];
+
+  return instrument.pt3Sample.steps.flatMap((step) => {
+    const amplitudeCode = step.amplitudeSlide < 0 ? 1 : step.amplitudeSlide > 0 ? 2 : 0;
+    const packedVolume = (step.volume & 0x0f) | ((amplitudeCode & 0x03) << 4);
+    const flags =
+      ((step.accumulateTone ? 1 : 0) << 0) |
+      ((step.toneEnabled ? 1 : 0) << 1) |
+      ((step.noiseEnabled ? 1 : 0) << 2) |
+      ((step.hardwareEnvelopeEnabled ? 1 : 0) << 3) |
+      ((step.accumulateNoiseOrEnvelope ? 1 : 0) << 4);
+    const toneOffset = step.tonePeriodOffset & 0xffff;
+    return [
+      packedVolume,
+      flags,
+      toneOffset & 0xff,
+      (toneOffset >>> 8) & 0xff,
+      step.noiseOrEnvelopeOffset & 0xff,
+    ];
+  });
+}
+
 function buildNotePeriodTable(): string {
   const ayClock = 3579545 / 2;
   const c0Frequency = 16.351597831287414;
@@ -884,10 +930,12 @@ function buildTrackData(
   const instrumentVolEnvLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_vol_env` : `${labelBase}_inst_${instrumentId}_vol_env`;
   const instrumentToneEnvLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_tone_env` : `${labelBase}_inst_${instrumentId}_tone_env`;
   const instrumentNoiseEnvLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_noise_env` : `${labelBase}_inst_${instrumentId}_noise_env`;
+  const instrumentPT3StepsLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_pt3_steps` : `${labelBase}_inst_${instrumentId}_pt3_steps`;
   const ornamentLabel = (ornamentId: number) => useRelativePointers ? `.orn_${ornamentId}` : `${labelBase}_orn_${ornamentId}`;
   const ornamentDataLabel = (ornamentId: number) => useRelativePointers ? `.orn_${ornamentId}_data` : `${labelBase}_orn_${ornamentId}_data`;
   const instrumentMap = getInstrumentMap(song);
   const ornamentMap = getOrnamentMap(song);
+  const songUsesPT3Samples = Array.from(instrumentMap.values()).some(hasPT3SampleMacro);
   const warnings: string[] = [];
   const order = Array.isArray(song.order) && song.order.length > 0 ? song.order : [0];
   const restartPosition = clampByte(song.restartPosition ?? 0, 0, Math.max(0, order.length - 1));
@@ -909,7 +957,9 @@ function buildTrackData(
   lines.push(`    DW ${useRelativePointers ? `${patternTableLabel} - ${dataLabel}` : patternTableLabel}`);
   lines.push(`    DW ${useRelativePointers ? `${instrumentPtrTableLabel} - ${dataLabel}` : instrumentPtrTableLabel}`);
   lines.push(`    DW ${useRelativePointers ? `${ornamentPtrTableLabel} - ${dataLabel}` : ornamentPtrTableLabel}`);
-  lines.push(`    DW ${toAsmWord(toAyHardwareEnvelopePeriod(song.ayHardwareEnvelopePeriod))}`);
+  lines.push(`    DW ${toAsmWord(songUsesPT3Samples
+    ? clampWord(song.ayHardwareEnvelopePeriod ?? 1, 1, 0xffff)
+    : toAyHardwareEnvelopePeriod(song.ayHardwareEnvelopePeriod))}`);
   lines.push(`    DB ${toAsmByte(clampByte(song.ayNoisePeriod ?? 16, 0, 31))}`);
   lines.push('');
   lines.push(buildDbLines(orderTableLabel, order.map((value) => clampByte(value, 0, Math.max(0, patterns.length - 1)))));
@@ -977,6 +1027,8 @@ function buildTrackData(
     const defaultVolume = volumeEnvelope.length > 0
       ? volumeEnvelope[0]
       : 15;
+    const pt3Steps = serializePT3SampleSteps(instrument);
+    const pt3Macro = pt3Steps.length > 0 ? instrument.pt3Sample : undefined;
 
     lines.push(`${instrumentLabel(instrumentId)}:`);
     lines.push(`    DB ${toAsmByte(flags)}`);
@@ -999,9 +1051,19 @@ function buildTrackData(
       : '0'}`);
     lines.push(`    DB ${toAsmByte(noiseEnvelope.length)}`);
     lines.push(`    DB ${toAsmByte(noiseLoop)}`);
+    // Bytes 0..17 keep the legacy descriptor ABI. The PT3 extension starts at
+    // byte 18 so old instruments and their runtime path remain bit-compatible.
+    lines.push(`    DB ${toAsmByte(pt3Macro ? 1 : 0)}`);
+    lines.push(`    DB ${toAsmByte(pt3Macro?.steps.length ?? 0)}`);
+    lines.push(`    DB ${toAsmByte(pt3Macro ? clampByte(pt3Macro.loop, 0, pt3Macro.steps.length - 1) : 0)}`);
+    lines.push(`    DB ${toAsmByte(pt3Macro?.envelopeSlideMode === 'corrected-16bit' ? 1 : 0)}`);
+    lines.push(`    DW ${pt3Macro
+      ? (useRelativePointers ? `${instrumentPT3StepsLabel(instrumentId)} - ${dataLabel}` : instrumentPT3StepsLabel(instrumentId))
+      : '0'}`);
     if (volumeEnvelope.length > 0) lines.push(buildDbLines(instrumentVolEnvLabel(instrumentId), volumeEnvelope));
     if (toneEnvelope.length > 0) lines.push(buildDbLines(instrumentToneEnvLabel(instrumentId), toneEnvelope));
     if (noiseEnvelope.length > 0) lines.push(buildDbLines(instrumentNoiseEnvLabel(instrumentId), noiseEnvelope));
+    if (pt3Steps.length > 0) lines.push(buildDbLines(instrumentPT3StepsLabel(instrumentId), pt3Steps));
     lines.push('');
   });
 
@@ -1293,6 +1355,547 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
   return lines.join('\n');
 }
 
+function buildNativePT3SampleRuntimeAsm(): string {
+  return `; ------------------------------------------------------------------
+; music_channel_is_pt3_sample
+; Check whether the current channel instrument uses the native PT3 step ABI.
+; Input: C = channel index
+; Output: A = 1 for pt3-sample, otherwise 0
+; Destroys: AF, DE, HL
+; Preserves: BC, IX, IY
+; ------------------------------------------------------------------
+music_channel_is_pt3_sample:
+    call music_get_channel_instrument_ptr
+    ld a, h
+    or l
+    jr z, .not_pt3
+    ld de, MUSIC_INSTRUMENT_PT3_MODE
+    add hl, de
+    ld a, (hl)
+    cp 1
+    jr nz, .not_pt3
+    ld a, 1
+    ret
+.not_pt3:
+    xor a
+    ret
+
+; ------------------------------------------------------------------
+; music_pt3_begin_frame
+; Clear per-frame reducer state. AddToNs deliberately remains persistent.
+; Input: None
+; Output: AddToEn=0, reducer mode defaults to corrected 16-bit
+; Destroys: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+music_pt3_begin_frame:
+    xor a
+    ld (music_pt3_frame_active), a
+    ld (music_pt3_env_add_lo), a
+    ld (music_pt3_env_add_hi), a
+    ld a, 1
+    ld (music_pt3_env_mode), a
+    ret
+
+; ------------------------------------------------------------------
+; music_pt3_apply_mixer_bits
+; Merge one PT3 step's tone/noise gates into the common mixer shadow.
+; Input: C = channel index, D = tone enabled, E = noise enabled
+; Output: music_mixer_shadow updated for that channel
+; Destroys: AF, B
+; Preserves: C, DE, HL, IX, IY
+; ------------------------------------------------------------------
+music_pt3_apply_mixer_bits:
+    ld a, (music_mixer_shadow)
+    ld b, a
+    ld a, c
+    cp 1
+    jp z, .pt3_enable_b
+    cp 2
+    jp z, .pt3_enable_c
+    ld a, b
+    bit 0, d
+    jr z, .pt3_a_tone_off
+    and #3E
+    jr .pt3_a_noise_gate
+.pt3_a_tone_off:
+    or #01
+.pt3_a_noise_gate:
+    bit 0, e
+    jr z, .pt3_a_noise_off
+    and #37
+    jr .pt3_store_mixer
+.pt3_a_noise_off:
+    or #08
+    jr .pt3_store_mixer
+.pt3_enable_b:
+    ld a, b
+    bit 0, d
+    jr z, .pt3_b_tone_off
+    and #3D
+    jr .pt3_b_noise_gate
+.pt3_b_tone_off:
+    or #02
+.pt3_b_noise_gate:
+    bit 0, e
+    jr z, .pt3_b_noise_off
+    and #2F
+    jr .pt3_store_mixer
+.pt3_b_noise_off:
+    or #10
+    jr .pt3_store_mixer
+.pt3_enable_c:
+    ld a, b
+    bit 0, d
+    jr z, .pt3_c_tone_off
+    and #3B
+    jr .pt3_c_noise_gate
+.pt3_c_tone_off:
+    or #04
+.pt3_c_noise_gate:
+    bit 0, e
+    jr z, .pt3_c_noise_off
+    and #1F
+    jr .pt3_store_mixer
+.pt3_c_noise_off:
+    or #20
+.pt3_store_mixer:
+    ld (music_mixer_shadow), a
+    ret
+
+; ------------------------------------------------------------------
+; music_update_one_pt3_channel
+; Execute one normalized five-byte PT3 sample step and emit channel-local AY.
+; Global R6/R11-R13 writes are deferred to music_pt3_finalize_frame.
+; Input: C = channel index (0=A, 1=B, 2=C)
+; Output: Tone/volume and mixer shadow updated; reducer state accumulated
+; Destroys: AF, BC, DE, HL
+; Preserves: IX, IY; stack balanced on every exit
+; ------------------------------------------------------------------
+music_update_one_pt3_channel:
+    ld a, c
+    ld (music_pt3_channel_work), a
+    ld a, 1
+    ld (music_pt3_frame_active), a
+    call music_get_channel_instrument_ptr
+    ld a, h
+    or l
+    jp z, .pt3_silent
+    ld a, l
+    ld (music_pt3_instrument_ptr_l), a
+    ld a, h
+    ld (music_pt3_instrument_ptr_h), a
+    ld de, MUSIC_INSTRUMENT_PT3_MODE
+    add hl, de
+    ld a, (hl)
+    cp 1
+    jp nz, .pt3_silent
+    inc hl
+    ld a, (hl)
+    or a
+    jp z, .pt3_silent
+    ld (music_pt3_sample_len_work), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_sample_loop_work), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_sample_mode_work), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_step_ptr_l), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_step_ptr_h), a
+
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_ch_note_base
+    call music_load_channel_byte
+    cp #FF
+    jp z, .pt3_silent
+    ld b, a
+    ld a, (music_pt3_sample_mode_work)
+    or a
+    jr nz, .pt3_mode_ready
+    ld (music_pt3_env_mode), a
+.pt3_mode_ready:
+    call music_apply_channel_ornament_macro
+    ld a, b
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, music_note_period_table
+    add hl, de
+    ld a, (hl)
+    ld (music_pt3_period_lo_work), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_period_hi_work), a
+
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_pt3_sample_pos_base
+    call music_load_channel_byte
+    ld (music_pitch_step_work), a
+    ld b, a
+    ld a, (music_pt3_sample_len_work)
+    cp b
+    jr z, .pt3_clamp_position
+    jr nc, .pt3_position_ready
+.pt3_clamp_position:
+    dec a
+    ld (music_pitch_step_work), a
+.pt3_position_ready:
+    ld a, (music_pitch_step_work)
+    ld e, a
+    ld d, 0
+    ld h, d
+    ld l, e
+    add hl, hl
+    add hl, hl
+    add hl, de
+    ld a, (music_pt3_step_ptr_l)
+    ld e, a
+    ld a, (music_pt3_step_ptr_h)
+    ld d, a
+    add hl, de
+    ld a, (hl)
+    ld (music_pt3_step_packed), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_step_flags), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_tone_delta_lo_work), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_tone_delta_hi_work), a
+    inc hl
+    ld a, (hl)
+    ld (music_pt3_step_global), a
+
+    ld a, (music_pitch_step_work)
+    inc a
+    ld b, a
+    ld a, (music_pt3_sample_len_work)
+    cp b
+    jr z, .pt3_position_loop
+    jr c, .pt3_position_loop
+    ld a, b
+    jr .pt3_store_position
+.pt3_position_loop:
+    ld a, (music_pt3_sample_loop_work)
+.pt3_store_position:
+    push af
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    pop af
+    ld hl, music_pt3_sample_pos_base
+    call music_store_channel_byte
+
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_pt3_amp_slide_base
+    call music_load_channel_byte
+    ld e, a
+    ld a, (music_pt3_step_packed)
+    and #30
+    cp #10
+    jr z, .pt3_amp_decrement
+    cp #20
+    jr z, .pt3_amp_increment
+    ld a, e
+    jr .pt3_amp_ready
+.pt3_amp_decrement:
+    ld a, e
+    cp #F1
+    jr z, .pt3_amp_ready
+    dec a
+    jr .pt3_store_amp_slide
+.pt3_amp_increment:
+    ld a, e
+    cp #0F
+    jr z, .pt3_amp_ready
+    inc a
+.pt3_store_amp_slide:
+    push af
+    ld hl, music_pt3_amp_slide_base
+    call music_store_channel_byte
+    pop af
+.pt3_amp_ready:
+    ld e, a
+    ld a, (music_pt3_step_packed)
+    and #0F
+    ld b, a
+    ld a, e
+    bit 7, a
+    jr z, .pt3_amp_positive
+    cpl
+    inc a
+    ld e, a
+    ld a, b
+    cp e
+    jr c, .pt3_amp_zero
+    sub e
+    jr .pt3_sample_volume_ready
+.pt3_amp_zero:
+    xor a
+    jr .pt3_sample_volume_ready
+.pt3_amp_positive:
+    add a, b
+    cp 16
+    jr c, .pt3_sample_volume_ready
+    ld a, 15
+.pt3_sample_volume_ready:
+    ld (music_pt3_amplitude_work), a
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_ch_volume_base
+    call music_load_channel_byte
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld a, (music_pt3_amplitude_work)
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, music_pt3_volume_table
+    add hl, de
+    ld a, (hl)
+    ld (music_pt3_amplitude_work), a
+
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_pt3_tone_acc_lo_base
+    call music_load_channel_byte
+    ld e, a
+    ld hl, music_pt3_tone_acc_hi_base
+    call music_load_channel_byte
+    ld d, a
+    ld l, e
+    ld h, d
+    ld a, (music_pt3_tone_delta_lo_work)
+    ld e, a
+    ld a, (music_pt3_tone_delta_hi_work)
+    ld d, a
+    add hl, de
+    ld a, l
+    ld (music_pt3_tone_delta_lo_work), a
+    ld a, h
+    ld (music_pt3_tone_delta_hi_work), a
+    ld a, (music_pt3_step_flags)
+    bit 0, a
+    jr z, .pt3_tone_acc_ready
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld a, (music_pt3_tone_delta_lo_work)
+    ld hl, music_pt3_tone_acc_lo_base
+    call music_store_channel_byte
+    ld a, (music_pt3_tone_delta_hi_work)
+    ld hl, music_pt3_tone_acc_hi_base
+    call music_store_channel_byte
+.pt3_tone_acc_ready:
+    ld a, (music_pt3_period_lo_work)
+    ld l, a
+    ld a, (music_pt3_period_hi_work)
+    ld h, a
+    ld a, (music_pt3_tone_delta_lo_work)
+    ld e, a
+    ld a, (music_pt3_tone_delta_hi_work)
+    ld d, a
+    add hl, de
+    ld a, l
+    ld (music_pt3_period_lo_work), a
+    ld a, h
+    ld (music_pt3_period_hi_work), a
+    ld a, (music_pt3_period_lo_work)
+    ld l, a
+    ld a, (music_pt3_period_hi_work)
+    ld h, a
+    ld a, (music_pt3_channel_work)
+    call psg_set_tone
+
+    ld a, (music_pt3_step_flags)
+    bit 2, a
+    jp z, .pt3_envelope_target
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_pt3_noise_acc_base
+    call music_load_channel_byte
+    ld e, a
+    ld a, (music_pt3_step_global)
+    add a, e
+    ld (music_pt3_step_global), a
+    ld b, a
+    ld a, (music_pt3_step_flags)
+    bit 4, a
+    jr z, .pt3_noise_output_ready
+    ld a, b
+    ld hl, music_pt3_noise_acc_base
+    call music_store_channel_byte
+.pt3_noise_output_ready:
+    ld a, b
+    ld (music_pt3_noise_add), a
+    jp .pt3_global_done
+
+.pt3_envelope_target:
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld hl, music_pt3_env_acc_lo_base
+    call music_load_channel_byte
+    ld e, a
+    ld hl, music_pt3_env_acc_hi_base
+    call music_load_channel_byte
+    ld d, a
+    ld l, e
+    ld h, d
+    ld a, (music_pt3_step_global)
+    ld e, a
+    ld d, 0
+    bit 7, e
+    jr z, .pt3_env_offset_ready
+    dec d
+.pt3_env_offset_ready:
+    add hl, de
+    ld a, (music_pt3_sample_mode_work)
+    or a
+    jr nz, .pt3_env_width_ready
+    ld a, l
+    ld h, 0
+    bit 7, a
+    jr z, .pt3_env_width_ready
+    dec h
+.pt3_env_width_ready:
+    ld a, l
+    ld (music_pt3_tone_delta_lo_work), a
+    ld a, h
+    ld (music_pt3_tone_delta_hi_work), a
+    ld a, (music_pt3_step_flags)
+    bit 4, a
+    jr z, .pt3_env_acc_ready
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    ld a, (music_pt3_tone_delta_lo_work)
+    ld hl, music_pt3_env_acc_lo_base
+    call music_store_channel_byte
+    ld a, (music_pt3_tone_delta_hi_work)
+    ld hl, music_pt3_env_acc_hi_base
+    call music_store_channel_byte
+.pt3_env_acc_ready:
+    ld a, (music_pt3_tone_delta_lo_work)
+    ld l, a
+    ld a, (music_pt3_tone_delta_hi_work)
+    ld h, a
+    ld a, (music_pt3_env_add_lo)
+    ld e, a
+    ld a, (music_pt3_env_add_hi)
+    ld d, a
+    add hl, de
+    ld a, l
+    ld (music_pt3_env_add_lo), a
+    ld a, h
+    ld (music_pt3_env_add_hi), a
+
+.pt3_global_done:
+    ld a, (music_pt3_amplitude_work)
+    ld b, a
+    ld a, (music_pt3_step_flags)
+    bit 3, a
+    jr z, .pt3_volume_ready
+    ld a, b
+    or #10
+    ld b, a
+.pt3_volume_ready:
+    ld a, (music_pt3_channel_work)
+    call psg_set_volume
+    ld d, 0
+    ld e, 0
+    ld a, (music_pt3_step_flags)
+    bit 1, a
+    jr z, .pt3_tone_gate_ready
+    inc d
+.pt3_tone_gate_ready:
+    bit 2, a
+    jr z, .pt3_noise_gate_ready
+    inc e
+.pt3_noise_gate_ready:
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    call music_pt3_apply_mixer_bits
+    ret
+
+.pt3_silent:
+    ld b, 0
+    ld a, (music_pt3_channel_work)
+    call psg_set_volume
+    ld d, 0
+    ld e, 0
+    ld a, (music_pt3_channel_work)
+    ld c, a
+    call music_pt3_apply_mixer_bits
+    ret
+
+; ------------------------------------------------------------------
+; music_pt3_finalize_frame
+; Apply reducer-global PT3 noise/envelope registers after channels A->B->C.
+; Input: Per-frame reducer state and persistent AddToNs in RAM
+; Output: R6/R11/R12 written; R13 written only when retrigger is pending
+; Destroys: AF, DE, HL
+; Preserves: BC, IX, IY
+; ------------------------------------------------------------------
+music_pt3_finalize_frame:
+    ld a, (music_pt3_frame_active)
+    or a
+    ret z
+    ld a, MUSIC_TRACK_NOISE_DEFAULT
+    call music_read_track_byte
+    ld e, a
+    ld a, (music_pt3_noise_add)
+    add a, e
+    call psg_set_noise
+
+    ld a, MUSIC_TRACK_ENV_BASE
+    call music_get_track_header_ptr
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, (music_pt3_env_add_lo)
+    ld l, a
+    ld a, (music_pt3_env_add_hi)
+    ld h, a
+    ld a, (music_pt3_env_mode)
+    or a
+    jr nz, .pt3_env_sum_ready
+    ld a, l
+    ld h, 0
+    bit 7, a
+    jr z, .pt3_env_sum_ready
+    dec h
+.pt3_env_sum_ready:
+    add hl, de
+    ld a, PSG_ENV_LO
+    ld e, l
+    call psg_write
+    ld a, PSG_ENV_HI
+    ld e, h
+    call psg_write
+    ld a, (music_pt3_r13_pending)
+    or a
+    ret z
+    ld a, (music_pt3_r13_value)
+    and #0F
+    ld e, a
+    ld a, PSG_ENV_SHAPE
+    call psg_write
+    xor a
+    ld (music_pt3_r13_pending), a
+    ret`;
+}
+
 function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: boolean = false): string {
   const serializedTracks = tracks.map((track, index) => buildTrackData(track, index, { relativePointers: bankedTrackData }));
   const trackTableLines: string[] = [
@@ -1306,7 +1909,10 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     'MUSIC_TRACK_PATTERN_TABLE   EQU 7',
     'MUSIC_TRACK_INSTRUMENT_TABLE EQU 9',
     'MUSIC_TRACK_ORNAMENT_TABLE  EQU 11',
+    'MUSIC_TRACK_ENV_BASE        EQU 13',
     'MUSIC_TRACK_NOISE_DEFAULT   EQU 15',
+    'MUSIC_INSTRUMENT_PT3_MODE   EQU 18',
+    'MUSIC_PT3_STEP_SIZE         EQU 5',
     '',
     '; ------------------------------------------------------------------',
     '; music_init_system',
@@ -1338,6 +1944,7 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    ld a, #3F',
     '    ld (music_mixer_shadow), a',
     '    call music_reset_channel_state',
+    '    call music_reset_pt3_state',
     '    ret',
     '',
     'music_reset_channel_state:',
@@ -1371,6 +1978,47 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    ld (music_ch_a_volume), a',
     '    ld (music_ch_b_volume), a',
     '    ld (music_ch_c_volume), a',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_reset_pt3_state',
+    '; Reset every native pt3-sample accumulator and the persistent AddToNs.',
+    '; Input: None',
+    '; Output: PT3 sample runtime returned to PT3_INIT state',
+    '; Destroys: AF',
+    '; Preserves: BC, DE, HL, IX, IY',
+    '; ------------------------------------------------------------------',
+    'music_reset_pt3_state:',
+    '    xor a',
+    '    ld (music_pt3_frame_active), a',
+    '    ld (music_pt3_noise_add), a',
+    '    ld (music_pt3_env_add_lo), a',
+    '    ld (music_pt3_env_add_hi), a',
+    '    ld (music_pt3_r13_pending), a',
+    '    ld (music_pt3_r13_value), a',
+    '    ld (music_pt3_ch_a_sample_pos), a',
+    '    ld (music_pt3_ch_b_sample_pos), a',
+    '    ld (music_pt3_ch_c_sample_pos), a',
+    '    ld (music_pt3_ch_a_tone_acc_lo), a',
+    '    ld (music_pt3_ch_b_tone_acc_lo), a',
+    '    ld (music_pt3_ch_c_tone_acc_lo), a',
+    '    ld (music_pt3_ch_a_tone_acc_hi), a',
+    '    ld (music_pt3_ch_b_tone_acc_hi), a',
+    '    ld (music_pt3_ch_c_tone_acc_hi), a',
+    '    ld (music_pt3_ch_a_amp_slide), a',
+    '    ld (music_pt3_ch_b_amp_slide), a',
+    '    ld (music_pt3_ch_c_amp_slide), a',
+    '    ld (music_pt3_ch_a_noise_acc), a',
+    '    ld (music_pt3_ch_b_noise_acc), a',
+    '    ld (music_pt3_ch_c_noise_acc), a',
+    '    ld (music_pt3_ch_a_env_acc_lo), a',
+    '    ld (music_pt3_ch_b_env_acc_lo), a',
+    '    ld (music_pt3_ch_c_env_acc_lo), a',
+    '    ld (music_pt3_ch_a_env_acc_hi), a',
+    '    ld (music_pt3_ch_b_env_acc_hi), a',
+    '    ld (music_pt3_ch_c_env_acc_hi), a',
+    '    ld a, 1',
+    '    ld (music_pt3_env_mode), a',
     '    ret',
     '',
     'music_silence_channels:',
@@ -2139,6 +2787,8 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    pop de',
     '    ret',
     '',
+    ...buildNativePT3SampleRuntimeAsm().split('\n'),
+    '',
     '; ------------------------------------------------------------------',
     '; music_play_track',
     '; Start a serialized PSG tracker song from ROM.',
@@ -2169,6 +2819,7 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    ld a, 1',
     '    ld (music_active), a',
     '    call music_reset_channel_state',
+    '    call music_reset_pt3_state',
     '    call music_apply_row',
     '.mpt_done:',
     '    pop hl',
@@ -2192,6 +2843,32 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    add hl, de',
     '    ld a, (hl)',
     '    pop de',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_reset_pt3_channel_state',
+    '; Reset the CHNPRM-equivalent PT3 sample state for one note-on/cut.',
+    '; Input: C = channel index (0=A, 1=B, 2=C)',
+    '; Output: Channel sample position and all accumulators are zero',
+    '; Destroys: AF, HL',
+    '; Preserves: BC, DE, IX, IY',
+    '; ------------------------------------------------------------------',
+    'music_reset_pt3_channel_state:',
+    '    xor a',
+    '    ld hl, music_pt3_sample_pos_base',
+    '    call music_store_channel_byte',
+    '    ld hl, music_pt3_tone_acc_lo_base',
+    '    call music_store_channel_byte',
+    '    ld hl, music_pt3_tone_acc_hi_base',
+    '    call music_store_channel_byte',
+    '    ld hl, music_pt3_amp_slide_base',
+    '    call music_store_channel_byte',
+    '    ld hl, music_pt3_noise_acc_base',
+    '    call music_store_channel_byte',
+    '    ld hl, music_pt3_env_acc_lo_base',
+    '    call music_store_channel_byte',
+    '    ld hl, music_pt3_env_acc_hi_base',
+    '    call music_store_channel_byte',
     '    ret',
     '',
     'music_apply_channel_cell:',
@@ -2224,6 +2901,7 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    call music_store_channel_byte',
     '    ld hl, music_ch_hw_env_step_base',
     '    call music_store_channel_byte',
+    '    call music_reset_pt3_channel_state',
     '    pop hl',
     '.note_done:',
     '    ld a, (hl)',
@@ -2247,7 +2925,24 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    ld a, (hl)',
     '    inc hl',
     '    cp #FF',
+    '    jr nz, .store_explicit_volume',
+    '    ld a, d',
+    '    or a',
     '    jr z, .maybe_trigger_attack',
+    '    push de',
+    '    push hl',
+    '    call music_channel_is_pt3_sample',
+    '    or a',
+    '    pop hl',
+    '    pop de',
+    '    jr z, .maybe_trigger_attack',
+    '    ld a, 15',
+    '    push hl',
+    '    ld hl, music_ch_volume_base',
+    '    call music_store_channel_byte',
+    '    pop hl',
+    '    jr .maybe_trigger_attack',
+    '.store_explicit_volume:',
     '    push hl',
     '    ld hl, music_ch_volume_base',
     '    call music_store_channel_byte',
@@ -2257,6 +2952,24 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    or a',
     '    ret z',
     '    push hl',
+    '    call music_channel_is_pt3_sample',
+    '    or a',
+    '    jr z, .legacy_trigger_attack',
+    '    call music_get_channel_instrument_ptr',
+    '    ld a, (hl)',
+    '    and #04',
+    '    jr z, .pt3_trigger_done',
+    '    inc hl',
+    '    inc hl',
+    '    ld a, (hl)',
+    '    and #0F',
+    '    ld (music_pt3_r13_value), a',
+    '    ld a, 1',
+    '    ld (music_pt3_r13_pending), a',
+    '.pt3_trigger_done:',
+    '    pop hl',
+    '    ret',
+    '.legacy_trigger_attack:',
     '    call music_trigger_channel_attack',
     '    pop hl',
     '    ret',
@@ -2404,13 +3117,22 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     'music_update_channel_effects:',
     '    ld a, #3F',
     '    ld (music_mixer_shadow), a',
+    '    call music_pt3_begin_frame',
     '    ld c, 0',
     '    call music_update_one_channel',
     '    ld c, 1',
     '    call music_update_one_channel',
     '    ld c, 2',
     '    call music_update_one_channel',
+    '    call music_pt3_finalize_frame',
     '    ld a, (music_mixer_shadow)',
+    '    ld b, a',
+    '    ld a, (music_pt3_frame_active)',
+    '    or a',
+    '    ld a, b',
+    '    jr z, .mixer_value_ready',
+    '    or #80',
+    '.mixer_value_ready:',
     '    call psg_set_mixer',
     '    ret',
     '',
@@ -2427,6 +3149,12 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    push bc',
     '    push de',
     '    push hl',
+    '    call music_channel_is_pt3_sample',
+    '    or a',
+    '    jr z, .legacy_channel',
+    '    call music_update_one_pt3_channel',
+    '    jp .channel_done',
+    '.legacy_channel:',
     '    call music_resolve_channel_note_index',
     '    cp #FF',
     '    jp z, .silent_channel',
@@ -2549,12 +3277,15 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     '    or #24',
     '.store_mixer:',
     '    ld (music_mixer_shadow), a',
+    '.channel_done:',
     '    pop hl',
     '    pop de',
     '    pop bc',
     '    ret',
     '',
     buildNotePeriodTable(),
+    '',
+    buildDbLines('music_pt3_volume_table', buildPT3VolumeTableData()),
     '',
     'music_track_count:',
     `    DB ${toAsmByte(serializedTracks.length)}`,

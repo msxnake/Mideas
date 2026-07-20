@@ -1,41 +1,74 @@
 # PT3-Style Tracker Instruments Reference
 
-Resumen de referencia para acercar el tracker PSG de Mideas a flujos de trabajo tipo PT3/Vortex/Arkos sin reescribir todavia un motor PT3 completo.
+Referencia para los instrumentos PSG por pasos de Mideas y su compatibilidad
+con flujos de trabajo PT3/Vortex.
 
-## Que hacen los trackers "reales"
+## Estado actual
 
-- En PT3/Vortex Tracker II el instrumento no es solo una envolvente ADSR. El editor de sample expone por paso cambios de tono, volumen, ruido, mascara de mixer y uso de envelope hardware, que se reproducen tick a tick.
-- En Arkos Tracker 2 el instrumento tambien es macro-based: cada instrumento combina varias pistas de automatizacion y una de ellas controla el ruido (`n`), ademas del software period y el hardware period.
-- En ambos casos el timbre real sale de secuencias cortas por tick, no de un unico valor fijo.
+Mideas dispone de dos modos de instrumento PSG:
+
+- `legacy-envelopes`, que mantiene las canciones y presets historicos.
+- `pt3-sample`, que ejecuta un programa exacto por tick con tono, volumen,
+  ruido, mixer, envelope y acumuladores.
+
+El parser conserva las cuatro bytes originales de cada linea PT3. El engine
+TypeScript, el Preview y el runtime Z80 exportado comparten la misma semantica.
+La paridad se valida mediante trazas doradas TS/OpenMSX y esta documentada en
+`PT3_SAMPLE_RUNTIME_REFERENCE.md`.
+
+## Que hacen los trackers reales
+
+- En PT3/Vortex Tracker II el instrumento no es solo una envolvente ADSR. Cada
+  linea del sample controla cambios de tono y volumen, ruido, mascara de mixer
+  y uso del envelope hardware.
+- Arkos Tracker 2 tambien usa instrumentos basados en macros y automatizaciones
+  por tick.
+- El timbre resulta de la secuencia temporal completa, no de un valor fijo.
 
 Fuentes:
 
-- Vortex Tracker II (repositorio): https://github.com/z00m128/vortextracker2
-- Vortex Tracker II README (sample editor, tone/noise/envelope mask): https://github.com/Marian-Vittek/vortextracker2/blob/master/README.txt
-- Arkos Tracker 2 manual (instrument tracks y columna `n` para noise): https://www.julien-nevo.com/arkostracker/index.php/arkos-tracker-2-user-manual/
-- Arkos Tracker 2 en CPC-Power (import de instrumentos VT2): https://www.cpc-power.com/index.php?page=detail&num=14521
+- Vortex Tracker II: https://github.com/z00m128/vortextracker2
+- Vortex Tracker II README: https://github.com/Marian-Vittek/vortextracker2/blob/master/README.txt
+- Arkos Tracker 2 manual: https://www.julien-nevo.com/arkostracker/index.php/arkos-tracker-2-user-manual/
 
-## Decision tomada en Mideas
+## Semantica adoptada en Mideas
 
-Implementacion incremental y compatible:
+- Sample y ornament PT3 se importan como datos editables separados.
+- La nota efectiva se limita a 0..95 antes de consultar la tabla tonal.
+- El volumen del sample y el volumen del canal se combinan mediante la tabla
+  exacta `VT_`.
+- El ruido global conserva el arbitraje A->B->C: la ultima peticion gana.
+- Las contribuciones al periodo del envelope se suman entre canales.
+- `AddToNs` persiste entre frames y se limpia solo al iniciar o reiniciar.
+- R13 se escribe solamente cuando hay retrigger para no reiniciar el envelope
+  de forma accidental.
+- El descriptor legacy se conserva separado y no cambia de sonido.
 
-- Se mantiene el descriptor actual de instrumento PSG.
-- Se añade `noiseEnvelope` + `noiseLoop` como macro software por tick.
-- Esa macro se aplica en el preview WebAudio y en el runtime ASM exportado.
-- Los offsets ya existentes del descriptor (flags, volumen, tone env, etc.) se conservan; la nueva macro se serializa al final.
+Siguen fuera de alcance:
 
-Esto no convierte aun a Mideas en un clon completo de PT3:
+- El editor visual de lineas del sample PT3. El editor actual identifica el
+  macro y lo conserva al guardar, pero todavia no modifica sus pasos.
+- Los efectos de cancion `CurESld`/`CurEDel`; no pertenecen al instrumento.
 
-- No existe todavia un editor de sample por pasos con mixer mask, acumuladores o comandos.
-- No se ha implementado aun la separacion PT3 clasica entre sample y ornament.
-- El ruido sigue siendo global en AY/MSX, asi que varias voces con ruido comparten el mismo periodo efectivo.
+## Kit PT3 de fabrica
 
-## Consecuencia practica
+`utils/audio/pt3FactoryInstruments.ts` contiene doce macros originales y
+redistribuibles creados para Mideas:
 
-La nueva macro de ruido ya permite construir mejores instrumentos de percusion:
+- Mideas Deep Kick y Mideas Punch Kick.
+- Mideas Dry Snare y Mideas Wide Snare.
+- Mideas Closed Hat y Mideas Open Hat.
+- Mideas Rimshot, Mideas Low Tom y Mideas High Tom.
+- Mideas Pluck Bass, Mideas Bright Lead y Mideas Laser Zap.
 
-- Snare: barrido de ruido rapido hacia valores altos.
-- Hi-hat: ruido muy rapido al inicio y cierre agresivo.
-- Drum hibrido: tono corto + ruido descendente.
+El boton `Add Factory PT3 Kit` del TrackerComposer:
 
-Es un primer paso util para percusion "de verdad" en MSX sin romper el runtime actual.
+- usa solamente IDs libres entre 1 y 31;
+- no sustituye instrumentos existentes;
+- instala parcialmente si quedan pocos slots;
+- no duplica presets ya instalados;
+- selecciona el primer instrumento nuevo para probarlo con el piano.
+
+La suite `scripts/check_pt3_factory_kit.mjs` verifica los doce programas, sus
+bytes PT3 sinteticos, loops, silencios finales, comportamiento headless y
+serializacion para el runtime ASM.

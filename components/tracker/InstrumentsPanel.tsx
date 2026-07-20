@@ -22,6 +22,15 @@ interface InstrumentsPanelProps {
   onOpenInstrumentModal: (instrument: PT3Instrument | null) => void;
   /** Callback function to open the SCC waveform editor modal. */
   onOpenWaveformModal: (instrument: SCCInstrument | null) => void;
+  /** Opens a PT3 module and adds its PSG samples/ornaments to this song. */
+  onExtractPT3Instruments?: () => void;
+  /** Adds the original Mideas PT3 factory kit to the free PSG slots. */
+  onAddFactoryPT3Kit?: () => void;
+  /** Result of the most recent PT3 asset extraction. */
+  pt3ImportFeedback?: {
+    kind: 'success' | 'warning' | 'error';
+    message: string;
+  } | null;
 }
 
 /**
@@ -38,7 +47,10 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   activeInstrumentId,
   onSetActiveInstrumentId,
   onOpenInstrumentModal,
-  onOpenWaveformModal
+  onOpenWaveformModal,
+  onExtractPT3Instruments,
+  onAddFactoryPT3Kit,
+  pt3ImportFeedback,
 }) => {
 
   const isPT3Instrument = (instr: PT3Instrument | SCCInstrument): instr is PT3Instrument => {
@@ -53,6 +65,9 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
       const dc = wave.length ? (wave.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / Math.max(1, wave.length)) : 0;
       return `vol ${vol} | dc ${dc >= 0 ? '+' : ''}${dc.toFixed(1)}`;
     }
+    if (instr.instrumentMode === 'pt3-sample' && instr.pt3Sample) {
+      return `PT3 ${instr.pt3Sample.steps.length} steps / loop ${instr.pt3Sample.loop}`;
+    }
     const parts = [
       `Vol ${instr.volumeEnvelope?.length ?? 0}`,
       `Tone ${instr.toneEnvelope?.length ?? 0}`,
@@ -64,6 +79,15 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
 
   const getInstrumentFlags = (instr: PT3Instrument | SCCInstrument) => {
     if (!isPT3Instrument(instr)) return [];
+    if (instr.instrumentMode === 'pt3-sample' && instr.pt3Sample) {
+      const steps = instr.pt3Sample.steps;
+      return [
+        'PT3',
+        steps.some(step => step.toneEnabled) ? 'Tone' : null,
+        steps.some(step => step.noiseEnabled) ? 'Noise' : null,
+        steps.some(step => step.hardwareEnvelopeEnabled) ? 'Env' : null,
+      ].filter(Boolean) as string[];
+    }
     return [
       instr.ayToneEnabled === false ? null : 'Tone',
       instr.ayNoiseEnabled ? 'Noise' : null,
@@ -146,6 +170,42 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
            </div>
          ) : (
            <Button onClick={handleAddNew} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="mt-1 w-full text-[0.65rem]">Add New</Button>
+         )}
+         {onExtractPT3Instruments && (
+           <Button
+             onClick={onExtractPT3Instruments}
+             size="sm"
+             variant="secondary"
+             className="mt-1 w-full text-[0.65rem]"
+             title="Add the PSG samples and ornaments from a .pt3 file without replacing this song"
+           >
+             Extract Instruments from PT3
+           </Button>
+         )}
+         {onAddFactoryPT3Kit && (
+           <Button
+             onClick={onAddFactoryPT3Kit}
+             size="sm"
+             variant="secondary"
+             className="mt-1 w-full text-[0.65rem]"
+             title="Add the original Mideas per-tick PT3 drums, bass, lead and FX to free instrument slots"
+           >
+             Add Factory PT3 Kit
+           </Button>
+         )}
+         {pt3ImportFeedback && (
+           <div
+             role="status"
+             className={`mt-1 rounded border px-2 py-1 text-[0.62rem] leading-tight ${
+               pt3ImportFeedback.kind === 'success'
+                 ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                 : pt3ImportFeedback.kind === 'warning'
+                   ? 'border-amber-500/60 bg-amber-500/10 text-amber-300'
+                   : 'border-red-500/60 bg-red-500/10 text-red-300'
+             }`}
+           >
+             {pt3ImportFeedback.message}
+           </div>
          )}
     </Panel>
   );

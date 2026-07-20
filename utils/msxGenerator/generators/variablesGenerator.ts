@@ -1790,6 +1790,54 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress += 3;
   }
 
+  const pt3ScalarDefs = [
+    ['music_pt3_frame_active', 'Nonzero when at least one pt3-sample voice contributed this frame'],
+    ['music_pt3_noise_add', 'Persistent PT3 AddToNs (cleared only by music init/restart)'],
+    ['music_pt3_env_add_lo', 'Per-frame PT3 AddToEn low byte'],
+    ['music_pt3_env_add_hi', 'Per-frame PT3 AddToEn high byte'],
+    ['music_pt3_env_mode', '1=corrected 16-bit reducer; 0=legacy 8-bit reducer'],
+    ['music_pt3_r13_pending', 'Nonzero when the envelope shape must be retriggered'],
+    ['music_pt3_r13_value', 'Pending PSG R13 envelope shape'],
+    ['music_pt3_channel_work', 'Scratch current channel index'],
+    ['music_pt3_step_packed', 'Scratch packed PT3 step volume/amplitude slide'],
+    ['music_pt3_step_flags', 'Scratch PT3 step flags'],
+    ['music_pt3_step_global', 'Scratch signed PT3 noise/envelope delta byte'],
+    ['music_pt3_sample_len_work', 'Scratch PT3 sample length'],
+    ['music_pt3_sample_loop_work', 'Scratch PT3 sample loop position'],
+    ['music_pt3_sample_mode_work', 'Scratch PT3 envelope slide mode'],
+    ['music_pt3_period_lo_work', 'Scratch final tone period low byte'],
+    ['music_pt3_period_hi_work', 'Scratch final tone period high byte'],
+    ['music_pt3_tone_delta_lo_work', 'Scratch PT3 tone delta low byte'],
+    ['music_pt3_tone_delta_hi_work', 'Scratch PT3 tone delta high byte'],
+    ['music_pt3_instrument_ptr_l', 'Scratch instrument descriptor pointer low byte'],
+    ['music_pt3_instrument_ptr_h', 'Scratch instrument descriptor pointer high byte'],
+    ['music_pt3_step_ptr_l', 'Scratch PT3 step table pointer low byte'],
+    ['music_pt3_step_ptr_h', 'Scratch PT3 step table pointer high byte'],
+    ['music_pt3_amplitude_work', 'Scratch final PT3 amplitude nibble'],
+  ] as const;
+  for (const [label, comment] of pt3ScalarDefs) {
+    code += `${label} EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${comment}\n`;
+    currentAddress++;
+  }
+
+  const pt3ArrayDefs = [
+    ['music_pt3_sample_pos_base', 'music_pt3_ch', 'sample_pos', 'PT3 sample position'],
+    ['music_pt3_tone_acc_lo_base', 'music_pt3_ch', 'tone_acc_lo', 'PT3 tone accumulator low byte'],
+    ['music_pt3_tone_acc_hi_base', 'music_pt3_ch', 'tone_acc_hi', 'PT3 tone accumulator high byte'],
+    ['music_pt3_amp_slide_base', 'music_pt3_ch', 'amp_slide', 'PT3 signed amplitude slide'],
+    ['music_pt3_noise_acc_base', 'music_pt3_ch', 'noise_acc', 'PT3 signed noise accumulator'],
+    ['music_pt3_env_acc_lo_base', 'music_pt3_ch', 'env_acc_lo', 'PT3 envelope accumulator low byte'],
+    ['music_pt3_env_acc_hi_base', 'music_pt3_ch', 'env_acc_hi', 'PT3 envelope accumulator high byte'],
+  ] as const;
+  for (const [base, prefix, suffix, comment] of pt3ArrayDefs) {
+    const baseAddress = currentAddress;
+    code += `${base} EQU #${baseAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${comment} (3 bytes)\n`;
+    musicChannelNames.forEach((channelName, index) => {
+      code += `${prefix}_${channelName}_${suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
+    });
+    currentAddress += 3;
+  }
+
   if (collectSccTracks(analysis).length > 0) {
     const sccRam = buildSccMusicRam(currentAddress);
     code += `\n${sccRam.asm}\n`;

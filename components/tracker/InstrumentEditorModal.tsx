@@ -583,6 +583,8 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             noiseBaseFrequency: instrumentModalBuffer.noiseBaseFrequency,
             hardwareEnvelopePeriod: instrumentModalBuffer.hardwareEnvelopePeriod,
             hardwareEnvelopeRatio: instrumentModalBuffer.hardwareEnvelopeRatio,
+            instrumentMode: instrumentModalBuffer.instrumentMode,
+            pt3Sample: instrumentModalBuffer.pt3Sample,
         };
 
         try {
@@ -658,6 +660,17 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                         {isPreviewing ? 'Playing' : 'Preview'}
                     </Button>
                 </div>
+
+                {instrumentModalBuffer.instrumentMode === 'pt3-sample' && instrumentModalBuffer.pt3Sample && (
+                    <div className="mb-4 rounded border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                        <div className="font-bold text-emerald-300">
+                            Exact PT3 sample · {instrumentModalBuffer.pt3Sample.steps.length} tick steps · loop {instrumentModalBuffer.pt3Sample.loop}
+                        </div>
+                        <div className="mt-1 text-emerald-100/80">
+                            Preview and ROM use the native per-tick engine. Saving here preserves the complete PT3 macro; visual step editing will be added in its dedicated editor.
+                        </div>
+                    </div>
+                )}
 
                 {/* Tabs */}
                 <div className="flex gap-1 mb-4 border-b border-msx-border">

@@ -36,6 +36,9 @@ import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
 import { CowbellPT3Player } from '../utils/cowbellPt3Player';
 import { useMidiInput } from '../../utils/useMidiInput';
 import { MidiInputPanel, MidiChannelMode, MidiActionId, MidiActionMap } from '../tracker/MidiInputPanel';
+import { parsePT3Module } from '../utils/pt3Parser';
+import { mergePT3Assets } from '../utils/pt3InstrumentImport';
+import { mergePT3FactoryKit } from '../../utils/audio/pt3FactoryInstruments';
 
 const hasFullPT3Header = (bytes: Uint8Array): boolean => {
   const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
@@ -311,6 +314,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const playbackIntervalRef = useRef<number | null>(null);
   const patternEditorRef = useRef<HTMLDivElement>(null);
   const externalPt3PlayerRef = useRef<CowbellPT3Player | null>(null);
+  const pt3InstrumentInputRef = useRef<HTMLInputElement>(null);
+  const [pt3ImportFeedback, setPt3ImportFeedback] = useState<{
+    kind: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
   const [externalPt3Status, setExternalPt3Status] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [externalPt3Error, setExternalPt3Error] = useState<string | null>(null);
   const [externalPt3CurrentTime, setExternalPt3CurrentTime] = useState(0);
@@ -1286,6 +1294,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       noiseBaseFrequency: instrumentModalBuffer.noiseBaseFrequency,
       hardwareEnvelopePeriod: instrumentModalBuffer.hardwareEnvelopePeriod,
       hardwareEnvelopeRatio: instrumentModalBuffer.hardwareEnvelopeRatio,
+      // Until the dedicated step editor lands, editing metadata/basic fields
+      // must never turn an exact PT3 macro back into a legacy instrument.
+      instrumentMode: instrumentModalBuffer.instrumentMode,
+      pt3Sample: instrumentModalBuffer.pt3Sample,
     };
     if (songData.soundChip === 'PSG+SCC') {
       newInstrumentData.chip = 'PSG';
@@ -1712,7 +1724,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         const nullIdx = titleRaw.indexOf('\0');
         const extractedTitle = (nullIdx >= 0 ? titleRaw.slice(0, nullIdx) : titleRaw).trim();
         if (extractedTitle) title = extractedTitle;
-        speed = bytes[99] || 6;
+        // Byte 99 is the tone-table selector; the PT3 delay/speed lives at byte 100.
+        speed = bytes[100] || 6;
         trackBytes = Array.from(bytes);
       } else {
         speed = bytes[0] || 6;
@@ -1758,6 +1771,85 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     input.click();
   }, [onUpdate, isPlaying]);
 
+  const handleExtractPT3Instruments = useCallback(() => {
+    setPt3ImportFeedback(null);
+    pt3InstrumentInputRef.current?.click();
+  }, []);
+
+  const handleAddFactoryPT3Kit = useCallback(() => {
+    setPt3ImportFeedback(null);
+    const merged = mergePT3FactoryKit(songData.instruments || []);
+    const addedCount = merged.addedInstrumentIds.length;
+    if (addedCount === 0) {
+      const alreadyInstalled = merged.alreadyPresentPresetNames.length;
+      setPt3ImportFeedback({
+        kind: alreadyInstalled > 0 ? 'success' : 'error',
+        message: alreadyInstalled > 0
+          ? `The complete Mideas PT3 factory kit is already installed (${alreadyInstalled} instruments).`
+          : 'Factory kit was not added: the 31 instrument slots are already occupied.',
+      });
+      return;
+    }
+
+    onUpdate({ instruments: merged.instruments });
+    setActiveInstrumentId(merged.addedInstrumentIds[0]);
+    const skippedCount = merged.skippedPresetNames.length;
+    const alreadyInstalled = merged.alreadyPresentPresetNames.length;
+    setPt3ImportFeedback({
+      kind: skippedCount > 0 ? 'warning' : 'success',
+      message: skippedCount > 0
+        ? `Added ${addedCount} factory PT3 instruments; ${skippedCount} did not fit in the bank.`
+        : `Added ${addedCount} original Mideas PT3 instruments${alreadyInstalled > 0 ? ` (${alreadyInstalled} already present)` : ''}. Select one and use the piano below to hear it.`,
+    });
+  }, [songData.instruments, onUpdate]);
+
+  const handlePT3InstrumentFileSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = parsePT3Module(await file.arrayBuffer());
+      const merged = mergePT3Assets(songData.instruments || [], songData.ornaments || [], parsed);
+      const importedCount = merged.importedInstrumentIds.length;
+      const ornamentCount = merged.importedOrnamentIds.length;
+      const skippedCount = merged.skippedSampleIds.length + merged.skippedOrnamentIds.length;
+
+      if (importedCount + ornamentCount === 0) {
+        setPt3ImportFeedback({
+          kind: 'error',
+          message: 'Nothing was added: the PSG instrument and ornament banks are full.',
+        });
+        return;
+      }
+
+      onUpdate({ instruments: merged.instruments, ornaments: merged.ornaments });
+      if (merged.importedInstrumentIds[0] !== undefined) {
+        setActiveInstrumentId(merged.importedInstrumentIds[0]);
+      }
+      if (merged.importedOrnamentIds[0] !== undefined) {
+        setActiveOrnamentId(merged.importedOrnamentIds[0]);
+      }
+
+      const details = [
+        `${importedCount} sample${importedCount === 1 ? '' : 's'}`,
+        `${ornamentCount} ornament${ornamentCount === 1 ? '' : 's'}`,
+      ];
+      if (skippedCount > 0) details.push(`${skippedCount} skipped (bank full)`);
+      if (parsed.warnings.length > 0) details.push(`${parsed.warnings.length} parser warning${parsed.warnings.length === 1 ? '' : 's'}`);
+      setPt3ImportFeedback({
+        kind: skippedCount > 0 || parsed.warnings.length > 0 ? 'warning' : 'success',
+        message: `Added ${details.join(', ')} from “${parsed.title}”. Select one and use the piano below to hear it.`,
+      });
+    } catch (error) {
+      setPt3ImportFeedback({
+        kind: 'error',
+        message: `Could not extract PT3 instruments: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    } finally {
+      input.value = '';
+    }
+  }, [songData.instruments, songData.ornaments, onUpdate]);
+
   const handleLoadDemoPT3File = useCallback(async () => {
     const response = await fetch(DEMO_PT3_URL);
     if (!response.ok) {
@@ -1783,7 +1875,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     onUpdate({
       name: extractedTitle || DEMO_PT3_FILENAME.replace(/\.[^/.]+$/, ''),
       title: extractedTitle || DEMO_PT3_FILENAME.replace(/\.[^/.]+$/, ''),
-      speed: bytes[99] || 6,
+      speed: (hasHeader ? bytes[100] : bytes[0]) || 6,
       playbackBackend: 'external-pt3',
       externalPt3Data: Array.from(bytes),
       externalPt3HasHeader: hasHeader,
@@ -1909,6 +2001,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   return (
     <div className="flex h-full flex-grow select-none flex-col overflow-hidden bg-[#05080c]">
+      <input
+        ref={pt3InstrumentInputRef}
+        type="file"
+        accept=".pt3,application/octet-stream"
+        onChange={handlePT3InstrumentFileSelected}
+        className="hidden"
+        aria-label="Extract instruments from a PT3 file"
+      />
       <TrackerHeader
         songName={localSongName} onSongNameChange={(name) => { setLocalSongName(name); onUpdate({ name }); }}
         songTitle={localSongTitle} onSongTitleChange={(title) => { setLocalSongTitle(title); onUpdate({ title }); }}
@@ -1988,6 +2088,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             instruments={songData.instruments || []} activeInstrumentId={activeInstrumentId}
             onSetActiveInstrumentId={setActiveInstrumentId} onOpenInstrumentModal={handleOpenInstrumentModal}
             soundChip={songData.soundChip} onOpenWaveformModal={handleOpenWaveformModal}
+            onExtractPT3Instruments={songData.soundChip === 'SCC' ? undefined : handleExtractPT3Instruments}
+            onAddFactoryPT3Kit={songData.soundChip === 'SCC' ? undefined : handleAddFactoryPT3Kit}
+            pt3ImportFeedback={pt3ImportFeedback}
           />
           <OrnamentsPanel
             ornaments={songData.ornaments || []}
