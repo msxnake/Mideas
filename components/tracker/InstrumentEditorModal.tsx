@@ -1,10 +1,11 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
-import { PT3Instrument } from '../../types';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { PT3Instrument, PT3SampleMacro } from '../../types';
 import { Button } from '../common/Button';
 import { PT3_MAX_INSTRUMENTS, PT3_DEFAULT_VIBRATO_TABLE } from '../../constants';
 import { EnvelopeEditor } from './EnvelopeEditor';
 import { AYEnvelopeVisualizer } from './AYEnvelopeVisualizer';
+import { Pt3SampleStepEditor } from './Pt3SampleStepEditor';
 
 /**
  * A buffer type for the instrument editor modal. It mirrors the PT3Instrument type
@@ -386,12 +387,13 @@ const ARCHITECTURE_PRESETS: Array<{
     },
 ];
 
-const TAB_LABELS: Record<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware', string> = {
+const TAB_LABELS: Record<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware' | 'pt3steps', string> = {
     architecture: 'Architecture',
     basic: 'Basic',
     volume: 'Volume',
     tone: 'Tone',
     hardware: 'Noise / AY',
+    pt3steps: 'PT3 Steps',
 };
 
 const TONE_MACRO_PRESETS: Array<{ label: string; values: number[]; loop: number }> = [
@@ -498,9 +500,26 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
     synthesizer
 }) => {
     // All hooks must be called before any conditional returns
-    const [activeTab, setActiveTab] = useState<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware'>('architecture');
+    const [activeTab, setActiveTab] = useState<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware' | 'pt3steps'>('architecture');
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [previewNote, setPreviewNote] = useState('C-4');
+
+    const hasPt3Sample = instrumentModalBuffer.instrumentMode === 'pt3-sample' && !!instrumentModalBuffer.pt3Sample;
+
+    // Land on the step editor when opening an exact PT3 sample; leave it when the
+    // instrument has none (the tab is hidden then).
+    useEffect(() => {
+        if (!isOpen) return;
+        setActiveTab(prev => {
+            if (hasPt3Sample) return 'pt3steps';
+            return prev === 'pt3steps' ? 'architecture' : prev;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
+    const handlePt3SampleChange = useCallback((macro: PT3SampleMacro) => {
+        onInstrumentModalBufferChange('pt3Sample', macro);
+    }, [onInstrumentModalBufferChange]);
 
     // Parse envelopes for visual editors
     const volumeEnvelopeArray = useMemo(() => parseEnvelope(instrumentModalBuffer.volumeEnvelope), [instrumentModalBuffer.volumeEnvelope]);
@@ -643,7 +662,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             aria-labelledby="instrumentModalTitle"
         >
             <div
-                className="bg-msx-panelbg border border-msx-border p-5 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-slideIn pixel-font flex flex-col"
+                className="bg-msx-panelbg border border-msx-border p-5 rounded-lg shadow-xl max-w-6xl w-[92vw] max-h-[90vh] overflow-hidden animate-slideIn pixel-font flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -661,20 +680,23 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                     </Button>
                 </div>
 
-                {instrumentModalBuffer.instrumentMode === 'pt3-sample' && instrumentModalBuffer.pt3Sample && (
+                {hasPt3Sample && instrumentModalBuffer.pt3Sample && (
                     <div className="mb-4 rounded border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
                         <div className="font-bold text-emerald-300">
                             Exact PT3 sample · {instrumentModalBuffer.pt3Sample.steps.length} tick steps · loop {instrumentModalBuffer.pt3Sample.loop}
                         </div>
                         <div className="mt-1 text-emerald-100/80">
-                            Preview and ROM use the native per-tick engine. Saving here preserves the complete PT3 macro; visual step editing will be added in its dedicated editor.
+                            Preview and ROM use the native per-tick engine. Edit the macro in the PT3 Steps tab; nothing touches the song until you press Save Instrument.
                         </div>
                     </div>
                 )}
 
                 {/* Tabs */}
                 <div className="flex gap-1 mb-4 border-b border-msx-border">
-                    {(['architecture', 'basic', 'volume', 'tone', 'hardware'] as const).map(tab => (
+                    {(hasPt3Sample
+                        ? (['pt3steps', 'architecture', 'basic', 'volume', 'tone', 'hardware'] as const)
+                        : (['architecture', 'basic', 'volume', 'tone', 'hardware'] as const)
+                    ).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -690,6 +712,13 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
 
                 {/* Tab Content */}
                 <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                    {activeTab === 'pt3steps' && hasPt3Sample && instrumentModalBuffer.pt3Sample && (
+                        <Pt3SampleStepEditor
+                            macro={instrumentModalBuffer.pt3Sample}
+                            onChange={handlePt3SampleChange}
+                        />
+                    )}
+
                     {activeTab === 'architecture' && (
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

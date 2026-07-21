@@ -66,6 +66,71 @@ export const decodePT3SampleStep = (raw: ArrayLike<number>): PT3SampleStep => {
   };
 };
 
+/**
+ * User-editable view of one sample line. Unlike PT3SampleStep, the
+ * noise/envelope value is the canonical 5-bit field (noise 0-31, envelope
+ * -16..15) without the amplitude-slide bits that leak into the stored
+ * 7-bit noise offset.
+ */
+export interface PT3SampleLogicalStep {
+  volume: number;
+  amplitudeSlide: -1 | 0 | 1;
+  tonePeriodOffset: number;
+  accumulateTone: boolean;
+  toneEnabled: boolean;
+  noiseEnabled: boolean;
+  hardwareEnvelopeEnabled: boolean;
+  /** Noise period offset 0-31 when noiseEnabled, envelope slide -16..15 otherwise. */
+  noiseOrEnvelopeBase: number;
+  accumulateNoiseOrEnvelope: boolean;
+  /**
+   * PT3 keeps the amplitude-slide direction in C bit 6 even when C bit 7 says
+   * that the slide is inactive. The player ignores it for amplitude, but the
+   * same bit leaks into the unmasked 7-bit noise delta. Preserve that dormant
+   * bit so merely opening and saving an imported step remains byte-exact.
+   */
+  inactiveAmplitudeSlideDirectionBit?: boolean;
+}
+
+/** Extract the editable fields from a decoded step (5-bit N/E value from raw). */
+export const toPT3SampleLogicalStep = (step: PT3SampleStep): PT3SampleLogicalStep => ({
+  volume: step.volume,
+  amplitudeSlide: step.amplitudeSlide,
+  tonePeriodOffset: step.tonePeriodOffset,
+  accumulateTone: step.accumulateTone,
+  toneEnabled: step.toneEnabled,
+  noiseEnabled: step.noiseEnabled,
+  hardwareEnvelopeEnabled: step.hardwareEnvelopeEnabled,
+  noiseOrEnvelopeBase: step.noiseEnabled ? (step.raw[0] >> 1) & 0x1f : step.noiseOrEnvelopeOffset,
+  accumulateNoiseOrEnvelope: step.accumulateNoiseOrEnvelope,
+  inactiveAmplitudeSlideDirectionBit: step.amplitudeSlide === 0 && (step.raw[0] & 0x40) !== 0,
+});
+
+/** Encode editable fields back into the native four PT3 bytes (C, B, toneLo, toneHi). */
+export const encodePT3SampleLogicalStep = (logical: PT3SampleLogicalStep): [number, number, number, number] => {
+  let c = logical.hardwareEnvelopeEnabled ? 0 : 1;
+  if (logical.amplitudeSlide !== 0) c |= 0x80 | (logical.amplitudeSlide > 0 ? 0x40 : 0);
+  else if (logical.inactiveAmplitudeSlideDirectionBit) c |= 0x40;
+  c |= (logical.noiseOrEnvelopeBase & 0x1f) << 1;
+
+  let b = logical.volume & 0x0f;
+  if (!logical.toneEnabled) b |= 0x10;
+  if (logical.accumulateNoiseOrEnvelope) b |= 0x20;
+  if (logical.accumulateTone) b |= 0x40;
+  if (!logical.noiseEnabled) b |= 0x80;
+
+  const toneWord = logical.tonePeriodOffset & 0xffff;
+  return [c & 0xff, b & 0xff, toneWord & 0xff, (toneWord >> 8) & 0xff];
+};
+
+/**
+ * Build a fully consistent step from editable fields: encode to raw bytes and
+ * decode them again, so derived values (including the replayer's slide-bit
+ * leak into the 7-bit noise offset) match a real PT3 import byte-for-byte.
+ */
+export const buildPT3SampleStep = (logical: PT3SampleLogicalStep): PT3SampleStep =>
+  decodePT3SampleStep(encodePT3SampleLogicalStep(logical));
+
 /** Build the exact 16x16 PT3 volume multiplication table created by the reference replayer. */
 export const buildPT3VolumeTable = (): Uint8Array => {
   const table = new Uint8Array(256);

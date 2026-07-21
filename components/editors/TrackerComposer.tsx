@@ -1294,8 +1294,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       noiseBaseFrequency: instrumentModalBuffer.noiseBaseFrequency,
       hardwareEnvelopePeriod: instrumentModalBuffer.hardwareEnvelopePeriod,
       hardwareEnvelopeRatio: instrumentModalBuffer.hardwareEnvelopeRatio,
-      // Until the dedicated step editor lands, editing metadata/basic fields
-      // must never turn an exact PT3 macro back into a legacy instrument.
+      // Editing any tab must never turn an exact PT3 macro back into a legacy
+      // instrument; only Save commits the modal's deep-copied draft.
       instrumentMode: instrumentModalBuffer.instrumentMode,
       pt3Sample: instrumentModalBuffer.pt3Sample,
     };
@@ -1582,6 +1582,15 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         volumeEnvelope: instrument.volumeEnvelope?.join(','),
         toneEnvelope: instrument.toneEnvelope?.join(','),
         noiseEnvelope: instrument.noiseEnvelope?.join(','),
+        // Deep-copy the PT3 macro: the step editor must work on a draft that
+        // only reaches the song when the user presses Save Instrument.
+        pt3Sample: instrument.pt3Sample ? {
+          ...instrument.pt3Sample,
+          steps: instrument.pt3Sample.steps.map(step => ({
+            ...step,
+            raw: [...step.raw] as [number, number, number, number],
+          })),
+        } : undefined,
       });
     } else {
       const existingIds = (songData.instruments || []).map(i => i.id);
