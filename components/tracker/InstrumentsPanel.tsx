@@ -22,6 +22,8 @@ interface InstrumentsPanelProps {
   onOpenInstrumentModal: (instrument: PT3Instrument | null) => void;
   /** Callback function to open the SCC waveform editor modal. */
   onOpenWaveformModal: (instrument: SCCInstrument | null) => void;
+  /** Removes an instrument after the parent has cleared its references. */
+  onDeleteInstrument: (instrument: PT3Instrument | SCCInstrument) => void;
   /** Opens a PT3 module and adds its PSG samples/ornaments to this song. */
   onExtractPT3Instruments?: () => void;
   /** Adds the original Mideas PT3 factory kit to the free PSG slots. */
@@ -48,10 +50,12 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   onSetActiveInstrumentId,
   onOpenInstrumentModal,
   onOpenWaveformModal,
+  onDeleteInstrument,
   onExtractPT3Instruments,
   onAddFactoryPT3Kit,
   pt3ImportFeedback,
 }) => {
+  const [contextMenu, setContextMenu] = React.useState<{ id: number; x: number; y: number } | null>(null);
 
   const isPT3Instrument = (instr: PT3Instrument | SCCInstrument): instr is PT3Instrument => {
     if (instr.chip) return instr.chip === 'PSG';
@@ -128,6 +132,11 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
                                     : 'bg-msx-bgcolor border-msx-border hover:border-msx-highlight/70 hover:bg-msx-border/50'}`}
                      onClick={() => onSetActiveInstrumentId(instr.id)}
                      onDoubleClick={() => handleEdit(instr)}
+                     onContextMenu={(event) => {
+                       event.preventDefault();
+                       event.stopPropagation();
+                       setContextMenu({ id: instr.id, x: event.clientX, y: event.clientY });
+                     }}
                      title={`Select: ${instr.name}. Double-click to edit.`}
                 >
                     <div className="flex items-start justify-between gap-1">
@@ -163,6 +172,34 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
              ))}
              {instruments.length === 0 && <p className="text-msx-textsecondary italic text-center">No instruments.</p>}
          </div>
+         {contextMenu && (() => {
+           const instrument = instruments.find(item => item.id === contextMenu.id);
+           if (!instrument) return null;
+           return (
+             <>
+               <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+               <div
+                 className="fixed z-50 min-w-36 rounded border border-msx-border bg-msx-panelbg p-1 shadow-xl"
+                 style={{ left: contextMenu.x, top: contextMenu.y }}
+                 role="menu"
+               >
+                 <button
+                   type="button"
+                   className="w-full rounded px-2 py-1 text-left text-xs text-red-300 hover:bg-red-500/20"
+                   role="menuitem"
+                   onClick={() => {
+                     setContextMenu(null);
+                     if (window.confirm(`Delete instrument ${instrument.id} “${instrument.name}”?\n\nPattern cells using it will be cleared.`)) {
+                       onDeleteInstrument(instrument);
+                     }
+                   }}
+                 >
+                   Delete instrument
+                 </button>
+               </div>
+             </>
+           );
+         })()}
          {isDual ? (
            <div className="mt-1 flex gap-1">
              <Button onClick={() => onOpenInstrumentModal(null)} size="sm" variant="secondary" icon={<PencilIcon/>} className="w-1/2 text-[0.65rem]" title="Add a PSG (AY) instrument">Add PSG</Button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
-import { PlayIcon, StopIcon, ListBulletIcon, CheckCircleIcon, MusicNoteIcon, SoundIcon } from '../icons/MsxIcons';
+import { PlayIcon, StopIcon, ListBulletIcon, CheckCircleIcon, MusicNoteIcon, SoundIcon, LoadIcon, SaveIcon } from '../icons/MsxIcons';
 import { DEFAULT_PT3_ROWS_PER_PATTERN } from '../../constants';
 import { TrackerChannelId } from '../../types';
 
@@ -55,14 +55,14 @@ interface TrackerHeaderProps {
   onPlayStop: () => void;
   /** Visible tracker channels for the current sound chip. */
   channels: TrackerChannelId[];
-  /** Channels muted in the tracker preview/playback engine. */
-  mutedChannels: Set<TrackerChannelId>;
-  /** Callback to toggle a single channel mute state. */
-  onToggleChannelMute: (channelId: TrackerChannelId) => void;
   /** Callback to load a sample song. */
   onLoadSampleSong: () => void;
   /** Callback to silence all channels. */
   onSilenceAllChannels: () => void;
+  /** Export only this music asset as a portable Mideas JSON file. */
+  onExportMusicJson: () => void;
+  /** Import a portable Mideas music JSON file into this asset. */
+  onImportMusicJson: () => void;
   /** The sound chip to target. */
   soundChip: 'PSG' | 'SCC' | 'PSG+SCC';
   /** Callback to update the sound chip. */
@@ -75,6 +75,8 @@ interface TrackerHeaderProps {
   onDuplicateAsDualChip?: () => void;
   /** Optional callback to import a PT3 file as external backend. */
   onImportPT3File?: () => void;
+  /** Optional callback to import a PT3 file into editable native patterns. */
+  onLoadPT3Music?: () => void;
   /** Optional callback to load the bundled PT3 demo track. */
   onLoadDemoPT3File?: () => void;
   /** Whether the current track uses the external PT3 backend. */
@@ -95,9 +97,10 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   ayHardwareEnvelopePeriod, onAyHardwareEnvelopePeriodChange,
   ayNoisePeriod, onAyNoisePeriodChange,
   isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
-  channels, mutedChannels, onToggleChannelMute,
+  onExportMusicJson, onImportMusicJson,
+  channels,
   soundChip, onSoundChipChange, sccEnabled, onSccEnabledChange,
-  onDuplicateAsDualChip, onImportPT3File, onLoadDemoPT3File, isExternalPT3
+  onDuplicateAsDualChip, onImportPT3File, onLoadPT3Music, onLoadDemoPT3File, isExternalPT3
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -145,7 +148,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
         <div className={clusterClass}>
           <div>
             <label className={labelClass}>Chip</label>
-            <select value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC' | 'PSG+SCC')} className={`${fieldClass} w-24`}>
+            <select disabled={isExternalPT3} value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC' | 'PSG+SCC')} className={`${fieldClass} w-24 disabled:cursor-not-allowed disabled:opacity-50`}>
               <option value="PSG">PSG</option>
               <option value="SCC">SCC</option>
               <option value="PSG+SCC">PSG+SCC</option>
@@ -166,11 +169,11 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
             </div>
           )}
           <div>
-            <label className={labelClass}>BPM</label>
-            <input type="number" value={isNaN(bpm) ? '' : bpm} min="30" max="300" onChange={e => onBpmChange(e.target.value)} className={`${fieldClass} w-16`} />
+            <label className={labelClass}>{isExternalPT3 ? 'Clock' : 'BPM'}</label>
+            <input disabled={isExternalPT3} type="text" value={isExternalPT3 ? '50 Hz' : (isNaN(bpm) ? '' : bpm)} onChange={e => onBpmChange(e.target.value)} className={`${fieldClass} w-16 disabled:cursor-not-allowed disabled:opacity-70`} title={isExternalPT3 ? 'PT3 playback runs at the MSX/Vortex 50 Hz command rate; row timing is controlled by Speed and SPD commands.' : undefined} />
           </div>
           <div>
-            <label className={labelClass}>Speed</label>
+            <label className={labelClass}>{isExternalPT3 ? 'Initial speed' : 'Speed'}</label>
             <input type="number" value={isNaN(speed) ? '' : speed} min="1" max="31" onChange={e => onSpeedChange(e.target.value)} className={`${fieldClass} w-14`} />
           </div>
           <div>
@@ -178,12 +181,13 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
             <div className="flex items-center gap-1">
               <input
                 type="number"
+                disabled={isExternalPT3}
                 value={localPatternRows}
                 onChange={e => setLocalPatternRows(e.target.value)}
                 onBlur={handleSetRows}
-                className={`${fieldClass} w-14`}
+                className={`${fieldClass} w-14 disabled:cursor-not-allowed disabled:opacity-50`}
               />
-              <Button onClick={handleSetRows} size="sm" variant="ghost" className="!h-8 !p-1" title="Set Pattern Rows">
+              <Button disabled={isExternalPT3} onClick={handleSetRows} size="sm" variant="ghost" className="!h-8 !p-1" title={isExternalPT3 ? 'PT3 pattern length is defined by the source stream.' : 'Set Pattern Rows'}>
                 <CheckCircleIcon className="h-3.5 w-3.5 text-msx-highlight" />
               </Button>
             </div>
@@ -212,9 +216,9 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
           </div>
           <div>
             <label className={labelClass}>Vol</label>
-            <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className={`${fieldClass} w-14`} />
+            <input disabled={isExternalPT3} type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className={`${fieldClass} w-14 disabled:cursor-not-allowed disabled:opacity-50`} title={isExternalPT3 ? 'PT3 channel volume is stored in pattern commands.' : undefined} />
           </div>
-          {soundChip !== 'SCC' && onAyHardwareEnvelopePeriodChange && (
+          {!isExternalPT3 && soundChip !== 'SCC' && onAyHardwareEnvelopePeriodChange && (
             <div>
               <label className={labelClass} title="Hardware Envelope Period (1-65535)">HW Env</label>
               <input
@@ -228,7 +232,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
               />
             </div>
           )}
-          {soundChip !== 'SCC' && onAyNoisePeriodChange && (
+          {!isExternalPT3 && soundChip !== 'SCC' && onAyNoisePeriodChange && (
             <div>
               <label className={labelClass} title="Noise Generator Period (0-31)">Noise</label>
               <input
@@ -244,26 +248,13 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
           )}
         </div>
 
-        <div className="flex flex-wrap items-end gap-1 rounded border border-msx-border/70 bg-black/10 px-2 py-1.5">
-          <div className="mr-1 pb-1 text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">Mute</div>
-          {channels.map(channelId => {
-            const isMuted = mutedChannels.has(channelId);
-            return (
-              <Button
-                key={channelId}
-                onClick={() => onToggleChannelMute(channelId)}
-                size="sm"
-                variant={isMuted ? "danger" : "ghost"}
-                className="!h-8 !min-w-8 !px-2 font-mono"
-                title={`${isMuted ? 'Unmute' : 'Mute'} channel ${channelId}`}
-              >
-                {channelId}
-              </Button>
-            );
-          })}
-        </div>
-
         <div className="flex min-w-[15rem] flex-grow flex-wrap items-end justify-end gap-1">
+          <Button onClick={onExportMusicJson} size="sm" variant="ghost" icon={<SaveIcon />} title="Export this music asset as Mideas JSON">
+            Export Music
+          </Button>
+          <Button onClick={onImportMusicJson} size="sm" variant="ghost" icon={<LoadIcon />} title="Import a Mideas music JSON file into this asset">
+            Import Music
+          </Button>
           <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<ListBulletIcon />} title="Load 'Ode to Joy' Sample">Sample</Button>
           {onDuplicateAsDualChip && (
             <Button
@@ -280,9 +271,19 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
               onClick={onImportPT3File}
               size="sm"
               variant={isExternalPT3 ? 'primary' : 'ghost'}
-              title="Import external PT3 file (.pt3 or .99) - replaces native tracker data"
+              title="Load a complete Vortex/PT3 module, decode its A/B/C patterns and keep the source stream for exact Preview and ROM playback"
             >
-              {isExternalPT3 ? 'PT3 active' : 'Import PT3'}
+              {isExternalPT3 ? 'Replace PT3' : 'Load PT3'}
+            </Button>
+          )}
+          {onLoadPT3Music && soundChip === 'PSG' && !isExternalPT3 && (
+            <Button
+              onClick={onLoadPT3Music}
+              size="sm"
+              variant="ghost"
+              title="Load a .pt3 file into editable native tracker patterns"
+            >
+              Load PT3 Music
             </Button>
           )}
           {onLoadDemoPT3File && soundChip === 'PSG' && (

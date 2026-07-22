@@ -36,9 +36,13 @@ import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
 import { CowbellPT3Player } from '../utils/cowbellPt3Player';
 import { useMidiInput } from '../../utils/useMidiInput';
 import { MidiInputPanel, MidiChannelMode, MidiActionId, MidiActionMap } from '../tracker/MidiInputPanel';
-import { parsePT3Module } from '../utils/pt3Parser';
+import { downloadJsonFile } from '../../utils/downloadUtils';
+import { createMusicJsonPackage, normalizeImportedMusic, sanitizeMusicFilename } from '../../utils/trackerMusicJson';
+import { locatePT3PlaybackFrame, parsePT3Module, parsePT3File } from '../utils/pt3Parser';
+import { normalizeImportedPT3Data } from '../utils/trackerUtils';
 import { mergePT3Assets } from '../utils/pt3InstrumentImport';
 import { mergePT3FactoryKit } from '../../utils/audio/pt3FactoryInstruments';
+import { patchPT3SourceOrnamentBytes, patchPT3SourceSampleBytes, rewritePT3PatternNoteStreams } from '../utils/pt3SourceEditor';
 
 const hasFullPT3Header = (bytes: Uint8Array): boolean => {
   const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
@@ -307,6 +311,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRow, setPlaybackRow] = useState(0);
   const [mutedChannels, setMutedChannels] = useState<Set<TrackerChannelId>>(new Set());
+  const mutedChannelsRef = useRef(mutedChannels);
+  mutedChannelsRef.current = mutedChannels;
 
   const [focusedCell, setFocusedCell] = useState<{ rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell } | null>(null);
   const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | DualChipSynthesizer | null>(null);
@@ -314,7 +320,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const playbackIntervalRef = useRef<number | null>(null);
   const patternEditorRef = useRef<HTMLDivElement>(null);
   const externalPt3PlayerRef = useRef<CowbellPT3Player | null>(null);
+  const songDataRef = useRef(songData);
+  songDataRef.current = songData;
+  const lastExternalOrderIndexRef = useRef(songData.currentPatternIndexInOrder);
+  const musicJsonInputRef = useRef<HTMLInputElement>(null);
   const pt3InstrumentInputRef = useRef<HTMLInputElement>(null);
+  const pt3MusicInputRef = useRef<HTMLInputElement>(null);
   const [pt3ImportFeedback, setPt3ImportFeedback] = useState<{
     kind: 'success' | 'warning' | 'error';
     message: string;
@@ -353,7 +364,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     () => getSongChannels(songData, true),
     [songData.soundChip, songData.sccEnabled]
   );
-
   const silencePlaybackChannel = useCallback((channelId: TrackerChannelId) => {
     const channelIndex = channels.indexOf(channelId);
     if (channelIndex < 0) return;
@@ -433,6 +443,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [channels]);
 
   useEffect(() => {
+    externalPt3PlayerRef.current?.setMutedChannels(mutedChannels);
     mutedChannels.forEach(channelId => silencePlaybackChannel(channelId));
     publishPianoVisualState();
   }, [mutedChannels, silencePlaybackChannel, publishPianoVisualState]);
@@ -721,8 +732,23 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (field === 'ayHardwareEnvelopePeriod') valToUpdate = Math.max(1, Math.min(65535, valToUpdate));
     if (field === 'ayNoisePeriod') valToUpdate = Math.max(0, Math.min(31, valToUpdate));
 
+    if (field === 'speed' && songData.playbackBackend === 'external-pt3' && songData.externalPt3Data?.length) {
+      const bytes = new Uint8Array(songData.externalPt3Data);
+      if (songData.externalPt3HasHeader && bytes.length > 100) {
+        bytes[100] = valToUpdate;
+        externalPt3PlayerRef.current?.stop();
+        externalPt3PlayerRef.current?.close();
+        externalPt3PlayerRef.current = null;
+        setIsPlaying(false);
+        setExternalPt3CurrentTime(0);
+        setExternalPt3Duration(null);
+        setExternalPt3Status('ready');
+        onUpdate({ speed: valToUpdate, externalPt3Data: Array.from(bytes) });
+        return;
+      }
+    }
     onUpdate({ [field]: valToUpdate });
-  }, [onUpdate, synthesizer, songData.order?.length, songData.lengthInPatterns]);
+  }, [onUpdate, synthesizer, songData.order?.length, songData.lengthInPatterns, songData.playbackBackend, songData.externalPt3Data, songData.externalPt3HasHeader]);
 
   const handlePatternRowsChange = useCallback((newRowsString: string) => {
     if (!currentPattern) return;
@@ -784,6 +810,68 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
     }
     if (isValid) {
+      if (songData.playbackBackend === 'external-pt3') {
+        if (channelId !== 'A' && channelId !== 'B' && channelId !== 'C') return;
+        if (field === 'instrument' && finalValueToStore !== null && Number(finalValueToStore) < 1) {
+          setExternalPt3Error('Vortex PT3 instruments use IDs 1..31; leave INS blank to inherit the previous sample.');
+          return;
+        }
+        if (field === 'volume' && finalValueToStore !== null && Number(finalValueToStore) < 1) {
+          setExternalPt3Error('Vortex PT3 row volume uses 1..F; leave VOL blank to inherit the previous volume.');
+          return;
+        }
+
+        externalPt3PlayerRef.current?.stop();
+        externalPt3PlayerRef.current?.close();
+        externalPt3PlayerRef.current = null;
+        setIsPlaying(false);
+        setExternalPt3CurrentTime(0);
+        setExternalPt3Duration(null);
+        setExternalPt3Status('ready');
+        setExternalPt3Error(null);
+        onUpdate((currentSong) => {
+          if (!currentSong.externalPt3Data?.length) return {};
+          try {
+            const updatedPatterns = currentSong.patterns.map((pattern, patternIndex) => {
+              if (patternIndex !== activePatternStorageIndex) return pattern;
+              const rows = pattern.rows.map((row, currentRowIndex) => {
+                if (currentRowIndex !== rowIndex) return row;
+                return {
+                  ...row,
+                  [channelId]: { ...row[channelId], [field]: finalValueToStore },
+                };
+              });
+              return { ...pattern, rows };
+            });
+            const bytes = rewritePT3PatternNoteStreams(
+              new Uint8Array(currentSong.externalPt3Data),
+              updatedPatterns,
+            );
+            const decoded = parsePT3File(bytes.buffer);
+            const previousNames = new Map(currentSong.instruments.map(instrument => [instrument.id, instrument.name]));
+            const previousOrnamentNames = new Map(currentSong.ornaments.map(ornament => [ornament.id, ornament.name]));
+            return {
+              ...decoded,
+              instruments: decoded.instruments?.map(instrument => ({
+                ...instrument,
+                name: previousNames.get(instrument.id) || instrument.name,
+              })),
+              ornaments: decoded.ornaments?.map(ornament => ({
+                ...ornament,
+                name: previousOrnamentNames.get(ornament.id) || ornament.name,
+              })),
+              playbackBackend: 'external-pt3',
+              externalPt3Data: Array.from(bytes),
+              externalPt3HasHeader: currentSong.externalPt3HasHeader,
+              externalPt3PlayerId: currentSong.externalPt3PlayerId || 'custom',
+            };
+          } catch (error) {
+            setExternalPt3Error(error instanceof Error ? error.message : String(error));
+            return {};
+          }
+        });
+        return;
+      }
       onUpdate((currentSong) => {
         const targetPattern = currentSong.patterns[activePatternStorageIndex];
         if (!targetPattern) return {};
@@ -821,7 +909,26 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         return { patterns: updatedPatterns };
       });
     }
-  }, [currentPattern, activePatternStorageIndex, songData.patterns, onUpdate, activeInstrumentId, activeOrnamentId]);
+  }, [currentPattern, activePatternStorageIndex, songData.patterns, songData.playbackBackend, onUpdate, activeInstrumentId, activeOrnamentId]);
+
+  // Clear every cell of one channel in the CURRENTLY EDITED pattern (undoable
+  // with Ctrl+Z). Also cuts any live preview voice on that channel.
+  const handleClearChannel = useCallback((channelId: TrackerChannelId) => {
+    onUpdate((currentSong) => {
+      const targetPattern = currentSong.patterns[activePatternStorageIndex];
+      if (!targetPattern) return {};
+      const updatedPatterns = currentSong.patterns.map((p, patternIndex) => {
+        if (patternIndex !== activePatternStorageIndex) return p;
+        const newRows = p.rows.map((r) => ({ ...r, [channelId]: createEmptyCell() }));
+        return { ...p, rows: newRows };
+      });
+      return { patterns: updatedPatterns };
+    });
+    const channelIndex = channels.indexOf(channelId);
+    if (channelIndex >= 0 && synthesizer) {
+      void synthesizer.playNote(channelIndex as any, '===', null, null, null);
+    }
+  }, [onUpdate, activePatternStorageIndex, channels, synthesizer]);
 
   const ensureExternalPt3Player = useCallback(async (): Promise<CowbellPT3Player | null> => {
     if (!songData.externalPt3Data?.length) {
@@ -851,12 +958,48 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onTimeUpdate: (currentTime, duration) => {
           setExternalPt3CurrentTime(currentTime);
           setExternalPt3Duration(duration);
+          const liveSong = songDataRef.current;
+          const cursor = locatePT3PlaybackFrame(liveSong, Math.floor(currentTime * 50));
+          if (cursor) {
+            setPlaybackRow(cursor.row);
+            const pattern = liveSong.patterns[cursor.patternIndex];
+            // Source-faithful Cowbell playback does not pass through the
+            // native row scheduler, so mirror its current notes explicitly on
+            // the piano. PT3 blank fields inherit the previous note exactly as
+            // they do in the source pattern.
+            (['A', 'B', 'C'] as const).forEach((channelId, channelIndex) => {
+              if (mutedChannelsRef.current.has(channelId)) {
+                playbackPianoNotesRef.current[channelIndex] = null;
+                playbackPianoLevelsRef.current[channelIndex] = 0;
+                return;
+              }
+              let note: string | null = null;
+              if (pattern) {
+                for (let rowIndex = Math.min(cursor.row, pattern.numRows - 1); rowIndex >= 0; rowIndex -= 1) {
+                  const candidate = pattern.rows[rowIndex]?.[channelId]?.note;
+                  if (candidate === '===') { note = null; break; }
+                  if (candidate && candidate !== '---') { note = candidate; break; }
+                }
+              }
+              playbackPianoNotesRef.current[channelIndex] = isPlayableNote(note) ? note : null;
+              playbackPianoLevelsRef.current[channelIndex] = note ? 1 : 0;
+            });
+            publishPianoVisualState();
+            if (cursor.orderIndex !== lastExternalOrderIndexRef.current) {
+              lastExternalOrderIndexRef.current = cursor.orderIndex;
+              onUpdate({
+                currentPatternIndexInOrder: cursor.orderIndex,
+                currentPatternId: pattern?.id,
+              });
+            }
+          }
         },
       });
+      externalPt3PlayerRef.current.setMutedChannels(mutedChannelsRef.current);
     }
 
     return externalPt3PlayerRef.current;
-  }, [songData.externalPt3Data]);
+  }, [songData.externalPt3Data, onUpdate, isPlayableNote, publishPianoVisualState]);
 
   const handleExternalPt3PlayStop = useCallback(async () => {
     if (isPlaying) {
@@ -886,7 +1029,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     externalPt3PlayerRef.current?.stop();
     setIsPlaying(false);
     setExternalPt3CurrentTime(0);
-  }, []);
+    setPlaybackRow(0);
+    lastExternalOrderIndexRef.current = 0;
+    const firstPatternIndex = songDataRef.current.order?.[0];
+    onUpdate({
+      currentPatternIndexInOrder: 0,
+      currentPatternId: typeof firstPatternIndex === 'number' ? songDataRef.current.patterns[firstPatternIndex]?.id : undefined,
+    });
+  }, [onUpdate]);
 
   const handleExternalPt3Seek = useCallback((value: string) => {
     const nextTime = Number(value);
@@ -926,9 +1076,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [synthesizer, channels.length, clearPreviewNoteTimeout, clearPianoHighlights]);
 
   const handlePlayStop = useCallback(async () => {
+    if (songData.playbackBackend === 'external-pt3') {
+      await handleExternalPt3PlayStop();
+      return;
+    }
     if (isPlaying) stopPlayback(true);
     else await startPlayback(true);
-  }, [isPlaying, startPlayback, stopPlayback]);
+  }, [songData.playbackBackend, handleExternalPt3PlayStop, isPlaying, startPlayback, stopPlayback]);
 
   // Pause/resume toggle: unlike Play/Stop it preserves the playhead position.
   const handlePlayPause = useCallback(async () => {
@@ -937,6 +1091,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [isPlaying, startPlayback, stopPlayback]);
 
   const handleSilenceAllChannels = useCallback(() => {
+    if (songData.playbackBackend === 'external-pt3') {
+      externalPt3PlayerRef.current?.stop();
+      setExternalPt3CurrentTime(0);
+    }
     if (synthesizer) {
       synthesizer.stopAllNotes();
     }
@@ -951,11 +1109,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     channelPendingNoteCutRef.current = Array(channels.length).fill(false);
     clearPreviewNoteTimeout();
     clearPianoHighlights();
-  }, [synthesizer, isPlaying, channels, clearPreviewNoteTimeout, clearPianoHighlights]);
+  }, [songData.playbackBackend, synthesizer, isPlaying, channels, clearPreviewNoteTimeout, clearPianoHighlights]);
 
 
   useEffect(() => {
-    if (isPlaying && currentPattern && synthesizer && synthesizer['audioContext']?.state === 'running') {
+    if (songData.playbackBackend !== 'external-pt3' && isPlaying && currentPattern && synthesizer && synthesizer['audioContext']?.state === 'running') {
       let rowToProcess = playbackRow;
       let patternToProcess = currentPattern;
       let patternIndexInOrderToProcess = songData.currentPatternIndexInOrder;
@@ -1228,14 +1386,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     const newPatterns = [...songData.patterns, newPattern];
     const newPatternIndexInStorage = newPatterns.length - 1;
 
+    // A new pattern cannot exist in the immutable source PT3 stream. Adding
+    // one is therefore an explicit request to compose a native Mideas song;
+    // keep the imported PSG instruments, but leave source-faithful playback.
+    const switchToNative = songData.playbackBackend === 'external-pt3';
     onUpdate({
       patterns: newPatterns,
       order: [...(songData.order || []), newPatternIndexInStorage],
       lengthInPatterns: (songData.order?.length || 0) + 1,
       currentPatternIndexInOrder: songData.order?.length || 0,
       currentPatternId: newPattern.id,
+      ...(switchToNative ? {
+        playbackBackend: 'native' as const,
+        externalPt3Data: undefined,
+        externalPt3HasHeader: undefined,
+        externalPt3PlayerId: undefined,
+      } : {}),
     });
-  }, [songData.patterns, songData.order, onUpdate, channels]);
+  }, [songData.patterns, songData.order, songData.playbackBackend, onUpdate, channels]);
 
   const handleDeleteCurrentPattern = useCallback(() => {
     if (songData.patterns.length <= 1) { alert("Cannot delete the last pattern."); return; }
@@ -1314,10 +1482,40 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       updatedInstruments = [...(songData.instruments || []), newInstrumentData];
     }
     updatedInstruments.sort((a, b) => a.id - b.id);
-    onUpdate({ instruments: updatedInstruments });
+    if (songData.playbackBackend === 'external-pt3') {
+      const macro = newInstrumentData.pt3Sample;
+      if (!editingInstrument || !macro || !songData.externalPt3Data) {
+        alert('A source PT3 can only save instruments that already exist in the module.');
+        return;
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = patchPT3SourceSampleBytes(new Uint8Array(songData.externalPt3Data), macro);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : String(error));
+        return;
+      }
+      const decoded = parsePT3File(bytes.buffer);
+      const names = new Map(updatedInstruments.map(instrument => [instrument.id, instrument.name]));
+      externalPt3PlayerRef.current?.stop();
+      externalPt3PlayerRef.current?.close();
+      externalPt3PlayerRef.current = null;
+      setIsPlaying(false);
+      setExternalPt3CurrentTime(0);
+      setExternalPt3Duration(null);
+      setExternalPt3Status('ready');
+      onUpdate({
+        ...decoded,
+        instruments: decoded.instruments?.map(instrument => ({ ...instrument, name: names.get(instrument.id) || instrument.name })),
+        playbackBackend: 'external-pt3',
+        externalPt3Data: Array.from(bytes),
+      });
+    } else {
+      onUpdate({ instruments: updatedInstruments });
+    }
     setIsInstrumentModalOpen(false);
     setEditingInstrument(null);
-  }, [instrumentModalBuffer, editingInstrument, songData.instruments, onUpdate]);
+  }, [instrumentModalBuffer, editingInstrument, songData.instruments, songData.playbackBackend, songData.externalPt3Data, onUpdate]);
 
 
   const handleOrnamentModalFieldChange = (field: keyof OrnamentModalBuffer, value: any) => {
@@ -1334,6 +1532,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       name: ornamentModalBuffer.name,
       data: ornamentModalBuffer.data?.split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)) || [],
       loopPosition: ornamentModalBuffer.loopPosition,
+      sourcePointer: ornamentModalBuffer.sourcePointer,
     };
 
     let updatedOrnaments;
@@ -1347,10 +1546,39 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       updatedOrnaments = [...(songData.ornaments || []), newOrnamentData];
     }
     updatedOrnaments.sort((a, b) => a.id - b.id);
-    onUpdate({ ornaments: updatedOrnaments });
+    if (songData.playbackBackend === 'external-pt3') {
+      if (!editingOrnament || !songData.externalPt3Data) {
+        alert('A source PT3 can only save ornaments that already exist in the module.');
+        return;
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = patchPT3SourceOrnamentBytes(new Uint8Array(songData.externalPt3Data), newOrnamentData);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : String(error));
+        return;
+      }
+      const decoded = parsePT3File(bytes.buffer);
+      const names = new Map(updatedOrnaments.map(ornament => [ornament.id, ornament.name]));
+      externalPt3PlayerRef.current?.stop();
+      externalPt3PlayerRef.current?.close();
+      externalPt3PlayerRef.current = null;
+      setIsPlaying(false);
+      setExternalPt3CurrentTime(0);
+      setExternalPt3Duration(null);
+      setExternalPt3Status('ready');
+      onUpdate({
+        ...decoded,
+        ornaments: decoded.ornaments?.map(ornament => ({ ...ornament, name: names.get(ornament.id) || ornament.name })),
+        playbackBackend: 'external-pt3',
+        externalPt3Data: Array.from(bytes),
+      });
+    } else {
+      onUpdate({ ornaments: updatedOrnaments });
+    }
     setIsOrnamentModalOpen(false);
     setEditingOrnament(null);
-  }, [ornamentModalBuffer, editingOrnament, songData.ornaments, onUpdate]);
+  }, [ornamentModalBuffer, editingOrnament, songData.ornaments, songData.playbackBackend, songData.externalPt3Data, onUpdate]);
 
   const handleVirtualPianoKeyPress = useCallback((noteName: string) => {
     if (focusedCell && currentPattern) {
@@ -1663,6 +1891,26 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     setEditingSccInstrument(null);
   }, [songData.instruments, onUpdate]);
 
+  const handleDeleteInstrument = useCallback((instrument: PT3Instrument | SCCInstrument) => {
+    const deletedId = instrument.id;
+    const updatedInstruments = (songData.instruments || []).filter(item => item.id !== deletedId);
+    const updatedPatterns = (songData.patterns || []).map(pattern => ({
+      ...pattern,
+      rows: pattern.rows.map(row => {
+        const updatedRow = { ...row };
+        Object.keys(updatedRow).forEach(channelId => {
+          const cell = updatedRow[channelId];
+          if (cell && cell.instrument === deletedId) {
+            updatedRow[channelId] = { ...cell, instrument: null };
+          }
+        });
+        return updatedRow;
+      }),
+    }));
+    onUpdate({ instruments: updatedInstruments, patterns: updatedPatterns });
+    if (activeInstrumentId === deletedId) setActiveInstrumentId(updatedInstruments[0]?.id ?? null);
+  }, [songData.instruments, songData.patterns, onUpdate, activeInstrumentId]);
+
 
   const handleOpenOrnamentModal = useCallback((ornament: PT3Ornament | null) => {
     if (ornament) {
@@ -1780,6 +2028,68 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     input.click();
   }, [onUpdate, isPlaying]);
 
+  const handleLoadPT3Music = useCallback(() => {
+    pt3MusicInputRef.current?.click();
+  }, []);
+
+  const handlePT3MusicFileSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const imported = normalizeImportedPT3Data(parsePT3File(buffer), file.name);
+      if (isPlaying) handlePlayStop();
+      externalPt3PlayerRef.current?.close();
+      externalPt3PlayerRef.current = null;
+      setExternalPt3CurrentTime(0);
+      setExternalPt3Duration(null);
+      setExternalPt3Status('ready');
+      setExternalPt3Error(null);
+      onUpdate({
+        name: imported.name,
+        title: imported.title,
+        author: imported.author,
+        speed: imported.speed,
+        bpm: imported.bpm,
+        soundChip: 'PSG',
+        // Preserve decoded rows for the tracker while Preview and ROM consume
+        // the untouched module through the reference-compatible PT3 players.
+        playbackBackend: 'external-pt3',
+        externalPt3Data: Array.from(bytes),
+        externalPt3HasHeader: true,
+        externalPt3PlayerId: 'custom',
+        patterns: imported.patterns,
+        order: imported.order,
+        lengthInPatterns: imported.lengthInPatterns,
+        restartPosition: imported.restartPosition,
+        currentPatternId: imported.currentPatternId,
+        currentPatternIndexInOrder: imported.currentPatternIndexInOrder,
+        instruments: imported.instruments,
+        ornaments: imported.ornaments,
+      });
+      setActiveInstrumentId(imported.instruments[0]?.id ?? null);
+      setActiveOrnamentId(imported.ornaments[0]?.id ?? null);
+      setPt3ImportFeedback({ kind: 'success', message: `Loaded source-faithful PT3 music “${imported.title}”: ${imported.patterns.length} visible patterns, ${imported.instruments.length} samples. Preview and ROM use the original Vortex/PT3 stream.` });
+    } catch (error) {
+      setPt3ImportFeedback({ kind: 'error', message: `Could not load PT3 music: ${error instanceof Error ? error.message : String(error)}` });
+    } finally {
+      input.value = '';
+    }
+  }, [onUpdate, isPlaying, handlePlayStop]);
+
+  const handleExportMusicJson = useCallback(() => {
+    downloadJsonFile(
+      `${sanitizeMusicFilename(songData.name)}.music.json`,
+      createMusicJsonPackage(songData)
+    );
+  }, [songData]);
+
+  const handleImportMusicJson = useCallback(() => {
+    musicJsonInputRef.current?.click();
+  }, []);
+
   const handleExtractPT3Instruments = useCallback(() => {
     setPt3ImportFeedback(null);
     pt3InstrumentInputRef.current?.click();
@@ -1859,6 +2169,38 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, [songData.instruments, songData.ornaments, onUpdate]);
 
+  const handleMusicJsonFileSelected = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const importedSong = normalizeImportedMusic(JSON.parse(String(reader.result)), songData);
+        externalPt3PlayerRef.current?.close();
+        externalPt3PlayerRef.current = null;
+        if (isPlaying) setIsPlaying(false);
+        setExternalPt3CurrentTime(0);
+        setExternalPt3Duration(null);
+        setExternalPt3Status(importedSong.playbackBackend === 'external-pt3' ? 'ready' : 'idle');
+        setExternalPt3Error(null);
+        setFocusedCell(null);
+        setActiveInstrumentId(importedSong.instruments[0]?.id ?? null);
+        setActiveOrnamentId(importedSong.ornaments[0]?.id ?? null);
+        onUpdate(importedSong);
+      } catch (error) {
+        alert(`Could not import music JSON: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        input.value = '';
+      }
+    };
+    reader.onerror = () => {
+      alert('Could not read the selected music JSON file.');
+      input.value = '';
+    };
+    reader.readAsText(file);
+  }, [isPlaying, onUpdate, songData.id, songData.name]);
+
   const handleLoadDemoPT3File = useCallback(async () => {
     const response = await fetch(DEMO_PT3_URL);
     if (!response.ok) {
@@ -1915,7 +2257,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   if (!currentPattern && songData.patterns.length > 0) {
     return <Panel title="Tracker Composer"><p className="p-4">Loading pattern data...</p></Panel>;
   }
-  if (songData.playbackBackend === 'external-pt3') {
+  // Legacy external imports without decoded rows keep their compact player.
+  // Source-faithful "Load PT3 Music" imports retain rows and continue into the
+  // normal tracker UI while their audio is handled by the original PT3 stream.
+  if (songData.playbackBackend === 'external-pt3' && songData.patterns.length === 0) {
     const duration = externalPt3Duration ?? 0;
     const formatTime = (seconds: number | null): string => {
       if (seconds === null || !Number.isFinite(seconds)) return '--:--';
@@ -2004,6 +2349,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         <Button onClick={handleAddPattern} variant="primary" icon={<PlusCircleIcon />}>Create First Pattern</Button>
         <Button onClick={handleLoadSampleSong} variant="secondary" className="mt-2">Load Sample Song</Button>
         <Button onClick={handleImportPT3File} variant="secondary" className="mt-2" title="Import external .pt3 or .99 file">Import PT3 File</Button>
+        <Button onClick={handleLoadPT3Music} variant="secondary" className="mt-2" title="Load editable native patterns from a .pt3 file">Load PT3 Music</Button>
       </Panel>
     );
   }
@@ -2011,12 +2357,28 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   return (
     <div className="flex h-full flex-grow select-none flex-col overflow-hidden bg-[#05080c]">
       <input
+        ref={musicJsonInputRef}
+        type="file"
+        accept=".json,.music.json,application/json"
+        onChange={handleMusicJsonFileSelected}
+        className="hidden"
+        aria-label="Import Mideas music JSON file"
+      />
+      <input
         ref={pt3InstrumentInputRef}
         type="file"
         accept=".pt3,application/octet-stream"
         onChange={handlePT3InstrumentFileSelected}
         className="hidden"
         aria-label="Extract instruments from a PT3 file"
+      />
+      <input
+        ref={pt3MusicInputRef}
+        type="file"
+        accept=".pt3,.99,application/octet-stream"
+        onChange={handlePT3MusicFileSelected}
+        className="hidden"
+        aria-label="Load PT3 music into tracker"
       />
       <TrackerHeader
         songName={localSongName} onSongNameChange={(name) => { setLocalSongName(name); onUpdate({ name }); }}
@@ -2034,10 +2396,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onAyNoisePeriodChange={(val) => handleGlobalDataChange('ayNoisePeriod', val)}
         isPlaying={isPlaying} onPlayStop={handlePlayStop}
         channels={channels}
-        mutedChannels={mutedChannels}
-        onToggleChannelMute={handleToggleChannelMute}
         onLoadSampleSong={handleLoadSampleSong}
         onSilenceAllChannels={handleSilenceAllChannels}
+        onExportMusicJson={handleExportMusicJson}
+        onImportMusicJson={handleImportMusicJson}
         soundChip={songData.soundChip}
         onSoundChipChange={(chip) => {
           if (chip === songData.soundChip) return;
@@ -2054,19 +2416,45 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onDuplicateAsDualChip={onCreateDualChipCopy && songData.soundChip !== 'PSG+SCC'
           ? () => onCreateDualChipCopy(toDualChipSong(songData))
           : undefined}
-        onImportPT3File={handleImportPT3File}
+        onImportPT3File={handleLoadPT3Music}
         onLoadDemoPT3File={handleLoadDemoPT3File}
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
-      {songData.soundChip !== 'SCC' && songData.playbackBackend !== 'external-pt3' && (
-        <PsgOscilloscopePanel
-          channels={channels}
-          mutedChannels={mutedChannels}
-          synthesizer={synthesizer}
-          isPlaying={isPlaying}
-        />
+      {songData.playbackBackend === 'external-pt3' && songData.patterns.length > 0 && (
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-msx-highlight/50 bg-msx-highlight/10 px-3 py-1.5 text-[0.68rem]">
+          <div>
+            <span className="font-bold uppercase text-msx-highlight">Source-faithful PT3</span>
+            <span className="ml-2 text-msx-textprimary">
+              Modo Vortex: NOTE, INS, ORN y VOL son editables; FX/CMD conserva los comandos originales. Para crear una canción nueva con los instrumentos PT3 importados, cambia al modo nativo.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-msx-textsecondary">
+              {(songData.externalPt3Data?.length ?? 0).toLocaleString()} bytes / {externalPt3Status}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Usar los instrumentos PT3 importados en una canción nueva. Se conserva la tabla de notas, pero los efectos de patrón PT3 (glissando, delay y slide de envelope) no pasan al modo nativo."
+              onClick={() => {
+                externalPt3PlayerRef.current?.stop();
+                externalPt3PlayerRef.current?.close();
+                externalPt3PlayerRef.current = null;
+                setIsPlaying(false);
+                setExternalPt3Status('idle');
+                onUpdate({
+                  playbackBackend: 'native',
+                  externalPt3Data: undefined,
+                  externalPt3HasHeader: undefined,
+                  externalPt3PlayerId: undefined,
+                });
+              }}
+            >
+              Componer música nueva
+            </Button>
+          </div>
+        </div>
       )}
-
       <div className="min-h-0 flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
         <div className="w-64 flex-shrink-0 overflow-y-auto border-r border-msx-border bg-msx-panelbg/55 p-2 text-xs shadow-[6px_0_18px_rgba(0,0,0,0.22)]"> {/* Left panels column */}
           <div className="mb-2 flex items-center justify-between border-b border-msx-border/70 pb-2">
@@ -2097,6 +2485,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             instruments={songData.instruments || []} activeInstrumentId={activeInstrumentId}
             onSetActiveInstrumentId={setActiveInstrumentId} onOpenInstrumentModal={handleOpenInstrumentModal}
             soundChip={songData.soundChip} onOpenWaveformModal={handleOpenWaveformModal}
+            onDeleteInstrument={handleDeleteInstrument}
             onExtractPT3Instruments={songData.soundChip === 'SCC' ? undefined : handleExtractPT3Instruments}
             onAddFactoryPT3Kit={songData.soundChip === 'SCC' ? undefined : handleAddFactoryPT3Kit}
             pt3ImportFeedback={pt3ImportFeedback}
@@ -2136,11 +2525,30 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
               <span className="rounded border border-msx-border bg-black/20 px-2 py-0.5 font-mono text-[0.62rem] text-msx-textsecondary">#{String(activePatternStorageIndex).padStart(2, '0')}</span>
             </div>
             <div className="flex items-center gap-2 font-mono text-[0.68rem] text-msx-textsecondary">
+              {songData.soundChip !== 'SCC' && (
+                <span className="rounded border border-msx-highlight/50 bg-msx-highlight/10 px-2 py-0.5 text-msx-highlight" title="Las canciones PSG/PT3 usan las tres voces AY, igual que Vortex Tracker.">
+                  PSG musical A/B/C
+                </span>
+              )}
               <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">Order {String(songData.currentPatternIndexInOrder).padStart(2, '0')}</span>
               <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">BPM {songData.bpm}</span>
               <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">Speed {songData.speed}</span>
             </div>
           </div>
+          {songData.soundChip !== 'SCC' && (
+            <PsgOscilloscopePanel
+              channels={channels}
+              mutedChannels={mutedChannels}
+              synthesizer={songData.playbackBackend === 'external-pt3'
+                ? externalPt3PlayerRef.current
+                : synthesizer}
+              isPlaying={isPlaying}
+              sourcePT3Mode={songData.playbackBackend === 'external-pt3'}
+              gridScrollRef={patternEditorRef}
+              onToggleMute={handleToggleChannelMute}
+              onClearChannel={handleClearChannel}
+            />
+          )}
           <PatternEditorGrid
             currentPattern={currentPattern} focusedCell={focusedCell}
             isPlaying={isPlaying} playbackRow={playbackRow}
@@ -2148,6 +2556,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             onCellFocus={(rIdx, chId, fld) => setFocusedCell({ rowIndex: rIdx, channelId: chId, field: fld })}
             onGridKeyDown={handleGridKeyDown} patternEditorRef={patternEditorRef}
             channels={channels}
+            sourcePT3Mode={songData.playbackBackend === 'external-pt3'}
           />
         </div>
       </div>
@@ -2167,6 +2576,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         editingInstrument={editingInstrument} instrumentModalBuffer={instrumentModalBuffer}
         onInstrumentModalBufferChange={handleInstrumentModalFieldChange} onSubmit={handleInstrumentModalSubmit}
         synthesizer={synthesizer}
+        ornaments={songData.ornaments}
       />
 
       <WaveformEditorModal

@@ -1,10 +1,11 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { PT3Instrument, PT3SampleMacro } from '../../types';
+import { PT3Instrument, PT3Ornament, PT3SampleMacro } from '../../types';
 import { Button } from '../common/Button';
 import { PT3_MAX_INSTRUMENTS, PT3_DEFAULT_VIBRATO_TABLE } from '../../constants';
 import { EnvelopeEditor } from './EnvelopeEditor';
 import { AYEnvelopeVisualizer } from './AYEnvelopeVisualizer';
+import { Pt3SampleVisualizer } from './Pt3SampleVisualizer';
 import { Pt3SampleStepEditor } from './Pt3SampleStepEditor';
 
 /**
@@ -40,6 +41,8 @@ interface InstrumentEditorModalProps {
     onSubmit: () => void;
     /** Optional synthesizer for audio preview. */
     synthesizer?: any;
+    /** Song ornaments, offered in the preview so sample+ornament are auditioned combined. */
+    ornaments?: PT3Ornament[];
 }
 
 /**
@@ -497,12 +500,14 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
     instrumentModalBuffer,
     onInstrumentModalBufferChange,
     onSubmit,
-    synthesizer
+    synthesizer,
+    ornaments
 }) => {
     // All hooks must be called before any conditional returns
     const [activeTab, setActiveTab] = useState<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware' | 'pt3steps'>('architecture');
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [previewNote, setPreviewNote] = useState('C-4');
+    const [previewOrnamentId, setPreviewOrnamentId] = useState(0);
 
     const hasPt3Sample = instrumentModalBuffer.instrumentMode === 'pt3-sample' && !!instrumentModalBuffer.pt3Sample;
 
@@ -629,8 +634,11 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                 instruments: previewInstruments
             });
 
-            // Play preview note
-            synthesizer.playNote(0, previewNote, tempInstrument.id, null, 15);
+            // Play preview note; a selected ornament is auditioned combined with the sample.
+            const ornamentForPreview = previewOrnamentId > 0 && (ornaments ?? []).some(o => o.id === previewOrnamentId)
+                ? previewOrnamentId
+                : null;
+            synthesizer.playNote(0, previewNote, tempInstrument.id, ornamentForPreview, 15);
 
             // Stop after 1 second
             setTimeout(() => {
@@ -647,7 +655,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             console.error('Preview error:', error);
             setIsPreviewing(false);
         }
-    }, [synthesizer, isPreviewing, instrumentModalBuffer, volumeEnvelopeArray, toneEnvelopeArray, noiseEnvelopeArray, previewNote]);
+    }, [synthesizer, isPreviewing, instrumentModalBuffer, volumeEnvelopeArray, toneEnvelopeArray, noiseEnvelopeArray, previewNote, previewOrnamentId, ornaments]);
 
     // Conditional return AFTER all hooks
     if (!isOpen) return null;
@@ -671,13 +679,39 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                             {editingInstrument ? `Edit Instrument #${editingInstrument.id}` : `New Instrument #${instrumentModalBuffer.id || '?'}`}
                         </h3>
                         <div className="mt-1 text-xs text-msx-textsecondary font-mono">
-                            Vol {volumeEnvelopeArray.length} | Tone {toneEnvelopeArray.length} | Noise {noiseEnvelopeArray.length}
-                            {typeof instrumentModalBuffer.ayEnvelopeShape === 'number' ? ` | HW env ${instrumentModalBuffer.ayEnvelopeShape.toString(16).toUpperCase()}` : ''}
+                            {hasPt3Sample && instrumentModalBuffer.pt3Sample
+                                ? `PT3 ${instrumentModalBuffer.pt3Sample.steps.length} ticks | Tone ${instrumentModalBuffer.pt3Sample.steps.filter(step => step.toneEnabled).length} | Noise ${instrumentModalBuffer.pt3Sample.steps.filter(step => step.noiseEnabled).length} | HW env ${instrumentModalBuffer.pt3Sample.steps.filter(step => step.hardwareEnvelopeEnabled).length}`
+                                : `Vol ${volumeEnvelopeArray.length} | Tone ${toneEnvelopeArray.length} | Noise ${noiseEnvelopeArray.length}${typeof instrumentModalBuffer.ayEnvelopeShape === 'number' ? ` | HW env ${instrumentModalBuffer.ayEnvelopeShape.toString(16).toUpperCase()}` : ''}`}
                         </div>
                     </div>
-                    <Button onClick={handlePreview} disabled={isPreviewing || !synthesizer} variant="secondary" className="min-w-28">
-                        {isPreviewing ? 'Playing' : 'Preview'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={previewNote}
+                            onChange={e => setPreviewNote(e.target.value)}
+                            title="Preview note"
+                            className="px-2 py-1 bg-msx-bgcolor border border-msx-border rounded text-sm focus:ring-2 focus:ring-msx-accent"
+                        >
+                            {['C-3', 'C-4', 'C-5', 'A-4'].map(note => (
+                                <option key={note} value={note}>{note}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={previewOrnamentId}
+                            onChange={e => setPreviewOrnamentId(parseInt(e.target.value, 10) || 0)}
+                            title="Audition the sample combined with an ornament (arpeggio table)"
+                            className="max-w-40 px-2 py-1 bg-msx-bgcolor border border-msx-border rounded text-sm focus:ring-2 focus:ring-msx-accent"
+                        >
+                            <option value={0}>No ornament</option>
+                            {(ornaments ?? []).map(ornament => (
+                                <option key={ornament.id} value={ornament.id}>
+                                    O{String(ornament.id).padStart(2, '0')} {ornament.name}
+                                </option>
+                            ))}
+                        </select>
+                        <Button onClick={handlePreview} disabled={isPreviewing || !synthesizer} variant="secondary" className="min-w-28">
+                            {isPreviewing ? 'Playing' : 'Preview'}
+                        </Button>
+                    </div>
                 </div>
 
                 {hasPt3Sample && instrumentModalBuffer.pt3Sample && (
@@ -713,10 +747,13 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                 {/* Tab Content */}
                 <div className="flex-1 overflow-y-auto pr-2 space-y-4">
                     {activeTab === 'pt3steps' && hasPt3Sample && instrumentModalBuffer.pt3Sample && (
-                        <Pt3SampleStepEditor
-                            macro={instrumentModalBuffer.pt3Sample}
-                            onChange={handlePt3SampleChange}
-                        />
+                        <div className="space-y-3">
+                            <Pt3SampleVisualizer macro={instrumentModalBuffer.pt3Sample} />
+                            <Pt3SampleStepEditor
+                                macro={instrumentModalBuffer.pt3Sample}
+                                onChange={handlePt3SampleChange}
+                            />
+                        </div>
                     )}
 
                     {activeTab === 'architecture' && (
@@ -844,6 +881,19 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                     >
                                         {['C-3', 'C-4', 'C-5', 'A-4'].map(note => (
                                             <option key={note} value={note}>{note}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={previewOrnamentId}
+                                        onChange={e => setPreviewOrnamentId(parseInt(e.target.value, 10) || 0)}
+                                        title="Audition the sample combined with an ornament (arpeggio table)"
+                                        className="max-w-40 px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
+                                    >
+                                        <option value={0}>No ornament</option>
+                                        {(ornaments ?? []).map(ornament => (
+                                            <option key={ornament.id} value={ornament.id}>
+                                                O{String(ornament.id).padStart(2, '0')} {ornament.name}
+                                            </option>
                                         ))}
                                     </select>
                                     <Button

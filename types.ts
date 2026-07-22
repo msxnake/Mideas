@@ -2134,6 +2134,8 @@ export interface PT3Ornament {
   data: number[];
   /** The loop position for the ornament data. */
   loopPosition?: number;
+  /** Absolute byte pointer in the original PT3 module, when source-decoded. */
+  sourcePointer?: number;
 }
 
 /**
@@ -2157,6 +2159,32 @@ export interface TrackerRow {
   [key: string]: TrackerCell;
 }
 
+/** One deferred PT3/Vortex command attached to a pattern row. The raw
+ * parameters are kept so the source module can be inspected without reducing
+ * its semantics to Mideas' legacy tracker model. */
+export interface PT3PatternEffectCommand {
+  code: number;
+  name: 'GLISS' | 'PORTA' | 'SAMPLE_POS' | 'ORNAMENT_POS' | 'VIBRATO' | 'ENV_SLIDE' | 'DELAY' | 'NOP';
+  params: number[];
+  display: string;
+}
+
+/** Source-map information for a decoded PT3 channel row. */
+export interface PT3PatternCellSource {
+  /** True when PTDECOD consumed commands on this row; false for a note-skip hold row. */
+  decoded: boolean;
+  /** Offset of the one-byte note/release/D0 row terminator in externalPt3Data. */
+  commandOffset?: number;
+  noteSkip: number;
+  effects: PT3PatternEffectCommand[];
+  /** Compact Vortex-style commands such as N08, ENV A:1234 or SPD 03. */
+  events: string[];
+  /** Original row commands excluding B1 note-skip and the terminal note/D0. */
+  prefixBytes: number[];
+  /** Exact deferred SPCCOMS payload stored after the row terminator. */
+  deferredPayloadBytes: number[];
+}
+
 /**
  * Represents a single pattern in a tracker song.
  */
@@ -2169,6 +2197,8 @@ export interface TrackerPattern {
   numRows: number;
   /** An array of rows that make up the pattern. */
   rows: TrackerRow[];
+  /** Byte/source metadata present on patterns decoded from an original PT3. */
+  pt3SourceRows?: Array<Partial<Record<'A' | 'B' | 'C', PT3PatternCellSource>>>;
 }
 
 /**

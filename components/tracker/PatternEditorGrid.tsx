@@ -53,6 +53,10 @@ interface PatternEditorGridProps {
   onGridKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   /** A ref to the main grid container for focusing. */
   patternEditorRef: React.RefObject<HTMLDivElement>;
+  /** Show a decoded source module without allowing edits that cannot be written back byte-exactly. */
+  readOnly?: boolean;
+  /** Original PT3 stream: note terminators can be patched in-place and Vortex commands are shown. */
+  sourcePT3Mode?: boolean;
 }
 
 /**
@@ -72,7 +76,9 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   onCellChange,
   onCellFocus,
   onGridKeyDown,
-  patternEditorRef
+  patternEditorRef,
+  readOnly = false,
+  sourcePT3Mode = false,
 }) => {
   const numRows = currentPattern.numRows;
   const rowNumbers = Array.from({ length: numRows }, (_, i) => i);
@@ -84,7 +90,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
     <div 
         ref={patternEditorRef} 
         className="min-h-0 flex-grow overflow-auto bg-[#070b10] font-mono text-xs outline-none shadow-inner focus:ring-1 focus:ring-msx-highlight/40"
-        onKeyDown={onGridKeyDown} 
+        onKeyDown={readOnly ? undefined : onGridKeyDown}
         tabIndex={0} 
         role="grid"
         aria-label="Pattern Editor"
@@ -100,6 +106,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.instrument} text-[0.58rem]`} title="Instrument">INS</div>
             <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.ornament} text-[0.58rem]`} title="Ornament">ORN</div>
             <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.58rem]`} title="Volume">VOL</div>
+            {sourcePT3Mode && <div className="w-32 px-1 text-left text-[0.58rem] text-fuchsia-300" title="Vortex/PT3 row commands">FX / CMD</div>}
           </div>
         ))}
       </div>
@@ -123,6 +130,9 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             </div>
             {channels.map((chId, chIndex) => {
               const cellData = rowData ? rowData[chId] : createEmptyCell();
+              const sourceCell = sourcePT3Mode && (chId === 'A' || chId === 'B' || chId === 'C')
+                ? currentPattern.pt3SourceRows?.[rIdx]?.[chId]
+                : undefined;
               const cellTextColor = isCurrentPlaybackRow ? 'text-msx-bgcolor' : 'text-msx-textprimary';
               return (
                 <div
@@ -154,9 +164,22 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                             className={`${CELL_TEXT_ALIGN} ${isCurrentPlaybackRow ? 'placeholder:text-msx-bgcolor/70' : FIELD_TEXT_CLASSES[field]} ${fieldWidthClass} rounded-sm transition-colors ${isFocused ? 'ring-1 ring-msx-highlight/80 bg-msx-highlight/20' : 'group-hover:bg-white/5'}`}
                             ariaLabel={`${chId} ${field} at row ${rIdx}`}
                             isNoteField={field === 'note'}
+                            readOnly={readOnly}
                         />
                     );
                   })}
+                  {sourcePT3Mode && (
+                    <div
+                      className={`w-32 flex-shrink-0 truncate px-1 font-mono text-[0.58rem] ${isCurrentPlaybackRow ? 'text-msx-bgcolor' : 'text-fuchsia-300/90'}`}
+                      title={sourceCell?.events?.length
+                        ? sourceCell.events.join(' | ')
+                        : sourceCell?.decoded === false
+                          ? `Held row (note skip ${sourceCell.noteSkip})`
+                          : 'No PT3 command'}
+                    >
+                      {sourceCell?.events?.join(' ') || (sourceCell?.decoded === false ? `·${sourceCell.noteSkip}` : '...')}
+                    </div>
+                  )}
                 </div>
               );
             })}

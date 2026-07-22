@@ -33,14 +33,18 @@ for (const instrument of PT3_FACTORY_INSTRUMENTS) {
 
 // Exhaust the shared PT3 C byte. In particular, C bit 6 is observable through
 // the 7-bit noise delta even when C bit 7 disables amplitude slide, so a visual
-// no-op must retain it exactly (for example C=0x41).
-for (let c = 0; c <= 0xff; c += 1) {
-  const raw: [number, number, number, number] = [c, 0x00, 0x34, 0x12];
-  const rebuiltRaw = encodePT3SampleLogicalStep(toPT3SampleLogicalStep(decodePT3SampleStep(raw)));
-  checked += 1;
-  if (rebuiltRaw.join(',') !== raw.join(',')) {
-    mismatches += 1;
-    console.log(`exhaustive C=${c}: raw ${raw.join(',')} -> ${rebuiltRaw.join(',')}`);
+// no-op must retain it exactly (for example C=0x41). B=0x00 exercises noise
+// mode; B bit 7 set exercises envelope mode, where the 5-bit field decodes as
+// a signed value and the dormant bit must survive independently.
+for (const b of [0x00, 0x80, 0x90, 0xf0]) {
+  for (let c = 0; c <= 0xff; c += 1) {
+    const raw: [number, number, number, number] = [c, b, 0x34, 0x12];
+    const rebuiltRaw = encodePT3SampleLogicalStep(toPT3SampleLogicalStep(decodePT3SampleStep(raw)));
+    checked += 1;
+    if (rebuiltRaw.join(',') !== raw.join(',')) {
+      mismatches += 1;
+      console.log(`exhaustive B=${b} C=${c}: raw ${raw.join(',')} -> ${rebuiltRaw.join(',')}`);
+    }
   }
 }
 

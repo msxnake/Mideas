@@ -1,5 +1,5 @@
 
-import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, SCCInstrument, PT3Ornament, TrackerChannelId } from '../../types';
+import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, SCCInstrument, PT3Ornament, TrackerChannelId, PT3PatternCellSource } from '../../types';
 import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_CHANNELS, SCC_CHANNELS, PSG_SCC_CHANNELS, PT3_NOTE_NAMES } from '../../constants';
 
 /**
@@ -126,7 +126,7 @@ export const CELL_WIDTH_VOL = "w-7";
 export const CELL_TEXT_ALIGN = "text-center";
 
 /** Regex for validating note input. */
-export const NOTE_REGEX = /^([A-G](?:#|-)?(?:[0-7])|---|===)$/i;
+export const NOTE_REGEX = /^([A-G](?:#|-)?(?:[0-8])|---|===)$/i;
 /** Regex for validating instrument number input (0-31). */
 export const INSTRUMENT_REGEX = /^([0-9]|[1-2][0-9]|3[0-1])$/;
 /** Regex for validating ornament number input (0-15). */
@@ -222,6 +222,16 @@ export const getCellMaxLength = (field: keyof TrackerCell): number => {
     }
 };
 
+const clonePT3PatternCellSource = (source?: PT3PatternCellSource): PT3PatternCellSource | undefined => source
+  ? {
+    ...source,
+    effects: source.effects.map(effect => ({ ...effect, params: [...effect.params] })),
+    events: [...source.events],
+    prefixBytes: [...source.prefixBytes],
+    deferredPayloadBytes: [...source.deferredPayloadBytes],
+  }
+  : undefined;
+
 /**
  * Normalizes partially parsed PT3 song data into a complete TrackerSongData object.
  * It fills in missing fields with defaults and ensures data consistency.
@@ -280,6 +290,14 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
         name: p.name || `Pattern ${String(idx).padStart(2, '0')}`,
         numRows: numRows,
         rows: rows,
+        // Source-faithful PT3 editing needs the exact command/payload map.
+        // Dropping it here made the grid look editable but stripped Vortex
+        // effects the first time a note was saved.
+        pt3SourceRows: p.pt3SourceRows?.slice(0, numRows).map(sourceRow => ({
+          A: clonePT3PatternCellSource(sourceRow.A),
+          B: clonePT3PatternCellSource(sourceRow.B),
+          C: clonePT3PatternCellSource(sourceRow.C),
+        })),
       };
     });
   } else {

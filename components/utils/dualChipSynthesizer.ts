@@ -22,6 +22,7 @@ export class DualChipSynthesizer {
   private psg: AYRegisterSynthesizer;
   private scc: SCCSynthesizer;
   private sccEnabled: boolean = true;
+  private songDataRef: TrackerSongData | null = null;
 
   constructor(initialMasterVolume: number = 0.5) {
     this.psg = new AYRegisterSynthesizer(initialMasterVolume);
@@ -29,6 +30,7 @@ export class DualChipSynthesizer {
   }
 
   public setSongData(songData: TrackerSongData): void {
+    this.songDataRef = songData;
     this.sccEnabled = songData.sccEnabled !== false;
     this.psg.setSongData({
       ...songData,
@@ -40,6 +42,13 @@ export class DualChipSynthesizer {
       soundChip: 'SCC',
       instruments: songData.instruments.filter((inst) => isSccInstrument(inst)),
     });
+  }
+
+  /** Expose the complete dual-song view so instrument-editor Preview can
+   * temporarily replace one PSG sample and restore it without touching the
+   * song itself. */
+  public getSongData(): TrackerSongData | null {
+    return this.songDataRef;
   }
 
   public async ensureAudioContext(): Promise<boolean> {
@@ -87,15 +96,15 @@ export class DualChipSynthesizer {
     this.scc.stopAllNotes();
   }
 
-  /** PSG scope traces for columns A-C; the SCC synth has no scope taps yet,
-   *  so columns 1-5 render as flat lines. */
+  /** Scope traces for every column: PSG A-C from the AY synth, SCC 1-5 from
+   *  the SCC synth's per-channel analyser taps. When the SCC half is disabled
+   *  its channels report flat (empty) traces. */
   public getOscilloscopeSnapshot(): Float32Array[] {
     const psgSnapshot = this.psg.getOscilloscopeSnapshot();
-    const sccPlaceholder = Array.from(
-      { length: DUAL_SCC_CHANNEL_COUNT },
-      () => new Float32Array(0)
-    );
-    return [...psgSnapshot, ...sccPlaceholder];
+    const sccSnapshot = this.sccEnabled
+      ? this.scc.getOscilloscopeSnapshot()
+      : Array.from({ length: DUAL_SCC_CHANNEL_COUNT }, () => new Float32Array(0));
+    return [...psgSnapshot, ...sccSnapshot];
   }
 
   public closeContext(): void {

@@ -30,6 +30,8 @@ export interface CellInputProps {
     ariaLabel: string;
     /** A flag to indicate if this is a note field, to handle piano key input differently. */
     isNoteField?: boolean; 
+    /** Prevent editing while still allowing the value to be selected/copied. */
+    readOnly?: boolean;
 }
 
 /**
@@ -38,7 +40,7 @@ export interface CellInputProps {
  */
 export const CellInput: React.FC<CellInputProps> = React.memo(({ 
     id, value, placeholder, maxLength, transformInput, allowedCharsPattern,
-    onChange, onFocus, onBlur, className, ariaLabel, isNoteField
+    onChange, onFocus, onBlur, className, ariaLabel, isNoteField, readOnly = false
 }) => {
     const [inputValue, setInputValue] = useState(value);
     const previousDisplayValueRef = useRef(value); 
@@ -117,6 +119,7 @@ export const CellInput: React.FC<CellInputProps> = React.memo(({
             className={`bg-transparent focus:bg-msx-highlight focus:text-msx-bgcolor outline-none ${className}`}
             spellCheck="false"
             autoComplete="off"
+            readOnly={readOnly}
         />
     );
 });

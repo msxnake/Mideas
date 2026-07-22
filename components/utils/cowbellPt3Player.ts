@@ -16,11 +16,21 @@ type CowbellTrack = {
   close?: () => void;
 };
 
+type CowbellAYChip = {
+  setRegister: (register: number, value: number) => void;
+  generate: (buffer: AudioBuffer, offset: number, length: number) => void;
+};
+
+type CowbellAYChipConstructor = new (opts: Record<string, unknown>) => CowbellAYChip;
+
 type CowbellZXPT3Player = {
   Track: new (url: string, opts?: Record<string, unknown>) => CowbellTrack;
 };
 
 type CowbellGlobal = {
+  Common?: {
+    AYChip?: CowbellAYChipConstructor;
+  };
   Player: {
     ZXPT3: new (opts?: Record<string, unknown>) => CowbellZXPT3Player;
   };
@@ -37,6 +47,94 @@ const COWBELL_SCRIPT_PATHS = [
   '/vendor/cowbell/ay_chip.min.js',
   '/vendor/cowbell/zx.min.js',
 ];
+
+type ChannelAudioCapture = (
+  channelIndex: number,
+  left: Float32Array,
+  right: Float32Array,
+  offset: number,
+  length: number
+) => void;
+
+/**
+ * Split one AY into three phase-locked Cowbell chips. Each clone receives the
+ * same register stream but only keeps its own amplitude register. Their sum is
+ * therefore the original AY output, while Mideas can inspect and mute A/B/C
+ * independently without changing PT3 timing, noise or hardware-envelope state.
+ */
+export const createSeparatedCowbellAYChip = (
+  OriginalChip: CowbellAYChipConstructor,
+  opts: Record<string, unknown>,
+  isMuted: (channelIndex: number) => boolean,
+  onChannelAudio: ChannelAudioCapture
+): CowbellAYChip => {
+  const chips = [0, 1, 2].map(() => new OriginalChip(opts));
+  let scratchLength = 0;
+  let scratchChannels: Array<[Float32Array, Float32Array]> = [];
+
+  const ensureScratchBuffers = (length: number): void => {
+    if (scratchLength === length) return;
+    scratchLength = length;
+    scratchChannels = chips.map(() => [new Float32Array(length), new Float32Array(length)]);
+  };
+
+  return {
+    setRegister(register, value) {
+      chips.forEach((chip, channelIndex) => {
+        const amplitudeChannel = register >= 8 && register <= 10 ? register - 8 : null;
+        chip.setRegister(register, amplitudeChannel === null || amplitudeChannel === channelIndex ? value : 0);
+      });
+    },
+    generate(buffer, offset, length) {
+      ensureScratchBuffers(buffer.length);
+      const end = Math.min(buffer.length, offset + length);
+
+      chips.forEach((chip, channelIndex) => {
+        const channelBuffers = scratchChannels[channelIndex];
+        const scratchBuffer = {
+          length: buffer.length,
+          numberOfChannels: 2,
+          getChannelData: (outputChannel: number) => channelBuffers[outputChannel],
+        } as AudioBuffer;
+        chip.generate(scratchBuffer, offset, length);
+        onChannelAudio(channelIndex, channelBuffers[0], channelBuffers[1], offset, end - offset);
+      });
+
+      const outputLeft = buffer.getChannelData(0);
+      const outputRight = buffer.getChannelData(1);
+      for (let sampleIndex = offset; sampleIndex < end; sampleIndex += 1) {
+        let left = 0;
+        let right = 0;
+        for (let channelIndex = 0; channelIndex < chips.length; channelIndex += 1) {
+          if (isMuted(channelIndex)) continue;
+          left += scratchChannels[channelIndex][0][sampleIndex];
+          right += scratchChannels[channelIndex][1][sampleIndex];
+        }
+        outputLeft[sampleIndex] = left;
+        outputRight[sampleIndex] = right;
+      }
+    },
+  };
+};
+
+const installCowbellAYChannelTap = (
+  cowbell: CowbellGlobal,
+  isMuted: (channelIndex: number) => boolean,
+  onChannelAudio: ChannelAudioCapture
+): (() => void) => {
+  const common = cowbell.Common;
+  const OriginalChip = common?.AYChip;
+  if (!common || typeof OriginalChip !== 'function') return () => undefined;
+
+  const SeparatedChip = function (this: CowbellAYChip, opts: Record<string, unknown>) {
+    return createSeparatedCowbellAYChip(OriginalChip, opts, isMuted, onChannelAudio);
+  } as unknown as CowbellAYChipConstructor;
+  common.AYChip = SeparatedChip;
+
+  return () => {
+    if (common.AYChip === SeparatedChip) common.AYChip = OriginalChip;
+  };
+};
 
 let cowbellLoadPromise: Promise<CowbellGlobal> | null = null;
 
@@ -98,6 +196,14 @@ export class CowbellPT3Player {
   private objectUrl: string | null = null;
   private track: CowbellTrack | null = null;
   private audioElement: CowbellAudioElement | null = null;
+  private waveforms = [
+    new Float32Array(1024),
+    new Float32Array(1024),
+    new Float32Array(1024),
+  ];
+  private waveformWriteIndexes = [0, 0, 0];
+  private mutedChannelIndexes = new Set<number>();
+  private releaseAYChannelTap: (() => void) | null = null;
 
   constructor(
     private readonly bytes: Uint8Array,
@@ -117,6 +223,23 @@ export class CowbellPT3Player {
       stereoMode: 'ACB',
       ayMode: 'AY',
     });
+    this.waveforms.forEach(waveform => waveform.fill(0));
+    this.waveformWriteIndexes.fill(0);
+    this.releaseAYChannelTap?.();
+    this.releaseAYChannelTap = installCowbellAYChannelTap(
+      cowbell,
+      channelIndex => this.mutedChannelIndexes.has(channelIndex),
+      (channelIndex, left, right, offset, length) => {
+        const waveform = this.waveforms[channelIndex];
+        let writeIndex = this.waveformWriteIndexes[channelIndex];
+        const end = offset + length;
+        for (let sampleIndex = offset; sampleIndex < end; sampleIndex += 1) {
+          waveform[writeIndex] = (left[sampleIndex] + right[sampleIndex]) * 0.5;
+          writeIndex = (writeIndex + 1) % waveform.length;
+        }
+        this.waveformWriteIndexes[channelIndex] = writeIndex;
+      }
+    );
     this.track = new player.Track(this.objectUrl, {
       ayFrequency: 1773400,
       commandFrequency: 50,
@@ -125,6 +248,27 @@ export class CowbellPT3Player {
     });
     this.audioElement = this.track.open();
     this.bindEvents();
+  }
+
+  /** Return the latest independent A/B/C output for the Pattern Editor scopes. */
+  public getOscilloscopeSnapshot(): Float32Array[] {
+    return this.waveforms.map((waveform, channelIndex) => {
+      const snapshot = new Float32Array(waveform.length);
+      const writeIndex = this.waveformWriteIndexes[channelIndex];
+      const tail = waveform.length - writeIndex;
+      snapshot.set(waveform.subarray(writeIndex), 0);
+      snapshot.set(waveform.subarray(0, writeIndex), tail);
+      return snapshot;
+    });
+  }
+
+  public setMutedChannels(channelIds: Iterable<string>): void {
+    const next = new Set<number>();
+    for (const channelId of channelIds) {
+      const channelIndex = channelId === 'A' ? 0 : channelId === 'B' ? 1 : channelId === 'C' ? 2 : -1;
+      if (channelIndex >= 0) next.add(channelIndex);
+    }
+    this.mutedChannelIndexes = next;
   }
 
   public async play(): Promise<void> {
@@ -156,6 +300,8 @@ export class CowbellPT3Player {
       this.audioElement.pause();
     }
     this.track?.close?.();
+    this.releaseAYChannelTap?.();
+    this.releaseAYChannelTap = null;
     this.track = null;
     this.audioElement = null;
 
