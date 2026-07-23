@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorType, ProjectAsset, ContextMenuItem, Tile, ScreenMap, ComponentDefinition, EntityTemplate, WorldMapGraph } from './types';
 import { AppUI } from './components/AppUI';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -13,6 +13,7 @@ import { useImportExportHandlers } from './handlers/useImportExportHandlers';
 import { useSnippetHandlers } from './handlers/useSnippetHandlers';
 import { useHistoryHandlers } from './handlers/useHistoryHandlers';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from './utils/projectTarget';
+import { useMideasMcpBridge } from './hooks/useMideasMcpBridge';
 
 /** The interval for autosaving the project, in milliseconds. @constant */
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000;
@@ -664,6 +665,57 @@ const App: React.FC = () => {
       setStatusBarMessage("No asset selected.");
     }
   };
+
+  const mcpProjectSnapshot = useMemo(() => ({
+    assets,
+    currentProjectName,
+    currentScreenMode,
+    msx2ProjectProfile,
+    selectedAssetId,
+    currentEditor,
+    statusBarMessage,
+    tileBanks,
+    componentDefinitions,
+    entityTemplates,
+    enemyDefinitions,
+    mainMenuConfig,
+    presentationScreen,
+    ideConfiguration: {
+      dataOutputFormat,
+      autosaveEnabled,
+      snippetsEnabled,
+      syntaxHighlightingEnabled,
+      worldViewGridVisible,
+      defaultExportRomMode,
+    },
+  }), [
+    assets,
+    currentProjectName,
+    currentScreenMode,
+    msx2ProjectProfile,
+    selectedAssetId,
+    currentEditor,
+    statusBarMessage,
+    tileBanks,
+    componentDefinitions,
+    entityTemplates,
+    enemyDefinitions,
+    mainMenuConfig,
+    presentationScreen,
+    dataOutputFormat,
+    autosaveEnabled,
+    snippetsEnabled,
+    syntaxHighlightingEnabled,
+    worldViewGridVisible,
+    defaultExportRomMode,
+  ]);
+
+  useMideasMcpBridge({
+    projectSnapshot: mcpProjectSnapshot,
+    onFocusAsset: assetId => handleSelectAsset(assetId),
+    onOpenConfiguration: () => setIsConfigModalOpen(true),
+    onSetStatusMessage: setStatusBarMessage,
+  });
 
   // Handle rename functionality
   const handleConfirmRename = useCallback((newName: string) => {

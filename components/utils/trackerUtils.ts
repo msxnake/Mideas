@@ -49,6 +49,13 @@ export const toDualChipSong = (song: TrackerSongData): TrackerSongData => {
   const legacyChip: 'PSG' | 'SCC' = song.soundChip === 'SCC' ? 'SCC' : 'PSG';
   return {
     ...song,
+    // A dual-chip arrangement must run through Mideas' native tick engine.
+    // Cowbell replays the original PT3 byte stream and therefore has no way
+    // to see or mix the five SCC columns added below.
+    playbackBackend: 'native',
+    externalPt3Data: undefined,
+    externalPt3HasHeader: undefined,
+    externalPt3PlayerId: undefined,
     soundChip: 'PSG+SCC',
     sccEnabled: song.sccEnabled !== false,
     instruments: song.instruments.map((inst) => (

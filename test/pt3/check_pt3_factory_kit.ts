@@ -6,7 +6,7 @@ import {
 } from '../../utils/audio/pt3FactoryInstruments';
 import { buildNativePT3SampleRuntimeAsm, generateSoundFile } from '../../utils/msxGenerator/generators/soundGenerator';
 import { buildSccIntegratedMusicBlock } from '../../utils/msxGenerator/generators/sccSoundGenerator';
-import type { PT3Instrument, TrackerSongData } from '../../types';
+import type { PT3Instrument, SCCInstrument, TrackerSongData } from '../../types';
 
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -228,5 +228,40 @@ assert(largeBuild.dataBankChunks!.every(chunk => chunk.usedBytes <= 8192), 'Ever
 assert(largeBuild.runtimeAsm.includes('ld (music_data_bank_cur), a\n    ld (#B000), a           ; map the pattern body'), 'Pattern changes must map their owning bank.');
 assert(largeBuild.dataAsm.includes('DB TEST_MUSIC_BANK_1          ; @mideas:pattern-bank'), 'Pattern bank table must reference later music banks.');
 assert((largeBuild.dataAsm.match(/_pattern_17_rows:/g) ?? []).length === 1, 'The last pattern body must be emitted exactly once, not truncated or duplicated.');
+
+// Regression: a long dual song must bank the SCC and PSG bodies as one pattern
+// unit. Previously the active SCC half made the exporter reject the song even
+// though every individual pattern fitted comfortably inside the 8KB window.
+const sccBass: SCCInstrument = {
+  id: 24,
+  name: 'SCC Test Bass',
+  chip: 'SCC',
+  waveform: Array.from({ length: 32 }, (_, index) => Math.round(96 * Math.sin((index / 32) * Math.PI * 2))),
+  volume: 12,
+};
+const largeDualSong: TrackerSongData = {
+  ...largeSong,
+  id: 'pt3-large-dual-pattern-banked',
+  name: 'PT3 Large Dual Pattern Banked',
+  soundChip: 'PSG+SCC',
+  sccEnabled: true,
+  instruments: [...largeSong.instruments, sccBass],
+  patterns: largePatterns.map((pattern) => ({
+    ...pattern,
+    rows: pattern.rows.map((row, rowIndex) => ({
+      ...row,
+      1: { note: rowIndex % 8 === 0 ? 'C-2' : '---', instrument: rowIndex % 8 === 0 ? sccBass.id : null, ornament: null, volume: null },
+    })),
+  })),
+};
+const largeDualBuild = buildSccIntegratedMusicBlock([], [largeDualSong], {
+  dataBankEquateName: 'TEST_DUAL_MUSIC_BANK',
+  pt3SampleRuntimeAsm: buildNativePT3SampleRuntimeAsm(),
+});
+assert((largeDualBuild.dataBankChunks?.length ?? 0) > 1, 'Oversized PSG+SCC music must span multiple 8KB banks.');
+assert(largeDualBuild.dataBankChunks!.every(chunk => chunk.usedBytes <= 8192), 'Every dual pattern bank must fit the physical 8KB window.');
+assert(largeDualBuild.dataAsm.includes('DB TEST_DUAL_MUSIC_BANK_1          ; @mideas:pattern-bank'), 'Dual pattern bank table must reference later music banks.');
+assert((largeDualBuild.dataAsm.match(/scc_track_0_pt3_large_dual_pattern_banked_pattern_17_rows:/g) ?? []).length === 1, 'The final SCC pattern body must be emitted exactly once.');
+assert((largeDualBuild.dataAsm.match(/psg_track_0_pt3_large_dual_pattern_banked_pattern_17_rows:/g) ?? []).length === 1, 'The final PSG pattern body must be emitted exactly once.');
 
 console.log('PT3 factory kit checks passed (12 original instruments, Preview + PSG and PSG+SCC ASM).');

@@ -14,7 +14,7 @@ import { DualChipSynthesizer } from '../utils/dualChipSynthesizer';
 import {
   createEmptyRow, createDefaultTrackerPattern,
   NOTE_REGEX, INSTRUMENT_REGEX, ORNAMENT_REGEX, VOLUME_REGEX,
-  createEmptyCell, getSongChannels, toDualChipSong
+  createEmptyCell, getSongChannels, toDualChipSong, channelChip, isSccInstrument
 } from '../utils/trackerUtils';
 import { LogModal } from '../modals/LogModal'; // Import the new LogModal
 
@@ -42,7 +42,7 @@ import { locatePT3PlaybackFrame, parsePT3Module, parsePT3File } from '../utils/p
 import { normalizeImportedPT3Data } from '../utils/trackerUtils';
 import { mergePT3Assets } from '../utils/pt3InstrumentImport';
 import { mergePT3FactoryKit } from '../../utils/audio/pt3FactoryInstruments';
-import { patchPT3SourceOrnamentBytes, patchPT3SourceSampleBytes, rewritePT3PatternNoteStreams } from '../utils/pt3SourceEditor';
+import { applyPT3SourceNoteEntry, patchPT3SourceOrnamentBytes, patchPT3SourceSampleBytes, rewritePT3PatternNoteStreams } from '../utils/pt3SourceEditor';
 
 const hasFullPT3Header = (bytes: Uint8Array): boolean => {
   const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
@@ -832,17 +832,31 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onUpdate((currentSong) => {
           if (!currentSong.externalPt3Data?.length) return {};
           try {
-            const updatedPatterns = currentSong.patterns.map((pattern, patternIndex) => {
-              if (patternIndex !== activePatternStorageIndex) return pattern;
-              const rows = pattern.rows.map((row, currentRowIndex) => {
-                if (currentRowIndex !== rowIndex) return row;
-                return {
-                  ...row,
-                  [channelId]: { ...row[channelId], [field]: finalValueToStore },
-                };
+            const activeSourceInstrument = currentSong.instruments.find(instrument =>
+              instrument.id === activeInstrumentId && !isSccInstrument(instrument)
+            );
+            const updatedPatterns = field === 'note'
+              ? applyPT3SourceNoteEntry({
+                patterns: currentSong.patterns,
+                patternIndex: activePatternStorageIndex,
+                order: currentSong.order,
+                orderIndex: currentSong.currentPatternIndexInOrder,
+                rowIndex,
+                channel: channelId,
+                note: finalValueToStore as string | null,
+                activeInstrumentId: activeSourceInstrument?.id ?? null,
+              })
+              : currentSong.patterns.map((pattern, patternIndex) => {
+                if (patternIndex !== activePatternStorageIndex) return pattern;
+                const rows = pattern.rows.map((row, currentRowIndex) => {
+                  if (currentRowIndex !== rowIndex) return row;
+                  return {
+                    ...row,
+                    [channelId]: { ...row[channelId], [field]: finalValueToStore },
+                  };
+                });
+                return { ...pattern, rows };
               });
-              return { ...pattern, rows };
-            });
             const bytes = rewritePT3PatternNoteStreams(
               new Uint8Array(currentSong.externalPt3Data),
               updatedPatterns,
@@ -889,8 +903,21 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
                 finalValueToStore !== "---" && finalValueToStore !== "===") {
 
                 // Explicitly check for null, undefined, or 0
-                if (activeInstrumentId !== null && (updatedChannelCell.instrument === null || updatedChannelCell.instrument === undefined || updatedChannelCell.instrument === 0)) {
-                  updatedChannelCell.instrument = activeInstrumentId;
+                const targetChip = channelChip(channelId);
+                const instrumentMatchesTargetChip = (instrument: PT3Instrument | SCCInstrument) => (
+                  targetChip === 'SCC' ? isSccInstrument(instrument) : !isSccInstrument(instrument)
+                );
+                const activeInstrument = currentSong.instruments.find(instrument => instrument.id === activeInstrumentId);
+                const currentInstrument = currentSong.instruments.find(instrument => instrument.id === updatedChannelCell.instrument);
+                const compatibleInstrumentId = activeInstrument && instrumentMatchesTargetChip(activeInstrument)
+                  ? activeInstrument.id
+                  : currentSong.instruments.find(instrumentMatchesTargetChip)?.id ?? null;
+
+                // Never leave a PSG instrument on an SCC channel (or vice
+                // versa). This is especially easy to trigger immediately
+                // after converting an imported PT3 song to PSG+SCC.
+                if ((!currentInstrument || !instrumentMatchesTargetChip(currentInstrument)) && compatibleInstrumentId !== null) {
+                  updatedChannelCell.instrument = compatibleInstrumentId;
                 }
                 if (activeOrnamentId !== null && (updatedChannelCell.ornament === null || updatedChannelCell.ornament === undefined || updatedChannelCell.ornament === 0)) {
                   updatedChannelCell.ornament = activeOrnamentId;

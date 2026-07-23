@@ -452,6 +452,15 @@ const parseEnvelope = (csv: string | undefined): number[] => {
     return csv.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v));
 };
 
+// Imported PT3 samples can request the AY hardware envelope from their sample
+// steps, while the envelope shape/period itself normally comes from commands
+// in the song pattern. An isolated instrument preview has no such pattern
+// command, so provide a clearly audible audition context instead of inheriting
+// the track defaults (new/imported songs commonly carry period 1, which decays
+// in a fraction of a millisecond and sounds silent).
+const PT3_PREVIEW_ENVELOPE_SHAPE = 14;
+const PT3_PREVIEW_ENVELOPE_PERIOD = 256;
+
 const buildMiniEnvelopePoints = (values: number[], min: number, max: number, width: number, height: number): string => {
     if (values.length === 0) return '';
     const range = Math.max(1, max - min);
@@ -592,16 +601,20 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
         setIsPreviewing(true);
 
         // Create temporary instrument for preview
+        const usesPT3HardwareEnvelope = instrumentModalBuffer.instrumentMode === 'pt3-sample'
+            && !!instrumentModalBuffer.pt3Sample?.steps.some(step => step.hardwareEnvelopeEnabled);
         const tempInstrument: PT3Instrument = {
             id: instrumentModalBuffer.id || 1,
             name: instrumentModalBuffer.name || 'Preview',
+            chip: instrumentModalBuffer.chip ?? 'PSG',
             volumeEnvelope: volumeEnvelopeArray,
             toneEnvelope: toneEnvelopeArray,
             noiseEnvelope: noiseEnvelopeArray,
             volumeLoop: instrumentModalBuffer.volumeLoop,
             toneLoop: instrumentModalBuffer.toneLoop,
             noiseLoop: instrumentModalBuffer.noiseLoop,
-            ayEnvelopeShape: instrumentModalBuffer.ayEnvelopeShape,
+            ayEnvelopeShape: instrumentModalBuffer.ayEnvelopeShape
+                ?? (usesPT3HardwareEnvelope ? PT3_PREVIEW_ENVELOPE_SHAPE : undefined),
             ayToneEnabled: instrumentModalBuffer.ayToneEnabled ?? true,
             ayNoiseEnabled: instrumentModalBuffer.ayNoiseEnabled ?? false,
             noiseBaseFrequency: instrumentModalBuffer.noiseBaseFrequency,
@@ -611,10 +624,12 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             pt3Sample: instrumentModalBuffer.pt3Sample,
         };
 
+        let originalSongData: any = null;
+        let previewSongApplied = false;
         try {
             await synthesizer.ensureAudioContext();
 
-            const originalSongData = typeof synthesizer.getSongData === 'function'
+            originalSongData = typeof synthesizer.getSongData === 'function'
                 ? synthesizer.getSongData()
                 : null;
             if (!originalSongData) {
@@ -629,30 +644,44 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                 tempInstrument
             ].sort((a, b) => a.id - b.id);
 
+            const configuredEnvelopePeriod = instrumentModalBuffer.hardwareEnvelopePeriod
+                ?? originalSongData.ayHardwareEnvelopePeriod;
+            const previewEnvelopePeriod = usesPT3HardwareEnvelope
+                && (!Number.isFinite(configuredEnvelopePeriod) || configuredEnvelopePeriod <= 1)
+                ? PT3_PREVIEW_ENVELOPE_PERIOD
+                : configuredEnvelopePeriod;
+
             synthesizer.setSongData({
                 ...originalSongData,
+                ...(previewEnvelopePeriod !== undefined
+                    ? { ayHardwareEnvelopePeriod: previewEnvelopePeriod }
+                    : {}),
                 instruments: previewInstruments
             });
+            previewSongApplied = true;
 
             // Play preview note; a selected ornament is auditioned combined with the sample.
             const ornamentForPreview = previewOrnamentId > 0 && (ornaments ?? []).some(o => o.id === previewOrnamentId)
                 ? previewOrnamentId
                 : null;
-            synthesizer.playNote(0, previewNote, tempInstrument.id, ornamentForPreview, 15);
+            await synthesizer.playNote(0, previewNote, tempInstrument.id, ornamentForPreview, 15);
 
             // Stop after 1 second
-            setTimeout(() => {
-                synthesizer.playNote(0, '===', null, null, null);
-                setIsPreviewing(false);
-
-                // Restore original instruments
-                synthesizer.setSongData({
-                    ...originalSongData,
-                    instruments: originalInstruments
-                });
+            setTimeout(async () => {
+                try {
+                    await synthesizer.playNote(0, '===', null, null, null);
+                } finally {
+                    setIsPreviewing(false);
+                    // Restore the exact song object, including its original AY
+                    // envelope period, so auditioning cannot alter playback.
+                    synthesizer.setSongData(originalSongData);
+                }
             }, 1000);
         } catch (error) {
             console.error('Preview error:', error);
+            if (previewSongApplied && originalSongData) {
+                synthesizer.setSongData(originalSongData);
+            }
             setIsPreviewing(false);
         }
     }, [synthesizer, isPreviewing, instrumentModalBuffer, volumeEnvelopeArray, toneEnvelopeArray, noiseEnvelopeArray, previewNote, previewOrnamentId, ornaments]);

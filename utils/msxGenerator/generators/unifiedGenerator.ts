@@ -3564,7 +3564,7 @@ function generateMegaromUnifiedFile(
     const spritesBank4Data = getSpritesBank4Data(analysis);
     const patternsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? getPatternsBank4Data(analysis) : '';
     const colorsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? getColorsBank4Data(analysis) : '';
-    const soundBank4Data = getSoundBank4Data(analysis);
+    const soundBank4Data = getSoundBank4Data(analysis, config.romMode, config.targetFormat);
     const screensBank4Data = analysis.screenMaps && analysis.screenMaps.length > 0
         ? getScreensBank4Data(analysis, config.targetFormat) : '';
 

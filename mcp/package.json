@@ -1,0 +1,21 @@
+{
+  "name": "mideas-mcp-server",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Loopback-only MCP server for the live Mideas React application.",
+  "bin": {
+    "mideas-mcp": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=../.env src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  }
+}

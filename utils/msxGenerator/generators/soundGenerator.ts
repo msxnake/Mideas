@@ -77,6 +77,13 @@ export function generateSoundFile(
 
   const sccTracks = collectSccTracks(analysis);
   const pt3Tracks = collectPT3Tracks(analysis);
+  if (romMode === 'megarom' && pt3Tracks.length > 0 && targetFormat !== 'konami') {
+    throw new Error(
+      `Source-faithful PT3 MegaROM playback currently requires targetFormat="konami"; ` +
+      `${targetFormat} cannot keep the replayer code and its 16KB module window mapped safely. ` +
+      `Select Konami MegaROM for this PSG/PT3 song.`
+    );
+  }
   const tracks = pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
   if (sccTracks.length > 0 && (pt3Tracks.length > 0 || tracks.length > 0)) {
     throw new Error('A ROM cannot currently mix SCC music tracks with PSG/PT3 music tracks. Keep PSG sound effects, but choose one music backend.');
@@ -89,7 +96,7 @@ export function generateSoundFile(
   const musicBlock = sccTracks.length > 0
     ? buildSccIntegratedMusicBlock(sccTracks).asm
     : pt3Tracks.length > 0
-      ? buildPT3MusicBlock(pt3Tracks)
+      ? buildPT3MusicBlock(pt3Tracks, romMode, targetFormat)
       : tracks.length > 0
         ? buildTrackerMusicBlock(tracks, bankedTrackData)
         : buildNoMusicBlock();
@@ -722,10 +729,67 @@ export function getSerializedTrackerMusicBufferSize(_analysis: ProjectAnalysis):
   return 0;
 }
 
-export function getSoundBank4Data(_analysis: ProjectAnalysis): string {
-  // Tracker music data is kept inline in sound.asm. Keeping this empty avoids
-  // duplicate MegaROM resources and the old music_track_buffer RAM copy path.
-  return '';
+export interface PT3BankedDataChunk {
+  asm: string;
+  usedBytes: number;
+  trackIndex: number;
+  blockIndex: number;
+}
+
+export function buildPT3BankedDataChunks(
+  tracks: TrackerSongData[],
+  targetFormat: MapperFormat = 'konami'
+): PT3BankedDataChunk[] {
+  const zoneSize = targetFormat === 'ascii16' ? 0x4000 : 0x2000;
+  const maxTrackBytes = targetFormat === 'ascii16' ? zoneSize : zoneSize * 2;
+  const chunks: PT3BankedDataChunk[] = [];
+  tracks.forEach((track, trackIndex) => {
+    const source = Array.from(track.externalPt3Data || [], (value) => value & 0xFF);
+    const prefixSize = track.externalPt3HasHeader ? 0 : 99;
+    const moduleBytes = [...new Array(prefixSize).fill(0), ...source];
+    if (moduleBytes.length > maxTrackBytes) {
+      throw new Error(
+        `PT3 track "${track.name || trackIndex}" is ${moduleBytes.length} bytes after header reconstruction; ` +
+        `${targetFormat} MegaROM source-faithful playback currently supports at most ${maxTrackBytes} bytes per module.`
+      );
+    }
+    const blockCount = targetFormat === 'ascii16' ? 1 : 2;
+    for (let blockIndex = 0; blockIndex < blockCount; blockIndex++) {
+      const blockLabel = `pt3_track_${trackIndex}_bank_${blockIndex}`;
+      const start = blockIndex * zoneSize;
+      const block = moduleBytes.slice(start, start + zoneSize);
+      const lines = [`${blockLabel}:`];
+      for (let offset = 0; offset < block.length; offset += 16) {
+        lines.push(`    DB ${block.slice(offset, offset + 16).map((value) => toAsmByte(value)).join(',')}`);
+      }
+      const padding = zoneSize - block.length;
+      if (padding > 0) lines.push(`    DS ${toAsmWord(padding)}, #FF`);
+      chunks.push({ asm: lines.join('\n'), usedBytes: zoneSize, trackIndex, blockIndex });
+    }
+  });
+  return chunks;
+}
+
+export function getSoundBank4Data(
+  analysis: ProjectAnalysis,
+  romMode: string = 'simple32k',
+  targetFormat: MapperFormat = 'konami'
+): string {
+  const tracks = collectPT3Tracks(analysis);
+  if (romMode !== 'megarom' || tracks.length === 0) return '';
+  const lines: string[] = [
+    '; ==================================================================',
+    '; SOURCE-FAITHFUL PT3 DATA BANKS',
+    '; Each block deliberately fills a whole mapper zone. For 8KB mappers',
+    '; this guarantees that the two halves of a module occupy consecutive',
+    '; banks and can be exposed at #8000-#BFFF during one PT3 tick.',
+    '; ==================================================================',
+    '',
+  ];
+
+  lines.push(...buildPT3BankedDataChunks(tracks, targetFormat).map((chunk) => `${chunk.asm}\n`));
+
+  return lines.join('\n');
 }
 
 function getInstrumentMap(song: TrackerSongData): Map<number, PT3Instrument> {
@@ -1096,7 +1160,59 @@ function buildTrackData(
   };
 }
 
-function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
+export interface PT3MusicBlockOptions {
+  /** External bank EQU prefix used by specialized ROM layouts. Track N consumes
+   * `${prefix}_${N*2}` and `${prefix}_${N*2+1}` on Konami. */
+  bankEquatePrefix?: string;
+  /** Bitmap SCREEN 5 owns deterministic resident P2/P3 banks and has no generic
+   * mapper push/pop helpers, so restore those fixed banks after each PT3 call. */
+  mapperRestoreMode?: 'push-pop' | 'bitmap-resident';
+}
+
+export function buildPT3MusicBlock(
+  tracks: TrackerSongData[],
+  romMode: string = 'simple32k',
+  targetFormat: MapperFormat = 'konami',
+  options: PT3MusicBlockOptions = {}
+): string {
+  const usesBankedPt3Data = romMode === 'megarom';
+  const bankDivisor = targetFormat === 'ascii16' ? '#4000' : '#2000';
+  const dataMask = targetFormat === 'ascii16' ? '#3FFF' : '#1FFF';
+  const primaryDataPage = targetFormat === 'konami' ? 'p2' : 'p3';
+  const secondaryDataPage = targetFormat === 'konami' ? 'p3' : 'p4';
+  const bankEntrySize = targetFormat === 'ascii16' ? 1 : 2;
+  const usesBitmapResidentRestore = options.mapperRestoreMode === 'bitmap-resident';
+  const mapSelectedTrackAsm = usesBankedPt3Data
+    ? targetFormat === 'ascii16'
+      ? [
+          ...(!usesBitmapResidentRestore ? [`    call mapper_push_${primaryDataPage}`] : []),
+          '    ld a, (music_pt3_data_bank_0)',
+          `    call mapper_set_bank_${primaryDataPage}`,
+        ]
+      : [
+          ...(!usesBitmapResidentRestore ? [
+            `    call mapper_push_${primaryDataPage}`,
+            `    call mapper_push_${secondaryDataPage}`,
+          ] : []),
+          '    ld a, (music_pt3_data_bank_0)',
+          `    call mapper_set_bank_${primaryDataPage}`,
+          '    ld a, (music_pt3_data_bank_1)',
+          `    call mapper_set_bank_${secondaryDataPage}`,
+        ]
+    : [];
+  const restoreSelectedTrackAsm = usesBankedPt3Data
+    ? usesBitmapResidentRestore
+      ? [
+          '    ld a, 3',
+          `    call mapper_set_bank_${secondaryDataPage}`,
+          '    ld a, 2',
+          `    call mapper_set_bank_${primaryDataPage}`,
+        ]
+      : targetFormat === 'ascii16'
+      ? [`    call mapper_pop_${primaryDataPage}`]
+      : [`    call mapper_pop_${secondaryDataPage}`, `    call mapper_pop_${primaryDataPage}`]
+    : [];
+
   const lines: string[] = [
     '; ==================================================================',
     '; PT3 MUSIC BACKEND',
@@ -1124,18 +1240,22 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     '; Destroys: AF, E',
     '; ------------------------------------------------------------------',
     'music_silence_channels:',
+    '    ld a, 8',
+    '    out (#A0), a',
     '    xor a',
-    '    ld b, a',
-    '    call psg_set_volume     ; Channel A vol=0',
-    '    ld a, 1',
-    '    ld b, 0',
-    '    call psg_set_volume     ; Channel B vol=0',
-    '    ld a, 2',
-    '    ld b, 0',
-    '    call psg_set_volume     ; Channel C vol=0',
-    '    ld a, PSG_MIXER',
-    '    ld e, #3F',
-    '    call psg_write          ; All tones+noise off',
+    '    out (#A1), a            ; Channel A volume=0',
+    '    ld a, 9',
+    '    out (#A0), a',
+    '    xor a',
+    '    out (#A1), a            ; Channel B volume=0',
+    '    ld a, 10',
+    '    out (#A0), a',
+    '    xor a',
+    '    out (#A1), a            ; Channel C volume=0',
+    '    ld a, 7',
+    '    out (#A0), a',
+    '    ld a, #3F',
+    '    out (#A1), a            ; All tones+noise off',
     '    ret',
     '',
     '; ------------------------------------------------------------------',
@@ -1219,6 +1339,23 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     '; ------------------------------------------------------------------',
     'music_play_track:',
     '    ld (music_track_index), a',
+    ...(usesBankedPt3Data ? [
+      `    ld a, (music_track_index)`,
+      ...(bankEntrySize === 2 ? ['    add a, a'] : []),
+      '    ld e, a',
+      '    ld d, 0',
+      '    ld hl, music_pt3_track_bank_table',
+      '    add hl, de',
+      '    ld a, (hl)',
+      '    ld (music_pt3_data_bank_0), a',
+      ...(bankEntrySize === 2 ? [
+        '    inc hl',
+        '    ld a, (hl)',
+        '    ld (music_pt3_data_bank_1), a',
+      ] : [
+        '    ld (music_pt3_data_bank_1), a',
+      ]),
+    ] : []),
     '    ld a, b',
     '    and 1',
     '    ld (music_loop), a',
@@ -1236,15 +1373,22 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     '    xor a',
     '    ld (music_muted), a',
     '    ld (PT3_SETUP), a      ; Clear end-of-song flag',
-    '    di                     ; Disable interrupts while initialising PT3',
+    '    ld a, i                ; Preserve IFF2 across init (safe from ISR/mainline)',
+    '    push af',
+    '    di',
+    ...mapSelectedTrackAsm,
     '    push ix',
     '    push iy',
     '    call PT3_INIT',
     '    pop iy',
     '    pop ix',
+    ...restoreSelectedTrackAsm,
     '    ld a, 1',
     '    ld (music_active), a   ; Enable playback AFTER PT3 is fully initialised',
+    '    pop af',
+    '    jp po, .pt3_play_track_ret',
     '    ei',
+    '.pt3_play_track_ret:',
     '    ret',
     '',
     '; ------------------------------------------------------------------',
@@ -1280,31 +1424,53 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     '    ld d, (hl)',
     '    ld h, d',
     '    ld l, e',
+    '    ; PT3 uses SP as a temporary data pointer. Preserve IFF2 and keep',
+    '    ; interrupts disabled until the replayer has restored the CPU stack.',
+    '    ld a, i',
+    '    push af',
+    '    di',
+    ...mapSelectedTrackAsm,
     '    push ix',
     '    push iy',
     '    call PT3_INIT',
     '    pop iy',
     '    pop ix',
+    ...restoreSelectedTrackAsm,
+    '    pop af',
+    '    jp po, .pt3_upd_loop_ret',
+    '    ei',
+    '.pt3_upd_loop_ret:',
     '    ret',
     '.pt3_upd_stop:',
     '    xor a',
     '    ld (music_active), a',
     '    ret',
     '.pt3_upd_play:',
+    '    ; PT3_PLAY/CHREGS/PTDECOD temporarily repurpose SP. An interrupt in',
+    '    ; that window corrupts the return chain, so preserve IFF2 atomically.',
+    '    ld a, i',
+    '    push af',
+    '    di',
+    ...mapSelectedTrackAsm,
     '    push ix',
     '    push iy',
     '    call PT3_PLAY',
     '    call PT3_ROUT',
     '    pop iy',
     '    pop ix',
+    ...restoreSelectedTrackAsm,
+    '    pop af',
+    '    jp po, .pt3_upd_play_ret',
+    '    ei',
+    '.pt3_upd_play_ret:',
     '    ret',
     '',
     '; ------------------------------------------------------------------',
     '; PT3 REPLAYER',
-    '; Uses a bare include so exported ASM can compile outside server/temp',
-    '; when Glass receives the project server/ directory in its include path.',
+    '; Uses a unique wrapper include so stale server/temp copies of older',
+    '; replayers can never shadow the canonical source selected with -I server.',
     '; ------------------------------------------------------------------',
-    '    include "PT3-ROM-alltables-glass.asm"',
+    '    include "mideas-pt3-replayer-glass.asm"',
     '',
     '; ------------------------------------------------------------------',
     '; PT3 TRACK TABLE',
@@ -1321,7 +1487,9 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     tracks.forEach((track, index) => {
       const label = `pt3_track_${index}_data`;
       const name = track.name || `track ${index}`;
-      if (track.externalPt3HasHeader) {
+      if (usesBankedPt3Data) {
+        lines.push(`    DW (pt3_track_${index}_bank_0 & ${dataMask}) | #8000 ; ${name} (banked source)`);
+      } else if (track.externalPt3HasHeader) {
         // Full file: PT3_MODADDR must point to original byte 0 so PT3_INIT +100 lands on speed byte.
         lines.push(`    DW ${label}         ; ${name} (full file)`);
       } else {
@@ -1332,7 +1500,23 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     });
   }
 
-  if (tracks.length > 0) {
+  if (usesBankedPt3Data) {
+    lines.push('');
+    lines.push('; Mapper banks selected while PT3_INIT/PT3_PLAY read module data.');
+    lines.push('music_pt3_track_bank_table:');
+    tracks.forEach((_track, index) => {
+      lines.push(options.bankEquatePrefix
+        ? `    DB ${options.bankEquatePrefix}_${index * bankEntrySize}`
+        : `    DB ((pt3_track_${index}_bank_0 - #4000) / ${bankDivisor}) & #FF`);
+      if (bankEntrySize === 2) {
+        lines.push(options.bankEquatePrefix
+          ? `    DB ${options.bankEquatePrefix}_${index * bankEntrySize + 1}`
+          : `    DB ((pt3_track_${index}_bank_1 - #4000) / ${bankDivisor}) & #FF`);
+      }
+    });
+  }
+
+  if (tracks.length > 0 && !usesBankedPt3Data) {
     lines.push('');
     tracks.forEach((track, index) => {
       const label = `pt3_track_${index}_data`;
@@ -1355,7 +1539,7 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
   return lines.join('\n');
 }
 
-function buildNativePT3SampleRuntimeAsm(): string {
+export function buildNativePT3SampleRuntimeAsm(): string {
   return `; ------------------------------------------------------------------
 ; music_channel_is_pt3_sample
 ; Check whether the current channel instrument uses the native PT3 step ABI.
@@ -1391,6 +1575,8 @@ music_channel_is_pt3_sample:
 music_pt3_begin_frame:
     xor a
     ld (music_pt3_frame_active), a
+    ld (music_pt3_used_noise), a
+    ld (music_pt3_used_env), a
     ld (music_pt3_env_add_lo), a
     ld (music_pt3_env_add_hi), a
     ld a, 1
@@ -1738,11 +1924,15 @@ music_update_one_pt3_channel:
     ld hl, music_pt3_noise_acc_base
     call music_store_channel_byte
 .pt3_noise_output_ready:
+    ld a, 1
+    ld (music_pt3_used_noise), a
     ld a, b
     ld (music_pt3_noise_add), a
     jp .pt3_global_done
 
 .pt3_envelope_target:
+    ld a, 1
+    ld (music_pt3_used_env), a
     ld a, (music_pt3_channel_work)
     ld c, a
     ld hl, music_pt3_env_acc_lo_base
@@ -1851,6 +2041,9 @@ music_pt3_finalize_frame:
     ld a, (music_pt3_frame_active)
     or a
     ret z
+    ld a, (music_pt3_used_noise)
+    or a
+    jp z, .pt3_skip_noise_write
     ld a, MUSIC_TRACK_NOISE_DEFAULT
     call music_read_track_byte
     ld e, a
@@ -1858,6 +2051,10 @@ music_pt3_finalize_frame:
     add a, e
     call psg_set_noise
 
+.pt3_skip_noise_write:
+    ; R11/R12 are part of every active PT3 frame. music_pt3_used_env only
+    ; tells us whether a sample contributed AddToEn; it must not suppress the
+    ; base envelope period or a pending R13 retrigger on a noise-routed step.
     ld a, MUSIC_TRACK_ENV_BASE
     call music_get_track_header_ptr
     ld e, (hl)
@@ -1891,6 +2088,9 @@ music_pt3_finalize_frame:
     ld e, a
     ld a, PSG_ENV_SHAPE
     call psg_write
+    xor a
+    ld (music_pt3_r13_pending), a
+.pt3_skip_env_write:
     xor a
     ld (music_pt3_r13_pending), a
     ret`;
@@ -1991,6 +2191,8 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     'music_reset_pt3_state:',
     '    xor a',
     '    ld (music_pt3_frame_active), a',
+    '    ld (music_pt3_used_noise), a',
+    '    ld (music_pt3_used_env), a',
     '    ld (music_pt3_noise_add), a',
     '    ld (music_pt3_env_add_lo), a',
     '    ld (music_pt3_env_add_hi), a',

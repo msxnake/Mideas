@@ -89,7 +89,11 @@ The backend server provides compilation and compression services. To run it:
     ```bash
     node server.js
     ```
-    The server will run on `http://localhost:3001`. The frontend application is configured to communicate with it automatically.
+The server will run on `http://localhost:3001`. The frontend application is configured to communicate with it automatically.
+
+### Local MCP Integration (Optional)
+
+Mideas includes a separate, loopback-only MCP server for inspecting the live React project and executing a small allowlist of UI actions. Copy `.env.example` to `.env`, set a long random `MIDEAS_MCP_TOKEN`, then run `npm run mcp:install` and `npm run mcp:start` before starting Vite. See [`mcp/README.md`](mcp/README.md) for the tool list, client configuration, security model, and tests.
 
 ## Usage
 

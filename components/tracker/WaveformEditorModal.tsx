@@ -3,7 +3,7 @@ import { Modal } from '../modals/Modal';
 import { Button } from '../common/Button';
 import { SCCInstrument } from '../../types';
 import { SCCSynthesizer } from '../utils/sccSynthesizer';
-import { SCC_INSTRUMENT_PRESETS } from '../../utils/audio/sccInstrumentPresets';
+import { SCC_INSTRUMENT_PRESET_GROUPS } from '../../utils/audio/sccInstrumentPresets';
 
 // Waveform presets
 const PRESETS = {
@@ -321,7 +321,12 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
     setVibratoSpeed(clampVibSpeed(preset.vibratoSpeed ?? 16));
     setVibratoDelay(clampVibDelay(preset.vibratoDelay ?? 0));
     setNoiseMode(preset.noiseMode === true);
-    setMorphEnabled(false);
+    const presetMorph = Array.isArray(preset.morphToWaveform) && preset.morphToWaveform.length > 0;
+    setMorphEnabled(presetMorph);
+    setMorphWaveform(presetMorph
+      ? [...preset.morphToWaveform!, ...Array(32).fill(0)].slice(0, 32)
+      : Array(32).fill(0));
+    setMorphSpeed(clampMorphSpeed(preset.morphSpeed ?? 4));
   };
 
   const handleEnvValueChange = (idx: number, newVal: number) => {
@@ -359,7 +364,7 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
 
   return (
     <Modal title="SCC Waveform Editor" isOpen={isOpen} onClose={onClose}>
-      <div className="flex flex-col space-y-4 p-4 w-[600px] max-w-full">
+      <div className="flex flex-col space-y-4 p-4 pr-3 w-[960px] max-w-[92vw] max-h-[82vh] overflow-y-auto">
         <div className="flex space-x-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-msx-textprimary mb-1">Instrument Name</label>
@@ -382,20 +387,27 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-msx-textprimary mb-1">Instrumentos predefinidos</label>
-          <div className="flex flex-wrap items-center gap-1 mb-2">
-            {SCC_INSTRUMENT_PRESETS.map(preset => (
-              <button
-                key={`inst-${preset.name}`}
-                onClick={() => applyInstrumentPreset(preset)}
-                className="text-[10px] px-2 py-1 bg-msx-accent/20 border border-msx-accent rounded hover:bg-msx-accent hover:text-black transition-colors"
-                title="Carga waveform + envolvente + vibrato/ruido del preset"
-              >
-                {preset.name}
-              </button>
+          <label className="block text-sm font-medium text-msx-textprimary mb-1">Librería de instrumentos</label>
+          <div className="space-y-1 mb-2">
+            {SCC_INSTRUMENT_PRESET_GROUPS.map(group => (
+              <div key={`grp-${group.name}`} className="flex items-start gap-2">
+                <span className="text-[10px] text-msx-textsecondary w-16 pt-1 shrink-0 text-right">{group.name}</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {group.presets.map(preset => (
+                    <button
+                      key={`inst-${preset.name}`}
+                      onClick={() => applyInstrumentPreset(preset)}
+                      className="text-[10px] px-2 py-1 bg-msx-accent/20 border border-msx-accent rounded hover:bg-msx-accent hover:text-black transition-colors"
+                      title="Carga waveform + envolvente + vibrato/ruido/morph del preset"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-          <p className="text-[10px] text-msx-textsecondary mb-2">Piano/Flauta/Bajo melodicos; Bombo/Caja/Hi-Hat usan ruido real (tocarlos en nota grave/media/aguda).</p>
+          <p className="text-[10px] text-msx-textsecondary mb-2">La percusión usa ruido real: la nota elige el color (Bombo grave, Tom media, Caja C-5, Hi-Hat/Platillo agudas). "Coro" usa morphing de waveform.</p>
         </div>
 
         <div>

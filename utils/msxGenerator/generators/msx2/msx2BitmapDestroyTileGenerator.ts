@@ -216,9 +216,10 @@ export function buildBitmapDestroyTileDataAsm(
     emit(`bitmap_destroy_mask_room_${roomIndex}`, mask, `Room ${roomIndex} destructible cells (192 cells / 8 = 24 bytes, bit = cell & 7)`)
   ).join('');
   const sfxData = config!.digSound
-    ? `; destroy_tile pick thud: PSG register/value pairs (mixer, period A #1E0, envelope decay)
+    ? `; destroy_tile pick thud: PSG register/value pairs (mixer, period C #1E0, envelope decay)
+; Channel C: gameplay SFX own it by convention (music leaves it free).
 bitmap_destroy_sfx_data:
-    db 7,#3E,0,#E0,1,#01,11,#38,12,#00,8,#10,13,#09
+    db 7,#3B,4,#E0,5,#01,11,#38,12,#00,10,#10,13,#09
 `
     : '';
   return `${maskRows}bitmap_destroy_mask_ptrs:
@@ -303,6 +304,8 @@ bitmap_destroy_sfx:
     out (#A1), a
     inc hl
     djnz .dsfx_loop
+    ld a, #20               ; shadow: tone C on, noise C off (music merges it)
+    ld (psg_sfx_r7_c_bits), a
     ret
 `
     : '';

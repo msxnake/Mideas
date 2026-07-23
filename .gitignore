@@ -24,6 +24,7 @@ builds/*_motor_check*
 # Generated build and agent outputs
 dist/
 node_modules/
+.env
 temp/
 downloads/
 game.rom

@@ -576,10 +576,13 @@ bitmap_sfx_hidden:
     out (#A1), a
     inc hl
     djnz .hidden_sfx_loop
+    ld a, #20               ; shadow: tone C on, noise C off (music merges it)
+    ld (psg_sfx_r7_c_bits), a
     ret
 
+; Channel C: gameplay SFX own it by convention (music leaves it free).
 bitmap_sfx_hidden_data:
-    db 7,#3E,0,#38,1,#00,11,#40,12,#00,8,#10,13,#09
+    db 7,#3B,4,#38,5,#00,11,#40,12,#00,10,#10,13,#09
 `;
 
   const windowRoutineAsm = windowEnabled ? `

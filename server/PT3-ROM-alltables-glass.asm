@@ -376,7 +376,9 @@ PD_LP2:		LD A,(BC)
 		ADD A,E
 		JR C,PD_ESAM
 		ADD A,A
+		SUB #E0				; Convert biased classifier result to command * 2.
 		LD E,A
+		LD D,0				; DE = command * 2. PD_LOOP leaves D=#20.
 		LD HL,SPCCOMS				; Direct address (Speccy trick invalid at arbitrary MSX ROM addresses)
 		ADD HL,DE
 		LD E,(HL)

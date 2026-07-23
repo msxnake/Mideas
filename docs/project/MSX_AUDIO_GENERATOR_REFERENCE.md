@@ -78,8 +78,17 @@ Archivo fuente: [soundGenerator.ts](/c:/Users/salam/Documents/Programacion/Midea
 
 - Requereix `targetFormat=konami`; aquest target emet el mapper Konami SCC de
   8 KB amb registres `#7000/#9000/#B000`.
-- No es permet barrejar música SCC amb música PSG/PT3 en una mateixa ROM. Sí
-  que es poden combinar música SCC i efectes PSG.
+- La ruta bitmap Konami admite tracks SCC, tracks PSG nativos y tracks duales
+  `PSG+SCC` dentro de la misma ROM. Un track `external-pt3` source-faithful no
+  se mezcla con esos backends nativos en esa ruta.
+- Si una canción PSG o `PSG+SCC` supera el espacio útil de un banco de 8 KB,
+  `sccSoundGenerator.ts` duplica descriptor, tablas e instrumentos y reparte
+  los cuerpos de patrón entre varios bancos. En canciones duales, cada unidad
+  contiene juntos los cuerpos SCC y PSG del mismo patrón; la tabla de bancos
+  del PSG gobierna el cambio para ambos reproductores.
+- El orden `scc_music_update` seguido de `psg_music_update` es un invariante del
+  patrón multibanco dual: SCC resuelve primero la dirección de la próxima fila
+  y PSG selecciona después el banco que ambos leerán en el frame siguiente.
 - `music_update` SCC s'executa al mainline sincronitzat amb `HALT`, mai dins
   `H.TIMI`, perquè pot carregar una waveform de 32 bytes.
 - Cada accés SCC exposa temporalment el banc `#3F` a P2 i restaura el banc

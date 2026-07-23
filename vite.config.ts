@@ -26,6 +26,8 @@ const copyPngMsxCharsToolPlugin = () => ({
 export default defineConfig(({ mode }) => {
   // Carga las variables de entorno según el modo (development, production, etc.)
   const env = loadEnv(mode, process.cwd(), '');
+  const mcpBridgePort = env.MIDEAS_MCP_PORT || '3333';
+  const mcpBridgeToken = env.MIDEAS_MCP_TOKEN || '';
 
   return {
     plugins: [react(), copyPngMsxCharsToolPlugin()],
@@ -34,7 +36,15 @@ export default defineConfig(({ mode }) => {
       open: true,          // Abre el navegador al iniciar
       port: 3000,
       strictPort: true,    // Falla si el puerto está ocupado
-      host: 'localhost'
+      host: 'localhost',
+      proxy: mcpBridgeToken ? {
+        '/mcp-api': {
+          target: `http://127.0.0.1:${mcpBridgePort}`,
+          changeOrigin: false,
+          headers: { 'X-Mideas-MCP-Token': mcpBridgeToken },
+          rewrite: requestPath => requestPath.replace(/^\/mcp-api/, '/api'),
+        },
+      } : undefined,
     },
 
     // Exponer la API key de Gemini al frontend

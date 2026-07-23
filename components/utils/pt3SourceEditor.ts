@@ -1,6 +1,103 @@
 import type { PT3Ornament, PT3SampleMacro, TrackerCell, TrackerPattern } from '../../types';
 import { encodePT3SourceNoteCommand, PT3_POSITION_LIST_OFFSET } from './pt3Parser';
 
+export interface PT3SourceNoteEntry {
+  patterns: TrackerPattern[];
+  patternIndex: number;
+  order: number[];
+  orderIndex: number;
+  rowIndex: number;
+  channel: 'A' | 'B' | 'C';
+  note: string | null;
+  activeInstrumentId: number | null;
+}
+
+const isPT3InstrumentId = (value: number | null | undefined): value is number =>
+  Number.isInteger(value) && value! >= 1 && value! <= 31;
+
+const findPreviousPT3Instrument = ({
+  patterns,
+  patternIndex,
+  order,
+  orderIndex,
+  rowIndex,
+  channel,
+}: Omit<PT3SourceNoteEntry, 'note' | 'activeInstrumentId'>): number | null => {
+  const targetPattern = patterns[patternIndex];
+  if (!targetPattern) return null;
+
+  // A selector on the same row applies before its note, so it also counts as
+  // an existing instrument and must never be replaced by the active picker.
+  for (let scanRow = Math.min(rowIndex, targetPattern.numRows - 1); scanRow >= 0; scanRow -= 1) {
+    const instrument = targetPattern.rows[scanRow]?.[channel]?.instrument;
+    if (isPT3InstrumentId(instrument)) return instrument;
+  }
+
+  // PT3 channel state survives pattern boundaries. Respect the actual order
+  // occurrence currently being edited instead of needlessly repeating INS at
+  // the first row of every pattern.
+  if (orderIndex < 0 || orderIndex >= order.length || order[orderIndex] !== patternIndex) return null;
+  for (let scanOrder = orderIndex - 1; scanOrder >= 0; scanOrder -= 1) {
+    const previousPattern = patterns[order[scanOrder]];
+    if (!previousPattern) continue;
+    for (let scanRow = previousPattern.numRows - 1; scanRow >= 0; scanRow -= 1) {
+      const instrument = previousPattern.rows[scanRow]?.[channel]?.instrument;
+      if (isPT3InstrumentId(instrument)) return instrument;
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Enter one note using Vortex's compact selector semantics. The active
+ * instrument is written on the row when the channel has none to inherit or
+ * when the user selected a different instrument. Re-selecting the inherited
+ * instrument keeps INS blank.
+ */
+export const applyPT3SourceNoteEntry = ({
+  patterns,
+  patternIndex,
+  order,
+  orderIndex,
+  rowIndex,
+  channel,
+  note,
+  activeInstrumentId,
+}: PT3SourceNoteEntry): TrackerPattern[] => {
+  const targetPattern = patterns[patternIndex];
+  if (!targetPattern || rowIndex < 0 || rowIndex >= targetPattern.numRows) return patterns;
+
+  const isPlayableNote = note !== null && note !== '---' && note !== '===';
+  const previousInstrumentId = findPreviousPT3Instrument({
+      patterns,
+      patternIndex,
+      order,
+      orderIndex,
+      rowIndex,
+      channel,
+    });
+  const shouldWriteInstrument = isPlayableNote
+    && isPT3InstrumentId(activeInstrumentId)
+    && previousInstrumentId !== activeInstrumentId;
+
+  return patterns.map((pattern, currentPatternIndex) => {
+    if (currentPatternIndex !== patternIndex) return pattern;
+    const rows = pattern.rows.map((row, currentRowIndex) => {
+      if (currentRowIndex !== rowIndex) return row;
+      return {
+        ...row,
+        [channel]: {
+          ...row[channel],
+          note,
+          ...(shouldWriteInstrument ? { instrument: activeInstrumentId } : {}),
+        },
+      };
+    });
+    return { ...pattern, rows };
+  });
+};
+
 const readUint16LE = (bytes: Uint8Array, offset: number): number =>
   bytes[offset] | (bytes[offset + 1] << 8);
 

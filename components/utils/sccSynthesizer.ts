@@ -3,6 +3,10 @@ import { SCCInstrument, TrackerSongData } from '../../types';
 
 const SCC_CLOCK_FREQUENCY = 3579545; // 3.58 MHz
 const SCC_WAVE_SIZE = 32;
+// Per-channel oscilloscope tap window (time-domain samples). Matches the AY
+// register synthesizer's scope resolution so both chips read the same in the
+// dual-chip preview panel.
+const SCC_OSCILLOSCOPE_FFT_SIZE = 1024;
 
 // Approximate SCC (K051649) 4-bit volume curve, normalized to 1.0 peak.
 const SCC_VOLUME_TABLE = [
@@ -19,6 +23,11 @@ export class SCCSynthesizer {
     private channelGains: (GainNode | null)[] = [null, null, null, null, null];
     private channelPanners: (StereoPannerNode | null)[] = [null, null, null, null, null];
     private channelSources: (AudioBufferSourceNode | null)[] = [null, null, null, null, null];
+    // Passive per-channel oscilloscope taps: each channel gain also feeds its
+    // analyser (a dead-end sink), so the tracker scope panel can draw the real
+    // audible waveform of every SCC channel. Persist across notes; recreated
+    // with the audio context.
+    private channelAnalysers: (AnalyserNode | null)[] = [null, null, null, null, null];
 
     private isInitialized = false;
     private currentMasterVolume = 0.3;
@@ -165,6 +174,40 @@ export class SCCSynthesizer {
                 this.stopChannel(channel);
             }
         }
+    }
+
+    // Lazily create the persistent oscilloscope analyser for a channel. The
+    // caller connects the (re)created channel gain to it so the tap survives
+    // note restarts without re-allocating the analyser.
+    private ensureChannelAnalyser(channel: number): AnalyserNode | null {
+        if (!this.audioContext) return null;
+        if (!this.channelAnalysers[channel]) {
+            const analyser = this.audioContext.createAnalyser();
+            analyser.fftSize = SCC_OSCILLOSCOPE_FFT_SIZE;
+            analyser.smoothingTimeConstant = 0;
+            this.channelAnalysers[channel] = analyser;
+        }
+        return this.channelAnalysers[channel];
+    }
+
+    // Route a freshly created channel gain into its oscilloscope analyser. The
+    // analyser is a dead-end sink (no onward connection), so it only measures.
+    private tapChannelAnalyser(channel: number): void {
+        const gain = this.channelGains[channel];
+        const analyser = this.ensureChannelAnalyser(channel);
+        if (gain && analyser) gain.connect(analyser);
+    }
+
+    /** Latest time-domain waveform per channel (columns 1-5) for the tracker
+     *  oscilloscope panel. Channels that have never played return an empty
+     *  buffer, which the panel renders as a flat line. */
+    public getOscilloscopeSnapshot(): Float32Array[] {
+        return this.channelAnalysers.map(analyser => {
+            if (!analyser) return new Float32Array(0);
+            const data = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(data);
+            return data;
+        });
     }
 
     private getVolumeFactor(volume: number): number {
@@ -468,6 +511,7 @@ export class SCCSynthesizer {
                 this.channelPanners[channel]!.connect(this.masterGain);
             }
             this.channelGains[channel]!.connect(this.channelPanners[channel]!);
+            this.tapChannelAnalyser(channel);
         }
 
         let initialVol = volume;
@@ -504,6 +548,7 @@ export class SCCSynthesizer {
                             this.channelPanners[channel]!.connect(this.masterGain);
                         }
                         this.channelGains[channel]!.connect(this.channelPanners[channel]!);
+                        this.tapChannelAnalyser(channel);
                         this.channelGains[channel]!.gain.setValueAtTime(this.getVolumeFactor(initialVol), this.audioContext.currentTime);
                     }
 
@@ -551,6 +596,7 @@ export class SCCSynthesizer {
 
     public closeContext(): void {
         this.stopAllNotes();
+        this.channelAnalysers = [null, null, null, null, null];
         if (this.audioContext) {
             this.audioContext.close();
             this.audioContext = null;

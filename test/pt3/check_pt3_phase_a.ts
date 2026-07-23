@@ -8,7 +8,7 @@ import {
   decodePT3SampleStep,
   stepPT3SampleMacro,
 } from '../../components/utils/pt3SampleEngine';
-import { patchPT3SourceOrnamentBytes, patchPT3SourceSampleBytes, rewritePT3PatternNoteStreams } from '../../components/utils/pt3SourceEditor';
+import { applyPT3SourceNoteEntry, patchPT3SourceOrnamentBytes, patchPT3SourceSampleBytes, rewritePT3PatternNoteStreams } from '../../components/utils/pt3SourceEditor';
 import { normalizeImportedPT3Data } from '../../components/utils/trackerUtils';
 import type { PT3SampleMacro } from '../../types';
 
@@ -245,6 +245,104 @@ assert(
   selectorCleared.rows[0].A.instrument === null && selectorCleared.rows[0].A.ornament === null && selectorCleared.rows[0].A.volume === null,
   'Blank PT3 INS/ORN/VOL fields must remove their explicit selector commands and inherit channel state.',
 );
+const instrumentSeedBase = [{
+  ...canonicalPattern,
+  rows: canonicalPattern.rows.map((row, index) => index < 3
+    ? { ...row, A: { ...row.A, note: null, instrument: null } }
+    : row),
+}];
+const instrumentSeeded = applyPT3SourceNoteEntry({
+  patterns: instrumentSeedBase,
+  patternIndex: 0,
+  order: [0],
+  orderIndex: 0,
+  rowIndex: 0,
+  channel: 'A',
+  note: 'D-2',
+  activeInstrumentId: 5,
+});
+assert(
+  instrumentSeeded[0].rows[0].A.note === 'D-2' && instrumentSeeded[0].rows[0].A.instrument === 5,
+  'A PT3 note with no previous channel instrument must write the active instrument.',
+);
+const instrumentInherited = applyPT3SourceNoteEntry({
+  patterns: instrumentSeeded,
+  patternIndex: 0,
+  order: [0],
+  orderIndex: 0,
+  rowIndex: 1,
+  channel: 'A',
+  note: 'E-2',
+  activeInstrumentId: 5,
+});
+assert(
+  instrumentInherited[0].rows[1].A.note === 'E-2' && instrumentInherited[0].rows[1].A.instrument === null,
+  'A PT3 note using the inherited channel instrument must keep INS blank.',
+);
+const instrumentChanged = applyPT3SourceNoteEntry({
+  patterns: instrumentSeeded,
+  patternIndex: 0,
+  order: [0],
+  orderIndex: 0,
+  rowIndex: 1,
+  channel: 'A',
+  note: 'E-2',
+  activeInstrumentId: 7,
+});
+assert(
+  instrumentChanged[0].rows[1].A.instrument === 7,
+  'Selecting a different PT3 instrument must write the new INS on the note row.',
+);
+const previousOrderPattern = {
+  ...instrumentSeeded[0],
+  id: 'previous-order-pattern',
+  rows: instrumentSeeded[0].rows.map((row, index) => index === instrumentSeeded[0].numRows - 1
+    ? { ...row, B: { ...row.B, instrument: 6 } }
+    : row),
+};
+const nextOrderPattern = {
+  ...instrumentSeedBase[0],
+  id: 'next-order-pattern',
+};
+const inheritedAcrossOrder = applyPT3SourceNoteEntry({
+  patterns: [previousOrderPattern, nextOrderPattern],
+  patternIndex: 1,
+  order: [0, 1],
+  orderIndex: 1,
+  rowIndex: 0,
+  channel: 'B',
+  note: 'F-2',
+  activeInstrumentId: 6,
+});
+assert(
+  inheritedAcrossOrder[1].rows[0].B.instrument === null,
+  'PT3 note entry must inherit an instrument from the previous ordered pattern.',
+);
+const changedAcrossOrder = applyPT3SourceNoteEntry({
+  patterns: [previousOrderPattern, nextOrderPattern],
+  patternIndex: 1,
+  order: [0, 1],
+  orderIndex: 1,
+  rowIndex: 0,
+  channel: 'B',
+  note: 'F-2',
+  activeInstrumentId: 8,
+});
+assert(
+  changedAcrossOrder[1].rows[0].B.instrument === 8,
+  'A newly selected PT3 instrument must override the instrument inherited from the previous pattern.',
+);
+const cutWithoutInstrument = applyPT3SourceNoteEntry({
+  patterns: instrumentSeedBase,
+  patternIndex: 0,
+  order: [0],
+  orderIndex: 0,
+  rowIndex: 0,
+  channel: 'A',
+  note: '===',
+  activeInstrumentId: 5,
+});
+assert(cutWithoutInstrument[0].rows[0].A.instrument === null, 'A PT3 note cut must not seed an instrument.');
 const heldRowEditedPatterns = [{
   ...canonicalPattern,
   rows: canonicalPattern.rows.map((row, index) => index === 1

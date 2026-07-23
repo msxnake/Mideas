@@ -193,10 +193,17 @@ import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
 import {
   collectSccTracks,
   collectDualChipTracks,
+  collectPsgOnlyTracks,
   buildSccIntegratedMusicBlock,
   buildSccMusicRam,
   buildPsgMusicRam,
 } from '../sccSoundGenerator';
+import {
+  buildNativePT3SampleRuntimeAsm,
+  buildPT3BankedDataChunks,
+  buildPT3MusicBlock,
+} from '../soundGenerator';
+import { buildExternalPT3WorkspaceAsm } from '../variablesGenerator';
 import {
   bitmapCarryAndThrowEnabled,
   buildBitmapCarryAndThrowSystemAsm,
@@ -2230,6 +2237,44 @@ function formatBankedDataBanks(banks: PackedDataBank[]): string {
     lines.push(`    org BITMAP_ROOM_DATA_BANK_${bank.bank}_PHYS_START + #2000`);
     lines.push('');
   }
+  return lines.join('\n');
+}
+
+// Music data chunks each get their own physical 8KB bank. Native SCC/PSG
+// chunks are mapped into P3; source PT3 chunks form P2/P3 pairs. The runtime
+// always restores resident banks 2/3 before returning. SCC-window bank numbers
+// stay reserved as #FF padding so ROM file position matches the bank number.
+function formatMusicDataBanks(
+  chunks: Array<{ asm: string; usedBytes: number }>,
+  bankNumbers: number[],
+  firstExpectedBank: number
+): string {
+  const lines: string[] = [];
+  let expectedBank = firstExpectedBank;
+  chunks.forEach((chunk, index) => {
+    const bank = bankNumbers[index];
+    while (expectedBank < bank) {
+      lines.push(`; Bank ${expectedBank} reserved: (bank & #3F) == #3F would expose the SCC in the P2 window.`);
+      lines.push('    ds #2000, #FF');
+      expectedBank++;
+    }
+    expectedBank++;
+    lines.push('; ==================================================================');
+    lines.push(`; MUSIC DATA BANK ${bank} (chunk ${index}: shared tables + serialized songs, ${chunk.usedBytes}/8192 bytes).`);
+    lines.push('; Mapped into the music runtime window only while music_play_track / music_update run;');
+    lines.push('; the wrappers restore resident P2=2 and P3=3 before returning. Source PT3');
+    lines.push('; uses consecutive chunks as #8000/#A000 halves; native SCC/PSG uses P3.');
+    lines.push('; SCC-window bank numbers are never allocated. The ds guard fails loudly');
+    lines.push('; if this chunk ever outgrows its 8KB bank.');
+    lines.push('; ==================================================================');
+    lines.push(`BITMAP_MUSIC_DATA_BANK_${index}_PHYS_START:`);
+    lines.push('    org #A000');
+    lines.push(chunk.asm);
+    lines.push(`BITMAP_MUSIC_DATA_BANK_${index}_USED_END:`);
+    lines.push('    ds #C000 - $, #FF');
+    lines.push(`    org BITMAP_MUSIC_DATA_BANK_${index}_PHYS_START + #2000`);
+    lines.push('');
+  });
   return lines.join('\n');
 }
 
@@ -6711,10 +6756,12 @@ bitmap_sfx_gem:
     out (#A1), a
     inc hl
     djnz .gem_sfx_loop
+    ld a, #20               ; shadow: tone C on, noise C off (music merges it)
+    ld (psg_sfx_r7_c_bits), a
     ret
 
 bitmap_sfx_gem_data:
-    db 7,#3E,0,#1C,1,#00,11,#28,12,#00,8,#10,13,#09
+    db 7,#3B,4,#1C,5,#00,11,#28,12,#00,10,#10,13,#09
 ` : '';
 
   const routinesAsm = `
@@ -8909,6 +8956,8 @@ bitmap_dlg_sfx_write:
     out (#A1), a
     inc hl
     djnz .dlg_sfx_write_loop
+    ld a, #20               ; shadow: tone C on, noise C off (music merges it)
+    ld (psg_sfx_r7_c_bits), a
     ret
 
 bitmap_dlg_sfx_open_ptrs:
@@ -12525,9 +12574,12 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const leaveGroundHooks = `${coyoteBufferLeaveGroundHook}`;
   // step_room_composition ticks music_update between VDP blocks so the song
   // stays at 60Hz during transitions; only when the music driver is emitted
-  // (same condition as sccMusic below: SCC/dual tracks + Konami SCC MegaROM).
+  // (same condition as sccMusic below: SCC/dual/PSG tracks + Konami SCC MegaROM).
   const sccMusicTickEnabled = isKonamiMegaRom
-    && (collectSccTracks(analysis as any).length > 0 || collectDualChipTracks(analysis as any).length > 0);
+    && (collectSccTracks(analysis as any).length > 0
+      || collectDualChipTracks(analysis as any).length > 0
+      || collectPsgOnlyTracks(analysis as any).length > 0
+      || (analysis.tracks || []).some((track: any) => track?.playbackBackend === 'external-pt3'));
   const runtimeAsm = buildRuntimeAsm(room, tilesetRleChunks, allHudSeedRleChunks, {
     frameCount: spriteTables.frameCount,
     delayFrames: spriteTables.delayFrames,
@@ -12681,28 +12733,93 @@ ${hasStateAnimations ? `    xor a
   // public music_* API consumed by Game Flow Music nodes; RAM sits at #C400
   // (above the destroy-tile block, far below the BIOS stack).
   const sccTracks = collectSccTracks(analysis as any);
+  const externalPt3Tracks = (analysis.tracks || []).filter(
+    (track: any) => track?.playbackBackend === 'external-pt3'
+  );
   // Dual-chip 'PSG+SCC' songs (Fase 3): the SCC half rides the SCC player and
-  // the PSG half plays through psg_music_* in lockstep. Combined track index
-  // space: SCC-only tracks first, then dual tracks.
-  const dualChipTracks = collectDualChipTracks(analysis as any);
-  const anyMusicTracks = sccTracks.length > 0 || dualChipTracks.length > 0;
-  if (anyMusicTracks && !isKonamiMegaRom) {
-    console.warn('⚠️ MSX2 bitmap route: SCC/dual-chip tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
+  // the PSG half plays through psg_music_* in lockstep. Plain 'PSG' songs join
+  // the same pipeline as dual tracks with an empty SCC half. Combined track
+  // index space: SCC-only tracks first, then dual tracks, then PSG tracks.
+  const dualChipTracks = [
+    ...collectDualChipTracks(analysis as any),
+    ...collectPsgOnlyTracks(analysis as any),
+  ];
+  if (externalPt3Tracks.length > 0 && (sccTracks.length > 0 || dualChipTracks.length > 0)) {
+    throw new Error('The SCREEN 5 bitmap route cannot mix source-faithful PT3 with native PSG/SCC tracks in one ROM. Keep the PT3 track and remove the legacy music assets.');
   }
-  const sccMusic = anyMusicTracks && isKonamiMegaRom
-    ? buildSccIntegratedMusicBlock(sccTracks, dualChipTracks)
+  const anyMusicTracks = externalPt3Tracks.length > 0 || sccTracks.length > 0 || dualChipTracks.length > 0;
+  if (anyMusicTracks && !isKonamiMegaRom) {
+    console.warn('⚠️ MSX2 bitmap route: music tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
+  }
+  // Music song DATA gets its own MegaROM bank(s), physically right after the
+  // packed room-data banks, mapped into P3 (#A000) only while music_* runs.
+  // The boot-image #A000 bank could not hold multi-track dual-chip data (8KB);
+  // projects whose songs exceed one 8KB bank spill into additional banks
+  // (each chunk repeats the shared tables so driver labels stay valid).
+  const sourcePt3Music = externalPt3Tracks.length > 0 && isKonamiMegaRom
+    ? {
+      runtimeAsm: buildPT3MusicBlock(externalPt3Tracks, 'megarom', 'konami', {
+        bankEquatePrefix: 'BITMAP_MUSIC_DATA_BANK',
+        mapperRestoreMode: 'bitmap-resident',
+      }),
+      dataBankChunks: buildPT3BankedDataChunks(externalPt3Tracks, 'konami'),
+      warnings: [] as string[],
+      trackCount: externalPt3Tracks.length,
+    }
     : null;
+  const sccMusic = sourcePt3Music || (anyMusicTracks && isKonamiMegaRom
+    ? buildSccIntegratedMusicBlock(sccTracks, dualChipTracks, {
+      dataBankEquateName: 'BITMAP_MUSIC_DATA_BANK',
+      pt3SampleRuntimeAsm: buildNativePT3SampleRuntimeAsm(),
+    })
+    : null);
+  const musicBankBase = bankedDataBanks.length > 0
+    ? bankedDataBanks[bankedDataBanks.length - 1].bank + 1
+    : BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
+  const musicBankNumbers: number[] = [];
+  {
+    let nextBank = musicBankBase;
+    for (let i = 0; i < (sccMusic?.dataBankChunks?.length || 0); i++) {
+      while (isSccWindowBank(nextBank)) nextBank++;
+      if (nextBank > BITMAP_ROOM_MEGAROM_MAX_BANK) {
+        throw new Error(`Music data exceeds the 2MB Konami SCC MegaROM limit (bank ${nextBank} > ${BITMAP_ROOM_MEGAROM_MAX_BANK})`);
+      }
+      musicBankNumbers.push(nextBank++);
+    }
+  }
+  const musicBanksAsm = sccMusic?.dataBankChunks?.length
+    ? formatMusicDataBanks(sccMusic.dataBankChunks, musicBankNumbers, musicBankBase)
+    : '';
   for (const warning of sccMusic?.warnings || []) {
     console.warn(`⚠️ SCC music: ${warning}`);
   }
-  const sccTrackIndexById = new Map(
-    [...sccTracks, ...dualChipTracks].map((track, index) => [String(track.id), index])
-  );
-  const sccMusicRam = sccMusic ? buildSccMusicRam(0xC404) : null;
+  // Music nodes reference the track ASSET id, but a song's own data.id can
+  // differ from its asset id (e.g. tracks created from library samples):
+  // index by BOTH so either reference resolves.
+  const sccTrackIndexById = new Map<string, number>();
+  const indexedMusicTracks = sourcePt3Music ? externalPt3Tracks : [...sccTracks, ...dualChipTracks];
+  indexedMusicTracks.forEach((track, index) => {
+    const assetId = (track as any).assetId;
+    if (assetId) sccTrackIndexById.set(String(assetId), index);
+    sccTrackIndexById.set(String(track.id), index);
+  });
+  const sccMusicRam = sccMusic && !sourcePt3Music ? buildSccMusicRam(0xC404) : null;
   const psgMusicRam = sccMusic && sccMusicRam && dualChipTracks.length > 0
     ? buildPsgMusicRam(sccMusicRam.nextFree)
     : null;
-  const sccMusicEquates = sccMusic && sccMusicRam ? `
+  const sourcePt3Workspace = sourcePt3Music ? buildExternalPT3WorkspaceAsm(0xC406) : null;
+  const sccMusicEquates = sourcePt3Music && sourcePt3Workspace ? `
+; ---- Source-faithful PT3: public status, mapper banks and replayer RAM ----
+mapper_bank_p2_current EQU #C3FF
+music_active          EQU #C400
+music_muted           EQU #C401
+music_loop            EQU #C402
+music_track_index     EQU #C403
+music_pt3_data_bank_0 EQU #C404
+music_pt3_data_bank_1 EQU #C405
+${musicBankNumbers.map((bank, index) => `BITMAP_MUSIC_DATA_BANK_${index} EQU ${bank}   ; PT3 half ${index}, mapped to P${index % 2 === 0 ? '2/#8000' : '3/#A000'}`).join('\n')}
+${sourcePt3Workspace.asm}
+` : sccMusic && sccMusicRam ? `
 ; ---- SCC music: public API status bytes + player runtime RAM (Fase 5) ----
 ; The bitmap engine keeps P2 on resident bank 2 whenever music_* runs (every
 ; banked load ends in bitmap_room_restore_resident_banks), so this mirror is
@@ -12713,6 +12830,7 @@ music_active         EQU #C400
 music_muted          EQU #C401
 music_loop           EQU #C402
 music_track_index    EQU #C403
+${musicBankNumbers.map((bank, index) => `BITMAP_MUSIC_DATA_BANK_${index} EQU ${bank}   ; P3 (#A000) music data bank, chunk ${index}`).join('\n')}
 ${sccMusicRam.asm}
 ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   const bitmapFlowForMusic = resolveBitmapGameFlow(analysis);
@@ -12862,7 +12980,12 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}${sccMusicEquates}    org #4000
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}
+; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
+; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
+; the music mixer merges them so its per-frame R7 heal never cuts a blip.
+psg_sfx_r7_c_bits EQU #C3FE
+${sccMusicEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -12881,7 +13004,9 @@ ${intro.initCallAsm}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
+${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}    ld a, #24                 ; SFX channel-C mixer shadow: start muted
+    ld (psg_sfx_r7_c_bits), a
+${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
     ; Game Flow exit gate: when the deadly/enemy damage system arms
     ; bitmap_game_over_flag (last life spent), leave the gameplay loop. With a
     ; Game Flow graph, ret returns to the dispatcher (which follows the WorldLink
@@ -12987,22 +13112,8 @@ ${hasStateAnimations ? `
 ; clips. 3 bytes/entry: frameBase, frameCount, delayFrames. Indexed by player_anim_state.
 ${formatBytes('bitmap_player_anim_clip_table', animClipTableBytes, stateAnimations.map(b => `${b.animId}=${b.state}(base ${b.frameBase},${b.frameCount}f)`).join(', '))}` : ''}
 
-${shootBulletDataTables}${sccMusic ? `; ==================================================================
-; MUSIC DATA (note/wave tables + serialized songs), pinned at #A000.
-; Constraints (see SccIntegratedMusicResult):
-;  - must NOT sit in #8000-#9FFF: music_update runs during transitions with a
-;    room data bank mapped there, and the SCC driver maps #3F there while it
-;    touches the chip registers;
-;  - the #A000-#BFFF window always holds boot-image bank 3 whenever music_*
-;    runs (every banked load restores the resident banks before returning).
-; The 'ds' guard fails the Glass build loudly if the resident stream ever
-; grows past #A000 (instead of silently corrupting the room tables again).
-; ==================================================================
-    ds #A000 - $, #FF
-${sccMusic.dataAsm}
-` : ''}    ds #C000 - $, #FF
-${bankedDataAsm}
-    end
+${shootBulletDataTables}    ds #C000 - $, #FF
+${bankedDataAsm}${musicBanksAsm}    end
 `;
 }
 
