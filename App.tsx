@@ -14,6 +14,7 @@ import { useSnippetHandlers } from './handlers/useSnippetHandlers';
 import { useHistoryHandlers } from './handlers/useHistoryHandlers';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from './utils/projectTarget';
 import { useMideasMcpBridge } from './hooks/useMideasMcpBridge';
+import { addEntryToMsx2SpriteLibrary } from './utils/msx2SpriteLibrary';
 
 /** The interval for autosaving the project, in milliseconds. @constant */
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000;
@@ -715,6 +716,12 @@ const App: React.FC = () => {
     onFocusAsset: assetId => handleSelectAsset(assetId),
     onOpenConfiguration: () => setIsConfigModalOpen(true),
     onSetStatusMessage: setStatusBarMessage,
+    onUpsertSprite: sprite => {
+      // Library-only: persist to the global MSX2 sprite library (localStorage).
+      // Does not touch the open project. Reopen Libraries → MSX2 Sprites to see it.
+      const entry = addEntryToMsx2SpriteLibrary(sprite);
+      setStatusBarMessage(`Sprite "${entry.name}" saved to the MSX2 sprite library.`);
+    },
   });
 
   // Handle rename functionality

@@ -29,10 +29,20 @@ const stateEnvelopeSchema = z.object({
   project: projectSchema,
 });
 
+/** Loose validation for an MSX2 sprite payload; passthrough keeps palette/size/frames intact. */
+export const mcpSpriteSchema = z.object({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  target: z.literal('MSX2'),
+  vdpMode: z.enum(['SCREEN4', 'SCREEN5']),
+  frames: z.array(z.unknown()).min(1).max(64),
+}).passthrough();
+
 export const controlledActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('focus_asset'), assetId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('open_configuration') }),
   z.object({ type: z.literal('set_status_message'), message: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('upsert_sprite'), sprite: mcpSpriteSchema }),
 ]);
 
 export async function createLiveBridge(options = {}) {

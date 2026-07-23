@@ -57,6 +57,43 @@ test('authenticates state sync and delivers controlled actions', async () => {
   }
 });
 
+test('queues a valid upsert_sprite action and rejects malformed sprites', async () => {
+  const bridge = await createLiveBridge({ token, port: 0 });
+  try {
+    await fetch(`${bridge.address}/api/state`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Mideas-MCP-Token': token,
+        Origin: 'http://localhost:3000',
+      },
+      body: JSON.stringify({ clientId: 'test-web', project: { assets: [] } }),
+    });
+
+    const sprite = {
+      id: 'girl_s5',
+      name: 'Anime Girl S5',
+      target: 'MSX2',
+      vdpMode: 'SCREEN5',
+      size: { width: 16, height: 16 },
+      palette: [{ slotIndex: 0, masterIndex: -1, hex: 'rgba(0,0,0,0)' }],
+      backgroundColor: 'rgba(0,0,0,0)',
+      frames: [{ id: 'frame_0', data: [['#B66DFF']] }],
+      currentFrameIndex: 0,
+      hardware: { x: 0, y: 0, color: 15, patternIndex: 0 },
+    };
+    const queued = bridge.queueAction({ type: 'upsert_sprite', sprite });
+    assert.equal(queued.type, 'upsert_sprite');
+    assert.equal(queued.payload.sprite.name, 'Anime Girl S5');
+
+    // Wrong target and missing frames must be rejected by the action schema.
+    assert.throws(() => bridge.queueAction({ type: 'upsert_sprite', sprite: { ...sprite, target: 'MSX1' } }));
+    assert.throws(() => bridge.queueAction({ type: 'upsert_sprite', sprite: { ...sprite, frames: [] } }));
+  } finally {
+    await bridge.close();
+  }
+});
+
 test('rejects untrusted origins and invalid actions', async () => {
   const bridge = await createLiveBridge({ token, port: 0 });
   try {

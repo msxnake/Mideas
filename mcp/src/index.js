@@ -2,7 +2,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { createLiveBridge } from './live-bridge.js';
+import { createLiveBridge, mcpSpriteSchema } from './live-bridge.js';
 import {
   getAppState,
   getAsset,
@@ -30,7 +30,8 @@ const server = new McpServer(
     instructions: [
       'This server reads the live Mideas React state through a loopback-only authenticated bridge.',
       'Use get_app_state first and require connected=true before querying the project.',
-      'Only execute_action can change UI state, and it accepts a fixed allowlist of actions.',
+      'execute_action changes UI state and accepts a fixed allowlist of actions.',
+      'upsert_sprite saves one MSX2 sprite into the global sprite library (localStorage) without touching the open project.',
       'There is no filesystem tool and no command execution tool.',
     ].join(' '),
   },
@@ -80,6 +81,20 @@ server.tool(
         : { type };
     validateControlledAction(bridge, action);
     const queued = bridge.queueAction(action);
+    const result = await bridge.waitForAction(queued.id, waitMs);
+    return asToolResult({ action: queued, result });
+  },
+);
+
+server.tool(
+  'upsert_sprite',
+  'Save one MSX2 sprite into the global Mideas sprite library (localStorage). Adds a new entry (deduplicated by name); does NOT modify the open project. Sprite must be a full Msx2Sprite object (target "MSX2", vdpMode SCREEN4/SCREEN5, palette, frames).',
+  {
+    sprite: mcpSpriteSchema,
+    waitMs: z.number().int().min(0).max(5_000).default(3_000),
+  },
+  async ({ sprite, waitMs }) => {
+    const queued = bridge.queueAction({ type: 'upsert_sprite', sprite });
     const result = await bridge.waitForAction(queued.id, waitMs);
     return asToolResult({ action: queued, result });
   },

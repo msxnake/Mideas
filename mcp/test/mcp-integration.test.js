@@ -34,6 +34,7 @@ test('serves the safe live-app tool surface through MCP stdio', async () => {
         'list_entities',
         'list_screens',
         'list_worlds',
+        'upsert_sprite',
       ],
     );
 

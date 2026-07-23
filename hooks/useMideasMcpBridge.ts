@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
+import type { Msx2Sprite } from '../types';
 
 type MideasMcpAction = {
   id: string;
-  type: 'focus_asset' | 'open_configuration' | 'set_status_message';
+  type: 'focus_asset' | 'open_configuration' | 'set_status_message' | 'upsert_sprite';
   payload?: {
     assetId?: string;
     message?: string;
+    sprite?: Msx2Sprite;
   };
 };
 
@@ -14,6 +16,7 @@ type MideasMcpBridgeOptions = {
   onFocusAsset: (assetId: string) => void;
   onOpenConfiguration: () => void;
   onSetStatusMessage: (message: string) => void;
+  onUpsertSprite: (sprite: Msx2Sprite) => void;
 };
 
 const BRIDGE_PATH = '/mcp-api';
@@ -68,6 +71,9 @@ export function useMideasMcpBridge(options: MideasMcpBridgeOptions) {
         } else if (action.type === 'set_status_message') {
           if (!action.payload?.message) throw new Error('set_status_message requires message.');
           handlers.onSetStatusMessage(action.payload.message);
+        } else if (action.type === 'upsert_sprite') {
+          if (!action.payload?.sprite) throw new Error('upsert_sprite requires sprite.');
+          handlers.onUpsertSprite(action.payload.sprite);
         } else {
           throw new Error('Unsupported action.');
         }
