@@ -216,7 +216,17 @@ export async function createLiveBridge(options = {}) {
   });
 
   await new Promise((resolve, reject) => {
-    httpServer.once('error', reject);
+    httpServer.once('error', error => {
+      if (error && error.code === 'EADDRINUSE') {
+        reject(new Error(
+          `Mideas MCP bridge port ${port} on ${host} is already in use. `
+          + 'Another Mideas MCP server is probably already running — connect to that one instead of '
+          + 'starting a second instance, or set MIDEAS_MCP_PORT to a free port.',
+        ));
+      } else {
+        reject(error);
+      }
+    });
     httpServer.listen(port, host, resolve);
   });
 

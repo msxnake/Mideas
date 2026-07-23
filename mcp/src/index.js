@@ -37,7 +37,15 @@ const httpHost = String(process.env.MIDEAS_MCP_HTTP_HOST || '127.0.0.1').trim();
 const httpToken = String(process.env.MIDEAS_MCP_HTTP_TOKEN || token).trim();
 const httpPath = String(process.env.MIDEAS_MCP_HTTP_PATH || '/mcp').trim() || '/mcp';
 
-const bridge = await createLiveBridge({ token, host, port, allowedOrigins });
+let bridge;
+try {
+  bridge = await createLiveBridge({ token, host, port, allowedOrigins });
+} catch (error) {
+  // Exit with a readable one-line reason instead of an opaque stack trace, so a
+  // client that spawned us (stdio) reports a diagnosable "closed before handshake".
+  console.error(`[mideas-mcp] Startup failed: ${error instanceof Error ? error.message : error}`);
+  process.exit(1);
+}
 
 /**
  * Builds a fully configured Mideas MCP server. A fresh instance is used per
@@ -225,6 +233,19 @@ function startHttpMcp() {
         id: null,
       }));
     }
+  });
+  // A port clash on the OPTIONAL HTTP transport must not kill the working stdio
+  // server: log a clear reason and keep running stdio-only.
+  server.on('error', error => {
+    if (error && error.code === 'EADDRINUSE') {
+      console.error(
+        `[mideas-mcp] HTTP transport disabled: port ${httpPort} on ${httpHost} is already in use. `
+        + 'Set MIDEAS_MCP_HTTP_PORT to a free port or stop the other server. stdio is still available.',
+      );
+    } else {
+      console.error(`[mideas-mcp] HTTP transport error: ${error?.message || error}`);
+    }
+    httpServer = null;
   });
   server.listen(httpPort, httpHost);
   return server;
