@@ -15,6 +15,7 @@ No expone acceso al sistema de archivos, borrado, subida de ficheros ni ejecuci�
 - `list_components`: definiciones ECS y plantillas que las usan.
 - `get_configuration`: configuración del proyecto y del IDE.
 - `execute_action`: solo admite `focus_asset`, `open_configuration` y `set_status_message`.
+- `upsert_sprite`: guarda un sprite MSX2 en la biblioteca global de sprites (localStorage); no modifica el proyecto abierto.
 
 ## Instalación
 
@@ -58,6 +59,25 @@ El cliente debe iniciar el servidor desde la raíz del repositorio para que `--e
 ```
 
 Para un despliegue de producción, configura el servidor web para reenviar `/mcp-api` al puente e inyectar `X-Mideas-MCP-Token`; no incluyas el token en el bundle React.
+
+## Transporte HTTP remoto (ChatGPT / OpenAI Agents SDK)
+
+Por defecto el servidor solo habla MCP por **stdio** (Claude Code/Desktop, Cursor). Los clientes remotos que no pueden lanzar un proceso local — como los **conectores de ChatGPT** o la herramienta `mcp` de la Responses API — necesitan una **URL MCP por HTTP**. Actívala con `MIDEAS_MCP_HTTP_PORT`:
+
+```
+MIDEAS_MCP_HTTP_PORT=3334      # habilita el transporte HTTP (vacío = solo stdio)
+MIDEAS_MCP_HTTP_HOST=127.0.0.1
+MIDEAS_MCP_HTTP_PATH=/mcp
+# MIDEAS_MCP_HTTP_TOKEN=...     # opcional; por defecto usa MIDEAS_MCP_TOKEN
+```
+
+Endpoint: `POST http://<host>:<port><path>` (MCP **Streamable HTTP** con sesión).
+Autenticación: cabecera `Authorization: Bearer <token>`. `GET /health` responde sin token.
+
+- **OpenAI Agents SDK / API**: apunta un `MCPServerStreamableHttp` (o el tool `mcp`) a esa URL con la cabecera `Authorization`. También puedes usar `MCPServerStdio` lanzando `node mcp/src/index.js` directamente, sin HTTP.
+- **ChatGPT (conectores)**: la nube de OpenAI no alcanza `127.0.0.1`. Expón el endpoint por un **túnel HTTPS público** (p. ej. Cloudflare Tunnel / ngrok) y registra esa URL pública como conector MCP. Nunca expongas el puente loopback (`/api/*`, puerto 3333); solo el endpoint HTTP MCP con Bearer.
+
+El transporte HTTP es opcional y no afecta al stdio ni al puente de la app.
 
 ## Pruebas
 
