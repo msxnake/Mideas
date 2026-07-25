@@ -872,20 +872,21 @@ export function buildBitmapBossSystemAsm(
   const projScratchY = opts.projScratchBaseY || 0;
   const spriteSlots = hasSpriteProjectiles ? (sprites as BitmapBossSpriteBulletOptions).maxSlots : 0;
   const projRamBase = barrierRamBase + (hasBarrier ? 5 : 0);
+  const BOSS_SBUL_SLOT_BYTES = 9;   // keep in sync with BOSS_SBUL_SLOT in the ASM
   const spriteRamBase = projRamBase + 9;
   // Fase G paths: entirely absent unless a boss references one, so a project
   // without paths keeps a byte-identical ROM.
   const pathStreams = data.pathStreams || [];
   const hasPaths = pathStreams.length > 0
     && (data.pathSelTables || []).some(table => table && table.length > 0);
-  const pathRamBase = spriteRamBase + spriteSlots * 5;
+  const pathRamBase = spriteRamBase + spriteSlots * BOSS_SBUL_SLOT_BYTES;
   const PATH_RAM_BYTES = 7;
   // Shot patterns only exist when a path node names one AND the boss fires
   // hardware sprites (a single bitmap bullet cannot fan out).
   const shootRecords = data.shootRecords || [];
   const hasShoots = hasPaths && hasSpriteProjectiles && shootRecords.length > 0;
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
-  const SHOOT_RAM_BYTES = 5;
+  const SHOOT_RAM_BYTES = 7;
   // Pre-rendered so the data template stays readable.
   const shootDirRows = (() => {
     const rows: string[] = [];
@@ -939,7 +940,12 @@ boss_proj_dx    EQU ${asmWord(projRamBase + 5)}  ; signed px/frame
 boss_proj_dy    EQU ${asmWord(projRamBase + 6)}
 boss_proj_cd    EQU ${asmWord(projRamBase + 7)}  ; frames until next shot
 boss_phase_speed EQU ${asmWord(projRamBase + 8)}  ; projectile speed of the active attack phase
-` : ''}${hasSpriteProjectiles ? `boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x 5 bytes: active, x, y, dx, dy
+` : ''}${hasSpriteProjectiles ? `BOSS_SBUL_SLOT  EQU 9
+boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x 9 bytes
+;   +0 active, +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
+;   +5 x frac, +6 y frac, +7 dx frac, +8 dy frac. Velocity is 8.8 fixed
+;   point (int byte + frac byte), which is what buys 16 directions:
+;   a diagonal is no longer forced to a whole pixel on both axes.
 ` : ''}${hasPaths ? `boss_path_ptr   EQU ${asmWord(pathRamBase)}  ; word: start of the active path stream
 boss_path_cur   EQU ${asmWord(pathRamBase + 2)}  ; word: read cursor into it
 boss_path_wait  EQU ${asmWord(pathRamBase + 4)}  ; ticks left on a wait opcode
@@ -949,6 +955,8 @@ boss_path_fire_mode EQU ${asmWord(pathRamBase + 6)}  ; 1 = only the node scripts
 boss_shoot_spd  EQU ${asmWord(shootRamBase + 1)}  ; px/frame for this volley
 boss_shoot_cnt  EQU ${asmWord(shootRamBase + 2)}  ; bullets left to spawn
 boss_shoot_ptr  EQU ${asmWord(shootRamBase + 3)}  ; word: cursor into the ring offsets
+boss_sbul_dxf   EQU ${asmWord(shootRamBase + 5)}  ; 8.8 fraction handed to the spawner
+boss_sbul_dyf   EQU ${asmWord(shootRamBase + 6)}
 ` : ''}`;
 
   // Persistent state must start at zero: boss_defeated decides whether a boss
@@ -2367,7 +2375,7 @@ bitmap_boss_sbul_update:
     call nz, bitmap_boss_sbul_step
     pop bc
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .sb_slot_loop
@@ -2387,15 +2395,22 @@ ${hasPaths ? `    ld a, (boss_path_fire_mode)
 
 ; Move one bullet (IY -> slot). Despawns off-screen or on a solid tile.
 bitmap_boss_sbul_step:
+    ; x += dx as 8.8 fixed point: the fraction carries into the whole pixel.
+    ld a, (iy+5)
+    add a, (iy+7)
+    ld (iy+5), a
     ld a, (iy+1)
-    add a, (iy+3)
+    adc a, (iy+3)
     ld (iy+1), a
     cp 248
     jr nc, .sb_kill
     cp 4
     jr c, .sb_kill
+    ld a, (iy+6)
+    add a, (iy+8)
+    ld (iy+6), a
     ld a, (iy+2)
-    add a, (iy+4)
+    adc a, (iy+4)
     ld (iy+2), a
     cp 180
     jr nc, .sb_kill
@@ -2473,7 +2488,7 @@ bitmap_boss_sbul_spawn:
     or a
     jr z, .sb_found
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .sb_find
@@ -2538,6 +2553,11 @@ bitmap_boss_sbul_spawn:
     ld a, (boss_phase_speed)
     ld (iy+4), a
 .sb_arm:
+    xor a
+    ld (iy+5), a               ; whole-pixel bullet: no fractional part
+    ld (iy+6), a
+    ld (iy+7), a
+    ld (iy+8), a
     ld a, 1
     ld (iy+0), a
     ret
@@ -2597,7 +2617,7 @@ bitmap_boss_sbul_sat:
     out (VDP_DATA_PORT), a
 .sb_sat_next:
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .sb_sat_slot
@@ -2891,6 +2911,9 @@ bitmap_boss_shoot_fire:
     ld e, a
     pop af
     ld d, a
+    xor a
+    ld (boss_sbul_dxf), a      ; whole-pixel vectors for now
+    ld (boss_sbul_dyf), a
     call bitmap_boss_sbul_spawn_dir
     ld hl, boss_shoot_cnt
     dec (hl)
@@ -2958,7 +2981,9 @@ bitmap_boss_aim_index:
     ld a, (hl)
     ret
 
-; Spawn one sprite bullet travelling D,E from the boss centre.
+; Spawn one sprite bullet from the boss centre.
+; IN: D = dx whole pixels, E = dy whole pixels,
+;     boss_sbul_dxf / boss_sbul_dyf = the matching 8.8 fractions.
 ; Nothing happens when the pool is full, exactly like the cadence path.
 bitmap_boss_sbul_spawn_dir:
     ld iy, boss_sbul_pool
@@ -2968,7 +2993,7 @@ bitmap_boss_sbul_spawn_dir:
     or a
     jr z, .bsd_found
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .bsd_find
@@ -2994,6 +3019,13 @@ bitmap_boss_sbul_spawn_dir:
     pop de
     ld (iy+3), d
     ld (iy+4), e
+    xor a
+    ld (iy+5), a               ; position starts on an exact pixel
+    ld (iy+6), a
+    ld a, (boss_sbul_dxf)      ; the caller parks the fractional velocity here:
+    ld (iy+7), a               ; B is the slot-search counter, so it cannot ride
+    ld a, (boss_sbul_dyf)      ; in a register
+    ld (iy+8), a
     ld (iy+0), 1
     ret
 ` : ''}` : `
@@ -3097,7 +3129,7 @@ bitmap_boss_aim_ring:
 
   return {
     enabled: true,
-    ramBytes: 11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 5 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * 5
+    ramBytes: 11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 5 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES
       + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0),
     equates,
     initAsm,

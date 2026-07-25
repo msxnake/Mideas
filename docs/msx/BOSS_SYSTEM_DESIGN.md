@@ -798,6 +798,44 @@ també per a torretes i onades de naus més endavant.
 També, a petició de Jordi: amb un **path seleccionat**, els controls de patrol simple
 (mode, velocitat, recorregut) queden **deshabilitats** al Boss Editor, perquè el path mana.
 
+#### Increment 5 — pool de bales en punt fix 8.8 — FET (2026-07-25)
+
+Primer pas cap als patrons que va dibuixar Jordi (**360° bullet fire** i **ràfaga de
+dispar en angle**). El coll d'ampolla no era la SAT sinó el **format del pool**: amb un byte
+signat de velocitat per eix només hi caben 8 direccions.
+
+Slot de bala: **5 → 9 bytes**. Les parts fraccionàries van **al final**
+(`+5 x frac, +6 y frac, +7 dx frac, +8 dy frac`), així tot el que ja llegia `x`/`y` a
+`+1`/`+2` no s'ha tocat: només el pas de moviment passa a ser una suma de 16 bits
+(`add` de la fracció + `adc` del píxel enter). La fracció de velocitat s'entrega al
+spawner per RAM (`boss_sbul_dxf` / `boss_sbul_dyf`) perquè `B` és el comptador de cerca
+de slot i no pot portar-la.
+
+> Verificat OpenMSX (`test/msx2-boss/boss_fixed_point.tcl`): la cadència apuntada segueix
+> disparant (462 frames amb bala viva, es mou quan `dx≠0`), els slots es reciclen i les
+> fraccions arrenquen a zero. La ROM canvia respecte d'abans perquè el layout del pool ha
+> canviat — no és un no-op i no pot ser-ho.
+
+**Pressupost real mesurat** (build del fixture): la SAT va de #F600 a #F67F (32 sprites) i
+se n'usen ~9 — jugador 4 capes (#F600), enemics 2 (#F610), plataforma 1 (#F618), bales del
+jugador (#F61C). **Queden més de 20 slots lliures**, o sigui que el `min(3, slots
+d'enemics)` del pool és un límit arbitrari que es pot calcular de veritat.
+
+**El mur que queda és el de 8 sprites per línia**: un dispar radial neix tot al centre del
+boss, o sigui a les mateixes línies, i a partir del novè sprite desapareixen fins que se
+separen en vertical. La solució és la pròpia ràfaga: escalonar la sortida uns frames. Els
+dos patrons del dibuix es necessiten mútuament.
+
+**Pendent per completar els patrons dibuixats:**
+1. Taula de 16 vectors unitaris en 8.8 (`k * 22,5°`) i spawn que la faci servir, amb la
+   velocitat aplicada per suma repetida (speed 1..4) en comptes de multiplicar.
+2. Patró `radial`: N bales repartides pel cercle (offsets `k * 16/N`).
+3. Ràfaga: `burstCount` + `burstInterval` (M onades cada K frames), que també escalona el
+   radial.
+4. Pool creixent fins als slots de SAT realment lliures en comptes del cap de 3.
+5. La mira pot quedar-se a 8 direccions (signes, barata) i mapejar-se als índexs parells
+   del cercle de 16; els ventalls i el radial sí que fan servir els 16.
+
 **Pendent de la Fase G:** segments `bezier` amb punt de control, RLE del stream,
 `pingpong`, i el compilat per a onades d'enemics (el mateix asset de tir hi encaixa).
 

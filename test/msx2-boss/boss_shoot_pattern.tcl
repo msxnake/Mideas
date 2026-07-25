@@ -11,7 +11,7 @@ proc watch {} {
     global maxlive seen
     set live 0
     set desc ""
-    foreach base {0xC1AE 0xC1B3} {
+    foreach base {0xC1AE 0xC1B7} {
         if {[mem8 $base]} {
             incr live
             set d "[s8 [expr {$base + 3}]],[s8 [expr {$base + 4}]]"
