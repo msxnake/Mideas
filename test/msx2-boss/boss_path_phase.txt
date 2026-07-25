@@ -1,0 +1,6 @@
+full_hp hp=3 path=1 x=126 y=64
+hp2     hp=2 path=2 x=126 y=64
+hp2     hp=2 path=2 x=166 y=64
+hp1     hp=1 path=0 x=206 y=64
+hp1     hp=1 path=0 x=206 y=64
+hp1     hp=1 path=0 x=206 y=64

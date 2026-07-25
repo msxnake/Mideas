@@ -1,0 +1,10 @@
+t13 active=1 x=128 y=32 hp=3 path=1
+t14 active=1 x=128 y=64 hp=3 path=1
+t15 active=1 x=88 y=64 hp=3 path=1
+t16 active=1 x=64 y=64 hp=3 path=1
+t17 active=1 x=64 y=50 hp=3 path=1
+t18 active=1 x=86 y=32 hp=3 path=1
+t19 active=1 x=126 y=32 hp=3 path=1
+t20 active=1 x=128 y=32 hp=3 path=1
+t22 active=1 x=84 y=64 hp=3 path=1
+t24 active=1 x=64 y=46 hp=3 path=1

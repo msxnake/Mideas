@@ -213,7 +213,7 @@ const selectHudPreviewBitmapRoom = (allAssets: ProjectAsset[], hudAssetId: strin
   return candidates[hashString(hudAssetId || 'hud') % candidates.length];
 };
 
-const resolveBitmapRoomPreviewPalette = (
+export const resolveBitmapRoomPreviewPalette = (
   allAssets: ProjectAsset[],
   room: Msx2Screen5BitmapRoom,
 ): Screen5PaletteSlot[] => {
@@ -231,7 +231,7 @@ const resolveBitmapRoomPreviewPalette = (
       : createDefaultScreen5PaletteSlots();
 };
 
-const drawScreen5BitmapRoomPreview = (
+export const drawScreen5BitmapRoomPreview = (
   ctx: CanvasRenderingContext2D,
   room: Msx2Screen5BitmapRoom,
   palette: Screen5PaletteSlot[],
@@ -554,7 +554,7 @@ const drawHudText = (
  * Faithful per-kind widget renderer shared by the edit canvas and the preview.
  * editMode draws a bounds/selection outline; the preview omits it.
  */
-const renderWidgetLayer = (
+export const renderWidgetLayer = (
   ctx: CanvasRenderingContext2D,
   layer: Msx2HudLayer,
   scale: number,

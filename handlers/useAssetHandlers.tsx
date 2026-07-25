@@ -1,3 +1,6 @@
+import { createMsx2BossDefinition } from '../components/editors/Msx2BossEditor';
+import { createMsx2BossPath } from '../utils/msx2BossPath';
+import { createMsx2ShootDefinition } from '../components/editors/Msx2ShootEditor';
 import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
@@ -617,6 +620,21 @@ export const useAssetHandlers = ({
         };
         newEditorType = EditorType.Msx2Enemy;
         break;
+      case 'msx2boss':
+        defaultName = 'New MSX2 Boss';
+        newAssetData = createMsx2BossDefinition(id, defaultName);
+        newEditorType = EditorType.Msx2Boss;
+        break;
+      case 'msx2bosspath':
+        defaultName = 'New Boss Path';
+        newAssetData = createMsx2BossPath(id, defaultName);
+        newEditorType = EditorType.Msx2BossPath;
+        break;
+      case 'msx2shoot':
+        defaultName = 'New Shoot Pattern';
+        newAssetData = createMsx2ShootDefinition(id, defaultName);
+        newEditorType = EditorType.Msx2Shoot;
+        break;
       case 'msx2hudfont':
         defaultName = 'New MSX2 Font';
         newAssetData = {
@@ -1104,6 +1122,9 @@ export const useAssetHandlers = ({
       case 'msx2bitmaproom': return EditorType.Msx2BitmapRoom;
       case 'msx2player': return EditorType.Msx2Player;
       case 'msx2enemy': return EditorType.Msx2Enemy;
+      case 'msx2boss': return EditorType.Msx2Boss;
+      case 'msx2bosspath': return EditorType.Msx2BossPath;
+      case 'msx2shoot': return EditorType.Msx2Shoot;
       case 'msx2hudfont': return EditorType.Msx2HudFont;
       case 'msx2hud': return EditorType.Msx2HudEditor;
       case 'msx2presentation': return EditorType.Msx2Presentation;

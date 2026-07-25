@@ -1,0 +1,2 @@
+max bullets alive at once = 2
+distinct velocities seen  = 0,2 3,3 0,3

@@ -1,0 +1,4 @@
+before  screen=1 pending=0 dlg=0 bossActive=1 hp=3 flag0=0
+killed  screen=2 pending=2 dlg=1 bossActive=0 hp=1 flag0=1
+after1s screen=2 pending=2 dlg=1 bossActive=0 hp=1 flag0=1
+after3s screen=2 pending=2 dlg=1 bossActive=0 hp=1 flag0=1

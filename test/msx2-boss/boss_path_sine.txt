@@ -1,0 +1,24 @@
+t13.00 x=118 y= 45 path=1
+t13.25 x=128 y= 46 path=1
+t13.50 x=132 y= 37 path=1
+t13.75 x=138 y= 29 path=1
+t14.00 x=142 y= 20 path=1
+t14.25 x=150 y= 17 path=1
+t14.50 x=156 y= 25 path=1
+t14.75 x=158 y= 32 path=1
+t15.00 x=148 y= 32 path=1
+t15.25 x=138 y= 32 path=1
+t15.50 x=128 y= 32 path=1
+t15.75 x=118 y= 32 path=1
+t16.00 x=108 y= 32 path=1
+t16.25 x= 98 y= 32 path=1
+t16.50 x= 88 y= 32 path=1
+t16.75 x= 78 y= 32 path=1
+t17.00 x= 68 y= 32 path=1
+t17.25 x= 66 y= 37 path=1
+t17.50 x= 72 y= 46 path=1
+t17.75 x= 80 y= 45 path=1
+t18.00 x= 86 y= 37 path=1
+t18.25 x= 90 y= 28 path=1
+t18.50 x= 94 y= 19 path=1
+t18.75 x=102 y= 18 path=1

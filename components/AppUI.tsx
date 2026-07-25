@@ -6,7 +6,7 @@ import {
   MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
-  ComponentDefinition, EntityTemplate, EnemyDefinition, ContextMenuItem,
+  ComponentDefinition, EntityTemplate, EnemyDefinition, Msx2BossDefinition, Msx2BossPath, Msx2ShootDefinition, ContextMenuItem,
   Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, Msx2GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, Msx2Screen5PresentationConfig, DialogueAsset, Msx2DialogueAsset, Msx2BitmapStampAsset, Msx2BitmapTerrainAsset, PortraitAsset, ScreenKind, TileStamp, Msx2ProjectProfile, Msx2GameProfileId, PaletteAsset, Screen5PaletteSlot, Msx2PaletteZones
 } from '../types';
 import { 
@@ -32,6 +32,9 @@ import { Msx2Screen4RoomEditor } from './editors/Msx2Screen4RoomEditor';
 import { Msx2BitmapScreenEditor } from './editors/Msx2BitmapScreenEditor';
 import { Msx2PlayerEditor } from './editors/Msx2PlayerEditor';
 import { Msx2EnemyEditor } from './editors/Msx2EnemyEditor';
+import { Msx2BossEditor } from './editors/Msx2BossEditor';
+import { Msx2BossPathEditor } from './editors/Msx2BossPathEditor';
+import { Msx2ShootEditor } from './editors/Msx2ShootEditor';
 import { buildDetailedMsx2PlayerDocument, mergeMsx2PlayerUpdate } from '../utils/msx2PlayerDocument';
 import { Msx2HudFontEditor } from './editors/Msx2HudFontEditor';
 import { Msx2HudEditor } from './editors/Msx2HudEditor';
@@ -1507,6 +1510,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             return [...prev, stateMachineAsset];
           })} />)}
           {currentEditor === EditorType.Msx2Enemy && activeAsset?.type === 'msx2enemy' && ( <Msx2EnemyEditor enemy={activeAsset.data as EnemyDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
+          {currentEditor === EditorType.Msx2Boss && activeAsset?.type === 'msx2boss' && ( <Msx2BossEditor boss={activeAsset.data as Msx2BossDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} onUpdateAsset={handleUpdateAsset} onDuplicateAsset={handleDuplicateAsset} setStatusBarMessage={setStatusBarMessage} />)}
+          {currentEditor === EditorType.Msx2BossPath && activeAsset?.type === 'msx2bosspath' && ( <Msx2BossPathEditor path={activeAsset.data as Msx2BossPath} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} setStatusBarMessage={setStatusBarMessage} />)}
+          {currentEditor === EditorType.Msx2Shoot && activeAsset?.type === 'msx2shoot' && ( <Msx2ShootEditor shoot={activeAsset.data as Msx2ShootDefinition} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} />)}
           {currentEditor === EditorType.Msx2HudFont && activeAsset?.type === 'msx2hudfont' && (
             <Msx2HudFontEditor
               font={activeAsset.data as Msx2HudFontAsset}

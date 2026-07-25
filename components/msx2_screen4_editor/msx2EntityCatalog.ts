@@ -305,6 +305,7 @@ export type Msx2RuntimeEngine =
   | 'gearWheel'
   | 'patrolY'
   | 'movingPlatform'
+  | 'bitmapBoss'
   | 'hazard'
   | 'collectible'
   | 'pickupItem'
@@ -601,6 +602,7 @@ export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Msx2EntityKind; label: str
   { value: 'hazard', label: 'Hazard' },
   { value: 'collectible', label: 'Collectible' },
   { value: 'door', label: 'Door' },
+  { value: 'boss', label: 'Boss (bitmap)' },
   // Component-driven entities: the runtime derives behavior from the
   // attached components (Carryable, Collectible...), not from the kind.
   { value: 'custom', label: 'Custom' },
@@ -827,6 +829,69 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_platform: { carriesPlayer: true, oneWay: true, speed: 1 },
     },
     params: { runtime: 'MSX2', engine: 'movingPlatform', movement: 'patrolX', direction: 1 },
+  },
+  {
+    id: 'bitmap_boss',
+    label: 'MSX2 Bitmap Boss',
+    kind: 'boss',
+    runtime: 'MSX2',
+    engine: 'bitmapBoss',
+    description: 'Large bitmap boss for SCREEN 5 bitmap rooms: an atlas region blitted with V9938 HMMM (up to 128x96 px). Patrols like an enemy, hurts on contact, takes player-bullet hits and dies permanently. One per room. Supports a chain barrier that locks the room, projectiles (hardware sprite or bitmap), HP attack phases, weak points and defeat actions. See docs/msx/BOSS_SYSTEM_DESIGN.md.',
+    components: {
+      msx2_transform: {},
+      msx2_movement: { mode: 'patrolX', direction: 1, boundsUnit: 'px' },
+      msx2_collision: { damage: 1 },
+      msx2_health: {},
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'bitmapBoss',
+      movement: 'patrolX',
+      direction: 1,
+      // --- body ---
+      bossAtlasEntryId: '',
+      bossFrames: 1,
+      bossAnimDelay: 12,
+      bossHp: 8,
+      bossDamage: 1,
+      // Body redraws every N frames; bullets run on the other frames so a single
+      // frame never pays for both the big body blit and a projectile.
+      bossInterval: 3,
+      // --- movement ---
+      // '' = use the movement component above. 'static' = never moves (turret
+      // boss that only shoots); 'patrolX' / 'patrolY' / 'patrolXY' bounce
+      // between the bounds. Speed is capped at 2 px/frame by the 4px restore
+      // strips. bossRangePx = travel from the spawn cell (0 = room bounds).
+      bossMovement: '',
+      bossSpeed: 2,
+      bossRangePx: 0,
+      // --- chain barrier: seals the room while the boss lives (Phase B) ---
+      // 16x16 atlas tile placed ONLY on empty perimeter cells, so existing
+      // walls/floor tiles are never overwritten. Removed on defeat.
+      bossBarrierTileId: '',
+      // --- projectiles (Phase D) ---
+      // 'sprite' = hardware sprites (default, several at once, never erase the
+      // background; they reuse the enemy sprite slots, so a boss room must have
+      // no regular enemies). 'bitmap' = HMMM blit, for slow multicolour bombs
+      // and homing rockets.
+      bossProjectileKind: 'sprite',
+      bossProjectileSpriteId: '',   // sprite asset for 'sprite' bullets ('' = built-in)
+      bossProjectileTileId: '',     // atlas tile for 'bitmap' bullets
+      bossShootInterval: 90,
+      bossProjectileSpeed: 2,
+      bossProjectileDamage: 1,
+      // --- attack phases (Phase D): angrier as HP drops ---
+      // [{ id, enterWhenHpBelowPercent, interval, projectileSpeed }]
+      bossPhases: [],
+      // --- damage zones (Phase E): boss-LOCAL pixel rectangles ---
+      // [{ id, type: 'weak_point'|'invulnerable', x, y, w, h, damageMultiplier }]
+      // Weak points must be listed BEFORE the armour that contains them.
+      damageZones: [],
+      // --- defeat actions (Phase A) ---
+      // [{ action: 'setFlag', flag }, { action: 'giveKey', count },
+      //  { action: 'openDoor', target: '<door entity id>' }]
+      onDefeated: [],
+    },
   },
   {
     id: 'hazard',

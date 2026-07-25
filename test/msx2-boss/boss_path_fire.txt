@@ -1,0 +1,14 @@
+t13 x=128 y=32 mode=1 slot0=0 slot0x=139 slot1=0 liveSamples=0
+t14 x=128 y=64 mode=1 slot0=1 slot0x=56 slot1=0 liveSamples=1
+t15 x=88 y=64 mode=1 slot0=0 slot0x=53 slot1=0 liveSamples=1
+t16 x=64 y=64 mode=1 slot0=0 slot0x=53 slot1=0 liveSamples=1
+t17 x=64 y=50 mode=1 slot0=0 slot0x=53 slot1=0 liveSamples=1
+t18 x=86 y=32 mode=1 slot0=1 slot0x=154 slot1=0 liveSamples=2
+t19 x=126 y=32 mode=1 slot0=0 slot0x=202 slot1=0 liveSamples=2
+t20 x=128 y=32 mode=1 slot0=0 slot0x=202 slot1=0 liveSamples=2
+t21 x=124 y=64 mode=1 slot0=0 slot0x=53 slot1=1 liveSamples=3
+t22 x=84 y=64 mode=1 slot0=0 slot0x=53 slot1=0 liveSamples=3
+t23 x=64 y=64 mode=1 slot0=0 slot0x=53 slot1=0 liveSamples=3
+t24 x=64 y=46 mode=1 slot0=0 slot0x=53 slot1=0 liveSamples=3
+t25 x=90 y=32 mode=1 slot0=1 slot0x=166 slot1=0 liveSamples=4
+t26 x=128 y=32 mode=1 slot0=0 slot0x=202 slot1=0 liveSamples=4

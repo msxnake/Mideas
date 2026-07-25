@@ -615,7 +615,7 @@ export interface Msx2Screen4Tile {
 
 export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
-export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'platform' | 'hidden_obj' | 'custom';
+export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'platform' | 'boss' | 'hidden_obj' | 'custom';
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'patrolChaseX' | 'walkerGravity' | 'ghostMaze' | 'dive';
 export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
@@ -1553,6 +1553,172 @@ export interface EnemyHitboxes {
   body: EnemyHitboxRect;
   damage: EnemyHitboxRect;
   weak?: EnemyHitboxRect;
+}
+
+// ---------------------------------------------------------------------------
+// MSX2 SCREEN 5 bitmap BOSS (see docs/msx/BOSS_SYSTEM_DESIGN.md)
+// A BossDefinition is a reusable template; a screen references it from a placed
+// `kind:'boss'` entity (the BossEncounter) and may override fields per instance.
+// ---------------------------------------------------------------------------
+
+/** What happens when the boss is defeated. */
+export type Msx2BossDefeatAction =
+  | { action: 'setFlag'; flag: string }
+  | { action: 'giveKey'; count?: number }
+  | { action: 'openDoor'; target: string }
+  /** Opens a dialogue in the NPC text box; needs a `msx2dialogue` asset with lines. */
+  | { action: 'showMessage'; dialogueAssetId: string }
+  /**
+   * Sends the player to another bitmap room, reusing the door transition.
+   * `entryX`/`entryY` omitted = drop the player where they already stand.
+   */
+  | { action: 'changeScreen'; target: string; entryX?: number; entryY?: number };
+
+/** An attack phase: the boss gets angrier as its HP drops. */
+export interface Msx2BossPhase {
+  id: string;
+  /** This phase is active at or below this percentage of the boss's HP. */
+  enterWhenHpBelowPercent: number;
+  /** Frames between shots. */
+  interval: number;
+  projectileSpeed: number;
+  /**
+   * Path followed during this phase: a `msx2bosspath` asset id, `'none'` to
+   * stand still, or empty to inherit the boss's default path.
+   */
+  pathId?: string;
+}
+
+/** A rectangle on the boss body, in boss-LOCAL pixels. */
+export interface Msx2BossDamageZone {
+  id: string;
+  /** 'invulnerable' = armour (bullets die, no damage); otherwise a weak point. */
+  type: 'weak_point' | 'invulnerable';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Hits per bullet on a weak point. */
+  damageMultiplier: number;
+}
+
+/**
+ * What the boss does when it reaches a path node. The list runs in order and
+ * movement resumes when it ends, so a node is a little script: "stop here,
+ * fire three times, carry on".
+ */
+export type Msx2BossPathAction =
+  | { action: 'wait'; frames: number }
+  /** `shootId` names a `msx2shoot` asset; empty = one bullet aimed at the player. */
+  | { action: 'fire'; shootId?: string }
+  | { action: 'setSpeed'; speed: number }
+  | { action: 'setAnimFrame'; frame: number };
+
+/**
+ * A reusable shot pattern, authored once and fired from a path node (and later
+ * from turrets and shoot'em up enemies).
+ *
+ * Directions are quantised to the 8 compass points because that is what the
+ * bullet pool stores: one signed byte of velocity per axis. Finer angles would
+ * need fractional velocity in the pool.
+ */
+export type Msx2ShootPattern = 'aimed' | 'linear' | 'spread';
+
+/** Compass direction for `linear` shots, clockwise from up. */
+export type Msx2ShootDirection =
+  | 'up' | 'upRight' | 'right' | 'downRight'
+  | 'down' | 'downLeft' | 'left' | 'upLeft';
+
+export interface Msx2ShootDefinition {
+  id: string;
+  name: string;
+  /**
+   * 'aimed' points at the player (turret style); 'linear' always fires the same
+   * way; 'spread' fans several bullets around the aim.
+   */
+  pattern: Msx2ShootPattern;
+  /** Bullets fired at once. The sprite bullet pool holds 3, so more are clamped. */
+  bulletCount: number;
+  /** `linear` only: which way the bullets go. */
+  direction: Msx2ShootDirection;
+  /** Pixels per frame; 0 = inherit the attack phase's bullet speed. */
+  speed: number;
+}
+
+/** How the boss travels along one segment of the path. */
+export interface Msx2BossPathSegment {
+  mode: 'linear' | 'sine' | 'spline';
+  /** Sine only: peak excursion perpendicular to the segment, in pixels. */
+  amplitude?: number;
+  /** Sine only: full waves fitted along the segment. */
+  frequency?: number;
+}
+
+export interface Msx2BossPathNode {
+  id: string;
+  /** Room pixels while authoring; baked as deltas, so the path is a reusable shape. */
+  x: number;
+  y: number;
+  actions: Msx2BossPathAction[];
+  /** How to travel FROM this node to the next one. Absent = straight line. */
+  segment?: Msx2BossPathSegment;
+}
+
+/**
+ * A reusable movement recipe: nodes joined by segments, with an action script on
+ * each node. Referenced by a boss (and later by shoot'em up enemy waves), never
+ * owned by one.
+ */
+export interface Msx2BossPath {
+  id: string;
+  name: string;
+  nodes: Msx2BossPathNode[];
+  /** Travel per body update. The boss body's 4px restore strips cap it at 2. */
+  speedPxPerTick: number;
+  loopMode: 'loop' | 'pingpong' | 'once';
+  /**
+   * 'path' silences the phase's automatic firing cadence so only the node
+   * scripts shoot; 'auto' keeps the cadence and ignores `fire` nodes.
+   */
+  firing: 'auto' | 'path';
+}
+
+export interface Msx2BossDefinition {
+  id: string;
+  name: string;
+  /** Body: a region of the room's shared atlas, blitted with V9938 HMMM. */
+  bossAtlasEntryId: string;
+  bossFrames: number;
+  bossAnimDelay: number;
+  bossHp: number;
+  bossDamage: number;
+  /** Body redraw cadence; bullets run on the other frames. */
+  bossInterval: number;
+  /**
+   * How the body moves. 'static' = never moves (turret bosses that only shoot);
+   * the patrols bounce between the bounds on that axis. Empty/undefined keeps
+   * the movement authored on the placed entity.
+   */
+  bossMovement?: 'static' | 'patrolX' | 'patrolY' | 'patrolXY';
+  /** Default `msx2bosspath` asset id; attack phases may override it. */
+  bossPathId?: string;
+  /** Patrol speed in px/frame; the 4px restore strips cap it at 2. */
+  bossSpeed?: number;
+  /** Travel distance from the spawn position, in px. 0 = use the room bounds. */
+  bossRangePx?: number;
+  /** 16x16 atlas tile that seals the room's empty perimeter cells. */
+  bossBarrierTileId: string;
+  /** 'sprite' = hardware sprites; 'bitmap' = HMMM blit (slow bombs / rockets). */
+  bossProjectileKind: 'sprite' | 'bitmap';
+  bossProjectileSpriteId: string;
+  bossProjectileTileId: string;
+  bossShootInterval: number;
+  bossProjectileSpeed: number;
+  bossProjectileDamage: number;
+  bossPhases: Msx2BossPhase[];
+  /** Weak points must be listed BEFORE the armour that contains them. */
+  damageZones: Msx2BossDamageZone[];
+  onDefeated: Msx2BossDefeatAction[];
 }
 
 export interface EnemyDefinition {
@@ -3552,6 +3718,9 @@ export enum EditorType {
   Msx2BitmapRoom = "Msx2BitmapRoom",
   Msx2Player = "Msx2Player",
   Msx2Enemy = "Msx2Enemy",
+  Msx2Boss = "Msx2Boss",
+  Msx2BossPath = "Msx2BossPath",
+  Msx2Shoot = "Msx2Shoot",
   Msx2HudFont = "Msx2HudFont",
   Msx2HudEditor = "Msx2HudEditor",
   Msx2Presentation = "Msx2Presentation",
@@ -3568,9 +3737,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2bitmaptile' | 'msx2bitmapstamp' | 'msx2bitmapterrain' | 'msx2screen' | 'msx2bitmaproom' | 'msx2player' | 'msx2enemy' | 'msx2boss' | 'msx2bosspath' | 'msx2shoot' | 'msx2hudfont' | 'msx2hud' | 'msx2presentation' | 'msx2gameflow' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'msx2dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | BitmapTileScreen5 | Msx2BitmapStampAsset | Msx2BitmapTerrainAsset | Msx2Screen4TileScreen | Msx2Screen5BitmapRoom | Msx2PlayerDefinition | EnemyDefinition | Msx2BossDefinition | Msx2BossPath | Msx2ShootDefinition | Msx2HudFontAsset | Msx2HudAsset | Msx2Screen5PresentationConfig | Msx2GameFlowGraph | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | Msx2DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
