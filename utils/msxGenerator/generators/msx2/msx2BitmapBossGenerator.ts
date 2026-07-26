@@ -62,6 +62,9 @@ import {
   MSX2_SHOOT_RING,
   bakeShootDefinition,
 } from '../../../msx2Shoot';
+import {
+  generateAllRoomLockAsm,
+} from './msx2BossRoomLockAsm';
 
 export const BITMAP_BOSS_TABLE_STRIDE = 20;
 
@@ -3325,7 +3328,18 @@ bitmap_boss_sbul_spawn_dir:
 ` : ''}` : `
 bitmap_boss_path_fire:
     ret`}
-` : ''}`;
+` : ''}
+
+; ==============================================
+; Room Lock Runtime (Chain Barrier)
+; ==============================================
+${hasBarrier ? generateAllRoomLockAsm({
+  hasBarrier: true,
+  isAnimated: (data.barrierAnimatedFlags || [])[0] ? true : false,
+  hasPalette: (data.barrierPaletteIds || [])[0] ? true : false,
+  hasDialogue: (data.barrierDialogueIds || [])[0] ? true : false,
+  dialogueAssetId: (data.barrierDialogueIds || [])[0],
+}) : ''}`;
 
   const dataAsm = `
 ; ---- bitmap BOSS per-room tables (stride ${BITMAP_BOSS_TABLE_STRIDE}) ----
