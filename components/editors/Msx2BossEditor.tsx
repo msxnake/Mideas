@@ -427,12 +427,27 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
           <div className={card}>
             <h3 className="text-sm font-semibold mb-3">Room Lock — chain barrier</h3>
             <label className={label}>Barrier tile (16×16 atlas tile)</label>
-            <select className={input} value={boss.bossBarrierTileId} onChange={e => set('bossBarrierTileId', e.target.value)}>
-              <option value="">— no barrier —</option>
-              {atlasEntries.filter(e => e.w >= 16 && e.h >= 16).map(entry => (
-                <option key={entry.key} value={entry.id}>{entry.label} — {entry.roomName}</option>
-              ))}
-            </select>
+            <div className="max-h-96 overflow-y-auto border border-msx-border rounded p-2 mb-3">
+              <div className="flex flex-wrap gap-2">
+                <button className={`${btn} ${boss.bossBarrierTileId === '' ? 'border-msx-accent' : ''}`} onClick={() => set('bossBarrierTileId', '')}>
+                  No barrier
+                </button>
+                {atlasEntries.filter(e => e.w >= 16 && e.h >= 16).map(entry => {
+                  const scale = Math.max(1, Math.floor(80 / Math.max(entry.w, entry.h, 1)));
+                  return (
+                    <button key={entry.key} onClick={() => set('bossBarrierTileId', entry.id)}
+                      className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossBarrierTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
+                      style={{ background: MSX2_PREVIEW_BG, width: 90 }}
+                      title={`${entry.label} — ${entry.roomName}`}>
+                      <div className="flex-1 flex items-center justify-center" style={{ minHeight: 80 }}>
+                        <AtlasEntryCanvas entry={entry} scale={scale} />
+                      </div>
+                      <span className="text-[8px] leading-tight text-msx-textprimary truncate w-full text-center">{entry.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="mt-3">
               {/* A 3x3 patch: the barrier is a repeated tile, so it must be judged tiled. */}
               <div className="inline-grid grid-cols-3 border border-msx-border rounded p-2"
@@ -480,13 +495,27 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             ) : (
               <div className="mt-3">
                 <label className={label}>Bullet atlas tile (8..16 px)</label>
-                <select className={input} value={boss.bossProjectileTileId}
-                  onChange={e => set('bossProjectileTileId', e.target.value)}>
-                  <option value="">— none —</option>
-                  {atlasEntries.filter(e => e.w <= 16 && e.h <= 16).map(entry => (
-                    <option key={entry.key} value={entry.id}>{entry.label} — {entry.roomName}</option>
-                  ))}
-                </select>
+                <div className="max-h-80 overflow-y-auto border border-msx-border rounded p-2 mb-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button className={`${btn} ${boss.bossProjectileTileId === '' ? 'border-msx-accent' : ''}`} onClick={() => set('bossProjectileTileId', '')}>
+                      None
+                    </button>
+                    {atlasEntries.filter(e => e.w <= 16 && e.h <= 16).map(entry => {
+                      const scale = Math.max(1, Math.floor(70 / Math.max(entry.w, entry.h, 1)));
+                      return (
+                        <button key={entry.key} onClick={() => set('bossProjectileTileId', entry.id)}
+                          className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossProjectileTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
+                          style={{ background: MSX2_PREVIEW_BG, width: 80 }}
+                          title={`${entry.label} — ${entry.roomName}`}>
+                          <div className="flex-1 flex items-center justify-center" style={{ minHeight: 70 }}>
+                            <AtlasEntryCanvas entry={entry} scale={scale} />
+                          </div>
+                          <span className="text-[8px] leading-tight text-msx-textprimary truncate w-full text-center">{entry.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="mt-2">
                   <AtlasPreviewBox entry={projectileEntry} scale={4} emptyHint="Pick a bullet tile." />
                 </div>
