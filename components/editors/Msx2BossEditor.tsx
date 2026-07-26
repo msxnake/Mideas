@@ -5,6 +5,7 @@ import {
   Msx2BossDefeatAction,
   Msx2BossDefinition,
   Msx2BossPhase,
+  Msx2BossRoomLockStep,
   Msx2Screen5BitmapRoom,
   ProjectAsset,
   Screen5PaletteSlot,
@@ -652,49 +653,13 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <div>
-                <label className={label}>Palette</label>
-                <select className={input} value={boss.bossBarrierPaletteAssetId || ''}
-                  onChange={e => set('bossBarrierPaletteAssetId', e.target.value)}>
-                  <option value="">— use room default —</option>
-                  {roomAssets.flatMap(room => {
-                    const palettes = (room.data as any)?.palette || [];
-                    return palettes.length > 0 ? [room] : [];
-                  }).map(asset => (
-                    <option key={asset.id} value={asset.id}>{asset.name} palette</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-end gap-2">
-                <label className="flex items-center gap-2 flex-1 cursor-pointer">
-                  <input type="checkbox" checked={boss.bossBarrierAnimated || false}
-                    onChange={e => set('bossBarrierAnimated', e.target.checked)}
-                    className="w-4 h-4" />
-                  <span className={label}>Animate closing</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="mt-3">
-              <label className={label}>Dialogue on lock</label>
-              <select className={input} value={boss.bossBarrierDialogueAssetId || ''}
-                onChange={e => set('bossBarrierDialogueAssetId', e.target.value)}>
-                <option value="">— none, no intro talk —</option>
-                {dialogueAssets.map(asset => (
-                  <option key={asset.id} value={asset.id}>{asset.name}</option>
-                ))}
-              </select>
-              <p className="text-xs text-msx-textsecondary mt-1">
-                Optional dialogue shown when player enters and barrier closes, to unlock movement afterward.
-              </p>
-            </div>
+            <RoomLockSequencePanel boss={boss} onUpdate={onUpdate} dialogues={dialogueAssets} />
 
             <p className="text-xs text-msx-textsecondary mt-3">
               While the boss lives, this tile seals the room perimeter so the player cannot leave.
               It is placed <strong>only on empty cells</strong>, checked tile by tile, so existing
               walls, floor and scenery are never overwritten — and it is removed when the boss dies.
-              If a dialogue is set, it runs before re-enabling player movement.
+              The cell the player is standing on is never sealed, so walking in never traps them.
             </p>
           </div>
         )}
@@ -797,6 +762,169 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             onUpdateAsset={onUpdateAsset} setStatusBarMessage={setStatusBarMessage} />
         )}
       </div>
+    </div>
+  );
+};
+
+/**
+ * The Room Lock entry sequence: what the player sees, in order, when they walk
+ * into the boss room. They cannot move while it runs.
+ *
+ * Order is the whole point, so this is an ordered list rather than a set of
+ * switches: a dialogue placed before the chain closes reads as a warning, the
+ * same dialogue after it reads as a taunt.
+ */
+const RoomLockSequencePanel: React.FC<{
+  boss: Msx2BossDefinition;
+  onUpdate: (b: Msx2BossDefinition) => void;
+  dialogues: ProjectAsset[];
+}> = ({ boss, onUpdate, dialogues }) => {
+  const steps = boss.roomLockSequence || [];
+  const update = (next: Msx2BossRoomLockStep[]) => onUpdate({ ...boss, roomLockSequence: next });
+  const patch = (index: number, changes: Partial<Msx2BossRoomLockStep>) =>
+    update(steps.map((step, i) => i === index ? { ...step, ...changes } as Msx2BossRoomLockStep : step));
+  const move = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= steps.length) return;
+    const next = [...steps];
+    [next[index], next[target]] = [next[target], next[index]];
+    update(next);
+  };
+
+  const add = (kind: Msx2BossRoomLockStep['kind']) => {
+    const created: Msx2BossRoomLockStep =
+      kind === 'closeBarrier' ? { kind: 'closeBarrier', animated: true, cellsPerFrame: 4 }
+        : kind === 'dialogue' ? { kind: 'dialogue', dialogueAssetId: dialogues[0]?.id || '' }
+          : { kind: 'wait', frames: 30 };
+    update([...steps, created]);
+  };
+
+  // The sequence replaces the old standalone switches, so offer the one-click
+  // migration instead of silently dropping what the boss already had.
+  const legacyAnimated = boss.bossBarrierAnimated;
+  const legacyDialogue = boss.bossBarrierDialogueAssetId;
+  const hasLegacy = steps.length === 0 && (legacyAnimated || legacyDialogue);
+  const adoptLegacy = () => {
+    const next: Msx2BossRoomLockStep[] = [];
+    if (legacyDialogue) next.push({ kind: 'dialogue', dialogueAssetId: legacyDialogue });
+    next.push({ kind: 'closeBarrier', animated: !!legacyAnimated, cellsPerFrame: 4 });
+    onUpdate({
+      ...boss,
+      roomLockSequence: next,
+      bossBarrierAnimated: undefined,
+      bossBarrierDialogueAssetId: undefined,
+    });
+  };
+
+  const stepTitle = (step: Msx2BossRoomLockStep) =>
+    step.kind === 'closeBarrier' ? 'Close the chain'
+      : step.kind === 'dialogue' ? 'Boss speaks'
+        : 'Wait';
+
+  const hasCloseStep = steps.some(step => step.kind === 'closeBarrier');
+
+  return (
+    <div className="mt-4 border-t border-msx-border pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold">Entry sequence</h4>
+        <div className="flex gap-1">
+          <button className={btn} onClick={() => add('closeBarrier')}>+ Close chain</button>
+          <button className={btn} onClick={() => add('dialogue')} disabled={dialogues.length === 0}>+ Dialogue</button>
+          <button className={btn} onClick={() => add('wait')}>+ Wait</button>
+        </div>
+      </div>
+
+      {hasLegacy && (
+        <div className="flex items-center gap-2 mb-2 p-2 rounded border" style={{ borderColor: '#ffb454' }}>
+          <span className="text-xs flex-1" style={{ color: '#ffb454' }}>
+            This boss still uses the old switches. Turn them into a sequence you can reorder.
+          </span>
+          <button className={btn} onClick={adoptLegacy}>Convert</button>
+        </div>
+      )}
+
+      {steps.length === 0 && !hasLegacy && (
+        <p className="text-xs text-msx-textsecondary">
+          No sequence: the chain seals the moment the room loads and the fight starts
+          straight away. Add steps to make an entrance.
+        </p>
+      )}
+
+      {steps.map((step, index) => (
+        <div key={index} className="flex gap-2 items-end mb-2 pb-2 border-b border-msx-border">
+          <div className="w-6 text-xs text-msx-textsecondary pb-2">{index + 1}.</div>
+          <div className="w-36">
+            <label className={label}>Step</label>
+            <input className={input} value={stepTitle(step)} readOnly />
+          </div>
+
+          {step.kind === 'closeBarrier' && (
+            <>
+              <div className="flex items-center gap-2 pb-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4" checked={step.animated !== false}
+                    onChange={e => patch(index, { animated: e.target.checked })} />
+                  <span className="text-xs text-msx-textsecondary">Animate</span>
+                </label>
+              </div>
+              <div className="w-32">
+                <label className={label}>Cells per frame</label>
+                <input type="number" min={1} max={16} className={input}
+                  disabled={step.animated === false}
+                  value={step.cellsPerFrame ?? 4}
+                  onChange={e => patch(index, { cellsPerFrame: Number(e.target.value) })} />
+              </div>
+              <div className="flex-1 text-xs text-msx-textsecondary pb-2">
+                {step.animated === false
+                  ? 'The whole chain appears at once.'
+                  : `The 52 perimeter cells appear ${step.cellsPerFrame ?? 4} at a time (about ${Math.ceil(52 / Math.max(1, step.cellsPerFrame ?? 4))} frames).`}
+              </div>
+            </>
+          )}
+
+          {step.kind === 'dialogue' && (
+            <div className="flex-1">
+              <label className={label}>Dialogue</label>
+              <select className={input} value={step.dialogueAssetId}
+                onChange={e => patch(index, { dialogueAssetId: e.target.value })}>
+                <option value="">— pick a dialogue —</option>
+                {dialogues.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {step.kind === 'wait' && (
+            <>
+              <div className="w-28">
+                <label className={label}>Frames</label>
+                <input type="number" min={1} max={255} className={input} value={step.frames}
+                  onChange={e => patch(index, { frames: Number(e.target.value) })} />
+              </div>
+              <div className="flex-1 text-xs text-msx-textsecondary pb-2">
+                About {(step.frames / 60).toFixed(1)}s at 60Hz.
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-1">
+            <button className={btn} title="Move earlier" disabled={index === 0}
+              onClick={() => move(index, -1)}>&uarr;</button>
+            <button className={btn} title="Move later" disabled={index === steps.length - 1}
+              onClick={() => move(index, 1)}>&darr;</button>
+            <button className={btn} onClick={() => update(steps.filter((_, i) => i !== index))}>&#10005;</button>
+          </div>
+        </div>
+      ))}
+
+      {steps.length > 0 && (
+        <p className="text-xs text-msx-textsecondary mt-2">
+          The player is frozen for the whole sequence and regains control at the end.
+          A dialogue step waits for the player to read it through.
+          {!hasCloseStep && boss.bossBarrierTileId && (
+            <span style={{ color: '#ffb454' }}> No &ldquo;Close chain&rdquo; step: the chain never seals, so the player can walk out mid-fight.</span>
+          )}
+        </p>
+      )}
     </div>
   );
 };

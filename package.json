@@ -19,6 +19,7 @@
     "test:msx2-gameflow": "node scripts/check_msx2_gameflow_contract.mjs",
     "test:msx2-boss-roomlock": "node scripts/check_msx2_boss_roomlock_contract.mjs",
     "test:msx2-world-palette": "node scripts/check_msx2_world_palette.mjs",
+    "test:msx2-boss-roomlock-ui": "node scripts/check_msx2_boss_roomlock_ui_playwright.cjs",
     "test:msx2-budget-feedback": "node scripts/check_msx2_budget_feedback_helper.mjs",
     "test:msx2-shooter60hz-asm": "node scripts/check_msx2_shooter60hz_asm.mjs",
     "test:msx2-megarom-preflight": "python -B scripts/check_msx2_megarom_preflight_budget.py",

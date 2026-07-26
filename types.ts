@@ -1717,6 +1717,27 @@ export interface Msx2BossPath {
   firing: 'auto' | 'path';
 }
 
+/**
+ * One step of the Room Lock entry sequence, authored in the Boss editor.
+ *
+ * The player is frozen for the whole sequence, so the order decides what they
+ * see: a dialogue before the chain closes reads as a warning, after it reads as
+ * a taunt. Steps run top to bottom, once, when the player enters the room.
+ */
+export type Msx2BossRoomLockStep =
+  /** Seal the room perimeter with `bossBarrierTileId`. */
+  | {
+      kind: 'closeBarrier';
+      /** Reveal the chain progressively instead of all at once. */
+      animated?: boolean;
+      /** Cells revealed per frame while animating (1..16, default 4). */
+      cellsPerFrame?: number;
+    }
+  /** Show an `msx2dialogue` asset and wait for the player to finish it. */
+  | { kind: 'dialogue'; dialogueAssetId: string }
+  /** Hold still for a beat, e.g. between the chain landing and the boss talking. */
+  | { kind: 'wait'; frames: number };
+
 export interface Msx2BossDefinition {
   id: string;
   name: string;
@@ -1756,12 +1777,24 @@ export interface Msx2BossDefinition {
   bossRangePx?: number;
   /** Room Lock: 16x16 atlas tile that seals the room's empty perimeter cells. */
   bossBarrierTileId: string;
-  /** Room Lock: optional palette asset id for the barrier tile animation. */
-  bossBarrierPaletteAssetId?: string;
-  /** Room Lock: animate barrier closing (line-by-line from top). */
+  /**
+   * Room Lock: what happens, in order, when the player walks into the room.
+   *
+   * The player cannot move while this runs, so a dialogue can be read before
+   * the chain drops and the fight starts. An empty or missing sequence keeps
+   * the old behaviour: the chain seals immediately on room load.
+   */
+  roomLockSequence?: Msx2BossRoomLockStep[];
+  /** @deprecated Superseded by a `closeBarrier` step in {@link roomLockSequence}. */
   bossBarrierAnimated?: boolean;
-  /** Room Lock: optional dialogue asset id to show when boss enters and barrier closes. */
+  /** @deprecated Superseded by a `dialogue` step in {@link roomLockSequence}. */
   bossBarrierDialogueAssetId?: string;
+  /**
+   * @deprecated Never had an effect. It existed because atlas previews were
+   * drawn with the room's stale palette instead of the world's shared one;
+   * that is resolved in the editor now (see utils/msx2WorldPalette.ts).
+   */
+  bossBarrierPaletteAssetId?: string;
   /** 'sprite' = hardware sprites; 'bitmap' = HMMM blit (slow bombs / rockets). */
   bossProjectileKind: 'sprite' | 'bitmap';
   bossProjectileSpriteId: string;
