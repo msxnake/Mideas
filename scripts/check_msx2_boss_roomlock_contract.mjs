@@ -56,6 +56,30 @@ const contractChecks = [
     'Barrier tables stay opt-in (byte-identical ROM when no barrier tile)',
     bossGen.includes('const hasBarrier = (data.barrierTables || []).some'),
   ],
+  // The player enters THROUGH the perimeter, so on room load they stand on a
+  // cell the chain wants to seal (top entry puts them on row 0, side entries on
+  // col 0 / col 15). Sealing it buried them inside a solid tile.
+  [
+    'A cell the player occupies is never sealed',
+    bossGen.includes('call bitmap_player_overlaps_16') &&
+      bossGen.includes('.cell_seal') &&
+      bossGen.includes('ld (boss_barrier_pending), a'),
+  ],
+  [
+    'The player overlap test preserves the caller loop counter (push/pop bc)',
+    /push bc[\s\S]{0,400}?call bitmap_player_overlaps_16[\s\S]{0,40}?pop bc/.test(bossGen),
+  ],
+  [
+    'Skipped openings are retried until the player steps clear',
+    bossGen.includes('boss_barrier_pending EQU') &&
+      bossGen.includes('boss_barrier_retry EQU') &&
+      bossGen.includes('.no_barrier_resweep'),
+  ],
+  [
+    'Barrier RAM block was resized for the two new bytes',
+    bossGen.includes('barrierRamBase + (hasBarrier ? 7 : 0)') &&
+      !bossGen.includes('(hasBarrier ? 5 : 0)'),
+  ],
 ];
 
 // ---------------------------------------------------------------- Part C ---

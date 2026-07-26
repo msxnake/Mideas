@@ -1013,7 +1013,7 @@ export function buildBitmapBossSystemAsm(
   const hasProjectiles = hasBitmapProjectiles || hasSpriteProjectiles;
   const projScratchY = opts.projScratchBaseY || 0;
   const spriteSlots = hasSpriteProjectiles ? (sprites as BitmapBossSpriteBulletOptions).maxSlots : 0;
-  const projRamBase = barrierRamBase + (hasBarrier ? 5 : 0);
+  const projRamBase = barrierRamBase + (hasBarrier ? 7 : 0);
   const BOSS_SBUL_SLOT_BYTES = 9;   // keep in sync with BOSS_SBUL_SLOT in the ASM
   const spriteRamBase = projRamBase + 9;
   // Fase G paths: entirely absent unless a boss references one, so a project
@@ -1063,7 +1063,7 @@ export function buildBitmapBossSystemAsm(
   const pauseGate = opts.pauseGateAsm || '';
 
   const equates = `
-; ---- bitmap BOSS runtime state (${11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 5 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0)} bytes) ----
+; ---- bitmap BOSS runtime state (${11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 7 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0)} bytes) ----
 boss_active     EQU ${asmWord(ram + 0)}   ; 0 none, 1 alive
 boss_x          EQU ${asmWord(ram + 1)}
 boss_y          EQU ${asmWord(ram + 2)}
@@ -1081,6 +1081,8 @@ boss_defeated   EQU ${asmWord(ram + 28)}  ; ${roomCount} bytes, 1 = killed (pers
 ${hasDefeatActions ? `boss_flags      EQU ${asmWord(flagsBase)}  ; ${flagCount} bytes, onDefeated setFlag targets (persistent)\n` : ''}${hasBarrier ? `boss_barrier_draw EQU ${asmWord(barrierRamBase)}  ; 1 = drawing/sealing, 0 = clearing/unsealing
 boss_barrier_sx EQU ${asmWord(barrierRamBase + 1)}  ; word: chain tile atlas SX
 boss_barrier_sy EQU ${asmWord(barrierRamBase + 3)}  ; word: chain tile atlas SY (512-based)
+boss_barrier_pending EQU ${asmWord(barrierRamBase + 5)}  ; 1 = a perimeter cell is still open under the player
+boss_barrier_retry EQU ${asmWord(barrierRamBase + 6)}  ; frames until the next reseal sweep
 ` : ''}${hasProjectiles ? `boss_proj_active EQU ${asmWord(projRamBase + 0)}  ; 1 = a bitmap projectile is in flight
 boss_proj_x     EQU ${asmWord(projRamBase + 1)}
 boss_proj_y     EQU ${asmWord(projRamBase + 2)}
@@ -1246,7 +1248,20 @@ bitmap_boss_update:
 ${pauseGate}    ld a, (boss_active)
     or a
     ret z
-    call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
+${hasBarrier ? `    ; The chain could not seal the doorway the player entered through. Sweep
+    ; the perimeter again every 8 frames until it is clear: cells already
+    ; carrying the #80 marker cost one compare each (#80 & #BF is non-zero,
+    ; so bitmap_boss_barrier_cell returns before touching the VDP), and the
+    ; sweep stops as soon as a pass leaves nothing pending.
+    ld a, (boss_barrier_pending)
+    or a
+    jp z, .no_barrier_resweep
+    ld hl, boss_barrier_retry
+    dec (hl)
+    jp nz, .no_barrier_resweep
+    call bitmap_boss_barrier_apply   ; reseals whatever the player has left
+.no_barrier_resweep:
+` : ''}    call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
     ; VDP load balancing (enemy-style): the body only moves/redraws every
     ; (ix+19) frames (default 3); the projectile blits run on the OTHER frames,
     ; so a single frame never pays for both the big body HMMM and a bullet.
@@ -1966,13 +1981,20 @@ ${flagCount > 0 ? `.op_set_flag:
 ;   room perimeter (row 0, row 11, col 0, col 15). apply paints the chain tile
 ;   and marks the cells solid; remove restores the clean room from page 1 and
 ;   clears the collision. A room with no barrier tile is a no-op (present=0).
+; A cell the player is standing on is NEVER sealed (that is the doorway they
+;   just walked in through): it is left open, boss_barrier_pending is set, and
+;   bitmap_boss_update re-runs apply until the player has moved off it.
 ; INPUT: current_screen_index. OUTPUT: bitmap_room_collision_map + VRAM page 0.
 ; DESTROYS: AF, BC, DE, HL. Preserves IX (runs inside the boss_kill contract).
 ; ------------------------------------------------------------
 bitmap_boss_barrier_apply:
     ld a, 1
     ld (boss_barrier_draw), a
-    jr bitmap_boss_barrier_walk
+    xor a
+    ld (boss_barrier_pending), a   ; this sweep decides what is left open
+    ld a, 8
+    ld (boss_barrier_retry), a     ; frames until the next sweep, if needed
+    jp bitmap_boss_barrier_walk
 bitmap_boss_barrier_remove:
     xor a
     ld (boss_barrier_draw), a
@@ -2042,7 +2064,8 @@ bitmap_boss_barrier_col:
 ; ------------------------------------------------------------
 ; PURPOSE: Apply/clear one 16x16 perimeter cell (B = col 0..15, C = row 0..11):
 ;   write the collision map and blit the chain tile (apply) or restore the
-;   clean room from page 1 (clear). Mode = boss_barrier_draw.
+;   clean room from page 1 (clear). Mode = boss_barrier_draw. On apply, a cell
+;   the player overlaps is skipped and boss_barrier_pending is raised instead.
 ; DESTROYS: AF, DE, HL (BC preserved for the caller loop). Preserves IX.
 ; ------------------------------------------------------------
 bitmap_boss_barrier_cell:
@@ -2069,6 +2092,33 @@ bitmap_boss_barrier_cell:
     ld a, (hl)                 ; apply: act only on empty cells
     and #BF                    ; drop Deadly bit; Z => passable (empty)
     ret nz                     ; occupied cell -> leave tile fully untouched
+    ; The player walks in THROUGH the perimeter, so on room entry they are
+    ; standing on one of these cells. Sealing it would bury them inside a
+    ; solid tile with no way out, so leave that opening alone and flag it;
+    ; bitmap_boss_update sweeps again until they have stepped clear.
+    ; bitmap_player_overlaps_16 takes D/E = cell top-left and clobbers B,
+    ; which is the caller's column counter. HL (the collision cell) survives.
+    push bc
+    ld a, b
+    add a, a
+    add a, a
+    add a, a
+    add a, a                   ; D = col * 16
+    ld d, a
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a                   ; E = row * 16
+    ld e, a
+    call bitmap_player_overlaps_16
+    pop bc
+    or a
+    jp z, .cell_seal           ; player is elsewhere -> seal normally
+    ld a, 1
+    ld (boss_barrier_pending), a
+    ret                        ; keep this opening until they move off
+.cell_seal:
     ld a, #80
     ld (hl), a                 ; mark as sealed opening
     jr .cell_vdp
@@ -3428,7 +3478,7 @@ bitmap_boss_aim_ring:
 
   return {
     enabled: true,
-    ramBytes: 11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 5 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES
+    ramBytes: 11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 7 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES
       + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0),
     equates,
     initAsm,
