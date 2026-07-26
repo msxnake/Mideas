@@ -12,6 +12,7 @@ import {
 } from '../../types';
 import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { WorldPaletteResolution, resolveWorldPalettes } from '../../utils/msx2WorldPalette';
+import { AtlasEntryRef, collectAtlasEntries } from '../../utils/msx2AtlasEntries';
 import { bitmapStampToPixelGrid } from '../../utils/msx2Screen5BitmapTileLibrary';
 
 /**
@@ -47,61 +48,14 @@ const label = 'block text-xs text-msx-textsecondary mb-1';
 const input = 'w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-sm text-msx-textprimary';
 const btn = 'px-2 py-1 text-xs rounded border border-msx-border hover:bg-msx-hover';
 
-/**
- * One atlas entry, carrying enough of its room to be drawn: the atlas bitmap is
- * shared per room, so an entry is only a rectangle (sx,sy,w,h) inside it.
- */
-interface AtlasEntryRef {
-  id: string;
-  /** Unique per room: the same atlas entry id is shared by every room that imported it. */
-  key: string;
-  label: string;
-  w: number;
-  h: number;
-  roomName: string;
-  sx: number;
-  sy: number;
-  pixels: number[][];
-  palette: Screen5PaletteSlot[];
-}
-
 /** Memoised {@link resolveWorldPalettes}: the world palette wins over the room's own. */
 function useWorldPalettes(allAssets: ProjectAsset[]): WorldPaletteResolution {
   return useMemo(() => resolveWorldPalettes(allAssets), [allAssets]);
 }
 
-/** Collect every atlas entry across the project's bitmap rooms. */
+/** Memoised {@link collectAtlasEntries}: distinct atlas tiles, world-coloured. */
 function useAtlasEntries(allAssets: ProjectAsset[]): AtlasEntryRef[] {
-  const { byRoom } = useWorldPalettes(allAssets);
-  return useMemo(() => {
-    const out: AtlasEntryRef[] = [];
-    for (const asset of allAssets) {
-      if (asset.type !== 'msx2bitmaproom') continue;
-      const room = asset.data as Msx2Screen5BitmapRoom | undefined;
-      const atlas = room?.atlas;
-      if (!atlas) continue;
-      // The world's shared palette is what the game runs with; the room's
-      // own slots are only a fallback for rooms outside a palette-carrying world.
-      const palette = byRoom.get(asset.id)
-        || (room?.palette?.length ? ensureScreen5PaletteSlots(room.palette).slots : createDefaultScreen5PaletteSlots());
-      for (const entry of atlas.entries || []) {
-        if (!entry?.id) continue;
-        out.push({
-          id: String(entry.id),
-          key: `${asset.id}:${entry.id}`,
-          label: `${entry.name || entry.id} (${entry.w}x${entry.h})`,
-          w: Number(entry.w) || 0,
-          h: Number(entry.h) || 0,
-          roomName: asset.name,
-          sx: Number(entry.sx) || 0,
-          sy: Number(entry.sy) || 0,
-          pixels: atlas.pixels || [],
-          palette,
-        });
-      }
-    }
-    return out;
-  }, [allAssets, byRoom]);
+  return useMemo(() => collectAtlasEntries(allAssets), [allAssets]);
 }
 
 /** '#rgb' / '#rrggbb' -> [r,g,b]; anything unparseable reads as black. */
@@ -628,10 +582,10 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                 {atlasEntries.filter(e => e.w >= 16 && e.h >= 16).map(entry => {
                   const scale = Math.max(1, Math.floor(80 / Math.max(entry.w, entry.h, 1)));
                   return (
-                    <button key={entry.key} onClick={() => set('bossBarrierTileId', entry.id)}
+                    <button key={entry.id} onClick={() => set('bossBarrierTileId', entry.id)}
                       className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossBarrierTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
                       style={{ background: MSX2_PREVIEW_BG, width: 90 }}
-                      title={`${entry.label} — ${entry.roomName}`}>
+                      title={`${entry.label}${entry.roomCount > 1 ? ` — used in ${entry.roomCount} rooms` : ` — ${entry.roomName}`}`}>
                       <div className="flex-1 flex items-center justify-center" style={{ minHeight: 80 }}>
                         <AtlasEntryCanvas entry={entry} scale={scale} />
                       </div>
@@ -700,10 +654,10 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                     {atlasEntries.filter(e => e.w <= 16 && e.h <= 16).map(entry => {
                       const scale = Math.max(1, Math.floor(70 / Math.max(entry.w, entry.h, 1)));
                       return (
-                        <button key={entry.key} onClick={() => set('bossProjectileTileId', entry.id)}
+                        <button key={entry.id} onClick={() => set('bossProjectileTileId', entry.id)}
                           className={`flex flex-col items-center justify-center gap-1 p-1 rounded border ${boss.bossProjectileTileId === entry.id ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
                           style={{ background: MSX2_PREVIEW_BG, width: 80 }}
-                          title={`${entry.label} — ${entry.roomName}`}>
+                          title={`${entry.label}${entry.roomCount > 1 ? ` — used in ${entry.roomCount} rooms` : ` — ${entry.roomName}`}`}>
                           <div className="flex-1 flex items-center justify-center" style={{ minHeight: 70 }}>
                             <AtlasEntryCanvas entry={entry} scale={scale} />
                           </div>

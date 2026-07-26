@@ -22,6 +22,7 @@ const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
 const bossGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapBossGenerator.ts');
 const bossEditor = read('components', 'editors', 'Msx2BossEditor.tsx');
+const atlasEntries = read('utils', 'msx2AtlasEntries.ts');
 
 // ---------------------------------------------------------------- Part A ---
 // The shipping chain barrier. These are the pieces a rewrite must not drop.
@@ -123,10 +124,22 @@ const editorChecks = [
   // Rooms keep a stale private palette once the world moves to a shared one, so
   // previewing atlas pixels with room.palette shows colours the game never has.
   [
-    'Atlas and stamp previews resolve the palette through the world',
-    bossEditor.includes('resolveWorldPalettes') &&
-      bossEditor.includes('byRoom.get(asset.id)') &&
-      !/const palette = room\?\.palette\?\.length \? room\.palette/.test(bossEditor),
+    'Atlas tiles are coloured through the world palette',
+    atlasEntries.includes('resolveWorldPalettes') &&
+      atlasEntries.includes('byRoom.get(asset.id)'),
+  ],
+  [
+    'Stamp previews are coloured through the world palette too',
+    bossEditor.includes('useWorldPalettes') &&
+      /palette: shared/.test(bossEditor),
+  ],
+  // A world atlas is shared, so every room lists the same entries: collecting
+  // per room floods the pickers with identical thumbnails of the same tile.
+  [
+    'Atlas tiles are collected once, not once per room',
+    bossEditor.includes('collectAtlasEntries') &&
+      atlasEntries.includes('byId.set(id,') &&
+      !/key: `\$\{asset\.id\}:\$\{entry\.id\}`/.test(atlasEntries + bossEditor),
   ],
 ];
 
