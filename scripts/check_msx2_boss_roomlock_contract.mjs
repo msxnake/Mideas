@@ -120,6 +120,14 @@ const editorChecks = [
     'Legacy bossAtlasEntryId bodies still warn instead of silently breaking',
     bossEditor.includes('still points at the old atlas entry'),
   ],
+  // Rooms keep a stale private palette once the world moves to a shared one, so
+  // previewing atlas pixels with room.palette shows colours the game never has.
+  [
+    'Atlas and stamp previews resolve the palette through the world',
+    bossEditor.includes('resolveWorldPalettes') &&
+      bossEditor.includes('byRoom.get(asset.id)') &&
+      !/const palette = room\?\.palette\?\.length \? room\.palette/.test(bossEditor),
+  ],
 ];
 
 // ---------------------------------------------------------------- Part B ---

@@ -9,7 +9,8 @@ import {
   ProjectAsset,
   Screen5PaletteSlot,
 } from '../../types';
-import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { createDefaultScreen5PaletteSlots, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { WorldPaletteResolution, resolveWorldPalettes } from '../../utils/msx2WorldPalette';
 import { bitmapStampToPixelGrid } from '../../utils/msx2Screen5BitmapTileLibrary';
 
 /**
@@ -63,8 +64,14 @@ interface AtlasEntryRef {
   palette: Screen5PaletteSlot[];
 }
 
+/** Memoised {@link resolveWorldPalettes}: the world palette wins over the room's own. */
+function useWorldPalettes(allAssets: ProjectAsset[]): WorldPaletteResolution {
+  return useMemo(() => resolveWorldPalettes(allAssets), [allAssets]);
+}
+
 /** Collect every atlas entry across the project's bitmap rooms. */
 function useAtlasEntries(allAssets: ProjectAsset[]): AtlasEntryRef[] {
+  const { byRoom } = useWorldPalettes(allAssets);
   return useMemo(() => {
     const out: AtlasEntryRef[] = [];
     for (const asset of allAssets) {
@@ -72,7 +79,10 @@ function useAtlasEntries(allAssets: ProjectAsset[]): AtlasEntryRef[] {
       const room = asset.data as Msx2Screen5BitmapRoom | undefined;
       const atlas = room?.atlas;
       if (!atlas) continue;
-      const palette = room?.palette?.length ? room.palette : createDefaultScreen5PaletteSlots();
+      // The world's shared palette is what the game runs with; the room's
+      // own slots are only a fallback for rooms outside a palette-carrying world.
+      const palette = byRoom.get(asset.id)
+        || (room?.palette?.length ? ensureScreen5PaletteSlots(room.palette).slots : createDefaultScreen5PaletteSlots());
       for (const entry of atlas.entries || []) {
         if (!entry?.id) continue;
         out.push({
@@ -90,7 +100,7 @@ function useAtlasEntries(allAssets: ProjectAsset[]): AtlasEntryRef[] {
       }
     }
     return out;
-  }, [allAssets]);
+  }, [allAssets, byRoom]);
 }
 
 /** '#rgb' / '#rrggbb' -> [r,g,b]; anything unparseable reads as black. */
@@ -193,6 +203,7 @@ interface BodyStampRef {
 
 /** Every bitmap stamp in the project, composed and ready to draw. */
 function useBodyStamps(allAssets: ProjectAsset[]): BodyStampRef[] {
+  const { shared } = useWorldPalettes(allAssets);
   return useMemo(() => {
     const out: BodyStampRef[] = [];
     for (const asset of allAssets) {
@@ -208,11 +219,16 @@ function useBodyStamps(allAssets: ProjectAsset[]): BodyStampRef[] {
         id: asset.id,
         name: asset.name || stamp.name || asset.id,
         w, h, pixels,
-        palette: data?.palette?.length ? data.palette : createDefaultScreen5PaletteSlots(),
+        // The generator injects stamps into the world atlas, so in game they
+        // are drawn with the world palette, not the copy saved with the stamp.
+        // With several world palettes there is no unambiguous choice, so the
+        // stamp's own slots stand in.
+        palette: shared
+          || (data?.palette?.length ? ensureScreen5PaletteSlots(data.palette).slots : createDefaultScreen5PaletteSlots()),
       });
     }
     return out;
-  }, [allAssets]);
+  }, [allAssets, shared]);
 }
 
 /** Draws a composed stamp (or one frame of a horizontal strip) at 1:1, CSS-upscaled. */
