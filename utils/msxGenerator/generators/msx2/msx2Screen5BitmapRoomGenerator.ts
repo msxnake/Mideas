@@ -1,5 +1,6 @@
 import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
+import { bitmapStampToPixelGrid } from '../../../msx2Screen5BitmapTileLibrary';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEntity, getMsx2AirDashConfigFromPlayerEntity, getMsx2GlideConfigFromPlayerEntity, getMsx2WallJumpConfigFromPlayerEntity, getMsx2PowerStompConfigFromPlayerEntity, getMsx2ShootConfigFromPlayerEntity, getMsx2TeleportABConfigFromPlayerEntity, getMsx2SlashConfigFromPlayerEntity, getMsx2GrabConfigFromPlayerEntity, getMsx2HighJumpConfigFromPlayerEntity, getMsx2WallBreakConfigFromPlayerEntity, getMsx2SpinAttackConfigFromPlayerEntity, getMsx2IceSlideConfigFromPlayerEntity, getMsx2CrouchConfigFromPlayerEntity, getMsx2DestroyTileConfigFromPlayerEntity, getMsx2CollectorGemsConfigFromPlayerEntity, getMsx2PerceptionConfigFromPlayerEntity, getMsx2CarryAndThrowConfigFromPlayerEntity, resolveMsx2BitmapKeyboardBinding } from '../../../msx2PlatformPhysics';
@@ -1308,6 +1309,9 @@ function normalizeRoom(room: Msx2Screen5BitmapRoom | undefined): Msx2Screen5Bitm
     collision: room?.collision || [],
     effects: room?.effects || [],
     behavior: room?.behavior || [],
+    // Optional 8x8 sub-cell solidity nibbles; absent in projects that only use
+    // whole 16x16 cells, and then the whole feature stays switched off.
+    collisionShape: room?.collisionShape,
     entities: room?.entities || [],
     keyItems: Array.isArray(room?.keyItems) ? room!.keyItems : [],
     playerEntries: room?.playerEntries || [],
@@ -1391,7 +1395,89 @@ function atlasEntryFingerprint(pixels: number[][]): string {
   return `${width}x${pixels.length}:${rows.join('|')}`;
 }
 
-function buildSharedWorldAtlasRooms(rooms: Msx2Screen5BitmapRoom[]): { rooms: Msx2Screen5BitmapRoom[]; atlasRoom: Msx2Screen5BitmapRoom } {
+/**
+ * Every `msx2bitmapstamp` a boss definition names as its body, composed into one
+ * pixel rectangle. Deduped by asset id: two bosses may share a body.
+ */
+function collectBossBodyStamps(analysis: ProjectAnalysis): Array<{ id: string; pixels: number[][] }> {
+  const wanted = new Set<string>();
+  for (const asset of ((analysis as any)?.assets || []) as any[]) {
+    if (String(asset?.type || '').toLowerCase() !== 'msx2boss') continue;
+    const params = (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>;
+    const stampId = String(params.bossStampAssetId || '').trim();
+    if (stampId) wanted.add(stampId);
+  }
+  // A placed boss may override the body per encounter, exactly like HP.
+  // Also collect stamps from boss definitions referenced by placed entities.
+  const bossDefinitionAssets = new Map<string, any>();
+  for (const asset of ((analysis as any)?.assets || []) as any[]) {
+    if (String(asset?.type || '').toLowerCase() === 'msx2boss') {
+      bossDefinitionAssets.set(String(asset?.id || ''), asset);
+    }
+  }
+  for (const asset of ((analysis as any)?.assets || []) as any[]) {
+    for (const entity of ((asset?.data?.entities || asset?.data?.layers?.entities || []) as any[])) {
+      if (entity?.kind !== 'boss') continue;
+      const stampId = String(entity?.params?.bossStampAssetId || '').trim();
+      if (stampId) wanted.add(stampId);
+      // If entity has no stamp but references a definition, resolve from definition
+      if (!stampId) {
+        const defId = String(entity?.params?.bossDefinitionId || entity?.params?.bossId || '').trim();
+        const defAsset = bossDefinitionAssets.get(defId);
+        if (defAsset) {
+          const defParams = (defAsset?.data?.params || defAsset?.data?.boss?.params || defAsset?.data || {}) as Record<string, unknown>;
+          const defStampId = String(defParams.bossStampAssetId || '').trim();
+          if (defStampId) wanted.add(defStampId);
+        }
+      }
+    }
+  }
+  if (wanted.size === 0) return [];
+  const out: Array<{ id: string; pixels: number[][] }> = [];
+  for (const asset of ((analysis as any)?.assets || []) as any[]) {
+    if (String(asset?.type || '').toLowerCase() !== 'msx2bitmapstamp') continue;
+    const id = String(asset?.id || '').trim();
+    if (!wanted.has(id)) continue;
+    const stamp = asset?.data?.stamp;
+    if (!stamp) {
+      console.warn(`MSX2 bitmap boss: stamp asset "${id}" has no stamp data; the boss using it stays invisible.`);
+      continue;
+    }
+    out.push({ id, pixels: bitmapStampToPixelGrid(stamp) });
+    wanted.delete(id);
+  }
+  for (const missing of wanted) {
+    console.warn(`MSX2 bitmap boss: body stamp "${missing}" not found in the project; that boss is disabled.`);
+  }
+  return out;
+}
+
+/**
+ * A picture that must reach the shared atlas even though no room paints it.
+ * Boss bodies come in this way: they are authored as `msx2bitmapstamp` assets,
+ * not as room tiles, so nothing else would put their pixels in VRAM.
+ */
+interface SharedAtlasExtraItem {
+  key: string;
+  pixels: number[][];
+}
+
+/** Where an extra item landed in the shared atlas, so a table can point at it. */
+export interface SharedAtlasPlacement {
+  sx: number;
+  sy: number;
+  w: number;
+  h: number;
+}
+
+function buildSharedWorldAtlasRooms(
+  rooms: Msx2Screen5BitmapRoom[],
+  extraItems: SharedAtlasExtraItem[] = [],
+): {
+  rooms: Msx2Screen5BitmapRoom[];
+  atlasRoom: Msx2Screen5BitmapRoom;
+  extraPlacements: Map<string, SharedAtlasPlacement>;
+} {
   const sharedWidth = SCREEN_WIDTH;
   const uniqueItems: Array<{ fingerprint: string; pixels: number[][]; w: number; h: number }> = [];
   const seenFingerprints = new Set<string>();
@@ -1403,6 +1489,19 @@ function buildSharedWorldAtlasRooms(rooms: Msx2Screen5BitmapRoom[]): { rooms: Ms
       seenFingerprints.add(fingerprint);
       uniqueItems.push({ fingerprint, pixels, w: Math.max(1, pixels[0]?.length || TILE_GRID_SIZE), h: Math.max(1, pixels.length) });
     }
+  }
+  // Extras are measured LAST so this pass walks the same order as the placing
+  // pass below; the shelf packer is order-dependent and the two must agree.
+  for (const item of extraItems) {
+    const fingerprint = atlasEntryFingerprint(item.pixels);
+    if (seenFingerprints.has(fingerprint)) continue;
+    seenFingerprints.add(fingerprint);
+    uniqueItems.push({
+      fingerprint,
+      pixels: item.pixels,
+      w: Math.max(1, item.pixels[0]?.length || TILE_GRID_SIZE),
+      h: Math.max(1, item.pixels.length),
+    });
   }
   let measureX = 0;
   let measureY = 0;
@@ -1479,8 +1578,13 @@ function buildSharedWorldAtlasRooms(rooms: Msx2Screen5BitmapRoom[]): { rooms: Ms
       },
     };
   });
+  // After the rooms, matching the measuring order above. Deduping is by pixel
+  // fingerprint, so a stamp a room happens to paint costs nothing extra.
+  const extraPlacements = new Map<string, SharedAtlasPlacement>();
+  for (const item of extraItems) extraPlacements.set(item.key, placePixels(item.pixels));
 
   return {
+    extraPlacements,
     rooms: remappedRooms,
     atlasRoom: {
       ...remappedRooms[0],
@@ -2340,7 +2444,7 @@ function buildRuntimeAsm(
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean },
-  options: { bankedRle: boolean; sccMusicTick?: boolean },
+  options: { bankedRle: boolean; sccMusicTick?: boolean; subCellShapes?: boolean },
   playerPhysics: BitmapPlayerPhysics,
   playerHitbox: BitmapPlayerHitbox,
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
@@ -2359,15 +2463,18 @@ function buildRuntimeAsm(
   // Player body collision box (Player Config) -> solid-probe edges/offsets. The
   // leading edge is probed along the perpendicular axis at every <=16px step so a
   // body taller/wider than one 16px collision cell cannot tunnel through a cell.
+  // With 8x8 sub-cell shapes enabled the smallest obstacle is 8px, so the step
+  // halves as well (an 8px ledge between two probes would be walked through).
+  const probeStep = options.subCellShapes ? 8 : 16;
   const hbLeft = playerHitbox.x;
   const hbRight = playerHitbox.x + playerHitbox.w - 1;
   const hbTop = playerHitbox.y;
   const hbBottom = playerHitbox.y + playerHitbox.h - 1;
   const probeRowOffsets: number[] = [];
-  for (let row = hbTop; row < hbBottom; row += 16) probeRowOffsets.push(row);
+  for (let row = hbTop; row < hbBottom; row += probeStep) probeRowOffsets.push(row);
   probeRowOffsets.push(hbBottom);
   const probeColOffsets: number[] = [];
-  for (let col = hbLeft; col < hbRight; col += 16) probeColOffsets.push(col);
+  for (let col = hbLeft; col < hbRight; col += probeStep) probeColOffsets.push(col);
   probeColOffsets.push(hbRight);
   // Vertical room-edge thresholds scale with the body hitbox so a tall sprite
   // (e.g. 16x32, two stacked hardware sprites) can still fall through a gap
@@ -4173,19 +4280,93 @@ bitmap_probe_solid:
     ld a, (hl)              ; A = cell value (returned intact to honour the contract)
     ld e, a                 ; E = copy of cell value
     and #BF                 ; mask out Deadly bit (#BF = ~#40); Z when empty or deadly-only
+${options.subCellShapes ? `    jp z, .probe_cell_passable
+    bit 0, e                ; HAS_SHAPE: cell carries an 8x8 quadrant mask?
+    jp z, .probe_return_map_solid
+    push de                 ; keep E = cell value (the helper clobbers DE)
+    call bitmap_cell_shape_hit  ; HL still points at the collision cell; keeps BC
+    pop de
     jp nz, .probe_return_map_solid
-${doorSolidProbeCallAsm}    ld a, e                 ; restore A = original cell value
+.probe_cell_passable:
+` : `    jp nz, .probe_return_map_solid
+`}${doorSolidProbeCallAsm}    ld a, e                 ; restore A = original cell value
     cp e                    ; keep Z set: empty/deadly-only map cells are passable
     ret
 .probe_return_map_solid:
     ld a, e                 ; restore A = original solid cell value
     or a
     ret
+${options.subCellShapes ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_cell_shape_hit
+; ------------------------------------------------------------
+; PURPOSE:
+;   8x8 sub-cell solidity test. A 16x16 collision cell flagged HAS_SHAPE (0x01)
+;   carries a 4-quadrant mask in the HIGH nibble of its behavior byte:
+;   #10 = top-left, #20 = top-right, #40 = bottom-left, #80 = bottom-right.
+;   This lets one 16x16 tile be solid only where it is actually drawn (e.g. a
+;   tile painted only on its lower half is a ledge with an empty upper half).
+;
+; INPUT:
+;   HL = address of the cell inside bitmap_room_collision_map.
+;   B = pixel X, C = pixel Y (the probed point).
+;
+; OUTPUT:
+;   NZ when the 8x8 quadrant under (B,C) is solid, Z when it is a hole.
+;
+; DESTROYS:
+;   AF, DE, HL
+;
+; PRESERVES:
+;   BC, IX, IY
+;
+; CALLS:
+;   None.
+;
+; NOTES:
+;   A cleared nibble means "whole cell solid" and returns NZ, so a stale
+;   HAS_SHAPE bit can never open a hole in a wall.
+; ------------------------------------------------------------
+bitmap_cell_shape_hit:
+    ld de, bitmap_room_behavior_map - bitmap_room_collision_map
+    add hl, de              ; same index, shape plane
+    ld a, (hl)
+    and #F0
+    jp z, .shape_full       ; no mask -> the whole 16x16 cell is solid
+    ld d, a                 ; D = quadrant mask
+    ld a, c
+    and #08
+    rrca
+    rrca                    ; A = 2 when the lower half of the cell
+    ld l, a
+    ld a, b
+    and #08
+    rrca
+    rrca
+    rrca                    ; A = 1 when the right half of the cell
+    or l                    ; A = quadrant index 0..3
+    ld hl, bitmap_quadrant_mask_table
+    add a, l
+    ld l, a
+    jp nc, .shape_masked
+    inc h                   ; table may straddle a 256-byte page
+.shape_masked:
+    ld a, (hl)              ; A = #10 / #20 / #40 / #80
+    and d                   ; NZ = that quadrant is solid
+    ret
+.shape_full:
+    or 1                    ; NZ
+    ret
 
+bitmap_quadrant_mask_table:
+    db #10, #20, #40, #80   ; top-left, top-right, bottom-left, bottom-right
+` : ''}
 bitmap_probe_deadly:
     ; B = pixel X, C = pixel Y. Returns A = collision cell value with Z set
     ; when the cell does NOT have the Deadly bit (0x40), NZ when it does.
-    ; Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.
+    ; Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.${options.subCellShapes ? `
+    ; Deadly cells honour the same 8x8 quadrant mask as bitmap_probe_solid, so
+    ; spikes drawn on half a cell only hurt where they are drawn.` : ''}
     ld a, c
     cp 192
     jp c, .deadly_probe_y_visible
@@ -4208,12 +4389,32 @@ bitmap_probe_deadly:
     add hl, de
     ld a, (hl)              ; A = cell value (returned intact)
     bit 6, a                ; test Deadly bit without altering A
+${options.subCellShapes ? `    ret z                   ; not deadly
+    bit 0, a                ; HAS_SHAPE: deadly only over part of the cell?
+    jp nz, .deadly_shaped
+    or a                    ; deadly everywhere (cell value is nonzero -> NZ)
     ret
-
+.deadly_shaped:
+    push af                 ; keep A = cell value across the quadrant test
+    push de
+    call bitmap_cell_shape_hit
+    pop de
+    jp z, .deadly_shape_hole
+    pop af
+    or a                    ; NZ = deadly
+    ret
+.deadly_shape_hole:
+    pop af
+    cp a                    ; Z = the probed quadrant is empty, not deadly
+    ret
+` : `    ret
+`}
 bitmap_probe_behavior:
     ; B = pixel X, C = pixel Y. Returns A = behavior cell value with Z set
     ; when empty. behavior=3 is the ice surface; behavior=4 is exit_enemy.
-    ; Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.
+    ; Indexing matches bitmap_probe_solid. Clobbers AF/DE/HL; keeps BC.${options.subCellShapes ? `
+    ; The high nibble of the byte holds the 8x8 sub-cell solidity mask, so it is
+    ; stripped here: callers only ever see the behavior code.` : ''}
     ld a, c
     cp 192
     jp c, .behavior_probe_y_visible
@@ -4235,8 +4436,9 @@ bitmap_probe_behavior:
     ld hl, bitmap_room_behavior_map
     add hl, de
     ld a, (hl)
-    or a
-    ret
+${options.subCellShapes ? `    and #0F                 ; strip the 8x8 shape nibble; Z when no behavior
+` : `    or a
+`}    ret
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_sprite_sat
@@ -11414,7 +11616,42 @@ function resolveBitmapRoomStateAnimations(
 const COLLISION_COLS = 16;
 const COLLISION_ROWS = 12;
 
-function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
+// ---- 8x8 sub-cell solidity ------------------------------------------------
+// A 16x16 collision cell can carry a 4-bit quadrant mask (see
+// Msx2Screen5BitmapRoom.collisionShape): bit0 TL, bit1 TR, bit2 BL, bit3 BR of
+// the authored nibble. It is exported in the HIGH nibble of the behavior byte
+// (behavior codes only use 0..4) and the cell is flagged with HAS_SHAPE in the
+// collision byte so the runtime probe only reads the second plane when a cell
+// really is partial. 0 and 15 both mean "fully solid" and are normalised to 0,
+// so a project that authors no shape exports byte-identical ROMs.
+const CELL_HAS_SHAPE = 0x01;
+// Bit recycled for HAS_SHAPE. It used to be the editor's "Breakable" checkbox,
+// which no generator or runtime ever read (the pick uses the per-room
+// destructible bitmask, and wall_break just clears any solid cell). Because it
+// survived the probe's `and #BF` it did make a cell read as solid, so in
+// sub-cell mode an authored bit0 is converted into a real Solid bit below.
+const CELL_LEGACY_BREAKABLE = 0x01;
+const CELL_SOLID = 0x10;
+
+/** Authored 0..15 quadrant mask for one cell; 0 when the cell is fully solid. */
+function readCellShape(room: Msx2Screen5BitmapRoom, x: number, y: number): number {
+  const shape = Math.trunc(Number(room.collisionShape?.[y]?.[x]) || 0) & 0x0f;
+  return shape === 0x0f ? 0 : shape;
+}
+
+/** True when any cell of any room carries a partial 8x8 shape. */
+function roomsUseSubCellShapes(rooms: Msx2Screen5BitmapRoom[]): boolean {
+  return rooms.some(room => {
+    for (let y = 0; y < COLLISION_ROWS; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        if (readCellShape(room, x, y) !== 0) return true;
+      }
+    }
+    return false;
+  });
+}
+
+function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom, subCellShapes: boolean): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < COLLISION_ROWS; y++) {
     for (let x = 0; x < COLLISION_COLS; x++) {
@@ -11425,7 +11662,21 @@ function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
       // and merge the effect so runtime hazards such as GearWheel can consume
       // an exit cell directly from bitmap_room_collision_map.
       const effect = Math.max(0, Math.min(3, Math.floor(Number(room.effects?.[y]?.[x]) || 0)));
-      bytes.push((collision & 0xf9) | ((effect << 1) & 0x06));
+      if (!subCellShapes) {
+        bytes.push((collision & 0xf9) | ((effect << 1) & 0x06));
+        continue;
+      }
+      // Sub-cell mode: bit0 becomes HAS_SHAPE. Any authored legacy bit0 is
+      // replaced by a real Solid bit so cells that were only solid *because*
+      // of that stray bit keep blocking exactly as before.
+      const legacySolid = (collision & CELL_LEGACY_BREAKABLE) !== 0 ? CELL_SOLID : 0;
+      const shape = readCellShape(room, x, y);
+      bytes.push(
+        (collision & 0xf8)
+        | legacySolid
+        | ((effect << 1) & 0x06)
+        | (shape !== 0 ? CELL_HAS_SHAPE : 0)
+      );
     }
   }
   // Jumper (spring) entities force their 16x16 cell SOLID so the player can
@@ -11447,11 +11698,17 @@ function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom): number[] {
   return bytes;
 }
 
-function buildBehaviorTableBytes(room: Msx2Screen5BitmapRoom): number[] {
+function buildBehaviorTableBytes(room: Msx2Screen5BitmapRoom, subCellShapes: boolean): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < COLLISION_ROWS; y++) {
     for (let x = 0; x < COLLISION_COLS; x++) {
-      bytes.push(clampByte(room.behavior?.[y]?.[x], 0));
+      const behavior = clampByte(room.behavior?.[y]?.[x], 0);
+      if (!subCellShapes) {
+        bytes.push(behavior);
+        continue;
+      }
+      // Low nibble = behavior code (0..4), high nibble = 8x8 quadrant mask.
+      bytes.push((behavior & 0x0f) | (readCellShape(room, x, y) << 4));
     }
   }
   return bytes;
@@ -11743,7 +12000,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // is a 192-byte tile map replayed as VRAM->VRAM copies by load_room.
   const world = collectBitmapWorldRooms(analysis);
   const sourceRooms = (world.rooms.length ? world.rooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
-  const sharedAtlas = buildSharedWorldAtlasRooms(sourceRooms);
+  // Boss bodies are `msx2bitmapstamp` assets, so no room paints them and nothing
+  // else would carry their pixels into VRAM. Compose each referenced stamp into
+  // one rectangle and hand it to the shared atlas alongside the room tiles.
+  const bossBodyStamps = collectBossBodyStamps(analysis);
+  const sharedAtlas = buildSharedWorldAtlasRooms(
+    sourceRooms,
+    bossBodyStamps.map(stamp => ({ key: stamp.id, pixels: stamp.pixels })),
+  );
   const rooms = sharedAtlas.rooms;
   const startIndex = Math.min(world.startIndex, rooms.length - 1);
   const room = rooms[startIndex];
@@ -11827,6 +12091,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ? buildRleChunksForVram(heartTileBytes, BITMAP_HUD_HEART_VRAM, 'bitmap_room_hud_heart_rle_chunk')
     : [];
   // Per-room render program (command blocks) + collision map.
+  // 8x8 sub-cell solidity is a whole-build switch: when no room authors a partial
+  // shape the collision/behavior bytes, the probe routines and the probe spacing
+  // are all emitted exactly like before (byte-identical ROM).
+  const subCellShapes = roomsUseSubCellShapes(rooms);
   const roomTables = rooms.map((roomData, index) => {
     const renderPage0 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE0_BASE_Y);
     const renderPage1 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE1_BASE_Y);
@@ -11838,9 +12106,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       renderBytesPage1: renderPage1.bytes,
       blockCount: renderPage0.count,
       collisionLabel: `bitmap_room_collision_${index}`,
-      collisionBytes: buildCollisionTableBytes(roomData),
+      collisionBytes: buildCollisionTableBytes(roomData, subCellShapes),
       behaviorLabel: `bitmap_room_behavior_${index}`,
-      behaviorBytes: buildBehaviorTableBytes(roomData),
+      behaviorBytes: buildBehaviorTableBytes(roomData, subCellShapes),
     };
   });
   const roomDataBlocks: BankedDataBlock[] = roomTables.flatMap(table => [
@@ -12111,10 +12379,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     if (type !== 'msx2boss' && type !== 'bossdefinition') continue;
     const id = String(asset?.id || '').trim();
     if (!id) continue;
+    const params = (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>;
     bossDefinitions.set(id, {
       id,
       name: asset?.name,
-      params: (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>,
+      params,
     });
   }
   // Fase G: reusable movement paths. A boss points at one with `bossPathId`,
@@ -12148,6 +12417,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     bossDefinitions,
     bossPaths,
     bossShoots,
+    sharedAtlas.extraPlacements,
   );
   // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
   // bitmap visual. Place those rectangles after the atlas and any linked-HUD
@@ -12684,6 +12954,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       sprite: resolveBitmapBossBulletSprite(analysis, rooms, bossDefinitions),
     } : undefined,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    gameHeight: SCREEN_HEIGHT_DEFAULT,
     playerHitbox,
     damageInvulnFrames: playerVitals.invulnFrames,
     maxHealth: playerVitals.maxHealth,
@@ -12693,6 +12964,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ret nz
 `
       : ''}${perceptionPauseGateAsm}`,
+    bankedRoomData: isKonamiMegaRom,
   });
   hudLinkedRamCursor += bossSystem.ramBytes;
   // CARRY & THROW skill: SCREEN 5 ballistic object runtime. It is chained after
@@ -12753,7 +13025,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
   const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}`;
-  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}${bossSystem.initAsm}`;
+  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}`;
   const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}`;
   const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
@@ -12796,7 +13068,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     spriteOffsets: spriteTables.spriteOffsets,
     totalFrameCount: combinedFrameCount,
     hasStateAnimations,
-  }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled }, playerPhysics, playerHitbox, {
+  }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled, subCellShapes }, playerPhysics, playerHitbox, {
     inputGateAsm: inputHooks,
     horizontalHookAsm: `${wallJumperHorizontalHook}${iceSlideHorizontalHook}${crouchHorizontalHook}`,
     gravityHookAsm: gravityHooks,
@@ -12863,7 +13135,13 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // so callers either fall through to bitmap_enter_game_loop (inline boot) or
   // `call bitmap_enter_game_loop` (WorldLink). NOTE: it does not select a slot or
   // init the VDP/HUD/tileset (done once at init_rom before either path).
-  const bitmapBootInitAsm = `    ; Render the start room from the shared tileset already in VRAM.
+  const bitmapBootInitAsm = `${bossSystem.initAsm ? `    ; Boss persistent state MUST be cleared before the start room is composed:
+    ; load_room below ends in bitmap_boss_load, which reads boss_defeated[room]
+    ; and skips the boss when it is non-zero. Running this with the rest of the
+    ; HUD/system init (further down, after load_room) meant that booting STRAIGHT
+    ; INTO a boss room read uninitialised RAM: garbage there reads as "already
+    ; killed" and the boss never spawns.
+${bossSystem.initAsm}` : ''}    ; Render the start room from the shared tileset already in VRAM.
     xor a
     ld (bitmap_displayed_page), a
     ld a, ${startIndex}
@@ -12977,7 +13255,9 @@ ${hasStateAnimations ? `    xor a
   const sccMusic = sourcePt3Music || (anyMusicTracks && isKonamiMegaRom
     ? buildSccIntegratedMusicBlock(sccTracks, dualChipTracks, {
       dataBankEquateName: 'BITMAP_MUSIC_DATA_BANK',
-      pt3SampleRuntimeAsm: buildNativePT3SampleRuntimeAsm(),
+      // The SCC/bitmap music block has its own RAM map and no Vortex command
+      // decoder, so the native-FX hooks (music_fx_* labels) must stay out.
+      pt3SampleRuntimeAsm: buildNativePT3SampleRuntimeAsm({ trackerFx: false }),
     })
     : null);
   const musicBankBase = bankedDataBanks.length > 0

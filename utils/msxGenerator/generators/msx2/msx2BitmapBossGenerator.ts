@@ -11,9 +11,13 @@
  * the VDP moves the pixels in parallel, so the player loop always stays 60fps.
  *
  * Movement is a ping-pong patrol (the platform/enemy patrol resolver supplies
- * bounds). Trail cleanup restores 4px edge strips from page 1 (the clean room
- * copy every overlay system keeps in sync) before each redraw, so the boss
- * never needs a full-rect background restore while alive.
+ * bounds). Trail cleanup restores 4px edge strips from the page the boss is NOT
+ * drawing on before each redraw, so the boss never needs a full-rect background
+ * restore while alive. The room engine double-buffers (`bitmap_displayed_page`
+ * alternates on every transition) and the hidden page still holds the PREVIOUS
+ * room, so `bitmap_boss_load` mirrors the freshly composed game area onto it
+ * with one HMMM — once per room entry, never per frame — and every boss blit
+ * picks its page from `bitmap_displayed_page` at runtime.
  *
  * Damage model (Phase 1):
  *   - Touching the boss hurts the player (same saturating health + i-frames +
@@ -24,11 +28,15 @@
  *     per-room defeated flag (it never respawns while the ROM runs).
  *
  * Authoring params on the placed entity (see msx2EntityCatalog 'bitmap_boss'):
- *   bossAtlasEntryId       id of the room atlas entry holding the boss body.
- *                          The shared-atlas packer remaps entry sx/sy, so the
- *                          body MUST be referenced by entry, never by raw
- *                          atlas coordinates. With bossFrames > 1 the entry
- *                          is a horizontal frame strip (width = frames * W).
+ *   bossStampAssetId       id of the `msx2bitmapstamp` asset holding the body.
+ *                          The caller composes it and injects it into the
+ *                          shared world atlas, then passes the placement in:
+ *                          the body is never referenced by raw atlas
+ *                          coordinates, because the packer decides them.
+ *                          With bossFrames > 1 the stamp is a horizontal
+ *                          frame strip (width = frames * W).
+ *   bossAtlasEntryId       pre-stamp way of naming the body: a room atlas entry
+ *                          id. Only consulted when bossStampAssetId is empty.
  *   bossFrames             1..4 animation frames inside the strip (default 1)
  *   bossAnimDelay          frames between animation steps (default 12)
  *   bossHp                 bullet hits to kill (default 8)
@@ -49,8 +57,9 @@ import {
   bakeBossPath,
 } from '../../../msx2BossPath';
 import {
-  MSX2_SHOOT_DIR_TABLE_BYTES,
+  MSX2_SHOOT_DIR16_TABLE_BYTES,
   MSX2_SHOOT_RECORD_BYTES,
+  MSX2_SHOOT_RING,
   bakeShootDefinition,
 } from '../../../msx2Shoot';
 
@@ -322,8 +331,10 @@ export interface BitmapBossRuntimeOptions {
    * erase page-0-only overlays (boss body, chain barrier, pickups).
    */
   projScratchBaseY?: number;
-  /** HUD band height added to logical Y for page-0 blits. */
+  /** HUD band height added to logical Y for visible-page blits. */
   gameYOffset: number;
+  /** Height of the game area below the HUD band (default 192). */
+  gameHeight?: number;
   /** Player body hitbox in local player coordinates. */
   playerHitbox: { x: number; y: number; w: number; h: number };
   /** Frames of player invulnerability armed on contact damage. */
@@ -332,6 +343,13 @@ export interface BitmapBossRuntimeOptions {
   maxHealth: number;
   /** Early-return gate (NPC dialogue pause etc.). */
   pauseGateAsm?: string;
+  /**
+   * Konami MegaROM: the per-room tables live in resident bank 2 (#8000), but
+   * the room-load path leaves P2 on whatever banked resource it just streamed
+   * (music, RLE). `bitmap_boss_load` must map the resident bank back in before
+   * reading them.
+   */
+  bankedRoomData?: boolean;
 }
 
 export interface BitmapBossSystemAsm {
@@ -381,6 +399,12 @@ export function buildBitmapRoomBossData(
   paths: Map<string, BossPathAsset> = new Map(),
   /** Reusable shot patterns, keyed by asset id (Fase G). */
   shoots: Map<string, BossShootAsset> = new Map(),
+  /**
+   * Where each boss BODY STAMP landed in the shared world atlas, keyed by stamp
+   * asset id. The caller composes the stamps and injects them, because only it
+   * owns the atlas packer; here they are just a rectangle to point at.
+   */
+  bodyStampPlacements: Map<string, { sx: number; sy: number; w: number; h: number }> = new Map(),
 ): BitmapBossRoomData {
   let enabled = false;
   const flagNames: string[] = [];
@@ -444,19 +468,31 @@ export function buildBitmapRoomBossData(
     // same boss can appear twice with different HP, phase or rewards.
     const params = resolveBossParams(entity, definitions);
     const even = (v: number) => Math.floor(v / 2) * 2;
-    const entryId = String(params.bossAtlasEntryId || '').trim();
-    const entry = (room.atlas?.entries || []).find((candidate: any) => String(candidate?.id) === entryId);
-    if (!entry) {
-      console.warn(`MSX2 bitmap room "${room.name}": boss atlas entry "${entryId}" not found; boss disabled in this room.`);
+    // The body is a STAMP asset, already placed in the shared atlas by the
+    // caller. `bossAtlasEntryId` is the pre-stamp way of saying the same thing
+    // and is only consulted when no stamp is named, so old projects keep working.
+    const stampId = String(params.bossStampAssetId || '').trim();
+    const bodySource = stampId
+      ? { label: `body stamp "${stampId}"`, rect: bodyStampPlacements.get(stampId) }
+      : (() => {
+        const entryId = String(params.bossAtlasEntryId || '').trim();
+        const entry = (room.atlas?.entries || []).find((candidate: any) => String(candidate?.id) === entryId);
+        return {
+          label: `atlas entry "${entryId}"`,
+          rect: entry ? { sx: Number(entry.sx), sy: Number(entry.sy), w: Number(entry.w), h: Number(entry.h) } : undefined,
+        };
+      })();
+    if (!bodySource.rect) {
+      console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} not found; boss disabled in this room.`);
       return { table: emptyTable(), stream: [DEFEAT_OP_END], barrier: emptyBarrier(), projectile: emptyProjectile(), phases: [0], zones: [0], pathSel: [] as number[] };
     }
     const frames = clampInt(params.bossFrames, 1, 4, 1);
-    const stripW = Math.max(1, Math.floor(Number(entry.w) || 0));
-    const stripH = Math.max(1, Math.floor(Number(entry.h) || 0));
+    const stripW = Math.max(1, Math.floor(Number(bodySource.rect.w) || 0));
+    const stripH = Math.max(1, Math.floor(Number(bodySource.rect.h) || 0));
     const width = even(clampInt(Math.floor(stripW / frames), 16, 128, 16));
     const height = clampInt(stripH, 16, 96, 16);
     if (Math.floor(stripW / frames) < 16 || stripH < 16 || Math.floor(stripW / frames) > 128 || stripH > 96) {
-      console.warn(`MSX2 bitmap room "${room.name}": boss entry "${entryId}" is ${stripW}x${stripH} for ${frames} frame(s); per-frame size must be 16..128 x 16..96. Boss disabled in this room.`);
+      console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} is ${stripW}x${stripH} for ${frames} frame(s); per-frame size must be 16..128 x 16..96. Boss disabled in this room.`);
       return { table: emptyTable(), stream: [DEFEAT_OP_END], barrier: emptyBarrier(), projectile: emptyProjectile(), phases: [0], zones: [0], pathSel: [] as number[] };
     }
     const animDelay = clampInt(params.bossAnimDelay, 1, 255, 12);
@@ -467,8 +503,8 @@ export function buildBitmapRoomBossData(
     // its big HMMM never shares a frame with the projectile blits (which run on
     // the off-frames). Large bodies stay at >= 3; authors can override.
     const interval = clampInt(params.bossInterval, 1, 8, bytesPerBlit > 2048 ? 3 : 3);
-    const atlasX = even(clampInt(entry.sx, 0, 4096, 0));
-    const atlasY = clampInt(entry.sy, 0, 4096, 0);
+    const atlasX = even(clampInt(bodySource.rect.sx, 0, 4096, 0));
+    const atlasY = clampInt(bodySource.rect.sy, 0, 4096, 0);
     const patrol = resolvePatrol(entity);
     // Clamp speed to the 4px restore strips and keep X inside the blit range.
     const clampDelta = (v: number) => Math.max(-2, Math.min(2, Math.floor(Number(v) || 0)));
@@ -478,6 +514,13 @@ export function buildBitmapRoomBossData(
     let maxX = even(Math.max(Math.min(patrol?.maxX ?? maxXCap, maxXCap), minX));
     let minY = Math.min(patrol?.minY ?? 0, maxYCap);
     let maxY = Math.max(Math.min(patrol?.maxY ?? maxYCap, maxYCap), minY);
+    // A zero-width range means the author never set bounds, not "patrol between
+    // 0 and 0": the entity editor always writes explicit minX/maxX = 0, and the
+    // shared enemy resolver only applies its own default when the key is
+    // ABSENT. Without this the spawn X below is clamped into [0,0] and the boss
+    // is drawn against the left wall instead of where it was placed.
+    if (maxX <= minX) { minX = 0; maxX = maxXCap; }
+    if (maxY <= minY) { minY = 0; maxY = maxYCap; }
     // Movement authored in the Boss Editor. The runtime already bounces on both
     // axes and treats dx=dy=0 as "stand still", so a static turret boss and a
     // vertical or diagonal patrol all fall out of the table with no ASM change.
@@ -505,6 +548,23 @@ export function buildBitmapRoomBossData(
     }
     const x0 = even(Math.max(minX, Math.min(patrol?.x ?? minX, maxX)));
     const y0 = Math.max(minY, Math.min(patrol?.y ?? minY, maxY));
+    // If the boss has a path, use the position of path node 1 as the initial position.
+    // The node position is the CENTER of the boss; convert to top-left corner.
+    // Otherwise use x0/y0 from the patrol/placed position.
+    let finalX = x0;
+    let finalY = y0;
+    const pathId = String(params.bossPathId || '').trim();
+    if (pathId) {
+      const pathAsset = paths.get(pathId);
+      if (pathAsset && Array.isArray(pathAsset.path?.nodes) && pathAsset.path.nodes.length > 0) {
+        const node1 = pathAsset.path.nodes[0];
+        if (Number.isFinite(node1?.x) && Number.isFinite(node1?.y)) {
+          // node1.x/y is the center; subtract half-width/height to get top-left
+          finalX = even(Math.round(node1.x) - width / 2);
+          finalY = Math.round(node1.y) - height / 2;
+        }
+      }
+    }
     const sx = atlasX;
     const sy = 512 + atlasY; // atlas lives at VRAM rows 512+
     enabled = true;
@@ -538,7 +598,7 @@ export function buildBitmapRoomBossData(
     return {
       table: [
         1,
-        x0 & 0xff, y0 & 0xff,
+        finalX & 0xff, finalY & 0xff,
         dx & 0xff, dy & 0xff,
         minX & 0xff, maxX & 0xff, minY & 0xff, maxY & 0xff,
         sx & 0xff, (sx >> 8) & 0xff,
@@ -693,7 +753,7 @@ export interface BossDefinitionAsset {
  */
 export function resolveBossParams(entity: any, definitions: Map<string, BossDefinitionAsset>): any {
   const own = entity?.params || {};
-  const refId = String(own.bossId || own.bossDefinitionId || '').trim();
+  const refId = String(own.bossId || own.bossDefinitionId || own.bossAssetId || '').trim();
   if (!refId) return own;
   const definition = definitions.get(refId);
   if (!definition) {
@@ -831,6 +891,17 @@ export function buildBitmapBossSystemAsm(
   const roomCount = data.roomTables.length;
   const ram = opts.ramBase;
   const gameY = opts.gameYOffset & 0xff;
+  const gameH = Math.max(1, Math.min(256, Math.floor(Number(opts.gameHeight) || 192)));
+  const bankedRoomData = opts.bankedRoomData === true;
+  // The room engine double-buffers: `bitmap_displayed_page` is the page the room
+  // was just composed on, and the other page still holds the PREVIOUS room. Every
+  // boss blit must therefore pick its page at runtime instead of assuming
+  // "page 0 visible, page 1 clean" (that only held on the boot room).
+  const visiblePageH = `    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page`;
+  const cleanPageH = `    ld a, (bitmap_displayed_page)
+    xor 1
+    ld h, a                    ; H = the other (clean) page`;
   // Boss Defeat Actions (Phase A): only emitted when at least one setFlag is
   // authored, so bosses without onDefeated keep byte-identical ROMs.
   const flagCount = data.flagNames.length;
@@ -886,21 +957,29 @@ export function buildBitmapBossSystemAsm(
   const shootRecords = data.shootRecords || [];
   const hasShoots = hasPaths && hasSpriteProjectiles && shootRecords.length > 0;
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
-  const SHOOT_RAM_BYTES = 7;
-  // Pre-rendered so the data template stays readable.
+  const SHOOT_RAM_BYTES = 10;
+  // Pre-rendered so the data template stays readable: one ring slot per row,
+  // dx then dy, each an 8.8 little-endian word.
   const shootDirRows = (() => {
     const rows: string[] = [];
-    for (let i = 0; i < MSX2_SHOOT_DIR_TABLE_BYTES.length; i += 2) {
-      rows.push(`    db ${asmByte(MSX2_SHOOT_DIR_TABLE_BYTES[i])}, ${asmByte(MSX2_SHOOT_DIR_TABLE_BYTES[i + 1])}`);
+    for (let slot = 0; slot < MSX2_SHOOT_RING; slot++) {
+      const at = slot * 4;
+      const quad = MSX2_SHOOT_DIR16_TABLE_BYTES.slice(at, at + 4).map(asmByte).join(', ');
+      const degrees = (slot * 360) / MSX2_SHOOT_RING;
+      rows.push(`    db ${quad}   ; ${slot.toString().padStart(2)} = ${degrees}deg`);
     }
     return rows.join('\n');
   })();
-  // The pool is min(3, enemy slots): a fan wider than that silently loses its
-  // last bullets, so say it at build time instead of letting it look like a bug.
+  // A wave wider than the pool silently loses its last bullets, so say it at
+  // build time instead of letting it look like a bug. A burst is the way out:
+  // the same ring spread over several frames fits through a small pool.
   if (hasShoots) {
     for (const record of shootRecords) {
       if (record[1] > spriteSlots) {
-        console.warn(`MSX2 bitmap boss: a shoot pattern fires ${record[1]} bullets but the bullet pool holds ${spriteSlots}; the extra ones are dropped.`);
+        console.warn(
+          `MSX2 bitmap boss: a shoot pattern fires ${record[1]} bullets per wave but the bullet pool holds ${spriteSlots}; `
+          + 'the extra ones are dropped. Split the volley into a burst (burstCount / burstInterval) so each wave fits.',
+        );
       }
     }
   }
@@ -913,7 +992,7 @@ export function buildBitmapBossSystemAsm(
   const pauseGate = opts.pauseGateAsm || '';
 
   const equates = `
-; ---- bitmap BOSS runtime state (${11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 5 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * 5} bytes) ----
+; ---- bitmap BOSS runtime state (${11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 5 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0)} bytes) ----
 boss_active     EQU ${asmWord(ram + 0)}   ; 0 none, 1 alive
 boss_x          EQU ${asmWord(ram + 1)}
 boss_y          EQU ${asmWord(ram + 2)}
@@ -951,12 +1030,16 @@ boss_path_cur   EQU ${asmWord(pathRamBase + 2)}  ; word: read cursor into it
 boss_path_wait  EQU ${asmWord(pathRamBase + 4)}  ; ticks left on a wait opcode
 boss_path_idx   EQU ${asmWord(pathRamBase + 5)}  ; active path, 1-based (0 = standing still)
 boss_path_fire_mode EQU ${asmWord(pathRamBase + 6)}  ; 1 = only the node scripts shoot
-` : ''}${hasShoots ? `boss_shoot_dir  EQU ${asmWord(shootRamBase + 0)}  ; base ring direction of the volley
+` : ''}${hasShoots ? `boss_shoot_dir  EQU ${asmWord(shootRamBase + 0)}  ; ring slot (0..15) the wave is centred on
 boss_shoot_spd  EQU ${asmWord(shootRamBase + 1)}  ; px/frame for this volley
-boss_shoot_cnt  EQU ${asmWord(shootRamBase + 2)}  ; bullets left to spawn
-boss_shoot_ptr  EQU ${asmWord(shootRamBase + 3)}  ; word: cursor into the ring offsets
+boss_shoot_cnt  EQU ${asmWord(shootRamBase + 2)}  ; bullets left in the current wave
+boss_shoot_off  EQU ${asmWord(shootRamBase + 3)}  ; signed ring offset of the next bullet
+boss_shoot_step EQU ${asmWord(shootRamBase + 4)}  ; signed ring step between bullets
 boss_sbul_dxf   EQU ${asmWord(shootRamBase + 5)}  ; 8.8 fraction handed to the spawner
 boss_sbul_dyf   EQU ${asmWord(shootRamBase + 6)}
+boss_burst_idx  EQU ${asmWord(shootRamBase + 7)}  ; pattern being burst-fired, 1-based (0 = idle)
+boss_burst_left EQU ${asmWord(shootRamBase + 8)}  ; waves still owed after the current one
+boss_burst_cd   EQU ${asmWord(shootRamBase + 9)}  ; frames until the next wave
 ` : ''}`;
 
   // Persistent state must start at zero: boss_defeated decides whether a boss
@@ -982,7 +1065,13 @@ ${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_load:
-    xor a
+${bankedRoomData ? `    ; The room-load path streams banked resources (music, RLE) and leaves P2
+    ; pointing at the last one. Every table read below lives in resident bank 2,
+    ; so map it back in first: reading them through the music bank yields
+    ; garbage (0x00 -> "no boss here", 0xFF -> a bogus VDP command that hangs).
+    ; Only AF is destroyed, and nothing is live yet at this point.
+    call bitmap_room_restore_resident_banks
+` : ''}    xor a
     ld (boss_active), a
     ld a, (current_screen_index)
     ld e, a
@@ -1029,6 +1118,30 @@ bitmap_boss_load:
     ld l, (ix+9)
     ld h, (ix+10)
     ld (boss_sx), hl           ; frame 0 source X
+    ; ---- clean-background snapshot (once per room entry) ----
+    ; The boss repairs the background it uncovers by copying strips from the
+    ; page it is NOT drawing on. After a room flip that page still holds the
+    ; PREVIOUS room (and at boot it was never composed at all), so the trail
+    ; would be painted with the previous screen's pixels. Mirror the freshly
+    ; composed game area onto it with one HMMM. This runs only here, never per
+    ; frame, and only in rooms that actually arm a boss.
+    xor a
+    ld (boss_cmd_buf + 0), a   ; SX = 0
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 4), a   ; DX = 0
+    ld (boss_cmd_buf + 5), a
+    ld l, ${asmByte(gameY)}    ; first game row (below the HUD band)
+${visiblePageH}
+    ld (boss_cmd_buf + 2), hl  ; SY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 6), hl  ; DY = the other page, same row
+    ld hl, 256
+    ld (boss_cmd_buf + 8), hl  ; NX = full width
+    ld hl, ${gameH}
+    ld (boss_cmd_buf + 10), hl ; NY = game area height
+    call bitmap_boss_finish_hmmm
 ${hasPaths ? `    push ix
     call bitmap_boss_path_wanted     ; A = path for the boss's starting HP
     call bitmap_boss_path_select
@@ -1231,10 +1344,12 @@ bitmap_boss_restore_strips:
     ld a, (boss_old_y)
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl  ; DY = page 0
-    inc h                      ; +256 = page 1
-    ld (boss_cmd_buf + 2), hl  ; SY
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl  ; SY = clean page
     ld hl, 4
     ld (boss_cmd_buf + 8), hl  ; NX = 4 px
     ld l, (ix+14)
@@ -1254,10 +1369,12 @@ bitmap_boss_restore_strips:
 .strip_top:
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl  ; DY page 0
-    inc h
-    ld (boss_cmd_buf + 2), hl  ; SY page 1
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl  ; SY = clean page
     ld a, (boss_old_x)
     and #FE
     ld (boss_cmd_buf + 0), a
@@ -1293,8 +1410,8 @@ bitmap_boss_draw:
     ld a, (boss_y)
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl  ; DY page 0
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
     ld l, (ix+13)
     ld h, 0
     ld (boss_cmd_buf + 8), hl  ; NX = width
@@ -1627,7 +1744,7 @@ ${hasSpriteProjectiles ? `    ; Retire any bullet still in flight and push the h
     ; once boss_active is 0 the SAT writer stops running, so a live bullet would
     ; stay frozen on screen forever.
     xor a
-${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * 5}), a`).join('\n')}
+${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
     push ix
     call bitmap_boss_sbul_sat
     pop ix
@@ -1652,10 +1769,12 @@ ${hasDefeatActions ? '    call bitmap_boss_run_defeat_actions   ; Phase A onDefe
     ld a, (boss_y)
     add a, ${asmByte(gameY)}
     ld e, a
-    ld d, 0
-    ld (boss_cmd_buf + 6), de  ; DY page 0
-    inc d
-    ld (boss_cmd_buf + 2), de  ; SY page 1
+    ld a, (bitmap_displayed_page)
+    ld d, a
+    ld (boss_cmd_buf + 6), de  ; DY = visible page
+    xor 1
+    ld d, a
+    ld (boss_cmd_buf + 2), de  ; SY = clean page
     ld a, (hl)                 ; width
     ld e, a
     ld d, 0
@@ -1914,7 +2033,7 @@ bitmap_boss_barrier_cell:
     add a, a                   ; C*16 = rowPix
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 1                    ; page 1
+${cleanPageH}
     ld (boss_cmd_buf + 2), hl
 .cell_dest:
     ld a, b                    ; DX = colPix
@@ -1925,14 +2044,14 @@ bitmap_boss_barrier_cell:
     ld (boss_cmd_buf + 4), a
     xor a
     ld (boss_cmd_buf + 5), a
-    ld a, c                    ; DY = rowPix + gameY, page 0
+    ld a, c                    ; DY = rowPix + gameY, visible page
     add a, a
     add a, a
     add a, a
     add a, a
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0
+${visiblePageH}
     ld (boss_cmd_buf + 6), hl
     ld hl, 16                  ; NX = NY = 16
     ld (boss_cmd_buf + 8), hl
@@ -2202,7 +2321,7 @@ bitmap_boss_proj_restore:
     ld a, (boss_proj_oy)
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0                    ; page 0 dest
+${visiblePageH}
     ld (boss_cmd_buf + 6), hl
     ld l, (ix+5)
     ld h, 0
@@ -2222,7 +2341,7 @@ bitmap_boss_proj_save:
     ld a, (boss_proj_y)
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0                    ; page 0 source
+${visiblePageH}
     ld (boss_cmd_buf + 2), hl
     xor a
     ld (boss_cmd_buf + 4), a   ; DX = 0
@@ -2252,7 +2371,7 @@ bitmap_boss_proj_draw:
     ld a, (boss_proj_y)
     add a, ${asmByte(gameY)}
     ld l, a
-    ld h, 0
+${visiblePageH}
     ld (boss_cmd_buf + 6), hl
     ld l, (ix+5)
     ld h, 0
@@ -2361,8 +2480,9 @@ bitmap_boss_hurt_player:
 ; the enemy one and only overwrites the first ${spriteSlots} slot(s) -- it must NOT emit a
 ; terminator, or the sprites of every later system would stop being scanned.
 ;
-; Pool entry (5 bytes): active, x, y, dx, dy.  Pattern: 16x16 with an 8x8 blob
-; centred, so the bullet looks small without touching R#1 or any VRAM config.
+; Pool entry (${BOSS_SBUL_SLOT_BYTES} bytes): active, x, y, dx, dy, then the 8.8 fractions of
+; each (see boss_sbul_pool).  Pattern: 16x16 with an 8x8 blob centred, so the
+; bullet looks small without touching R#1 or any VRAM config.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_update:
     ; advance every live bullet, then fire a new one when the cooldown elapses
@@ -2379,7 +2499,8 @@ bitmap_boss_sbul_update:
     add iy, bc
     pop bc
     djnz .sb_slot_loop
-${hasPaths ? `    ld a, (boss_path_fire_mode)
+${hasShoots ? `    call bitmap_boss_burst_tick   ; outside the loop: a wave rewrites IY
+` : ''}${hasPaths ? `    ld a, (boss_path_fire_mode)
     or a
     ret nz                     ; path-driven firing: the node scripts shoot
 ` : ''}    ld a, (boss_proj_cd)
@@ -2635,8 +2756,9 @@ bitmap_boss_sbul_sat:
 ; ------------------------------------------------------------
 bitmap_boss_sbul_load:
     xor a
-${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * 5}), a`).join('\n')}
-    ld hl, bitmap_boss_sbul_pattern
+${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
+${hasShoots ? `    ld (boss_burst_idx), a     ; a burst owed by the previous boss dies with it
+` : ''}    ld hl, bitmap_boss_sbul_pattern
     ld de, ${asmWord(sprites ? sprites.patternAddr : 0)}
     ld bc, 32
     call copy_to_vram_ext
@@ -2848,92 +2970,193 @@ ${hasShoots ? `    ld a, (boss_shoot_cnt)
     ret
 ${hasShoots ? `
 ; ------------------------------------------------------------
-; FUNCTION: bitmap_boss_shoot_fire
+; FUNCTION: bitmap_boss_shoot_record
 ; ------------------------------------------------------------
-; PURPOSE: Fire one authored shot pattern. The record carries the pattern, the
-;   bullet count, a base direction, a speed override and the per-bullet ring
-;   offsets, all precomputed: the Z80 only adds a signed offset to a direction
-;   index and looks the vector up.
-; INPUT: boss_shoot_cnt = 1-based pattern index. OUTPUT: bullets in the pool.
-; DESTROYS: AF, BC, DE, HL. Preserves IX.
+; PURPOSE: 1-based pattern index -> its ${MSX2_SHOOT_RECORD_BYTES}-byte record.
+; INPUT: A = index. OUTPUT: HL -> record. DESTROYS: AF, DE. Preserves BC, IX, IY.
 ; ------------------------------------------------------------
-bitmap_boss_shoot_fire:
-    ld a, (boss_shoot_cnt)
+bitmap_boss_shoot_record:
     dec a
     ld l, a
     ld h, 0
     add hl, hl
     add hl, hl
-    add hl, hl                 ; record index * 8
+    add hl, hl                 ; record index * ${MSX2_SHOOT_RECORD_BYTES}
     ld de, bitmap_boss_shoot_table
-    add hl, de                 ; HL -> record
-    ld a, (hl)                 ; pattern: 0 aimed, 1 linear, 2 spread
+    add hl, de
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_shoot_fire
+; ------------------------------------------------------------
+; PURPOSE: Trigger one authored shot pattern: arm the burst, then send the first
+;   wave out on this very frame. A burst of 1 (the usual case) leaves
+;   boss_burst_idx at 0 and nothing ticks afterwards.
+; INPUT: boss_shoot_cnt = 1-based pattern index. OUTPUT: bullets in the pool.
+; DESTROYS: AF, BC, DE, HL. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_shoot_fire:
+    ld a, (boss_shoot_cnt)
+    ld c, a                    ; C = pattern index, kept across the lookup
+    call bitmap_boss_shoot_record
+    ld de, 6
+    add hl, de                 ; HL -> burst count
+    ld a, (hl)
+    dec a                      ; waves still owed once this one has gone
+    ld (boss_burst_left), a
+    jr z, .bsf_single
+    inc hl
+    ld a, (hl)                 ; frames until the next wave
+    ld (boss_burst_cd), a
+    ld a, c
+    ld (boss_burst_idx), a
+    jr .bsf_wave
+.bsf_single:
+    xor a
+    ld (boss_burst_idx), a     ; single volley: nothing left to tick
+.bsf_wave:
+    ld a, c
+    jp bitmap_boss_shoot_wave
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_burst_tick
+; ------------------------------------------------------------
+; PURPOSE: Release the remaining waves of a burst, one every burstInterval
+;   frames. Runs every frame while the boss lives; costs a load and a branch
+;   when no burst is in flight.
+; DESTROYS: AF, BC, DE, HL. Preserves IX. Must NOT run inside the pool loop:
+;   firing a wave rewrites IY.
+; ------------------------------------------------------------
+bitmap_boss_burst_tick:
+    ld a, (boss_burst_idx)
+    or a
+    ret z                      ; no burst in flight
+    ld hl, boss_burst_cd
+    dec (hl)
+    ret nz                     ; still counting down
+    ld c, a                    ; C = pattern index
+    call bitmap_boss_shoot_record
+    ld de, 7
+    add hl, de
+    ld a, (hl)
+    ld (boss_burst_cd), a      ; reload the gap for the wave after this one
+    ld hl, boss_burst_left
+    dec (hl)
+    jr nz, .bbt_fire
+    xor a
+    ld (boss_burst_idx), a     ; this is the last wave of the burst
+.bbt_fire:
+    ld a, c
+    jp bitmap_boss_shoot_wave
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_shoot_wave
+; ------------------------------------------------------------
+; PURPOSE: Spawn ONE wave of a pattern. The record carries a bullet count, a
+;   base direction, a speed override and a signed start/stride pair in ring
+;   steps, so a fan and a full ring are the same loop: walk dir+start, add
+;   stride, look the 8.8 vector up. No angle, no multiply, no fan arithmetic.
+; INPUT: A = 1-based pattern index. OUTPUT: bullets in the pool.
+; DESTROYS: AF, BC, DE, HL. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_shoot_wave:
+    call bitmap_boss_shoot_record
+    ld a, (hl)                 ; pattern: 0 aimed, 1 linear, 2 spread, 3 radial
     inc hl
     ld c, a                    ; C = pattern
     ld a, (hl)
-    ld (boss_shoot_cnt), a     ; bullets to spawn
+    ld (boss_shoot_cnt), a     ; bullets in this wave
     inc hl
     ld a, (hl)
-    ld (boss_shoot_dir), a     ; authored direction
+    ld (boss_shoot_dir), a     ; authored ring direction
     inc hl
     ld a, (hl)                 ; speed override, 0 = phase speed
     or a
-    jr nz, .bsf_speed
+    jr nz, .bsw_speed
     ld a, (boss_phase_speed)
-.bsf_speed:
+.bsw_speed:
     ld (boss_shoot_spd), a
     inc hl
-    ld (boss_shoot_ptr), hl    ; HL -> per-bullet ring offsets
+    ld a, (hl)                 ; signed ring offset of the first bullet
+    ld (boss_shoot_off), a
+    inc hl
+    ld a, (hl)                 ; signed ring step between bullets
+    ld (boss_shoot_step), a
+    ; Everything the loop needs is in RAM now, so the aim lookup is free to
+    ; clobber HL/DE/BC.
     ld a, c
     cp 1
-    jr z, .bsf_loop            ; linear keeps the authored direction
-    call bitmap_boss_aim_index ; aimed and spread centre on the player
+    jr z, .bsw_loop            ; linear keeps the authored direction
+    call bitmap_boss_aim_index ; aimed, spread and radial centre on the player
     ld (boss_shoot_dir), a
-.bsf_loop:
-    ld hl, (boss_shoot_ptr)
-    ld a, (hl)                 ; signed ring offset for this bullet
-    inc hl
-    ld (boss_shoot_ptr), hl
+.bsw_loop:
+    ld a, (boss_shoot_off)
     ld hl, boss_shoot_dir
     add a, (hl)
-    and 7                      ; wrap around the compass
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, bitmap_boss_dir_table
-    add hl, de
-    ld a, (hl)                 ; unit dx (-1, 0 or 1)
-    call bitmap_boss_shoot_scale
-    push af
-    inc hl
-    ld a, (hl)                 ; unit dy
-    call bitmap_boss_shoot_scale
-    ld e, a
-    pop af
-    ld d, a
-    xor a
-    ld (boss_sbul_dxf), a      ; whole-pixel vectors for now
-    ld (boss_sbul_dyf), a
+    and ${MSX2_SHOOT_RING - 1}                     ; wrap around the ring
+    call bitmap_boss_shoot_vector
     call bitmap_boss_sbul_spawn_dir
+    ld a, (boss_shoot_off)
+    ld hl, boss_shoot_step
+    add a, (hl)
+    ld (boss_shoot_off), a
     ld hl, boss_shoot_cnt
     dec (hl)
-    jr nz, .bsf_loop
+    jr nz, .bsw_loop
     ret
 
-; A = -1, 0 or 1 -> -speed, 0 or +speed. Touches nothing but AF.
+; Ring slot -> velocity. IN: A = slot 0..${MSX2_SHOOT_RING - 1}.
+; OUT: D = whole-pixel dx, E = whole-pixel dy, and the matching 8.8 fractions in
+;      boss_sbul_dxf / boss_sbul_dyf, which is the ABI bitmap_boss_sbul_spawn_dir
+;      expects. DESTROYS: AF, BC, DE, HL.
+bitmap_boss_shoot_vector:
+    add a, a
+    add a, a                   ; ring slot * 4 (two 8.8 words per slot)
+    ld l, a
+    ld h, 0
+    ld de, bitmap_boss_dir16_table
+    add hl, de                 ; HL -> dx low byte
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; DE = unit dx as 8.8
+    inc hl
+    push hl                    ; the dy pointer has to survive the scaling
+    call bitmap_boss_shoot_scale
+    ld a, e
+    ld (boss_sbul_dxf), a
+    ld b, d                    ; B = whole-pixel dx
+    pop hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                 ; DE = unit dy as 8.8
+    call bitmap_boss_shoot_scale
+    ld a, e
+    ld (boss_sbul_dyf), a
+    ld e, d                    ; E = whole-pixel dy
+    ld d, b                    ; D = whole-pixel dx
+    ret
+
+; DE = DE * boss_shoot_spd, by repeated addition: speed tops out at 4, so the
+; loop beats any multiply routine and costs no table.
+; DESTROYS: AF, HL. Preserves BC, IX, IY.
 bitmap_boss_shoot_scale:
-    or a
-    ret z
-    jp m, .bss_neg
     ld a, (boss_shoot_spd)
-    ret
-.bss_neg:
-    ld a, (boss_shoot_spd)
-    neg
+    cp 2
+    ret c                      ; speed 0 or 1: DE already is the answer
+    push de
+    pop hl                     ; HL = accumulator, seeded with one unit
+.bss_add:
+    add hl, de
+    dec a
+    cp 1
+    jr nz, .bss_add
+    ex de, hl
     ret
 
-; Which of the 8 compass directions points at the player, as a ring index.
-; OUT: A = 0..7 (0 = up, clockwise). DESTROYS: AF, BC, DE, HL. Preserves IX.
+; Which of the 8 compass directions points at the player, as a RING slot.
+; The compass is every other ring direction, so the sign lookup (which is all
+; aiming really needs) doubles into the finer ring the bullets fly on.
+; OUT: A = 0, 2, 4 ... 14. DESTROYS: AF, BC, DE, HL. Preserves IX.
 bitmap_boss_aim_index:
     call bitmap_boss_table_ix_shadow   ; HL -> boss width
     ld a, (hl)
@@ -3112,19 +3335,24 @@ ${(data.pathSelTables || []).map((table, index) => `bitmap_boss_pathsel_room_${i
 bitmap_boss_pathsel_ptr_table:
 ${(data.pathSelTables || []).map((_, index) => `    dw bitmap_boss_pathsel_room_${index}`).join('\n')}
 ` : ''}${hasShoots ? `
-; ---- shoot patterns: [pattern, count, dir, speed, off0, off1, off2, pad] ----
-; pattern 0 = aimed at the player, 1 = fixed direction, 2 = spread. The ring
-; offsets are precomputed so the runtime never works out a fan.
+; ---- shoot patterns ----
+; [pattern, count, dir, speed, start, stride, burstCount, burstInterval]
+; pattern 0 = aimed at the player, 1 = fixed direction, 2 = spread, 3 = radial.
+; start/stride are SIGNED ring steps, precomputed so a fan and a full ring are
+; the same runtime loop.
 bitmap_boss_shoot_table:
 ${shootRecords.map((record, index) => `    db ${record.map(value => asmByte(value)).join(', ')}   ; pattern ${index + 1}`).join('\n')}
-; The 8 compass unit vectors, in ring order from up, clockwise.
-bitmap_boss_dir_table:
+; The ${MSX2_SHOOT_RING} ring vectors as 8.8 fixed point: dx word then dy word, little
+; endian, so a slot is index * 4. 1.0 is #0100, which leaves room for the top
+; speed of 4 without overflowing 16 bits.
+bitmap_boss_dir16_table:
 ${shootDirRows}
-; (row = player above/level/below, col = left/level/right) -> ring index.
+; (row = player above/level/below, col = left/level/right) -> RING slot.
+; Only even slots: the compass is every other ring direction.
 bitmap_boss_aim_ring:
-    db #07, #00, #01
-    db #06, #04, #02
-    db #05, #04, #03
+    db #0E, #00, #02
+    db #0C, #08, #04
+    db #0A, #08, #06
 ` : ''}`;
 
   return {
