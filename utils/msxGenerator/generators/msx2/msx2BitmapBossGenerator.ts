@@ -832,6 +832,77 @@ function resolveBarrier(tileId: unknown, room: { name: string; atlas?: { entries
 }
 
 /**
+ * Resolve the boss barrier palette asset to an index (if available in the room).
+ * Returns 0 if no palette is specified or not found.
+ */
+function resolveBarrierPaletteIndex(paletteAssetId: unknown, room: { palette?: any[] }, allAssets: any[]): number {
+  const id = String(paletteAssetId || '').trim();
+  if (!id) return 0;
+
+  // Try to find the palette asset in allAssets
+  const paletteAsset = allAssets.find((a: any) => a.type === 'msx2palette' && String(a.id) === id);
+  if (!paletteAsset) {
+    console.warn(`MSX2 Boss: barrier palette asset "${id}" not found; using default palette.`);
+    return 0;
+  }
+
+  // Could extend to store palette data, but for now just return a marker
+  return 1; // 1 = use custom palette asset
+}
+
+/**
+ * Resolve the boss barrier dialogue asset to a reference.
+ * Returns 0 if no dialogue is specified or not found.
+ */
+function resolveBarrierDialogueRef(dialogueAssetId: unknown, allAssets: any[]): number {
+  const id = String(dialogueAssetId || '').trim();
+  if (!id) return 0;
+
+  const dialogueAsset = allAssets.find((a: any) => a.type === 'msx2dialogue' && String(a.id) === id);
+  if (!dialogueAsset) {
+    console.warn(`MSX2 Boss: barrier dialogue asset "${id}" not found; no intro dialogue.`);
+    return 0;
+  }
+
+  // Return 1 as marker that dialogue is present (actual dialogue ID resolution happens at runtime)
+  return 1;
+}
+
+/**
+ * Build complete Room Lock data including barrier tile, palette, animation, and dialogue.
+ * Returns array: [sx_lo, sx_hi, sy_lo, sy_hi, palette_idx, flags, dialogue_marker, reserved]
+ * Flags byte: bit 0 = animated, bit 1 = palette, bit 2 = dialogue
+ */
+function buildRoomLockData(params: any, room: any, allAssets: any[], even: (v: number) => number): number[] {
+  const barrier = resolveBarrier(params.bossBarrierTileId, room, even);
+
+  // If no barrier, return empty data
+  if (barrier[0] === 0) {
+    return new Array(8).fill(0);
+  }
+
+  const paletteIdx = resolveBarrierPaletteIndex(params.bossBarrierPaletteAssetId, room, allAssets);
+  const dialogueRef = resolveBarrierDialogueRef(params.bossBarrierDialogueAssetId, allAssets);
+
+  // Build flags: bit 0 = animate, bit 1 = has palette, bit 2 = has dialogue
+  const flags =
+    (params.bossBarrierAnimated ? 0x01 : 0x00) |
+    (paletteIdx ? 0x02 : 0x00) |
+    (dialogueRef ? 0x04 : 0x00);
+
+  return [
+    barrier[1],        // sx_lo
+    barrier[2],        // sx_hi
+    barrier[3],        // sy_lo
+    barrier[4],        // sy_hi
+    paletteIdx & 0xff, // palette index
+    flags,             // animation + palette + dialogue flags
+    dialogueRef ? 1 : 0, // dialogue present marker
+    0,                 // reserved
+  ];
+}
+
+/**
  * Resolve the boss projectile config to the table bytes
  * [present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage]. Absent
  * (all-zero) when no `bossProjectileTileId` is set or the atlas entry is
