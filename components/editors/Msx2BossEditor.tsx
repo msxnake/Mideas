@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Msx2BitmapStampAsset,
   Msx2BossDamageZone,
   Msx2BossDefeatAction,
   Msx2BossDefinition,
@@ -9,6 +10,7 @@ import {
   Screen5PaletteSlot,
 } from '../../types';
 import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { bitmapStampToPixelGrid } from '../../utils/msx2Screen5BitmapTileLibrary';
 
 /**
  * MSX2 SCREEN 5 bitmap Boss Editor.
@@ -171,6 +173,166 @@ const AtlasPreviewBox: React.FC<{
   </div>
 );
 
+/**
+ * One `msx2bitmapstamp` asset, composed into a single pixel grid.
+ *
+ * A boss body IS a stamp: it is authored as one picture, and the generator
+ * injects it into the shared world atlas so it reaches VRAM without any room
+ * having to paint it. Atlas entries were never the right unit here — importing
+ * a stamp into a room SPLITS it into 16x16 cells, so the old picker was mostly
+ * showing stamp fragments (`door_market_r0_c0`, `_r0_c1`...), once per room.
+ */
+interface BodyStampRef {
+  id: string;
+  name: string;
+  w: number;
+  h: number;
+  pixels: number[][];
+  palette: Screen5PaletteSlot[];
+}
+
+/** Every bitmap stamp in the project, composed and ready to draw. */
+function useBodyStamps(allAssets: ProjectAsset[]): BodyStampRef[] {
+  return useMemo(() => {
+    const out: BodyStampRef[] = [];
+    for (const asset of allAssets) {
+      if (asset.type !== 'msx2bitmapstamp') continue;
+      const data = asset.data as Msx2BitmapStampAsset | undefined;
+      const stamp = data?.stamp;
+      if (!stamp) continue;
+      const pixels = bitmapStampToPixelGrid(stamp);
+      const h = pixels.length;
+      const w = pixels[0]?.length || 0;
+      if (w <= 0 || h <= 0) continue;
+      out.push({
+        id: asset.id,
+        name: asset.name || stamp.name || asset.id,
+        w, h, pixels,
+        palette: data?.palette?.length ? data.palette : createDefaultScreen5PaletteSlots(),
+      });
+    }
+    return out;
+  }, [allAssets]);
+}
+
+/** Draws a composed stamp (or one frame of a horizontal strip) at 1:1, CSS-upscaled. */
+const StampCanvas: React.FC<{
+  stamp: BodyStampRef;
+  scale: number;
+  frames?: number;
+  frameIndex?: number;
+}> = ({ stamp, scale, frames = 1, frameIndex = 0 }) => {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const frameCount = Math.max(1, frames);
+  const w = Math.max(1, Math.floor(stamp.w / frameCount));
+  const h = Math.max(1, stamp.h);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+    const image = ctx.createImageData(w, h);
+    const originX = Math.min(frameIndex, frameCount - 1) * w;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const color = stamp.pixels[y]?.[originX + x];
+        if (!color) continue;                     // 0 = transparent, as on SCREEN 5
+        const [r, g, b] = hexToRgb(stamp.palette[color & 0x0f]?.hex);
+        const offset = (y * w + x) * 4;
+        image.data[offset] = r;
+        image.data[offset + 1] = g;
+        image.data[offset + 2] = b;
+        image.data[offset + 3] = 255;
+      }
+    }
+    ctx.clearRect(0, 0, w, h);
+    ctx.putImageData(image, 0, 0);
+  }, [stamp, w, h, frameIndex, frameCount]);
+
+  return (
+    <canvas
+      ref={ref}
+      width={w}
+      height={h}
+      style={{ width: w * scale, height: h * scale, imageRendering: 'pixelated' }}
+    />
+  );
+};
+
+/** Visual picker for the boss body: the project's Bitmap Stamps, drawn. */
+const BossBodyPicker: React.FC<{
+  stamps: BodyStampRef[];
+  value: string;
+  frames: number;
+  onPick: (id: string) => void;
+}> = ({ stamps, value, frames, onPick }) => {
+  const [query, setQuery] = useState('');
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return stamps;
+    return stamps.filter(stamp => stamp.name.toLowerCase().includes(needle));
+  }, [stamps, query]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <input
+          className={`${input} flex-1`}
+          placeholder="Filter stamps by name…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+        />
+        <button className={btn} onClick={() => onPick('')}>Clear</button>
+      </div>
+
+      <div className="max-h-80 overflow-y-auto border border-msx-border rounded p-2">
+        {stamps.length === 0 && (
+          <p className="text-xs text-msx-textsecondary p-2">
+            This project has no Bitmap Stamps yet. Create one in the bitmap room editor
+            (select an area &rarr; save as stamp) or import one from the stamp library.
+          </p>
+        )}
+        {stamps.length > 0 && visible.length === 0 && (
+          <p className="text-xs text-msx-textsecondary p-2">No stamp matches that filter.</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {visible.map(stamp => {
+            const frameW = Math.max(1, Math.floor(stamp.w / Math.max(1, frames)));
+            // Fit inside a 96px box, never upscaling past 3x so a small stamp and
+            // a 96x96 body stay comparable at a glance.
+            const scale = Math.max(1, Math.min(3, Math.floor(96 / Math.max(frameW, stamp.h, 1))));
+            const selected = stamp.id === value;
+            const perFrame = `${frameW}x${stamp.h}`;
+            // The generator refuses a per-frame body outside 16..128 x 16..96, so
+            // say it here rather than letting the boss vanish at build time.
+            const fits = frameW >= 16 && frameW <= 128 && stamp.h >= 16 && stamp.h <= 96;
+            return (
+              <button
+                key={stamp.id}
+                onClick={() => onPick(stamp.id)}
+                title={`${stamp.name} — ${stamp.w}x${stamp.h}${frames > 1 ? ` (${frames} frames of ${perFrame})` : ''}`}
+                className={`flex flex-col items-center justify-end gap-1 p-1 rounded border ${selected ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'}`}
+                style={{ background: MSX2_PREVIEW_BG, width: 108 }}
+              >
+                <div className="flex-1 flex items-center justify-center" style={{ minHeight: 100 }}>
+                  <StampCanvas stamp={stamp} scale={scale} frames={frames} frameIndex={0} />
+                </div>
+                <span className="text-[10px] leading-tight text-msx-textprimary truncate w-full text-center">
+                  {stamp.name}
+                </span>
+                <span className="text-[10px] leading-tight text-center" style={{ color: fits ? undefined : '#ffb454' }}>
+                  {perFrame}{fits ? '' : ' — out of range'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /** Locked-door entities, so "openDoor" can be picked instead of typed. */
 function useDoorEntities(allAssets: ProjectAsset[]) {
   return useMemo(() => {
@@ -226,7 +388,10 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   boss, onUpdate, allAssets, onUpdateAsset, onDuplicateAsset, setStatusBarMessage,
 }) => {
   const [section, setSection] = useState<Section>('General');
+  // Atlas entries still back the BARRIER and PROJECTILE tile pickers, which are
+  // genuinely 16x16 room tiles. The body is not one of those any more.
   const atlasEntries = useAtlasEntries(allAssets);
+  const bodyStamps = useBodyStamps(allAssets);
   const doors = useDoorEntities(allAssets);
   const encounters = useBossEncounters(allAssets);
   const spriteAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2sprite'), [allAssets]);
@@ -238,12 +403,12 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const set = <K extends keyof Msx2BossDefinition>(key: K, value: Msx2BossDefinition[K]) =>
     onUpdate({ ...boss, [key]: value });
 
-  // The body entry drives the zone editor canvas size: zones are authored in
+  // The body drives the zone editor canvas size: zones are authored in
   // boss-local pixels, so the preview must match the real body rectangle.
-  const bodyEntry = atlasEntries.find(e => e.id === boss.bossAtlasEntryId);
+  const bodyStamp = bodyStamps.find(s => s.id === boss.bossStampAssetId);
   const frames = Math.max(1, Number(boss.bossFrames) || 1);
-  const bodyW = bodyEntry ? Math.floor(bodyEntry.w / frames) : 64;
-  const bodyH = bodyEntry ? bodyEntry.h : 64;
+  const bodyW = bodyStamp ? Math.floor(bodyStamp.w / frames) : 64;
+  const bodyH = bodyStamp ? bodyStamp.h : 64;
   const bodyPreviewScale = Math.max(1, Math.min(4, Math.floor(160 / Math.max(bodyW, 1))));
   const barrierEntry = atlasEntries.find(e => e.id === boss.bossBarrierTileId);
   const projectileEntry = atlasEntries.find(e => e.id === boss.bossProjectileTileId);
@@ -311,13 +476,22 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             <h3 className="text-sm font-semibold mb-3">Body & Graphics</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className={label}>Body atlas entry (the boss image)</label>
-                <select className={input} value={boss.bossAtlasEntryId} onChange={e => set('bossAtlasEntryId', e.target.value)}>
-                  <option value="">— none —</option>
-                  {atlasEntries.map(entry => (
-                    <option key={entry.key} value={entry.id}>{entry.label} — {entry.roomName}</option>
-                  ))}
-                </select>
+                <label className={label}>
+                  Body — Bitmap Stamp
+                  {bodyStamp ? ` — ${bodyStamp.name}` : ' — none picked'}
+                </label>
+                <BossBodyPicker
+                  stamps={bodyStamps}
+                  value={boss.bossStampAssetId || ''}
+                  frames={frames}
+                  onPick={id => onUpdate({ ...boss, bossStampAssetId: id, bossAtlasEntryId: '' })}
+                />
+                {!boss.bossStampAssetId && boss.bossAtlasEntryId && (
+                  <p className="text-xs mt-1" style={{ color: '#ffb454' }}>
+                    This boss still points at the old atlas entry <code>{boss.bossAtlasEntryId}</code>.
+                    It keeps working, but pick a stamp to move it over.
+                  </p>
+                )}
               </div>
               <div>
                 <label className={label}>Animation frames (horizontal strip)</label>
@@ -338,15 +512,17 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             <div className="mt-3">
               <label className={label}>Preview — one box per animation frame</label>
               <div className="flex gap-2 flex-wrap">
-                {bodyEntry
+                {bodyStamp
                   ? Array.from({ length: frames }, (_, index) => (
                     <div key={index} className="text-center">
-                      <AtlasPreviewBox entry={bodyEntry} scale={bodyPreviewScale} frames={frames}
-                        frameIndex={index} emptyHint="" />
+                      <div className="inline-flex items-center justify-center border border-msx-border rounded p-2 min-w-[64px] min-h-[64px]"
+                        style={{ background: MSX2_PREVIEW_BG }}>
+                        <StampCanvas stamp={bodyStamp} scale={bodyPreviewScale} frames={frames} frameIndex={index} />
+                      </div>
                       <div className="text-[10px] text-msx-textsecondary mt-1">frame {index}</div>
                     </div>
                   ))
-                  : <AtlasPreviewBox scale={1} emptyHint="Pick a body atlas entry to see the boss." />}
+                  : <AtlasPreviewBox scale={1} emptyHint="Pick a Bitmap Stamp to see the boss." />}
               </div>
             </div>
 
@@ -592,7 +768,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
 
         {section === 'Damage Zones' && (
           <ZonesPanel boss={boss} onUpdate={onUpdate} bodyW={bodyW} bodyH={bodyH}
-            bodyEntry={bodyEntry} frames={frames} setStatusBarMessage={setStatusBarMessage} />
+            bodyStamp={bodyStamp} frames={frames} setStatusBarMessage={setStatusBarMessage} />
         )}
 
         {section === 'Defeat Actions' && (
@@ -690,10 +866,10 @@ const ZonesPanel: React.FC<{
   onUpdate: (b: Msx2BossDefinition) => void;
   bodyW: number;
   bodyH: number;
-  bodyEntry?: AtlasEntryRef;
+  bodyStamp?: BodyStampRef;
   frames: number;
   setStatusBarMessage?: (m: string) => void;
-}> = ({ boss, onUpdate, bodyW, bodyH, bodyEntry, frames, setStatusBarMessage }) => {
+}> = ({ boss, onUpdate, bodyW, bodyH, bodyStamp, frames, setStatusBarMessage }) => {
   const zones = boss.damageZones || [];
   const update = (next: Msx2BossDamageZone[]) => onUpdate({ ...boss, damageZones: next });
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -743,7 +919,7 @@ const ZonesPanel: React.FC<{
           >
             {/* The body sits behind the zones and must not eat the drag events. */}
             <div className="absolute inset-0 pointer-events-none">
-              <AtlasEntryCanvas entry={bodyEntry} scale={scale} frames={frames} frameIndex={previewFrame} />
+              {bodyStamp && <StampCanvas stamp={bodyStamp} scale={scale} frames={frames} frameIndex={previewFrame} />}
             </div>
             {zones.map((zone, index) => (
               <div
@@ -779,10 +955,10 @@ const ZonesPanel: React.FC<{
             </div>
           )}
           <p className="text-xs text-msx-textsecondary mt-2" style={{ width: bodyW * scale }}>
-            {bodyEntry
+            {bodyStamp
               ? <>Drag on the body to add a zone ({bodyW}×{bodyH} px, boss-local coordinates).
                 Red = weak point, grey = armour.</>
-              : <>No body atlas entry picked yet, so this is an empty {bodyW}×{bodyH} placeholder.
+              : <>No body stamp picked yet, so this is an empty {bodyW}×{bodyH} placeholder.
                 Choose one in <strong>Body &amp; Graphics</strong> to draw zones over the real boss.</>}
           </p>
         </div>

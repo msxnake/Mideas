@@ -21,6 +21,7 @@ const repoRoot = resolve(here, '..');
 const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
 const bossGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapBossGenerator.ts');
+const bossEditor = read('components', 'editors', 'Msx2BossEditor.tsx');
 
 // ---------------------------------------------------------------- Part A ---
 // The shipping chain barrier. These are the pieces a rewrite must not drop.
@@ -54,6 +55,46 @@ const contractChecks = [
   [
     'Barrier tables stay opt-in (byte-identical ROM when no barrier tile)',
     bossGen.includes('const hasBarrier = (data.barrierTables || []).some'),
+  ],
+];
+
+// ---------------------------------------------------------------- Part C ---
+// Boss Editor "Body & Graphics". The body is a `msx2bitmapstamp` asset drawn as
+// a picture, NOT an atlas entry: importing a stamp into a room splits it into
+// 16x16 cells, so an atlas-entry dropdown lists stamp fragments
+// (`door_market_r0_c0`, `_r0_c1`, ...) repeated once per room. This regressed
+// once when the file was reverted wholesale, so it is pinned here.
+const editorChecks = [
+  [
+    'Body picker reads msx2bitmapstamp assets, composed into pixels',
+    bossEditor.includes("asset.type !== 'msx2bitmapstamp'") &&
+      bossEditor.includes('bitmapStampToPixelGrid') &&
+      bossEditor.includes('function useBodyStamps'),
+  ],
+  [
+    'Body picker draws each stamp instead of listing names in a <select>',
+    bossEditor.includes('const BossBodyPicker') &&
+      bossEditor.includes('const StampCanvas') &&
+      bossEditor.includes('<BossBodyPicker'),
+  ],
+  [
+    'Body selection writes bossStampAssetId (not bossAtlasEntryId)',
+    bossEditor.includes('bossStampAssetId: id'),
+  ],
+  [
+    'Body label names Bitmap Stamps, not the old atlas entry',
+    bossEditor.includes('Body — Bitmap Stamp') &&
+      !bossEditor.includes('Body atlas entry'),
+  ],
+  [
+    'Damage-zone canvas draws the stamp body behind the zones',
+    bossEditor.includes('bodyStamp={bodyStamp}') &&
+      bossEditor.includes('<StampCanvas stamp={bodyStamp}') &&
+      !bossEditor.includes('bodyEntry'),
+  ],
+  [
+    'Legacy bossAtlasEntryId bodies still warn instead of silently breaking',
+    bossEditor.includes('still points at the old atlas entry'),
   ],
 ];
 
@@ -119,7 +160,7 @@ bossGen.split(/\r?\n/).forEach((raw, index) => {
 // ------------------------------------------------------------------ run ---
 let failed = 0;
 
-for (const [name, passed] of contractChecks) {
+for (const [name, passed] of [...contractChecks, ...editorChecks]) {
   console.log(`${passed ? 'OK' : 'FAIL'}: ${name}`);
   if (!passed) failed += 1;
 }
