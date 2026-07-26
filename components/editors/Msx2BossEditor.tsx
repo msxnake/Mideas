@@ -459,10 +459,50 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
                   : <span className="text-xs text-msx-textsecondary px-2 col-span-3">No barrier: the player can walk out mid-fight.</span>}
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div>
+                <label className={label}>Palette</label>
+                <select className={input} value={boss.bossBarrierPaletteAssetId || ''}
+                  onChange={e => set('bossBarrierPaletteAssetId', e.target.value)}>
+                  <option value="">— use room default —</option>
+                  {roomAssets.flatMap(room => {
+                    const palettes = (room.data as any)?.palette || [];
+                    return palettes.length > 0 ? [room] : [];
+                  }).map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name} palette</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                  <input type="checkbox" checked={boss.bossBarrierAnimated || false}
+                    onChange={e => set('bossBarrierAnimated', e.target.checked)}
+                    className="w-4 h-4" />
+                  <span className={label}>Animate closing</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className={label}>Dialogue on lock</label>
+              <select className={input} value={boss.bossBarrierDialogueAssetId || ''}
+                onChange={e => set('bossBarrierDialogueAssetId', e.target.value)}>
+                <option value="">— none, no intro talk —</option>
+                {dialogueAssets.map(asset => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-msx-textsecondary mt-1">
+                Optional dialogue shown when player enters and barrier closes, to unlock movement afterward.
+              </p>
+            </div>
+
             <p className="text-xs text-msx-textsecondary mt-3">
               While the boss lives, this tile seals the room perimeter so the player cannot leave.
               It is placed <strong>only on empty cells</strong>, checked tile by tile, so existing
               walls, floor and scenery are never overwritten — and it is removed when the boss dies.
+              If a dialogue is set, it runs before re-enabling player movement.
             </p>
           </div>
         )}

@@ -406,6 +406,8 @@ export interface Msx2BitmapRoomAtlasEntry {
   collisionFlags?: number;
   /** Optional SCREEN 5 bitmap-room behavior code applied when this atlas tile is painted. 3 = ice_slide surface, 4 = exit_enemy. */
   behaviorCode?: number;
+  /** Optional SCREEN 5 bitmap-room 8x8 sub-cell solidity mask applied when this atlas tile is painted (0..15, 0=full cell, 15=full cell). Each bit is one quadrant: bit0=TL, bit1=TR, bit2=BL, bit3=BR. */
+  collisionShape?: number;
   /** SCREEN 5 bitmap-room destroy_tile skill: cells painted with this tile can be dug out by the player. */
   destructible?: boolean;
 }
@@ -544,6 +546,22 @@ export interface Msx2Screen5BitmapRoom {
   collision: number[][];
   effects: number[][];
   behavior: number[][];
+  /**
+   * Optional 8x8 SUB-CELL solidity, one nibble per 16x16 collision cell (same 16 cols x
+   * rows grid as `collision`). Each cell is split into four 8x8 quadrants:
+   *
+   *   bit0 = top-left, bit1 = top-right, bit2 = bottom-left, bit3 = bottom-right
+   *
+   * A set bit means that quadrant is solid. 0 (and 15) mean "the whole 16x16 cell is
+   * solid", which is the legacy behaviour, so absent/zero grids export exactly like
+   * before. The mask is only consulted for cells that are already solid in `collision`;
+   * it never makes a passable cell block. Typical shapes: 12 = bottom half (a ledge you
+   * can walk on with an empty upper half), 3 = top half, 5 = left half, 10 = right half.
+   *
+   * The generator packs it into the HIGH nibble of the exported behavior byte (behavior
+   * codes only use 0..4) and marks the cell with HAS_SHAPE (0x01) in the collision byte.
+   */
+  collisionShape?: number[][];
   entities: Msx2Screen4EntityInstance[];
   /** Room-authored key/item definitions used by pickups and locked doors. */
   keyItems?: Msx2KeyItemDefinition[];
@@ -1618,11 +1636,13 @@ export type Msx2BossPathAction =
  * A reusable shot pattern, authored once and fired from a path node (and later
  * from turrets and shoot'em up enemies).
  *
- * Directions are quantised to the 8 compass points because that is what the
- * bullet pool stores: one signed byte of velocity per axis. Finer angles would
- * need fractional velocity in the pool.
+ * Bullets fly along a 16-point ring (k * 22.5 degrees), stored in the pool as an
+ * 8.8 fixed-point velocity per axis. The AUTHORED direction stays on the 8
+ * compass points and maps to the even ring slots: aiming only needs the sign of
+ * each axis, which is far cheaper than a real angle, and the odd slots exist so
+ * fans and radials can land between the compass points.
  */
-export type Msx2ShootPattern = 'aimed' | 'linear' | 'spread';
+export type Msx2ShootPattern = 'aimed' | 'linear' | 'spread' | 'radial';
 
 /** Compass direction for `linear` shots, clockwise from up. */
 export type Msx2ShootDirection =
@@ -1634,15 +1654,29 @@ export interface Msx2ShootDefinition {
   name: string;
   /**
    * 'aimed' points at the player (turret style); 'linear' always fires the same
-   * way; 'spread' fans several bullets around the aim.
+   * way; 'spread' fans several bullets around the aim; 'radial' shares them out
+   * around the whole circle.
    */
   pattern: Msx2ShootPattern;
-  /** Bullets fired at once. The sprite bullet pool holds 3, so more are clamped. */
+  /** Bullets per wave. More than the bullet pool holds are dropped (with a build warning). */
   bulletCount: number;
   /** `linear` only: which way the bullets go. */
   direction: Msx2ShootDirection;
   /** Pixels per frame; 0 = inherit the attack phase's bullet speed. */
   speed: number;
+  /**
+   * `spread` only: angle between neighbouring bullets, in 22.5-degree ring steps.
+   * 2 (the default) keeps the historical 45-degree fan; 1 gives a tight one.
+   */
+  spreadStep?: number;
+  /**
+   * Waves fired per trigger. Staggering a volley over several frames is what makes
+   * a wide radial visible at all: every bullet is born at the boss centre, so a
+   * single-frame ring runs straight into the V9938's 8-sprites-per-line limit.
+   */
+  burstCount?: number;
+  /** Frames between the waves of a burst. Ignored when `burstCount` is 1. */
+  burstInterval?: number;
 }
 
 /** How the boss travels along one segment of the path. */
@@ -1686,7 +1720,21 @@ export interface Msx2BossPath {
 export interface Msx2BossDefinition {
   id: string;
   name: string;
-  /** Body: a region of the room's shared atlas, blitted with V9938 HMMM. */
+  /**
+   * Body: a `msx2bitmapstamp` asset, composed into one rectangle and injected
+   * into the shared world atlas by the generator, then blitted with V9938 HMMM.
+   *
+   * A stamp is the right unit for a boss: it is authored as one picture and the
+   * boss is one picture. Atlas entries are not — importing a stamp into a room
+   * splits it into 16x16 cells, so a body was never a single entry to point at,
+   * and the same artwork got a different entry id in every room.
+   */
+  bossStampAssetId?: string;
+  /**
+   * Legacy body reference: an atlas entry id, resolved against the room the boss
+   * is placed in. Still honoured for projects authored before stamps, and only
+   * consulted when `bossStampAssetId` is empty.
+   */
   bossAtlasEntryId: string;
   bossFrames: number;
   bossAnimDelay: number;
@@ -1706,8 +1754,14 @@ export interface Msx2BossDefinition {
   bossSpeed?: number;
   /** Travel distance from the spawn position, in px. 0 = use the room bounds. */
   bossRangePx?: number;
-  /** 16x16 atlas tile that seals the room's empty perimeter cells. */
+  /** Room Lock: 16x16 atlas tile that seals the room's empty perimeter cells. */
   bossBarrierTileId: string;
+  /** Room Lock: optional palette asset id for the barrier tile animation. */
+  bossBarrierPaletteAssetId?: string;
+  /** Room Lock: animate barrier closing (line-by-line from top). */
+  bossBarrierAnimated?: boolean;
+  /** Room Lock: optional dialogue asset id to show when boss enters and barrier closes. */
+  bossBarrierDialogueAssetId?: string;
   /** 'sprite' = hardware sprites; 'bitmap' = HMMM blit (slow bombs / rockets). */
   bossProjectileKind: 'sprite' | 'bitmap';
   bossProjectileSpriteId: string;
@@ -2316,6 +2370,10 @@ export interface TrackerCell {
   ornament: number | null;
   /** The volume for this step (0-15). */
   volume: number | null;
+  /** Vortex/PT3 effect command nibble (0..F). Native songs edit this in FX. */
+  effectCommand?: number | null;
+  /** Raw Vortex command payload as uppercase hexadecimal bytes (CMD column). */
+  effectParams?: string | null;
 }
 
 /**
