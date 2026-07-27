@@ -1,7 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { Msx2PlayerWeaponDefinition, ProjectAsset } from '../../../types';
+import { Msx2PlayerWeaponDefinition, Msx2Sprite, ProjectAsset } from '../../../types';
 
 type WeaponPatch = Partial<Msx2PlayerWeaponDefinition>;
+
+/**
+ * Usable animation frames of a sprite asset, counted the way the exporter does
+ * (`getBitmapRoomSpriteFrameIndices`): a frame counts only when it carries pixel
+ * data. Used to warn that the player-bullet runtime bakes frame 0 ONLY.
+ */
+const countUsableSpriteFrames = (asset: ProjectAsset | undefined): number => {
+  const frames = (asset?.data as Msx2Sprite | undefined)?.frames;
+  if (!Array.isArray(frames) || !frames.length) return 0;
+  return frames.filter(frame => Array.isArray(frame?.data) && frame.data.length > 0).length;
+};
 
 interface BulletConfigDialogProps {
   weapon: Msx2PlayerWeaponDefinition;
@@ -39,6 +50,7 @@ export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, 
     () => spriteAssets.find(asset => asset.id === spriteAssetId),
     [spriteAssets, spriteAssetId],
   );
+  const spriteFrameCount = useMemo(() => countUsableSpriteFrames(resolvedSprite), [resolvedSprite]);
 
   const apply = () => {
     const patch: WeaponPatch = {
@@ -143,6 +155,19 @@ export const BulletConfigDialog: React.FC<BulletConfigDialogProps> = ({ weapon, 
               {resolvedSprite && (
                 <div className="rounded border border-slate-700 bg-[#111821] p-2 text-[10px] text-slate-400">
                   Linked: <span className="text-slate-200">{resolvedSprite.name}</span> (id: {resolvedSprite.id})
+                  {spriteFrameCount > 0 && (
+                    <> · <span className="text-slate-300">{spriteFrameCount} frame{spriteFrameCount === 1 ? '' : 's'}</span></>
+                  )}
+                </div>
+              )}
+              {/* The player-bullet exporter bakes frame 0 only (unlike the boss
+                  projectile, which does export a full animation strip). Say so
+                  where the sprite is picked, or a 2-frame rock looks broken. */}
+              {spriteFrameCount > 1 && (
+                <div className="rounded border border-amber-700 bg-amber-900/30 p-2 text-[10px] leading-relaxed text-amber-300">
+                  <span className="font-semibold">Solo se exporta el primer frame.</span> Este sprite tiene {spriteFrameCount} frames,
+                  pero el runtime de balas del jugador hornea unicamente el frame 0: la bala no se animara en la ROM.
+                  Los proyectiles del <span className="text-amber-200">boss</span> si admiten tira de animacion completa.
                 </div>
               )}
               {spriteAssetId && !resolvedSprite && (
