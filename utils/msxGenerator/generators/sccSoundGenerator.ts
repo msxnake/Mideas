@@ -130,6 +130,8 @@ function getCellValue(row: Record<string, TrackerCell> | undefined, channelId: s
     instrument: cell?.instrument ?? null,
     ornament: cell?.ornament ?? null,
     volume: cell?.volume ?? null,
+    effectCommand: cell?.effectCommand ?? null,
+    effectParams: cell?.effectParams ?? null,
   };
 }
 

@@ -68,12 +68,15 @@ export class DualChipSynthesizer {
     noteStringFromCell: string | null,
     instrumentIdFromCell: number | null,
     ornamentIdFromCell: number | null,
-    volumeFromCell: number | null
+    volumeFromCell: number | null,
+    effectCommand: number | null = null,
+    effectParams: string | null = null,
   ): Promise<void> {
     if (channel < DUAL_PSG_CHANNEL_COUNT) {
       await this.psg.playNote(
         channel as 0 | 1 | 2,
-        noteStringFromCell, instrumentIdFromCell, ornamentIdFromCell, volumeFromCell
+        noteStringFromCell, instrumentIdFromCell, ornamentIdFromCell, volumeFromCell,
+        effectCommand, effectParams,
       );
       return;
     }
@@ -82,7 +85,8 @@ export class DualChipSynthesizer {
     if (!this.sccEnabled) return;
     await this.scc.playNote(
       sccChannel as 0 | 1 | 2 | 3 | 4,
-      noteStringFromCell, instrumentIdFromCell, ornamentIdFromCell, volumeFromCell
+      noteStringFromCell, instrumentIdFromCell, ornamentIdFromCell, volumeFromCell,
+      effectCommand, effectParams,
     );
   }
 

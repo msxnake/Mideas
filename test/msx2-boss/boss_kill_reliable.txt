@@ -1,0 +1,3 @@
+start feeding, hp=3
+hp=3 active=1 defeated1=0 flags0=0 keys=0
+zoneDBG localX=187 localY=187

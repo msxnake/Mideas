@@ -1,4 +1,4 @@
-import type { PT3Ornament, PT3SampleMacro, TrackerCell, TrackerPattern } from '../../types';
+import type { PT3Ornament, PT3SampleMacro, TrackerCell, TrackerChannelId, TrackerPattern } from '../../types';
 import { encodePT3SourceNoteCommand, PT3_POSITION_LIST_OFFSET } from './pt3Parser';
 
 export interface PT3SourceNoteEntry {
@@ -10,19 +10,32 @@ export interface PT3SourceNoteEntry {
   channel: 'A' | 'B' | 'C';
   note: string | null;
   activeInstrumentId: number | null;
+  activeInstrumentWasExplicitlySelected?: boolean;
 }
 
 const isPT3InstrumentId = (value: number | null | undefined): value is number =>
   Number.isInteger(value) && value! >= 1 && value! <= 31;
 
-const findPreviousPT3Instrument = ({
+const isTrackerInstrumentId = (value: number | null | undefined): value is number =>
+  Number.isInteger(value) && value! >= 1;
+
+interface TrackerInstrumentLookup {
+  patterns: TrackerPattern[];
+  patternIndex: number;
+  order: number[];
+  orderIndex: number;
+  rowIndex: number;
+  channel: TrackerChannelId;
+}
+
+export const findPreviousTrackerInstrument = ({
   patterns,
   patternIndex,
   order,
   orderIndex,
   rowIndex,
   channel,
-}: Omit<PT3SourceNoteEntry, 'note' | 'activeInstrumentId'>): number | null => {
+}: TrackerInstrumentLookup): number | null => {
   const targetPattern = patterns[patternIndex];
   if (!targetPattern) return null;
 
@@ -30,7 +43,7 @@ const findPreviousPT3Instrument = ({
   // an existing instrument and must never be replaced by the active picker.
   for (let scanRow = Math.min(rowIndex, targetPattern.numRows - 1); scanRow >= 0; scanRow -= 1) {
     const instrument = targetPattern.rows[scanRow]?.[channel]?.instrument;
-    if (isPT3InstrumentId(instrument)) return instrument;
+    if (isTrackerInstrumentId(instrument)) return instrument;
   }
 
   // PT3 channel state survives pattern boundaries. Respect the actual order
@@ -42,10 +55,23 @@ const findPreviousPT3Instrument = ({
     if (!previousPattern) continue;
     for (let scanRow = previousPattern.numRows - 1; scanRow >= 0; scanRow -= 1) {
       const instrument = previousPattern.rows[scanRow]?.[channel]?.instrument;
-      if (isPT3InstrumentId(instrument)) return instrument;
+      if (isTrackerInstrumentId(instrument)) return instrument;
     }
   }
 
+  return null;
+};
+
+export const resolveTrackerNoteInstrumentEntry = (
+  previousInstrumentId: number | null,
+  activeInstrumentId: number | null,
+  activeInstrumentWasExplicitlySelected = true,
+): number | null => {
+  if (!isTrackerInstrumentId(activeInstrumentId)) return null;
+  if (previousInstrumentId === null) return activeInstrumentId;
+  if (activeInstrumentWasExplicitlySelected && previousInstrumentId !== activeInstrumentId) {
+    return activeInstrumentId;
+  }
   return null;
 };
 
@@ -64,12 +90,13 @@ export const applyPT3SourceNoteEntry = ({
   channel,
   note,
   activeInstrumentId,
+  activeInstrumentWasExplicitlySelected = true,
 }: PT3SourceNoteEntry): TrackerPattern[] => {
   const targetPattern = patterns[patternIndex];
   if (!targetPattern || rowIndex < 0 || rowIndex >= targetPattern.numRows) return patterns;
 
   const isPlayableNote = note !== null && note !== '---' && note !== '===';
-  const previousInstrumentId = findPreviousPT3Instrument({
+  const previousInstrumentId = findPreviousTrackerInstrument({
       patterns,
       patternIndex,
       order,
@@ -77,9 +104,13 @@ export const applyPT3SourceNoteEntry = ({
       rowIndex,
       channel,
     });
-  const shouldWriteInstrument = isPlayableNote
-    && isPT3InstrumentId(activeInstrumentId)
-    && previousInstrumentId !== activeInstrumentId;
+  const instrumentToWrite = isPlayableNote && isPT3InstrumentId(activeInstrumentId)
+    ? resolveTrackerNoteInstrumentEntry(
+      previousInstrumentId,
+      activeInstrumentId,
+      activeInstrumentWasExplicitlySelected,
+    )
+    : null;
 
   return patterns.map((pattern, currentPatternIndex) => {
     if (currentPatternIndex !== patternIndex) return pattern;
@@ -90,7 +121,7 @@ export const applyPT3SourceNoteEntry = ({
         [channel]: {
           ...row[channel],
           note,
-          ...(shouldWriteInstrument ? { instrument: activeInstrumentId } : {}),
+          ...(instrumentToWrite !== null ? { instrument: instrumentToWrite } : {}),
         },
       };
     });

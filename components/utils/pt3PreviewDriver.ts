@@ -29,6 +29,10 @@ export interface PT3PreviewChannelCommand {
   ornamentId?: number | null;
   /** null/undefined keeps the current volume. */
   volume?: number | null;
+  /** Vortex C_SMPOS: set the next PT3 sample macro line. */
+  samplePosition?: number | null;
+  /** Vortex C_ORPOS: set the next ornament line. */
+  ornamentPosition?: number | null;
 }
 
 export type PT3PreviewFrameCommands = readonly [
@@ -198,6 +202,14 @@ export const stepPT3PreviewFrame = (
         envelopeShape = instrument.ayEnvelopeShape;
         retriggerEnvelopeShape = true;
       }
+    }
+
+    // Deferred Vortex commands execute after note-on reset (PD_RES).
+    if (command.samplePosition !== null && command.samplePosition !== undefined && channel.sampleState) {
+      channel.sampleState.position = Math.max(0, Math.trunc(command.samplePosition));
+    }
+    if (command.ornamentPosition !== null && command.ornamentPosition !== undefined) {
+      channel.ornamentPosition = Math.max(0, Math.trunc(command.ornamentPosition));
     }
   }
 

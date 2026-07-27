@@ -97,9 +97,21 @@ export interface BitmapBossRoomData {
    * Per-room chain-barrier table (Phase B). BITMAP_BOSS_BARRIER_STRIDE bytes:
    * [present, sxLo, sxHi, syLo, syHi]. When present, the boss seals the whole
    * room perimeter (row 0, row 11, col 0, col 15) with a single solid "chain"
-   * atlas tile on boss load and clears it (collision + graphics) on defeat.
+   * atlas tile after the mandatory walk-to-centre intro prelude and clears it
+   * (collision + graphics) on defeat.
    */
   barrierTables: number[][];
+  /**
+   * Per-room Boss Intro / Room Lock bytecode. Layout:
+   *   END (#00)
+   *   CLOSE_BARRIER (#01, rasterLinesPerFrame; #FF = whole barrier this frame)
+   *   DIALOGUE (#02, runtime dialogue index)
+   *   WAIT (#03, frames)
+   *
+   * The stream is restarted on every room entry while the boss is alive. It
+   * never uses a persistent "intro seen" flag.
+   */
+  introStreams: number[][];
   /**
    * Per-room boss projectile config (Phase D). BITMAP_BOSS_PROJECTILE_STRIDE
    * bytes: [present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage, kind]
@@ -191,6 +203,12 @@ const DEFEAT_OP_GIVE_KEY = 0x02;   // arg: how many keys to add
 const DEFEAT_OP_OPEN_DOOR = 0x03;  // arg: door open-flag offset
 const DEFEAT_OP_SHOW_MESSAGE = 0x04; // arg: dialogue index (NPC text box)
 const DEFEAT_OP_CHANGE_SCREEN = 0x05; // args: room index, entry X (#FF = keep), entry Y
+
+/** Boss Intro / Room Lock opcodes. Every non-END opcode has one argument. */
+const INTRO_OP_END = 0x00;
+const INTRO_OP_CLOSE_BARRIER = 0x01;
+const INTRO_OP_DIALOGUE = 0x02;
+const INTRO_OP_WAIT = 0x03;
 
 /** Argument bytes per opcode; the stream walker needs it to skip args safely. */
 const DEFEAT_OP_ARGS: Record<number, number> = {
@@ -292,6 +310,74 @@ function buildDefeatStream(onDefeated: unknown, flagNames: string[], roomName: s
 }
 
 /**
+ * Compile the ordered Room Lock authoring list. The Z80 owns no geometry:
+ * CLOSE_BARRIER advances a horizontal raster from the top room row to the
+ * bottom one, sealing only empty perimeter cells touched by each scan line.
+ * DIALOGUE opens the shared msx2dialogue runtime, and WAIT is a byte timer.
+ *
+ * The two legacy dialogue field names are accepted only when there is no
+ * explicit sequence. They compile as close-then-dialogue, matching the agreed
+ * boss-intro flow, while new projects should author `roomLockSequence`.
+ */
+function buildIntroStream(params: any, roomName: string, caps: BossDefeatCapabilities): number[] {
+  let steps = Array.isArray(params?.roomLockSequence) ? params.roomLockSequence : [];
+  if (steps.length === 0) {
+    const legacyDialogueId = String(
+      params?.bossIntroDialogueId || params?.bossBarrierDialogueAssetId || '',
+    ).trim();
+    if (legacyDialogueId) {
+      steps = [
+        { kind: 'closeBarrier', animated: params?.bossBarrierAnimated !== false, linesPerFrame: 4 },
+        { kind: 'dialogue', dialogueAssetId: legacyDialogueId },
+      ];
+    } else if (String(params?.bossBarrierTileId || '').trim()) {
+      // Legacy bosses without an authored sequence still raise their chain,
+      // but only after the mandatory walk-to-centre prelude has completed.
+      steps = [{ kind: 'closeBarrier', animated: false, linesPerFrame: 0xff }];
+    }
+  }
+
+  const stream: number[] = [];
+  for (const raw of steps) {
+    if (!raw || typeof raw !== 'object') continue;
+    const kind = String((raw as any).kind || '').trim();
+    switch (kind) {
+      case 'closeBarrier': {
+        const animated = (raw as any).animated !== false;
+        // `cellsPerFrame` was the old cell-order speed field. Reuse its numeric
+        // value as scanlines-per-frame so existing projects keep their pacing
+        // while switching to the descending pixel-raster effect.
+        const linesPerFrame = animated
+          ? clampInt((raw as any).linesPerFrame ?? (raw as any).cellsPerFrame, 1, 16, 4)
+          : 0xff;
+        stream.push(INTRO_OP_CLOSE_BARRIER, linesPerFrame);
+        break;
+      }
+      case 'dialogue': {
+        const assetId = String((raw as any).dialogueAssetId || '').trim();
+        const index = assetId ? caps.dialogueIndexById?.get(assetId) : undefined;
+        if (index === undefined) {
+          console.warn(`MSX2 bitmap room "${roomName}": boss intro dialogue "${assetId}" is missing or has no lines; step skipped.`);
+          break;
+        }
+        stream.push(INTRO_OP_DIALOGUE, index & 0xff);
+        break;
+      }
+      case 'wait':
+        stream.push(INTRO_OP_WAIT, clampInt((raw as any).frames, 1, 255, 30));
+        break;
+      case '':
+        break;
+      default:
+        console.warn(`MSX2 bitmap room "${roomName}": boss intro step "${kind}" is unknown; skipped.`);
+        break;
+    }
+  }
+  stream.push(INTRO_OP_END);
+  return stream;
+}
+
+/**
  * Sprite-bullet resources. Boss bullets REUSE the enemy SAT slots and colour
  * block: during a boss fight the room has no regular enemies, so both are idle
  * and the shared allocation chain does NOT grow — nothing downstream shifts.
@@ -315,10 +401,14 @@ export interface BitmapBossSpriteBulletOptions {
   color: number;
   /**
    * Bullet sprite chosen by the user in the Boss Editor
-   * (`bossProjectileSpriteId`): 32-byte hardware pattern + 16 line colours.
+   * (`bossProjectileSpriteId`): one 32-byte hardware pattern per animation
+   * frame, first-frame line colours, and the authored frame delay.
    * Undefined falls back to the built-in 16x16 pattern with an 8x8 blob centred.
    */
-  sprite?: { patternBytes: number[]; colorBytes: number[] };
+  sprite?: {
+    frames: Array<{ patternBytes: number[]; colorBytes: number[] }>;
+    delayFrames: number;
+  };
 }
 
 export interface BitmapBossRuntimeOptions {
@@ -367,6 +457,10 @@ export interface BitmapBossSystemAsm {
   loadCallAsm: string;
   /** `call bitmap_boss_update` — logic phase, after platform update. */
   updateCallAsm: string;
+  /** Main-loop gate after bitmap_dialogue_frame: freezes player during non-dialogue intro steps. */
+  playerGateAsm: string;
+  /** Overrides keyboard row C while the mandatory walk-to-centre flag is active. */
+  autoMoveInputAsm: string;
   /** Body for the shoot skill's bullet-vs-enemy stub (jp target). */
   bulletHookLabel: string;
   /** `call bitmap_boss_sbul_sat` — must run AFTER bitmap_update_enemy_sat. */
@@ -457,7 +551,16 @@ export function buildBitmapRoomBossData(
   const emptyProjectile = () => new Array(BITMAP_BOSS_PROJECTILE_STRIDE).fill(0);
   const perRoom = rooms.map(room => {
     const bosses = (room.entities || []).filter((entity: any) => entity?.kind === 'boss' && entity.position);
-    if (!bosses.length) return { table: emptyTable(), stream: [DEFEAT_OP_END], barrier: emptyBarrier(), projectile: emptyProjectile(), phases: [0], zones: [0], pathSel: [] as number[] };
+    if (!bosses.length) return {
+      table: emptyTable(),
+      stream: [DEFEAT_OP_END],
+      intro: [INTRO_OP_END],
+      barrier: emptyBarrier(),
+      projectile: emptyProjectile(),
+      phases: [0],
+      zones: [0],
+      pathSel: [] as number[],
+    };
     if (bosses.length > 1) {
       console.warn(`MSX2 bitmap room "${room.name}": only 1 boss per room is supported; extra ones were skipped.`);
     }
@@ -484,7 +587,16 @@ export function buildBitmapRoomBossData(
       })();
     if (!bodySource.rect) {
       console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} not found; boss disabled in this room.`);
-      return { table: emptyTable(), stream: [DEFEAT_OP_END], barrier: emptyBarrier(), projectile: emptyProjectile(), phases: [0], zones: [0], pathSel: [] as number[] };
+      return {
+        table: emptyTable(),
+        stream: [DEFEAT_OP_END],
+        intro: [INTRO_OP_END],
+        barrier: emptyBarrier(),
+        projectile: emptyProjectile(),
+        phases: [0],
+        zones: [0],
+        pathSel: [] as number[],
+      };
     }
     const frames = clampInt(params.bossFrames, 1, 4, 1);
     const stripW = Math.max(1, Math.floor(Number(bodySource.rect.w) || 0));
@@ -493,7 +605,16 @@ export function buildBitmapRoomBossData(
     const height = clampInt(stripH, 16, 96, 16);
     if (Math.floor(stripW / frames) < 16 || stripH < 16 || Math.floor(stripW / frames) > 128 || stripH > 96) {
       console.warn(`MSX2 bitmap room "${room.name}": boss ${bodySource.label} is ${stripW}x${stripH} for ${frames} frame(s); per-frame size must be 16..128 x 16..96. Boss disabled in this room.`);
-      return { table: emptyTable(), stream: [DEFEAT_OP_END], barrier: emptyBarrier(), projectile: emptyProjectile(), phases: [0], zones: [0], pathSel: [] as number[] };
+      return {
+        table: emptyTable(),
+        stream: [DEFEAT_OP_END],
+        intro: [INTRO_OP_END],
+        barrier: emptyBarrier(),
+        projectile: emptyProjectile(),
+        phases: [0],
+        zones: [0],
+        pathSel: [] as number[],
+      };
     }
     const animDelay = clampInt(params.bossAnimDelay, 1, 255, 12);
     const hp = clampInt(params.bossHp, 1, 255, 8);
@@ -569,6 +690,7 @@ export function buildBitmapRoomBossData(
     const sy = 512 + atlasY; // atlas lives at VRAM rows 512+
     enabled = true;
     const stream = buildDefeatStream(params.onDefeated, flagNames, room.name, caps);
+    const intro = buildIntroStream(params, room.name, caps);
     // Phase B chain barrier: optional single 16x16 atlas tile sealing the room
     // perimeter while the boss is alive. Same atlas VRAM base (rows 512+).
     const barrier = resolveBarrier(params.bossBarrierTileId, room, even);
@@ -608,6 +730,7 @@ export function buildBitmapRoomBossData(
         hp & 0xff, damage & 0xff, interval & 0xff,
       ],
       stream,
+      intro,
       barrier,
       projectile,
       phases,
@@ -619,6 +742,7 @@ export function buildBitmapRoomBossData(
     enabled,
     roomTables: perRoom.map(entry => entry.table),
     defeatStreams: perRoom.map(entry => entry.stream),
+    introStreams: perRoom.map(entry => entry.intro),
     flagNames,
     barrierTables: perRoom.map(entry => entry.barrier),
     projectileTables: perRoom.map(entry => entry.projectile),
@@ -955,7 +1079,7 @@ export function buildBitmapBossSystemAsm(
 ): BitmapBossSystemAsm {
   if (!data.enabled) {
     return {
-      enabled: false, ramBytes: 0, equates: '', initAsm: '', loadCallAsm: '', updateCallAsm: '',
+      enabled: false, ramBytes: 0, equates: '', initAsm: '', loadCallAsm: '', updateCallAsm: '', playerGateAsm: '', autoMoveInputAsm: '',
       bulletHookLabel: '', satCallAsm: '', routinesAsm: '', dataAsm: '',
     };
   }
@@ -1001,6 +1125,21 @@ export function buildBitmapBossSystemAsm(
   // bossBarrierTileId, so bosses without a chain keep byte-identical ROMs.
   const hasBarrier = (data.barrierTables || []).some(t => t && t[0] === 1);
   const barrierRamBase = ram + 28 + roomCount + flagCount;
+  const introStreams = data.introStreams || [];
+  // Every live boss now owns an implicit first intro step: walk the player to
+  // the horizontal centre. The authored bytecode may still be only END.
+  const hasIntro = data.roomTables.some(table => Array.isArray(table) && table[0] === 1);
+  const introHas = (op: number) => introStreams.some(stream => {
+    for (let i = 0; i < stream.length;) {
+      const current = stream[i];
+      if (current === INTRO_OP_END) break;
+      if (current === op) return true;
+      i += 2; // every intro opcode currently carries exactly one byte
+    }
+    return false;
+  });
+  const hasIntroClose = introHas(INTRO_OP_CLOSE_BARRIER);
+  const hasIntroDialogue = introHas(INTRO_OP_DIALOGUE);
   // Phase D projectiles: single bitmap bullet fired at the player. Only emitted
   // when a room configures bossProjectileTileId (byte-identical no-op otherwise).
   const tables = data.projectileTables || [];
@@ -1013,8 +1152,17 @@ export function buildBitmapBossSystemAsm(
   const hasProjectiles = hasBitmapProjectiles || hasSpriteProjectiles;
   const projScratchY = opts.projScratchBaseY || 0;
   const spriteSlots = hasSpriteProjectiles ? (sprites as BitmapBossSpriteBulletOptions).maxSlots : 0;
+  const spriteFrameCount = hasSpriteProjectiles
+    ? clampInt(sprites?.sprite?.frames?.length, 1, 8, 1)
+    : 1;
+  const spriteAnimDelay = hasSpriteProjectiles
+    ? clampInt(sprites?.sprite?.delayFrames, 1, 255, 8)
+    : 8;
+  const hasAnimatedSpriteBullet = hasSpriteProjectiles && spriteFrameCount > 1;
   const projRamBase = barrierRamBase + (hasBarrier ? 7 : 0);
-  const BOSS_SBUL_SLOT_BYTES = 9;   // keep in sync with BOSS_SBUL_SLOT in the ASM
+  // Animated bullets own frame/tick bytes per live slot. Single-frame and
+  // built-in bullets retain the original 9-byte layout byte-for-byte.
+  const BOSS_SBUL_SLOT_BYTES = hasAnimatedSpriteBullet ? 11 : 9;
   const spriteRamBase = projRamBase + 9;
   // Fase G paths: entirely absent unless a boss references one, so a project
   // without paths keeps a byte-identical ROM.
@@ -1029,6 +1177,12 @@ export function buildBitmapBossSystemAsm(
   const hasShoots = hasPaths && hasSpriteProjectiles && shootRecords.length > 0;
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
   const SHOOT_RAM_BYTES = 10;
+  const baseRamBytes = 11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 7 : 0)
+    + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES
+    + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0);
+  const introRamBase = ram + baseRamBytes;
+  const INTRO_RAM_BYTES = 6;
+  const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0);
   // Pre-rendered so the data template stays readable: one ring slot per row,
   // dx then dy, each an 8.8 little-endian word.
   const shootDirRows = (() => {
@@ -1058,12 +1212,20 @@ export function buildBitmapBossSystemAsm(
     console.warn('MSX2 bitmap boss: shoot patterns need hardware-sprite bullets (bossProjectileKind "sprite"); the bitmap bullet fires one aimed shot regardless.');
   }
   const hit = opts.playerHitbox;
+  // player_x is the render origin, so centre the configured collision body,
+  // not merely its top-left coordinate. Default 16px body => target X 120.
+  const introAutoMoveTargetX = clampInt(
+    Math.round(128 - (hit.x + hit.w / 2)),
+    2,
+    238,
+    120,
+  );
   const invulnFrames = asmByte(opts.damageInvulnFrames || 60);
   const maxHealthByte = asmByte(opts.maxHealth || 3);
   const pauseGate = opts.pauseGateAsm || '';
 
   const equates = `
-; ---- bitmap BOSS runtime state (${11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 7 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0)} bytes) ----
+; ---- bitmap BOSS runtime state (${totalRamBytes} bytes) ----
 boss_active     EQU ${asmWord(ram + 0)}   ; 0 none, 1 alive
 boss_x          EQU ${asmWord(ram + 1)}
 boss_y          EQU ${asmWord(ram + 2)}
@@ -1078,7 +1240,7 @@ boss_int_tick   EQU ${asmWord(ram + 10)}
 boss_sx         EQU ${asmWord(ram + 11)}  ; word: current frame atlas SX
 boss_cmd_buf    EQU ${asmWord(ram + 13)}  ; 15-byte V9938 command block
 boss_defeated   EQU ${asmWord(ram + 28)}  ; ${roomCount} bytes, 1 = killed (persistent)
-${hasDefeatActions ? `boss_flags      EQU ${asmWord(flagsBase)}  ; ${flagCount} bytes, onDefeated setFlag targets (persistent)\n` : ''}${hasBarrier ? `boss_barrier_draw EQU ${asmWord(barrierRamBase)}  ; 1 = drawing/sealing, 0 = clearing/unsealing
+${hasDefeatActions ? `boss_flags      EQU ${asmWord(flagsBase)}  ; ${flagCount} bytes, onDefeated setFlag targets (persistent)\n` : ''}${hasBarrier ? `boss_barrier_draw EQU ${asmWord(barrierRamBase)}  ; 0 = clear, 1 = seal, 2 = repaint sealed cells
 boss_barrier_sx EQU ${asmWord(barrierRamBase + 1)}  ; word: chain tile atlas SX
 boss_barrier_sy EQU ${asmWord(barrierRamBase + 3)}  ; word: chain tile atlas SY (512-based)
 boss_barrier_pending EQU ${asmWord(barrierRamBase + 5)}  ; 1 = a perimeter cell is still open under the player
@@ -1092,12 +1254,14 @@ boss_proj_dx    EQU ${asmWord(projRamBase + 5)}  ; signed px/frame
 boss_proj_dy    EQU ${asmWord(projRamBase + 6)}
 boss_proj_cd    EQU ${asmWord(projRamBase + 7)}  ; frames until next shot
 boss_phase_speed EQU ${asmWord(projRamBase + 8)}  ; projectile speed of the active attack phase
-` : ''}${hasSpriteProjectiles ? `BOSS_SBUL_SLOT  EQU 9
-boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x 9 bytes
+` : ''}${hasSpriteProjectiles ? `BOSS_SBUL_SLOT  EQU ${BOSS_SBUL_SLOT_BYTES}
+boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x ${BOSS_SBUL_SLOT_BYTES} bytes
 ;   +0 active, +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
 ;   +5 x frac, +6 y frac, +7 dx frac, +8 dy frac. Velocity is 8.8 fixed
 ;   point (int byte + frac byte), which is what buys 16 directions:
 ;   a diagonal is no longer forced to a whole pixel on both axes.
+${hasAnimatedSpriteBullet ? `;   +9 animation frame, +10 animation tick (${spriteFrameCount} frames, ${spriteAnimDelay} ticks/frame).
+` : ''}
 ` : ''}${hasPaths ? `boss_path_ptr   EQU ${asmWord(pathRamBase)}  ; word: start of the active path stream
 boss_path_cur   EQU ${asmWord(pathRamBase + 2)}  ; word: read cursor into it
 boss_path_wait  EQU ${asmWord(pathRamBase + 4)}  ; ticks left on a wait opcode
@@ -1113,6 +1277,11 @@ boss_sbul_dyf   EQU ${asmWord(shootRamBase + 6)}
 boss_burst_idx  EQU ${asmWord(shootRamBase + 7)}  ; pattern being burst-fired, 1-based (0 = idle)
 boss_burst_left EQU ${asmWord(shootRamBase + 8)}  ; waves still owed after the current one
 boss_burst_cd   EQU ${asmWord(shootRamBase + 9)}  ; frames until the next wave
+` : ''}${hasIntro ? `boss_intro_state EQU ${asmWord(introRamBase + 0)}  ; 0 fight/idle, 1 dispatch, 2 wait, 3 dialogue, 4 barrier, 5 auto-walk
+boss_intro_ptr EQU ${asmWord(introRamBase + 1)}  ; word: next opcode or active-step argument
+boss_intro_counter EQU ${asmWord(introRamBase + 3)}  ; wait frames / raster scanlines left this frame
+boss_intro_raster_y EQU ${asmWord(introRamBase + 4)}  ; next horizontal pixel line (0..191)
+boss_intro_auto_move EQU ${asmWord(introRamBase + 5)}  ; 1 = forced horizontal walk; gravity remains active
 ` : ''}`;
 
   // Persistent state must start at zero: boss_defeated decides whether a boss
@@ -1121,11 +1290,74 @@ boss_burst_cd   EQU ${asmWord(shootRamBase + 9)}  ; frames until the next wave
   const initAsm = `    ; Boss persistent state (defeated flags${hasDefeatActions ? ' + defeat action flags' : ''}).
     xor a
 ${Array.from({ length: roomCount }, (_v, i) => `    ld (boss_defeated + ${i}), a`).join('\n')}
-${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_flags + ${i}), a`).join('\n') + '\n' : ''}`;
+${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_flags + ${i}), a`).join('\n') + '\n' : ''}${hasIntro ? `    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
+` : ''}`;
   const loadCallAsm = `    call bitmap_boss_load
 `;
   const updateCallAsm = `    call bitmap_boss_update
 `;
+  const playerGateAsm = hasIntro
+    ? `    ld a, (boss_intro_auto_move)
+    or a
+    jp z, .boss_intro_freeze_check
+    ; Mandatory first step: run the normal player physics once with forced
+    ; horizontal input, then skip every manual skill/action for this frame.
+    call update_player_movement
+    jp .skip_player_movement
+.boss_intro_freeze_check:
+    ld a, (boss_intro_state)    ; Room Lock wait/chain/dialogue step: freeze player
+    or a
+    jp nz, .skip_player_movement
+`
+    : '';
+  const autoMoveInputAsm = hasIntro
+    ? `    ; Boss intro auto-walk: replace the real keyboard row with exactly one
+    ; horizontal direction. update_player_movement still owns collision,
+    ; walking animation, facing and the complete gravity/vertical pipeline.
+    ld a, (boss_intro_auto_move)
+    or a
+    jp z, .boss_intro_auto_input_done
+    ld a, (player_x)
+    cp ${introAutoMoveTargetX}
+    jp z, .boss_intro_auto_arrived
+    jp c, .boss_intro_auto_right
+    sub ${introAutoMoveTargetX}
+    cp 2
+    jp c, .boss_intro_auto_final_left
+    ld c, #10                  ; forced LEFT, no jump/action bits
+    jp .boss_intro_auto_input_done
+.boss_intro_auto_right:
+    ld b, a
+    ld a, ${introAutoMoveTargetX}
+    sub b
+    cp 2
+    jp c, .boss_intro_auto_final_right
+    ld c, #80                  ; forced RIGHT, no jump/action bits
+    jp .boss_intro_auto_input_done
+.boss_intro_auto_final_left:
+    ld a, #FF                  ; exact final pixel, still collision-checked
+    call bitmap_try_move_x
+    jp .boss_intro_auto_final_check
+.boss_intro_auto_final_right:
+    ld a, 1                    ; exact final pixel, still collision-checked
+    call bitmap_try_move_x
+.boss_intro_auto_final_check:
+    ld a, (player_x)
+    cp ${introAutoMoveTargetX}
+    jp nz, .boss_intro_auto_blocked
+.boss_intro_auto_arrived:
+    xor a
+    ld (boss_intro_auto_move), a
+    ld c, a                    ; no horizontal/jump input on the arrival frame
+    inc a
+    ld (boss_intro_state), a   ; state 1: dispatch authored Room Lock next frame
+    jp .boss_intro_auto_input_done
+.boss_intro_auto_blocked:
+    ld c, 0                    ; obstacle: keep auto flag, gravity still advances
+.boss_intro_auto_input_done:
+`
+    : '';
 
   const routinesAsm = `
 ; ------------------------------------------------------------
@@ -1146,7 +1378,11 @@ ${bankedRoomData ? `    ; The room-load path streams banked resources (music, RL
     call bitmap_room_restore_resident_banks
 ` : ''}    xor a
     ld (boss_active), a
-    ld a, (current_screen_index)
+${hasIntro ? `    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
+` : ''}${hasBarrier ? `    ld (boss_barrier_draw), a
+    ld (boss_barrier_pending), a
+` : ''}    ld a, (current_screen_index)
     ld e, a
     ld d, 0
     ld hl, boss_defeated
@@ -1220,7 +1456,7 @@ ${hasPaths ? `    push ix
     call bitmap_boss_path_select
     pop ix
 ` : ''}
-${hasBarrier ? '    call bitmap_boss_barrier_apply   ; Phase B: raise the chain around the room\n' : ''}${hasProjectiles ? `    call bitmap_boss_proj_config_ix
+${hasProjectiles ? `    call bitmap_boss_proj_config_ix
     xor a
     ld (boss_proj_active), a   ; Phase D: no projectile in flight yet
     ld a, (ix+8)
@@ -1230,7 +1466,12 @@ ${hasBarrier ? '    call bitmap_boss_barrier_apply   ; Phase B: raise the chain 
 ${hasSpriteProjectiles ? `    ld a, (ix+10)
     or a
     call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool
-` : ''}` : ''}    ret
+` : ''}` : ''}${hasIntro ? `    call bitmap_boss_intro_begin
+    ; The mandatory auto-walk and subsequent Room Lock own the first frames.
+    ; Draw the stationary body once; movement/shoot/contact start only at END.
+    call bitmap_boss_table_ix
+    jp bitmap_boss_draw
+` : ''}    ret
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_update
@@ -1248,6 +1489,13 @@ bitmap_boss_update:
 ${pauseGate}    ld a, (boss_active)
     or a
     ret z
+${hasIntro ? `    ld a, (boss_intro_state)
+    or a
+    jp z, .boss_intro_finished
+    call bitmap_boss_intro_frame
+    ret
+.boss_intro_finished:
+` : ''}
 ${hasBarrier ? `    ; The chain could not seal the doorway the player entered through. Sweep
     ; the perimeter again every 8 frames until it is clear: cells already
     ; carrying the #80 marker cost one compare each (#80 & #BF is non-zero,
@@ -1836,7 +2084,9 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i *
     pop ix
 ` : ''}    xor a
     ld (boss_active), a
-    ld a, (current_screen_index)
+${hasIntro ? `    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
+` : ''}    ld a, (current_screen_index)
     ld e, a
     ld d, 0
     ld hl, boss_defeated
@@ -1973,7 +2223,195 @@ ${flagCount > 0 ? `.op_set_flag:
     ; player is already leaving.
     jp start_key_door_transition
 ` : ''}
-` : ''}${hasBarrier ? `
+` : ''}${hasIntro ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_intro_begin
+; ------------------------------------------------------------
+; PURPOSE: Restart the current room's intro. The mandatory first state is an
+;   automatic horizontal walk to the player's body-centred screen X; authored
+;   Room Lock bytecode starts only after player physics clears that flag.
+;   Called on every room entry while alive; no persistent "intro seen" flag.
+; INPUT: current_screen_index.
+; OUTPUT: boss_intro_state=5 and boss_intro_auto_move=1.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+; ------------------------------------------------------------
+bitmap_boss_intro_begin:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_intro_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld (boss_intro_ptr), hl
+    xor a
+    ld (boss_intro_raster_y), a
+    inc a
+    ld (boss_intro_auto_move), a
+    ld a, 5
+    ld (boss_intro_state), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_intro_frame
+; ------------------------------------------------------------
+; PURPOSE: Advance one Room Lock frame. State 5 waits while normal player
+;   physics performs the mandatory auto-walk. Dispatch consumes opcodes; WAIT,
+;   DIALOGUE and CLOSE_BARRIER keep ownership until their step completes.
+; INPUT: boss_intro_state / boss_intro_ptr.
+; OUTPUT: boss intro RAM and, for barrier/dialogue steps, VRAM/dialogue state.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; CALLS: bitmap_dlg_open (when authored), bitmap_boss_barrier_cell.
+; SIDE EFFECTS: State 5 permits only forced walking + gravity; other non-zero
+;   states freeze player movement.
+; ------------------------------------------------------------
+bitmap_boss_intro_frame:
+    ld a, (boss_intro_state)
+    cp 5
+    ret z                       ; auto-walk is advanced inside player movement
+    cp 2
+    jp z, bitmap_boss_intro_wait
+${hasIntroDialogue ? `    cp 3
+    jp z, bitmap_boss_intro_dialogue_wait
+` : ''}${hasIntroClose && hasBarrier ? `    cp 4
+    jp z, bitmap_boss_intro_barrier_frame
+` : ''}    ; state 1 (or a defensive unknown state) dispatches the next opcode.
+bitmap_boss_intro_dispatch:
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)
+    inc hl
+    ld (boss_intro_ptr), hl
+    or a
+    jp z, bitmap_boss_intro_end
+    cp ${asmByte(INTRO_OP_CLOSE_BARRIER)}
+    jp z, bitmap_boss_intro_start_barrier
+${hasIntroDialogue ? `    cp ${asmByte(INTRO_OP_DIALOGUE)}
+    jp z, bitmap_boss_intro_start_dialogue
+` : ''}    cp ${asmByte(INTRO_OP_WAIT)}
+    jp z, bitmap_boss_intro_start_wait
+    ; Unknown byte: fail closed by ending the intro, never walk random ROM.
+    jp bitmap_boss_intro_end
+
+bitmap_boss_intro_start_wait:
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)
+    inc hl
+    ld (boss_intro_ptr), hl
+    ld (boss_intro_counter), a
+    ld a, 2
+    ld (boss_intro_state), a
+    ret
+bitmap_boss_intro_wait:
+    ld hl, boss_intro_counter
+    dec (hl)
+    ret nz
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+${hasIntroDialogue ? `bitmap_boss_intro_start_dialogue:
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)                 ; runtime dialogue index
+    inc hl
+    ld (boss_intro_ptr), hl
+    push af
+    ld a, #21                  ; UP or SPACE advances the scripted dialogue
+    ld (bitmap_dlg_key_mask), a
+    ld a, 1                    ; held entry input cannot fast-forward line 1
+    ld (bitmap_dlg_lock), a
+    pop af
+    call bitmap_dlg_open
+    ld a, 3
+    ld (boss_intro_state), a
+    ret
+bitmap_boss_intro_dialogue_wait:
+    ld a, (bitmap_dlg_state)
+    or a
+    ret nz
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+` : ''}bitmap_boss_intro_start_barrier:
+${hasBarrier ? `    call bitmap_boss_barrier_begin_apply
+    or a
+    jp z, bitmap_boss_intro_skip_argument
+    xor a
+    ld (boss_intro_raster_y), a
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)
+    cp #FF
+    jp z, bitmap_boss_intro_barrier_instant
+    ld a, 4
+    ld (boss_intro_state), a
+    ret
+bitmap_boss_intro_barrier_instant:
+    call bitmap_boss_barrier_walk_cells
+    jp bitmap_boss_intro_barrier_done
+` : `    ; No valid barrier tile exists anywhere in this project.
+    jp bitmap_boss_intro_skip_argument
+`}bitmap_boss_intro_skip_argument:
+    ld hl, (boss_intro_ptr)
+    inc hl
+    ld (boss_intro_ptr), hl
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+${hasIntroClose && hasBarrier ? `bitmap_boss_intro_barrier_frame:
+    ld hl, (boss_intro_ptr)    ; CLOSE_BARRIER argument stays live until done
+    ld a, (hl)
+    ld (boss_intro_counter), a ; horizontal pixel lines this frame
+.intro_barrier_loop:
+    ld a, (boss_intro_raster_y)
+    cp 192
+    jp nc, bitmap_boss_intro_barrier_done
+    call bitmap_boss_barrier_raster_line
+    ld hl, boss_intro_raster_y
+    inc (hl)
+    ld hl, boss_intro_counter
+    dec (hl)
+    jp nz, .intro_barrier_loop
+    ret
+bitmap_boss_intro_barrier_done:
+    ld hl, (boss_intro_ptr)
+    inc hl                     ; consume linesPerFrame
+    ld (boss_intro_ptr), hl
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+` : ''}bitmap_boss_intro_end:
+    xor a
+    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
+    ret
+` : ''}
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_redraw_after_dialogue
+; ------------------------------------------------------------
+; PURPOSE: Dialogue close replays the clean room, which erases dynamic bitmap
+;   overlays. Repaint the live boss and a chain that has already been raised.
+; INPUT: boss runtime state. OUTPUT: boss/chain restored on displayed page.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_boss_redraw_after_dialogue:
+    ld a, (boss_active)
+    or a
+    ret z
+    push ix
+${hasBarrier ? `    ld a, (boss_barrier_draw)
+    cp 1
+    call z, bitmap_boss_barrier_redraw
+` : ''}    call bitmap_boss_table_ix
+    call bitmap_boss_draw
+    pop ix
+    ret
+${hasBarrier ? `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_barrier_apply / bitmap_boss_barrier_remove
 ; ------------------------------------------------------------
@@ -1988,17 +2426,50 @@ ${flagCount > 0 ? `.op_set_flag:
 ; DESTROYS: AF, BC, DE, HL. Preserves IX (runs inside the boss_kill contract).
 ; ------------------------------------------------------------
 bitmap_boss_barrier_apply:
-    ld a, 1
-    ld (boss_barrier_draw), a
+    call bitmap_boss_barrier_begin_apply
+    ret z
+    jp bitmap_boss_barrier_walk_cells
+
+; Prepare an apply pass and cache the current room's atlas source.
+; OUTPUT: A=1/NZ when a barrier is present, A=0/Z otherwise.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_barrier_begin_apply:
     xor a
     ld (boss_barrier_pending), a   ; this sweep decides what is left open
+    ld (boss_barrier_draw), a
+    call bitmap_boss_barrier_load_source
+    ret z
+    ld a, 1
+    ld (boss_barrier_draw), a
     ld a, 8
     ld (boss_barrier_retry), a     ; frames until the next sweep, if needed
-    jp bitmap_boss_barrier_walk
+    ld a, 1
+    ret
+
+; Repaint only cells already marked #80 after dialogue restored the clean room.
+; This deliberately does not seal new cells or change collision.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+bitmap_boss_barrier_redraw:
+    call bitmap_boss_barrier_load_source
+    ret z
+    ld a, 2
+    ld (boss_barrier_draw), a
+    call bitmap_boss_barrier_walk_cells
+    ld a, 1
+    ld (boss_barrier_draw), a
+    ret
 bitmap_boss_barrier_remove:
     xor a
     ld (boss_barrier_draw), a
 bitmap_boss_barrier_walk:
+    call bitmap_boss_barrier_load_source
+    ret z
+    jp bitmap_boss_barrier_walk_cells
+
+; Load this room's barrier source coordinates from the per-room table.
+; OUTPUT: A=1/NZ when present, A=0/Z when absent.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_barrier_load_source:
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -2024,6 +2495,10 @@ bitmap_boss_barrier_walk:
     inc hl
     ld a, (hl)
     ld (boss_barrier_sy + 1), a
+    ld a, 1
+    ret
+
+bitmap_boss_barrier_walk_cells:
     ld c, 0                    ; top row
     call bitmap_boss_barrier_row
     ld c, 11                   ; bottom row
@@ -2032,6 +2507,44 @@ bitmap_boss_barrier_walk:
     call bitmap_boss_barrier_col
     ld b, 15                   ; right column
     jp bitmap_boss_barrier_col
+
+; Paint one horizontal pixel line while keeping the barrier on the perimeter.
+; Pixel lines 0..15 and 176..191 visit all 16 columns; the lines in between
+; visit only the left/right edge. Collision is committed by the scanline-cell
+; helper when the 16th and final source line of that cell has been drawn.
+; INPUT: boss_intro_raster_y (0..191).
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+bitmap_boss_barrier_raster_line:
+    ld a, (boss_intro_raster_y)
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    ld c, a                    ; collision-map row = raster Y / 16
+    ld a, c
+    or a
+    jp z, bitmap_boss_barrier_scanline_full
+    cp 11
+    jp z, bitmap_boss_barrier_scanline_full
+    ld b, 0
+    push bc
+    call bitmap_boss_barrier_scanline_cell
+    pop bc
+    ld b, 15
+    jp bitmap_boss_barrier_scanline_cell
+
+bitmap_boss_barrier_scanline_full:
+    ld b, 0
+.scanline_col_loop:
+    push bc
+    call bitmap_boss_barrier_scanline_cell
+    pop bc
+    inc b
+    ld a, b
+    cp 16
+    jr c, .scanline_col_loop
+    ret
 
 ; Iterate one horizontal edge (C = fixed row, cols 0..15).
 bitmap_boss_barrier_row:
@@ -2057,6 +2570,88 @@ bitmap_boss_barrier_col:
     ld a, c
     cp 11
     jr c, .col_loop
+    ret
+
+; Reveal a 16x16 barrier cell one horizontal source line at a time.
+; INPUT: B = col 0..15, C = collision row 0..11, boss_intro_raster_y.
+; OUTPUT: on local source line 15, an empty cell becomes solid marker #80.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_barrier_scanline_cell:
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de                 ; HL -> collision cell
+    ld a, (hl)
+    and #BF
+    ret nz                     ; existing wall/floor: never paint over it
+
+    ; Keep the same safety contract as the full-cell apply path.
+    push bc
+    ld a, b
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld d, a
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    call bitmap_player_overlaps_16
+    pop bc
+    or a
+    jp z, .scanline_cell_clear
+    ld a, 1
+    ld (boss_barrier_pending), a
+    ret
+
+.scanline_cell_clear:
+    ld a, (boss_intro_raster_y)
+    and #0F
+    cp 15
+    jr nz, .scanline_cell_source
+    ld a, #80
+    ld (hl), a                 ; collision becomes solid with the final line
+
+.scanline_cell_source:
+    ld hl, (boss_barrier_sx)
+    ld (boss_cmd_buf + 0), hl
+    ld hl, (boss_barrier_sy)
+    ld a, (boss_intro_raster_y)
+    and #0F
+    ld e, a
+    ld d, 0
+    add hl, de                 ; SY = tile source + local line 0..15
+    ld (boss_cmd_buf + 2), hl
+
+    ld a, b
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld (boss_cmd_buf + 4), a   ; DX = col * 16
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_intro_raster_y)
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = descending absolute raster line
+    ld hl, 16
+    ld (boss_cmd_buf + 8), hl  ; NX = 16
+    ld hl, 1
+    ld (boss_cmd_buf + 10), hl ; NY = 1
+    push bc
+    call bitmap_boss_finish_hmmm
+    pop bc
     ret
 
 ; ------------------------------------------------------------
@@ -2089,6 +2684,8 @@ bitmap_boss_barrier_cell:
     ld a, (boss_barrier_draw)
     or a
     jr z, .cell_unseal
+    cp 2
+    jr z, .cell_redraw
     ld a, (hl)                 ; apply: act only on empty cells
     and #BF                    ; drop Deadly bit; Z => passable (empty)
     ret nz                     ; occupied cell -> leave tile fully untouched
@@ -2121,6 +2718,11 @@ bitmap_boss_barrier_cell:
 .cell_seal:
     ld a, #80
     ld (hl), a                 ; mark as sealed opening
+    jr .cell_vdp
+.cell_redraw:
+    ld a, (hl)
+    cp #80
+    ret nz                     ; repaint only cells owned by this barrier
     jr .cell_vdp
 .cell_unseal:
     ld a, (hl)                 ; remove: act only on our own markers
@@ -2602,8 +3204,9 @@ bitmap_boss_hurt_player:
 ; terminator, or the sprites of every later system would stop being scanned.
 ;
 ; Pool entry (${BOSS_SBUL_SLOT_BYTES} bytes): active, x, y, dx, dy, then the 8.8 fractions of
-; each (see boss_sbul_pool).  Pattern: 16x16 with an 8x8 blob centred, so the
-; bullet looks small without touching R#1 or any VRAM config.
+; each (see boss_sbul_pool)${hasAnimatedSpriteBullet ? ', animation frame and animation tick' : ''}.
+; The selected sprite contributes ${spriteFrameCount} pattern frame(s); the fallback is a
+; 16x16 pattern with an 8x8 blob centred.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_update:
     ; advance every live bullet, then fire a new one when the cooldown elapses
@@ -2635,9 +3238,34 @@ ${hasShoots ? `    call bitmap_boss_burst_tick   ; outside the loop: a wave rewr
     ld (boss_proj_cd), a
     jp bitmap_boss_sbul_spawn
 
-; Move one bullet (IY -> slot). Despawns off-screen or on a solid tile.
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_sbul_step
+; ------------------------------------------------------------
+; PURPOSE: Advance one bullet's animation and 8.8 position; despawn it
+;   off-screen, on a solid tile, or after damaging the player.
+; INPUT: IY -> bullet slot, IX -> projectile config.
+; OUTPUT: updated slot; active may become 0.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
 bitmap_boss_sbul_step:
-    ; x += dx as 8.8 fixed point: the fraction carries into the whole pixel.
+${hasAnimatedSpriteBullet ? `    ld a, (iy+10)
+    inc a
+    cp ${spriteAnimDelay}
+    jp c, .sb_anim_store_tick
+    xor a
+    ld (iy+10), a
+    ld a, (iy+9)
+    inc a
+    cp ${spriteFrameCount}
+    jp c, .sb_anim_store_frame
+    xor a
+.sb_anim_store_frame:
+    ld (iy+9), a
+    jp .sb_anim_done
+.sb_anim_store_tick:
+    ld (iy+10), a
+.sb_anim_done:
+` : ''}    ; x += dx as 8.8 fixed point: the fraction carries into the whole pixel.
     ld a, (iy+5)
     add a, (iy+7)
     ld (iy+5), a
@@ -2800,14 +3428,17 @@ bitmap_boss_sbul_spawn:
     ld (iy+6), a
     ld (iy+7), a
     ld (iy+8), a
-    ld a, 1
+${hasAnimatedSpriteBullet ? `    ld (iy+9), a               ; every spawned bullet starts on frame 0
+    ld (iy+10), a
+` : ''}    ld a, 1
     ld (iy+0), a
     ret
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_sat
 ; ------------------------------------------------------------
-; PURPOSE: Stream the bullet SAT entries over the (unused) enemy slots. Runs
+; PURPOSE: Refresh animated line colours, then stream the bullet SAT entries
+;   over the (unused) enemy slots. Runs
 ;   AFTER bitmap_update_enemy_sat. Writes exactly ${spriteSlots} slot(s) and NO terminator,
 ;   so every system allocated after the enemies keeps rendering.
 ; DESTROYS: AF, BC, DE, HL, IY.
@@ -2816,7 +3447,23 @@ bitmap_boss_sbul_sat:
     ld a, (boss_active)
     or a
     ret z
-    ld de, ${asmWord(sprites ? sprites.satBase : 0)}
+${hasAnimatedSpriteBullet ? Array.from({ length: spriteSlots }, (_v, i) => `    ld iy, boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}
+    ld a, (iy+0)
+    or a
+    jr z, .sb_color_slot_${i}_done
+    ld a, (iy+9)
+    add a, a
+    add a, a
+    add a, a
+    add a, a                  ; frame * 16-byte line-colour table
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_sbul_frame_colors
+    add hl, de
+    ld de, ${asmWord((sprites ? sprites.colorBase : 0) + i * 16)}
+    ld bc, 16
+    call copy_to_vram_ext
+.sb_color_slot_${i}_done:`).join('\n') + '\n' : ''}    ld de, ${asmWord(sprites ? sprites.satBase : 0)}
     push de
     ld a, d
     and #C0
@@ -2844,8 +3491,12 @@ bitmap_boss_sbul_sat:
     out (VDP_DATA_PORT), a
     ld a, (iy+1)
     out (VDP_DATA_PORT), a
-    ld a, ${asmByte(sprites ? sprites.patternNumber : 0)}
-    out (VDP_DATA_PORT), a
+${hasAnimatedSpriteBullet ? `    ld a, (iy+9)
+    add a, a
+    add a, a                  ; one 16x16 frame = four pattern numbers
+    add a, ${asmByte(sprites ? sprites.patternNumber : 0)}
+` : `    ld a, ${asmByte(sprites ? sprites.patternNumber : 0)}
+`}    out (VDP_DATA_PORT), a
     xor a
     out (VDP_DATA_PORT), a
     jr .sb_sat_next
@@ -2871,7 +3522,7 @@ bitmap_boss_sbul_sat:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_load
 ; ------------------------------------------------------------
-; PURPOSE: Upload the bullet pattern + line colours and clear the pool. Called
+; PURPOSE: Upload all bullet animation patterns + line colours and clear the pool. Called
 ;   from bitmap_boss_load once the boss is armed.
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
@@ -2881,7 +3532,7 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i *
 ${hasShoots ? `    ld (boss_burst_idx), a     ; a burst owed by the previous boss dies with it
 ` : ''}    ld hl, bitmap_boss_sbul_pattern
     ld de, ${asmWord(sprites ? sprites.patternAddr : 0)}
-    ld bc, 32
+    ld bc, ${32 * spriteFrameCount}
     call copy_to_vram_ext
     ld hl, bitmap_boss_sbul_colors
     ld de, ${asmWord(sprites ? sprites.colorBase : 0)}
@@ -3370,7 +4021,10 @@ bitmap_boss_sbul_spawn_dir:
     ld (iy+7), a               ; B is the slot-search counter, so it cannot ride
     ld a, (boss_sbul_dyf)      ; in a register
     ld (iy+8), a
-    ld (iy+0), 1
+${hasAnimatedSpriteBullet ? `    xor a
+    ld (iy+9), a               ; patterned volleys also start on frame 0
+    ld (iy+10), a
+` : ''}    ld (iy+0), 1
     ret
 ` : ''}` : `
 bitmap_boss_path_fire:
@@ -3397,6 +4051,13 @@ ${data.barrierTables.map((table, index) => `bitmap_boss_barrier_room_${index}:
     db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_barrier_ptr_table:
 ${data.barrierTables.map((_, index) => `    dw bitmap_boss_barrier_room_${index}`).join('\n')}
+` : ''}${hasIntro ? `
+; ---- boss Room Lock bytecode per room ----
+; #00 END, #01 CLOSE_BARRIER/rasterLinesPerFrame, #02 DIALOGUE/index, #03 WAIT/frames.
+${introStreams.map((stream, index) => `bitmap_boss_intro_room_${index}:
+    db ${(stream && stream.length ? stream : [INTRO_OP_END]).map(value => asmByte(value)).join(', ')}`).join('\n')}
+bitmap_boss_intro_ptr_table:
+${introStreams.map((_, index) => `    dw bitmap_boss_intro_room_${index}`).join('\n')}
 ` : ''}${hasProjectiles ? `
 ; ---- boss projectile config per room ----
 ; present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage
@@ -3418,15 +4079,15 @@ ${(data.damageZoneTables || []).map((table, index) => `bitmap_boss_zone_room_${i
 bitmap_boss_zone_ptr_table:
 ${(data.damageZoneTables || []).map((_, index) => `    dw bitmap_boss_zone_room_${index}`).join('\n')}
 ` : ''}${hasSpriteProjectiles ? `
-; ---- boss sprite-bullet pattern: 16x16 sprite with an 8x8 blob CENTRED ----
-; Rows 4..11, columns 4..11 are set; everything else transparent. This keeps the
-; bullet visually small WITHOUT changing R#1 or any VRAM sprite-size config.
+; ---- boss sprite-bullet patterns: ${spriteFrameCount} x 16x16 hardware frame ----
+; The authored sprite contributes every valid frame. The fallback has one 8x8
+; centred blob, keeping it small without changing R#1 or sprite-size config.
 ; V9938 16x16 layout: quadrants TL(8) BL(8) TR(8) BR(8), 8 rows each.
 bitmap_boss_sbul_pattern:
 ${sprites && sprites.sprite
-  ? `    ; sprite selected by the user in the Boss Editor
-    db ${sprites.sprite.patternBytes.slice(0, 16).map(v => asmByte(v)).join(', ')}
-    db ${sprites.sprite.patternBytes.slice(16, 32).map(v => asmByte(v)).join(', ')}`
+  ? sprites.sprite.frames.map((frame, index) => `    ; authored projectile frame ${index}
+    db ${frame.patternBytes.slice(0, 16).map(v => asmByte(v)).join(', ')}
+    db ${frame.patternBytes.slice(16, 32).map(v => asmByte(v)).join(', ')}`).join('\n')
   : `    db #00, #00, #00, #00, #0F, #0F, #0F, #0F   ; TL: rows 0-7, cols 0-7
     db #0F, #0F, #0F, #0F, #00, #00, #00, #00   ; BL: rows 8-15, cols 0-7
     db #00, #00, #00, #00, #F0, #F0, #F0, #F0   ; TR: rows 0-7, cols 8-15
@@ -3434,8 +4095,14 @@ ${sprites && sprites.sprite
 ; Sprite-mode-2 line colours: one 16-byte block per bullet slot.
 bitmap_boss_sbul_colors:
 ${Array.from({ length: spriteSlots }, () => sprites && sprites.sprite
-  ? `    db ${sprites.sprite.colorBytes.map(v => asmByte(v)).join(', ')}`
+  ? `    db ${sprites.sprite.frames[0].colorBytes.map(v => asmByte(v)).join(', ')}`
   : `    db ${new Array(16).fill(asmByte(sprites ? sprites.color : 10)).join(', ')}`).join('\n')}
+${hasAnimatedSpriteBullet && sprites?.sprite ? `; One 16-byte line-colour table per authored frame. Active slots copy their
+; current frame here before the SAT pattern number changes.
+bitmap_boss_sbul_frame_colors:
+${sprites.sprite.frames.map((frame, index) => `    ; authored projectile colours frame ${index}
+    db ${frame.colorBytes.map(v => asmByte(v)).join(', ')}`).join('\n')}
+` : ''}
 ` : ''}${hasPaths ? `
 ; ---- boss paths (Fase G): one baked stream per authored path asset ----
 ; #00..#EF = movement step (high nibble dx+8, low nibble dy+8, one per body
@@ -3478,12 +4145,13 @@ bitmap_boss_aim_ring:
 
   return {
     enabled: true,
-    ramBytes: 11 + 2 + 15 + roomCount + flagCount + (hasBarrier ? 7 : 0) + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES
-      + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0),
+    ramBytes: totalRamBytes,
     equates,
     initAsm,
     loadCallAsm,
     updateCallAsm,
+    playerGateAsm,
+    autoMoveInputAsm,
     bulletHookLabel: 'bitmap_boss_bullet_hit',
     satCallAsm: hasSpriteProjectiles
       ? '    call bitmap_boss_sbul_sat    ; boss bullets over the free enemy SAT slots\n'

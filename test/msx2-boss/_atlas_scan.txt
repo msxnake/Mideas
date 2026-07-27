@@ -1,0 +1,4 @@
+rows 512-560 nonzero: 115
+rows 560-620 nonzero: 104
+rows 620-688 nonzero: 92
+boss_active=1 x=64 y=32

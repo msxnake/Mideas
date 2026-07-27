@@ -1,0 +1,6 @@
+ARMED  hp=3 barrier_top=128 barrier_west=128 (128 = sealed)
+BODY   hp=3 (armour: must still be 3)
+EYE    hp=1 active=0 (weak point x2 -> dead)
+DEFEAT defeated[1]=1 setFlag=1 keys=1
+CHAIN  top=0 west=0 floor=16 (0 = reopened, floor 16 = untouched)
+BULLETS player_pool a=0 x=63 y=48 | boss_pool a0=0 a1=0

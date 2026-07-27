@@ -1,5 +1,11 @@
 import { getFrequencyForNoteString } from './noteFrequencies';
 import { SCCInstrument, TrackerSongData } from '../../types';
+import {
+    applyNativeTrackerChannelEffect,
+    createNativeTrackerChannelEffectState,
+    stepNativeTrackerChannelEffect,
+    type NativeTrackerChannelEffectState,
+} from './trackerEffects';
 
 const SCC_CLOCK_FREQUENCY = 3579545; // 3.58 MHz
 const SCC_WAVE_SIZE = 32;
@@ -53,6 +59,10 @@ export class SCCSynthesizer {
     private channelMorph: ({ start: number[], target: number[], step: number, timer: number, speed: number } | null)[] = [null, null, null, null, null];
     // SCC original has one physical waveform RAM shared by logical channels 4/5.
     private sharedOriginalWaveform: number[] | null = null;
+    private channelEffects: NativeTrackerChannelEffectState[] = Array.from(
+        { length: 5 },
+        () => createNativeTrackerChannelEffectState(),
+    );
 
     // Default stereo panning positions for the 5 channels to create a wide field
     // Ch 1: Left-Mid (-0.5), Ch 2: Right-Mid (0.5), Ch 3: Center (0), Ch 4: Left (-0.8), Ch 5: Right (0.8)
@@ -121,6 +131,7 @@ export class SCCSynthesizer {
 
         for (let ch = 0; ch < 5; ch++) {
             const channel = ch as 0 | 1 | 2 | 3 | 4;
+            this.channelEffects[channel] = stepNativeTrackerChannelEffect(this.channelEffects[channel]);
             let currentVolume = this.channelBaseVolumeForEffects[channel];
             // Process Software Envelope
             const envState = this.channelSoftwareVolumeEnvelopeState[channel];
@@ -139,6 +150,7 @@ export class SCCSynthesizer {
                     envState.currentStep = envState.envelope.length;
                 }
             }
+            if (!this.channelEffects[channel].gateEnabled) currentVolume = 0;
 
             // Apply volume
             if (this.channelGains[channel]) {
@@ -226,7 +238,8 @@ export class SCCSynthesizer {
     // per-frame pitch engine. Runs at the 50Hz effects rate.
     private applyPitchEffects(channel: number): void {
         const source = this.channelSources[channel];
-        const base = this.channelBaseFrequency[channel];
+        const effectPeriod = this.channelEffects[channel].currentPeriod;
+        const base = effectPeriod !== null ? this.getFrequencyFromPeriod(effectPeriod) : this.channelBaseFrequency[channel];
         if (!source || base === null || !this.audioContext) return;
 
         let semitoneOffset = 0;
@@ -384,6 +397,7 @@ export class SCCSynthesizer {
         this.channelVibrato[channel] = null;
         this.channelBaseFrequency[channel] = null;
         this.channelMorph[channel] = null;
+        this.channelEffects[channel] = createNativeTrackerChannelEffectState();
     }
 
     public async playNote(
@@ -391,13 +405,28 @@ export class SCCSynthesizer {
         noteStringFromCell: string | null,
         instrumentIdFromCell: number | null,
         ornamentIdFromCell: number | null,
-        volumeFromCell: number | null
+        volumeFromCell: number | null,
+        effectCommand: number | null = null,
+        effectParams: string | null = null,
     ): Promise<void> {
         if (!await this.ensureAudioContext() || !this.audioContext || !this.masterGain) return;
 
         const isNoteCut = noteStringFromCell === "===";
         const isKeepNote = noteStringFromCell === "---" || noteStringFromCell === null;
         const isNewActualNote = !isNoteCut && !isKeepNote;
+        const targetPeriod = isNewActualNote ? this.getNotePeriod(noteStringFromCell) : this.channelCurrentPeriod[channel];
+        const previousEffectPeriod = this.channelEffects[channel].currentPeriod ?? this.channelCurrentPeriod[channel];
+        const effectApplication = applyNativeTrackerChannelEffect(
+            this.channelEffects[channel],
+            effectCommand,
+            effectParams,
+            {
+                isNewNote: isNewActualNote,
+                previousPeriod: previousEffectPeriod,
+                targetPeriod,
+            },
+        );
+        this.channelEffects[channel] = effectApplication.state;
 
         if (isNoteCut) {
             this.stopChannel(channel);
@@ -499,6 +528,14 @@ export class SCCSynthesizer {
             }
         } else if (isNewActualNote && this.channelOrnamentState[channel]) {
             this.channelOrnamentState[channel]!.step = 0;
+        }
+
+        // Deferred Vortex position commands run after the note-on resets.
+        if (effectApplication.samplePosition !== null && this.channelSoftwareVolumeEnvelopeState[channel]) {
+            this.channelSoftwareVolumeEnvelopeState[channel]!.currentStep = Math.max(0, effectApplication.samplePosition);
+        }
+        if (effectApplication.ornamentPosition !== null && this.channelOrnamentState[channel]) {
+            this.channelOrnamentState[channel]!.step = Math.max(0, effectApplication.ornamentPosition);
         }
 
         // Apply volume (initial)

@@ -1,0 +1,10 @@
+PRE  platform count=1 x=192 y=68 | boss_active=1 hp=3 | bullets s0=0 s1=0 s2=0
+PRE  SAT [0 y=A4 x=93 p=00] [1 y=A4 x=93 p=04] [2 y=B4 x=93 p=08] [3 y=B4 x=93 p=0C] [4 y=D4 x=00 p=00] [5 y=D4 x=00 p=00] [6 y=57 x=C0 p=84] [7 y=D8 x=00 p=00] [8 y=00 x=00 p=00] [9 y=00 x=00 p=00] 
+MID  platform count=1 x=192 y=78 | boss_active=1 hp=1 | bullets s0=0 s1=0 s2=0
+MID  SAT [0 y=A4 x=93 p=00] [1 y=A4 x=93 p=04] [2 y=B4 x=93 p=08] [3 y=B4 x=93 p=0C] [4 y=6F x=A3 p=88] [5 y=D4 x=00 p=00] [6 y=63 x=C0 p=84] [7 y=44 x=84 p=80] [8 y=D8 x=00 p=00] [9 y=00 x=00 p=00] 
+DEAD platform count=1 x=192 y=112 | boss_active=0 hp=1 | bullets s0=0 s1=0 s2=0
+DEAD SAT [0 y=A4 x=93 p=00] [1 y=A4 x=93 p=04] [2 y=B4 x=93 p=08] [3 y=B4 x=93 p=0C] [4 y=D4 x=00 p=00] [5 y=D4 x=00 p=00] [6 y=84 x=C0 p=84] [7 y=D8 x=00 p=00] [8 y=D8 x=00 p=00] [9 y=00 x=00 p=00] 
+SHOT platform count=1 x=192 y=58 | boss_active=0 hp=1 | bullets s0=1 s1=0 s2=0
+SHOT SAT [0 y=A4 x=93 p=00] [1 y=A4 x=93 p=04] [2 y=B4 x=93 p=08] [3 y=B4 x=93 p=0C] [4 y=D4 x=00 p=00] [5 y=D4 x=00 p=00] [6 y=4D x=C0 p=84] [7 y=AA x=E5 p=80] [8 y=D8 x=00 p=00] [9 y=00 x=00 p=00] 
+GONE platform count=1 x=192 y=58 | boss_active=0 hp=1 | bullets s0=0 s1=0 s2=0
+GONE SAT [0 y=A4 x=93 p=00] [1 y=A4 x=93 p=04] [2 y=B4 x=93 p=08] [3 y=B4 x=93 p=0C] [4 y=D4 x=00 p=00] [5 y=D4 x=00 p=00] [6 y=4D x=C0 p=84] [7 y=D8 x=00 p=00] [8 y=D8 x=00 p=00] [9 y=00 x=00 p=00] 

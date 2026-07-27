@@ -1,0 +1,7 @@
+boot: boss=1 player=(147,144) screen=1
+baseline cell(0,9)=10 cell(0,5)=80
+A: opened cell(0,5) -> 00 , player at (147,144)
+A: after sweep cell(0,5)=00 pending=1
+B: parked player at (2,80) -> col0 rows5-6
+B: opened cell(0,5) -> 00
+B: after sweep cell(0,5)=00 pending=1

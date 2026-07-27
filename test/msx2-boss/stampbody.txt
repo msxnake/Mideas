@@ -1,0 +1,4 @@
+body rect at sx=0x58 sy=0x270 0x40x0x40
+sampled 64 bytes, 37 non-zero
+first bytes: 00 00 00 00 00 00 00 00
+boss_active=1 boss_x=64 boss_y=32

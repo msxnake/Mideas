@@ -28,6 +28,7 @@ import {
 import {
   MSX2_ENTITY_REPERTOIRE,
   buildMsx2EnemyEntityFromAsset,
+  buildMsx2BossEntityFromAsset,
   buildMsx2EntityComponents,
 } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { filterMsx2EntityPresetsForProfile } from '../../utils/msx2ProjectProfiles';
@@ -132,6 +133,46 @@ const PROP_BIT: Record<string, number> = {
   // This lets the SAME visual tile be diggable in one cell and only-solid in another
   // (secret paths). Painting a "Destructible" atlas tile stamps it; Select toggles it.
   destructible: 0x80,
+};
+
+// 8x8 SUB-CELL solidity (room.collisionShape): each 16x16 collision cell can be
+// split into four 8x8 quadrants so a tile drawn on half its surface only collides
+// where it is drawn. The generator packs this nibble into the high nibble of the
+// exported behavior byte and flags the cell with HAS_SHAPE (0x01) in the collision
+// byte; 0 (and 15) mean "the whole cell is solid", i.e. the legacy behaviour.
+const SHAPE_BIT = { tl: 1, tr: 2, bl: 4, br: 8 } as const;
+const SHAPE_FULL = 0x0f;
+const SHAPE_QUADRANTS: { key: keyof typeof SHAPE_BIT; label: string }[] = [
+  { key: 'tl', label: 'Arriba izquierda' },
+  { key: 'tr', label: 'Arriba derecha' },
+  { key: 'bl', label: 'Abajo izquierda' },
+  { key: 'br', label: 'Abajo derecha' },
+];
+const SHAPE_PRESETS: { label: string; value: number; title: string }[] = [
+  { label: 'Llena', value: 0, title: 'Celda 16x16 solida entera (comportamiento clasico)' },
+  { label: 'Mitad inf.', value: SHAPE_BIT.bl | SHAPE_BIT.br, title: 'Repisa: solo los 8px inferiores colisionan' },
+  { label: 'Mitad sup.', value: SHAPE_BIT.tl | SHAPE_BIT.tr, title: 'Techo bajo: solo los 8px superiores colisionan' },
+  { label: 'Izquierda', value: SHAPE_BIT.tl | SHAPE_BIT.bl, title: 'Media columna izquierda' },
+  { label: 'Derecha', value: SHAPE_BIT.tr | SHAPE_BIT.br, title: 'Media columna derecha' },
+];
+/** Authored nibble -> the four quadrants actually solid (0 means the whole cell). */
+const expandCellShape = (shape: number): number => {
+  const value = shape & SHAPE_FULL;
+  return value === 0 ? SHAPE_FULL : value;
+};
+// Same red as the canvas collision overlay so the mini-grid reads as "this is the
+// solid part of the cell". Literal colours: the msx-* palette entries are CSS vars
+// and Tailwind cannot apply its /opacity modifier to them (renders as no colour).
+const SHAPE_ON_COLOR = 'rgba(255,64,64,0.55)';
+const SHAPE_ON_BORDER = 'rgba(255,96,96,0.9)';
+const countShapeQuadrants = (shape: number): number =>
+  [SHAPE_BIT.tl, SHAPE_BIT.tr, SHAPE_BIT.bl, SHAPE_BIT.br].filter(bit => (shape & bit) !== 0).length;
+/** Human label for the authored nibble, so the panel never shows just a number. */
+const describeCellShape = (shape: number): string => {
+  const value = shape & SHAPE_FULL;
+  if (value === 0 || value === SHAPE_FULL) return 'Celda entera';
+  const preset = SHAPE_PRESETS.find(item => item.value === value);
+  return preset ? preset.label : `${countShapeQuadrants(value)} de 4 cuadrantes`;
 };
 
 const PROPERTY_FLAGS: { key: string; label: string }[] = [
@@ -1292,6 +1333,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2enemy'),
     [allAssets],
   );
+  const bossLibraryAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'msx2boss'),
+    [allAssets],
+  );
   // MSX2 sprite assets, for binding a hardware sprite to placed entities that
   // are not enemy-library instances (e.g. moving platforms).
   const spriteLibraryAssets = useMemo(
@@ -1587,17 +1632,30 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         ctx.stroke();
       }
     }
-    // Collision overlay: tint cells whose stored flags are non-zero when the layer is visible.
-    const drawOverlay = (grid: number[][] | undefined, tint: string) => {
+    // Collision overlay: tint cells whose stored flags are non-zero when the layer is
+    // visible. Cells carrying an 8x8 sub-cell shape only tint their solid quadrants,
+    // so a half-height ledge reads as half a cell on the canvas.
+    const drawOverlay = (grid: number[][] | undefined, tint: string, shapeGrid?: number[][]) => {
+      const half = (COLLISION_CELL / 2) * zoom;
       for (let cy = 0; cy < collisionRows; cy++) {
         for (let cx = 0; cx < collisionCols; cx++) {
           if ((grid?.[cy]?.[cx] ?? 0) === 0) continue;
           ctx.fillStyle = tint;
-          ctx.fillRect(cx * COLLISION_CELL * zoom, cy * COLLISION_CELL * zoom, COLLISION_CELL * zoom, COLLISION_CELL * zoom);
+          const px = cx * COLLISION_CELL * zoom;
+          const py = cy * COLLISION_CELL * zoom;
+          const shape = (shapeGrid?.[cy]?.[cx] ?? 0) & SHAPE_FULL;
+          if (shape === 0 || shape === SHAPE_FULL) {
+            ctx.fillRect(px, py, COLLISION_CELL * zoom, COLLISION_CELL * zoom);
+            continue;
+          }
+          if (shape & SHAPE_BIT.tl) ctx.fillRect(px, py, half, half);
+          if (shape & SHAPE_BIT.tr) ctx.fillRect(px + half, py, half, half);
+          if (shape & SHAPE_BIT.bl) ctx.fillRect(px, py + half, half, half);
+          if (shape & SHAPE_BIT.br) ctx.fillRect(px + half, py + half, half, half);
         }
       }
     };
-    if (layerVisible.collision) drawOverlay(room.collision, 'rgba(255,64,64,0.32)');
+    if (layerVisible.collision) drawOverlay(room.collision, 'rgba(255,64,64,0.32)', room.collisionShape);
 
     // Entities layer: render placed entities/enemies/objects and player spawns as 16px markers
     // (a coloured cell tint + a 1-char label). These live in room.entities / room.playerEntries,
@@ -1679,14 +1737,15 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           }
         }
         const isEnemy = entity.kind === 'enemy';
+        const isBoss = entity.kind === 'boss';
         const isPlatform = entity.kind === 'platform';
         const isJumper = isJumperEntity(entity);
         const isWallJumper = isWallJumperEntity(entity);
         const wallJumperDir = isWallJumper ? normalizeWallJumperConfig(entity.params?.wallJumper || entity.components?.msx2_wall_jumper).direction : 'right';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : isBoss ? 'rgba(255,200,0,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : isBoss ? '#FFC800' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
         const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
+        const label = isEnemy ? 'E' : isBoss ? 'B' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
         const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
         if (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID)) {
           if (selectedPlacedId === entity.id) {
@@ -1729,7 +1788,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       ctx.strokeRect(selectedCell.x * GRID * zoom + 1, selectedCell.y * GRID * zoom + 1, GRID * zoom - 2, GRID * zoom - 2);
       ctx.lineWidth = 1;
     }
-  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
+  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.collisionShape, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
 
   const commands = room.composition?.commands || [];
 
@@ -1784,6 +1843,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     filterNonCopy?: (cmds: Msx2BitmapRoomCommand[]) => Msx2BitmapRoomCommand[],
     nextCollision?: number[][],
     nextBehavior?: number[][],
+    nextCollisionShape?: number[][],
   ) => {
     const entries = room.atlas?.entries || [];
     let nonCopy = (room.composition?.commands || []).filter(command => command.op !== 'copy');
@@ -1794,7 +1854,14 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       composition: { source: 'authored', commands: [...nonCopy, ...tileCmds] },
       ...(nextCollision ? { collision: nextCollision } : {}),
       ...(nextBehavior ? { behavior: nextBehavior } : {}),
+      ...(nextCollisionShape ? { collisionShape: nextCollisionShape } : {}),
     });
+  };
+
+  // Ensure room.collisionShape exists; return it or a lazily-allocated empty grid.
+  const ensureCollisionShape = (): number[][] => {
+    if (room.collisionShape) return room.collisionShape;
+    return Array.from({ length: collisionRows }, () => Array.from({ length: collisionCols }, () => 0));
   };
 
   const getAtlasEntriesUsageCount = (entries: Msx2BitmapRoomAtlasEntry[]): number => {
@@ -1963,7 +2030,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   // store exact pixel coords for SCREEN 5 bitmap placement.
   const placeAtCell = (cellX: number, cellY: number) => {
     if (placeable.kind === 'none') {
-      setStatusBarMessage?.('SCREEN 5: selecciona Player, entidad o enemigo antes de colocar.');
+      setStatusBarMessage?.('SCREEN 5: selecciona Player, entidad, enemigo o boss antes de colocar.');
       return;
     }
     if (placeable.kind === 'enemy') {
@@ -1976,6 +2043,18 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       onUpdate({ entities: [...placedEntities, enemyEntity] });
       setSelectedPlacedId(enemyEntity.id);
       setStatusBarMessage?.(`SCREEN 5: enemigo "${enemyEntity.name}" colocado en (${cellX}, ${cellY}).`);
+      return;
+    }
+    if (placeable.kind === 'boss') {
+      const bossAsset = bossLibraryAssets.find(asset => asset.id === placeable.id);
+      if (!bossAsset) {
+        setStatusBarMessage?.('SCREEN 5: selecciona un boss de la biblioteca primero.');
+        return;
+      }
+      const bossEntity = buildMsx2BossEntityFromAsset(bossAsset, cellX, cellY);
+      onUpdate({ entities: [...placedEntities, bossEntity] });
+      setSelectedPlacedId(bossEntity.id);
+      setStatusBarMessage?.(`SCREEN 5: boss "${bossEntity.name}" colocado en (${cellX}, ${cellY}).`);
       return;
     }
 
@@ -2553,7 +2632,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     next[cy][cx] = index + 1;
     const nextCollision = writeCell(room.collision, cx, cy, clampByte(entry.collisionFlags, 0), collisionCols, collisionRows);
     const nextBehavior = writeCell(room.behavior, cx, cy, clampByte(entry.behaviorCode, 0), collisionCols, collisionRows);
-    applyTileGrid(next, undefined, nextCollision, nextBehavior);
+    let nextShape: number[][] | undefined = undefined;
+    if (entry.collisionShape) {
+      nextShape = ensureCollisionShape().map(row => [...row]);
+      nextShape = writeCell(nextShape, cx, cy, entry.collisionShape, collisionCols, collisionRows);
+    }
+    applyTileGrid(next, undefined, nextCollision, nextBehavior, nextShape);
   };
 
   // --- Autotile (terrain) painting ---
@@ -2571,11 +2655,16 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     if (changed.length === 0) return;
     let nextCollision = room.collision;
     let nextBehavior = room.behavior;
+    let nextShape: number[][] | undefined = undefined;
     changed.forEach(({ x, y, entry }) => {
       nextCollision = writeCell(nextCollision, x, y, clampByte(entry?.collisionFlags, 0), collisionCols, collisionRows);
       nextBehavior = writeCell(nextBehavior, x, y, clampByte(entry?.behaviorCode, 0), collisionCols, collisionRows);
+      if (entry?.collisionShape) {
+        if (!nextShape) nextShape = ensureCollisionShape().map(row => [...row]);
+        nextShape = writeCell(nextShape, x, y, entry.collisionShape, collisionCols, collisionRows);
+      }
     });
-    applyTileGrid(grid, undefined, nextCollision, nextBehavior);
+    applyTileGrid(grid, undefined, nextCollision, nextBehavior, nextShape);
   };
 
   // --- Visual-layer painting on the 8px grid ---
@@ -2701,11 +2790,16 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         }
         let nextCollision = room.collision;
         let nextBehavior = room.behavior;
+        let nextShape: number[][] | undefined = undefined;
         paintedCells.forEach(cell => {
           nextCollision = writeCell(nextCollision, cell.x, cell.y, selectedAtlasEntryFlags, collisionCols, collisionRows);
           nextBehavior = writeCell(nextBehavior, cell.x, cell.y, selectedAtlasEntryBehaviorCode, collisionCols, collisionRows);
+          if (selectedAtlasEntryShape !== 0) {
+            if (!nextShape) nextShape = ensureCollisionShape().map(row => [...row]);
+            nextShape = writeCell(nextShape, cell.x, cell.y, selectedAtlasEntryShape, collisionCols, collisionRows);
+          }
         });
-        applyTileGrid(next, undefined, nextCollision, nextBehavior);
+        applyTileGrid(next, undefined, nextCollision, nextBehavior, nextShape);
         return;
       }
       // No tile selected: fall back to a pixel-level colour flood-fill (scanline) using activeColor,
@@ -2770,7 +2864,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         next[cy][cx] = index + 1;
         const nextCollision = writeCell(room.collision, cx, cy, selectedAtlasEntryFlags, collisionCols, collisionRows);
         const nextBehavior = writeCell(room.behavior, cx, cy, selectedAtlasEntryBehaviorCode, collisionCols, collisionRows);
-        applyTileGrid(next, undefined, nextCollision, nextBehavior);
+        let nextShape: number[][] | undefined = undefined;
+        if (selectedAtlasEntryShape !== 0) {
+          nextShape = ensureCollisionShape().map(row => [...row]);
+          nextShape = writeCell(nextShape, cx, cy, selectedAtlasEntryShape, collisionCols, collisionRows);
+        }
+        applyTileGrid(next, undefined, nextCollision, nextBehavior, nextShape);
       }
     } else {
       // No tile selected: paint a single-cell color fill (preserved as a non-'copy' command).
@@ -3576,6 +3675,31 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     return true;
   };
   const selectedAtlasEntryDestructible = selectedAtlasEntry?.destructible === true;
+  const selectedAtlasEntryShape = selectedAtlasEntry ? (clampByte(selectedAtlasEntry.collisionShape, 0) & SHAPE_FULL) : 0;
+  const selectedAtlasEntryShapeQuadrants = expandCellShape(selectedAtlasEntryShape);
+
+  const updateAtlasEntryShape = (shape: number) => {
+    if (!selectedAtlasEntry || !onUpdateProjectAsset) return;
+    const normalized = (shape & SHAPE_FULL) === SHAPE_FULL ? 0 : (shape & SHAPE_FULL);
+    const updatedEntry = { ...selectedAtlasEntry, collisionShape: normalized || undefined };
+    const entries = atlasEntries.map(e => e.id === selectedAtlasEntry.id ? updatedEntry : e);
+    onUpdate({ atlas: { ...room.atlas, entries } });
+    setStatusBarMessage?.(`Forma 8x8 del tile: ${describeCellShape(normalized)}`);
+  };
+
+  const toggleAtlasEntryShapeQuadrant = (bit: number) => {
+    const next = expandCellShape(selectedAtlasEntryShape) ^ bit;
+    if ((next & SHAPE_FULL) === 0) {
+      setStatusBarMessage?.('La forma del tile necesita al menos un cuadrante.');
+      return;
+    }
+    updateAtlasEntryShape(next);
+  };
+
+  const applyAtlasEntryShapePreset = (value: number) => {
+    updateAtlasEntryShape(value);
+  };
+
   const selectedCellBehaviorCode = selectedCollisionCell
     ? readCell(room.behavior, selectedCollisionCell.x, selectedCollisionCell.y)
     : 0;
@@ -3608,6 +3732,63 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     setCellProps(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode, selectedAtlasEntryDestructible]);
+
+  // --- 8x8 sub-cell shape of the selected collision cell ---
+  const selectedCellShape = selectedCollisionCell
+    ? readCell(room.collisionShape, selectedCollisionCell.x, selectedCollisionCell.y) & SHAPE_FULL
+    : 0;
+  const selectedCellShapeQuadrants = expandCellShape(selectedCellShape);
+  // The mask only does something on cells the runtime probes: solid ones (walls,
+  // ledges) and deadly ones (spikes). On anything else it is inert data.
+  const selectedCellShapeApplies = ((configFlags & PROP_BIT.solid) | (configFlags & PROP_BIT.deadly)) !== 0;
+
+  const writeCellShape = (value: number) => {
+    if (!selectedCollisionCell) return;
+    const normalized = (value & SHAPE_FULL) === SHAPE_FULL ? 0 : (value & SHAPE_FULL);
+    const grown = writeCell(
+      room.collisionShape,
+      selectedCollisionCell.x,
+      selectedCollisionCell.y,
+      normalized,
+      collisionCols,
+      collisionRows,
+    );
+    onUpdate({ collisionShape: grown });
+    return normalized;
+  };
+
+  const toggleShapeQuadrant = (bit: number) => {
+    if (configTarget !== 'cell' || !selectedCollisionCell) {
+      setStatusBarMessage?.('SCREEN 5: la forma 8x8 se define por celda; pulsa "Usar celda".');
+      return;
+    }
+    const next = expandCellShape(selectedCellShape) ^ bit;
+    if ((next & SHAPE_FULL) === 0) {
+      // All four quadrants off would be indistinguishable from "full cell" in the
+      // exported nibble; clearing collision is the Solid checkbox's job.
+      setStatusBarMessage?.('SCREEN 5: una celda con forma necesita al menos un cuadrante. Desmarca Solid para quitar la colision.');
+      return;
+    }
+    const stored = writeCellShape(next);
+    setStatusBarMessage?.(
+      stored === 0
+        ? `SCREEN 5: celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}) solida entera.`
+        : `SCREEN 5: forma 8x8 = ${stored} en celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}).`
+    );
+  };
+
+  const applyShapePreset = (value: number) => {
+    if (configTarget !== 'cell' || !selectedCollisionCell) {
+      setStatusBarMessage?.('SCREEN 5: la forma 8x8 se define por celda; pulsa "Usar celda".');
+      return;
+    }
+    writeCellShape(value);
+    setStatusBarMessage?.(
+      value === 0
+        ? `SCREEN 5: celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}) solida entera.`
+        : `SCREEN 5: forma 8x8 = ${value & SHAPE_FULL} en celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y}).`
+    );
+  };
 
   const toggleProp = (key: string) => {
     const bit = PROP_BIT[key];
@@ -4472,6 +4653,26 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 )}
               </div>
 
+              <div>
+                <div className="text-[0.7rem] text-msx-highlight mb-1">Boss (biblioteca)</div>
+                {bossLibraryAssets.length === 0 ? (
+                  <div className="text-[0.6rem] text-msx-textsecondary">No hay assets msx2boss en el proyecto.</div>
+                ) : (
+                  <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+                    {bossLibraryAssets.map(asset => (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        onClick={() => { setPlaceable({ kind: 'boss', id: asset.id }); setActiveLayer('objects'); }}
+                        className={`w-full text-left text-xs rounded px-2 py-1 border ${placeable.kind === 'boss' && placeable.id === asset.id ? 'border-msx-highlight bg-msx-panelbg text-msx-highlight' : 'border-msx-border text-msx-textsecondary hover:border-msx-highlight'}`}
+                      >
+                        {asset.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Placed items list (select / delete). */}
               <div>
                 <div className="text-[0.7rem] text-msx-highlight mb-1">Colocados ({placedEntities.length + playerEntries.length})</div>
@@ -4843,6 +5044,43 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                       </div>
                     </div>
                   )}
+
+                  {selectedPlacedEntity.kind === 'boss' && (() => {
+                    const boundId = String(selectedPlacedEntity.params?.bossId || selectedPlacedEntity.params?.bossDefinitionId || '');
+                    const boundAsset = bossLibraryAssets.find(asset => asset.id === boundId);
+                    const inlineStamp = String(selectedPlacedEntity.params?.bossStampAssetId || '').trim();
+                    const definitionStamp = String((boundAsset?.data as any)?.bossStampAssetId || '').trim();
+                    const bodyStamp = inlineStamp || definitionStamp;
+                    return (
+                      <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Boss</div>
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Definición (asset msx2boss)
+                          <select
+                            value={boundId}
+                            onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { bossId: event.target.value || undefined })}
+                            className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          >
+                            <option value="">(sin vincular)</option>
+                            {bossLibraryAssets.map(asset => (
+                              <option key={asset.id} value={asset.id}>{asset.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {bodyStamp ? (
+                          <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                            Cuerpo: stamp <span className="text-msx-highlight">{bodyStamp}</span>
+                            {inlineStamp ? ' (override en esta room)' : ' (de la definición)'}.
+                          </div>
+                        ) : (
+                          <div className="text-[0.6rem] text-msx-danger leading-tight">
+                            Sin cuerpo: elige una definición con `bossStampAssetId`, o el boss no se dibujará
+                            (el generador lo desactiva en esta room).
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {selectedPlacedEntity.kind === 'platform' && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
@@ -5705,6 +5943,57 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                   <div>Categoría: <span className="text-msx-textprimary">{statusCategoryLabel || 'Suelo'}</span></div>
                 </div>
               </div>
+
+              {/* 8x8 sub-cell shape for the selected atlas tile */}
+              {selectedAtlasEntry && (
+                <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor-dark p-2">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-[0.7rem] text-msx-highlight">Forma 8x8 (default)</span>
+                    <span className="text-[0.6rem] text-msx-textsecondary">
+                      {selectedAtlasEntryShape} {describeCellShape(selectedAtlasEntryShape)}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="grid h-14 w-14 shrink-0 grid-cols-2 grid-rows-2">
+                      {SHAPE_QUADRANTS.map(quadrant => {
+                        const on = (selectedAtlasEntryShapeQuadrants & SHAPE_BIT[quadrant.key]) !== 0;
+                        return (
+                          <button
+                            key={quadrant.key}
+                            type="button"
+                            title={`${quadrant.label} (8x8 px) — ${on ? 'solido' : 'hueco'}`}
+                            onClick={() => toggleAtlasEntryShapeQuadrant(SHAPE_BIT[quadrant.key])}
+                            style={{
+                              backgroundColor: on ? SHAPE_ON_COLOR : 'transparent',
+                              border: `1px solid ${on ? SHAPE_ON_BORDER : 'rgba(255,255,255,0.22)'}`,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {SHAPE_PRESETS.map(preset => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          title={preset.title}
+                          onClick={() => applyAtlasEntryShapePreset(preset.value)}
+                          className={`rounded border px-1 py-0.5 text-[0.6rem] ${
+                            (selectedAtlasEntryShape & SHAPE_FULL) === (preset.value & SHAPE_FULL)
+                              ? 'border-msx-highlight text-msx-highlight'
+                              : 'border-msx-border text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-1 text-[0.6rem] text-msx-textsecondary">
+                    Se estampa en todas las celdas donde pintas este tile.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Celda seleccionada */}
@@ -5771,6 +6060,93 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 Destructible (pico)
               </label>
             </div>
+
+            {/* 8x8 sub-cell solidity: 2x2 quadrant mini-grid + shape presets, per collision cell. */}
+            <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[0.7rem] text-msx-highlight">Forma 8x8 (sub-celda)</span>
+                <span className="text-[0.6rem] text-msx-textsecondary">
+                  {configTarget === 'cell' && selectedCollisionCell ? `mask ${selectedCellShape}` : 'por celda'}
+                </span>
+              </div>
+              {configTarget === 'cell' && selectedCollisionCell ? (
+                <div className="flex items-start gap-2">
+                  {/* Inline colours on purpose: the msx-* palette is made of CSS vars, so
+                      Tailwind opacity modifiers (bg-msx-highlight/70) resolve to nothing. */}
+                  <div className="grid h-14 w-14 shrink-0 grid-cols-2 grid-rows-2">
+                    {SHAPE_QUADRANTS.map(quadrant => {
+                      const on = (selectedCellShapeQuadrants & SHAPE_BIT[quadrant.key]) !== 0;
+                      return (
+                        <button
+                          key={quadrant.key}
+                          type="button"
+                          title={`${quadrant.label} (8x8 px) — ${on ? 'solido, click para vaciar' : 'hueco, click para hacerlo solido'}`}
+                          onClick={() => toggleShapeQuadrant(SHAPE_BIT[quadrant.key])}
+                          style={{
+                            backgroundColor: on ? SHAPE_ON_COLOR : 'transparent',
+                            border: `1px solid ${on ? SHAPE_ON_BORDER : 'rgba(255,255,255,0.22)'}`,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {SHAPE_PRESETS.map(preset => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        title={preset.title}
+                        onClick={() => applyShapePreset(preset.value)}
+                        className={`rounded border px-1 py-0.5 text-[0.6rem] ${
+                          (selectedCellShape & SHAPE_FULL) === (preset.value & SHAPE_FULL)
+                            ? 'border-msx-highlight text-msx-highlight'
+                            : 'border-msx-border text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[0.65rem] text-msx-textsecondary">
+                  Selecciona una celda del lienzo y pulsa "Usar celda" para dibujar su forma 8x8.
+                </div>
+              )}
+              {configTarget === 'cell' && selectedCollisionCell && (
+                <div className="mt-1 flex items-center gap-3 text-[0.6rem] text-msx-textsecondary">
+                  <span className="flex items-center gap-1">
+                    <span
+                      className="inline-block h-3 w-3"
+                      style={{ backgroundColor: SHAPE_ON_COLOR, border: `1px solid ${SHAPE_ON_BORDER}` }}
+                    />
+                    solido (choca)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block h-3 w-3" style={{ border: '1px solid rgba(255,255,255,0.22)' }} />
+                    hueco (pasa)
+                  </span>
+                  <span className="text-msx-textprimary">{describeCellShape(selectedCellShape)}</span>
+                </div>
+              )}
+              <div className="mt-1 text-[0.6rem] text-msx-textsecondary">
+                {configTarget === 'cell' && selectedCollisionCell && !selectedCellShapeApplies ? (
+                  <span className="flex flex-wrap items-center gap-1">
+                    <span>Sin efecto: la forma solo se aplica a celdas Solid o Deadly.</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleProp('solid')}
+                      className="rounded border border-msx-border px-1 py-0.5 text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight"
+                    >
+                      Marcar Solid
+                    </button>
+                  </span>
+                ) : (
+                  'Cada cuadrante son 8x8 px. Apagar uno abre un hueco por el que el jugador pasa.'
+                )}
+              </div>
+            </div>
+
             <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-[0.65rem] text-msx-textsecondary">
               {configTarget === 'cell' && selectedCollisionCell
                 ? 'Editas solo la celda seleccionada; marca Ice o Exit enemy para escribir behavior=3 o behavior=4 en esa celda.'

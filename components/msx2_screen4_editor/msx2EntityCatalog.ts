@@ -849,6 +849,10 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       movement: 'patrolX',
       direction: 1,
       // --- body ---
+      // A `msx2bitmapstamp` asset: the generator composes it and injects it into
+      // the shared world atlas, so no room has to paint the boss to get it into
+      // VRAM. `bossAtlasEntryId` is the pre-stamp form, kept for old projects.
+      bossStampAssetId: '',
       bossAtlasEntryId: '',
       bossFrames: 1,
       bossAnimDelay: 12,
@@ -1486,6 +1490,67 @@ export function buildMsx2EnemyEntityFromAsset(
         turretBulletSpeed: def.attack?.bulletSpeed ?? 2,
         turretBulletSpriteId: def.attack?.bulletSpriteId || '',
       } : {}),
+    },
+  };
+}
+
+/**
+ * Builds a placed MSX2 bitmap boss entity from a library `msx2boss` asset
+ * (snapshot at placement). The generator reads the boss definition parameters
+ * and creates an entity with the bitmap_boss preset structure. `x`/`y` are tile coords.
+ */
+export function buildMsx2BossEntityFromAsset(
+  asset: ProjectAsset,
+  x: number,
+  y: number,
+): Msx2Screen4EntityInstance {
+  const def = (asset.data || {}) as any; // Msx2BossDefinition
+  return {
+    id: `msx2_boss_${Date.now()}`,
+    name: def.name || asset.name || 'Boss',
+    kind: 'boss',
+    position: { x, y },
+    components: {
+      msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
+      msx2_movement: { mode: def.bossMovement || 'patrolX', direction: 1, boundsUnit: 'px' },
+      msx2_collision: { damage: def.bossDamage ?? 1 },
+      msx2_health: {},
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'bitmapBoss',
+      movement: def.bossMovement || 'patrolX',
+      direction: 1,
+      // --- body ---
+      bossStampAssetId: def.bossStampAssetId || '',
+      bossAtlasEntryId: def.bossAtlasEntryId || '',
+      bossFrames: Math.max(1, Math.min(4, Math.floor(Number(def.bossFrames) || 1))),
+      bossAnimDelay: Math.max(1, Math.floor(Number(def.bossAnimDelay) || 12)),
+      bossHp: Math.max(1, Math.floor(Number(def.bossHp) || 8)),
+      bossDamage: Math.max(1, Math.floor(Number(def.bossDamage) || 1)),
+      bossInterval: Math.max(1, Math.floor(Number(def.bossInterval) || 3)),
+      // --- movement ---
+      bossMovement: def.bossMovement || '',
+      bossSpeed: Math.max(1, Math.min(2, Math.floor(Number(def.bossSpeed) || 2))),
+      bossRangePx: Math.max(0, Math.floor(Number(def.bossRangePx) || 0)),
+      // --- chain barrier ---
+      bossBarrierTileId: def.bossBarrierTileId || '',
+      // --- projectiles ---
+      bossProjectileKind: def.bossProjectileKind || 'sprite',
+      bossProjectileSpriteId: def.bossProjectileSpriteId || '',
+      bossProjectileTileId: def.bossProjectileTileId || '',
+      bossShootInterval: Math.max(1, Math.floor(Number(def.bossShootInterval) || 90)),
+      bossProjectileSpeed: Math.max(1, Math.floor(Number(def.bossProjectileSpeed) || 2)),
+      bossProjectileDamage: Math.max(1, Math.floor(Number(def.bossProjectileDamage) || 1)),
+      // --- attack phases ---
+      bossPhases: Array.isArray(def.bossPhases) ? def.bossPhases : [],
+      // --- damage zones ---
+      damageZones: Array.isArray(def.damageZones) ? def.damageZones : [],
+      // --- defeat actions ---
+      onDefeated: Array.isArray(def.onDefeated) ? def.onDefeated : [],
+      // Canonical link to the reusable definition (same spelling the boss
+      // fixtures and BOSS_SYSTEM_DESIGN.md use); resolveBossParams merges it.
+      bossId: asset.id,
     },
   };
 }

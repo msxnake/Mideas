@@ -1,6 +1,7 @@
 
 import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, SCCInstrument, PT3Ornament, TrackerChannelId, PT3PatternCellSource } from '../../types';
 import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_CHANNELS, SCC_CHANNELS, PSG_SCC_CHANNELS, PT3_NOTE_NAMES } from '../../constants';
+import { sourceEffectToNativeFields } from './trackerEffects';
 
 /**
  * Chip a tracker channel belongs to: PSG letters (A-C) vs SCC digits (1-5).
@@ -45,7 +46,33 @@ export const getSongChannels = (
  * each channel group only offers its own. Already-dual songs are returned
  * normalized the same way (safe to call on load).
  */
-export const toDualChipSong = (song: TrackerSongData): TrackerSongData => {
+export const toNativeTrackerSong = (song: TrackerSongData): TrackerSongData => ({
+  ...song,
+  playbackBackend: 'native',
+  externalPt3Data: undefined,
+  externalPt3HasHeader: undefined,
+  externalPt3PlayerId: undefined,
+  patterns: song.patterns.map(pattern => ({
+    ...pattern,
+    rows: pattern.rows.map((row, rowIndex) => {
+      const nextRow: TrackerRow = { ...row };
+      for (const channelId of PT3_CHANNELS) {
+        const cell = row[channelId] ?? createEmptyCell();
+        const sourceEffect = pattern.pt3SourceRows?.[rowIndex]?.[channelId]?.effects?.[0];
+        const nativeEffect = sourceEffectToNativeFields(sourceEffect);
+        nextRow[channelId] = {
+          ...cell,
+          effectCommand: cell.effectCommand ?? nativeEffect.effectCommand ?? null,
+          effectParams: cell.effectParams ?? nativeEffect.effectParams ?? null,
+        };
+      }
+      return nextRow;
+    }),
+  })),
+});
+
+export const toDualChipSong = (sourceSong: TrackerSongData): TrackerSongData => {
+  const song = toNativeTrackerSong(sourceSong);
   const legacyChip: 'PSG' | 'SCC' = song.soundChip === 'SCC' ? 'SCC' : 'PSG';
   return {
     ...song,
@@ -88,6 +115,8 @@ export const createEmptyCell = (): TrackerCell => ({
   instrument: null,
   ornament: null,
   volume: null,
+  effectCommand: null,
+  effectParams: null,
 });
 
 /**
@@ -129,6 +158,10 @@ export const CELL_WIDTH_INSTR = "w-7";
 export const CELL_WIDTH_ORN = "w-7";
 /** Tailwind CSS class for the width of the volume cell. */
 export const CELL_WIDTH_VOL = "w-7";
+/** Tailwind CSS class for the Vortex effect command cell. */
+export const CELL_WIDTH_EFFECT = "w-6";
+/** Tailwind CSS class for the raw Vortex effect parameter bytes. */
+export const CELL_WIDTH_EFFECT_PARAMS = "w-20";
 /** Tailwind CSS class for centering text in cells. */
 export const CELL_TEXT_ALIGN = "text-center";
 
@@ -157,6 +190,10 @@ export const formatCellForDisplay = (field: keyof TrackerCell, value: string | n
             return String(value).padStart(2, '0');
         case 'volume':
             return Number(value).toString(16).toUpperCase();
+        case 'effectCommand':
+            return Number(value).toString(16).toUpperCase();
+        case 'effectParams':
+            return String(value).toUpperCase();
         default:
             // This should not be reached if types are correct after removing effectCmd/Val
             const _exhaustiveCheck: never = field;
@@ -175,6 +212,8 @@ export const getCellPlaceholder = (field: keyof TrackerCell): string => {
         case 'instrument': return "00";
         case 'ornament': return "00";
         case 'volume': return "-";
+        case 'effectCommand': return ".";
+        case 'effectParams': return "..........";
         default: 
             // This should not be reached
             const _exhaustiveCheck: never = field;
@@ -189,7 +228,7 @@ export const getCellPlaceholder = (field: keyof TrackerCell): string => {
  * @returns A transformation function, or undefined if no transformation is needed.
  */
 export const getCellTransform = (field: keyof TrackerCell): ((input:string)=>string) | undefined => {
-    if (field === 'note' || field === 'volume') {
+    if (field === 'note' || field === 'volume' || field === 'effectParams') {
         return (input: string) => input.toUpperCase();
     }
     return undefined;
@@ -206,6 +245,8 @@ export const getCellAllowedCharsPattern = (field: keyof TrackerCell): RegExp | u
         case 'instrument': return /^[0-9]$/;
         case 'ornament': return /^[0-9]$/;
         case 'volume': return /^[0-9A-F]$/i;
+        case 'effectCommand': return /^[0-9A-F]$/i;
+        case 'effectParams': return /^[0-9A-F]$/i;
         default: 
             const _exhaustiveCheck: never = field;
             return undefined;
@@ -223,6 +264,8 @@ export const getCellMaxLength = (field: keyof TrackerCell): number => {
         case 'instrument': return 2;
         case 'ornament': return 2;
         case 'volume': return 1;
+        case 'effectCommand': return 1;
+        case 'effectParams': return 10;
         default: 
             const _exhaustiveCheck: never = field;
             return 10;
@@ -283,8 +326,10 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
         const cleanCell = (cell?: Partial<TrackerCell>): TrackerCell => ({
             note: cell?.note ?? null,
             instrument: cell?.instrument ?? null,
-            ornament: cell?.ornament ?? null,
-            volume: cell?.volume ?? null,
+              ornament: cell?.ornament ?? null,
+              volume: cell?.volume ?? null,
+              effectCommand: cell?.effectCommand ?? null,
+              effectParams: cell?.effectParams ?? null,
         });
         rows.push({
           A: cleanCell(existingRow?.A),

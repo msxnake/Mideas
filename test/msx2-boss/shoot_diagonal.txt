@@ -1,0 +1,3 @@
+velocity at spawn: dx=1 dy=1 dxf=106 dyf=106
+travelled dx=106 dy=106 over 1053 frames
+burst idx=0 left=0 cd=255

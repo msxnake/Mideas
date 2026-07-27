@@ -2,12 +2,23 @@ import { getFrequencyForNoteString } from './noteFrequencies';
 import { PT3Instrument, PT3Ornament, TrackerSongData } from '../../types';
 import type { AyFrameOutput } from './ayFrameReducer';
 import {
+  MIDEAS_AY_NOTE_PERIODS,
   createPT3PreviewDriverState,
   stepPT3PreviewFrame,
   type PT3PreviewChannelCommand,
   type PT3PreviewDriverState,
   type PT3PreviewStepResult,
 } from './pt3PreviewDriver';
+import {
+  applyNativeTrackerChannelEffect,
+  applyNativeTrackerGlobalEffect,
+  createNativeTrackerChannelEffectState,
+  createNativeTrackerGlobalEffectState,
+  stepNativeTrackerChannelEffect,
+  stepNativeTrackerGlobalEffect,
+  type NativeTrackerChannelEffectState,
+  type NativeTrackerGlobalEffectState,
+} from './trackerEffects';
 
 const AY_CLOCK_FREQUENCY = 3579545 / 2;
 const DEFAULT_TRACKER_TICK_MS = 20;
@@ -88,6 +99,12 @@ export class AYRegisterSynthesizer {
   private pt3SongId: string | null = null;
   private pt3FrameCaptureHook: ((frame: AyFrameOutput, index: number) => void) | null = null;
   private pt3FrameIndex = 0;
+  private nativeChannelEffects: NativeTrackerChannelEffectState[] = [
+    createNativeTrackerChannelEffectState(),
+    createNativeTrackerChannelEffectState(),
+    createNativeTrackerChannelEffectState(),
+  ];
+  private nativeGlobalEffects: NativeTrackerGlobalEffectState = createNativeTrackerGlobalEffectState();
 
   private toneCounters = [8, 8, 8];
   private toneOutputs = [0, 0, 0];
@@ -179,7 +196,9 @@ export class AYRegisterSynthesizer {
     noteStringFromCell: string | null,
     instrumentIdFromCell: number | null,
     ornamentIdFromCell: number | null,
-    volumeFromCell: number | null
+    volumeFromCell: number | null,
+    effectCommand: number | null = null,
+    effectParams: string | null = null,
   ): Promise<void> {
     if (!await this.ensureAudioContext()) return;
 
@@ -187,6 +206,25 @@ export class AYRegisterSynthesizer {
     const isCut = noteStringFromCell === '===';
     const isKeep = noteStringFromCell === '---' || noteStringFromCell === null;
     const isNewNote = !isCut && !isKeep;
+    const targetPeriod = isNewNote ? this.getNotePeriod(noteStringFromCell) : (state.basePeriod ?? state.currentPeriod);
+    const previousEffectPeriod = this.nativeChannelEffects[channel].currentPeriod ?? state.currentPeriod ?? state.basePeriod;
+    const effectApplication = applyNativeTrackerChannelEffect(
+      this.nativeChannelEffects[channel],
+      effectCommand,
+      effectParams,
+      {
+        isNewNote,
+        previousPeriod: previousEffectPeriod,
+        targetPeriod,
+      },
+    );
+    this.nativeChannelEffects[channel] = effectApplication.state;
+    if (isCut) this.nativeChannelEffects[channel] = createNativeTrackerChannelEffectState();
+    this.nativeGlobalEffects = applyNativeTrackerGlobalEffect(
+      this.nativeGlobalEffects,
+      effectCommand,
+      effectParams,
+    );
 
     const explicitInstrument = instrumentIdFromCell !== null && instrumentIdFromCell > 0 && this.songDataRef
       ? this.songDataRef.instruments.find(instrument => instrument.id === instrumentIdFromCell) as PT3Instrument | undefined
@@ -202,13 +240,19 @@ export class AYRegisterSynthesizer {
 
     if (usesPT3Sample || this.pt3ChannelModes[channel]) {
       if (usesPT3Sample) {
-        if (!this.pt3ChannelModes[channel]) this.resetChannel(channel);
+        if (!this.pt3ChannelModes[channel]) {
+          const channelEffect = this.nativeChannelEffects[channel];
+          this.resetChannel(channel);
+          this.nativeChannelEffects[channel] = channelEffect;
+        }
         this.pt3ChannelModes[channel] = true;
         this.queuePT3Command(channel, {
           note: noteStringFromCell,
           instrumentId: instrumentIdFromCell,
           ornamentId: ornamentIdFromCell,
           volume: volumeFromCell,
+          samplePosition: effectApplication.samplePosition,
+          ornamentPosition: effectApplication.ornamentPosition,
         });
         return;
       }
@@ -248,11 +292,21 @@ export class AYRegisterSynthesizer {
     }
 
     if (isNewNote) {
-      state.basePeriod = this.getNotePeriod(noteStringFromCell);
-      state.currentPeriod = state.basePeriod;
+      state.basePeriod = targetPeriod;
+      state.currentPeriod = effectApplication.state.currentPeriod ?? state.basePeriod;
       state.keyOn = state.basePeriod !== null && state.instrument !== null;
       this.resetChannelProgress(state);
       state.envelopeRestartPending = true;
+    }
+
+    if (effectApplication.samplePosition !== null) {
+      const position = Math.max(0, effectApplication.samplePosition);
+      state.volumeStep = position;
+      state.toneStep = position;
+      state.noiseStep = position;
+    }
+    if (effectApplication.ornamentPosition !== null) {
+      state.ornamentStep = Math.max(0, effectApplication.ornamentPosition);
     }
 
     this.writeChannelRegisters(channel);
@@ -393,11 +447,13 @@ export class AYRegisterSynthesizer {
   }
 
   private advanceTrackerFrame(): void {
+    this.nativeGlobalEffects = stepNativeTrackerGlobalEffect(this.nativeGlobalEffects);
     for (let channel = 0; channel < CHANNELS; channel++) {
+      this.nativeChannelEffects[channel] = stepNativeTrackerChannelEffect(this.nativeChannelEffects[channel]);
       if (this.pt3ChannelModes[channel]) continue;
       const state = this.channelStates[channel];
       if (!state.keyOn || !state.instrument) continue;
-      this.advanceChannelState(state);
+      this.advanceChannelState(state, channel);
       this.writeChannelRegisters(channel as 0 | 1 | 2);
     }
     this.flushPT3Frame();
@@ -430,7 +486,10 @@ export class AYRegisterSynthesizer {
       instruments: (this.songDataRef?.instruments ?? []).filter((instrument): instrument is PT3Instrument => 'id' in instrument),
       ornaments: this.songDataRef?.ornaments ?? [],
       noiseBase: this.songDataRef?.ayNoisePeriod ?? 16,
-      envelopePeriodBase: this.songDataRef?.ayHardwareEnvelopePeriod ?? 100,
+      envelopePeriodBase: Math.max(1, Math.min(
+        0xffff,
+        (this.songDataRef?.ayHardwareEnvelopePeriod ?? 100) + this.nativeGlobalEffects.envelopeSlideOffset,
+      )),
       envelopeShape: this.registers[13] & 0x0f,
     }, {
       channels: this.pt3PendingCommands,
@@ -453,10 +512,26 @@ export class AYRegisterSynthesizer {
       this.registers[channel * 2 + 1] = frame.registers[channel * 2 + 1];
       this.registers[8 + channel] = frame.registers[8 + channel];
 
+      const effectPeriod = this.nativeChannelEffects[channel].currentPeriod;
+      const baseNote = this.pt3DriverState.channels[channel].baseNote;
+      if (effectPeriod !== null && baseNote !== null) {
+        const framePeriod = frame.registers[channel * 2] | ((frame.registers[channel * 2 + 1] & 0x0f) << 8);
+        const effectDelta = effectPeriod - MIDEAS_AY_NOTE_PERIODS[baseNote];
+        const adjustedPeriod = Math.max(1, Math.min(0x0fff, framePeriod + effectDelta));
+        this.registers[channel * 2] = adjustedPeriod & 0xff;
+        this.registers[channel * 2 + 1] = (adjustedPeriod >> 8) & 0x0f;
+      }
+      if (!this.nativeChannelEffects[channel].gateEnabled) {
+        this.registers[8 + channel] = 0;
+      }
+
       const toneMask = 1 << channel;
       const noiseMask = 1 << (channel + 3);
       this.registers[7] = (this.registers[7] & ~toneMask) | (frame.registers[7] & toneMask);
       this.registers[7] = (this.registers[7] & ~noiseMask) | (frame.registers[7] & noiseMask);
+      if (!this.nativeChannelEffects[channel].gateEnabled) {
+        this.registers[7] |= toneMask | noiseMask;
+      }
     }
 
     // R6 and R11-R13 are chip-global. Whenever a PT3 sample channel is active,
@@ -474,6 +549,12 @@ export class AYRegisterSynthesizer {
     this.pt3PendingCommands = [undefined, undefined, undefined];
     this.pt3FlushScheduled = false;
     this.pt3FrameIndex = 0;
+    this.nativeChannelEffects = [
+      createNativeTrackerChannelEffectState(),
+      createNativeTrackerChannelEffectState(),
+      createNativeTrackerChannelEffectState(),
+    ];
+    this.nativeGlobalEffects = createNativeTrackerGlobalEffectState(this.songDataRef?.speed ?? 6);
   }
 
   private restartTrackerFrameTimer(): void {
@@ -499,7 +580,7 @@ export class AYRegisterSynthesizer {
     return dt / (rc + dt);
   }
 
-  private advanceChannelState(state: ChannelState): void {
+  private advanceChannelState(state: ChannelState, channel: number): void {
     const instrument = state.instrument;
     if (!instrument) return;
 
@@ -517,8 +598,10 @@ export class AYRegisterSynthesizer {
       state.ornamentOffset = 0;
     }
 
-    if (state.basePeriod !== null) {
-      state.currentPeriod = this.getPeriodWithSemitoneOffset(state.basePeriod, state.toneOffset + state.ornamentOffset);
+    const effectPeriod = this.nativeChannelEffects[channel].currentPeriod;
+    const sourcePeriod = effectPeriod ?? state.basePeriod;
+    if (sourcePeriod !== null) {
+      state.currentPeriod = this.getPeriodWithSemitoneOffset(sourcePeriod, state.toneOffset + state.ornamentOffset);
     }
   }
 
@@ -530,8 +613,9 @@ export class AYRegisterSynthesizer {
     this.registers[channel * 2] = period & 0xff;
     this.registers[channel * 2 + 1] = (period >> 8) & 0x0f;
 
-    const useTone = state.keyOn && instrument ? (instrument.ayToneEnabled === undefined ? true : instrument.ayToneEnabled) : false;
-    const useNoise = state.keyOn && instrument ? !!instrument.ayNoiseEnabled : false;
+    const gateEnabled = this.nativeChannelEffects[channel].gateEnabled;
+    const useTone = gateEnabled && state.keyOn && instrument ? (instrument.ayToneEnabled === undefined ? true : instrument.ayToneEnabled) : false;
+    const useNoise = gateEnabled && state.keyOn && instrument ? !!instrument.ayNoiseEnabled : false;
 
     this.setMixerBit(channel, !useTone);
     this.setMixerBit(channel + 3, !useNoise);
@@ -601,7 +685,11 @@ export class AYRegisterSynthesizer {
     if (instrument.hardwareEnvelopeRatio !== undefined && state.currentPeriod !== null && instrument.hardwareEnvelopeRatio > 0) {
       return Math.max(1, Math.min(65535, Math.round(state.currentPeriod / (16 * instrument.hardwareEnvelopeRatio))));
     }
-    return Math.max(1, Math.min(65535, instrument.hardwareEnvelopePeriod ?? this.songDataRef?.ayHardwareEnvelopePeriod ?? 100));
+    return Math.max(1, Math.min(
+      65535,
+      (instrument.hardwareEnvelopePeriod ?? this.songDataRef?.ayHardwareEnvelopePeriod ?? 100)
+        + this.nativeGlobalEffects.envelopeSlideOffset,
+    ));
   }
 
   private nextEnvelopeStep(current: number, length: number, loopPosition?: number): number {
@@ -618,6 +706,7 @@ export class AYRegisterSynthesizer {
     this.registers[8 + channel] = 0;
     this.setMixerBit(channel, true);
     this.setMixerBit(channel + 3, true);
+    this.nativeChannelEffects[channel] = createNativeTrackerChannelEffectState();
   }
 
   private resetChannelProgress(state: ChannelState): void {

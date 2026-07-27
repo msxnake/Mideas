@@ -1,0 +1,2 @@
+hp before EYE shots = 3
+hp after EYE shots = 1 (weak point x2: expect < 3)

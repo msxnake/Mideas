@@ -1903,6 +1903,49 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress += 3;
   }
 
+  const trackerFxScalarDefs = [
+    ['music_fx_speed_override', 'Pending Vortex speed command for the decoded row (0=track default)'],
+    ['music_fx_env_delay', 'Envelope slide tick delay'],
+    ['music_fx_env_counter', 'Envelope slide tick countdown'],
+    ['music_fx_env_step_lo', 'Envelope slide signed step low byte'],
+    ['music_fx_env_step_hi', 'Envelope slide signed step high byte'],
+    ['music_fx_env_offset_lo', 'Accumulated envelope slide offset low byte'],
+    ['music_fx_env_offset_hi', 'Accumulated envelope slide offset high byte'],
+    ['music_fx_channel_work', 'Scratch native FX channel index'],
+    ['music_fx_new_note_work', 'Scratch nonzero when current row starts a note'],
+    ['music_fx_command_work', 'Scratch current native Vortex command'],
+    ['music_fx_param_ptr_l', 'Scratch native FX parameter pointer low byte'],
+    ['music_fx_param_ptr_h', 'Scratch native FX parameter pointer high byte'],
+  ] as const;
+  for (const [label, comment] of trackerFxScalarDefs) {
+    code += `${label} EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${comment}\n`;
+    currentAddress++;
+  }
+
+  const trackerFxArrayDefs = [
+    ['music_fx_tone_mode_base', 'music_fx_ch', 'tone_mode', '0=none, 1=glissando, 2=portamento'],
+    ['music_fx_tone_delay_base', 'music_fx_ch', 'tone_delay', 'Tone slide tick delay'],
+    ['music_fx_tone_counter_base', 'music_fx_ch', 'tone_counter', 'Tone slide tick countdown'],
+    ['music_fx_tone_step_lo_base', 'music_fx_ch', 'tone_step_lo', 'Tone slide step low byte'],
+    ['music_fx_tone_step_hi_base', 'music_fx_ch', 'tone_step_hi', 'Tone slide step high byte'],
+    ['music_fx_period_lo_base', 'music_fx_ch', 'period_lo', 'Current native FX base period low byte'],
+    ['music_fx_period_hi_base', 'music_fx_ch', 'period_hi', 'Current native FX base period high byte'],
+    ['music_fx_target_lo_base', 'music_fx_ch', 'target_lo', 'Portamento target period low byte'],
+    ['music_fx_target_hi_base', 'music_fx_ch', 'target_hi', 'Portamento target period high byte'],
+    ['music_fx_gate_enabled_base', 'music_fx_ch', 'gate_enabled', 'Vibrato gate: 1=audible, 0=silent'],
+    ['music_fx_gate_counter_base', 'music_fx_ch', 'gate_counter', 'Vibrato gate countdown'],
+    ['music_fx_gate_on_base', 'music_fx_ch', 'gate_on', 'Vibrato audible duration'],
+    ['music_fx_gate_off_base', 'music_fx_ch', 'gate_off', 'Vibrato silent duration'],
+  ] as const;
+  for (const [base, prefix, suffix, comment] of trackerFxArrayDefs) {
+    const baseAddress = currentAddress;
+    code += `${base} EQU #${baseAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${comment} (3 bytes)\n`;
+    musicChannelNames.forEach((channelName, index) => {
+      code += `${prefix}_${channelName}_${suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
+    });
+    currentAddress += 3;
+  }
+
   if (collectSccTracks(analysis).length > 0) {
     const sccRam = buildSccMusicRam(currentAddress);
     code += `\n${sccRam.asm}\n`;

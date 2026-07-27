@@ -1,0 +1,1 @@
+boss active=1 hp=5 (expect hp=5 from hpOverride) barrier=128

@@ -3,8 +3,8 @@
  * MSX2 boss Room Lock (chain barrier) contract + Z80 validity checks.
  *
  * Part A pins the chain barrier that actually ships: the perimeter walk that
- * seals only EMPTY cells, its collision marker, and the two call sites that
- * raise it on room load and drop it on defeat.
+ * seals only EMPTY cells, its collision marker, and the lifecycle that raises
+ * it after the mandatory auto-walk prelude and drops it on defeat.
  *
  * Part B scans every ASM line the boss generator emits for instructions the
  * Z80 does not have and for literals Glass cannot parse. This exists because a
@@ -21,6 +21,7 @@ const repoRoot = resolve(here, '..');
 const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
 const bossGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapBossGenerator.ts');
+const roomGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts');
 const bossEditor = read('components', 'editors', 'Msx2BossEditor.tsx');
 const atlasEntries = read('utils', 'msx2AtlasEntries.ts');
 
@@ -40,8 +41,9 @@ const contractChecks = [
       bossGen.includes('bitmap_boss_barrier_cell:'),
   ],
   [
-    'Barrier is raised on room load and dropped on boss defeat',
-    bossGen.includes('call bitmap_boss_barrier_apply') &&
+    'Barrier is raised after the intro prelude and dropped on boss defeat',
+    bossGen.includes('INTRO_OP_CLOSE_BARRIER') &&
+      bossGen.includes('bitmap_boss_intro_start_barrier:') &&
       bossGen.includes('call bitmap_boss_barrier_remove'),
   ],
   [
@@ -80,6 +82,150 @@ const contractChecks = [
     'Barrier RAM block was resized for the two new bytes',
     bossGen.includes('barrierRamBase + (hasBarrier ? 7 : 0)') &&
       !bossGen.includes('(hasBarrier ? 5 : 0)'),
+  ],
+  [
+    'Ordered Room Lock steps compile to per-room bytecode',
+    bossGen.includes('function buildIntroStream') &&
+      bossGen.includes('introStreams: perRoom.map(entry => entry.intro)') &&
+      bossGen.includes('bitmap_boss_intro_ptr_table'),
+  ],
+  [
+    'Every live boss intro starts with the mandatory auto-walk flag',
+    bossGen.includes('boss_intro_auto_move EQU') &&
+      bossGen.includes('ld (boss_intro_auto_move), a') &&
+      bossGen.includes('ld a, 5') &&
+      bossGen.includes('ld (boss_intro_state), a') &&
+      bossGen.includes('const hasIntro = data.roomTables.some'),
+  ],
+  [
+    'Legacy bosses without a sequence defer their barrier until after auto-walk',
+    bossGen.includes("else if (String(params?.bossBarrierTileId || '').trim())") &&
+      bossGen.includes("steps = [{ kind: 'closeBarrier', animated: false, linesPerFrame: 0xff"),
+  ],
+  [
+    'Auto-walk target centres the configured player hitbox',
+    bossGen.includes('Math.round(128 - (hit.x + hit.w / 2))') &&
+      bossGen.includes('introAutoMoveTargetX'),
+  ],
+  [
+    'Auto-walk uses normal movement/gravity and skips manual skills',
+    bossGen.includes('call update_player_movement') &&
+      bossGen.includes('jp .skip_player_movement') &&
+      roomGen.includes('inputGateAsm: `${bossSystem.autoMoveInputAsm}${inputHooks}`') &&
+      roomGen.includes('.apply_gravity:'),
+  ],
+  [
+    'Auto-walk replaces keyboard input with horizontal-only left/right',
+    bossGen.includes('ld c, #10') &&
+      bossGen.includes('ld c, #80') &&
+      bossGen.includes('ld c, a                    ; no horizontal/jump input on the arrival frame') &&
+      bossGen.includes('call bitmap_try_move_x') &&
+      !bossGen.includes('ld (player_x), a           ; final one-pixel correction'),
+  ],
+  [
+    'Auto-walk RAM includes its explicit flag byte',
+    bossGen.includes('const INTRO_RAM_BYTES = 6'),
+  ],
+  [
+    'Intro runtime has dispatch/wait/dialogue/barrier states and no seen flag',
+    bossGen.includes('boss_intro_state EQU') &&
+      bossGen.includes('bitmap_boss_intro_frame:') &&
+      bossGen.includes('bitmap_boss_intro_dialogue_wait:') &&
+      bossGen.includes('bitmap_boss_intro_barrier_frame:') &&
+      !bossGen.includes('boss_intro_seen'),
+  ],
+  [
+    'Barrier animation is a pixel raster that advances from Y=0 to Y=191',
+    bossGen.includes('boss_intro_raster_y EQU') &&
+      bossGen.includes('bitmap_boss_barrier_raster_line:') &&
+      bossGen.includes('bitmap_boss_barrier_scanline_cell:') &&
+      bossGen.includes('cp 192') &&
+      bossGen.includes('ld hl, 1') &&
+      bossGen.includes('ld (boss_cmd_buf + 10), hl ; NY = 1') &&
+      !bossGen.includes('bitmap_boss_barrier_cell_order:'),
+  ],
+  [
+    'Raster keeps the barrier on the perimeter instead of filling the room',
+    /bitmap_boss_barrier_raster_line:[\s\S]{0,220}?or a[\s\S]{0,80}?jp z, bitmap_boss_barrier_scanline_full[\s\S]{0,80}?cp 11[\s\S]{0,80}?jp z, bitmap_boss_barrier_scanline_full/.test(bossGen) &&
+      /ld b, 0[\s\S]{0,100}?call bitmap_boss_barrier_scanline_cell[\s\S]{0,100}?ld b, 15[\s\S]{0,80}?jp bitmap_boss_barrier_scanline_cell/.test(bossGen),
+  ],
+  [
+    'Raster commits collision only when the last line of a cell appears',
+    /bitmap_boss_barrier_scanline_cell:[\s\S]{0,1400}?and #0F[\s\S]{0,80}?cp 15[\s\S]{0,120}?ld a, #80[\s\S]{0,80}?ld \(hl\), a/.test(bossGen),
+  ],
+  [
+    'Authored boss projectile sprites export every valid animation frame and delay',
+    roomGen.includes('getBitmapRoomSpriteFrameIndices(sprite).map(frameIndex =>') &&
+      roomGen.includes('buildHardwareSpriteLayersForFrame(') &&
+      roomGen.includes('delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite)'),
+  ],
+  [
+    'Boss projectile animation reserves one hardware pattern group per frame',
+    roomGen.includes('const bossBulletPatternGroups =') &&
+      roomGen.includes('bossBulletSprite?.frames.length || 1') &&
+      roomGen.includes('allocatePatternRange(bossBulletPatternGroups, roomHasBoss)') &&
+      roomGen.includes('count: bossBulletPatternGroups'),
+  ],
+  [
+    'Only animated sprite bullets pay the two-byte per-slot RAM cost',
+    bossGen.includes('const BOSS_SBUL_SLOT_BYTES = hasAnimatedSpriteBullet ? 11 : 9') &&
+      bossGen.includes('+9 animation frame, +10 animation tick'),
+  ],
+  [
+    'Each live boss sprite bullet advances and wraps its own frame timer',
+    bossGen.includes('ld a, (iy+10)') &&
+      bossGen.includes('ld (iy+10), a') &&
+      bossGen.includes('ld a, (iy+9)') &&
+      bossGen.includes('ld (iy+9), a') &&
+      bossGen.includes('.sb_anim_store_frame:'),
+  ],
+  [
+    'Boss bullet SAT selects frame patterns in four-pattern increments',
+    bossGen.includes(`ld a, (iy+9)
+    add a, a
+    add a, a                  ; one 16x16 frame = four pattern numbers`) &&
+      bossGen.includes('add a, ${asmByte(sprites ? sprites.patternNumber : 0)}'),
+  ],
+  [
+    'Animated boss bullets refresh their authored line colours per frame and slot',
+    bossGen.includes('bitmap_boss_sbul_frame_colors:') &&
+      bossGen.includes('frame * 16-byte line-colour table') &&
+      bossGen.includes('.sb_color_slot_${i}_done:'),
+  ],
+  [
+    'Boss bullet load uploads all frames and both spawn paths reset animation',
+    bossGen.includes('ld bc, ${32 * spriteFrameCount}') &&
+      (bossGen.match(/ld \(iy\+9\), a/g) || []).length >= 3 &&
+      (bossGen.match(/ld \(iy\+10\), a/g) || []).length >= 3,
+  ],
+  [
+    'Boss editor authors raster speed and explains the descending scan',
+    bossEditor.includes('Raster scanlines/frame') &&
+      bossEditor.includes('linesPerFrame: 4') &&
+      bossEditor.includes('A horizontal pixel scan descends from Y=0 to Y=191') &&
+      !bossEditor.includes('Cells per frame'),
+  ],
+  [
+    'Boss intro opens the shared dialogue runtime',
+    bossGen.includes('bitmap_boss_intro_start_dialogue:') &&
+      bossGen.includes('call bitmap_dlg_open') &&
+      roomGen.includes('boss intro dialogue'),
+  ],
+  [
+    'Dialogue advances before the non-dialogue intro player-freeze gate',
+    roomGen.includes('${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}'),
+  ],
+  [
+    'Boot places the player before arming the boss intro',
+    /ld \(player_x\), a[\s\S]{0,1800}?\$\{bossSystem\.loadCallAsm\}/.test(roomGen),
+  ],
+  [
+    'Dialogue-close repaint restores the live boss/chain and preserves IX',
+    roomGen.includes('call bitmap_boss_redraw_after_dialogue') &&
+      /bitmap_boss_redraw_after_dialogue:[\s\S]{0,200}?push ix[\s\S]{0,300}?pop ix/.test(bossGen) &&
+      bossGen.includes('bitmap_boss_barrier_redraw:') &&
+      bossGen.includes('    cp 2\n    jr z, .cell_redraw') &&
+      bossGen.includes('.cell_redraw:'),
   ],
 ];
 

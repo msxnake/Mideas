@@ -1,0 +1,6 @@
+t13 active=1 x=64 y=32 hp=3
+t14 active=1 x=64 y=70 hp=3
+t15 active=1 x=64 y=52 hp=3
+t16 active=1 x=64 y=50 hp=3
+t18 active=1 x=64 y=32 hp=3
+t20 active=1 x=64 y=52 hp=3

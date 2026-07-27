@@ -1,0 +1,3 @@
+t13 active=1 x=107 y=32 hp=3 player_hp=4 screen=1
+t15 active=1 x=44 y=32 hp=3 player_hp=4 screen=1
+t17 active=1 x=157 y=32 hp=3 player_hp=4 screen=1

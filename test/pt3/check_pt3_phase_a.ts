@@ -293,6 +293,36 @@ assert(
   instrumentChanged[0].rows[1].A.instrument === 7,
   'Selecting a different PT3 instrument must write the new INS on the note row.',
 );
+const automaticSelectionMustNotReplace = applyPT3SourceNoteEntry({
+  patterns: instrumentSeeded,
+  patternIndex: 0,
+  order: [0],
+  orderIndex: 0,
+  rowIndex: 1,
+  channel: 'A',
+  note: 'E-2',
+  activeInstrumentId: 7,
+  activeInstrumentWasExplicitlySelected: false,
+});
+assert(
+  automaticSelectionMustNotReplace[0].rows[1].A.instrument === null,
+  'An automatically highlighted instrument must not replace an inherited channel instrument.',
+);
+const automaticSelectionMustSeedEmptyChannel = applyPT3SourceNoteEntry({
+  patterns: instrumentSeedBase,
+  patternIndex: 0,
+  order: [0],
+  orderIndex: 0,
+  rowIndex: 0,
+  channel: 'A',
+  note: 'D-2',
+  activeInstrumentId: 5,
+  activeInstrumentWasExplicitlySelected: false,
+});
+assert(
+  automaticSelectionMustSeedEmptyChannel[0].rows[0].A.instrument === 5,
+  'An empty channel must still receive the available active instrument.',
+);
 const previousOrderPattern = {
   ...instrumentSeeded[0],
   id: 'previous-order-pattern',

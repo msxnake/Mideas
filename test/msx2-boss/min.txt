@@ -1,0 +1,2 @@
+script loaded
+t2 reached

@@ -573,6 +573,14 @@ ha de ser fix. `bossProjectileSpriteId` referencia un **sprite del projecte** (m
 resolver que les bales del player); si no se n'indica cap, s'usa el patró integrat amb el
 blob 8×8 centrat. Per a la via bitmap, `bossProjectileTileId` tria l'entrada d'atlas.
 
+**Animació de la bala sprite (2026-07-27):** si l'asset referenciat té més d'un frame
+vàlid, el generador empaqueta tots els frames 16×16 consecutivament i reserva un pattern
+group per frame. Cada bala viva conserva el seu propi índex de frame i comptador; el SAT
+selecciona `patternBase + frame * 4`, i el retard es deriva de `animationSpeedMs` de
+l'asset. Els projectils integrats o d'un sol frame conserven el pool original de 9 bytes;
+només els animats afegeixen `frame` i `tick` al slot. Els colors de línia provenen del
+frame actiu i es refresquen per slot abans d'actualitzar el patró del SAT.
+
 **Estat:** **les dues vies implementades i verificades a OpenMSX** (2026-07-24).
 La tria (`bossProjectileKind` + sprite/tile) l'exposarà el Boss Editor (Fase F).
 
@@ -826,15 +834,49 @@ boss, o sigui a les mateixes línies, i a partir del novè sprite desapareixen f
 separen en vertical. La solució és la pròpia ràfaga: escalonar la sortida uns frames. Els
 dos patrons del dibuix es necessiten mútuament.
 
-**Pendent per completar els patrons dibuixats:**
-1. Taula de 16 vectors unitaris en 8.8 (`k * 22,5°`) i spawn que la faci servir, amb la
-   velocitat aplicada per suma repetida (speed 1..4) en comptes de multiplicar.
-2. Patró `radial`: N bales repartides pel cercle (offsets `k * 16/N`).
-3. Ràfaga: `burstCount` + `burstInterval` (M onades cada K frames), que també escalona el
-   radial.
-4. Pool creixent fins als slots de SAT realment lliures en comptes del cap de 3.
-5. La mira pot quedar-se a 8 direccions (signes, barata) i mapejar-se als índexs parells
-   del cercle de 16; els ventalls i el radial sí que fan servir els 16.
+**Pendent per completar els patrons dibuixats:** punts 1, 2, 3 i 5 → FETS a l'Increment 6.
+Queda el 4 (pool creixent fins als slots de SAT realment lliures en comptes del cap de 3).
+
+#### Increment 6 — anell de 16, radial i ràfaga — FET i verificat (2026-07-25)
+
+Completa els dos patrons que va dibuixar Jordi. El pas 8.8 de l'Increment 5 era el format;
+això és el que hi circula per dins.
+
+- **Anell de 16 direccions** (`k * 22,5°`) en una taula de vectors unitaris **8.8**
+  (`bitmap_boss_dir16_table`, 16 × 4 bytes: dx word, dy word, 1.0 = `#0100`). La velocitat
+  s'aplica per **suma repetida** (speed 1..4), que surt més barat que qualsevol multiply
+  i no gasta taula.
+  > Efecte lateral volgut: els vectors ara estan **normalitzats**. Amb la taula antiga de
+  > bytes sencers una diagonal viatjava √2 vegades més ràpid que una cardinal.
+- **La mira es queda a 8 direccions** i es mapeja als **índexs parells** de l'anell: saber
+  en quin dels 8 sectors és el jugador només demana el signe de cada eix (taula de 9
+  bytes), i els índexs senars són els que fan que un ventall o un cercle es vegin rodons.
+- **Record de patró reescrit**, mateixos 8 bytes:
+  `[pattern, count, dir, speed, start, stride, burstCount, burstInterval]`.
+  `start`/`stride` són passos d'anell **amb signe**, precalculats, i això fa que un ventall
+  i un cercle sencer siguin **el mateix bucle**: `dir+start`, `+stride`, `+stride`… El
+  ventall centrat ja no està limitat a 3 bales com quan eren offsets literals.
+  - `spread`: `stride = spreadStep` (2 per defecte = els 45° d'abans), `start` = mig ventall enrere.
+  - `radial`: `stride = round(16/N)`, `start = 0`.
+- **Ràfaga**: `burstCount` onades cada `burstInterval` frames. RAM de la secció de tir
+  7 → 10 bytes (`boss_burst_idx/left/cd`); `bitmap_boss_burst_tick` corre cada frame **fora
+  del bucle del pool**, perquè disparar una onada reescriu IY. `bitmap_boss_sbul_load`
+  neteja `boss_burst_idx`, així una ràfaga deguda no sobreviu al boss que la devia.
+
+> **Bug arreglat de camí** (venia del commit del pool 8.8): els dos bucles que buiden el
+> pool (`bitmap_boss_sbul_load` i `bitmap_boss_kill`) encara avançaven **de 5 en 5** amb
+> l'slot ja a 9 bytes. Només es desactivava l'slot 0; els altres quedaven "actius" amb
+> dades velles i es corrompien fraccions. Ara fan servir `BOSS_SBUL_SLOT_BYTES`.
+
+> Verificat OpenMSX (`-romtype konami`), tres ROMs des de
+> `scripts/build_msx2_boss_radial_burst_smoke.mjs`:
+> - `--diagonal` (down-right, speed 2) → `dx=1 dxf=106 dy=1 dyf=106`, és a dir **1,414
+>   px/frame** per eix = 2·sin45°. La taula antiga donava un `2,2` que era fals.
+> - `--linear` (avall, speed 2) → `dx=0 dy=2` sense fracció: els eixos purs segueixen exactes.
+> - radial de 4 amb ràfaga de 3 → velocitats **a 90°** l'una de l'altra (`1.106,1.106` i
+>   `-2.150,1.106`, que és −1,414/+1,414), ràfaga viva 348 frames amb `left` 2→1→fi.
+>   Només 2 bales alhora **perquè el pool d'aquell projecte en té 2**, i el generador ho
+>   avisa a build suggerint precisament partir la volea en ràfega.
 
 **Pendent de la Fase G:** segments `bezier` amb punt de control, RLE del stream,
 `pingpong`, i el compilat per a onades d'enemics (el mateix asset de tir hi encaixa).
@@ -966,3 +1008,19 @@ de segment dins dels paths, que és on l'usuari el vol de veritat.
 verificada; C prepara la reutilització; D i E són el "cor" del combat de boss; F és
 l'ergonomia d'autoria. Cada fase: compila amb `glass.jar`, verifica a OpenMSX, i deixa la
 ROM sense boss byte-idèntica.
+
+### Intro Sequence — automoviment i segellat raster (2026-07-27)
+
+Cada entrada a una sala amb boss viu reinicia la seqüència, sense flag persistent:
+
+`entrada → caminar automàticament al centre X → Room Lock → combat`
+
+- L'automoviment força només esquerra/dreta; reutilitza la física normal, de manera que
+  la gravetat i les col·lisions continuen actives.
+- `closeBarrier(animated=true)` ja no recorre cel·les des de les cantonades. Revela el
+  tile de barrera amb un **raster de píxel horitzontal** de `Y=0` a `Y=191`.
+- `linesPerFrame` controla la velocitat (1..16, per defecte 4). El camp antic
+  `cellsPerFrame` es llegeix com a àlies compatible.
+- El raster només visita cel·les buides del perímetre. No omple l'interior de la sala.
+- La marca de col·lisió `#80` s'activa quan apareix la línia 16 de cada cel·la, no abans.
+- `animated=false` conserva el tancament immediat en un sol pas.

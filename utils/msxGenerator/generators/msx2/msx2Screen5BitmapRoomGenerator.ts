@@ -8320,10 +8320,10 @@ function wrapBitmapDialogueText(text: string, maxCols: number, maxRows: number):
 }
 
 /**
- * Collects every dialogue reachable from an 'npc' entity in the world's rooms
- * and precomputes ROM records, glyph strips, portrait frames and the packed
- * VRAM blob layout. Returns null when no room has a talking NPC (the ROM stays
- * byte-identical to exports without dialogues).
+ * Collects every dialogue reachable from an NPC, boss defeat action or boss
+ * Room Lock intro and precomputes ROM records, glyph strips, portrait frames
+ * and the packed VRAM blob layout. Returns null when no runtime path can open a
+ * dialogue (the ROM stays byte-identical to exports without dialogues).
  */
 function collectBitmapDialogueData(
   analysis: ProjectAnalysis,
@@ -8380,6 +8380,34 @@ function collectBitmapDialogueData(
         const assetId = String(action.dialogueAssetId || action.target || '').trim();
         const dialogue = assetId ? dialogueById.get(assetId) : undefined;
         if (!dialogue || !Array.isArray(dialogue.lines) || dialogue.lines.length === 0) continue;
+        if (dialogueIndexById.has(assetId)) continue;
+        dialogueIndexById.set(assetId, usedDialogues.length);
+        usedDialogues.push(dialogue);
+      }
+      const explicitIntro = Array.isArray(own.roomLockSequence) && own.roomLockSequence.length
+        ? own.roomLockSequence
+        : (Array.isArray(definition?.roomLockSequence) ? definition.roomLockSequence : []);
+      const legacyDialogueId = explicitIntro.length === 0
+        ? String(
+          own.bossIntroDialogueId
+          || own.bossBarrierDialogueAssetId
+          || definition?.bossIntroDialogueId
+          || definition?.bossBarrierDialogueAssetId
+          || '',
+        ).trim()
+        : '';
+      const introDialogueIds = [
+        ...explicitIntro
+          .filter((step: any) => step && String(step.kind || '') === 'dialogue')
+          .map((step: any) => String(step.dialogueAssetId || '').trim()),
+        legacyDialogueId,
+      ].filter(Boolean);
+      for (const assetId of introDialogueIds) {
+        const dialogue = dialogueById.get(assetId);
+        if (!dialogue || !Array.isArray(dialogue.lines) || dialogue.lines.length === 0) {
+          console.warn(`MSX2 bitmap boss intro dialogue "${assetId}" is missing or has no lines; it will be skipped.`);
+          continue;
+        }
         if (dialogueIndexById.has(assetId)) continue;
         dialogueIndexById.set(assetId, usedDialogues.length);
         usedDialogues.push(dialogue);
@@ -10608,9 +10636,9 @@ function resolveBitmapBulletSprite(
 
 /**
  * Resolves the boss projectile sprite chosen in the Boss Editor
- * (`bossProjectileSpriteId`). Returns the 32-byte hardware pattern plus its 16
- * line colours. Undefined falls back to the generated 8x8-centred blob, so a
- * boss without an authored sprite still fires.
+ * (`bossProjectileSpriteId`). Returns every valid 32-byte hardware animation
+ * frame, first-layer line colours and the authored frame delay. Undefined falls
+ * back to the generated 8x8-centred blob, so a boss without a sprite still fires.
  *
  * The lookup goes through the BossDefinition merge, so a bullet sprite picked
  * once on the reusable definition applies to every encounter that references
@@ -10620,7 +10648,10 @@ function resolveBitmapBossBulletSprite(
   analysis: ProjectAnalysis,
   rooms: Msx2Screen5BitmapRoom[],
   definitions: Map<string, any>,
-): { patternBytes: number[]; colorBytes: number[] } | undefined {
+): {
+  frames: Array<{ patternBytes: number[]; colorBytes: number[] }>;
+  delayFrames: number;
+} | undefined {
   for (const room of rooms) {
     for (const entity of (room.entities || []) as any[]) {
       if (entity?.kind !== 'boss') continue;
@@ -10632,14 +10663,24 @@ function resolveBitmapBossBulletSprite(
         console.warn(`MSX2 bitmap boss: projectile sprite "${assetId}" not found; using the built-in bullet pattern.`);
         continue;
       }
-      const primary = buildHardwareSpriteLayersForFrame(sprite, BITMAP_ROOM_DEFAULT_SPRITE_COLOR, 0)
-        .find(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
-      if (!primary) continue;
-      const colors = (primary.colors || []).slice(0, 16);
-      while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+      const frames = getBitmapRoomSpriteFrameIndices(sprite).map(frameIndex => {
+        const primary = buildHardwareSpriteLayersForFrame(
+          sprite,
+          BITMAP_ROOM_DEFAULT_SPRITE_COLOR,
+          frameIndex,
+        ).find(layer => Array.isArray(layer.pattern) && layer.pattern.length === 32);
+        if (!primary) return undefined;
+        const colors = (primary.colors || []).slice(0, 16);
+        while (colors.length < 16) colors.push(BITMAP_ROOM_DEFAULT_SPRITE_COLOR);
+        return {
+          patternBytes: primary.pattern.map((v: number) => v & 0xff),
+          colorBytes: colors.map((v: number) => v & 0xff),
+        };
+      }).filter((frame): frame is { patternBytes: number[]; colorBytes: number[] } => !!frame);
+      if (!frames.length) continue;
       return {
-        patternBytes: primary.pattern.map((v: number) => v & 0xff),
-        colorBytes: colors.map((v: number) => v & 0xff),
+        frames,
+        delayFrames: getBitmapRoomSpriteAnimationDelayFrames(sprite),
       };
     }
   }
@@ -12844,7 +12885,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
+    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
@@ -12929,13 +12970,19 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Uploading the bullet pattern over it repainted the moving platform with the
   // bullet blob. Take a group of our own, co-active with the boss rooms.
   const roomHasBoss = roomHasData(bossData.roomTables);
-  const bossBulletPatternGroup = allocatePatternRange(bossSpriteBulletSlots > 0 ? 1 : 0, roomHasBoss);
+  const bossBulletSprite = bossSpriteBulletSlots > 0
+    ? resolveBitmapBossBulletSprite(analysis, rooms, bossDefinitions)
+    : undefined;
+  const bossBulletPatternGroups = bossSpriteBulletSlots > 0
+    ? Math.max(1, bossBulletSprite?.frames.length || 1)
+    : 0;
+  const bossBulletPatternGroup = allocatePatternRange(bossBulletPatternGroups, roomHasBoss);
   if (bossSpriteBulletSlots > 0) {
-    patternRanges.push({ base: bossBulletPatternGroup, count: 1, active: roomHasBoss });
+    patternRanges.push({ base: bossBulletPatternGroup, count: bossBulletPatternGroups, active: roomHasBoss });
   }
-  if (bossSpriteBulletSlots > 0 && bossBulletPatternGroup + 1 > 64) {
+  if (bossSpriteBulletSlots > 0 && bossBulletPatternGroup + bossBulletPatternGroups > 64) {
     throw new Error(
-      `SCREEN 5 bitmap-room boss bullets need sprite pattern group ${bossBulletPatternGroup}, ` +
+      `SCREEN 5 bitmap-room boss bullets need ${bossBulletPatternGroups} sprite pattern group(s) from ${bossBulletPatternGroup}, ` +
       'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation, ' +
       'carryables or turrets, or use bossProjectileKind "bitmap".',
     );
@@ -12951,7 +12998,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       maxSlots: bossSpriteBulletSlots,
       color: 10,
       // Sprite chosen in the Boss Editor; undefined = built-in centred blob.
-      sprite: resolveBitmapBossBulletSprite(analysis, rooms, bossDefinitions),
+      sprite: bossBulletSprite,
     } : undefined,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     gameHeight: SCREEN_HEIGHT_DEFAULT,
@@ -13069,7 +13116,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     totalFrameCount: combinedFrameCount,
     hasStateAnimations,
   }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled, subCellShapes }, playerPhysics, playerHitbox, {
-    inputGateAsm: inputHooks,
+    // Boss auto-walk must override the physical keyboard before any player
+    // skill reads C. The main-loop boss gate calls this same movement routine
+    // directly and skips all manual actions while the flag is active.
+    inputGateAsm: `${bossSystem.autoMoveInputAsm}${inputHooks}`,
     horizontalHookAsm: `${wallJumperHorizontalHook}${iceSlideHorizontalHook}${crouchHorizontalHook}`,
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
@@ -13155,7 +13205,7 @@ ${bossSystem.initAsm}` : ''}    ; Render the start room from the shared tileset 
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
 ${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
-${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
+${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
     ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
@@ -13183,7 +13233,10 @@ ${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${p
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
-${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
+    ; Boss load deliberately comes AFTER player placement. The Room Lock chain
+    ; must see the real entry cell so it can leave that cell open until the
+    ; frozen player is released and steps clear.
+${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
     ; BIOS/VDP state left by CHGMOD or command-engine setup.
     ld a, #02
     ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
@@ -13512,7 +13565,7 @@ ${playerAnimationUpdateCall}${playerColorsUpdateCall}    call bitmap_update_spri
 ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
     call step_room_composition
     jp c, .skip_player_movement
-${platformSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
+${platformSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}.skip_player_movement:
 ${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${musicUpdateCall}    jp .bitmap_main_loop

@@ -1720,17 +1720,19 @@ export interface Msx2BossPath {
 /**
  * One step of the Room Lock entry sequence, authored in the Boss editor.
  *
- * The player is frozen for the whole sequence, so the order decides what they
- * see: a dialogue before the chain closes reads as a warning, after it reads as
- * a taunt. Steps run top to bottom, once, when the player enters the room.
+ * After the mandatory automatic walk to screen centre, the player is frozen
+ * for these authored steps. Their order decides what they see: a dialogue
+ * before the chain closes reads as a warning, after it reads as a taunt.
  */
 export type Msx2BossRoomLockStep =
   /** Seal the room perimeter with `bossBarrierTileId`. */
   | {
       kind: 'closeBarrier';
-      /** Reveal the chain progressively instead of all at once. */
+      /** Reveal the chain as a horizontal top-to-bottom raster. */
       animated?: boolean;
-      /** Cells revealed per frame while animating (1..16, default 4). */
+      /** Horizontal pixel scanlines processed per frame (1..16, default 4). */
+      linesPerFrame?: number;
+      /** @deprecated Pre-raster name; its value is reused as linesPerFrame. */
       cellsPerFrame?: number;
     }
   /** Show an `msx2dialogue` asset and wait for the player to finish it. */
@@ -1780,9 +1782,9 @@ export interface Msx2BossDefinition {
   /**
    * Room Lock: what happens, in order, when the player walks into the room.
    *
-   * The player cannot move while this runs, so a dialogue can be read before
-   * the chain drops and the fight starts. An empty or missing sequence keeps
-   * the old behaviour: the chain seals immediately on room load.
+   * The player cannot move while these authored steps run, so a dialogue can
+   * be read before the chain drops and the fight starts. An empty or missing
+   * sequence still performs the mandatory walk, then seals the chain at once.
    */
   roomLockSequence?: Msx2BossRoomLockStep[];
   /** @deprecated Superseded by a `closeBarrier` step in {@link roomLockSequence}. */

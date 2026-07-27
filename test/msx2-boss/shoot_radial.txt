@@ -1,0 +1,5 @@
+max bullets alive at once = 2
+distinct velocities (dx.frac,dy.frac) = 1.106,1.106 -2.150,1.106
+frames with a burst in flight = 348
+burst countdown states seen   = left=2 left=1
+burst at end: idx=0 left=0

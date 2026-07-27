@@ -32,6 +32,8 @@ const createEmptyCell = (): TrackerCell => ({
   instrument: null,
   ornament: null,
   volume: null,
+  effectCommand: null,
+  effectParams: null,
 });
 
 const createEmptyRow = (): TrackerRow => ({ A: createEmptyCell(), B: createEmptyCell(), C: createEmptyCell() });

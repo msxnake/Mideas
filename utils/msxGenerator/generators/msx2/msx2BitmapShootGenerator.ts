@@ -63,6 +63,9 @@ export interface BitmapShootRuntimeOptions {
   carrySlotCount?: number;
   /** destroy_tile debris SAT slots reserved between carry and the bullets. */
   destroySlotCount?: number;
+  /** Label the bullet-vs-enemy stub jumps to (e.g. the bitmap boss hit check).
+   *  The target must preserve BC and IX (bullet loop counter + slot pointer). */
+  enemyCollisionJumpLabel?: string;
 }
 
 export interface BitmapShootSpriteData {
@@ -410,16 +413,14 @@ bitmap_update_bullet_sat:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_bullet_check_enemy_collision
 ; ------------------------------------------------------------
-; PURPOSE: Stub — placeholder for bullet-vs-enemy collision damage. The
-;   bitmap-room backend does not yet have an enemy runtime; when one is
-;   added this routine should iterate enemy slots, bounding-box test
-;   against the current bullet (IX points to the active slot), apply
-;   bulletDamage, and deactivate the bullet on hit.
+; PURPOSE: Bullet-vs-target dispatch. ${opts.enemyCollisionJumpLabel
+    ? `Jumps to ${opts.enemyCollisionJumpLabel} (bitmap boss hit check).`
+    : `Stub — no bullet-damageable runtime is enabled in this ROM.`}
 ; INPUT: IX -> current bullet slot (active, x, y, dir).
-; OUTPUT: none (currently). DESTROYS: none. PRESERVES: AF, BC, DE, HL, IX, IY.
-; TODO (hacer proximamente): wire enemy collision once enemies exist.
+; OUTPUT: target HP/despawn on hit. DESTROYS: AF (target may use more).
+; PRESERVES: BC, IX (bullet loop counter + slot pointer contract).
 ; ------------------------------------------------------------
 bitmap_bullet_check_enemy_collision:
-    ret
+${opts.enemyCollisionJumpLabel ? `    jp ${opts.enemyCollisionJumpLabel}` : `    ret`}
 `;
 }

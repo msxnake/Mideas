@@ -1,0 +1,4 @@
+ROM=old enemy_count=00 turret_count_probe
+FE60 base=0FE60: 00 00 00 00 01 02 05 05 02 01 00 00 00 00 00 00 00 00 00 00 80 40 A0 A0 40 80 00 00 00 00 00 00
+ROM=fix enemy_count=00 turret_count_probe
+FE60 base=0FE60: 00 00 00 00 01 02 05 05 02 01 00 00 00 00 00 00 00 00 00 00 80 40 A0 A0 40 80 00 00 00 00 00 00

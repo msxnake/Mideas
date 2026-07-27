@@ -4,7 +4,8 @@ import { TrackerPattern, TrackerRow, TrackerCell, TrackerChannelId } from '../..
 import { CellInput } from '../common/CellInput';
 import { 
     formatCellForDisplay, getCellPlaceholder, getCellTransform, getCellAllowedCharsPattern, getCellMaxLength,
-    CELL_WIDTH_NOTE, CELL_WIDTH_INSTR, CELL_WIDTH_ORN, CELL_WIDTH_VOL, CELL_TEXT_ALIGN,
+    CELL_WIDTH_NOTE, CELL_WIDTH_INSTR, CELL_WIDTH_ORN, CELL_WIDTH_VOL,
+    CELL_WIDTH_EFFECT, CELL_WIDTH_EFFECT_PARAMS, CELL_TEXT_ALIGN,
     createEmptyCell
 } from '../utils/trackerUtils'; 
 
@@ -21,6 +22,8 @@ const FIELD_TEXT_CLASSES: Record<keyof TrackerCell, string> = {
   instrument: 'text-emerald-300 placeholder:text-emerald-900/70',
   ornament: 'text-sky-300 placeholder:text-sky-900/70',
   volume: 'text-amber-200 placeholder:text-amber-900/70',
+  effectCommand: 'text-fuchsia-300 placeholder:text-fuchsia-900/70',
+  effectParams: 'text-fuchsia-200 placeholder:text-fuchsia-900/70',
 };
 
 const HEADER_FIELD_CLASSES: Record<keyof TrackerCell, string> = {
@@ -28,6 +31,8 @@ const HEADER_FIELD_CLASSES: Record<keyof TrackerCell, string> = {
   instrument: 'text-emerald-300',
   ornament: 'text-sky-300',
   volume: 'text-amber-200',
+  effectCommand: 'text-fuchsia-300',
+  effectParams: 'text-fuchsia-200',
 };
 
 /**
@@ -83,7 +88,9 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   const numRows = currentPattern.numRows;
   const rowNumbers = Array.from({ length: numRows }, (_, i) => i);
 
-  const fieldsOrder: (keyof TrackerCell)[] = ['note', 'instrument', 'ornament', 'volume'];
+  const fieldsOrder: (keyof TrackerCell)[] = sourcePT3Mode
+    ? ['note', 'instrument', 'ornament', 'volume']
+    : ['note', 'instrument', 'ornament', 'volume', 'effectCommand', 'effectParams'];
 
 
   return (
@@ -106,6 +113,8 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.instrument} text-[0.58rem]`} title="Instrument">INS</div>
             <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.ornament} text-[0.58rem]`} title="Ornament">ORN</div>
             <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.58rem]`} title="Volume">VOL</div>
+            {!sourcePT3Mode && <div className={`${CELL_WIDTH_EFFECT} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectCommand} text-[0.58rem]`} title="Vortex effect command 0-F">FX</div>}
+            {!sourcePT3Mode && <div className={`${CELL_WIDTH_EFFECT_PARAMS} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectParams} text-[0.58rem]`} title="Raw Vortex command parameter bytes in hexadecimal">CMD</div>}
             {sourcePT3Mode && <div className="w-32 px-1 text-left text-[0.58rem] text-fuchsia-300" title="Vortex/PT3 row commands">FX / CMD</div>}
           </div>
         ))}
@@ -147,6 +156,8 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                         case 'instrument': fieldWidthClass = CELL_WIDTH_INSTR; break;
                         case 'ornament': fieldWidthClass = CELL_WIDTH_ORN; break;
                         case 'volume': fieldWidthClass = CELL_WIDTH_VOL; break;
+                        case 'effectCommand': fieldWidthClass = CELL_WIDTH_EFFECT; break;
+                        case 'effectParams': fieldWidthClass = CELL_WIDTH_EFFECT_PARAMS; break;
                         default: const _exhaustiveCheck: never = field; fieldWidthClass = CELL_WIDTH_NOTE; // Should not happen
                     }
                     const isFocused = focusedCell?.rowIndex === rIdx && focusedCell.channelId === chId && focusedCell.field === field;

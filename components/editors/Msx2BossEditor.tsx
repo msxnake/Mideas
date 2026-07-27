@@ -747,7 +747,7 @@ const RoomLockSequencePanel: React.FC<{
 
   const add = (kind: Msx2BossRoomLockStep['kind']) => {
     const created: Msx2BossRoomLockStep =
-      kind === 'closeBarrier' ? { kind: 'closeBarrier', animated: true, cellsPerFrame: 4 }
+      kind === 'closeBarrier' ? { kind: 'closeBarrier', animated: true, linesPerFrame: 4 }
         : kind === 'dialogue' ? { kind: 'dialogue', dialogueAssetId: dialogues[0]?.id || '' }
           : { kind: 'wait', frames: 30 };
     update([...steps, created]);
@@ -761,7 +761,7 @@ const RoomLockSequencePanel: React.FC<{
   const adoptLegacy = () => {
     const next: Msx2BossRoomLockStep[] = [];
     if (legacyDialogue) next.push({ kind: 'dialogue', dialogueAssetId: legacyDialogue });
-    next.push({ kind: 'closeBarrier', animated: !!legacyAnimated, cellsPerFrame: 4 });
+    next.push({ kind: 'closeBarrier', animated: !!legacyAnimated, linesPerFrame: 4 });
     onUpdate({
       ...boss,
       roomLockSequence: next,
@@ -799,8 +799,8 @@ const RoomLockSequencePanel: React.FC<{
 
       {steps.length === 0 && !hasLegacy && (
         <p className="text-xs text-msx-textsecondary">
-          No sequence: the chain seals the moment the room loads and the fight starts
-          straight away. Add steps to make an entrance.
+          No authored steps: after the automatic walk to screen centre, the chain seals
+          at once and the fight starts. Add steps to stage the entrance.
         </p>
       )}
 
@@ -822,16 +822,19 @@ const RoomLockSequencePanel: React.FC<{
                 </label>
               </div>
               <div className="w-32">
-                <label className={label}>Cells per frame</label>
+                <label className={label}>Raster scanlines/frame</label>
                 <input type="number" min={1} max={16} className={input}
                   disabled={step.animated === false}
-                  value={step.cellsPerFrame ?? 4}
-                  onChange={e => patch(index, { cellsPerFrame: Number(e.target.value) })} />
+                  value={step.linesPerFrame ?? step.cellsPerFrame ?? 4}
+                  onChange={e => patch(index, {
+                    linesPerFrame: Number(e.target.value),
+                    cellsPerFrame: undefined,
+                  })} />
               </div>
               <div className="flex-1 text-xs text-msx-textsecondary pb-2">
                 {step.animated === false
                   ? 'The whole chain appears at once.'
-                  : `The 52 perimeter cells appear ${step.cellsPerFrame ?? 4} at a time (about ${Math.ceil(52 / Math.max(1, step.cellsPerFrame ?? 4))} frames).`}
+                  : `A horizontal pixel scan descends from Y=0 to Y=191, ${step.linesPerFrame ?? step.cellsPerFrame ?? 4} scanline(s) per frame (about ${Math.ceil(192 / Math.max(1, step.linesPerFrame ?? step.cellsPerFrame ?? 4))} frames). Only empty perimeter cells are sealed.`}
               </div>
             </>
           )}

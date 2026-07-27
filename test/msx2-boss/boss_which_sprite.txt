@@ -1,0 +1,4 @@
+R5=EF R6=1F R11=01 R8=08
+blanked group 33 (#FC20, platform)
+blanked group 34 (#FC40, boss bullet)
+blanked group 32 (#FC00, player bullet)
