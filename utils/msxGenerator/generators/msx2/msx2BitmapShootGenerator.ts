@@ -14,13 +14,12 @@ import { Msx2ShootConfig } from '../../../msx2PlatformPhysics';
  *   bitmap_shoot_cooldown        1 byte
  *   bitmap_shoot_lock            1 byte (requireKeyRelease)
  *
- * Fire key (pilot): 'N' = keyboard matrix row 4, bit 3 (mask #08).
- * M is used by dash (row 4, bit 2), so both can coexist.
+ * Fire key (pilot): 'B' = keyboard matrix row 3, bit 2 (mask #04).
  * Direction comes from player_facing (0=left, 1=right).
  */
 
-const SHOOT_KEY_ROW = 4;     // MSX keyboard matrix row holding K..R
-const SHOOT_KEY_MASK = 0x08; // bit 3 = 'N'
+const SHOOT_KEY_ROW = 3;     // MSX keyboard matrix row holding 3..8
+const SHOOT_KEY_MASK = 0x04; // bit 2 = 'B'
 const STRIDE = 4;            // bytes per bullet slot: active, x, y, dir
 
 function asmByte(value: number): string {
