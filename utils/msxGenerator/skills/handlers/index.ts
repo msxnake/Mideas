@@ -351,7 +351,7 @@ export const destroyTileParameters: SkillParameterDef[] = [
     min: 0,
     max: 5,
     step: 1,
-    help: 'Keyboard key that swings the pick: 0=SPACE, 1=B, 2=N, 3=Z, 4=X, 5=M. Avoid keys used by other active skills (M=dash, N=shoot, R=wall_break).',
+    help: 'Keyboard key that swings the pick: 0=SPACE, 1=B, 2=N, 3=Z, 4=X, 5=M. Avoid keys used by other active skills (B=shoot, M=dash, P=slash, Q=spin, R=wall_break, O=teleport). NOTE: the default 1=B now collides with the shoot skill — pick another key when both are active.',
   },
   {
     key: 'hitsPerTile',

@@ -14,12 +14,15 @@ import { Msx2ShootConfig } from '../../../msx2PlatformPhysics';
  *   bitmap_shoot_cooldown        1 byte
  *   bitmap_shoot_lock            1 byte (requireKeyRelease)
  *
- * Fire key (pilot): 'B' = keyboard matrix row 3, bit 2 (mask #04).
- * Direction comes from player_facing (0=left, 1=right).
+ * Fire key (pilot): 'B' = keyboard matrix row 2, bit 7 (mask #80).
+ * Same row/mask the destroy_tile digKey table uses for 'B' — that table
+ * (DIG_KEYS in msx2BitmapDestroyTileGenerator) is the reference for this
+ * codebase, and its default digKey is ALSO 'B', so the two skills collide
+ * when both are active. Direction comes from player_facing (0=left, 1=right).
  */
 
-const SHOOT_KEY_ROW = 3;     // MSX keyboard matrix row holding 3..8
-const SHOOT_KEY_MASK = 0x04; // bit 2 = 'B'
+const SHOOT_KEY_ROW = 2;     // MSX keyboard matrix row holding B A _ / . , ` '
+const SHOOT_KEY_MASK = 0x80; // bit 7 = 'B'
 const STRIDE = 4;            // bytes per bullet slot: active, x, y, dir
 
 function asmByte(value: number): string {
@@ -202,7 +205,7 @@ export function buildBitmapShootRuntimeAsm(
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_shoot_pressed
 ; ------------------------------------------------------------
-; PURPOSE: Reads the shoot key ('N', keyboard matrix row ${SHOOT_KEY_ROW} bit 3) via PPI.
+; PURPOSE: Reads the shoot key ('B', keyboard matrix row ${SHOOT_KEY_ROW} mask ${asmByte(SHOOT_KEY_MASK)}) via PPI.
 ; INPUT: none. OUTPUT: A = 1 when pressed, A = 0 otherwise (Z when not pressed).
 ; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
 ; SIDE EFFECTS: Selects keyboard row ${SHOOT_KEY_ROW} on PPI_C.
