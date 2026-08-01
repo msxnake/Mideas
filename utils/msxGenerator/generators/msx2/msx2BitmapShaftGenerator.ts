@@ -280,11 +280,11 @@ bitmap_shaft_room_for_slot:
 bitmap_shaft_cmp_above:
     ld a, d
     cp h
-    jp z, .same_room
+    jp z, .shaft_same_room
     ; different rooms: the greater slot wins (carry set when A is above)
     ccf                       ; cp set carry when d < h; we want the opposite
     ret
-.same_room:
+.shaft_same_room:
     ld a, e
     cp l                      ; carry set when yA < yB, i.e. A is higher up
     ret
@@ -315,29 +315,29 @@ bitmap_shaft_player_on_cabin:
     add a, a
     add a, a                  ; * 16
     add a, d
-    jp nc, .right_ok
+    jp nc, .shaft_right_ok
     ld a, 255
-.right_ok:
+.shaft_right_ok:
     ld e, a                   ; E = cabin right (exclusive)
     ld a, (player_x)
 ${hbLeft ? `    add a, ${hbLeft}\n` : ''}    cp e
-    jp nc, .not_standing
+    jp nc, .shaft_not_standing
     ld a, (player_x)
     add a, ${hbRight}
     cp d
-    jp c, .not_standing
+    jp c, .shaft_not_standing
     ; feet delta accepted in [-${deltaBias}..${rideWindow}]
     ld a, (player_y)
     add a, ${standOffset}
     sub (ix+1)
     add a, ${deltaBias}
     cp ${deltaSpan}
-    jp nc, .not_standing
+    jp nc, .shaft_not_standing
     pop bc
     ld a, 1
     or a
     ret
-.not_standing:
+.shaft_not_standing:
     pop bc
     xor a
     ret
@@ -358,7 +358,7 @@ bitmap_shaft_init:
     ld (bitmap_shaft_forced_room), a
     ld ix, bitmap_shaft_state
     ld b, 0
-.init_one:
+.shaft_init_one:
     ld a, b
     call bitmap_shaft_def_ptr
     ld de, 4
@@ -378,7 +378,7 @@ bitmap_shaft_init:
     inc b
     ld a, b
     cp ${count}
-    jp c, .init_one
+    jp c, .shaft_init_one
     ret
 `;
 
@@ -398,7 +398,7 @@ bitmap_shaft_init:
 bitmap_shaft_update:
 ${opts.pauseGateAsm || ''}    ld ix, bitmap_shaft_state
     ld b, 0
-.update_one:
+.shaft_update_one:
     push bc
     ld a, b
     call bitmap_shaft_def_ptr
@@ -409,39 +409,39 @@ ${opts.pauseGateAsm || ''}    ld ix, bitmap_shaft_state
     pop hl
     ld a, (ix+2)              ; dir
     or a
-    jp nz, .step_down
+    jp nz, .shaft_step_down
 ; --- climbing: y decreases, and under 0 we move up one room (slot + 1) ---
     ld a, (ix+1)
     sub c
-    jp nc, .up_same_room
+    jp nc, .shaft_up_same_room
     add a, ${SHAFT_ROOM_HEIGHT}   ; wrapped past the top of this room
     ld (ix+1), a
     inc (ix+0)
     call bitmap_shaft_cross_room
-    jp .after_step
-.up_same_room:
+    jp .shaft_after_step
+.shaft_up_same_room:
     ld (ix+1), a
-    jp .after_step
+    jp .shaft_after_step
 ; --- descending: y increases, past 191 we move down one room (slot - 1) ---
-.step_down:
+.shaft_step_down:
     ld a, (ix+1)
     add a, c
     cp ${SHAFT_ROOM_HEIGHT}
-    jp c, .down_same_room
+    jp c, .shaft_down_same_room
     sub ${SHAFT_ROOM_HEIGHT}
     ld (ix+1), a
     dec (ix+0)
     call bitmap_shaft_cross_room
-    jp .after_step
-.down_same_room:
+    jp .shaft_after_step
+.shaft_down_same_room:
     ld (ix+1), a
-.after_step:
+.shaft_after_step:
     pop bc
     push bc
     ; --- clamp to the authored travel and reverse there ---
     ld a, (ix+2)
     or a
-    jp nz, .check_bottom
+    jp nz, .shaft_check_bottom
     ; --- climbing: reverse once the cabin is above (topSlot, topY) = def+2/+3 ---
     ld a, b
     call bitmap_shaft_def_ptr
@@ -454,13 +454,13 @@ ${opts.pauseGateAsm || ''}    ld ix, bitmap_shaft_state
     ld d, (ix+0)
     ld e, (ix+1)              ; D/E = the cabin
     call bitmap_shaft_cmp_above
-    jp nc, .step_done         ; still below the top bound
+    jp nc, .shaft_step_done         ; still below the top bound
     ld (ix+0), h
     ld (ix+1), l              ; clamp exactly onto the bound
     ld a, 1
     ld (ix+2), a              ; now descending
-    jp .step_done
-.check_bottom:
+    jp .shaft_step_done
+.shaft_check_bottom:
     ; --- descending: reverse once the cabin is below (bottomSlot, bottomY) ---
     ; "below the bound" is the same test with the operands swapped, so D/E take
     ; the bound and H/L the cabin.
@@ -474,27 +474,27 @@ ${opts.pauseGateAsm || ''}    ld ix, bitmap_shaft_state
     ld h, (ix+0)
     ld l, (ix+1)              ; H/L = the cabin
     call bitmap_shaft_cmp_above
-    jp nc, .step_done         ; still above the bottom bound
+    jp nc, .shaft_step_done         ; still above the bottom bound
     ld (ix+0), d
     ld (ix+1), e              ; clamp exactly onto the bound
     xor a
     ld (ix+2), a              ; now climbing
-.step_done:
+.shaft_step_done:
     ; --- carry the rider: the cabin is vertical, so only Y is carried ---
     ld a, (ix+3)
     or a
-    jp z, .update_next
+    jp z, .shaft_update_next
     ld a, (ix+1)
     sub ${standOffset}
     ld (player_y), a
-.update_next:
+.shaft_update_next:
     pop bc
     ld de, ${SHAFT_RAM_STRIDE}
     add ix, de
     inc b
     ld a, b
     cp ${count}
-    jp c, .update_one
+    jp c, .shaft_update_one
     ret
 
 ; ------------------------------------------------------------
@@ -517,9 +517,9 @@ bitmap_shaft_cross_room:
     ld a, (ix+2)
     or a
     ld a, 2                   ; climbing -> enter the new room from its bottom
-    jp z, .have_dir
+    jp z, .shaft_have_dir
     ld a, 3                   ; descending -> enter from the top
-.have_dir:
+.shaft_have_dir:
     call start_room_transition
     pop bc
     ret
@@ -535,30 +535,30 @@ bitmap_shaft_cross_room:
 bitmap_shaft_after_commit:
     ld ix, bitmap_shaft_state
     ld b, 0
-.commit_one:
+.shaft_commit_one:
     ld a, (ix+3)
     or a
-    jp z, .commit_next
+    jp z, .shaft_commit_next
     push bc
     call bitmap_shaft_room_for_slot
     ld hl, current_screen_index
     cp (hl)
-    jp nz, .commit_pop        ; rider's cabin is not in this room after all
+    jp nz, .shaft_commit_pop        ; rider's cabin is not in this room after all
     ld a, (ix+1)
     sub ${standOffset}
     ld (player_y), a
     ld a, (player_flags)
     or #01                    ; grounded on the cabin
     ld (player_flags), a
-.commit_pop:
+.shaft_commit_pop:
     pop bc
-.commit_next:
+.shaft_commit_next:
     ld de, ${SHAFT_RAM_STRIDE}
     add ix, de
     inc b
     ld a, b
     cp ${count}
-    jp c, .commit_one
+    jp c, .shaft_commit_one
     ret
 `;
 
@@ -574,14 +574,14 @@ bitmap_shaft_after_commit:
 bitmap_shaft_ride_detect:
     ld ix, bitmap_shaft_state
     ld b, 0
-.detect_one:
+.shaft_detect_one:
     push bc
     call bitmap_shaft_room_for_slot
     ld hl, current_screen_index
     cp (hl)
-    jp nz, .detect_clear
+    jp nz, .shaft_detect_clear
     call bitmap_shaft_player_on_cabin
-    jp z, .detect_clear
+    jp z, .shaft_detect_clear
     ld a, 1
     ld (ix+3), a
     ld a, (ix+1)
@@ -590,18 +590,18 @@ bitmap_shaft_ride_detect:
     ld a, (player_flags)
     or #01
     ld (player_flags), a
-    jp .detect_next
-.detect_clear:
+    jp .shaft_detect_next
+.shaft_detect_clear:
     xor a
     ld (ix+3), a
-.detect_next:
+.shaft_detect_next:
     pop bc
     ld de, ${SHAFT_RAM_STRIDE}
     add ix, de
     inc b
     ld a, b
     cp ${count}
-    jp c, .detect_one
+    jp c, .shaft_detect_one
     ret
 `;
 
