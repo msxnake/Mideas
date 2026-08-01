@@ -5259,6 +5259,24 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           jugador esté en otra pantalla.
                         </div>
 
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Sprite de la cabina (16x16 o 32x16)
+                          <select
+                            value={String(selectedPlacedEntity.components?.msx2_hardware_sprite?.msx2SpriteAssetId || '')}
+                            onChange={event => updatePlacedEntityHardwareSprite(selectedPlacedEntity.id, event.target.value)}
+                            className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          >
+                            <option value="">(placeholder)</option>
+                            {spriteLibraryAssets.map(asset => (
+                              <option key={asset.id} value={asset.id}>{asset.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                          La anchura de la cabina (16 o 32 px) sale del sprite elegido. Sin sprite se
+                          exporta un placeholder.
+                        </div>
+
                         <div className="space-y-1">
                           <div className="text-[0.65rem] text-msx-textprimary">Trayecto (slot 0 = abajo)</div>
                           {!path.length && (
