@@ -17,13 +17,21 @@
  *
  * VRAM: platform SAT slots sit right after the enemy slots; pattern groups
  * after the enemy groups; 16-byte line-colour blocks after the enemy blocks.
- * Colours are static (frame 0 only) so they upload once per room load.
+ * Colours use frame 0. In projects with player-halo lighting they are cached
+ * per platform and re-uploaded only when the sprite crosses the halo boundary.
+ *
+ * Elevators that span several rooms are NOT handled here: see
+ * msx2BitmapShaftGenerator, where one authored entity is one cabin travelling a
+ * path of rooms. This module only does per-room platforms that turn at their
+ * own bounds.
  *
  * RAM (chained after the enemy pool, below the #C1F0 ceiling):
  *   bitmap_platform_count  1 byte   active logical platforms in this room
  *   bitmap_platform_rider  1 byte   pool index the player stands on (#FF none)
  *   bitmap_platform_pool   11 bytes/slot: x, y, dx, dy, minX, maxX, minY, maxY,
  *                          widthCells, movedX, movedY
+ *   bitmap_platform_light_state maxSlots bytes only when halo lighting exists:
+ *                          0 authored, 1 dim twin, 2 bright twin.
  *
  * ROM (resident):
  *   bitmap_room_platform_table_N  1 + maxSlots*11 bytes: count + per-slot
@@ -35,8 +43,8 @@
  */
 
 export const BITMAP_MAX_PLATFORM_SLOTS = 3;
-const POOL_STRIDE = 11;  // RAM bytes per logical platform
-const TABLE_STRIDE = 11; // ROM bytes per logical platform
+/** RAM/ROM bytes per logical platform. */
+const POOL_STRIDE = 11;
 /** Same off-screen non-terminator Y the foreground/enemy empty slots use. */
 const PLATFORM_EMPTY_SPRITE_Y = 0xD4;
 
@@ -55,7 +63,7 @@ export interface BitmapPlatformRoomData {
   maxSlots: number;
   /** Max cells (16px columns) across every platform sprite: 1 or 2. */
   maxCells: number;
-  /** Per-room table bytes: [count] + maxSlots * TABLE_STRIDE. */
+  /** Per-room table bytes: [count] + maxSlots * 11. */
   roomTables: number[][];
   /** 32 bytes per unique platform cell pattern. */
   patternBytes: number[];
@@ -80,6 +88,9 @@ export interface BitmapPlatformRuntimeOptions {
   /** Early-return gate prepended to the movement/detect routines (e.g. the
    * NPC dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
+  /** SCREEN 5 player-halo lighting is present. Hardware sprites do not inherit
+   * bitmap logical fills, so platform colour tables must be switched explicitly. */
+  lightingEnabled?: boolean;
 }
 
 export interface BitmapPlatformSystemAsm {
@@ -104,6 +115,23 @@ export function bitmapPlatformSystemEnabled(data: BitmapPlatformRoomData | undef
   return Boolean(data && data.maxSlots > 0);
 }
 
+/** Preserve sprite mode flags while selecting the dim palette twin. */
+function dimBitmapPlatformSpriteColor(value: number): number {
+  const byte = value & 0xff;
+  const color = byte & 0x0f;
+  return color === 0 ? byte : (byte & 0xf0) | (color | 0x08);
+}
+
+/** Preserve sprite mode flags while selecting the bright palette twin. */
+function lightBitmapPlatformSpriteColor(value: number): number {
+  const byte = value & 0xff;
+  const color = byte & 0x0f;
+  if (color === 0) return byte;
+  const brightColor = color & 0x07;
+  // Palette slot 8 maps to transparent slot 0; keep that authored line visible.
+  return (byte & 0xf0) | (brightColor === 0 ? 7 : brightColor);
+}
+
 export function buildBitmapPlatformSystemAsm(
   data: BitmapPlatformRoomData,
   opts: BitmapPlatformRuntimeOptions,
@@ -114,10 +142,14 @@ export function buildBitmapPlatformSystemAsm(
   const maxSlots = data.maxSlots;
   const maxCells = Math.max(1, Math.min(2, data.maxCells));
   const hardwareSlotCount = maxSlots * maxCells;
-  const ramBytes = 2 + maxSlots * POOL_STRIDE;
+  const lightingEnabled = opts.lightingEnabled === true;
+  const poolStride = POOL_STRIDE;
+  const tableStride = poolStride;
+  const ramBytes = 2 + maxSlots * poolStride + (lightingEnabled ? maxSlots : 0);
   const countAddr = opts.ramBase;
   const riderAddr = opts.ramBase + 1;
   const poolAddr = opts.ramBase + 2;
+  const lightStateAddr = poolAddr + maxSlots * poolStride;
 
   // Feet line = player_y + standOffset (first pixel row below the body).
   // Riding keeps player_y = platformTop - standOffset.
@@ -132,19 +164,21 @@ export function buildBitmapPlatformSystemAsm(
   const deltaBias = 2;
   const deltaSpan = rideWindow + deltaBias + 1; // cp bound (exclusive)
 
-  const equates = `; --- MOVING PLATFORM runtime state (${ramBytes} bytes): count + rider + ${maxSlots} slot(s) x ${POOL_STRIDE}
+  const equates = `; --- MOVING PLATFORM runtime state (${ramBytes} bytes): count + rider + ${maxSlots} slot(s) x ${poolStride}
 ; (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,movedX,movedY) ---
 bitmap_platform_count EQU ${asmWord(countAddr)}
 bitmap_platform_rider EQU ${asmWord(riderAddr)}
 bitmap_platform_pool  EQU ${asmWord(poolAddr)}
-`;
+${lightingEnabled ? `; Per-slot colour state: 0 = authored (normal room), 1 = dim, 2 = inside halo.
+bitmap_platform_light_state EQU ${asmWord(lightStateAddr)}
+` : ''}`;
 
   // ---- bitmap_load_platforms: per-room table -> RAM pool + VRAM uploads ----
   const loadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
     const patternGroup = opts.patternGroupBase + i * maxCells;
     const patternVram = 0xF800 + patternGroup * 32;
     const colorVram = opts.colorBase + i * maxCells * 16;
-    const poolBase = `bitmap_platform_pool + ${i * POOL_STRIDE}`;
+    const poolBase = `bitmap_platform_pool + ${i * poolStride}`;
     return `.bplat_slot_${i}:
     ld a, (bitmap_platform_count)
     cp ${i + 1}
@@ -157,7 +191,20 @@ bitmap_platform_pool  EQU ${asmWord(poolAddr)}
     xor a
     ld (${poolBase} + 9), a   ; movedX = 0
     ld (${poolBase} + 10), a  ; movedY = 0
-    ; --- upload widthCells pattern groups -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
+${lightingEnabled ? `    ; A dark room must already be dim on its first displayed frame: deciding this
+    ; only in the per-frame refresh painted one bright frame before dimming.
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_light_room_flags
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .bplat_slot_${i}_lit_room   ; A = 0 = authored palette
+    ld a, 1                   ; dark room: start on the dim twin
+.bplat_slot_${i}_lit_room:
+    ld (bitmap_platform_light_state + ${i}), a
+` : ''}    ; --- upload widthCells pattern groups -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ld a, (ix+9)              ; patOff, in 32-byte groups
     call bitmap_platform_patterns_offset
     ld a, (ix+8)              ; widthCells
@@ -175,9 +222,18 @@ bitmap_platform_pool  EQU ${asmWord(poolAddr)}
     ld de, ${asmWord(patternVram)}
     call copy_to_vram_ext
     ; --- upload widthCells 16-byte colour tables -> VRAM ${asmWord(colorVram)} ---
-    ld a, (ix+10)             ; colorOff, in 16-byte blocks
+${lightingEnabled ? `    ld a, (bitmap_platform_light_state + ${i})
+    or a
+    ld a, (ix+10)             ; colorOff, in 16-byte blocks (LD keeps the flags)
+    jp z, .bplat_slot_${i}_colors_authored
+    call bitmap_platform_colors_dim_offset
+    jp .bplat_slot_${i}_colors_ready
+.bplat_slot_${i}_colors_authored:
     call bitmap_platform_colors_offset
-    ld a, (ix+8)              ; widthCells
+.bplat_slot_${i}_colors_ready:
+` : `    ld a, (ix+10)             ; colorOff, in 16-byte blocks
+    call bitmap_platform_colors_offset
+`}    ld a, (ix+8)              ; widthCells
     push hl
     ld l, a
     ld h, 0
@@ -191,7 +247,7 @@ bitmap_platform_pool  EQU ${asmWord(poolAddr)}
     ld de, ${asmWord(colorVram)}
     call copy_to_vram_ext
 .bplat_slot_${i}_done:
-    ld de, ${TABLE_STRIDE}
+    ld de, ${tableStride}
     add ix, de`;
   }).join('\n');
 
@@ -325,7 +381,7 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_platform_count)
 .plat_turn_down:
     ld (ix+3), #01
 .plat_step_next:
-    ld de, ${POOL_STRIDE}
+    ld de, ${poolStride}
     add ix, de
     dec b
     jp nz, .plat_step_loop
@@ -353,6 +409,7 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_platform_count)
     ld a, (ix+1)
     sub ${standOffset}
     ld (player_y), a
+.plat_carry_ground:
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
@@ -360,8 +417,7 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_platform_count)
     or #01                    ; riding counts as grounded (jump works)
     ld (player_flags), a
     ret
-
-; HL/IX = bitmap_platform_pool + A * ${POOL_STRIDE} (A = slot index).
+; HL/IX = bitmap_platform_pool + A * ${poolStride} (A = slot index).
 bitmap_platform_slot_ptr:
     ld l, a
     ld h, 0
@@ -412,7 +468,7 @@ ${opts.pauseGateAsm || ''}    ld a, (player_vy)
     call bitmap_platform_player_on_slot
     jp nz, .detect_stand
     inc c
-    ld de, ${POOL_STRIDE}
+    ld de, ${poolStride}
     add ix, de
     dec b
     jp nz, .detect_loop
@@ -439,7 +495,7 @@ ${opts.pauseGateAsm || ''}    ld a, (player_vy)
   const satSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
     const cellBlocks = Array.from({ length: maxCells }, (_unusedCell, j) => {
       const patternByte = ((opts.patternGroupBase + i * maxCells + j) * 4) & 0xff;
-      const poolBase = `bitmap_platform_pool + ${i * POOL_STRIDE}`;
+      const poolBase = `bitmap_platform_pool + ${i * poolStride}`;
       const hiddenGate = j === 0
         ? `    ld a, (bitmap_platform_count)
     cp ${i + 1}
@@ -474,6 +530,135 @@ ${j > 0 ? `    add a, ${j * 16}\n` : ''}    out (VDP_DATA_PORT), a    ; X (cell 
     return cellBlocks;
   }).join('\n');
 
+  // Bitmap lighting changes pixels on the page, but platforms live in the
+  // independent V9938 sprite layer. Keep one cached colour state per logical
+  // platform and upload only when it crosses the halo boundary.
+  const lightRefreshSlotBlocks = !lightingEnabled ? '' : Array.from({ length: maxSlots }, (_unused, i) => {
+    const poolBase = `bitmap_platform_pool + ${i * poolStride}`;
+    const colorVram = opts.colorBase + i * maxCells * 16;
+    return `    ld a, (bitmap_platform_count)
+    cp ${i + 1}
+    jp c, .bplat_light_slot_${i}_done
+    ld ix, ${poolBase}
+    ld a, (bitmap_light_active)
+    or a
+    jp nz, .bplat_light_slot_${i}_halo_check
+    ; Halo inactive: check if room is dark
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_light_room_flags
+    add hl, de
+    ld a, (hl)
+    or a
+    ld c, 1                   ; dark room → dim by default
+    jp nz, .bplat_light_slot_${i}_state_ready
+    ld c, 0                   ; lit room → authored palette
+    jp .bplat_light_slot_${i}_state_ready
+.bplat_light_slot_${i}_halo_check:
+    ld a, (ix+8)              ; widthCells * 8 = horizontal centre offset
+    add a, a
+    add a, a
+    add a, a
+    add a, (ix+0)
+    jp nc, .bplat_light_slot_${i}_center_x_ready
+    ld a, #FF                 ; partially off-screen platform: clamp its centre
+.bplat_light_slot_${i}_center_x_ready:
+    ld d, a
+    ld a, (ix+1)
+    add a, ${opts.gameYOffset + 8}
+    ld e, a                   ; vertical centre in SCREEN 5 coordinates
+    call bitmap_light_sprite_point_is_lit
+    ld c, 1                   ; dark room, outside halo = dim twin
+    jp z, .bplat_light_slot_${i}_state_ready
+    inc c                     ; inside halo = bright twin
+.bplat_light_slot_${i}_state_ready:
+    ld a, (bitmap_platform_light_state + ${i})
+    cp c
+    jp z, .bplat_light_slot_${i}_done
+    ld a, c
+    ld (bitmap_platform_light_state + ${i}), a
+    or a
+    jp z, .bplat_light_slot_${i}_source_authored
+    dec a
+    jp z, .bplat_light_slot_${i}_source_dim
+    ld a, (ix+10)
+    call bitmap_platform_colors_lit_offset
+    jp .bplat_light_slot_${i}_source_ready
+.bplat_light_slot_${i}_source_dim:
+    ld a, (ix+10)
+    call bitmap_platform_colors_dim_offset
+    jp .bplat_light_slot_${i}_source_ready
+.bplat_light_slot_${i}_source_authored:
+    ld a, (ix+10)
+    call bitmap_platform_colors_offset
+.bplat_light_slot_${i}_source_ready:
+    ld a, (ix+8)
+    ld c, a
+    ld b, 0
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b                      ; BC = widthCells * 16
+    ld de, ${asmWord(colorVram)}
+    call copy_to_vram_ext
+.bplat_light_slot_${i}_done:`;
+  }).join('\n');
+
+  const lightRefreshRoutinesAsm = !lightingEnabled ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_platform_refresh_light_colors
+; ------------------------------------------------------------
+; PURPOSE: Select authored colours in normal rooms, dim palette twins in a dark
+;   room, and bright twins while each platform centre overlaps the player halo.
+;   Uploads only slots whose cached state changed.
+; INPUT: platform pool + bitmap lighting state.
+; OUTPUT: changed platform colour-table blocks in VRAM.
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+; CALLS: bitmap_light_sprite_point_is_lit, bitmap_platform_colors_*_offset,
+;   copy_to_vram_ext.
+; SIDE EFFECTS: updates bitmap_platform_light_state.
+; ------------------------------------------------------------
+bitmap_platform_refresh_light_colors:
+    push bc
+    push de
+    push hl
+    push ix
+${lightRefreshSlotBlocks}
+    pop ix
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; HL = dim/bright platform colour table + A*16 (A = colour block offset).
+bitmap_platform_colors_dim_offset:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_platform_sprite_colors_dim
+    add hl, de
+    ret
+
+bitmap_platform_colors_lit_offset:
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, bitmap_platform_sprite_colors_lit
+    add hl, de
+    ret
+`;
+
   const routinesAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_load_platforms
@@ -505,7 +690,7 @@ bitmap_load_platforms:
     ld (bitmap_platform_count), a
     inc hl
     push hl
-    pop ix                    ; IX -> slot 0 (${TABLE_STRIDE} bytes/slot)
+    pop ix                    ; IX -> slot 0 (${tableStride} bytes/slot)
 ${loadSlotBlocks}
     pop ix
     ret
@@ -534,7 +719,7 @@ bitmap_platform_colors_offset:
     ld de, bitmap_platform_sprite_colors
     add hl, de
     ret
-${standCheckAsm}${updateAsm}${detectAsm}
+${standCheckAsm}${updateAsm}${detectAsm}${lightRefreshRoutinesAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_platform_sat
 ; ------------------------------------------------------------
@@ -543,13 +728,13 @@ ${standCheckAsm}${updateAsm}${detectAsm}
 ;   terminator), then appends a #D8 terminator. Unused slots/cells get an
 ;   off-screen Y=${asmByte(PLATFORM_EMPTY_SPRITE_Y)} sprite so the VDP keeps scanning. The bullet
 ;   writer (when the shoot skill is active) runs AFTER this and overwrites our
-;   terminator in turn. Platform colours are static, uploaded at room load.
+;   terminator in turn.${lightingEnabled ? ' Platform colours are refreshed first when a slot crosses the halo.' : ' Platform colours are static, uploaded at room load.'}
 ; INPUT: bitmap_platform_count, bitmap_platform_pool.
 ; OUTPUT: SAT entries at VRAM ${asmWord(opts.satBase)}..${asmWord(opts.satBase + hardwareSlotCount * 4 + 3)}.
 ; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
 ; ------------------------------------------------------------
 bitmap_update_platform_sat:
-    push de
+${lightingEnabled ? '    call bitmap_platform_refresh_light_colors\n' : ''}    push de
     ld de, ${asmWord(opts.satBase)}
     push de
     ld a, d
@@ -589,11 +774,15 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_platform_table_${index}`, table, `Room ${index} platforms: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,patOff,colorOff)`)
+    emitBytes(`bitmap_room_platform_table_${index}`, table, `Room ${index} platforms: count + ${maxSlots} slot(s) x ${tableStride} (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,patOff,colorOff)`)
   ).join('')
     + `bitmap_room_platform_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_platform_table_${index}`).join('\n')}\n`
     + emitBytes('bitmap_platform_sprite_patterns', data.patternBytes, `Platform sprites: ${data.patternBytes.length / 32} pattern group(s) (mode 2 quadrants, frame 0 only)`)
-    + emitBytes('bitmap_platform_sprite_colors', data.colorBytes, 'Platform sprites: 16-byte line colour tables per cell (frame 0 only)');
+    + emitBytes('bitmap_platform_sprite_colors', data.colorBytes, 'Platform sprites: authored 16-byte line colour tables per cell (frame 0 only)')
+    + (lightingEnabled
+      ? emitBytes('bitmap_platform_sprite_colors_dim', data.colorBytes.map(dimBitmapPlatformSpriteColor), 'Platform sprites: dim palette twins for dark rooms')
+        + emitBytes('bitmap_platform_sprite_colors_lit', data.colorBytes.map(lightBitmapPlatformSpriteColor), 'Platform sprites: bright palette twins inside the player halo')
+      : '');
 
   return {
     enabled: true,

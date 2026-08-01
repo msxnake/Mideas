@@ -633,7 +633,7 @@ export interface Msx2Screen4Tile {
 
 export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
-export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'platform' | 'boss' | 'hidden_obj' | 'custom';
+export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'npc' | 'hazard' | 'platform' | 'platform_shaft' | 'boss' | 'hidden_obj' | 'mushroom' | 'custom';
 export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'static';
 export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'patrolChaseX' | 'walkerGravity' | 'ghostMaze' | 'dive';
 export type Msx2PlayerGameType = 'platform' | 'maze' | 'shooterHorizontal' | 'shooterVertical' | 'topDown' | 'grid';
@@ -1205,6 +1205,13 @@ export interface Msx2Screen4Runtime {
   hudWidgets?: Msx2HudWidget[];
   /** Optional linked Msx2HudAsset (project asset type 'msx2hud'); supersedes inline hudWidgets for SCREEN 5 bitmap rooms. */
   hudAssetId?: string;
+  /**
+   * SCREEN 5 bitmap-room lighting. 'lamp' marks the room as DARK: the runtime
+   * fills it with the dimmed twin of every palette colour and only cuts a halo
+   * around the player (and around each `torch` entity, with the torch skill).
+   * Absent or 'off' = a normally lit room.
+   */
+  lighting?: 'off' | 'lamp';
   shooter?: Msx2ShooterRuntimeConfig;
   notes?: string;
 }
@@ -1807,6 +1814,17 @@ export interface Msx2BossDefinition {
   bossPhases: Msx2BossPhase[];
   /** Weak points must be listed BEFORE the armour that contains them. */
   damageZones: Msx2BossDamageZone[];
+  /**
+   * Bitmap stamps composited over the body while the boss dies. One asset is
+   * chosen pseudo-randomly for every blast; colour 0 stays transparent.
+   */
+  bossDeathExplosionStampIds?: string[];
+  /** Number of blasts in the death sequence (1..32). */
+  bossDeathExplosionCount?: number;
+  /** Frames between blasts (1..60). */
+  bossDeathExplosionInterval?: number;
+  /** Frames to keep the completed blast cloud before removing the body. */
+  bossDeathExplosionHoldFrames?: number;
   onDefeated: Msx2BossDefeatAction[];
 }
 

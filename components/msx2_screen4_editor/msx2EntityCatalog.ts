@@ -23,6 +23,7 @@ export type Msx2ComponentId =
   | 'msx2_gravity'
   | 'msx2_push_box'
   | 'msx2_platform'
+  | 'msx2_platform_shaft'
   | 'msx2_shooter'
   | 'msx2_projectile'
   | 'msx2_formation'
@@ -233,6 +234,13 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     minY: { label: 'Min Y', min: 0, max: 191 },
     maxY: { label: 'Max Y', min: 0, max: 191 },
   },
+  // The path list is authored by a dedicated control in the bitmap room editor;
+  // only the scalar fields are exposed to the generic component form.
+  msx2_platform_shaft: {
+    speed: { label: 'Speed (px/frame)', min: 1, max: 4 },
+    bottomY: { label: 'Bottom Y (in its screen)', min: 0, max: 191 },
+    topY: { label: 'Top Y (in its screen)', min: 0, max: 191 },
+  },
   msx2_shooter: {
     enabled: { kind: 'boolean', label: 'Enabled' },
     fireKey: { kind: 'select', options: ['space', 'button1', 'button2'] },
@@ -317,6 +325,7 @@ export type Msx2RuntimeEngine =
   | 'checkpoint'
   | 'npc'
   | 'hiddenObj'
+  | 'glowMushroom'
   | 'control_2_players'
   | 'paddleHorizontal'
   | 'ballBounce'
@@ -831,6 +840,30 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     params: { runtime: 'MSX2', engine: 'movingPlatform', movement: 'patrolX', direction: 1 },
   },
   {
+    id: 'platform_shaft',
+    label: 'MSX2 Multi-Screen Shaft',
+    kind: 'platform_shaft',
+    runtime: 'MSX2',
+    engine: 'multiScreenShaft',
+    description: 'One elevator cabin that travels across several SCREEN 5 bitmap rooms ("pou"). Place it ONCE and give it an ordered path of rooms, bottom first; it keeps moving even while the player is in another room, and carries the player across room boundaries. Replaces the old twin-platform-per-room shaft.',
+    components: {
+      msx2_transform: {},
+      msx2_hardware_sprite: {},
+      msx2_platform_shaft: {
+        path: [],
+        bottomSlot: 0,
+        bottomY: 176,
+        topSlot: 0,
+        topY: 16,
+        startSlot: 0,
+        startY: 176,
+        startDir: 0,
+        speed: 1,
+      },
+    },
+    params: { runtime: 'MSX2', engine: 'multiScreenShaft' },
+  },
+  {
     id: 'bitmap_boss',
     label: 'MSX2 Bitmap Boss',
     kind: 'boss',
@@ -891,6 +924,13 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       // [{ id, type: 'weak_point'|'invulnerable', x, y, w, h, damageMultiplier }]
       // Weak points must be listed BEFORE the armour that contains them.
       damageZones: [],
+      // --- death bitmap FX ---
+      // Stamps are selected pseudo-randomly and drawn with colour 0 transparent
+      // across the boss body before onDefeated runs and the body is removed.
+      bossDeathExplosionStampIds: [],
+      bossDeathExplosionCount: 8,
+      bossDeathExplosionInterval: 6,
+      bossDeathExplosionHoldFrames: 12,
       // --- defeat actions (Phase A) ---
       // [{ action: 'setFlag', flag }, { action: 'giveKey', count },
       //  { action: 'openDoor', target: '<door entity id>' }]
@@ -1059,6 +1099,18 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_transform: {},
     },
     params: { runtime: 'MSX2', engine: 'hiddenObj', hiddenObj: true },
+  },
+  {
+    id: 'glow_mushroom',
+    label: 'MSX2 Seta Fosforescente',
+    kind: 'mushroom',
+    runtime: 'MSX2',
+    engine: 'glowMushroom',
+    description: 'SCREEN 5 bitmap-room phosphorescent mushroom: in a DARK room (runtime.lighting = lamp) with the Glowing tail skill it lights its own corner, and eating it (walking into its 16x16 entity cell) relights the player tail at full size. Choose its atlas tile from the selected-entity inspector. Once eaten it regenerates when the tail glow time reaches zero.',
+    components: {
+      msx2_transform: {},
+    },
+    params: { runtime: 'MSX2', engine: 'glowMushroom', glowMushroom: true },
   },
   {
     id: 'checkpoint',
@@ -1546,6 +1598,13 @@ export function buildMsx2BossEntityFromAsset(
       bossPhases: Array.isArray(def.bossPhases) ? def.bossPhases : [],
       // --- damage zones ---
       damageZones: Array.isArray(def.damageZones) ? def.damageZones : [],
+      // --- death bitmap FX ---
+      bossDeathExplosionStampIds: Array.isArray(def.bossDeathExplosionStampIds)
+        ? def.bossDeathExplosionStampIds
+        : [],
+      bossDeathExplosionCount: Math.max(1, Math.min(32, Math.floor(Number(def.bossDeathExplosionCount) || 8))),
+      bossDeathExplosionInterval: Math.max(1, Math.min(60, Math.floor(Number(def.bossDeathExplosionInterval) || 6))),
+      bossDeathExplosionHoldFrames: Math.max(1, Math.min(255, Math.floor(Number(def.bossDeathExplosionHoldFrames) || 12))),
       // --- defeat actions ---
       onDefeated: Array.isArray(def.onDefeated) ? def.onDefeated : [],
       // Canonical link to the reusable definition (same spelling the boss

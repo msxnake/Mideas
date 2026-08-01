@@ -1193,6 +1193,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const [openPalette, setOpenPalette] = useState(true);
   const [openBudget, setOpenBudget] = useState(true);
   const [openHud, setOpenHud] = useState(true);
+  const [openLighting, setOpenLighting] = useState(true);
 
   const hudAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2hud'), [allAssets]);
   const hudAssetId = room.runtime?.hudAssetId;
@@ -1202,7 +1203,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   );
   const selectedHudAssetId = linkedHudAsset ? linkedHudAsset.id : '';
 
-  const withHudAssetId = (hudAssetIdValue: string | undefined) => ({
+  const baseRuntime = () => ({
     screenKind: 'playable' as const,
     screenEngine: 'player' as const,
     activeAreaX: 0,
@@ -1210,8 +1211,26 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     activeAreaWidth: 256,
     activeAreaHeight: 192,
     ...room.runtime,
+  });
+
+  const withHudAssetId = (hudAssetIdValue: string | undefined) => ({
+    ...baseRuntime(),
     hudAssetId: hudAssetIdValue,
   });
+
+  // Dark room: the runtime dims the whole game band and only cuts a halo around
+  // the player (and around each wall torch, with the Torch skill). Needs a
+  // paired 8x2 palette — slots 8..15 must be the dimmed twins of 0..7.
+  const isDarkRoom = String(room.runtime?.lighting || 'off').toLowerCase() === 'lamp';
+  const handleToggleDarkRoom = () => {
+    const next = !isDarkRoom;
+    onUpdate({ runtime: { ...baseRuntime(), lighting: next ? 'lamp' : 'off' } });
+    setStatusBarMessage?.(
+      next
+        ? 'SCREEN 5: sala OSCURA. La luz sale del jugador (y de las antorchas de pared).'
+        : 'SCREEN 5: sala iluminada normal.'
+    );
+  };
 
   const handleLinkHudAsset = (nextId: string) => {
     const nextHudAsset = nextId ? hudAssets.find(asset => asset.id === nextId) : undefined;
@@ -1428,6 +1447,17 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     && !carryableBitmapEntries.some(entry => entry.id === selectedCarryableBitmapEntryId)
     ? [{ id: selectedCarryableBitmapEntryId, name: `${selectedCarryableBitmapEntryId} (current)` } as Msx2BitmapRoomAtlasEntry, ...carryableBitmapEntries]
     : carryableBitmapEntries;
+  const mushroomBitmapEntries = useMemo(
+    () => (room.atlas?.entries || []).filter(entry => Number(entry.w) >= GRID && Number(entry.h) >= GRID),
+    [room.atlas?.entries],
+  );
+  const selectedMushroomBitmapEntryId = String(
+    selectedPlacedEntity?.params?.glowMushroomAtlasEntryId || '',
+  ).trim();
+  const mushroomBitmapOptions = selectedMushroomBitmapEntryId
+    && !mushroomBitmapEntries.some(entry => entry.id === selectedMushroomBitmapEntryId)
+    ? [{ id: selectedMushroomBitmapEntryId, name: `${selectedMushroomBitmapEntryId} (current)` } as Msx2BitmapRoomAtlasEntry, ...mushroomBitmapEntries]
+    : mushroomBitmapEntries;
   const getEntityMovementMode = (entity: Msx2Screen4EntityInstance | null | undefined): string =>
     String(entity?.components?.msx2_movement?.mode ?? entity?.params?.movement ?? entity?.params?.movementMode ?? 'static');
 
@@ -1689,6 +1719,24 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         }));
         return true;
       };
+      const drawAtlasEntry = (entryId: string, pixelX: number, pixelY: number): boolean => {
+        const entry = atlasEntries.find(item => item.id === entryId);
+        if (!entry) return false;
+        const width = Math.min(GRID, Math.max(0, Number(entry.w) || 0));
+        const height = Math.min(GRID, Math.max(0, Number(entry.h) || 0));
+        if (!width || !height) return false;
+        const sx = Math.max(0, Math.trunc(Number(entry.sx) || 0));
+        const sy = Math.max(0, Math.trunc(Number(entry.sy) || 0));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const slot = atlasPixels[sy + y]?.[sx + x] ?? 0;
+            const hex = slot === 0 ? backdropHex : (slots[slot]?.hex || FALLBACK_HEX);
+            ctx.fillStyle = hex === 'rgba(0,0,0,0)' ? FALLBACK_HEX : hex;
+            ctx.fillRect((pixelX + x) * zoom, (pixelY + y) * zoom, zoom, zoom);
+          }
+        }
+        return true;
+      };
       const drawMarkerPx = (pixelX: number, pixelY: number, fill: string, stroke: string, label: string, isSel: boolean) => {
         const px = pixelX * zoom;
         const py = pixelY * zoom;
@@ -1739,15 +1787,21 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const isEnemy = entity.kind === 'enemy';
         const isBoss = entity.kind === 'boss';
         const isPlatform = entity.kind === 'platform';
+        const isShaft = entity.kind === 'platform_shaft';
         const isJumper = isJumperEntity(entity);
         const isWallJumper = isWallJumperEntity(entity);
         const wallJumperDir = isWallJumper ? normalizeWallJumperConfig(entity.params?.wallJumper || entity.components?.msx2_wall_jumper).direction : 'right';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : isBoss ? 'rgba(255,200,0,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : isBoss ? '#FFC800' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : isBoss ? 'rgba(255,200,0,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : entity.kind === 'mushroom' ? 'rgba(160,255,208,0.45)' : isShaft ? 'rgba(255,160,64,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : isBoss ? '#FFC800' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : entity.kind === 'mushroom' ? '#A0FFD0' : isShaft ? '#FFA040' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
         const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isBoss ? 'B' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
+        const label = isEnemy ? 'E' : isBoss ? 'B' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : entity.kind === 'mushroom' ? '☘' : isShaft ? '↕' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
         const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
-        if (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID)) {
+        const mushroomAtlasEntryId = entity.kind === 'mushroom'
+          ? String(entity.params?.glowMushroomAtlasEntryId || '').trim()
+          : '';
+        const renderedVisual = (mushroomAtlasEntryId && drawAtlasEntry(mushroomAtlasEntryId, cx * GRID, cy * GRID))
+          || (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID));
+        if (renderedVisual) {
           if (selectedPlacedId === entity.id) {
             ctx.strokeStyle = '#FFD24A';
             ctx.lineWidth = 2;
@@ -1788,7 +1842,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       ctx.strokeRect(selectedCell.x * GRID * zoom + 1, selectedCell.y * GRID * zoom + 1, GRID * zoom - 2, GRID * zoom - 2);
       ctx.lineWidth = 1;
     }
-  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.collisionShape, room.behavior, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
+  }, [backgroundColor, backdropHex, composedPixels, showGrid, slots, zoom, roomHeight, selectedCell, layerVisible, room.collision, room.collisionShape, room.behavior, room.atlas?.entries, atlasPixels, collisionCols, collisionRows, activeLayer, placedEntities, playerEntries, selectedPlacedId, foregroundTiles, allAssets]);
 
   const commands = room.composition?.commands || [];
 
@@ -2190,6 +2244,29 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       entities: placedEntities.map(entity =>
         entity.id === id
           ? { ...entity, params: { ...(entity.params || {}), ...patch } }
+          : entity
+      ),
+    });
+  };
+
+  // Multi-screen shaft: everything lives in msx2_platform_shaft. The cabin is a
+  // single object spanning several rooms, so its travel is authored as
+  // (screen slot, Y in that screen) pairs -- see msx2BitmapShaftGenerator for why
+  // a global 16-bit Y is not what reaches the ROM.
+  const updatePlacedEntityShaft = (id: string, patch: Record<string, unknown>) => {
+    onUpdate({
+      entities: placedEntities.map(entity =>
+        entity.id === id
+          ? {
+              ...entity,
+              components: {
+                ...(entity.components || {}),
+                msx2_platform_shaft: {
+                  ...(entity.components?.msx2_platform_shaft || {}),
+                  ...patch,
+                },
+              },
+            }
           : entity
       ),
     });
@@ -4810,6 +4887,42 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     <div>{selectedPlacedEntity.kind} @ {selectedPlacedEntity.position?.x},{selectedPlacedEntity.position?.y}</div>
                   </div>
 
+                  {selectedPlacedEntity.kind === 'mushroom' && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">Seta fosforescente</div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile del atlas
+                        <select
+                          value={selectedMushroomBitmapEntryId}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                            glowMushroomAtlasEntryId: event.target.value || undefined,
+                          })}
+                          disabled={mushroomBitmapOptions.length === 0}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary disabled:opacity-60"
+                          aria-label="Tile del atlas de la seta fosforescente"
+                        >
+                          <option value="">(sin tile; solo marcador del editor)</option>
+                          {mushroomBitmapOptions.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry || Number(selectedAtlasEntry.w) < GRID || Number(selectedAtlasEntry.h) < GRID}
+                        onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, {
+                          glowMushroomAtlasEntryId: selectedAtlasEntry.id,
+                        })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Usar tile seleccionado del atlas
+                      </button>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        Se dibujan los primeros 16×16 px. La recogida siempre usa la celda 16×16 de la entidad, independientemente del tile.
+                      </div>
+                    </div>
+                  )}
+
                   {isSelectedCarryable && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
                       <div className="text-[0.7rem] text-msx-highlight">Render del carryable</div>
@@ -5077,6 +5190,166 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                             Sin cuerpo: elige una definición con `bossStampAssetId`, o el boss no se dibujará
                             (el generador lo desactiva en esta room).
                           </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {selectedPlacedEntity.kind === 'platform_shaft' && (() => {
+                    const shaft = (selectedPlacedEntity.components?.msx2_platform_shaft || {}) as Record<string, any>;
+                    const path: string[] = Array.isArray(shaft.path) ? shaft.path : [];
+                    const lastSlot = Math.max(0, path.length - 1);
+                    const roomName = (id: string) => bitmapRooms.find(r => r.id === id)?.name || '(sala borrada)';
+                    const clampSlot = (v: any) => clampInt(v, 0, lastSlot, 0);
+                    const clampY = (v: any) => clampInt(v, 0, 191, 0);
+                    const bottomSlot = clampSlot(shaft.bottomSlot);
+                    const topSlot = clampSlot(shaft.topSlot);
+                    const bottomY = clampY(shaft.bottomY ?? 176);
+                    const topY = clampY(shaft.topY ?? 16);
+                    // Read-out only: height above the very bottom of the shaft, so the
+                    // author can sanity-check a long travel at a glance. The ROM gets
+                    // the (slot, Y) pairs, never this number.
+                    const globalUp = (slot: number, y: number) => slot * 192 + (191 - y);
+                    const setPath = (next: string[]) => {
+                      const cap = Math.max(0, next.length - 1);
+                      updatePlacedEntityShaft(selectedPlacedEntity.id, {
+                        path: next,
+                        bottomSlot: Math.min(bottomSlot, cap),
+                        topSlot: Math.min(topSlot, cap),
+                        startSlot: Math.min(clampSlot(shaft.startSlot), cap),
+                      });
+                    };
+                    const move = (index: number, delta: number) => {
+                      const next = [...path];
+                      const target = index + delta;
+                      if (target < 0 || target >= next.length) return;
+                      [next[index], next[target]] = [next[target], next[index]];
+                      setPath(next);
+                    };
+                    const slotSelect = (label: string, slotVal: number, yVal: number, slotKey: string, yKey: string) => (
+                      <div className="space-y-0.5">
+                        <div className="text-[0.6rem] text-msx-textsecondary">{label}</div>
+                        <div className="flex gap-1">
+                          <select
+                            value={slotVal}
+                            onChange={e => updatePlacedEntityShaft(selectedPlacedEntity.id, { [slotKey]: clampSlot(e.target.value) })}
+                            className="flex-1 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-[0.65rem] text-msx-textprimary"
+                            disabled={!path.length}
+                          >
+                            {path.map((id, i) => <option key={id + i} value={i}>{i} · {roomName(id)}</option>)}
+                          </select>
+                          <input
+                            type="number"
+                            min={0}
+                            max={191}
+                            value={yVal}
+                            onChange={e => updatePlacedEntityShaft(selectedPlacedEntity.id, { [yKey]: clampY(e.target.value) })}
+                            className="w-16 rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-[0.65rem] text-msx-textprimary"
+                            title="Y dentro de esa pantalla (0 = arriba, 191 = abajo)"
+                          />
+                        </div>
+                      </div>
+                    );
+                    return (
+                      <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                        <div className="text-[0.7rem] text-msx-highlight">Pozo multi-pantalla</div>
+                        <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                          Una sola cabina recorre todas las pantallas del trayecto. Se coloca UNA vez:
+                          no hace falta poner una plataforma en cada sala. Sigue moviéndose aunque el
+                          jugador esté en otra pantalla.
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="text-[0.65rem] text-msx-textprimary">Trayecto (slot 0 = abajo)</div>
+                          {!path.length && (
+                            <div className="text-[0.6rem] text-msx-danger leading-tight">
+                              Sin salas: un pozo necesita al menos 2. El generador lo descarta.
+                            </div>
+                          )}
+                          {path.map((id, index) => (
+                            <div key={id + index} className="flex items-center gap-1">
+                              <span className="w-10 shrink-0 text-[0.6rem] text-msx-textsecondary">
+                                slot {index}
+                              </span>
+                              <span className="flex-1 truncate text-[0.65rem] text-msx-textprimary" title={roomName(id)}>
+                                {roomName(id)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => move(index, 1)}
+                                disabled={index === path.length - 1}
+                                className="rounded border border-msx-border px-1 text-[0.6rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-30"
+                                title="Subir en el pozo"
+                              >↑</button>
+                              <button
+                                type="button"
+                                onClick={() => move(index, -1)}
+                                disabled={index === 0}
+                                className="rounded border border-msx-border px-1 text-[0.6rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-30"
+                                title="Bajar en el pozo"
+                              >↓</button>
+                              <button
+                                type="button"
+                                onClick={() => setPath(path.filter((_, i) => i !== index))}
+                                className="rounded border border-msx-border px-1 text-[0.6rem] text-msx-danger hover:border-msx-danger"
+                                title="Quitar del trayecto"
+                              >×</button>
+                            </div>
+                          ))}
+                          <select
+                            value=""
+                            onChange={e => { if (e.target.value) setPath([...path, e.target.value]); }}
+                            className="w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-[0.65rem] text-msx-textprimary"
+                          >
+                            <option value="">+ Añadir sala al trayecto…</option>
+                            {bitmapRooms.map(room => (
+                              <option key={room.id} value={room.id}>{room.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {path.length > 1 && (
+                          <>
+                            <div className="space-y-1">
+                              {slotSelect('Extremo inferior (pantalla · Y)', bottomSlot, bottomY, 'bottomSlot', 'bottomY')}
+                              {slotSelect('Extremo superior (pantalla · Y)', topSlot, topY, 'topSlot', 'topY')}
+                              {slotSelect('Arranque (pantalla · Y)', clampSlot(shaft.startSlot), clampY(shaft.startY ?? 176), 'startSlot', 'startY')}
+                            </div>
+                            <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                              Recorrido: {Math.abs(globalUp(topSlot, topY) - globalUp(bottomSlot, bottomY))} px
+                              sobre {path.length} pantallas ({path.length * 192} px de pozo).
+                            </div>
+                            {globalUp(topSlot, topY) <= globalUp(bottomSlot, bottomY) && (
+                              <div className="text-[0.6rem] text-msx-danger leading-tight">
+                                El extremo superior no está por encima del inferior: la cabina no se moverá.
+                                Recuerda que dentro de una pantalla, Y menor = más arriba.
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-1">
+                              <label className="block text-[0.6rem] text-msx-textsecondary">
+                                Velocidad (px/frame)
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={4}
+                                  value={clampInt(shaft.speed, 1, 4, 1)}
+                                  onChange={e => updatePlacedEntityShaft(selectedPlacedEntity.id, { speed: clampInt(e.target.value, 1, 4, 1) })}
+                                  className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                                />
+                              </label>
+                              <label className="block text-[0.6rem] text-msx-textsecondary">
+                                Sentido inicial
+                                <select
+                                  value={Number(shaft.startDir) === 1 ? 1 : 0}
+                                  onChange={e => updatePlacedEntityShaft(selectedPlacedEntity.id, { startDir: Number(e.target.value) === 1 ? 1 : 0 })}
+                                  className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                                >
+                                  <option value={0}>Subiendo</option>
+                                  <option value={1}>Bajando</option>
+                                </select>
+                              </label>
+                            </div>
+                          </>
                         )}
                       </div>
                     );
@@ -6186,6 +6459,31 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
             {linkedHudAsset && (
               <div className="mt-2 text-[0.65rem] text-msx-textsecondary">
                 Vinculado: <span className="text-msx-textprimary">{linkedHudAsset.name}</span>
+              </div>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Iluminación" isOpen={openLighting} onToggle={() => setOpenLighting(v => !v)}>
+            <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+              <input type="checkbox" checked={isDarkRoom} onChange={handleToggleDarkRoom} />
+              Sala oscura (la luz sale del jugador)
+            </label>
+            <div className="mt-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+              La sala se pinta con los colores apagados y solo se recorta un halo alrededor del
+              jugador. Requiere una <span className="text-msx-textprimary">paleta emparejada 8x2</span>:
+              los slots 8..15 deben ser la versión oscura de los slots 0..7, y el arte de fondo no
+              debe usar 8..15.
+            </div>
+            {isDarkRoom && (
+              <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2 text-[0.65rem] text-msx-textsecondary leading-tight">
+                Con la skill <span className="text-msx-textprimary">Glowing tail</span> activa en el
+                Player, el halo pasa a ser la cola del alien: se enciende al comerse una{' '}
+                <span className="text-msx-textprimary">MSX2 Seta Fosforescente</span> colocada en la
+                sala y va menguando hasta apagarse. Las setas brillan solas para que las veas de
+                lejos. Mientras la cola está encendida, el sprite del Player usa los colores
+                intensos 0..7 de la paleta emparejada. Al agotarse el tiempo, recupera sus colores
+                normales y las setas comidas regeneran su tile y vuelven a brillar. Sin la skill,
+                el jugador lleva una lámpara siempre encendida.
               </div>
             )}
           </CollapsiblePanel>
