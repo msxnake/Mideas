@@ -3,7 +3,9 @@ import path from 'node:path';
 import * as esbuild from 'esbuild';
 
 const root = process.cwd();
-const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+// Normalize line endings: with core.autocrlf=true the working tree is CRLF, so
+// multi-line literals below (which are written with \n) would never match.
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n');
 
 const checks = [];
 const addCheck = (name, ok, detail = '') => checks.push({ name, ok, detail });
@@ -414,7 +416,7 @@ addCheck('SCREEN 5 generator ignores SCREEN 4 runtime GameFlows', screen5Present
 addCheck('SCREEN 4 generator selects MSX2 screen4 runtime GameFlow', screen4Generator.includes('getScreen4RuntimeGameFlow') && screen4Generator.includes("flow?.purpose === 'screen4-runtime'") && screen4Generator.includes("asset?.type === gameFlowAssetType") && screen4Generator.includes("'msx2gameflow'"));
 addCheck('SCREEN 4 generator reads MSX2 visual screen ids', screen4Generator.includes('getFlowBackgroundScreenAssetId') && screen4Generator.includes('node?.backgroundScreenAssetId || node?.screenAssetId') && screen4Generator.includes('getFlowBackgroundScreenAssetId(current)'));
 addCheck('SCREEN 4 generator emits Screen4Screen panel runtime', screen4Generator.includes("case 'Screen4Screen'") && screen4Generator.includes('must reference an exportable SCREEN 4 room') && screen4Generator.includes('buildMsx2TileScreenLoadLines(label') && screen4Generator.includes('isPlayableMsx2TileScreenRuntime(tileScreen)') && screen4Generator.includes('buildMsx2EnterGameplayLoopLines') && screen4Generator.includes('call wait_key_release') && screen4Generator.includes('buildMsx2GameFlowTransitionWaitLines(labelForNodeId(current.id), frames)') && /case 'Screen4Screen':[\s\S]*?const label = screenLoadLabelForAssetId\(analysis, screenLabels, tileScreenLabels, screenAssetId\);\s*if \(!label\)/.test(screen4Generator));
-addCheck('MSX2 GameFlow editor exposes TextScroll panel controls', editor.includes("addNode('TextScroll')") && editor.includes('selectedTextScrollNode') && editor.includes('updateSelectedTextScroll') && editor.includes('SCREEN 4 export renders this as a story panel'));
+addCheck('MSX2 GameFlow editor exposes TextScroll panel controls', editor.includes("addNode('TextScroll')") && editor.includes('selectedTextScrollNode') && editor.includes('updateSelectedTextScroll') && editor.includes('SCREEN 5 export scrolls the window line by line') && editor.includes('SCREEN 4 export still renders this as a static story panel') && editor.includes('selectedTextScrollNode.textColorIndex') && editor.includes('selectedTextScrollNode.backgroundColorIndex') && editor.includes('selectedTextScrollNode.scrollStepFrames'));
 addCheck('MSX2 GameFlow editor exposes TextScrollColor panel controls', editor.includes("addNode('TextScrollColor')") && editor.includes('selectedTextScrollColorNode') && editor.includes('updateSelectedTextScrollColor') && editor.includes('colored story panel'));
 addCheck('MSX2 GameFlow editor exposes Music node controls', editor.includes("addNode('Music')") && editor.includes('selectedMusicNode') && editor.includes('updateSelectedMusic') && editor.includes('Music track playback is not wired for MSX2 SCREEN 4 export yet') && editor.includes('active track playback is blocked until the MSX2 tracker runtime is connected') && editor.includes('stop: true') && editor.includes('autoPlay: false'));
 addCheck('SCREEN 4 generator emits TextScroll panel runtime', screen4Generator.includes("case 'TextScroll'") && screen4Generator.includes('buildMsx2TextScrollNodeData') && screen4Generator.includes('_TEXTSCROLL') && screen4Generator.includes('TextScroll panel text'));

@@ -294,6 +294,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const isScreen5PresentationFlow = flowPurpose === 'screen5-presentation';
   const isScreen5BitmapRuntimeFlow = flowPurpose === 'screen4-bitmap-runtime';
   const isScreen4TileRuntimeFlow = flowPurpose === 'screen4-runtime';
+  // SubMenu / TextScroll / TextScrollColor / Music cannot be expressed by the
+  // strict-shape SCREEN 5 exporter, so their presence switches the project to
+  // the generic SCREEN 5 GameFlow walker (msx2Screen5FlowGenerator.ts), which
+  // accepts any node order — including menus that loop back on themselves.
+  const usesScreen5GenericBackend = nodes.some(node => (
+    node.type === 'SubMenu' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'Music'
+  ));
+  const isScreen5GenericFlow = isScreen5PresentationFlow && usesScreen5GenericBackend;
   // The room node type is the same (`Screen4Screen`) for both tile SCREEN 4 and bitmap SCREEN 5
   // rooms — only the referenced asset differs. Relabel the add button to the active flow's mode so
   // a bitmap flow clearly offers a bitmap-room screen instead of a confusing "Add SCREEN 4".
@@ -488,6 +496,45 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       if (!nodes.some(node => node.type === 'SubMenu')) {
         issues.push('SCREEN 4 runtime GameFlow is ready for SubMenu nodes.');
       }
+    } else if (usesScreen5GenericBackend) {
+      // Generic SCREEN 5 walker: any node order is legal, so only per-node
+      // completeness and transition-effect support are validated here.
+      for (const node of nodes) {
+        if (node.type === 'Screen5Presentation') {
+          if (!node.presentationAssetId || !presentationAssets.some(asset => asset.id === node.presentationAssetId)) {
+            issues.push('Screen5Presentation node must select a valid SCREEN 5 presentation asset.');
+          }
+        } else if (node.type === 'SubMenu') {
+          if (!node.title?.trim()) issues.push('SubMenu node must include a title.');
+          if (!Array.isArray(node.options) || node.options.length === 0) {
+            issues.push('SubMenu node must include at least one option.');
+          }
+          for (const option of node.options || []) {
+            if (!option.text?.trim()) issues.push('SubMenu options must include text.');
+            const optionConnections = connections.filter(connection => connection.from.nodeId === node.id && connection.from.sourceId === option.id);
+            if (optionConnections.length === 0) {
+              issues.push(`SubMenu option "${option.text || option.id}" needs an outgoing connection.`);
+            } else if (optionConnections.length > 1) {
+              issues.push(`SubMenu option "${option.text || option.id}" has more than one outgoing connection.`);
+            }
+          }
+        } else if (node.type === 'Text') {
+          if (!node.message?.trim()) issues.push('Text node must include a message.');
+        } else if (node.type === 'TextScroll' || node.type === 'TextScrollColor') {
+          if (!node.text?.trim()) issues.push(`${node.type} node must include text.`);
+        } else if (node.type === 'IfThenElse') {
+          if (!node.variableName?.trim()) issues.push('IfThenElse must select a global variable.');
+        } else if (node.type === 'Transition') {
+          if (!MSX2_SCREEN5_TRANSITION_EFFECTS.has(node.effect)) {
+            issues.push(`Transition effect "${node.effect}" is not supported by SCREEN 5; use a SCREEN 5 effect.`);
+          }
+        } else if (node.type === 'Screen4Screen' || node.type === 'WorldLink' || node.type === 'Controls') {
+          issues.push(`${node.type} is not supported by the SCREEN 5 GameFlow backend.`);
+        }
+      }
+      if (!nodes.some(node => node.type === 'Screen5Presentation')) {
+        issues.push('SCREEN 5 flows should include at least one Screen5Presentation node as background.');
+      }
     } else {
       const firstScreen5 = nodes.find(node => node.type === 'Screen5Presentation') as Msx2GameFlowScreen5PresentationNode | undefined;
       const presentationNode = startNode ? getNextExportNode(startNode, nodes, connections) : undefined;
@@ -607,11 +654,15 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       visited.add(current.id);
       current = getNextNode(current, nodes, connections);
     }
-    if (current && visited.has(current.id)) {
-      issues.push('Export path contains a cycle.');
-    }
-    if (flowHasAnyCycle(nodes, connections)) {
-      issues.push('Flow contains a cycle.');
+    // The generic SCREEN 5 walker emits one routine per node and jumps between
+    // them, so loops (menu -> options -> back to menu) are a supported shape.
+    if (!usesScreen5GenericBackend) {
+      if (current && visited.has(current.id)) {
+        issues.push('Export path contains a cycle.');
+      }
+      if (flowHasAnyCycle(nodes, connections)) {
+        issues.push('Flow contains a cycle.');
+      }
     }
     for (const connection of connections) {
       if (!nodeIds.has(connection.from.nodeId) || !nodeIds.has(connection.to.nodeId)) {
@@ -650,7 +701,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
 
     return Array.from(new Set(issues));
-  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, worldAssets]);
+  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, usesScreen5GenericBackend, worldAssets]);
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
@@ -1416,7 +1467,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={() => addNode('Globals')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Globals
         </Button>
-        <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+        <Button onClick={() => addNode('SubMenu')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} title="Keyboard/joystick option menu (SCREEN 5 uses the generic GameFlow walker)">
           Add SubMenu
         </Button>
         <Button onClick={() => addNode('Screen4Screen')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow} title={isScreen5BitmapRuntimeFlow ? 'Add a SCREEN 5 bitmap-room screen node' : 'Add a SCREEN 4 tile-room screen node'}>
@@ -1431,10 +1482,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         <Button onClick={() => addNode('Text')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
           Add Text
         </Button>
-        <Button onClick={() => addNode('TextScroll')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+        <Button onClick={() => addNode('TextScroll')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} title="Credits-style scrolling text window">
           Add Text Scroll
         </Button>
-        <Button onClick={() => addNode('TextScrollColor')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={isScreen5PresentationFlow}>
+        <Button onClick={() => addNode('TextScrollColor')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} title="Scrolling text with explicit text/background palette indices">
           Add Text Color
         </Button>
         <Button onClick={() => addNode('IfThenElse')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />}>
@@ -1776,6 +1827,30 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                 />
               </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs">
+                  Text color
+                  <input
+                    type="number"
+                    min={1}
+                    max={15}
+                    value={selectedTextNode.textColorIndex ?? 15}
+                    onChange={event => updateSelectedText({ textColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Back color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedTextNode.backgroundColorIndex ?? 0}
+                    onChange={event => updateSelectedText({ backgroundColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+              </div>
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -1832,6 +1907,41 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full min-h-24 bg-msx-panelbg border border-msx-border rounded p-1"
                 />
               </label>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="block text-xs">
+                  Text color
+                  <input
+                    type="number"
+                    min={1}
+                    max={15}
+                    value={selectedTextScrollNode.textColorIndex ?? 15}
+                    onChange={event => updateSelectedTextScroll({ textColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Back color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedTextScrollNode.backgroundColorIndex ?? 0}
+                    onChange={event => updateSelectedTextScroll({ backgroundColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Frames/line
+                  <input
+                    type="number"
+                    min={1}
+                    max={255}
+                    value={selectedTextScrollNode.scrollStepFrames ?? 18}
+                    onChange={event => updateSelectedTextScroll({ scrollStepFrames: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+              </div>
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -1853,7 +1963,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 />
               </label>
               <p className="text-xs text-msx-textsecondary">
-                SCREEN 4 export renders this as a story panel now; smooth pixel scrolling remains a later runtime step.
+                SCREEN 5 export scrolls the window line by line with the V9938 command engine.
+                SCREEN 4 export still renders this as a static story panel.
               </p>
             </div>
           )}
@@ -1891,7 +2002,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   className="mt-1 w-full min-h-24 bg-msx-panelbg border border-msx-border rounded p-1"
                 />
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <label className="block text-xs">
                   Text color
                   <input
@@ -1911,6 +2022,17 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                     max={15}
                     value={selectedTextScrollColorNode.backgroundColorIndex ?? 1}
                     onChange={event => updateSelectedTextScrollColor({ backgroundColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Frames/line
+                  <input
+                    type="number"
+                    min={1}
+                    max={255}
+                    value={selectedTextScrollColorNode.scrollStepFrames ?? 18}
+                    onChange={event => updateSelectedTextScrollColor({ scrollStepFrames: Number(event.target.value) })}
                     className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
                   />
                 </label>
@@ -2202,6 +2324,56 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   ))}
                 </select>
               </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs">
+                  Text color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedSubMenuNode.textColorIndex ?? 15}
+                    onChange={event => updateSelectedSubMenu({ textColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Back color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedSubMenuNode.backgroundColorIndex ?? 0}
+                    onChange={event => updateSelectedSubMenu({ backgroundColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Sel. text color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedSubMenuNode.highlightColorIndex ?? 0}
+                    onChange={event => updateSelectedSubMenu({ highlightColorIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+                <label className="block text-xs">
+                  Sel. back color
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    value={selectedSubMenuNode.highlightBackgroundIndex ?? 15}
+                    onChange={event => updateSelectedSubMenu({ highlightBackgroundIndex: Number(event.target.value) })}
+                    className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                  />
+                </label>
+              </div>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 5 export draws the options with the 6x8 GameFlow font; cursor keys / joystick move the
+                highlight and SPACE / fire selects.
+              </p>
               <Button onClick={addSubMenuOption} size="sm" variant="secondary" className="w-full" disabled={(selectedSubMenuNode.options || []).length >= 6}>
                 Add Option
               </Button>

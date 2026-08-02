@@ -525,3 +525,61 @@ Total:            ~68000 ciclos = ~19ms
 - ⚡ **Rápido**: ~150 ciclos por transición
 - 💾 **Eficiente**: Stack mínimo, sin recursión profunda
 - 🔒 **Seguro**: Verificación de HL=0 previene crashes
+
+---
+
+## 🖼️ Backend MSX2 SCREEN 5 (walker genérico)
+
+Hasta ahora el export de SCREEN 5 sólo entendía **una forma fija** de grafo
+(`Start → Screen5Presentation → [Text] → [Transition] → End`). Los nodos
+SubMenu, TextScroll y TextScrollColor estaban deshabilitados en ese modo.
+
+`utils/msxGenerator/generators/msx2/msx2Screen5FlowGenerator.ts` recorre el
+grafo y emite **una rutina por nodo** con saltos entre ellas, así que el orden
+es libre y los ciclos (menú → opción → volver al menú) son válidos.
+
+### Cuándo se usa
+Se activa automáticamente cuando el flow contiene `SubMenu`, `TextScroll`,
+`TextScrollColor` o `Music`. Si no, se mantiene el backend estricto anterior y
+la ROM sale **byte a byte idéntica**.
+
+### Nodos soportados
+| Nodo | Runtime |
+|------|---------|
+| `Screen5Presentation` | `DISSCR` → paleta a RAM (`GF_PALETTE_RAM`) → chunks a VRAM → `ENASCR` |
+| `Text` | Título + líneas con word-wrap + `PRESS ANY KEY`, colores por nodo |
+| `SubMenu` | Opciones dibujadas con la fuente 6x8; `GTSTCK` (cursores/joystick) mueve el resalte, `GTTRIG` (SPACE/fire) selecciona; cada opción salta a su propia rama |
+| `TextScroll` / `TextScrollColor` | Ventana de texto que sube línea a línea con **HMMM**, banda inferior limpiada con **HMMV** |
+| `Transition` | `cls`, `fade_to_black` y los 4 pixel wipes SCREEN 5 |
+| `IfThenElse`, `Globals`, `Restart`, `End`, `Music`, `Waypoint` | Comparación 16-bit, escrituras EQU, `jp init_rom`, halt, silencio PSG, passthrough |
+
+### Motor de texto
+Fuente propia de 6x8 (`msx2Screen5FlowFont.ts`, ASCII 32..90, 5 px útiles + 1 de
+separación). `gf_print` expande el glifo 1bpp a 4bpp en un buffer RAM
+(`GF_TEXTBUF`, 8 filas) y sube cada fila con `LDIRVM`. Sólo se escribe el ancho
+real del texto, así que el fondo de la presentación se conserva alrededor.
+
+### Transiciones con el motor de comandos del V9938
+Las wipes ya **no** usan `FILVRM` byte a byte (el camino antiguo hacía ~27.000
+llamadas para un wipe vertical). Ahora cada paso es un único **HMMV**:
+
+| Efecto | Implementación |
+|--------|----------------|
+| `screen5_vertical_pixel_wipe` | columnas de 4 px, 1 HMMV por frame (64 frames) |
+| `screen5_horizontal_pixel_wipe` | bandas de 4 líneas (53 frames) |
+| `screen5_mirror_pixel_wipe` | dos columnas simétricas por frame (32 frames) |
+| `screen5_diagonal_pixel_wipe` | bloques 16x16 por anti-diagonal, tabla en ROM |
+| `fade_to_black` | 8 pasos bajando R/G/B de `GF_PALETTE_RAM` |
+
+⚠️ Tras `fade_to_black` la paleta queda a negro: el siguiente nodo que dibuje
+texto no se verá hasta que un `Screen5Presentation` recargue la paleta.
+
+### RAM
+`#C800` runtime del flow (colores, menú, bloque de 15 bytes R#32..R#46),
+`#C820` paleta viva, `#CA00`-`#CDFF` buffer de texto. Las globales siguen desde
+`#C000` y el buffer ZX0 sigue en `#D000`.
+
+### Proyecto de test
+`scripts/create_msx2_screen5_gameflow_menu_fixture.py` genera
+`test/msx2-gameflow/screen5_gameflow_menu_project.json`: pantalla de título
+SCREEN 5, menú de 4 opciones y una rama por cada tipo de nodo/transición.

@@ -6,7 +6,9 @@ import { dirname, join, resolve } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 
-const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
+// Normalize line endings: with core.autocrlf=true the working tree is CRLF, so
+// any multi-line literal asserted below (written with \n) would never match.
+const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8').replace(/\r\n/g, '\n');
 
 const catalog = read('components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const defaults = read('data', 'defaults.ts');
@@ -140,12 +142,15 @@ const checks = [
       projectTarget.includes("template.target || 'MSX1'"),
   ],
   [
+    // The filters take an optional third argument (the MSX2 project profile);
+    // the new/load flows must pass it so profile-disabled defaults stay out too.
     'initial project state and new/load project flows filter defaults by screen mode',
     useAppState.includes('DEFAULT_PROJECT_COMPONENT_DEFINITIONS') &&
       useAppState.includes('DEFAULT_PROJECT_ENTITY_TEMPLATES') &&
-      projectHandlers.includes('filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode)') &&
-      projectHandlers.includes('filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode)') &&
-      projectHandlers.includes('filterComponentDefinitionsForProject(migratedComponentDefinitions, loadedMode)') &&
+      projectHandlers.includes('filterComponentDefinitionsForProject(DEFAULT_COMPONENT_DEFINITIONS, newProjectScreenMode, profile)') &&
+      projectHandlers.includes('filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, newProjectScreenMode, profile)') &&
+      projectHandlers.includes('filterComponentDefinitionsForProject(migratedComponentDefinitions, loadedMode, loadedMsx2Profile)') &&
+      projectHandlers.includes('filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode, loadedMsx2Profile)') &&
       projectHandlers.includes('isEntityTemplateEnabledForProject(template, loadedMode)'),
   ],
   [
@@ -156,9 +161,15 @@ const checks = [
       projectCleanup.includes('isEntityTemplateEnabledForProject(template, currentScreenMode)'),
   ],
   [
+    // Imported definitions are normalized to the active target and then run
+    // through the same screen-mode + profile filter as the built-in catalog,
+    // so a JSON authored for the other target cannot sneak in.
     'component, template, and Player Kit imports cannot bypass active-target filtering',
     componentEditor.includes('target: definition.target || projectTarget') &&
-      componentEditor.includes('isComponentDefinitionEnabledForProject(definition, currentScreenMode)') &&
+      // `[^;]` keeps the gap inside this one call: with `[\s\S]` the match could
+      // bridge across statements and stay green after the args were removed.
+      /filterComponentDefinitionsForProject\(\s*importData\.data[^;]*?currentScreenMode,\s*msx2ProjectProfile\s*\)/.test(componentEditor) &&
+      /filterComponentDefinitionsForProject\(\s*DEFAULT_COMPONENT_DEFINITIONS,\s*currentScreenMode,\s*msx2ProjectProfile\s*\)/.test(componentEditor) &&
       templateEditor.includes('target: template.target || projectTarget') &&
       templateEditor.includes('isEntityTemplateEnabledForProject(template, currentScreenMode)') &&
       templateEditor.includes('componentDefinitionsToImport') &&

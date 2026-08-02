@@ -3653,6 +3653,10 @@ export interface Msx2GameFlowTextNode extends Msx2GameFlowNode_Base {
   type: 'Text';
   title: string;
   message: string;
+  /** SCREEN 5 palette index used to draw the glyphs (defaults to the brightest slot). */
+  textColorIndex?: number;
+  /** SCREEN 5 palette index painted behind the glyphs (defaults to 0). */
+  backgroundColorIndex?: number;
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -3662,6 +3666,10 @@ export interface Msx2GameFlowTextScrollNode extends Msx2GameFlowNode_Base {
   title: string;
   text: string;
   backgroundScreenAssetId?: string;
+  textColorIndex?: number;
+  backgroundColorIndex?: number;
+  /** Frames each scrolled line stays before the window shifts up again. */
+  scrollStepFrames?: number;
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -3673,6 +3681,8 @@ export interface Msx2GameFlowTextScrollColorNode extends Msx2GameFlowNode_Base {
   backgroundScreenAssetId?: string;
   textColorIndex?: number;
   backgroundColorIndex?: number;
+  /** Frames each scrolled line stays before the window shifts up again. */
+  scrollStepFrames?: number;
   waitForKey?: boolean;
   waitFrames?: number;
 }
@@ -3687,6 +3697,11 @@ export interface Msx2GameFlowSubMenuNode extends Msx2GameFlowNode_Base {
   title: string;
   options: Msx2GameFlowSubMenuOption[];
   backgroundScreenAssetId?: string;
+  /** SCREEN 5 palette indices for the idle and highlighted option rows. */
+  textColorIndex?: number;
+  backgroundColorIndex?: number;
+  highlightColorIndex?: number;
+  highlightBackgroundIndex?: number;
 }
 
 export interface Msx2GameFlowControlsNode extends Msx2GameFlowNode_Base {

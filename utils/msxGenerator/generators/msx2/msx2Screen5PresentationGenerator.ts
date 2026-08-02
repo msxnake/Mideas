@@ -3,6 +3,11 @@ import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import { generateMsx2Screen4UnitedFiles, type Msx2Screen4Config } from './msx2Screen4Generator';
+import {
+  findScreen5FlowGraph,
+  generateMsx2Screen5FlowUnitedFiles,
+  screen5FlowNeedsGenericBackend,
+} from './msx2Screen5FlowGenerator';
 
 interface Msx2Screen5PresentationGeneratorConfig {
   screenMode: 'SCREEN 5 (Graphics III)';
@@ -1646,6 +1651,14 @@ ${bankedIntroCodeAsm}
 }
 
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5PresentationGeneratorConfig): string {
+  // Flows that use SubMenu / TextScroll / TextScrollColor / Music cannot be
+  // expressed by the strict-shape resolver below, so they go through the
+  // generic node walker. Flows that stick to the classic shape keep producing
+  // the exact same ASM as before.
+  const screen5Flow = findScreen5FlowGraph(analysis);
+  if (screen5FlowNeedsGenericBackend(screen5Flow)) {
+    return generateMsx2Screen5FlowUnitedFiles(projectName, analysis, config);
+  }
   const screen4RuntimeFlow = getScreen4RuntimeGameFlow(analysis);
   if (screen4RuntimeFlow) {
     const presentationSequence = resolvePresentationChain(analysis, 1);
