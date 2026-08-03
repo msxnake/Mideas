@@ -1,0 +1,6 @@
+t=2   player_x=0 facing=17 screen=3 pool=0 cd=0 lock=0
+t=5   player_x=0 facing=17 screen=3 pool=0 cd=0 lock=0
+t=8   player_x=0 facing=17 screen=3 pool=0 cd=0 lock=0
+t=16 after SPACE taps  player_x=0 facing=17 screen=1 pool=0 cd=0 lock=0
+t=19 after RIGHT  player_x=0 facing=17 screen=1 pool=0 cd=0 lock=0
+t=21 after B held 1s  player_x=0 facing=17 screen=1 pool=0 cd=0 lock=0

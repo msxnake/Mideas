@@ -337,6 +337,20 @@ gameflow_handle_submenu:
 ```
 
 **Ejecución:**
+Una entidad con los componentes `Collision` y `World Exit` actúa como trigger de
+fin de mundo. Cuando una entidad marcada como Player toca su hitbox, Preview y ROM
+ponen `gameflow_exit_requested = 1`. El loop de `WorldLink` retorna y GameFlow
+continúa por la conexión `CONNECTION_DEFAULT` del nodo.
+
+La plantilla incluida `World Exit Door` ya viene configurada como trigger. No
+requiere una State Machine ni una acción `EXIT_CURRENT_WORLD` adicional.
+
+En proyectos MSX2 `Platform Bitmap · SCREEN 5`, el preset equivalente es
+`MSX2 Exit World`. Puede usar un tile del atlas como puerta y una hitbox propia.
+Su colisión arma `bitmap_gameflow_exit_flag`; `bitmap_enter_game_loop` retorna al
+dispatcher y el `WorldLink` continúa por su conexión por defecto. Sin GameFlow,
+el runtime bitmap hace un reinicio suave determinista.
+
 ```asm
 gameflow_handle_worldlink:
     ; 1. Cargar mundo

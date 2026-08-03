@@ -1,0 +1,11 @@
+=== t=12 music state ===
+music_active=1 track_index=1 data_bank_cur=16
+scc_active=1 psg_active=1
+scc_row=0 psg_row=0
+AY: R0=0 R1=0 R7=BF R8=0
+=== t=16 progress ===
+music_active=1 track_index=1 data_bank_cur=16
+scc_active=1 psg_active=1
+scc_row=43 psg_row=43
+AY: R0=83 R1=1 R7=B8 R8=12
+rows_moved=1 verdict=OK

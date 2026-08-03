@@ -1,0 +1,6 @@
+room=01
+slot=00
+shaft_y=B0
+dir=00
+rider=00
+forced=FF

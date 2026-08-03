@@ -1,0 +1,3 @@
+slot=03
+shaft_y=59
+dir=01

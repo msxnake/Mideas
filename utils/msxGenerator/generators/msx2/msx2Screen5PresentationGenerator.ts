@@ -1,13 +1,32 @@
 import { Msx2GameFlowGlobalsNode, Msx2GameFlowGraph, Msx2GameFlowIfThenElseNode, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTextNode, Msx2GameFlowTransitionNode, Msx2Screen5PresentationConfig, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
+import { isMsx2Screen4Purpose, isMsx2Screen5OrUnsetPurpose } from '../../../msx2GameFlowPurpose';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import { generateMsx2Screen4UnitedFiles, type Msx2Screen4Config } from './msx2Screen4Generator';
+
+// Labels shared by the mixed SCREEN 5 -> SCREEN 4 ROM: the intro entry the
+// resident stub jumps to, and the SCREEN 4 runtime entry the last intro scene
+// jumps to once the presentation is done.
+const MIXED_INTRO_ENTRY_LABEL = 'mixed_screen5_intro_entry';
+const MIXED_SCREEN4_ENTRY_LABEL = 'screen4_runtime_init_rom';
 import {
   findScreen5FlowGraph,
   generateMsx2Screen5FlowUnitedFiles,
   screen5FlowNeedsGenericBackend,
 } from './msx2Screen5FlowGenerator';
+import {
+  SCREEN5_BITMAP_BYTE_COUNT,
+  SCREEN5_DEFAULT_CHUNK_LINES,
+  SCREEN5_ROW_BYTES,
+  SCREEN5_VISIBLE_HEIGHT,
+  buildScreen5BitmapBytes,
+  buildScreen5PaletteBytes,
+  chunkScreen5BitmapBytes,
+  normalizeScreen5Presentation,
+  resolveScreen5BrightestPaletteIndex,
+} from './screen5PresentationData';
+import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
 
 interface Msx2Screen5PresentationGeneratorConfig {
   screenMode: 'SCREEN 5 (Graphics III)';
@@ -16,22 +35,17 @@ interface Msx2Screen5PresentationGeneratorConfig {
   autoMegaROM?: boolean;
 }
 
-const SCREEN_WIDTH = 256;
-const VISIBLE_HEIGHT = 212;
-const BYTES_PER_LINE = SCREEN_WIDTH / 2;
-const DEFAULT_CHUNK_LINES = 32;
-const BITMAP_BYTE_COUNT = VISIBLE_HEIGHT * BYTES_PER_LINE;
+// Local aliases for the shared SCREEN 5 geometry, kept so the ASM templates
+// below read the same as before.
+const VISIBLE_HEIGHT = SCREEN5_VISIBLE_HEIGHT;
+const BYTES_PER_LINE = SCREEN5_ROW_BYTES;
+const DEFAULT_CHUNK_LINES = SCREEN5_DEFAULT_CHUNK_LINES;
+const BITMAP_BYTE_COUNT = SCREEN5_BITMAP_BYTE_COUNT;
 
 const clampByte = (value: unknown, fallback = 0): number => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.max(0, Math.min(255, Math.trunc(numeric)));
-};
-
-const clampLevel = (value: unknown, fallback = 0): number => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(0, Math.min(7, Math.trunc(numeric)));
 };
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
@@ -217,14 +231,14 @@ function resolveMsx2GameFlowPresentationNode(flow: Msx2GameFlowGraph | undefined
 
 function getScreen4RuntimeGameFlow(analysis: ProjectAnalysis): Msx2GameFlowGraph | undefined {
   return (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
-    .find(candidate => candidate?.purpose === 'screen4-runtime');
+    .find(candidate => isMsx2Screen4Purpose(candidate?.purpose));
 }
 
 function resolvePresentationChain(analysis: ProjectAnalysis, minimumScenes = 2): { flow: Msx2GameFlowGraph; scenes: ResolvedPresentationChainScene[] } | undefined {
   const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>);
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]);
-  const flow = flows.filter(candidate => candidate?.purpose !== 'screen4-runtime')
-    .find(candidate => candidate?.name === 'Main MSX2') || flows.find(candidate => candidate?.purpose !== 'screen4-runtime');
+  const flow = flows.filter(candidate => isMsx2Screen5OrUnsetPurpose(candidate?.purpose))
+    .find(candidate => candidate?.name === 'Main MSX2') || flows.find(candidate => isMsx2Screen5OrUnsetPurpose(candidate?.purpose));
   const firstNode = resolveMsx2GameFlowPresentationNode(flow);
   if (!flow || !firstNode) return undefined;
 
@@ -243,7 +257,7 @@ function resolvePresentationChain(analysis: ProjectAnalysis, minimumScenes = 2):
 
     const scene: ResolvedPresentationChainScene = {
       node: current,
-      presentation: normalizePresentation(applyGameFlowRuntimeOverrides(presentation, current)),
+      presentation: normalizeScreen5Presentation(applyGameFlowRuntimeOverrides(presentation, current)),
     };
     const nextNode = getNextExportNode(flow, current);
     if (!nextNode || nextNode.type === 'End') {
@@ -362,7 +376,7 @@ function resolveNextExportStep(
 function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentationFlow {
   const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string }>);
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[]);
-  const screen5Flows = flows.filter(candidate => candidate?.purpose !== 'screen4-runtime');
+  const screen5Flows = flows.filter(candidate => isMsx2Screen5OrUnsetPurpose(candidate?.purpose));
   const flow = screen5Flows.find(candidate => candidate?.name === 'Main MSX2') || screen5Flows[0];
   const node = resolveMsx2GameFlowPresentationNode(flow);
   const requestedPresentationAssetId = node?.presentationAssetId;
@@ -397,65 +411,6 @@ function resolvePresentationFlow(analysis: ProjectAnalysis): ResolvedPresentatio
     terminalAction: nextStep.terminalAction,
     requestedPresentationAssetId,
   };
-}
-
-function parseHexColor(hex: unknown): [number, number, number] | null {
-  if (typeof hex !== 'string') return null;
-  const match = hex.trim().match(/^#?([0-9a-f]{6})$/i);
-  if (!match) return null;
-  const value = parseInt(match[1], 16);
-  return [
-    Math.round(((value >> 16) & 0xff) * 7 / 255),
-    Math.round(((value >> 8) & 0xff) * 7 / 255),
-    Math.round((value & 0xff) * 7 / 255),
-  ];
-}
-
-function resolvePaletteSlot(slot: Screen5PaletteSlot | undefined): [number, number, number] {
-  const masterIndex = Number(slot?.masterIndex);
-  if (Number.isFinite(masterIndex) && masterIndex >= 0) {
-    const index = Math.max(0, Math.min(511, Math.trunc(masterIndex)));
-    return [(index >> 6) & 0x07, (index >> 3) & 0x07, index & 0x07];
-  }
-  const fromHex = parseHexColor((slot as any)?.hex);
-  if (fromHex) return fromHex.map(value => clampLevel(value)) as [number, number, number];
-  return [0, 0, 0];
-}
-
-function buildPaletteBytes(palette: Screen5PaletteSlot[] | undefined): number[] {
-  const source = Array.isArray(palette) ? palette : [];
-  return Array.from({ length: 16 }, (_unused, slotIndex) => {
-    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
-    const [r, g, b] = resolvePaletteSlot(slot);
-    return [(r << 4) | b, g];
-  }).flat();
-}
-
-function resolveTextPaletteIndex(palette: Screen5PaletteSlot[] | undefined): number {
-  const source = Array.isArray(palette) ? palette : [];
-  let bestSlot = 15;
-  let bestBrightness = -1;
-  for (let slotIndex = 1; slotIndex < 16; slotIndex++) {
-    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
-    const [r, g, b] = resolvePaletteSlot(slot);
-    const brightness = r + g + b;
-    if (brightness > bestBrightness) {
-      bestBrightness = brightness;
-      bestSlot = slotIndex;
-    }
-  }
-  return bestSlot;
-}
-
-function buildBitmapBytes(presentation: Msx2Screen5PresentationConfig): number[] {
-  const source = Array.isArray(presentation.packedBitmap) ? presentation.packedBitmap : [];
-  const imageHeight = presentation.height === 212 ? 212 : 192;
-  const imageBytes = Math.min(imageHeight * BYTES_PER_LINE, source.length);
-  const bytes = Array.from({ length: BITMAP_BYTE_COUNT }, () => 0);
-  for (let index = 0; index < imageBytes; index++) {
-    bytes[index] = clampByte(source[index], 0);
-  }
-  return bytes;
 }
 
 function normalizeGlobalName(name: unknown): string {
@@ -701,16 +656,6 @@ function wrapScreen5Text(value: unknown, maxLineLength = 28, maxLines = 8): stri
   return lines.filter((line, index) => line.length > 0 || index < rawLines.length - 1).slice(0, maxLines);
 }
 
-function chunkBitmapBytes(bytes: number[], chunkLines: number): number[][] {
-  const normalizedChunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(chunkLines) || DEFAULT_CHUNK_LINES));
-  const chunkSize = normalizedChunkLines * BYTES_PER_LINE;
-  const chunks: number[][] = [];
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    chunks.push(bytes.slice(offset, offset + chunkSize));
-  }
-  return chunks;
-}
-
 function formatBytes(label: string, bytes: number[], comment?: string): string {
   const lines: string[] = [];
   if (comment) lines.push(`; ${comment}`);
@@ -934,15 +879,7 @@ ${waitBlock}${afterTransitionAction === 'restart' ? `    jp init_rom
 }
 
 function getScreen5TransitionEffectBlock(transition: Msx2GameFlowTransitionNode, _vramBase: string): string {
-  const screen5TransitionEffects = new Set([
-    'cls',
-    'fade_to_black',
-    'screen5_vertical_pixel_wipe',
-    'screen5_horizontal_pixel_wipe',
-    'screen5_diagonal_pixel_wipe',
-    'screen5_mirror_pixel_wipe',
-  ]);
-  if (!screen5TransitionEffects.has(transition.effect)) {
+  if (!SCREEN5_TRANSITION_EFFECTS.has(transition.effect)) {
     throw new Error(`MSX2 SCREEN 5 GameFlow transition "${transition.effect}" is not supported; use a SCREEN 5 transition effect.`);
   }
   return transition.effect === 'fade_to_black'
@@ -1296,33 +1233,6 @@ function applyGameFlowRuntimeOverrides(
   };
 }
 
-function normalizePresentation(presentation: Msx2Screen5PresentationConfig | undefined): Msx2Screen5PresentationConfig {
-  return {
-    enabled: presentation?.enabled !== false,
-    name: presentation?.name || 'MSX2 SCREEN 5 Presentation',
-    target: 'MSX2',
-    screenMode: 'SCREEN 5',
-    sourceFileName: presentation?.sourceFileName || null,
-    sourceImageWidth: Number(presentation?.sourceImageWidth) || 0,
-    sourceImageHeight: Number(presentation?.sourceImageHeight) || 0,
-    width: 256,
-    height: presentation?.height === 212 ? 212 : 192,
-    fitMode: presentation?.fitMode || 'cover',
-    palette: Array.isArray(presentation?.palette) ? presentation!.palette : [],
-    pixels: Array.isArray(presentation?.pixels) ? presentation!.pixels : [],
-    packedBitmap: Array.isArray(presentation?.packedBitmap) ? presentation!.packedBitmap : [],
-    compression: presentation?.compression || { codec: 'ZX0', enabled: false, chunkLines: 32 },
-    runtime: {
-      showAtBoot: presentation?.runtime?.showAtBoot !== false,
-      clearSpritesBeforeShow: presentation?.runtime?.clearSpritesBeforeShow !== false,
-      waitForKey: presentation?.runtime?.waitForKey !== false,
-      waitForFrames: Number(presentation?.runtime?.waitForFrames) || 0,
-      vramPage: presentation?.runtime?.vramPage === 1 ? 1 : 0,
-      romDataGroup: presentation?.runtime?.romDataGroup || 'auto',
-    },
-  };
-}
-
 function generatePresentationChainUnitedFiles(
   projectName: string,
   flow: Msx2GameFlowGraph,
@@ -1347,10 +1257,10 @@ function generatePresentationChainUnitedFiles(
       : undefined;
   const preparedScenes = scenes.map((scene, sceneIndex) => {
     const presentation = scene.presentation;
-    const paletteBytes = buildPaletteBytes(presentation.palette);
-    const bitmapBytes = buildBitmapBytes(presentation);
+    const paletteBytes = buildScreen5PaletteBytes(presentation.palette);
+    const bitmapBytes = buildScreen5BitmapBytes(presentation);
     const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
-    const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
+    const bitmapChunks = chunkScreen5BitmapBytes(bitmapBytes, chunkLines);
     const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
     const label = `msx2_gameflow_screen5_scene_${sceneIndex}`;
     return { ...scene, presentation, paletteBytes, bitmapChunks, chunkLines, vramBase, label, sceneIndex };
@@ -1461,7 +1371,7 @@ ${bankHeader}${formatBytes(label, chunk, `SCREEN 5 scene ${scene.sceneIndex} bit
 ; Project: ${projectName}
 ; Presentation scenes: ${preparedScenes.length}
 ; Screen mode: ${config.screenMode}
-; Backend: msx2-screen5-presentation-chain
+; Backend: screen5 (presentation chain)
 ; MSX2_GAMEFLOW_PRESENT: yes
 ; MSX2_GAMEFLOW_ASSET: ${flow.name || 'Main MSX2'}
 ; MSX2_GAMEFLOW_SCREEN5_CHAIN: ${preparedScenes.length}
@@ -1495,7 +1405,7 @@ SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
     dw 0
 
 ` : `; Mideas MSX2 SCREEN 5 presentation chain backend
-; Backend: msx2-screen5-presentation-chain
+; Backend: screen5 (presentation chain)
 ; MSX2_GAMEFLOW_SCREEN5_CHAIN: ${preparedScenes.length}
 ${options.extraHeaderMarkers || ''}
 SCREEN5_PRESENTATION_ZX0_BUFFER EQU #D000
@@ -1588,13 +1498,62 @@ ${chunkData}
   return body;
 }
 
-function renameScreen4EntryForMixedAsm(screen4Asm: string): string {
-  let transformed = screen4Asm.replace(/\bdw\s+init_rom\b/i, 'dw __MIDEAS_MIXED_ENTRY__');
-  transformed = transformed.replace(/\binit_rom\b/g, 'screen4_runtime_init_rom');
-  transformed = transformed.replace('dw __MIDEAS_MIXED_ENTRY__', 'dw init_rom');
-  return transformed;
+/**
+ * Splits the generated intro into the code that lives in the banked window and
+ * the chunk data that is appended after the SCREEN 4 cold data.
+ *
+ * Both cuts must match. They used to be plain `.replace()` calls, and the one
+ * that strips the cartridge bring-up (the resident stub already did it) did
+ * NOT throw when it missed — a formatting change in the intro emitter would
+ * have left two stray `call`s in a banked routine and produced a broken ROM
+ * with no build error.
+ */
+function splitMixedIntroAsm(introAsm: string): { codeAsm: string; chunkDataAsm: string } {
+  const chunkDataMatch = introAsm.match(/; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_START__[\s\S]*?; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_END__\n?/);
+  const codeWithoutChunks = chunkDataMatch ? introAsm.replace(chunkDataMatch[0], '') : introAsm;
+
+  // The resident stub has already brought the cartridge up before jumping into
+  // the intro, so the intro's own bring-up is redundant and gets dropped.
+  //
+  // Only the MegaROM pair is stripped, which is what the previous `.replace()`
+  // did. `init_konami8k_fixed_bank0_banks` is emitted only for Konami MegaROM
+  // builds, so on simple32k the pattern never matched and the lone
+  // `call map_page2_to_cart_primary` survived into the banked intro. That call
+  // is a harmless re-map, and removing it here would change the ROM, so the
+  // wart is kept deliberately rather than fixed inside a refactor.
+  // Anchored to the start of a line: an unanchored pattern still matches when
+  // the emitter's indentation changes, which would let a reformatted intro slip
+  // through the check it is supposed to fail.
+  const megaRomBringUp = /^ {4}call map_page2_to_cart_primary\r?\n {4}call init_konami8k_fixed_bank0_banks\r?\n/m;
+  const singleBringUp = /^ {4}call map_page2_to_cart_primary\r?\n/m;
+  if (!singleBringUp.test(codeWithoutChunks)) {
+    // Unlike the old silent replace, an emitter that stopped producing the
+    // bring-up (or changed its indentation) now fails the build instead of
+    // quietly shipping an intro that never maps its own bank.
+    throw new Error(
+      'MSX2 mixed SCREEN 5 -> SCREEN 4 backend could not find `call map_page2_to_cart_primary` in the '
+      + 'generated intro. The mixed ROM layout depends on that call being emitted; check '
+      + 'generatePresentationChainUnitedFiles().'
+    );
+  }
+
+  return {
+    codeAsm: codeWithoutChunks.replace(megaRomBringUp, ''),
+    chunkDataAsm: chunkDataMatch ? chunkDataMatch[0] : '',
+  };
 }
 
+/**
+ * SCREEN 5 presentation intro + SCREEN 4 tile runtime in a single ROM.
+ *
+ * The cartridge boots into a small resident stub that maps the intro bank and
+ * runs the presentation; the last scene jumps into the SCREEN 4 runtime entry.
+ *
+ * The SCREEN 4 side is generated with the labels and payload it needs, rather
+ * than generated-then-rewritten: `renameScreen4EntryForMixedAsm()` used to do a
+ * global `\binit_rom\b` replace over the whole output and re-patch the boot
+ * vector afterwards.
+ */
 function generateMixedScreen5ToScreen4UnitedFiles(
   projectName: string,
   flow: Msx2GameFlowGraph,
@@ -1602,52 +1561,47 @@ function generateMixedScreen5ToScreen4UnitedFiles(
   analysis: ProjectAnalysis,
   config: Msx2Screen5PresentationGeneratorConfig
 ): string {
-  const screen4Asm = renameScreen4EntryForMixedAsm(generateMsx2Screen4UnitedFiles(projectName, analysis, {
-    ...(config as unknown as Msx2Screen4Config),
-    screenMode: 'SCREEN 4 (Graphics II)',
-  }));
   const introAsm = generatePresentationChainUnitedFiles(projectName, flow, scenes, config, {
-    entryLabel: 'mixed_screen5_intro_entry',
-    finalJumpLabel: 'screen4_runtime_init_rom',
+    entryLabel: MIXED_INTRO_ENTRY_LABEL,
+    finalJumpLabel: MIXED_SCREEN4_ENTRY_LABEL,
     includeCartridgeScaffold: false,
     extraHeaderMarkers: '; MSX2_GAMEFLOW_SCREEN5_TO_SCREEN4_MIXED: yes',
     bankedChunkStartBank: 6,
   });
-  const chunkDataMatch = introAsm.match(/; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_START__[\s\S]*?; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_END__\n?/);
-  const introCodeAsm = chunkDataMatch
-    ? introAsm.replace(chunkDataMatch[0], '')
-    : introAsm;
-  const bankedIntroCodeAsm = introCodeAsm.replace(
-    /    call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks\n/,
-    ''
-  );
-  const introChunkDataAsm = chunkDataMatch ? chunkDataMatch[0] : '';
-  const insertionPoint = /^screen4_runtime_init_rom:\s*$/m;
-  if (!insertionPoint.test(screen4Asm)) {
-    throw new Error('MSX2 mixed SCREEN 5 -> SCREEN 4 backend could not locate the SCREEN 4 runtime entry label.');
-  }
-  const residentStub = `init_rom:
+  const { codeAsm, chunkDataAsm } = splitMixedIntroAsm(introAsm);
+
+  // Boots the cartridge, maps the intro bank into page 1 and enters the intro.
+  // Named `init_rom` because that is what the cartridge header points at.
+  const residentPrologueAsm = `init_rom:
     di
     call map_page2_to_cart_primary
     call init_konami8k_fixed_bank0_banks
     ld a, MIXED_SCREEN5_INTRO_BANK
     call mapper_set_bank_p1
-    jp mixed_screen5_intro_entry
+    jp ${MIXED_INTRO_ENTRY_LABEL}
 
 `;
   const bankedIntroAsm = `MIXED_SCREEN5_INTRO_BANK EQU 5
     org #6000
 
-${bankedIntroCodeAsm}
+${codeAsm}
     ds #8000 - $, #FF
 `;
-  const withIntro = screen4Asm
-    .replace('; Mideas MSX2 SCREEN 4 tile backend', '; Mideas MSX2 mixed SCREEN 5 presentation + SCREEN 4 runtime backend')
-    .replace('; MSX2 MegaROM Path:', '; Backend: msx2-screen5-presentation-chain-screen4-runtime\n; Mideas MSX2 SCREEN 5 presentation chain backend\n; MSX2 MegaROM Path:')
-    .replace(insertionPoint, `${residentStub}$&`);
-  return introChunkDataAsm
-    ? withIntro.replace(/\n\s*end\s*$/i, `\n${bankedIntroAsm}\n${introChunkDataAsm}\n    end\n`)
-    : withIntro.replace(/\n\s*end\s*$/i, `\n${bankedIntroAsm}\n    end\n`);
+
+  return generateMsx2Screen4UnitedFiles(projectName, analysis, {
+    ...(config as unknown as Msx2Screen4Config),
+    screenMode: 'SCREEN 4 (Graphics II)',
+    host: {
+      runtimeEntryLabel: MIXED_SCREEN4_ENTRY_LABEL,
+      bootEntryLabel: 'init_rom',
+      residentPrologueAsm,
+      trailingAsm: chunkDataAsm
+        ? `${bankedIntroAsm}\n${chunkDataAsm}\n`
+        : `${bankedIntroAsm}\n`,
+      headerTitle: 'Mideas MSX2 mixed SCREEN 5 presentation + SCREEN 4 runtime backend',
+      extraHeaderMarkers: '; Backend: screen5 (presentation chain -> screen4 runtime)\n; Mideas MSX2 SCREEN 5 presentation chain backend',
+    },
+  });
 }
 
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5PresentationGeneratorConfig): string {
@@ -1671,12 +1625,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     return generatePresentationChainUnitedFiles(projectName, presentationChain.flow, presentationChain.scenes, config);
   }
   const resolvedFlow = resolvePresentationFlow(analysis);
-  const presentation = normalizePresentation(applyGameFlowRuntimeOverrides(resolvedFlow.presentation, resolvedFlow.node));
-  const paletteBytes = buildPaletteBytes(presentation.palette);
-  const textColorIndex = resolveTextPaletteIndex(presentation.palette);
-  const bitmapBytes = buildBitmapBytes(presentation);
+  const presentation = normalizeScreen5Presentation(applyGameFlowRuntimeOverrides(resolvedFlow.presentation, resolvedFlow.node));
+  const paletteBytes = buildScreen5PaletteBytes(presentation.palette);
+  const textColorIndex = resolveScreen5BrightestPaletteIndex(presentation.palette);
+  const bitmapBytes = buildScreen5BitmapBytes(presentation);
   const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
-  const bitmapChunks = chunkBitmapBytes(bitmapBytes, chunkLines);
+  const bitmapChunks = chunkScreen5BitmapBytes(bitmapBytes, chunkLines);
   const vramBase = presentation.runtime.vramPage === 1 ? '#8000' : '#0000';
   const usesKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   const terminalTransition = resolvedFlow.transition;
@@ -1748,7 +1702,7 @@ ${formatBytes(label, chunk, `SCREEN 5 4bpp bitmap chunk ${index}, ${chunk.length
 ; Project: ${projectName}
 ; Presentation: ${presentation.name}
 ; Screen mode: ${config.screenMode}
-; Backend: msx2-screen5-presentation
+; Backend: screen5 (presentation)
 ; MSX2_GAMEFLOW_PRESENT: ${resolvedFlow.flow ? 'yes' : 'no'}
 ; MSX2_GAMEFLOW_ASSET: ${resolvedFlow.flow?.name || 'none'}
 ; MSX2_GAMEFLOW_START_NODE: ${resolvedFlow.flow?.startNodeId || 'none'}

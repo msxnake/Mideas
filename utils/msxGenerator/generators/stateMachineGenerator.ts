@@ -169,8 +169,38 @@ const KEY_IDS: Record<string, number> = {
     'arrowleft': 7,   // DOM key name alias
     'right': 3,       // Right direction
     'arrowright': 3,  // DOM key name alias
-    'fire': 9,        // Fire button (special check)
-    'space': 9,       // Space as fire alias
+    'fire': 9,        // Logical Button A / Action 1
+    'space': 9,       // Legacy Button A keyboard alias
+    'spc': 9,
+    'buttona': 9,
+    'button1': 9,
+    'action1': 9,
+    'joya': 9,
+    'joysticka': 9,
+    'action2': 10,    // Logical Button B / Action 2
+    'fire2': 10,
+    'buttonb': 10,
+    'button2': 10,
+    'btn2': 10,
+    'grab': 10,
+    'attack': 10,
+    'joyb': 10,
+    'joystickb': 10,
+    'secondbutton': 10,
+    'keyn': 10,
+    'n': 10,
+    'keym': 10,
+    'm': 10,
+    'f1': 11,
+    'f2': 12,
+    'f3': 13,
+    'f4': 14,
+    'f5': 15,
+};
+
+const resolveStateMachineKeyId = (value: unknown): number => {
+    const normalized = String(value ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    return KEY_IDS[normalized] ?? 0;
 };
 
 const DIRECTION_IDS: Record<string, number> = {
@@ -5009,6 +5039,58 @@ SM_MatchDirection:
     ret
 
 ; ------------------------------------------------------------------
+; HELPER: Read an MSX function key from the keyboard matrix
+; Input: A = key id (11=F1, 12=F2, 13=F3, 14=F4, 15=F5)
+; Output: A = 1 if pressed, 0 if released
+; Clobbers: AF, C (through FAST_SNSMAT)
+; Preserves: B, DE, HL and stack balance
+; ------------------------------------------------------------------
+SM_ReadFunctionKey:
+    cp 11
+    jr z, .smfk_f1
+    cp 12
+    jr z, .smfk_f2
+    cp 13
+    jr z, .smfk_f3
+    cp 14
+    jr z, .smfk_f4
+    cp 15
+    jr z, .smfk_f5
+    xor a
+    ret
+.smfk_f1:
+    ld a, 6
+    call FAST_SNSMAT
+    bit 5, a
+    jr .smfk_active_low
+.smfk_f2:
+    ld a, 6
+    call FAST_SNSMAT
+    bit 6, a
+    jr .smfk_active_low
+.smfk_f3:
+    ld a, 6
+    call FAST_SNSMAT
+    bit 7, a
+    jr .smfk_active_low
+.smfk_f4:
+    ld a, 7
+    call FAST_SNSMAT
+    bit 0, a
+    jr .smfk_active_low
+.smfk_f5:
+    ld a, 7
+    call FAST_SNSMAT
+    bit 1, a
+.smfk_active_low:
+    jr nz, .smfk_released
+    ld a, 1
+    ret
+.smfk_released:
+    xor a
+    ret
+
+; ------------------------------------------------------------------
 ; HELPER: Deduce movement direction from entity velocity
 ; Input: B = Entity Index
 ; Output: A = direction key id (1/3/5/7) or 0 if idle
@@ -5147,15 +5229,22 @@ Condition_KeyPressed:
     ret
 .sm_input_enabled:
     ; Level keydown: active in the current input sample
-    ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
+    ; Params: Key ID (1/3/5/7=direction, 9=A, 10=B, 11..15=F1..F5)
     ld d, (hl)
     inc hl
 
     ld a, d
     cp 9
     jr z, .ckp_fire
+    cp 10
+    jr z, .ckp_action2
+    cp 11
+    jr c, .ckp_direction
+    cp 16
+    jr c, .ckp_function
 
     ; Directional level: current active
+.ckp_direction:
     ld a, (input_state)
     call SM_MatchDirection
     or a
@@ -5170,21 +5259,40 @@ Condition_KeyPressed:
     ld a, 1
     ret
 
+.ckp_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jr z, .ckp_not_pressed
+    ld a, 1
+    ret
+
+.ckp_function:
+    ld a, d
+    call SM_ReadFunctionKey
+    ret
+
 .ckp_not_pressed:
     xor a
     ret
 
 Condition_KeyReleased:
     ; Level keyup: inactive in the current input sample
-    ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
+    ; Params: Key ID (1/3/5/7=direction, 9=A, 10=B, 11..15=F1..F5)
     ld d, (hl)
     inc hl
 
     ld a, d
     cp 9
     jr z, .ckr_fire
+    cp 10
+    jr z, .ckr_action2
+    cp 11
+    jr c, .ckr_direction
+    cp 16
+    jr c, .ckr_function
 
     ; Directional level: current inactive
+.ckr_direction:
     ld a, (input_state)
     call SM_MatchDirection
     or a
@@ -5195,6 +5303,21 @@ Condition_KeyReleased:
 .ckr_fire:
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
+    jr nz, .ckr_not_released
+    ld a, 1
+    ret
+
+.ckr_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jr nz, .ckr_not_released
+    ld a, 1
+    ret
+
+.ckr_function:
+    ld a, d
+    call SM_ReadFunctionKey
+    or a
     jr nz, .ckr_not_released
     ld a, 1
     ret
@@ -5496,6 +5619,13 @@ Condition_KeyAndMove:
     ld a, d
     cp 9
     jr z, .ckam_fire
+    cp 10
+    jr z, .ckam_action2
+    cp 11
+    jr c, .ckam_direction
+    cp 16
+    jr c, .ckam_function
+.ckam_direction:
     ld a, (input_state)
     call SM_MatchDirection
     or a
@@ -5506,6 +5636,19 @@ Condition_KeyAndMove:
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
     jr z, .ckam_false
+    jr .ckam_check_move
+
+.ckam_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jr z, .ckam_false
+    jr .ckam_check_move
+
+.ckam_function:
+    ld a, d
+    call SM_ReadFunctionKey
+    or a
+    jr z, .ckam_false
 
 .ckam_check_move:
     ld a, c
@@ -5514,7 +5657,7 @@ Condition_KeyAndMove:
 
     ld a, d
     cp 9
-    jr z, .ckam_from_velocity
+    jr nc, .ckam_from_velocity
     ld a, d
     jr .ckam_have_dir
 
@@ -7041,7 +7184,7 @@ function generateConditionBytes(condition: Condition, variableIdMap?: Record<str
         case ConditionTypes.KEY_PRESSED:
         case ConditionTypes.KEY_RELEASED: {
             const keyName = condition.params?.key?.toLowerCase();
-            const keyId = KEY_IDS[keyName] ?? 0; // Default to 0 (center/no key) if unknown
+            const keyId = resolveStateMachineKeyId(keyName); // 0 = center/no key when unknown
             bytes += `    DB ${keyId}          ; Key: ${keyName || 'unknown'}\n`;
             break;
         }
@@ -7102,12 +7245,12 @@ function generateConditionBytes(condition: Condition, variableIdMap?: Record<str
 
         case ConditionTypes.KEY_AND_MOVEMENT: {
             const keyName = String(condition.params?.key || '').toLowerCase();
-            const keyId = KEY_IDS[keyName] ?? 0;
+            const keyId = resolveStateMachineKeyId(keyName);
 
             const directionName = String(condition.params?.direction || '').toLowerCase();
             let directionId = DIRECTION_IDS[directionName] ?? 0;
 
-            if (!directionName && keyId !== 9) {
+            if (!directionName && [1, 3, 5, 7].includes(keyId)) {
                 // If movement key is directional and no explicit direction was provided, use same direction
                 directionId = keyId;
             }

@@ -1,0 +1,2 @@
+hits over 2s: music_update=0 psg_music_update=0 wait_vblank=64
+scc_muted=0 psg_muted=0 scc_cnt=1 psg_cnt=1 music_active=1

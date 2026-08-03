@@ -1,0 +1,2 @@
+hits 9.5-17.5: entry=1 n0(start)=1 n5(music)=1 n1(pres)=1 n2(wipe)=1 n3(worldlink)=1 n4(end)=0 enter_game=1 music_update=0
+music_active=1 over=0 px=147 py=146

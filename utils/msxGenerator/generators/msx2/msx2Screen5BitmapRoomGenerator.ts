@@ -1,5 +1,13 @@
 import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, PSGSoundData, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
+import { isMsx2Screen5Purpose } from '../../../msx2GameFlowPurpose';
+import {
+  SCREEN5_ROW_BYTES,
+  SCREEN5_VISIBLE_HEIGHT,
+  buildScreen5BitmapBytes,
+  buildScreen5PaletteBytes,
+} from './screen5PresentationData';
+import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
 import { bitmapStampToPixelGrid } from '../../../msx2Screen5BitmapTileLibrary';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -220,6 +228,16 @@ import {
 } from '../soundGenerator';
 import { buildExternalPT3WorkspaceAsm } from '../variablesGenerator';
 import {
+  BF_MENU_MAX_OPTIONS,
+  bitmapFlowTextEquates,
+  bitmapFlowTextRuntime,
+  collectBitmapFlowTextFeatures,
+  emitBitmapFlowSubMenuNode,
+  emitBitmapFlowTextNode,
+  emitBitmapFlowTextScrollNode,
+  resetBitmapFlowStringCounter,
+} from './msx2BitmapFlowTextGenerator';
+import {
   bitmapCarryAndThrowEnabled,
   buildBitmapCarryAndThrowSystemAsm,
   buildBitmapCarryAndThrowData,
@@ -242,12 +260,11 @@ interface Msx2BitmapRoomConfig {
 
 const SCREEN_WIDTH = 256;
 const SCREEN_HEIGHT_DEFAULT = 192;
-const SCREEN5_VISIBLE_HEIGHT = 212;
 // 212-line SCREEN 5 layout, no leftover: 20px HUD band on top + 192px game band
 // (20 + 192 = 212). Requires VDP R#9 LN=1 (set in init_screen5_bitmap_vdp).
 const BITMAP_ROOM_HUD_HEIGHT = 20;
 const BITMAP_ROOM_GAME_Y_OFFSET = BITMAP_ROOM_HUD_HEIGHT;
-const ROW_BYTES = SCREEN_WIDTH / 2;
+const ROW_BYTES = SCREEN5_ROW_BYTES;
 const BITMAP_ROOM_PAGE0_BASE_Y = 0;
 const BITMAP_ROOM_PAGE1_BASE_Y = 256;
 const BITMAP_ROOM_ATLAS_BASE_Y = 512;
@@ -331,42 +348,28 @@ function firstBitmapRoom(analysis: ProjectAnalysis): Msx2Screen5BitmapRoom | und
 
 type RoomTransitions = Map<number, Partial<Record<ConnectionDirection, number>>>;
 
+/** One compiled world: its rooms occupy [roomBase, roomBase + rooms.length) globally. */
+interface BitmapWorldPlan {
+  id: string;
+  name: string;
+  rooms: Msx2Screen5BitmapRoom[];
+  /** Global index of this world's first room in the concatenated room list. */
+  roomBase: number;
+  /** GLOBAL index of the room the world starts at. */
+  startIndex: number;
+  paletteAssetId?: string;
+}
+
 /**
- * A "world" is a `worldmap` asset; its nodes are the bitmap-room screens that
- * share one tileset/palette. This collects the ordered rooms of the world that
- * contains the first bitmap room, the start room index, and the edge-transition
- * table (room index + direction -> destination room index) derived from the
- * worldmap connections. With no worldmap it degrades to a single standalone room.
+ * Read one worldmap graph: its ordered bitmap rooms, the start room and the
+ * edge-transition rails, all in LOCAL (0-based within the world) indices.
  */
-function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
+function readBitmapWorldGraph(graph: any, roomById: Map<string, Msx2Screen5BitmapRoom>): {
   rooms: Msx2Screen5BitmapRoom[];
   startIndex: number;
   transitions: RoomTransitions;
   paletteAssetId?: string;
 } {
-  const allRooms = (((analysis as any).msx2BitmapRooms || []) as Msx2Screen5BitmapRoom[]).filter(Boolean);
-  if (allRooms.length === 0) return { rooms: [], startIndex: 0, transitions: new Map() };
-
-  const roomById = new Map(allRooms.map(room => [room.id, room]));
-  const worldmaps = ((analysis as any).worldmaps || []) as any[];
-  const hasBitmapRooms = (wm: any) => (wm?.nodes || []).some((node: any) => roomById.has(node?.screenAssetId));
-  // A GameFlow WorldLink names the world to compile, so honour it first. Without
-  // this the world is decided by whichever bitmap room happens to come first in
-  // asset order, and linking a second world in the editor appears to do nothing.
-  const linkedWorldId = (resolveBitmapGameFlow(analysis)?.nodes || [])
-    .filter((node: any) => node?.type === 'WorldLink')
-    .map((node: any) => node?.worldAssetId || node?.data?.worldAssetId || node?.data?.worldMapId)
-    .find((id: any) => typeof id === 'string' && id);
-  const linkedWorld = linkedWorldId ? worldmaps.find(wm => wm?.id === linkedWorldId) : undefined;
-  const graph = (linkedWorld && hasBitmapRooms(linkedWorld)) ? linkedWorld : worldmaps.find(hasBitmapRooms);
-  if (linkedWorldId && !linkedWorld) {
-    console.warn(`⚠️ MSX2 bitmap rooms: the GameFlow WorldLink points at world "${linkedWorldId}", which does not exist; falling back to the first world that has bitmap rooms.`);
-  } else if (linkedWorld && !hasBitmapRooms(linkedWorld)) {
-    console.warn(`⚠️ MSX2 bitmap rooms: the GameFlow WorldLink points at world "${linkedWorld.name || linkedWorldId}", but none of its nodes resolve to a bitmap room; falling back to the first world that has them.`);
-  }
-  if (!graph) return { rooms: [allRooms[0]], startIndex: 0, transitions: new Map() };
-
-  // Order the rooms by the worldmap nodes that resolve to a bitmap room.
   const orderedNodes = (graph.nodes || []).filter((node: any) => roomById.has(node?.screenAssetId));
   const rooms = orderedNodes.map((node: any) => roomById.get(node.screenAssetId)!);
   const indexByScreenId = new Map<string, number>(orderedNodes.map((node: any, index: number) => [node.screenAssetId, index]));
@@ -397,6 +400,141 @@ function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
   return { rooms, startIndex, transitions, paletteAssetId: typeof graph.paletteAssetId === 'string' ? graph.paletteAssetId : undefined };
 }
 
+/**
+ * A "world" is a `worldmap` asset; its nodes are the bitmap-room screens that
+ * share one tileset/palette. Every world named by a GameFlow WorldLink is
+ * compiled, in flow order, into ONE global room list: world N's rooms occupy
+ * [roomBase, roomBase + rooms.length), so every per-room table (collision,
+ * enemies, spawns, transitions...) stays a flat array indexed by a global room
+ * index and needs no world dimension. Rails never cross worlds because they are
+ * built per graph and then rebased.
+ *
+ * `rooms`/`startIndex`/`transitions`/`paletteAssetId` describe the FIRST world,
+ * which keeps single-world projects byte-identical to the pre-multi-world output.
+ * With no worldmap it degrades to a single standalone room.
+ */
+function collectBitmapWorldRooms(analysis: ProjectAnalysis): {
+  rooms: Msx2Screen5BitmapRoom[];
+  startIndex: number;
+  transitions: RoomTransitions;
+  paletteAssetId?: string;
+  /** Every compiled world, in WorldLink order. Length 1 for classic projects. */
+  worlds: BitmapWorldPlan[];
+  /** All worlds' rooms concatenated; index space of every per-room table. */
+  allRooms: Msx2Screen5BitmapRoom[];
+  /** Rails of every world, rebased to global room indices. */
+  allTransitions: RoomTransitions;
+} {
+  const allBitmapRooms = (((analysis as any).msx2BitmapRooms || []) as Msx2Screen5BitmapRoom[]).filter(Boolean);
+  const empty = { rooms: [], startIndex: 0, transitions: new Map(), worlds: [], allRooms: [], allTransitions: new Map() };
+  if (allBitmapRooms.length === 0) return empty;
+
+  const roomById = new Map(allBitmapRooms.map(room => [room.id, room]));
+  const worldmaps = ((analysis as any).worldmaps || []) as any[];
+  const hasBitmapRooms = (wm: any) => (wm?.nodes || []).some((node: any) => roomById.has(node?.screenAssetId));
+  // Every WorldLink names a world to compile. Without this the world is decided
+  // by whichever bitmap room happens to come first in asset order, and linking a
+  // second world in the editor appears to do nothing.
+  //
+  // Order matters: world 0 is the boot world, and its start room is what every
+  // project-wide decision reads (player, HUD, background colour). So walk the
+  // graph's default-connection chain from Start first and take the WorldLinks in
+  // the order the game really reaches them; WorldLinks that hang off a branch
+  // (SubMenu options, IfThenElse) are appended afterwards in node order so they
+  // are still compiled.
+  const flow = resolveBitmapGameFlow(analysis);
+  const flowNodes = (flow?.nodes || []) as any[];
+  const worldIdOfNode = (node: any): string | undefined => {
+    const id = node?.worldAssetId || node?.data?.worldAssetId || node?.data?.worldMapId;
+    return typeof id === 'string' && id ? id : undefined;
+  };
+  const linkedWorldIds: string[] = [];
+  const pushWorldId = (id: string | undefined) => {
+    if (id && !linkedWorldIds.includes(id)) linkedWorldIds.push(id);
+  };
+  const nodeById = new Map<string, any>(flowNodes.map(node => [node.id, node]));
+  let cursor: string | undefined = flow?.startNodeId || flowNodes.find(node => node?.type === 'Start')?.id;
+  const walked = new Set<string>();
+  while (cursor && !walked.has(cursor)) {
+    walked.add(cursor);
+    const node = nodeById.get(cursor);
+    if (node?.type === 'WorldLink') pushWorldId(worldIdOfNode(node));
+    cursor = (flow?.connections || []).find((item: any) => item?.from?.nodeId === cursor && !item?.from?.sourceId)?.to?.nodeId;
+  }
+  for (const node of flowNodes) {
+    if (node?.type === 'WorldLink') pushWorldId(worldIdOfNode(node));
+  }
+
+  const graphs: any[] = [];
+  for (const id of linkedWorldIds) {
+    const world = worldmaps.find(wm => wm?.id === id);
+    if (!world) {
+      console.warn(`⚠️ MSX2 bitmap rooms: the GameFlow WorldLink points at world "${id}", which does not exist; it is skipped.`);
+      continue;
+    }
+    if (!hasBitmapRooms(world)) {
+      console.warn(`⚠️ MSX2 bitmap rooms: the GameFlow WorldLink points at world "${world.name || id}", but none of its nodes resolve to a bitmap room; it is skipped.`);
+      continue;
+    }
+    graphs.push(world);
+  }
+  if (graphs.length === 0) {
+    const fallback = worldmaps.find(hasBitmapRooms);
+    if (fallback) graphs.push(fallback);
+  }
+  if (graphs.length === 0) {
+    const rooms = [allBitmapRooms[0]];
+    return {
+      rooms,
+      startIndex: 0,
+      transitions: new Map(),
+      worlds: [{ id: '', name: '', rooms, roomBase: 0, startIndex: 0 }],
+      allRooms: rooms,
+      allTransitions: new Map(),
+    };
+  }
+
+  const worlds: BitmapWorldPlan[] = [];
+  const allRooms: Msx2Screen5BitmapRoom[] = [];
+  const allTransitions: RoomTransitions = new Map();
+  let first: ReturnType<typeof readBitmapWorldGraph> | undefined;
+
+  for (const graph of graphs) {
+    const parsed = readBitmapWorldGraph(graph, roomById);
+    if (parsed.rooms.length === 0) continue;
+    const roomBase = allRooms.length;
+    if (!first) first = parsed;
+    worlds.push({
+      id: String(graph.id || ''),
+      name: String(graph.name || ''),
+      rooms: parsed.rooms,
+      roomBase,
+      startIndex: roomBase + parsed.startIndex,
+      paletteAssetId: parsed.paletteAssetId,
+    });
+    allRooms.push(...parsed.rooms);
+    for (const [from, rails] of parsed.transitions) {
+      const rebased: Partial<Record<ConnectionDirection, number>> = {};
+      for (const [dir, to] of Object.entries(rails)) {
+        if (to === undefined) continue;
+        rebased[dir as ConnectionDirection] = roomBase + to;
+      }
+      allTransitions.set(roomBase + from, rebased);
+    }
+  }
+
+  if (!first) return empty;
+  return {
+    rooms: first.rooms,
+    startIndex: first.startIndex,
+    transitions: first.transitions,
+    paletteAssetId: first.paletteAssetId,
+    worlds,
+    allRooms,
+    allTransitions,
+  };
+}
+
 // --- GameFlow intro: SCREEN 5 presentation scene(s) before gameplay ---------
 // The bitmap-runtime GameFlow (purpose 'screen4-bitmap-runtime') may open with
 // Start -> Screen5Presentation [-> Transition] (repeatable) before reaching the
@@ -423,65 +561,10 @@ interface BitmapIntroSceneBlob {
   rleChunks: RleChunk[];
 }
 
-const BITMAP_INTRO_SUPPORTED_EFFECTS = new Set<string>([
-  'cls',
-  'fade_to_black',
-  'screen5_vertical_pixel_wipe',
-  'screen5_horizontal_pixel_wipe',
-  'screen5_diagonal_pixel_wipe',
-  'screen5_mirror_pixel_wipe',
-]);
-
-function parseIntroHexColor(hex: unknown): [number, number, number] | null {
-  if (typeof hex !== 'string') return null;
-  const match = hex.trim().match(/^#?([0-9a-f]{6})$/i);
-  if (!match) return null;
-  const value = parseInt(match[1], 16);
-  return [
-    Math.round(((value >> 16) & 0xff) * 7 / 255),
-    Math.round(((value >> 8) & 0xff) * 7 / 255),
-    Math.round((value & 0xff) * 7 / 255),
-  ];
-}
-
-// Presentation assets store palettes as masterIndex slots (like rooms) OR as
-// raw hex strings, so this cannot reuse the room-only buildPaletteBytes.
-function buildIntroPaletteBytes(palette: Screen5PaletteSlot[] | undefined): number[] {
-  const source = Array.isArray(palette) ? palette : [];
-  return Array.from({ length: 16 }, (_unused, slotIndex) => {
-    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
-    const masterIndex = Number(slot?.masterIndex);
-    if (Number.isFinite(masterIndex) && masterIndex >= 0) {
-      const index = Math.max(0, Math.min(511, Math.trunc(masterIndex)));
-      return [((index >> 6) & 0x07) << 4 | (index & 0x07), (index >> 3) & 0x07];
-    }
-    const rgb = parseIntroHexColor((slot as any)?.hex);
-    if (rgb) return [(rgb[0] << 4) | rgb[2], rgb[1]];
-    return [0, 0];
-  }).flat();
-}
-
-// 4bpp packed bitmap padded/cropped to the full 212 visible lines. Presentation
-// assets may nest the packed data under .data (PNG import path).
-function buildIntroBitmapBytes(presentation: Msx2Screen5PresentationConfig): number[] {
-  const nested = (presentation as any)?.data as { packedBitmap?: unknown; packedPixels?: unknown; height?: unknown } | undefined;
-  const packed = (Array.isArray(presentation.packedBitmap) && presentation.packedBitmap.length ? presentation.packedBitmap : undefined)
-    || (Array.isArray(nested?.packedBitmap) ? nested!.packedBitmap as number[] : undefined)
-    || (Array.isArray(nested?.packedPixels) ? nested!.packedPixels as number[] : undefined)
-    || [];
-  const declaredHeight = presentation.height ?? (nested?.height as number | undefined);
-  const imageHeight = declaredHeight === 212 ? 212 : 192;
-  const imageBytes = Math.min(imageHeight * ROW_BYTES, packed.length);
-  const bytes = Array.from({ length: SCREEN5_VISIBLE_HEIGHT * ROW_BYTES }, () => 0);
-  for (let index = 0; index < imageBytes; index++) {
-    bytes[index] = clampByte(packed[index], 0);
-  }
-  return bytes;
-}
 
 function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[] {
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
-    .filter(flow => flow?.purpose === 'screen4-bitmap-runtime');
+    .filter(flow => isMsx2Screen5Purpose(flow?.purpose));
   const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
   if (!flow || !Array.isArray(flow.nodes)) return [];
   const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string; palette?: Screen5PaletteSlot[] }>);
@@ -521,8 +604,8 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[]
     const runtime = (presentation as any).runtime as { waitForKey?: boolean; waitForFrames?: number } | undefined;
     const scene: BitmapIntroScene = {
       name: String((presentation as any).name || `scene ${scenes.length}`),
-      paletteBytes: buildIntroPaletteBytes((presentation as any).palette || ((presentation as any).data?.palette as Screen5PaletteSlot[] | undefined)),
-      bitmapBytes: buildIntroBitmapBytes(presentation),
+      paletteBytes: buildScreen5PaletteBytes((presentation as any).palette || ((presentation as any).data?.palette as Screen5PaletteSlot[] | undefined)),
+      bitmapBytes: buildScreen5BitmapBytes(presentation),
       waitForKey: node.waitForKey ?? (runtime?.waitForKey !== false),
       waitFrames: clampByte(node.waitFrames ?? runtime?.waitForFrames, 0),
     };
@@ -530,7 +613,7 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[]
     if (next?.type === 'Transition') {
       const transitionNode = next as Msx2GameFlowTransitionNode;
       const effect = String(transitionNode.effect || '');
-      if (!BITMAP_INTRO_SUPPORTED_EFFECTS.has(effect)) {
+      if (!SCREEN5_TRANSITION_EFFECTS.has(effect)) {
         throw new Error(`MSX2 bitmap-room GameFlow Transition effect "${effect}" is not supported by the SCREEN 5 bitmap-room intro; use a SCREEN 5 effect (pixel wipes, fade to black or CLS).`);
       }
       scene.transition = { effect, durationFrames: clampByte(transitionNode.durationFrames, 0) };
@@ -559,7 +642,7 @@ const BITMAP_INTRO_EFFECT_CALLS: Record<string, string> = {
  */
 function resolveBitmapGameFlow(analysis: ProjectAnalysis): Msx2GameFlowGraph | null {
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
-    .filter(flow => (flow as any)?.purpose === 'screen4-bitmap-runtime');
+    .filter(flow => isMsx2Screen5Purpose((flow as any)?.purpose));
   const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
   if (!flow || !Array.isArray(flow.nodes) || flow.nodes.length === 0) return null;
   // Only emit a dispatcher when the graph actually has a WorldLink (gameplay entry)
@@ -588,7 +671,8 @@ function buildBitmapGameFlowProgram(
     /**
      * The shared boot-init sequence (bitmapBootInitAsm) built by the caller:
      * loads the start room + dynamic visuals, spawns enemies/platforms, resets
-     * the full player + composition state, restores R#15 and clears skills. Using
+     * the full transient player + composition state, restores R#15 and clears skills;
+     * multi-world entries preserve the wallet around this reset. Using
      * the SAME string as the inline boot keeps the WorldLink entry byte-identical
      * to a standalone boot, which is what fixes the "spikes cost no hearts /
      * periodic reposition" regression (composition state must start at 0).
@@ -598,6 +682,13 @@ function buildBitmapGameFlowProgram(
     music?: { enabled: boolean; trackIndexById: Map<string, number> };
     /** Transition effects whose intro helper routines are actually emitted. */
     availableIntroEffects?: Set<string>;
+    /**
+     * Multi-world ROMs only: worldAssetId -> world index. A WorldLink then opens
+     * with `ld a,<index>` + `call bitmap_prepare_world` so the world's palette,
+     * start room and spawn are in place before the shared boot-init runs. Absent
+     * (single-world) leaves the WorldLink body byte-identical to the classic one.
+     */
+    worldIndexById?: Map<string, number>;
   },
 ): string {
   const flow = resolveBitmapGameFlow(analysis);
@@ -606,6 +697,12 @@ function buildBitmapGameFlowProgram(
   const musicEnabled = options.music?.enabled === true;
   const trackIndexById = options.music?.trackIndexById || new Map<string, number>();
   const availableIntroEffects = options.availableIntroEffects || new Set<string>();
+  const worldIndexById = options.worldIndexById;
+
+  // Text nodes default to palette index 15, the slot bitmap rooms keep as the
+  // brightest colour; each node can override it from the editor.
+  const flowTextDefaultColor = 15;
+  resetBitmapFlowStringCounter();
 
   const nodeById = new Map(flow.nodes.map(node => [node.id, node]));
   const defaultTarget = (nodeId: string | undefined): string | undefined => {
@@ -614,6 +711,14 @@ function buildBitmapGameFlowProgram(
       const fromNodeId = item.from?.nodeId;
       return fromNodeId === nodeId && !item.from?.sourceId;
     });
+    return connection?.to?.nodeId;
+  };
+
+  const branchTarget = (nodeId: string | undefined, sourceId: string): string | undefined => {
+    if (!nodeId) return undefined;
+    const connection = (flow.connections || []).find(item => (
+      item.from?.nodeId === nodeId && item.from?.sourceId === sourceId
+    ));
     return connection?.to?.nodeId;
   };
 
@@ -699,19 +804,31 @@ function buildBitmapGameFlowProgram(
         lines.push(jumpTo(defaultTarget(nodeId)));
         break;
       }
-      case 'WorldLink':
-        // Load the start room, reset vitals, and enter the gameplay loop. When the
+      case 'WorldLink': {
+        // Load the start room, reset transient state, and enter the gameplay loop. When the
         // loop returns (bitmap_game_over_flag armed), follow the WorldLink's default
         // connection (typically an End:GameOver node).
+        // Multi-world: select this node's world FIRST, so the shared boot-init
+        // below loads that world's start room, spawn and palette.
+        const worldIndex = worldIndexById?.get(
+          String((node as any)?.worldAssetId || (node as any)?.data?.worldAssetId || (node as any)?.data?.worldMapId || '')
+        );
+        if (worldIndex !== undefined) {
+          lines.push(`    ld a, ${worldIndex}                 ; world "${String((node as any)?.worldAssetId || '')}"`);
+          lines.push('    call bitmap_prepare_world');
+        }
         lines.push(loadWorldAsm);
         lines.push('    call bitmap_enter_game_loop');
         lines.push(jumpTo(defaultTarget(nodeId)));
         break;
+      }
       case 'End': {
         const endNode = node as Msx2GameFlowEndNode;
         const title = String((endNode as any).title || '').trim();
         const message = String((endNode as any).message || '').trim();
         const text = (title || message) ? (title || message) : 'GAME OVER';
+        const waitForKey = (endNode as any).waitForKey !== false;
+        const waitFrames = clampByte((endNode as any).waitFrames, 0);
         const dataLabel = `${label}_DATA`;
         dataBlocks.push(buildBitmapEndTextData(dataLabel, text));
         if (musicEnabled) {
@@ -721,14 +838,50 @@ function buildBitmapGameFlowProgram(
         }
         lines.push(`    ld hl, ${dataLabel}`);
         lines.push('    call draw_bitmap_end_screen');
-        lines.push('    call bitmap_end_wait_key');
+        if (waitFrames > 0) {
+          lines.push(`    ld b, ${waitFrames}`);
+          lines.push('    call bitmap_end_wait_frames');
+        }
+        if (waitForKey) lines.push('    call bitmap_end_wait_key');
         lines.push('    ; End node terminates the flow.');
-        lines.push('    jp .bitmap_main_loop');
+        lines.push('    jp bitmap_gameflow_terminal_loop');
         break;
       }
       case 'Restart':
         lines.push('    jp init_rom');
         break;
+      case 'Text':
+        lines.push(emitBitmapFlowTextNode(node as any, {
+          defaultTextColor: flowTextDefaultColor,
+          jumpToNext: jumpTo(defaultTarget(nodeId)),
+          pushData: asm => dataBlocks.push(asm),
+        }));
+        break;
+      case 'TextScroll':
+      case 'TextScrollColor':
+        lines.push(emitBitmapFlowTextScrollNode(node as any, {
+          defaultTextColor: flowTextDefaultColor,
+          jumpToNext: jumpTo(defaultTarget(nodeId)),
+          pushData: asm => dataBlocks.push(asm),
+        }));
+        break;
+      case 'SubMenu': {
+        const options = ((node as any).options || []).slice(0, BF_MENU_MAX_OPTIONS);
+        lines.push(emitBitmapFlowSubMenuNode(node as any, {
+          defaultTextColor: flowTextDefaultColor,
+          jumpToNext: jumpTo(defaultTarget(nodeId)),
+          pushData: asm => dataBlocks.push(asm),
+          optionTargets: options.map((option: any) => {
+            const label = labelFor(branchTarget(nodeId, option.id));
+            // An unwired option must not fall through into the next node's code:
+            // keep it on the menu instead.
+            return label || `bitmap_flow_menu_loop_${String(node.id).replace(/[^A-Za-z0-9_]/g, '_')}`;
+          }),
+        }));
+        // Each option branch is its own subtree; emit them all.
+        for (const option of options) emitNode(branchTarget(nodeId, option.id));
+        break;
+      }
       default:
         unsupported.add(String(node.type));
         lines.push(jumpTo(defaultTarget(nodeId)));
@@ -741,10 +894,24 @@ function buildBitmapGameFlowProgram(
   const startId = flow.startNodeId || flow.nodes.find(n => n.type === 'Start')?.id;
   emitNode(startId);
 
+  // End nodes are terminal.  They must never jump back into the gameplay loop:
+  // doing so leaves the player/world state half-used after the End screen and
+  // makes an Exit World contact look like a frozen game.  Keep a resident,
+  // side-effect-free sink for the post-message state instead.
+  if (flow.nodes.some(node => node.type === 'End')) {
+    lines.push('bitmap_gameflow_terminal_loop:', '    jp bitmap_gameflow_terminal_loop');
+  }
+
   if (unsupported.size > 0) {
     lines.push(`    ; Unsupported bitmap GameFlow node types (passed through): ${Array.from(unsupported).join(', ')}`);
+    console.warn(
+      `⚠️ MSX2 bitmap GameFlow: node type(s) ${Array.from(unsupported).join(', ')} are not implemented by this backend and compile to a plain jump; the screen will never be drawn.`
+    );
   }
-  return `${lines.join('\n')}\n${dataBlocks.join('')}`;
+  // The text/menu/scroll engine and its font are only emitted when a node needs
+  // them, so flows without text keep the ROM byte-identical.
+  const textRuntime = bitmapFlowTextRuntime(collectBitmapFlowTextFeatures(flow.nodes as any));
+  return `${lines.join('\n')}\n${textRuntime}${dataBlocks.join('')}`;
 }
 
 /**
@@ -805,6 +972,11 @@ ${formatBytes('bitmap_end_font_data', fontBytes, '1bpp glyph rows in char-order:
 ; ------------------------------------------------------------
 draw_bitmap_end_screen:
     ; 1. Clear the visible page (Y 0..191) to colour 1 (black).
+    ; Preserve the caller's message pointer: the VDP command launcher advances
+    ; HL while uploading the clear command, so without this save the routine
+    ; would read the message from the command buffer and leave a blank screen
+    ; while bitmap_end_wait_key waits forever.
+    push hl
     ld a, (bitmap_displayed_page)
     ld (bitmap_end_target_page), a
     ld hl, bitmap_end_fill_cmd
@@ -815,6 +987,7 @@ draw_bitmap_end_screen:
     ld (bitmap_end_fill_cmd + 7), a
 .end_fill_page0:
     call bitmap_end_launch_cmd
+    pop hl
     ; 2. Read the message and stamp each glyph.
     ld b, (hl)               ; B = char count
     inc hl
@@ -935,7 +1108,9 @@ bitmap_end_launch_cmd:
 ; PURPOSE: poll PPI keyboard row 8 until SPACE (bit 0) is pressed.
 ; ------------------------------------------------------------
 bitmap_end_wait_key:
-    call bitmap_wait_vblank
+    ; Do not gate the terminal input on the VDP frame flag.  Some MSX2 BIOS/VDP
+    ; combinations leave S#0 without bit 7 while the command engine is idle;
+    ; the End screen must still be dismissible in that state.
     in a, (PPI_C)
     and #F0
     or 8
@@ -944,6 +1119,16 @@ bitmap_end_wait_key:
     cpl
     bit 0, a
     jp z, bitmap_end_wait_key
+    ret
+
+bitmap_end_wait_frames:
+    ; B = frame count. Keep the same bounded VDP polling fallback used by the
+    ; gameplay loop, but do not require a keyboard event when waitForKey=false.
+.end_wait_frames_loop:
+    push bc
+    call bitmap_wait_vblank
+    pop bc
+    djnz .end_wait_frames_loop
     ret
 
 bitmap_end_target_page:   DB 0
@@ -2089,6 +2274,32 @@ function buildRoomTileIndexGrid(room: Msx2Screen5BitmapRoom): number[][] {
   return grid;
 }
 
+interface BitmapWorldExitConfig {
+  enabled: boolean;
+  atlasEntryId: string;
+  offsetX: number;
+  offsetY: number;
+  hitboxW: number;
+  hitboxH: number;
+}
+
+function isBitmapWorldExitEntity(entity: any): boolean {
+  const engine = String(entity?.params?.engine || '').replace(/[\s_-]+/g, '').toLowerCase();
+  return engine === 'worldexit' || Boolean(entity?.params?.worldExit || entity?.components?.msx2_world_exit);
+}
+
+function normalizeBitmapWorldExitConfig(entity: any): BitmapWorldExitConfig {
+  const raw = entity?.params?.worldExit || entity?.components?.msx2_world_exit || {};
+  return {
+    enabled: raw.enabled !== false,
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    offsetX: clampInt(raw.offsetX, 0, 31, 0),
+    offsetY: clampInt(raw.offsetY, 0, 31, 0),
+    hitboxW: clampInt(raw.hitboxW, 1, 32, 16),
+    hitboxH: clampInt(raw.hitboxH, 1, 32, 16),
+  };
+}
+
 /**
  * World-engine room render program: a list of V9938 command blocks the runtime
  * replays to (re)build one room's visible game band from the shared tileset that
@@ -2143,6 +2354,29 @@ function buildRoomRenderBlocks(room: Msx2Screen5BitmapRoom, pageBaseY = BITMAP_R
     const npcParams = entity.params?.npcDialogue as { atlasEntryId?: string } | undefined;
     if (!npcParams?.atlasEntryId) continue;
     const entry = entries.find(item => item.id === npcParams.atlasEntryId);
+    if (!entry) continue;
+    const dx = clampInt((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0, SCREEN_WIDTH - 1, 0);
+    const dy = clampInt((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0, SCREEN_HEIGHT_DEFAULT - 1, 0);
+    const w = clampInt(entry.w, 1, 256, TILE_GRID_SIZE);
+    const h = clampInt(entry.h, 1, SCREEN_HEIGHT_DEFAULT, TILE_GRID_SIZE);
+    records.push({
+      op: OP_COPY_16,
+      sx: clampInt(entry.sx, 0, 255, 0),
+      sy: clampInt(entry.sy, 0, 511, 0) + offscreenBaseY,
+      dx,
+      dy: pageBaseY + dy + BITMAP_ROOM_GAME_Y_OFFSET,
+      nx: Math.max(1, Math.min(w, SCREEN_WIDTH - dx)),
+      ny: Math.max(1, Math.min(h, SCREEN_HEIGHT_DEFAULT - dy)),
+      color: 0,
+    });
+  }
+  // Exit World visuals are also baked into the room. The runtime trigger is an
+  // independent AABB, so the exit may be invisible when no atlas tile is set.
+  for (const entity of room.entities || []) {
+    if (!isBitmapWorldExitEntity(entity)) continue;
+    const exit = normalizeBitmapWorldExitConfig(entity);
+    if (!exit.enabled || !exit.atlasEntryId) continue;
+    const entry = entries.find(item => item.id === exit.atlasEntryId);
     if (!entry) continue;
     const dx = clampInt((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0, SCREEN_WIDTH - 1, 0);
     const dy = clampInt((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0, SCREEN_HEIGHT_DEFAULT - 1, 0);
@@ -2505,7 +2739,7 @@ function buildRuntimeAsm(
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean; glowingTailColors?: boolean },
-  options: { bankedRle: boolean; sccMusicTick?: boolean; subCellShapes?: boolean; shaftOverride?: boolean },
+  options: { bankedRle: boolean; sccMusicTick?: boolean; subCellShapes?: boolean; shaftOverride?: boolean; multiWorld?: boolean },
   playerPhysics: BitmapPlayerPhysics,
   playerHitbox: BitmapPlayerHitbox,
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
@@ -2526,6 +2760,17 @@ function buildRuntimeAsm(
   // authored independently of the worldmap, so the north/south rail for those
   // rooms may not exist at all. The override wins over the rail and is consumed
   // on read, so every other transition keeps using the table untouched.
+  // Riding a shaft is NOT a player walking off a rail: the edge-entry rules slam
+  // player_y to the room edge (and the top branch clears the fall speed), which
+  // knocked the rider off the cabin on every screen change. When a hand-over is
+  // in flight the cabin owns the player's placement, so the whole dispatch is
+  // skipped and bitmap_shaft_after_commit puts the player back on the cabin.
+  const shaftCommitGateAsm = options.shaftOverride
+    ? `    ld a, (bitmap_shaft_handover)
+    or a
+    jp nz, .commit_flip_page  ; the cabin places the rider, not the edge rules
+`
+    : '';
   const shaftTransitionOverrideAsm = options.shaftOverride
     ? `    ld b, a                   ; B = the rail the table proposes (C = direction)
     ld a, (bitmap_shaft_forced_room)
@@ -3426,8 +3671,21 @@ init_screen5_bitmap_vdp:
     ret
 
 load_screen5_bitmap_palette:
-    ld hl, screen5_bitmap_palette_data
-    ld b, 16
+${options.multiWorld ? `    ; Multi-world ROM: each world owns a palette, so the table is selected by
+    ; bitmap_world_index (set by bitmap_prepare_world before a WorldLink entry,
+    ; and zeroed at boot before this routine runs for the first time).
+    ld a, (bitmap_world_index)
+    add a, a                  ; 2 bytes per DW entry
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_world_palette_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+` : `    ld hl, screen5_bitmap_palette_data
+`}    ld b, 16
     xor a
 .palette_loop:
     push af
@@ -3448,7 +3706,53 @@ load_screen5_bitmap_palette:
     inc a
     djnz .palette_loop
     ret
-
+${options.multiWorld ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_prepare_world
+; ------------------------------------------------------------
+; PURPOSE:
+;   Enter world A: latch it, publish its start room + player spawn for the shared
+;   boot-init sequence, and upload its palette. Called by every Game Flow
+;   WorldLink node right before the inline boot-init runs.
+;
+; INPUT:
+;   A = world index (0-based, WorldLink order).
+;
+; OUTPUT:
+;   bitmap_world_index / _start_room / _spawn_x / _spawn_y updated; VDP palette
+;   registers hold this world's 16 colours.
+;
+; DESTROYS:
+;   AF, BC, DE, HL
+;
+; PRESERVES:
+;   IX, IY
+;
+; CALLS:
+;   load_screen5_bitmap_palette (tail call).
+;
+; NOTES:
+;   Rooms of every world live in ONE global room list, so load_room needs no
+;   world argument; only the entry point and the palette differ per world.
+; ------------------------------------------------------------
+bitmap_prepare_world:
+    ld (bitmap_world_index), a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_world_start_room_table
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_world_start_room), a
+    ld hl, bitmap_world_spawn_x_table
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_world_spawn_x), a
+    ld hl, bitmap_world_spawn_y_table
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_world_spawn_y), a
+    jp load_screen5_bitmap_palette
+` : ''}
 ; ------------------------------------------------------------
 ; FUNCTION: init_bitmap_hud_band
 ; ------------------------------------------------------------
@@ -3601,6 +3905,12 @@ load_room:
     ld (current_screen_index), a
     ld e, a
     ld d, 0
+${options.multiWorld ? `    ; Active-world scratch index: room tables remain global, mutable pools do not.
+    ld hl, bitmap_room_world_local_index_table
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_room_pool_index), a
+` : ''}
     ld hl, bitmap_room_render_ptr_table_p0
 ${options.bankedRle ? `    ld bc, bitmap_room_render_bank_table_p0
 ` : ''}
@@ -3967,6 +4277,12 @@ commit_room_flip:
     ld (current_screen_index), a
     ld e, a
     ld d, 0
+${options.multiWorld ? `    ; Keep the reusable boss/pickup pool keyed to the new room's world-local index.
+    ld hl, bitmap_room_world_local_index_table
+    add hl, de
+    ld a, (hl)
+    ld (bitmap_room_pool_index), a
+` : ''}
     ld hl, bitmap_room_collision_ptr_table
 ${options.bankedRle ? `    ld bc, bitmap_room_collision_bank_table
 ` : ''}
@@ -4015,7 +4331,7 @@ ${options.bankedRle ? `    call bitmap_room_restore_resident_banks
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
-    ld a, (bitmap_transition_dir)
+${shaftCommitGateAsm}    ld a, (bitmap_transition_dir)
     or a
     jp z, .commit_enter_right
     cp 1
@@ -5100,6 +5416,101 @@ function getBitmapPlayerBodyHitbox(
   };
 }
 
+interface BitmapWorldExitSystemAsm {
+  enabled: boolean;
+  mainLoopCall: string;
+  routinesAsm: string;
+}
+
+/** Build the SCREEN 5 Exit World contact trigger. The generated routine uses only
+ * AF and compile-time constants, so it cannot disturb the movement/HUD register
+ * contracts around its main-loop call site. */
+function buildBitmapWorldExitSystemAsm(
+  rooms: Msx2Screen5BitmapRoom[],
+  playerHitbox: BitmapPlayerHitbox,
+): BitmapWorldExitSystemAsm {
+  const roomExits = rooms.map(room => (room.entities || [])
+    .filter(isBitmapWorldExitEntity)
+    .map(entity => ({ entity, config: normalizeBitmapWorldExitConfig(entity) }))
+    .filter(item => item.config.enabled));
+  if (!roomExits.some(exits => exits.length > 0)) {
+    return { enabled: false, mainLoopCall: '', routinesAsm: '' };
+  }
+
+  const lines: string[] = [
+    '; ================================================================',
+    '; SCREEN 5 EXIT WORLD: player AABB -> leave current GameFlow WorldLink',
+    '; Contract: no inputs; sets bitmap_gameflow_exit_flag on overlap.',
+    '; Destroys AF. Preserves BC, DE, HL, IX and IY.',
+    '; ================================================================',
+    'bitmap_check_world_exits:',
+    '    ld a, (bitmap_composition_state)',
+    '    or a',
+    '    ret nz                       ; room transition/composition active',
+  ];
+
+  roomExits.forEach((exits, roomIndex) => {
+    if (exits.length === 0) return;
+    const nextRoomLabel = `.world_exit_room_${roomIndex}_next`;
+    lines.push('    ld a, (current_screen_index)');
+    lines.push(`    cp ${roomIndex}`);
+    lines.push(`    jp nz, ${nextRoomLabel}`);
+    exits.forEach(({ entity, config }, exitIndex) => {
+      const nextExitLabel = `.world_exit_${roomIndex}_${exitIndex}_next`;
+      const horizontalOkLabel = `.world_exit_${roomIndex}_${exitIndex}_horizontal_ok`;
+      const verticalOkLabel = `.world_exit_${roomIndex}_${exitIndex}_vertical_ok`;
+      const x = clampInt((entity.position?.x ?? 0) * TILE_GRID_SIZE + config.offsetX, 0, 255, 0);
+      const y = clampInt((entity.position?.y ?? 0) * TILE_GRID_SIZE + config.offsetY, 0, 255, 0);
+      const right = Math.min(256, x + config.hitboxW);
+      const bottom = Math.min(256, y + config.hitboxH);
+      const playerLeftOffset = playerHitbox.x;
+      const playerRightOffset = playerHitbox.x + playerHitbox.w;
+      const playerTopOffset = playerHitbox.y;
+      const playerBottomOffset = playerHitbox.y + playerHitbox.h;
+      lines.push(`    ; Exit "${String(entity.name || entity.id || exitIndex).replace(/[\r\n"]/g, '')}" AABB [${x},${y}]..[${right},${bottom}]`);
+      lines.push('    ld a, (player_x)');
+      lines.push(`    add a, ${playerLeftOffset}`);
+      lines.push(`    jr c, ${nextExitLabel}`);
+      if (right < 256) {
+        lines.push(`    cp ${right}`);
+        lines.push(`    jr nc, ${nextExitLabel}`);
+      }
+      lines.push('    ld a, (player_x)');
+      lines.push(`    add a, ${playerRightOffset}`);
+      lines.push(`    jr c, ${horizontalOkLabel}`);
+      lines.push(`    cp ${x}`);
+      lines.push(`    jr c, ${nextExitLabel}`);
+      lines.push(`    jr z, ${nextExitLabel}`);
+      lines.push(`${horizontalOkLabel}:`);
+      lines.push('    ld a, (player_y)');
+      lines.push(`    add a, ${playerTopOffset}`);
+      lines.push(`    jr c, ${nextExitLabel}`);
+      if (bottom < 256) {
+        lines.push(`    cp ${bottom}`);
+        lines.push(`    jr nc, ${nextExitLabel}`);
+      }
+      lines.push('    ld a, (player_y)');
+      lines.push(`    add a, ${playerBottomOffset}`);
+      lines.push(`    jr c, ${verticalOkLabel}`);
+      lines.push(`    cp ${y}`);
+      lines.push(`    jr c, ${nextExitLabel}`);
+      lines.push(`    jr z, ${nextExitLabel}`);
+      lines.push(`${verticalOkLabel}:`);
+      lines.push('    ld a, 1');
+      lines.push('    ld (bitmap_gameflow_exit_flag), a');
+      lines.push('    ret');
+      lines.push(`${nextExitLabel}:`);
+    });
+    lines.push(`${nextRoomLabel}:`);
+  });
+  lines.push('    ret', '');
+  return {
+    enabled: true,
+    mainLoopCall: '    call bitmap_check_world_exits\n',
+    routinesAsm: `${lines.join('\n')}\n`,
+  };
+}
+
 // Map the Player Config jump/fall physics to the bitmap engine's whole-pixel velocities.
 // The bitmap runtime uses integer px/frame (player_vy is a signed byte) for the committed
 // position, but keeps a sub-pixel fraction (player_vy_frac) so gravity can accelerate
@@ -5527,7 +5938,7 @@ function buildDoorVisualCommand(room: Msx2Screen5BitmapRoom, atlasEntryId: strin
   ];
 }
 
-function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
+function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndices: number[] = []): {
   pickups: BitmapKeyPickupRecord[];
   pickupVisuals: BitmapKeyPickupVisualRecord[];
   doors: BitmapKeyDoorRecord[];
@@ -5536,6 +5947,9 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   pressureButtonVisuals: BitmapPressureButtonVisualRecord[];
   /** Door entity id -> offset into `bitmap_key_door_open_flags`, for the boss "openDoor" action. */
   doorOpenOffsetByEntityId: Map<string, number>;
+  /** Maximum active-world scratch bytes required by each one-shot flag pool. */
+  pickupFlagBytes: number;
+  doorFlagBytes: number;
 } {
   const keyBits = new Map<string, number>();
   for (const room of rooms) {
@@ -5550,7 +5964,14 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   const doors: BitmapKeyDoorRecord[] = [];
   const visuals: BitmapDoorVisualRecord[] = [];
   const doorOpenOffsetByEntityId = new Map<string, number>();
+  // SCREEN 5 worlds share one RAM pool. Offsets are local to the active world,
+  // so ten worlds with ten pickups each reserve ten bytes, not one hundred.
+  const pickupFlagsByWorld: number[] = [];
+  const doorFlagsByWorld: number[] = [];
   for (const [roomIndex, room] of rooms.entries()) {
+    const worldIndex = Math.max(0, roomWorldIndices[roomIndex] ?? 0);
+    let pickupFlagOffset = pickupFlagsByWorld[worldIndex] || 0;
+    let doorFlagOffset = doorFlagsByWorld[worldIndex] || 0;
     for (const entity of room.entities || []) {
       const x = clampByte((entity.position?.x ?? 0) * TILE_GRID_SIZE, 0) & 0xff;
       const y = clampByte((entity.position?.y ?? 0) * TILE_GRID_SIZE, 0) & 0xff;
@@ -5558,7 +5979,9 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
         const keyId = typeof entity.params?.keyPickupId === 'string' ? entity.params.keyPickupId : '';
         const bit = keyBits.get(keyId);
         if (bit === undefined) continue;
-        const flagOffset = pickups.length;
+        const flagOffset = pickupFlagOffset;
+        pickupFlagOffset = flagOffset + 1;
+        pickupFlagsByWorld[worldIndex] = pickupFlagOffset;
         const price = clampInt(entity.params?.keyPickupPrice, 0, 255, 0);
         pickups.push({ roomIndex, x, y, keyMask: 1 << bit, flagOffset, price });
         const atlasEntryId = typeof entity.params?.keyPickupAtlasEntryId === 'string' ? entity.params.keyPickupAtlasEntryId : '';
@@ -5587,7 +6010,9 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
         | (door.openOnce ? KEY_DOOR_FLAG_OPEN_ONCE : 0)
         | (hasTransitionTarget ? 0 : KEY_DOOR_FLAG_NO_TRANSITION)
         | (door.requireUpKey ? KEY_DOOR_FLAG_REQUIRE_UP : 0);
-      const openOffset = doors.length;
+      const openOffset = doorFlagOffset;
+      doorFlagOffset = openOffset + 1;
+      doorFlagsByWorld[worldIndex] = doorFlagOffset;
       if (entity.id) doorOpenOffsetByEntityId.set(entity.id, openOffset);
       const closedCommand = buildDoorVisualCommand(room, door.closedAtlasEntryId, x, y);
       const openCommand = buildDoorVisualCommand(room, door.openAtlasEntryId, x, y);
@@ -5664,7 +6089,17 @@ function collectBitmapKeyDoorRecords(rooms: Msx2Screen5BitmapRoom[]): {
   }
   // doorOpenOffsetByEntityId lets other systems (the boss "openDoor" defeat
   // action) address a specific door by its entity id.
-  return { pickups, pickupVisuals, doors, visuals, pressureButtons, pressureButtonVisuals, doorOpenOffsetByEntityId };
+  return {
+    pickups,
+    pickupVisuals,
+    doors,
+    visuals,
+    pressureButtons,
+    pressureButtonVisuals,
+    doorOpenOffsetByEntityId,
+    pickupFlagBytes: Math.max(0, ...pickupFlagsByWorld.map(value => value || 0)),
+    doorFlagBytes: Math.max(0, ...doorFlagsByWorld.map(value => value || 0)),
+  };
 }
 
 function buildBitmapKeyDoorSystemAsm(
@@ -5676,6 +6111,7 @@ function buildBitmapKeyDoorSystemAsm(
   forceInventory: boolean = false,
   gemCounter: { label: string; wide: boolean } | null = null,
   enemyPoolStride: number = BITMAP_ENEMY_POOL_STRIDE,
+  roomWorldIndices: number[] = [],
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -5689,7 +6125,16 @@ function buildBitmapKeyDoorSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
-  const { pickups, pickupVisuals, doors, visuals, pressureButtons, pressureButtonVisuals } = collectBitmapKeyDoorRecords(rooms);
+  const {
+    pickups,
+    pickupVisuals,
+    doors,
+    visuals,
+    pressureButtons,
+    pressureButtonVisuals,
+    pickupFlagBytes,
+    doorFlagBytes,
+  } = collectBitmapKeyDoorRecords(rooms, roomWorldIndices);
   if (pickups.length === 0 && doors.length === 0) {
     // No key/door entities, but a HUD widget may still bind to 'keyItem'. Emit a
     // lone key-count byte + equate so the widget has a valid RAM symbol; nothing
@@ -5742,8 +6187,10 @@ function buildBitmapKeyDoorSystemAsm(
   const upLockAddress = ramBase + 10;
   const workPriceAddress = ramBase + 11;
   const pickupFlagsAddress = ramBase + fixedRamBytes;
-  const doorOpenFlagsAddress = pickupFlagsAddress + pickups.length;
-  const ramBytes = fixedRamBytes + pickups.length + doors.length;
+  const pickupFlagPoolBytes = roomWorldIndices.length ? pickupFlagBytes : pickups.length;
+  const doorFlagPoolBytes = roomWorldIndices.length ? doorFlagBytes : doors.length;
+  const doorOpenFlagsAddress = pickupFlagsAddress + pickupFlagPoolBytes;
+  const ramBytes = fixedRamBytes + pickupFlagPoolBytes + doorFlagPoolBytes;
   const hbLeft = hitbox.x;
   const hbRight = hitbox.x + hitbox.w - 1;
   const hbTop = hitbox.y;
@@ -5794,8 +6241,8 @@ function buildBitmapKeyDoorSystemAsm(
     `bitmap_pressure_button_visual_ptr_table:\n${pressureButtonVisualTables.map((_items, i) => `    DW bitmap_pressure_button_visuals_room_${i}`).join('\n')}\n` +
     `bitmap_pressure_button_visual_count_table:\n    DB ${pressureButtonVisualTables.map(items => items.length).join(',')}\n`;
   const clearFlagBytes = [
-    ...Array.from({ length: pickups.length }, (_unused, i) => `    ld (bitmap_key_pickup_flags + ${i}), a`),
-    ...Array.from({ length: doors.length }, (_unused, i) => `    ld (bitmap_key_door_open_flags + ${i}), a`),
+    ...Array.from({ length: pickupFlagPoolBytes }, (_unused, i) => `    ld (bitmap_key_pickup_flags + ${i}), a`),
+    ...Array.from({ length: doorFlagPoolBytes }, (_unused, i) => `    ld (bitmap_key_door_open_flags + ${i}), a`),
   ].join('\n');
   const equates = `; Key/items + locked doors system (SCREEN 5 bitmap). RAM follows skills/HUD chain.
 bitmap_key_inventory       EQU ${hexWord(inventoryAddress)}
@@ -7299,9 +7746,11 @@ function buildGemEraseCommand(room: Msx2Screen5BitmapRoom, dx: number, dy: numbe
   ];
 }
 
-function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[]): BitmapGemRecord[] {
+function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndices: number[] = []): BitmapGemRecord[] {
   const records: BitmapGemRecord[] = [];
+  const gemFlagsByWorld: number[] = [];
   for (const [roomIndex, room] of rooms.entries()) {
+    const worldIndex = Math.max(0, roomWorldIndices[roomIndex] ?? 0);
     for (const entity of room.entities || []) {
       if (entity.kind !== 'collectible') continue;
       if (typeof entity.params?.keyPickupId === 'string' && entity.params.keyPickupId) continue;
@@ -7312,11 +7761,15 @@ function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[]): BitmapGemRecor
       const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
       const x = cellX * TILE_GRID_SIZE;
       const y = cellY * TILE_GRID_SIZE;
+      const flagOffset = roomWorldIndices.length
+        ? (gemFlagsByWorld[worldIndex] || 0)
+        : records.length;
+      gemFlagsByWorld[worldIndex] = flagOffset + 1;
       records.push({
         roomIndex,
         x,
         y,
-        flagOffset: records.length,
+        flagOffset,
         drawCommand: buildGemAtlasCopyCommand(entry.sx, entry.sy, x, y),
         eraseCommand: buildGemEraseCommand(room, x, y),
       });
@@ -7331,6 +7784,7 @@ function buildBitmapGemSystemAsm(
   ramBase: number,
   config: Msx2CollectorGemsConfig,
   hudCounter: { label: string; wide: boolean } | null,
+  roomWorldIndices: number[] = [],
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -7342,7 +7796,7 @@ function buildBitmapGemSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
-  const gems = config.enabled ? collectBitmapGemRecords(rooms) : [];
+  const gems = config.enabled ? collectBitmapGemRecords(rooms, roomWorldIndices) : [];
   if (gems.length === 0) {
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
   }
@@ -7350,7 +7804,15 @@ function buildBitmapGemSystemAsm(
   const workOffsetAddress = ramBase;
   const targetPageAddress = ramBase + 1;
   const flagsAddress = ramBase + 2;
-  const ramBytes = 2 + gems.length;
+  const worldGemCounts = new Map<number, number>();
+  for (const gem of gems) {
+    const worldIndex = roomWorldIndices.length ? (roomWorldIndices[gem.roomIndex] ?? 0) : 0;
+    worldGemCounts.set(worldIndex, (worldGemCounts.get(worldIndex) || 0) + 1);
+  }
+  const gemFlagPoolBytes = roomWorldIndices.length
+    ? Math.max(0, ...Array.from(worldGemCounts.values()))
+    : gems.length;
+  const ramBytes = 2 + gemFlagPoolBytes;
   const hbLeft = hitbox.x;
   const hbRight = hitbox.x + hitbox.w - 1;
   const hbTop = hitbox.y;
@@ -7370,7 +7832,7 @@ bitmap_gem_target_page EQU ${hexWord(targetPageAddress)}
 bitmap_gem_flags       EQU ${hexWord(flagsAddress)}
 bitmap_gem_cmd_block   EQU #C2C0
 `;
-  const clearFlagBytes = Array.from({ length: gems.length }, (_unused, i) => `    ld (bitmap_gem_flags + ${i}), a`).join('\n');
+  const clearFlagBytes = Array.from({ length: gemFlagPoolBytes }, (_unused, i) => `    ld (bitmap_gem_flags + ${i}), a`).join('\n');
   const initAsm = `    ; collector_gems: clear per-gem collected flags.
     xor a
     ld (bitmap_gem_work_offset), a
@@ -12694,6 +13156,43 @@ fg_colors_offset:
 `;
 }
 
+interface BitmapWorldScratchLayout {
+  /** Global room -> owning GameFlow world. */
+  roomWorldIndices: number[];
+  /** Global room -> zero-based room index inside its world. */
+  roomWorldLocalIndices: number[];
+  /** Largest room count among worlds; boss defeat flags use this pool. */
+  maxWorldRooms: number;
+}
+
+/**
+ * Build the active-world RAM mapping used by SCREEN 5 one-shot systems.
+ *
+ * Room render/collision tables remain global ROM data, but mutable pickup and
+ * boss flags are indexed through this compact local map. The same RAM bytes can
+ * therefore be reused after a WorldLink selects another world.
+ */
+function buildBitmapWorldScratchLayout(
+  roomCount: number,
+  plans: Array<{ roomBase: number; rooms: unknown[] }>,
+): BitmapWorldScratchLayout {
+  const roomWorldIndices = new Array(roomCount).fill(0);
+  const roomWorldLocalIndices = new Array(roomCount).fill(0);
+  let maxWorldRooms = 0;
+  plans.forEach((plan, worldIndex) => {
+    const count = Math.max(0, Math.min(plan.rooms.length, roomCount - plan.roomBase));
+    maxWorldRooms = Math.max(maxWorldRooms, count);
+    for (let localIndex = 0; localIndex < count; localIndex++) {
+      const globalIndex = plan.roomBase + localIndex;
+      if (globalIndex < 0 || globalIndex >= roomCount) continue;
+      roomWorldIndices[globalIndex] = worldIndex;
+      roomWorldLocalIndices[globalIndex] = localIndex;
+    }
+  });
+  if (maxWorldRooms === 0) maxWorldRooms = roomCount;
+  return { roomWorldIndices, roomWorldLocalIndices, maxWorldRooms };
+}
+
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2BitmapRoomConfig): string {
   const isKonamiMegaRom = config.romMode === 'megarom' && config.targetFormat === 'konami';
   if (config.romMode === 'megarom' && config.targetFormat !== 'konami') {
@@ -12702,8 +13201,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // World engine: all screens of a world share one tileset/palette. The shared
   // tileset (the start room's atlas) is uploaded once to offscreen VRAM; each room
   // is a 192-byte tile map replayed as VRAM->VRAM copies by load_room.
+  // Every world named by a GameFlow WorldLink is compiled into ONE global room
+  // list (world N's rooms start at its roomBase), so per-room tables stay flat
+  // arrays. Phase 1 keeps ONE tileset atlas shared by all worlds; only the
+  // palette, start room and spawn are per world.
   const world = collectBitmapWorldRooms(analysis);
-  const sourceRooms = (world.rooms.length ? world.rooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
+  const sourceRooms = (world.allRooms.length ? world.allRooms : [firstBitmapRoom(analysis)]).map(normalizeRoom);
   // Boss bodies and death explosions are `msx2bitmapstamp` assets, so no room
   // necessarily paints them. Compose every referenced stamp and inject it into
   // the shared atlas alongside the room tiles.
@@ -12713,13 +13216,45 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     bossBitmapStamps.map(stamp => ({ key: stamp.id, pixels: stamp.pixels })),
   );
   const rooms = sharedAtlas.rooms;
-  const startIndex = Math.min(world.startIndex, rooms.length - 1);
+  // Compiled worlds, rebased onto the atlas-rewritten room list. The FIRST world
+  // is the boot world: its start room drives every project-wide decision below
+  // (player, HUD, dialogue font, background colour), exactly as before.
+  const worldPlans = (world.worlds.length ? world.worlds : [{ id: '', name: '', rooms, roomBase: 0, startIndex: 0 }])
+    .map(plan => ({ ...plan, startIndex: Math.min(plan.startIndex, rooms.length - 1) }));
+  const multiWorld = worldPlans.length > 1;
+  const worldScratch = buildBitmapWorldScratchLayout(rooms.length, worldPlans);
+  const roomWorldIndices = multiWorld ? worldScratch.roomWorldIndices : [];
+  const startIndex = worldPlans[0].startIndex;
   const room = rooms[startIndex];
   const bitmapRoomPlayer = resolveBitmapRoomPlayer(analysis, room);
   const playerVitals = resolveBitmapPlayerVitals(bitmapRoomPlayer);
   const spawn = resolvePlayerSpawnPixels(room);
-  const worldPalette = resolveWorldPalette(analysis, world.paletteAssetId, room.palette);
-  const paletteBytes = buildPaletteBytes(worldPalette);
+  // Per-world palettes: a world with no palette asset falls back to ITS OWN start
+  // room's private slots, never to another world's colours.
+  const worldPalettes = worldPlans.map(plan =>
+    resolveWorldPalette(analysis, plan.paletteAssetId, rooms[plan.startIndex].palette),
+  );
+  const worldSpawns = worldPlans.map(plan => resolvePlayerSpawnPixels(rooms[plan.startIndex]));
+  const paletteBytes = buildPaletteBytes(worldPalettes[0]);
+  // Multi-world ROM tables, all indexed by world index. World 0's palette stays
+  // in `screen5_bitmap_palette_data` (the boot default), so only the extra worlds
+  // add a table; the pointer table is what bitmap_prepare_world/the palette
+  // loader index. Empty string for a single-world project.
+  const multiWorldDataAsm = multiWorld
+    ? `${worldPlans.slice(1).map((plan, index) => formatBytes(
+        `screen5_bitmap_palette_data_w${index + 1}`,
+        buildPaletteBytes(worldPalettes[index + 1]),
+        `World ${index + 1} "${plan.name || plan.id}" VDP palette bytes: byte1=(R<<4)|B, byte2=G`,
+      )).join('\n')}
+; World palette pointers, indexed by bitmap_world_index.
+bitmap_world_palette_ptr_table:
+    DW ${worldPlans.map((_plan, index) => index === 0 ? 'screen5_bitmap_palette_data' : `screen5_bitmap_palette_data_w${index}`).join(', ')}
+${formatBytes('bitmap_world_start_room_table', worldPlans.map(plan => plan.startIndex), 'Per-world entry room (global room index)')}
+${formatBytes('bitmap_world_spawn_x_table', worldSpawns.map(entry => entry.x), 'Per-world player spawn X at the entry room')}
+${formatBytes('bitmap_world_spawn_y_table', worldSpawns.map(entry => entry.y), 'Per-world player spawn Y at the entry room')}
+${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocalIndices, 'Active-world local room index used by reusable RAM pools')}
+`
+    : '';
   const atlasPixels = normalizeAtlasPixels(sharedAtlas.atlasRoom);
   // Linked MSX2 HUD asset (Msx2HudAsset via room.runtime.hudAssetId): supersedes the
   // legacy hardcoded hearts HUD + inline room.runtime.hudWidgets when present. See
@@ -12838,8 +13373,10 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     },
   ]);
   // Edge-transition table: 4 bytes per room (west, east, north, south); #FF = no rail.
+  // Rails are global room indices and never cross a world boundary: each world's
+  // rails were rebased by its own roomBase when the worlds were collected.
   const transitionTableBytes = rooms.flatMap((_roomData, index) => {
-    const rails = world.transitions.get(index) || {};
+    const rails = world.allTransitions.get(index) || {};
     const target = (dir: ConnectionDirection) => (rails[dir] === undefined ? 0xff : rails[dir]!);
     return [target('west'), target('east'), target('north'), target('south')];
   });
@@ -12950,6 +13487,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // Body collision box from the Player Config; defaults to the player sprite size so a
   // 16x32 sprite collides over its full height even without an explicit box.
   const playerHitbox = getBitmapPlayerBodyHitbox(bitmapRoomPlayer, playerSprite?.size);
+  // Exit World entities are lightweight per-room AABBs. Contact arms the shared
+  // GameFlow exit gate; no runtime RAM beyond that existing flag is required.
+  const worldExitSystem = buildBitmapWorldExitSystemAsm(rooms, playerHitbox);
   // Vitals from the Player Config (health.maxHealth / lives / invulnerabilityFrames).
   // Consumed by the Deadly-tile damage system and playerEnergy-bound HUD widgets.
   // Deadly-tile damage system: EQUs, init, main-loop call and the runtime routine.
@@ -13061,7 +13601,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // where a specific locked door lives. collectBitmapKeyDoorRecords is a pure
   // function over the rooms, so asking it here (before the key/door system is
   // built) is safe and keeps the boss data self-contained.
-  const keyDoorRecordsForBoss = collectBitmapKeyDoorRecords(rooms);
+  const keyDoorRecordsForBoss = collectBitmapKeyDoorRecords(rooms, roomWorldIndices);
   const bossDefeatCaps = {
     hasKeys: keyDoorRecordsForBoss.pickups.length > 0 || keyDoorRecordsForBoss.doors.length > 0,
     doorOffsetById: keyDoorRecordsForBoss.doorOpenOffsetByEntityId,
@@ -13270,9 +13810,18 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ? Math.max(1, Math.min(2, ...shaftData.shafts.map(s => s.widthCells)))
     : 0;
   const shaftHardwareSlots = shaftEnabled ? shaftData.shafts.length * shaftCabinCells : 0;
-  const shaftPatternGroupBase = allocatePatternRange(shaftHardwareSlots, allRoomsActive);
+  // A shaft owns one cabin for its whole authored path, not for every room in
+  // the compiled world list.  Treating it as active in all rooms made a
+  // multi-world project reserve a disjoint range after every other sprite
+  // category, even when the cabin could never be visible in those rooms.  The
+  // path-aware activity map keeps the allocator honest while still preventing
+  // overlap in every room where the cabin is actually rendered.
+  const roomHasShaft = rooms.map((_room, roomIndex) =>
+    shaftData.shafts.some(shaft => shaft.path.includes(roomIndex)),
+  );
+  const shaftPatternGroupBase = allocatePatternRange(shaftHardwareSlots, roomHasShaft);
   if (shaftHardwareSlots > 0) {
-    patternRanges.push({ base: shaftPatternGroupBase, count: shaftHardwareSlots, active: allRoomsActive });
+    patternRanges.push({ base: shaftPatternGroupBase, count: shaftHardwareSlots, active: roomHasShaft });
   }
   if (shaftHardwareSlots > 0 && shaftPatternGroupBase + shaftHardwareSlots > 64) {
     throw new Error(
@@ -13495,15 +14044,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const destroyTileInitUpload = buildBitmapDestroyTileInitUploadAsm(destroyTileConfig, destroyTileOptions);
   const destroyTileRuntime = buildBitmapDestroyTileRuntimeAsm(destroyTileConfig, destroyTileOptions);
   const destroyTileDataAsm = buildBitmapDestroyTileDataAsm(destroyTileConfig, destroyTileOptions, destroyDebrisSprite);
-  // Linked MSX2 HUD asset dynamic widgets: RAM follows crouch (the last skill in
+  // Linked MSX2 HUD asset dynamic widgets: the optional runtime chain lives in a
+  // dedicated RAM window after the fixed bitmap state. Keeping it out of the
+  // low #C0D9..#C1F0 player/boss block lets projects combine many optional
+  // systems without overwriting the behavior map, boss state or music workspace.
+  // RAM follows crouch (the last skill in
   // the chain). Per widget: dirty-flag (1 byte, or 2 for wide 16-bit counters so a
   // high-byte-only change is detected) + value byte(s) for bindings without a real
   // existing RAM counter (score/bossEnergy/air/collectibles/custom; NOT a scoring
   // mechanic, just the widget's own persistent byte(s) — 2 bytes for wide counters).
   // Shared hud_dec3_buffer (3B) for narrow counters + hud_dec5_buffer (5B) for wide.
-  // Guarded against overflowing into the reserved player-animation block at #C1F0.
-  const linkedHudRamBase = crouchRamBase + (crouchConfig.enabled ? MSX2_BITMAP_CROUCH_RAM_BYTES : 0);
-  const HUD_LINKED_RAM_CEILING = 0xC1F0;
+  // The dedicated window is ordinary cartridge RAM (#D000..#EFFF), clear of
+  // fixed bitmap state (#C000..#C2FF), SFX/music state (#C3FE..), and the BIOS
+  // workspace above #F380.
+  const HUD_LINKED_RAM_BASE = 0xD000;
+  const HUD_LINKED_RAM_CEILING = 0xF000;
+  const linkedHudRamBase = Math.max(
+    HUD_LINKED_RAM_BASE,
+    crouchRamBase + (crouchConfig.enabled ? MSX2_BITMAP_CROUCH_RAM_BYTES : 0),
+  );
   let hudLinkedRamCursor = linkedHudRamBase;
   const experienceElement = linkedHudDynamicSources
     .map(source => source.element)
@@ -13589,7 +14148,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const gemCounterRam = gemCounterEntry
     ? { label: resolveHudElementBindingRamLabel(gemCounterEntry.source.element, gemCounterEntry.index), wide: linkedCounterSpec(gemCounterEntry.source.element).wide }
     : null;
-  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud, gemCounterRam, bitmapEnemyPoolStride(enemyData));
+  const keyDoorSystem = buildBitmapKeyDoorSystemAsm(rooms, playerHitbox, hudLinkedRamCursor, isKonamiMegaRom, enemyData.maxSlots, anyKeyItemHud, gemCounterRam, bitmapEnemyPoolStride(enemyData), roomWorldIndices);
   hudLinkedRamCursor += keyDoorSystem.ramBytes;
   // collector_gems skill: gem collectibles drawn/erased on the room bitmap.
   // Built before the dialogue system so the dialogue-close repaint call chain
@@ -13600,7 +14159,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     playerHitbox,
     hudLinkedRamCursor,
     collectorGemsConfig,
-    gemCounterRam
+    gemCounterRam,
+    roomWorldIndices,
   );
   hudLinkedRamCursor += gemSystem.ramBytes;
   // PERCEPTION skill: config + parts-window predicate resolved HERE because the
@@ -13752,6 +14312,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 `
       : ''}${perceptionPauseGateAsm}`,
     bankedRoomData: isKonamiMegaRom,
+    roomPoolCount: multiWorld ? worldScratch.maxWorldRooms : undefined,
+    roomPoolIndexLabel: multiWorld ? 'bitmap_room_pool_index' : undefined,
   });
   hudLinkedRamCursor += bossSystem.ramBytes;
   // CARRY & THROW skill: SCREEN 5 ballistic object runtime. It is chained after
@@ -13821,12 +14383,116 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     musicTick: sccMusicTickEnabled,
   });
   hudLinkedRamCursor += lightingSystem.ramBytes;
+  // Multi-world state: which world is loaded plus the entry point published by
+  // bitmap_prepare_world. The extra bytes are also a mailbox for preserving
+  // the player's wallet while the next world gets a fresh runtime/VRAM init.
+  const multiWorldRamBase = hudLinkedRamCursor;
+  const multiWorldRamBytes = multiWorld ? 12 : 0;
+  hudLinkedRamCursor += multiWorldRamBytes;
+  const multiWorldEquates = multiWorld
+    ? `; Multi-world Game Flow: the world currently loaded, and the start room +
+; spawn that bitmap_prepare_world published for the shared boot-init sequence.
+bitmap_world_index      EQU ${hexWord(multiWorldRamBase)}
+bitmap_world_start_room EQU ${hexWord(multiWorldRamBase + 1)}
+bitmap_world_spawn_x    EQU ${hexWord(multiWorldRamBase + 2)}
+bitmap_world_spawn_y    EQU ${hexWord(multiWorldRamBase + 3)}
+; Progress carried across WorldLink entry. Transient room/runtime state is
+; cleared and VRAM is reloaded before these wallet values are restored.
+bitmap_world_saved_health       EQU ${hexWord(multiWorldRamBase + 4)}
+bitmap_world_saved_lives        EQU ${hexWord(multiWorldRamBase + 5)}
+bitmap_world_saved_keys         EQU ${hexWord(multiWorldRamBase + 6)}
+bitmap_world_saved_key_count    EQU ${hexWord(multiWorldRamBase + 7)}
+bitmap_world_saved_gems_lo      EQU ${hexWord(multiWorldRamBase + 8)}
+bitmap_world_saved_gems_hi      EQU ${hexWord(multiWorldRamBase + 9)}
+bitmap_world_session_started    EQU ${hexWord(multiWorldRamBase + 10)}
+`
+    : '';
+  const multiWorldSaveProgressAsm = multiWorld ? '    call bitmap_world_save_progress\n' : '';
+  const multiWorldRestoreProgressAsm = multiWorld ? '    call bitmap_world_restore_progress\n' : '';
+  const multiWorldProgressRoutinesAsm = multiWorld
+    ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_world_save_progress
+; ------------------------------------------------------------
+; PURPOSE: Preserve the cross-world wallet before a WorldLink fresh-world reset.
+; INPUT: None (RAM values are read from the current world).
+; OUTPUT: None.
+; DESTROYS: AF, HL.
+; PRESERVES: BC, DE, IX, IY.
+; CALLS: None.
+; SIDE EFFECTS: Writes the multi-world progress mailbox in RAM.
+; ------------------------------------------------------------
+bitmap_world_save_progress:
+    ld a, (bitmap_world_session_started)
+    or a
+    ret z
+    ld a, (player_health)
+    ld (bitmap_world_saved_health), a
+    ld a, (player_lives)
+    ld (bitmap_world_saved_lives), a
+${keyDoorSystem.enabled ? `    ld a, (bitmap_key_inventory)
+    ld (bitmap_world_saved_keys), a
+` : ''}${(keyDoorSystem.enabled || anyKeyItemHud) ? `    ld a, (bitmap_key_count)
+    ld (bitmap_world_saved_key_count), a
+` : ''}${gemCounterRam
+  ? (gemCounterRam.wide
+    ? `    ld hl, (${gemCounterRam.label})
+    ld a, l
+    ld (bitmap_world_saved_gems_lo), a
+    ld a, h
+    ld (bitmap_world_saved_gems_hi), a
+`
+    : `    ld a, (${gemCounterRam.label})
+    ld (bitmap_world_saved_gems_lo), a
+`)
+  : ''}    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_world_restore_progress
+; ------------------------------------------------------------
+; PURPOSE: Restore the wallet after transient runtime and VRAM reinitialisation.
+; INPUT: None (mailbox and session flag in RAM).
+; OUTPUT: None.
+; DESTROYS: AF, HL.
+; PRESERVES: BC, DE, IX, IY.
+; CALLS: None.
+; SIDE EFFECTS: Restores health/lives and available key/gem counters.
+; ------------------------------------------------------------
+bitmap_world_restore_progress:
+    ld a, (bitmap_world_session_started)
+    or a
+    jp z, .world_restore_first_entry
+    ld a, (bitmap_world_saved_health)
+    ld (player_health), a
+    ld a, (bitmap_world_saved_lives)
+    ld (player_lives), a
+${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
+    ld (bitmap_key_inventory), a
+` : ''}${(keyDoorSystem.enabled || anyKeyItemHud) ? `    ld a, (bitmap_world_saved_key_count)
+    ld (bitmap_key_count), a
+` : ''}${gemCounterRam
+  ? (gemCounterRam.wide
+    ? `    ld a, (bitmap_world_saved_gems_lo)
+    ld l, a
+    ld a, (bitmap_world_saved_gems_hi)
+    ld h, a
+    ld (${gemCounterRam.label}), hl
+`
+    : `    ld a, (bitmap_world_saved_gems_lo)
+    ld (${gemCounterRam.label}), a
+`)
+  : ''}.world_restore_first_entry:
+    ld a, 1
+    ld (bitmap_world_session_started), a
+    ret
+`
+    : '';
   const useGlowingTailColors = lightingSystem.enabled && torchConfig.enabled === true;
   const combinedGlowingColors = useGlowingTailColors
     ? combinedColors.map(intensifyBitmapPlayerSpriteColor)
     : [];
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
-    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: chain (${hexWord(hudLinkedRamCursor)}) would overflow the reserved player-animation block at ${hexWord(HUD_LINKED_RAM_CEILING)}. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+    throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: dedicated RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow its ${hexWord(HUD_LINKED_RAM_BASE)}..${hexWord(HUD_LINKED_RAM_CEILING - 1)} window. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
   const linkedHudElementAsms = linkedHudDynamicSources.map((source, index) => {
@@ -13885,7 +14551,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     totalFrameCount: combinedFrameCount,
     hasStateAnimations,
     glowingTailColors: useGlowingTailColors,
-  }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled, subCellShapes, shaftOverride: shaftEnabled }, playerPhysics, playerHitbox, {
+  }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled, subCellShapes, shaftOverride: shaftEnabled, multiWorld }, playerPhysics, playerHitbox, {
     // Boss auto-walk must override the physical keyboard before any player
     // skill reads C. The main-loop boss gate calls this same movement routine
     // directly and skips all manual actions while the flag is active.
@@ -13894,7 +14560,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -13951,15 +14617,17 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // keeping the ROM byte-identical to legacy exports).
   const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom);
   // Shared boot-init sequence: loads the start room, draws the dynamic pickup/
-  // door/gem visuals, spawns enemies/platforms, resets the full player + room-
-  // composition state, restores R#15=S#0 and clears the skill state. Emitted as
+  // door/gem visuals, spawns enemies/platforms, resets the transient player +
+  // room-composition state, restores R#15=S#0 and clears the skill state. In a
+  // multi-world flow the persistent wallet is saved/restored around this reset.
+  // Emitted as
   // ONE string so the inline boot path (no Game Flow) and the Game Flow WorldLink
   // node run byte-identical initialisation. It performs NO terminal control flow,
   // so callers either fall through to bitmap_enter_game_loop (inline boot) or
   // `call bitmap_enter_game_loop` (WorldLink). NOTE: it does not select a slot or
   // init the VDP/HUD/tileset (done once at init_rom before either path).
-  const bitmapBootInitAsm = `${bossSystem.initAsm ? `    ; Boss persistent state MUST be cleared before the start room is composed:
-    ; load_room below ends in bitmap_boss_load, which reads boss_defeated[room]
+  const bitmapBootInitAsm = `${bossSystem.initAsm ? `    ; Boss active-world scratch MUST be cleared before the start room is composed:
+    ; load_room below ends in bitmap_boss_load, which reads boss_defeated[localRoom]
     ; and skips the boss when it is non-zero. Running this with the rest of the
     ; HUD/system init (further down, after load_room) meant that booting STRAIGHT
     ; INTO a boss room read uninitialised RAM: garbage there reads as "already
@@ -13967,8 +14635,18 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
 ${bossSystem.initAsm}` : ''}    ; Render the start room from the shared tileset already in VRAM.
     xor a
     ld (bitmap_displayed_page), a
-    ld a, ${startIndex}
-    call load_room
+${multiWorldSaveProgressAsm}
+${multiWorld ? `    ; Rebuild the shared off-screen atlas on every WorldLink entry. This
+    ; is intentionally done during the transition, outside the gameplay loop,
+    ; so each world starts from a deterministic tile resource state.
+    call upload_tileset_atlas
+` : ''}${multiWorld
+  ? `    ; Multi-world: the entry room belongs to the world the WorldLink selected
+    ; through bitmap_prepare_world, so it comes from RAM rather than a literal.
+    ld a, (bitmap_world_start_room)
+`
+  : `    ld a, ${startIndex}
+`}    call load_room
     ; Re-seed the top HUD band on BOTH pages. A Game Flow intro Transition effect
     ; (vertical/horizontal wipe, CLS or fade) clears the WHOLE visible page 0,
     ; including the HUD band (fill starts at DY=0, NY=212), which erases the static
@@ -13978,11 +14656,16 @@ ${bossSystem.initAsm}` : ''}    ; Render the start room from the shared tileset 
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
 ${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
-${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${shaftSystem.initCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
-    ld a, ${spawn.y}
+${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
+${multiWorld
+  ? `    ld a, (bitmap_world_spawn_y)
+    ld (player_y), a
+    ld a, (bitmap_world_spawn_x)
+    ld (player_x), a`
+  : `    ld a, ${spawn.y}
     ld (player_y), a
     ld a, ${spawn.x}
-    ld (player_x), a
+    ld (player_x), a`}
     xor a
     ld (player_pat), a
     ld (player_ec), a
@@ -14009,7 +14692,7 @@ ${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${p
     ; Boss load deliberately comes AFTER player placement. The Room Lock chain
     ; must see the real entry cell so it can leave that cell open until the
     ; frozen player is released and steps clear.
-${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
+${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}${multiWorldRestoreProgressAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
     ; BIOS/VDP state left by CHGMOD or command-engine setup.
     ld a, #02
     ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
@@ -14171,8 +14854,14 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
     bootInitAsm: bitmapBootInitAsm,
     music: { enabled: Boolean(sccMusic), trackIndexById: sccTrackIndexById },
     availableIntroEffects,
+    worldIndexById: multiWorld
+      ? new Map(worldPlans.map((plan, index) => [plan.id, index]))
+      : undefined,
   });
   const gameFlowEnabled = gameFlowEntryAsm.length > 0;
+  const bitmapFlowTextEquatesAsm = bitmapFlowTextEquates(
+    collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any)
+  );
   const bitmapEndRuntime = gameFlowEnabled ? buildBitmapEndScreenRuntime() : { dataAsm: '', routinesAsm: '' };
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
   const hudWidgetCount = hudGloballyHidden
@@ -14187,7 +14876,7 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
 ; Project: ${projectName}
 ; Room: ${room.name}
 ; Screen mode: SCREEN 5 (VDP Graphic 4, CHGMOD 5)
-; Backend: msx2-screen4-bitmap-room (legacy internal id)
+; Backend: screen5 (bitmap rooms)
 ; ROM Mode: ${config.romMode}
 ; Mapper Target: ${config.targetFormat}
 ; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
@@ -14197,7 +14886,9 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
 ; Bitmap room HUD widgets: ${hudWidgetCount}
 ; Bitmap room game area: ${SCREEN_WIDTH}x${SCREEN_HEIGHT_DEFAULT} at visual Y=${BITMAP_ROOM_GAME_Y_OFFSET}
 ; Bitmap room game band VRAM base: ${hexWord(BITMAP_ROOM_GAME_VRAM_BASE)}
-; World rooms: ${rooms.length}; start room index: ${startIndex}
+; World rooms: ${rooms.length}; start room index: ${startIndex}${multiWorld ? `
+; Worlds: ${worldPlans.length} (one global room list; palette/entry per world)
+${worldPlans.map((plan, index) => `;   world ${index} "${plan.name || plan.id}": rooms ${plan.roomBase}..${plan.roomBase + plan.rooms.length - 1}, entry ${plan.startIndex}`).join('\n')}` : ''}
 ; Shared tileset bytes: ${tilesetBytes.length} at VRAM ${hexVram(atlasVramBase)}
 ; MSX2_GAMEFLOW_INTRO_SCENES: ${introScenes.length}
 ; ==================================================================
@@ -14264,13 +14955,15 @@ bitmap_composition_block_bank     EQU #C1F6
 ; projects without wall-jumpers); lives in the safe gap between the composition
 ; block bank and blink_phase.
 player_vx                         EQU #C1F7
-; Game-over request flag (Game Flow integration). Set to nonzero by the deadly/enemy
-; damage system when player_lives reaches 0. The gameplay loop (bitmap_enter_game_loop)
-; checks it each frame: when set, it returns to the Game Flow dispatcher so the graph
-; follows the WorldLink's connection (typically to an End:GameOver node). When no Game
-; Flow graph exists (standalone bitmap project), lives==0 triggers a soft restart instead.
+; Shared GameFlow exit request. Exit World contact sets the semantic name; the deadly/
+; enemy system keeps its game-over alias when player_lives reaches 0. The gameplay loop
+; checks this byte every frame and returns to the GameFlow dispatcher, which follows the
+; active WorldLink's default connection. Standalone bitmap projects soft-restart instead.
 ; Always emitted (harmless zero); lives in the last free safe-gap byte before blink_phase.
-bitmap_game_over_flag             EQU #C1F8
+bitmap_gameflow_exit_flag         EQU #C1F8
+bitmap_game_over_flag             EQU bitmap_gameflow_exit_flag
+; Active-world local room index for reusable SCREEN 5 pickup/boss pools.
+bitmap_room_pool_index             EQU #C1FC
 ; Sub-pixel gravity accumulator (low byte of the 8.8 gravityStrength from the Player
 ; Config). Added to player_vy_frac every frame; player_vy only rises by 1 when this
 ; carries, so the fall/jump arc accelerates gradually like SCREEN 4 (default 0.25
@@ -14294,12 +14987,12 @@ ${crouchEquates}
 ; Used by surface skills such as ice_slide. Kept away from the compact player
 ; state/skill chain so future optional skills do not overlap it.
 bitmap_room_behavior_map EQU #C200
-${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${shaftSystem.equates}${bossSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}
+${deadlySystem.equates}${heartsHud.equates}${linkedHudEquates}${enemySystem.equates}${turretSystem.equates}${platformSystem.equates}${shaftSystem.equates}${bossSystem.equates}${carryAndThrowSystem.equates}${destroyTileEquates}${multiWorldEquates}
 ; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
 ; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
 ; the music mixer merges them so its per-frame R7 heal never cuts a blip.
 psg_sfx_r7_c_bits EQU #C3FE
-${sccMusicEquates}    org #4000
+${bitmapFlowTextEquatesAsm}${sccMusicEquates}    org #4000
 
     db "AB"
     dw init_rom
@@ -14314,18 +15007,22 @@ init_rom:
     di
     ${isKonamiMegaRom ? 'call map_page2_to_cart_primary\n    call init_konami8k_fixed_bank0_banks' : 'call init_plain32k_page2_slot'}
     call init_screen5_bitmap_vdp
-${intro.initCallAsm}    call load_screen5_bitmap_palette
+${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, so latch world 0 before the palette
+    ; loader (which indexes its table with bitmap_world_index) runs.
+    xor a
+    ld (bitmap_world_index), a
+    ld (bitmap_world_session_started), a
+` : ''}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
 ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}    ld a, #24                 ; SFX channel-C mixer shadow: start muted
     ld (psg_sfx_r7_c_bits), a
 ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
-    ; Game Flow exit gate: when the deadly/enemy damage system arms
-    ; bitmap_game_over_flag (last life spent), leave the gameplay loop. With a
-    ; Game Flow graph, ret returns to the dispatcher (which follows the WorldLink
-    ; connection, e.g. to an End:GameOver node). Without a graph, soft-restart.
-    ld a, (bitmap_game_over_flag)
+    ; GameFlow exit gate: armed by Exit World contact or by the deadly/enemy
+    ; system after the last life. With a graph, RET resumes the WorldLink's
+    ; default connection. Without a graph, use a deterministic soft restart.
+    ld a, (bitmap_gameflow_exit_flag)
     or a
     ${gameFlowEnabled ? 'ret nz    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp nz, init_rom    ; standalone: last life -> soft restart'}
 .bitmap_main_loop:
@@ -14342,7 +15039,7 @@ ${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${s
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
 ${playerStateMachine.mainLoopCall}${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
-${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp .bitmap_main_loop
+${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
 
 ; __MIDEAS_BITMAP_RESIDENT_DISPATCH_START__
 ; World engine dispatch tables (indexed by room/screen index).
@@ -14363,6 +15060,7 @@ ${roomSpawnTableAsm}
 ; __MIDEAS_BITMAP_RESIDENT_DISPATCH_END__
 
 ${sccMusic ? `\n; ==================================================================\n; SCC MUSIC (Fase 5): driver + row players + public music_* API\n; (song DATA is emitted at #A000 near the end of the boot image: the\n; resident #4000-#7FFF window must keep the room tables below #8000)\n; ==================================================================\n${sccMusic.runtimeAsm}\n` : ''}${intro.routinesAsm}
+${multiWorldProgressRoutinesAsm}
 ${runtimeAsm}
 ${dashRuntime}
 ${airDashRuntime}
@@ -14384,6 +15082,7 @@ ${destroyTileRuntime}
 ${deadlySystem.routineAsm}
 ${heartsHud.routinesAsm}
 ${linkedHudRoutinesAsm}
+${worldExitSystem.routinesAsm}
 ${dialogueSystem.routinesAsm}
 ${hudSeparatorRestore.routinesAsm}
 ${foregroundLoadRoutineAsm}
@@ -14395,7 +15094,7 @@ ${bossSystem.routinesAsm}
 ${carryAndThrowSystem.dataAsm}
 ${bitmapEndRuntime.routinesAsm}
 ${formatBytes('screen5_bitmap_palette_data', paletteBytes, 'VDP palette bytes: byte1=(R<<4)|B, byte2=G')}
-${intro.dataAsm}bitmap_room_hud_seed_data:
+${multiWorldDataAsm}${intro.dataAsm}bitmap_room_hud_seed_data:
 ${hudSeedDataAsm}
 bitmap_room_hud_seed_data_end:
 

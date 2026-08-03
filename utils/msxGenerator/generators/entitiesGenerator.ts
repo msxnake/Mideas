@@ -521,6 +521,13 @@ init_entities:
     ld (hl), 0
     ldir
 
+    ; Clear World Exit trigger flags. Per-entity init fills active slots.
+    ld hl, entity_world_exit
+    ld de, entity_world_exit+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
     ; Clear Limit_on screen-edge clamp flags
     ld hl, entity_limit_on
     ld de, entity_limit_on+1
@@ -647,6 +654,13 @@ update_entities:
       const isPlayerTemplate = hasExplicitPlayerTemplate
         ? parseBool(template?.isPlayer, false)
         : hasLegacyPlayerInput;
+      const worldExitTemplateComp = template?.components?.find((component: any) =>
+        component?.definitionId === 'comp_world_exit' || component?.definitionName === 'World Exit'
+      );
+      const worldExitOverrides = entity.componentOverrides?.['comp_world_exit'];
+      const worldExitEnabled = (worldExitTemplateComp || worldExitOverrides)
+        ? parseBool(worldExitOverrides?.enabled ?? worldExitTemplateComp?.defaultValues?.enabled, true)
+        : false;
       const limitOnTemplateComp = template?.components?.find((component: any) =>
         component?.definitionId === 'comp_limit_on' || component?.definitionName === 'Limit_on'
       );
@@ -1510,6 +1524,10 @@ init_${entityName.toLowerCase()}:
     ld hl, entity_is_player
     add hl, de
     ld (hl), ${isPlayerTemplate ? 1 : 0}                 ; Player/hero marker from template
+
+    ld hl, entity_world_exit
+    add hl, de
+    ld (hl), ${worldExitEnabled ? 1 : 0}                 ; Exit active WorldLink on Player overlap
 
     ld hl, entity_limit_on
     add hl, de

@@ -1,0 +1,3 @@
+antes:   R#15=02 R#14=00 comp=0 blk=0 slot=0
+durante: R#15=00 R#14=03 comp=1 blk=88 slot=1
+colgado: R#15=00 R#14=03 comp=1 blk=88 slot=1

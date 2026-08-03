@@ -469,6 +469,30 @@ export interface Msx2LockedDoorConfig {
   targetEntryId?: string;
 }
 
+/** End-of-world trigger for SCREEN 5 bitmap rooms. Touching its AABB leaves the
+ * current GameFlow WorldLink and continues through that node's default output. */
+export interface Msx2WorldExitConfig {
+  enabled: boolean;
+  /** Optional atlas metatile baked into the room (for example, an exit door). */
+  atlasEntryId?: string;
+  offsetX?: number;
+  offsetY?: number;
+  hitboxW?: number;
+  hitboxH?: number;
+}
+
+/** End-of-world trigger for SCREEN 5 bitmap rooms. Touching its AABB leaves the
+ * current GameFlow WorldLink and continues through that node's default output. */
+export interface Msx2WorldExitConfig {
+  enabled: boolean;
+  /** Optional atlas metatile baked into the room (for example, an exit door). */
+  atlasEntryId?: string;
+  offsetX?: number;
+  offsetY?: number;
+  hitboxW?: number;
+  hitboxH?: number;
+}
+
 export interface Msx2PressureButtonConfig {
   enabled: boolean;
   targetDoorId?: string;
@@ -3798,7 +3822,24 @@ export interface Msx2GameFlowConnection {
   waypoints?: Point[];
 }
 
-export type Msx2GameFlowPurpose = 'screen5-presentation' | 'screen4-runtime' | 'screen4-bitmap-runtime';
+/**
+ * Which graphics backend a flow compiles through. There are two for MSX2,
+ * matching the backend ids in utils/msxGenerator/graphicsBackend.ts.
+ *
+ * The three legacy values are still read (existing project JSON carries them)
+ * and, unlike the current ones, they also PIN which SCREEN 5 emitter runs.
+ * `screen5` leaves that to be inferred from the project's assets, so a flow
+ * saved before the merge keeps compiling exactly as it did.
+ */
+export type Msx2GameFlowPurpose =
+  | 'screen4'
+  | 'screen5'
+  | 'screen5-presentation'
+  | 'screen4-runtime'
+  | 'screen4-bitmap-runtime';
+
+/** The values written by the editor today; the rest are accepted on input only. */
+export type Msx2GameFlowPurposeCurrent = Extract<Msx2GameFlowPurpose, 'screen4' | 'screen5'>;
 
 export interface Msx2GameFlowGraph {
   id: string;

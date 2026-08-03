@@ -1,0 +1,409 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "anime_girl_s5_1784820246",
+      "name": "Anime Girl S5",
+      "savedAt": 1784820246530,
+      "sprite": {
+        "id": "anime_girl_s5_1784820246530",
+        "name": "Anime Girl S5",
+        "target": "MSX2",
+        "vdpMode": "SCREEN5",
+        "size": {
+          "width": 16,
+          "height": 16
+        },
+        "palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 73,
+            "hex": "#242424"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 137,
+            "hex": "#492424"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 273,
+            "hex": "#924924"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 501,
+            "hex": "#FFDBB6"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 419,
+            "hex": "#DB926D"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 351,
+            "hex": "#B66DFF"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 139,
+            "hex": "#49246D"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 510,
+            "hex": "#FFFFDB"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 431,
+            "hex": "#DBB6FF"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 286,
+            "hex": "#926DDB"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 485,
+            "hex": "#FF92B6"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 493,
+            "hex": "#FFB6B6"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 403,
+            "hex": "#DB496D"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 346,
+            "hex": "#B66D49"
+          }
+        ],
+        "backgroundColor": "rgba(0,0,0,0)",
+        "frames": [
+          {
+            "id": "frame_0",
+            "data": [
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#492424",
+                "#492424",
+                "#492424",
+                "#492424",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#924924",
+                "#924924",
+                "#924924",
+                "#924924",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#924924",
+                "#B66D49",
+                "#924924",
+                "#924924",
+                "#B66D49",
+                "#924924",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#B66DFF",
+                "#B66DFF",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#B66DFF",
+                "#B66DFF",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#49246D",
+                "#FFFFFF",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFFFFF",
+                "#49246D",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFB6B6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFB6B6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#DB496D",
+                "#DB496D",
+                "#DB496D",
+                "#DB496D",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#DB496D",
+                "#DB496D",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#924924",
+                "#DB926D",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#FFDBB6",
+                "#DB926D",
+                "#924924",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#DBB6FF",
+                "#DBB6FF",
+                "#DBB6FF",
+                "#DBB6FF",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#DBB6FF",
+                "#926DDB",
+                "#DBB6FF",
+                "#DBB6FF",
+                "#926DDB",
+                "#DBB6FF",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ],
+              [
+                "rgba(0,0,0,0)",
+                "#492424",
+                "#492424",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#DBB6FF",
+                "#DBB6FF",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#DBB6FF",
+                "#DBB6FF",
+                "#FFFFDB",
+                "#FFFFDB",
+                "#492424",
+                "#492424",
+                "rgba(0,0,0,0)"
+              ]
+            ]
+          }
+        ],
+        "currentFrameIndex": 0,
+        "animationSpeedMs": 200,
+        "loops": true,
+        "facingDirection": "neutral",
+        "hardware": {
+          "x": 0,
+          "y": 0,
+          "color": 15,
+          "patternIndex": 0,
+          "useOrColor": false
+        }
+      }
+    }
+  ]
+}

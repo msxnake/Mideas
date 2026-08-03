@@ -86,6 +86,142 @@ The "one ROM = one mode" rule is now enforced in two layers, so tile SCREEN 4 sc
 - Mostly static rooms + sprites for actors → either; SCREEN 5 if clash is the problem,
   SCREEN 4 if ROM/CPU budget is tight and the tile look is fine.
 
+### SCREEN 5 backend de-tangling (2026-08-02)
+
+Phased clean-up of the three SCREEN 5 routes. Every phase that touches a generator
+runs under `npm run test:generator-byte-identical`, which hashes the generated
+`unitedFiles.asm` (and optionally the glass.jar ROM) for 7 fixtures covering all
+three routes. Record the baseline BEFORE the change; re-recording afterwards
+voids the proof.
+
+- **Phase 1 — DONE.** Shared presentation data converters in
+  `screen5PresentationData.ts`. The three private copies had already diverged:
+  one clamped hex-derived palette levels, and only the bitmap-room one accepted
+  the nested `data.packedPixels` shape from the PNG importer (the other two
+  rendered a black screen for import-only assets). Output byte-identical.
+- **Phase 2 — PARTIALLY DONE, and re-scoped.** The plan assumed the wipe ASM was
+  triplicated. It is not. Reading the bodies shows **three different engines**
+  for the same six effects:
+
+  | | Presentation | Flow walker | Bitmap-room intro |
+  |---|---|---|---|
+  | Fill primitive | BIOS `FILVRM`, raw VRAM bytes | command engine, `gf_fill_rect` + `GF_CMD_*` in RAM | command engine, registers direct (HL=DX, DE=DY, BC=NX, A=NY) |
+  | Coordinates | byte offsets from `vramBase` | pixels | pixels |
+  | Step granularity | 1 byte-column (2px) / 2 scanlines | 4px / 4-line bands | 2px / 2-line bands / 8x8 blocks |
+  | Frame sync | `halt` | `halt` | `bitmap_intro_frame_wait` (restores R#15) |
+  | Diagonal wipe | ROM table of rects + `clear_screen5_rect` | ROM table of DX,DY words, 16x16 blocks | computed, 8x8 blocks, uses `player_x`/`player_y` as scratch |
+
+  So the same named effect runs at different speeds on different backends.
+  Merging the ASM is a **behaviour change needing OpenMSX verification**, not a
+  refactor, and it cannot pass the byte-identical harness by construction.
+
+  What was unified instead (byte-identical): the effect **vocabulary**, now in
+  `screen5TransitionEffects.ts`. It previously lived in three generators plus the
+  editor dropdown, so adding an effect meant editing four lists and getting a
+  runtime "not supported" from whichever one was missed. Two contract checks in
+  `check_msx2_gameflow_contract.mjs` now hold the four in agreement.
+
+  Remaining, as a separate piece of work: migrate the presentation backend's
+  FILVRM wipes to the command engine so all three share one implementation. This
+  is also a speed-up (the presentation backend is the oldest and slowest of the
+  three), but it changes on-screen timing and needs hardware sign-off.
+- **Phase 0 (renamed F1) — DONE 2026-08-02.** There are now exactly THREE
+  backends, named after the VDP mode they really run in: `screen2`, `screen4`,
+  `screen5`. The two SCREEN 5 routes collapsed into one backend; which emitter
+  builds the ROM (`Screen5Emitter` = `bitmap-rooms` | `presentation`) is an
+  internal detail resolved in `resolveGraphicsTarget()`, not part of the id.
+
+  All six old ids (`screen2-tilebank`, `msx2-screen4-pattern`,
+  `msx2-screen4-bitmap-room`, `msx2-screen5-presentation`, plus the two already
+  deprecated) are accepted on input indefinitely and mapped in
+  `normalizeGraphicsBackendId()`, so existing project JSON keeps working.
+
+  Resolution priority is unchanged, including the fact that the GameFlow
+  `purpose` beats an explicit `targetGraphicsBackend`; that order is now held by
+  a contract check that compares positions inside the resolver rather than just
+  looking for both strings.
+
+  Verified byte-identical (ASM and ROM) across all 7 harness fixtures, plus three
+  new alias-equivalence cases proving `legacy id == new id` generates the same
+  ASM. Skills' `supportedBackends` migrated (`screen4`, `screen5`).
+
+  **Follow-up done 2026-08-03:** the `; Backend: ...` markers emitted into the
+  generated ASM now carry the current names, spelling out the emitter alongside
+  the backend:
+
+  | Marker | Emitted by |
+  |---|---|
+  | `; Backend: screen5 (presentation)` | strict-shape presentation |
+  | `; Backend: screen5 (presentation chain)` | multi-scene chain |
+  | `; Backend: screen5 (presentation chain -> screen4 runtime)` | mixed ROM |
+  | `; Backend: screen5 (gameflow walker)` | generic node walker |
+  | `; Backend: screen5 (bitmap rooms)` | bitmap-room game runtime |
+
+  The SCREEN 4 project-slice artifact also reports `backend: 'screen4'`.
+
+  Because these are comments, the check is inverted: `--rom-only` on the harness
+  asserts that every ROM hash holds while the ASM hashes move. All 9 ROMs came
+  out identical, so the baseline was re-recorded with that as the evidence.
+- **F2 (GameFlow purposes) — DONE 2026-08-02.** The flow `purpose` was the real
+  backend selector and had three values, two of which were both SCREEN 5. It is
+  now `screen4` | `screen5`, and the MSX2 GameFlow editor shows two mode buttons
+  instead of three.
+
+  `screen5` no longer says which emitter runs. That is resolved by
+  `resolveMsx2Screen5Emitter()` in `utils/msx2GameFlowPurpose.ts`: **bitmap rooms
+  win**, because a project with rooms is a game that may also carry a title
+  screen, and building only the title screen while dropping the rooms is never
+  what the author meant. This inverts the old auto-detection order, which put
+  presentation first. The three legacy purposes still PIN the emitter, so every
+  project saved before the merge compiles through exactly the same generator.
+
+  The editor calls the same helper as the generator, so the UI cannot validate a
+  flow against rules the ROM will not follow.
+
+  All `purpose === '...'` comparisons — four generators, the editor, the export
+  modal and the CLI export script — now go through the shared predicates. The
+  harness caught why that matters: `msx2Screen5BitmapRoomGenerator` filtered its
+  flows by the literal `'screen4-bitmap-runtime'`, so with the new purpose the
+  intro AND the whole GameFlow dispatcher silently vanished from the ROM.
+
+  Verified byte-identical (ASM and ROM) plus two new purpose-equivalence cases
+  proving `screen4-bitmap-runtime == screen5` on a project that has both rooms
+  and a presentation asset.
+- **F3 (mixed route) — DONE 2026-08-03.** The mixed SCREEN 5 intro + SCREEN 4
+  runtime ROM is now **composed** instead of generated-then-rewritten.
+
+  `Msx2Screen4Config.host` carries the hooks a host needs: `runtimeEntryLabel`,
+  `bootEntryLabel`, `residentPrologueAsm`, `trailingAsm`, `headerTitle` and
+  `extraHeaderMarkers`. All default to standalone behaviour. That deleted
+  `renameScreen4EntryForMixedAsm()`, which did a global `\binit_rom\b` replace
+  over the whole output and then re-patched the cartridge boot vector.
+
+  The fixture gap is closed: `test/msx2-mixed/mixed_screen5_screen4_project.json`
+  (regenerate with `scripts/create_msx2_mixed_screen5_screen4_fixture.mjs`),
+  covered by the harness in both simple32k and Konami MegaROM.
+
+  Two things the new coverage exposed:
+  - The intro chain only accepts a `Transition` after a scene when ANOTHER
+    `Screen5Presentation` follows it, so `Screen5Presentation -> Transition ->
+    End` is not a chain and silently falls back to the plain presentation
+    backend. The fixture goes straight to `End`.
+  - `init_konami8k_fixed_bank0_banks` is emitted **only** for Konami MegaROM, so
+    on simple32k the old two-line strip never matched and a redundant
+    `call map_page2_to_cart_primary` survived into the banked intro. It is a
+    harmless re-map; removing it would change the ROM, so it is kept and
+    documented rather than "fixed" inside a refactor.
+
+  The remaining strip now throws when the intro's bring-up is missing, with the
+  patterns **anchored to line start** — an unanchored version still matched a
+  re-indented emitter, which is exactly the silent pass this phase set out to
+  remove.
+
+  Verified byte-identical (ASM and ROM) across all 9 harness fixtures.
+- **Phase 4 — deferred.** Collapse the presentation backend's strict-shape flow
+  resolver into the generic walker (~600 lines). The strict resolver is the
+  reference for the current smokes, so this waits until the walker has more
+  hardware mileage.
+
 ## Current Slice
 
 The first MSX2 slice supports:

@@ -1,0 +1,7 @@
+room=01
+slot=01
+shaft_y=9E
+dir=00
+rider=00
+player_y=80
+comp=00

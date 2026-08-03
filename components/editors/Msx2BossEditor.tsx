@@ -37,7 +37,7 @@ interface Msx2BossEditorProps {
   setStatusBarMessage?: (message: string) => void;
 }
 
-const NAV_ITEMS = ['General', 'Body & Graphics', 'Movement', 'Room Lock', 'Projectiles', 'Attack Phases', 'Damage Zones', 'Defeat Actions', 'Encounters'] as const;
+const NAV_ITEMS = ['General', 'Body & Graphics', 'Movement', 'Room Lock', 'Projectiles', 'Attack Phases', 'Damage Zones', 'Death FX', 'Defeat Actions', 'Encounters'] as const;
 type Section = typeof NAV_ITEMS[number];
 
 /** MSX2 palette approximation, good enough for the zone-editor preview. */
@@ -706,6 +706,93 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
             bodyStamp={bodyStamp} frames={frames} setStatusBarMessage={setStatusBarMessage} />
         )}
 
+        {section === 'Death FX' && (
+          <div className={card}>
+            <h3 className="text-sm font-semibold mb-2">Boss Death — Bitmap Explosions</h3>
+            <p className="text-xs text-msx-textsecondary mb-3">
+              Pick one or more Bitmap Stamps. When HP reaches zero, the runtime
+              distributes them pseudo-randomly across the boss body. Colour 0 is
+              transparent, so each explosion is composited over the boss.
+            </p>
+
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className={label}>Explosion count</label>
+                <input type="number" min={1} max={32} className={input}
+                  value={boss.bossDeathExplosionCount ?? 8}
+                  onChange={e => set('bossDeathExplosionCount', Number(e.target.value))} />
+              </div>
+              <div>
+                <label className={label}>Frames between blasts</label>
+                <input type="number" min={1} max={60} className={input}
+                  value={boss.bossDeathExplosionInterval ?? 6}
+                  onChange={e => set('bossDeathExplosionInterval', Number(e.target.value))} />
+              </div>
+              <div>
+                <label className={label}>Final hold (frames)</label>
+                <input type="number" min={1} max={255} className={input}
+                  value={boss.bossDeathExplosionHoldFrames ?? 12}
+                  onChange={e => set('bossDeathExplosionHoldFrames', Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-2">
+              <label className={label}>Explosion Bitmap Stamps</label>
+              <button className={btn}
+                onClick={() => set('bossDeathExplosionStampIds', [])}>
+                Clear all
+              </button>
+            </div>
+            <div className="max-h-96 overflow-y-auto border border-msx-border rounded p-2">
+              {bodyStamps.length === 0 && (
+                <p className="text-xs text-msx-textsecondary p-2">
+                  No Bitmap Stamps are available. Create or import explosion
+                  stamps first, then return here.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {bodyStamps.map(stamp => {
+                  const selectedIds = boss.bossDeathExplosionStampIds || [];
+                  const selected = selectedIds.includes(stamp.id);
+                  const fits = stamp.w <= bodyW && stamp.h <= bodyH && stamp.w <= 64 && stamp.h <= 64;
+                  const scale = Math.max(1, Math.min(4, Math.floor(72 / Math.max(stamp.w, stamp.h, 1))));
+                  return (
+                    <button
+                      key={stamp.id}
+                      disabled={!fits}
+                      onClick={() => set(
+                        'bossDeathExplosionStampIds',
+                        selected
+                          ? selectedIds.filter(id => id !== stamp.id)
+                          : [...selectedIds, stamp.id],
+                      )}
+                      title={fits
+                        ? `${stamp.name} — ${stamp.w}x${stamp.h}`
+                        : `${stamp.name} — must fit inside the ${bodyW}x${bodyH} boss and be at most 64x64`}
+                      className={`flex flex-col items-center justify-end gap-1 p-1 rounded border ${
+                        selected ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'
+                      } ${fits ? '' : 'opacity-40 cursor-not-allowed'}`}
+                      style={{ background: MSX2_PREVIEW_BG, width: 92 }}
+                    >
+                      <div className="flex-1 flex items-center justify-center" style={{ minHeight: 76 }}>
+                        <StampCanvas stamp={stamp} scale={scale} />
+                      </div>
+                      <span className="text-[9px] leading-tight text-msx-textprimary truncate w-full text-center">
+                        {selected ? '✓ ' : ''}{stamp.name}
+                      </span>
+                      <span className="text-[9px] text-msx-textsecondary">{stamp.w}x{stamp.h}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="text-xs text-msx-textsecondary mt-3">
+              With no stamp selected, defeat remains immediate. Defeat actions
+              and barrier removal run only after the final explosion and hold.
+            </p>
+          </div>
+        )}
+
         {section === 'Defeat Actions' && (
           <DefeatPanel boss={boss} onUpdate={onUpdate} doors={doors}
             dialogues={dialogueAssets} rooms={roomAssets} />
@@ -1361,6 +1448,10 @@ export function createMsx2BossDefinition(id: string, name: string): Msx2BossDefi
     bossProjectileDamage: 1,
     bossPhases: [],
     damageZones: [],
+    bossDeathExplosionStampIds: [],
+    bossDeathExplosionCount: 8,
+    bossDeathExplosionInterval: 6,
+    bossDeathExplosionHoldFrames: 12,
     onDefeated: [],
   };
 }

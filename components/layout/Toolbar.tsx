@@ -108,6 +108,8 @@ interface ToolbarProps {
   onOpenMsx2TerrainLibrary: () => void;
   /** Callback to open the global MSX2 HUD icons library dialog. */
   onOpenMsx2HudIconLibrary: () => void;
+  /** Callback to open the global MSX2 palettes library dialog. */
+  onOpenMsx2PaletteLibrary: () => void;
   /** Callback to open the MSX2 enemy library editor. */
   onOpenEnemyLibrary: () => void;
   /** Callback to open the world view editor. */
@@ -271,7 +273,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenMsx2TileLibrary, onOpenMsx2StampLibrary, onOpenMsx2TerrainLibrary, onOpenMsx2HudIconLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenMsx2EntityLibrary, onOpenMsx2SpriteLibrary, onOpenMsx2TileLibrary, onOpenMsx2StampLibrary, onOpenMsx2TerrainLibrary, onOpenMsx2HudIconLibrary, onOpenMsx2PaletteLibrary, onOpenEnemyLibrary, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -524,6 +526,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <DropdownItem onClick={onOpenMsx2StampLibrary} icon={<TilesetIcon />} colorClass="text-teal-200 hover:bg-teal-600 hover:text-white">Stamps</DropdownItem>
           <DropdownItem onClick={onOpenMsx2TerrainLibrary} icon={<TilesetIcon />} colorClass="text-green-200 hover:bg-green-600 hover:text-white">Terrains</DropdownItem>
           <DropdownItem onClick={onOpenMsx2HudIconLibrary} icon={<HudIcon />} colorClass="text-lime-200 hover:bg-lime-600 hover:text-white">HUD Icons</DropdownItem>
+          <DropdownItem onClick={onOpenMsx2PaletteLibrary} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-600 hover:text-black">Palettes</DropdownItem>
           <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Components</DropdownItem>
           <DropdownItem onClick={onOpenMsx2EntityLibrary} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entities</DropdownItem>
           <DropdownItem onClick={onOpenEnemyLibrary} icon={<BugIcon />} colorClass="text-red-200 hover:bg-red-600 hover:text-white">Enemies</DropdownItem>

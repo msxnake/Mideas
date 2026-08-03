@@ -78,6 +78,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'collectible',
         'pickup_item',
         'door',
+        'world_exit',
         'checkpoint',
         'hazard',
         'spike_trap',
@@ -93,6 +94,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'collectible',
         'pickupItem',
         'door',
+        'worldExit',
         'checkpoint',
         'hazard',
         'spike',
@@ -105,6 +107,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'msx2_collision',
         'msx2_collectible',
         'msx2_door_exit',
+        'msx2_world_exit',
         'msx2_hazard',
         'msx2_ai',
         'msx2_animation',
@@ -245,6 +248,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'collectible',
         'pickup_item',
         'door',
+        'world_exit',
         'jumper',
         'wallJumper',
         'checkpoint',
@@ -269,6 +273,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'collectible',
         'pickupItem',
         'door',
+        'worldExit',
         'checkpoint',
         'npc',
         'hiddenObj',
@@ -284,6 +289,7 @@ const PROFILE_DEFINITIONS: Record<Msx2GameProfileId, Omit<Msx2ProjectProfile, 'v
         'msx2_collision',
         'msx2_collectible',
         'msx2_door_exit',
+        'msx2_world_exit',
         'msx2_hazard',
         'msx2_ai',
         'msx2_animation',
@@ -391,6 +397,26 @@ export const MSX2_GAME_PROFILE_OPTIONS: Msx2GameProfileOption[] = MSX2_CREATABLE
   experimental: MSX2_EXPERIMENTAL_GAME_PROFILE_IDS.includes(id),
   notImplemented: MSX2_NOT_IMPLEMENTED_GAME_PROFILE_IDS.includes(id),
 }));
+
+/**
+ * Which graphics backend a profile locks the project to.
+ *
+ * Derived from the profile's own asset-type filter rather than a hard-coded
+ * list of profile ids, so the two cannot drift: the same list is what stops
+ * tile screens and bitmap rooms from coexisting (one ROM = one mode).
+ *
+ * Undefined when there is no profile — legacy projects created before profiles
+ * existed must not be locked out of anything.
+ */
+export function resolveMsx2ProfileGraphicsMode(
+  profile: Msx2ProjectProfile | null | undefined
+): 'screen4' | 'screen5' | undefined {
+  const allowed = profile?.filters?.allowedAssetTypes;
+  if (!Array.isArray(allowed)) return undefined;
+  if (allowed.includes('msx2bitmaproom')) return 'screen5';
+  if (allowed.includes('msx2screen')) return 'screen4';
+  return undefined;
+}
 
 export function buildMsx2ProjectProfile(profileId: Msx2GameProfileId): Msx2ProjectProfile {
   const definition = PROFILE_DEFINITIONS[profileId];

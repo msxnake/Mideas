@@ -1,0 +1,7 @@
+t=2 pc=1130 rom4000=00,00 p2mirror=0 music_active=0 scc_active=0 psg_active=51
+t=4 pc=5A37 rom4000=41,42 p2mirror=0 music_active=0 scc_active=0 psg_active=51
+t=6 pc=5915 rom4000=41,42 p2mirror=0 music_active=0 scc_active=0 psg_active=51
+t=8 pc=58FC rom4000=41,42 p2mirror=0 music_active=0 scc_active=0 psg_active=51
+t=10 pc=5911 rom4000=41,42 p2mirror=0 music_active=0 scc_active=0 psg_active=51
+t=12 pc=5918 rom4000=41,42 p2mirror=0 music_active=0 scc_active=0 psg_active=51
+t=14 pc=590D rom4000=41,42 p2mirror=0 music_active=0 scc_active=0 psg_active=51

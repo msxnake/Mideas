@@ -5732,6 +5732,49 @@ update_entity_collision_fast:
     add hl, de
     ld b, (hl)                    ; B = target entity index
 
+    ; World Exit + Player is a dedicated trigger pair. It bypasses normal
+    ; collision layer masks, but still requires AABB contact below.
+    ; Contract here: B=target and C=source are preserved; AF/DE/HL are scratch.
+    xor a
+    ld (coll_world_exit_pair), a
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_world_exit
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .check_target_world_exit
+    ld e, b
+    ld d, 0
+    ld hl, entity_is_player
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .world_exit_pair
+
+.check_target_world_exit:
+    ld e, b
+    ld d, 0
+    ld hl, entity_world_exit
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .regular_layer_masks
+    ld e, c
+    ld d, 0
+    ld hl, entity_is_player
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .regular_layer_masks
+
+.world_exit_pair:
+    ld a, 1
+    ld (coll_world_exit_pair), a
+    jp .layer_masks_ok
+
+.regular_layer_masks:
     ; --- Mutual layer mask check ---
     ; source.collidesWith & target.layer
     ld e, c
@@ -5757,6 +5800,7 @@ update_entity_collision_fast:
     and (hl)                      ; A = target.collidesWith & source.layer
     jp z, .next_inner
 
+.layer_masks_ok:
     ; --- AABB overlap test (source cached, compute target with clamp) ---
     ; target left = x + offset_x
     ld e, b
@@ -5841,6 +5885,17 @@ update_entity_collision_fast:
 .y_overlap_ok:
 
     ; ==========  COLLISION DETECTED between source(C) and target(B) ==========
+
+    ; World Exit collision is a trigger-only GameFlow side effect. Jumping to
+    ; .next_inner preserves the collision loop's existing PUSH/POP balance.
+    ld a, (coll_world_exit_pair)
+    or a
+    jp z, .record_entity_collision
+    ld a, 1
+    ld (gameflow_exit_requested), a
+    jp .next_inner
+
+.record_entity_collision:
 
     ; --- Set flags for SOURCE entity (C) ---
     push bc                       ; Save B=target, C=source

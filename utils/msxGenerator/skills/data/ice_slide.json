@@ -10,7 +10,7 @@
     { "from": ["grounded", "running"], "to": "sliding", "condition": "on_ice AND horizontal_speed != 0" },
     { "from": ["sliding"], "to": "grounded", "condition": "NOT on_ice OR horizontal_speed = 0" }
   ],
-  "supportedBackends": ["msx2-screen4-bitmap-room"],
+  "supportedBackends": ["screen5"],
   "parameters": [
     { "key": "surfaceCode", "label": "Ice behavior code", "type": "number", "default": 3, "min": 1, "max": 255, "step": 1 },
     { "key": "maxSlideSpeed", "label": "Max slide speed (px/frame)", "type": "number", "default": 4, "min": 1, "max": 8, "step": 1 },

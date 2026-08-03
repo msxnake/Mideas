@@ -41,6 +41,7 @@ import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToData
 import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getScreenTileLogicalProperties, normalizeTileInteractionType } from '../utils/screenUtils';
 import { checkMsx2HazardAtWorldPixel } from '../../utils/msx2Screen4TileBehavior';
 import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
+import { getStateMachineBrowserInputAliases } from '../../utils/stateMachineInputs';
 import {
     applyMsx2JumpImpulseToEntity,
     getMsx2DashConfigFromPlayerEntity,
@@ -449,6 +450,16 @@ const isCollectibleTemplate = (template: EntityTemplate): boolean => {
 };
 
 const isCollectibleEntity = (entity: AnimatedEntity): boolean => isCollectibleTemplate(entity.template);
+
+const isWorldExitEntity = (entity: AnimatedEntity): boolean => {
+    const component = entity.template.components?.find(c => c.definitionId === 'comp_world_exit');
+    const overrides = entity.instance.componentOverrides?.['comp_world_exit'];
+    if (!component && !overrides) return false;
+
+    const enabled = overrides?.enabled ?? component?.defaultValues?.enabled ?? true;
+    if (typeof enabled === 'string') return enabled.trim().toLowerCase() !== 'false';
+    return enabled !== false && enabled !== 0;
+};
 
 const coerceGlobalVariableValue = (value: any): any => {
     if (typeof value === 'boolean') {
@@ -2133,16 +2144,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Check whether the specified key is currently pressed
                 const key = condition.params?.key;
                 if (!key) return false;
-                const keyAliases: Record<string, string[]> = {
-                    up: ['up', 'ArrowUp'],
-                    down: ['down', 'ArrowDown'],
-                    left: ['left', 'ArrowLeft'],
-                    right: ['right', 'ArrowRight'],
-                    space: ['space', 'Space', ' '],
-                    fire: ['fire', 'Space', 'KeyX', 'x', 'X'],
-                };
-                const isPressed = (keyAliases[String(key).toLowerCase()] || [key]).some(alias => pressedKeys.current.has(alias));
-                return isPressed;
+                const pressedAliases = new Set(Array.from(pressedKeys.current, value => String(value).toLowerCase()));
+                return getStateMachineBrowserInputAliases(key, allAssets, entity.stateMachine?.id)
+                    .some(alias => pressedAliases.has(alias.toLowerCase()));
+
+            case 'KEY_RELEASED': {
+                const releasedKey = condition.params?.key;
+                if (!releasedKey) return false;
+                const pressedAliases = new Set(Array.from(pressedKeys.current, value => String(value).toLowerCase()));
+                return getStateMachineBrowserInputAliases(releasedKey, allAssets, entity.stateMachine?.id)
+                    .every(alias => !pressedAliases.has(alias.toLowerCase()));
+            }
 
             case 'TIME_OUT': {
                 const durationFrames = Number(condition.params?.duration ?? condition.params?.frames);
@@ -2382,7 +2394,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             default:
                 return false;
         }
-    }, []);
+    }, [allAssets]);
 
     const evaluateGuard = useCallback((guard?: TransitionGuard | null): boolean => {
         if (!guard || !guard.variableName) return true;
@@ -3823,9 +3835,14 @@ const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, i
         const condition = transition.conditions;
         if (!condition) continue;
         let conditionMet = false;
-        if (isKeyDown && condition.type === 'KEY_PRESSED' && condition.params?.key === pressedKey) {
+        const matchesConfiguredInput = getStateMachineBrowserInputAliases(
+            condition.params?.key,
+            allAssets,
+            entity.stateMachine?.id,
+        ).some(alias => alias.toLowerCase() === String(pressedKey).toLowerCase());
+        if (isKeyDown && condition.type === 'KEY_PRESSED' && matchesConfiguredInput) {
             conditionMet = true;
-        } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && condition.params?.key === pressedKey) {
+        } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && matchesConfiguredInput) {
             conditionMet = true;
         }
         if (conditionMet) {
@@ -8897,6 +8914,17 @@ useEffect(() => {
 
                         if (entityAAge < SPAWN_GRACE_PERIOD_MS || entityBAge < SPAWN_GRACE_PERIOD_MS) {
                             continue; // Skip this collision pair
+                        }
+
+                        const isAPlayer = entityA === heroRef.current || entityA.template.isPlayer === true;
+                        const isBPlayer = entityB === heroRef.current || entityB.template.isPlayer === true;
+                        const isWorldExitPair =
+                            (isWorldExitEntity(entityA) && isBPlayer) ||
+                            (isWorldExitEntity(entityB) && isAPlayer);
+
+                        if (isWorldExitPair) {
+                            gameFlowExitRequestedRef.current = true;
+                            continue;
                         }
 
 

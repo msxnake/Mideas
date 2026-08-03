@@ -13,6 +13,7 @@ import {
   Msx2JumperConfig,
   Msx2WallJumperConfig,
   Msx2LockedDoorConfig,
+  Msx2WorldExitConfig,
   Msx2PressureButtonConfig,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
@@ -206,6 +207,26 @@ const normalizeLockedDoorConfig = (value: unknown): Msx2LockedDoorConfig => {
     targetRoomId: typeof raw.targetRoomId === 'string' ? raw.targetRoomId : '',
     targetEntryId: typeof raw.targetEntryId === 'string' ? raw.targetEntryId : '',
   };
+};
+
+const normalizeWorldExitConfig = (value: unknown): Msx2WorldExitConfig => {
+  const raw = value && typeof value === 'object' ? value as Partial<Msx2WorldExitConfig> : {};
+  const clampOffset = (input: unknown) => Math.max(0, Math.min(31, Math.floor(Number(input) || 0)));
+  const clampSpan = (input: unknown) => Math.max(1, Math.min(32, Math.floor(Number(input) || 16)));
+  return {
+    enabled: raw.enabled !== false,
+    atlasEntryId: typeof raw.atlasEntryId === 'string' ? raw.atlasEntryId : '',
+    offsetX: clampOffset(raw.offsetX),
+    offsetY: clampOffset(raw.offsetY),
+    hitboxW: clampSpan(raw.hitboxW),
+    hitboxH: clampSpan(raw.hitboxH),
+  };
+};
+
+const isWorldExitEntity = (entity: Msx2Screen4EntityInstance | null | undefined): boolean => {
+  if (!entity) return false;
+  const engine = String(entity.params?.engine || '').replace(/[\s_-]+/g, '').toLowerCase();
+  return engine === 'worldexit' || Boolean(entity.params?.worldExit || entity.components?.msx2_world_exit);
 };
 
 const normalizePressureButtonConfig = (value: unknown): Msx2PressureButtonConfig => {
@@ -1485,7 +1506,11 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
 
   const selectedPatrolBounds = selectedPlacedEntity ? getPatrolPixelBounds(selectedPlacedEntity) : null;
   const selectedMovementMode = getEntityMovementMode(selectedPlacedEntity);
-  const selectedDoorConfig = selectedPlacedEntity?.kind === 'door'
+  const selectedIsWorldExit = isWorldExitEntity(selectedPlacedEntity);
+  const selectedWorldExitConfig = selectedIsWorldExit
+    ? normalizeWorldExitConfig(selectedPlacedEntity?.params?.worldExit || selectedPlacedEntity?.components?.msx2_world_exit)
+    : null;
+  const selectedDoorConfig = selectedPlacedEntity?.kind === 'door' && !selectedIsWorldExit
     ? normalizeLockedDoorConfig(selectedPlacedEntity.params?.lockedDoor)
     : null;
   const selectedPressureButtonConfig = selectedPlacedEntity
@@ -1497,7 +1522,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const selectedWallJumperConfig = selectedPlacedEntity && isWallJumperEntity(selectedPlacedEntity)
     ? normalizeWallJumperConfig(selectedPlacedEntity.params?.wallJumper || selectedPlacedEntity.components?.msx2_wall_jumper)
     : null;
-  const pressureButtonTargetDoors = placedEntities.filter(entity => entity.kind === 'door');
+  const pressureButtonTargetDoors = placedEntities.filter(entity => entity.kind === 'door' && !isWorldExitEntity(entity));
   const selectedDoorTargetRoom = selectedDoorConfig?.targetRoomId
     ? bitmapRooms.find(asset => asset.id === selectedDoorConfig.targetRoomId) || null
     : null;
@@ -1790,16 +1815,21 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const isShaft = entity.kind === 'platform_shaft';
         const isJumper = isJumperEntity(entity);
         const isWallJumper = isWallJumperEntity(entity);
+        const isWorldExit = isWorldExitEntity(entity);
         const wallJumperDir = isWallJumper ? normalizeWallJumperConfig(entity.params?.wallJumper || entity.components?.msx2_wall_jumper).direction : 'right';
-        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : isBoss ? 'rgba(255,200,0,0.45)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : entity.kind === 'mushroom' ? 'rgba(160,255,208,0.45)' : isShaft ? 'rgba(255,160,64,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
-        const stroke = isEnemy ? '#FF6060' : isBoss ? '#FFC800' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : entity.kind === 'mushroom' ? '#A0FFD0' : isShaft ? '#FFA040' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
+        const fill = isEnemy ? 'rgba(255,96,96,0.45)' : isBoss ? 'rgba(255,200,0,0.45)' : isWorldExit ? 'rgba(0,255,176,0.5)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : entity.kind === 'mushroom' ? 'rgba(160,255,208,0.45)' : isShaft ? 'rgba(255,160,64,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
+        const stroke = isEnemy ? '#FF6060' : isBoss ? '#FFC800' : isWorldExit ? '#00FFB0' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : entity.kind === 'mushroom' ? '#A0FFD0' : isShaft ? '#FFA040' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
         const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isBoss ? 'B' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : entity.kind === 'mushroom' ? '☘' : isShaft ? '↕' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
+        const label = isEnemy ? 'E' : isBoss ? 'B' : isWorldExit ? 'X' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : entity.kind === 'mushroom' ? '☘' : isShaft ? '↕' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
         const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
         const mushroomAtlasEntryId = entity.kind === 'mushroom'
           ? String(entity.params?.glowMushroomAtlasEntryId || '').trim()
           : '';
-        const renderedVisual = (mushroomAtlasEntryId && drawAtlasEntry(mushroomAtlasEntryId, cx * GRID, cy * GRID))
+        const worldExitAtlasEntryId = isWorldExit
+          ? String(normalizeWorldExitConfig(entity.params?.worldExit || entity.components?.msx2_world_exit).atlasEntryId || '').trim()
+          : '';
+        const renderedVisual = (worldExitAtlasEntryId && drawAtlasEntry(worldExitAtlasEntryId, cx * GRID, cy * GRID))
+          || (mushroomAtlasEntryId && drawAtlasEntry(mushroomAtlasEntryId, cx * GRID, cy * GRID))
           || (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID));
         if (renderedVisual) {
           if (selectedPlacedId === entity.id) {
@@ -2315,6 +2345,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     const entity = placedEntities.find(item => item.id === id);
     const current = normalizeLockedDoorConfig(entity?.params?.lockedDoor);
     updatePlacedEntityParams(id, { lockedDoor: { ...current, ...patch } });
+  };
+
+  const updateWorldExitConfig = (id: string, patch: Partial<Msx2WorldExitConfig>) => {
+    const entity = placedEntities.find(item => item.id === id);
+    const current = normalizeWorldExitConfig(entity?.params?.worldExit || entity?.components?.msx2_world_exit);
+    updatePlacedEntityParams(id, { worldExit: { ...current, ...patch } });
   };
 
   const updatePressureButtonConfig = (id: string, patch: Partial<Msx2PressureButtonConfig>) => {
@@ -5657,6 +5693,72 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
                         />
                       </label>
+                    </div>
+                  )}
+
+                  {selectedPlacedEntity.kind === 'door' && selectedWorldExitConfig && (
+                    <div className="rounded border border-emerald-500/60 bg-emerald-950/20 p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[0.7rem] text-emerald-300">Exit World (GameFlow)</div>
+                        <label className="flex items-center gap-1 text-[0.65rem] text-msx-textsecondary">
+                          <input
+                            type="checkbox"
+                            checked={selectedWorldExitConfig.enabled}
+                            onChange={event => updateWorldExitConfig(selectedPlacedEntity.id, { enabled: event.target.checked })}
+                          />
+                          Activa
+                        </label>
+                      </div>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        Al tocar su hitbox, el player sale del WorldLink actual y el GameFlow continua por su conexion por defecto.
+                      </div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Tile visual / puerta (atlas)
+                        <select
+                          value={selectedWorldExitConfig.atlasEntryId || ''}
+                          onChange={event => updateWorldExitConfig(selectedPlacedEntity.id, { atlasEntryId: event.target.value || undefined })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                        >
+                          <option value="">None (marcador X / pintado a mano)</option>
+                          {atlasEntries.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!selectedAtlasEntry}
+                        onClick={() => selectedAtlasEntry && updateWorldExitConfig(selectedPlacedEntity.id, { atlasEntryId: selectedAtlasEntry.id })}
+                        className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-emerald-400 hover:text-emerald-300 disabled:opacity-40"
+                      >
+                        Usar tile seleccionado
+                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block text-[0.6rem] text-msx-textsecondary">
+                          Offset X
+                          <input type="number" min={0} max={31} value={selectedWorldExitConfig.offsetX ?? 0}
+                            onChange={event => updateWorldExitConfig(selectedPlacedEntity.id, { offsetX: Math.max(0, Math.min(31, Math.floor(Number(event.target.value) || 0))) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary" />
+                        </label>
+                        <label className="block text-[0.6rem] text-msx-textsecondary">
+                          Offset Y
+                          <input type="number" min={0} max={31} value={selectedWorldExitConfig.offsetY ?? 0}
+                            onChange={event => updateWorldExitConfig(selectedPlacedEntity.id, { offsetY: Math.max(0, Math.min(31, Math.floor(Number(event.target.value) || 0))) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary" />
+                        </label>
+                        <label className="block text-[0.6rem] text-msx-textsecondary">
+                          Ancho hitbox
+                          <input type="number" min={1} max={32} value={selectedWorldExitConfig.hitboxW ?? 16}
+                            onChange={event => updateWorldExitConfig(selectedPlacedEntity.id, { hitboxW: Math.max(1, Math.min(32, Math.floor(Number(event.target.value) || 16))) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary" />
+                        </label>
+                        <label className="block text-[0.6rem] text-msx-textsecondary">
+                          Alto hitbox
+                          <input type="number" min={1} max={32} value={selectedWorldExitConfig.hitboxH ?? 16}
+                            onChange={event => updateWorldExitConfig(selectedPlacedEntity.id, { hitboxH: Math.max(1, Math.min(32, Math.floor(Number(event.target.value) || 16))) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary" />
+                        </label>
+                      </div>
                     </div>
                   )}
 

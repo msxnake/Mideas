@@ -1,0 +1,2 @@
+ly=6E
+player_y=4C

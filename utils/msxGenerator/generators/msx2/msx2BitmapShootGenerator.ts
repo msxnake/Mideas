@@ -13,6 +13,7 @@ import { Msx2ShootConfig } from '../../../msx2PlatformPhysics';
  *   bitmap_bullet_pool           active, x, y, dir  (4 bytes x maxBullets)
  *   bitmap_shoot_cooldown        1 byte
  *   bitmap_shoot_lock            1 byte (requireKeyRelease)
+ *   bitmap_bullet_borrow_group   1 byte (#FF before the first borrowed upload)
  *
  * Fire key (pilot): 'B' = keyboard matrix row 2, bit 7 (mask #80).
  * Same row/mask the destroy_tile digKey table uses for 'B' — that table
@@ -44,7 +45,7 @@ export function bitmapShootEnabled(config: Msx2ShootConfig | undefined): boolean
 export function bitmapShootRamBytes(config: Msx2ShootConfig | undefined): number {
   if (!bitmapShootEnabled(config)) return 0;
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
-  return maxBullets * STRIDE + 2;
+  return maxBullets * STRIDE + 3;
 }
 
 export interface BitmapShootRuntimeOptions {
@@ -68,6 +69,17 @@ export interface BitmapShootRuntimeOptions {
   /** Label the bullet-vs-enemy stub jumps to (e.g. the bitmap boss hit check).
    *  The target must preserve BC and IX (bullet loop counter + slot pointer). */
   enemyCollisionJumpLabel?: string;
+  /**
+   * When no dedicated V9938 group remains, borrow one of two player pattern
+   * groups. The runtime always chooses the group outside the currently visible
+   * player frame, restores the previous borrowed group from ROM, then uploads
+   * the bullet pattern into the newly safe group.
+   */
+  borrowPlayerPatternGroups?: {
+    primaryGroup: number;
+    alternateGroup: number;
+    playerPatternsLabel: string;
+  };
 }
 
 export interface BitmapShootSpriteData {
@@ -83,26 +95,21 @@ export function buildBitmapShootEquates(
   if (!bitmapShootEnabled(config)) return '';
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
   const poolBytes = maxBullets * STRIDE;
-  return `; --- SHOOT skill runtime state (${poolBytes + 2} bytes) ---
+  return `; --- SHOOT skill runtime state (${poolBytes + 3} bytes) ---
 bitmap_bullet_pool     EQU ${asmWord(ramBase)}
 bitmap_shoot_cooldown  EQU ${asmWord(ramBase + poolBytes)}
 bitmap_shoot_lock      EQU ${asmWord(ramBase + poolBytes + 1)}
+bitmap_bullet_borrow_group EQU ${asmWord(ramBase + poolBytes + 2)}
 `;
 }
 
-/** Clears the shoot state. Inlined at init_rom and on screen transitions. */
+/** Clears the shoot state. Called from every WorldLink init, implemented once. */
 export function buildBitmapShootInitClearAsm(config: Msx2ShootConfig | undefined): string {
   if (!bitmapShootEnabled(config)) return '';
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
-  const total = maxBullets * STRIDE + 2;
+  const total = maxBullets * STRIDE + 3;
   return `    ; Clear SHOOT pool (${total} bytes at bitmap_bullet_pool)
-    ld hl, bitmap_bullet_pool
-    ld b, ${asmByte(total)}
-    xor a
-.shoot_clear_loop:
-    ld (hl), a
-    inc hl
-    djnz .shoot_clear_loop
+    call bitmap_shoot_init_clear
 `;
 }
 
@@ -128,6 +135,16 @@ export function buildBitmapBulletInitUploadAsm(
   if (!bitmapShootEnabled(config)) return '';
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
   const patternVram = opts.patternBase + opts.bulletPatternNumber * 8;
+  const patternUpload = opts.borrowPlayerPatternGroups
+    ? `    ; Bullet pattern is uploaded by bitmap_prepare_bullet_pattern into a
+    ; currently invisible player group on the first main-loop frame.
+`
+    : `    ; Upload bullet sprite pattern (32 bytes) to VRAM ${asmWord(patternVram)}
+    ld hl, bitmap_bullet_pattern_data
+    ld de, ${asmWord(patternVram)}
+    ld bc, bitmap_bullet_pattern_data_end - bitmap_bullet_pattern_data
+    call copy_to_vram_ext
+`;
   // V9938 sprite mode 2 keeps ONE 16-byte colour table per sprite slot. Active
   // bullets pack into slots playerLayerCount..playerLayerCount+maxBullets-1, so
   // every one of those slots needs the bullet colour uploaded; uploading only the
@@ -142,12 +159,7 @@ export function buildBitmapBulletInitUploadAsm(
     call copy_to_vram_ext
 `;
   }).join('');
-  return `    ; Upload bullet sprite pattern (32 bytes) to VRAM ${asmWord(patternVram)}
-    ld hl, bitmap_bullet_pattern_data
-    ld de, ${asmWord(patternVram)}
-    ld bc, bitmap_bullet_pattern_data_end - bitmap_bullet_pattern_data
-    call copy_to_vram_ext
-${colorUploads}`;
+  return `${patternUpload}${colorUploads}`;
 }
 
 /** Data tables for the bullet sprite (pattern + colour). */
@@ -188,6 +200,113 @@ export function buildBitmapShootRuntimeAsm(
   const patternNumber = asmByte(opts.bulletPatternNumber);
   const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0)) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
+  const borrowed = opts.borrowPlayerPatternGroups;
+  const borrowedPatternSelectAsm = borrowed
+    ? `    ld a, (player_pat)
+    or a
+    ld a, ${asmByte(borrowed.primaryGroup * 4)}
+    jp nz, .sat_pattern_ready
+    ld a, ${asmByte(borrowed.alternateGroup * 4)}
+.sat_pattern_ready:
+`
+    : `    ld a, ${patternNumber}
+`;
+  const borrowedPatternRuntime = borrowed
+    ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_prepare_bullet_pattern
+; ------------------------------------------------------------
+; PURPOSE:
+;   Keep the SHOOT pattern resident without consuming a 65th V9938 sprite
+;   pattern group. Group ${borrowed.primaryGroup} is borrowed unless player_pat
+;   is zero (the player currently displays groups 0..${Math.max(0, opts.playerLayerCount - 1)}),
+;   in which case group ${borrowed.alternateGroup} is borrowed. Before changing
+;   groups, restore the previous player pattern from its ROM bank.
+;
+; INPUT:
+;   player_pat = current player SAT base pattern number.
+;   bitmap_bullet_borrow_group = previous borrowed group or #FF.
+;
+; OUTPUT:
+;   The safe borrowed group contains bitmap_bullet_pattern_data.
+;   bitmap_bullet_borrow_group records that group.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   copy_to_vram_ext.
+;
+; SIDE EFFECTS:
+;   Copies at most 96 bytes to sprite-pattern VRAM and restores VDP R#14 = 0
+;   through copy_to_vram_ext. R#15/R#17 and mapper banks are not changed.
+;
+; NOTES:
+;   No stack operations. All exits keep the caller stack unchanged.
+; ------------------------------------------------------------
+bitmap_prepare_bullet_pattern:
+    ld a, (player_pat)
+    or a
+    ld a, ${asmByte(borrowed.primaryGroup)}
+    jp nz, .borrow_group_selected
+    ld a, ${asmByte(borrowed.alternateGroup)}
+.borrow_group_selected:
+    ld b, a
+    ld a, (bitmap_bullet_borrow_group)
+    cp b
+    ret z
+    cp #FF
+    jp z, .borrow_restore_both
+    cp ${asmByte(borrowed.primaryGroup)}
+    jp z, .borrow_restore_primary
+    ; Restore the alternate player group before it can become visible.
+    ld hl, ${borrowed.playerPatternsLabel} + ${borrowed.alternateGroup * 32}
+    ld de, ${asmWord(opts.patternBase + borrowed.alternateGroup * 32)}
+    ld bc, 32
+    call copy_to_vram_ext
+    jp .borrow_upload_selected
+.borrow_restore_both:
+    ; A room transition clears the SHOOT RAM without re-uploading the complete
+    ; player bank. Restore both possible loan groups so no stale bullet pattern
+    ; can become visible after the transition, then install the current loan.
+    ld hl, ${borrowed.playerPatternsLabel} + ${borrowed.primaryGroup * 32}
+    ld de, ${asmWord(opts.patternBase + borrowed.primaryGroup * 32)}
+    ld bc, 32
+    call copy_to_vram_ext
+    ld hl, ${borrowed.playerPatternsLabel} + ${borrowed.alternateGroup * 32}
+    ld de, ${asmWord(opts.patternBase + borrowed.alternateGroup * 32)}
+    ld bc, 32
+    call copy_to_vram_ext
+    jp .borrow_upload_selected
+.borrow_restore_primary:
+    ld hl, ${borrowed.playerPatternsLabel} + ${borrowed.primaryGroup * 32}
+    ld de, ${asmWord(opts.patternBase + borrowed.primaryGroup * 32)}
+    ld bc, 32
+    call copy_to_vram_ext
+.borrow_upload_selected:
+    ; copy_to_vram_ext destroys the selected group in B; derive it again.
+    ld a, (player_pat)
+    or a
+    ld a, ${asmByte(borrowed.primaryGroup)}
+    jp nz, .borrow_store_selected
+    ld a, ${asmByte(borrowed.alternateGroup)}
+.borrow_store_selected:
+    ld (bitmap_bullet_borrow_group), a
+    cp ${asmByte(borrowed.primaryGroup)}
+    jp z, .borrow_upload_primary
+    ld de, ${asmWord(opts.patternBase + borrowed.alternateGroup * 32)}
+    jp .borrow_upload_pattern
+.borrow_upload_primary:
+    ld de, ${asmWord(opts.patternBase + borrowed.primaryGroup * 32)}
+.borrow_upload_pattern:
+    ld hl, bitmap_bullet_pattern_data
+    ld bc, bitmap_bullet_pattern_data_end - bitmap_bullet_pattern_data
+    jp copy_to_vram_ext
+`
+    : '';
 
   const lockGate = requireKeyRelease
     ? `    ld a, (bitmap_shoot_lock)
@@ -201,7 +320,28 @@ export function buildBitmapShootRuntimeAsm(
 `
     : '';
 
-  return `
+  const initClearRoutineAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_shoot_init_clear
+; PURPOSE: Clear the reusable bullet pool and release any borrowed player group.
+; INPUT: None. OUTPUT: None.
+; DESTROYS: AF, B, HL. PRESERVES: C, DE, IX, IY.
+; ------------------------------------------------------------
+bitmap_shoot_init_clear:
+    ld hl, bitmap_bullet_pool
+    ld b, ${asmByte(maxBullets * STRIDE + 3)}
+    xor a
+.shoot_init_clear_loop:
+    ld (hl), a
+    inc hl
+    djnz .shoot_init_clear_loop
+    dec a
+    ld (bitmap_bullet_borrow_group), a ; #FF = no borrowed player group yet
+    ret
+`;
+
+  return `${initClearRoutineAsm}
+${borrowedPatternRuntime}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_shoot_pressed
 ; ------------------------------------------------------------
@@ -389,7 +529,7 @@ bitmap_update_bullet_sat:
     out (VDP_DATA_PORT), a
     ld a, (ix+1)
     out (VDP_DATA_PORT), a
-    ld a, ${patternNumber}
+${borrowedPatternSelectAsm}
     out (VDP_DATA_PORT), a
     xor a
     out (VDP_DATA_PORT), a

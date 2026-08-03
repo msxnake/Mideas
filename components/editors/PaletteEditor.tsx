@@ -8,6 +8,8 @@ import {
   snapHexToScreen5MasterColor,
 } from '../../constants';
 import { assignMasterColorToSlot, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
+import { addEntryToMsx2PaletteLibrary } from '../../utils/msx2PaletteLibrary';
+import { SaveIcon } from '../icons/MsxIcons';
 
 const MASTER_PALETTE_COLUMNS = 32;
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -91,13 +93,35 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     setStatusBarMessage('MSX2 palette reset to the default V9938 slot set.');
   };
 
+  const exportToGlobalLibrary = () => {
+    const entry = addEntryToMsx2PaletteLibrary({
+      ...paletteAsset.data,
+      slots,
+      mode,
+      notes,
+    }, paletteAsset.name);
+    setStatusBarMessage(`Exported "${entry.name}" to Libraries > Palettes.`);
+    alert(`Exported "${entry.name}" to the global MSX2 Palettes Library.`);
+  };
+
   return (
     <Panel title={`MSX2 Palette Editor: ${paletteAsset.name}`} className="flex flex-col p-4 gap-4 h-full overflow-auto">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,420px)_1fr] gap-4 min-h-0">
         <div className="flex flex-col gap-3 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-msx-highlight">MSX2 Slots ({mode})</h3>
-            <Button size="sm" variant="secondary" onClick={resetToDefault}>Reset default</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<SaveIcon />}
+                onClick={exportToGlobalLibrary}
+                title="Save this palette to the global palette-only library, reusable via Libraries > Palettes."
+              >
+                Export to Library
+              </Button>
+              <Button size="sm" variant="secondary" onClick={resetToDefault}>Reset default</Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-4 gap-2">

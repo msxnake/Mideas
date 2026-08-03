@@ -1,0 +1,4 @@
+room=01
+music_active=01
+pos_lo=CC
+pos_hi=80

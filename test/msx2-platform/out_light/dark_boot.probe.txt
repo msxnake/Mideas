@@ -1,0 +1,6 @@
+room=00
+plat_count=5F
+light_state=01
+light_active=01
+platx=BF
+px=30

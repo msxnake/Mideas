@@ -5,6 +5,7 @@
 
 import { ProjectAsset } from '../../types';
 import { getMsx2ScreenModeConflictMessage } from '../msx2ProjectProfiles';
+import { resolveMsx2PurposeKind, resolveMsx2Screen5Emitter } from '../msx2GameFlowPurpose';
 import { analyzeProject, ProjectAnalysis } from '../asmTemplateGenerator';
 import { GeneratedASMFiles, ProjectSummary } from './types/asmTypes';
 
@@ -49,8 +50,9 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
-export type { GraphicsBackend, LegacyGraphicsBackend } from './graphicsBackend';
-import type { GraphicsBackend, LegacyGraphicsBackend } from './graphicsBackend';
+export type { GraphicsBackend, LegacyGraphicsBackend, ResolvedGraphicsTarget, Screen5Emitter } from './graphicsBackend';
+import type { GraphicsBackend, LegacyGraphicsBackend, ResolvedGraphicsTarget, Screen5Emitter } from './graphicsBackend';
+import { normalizeGraphicsBackendId } from './graphicsBackend';
 
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
@@ -129,39 +131,67 @@ function hasMsx2PresentationAssets(assets: ProjectAsset[] | undefined): boolean 
   return Array.isArray(assets) && assets.some(asset => asset?.type === 'msx2presentation');
 }
 
-function resolveMsx2GameFlowBackend(assets: ProjectAsset[] | undefined): GraphicsBackend | undefined {
+function resolveMsx2GameFlowTarget(assets: ProjectAsset[] | undefined): ResolvedGraphicsTarget | undefined {
   if (!Array.isArray(assets)) return undefined;
   const flows = assets.filter(asset => asset?.type === 'msx2gameflow');
   const flow = flows.find(asset => asset.name === 'Main MSX2') || flows[0];
   const purpose = (flow?.data as any)?.purpose;
-  if (purpose === 'screen4-bitmap-runtime') return 'msx2-screen4-bitmap-room';
-  if (purpose === 'screen4-runtime') return 'msx2-screen4-pattern';
-  if (purpose === 'screen5-presentation') return 'msx2-screen5-presentation';
+  const kind = resolveMsx2PurposeKind(purpose);
+  if (kind === 'screen4') return { backend: 'screen4' };
+  if (kind === 'screen5') {
+    return { backend: 'screen5', screen5Emitter: resolveScreen5Emitter(assets, purpose) };
+  }
   return undefined;
 }
 
-export function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
+/**
+ * Which SCREEN 5 emitter builds the ROM. Shared with the GameFlow editor so the
+ * UI cannot validate a flow against rules the generator will not follow.
+ */
+function resolveScreen5Emitter(assets: ProjectAsset[] | undefined, purpose?: unknown): Screen5Emitter {
+  return resolveMsx2Screen5Emitter(purpose, hasMsx2BitmapRoomAssets(assets));
+}
+
+/**
+ * Resolve the backend AND, for SCREEN 5, which emitter builds the ROM.
+ *
+ * Priority, highest first:
+ *   1. The MSX2 GameFlow `purpose` of the "Main MSX2" flow (or the first flow).
+ *   2. An explicit `targetGraphicsBackend`, current id or legacy.
+ *   3. Auto-detection by asset presence.
+ *   4. `screenMode`, then MSX1 as the fallback.
+ *
+ * Note that (1) beats (2): the GameFlow editor's mode buttons override whatever
+ * the export dialog asks for. That is long-standing behaviour, kept here so the
+ * rename does not change any output.
+ */
+export function resolveGraphicsTarget(config: MSXModularConfig, assets?: ProjectAsset[]): ResolvedGraphicsTarget {
   if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
-    console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
-    return 'msx2-screen4-pattern';
+    console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 tile backend.`);
+    return { backend: 'screen4' };
   }
-  const msx2GameFlowBackend = resolveMsx2GameFlowBackend(assets);
-  if (msx2GameFlowBackend) {
-    return msx2GameFlowBackend;
+  const gameFlowTarget = resolveMsx2GameFlowTarget(assets);
+  if (gameFlowTarget) {
+    return gameFlowTarget;
   }
-  if (config.targetGraphicsBackend) {
-    return config.targetGraphicsBackend;
+  const explicitTarget = normalizeGraphicsBackendId(config.targetGraphicsBackend);
+  if (explicitTarget) {
+    return explicitTarget.backend === 'screen5' && !explicitTarget.screen5Emitter
+      ? { backend: 'screen5', screen5Emitter: resolveScreen5Emitter(assets) }
+      : explicitTarget;
   }
-  if (hasMsx2PresentationAssets(assets)) {
-    return 'msx2-screen5-presentation';
-  }
-  if (hasMsx2BitmapRoomAssets(assets)) {
-    return 'msx2-screen4-bitmap-room';
+  if (hasMsx2PresentationAssets(assets) || hasMsx2BitmapRoomAssets(assets)) {
+    return { backend: 'screen5', screen5Emitter: resolveScreen5Emitter(assets) };
   }
   if (config.screenMode === 'SCREEN 4 (Graphics II)' || config.screenMode === 'SCREEN 5 (Graphics III)') {
-    return 'msx2-screen4-pattern';
+    return { backend: 'screen4' };
   }
-  return 'screen2-tilebank';
+  return { backend: 'screen2' };
+}
+
+/** Backend only, for callers (UI, skills) that do not care which emitter runs. */
+export function resolveGraphicsBackend(config: MSXModularConfig, assets?: ProjectAsset[]): GraphicsBackend {
+  return resolveGraphicsTarget(config, assets).backend;
 }
 
 /**
@@ -295,8 +325,8 @@ export function generateModularASM(
     throw new Error(screenModeConflict);
   }
 
-  const targetGraphicsBackend = resolveGraphicsBackend(config, assets);
-  if (targetGraphicsBackend === 'msx2-screen5-presentation') {
+  const graphicsTarget = resolveGraphicsTarget(config, assets);
+  if (graphicsTarget.backend === 'screen5' && graphicsTarget.screen5Emitter === 'presentation') {
     const analysis = analyzeProject(projectName, assets);
     return generateMsx2Screen5PresentationFiles(projectName, analysis, {
       screenMode: 'SCREEN 5 (Graphics III)',
@@ -305,7 +335,7 @@ export function generateModularASM(
       autoMegaROM: config.autoMegaROM ?? false,
     });
   }
-  if (targetGraphicsBackend === 'msx2-screen4-bitmap-room') {
+  if (graphicsTarget.backend === 'screen5') {
     const analysis = analyzeProject(projectName, assets);
     return generateMsx2Screen5BitmapRoomFiles(projectName, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
@@ -314,7 +344,7 @@ export function generateModularASM(
       autoMegaROM: config.autoMegaROM ?? false,
     });
   }
-  if (targetGraphicsBackend === 'msx2-screen4-pattern') {
+  if (graphicsTarget.backend === 'screen4') {
     const analysis = analyzeProject(projectName, assets);
     return generateMsx2Screen4Files(projectName, analysis, {
       screenMode: config.screenMode === 'SCREEN 5 (Graphics III)' ? 'SCREEN 5 (Graphics III)' : 'SCREEN 4 (Graphics II)',
@@ -505,8 +535,8 @@ export function generateModularASMFromSummary(
     ...((summary.assets as any).msx2Presentations || []).map((data: any) => ({ type: 'msx2presentation', data } as ProjectAsset)),
     ...((summary.assets as any).msx2presentations || []).map((data: any) => ({ type: 'msx2presentation', data } as ProjectAsset)),
   ];
-  const summaryGraphicsBackend = resolveGraphicsBackend(summaryGraphicsConfig, summaryAssetList);
-  if (summaryGraphicsBackend === 'msx2-screen5-presentation') {
+  const summaryGraphicsTarget = resolveGraphicsTarget(summaryGraphicsConfig, summaryAssetList);
+  if (summaryGraphicsTarget.backend === 'screen5' && summaryGraphicsTarget.screen5Emitter === 'presentation') {
     return generateMsx2Screen5PresentationFiles(summary.projectInfo.name, analysis, {
       screenMode: 'SCREEN 5 (Graphics III)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',
@@ -514,7 +544,7 @@ export function generateModularASMFromSummary(
       autoMegaROM: summaryGraphicsConfig.autoMegaROM ?? false,
     });
   }
-  if (summaryGraphicsBackend === 'msx2-screen4-bitmap-room') {
+  if (summaryGraphicsTarget.backend === 'screen5') {
     return generateMsx2Screen5BitmapRoomFiles(summary.projectInfo.name, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',
@@ -522,7 +552,7 @@ export function generateModularASMFromSummary(
       autoMegaROM: summaryGraphicsConfig.autoMegaROM ?? false,
     });
   }
-  if (summaryGraphicsBackend === 'msx2-screen4-pattern') {
+  if (summaryGraphicsTarget.backend === 'screen4') {
     return generateMsx2Screen4Files(summary.projectInfo.name, analysis, {
       screenMode: summaryGraphicsConfig.screenMode === 'SCREEN 5 (Graphics III)' ? 'SCREEN 5 (Graphics III)' : 'SCREEN 4 (Graphics II)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',

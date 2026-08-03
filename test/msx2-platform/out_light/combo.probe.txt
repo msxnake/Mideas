@@ -1,0 +1,3 @@
+room=01
+light_active=01
+light_on=00

@@ -1,6 +1,7 @@
 import { ProjectAnalysis } from './asmTemplateGenerator';
 import { Msx2PlayerButtonBinding, Msx2PlayerControlId, Msx2Screen4TileScreen } from '../types';
 import { getSkill } from './msxGenerator/skills';
+import type { SkillActivationTrigger } from './msxGenerator/skills/types';
 
 /** MSX1 ROM default: #FC00 (-1024 in 8.8 fixed-point, ~-4 px/frame initial rise). */
 export const MSX2_DEFAULT_JUMP_IMPULSE_88 = 0xfc00;
@@ -150,6 +151,25 @@ export interface Msx2DestroyTileConfig {
   requireKeyRelease: boolean;
   destroyedLimit: number;
   digSound: boolean;
+}
+
+/**
+ * Torch skill config for SCREEN 5 bitmap rooms (dark rooms only).
+ *
+ * The room's light stops being a lamp that never goes out and becomes the
+ * alien's glowing tail: eating a phosphorescent mushroom (a `mushroom` entity
+ * placed in the room) lights it for `lightSeconds`, and the halo shrinks stage
+ * by stage until it dies out. There is no key: the mushrooms ARE the switch.
+ */
+export interface Msx2TorchConfig {
+  enabled: boolean;
+  /** Total glow time of one mushroom, in seconds, split evenly across the decay stages. */
+  lightSeconds: number;
+  /** Tail already glowing when the game starts (otherwise you start in the dark). */
+  startsLit: boolean;
+  eatSound: boolean;
+  /** Optional PSG Sound Editor asset played when a mushroom is eaten. */
+  eatSoundAssetId?: string;
 }
 
 /**
@@ -517,6 +537,45 @@ export function scaleMsx2JumpImpulse88(impulse88: number, scale: number): number
   return scaled & 0xffff;
 }
 
+export interface Msx2ResolvedSkillActivation {
+  trigger: SkillActivationTrigger;
+  primary: Msx2PlayerControlId | null;
+  secondary: Msx2PlayerControlId | 'none';
+}
+
+/**
+ * Resolves the shared Player Config activation contract for Preview/runtime
+ * handlers. A collision-only skill has no input. A collision-input skill
+ * exposes its remappable input while keeping collision as a mandatory gate.
+ */
+export function getMsx2SkillActivation(
+  player: any | undefined,
+  skillId: string,
+): Msx2ResolvedSkillActivation {
+  const def = getSkill(skillId);
+  const trigger = def?.activationTrigger
+    ?? (def?.controlIcon ? 'input' : 'collision');
+  if (trigger === 'collision') {
+    return { trigger, primary: null, secondary: 'none' };
+  }
+  const binding = player?.skillBindings?.[skillId];
+  if (binding?.primary) {
+    return {
+      trigger,
+      primary: binding.primary as Msx2PlayerControlId,
+      secondary: (binding.secondary ?? 'none') as Msx2PlayerControlId | 'none',
+    };
+  }
+  const icons = def?.controlIcon
+    ? (Array.isArray(def.controlIcon) ? def.controlIcon : [def.controlIcon])
+    : ['attack'];
+  return {
+    trigger,
+    primary: (icons[0] || 'attack') as Msx2PlayerControlId,
+    secondary: (icons[1] ?? 'none') as Msx2PlayerControlId | 'none',
+  };
+}
+
 function resolveMsx2SkillBinding(
   player: any | undefined,
   skillId: string,
@@ -524,20 +583,10 @@ function resolveMsx2SkillBinding(
   primary: Msx2PlayerControlId;
   secondary: Msx2PlayerControlId | 'none';
 } {
-  const binding = player?.skillBindings?.[skillId];
-  if (binding?.primary) {
-    return {
-      primary: binding.primary as Msx2PlayerControlId,
-      secondary: (binding.secondary ?? 'none') as Msx2PlayerControlId | 'none',
-    };
-  }
-  const def = getSkill(skillId);
-  const icons = def?.controlIcon
-    ? (Array.isArray(def.controlIcon) ? def.controlIcon : [def.controlIcon])
-    : ['attack'];
+  const activation = getMsx2SkillActivation(player, skillId);
   return {
-    primary: (icons[0] || 'attack') as Msx2PlayerControlId,
-    secondary: (icons[1] ?? 'none') as Msx2PlayerControlId | 'none',
+    primary: activation.primary ?? 'attack',
+    secondary: activation.secondary,
   };
 }
 
@@ -861,6 +910,29 @@ export function getMsx2DestroyTileConfigFromPlayerEntity(player: any | undefined
     requireKeyRelease: params.requireKeyRelease === true,
     destroyedLimit: Math.max(16, Math.min(128, Math.trunc(destroyedLimit || 64))),
     digSound: params.digSound !== false,
+  };
+}
+
+/**
+ * Returns the resolved torch skill config for the given player.
+ *
+ * Reads `player.skillParameters.torch` and clamps every value to the ranges
+ * declared in `torchParameters` (handlers/index.ts). The skill only does
+ * something in rooms flagged as dark (`runtime.lighting = 'lamp'`) that have
+ * mushrooms to eat.
+ */
+export function getMsx2TorchConfigFromPlayerEntity(player: any | undefined): Msx2TorchConfig {
+  const activeSkills = readPlayerActiveSkills(player);
+  const enabled = activeSkills.includes('torch');
+  const params = (player?.skillParameters?.torch || {}) as Record<string, number | boolean>;
+  const eatSoundAssetId = String(player?.soundAssetIds?.onMushroomEat || '').trim();
+  const lightSeconds = pickSkillNumberParam(params, 'torch', ['lightSeconds'], 10);
+  return {
+    enabled,
+    lightSeconds: Math.max(2, Math.min(30, Math.trunc(lightSeconds || 10))),
+    startsLit: params.startsLit === true,
+    eatSound: params.eatSound !== false,
+    eatSoundAssetId: eatSoundAssetId || undefined,
   };
 }
 

@@ -1,0 +1,5 @@
+t=12.0 pc=5DD7 sccrow=0 scccnt=1 psgrow=0 psgcnt=1 psgmut=1 px=0 over=0
+t=12.5 pc=5A5B sccrow=0 scccnt=1 psgrow=0 psgcnt=1 psgmut=1 px=0 over=0
+t=13.0 pc=5A57 sccrow=0 scccnt=1 psgrow=0 psgcnt=1 psgmut=1 px=0 over=0
+t=13.5 pc=5A67 sccrow=0 scccnt=1 psgrow=0 psgcnt=1 psgmut=1 px=0 over=0
+t=14.0 pc=5A61 sccrow=0 scccnt=1 psgrow=0 psgcnt=1 psgmut=1 px=0 over=0

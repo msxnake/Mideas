@@ -1,0 +1,4 @@
+t=16.0 pc=5A67 sp=F2E4 stack=5B26,0106,5B61
+t=16.4 pc=5A59 sp=F2E2 stack=5A65,5B26,0106
+t=16.8 pc=5A61 sp=F2E2 stack=5A65,5B26,0106
+t=17.2 pc=5A57 sp=F2E2 stack=5A65,5B26,0106

@@ -224,6 +224,19 @@ function migrateProjectComponentDefinitions(projectComponents?: ComponentDefinit
   return mergedComponents;
 }
 
+function migrateProjectEntityTemplates(projectTemplates?: EntityTemplate[]): EntityTemplate[] {
+  if (!Array.isArray(projectTemplates) || projectTemplates.length === 0) {
+    return DEFAULT_ENTITY_TEMPLATES;
+  }
+
+  const worldExitTemplate = DEFAULT_ENTITY_TEMPLATES.find(template => template.id === 'tpl_world_exit');
+  if (!worldExitTemplate || projectTemplates.some(template => template.id === worldExitTemplate.id)) {
+    return projectTemplates;
+  }
+
+  return [...projectTemplates, worldExitTemplate];
+}
+
 function normalizeLoadedCustomGlobalVariables(customVariables: any[]): { variables: any[]; warnings: string[] } {
   if (!Array.isArray(customVariables)) {
     return { variables: [], warnings: [] };
@@ -996,7 +1009,8 @@ export const useProjectHandlers = ({
 
       let templatesForSanitization: EntityTemplate[] = filterEntityTemplatesForProject(DEFAULT_ENTITY_TEMPLATES, loadedMode, loadedMsx2Profile);
       if (projectData.entityTemplates) {
-        const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
+        const migratedEntityTemplates = migrateProjectEntityTemplates(projectData.entityTemplates);
+        const cleanedEntityTemplates = migratedEntityTemplates.map((template: EntityTemplate) => {
           const cleanedComponents = template.components.map(comp => {
             const componentDef = migratedComponentDefinitions.find((cd: ComponentDefinition) => cd.id === comp.definitionId);
             if (!componentDef) return comp;

@@ -11,8 +11,10 @@ from datetime import datetime
 from pathlib import Path
 
 
-VALID_KEYS = {"UP", "DOWN", "LEFT", "RIGHT", "SPACE", "SPC", "M"}
+VALID_KEYS = {"UP", "DOWN", "LEFT", "RIGHT", "SPACE", "SPC", "M", "B", "N", "Z", "X"}
 KEY_ALIASES = {"SPC": "SPACE"}
+# Letter rows/masks follow the skill generators' own selector table
+# (msx2BitmapDestroyTileGenerator / msx2BitmapLightingGenerator).
 MSX_KEY_MATRIX = {
     "SPACE": ("8", "0x01"),
     "LEFT": ("8", "0x10"),
@@ -20,6 +22,10 @@ MSX_KEY_MATRIX = {
     "DOWN": ("8", "0x40"),
     "RIGHT": ("8", "0x80"),
     "M": ("2", "0x01"),
+    "B": ("2", "0x80"),
+    "N": ("4", "0x08"),
+    "Z": ("5", "0x80"),
+    "X": ("5", "0x20"),
 }
 DEFAULT_MACHINE = "C-BIOS_MSX2"
 

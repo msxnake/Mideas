@@ -8,6 +8,7 @@ export type Msx2ComponentId =
   | 'msx2_collision'
   | 'msx2_collectible'
   | 'msx2_door_exit'
+  | 'msx2_world_exit'
   | 'msx2_hazard'
   | 'msx2_ai'
   | 'msx2_animation'
@@ -139,6 +140,14 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     targetScreenId: { label: 'Target screen ID' },
     requiresCollectibles: { kind: 'boolean', label: 'Requires collectibles' },
     locked: { kind: 'boolean', label: 'Locked' },
+  },
+  msx2_world_exit: {
+    enabled: { kind: 'boolean', label: 'Enabled' },
+    atlasEntryId: { label: 'Door atlas tile ID' },
+    offsetX: { label: 'Hitbox offset X', min: 0, max: 31 },
+    offsetY: { label: 'Hitbox offset Y', min: 0, max: 31 },
+    hitboxW: { label: 'Hitbox width', min: 1, max: 32 },
+    hitboxH: { label: 'Hitbox height', min: 1, max: 32 },
   },
   msx2_pressure_button: {
     enabled: { kind: 'boolean', label: 'Enabled' },
@@ -416,6 +425,12 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     label: 'Door Exit',
     description: 'Door or exit behavior for MSX2 screen progression.',
     defaults: { targetScreenId: '', requiresCollectibles: true, locked: true },
+  },
+  {
+    id: 'msx2_world_exit',
+    label: 'World Exit',
+    description: 'SCREEN 5 trigger that leaves the active WorldLink and continues the GameFlow.',
+    defaults: { enabled: true, atlasEntryId: '', offsetX: 0, offsetY: 0, hitboxW: 16, hitboxH: 16 },
   },
   {
     id: 'msx2_hazard',
@@ -1077,6 +1092,24 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       msx2_collision: { solid: false },
     },
     params: { runtime: 'MSX2', engine: 'door' },
+  },
+  {
+    id: 'world_exit',
+    label: 'MSX2 Exit World',
+    kind: 'door',
+    runtime: 'MSX2',
+    engine: 'worldExit',
+    description: 'SCREEN 5 bitmap exit: touching it leaves the current WorldLink and follows its default GameFlow connection.',
+    components: {
+      msx2_transform: {},
+      msx2_world_exit: { enabled: true, atlasEntryId: '', offsetX: 0, offsetY: 0, hitboxW: 16, hitboxH: 16 },
+      msx2_collision: { solid: false, offsetX: 0, offsetY: 0, hitboxW: 16, hitboxH: 16 },
+    },
+    params: {
+      runtime: 'MSX2',
+      engine: 'worldExit',
+      worldExit: { enabled: true, atlasEntryId: '', offsetX: 0, offsetY: 0, hitboxW: 16, hitboxH: 16 },
+    },
   },
   {
     id: 'npc',

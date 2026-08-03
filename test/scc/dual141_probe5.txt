@@ -1,0 +1,4 @@
+hits 2s: wipe=1 framewait=64 waitframes=0 endwait=0
+pc=5A57 pc2=5A57
+pc3=5A5F
+pc4=5A67

@@ -1,0 +1,4 @@
+active=01
+lx=D8
+ly=A5
+player_x=E4

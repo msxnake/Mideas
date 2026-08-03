@@ -57,6 +57,7 @@ import { Msx2TerrainLibraryModal } from './modals/Msx2TerrainLibraryModal';
 import { Msx2SpriteLibraryModal } from './modals/Msx2SpriteLibraryModal';
 import { Msx2TileLibraryModal } from './modals/Msx2TileLibraryModal';
 import { Msx2HudIconLibraryModal } from './modals/Msx2HudIconLibraryModal';
+import { Msx2PaletteLibraryModal } from './modals/Msx2PaletteLibraryModal';
 import { getUsedMsx2SpritePaletteSlots, reconcileMsx2SpriteIntoProjectPalette } from '../utils/msx2PaletteCompatibility';
 import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
@@ -579,6 +580,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [isMsx2SpriteLibraryOpen, setIsMsx2SpriteLibraryOpen] = useState(false);
   const [isMsx2TileLibraryOpen, setIsMsx2TileLibraryOpen] = useState(false);
   const [isMsx2HudIconLibraryOpen, setIsMsx2HudIconLibraryOpen] = useState(false);
+  const [isMsx2PaletteLibraryOpen, setIsMsx2PaletteLibraryOpen] = useState(false);
   const [selectedScreenCatalogBlock, setSelectedScreenCatalogBlock] = useState<TileStamp | null>(null);
 
   const handleEditGeneratedFile = React.useCallback((filename: string, content: string) => {
@@ -1318,6 +1320,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenMsx2StampLibrary={() => setIsMsx2StampLibraryOpen(true)}
         onOpenMsx2TerrainLibrary={() => setIsMsx2TerrainLibraryOpen(true)}
         onOpenMsx2HudIconLibrary={() => setIsMsx2HudIconLibraryOpen(true)}
+        onOpenMsx2PaletteLibrary={() => setIsMsx2PaletteLibraryOpen(true)}
         onOpenEnemyLibrary={() => onSelectAsset(null, EditorType.EnemyLibrary)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
         onOpenPngMsxTool={() => {
@@ -1408,6 +1411,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               allAssets={assets}
               selectedNodeId={selectedMsx2GameFlowNodeId}
               setSelectedNodeId={setSelectedMsx2GameFlowNodeId}
+              msx2ProjectProfile={msx2ProjectProfile}
             />
           )}
           {currentEditor === EditorType.Dialogue && activeAsset?.type === 'dialogue' && (
@@ -1494,7 +1498,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
           {currentEditor === EditorType.Msx2Screen && activeAsset?.type === 'msx2screen' && ( <Msx2Screen4RoomEditor screen={activeAsset.data as Msx2Screen4TileScreen} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} selectedColor={selectedColor} allAssets={assets} msx2ProjectProfile={msx2ProjectProfile} />)}
           {currentEditor === EditorType.Msx2BitmapRoom && activeAsset?.type === 'msx2bitmaproom' && (
-            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} onDeleteRoom={handleDeleteBitmapRoom} onSetWorldStartRoom={handleSetWorldStartBitmapRoom} onRecomposeWorld={handleRecomposeBitmapWorld} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={(paletteAssetId) => { if (activeBitmapWorldAsset) handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }); }} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} onUpdateProjectAsset={(assetId, data) => handleUpdateAsset(assetId, data)} onOpenHudAsset={(id) => onSelectAsset(id, EditorType.Msx2HudEditor)} />
+            <Msx2BitmapScreenEditor room={activeAsset.data as Msx2Screen5BitmapRoom} onUpdate={handleUpdateBitmapRoom} allAssets={assets} setStatusBarMessage={setStatusBarMessage} onCreateAdjacentRoom={handleCreateAdjacentBitmapRoom} onOpenRoom={(id) => onSelectAsset(id, EditorType.Msx2BitmapRoom)} onDeleteRoom={handleDeleteBitmapRoom} onSetWorldStartRoom={handleSetWorldStartBitmapRoom} onRecomposeWorld={handleRecomposeBitmapWorld} msx2ProjectProfile={msx2ProjectProfile} worldPaletteAssetId={(activeBitmapWorldAsset?.data as WorldMapGraph | undefined)?.paletteAssetId} onSetWorldPaletteAssetId={activeBitmapWorldAsset ? (paletteAssetId) => handleUpdateAsset(activeBitmapWorldAsset.id, { paletteAssetId }) : undefined} onUpdatePaletteAsset={(paletteAssetId, slots) => handleUpdateAsset(paletteAssetId, { slots: slots.map(slot => ({ ...slot })) })} onUpdateProjectAsset={(assetId, data) => handleUpdateAsset(assetId, data)} onOpenHudAsset={(id) => onSelectAsset(id, EditorType.Msx2HudEditor)} />
           )}
           {currentEditor === EditorType.Msx2Player && activeAsset?.type === 'msx2player' && ( <Msx2PlayerEditor player={activeAsset.data as Msx2PlayerDefinition} playerAssetName={activeAsset.name} onUpdate={(patch) => {
             const mergedPlayer = mergeMsx2PlayerUpdate(activeAsset.data, patch);
@@ -1859,6 +1863,35 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               savedAt: Date.now(),
             };
             handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'msx2bitmapterrain', data }]);
+          } : undefined}
+        />
+      )}
+      {isMsx2PaletteLibraryOpen && (
+        <Msx2PaletteLibraryModal
+          isOpen={isMsx2PaletteLibraryOpen}
+          onClose={() => setIsMsx2PaletteLibraryOpen(false)}
+          setStatusBarMessage={setStatusBarMessage}
+          onNewPalette={hasUsableProject ? () => {
+            setIsMsx2PaletteLibraryOpen(false);
+            handleNewAsset('palette');
+          } : undefined}
+          onImportPalette={hasUsableProject ? (palette, requestedName) => {
+            const baseName = requestedName.trim() || 'Palette';
+            const usedNames = new Set(assets.filter(asset => asset.type === 'palette').map(asset => asset.name));
+            let name = baseName;
+            let suffix = 2;
+            while (usedNames.has(name)) name = `${baseName} ${suffix++}`;
+            const assetId = `palette_lib_import_${Date.now()}`;
+            const { slots } = ensureScreen5PaletteSlots(palette.slots);
+            const data: PaletteAsset = {
+              slots: slots.map(slot => ({ ...slot })),
+              mode: palette.mode,
+              notes: palette.notes,
+              source: 'imported',
+              createdAt: new Date().toISOString(),
+            };
+            handleUpdateAsset(assetId, {}, [{ id: assetId, name, type: 'palette', data }]);
+            setStatusBarMessage(`Imported global palette "${name}" into the current project.`);
           } : undefined}
         />
       )}

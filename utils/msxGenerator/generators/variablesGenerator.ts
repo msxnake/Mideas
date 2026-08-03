@@ -1104,6 +1104,9 @@ MAX_ENTITIES        EQU 32
   code += `entity_is_player    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)\n`;
   currentAddress += 32;
 
+  code += `entity_world_exit   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity WorldLink exit trigger flag (32 bytes, 0=no, 1=yes)\n`;
+  currentAddress += 32;
+
   code += `entity_limit_on     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Limit_on screen-edge clamp flag (32 bytes, 0=no, 1=yes)\n`;
   currentAddress += 32;
 
@@ -1724,6 +1727,8 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `coll_src_top        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB top edge (scratch)\n`;
   currentAddress++;
   code += `coll_src_bottom     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB bottom edge (scratch)\n`;
+  currentAddress++;
+  code += `coll_world_exit_pair EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Non-zero when current pair is World Exit + Player (scratch)\n`;
   currentAddress++;
 
   // Interrupt system variables (dynamically allocated to avoid RAM overlap)

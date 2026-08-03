@@ -7,7 +7,7 @@
   "addsStates": ["perceiving"],
   "icon": "👁️",
   "category": "sense",
-  "supportedBackends": ["msx2-screen4-bitmap-room"],
+  "supportedBackends": ["screen5"],
   "parameters": [
     {
       "key": "radius",

@@ -1,0 +1,2 @@
+keymatrix ERROR: invalid command name "keymatrix"
+commands: keymatrixup keymatrixdown

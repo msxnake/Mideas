@@ -8,7 +8,7 @@
   "addsStates": ["digging"],
   "icon": "⛏️",
   "category": "utility",
-  "supportedBackends": ["msx2-screen4-bitmap-room"],
+  "supportedBackends": ["screen5"],
   "parameters": [
     {
       "key": "digKey",

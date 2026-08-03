@@ -1,0 +1,2 @@
+debuggables: {VDP palette} {test178.rom romblocks} ioports joystickports {Printer Port} {PSG regs} {VDP status regs} test178.rom {VDP register latch status} {C-BIOS Main ROM romblocks} {slotted memory} keymatrix {physical VRAM} {Main RAM regs} {C-BIOS Logo ROM romblocks} MapperIO {VDP palette latch status} {VDP regs} memory VRAM {C-BIOS Main ROM} {C-BIOS Sub ROM} {C-BIOS Logo ROM} {C-BIOS Sub ROM romblocks} {VDP data latch value} {CPU regs} {VRAM access status} {Main RAM} {VRAM pointer} {Real time clock SRAM}
+slot ps0..3: 0 X 1 X 1 X 3 2

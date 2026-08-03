@@ -1,0 +1,4 @@
+t4 (normal):  step=0 commit=0 update=0 pending=0 comp=0 blk=0 slot=0
+t5 (normal):  step=0 commit=0 update=0 pending=0 comp=0 blk=0 slot=0
+t6 (tras cruzar): step=23 commit=0 update=23 pending=23 comp=1 blk=88 slot=1
+t7 (tras cruzar): step=0 commit=0 update=0 pending=0 comp=1 blk=88 slot=1

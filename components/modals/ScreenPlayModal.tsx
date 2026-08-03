@@ -16,6 +16,7 @@ import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, createTileBasedFont } from '../utils/msxFontRenderer';
 import { wallCollisionEngine, entityCollisionEngine, pacMovementEngine, pacmanMovementV2Engine } from '../../src/engines';
 import { getBackgroundColorHex } from '../../utils/screenModeConfig';
+import { getStateMachineBrowserInputAliases } from '../../utils/stateMachineInputs';
 
 // Sprite rotation utilities for auto-generated directional sprites
 const rotatePixelData90CW = (pixelData: any[][]): any[][] => {
@@ -1706,17 +1707,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         if (!condition) return false;
 
         const matchesInputKey = (expectedKey: unknown, actualKey: string): boolean => {
-            const expected = String(expectedKey ?? '').toLowerCase();
             const actual = String(actualKey ?? '').toLowerCase();
-            const aliases: Record<string, string[]> = {
-                up: ['up', 'arrowup'],
-                down: ['down', 'arrowdown'],
-                left: ['left', 'arrowleft'],
-                right: ['right', 'arrowright'],
-                space: ['space', ' '],
-                fire: ['fire', 'space', ' ', 'keyx', 'x'],
-            };
-            return (aliases[expected] || [expected]).includes(actual);
+            return getStateMachineBrowserInputAliases(expectedKey, allAssets, entity.stateMachine?.id)
+                .some(alias => alias.toLowerCase() === actual);
         };
 
         switch (condition.type) {
@@ -1753,7 +1746,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             default:
                 return false;
         }
-    }, [canMoveInDirection]);
+    }, [allAssets, canMoveInDirection]);
 
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
@@ -1801,9 +1794,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         }
         if (playerRef.current && !pressedKeys.current.has(e.key)) {
             pressedKeys.current.add(e.key);
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                checkKeyTransitions(playerRef.current.instance.id, e.key, true);
-            }
+            checkKeyTransitions(playerRef.current.instance.id, e.key, true);
         }
         if (e.key === 'Escape') {
             e.preventDefault();
@@ -1814,11 +1805,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
         if (playerRef.current && pressedKeys.current.has(e.key)) {
             pressedKeys.current.delete(e.key);
-            // Only call checkKeyTransitions for KeyUp for non-movement keys or specific KEY_RELEASED transitions
-            // For movement keys, we mainly care about KeyDown events
-            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                checkKeyTransitions(playerRef.current.instance.id, e.key, false);
-            }
+            checkKeyTransitions(playerRef.current.instance.id, e.key, false);
         }
         // Reset jump key processed flag when space is released
         if (e.key === ' ') {

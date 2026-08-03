@@ -1,0 +1,4 @@
+room=00
+plat_count=5F
+light_state=00
+light_active=00

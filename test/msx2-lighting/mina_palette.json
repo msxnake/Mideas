@@ -1,0 +1,95 @@
+{
+  "id": "palette_screen5_mina",
+  "name": "mina_luz_8x2",
+  "type": "palette",
+  "data": {
+    "mode": "SCREEN5",
+    "slots": [
+      {
+        "slotIndex": 0,
+        "masterIndex": -1,
+        "hex": "rgba(0,0,0,0)"
+      },
+      {
+        "slotIndex": 1,
+        "masterIndex": 0,
+        "hex": "#000000"
+      },
+      {
+        "slotIndex": 2,
+        "masterIndex": 219,
+        "hex": "#6D6D6D"
+      },
+      {
+        "slotIndex": 3,
+        "masterIndex": 365,
+        "hex": "#B6B6B6"
+      },
+      {
+        "slotIndex": 4,
+        "masterIndex": 371,
+        "hex": "#B6DB6D"
+      },
+      {
+        "slotIndex": 5,
+        "masterIndex": 368,
+        "hex": "#B6DB00"
+      },
+      {
+        "slotIndex": 6,
+        "masterIndex": 435,
+        "hex": "#DBDB6D"
+      },
+      {
+        "slotIndex": 7,
+        "masterIndex": 511,
+        "hex": "#FFFFFF"
+      },
+      {
+        "slotIndex": 8,
+        "masterIndex": 0,
+        "hex": "#000000"
+      },
+      {
+        "slotIndex": 9,
+        "masterIndex": 0,
+        "hex": "#000000"
+      },
+      {
+        "slotIndex": 10,
+        "masterIndex": 0,
+        "hex": "#000000"
+      },
+      {
+        "slotIndex": 11,
+        "masterIndex": 73,
+        "hex": "#242424"
+      },
+      {
+        "slotIndex": 12,
+        "masterIndex": 26,
+        "hex": "#006D49"
+      },
+      {
+        "slotIndex": 13,
+        "masterIndex": 152,
+        "hex": "#496D00"
+      },
+      {
+        "slotIndex": 14,
+        "masterIndex": 217,
+        "hex": "#6D6D24"
+      },
+      {
+        "slotIndex": 15,
+        "masterIndex": 219,
+        "hex": "#6D6D6D"
+      }
+    ],
+    "source": "manual",
+    "createdAt": "1970-01-01T00:00:00.000Z",
+    "updatedAt": "1970-01-01T00:00:00.000Z",
+    "notes": "Paleta emparejada: 0-7 iluminado, 8-15 el gemelo apagado. Apagar = LMMV OR #8, encender = LMMV AND #7. El slot 12 es fosforescente a proposito.",
+    "name": "mina_luz_8x2"
+  }
+}

@@ -1,0 +1,6 @@
+room=01
+slot=01
+shaft_y=26
+dir=00
+rider=00
+forced=FF

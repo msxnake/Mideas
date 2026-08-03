@@ -31,15 +31,15 @@
 ; ------------------------------------------------------------------
 ; DYNAMIC BANK PACKER (FFD) — Estimated layout for code banks
 ; ------------------------------------------------------------------
-; Bank 1 [#6000-#8000]: components (50581/8192 bytes est.)
-; Bank 2 [#8000-#A000]: components_tail, statemachine, gameflow (52717/8192 bytes est.)
+; Bank 1 [#6000-#8000]: components (50923/8192 bytes est.)
+; Bank 2 [#8000-#A000]: components_tail, statemachine, gameflow (53014/8192 bytes est.)
 ; Bank 9 [#6000-#8000]: screen_loaders (17058/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 10 [#6000-#8000]: entities (14879/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 11 [#6000-#8000]: worlds (10527/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 12 [#6000-#8000]: sprites (10421/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 13 [#6000-#8000]: gameflow_aux (7843/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 14 [#6000-#8000]: sound (7685/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 15 [#6000-#8000]: screens_code (6999/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 11 [#6000-#8000]: sprites (11024/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 12 [#6000-#8000]: worlds (10766/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 13 [#6000-#8000]: sound (7820/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 14 [#6000-#8000]: gameflow_aux (7615/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 15 [#6000-#8000]: screens_code (7005/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 16 [#6000-#8000]: gameflow_aux2 (6007/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 17 [#6000-#8000]: hud (4338/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 18 [#6000-#8000]: animtiles (4047/8192 bytes est.) [FAR — accessed via trampoline]
@@ -48,15 +48,14 @@
 ; Bank 21 [#6000-#8000]: patterns_code (1071/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 22 [#6000-#8000]: colors_code (1025/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 23 [#6000-#8000]: menus (490/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 24 [#6000-#8000]: bosses (331/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 25 [#6000-#8000]: components_autocontrol (180/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 24 [#6000-#8000]: components_autocontrol (180/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 3+ (data) [#A000+]: DATA mapped through P3/A000 before far code banks
 ; ------------------------------------------------------------------
-; Far code banks: bank9(screen_loaders) bank10(entities) bank11(worlds) bank12(sprites) bank13(gameflow_aux) bank14(sound) bank15(screens_code) bank16(gameflow_aux2) bank17(hud) bank18(animtiles) bank19(font) bank20(scroll) bank21(patterns_code) bank22(colors_code) bank23(menus) bank24(bosses) bank25(components_autocontrol)
+; Far code banks: bank9(screen_loaders) bank10(entities) bank11(sprites) bank12(worlds) bank13(sound) bank14(gameflow_aux) bank15(screens_code) bank16(gameflow_aux2) bank17(hud) bank18(animtiles) bank19(font) bank20(scroll) bank21(patterns_code) bank22(colors_code) bank23(menus) bank24(components_autocontrol)
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 201688
+; Estimated payload bytes: 203101
 ; Estimated banks used: 25
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -69,37 +68,37 @@
 ; BANK 04 @#0000 : components.asm part 5/8 (8192 bytes)
 ; BANK 05 @#0000 : components.asm part 6/8 (8192 bytes)
 ; BANK 06 @#0000 : components.asm part 7/8 (8192 bytes)
-; BANK 07 @#0000 : components.asm part 8/8 (4046 bytes)
-; BANK 07 @#0FCE : entities.asm part 1/2 (4146 bytes)
+; BANK 07 @#0000 : components.asm part 8/8 (4388 bytes)
+; BANK 07 @#1124 : entities.asm part 1/2 (3804 bytes)
 ; BANK 08 @#0000 : entities.asm part 2/2 (8192 bytes)
-; BANK 09 @#0000 : entities.asm part 3/2 (2541 bytes)
-; BANK 09 @#09ED : worlds.asm part 1/2 (5651 bytes)
-; BANK 10 @#0000 : worlds.asm part 2/2 (4876 bytes)
-; BANK 10 @#130C : screens.asm part 1/3 (3316 bytes)
+; BANK 09 @#0000 : entities.asm part 3/2 (2883 bytes)
+; BANK 09 @#0B43 : worlds.asm part 1/2 (5309 bytes)
+; BANK 10 @#0000 : worlds.asm part 2/2 (5457 bytes)
+; BANK 10 @#1551 : screens.asm part 1/3 (2735 bytes)
 ; BANK 11 @#0000 : screens.asm part 2/3 (8192 bytes)
 ; BANK 12 @#0000 : screens.asm part 3/3 (8192 bytes)
-; BANK 13 @#0000 : screens.asm part 4/3 (4260 bytes)
-; BANK 13 @#10A4 : sprites.asm part 1/2 (3932 bytes)
-; BANK 14 @#0000 : sprites.asm part 2/2 (6489 bytes)
-; BANK 14 @#1959 : font.asm (1703 bytes)
-; BANK 15 @#0000 : font.asm (1955 bytes)
-; BANK 15 @#07A3 : hud.asm (4338 bytes)
-; BANK 15 @#1895 : menus.asm (490 bytes)
-; BANK 15 @#1A7F : sound.asm (1409 bytes)
-; BANK 16 @#0000 : sound.asm (6276 bytes)
-; BANK 16 @#1884 : scroll.asm (1916 bytes)
-; BANK 17 @#0000 : scroll.asm (502 bytes)
-; BANK 17 @#01F6 : animtiles.asm (4047 bytes)
-; BANK 17 @#11C5 : bosses.asm (331 bytes)
-; BANK 17 @#1310 : statemachine.asm part 1/4 (3312 bytes)
+; BANK 13 @#0000 : screens.asm part 4/3 (4847 bytes)
+; BANK 13 @#12EF : sprites.asm part 1/2 (3345 bytes)
+; BANK 14 @#0000 : sprites.asm part 2/2 (7680 bytes)
+; BANK 14 @#1E00 : font.asm (512 bytes)
+; BANK 15 @#0000 : font.asm (3146 bytes)
+; BANK 15 @#0C4A : hud.asm (4338 bytes)
+; BANK 15 @#1D3C : menus.asm (490 bytes)
+; BANK 15 @#1F26 : sound.asm (218 bytes)
+; BANK 16 @#0000 : sound.asm (7602 bytes)
+; BANK 16 @#1DB2 : scroll.asm (590 bytes)
+; BANK 17 @#0000 : scroll.asm (1828 bytes)
+; BANK 17 @#0724 : animtiles.asm (4047 bytes)
+; BANK 17 @#16F3 : bosses.asm (331 bytes)
+; BANK 17 @#183E : statemachine.asm part 1/4 (1986 bytes)
 ; BANK 18 @#0000 : statemachine.asm part 2/4 (8192 bytes)
 ; BANK 19 @#0000 : statemachine.asm part 3/4 (8192 bytes)
-; BANK 20 @#0000 : statemachine.asm part 4/4 (5307 bytes)
-; BANK 20 @#14BB : gameflow.asm part 1/4 (2885 bytes)
+; BANK 20 @#0000 : statemachine.asm part 4/4 (6633 bytes)
+; BANK 20 @#19E9 : gameflow.asm part 1/4 (1559 bytes)
 ; BANK 21 @#0000 : gameflow.asm part 2/4 (8192 bytes)
 ; BANK 22 @#0000 : gameflow.asm part 3/4 (8192 bytes)
 ; BANK 23 @#0000 : gameflow.asm part 4/4 (8192 bytes)
-; BANK 24 @#0000 : gameflow.asm part 5/4 (5080 bytes); ==================================================================
+; BANK 24 @#0000 : gameflow.asm part 5/4 (6493 bytes); ==================================================================
 
 ; [[[MIDEAS_ARTIFACT:resource_ids.asm:BEGIN]]]
 ; ; ==================================================================
@@ -22740,33 +22739,32 @@
 ; [[[MIDEAS_ARTIFACT:unused_report.txt:BEGIN]]]
 ; MIDEAS UNUSED MODULE REPORT
 ; Scope: konami8k_megarom_resident_modules
-; Candidate unused modules: 2
-; Estimated removable bytes: 2749
+; Candidate unused modules: 1
+; Estimated removable bytes: 2418
 ;
 ; Candidates:
 ; - scroll: 2418 estimated bytes
-; - bosses: 331 estimated bytes
 ;
 ; Retained modules:
 ; - animtiles: 4047 estimated bytes
 ; - colors_code: 1025 estimated bytes
-; - components: 50581 estimated bytes
+; - components: 50923 estimated bytes
 ; - components_autocontrol: 180 estimated bytes
 ; - components_tail: 8632 estimated bytes
 ; - entities: 14879 estimated bytes
 ; - font: 3658 estimated bytes
-; - gameflow: 19120 estimated bytes
-; - gameflow_aux: 7843 estimated bytes
+; - gameflow: 19417 estimated bytes
+; - gameflow_aux: 7615 estimated bytes
 ; - gameflow_aux2: 6007 estimated bytes
 ; - hud: 4338 estimated bytes
 ; - menus: 490 estimated bytes
 ; - patterns_code: 1071 estimated bytes
 ; - screen_loaders: 17058 estimated bytes
-; - screens_code: 6999 estimated bytes
-; - sound: 7685 estimated bytes
-; - sprites: 10421 estimated bytes
+; - screens_code: 7005 estimated bytes
+; - sound: 7820 estimated bytes
+; - sprites: 11024 estimated bytes
 ; - statemachine: 24965 estimated bytes
-; - worlds: 10527 estimated bytes
+; - worlds: 10766 estimated bytes
 ;
 ; Note: report-only; module removal is a later pipeline step.
 ;
@@ -22825,14 +22823,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state",
-;       "estimatedUsedBytes": 50581,
+;       "estimatedUsedBytes": 50923,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
 ;           "key": "components",
 ;           "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state; module components is part of the resident execution kernel",
-;           "estimatedBytes": 50581
+;           "estimatedBytes": 50923
 ;         }
 ;       ]
 ;     },
@@ -22844,7 +22842,7 @@
 ;       "orgAddress": 32768,
 ;       "endAddress": 40960,
 ;       "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state",
-;       "estimatedUsedBytes": 52717,
+;       "estimatedUsedBytes": 53014,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
@@ -22861,7 +22859,7 @@
 ;         {
 ;           "key": "gameflow",
 ;           "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module gameflow is part of the resident execution kernel",
-;           "estimatedBytes": 19120
+;           "estimatedBytes": 19417
 ;         }
 ;       ]
 ;     },
@@ -22911,14 +22909,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 10527,
+;       "estimatedUsedBytes": 11024,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
-;           "key": "worlds",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module worlds is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 10527
+;           "key": "sprites",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 11024
 ;         }
 ;       ]
 ;     },
@@ -22930,14 +22928,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 10421,
+;       "estimatedUsedBytes": 10766,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
-;           "key": "sprites",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 10421
+;           "key": "worlds",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module worlds is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 10766
 ;         }
 ;       ]
 ;     },
@@ -22949,14 +22947,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 7843,
-;       "estimatedFreeBytes": 349,
+;       "estimatedUsedBytes": 7820,
+;       "estimatedFreeBytes": 372,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
-;           "key": "gameflow_aux",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module gameflow_aux is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 7843
+;           "key": "sound",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module sound is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 7820
 ;         }
 ;       ]
 ;     },
@@ -22968,14 +22966,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 7685,
-;       "estimatedFreeBytes": 507,
+;       "estimatedUsedBytes": 7615,
+;       "estimatedFreeBytes": 577,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
-;           "key": "sound",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks; module sound is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 7685
+;           "key": "gameflow_aux",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks; module gameflow_aux is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 7615
 ;         }
 ;       ]
 ;     },
@@ -22987,14 +22985,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 15; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 6999,
-;       "estimatedFreeBytes": 1193,
+;       "estimatedUsedBytes": 7005,
+;       "estimatedFreeBytes": 1187,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
 ;           "key": "screens_code",
 ;           "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 15; executes through P1/#6000 after reserved asset-data banks; module screens_code is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 6999
+;           "estimatedBytes": 7005
 ;         }
 ;       ]
 ;     },
@@ -23158,32 +23156,13 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 16; physical bank 24; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 331,
-;       "estimatedFreeBytes": 7861,
-;       "estimatedOverBudget": false,
-;       "modules": [
-;         {
-;           "key": "bosses",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 16; physical bank 24; executes through P1/#6000 after reserved asset-data banks; module bosses is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 331
-;         }
-;       ]
-;     },
-;     {
-;       "bank": 25,
-;       "role": "far_code",
-;       "segmentSize": 8192,
-;       "page": 1,
-;       "orgAddress": 24576,
-;       "endAddress": 32768,
-;       "placementReason": "far-call module; sorted by estimated size at overlay index 17; physical bank 25; executes through P1/#6000 after reserved asset-data banks",
 ;       "estimatedUsedBytes": 180,
 ;       "estimatedFreeBytes": 8012,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
 ;           "key": "components_autocontrol",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 17; physical bank 25; executes through P1/#6000 after reserved asset-data banks; module components_autocontrol is callable only through bank-0 far trampolines",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 16; physical bank 24; executes through P1/#6000 after reserved asset-data banks; module components_autocontrol is callable only through bank-0 far trampolines",
 ;           "estimatedBytes": 180
 ;         }
 ;       ]
@@ -24936,7 +24915,7 @@ current_sprite_pattern_pack_id EQU #E293   ; Active runtime sprite pattern pack 
 sprite_attributes   EQU #E294   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
-; SCREEN SYSTEM VARIABLES (8 screens detected)
+; SCREEN SYSTEM VARIABLES (8 runtime screens detected)
 ; ==================================================================
 current_screen_id   EQU #E314   ; Currently displayed screen ID
 current_screen_engine EQU #E315   ; Runtime engine: 0=Player, 1=FakePlayer
@@ -25129,123 +25108,178 @@ interrupt_counter       EQU #EA0F   ; Frame counter (16-bit)
 task_exec_time          EQU #EA11   ; Cycles used by tasks (16-bit, debug)
 vblank_flag             EQU #EA13   ; Set to 1 on each VBlank (1 byte)
 interrupt_in_progress   EQU #EA14   ; 1 while the H.TIMI dispatcher is running
-far_call_irq_lock_depth EQU #EA15   ; Nonzero while far trampolines own an IRQ-masked mapper window
-RAM_INTERRUPT_END       EQU #EA16   ; End of interrupt system
+player_hard_tick_enabled EQU #EA15   ; 1=run Player hard realtime pipeline inside VBlank hook
+player_hard_tick_lost   EQU #EA16   ; Debug counter: hard Player ticks skipped by mapper/IRQ lock (16-bit)
+far_call_irq_lock_depth EQU #EA18   ; Nonzero while far trampolines own an IRQ-masked mapper window
+RAM_INTERRUPT_END       EQU #EA19   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #EA16   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #EA17   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #EA18   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #EA19   ; Next sound frame pointer high byte
+sm_sound_active       EQU #EA19   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #EA1A   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #EA1B   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #EA1C   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #EA1A   ; 0=stopped, 1=track active
-music_muted          EQU #EA1B   ; 0=audible, 1=muted/pause
-music_loop           EQU #EA1C   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #EA1D   ; Current ROM track index
-music_row_frames     EQU #EA1E   ; Frames per tracker row
-music_row_countdown  EQU #EA1F   ; Countdown to next row
-music_order_pos      EQU #EA20   ; Current order position
-music_pattern_index  EQU #EA21   ; Current pattern index
-music_pattern_row    EQU #EA22   ; Current row inside pattern
-music_pattern_rows   EQU #EA23   ; Cached rows in current pattern
-music_track_ptr_l    EQU #EA24   ; Current track pointer low byte
-music_track_ptr_h    EQU #EA25   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #EA26   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #EA27   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #EA28   ; PSG mixer shadow for music runtime
-music_pitch_note_work EQU #EA29   ; Scratch note index while resolving tone/ornament macros
-music_pitch_step_work EQU #EA2A   ; Scratch macro step while resolving tone/ornament macros
-music_pitch_len_work  EQU #EA2B   ; Scratch macro length while resolving tone/ornament macros
-music_ch_note_base EQU #EA2C   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #EA2C   ; Channel A
-music_ch_b_note EQU #EA2D   ; Channel B
-music_ch_c_note EQU #EA2E   ; Channel C
-music_ch_instrument_base EQU #EA2F   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #EA2F   ; Channel A
-music_ch_b_instrument EQU #EA30   ; Channel B
-music_ch_c_instrument EQU #EA31   ; Channel C
-music_ch_ornament_base EQU #EA32   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #EA32   ; Channel A
-music_ch_b_ornament EQU #EA33   ; Channel B
-music_ch_c_ornament EQU #EA34   ; Channel C
-music_ch_volume_base EQU #EA35   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #EA35   ; Channel A
-music_ch_b_volume EQU #EA36   ; Channel B
-music_ch_c_volume EQU #EA37   ; Channel C
-music_ch_vol_step_base EQU #EA38   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #EA38   ; Channel A
-music_ch_b_vol_step EQU #EA39   ; Channel B
-music_ch_c_vol_step EQU #EA3A   ; Channel C
-music_ch_tone_step_base EQU #EA3B   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #EA3B   ; Channel A
-music_ch_b_tone_step EQU #EA3C   ; Channel B
-music_ch_c_tone_step EQU #EA3D   ; Channel C
-music_ch_noise_step_base EQU #EA3E   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #EA3E   ; Channel A
-music_ch_b_noise_step EQU #EA3F   ; Channel B
-music_ch_c_noise_step EQU #EA40   ; Channel C
-music_ch_orn_step_base EQU #EA41   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #EA41   ; Channel A
-music_ch_b_orn_step EQU #EA42   ; Channel B
-music_ch_c_orn_step EQU #EA43   ; Channel C
-music_ch_hw_env_step_base EQU #EA44   ; Software hardware-envelope divider step (3 bytes)
-music_ch_a_hw_env_step EQU #EA44   ; Channel A
-music_ch_b_hw_env_step EQU #EA45   ; Channel B
-music_ch_c_hw_env_step EQU #EA46   ; Channel C
+music_active         EQU #EA1D   ; 0=stopped, 1=track active
+music_muted          EQU #EA1E   ; 0=audible, 1=muted/pause
+music_loop           EQU #EA1F   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #EA20   ; Current ROM track index
+music_row_frames     EQU #EA21   ; Frames per tracker row
+music_row_countdown  EQU #EA22   ; Countdown to next row
+music_order_pos      EQU #EA23   ; Current order position
+music_pattern_index  EQU #EA24   ; Current pattern index
+music_pattern_row    EQU #EA25   ; Current row inside pattern
+music_pattern_rows   EQU #EA26   ; Cached rows in current pattern
+music_track_ptr_l    EQU #EA27   ; Current track pointer low byte
+music_track_ptr_h    EQU #EA28   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #EA29   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #EA2A   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #EA2B   ; PSG mixer shadow for music runtime
+music_pitch_note_work EQU #EA2C   ; Scratch note index while resolving tone/ornament macros
+music_pitch_step_work EQU #EA2D   ; Scratch macro step while resolving tone/ornament macros
+music_pitch_len_work  EQU #EA2E   ; Scratch macro length while resolving tone/ornament macros
+music_ch_note_base EQU #EA2F   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #EA2F   ; Channel A
+music_ch_b_note EQU #EA30   ; Channel B
+music_ch_c_note EQU #EA31   ; Channel C
+music_ch_instrument_base EQU #EA32   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #EA32   ; Channel A
+music_ch_b_instrument EQU #EA33   ; Channel B
+music_ch_c_instrument EQU #EA34   ; Channel C
+music_ch_ornament_base EQU #EA35   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #EA35   ; Channel A
+music_ch_b_ornament EQU #EA36   ; Channel B
+music_ch_c_ornament EQU #EA37   ; Channel C
+music_ch_volume_base EQU #EA38   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #EA38   ; Channel A
+music_ch_b_volume EQU #EA39   ; Channel B
+music_ch_c_volume EQU #EA3A   ; Channel C
+music_ch_vol_step_base EQU #EA3B   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #EA3B   ; Channel A
+music_ch_b_vol_step EQU #EA3C   ; Channel B
+music_ch_c_vol_step EQU #EA3D   ; Channel C
+music_ch_tone_step_base EQU #EA3E   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #EA3E   ; Channel A
+music_ch_b_tone_step EQU #EA3F   ; Channel B
+music_ch_c_tone_step EQU #EA40   ; Channel C
+music_ch_noise_step_base EQU #EA41   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #EA41   ; Channel A
+music_ch_b_noise_step EQU #EA42   ; Channel B
+music_ch_c_noise_step EQU #EA43   ; Channel C
+music_ch_orn_step_base EQU #EA44   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #EA44   ; Channel A
+music_ch_b_orn_step EQU #EA45   ; Channel B
+music_ch_c_orn_step EQU #EA46   ; Channel C
+music_ch_hw_env_step_base EQU #EA47   ; Software hardware-envelope divider step (3 bytes)
+music_ch_a_hw_env_step EQU #EA47   ; Channel A
+music_ch_b_hw_env_step EQU #EA48   ; Channel B
+music_ch_c_hw_env_step EQU #EA49   ; Channel C
+music_pt3_frame_active EQU #EA4A   ; Nonzero when at least one pt3-sample voice contributed this frame
+music_pt3_used_noise EQU #EA4B   ; Nonzero when a PT3 voice owns the global noise register this frame
+music_pt3_used_env EQU #EA4C   ; Nonzero when a PT3 voice owns the global hardware envelope this frame
+music_pt3_noise_add EQU #EA4D   ; Persistent PT3 AddToNs (cleared only by music init/restart)
+music_pt3_env_add_lo EQU #EA4E   ; Per-frame PT3 AddToEn low byte
+music_pt3_env_add_hi EQU #EA4F   ; Per-frame PT3 AddToEn high byte
+music_pt3_env_mode EQU #EA50   ; 1=corrected 16-bit reducer; 0=legacy 8-bit reducer
+music_pt3_r13_pending EQU #EA51   ; Nonzero when the envelope shape must be retriggered
+music_pt3_r13_value EQU #EA52   ; Pending PSG R13 envelope shape
+music_pt3_channel_work EQU #EA53   ; Scratch current channel index
+music_pt3_step_packed EQU #EA54   ; Scratch packed PT3 step volume/amplitude slide
+music_pt3_step_flags EQU #EA55   ; Scratch PT3 step flags
+music_pt3_step_global EQU #EA56   ; Scratch signed PT3 noise/envelope delta byte
+music_pt3_sample_len_work EQU #EA57   ; Scratch PT3 sample length
+music_pt3_sample_loop_work EQU #EA58   ; Scratch PT3 sample loop position
+music_pt3_sample_mode_work EQU #EA59   ; Scratch PT3 envelope slide mode
+music_pt3_period_lo_work EQU #EA5A   ; Scratch final tone period low byte
+music_pt3_period_hi_work EQU #EA5B   ; Scratch final tone period high byte
+music_pt3_tone_delta_lo_work EQU #EA5C   ; Scratch PT3 tone delta low byte
+music_pt3_tone_delta_hi_work EQU #EA5D   ; Scratch PT3 tone delta high byte
+music_pt3_instrument_ptr_l EQU #EA5E   ; Scratch instrument descriptor pointer low byte
+music_pt3_instrument_ptr_h EQU #EA5F   ; Scratch instrument descriptor pointer high byte
+music_pt3_step_ptr_l EQU #EA60   ; Scratch PT3 step table pointer low byte
+music_pt3_step_ptr_h EQU #EA61   ; Scratch PT3 step table pointer high byte
+music_pt3_amplitude_work EQU #EA62   ; Scratch final PT3 amplitude nibble
+music_pt3_sample_pos_base EQU #EA63   ; PT3 sample position (3 bytes)
+music_pt3_ch_a_sample_pos EQU #EA63   ; Channel A
+music_pt3_ch_b_sample_pos EQU #EA64   ; Channel B
+music_pt3_ch_c_sample_pos EQU #EA65   ; Channel C
+music_pt3_tone_acc_lo_base EQU #EA66   ; PT3 tone accumulator low byte (3 bytes)
+music_pt3_ch_a_tone_acc_lo EQU #EA66   ; Channel A
+music_pt3_ch_b_tone_acc_lo EQU #EA67   ; Channel B
+music_pt3_ch_c_tone_acc_lo EQU #EA68   ; Channel C
+music_pt3_tone_acc_hi_base EQU #EA69   ; PT3 tone accumulator high byte (3 bytes)
+music_pt3_ch_a_tone_acc_hi EQU #EA69   ; Channel A
+music_pt3_ch_b_tone_acc_hi EQU #EA6A   ; Channel B
+music_pt3_ch_c_tone_acc_hi EQU #EA6B   ; Channel C
+music_pt3_amp_slide_base EQU #EA6C   ; PT3 signed amplitude slide (3 bytes)
+music_pt3_ch_a_amp_slide EQU #EA6C   ; Channel A
+music_pt3_ch_b_amp_slide EQU #EA6D   ; Channel B
+music_pt3_ch_c_amp_slide EQU #EA6E   ; Channel C
+music_pt3_noise_acc_base EQU #EA6F   ; PT3 signed noise accumulator (3 bytes)
+music_pt3_ch_a_noise_acc EQU #EA6F   ; Channel A
+music_pt3_ch_b_noise_acc EQU #EA70   ; Channel B
+music_pt3_ch_c_noise_acc EQU #EA71   ; Channel C
+music_pt3_env_acc_lo_base EQU #EA72   ; PT3 envelope accumulator low byte (3 bytes)
+music_pt3_ch_a_env_acc_lo EQU #EA72   ; Channel A
+music_pt3_ch_b_env_acc_lo EQU #EA73   ; Channel B
+music_pt3_ch_c_env_acc_lo EQU #EA74   ; Channel C
+music_pt3_env_acc_hi_base EQU #EA75   ; PT3 envelope accumulator high byte (3 bytes)
+music_pt3_ch_a_env_acc_hi EQU #EA75   ; Channel A
+music_pt3_ch_b_env_acc_hi EQU #EA76   ; Channel B
+music_pt3_ch_c_env_acc_hi EQU #EA77   ; Channel C
 
 ; ==================================================================
 ; PT3 REPLAYER WORKSPACE (~448 bytes)
 ; Layout matches PT3-ROM-alltables-glass.asm expected labels
 ; ==================================================================
-PT3_SETUP       EQU #EA47   ; PT3 state flags (bit0=loop, bit7=song_ended)
-PT3_MODADDR     EQU #EA48   ; Module address pointer (2 bytes)
-PT3_CrPsPtr     EQU #EA4A   ; Current position pointer
-PT3_SAMPTRS     EQU #EA4C   ; Sample pointers base
-PT3_OrnPtrs     EQU #EA4E   ; Ornament pointers base
-PT3_PDSP        EQU #EA50   ; Pattern data start pointer
-PT3_CSP         EQU #EA52   ; Saved SP (CHREGS SP trick)
-PT3_PSP         EQU #EA54   ; PT3 stack pointer save
-PT3_PrNote      EQU #EA56   ; Previous note
-PT3_PrSlide     EQU #EA57   ; Previous slide (2 bytes)
-PT3_AdInPtA     EQU #EA59   ; Channel A inline pointer
-PT3_AdInPtB     EQU #EA5B   ; Channel B inline pointer
-PT3_AdInPtC     EQU #EA5D   ; Channel C inline pointer
-PT3_LPosPtr     EQU #EA5F   ; Loop position pointer
-PT3_PatsPtr     EQU #EA61   ; Patterns table pointer
-PT3_Delay       EQU #EA63   ; Song speed/delay
-PT3_AddToEn     EQU #EA64   ; Add to envelope
-PT3_Env_Del     EQU #EA65   ; Envelope delay
-PT3_ESldAdd     EQU #EA66   ; Envelope slide add (2 bytes)
-PT3_NTL3        EQU #EA68   ; Note table link 3
-VARS            EQU #EA6A   ; Channel vars base
-ChanA           EQU #EA6A   ; Channel A data (29 bytes)
-ChanB           EQU #EA87   ; Channel B data (29 bytes)
-ChanC           EQU #EAA4   ; Channel C data (29 bytes)
-DelyCnt         EQU #EAC1   ; Delay counter
-CurESld         EQU #EAC2   ; Current envelope slide (2 bytes)
-CurEDel         EQU #EAC4   ; Current envelope delay
-Ns_Base_AddToNs EQU #EAC5   ; Noise base + add to noise (combined)
-Ns_Base         EQU #EAC5   ; Noise base
-AddToNs         EQU #EAC6   ; Add to noise
-NT_             EQU #EAC7   ; Note table (192 bytes)
-AYREGS          EQU #EB87  ; AY registers mirror (14 bytes)
-VT_             EQU #EB87  ; Volume table base (alias for AYREGS)
-EnvBase         EQU #EB95  ; Envelope base
-VAR0END         EQU #EB97  ; End of fixed workspace
-T1_             EQU #EB97  ; Tone tables start (unpacked by PT3_INIT)
-T_NEW_1         EQU #EB97  ; Tone table new 1
-T_OLD_1         EQU #EB97  ; Tone table old 1
-T_OLD_2         EQU #EBAF  ; Tone table old 2
-T_NEW_3         EQU #EBC7  ; Tone table new 3
-T_OLD_3         EQU #EBC7  ; Tone table old 3
-T_OLD_0         EQU #EBC9  ; Tone table old 0
-T_NEW_0         EQU #EBC9  ; Tone table new 0
-T_NEW_2         EQU #EBE1  ; Tone table new 2 (last, ends at +0x1B2)
+PT3_SETUP       EQU #EA78   ; PT3 state flags (bit0=loop, bit7=song_ended)
+PT3_MODADDR     EQU #EA79   ; Module address pointer (2 bytes)
+PT3_CrPsPtr     EQU #EA7B   ; Current position pointer
+PT3_SAMPTRS     EQU #EA7D   ; Sample pointers base
+PT3_OrnPtrs     EQU #EA7F   ; Ornament pointers base
+PT3_PDSP        EQU #EA81   ; Pattern data start pointer
+PT3_CSP         EQU #EA83   ; Saved SP (CHREGS SP trick)
+PT3_PSP         EQU #EA85   ; PT3 stack pointer save
+PT3_PrNote      EQU #EA87   ; Previous note
+PT3_PrSlide     EQU #EA88   ; Previous slide (2 bytes)
+PT3_AdInPtA     EQU #EA8A   ; Channel A inline pointer
+PT3_AdInPtB     EQU #EA8C   ; Channel B inline pointer
+PT3_AdInPtC     EQU #EA8E   ; Channel C inline pointer
+PT3_LPosPtr     EQU #EA90   ; Loop position pointer
+PT3_PatsPtr     EQU #EA92   ; Patterns table pointer
+PT3_Delay       EQU #EA94   ; Song speed/delay
+PT3_AddToEn     EQU #EA95   ; Add to envelope
+PT3_Env_Del     EQU #EA96   ; Envelope delay
+PT3_ESldAdd     EQU #EA97   ; Envelope slide add (2 bytes)
+PT3_NTL3        EQU #EA99   ; Note table link 3
+VARS            EQU #EA9B   ; Channel vars base
+ChanA           EQU #EA9B   ; Channel A data (29 bytes)
+ChanB           EQU #EAB8   ; Channel B data (29 bytes)
+ChanC           EQU #EAD5   ; Channel C data (29 bytes)
+DelyCnt         EQU #EAF2   ; Delay counter
+CurESld         EQU #EAF3   ; Current envelope slide (2 bytes)
+CurEDel         EQU #EAF5   ; Current envelope delay
+Ns_Base_AddToNs EQU #EAF6   ; Noise base + add to noise (combined)
+Ns_Base         EQU #EAF6   ; Noise base
+AddToNs         EQU #EAF7   ; Add to noise
+NT_             EQU #EAF8   ; Note table (192 bytes)
+AYREGS          EQU #EBB8  ; AY registers mirror (14 bytes)
+VT_             EQU #EBB8  ; Volume table base (alias for AYREGS)
+EnvBase         EQU #EBC6  ; Envelope base
+VAR0END         EQU #EBC8  ; End of fixed workspace
+T1_             EQU #EBC8  ; Tone tables start (unpacked by PT3_INIT)
+T_NEW_1         EQU #EBC8  ; Tone table new 1
+T_OLD_1         EQU #EBC8  ; Tone table old 1
+T_OLD_2         EQU #EBE0  ; Tone table old 2
+T_NEW_3         EQU #EBF8  ; Tone table new 3
+T_OLD_3         EQU #EBF8  ; Tone table old 3
+T_OLD_0         EQU #EBFA  ; Tone table old 0
+T_NEW_0         EQU #EBFA  ; Tone table new 0
+T_NEW_2         EQU #EC12  ; Tone table new 2 (last, ends at +0x1B2)
     
 ; ==================================================================
 ; ZX0 TEMPORARY RAM BUFFERS
@@ -25269,14 +25303,14 @@ ZX0_SCRATCH_END         EQU #F2D0   ; First byte after shared ZX0 scratch area
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #EC87   ; End of project variables (11399 bytes used)
+RAM_USAGE_END       EQU #ECB8   ; End of project variables (11448 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#EC87: Project variables (11399 bytes)
-;   #EC87-#ED00: Alignment padding/free RAM (121 bytes)
+;   #C000-#ECB8: Project variables (11448 bytes)
+;   #ECB8-#ED00: Alignment padding/free RAM (72 bytes)
 ;   #ED00-#F2CF: Shared ZX0 scratch (1488 bytes, do not use for persistent vars)
 ;   #F2D0-#F37F: Free RAM after scratch (~176 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
@@ -25296,23 +25330,26 @@ RAM_USAGE_END       EQU #EC87   ; End of project variables (11399 bytes used)
 ; ROM mode: megarom (autoMegaROM=false)
 ; ==================================================================
 
-; Konami (without SCC) write window references:
-;   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.
-; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.
+; Konami SCC 8KB mapper write-window references:
+;   #6000-#7FFF <- #7000-#77FF
+;   #8000-#9FFF <- #9000-#97FF (bank low 6 bits #3F exposes SCC)
+;   #A000-#BFFF <- #B000-#B7FF.
+; Bank 0 remains fixed at #4000-#5FFF. These writes are also accepted
+; by the classic Konami4 mapper, preserving emulator compatibility.
 ; Mapper register writes are enabled for this build configuration.
 
 ; Mapper registers for active target format
-MAPPER_REG_P1       EQU #6000
-MAPPER_REG_P2       EQU #8000
-MAPPER_REG_P3       EQU #A000
-MAPPER_REG_P4       EQU #A000
+MAPPER_REG_P1       EQU #7000
+MAPPER_REG_P2       EQU #9000
+MAPPER_REG_P3       EQU #B000
+MAPPER_REG_P4       EQU #B000
 
 ; ------------------------------------------------------------------
 ; mapper_runtime_init
 ; Initializes mapper state variables with deterministic defaults.
 ; ------------------------------------------------------------------
 mapper_runtime_init:
-    ; Konami4 / Konami 8K without SCC:
+    ; Konami SCC 8KB mapper:
     ;   bank 0 is fixed at #4000-#5FFF.
     ;   p1/p2/p3 are the selectable #6000/#8000/#A000 windows.
     ld a, 1
@@ -27422,7 +27459,11 @@ init_interrupt_system:
     ld (interrupt_counter+1), a
     ld (vblank_flag), a
     ld (interrupt_in_progress), a
+    ld (player_hard_tick_lost), a
+    ld (player_hard_tick_lost+1), a
     ld (far_call_irq_lock_depth), a
+    ld a, 0
+    ld (player_hard_tick_enabled), a
 
     ; --- STEP 5: Mark system as enabled ---
     ld a, 1
@@ -27470,6 +27511,7 @@ stop_interrupt_system:
     ; Mark system as disabled
     xor a
     ld (interrupt_system_enabled), a
+    ld (player_hard_tick_enabled), a
 
     ei                          ; Re-enable interrupts
     ret
@@ -27527,15 +27569,18 @@ interrupt_dispatcher:
     or a
     jr z, .exit                 ; If disabled, exit quickly
 
-    ; --- STEP 3: Increment frame counter ---
+    ; --- STEP 3: Ack/latch VBlank flag (reads VDP status before gameplay tick) ---
+    call update_vblank_flag
+
+    ; --- STEP 4: Increment frame counter ---
     ld hl, (interrupt_counter)
     inc hl
     ld (interrupt_counter), hl
 
-    ; --- STEP 3.5: Update VBlank flag (reads VDP status) ---
-    call update_vblank_flag
+    ; --- STEP 5: Run the non-negotiable Player tick before soft tasks ---
+    call run_hard_player_tick
 
-    ; --- STEP 4: Walk through task table (DI ensures no nested interrupts) ---
+    ; --- STEP 6: Walk through task table (DI ensures no nested interrupts) ---
     di                          ; Disable interrupts for task execution
     ld hl, task_table           ; HL = pointer to task table
     ld b, 8                     ; 8 slots
@@ -27581,7 +27626,7 @@ interrupt_dispatcher:
     xor a
     ld (interrupt_in_progress), a
 
-    ; --- STEP 5: Restore registers ---
+    ; --- STEP 7: Restore registers ---
     pop iy                      ; 14 cycles
     pop ix                      ; 14 cycles
     pop de                      ; 10 cycles
@@ -27589,7 +27634,7 @@ interrupt_dispatcher:
     pop hl                      ; 10 cycles
     pop af                      ; 10 cycles
 
-    ; --- STEP 6: Return from interrupt ---
+    ; --- STEP 8: Return from interrupt ---
     ; For H.TIMI we should chain to the original hook (best compatibility)
     ; and let the BIOS interrupt handler manage EI/RETI.
     jp old_htimi_hook
@@ -27646,6 +27691,37 @@ update_vblank_flag:
     pop af
     ret
 ; @mideas:endblock id=runtime.interrupt.vblank_flag
+
+; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
+; ==================================================================
+; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
+; ==================================================================
+; @mideas:block id=runtime.interrupt.hard_player_tick kind=routine owner=interrupt roots=run_hard_player_tick
+; Register Contract:
+;   Purpose: Disabled hard Player VBlank hook stub.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;     - IX
+;     - IY
+;   Notes:
+;     - Generated when interruptConfig.enableHardPlayerTick is false or unsupported for the project runtime.
+;     - Keeps the dispatcher call target valid without requiring legacy Player runtime symbols.
+
+run_hard_player_tick:
+    ret
+; @mideas:endblock id=runtime.interrupt.hard_player_tick
+
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
@@ -28572,306 +28648,6 @@ update_entities_far:
 ; --- Far bank 11 [#6000, window P1] trampolines ---
 FAR_BANK_11 EQU 11
 
-load_world_default_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call load_world_default
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .load_world_default_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .load_world_default_far_irq_done
-    ei
-.load_world_default_far_irq_done:
-    pop af
-    ret
-
-check_world_screen_transition_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call check_world_screen_transition
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .check_world_screen_transition_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .check_world_screen_transition_far_irq_done
-    ei
-.check_world_screen_transition_far_irq_done:
-    pop af
-    ret
-
-load_world_worldmap_1770754170935_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call load_world_worldmap_1770754170935
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .load_world_worldmap_1770754170935_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .load_world_worldmap_1770754170935_far_irq_done
-    ei
-.load_world_worldmap_1770754170935_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_0_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_0
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_0_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_0_far_irq_done
-    ei
-.transition_worldmap_1770754170935_0_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_1_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_1
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_1_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_1_far_irq_done
-    ei
-.transition_worldmap_1770754170935_1_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_2_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_2
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_2_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_2_far_irq_done
-    ei
-.transition_worldmap_1770754170935_2_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_3_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_3
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_3_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_3_far_irq_done
-    ei
-.transition_worldmap_1770754170935_3_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_4_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_4
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_4_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_4_far_irq_done
-    ei
-.transition_worldmap_1770754170935_4_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_5_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_5
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_5_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_5_far_irq_done
-    ei
-.transition_worldmap_1770754170935_5_far_irq_done:
-    pop af
-    ret
-
-transition_worldmap_1770754170935_6_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call transition_worldmap_1770754170935_6
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .transition_worldmap_1770754170935_6_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .transition_worldmap_1770754170935_6_far_irq_done
-    ei
-.transition_worldmap_1770754170935_6_far_irq_done:
-    pop af
-    ret
-
-load_world_worldmap_1774194757416_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call load_world_worldmap_1774194757416
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .load_world_worldmap_1774194757416_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .load_world_worldmap_1774194757416_far_irq_done
-    ei
-.load_world_worldmap_1774194757416_far_irq_done:
-    pop af
-    ret
-
-; --- Far bank 12 [#6000, window P1] trampolines ---
-FAR_BANK_12 EQU 12
-
 init_sprites_far:
     push af
     di
@@ -28880,7 +28656,7 @@ init_sprites_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     call init_sprites
     pop af
@@ -28907,7 +28683,7 @@ update_sprites_to_vram_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     call update_sprites_to_vram
     pop af
@@ -28926,6 +28702,33 @@ update_sprites_to_vram_far:
     pop af
     ret
 
+upload_player_sprites_to_vram_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_11
+    call mapper_set_bank_p1
+    call upload_player_sprites_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .upload_player_sprites_to_vram_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .upload_player_sprites_to_vram_far_irq_done
+    ei
+.upload_player_sprites_to_vram_far_irq_done:
+    pop af
+    ret
+
 clear_all_sprites_far:
     push af
     di
@@ -28934,7 +28737,7 @@ clear_all_sprites_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     call clear_all_sprites
     pop af
@@ -28961,7 +28764,7 @@ hide_sprite_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call hide_sprite
@@ -28990,7 +28793,7 @@ load_sprite_patterns_by_pack_id_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call load_sprite_patterns_by_pack_id
@@ -29019,7 +28822,7 @@ ensure_sprite_patterns_by_pack_id_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call ensure_sprite_patterns_by_pack_id
@@ -29048,7 +28851,7 @@ ensure_sprite_patterns_for_world_id_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_12
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call ensure_sprite_patterns_for_world_id
@@ -29069,602 +28872,308 @@ ensure_sprite_patterns_for_world_id_far:
     ex af, af'
     ret
 
+; --- Far bank 12 [#6000, window P1] trampolines ---
+FAR_BANK_12 EQU 12
+
+load_world_default_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call load_world_default
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_world_default_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .load_world_default_far_irq_done
+    ei
+.load_world_default_far_irq_done:
+    pop af
+    ret
+
+check_world_screen_transition_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call check_world_screen_transition
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .check_world_screen_transition_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .check_world_screen_transition_far_irq_done
+    ei
+.check_world_screen_transition_far_irq_done:
+    pop af
+    ret
+
+load_world_worldmap_1770754170935_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call load_world_worldmap_1770754170935
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_world_worldmap_1770754170935_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .load_world_worldmap_1770754170935_far_irq_done
+    ei
+.load_world_worldmap_1770754170935_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_0_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_0
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_0_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_0_far_irq_done
+    ei
+.transition_worldmap_1770754170935_0_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_1_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_1
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_1_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_1_far_irq_done
+    ei
+.transition_worldmap_1770754170935_1_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_2_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_2
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_2_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_2_far_irq_done
+    ei
+.transition_worldmap_1770754170935_2_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_3_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_3
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_3_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_3_far_irq_done
+    ei
+.transition_worldmap_1770754170935_3_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_4_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_4
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_4_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_4_far_irq_done
+    ei
+.transition_worldmap_1770754170935_4_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_5_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_5
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_5_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_5_far_irq_done
+    ei
+.transition_worldmap_1770754170935_5_far_irq_done:
+    pop af
+    ret
+
+transition_worldmap_1770754170935_6_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call transition_worldmap_1770754170935_6
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .transition_worldmap_1770754170935_6_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .transition_worldmap_1770754170935_6_far_irq_done
+    ei
+.transition_worldmap_1770754170935_6_far_irq_done:
+    pop af
+    ret
+
+load_world_worldmap_1774194757416_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call load_world_worldmap_1774194757416
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_world_worldmap_1774194757416_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .load_world_worldmap_1774194757416_far_irq_done
+    ei
+.load_world_worldmap_1774194757416_far_irq_done:
+    pop af
+    ret
+
 ; --- Far bank 13 [#6000, window P1] trampolines ---
 FAR_BANK_13 EQU 13
-
-show_text_screen_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call show_text_screen
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .show_text_screen_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .show_text_screen_far_irq_done
-    ei
-.show_text_screen_far_irq_done:
-    pop af
-    ret
-
-wait_for_fire_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call wait_for_fire
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .wait_for_fire_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .wait_for_fire_far_irq_done
-    ei
-.wait_for_fire_far_irq_done:
-    pop af
-    ret
-
-print_string_vram_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call print_string_vram
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .print_string_vram_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .print_string_vram_far_irq_done
-    ei
-.print_string_vram_far_irq_done:
-    pop af
-    ret
-
-clear_screen_row_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call clear_screen_row
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .clear_screen_row_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .clear_screen_row_far_irq_done
-    ei
-.clear_screen_row_far_irq_done:
-    ex af, af'
-    ret
-
-trans_clear_column_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_clear_column
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_clear_column_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_clear_column_far_irq_done
-    ei
-.trans_clear_column_far_irq_done:
-    ex af, af'
-    ret
-
-trans_clear_column_range_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_clear_column_range
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_clear_column_range_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_clear_column_range_far_irq_done
-    ei
-.trans_clear_column_range_far_irq_done:
-    ex af, af'
-    ret
-
-trans_reveal_column_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_reveal_column
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_reveal_column_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_reveal_column_far_irq_done
-    ei
-.trans_reveal_column_far_irq_done:
-    ex af, af'
-    ret
-
-trans_reveal_column_range_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_reveal_column_range
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_reveal_column_range_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_reveal_column_range_far_irq_done
-    ei
-.trans_reveal_column_range_far_irq_done:
-    ex af, af'
-    ret
-
-trans_clear_row_direct_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_clear_row_direct
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_clear_row_direct_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_clear_row_direct_far_irq_done
-    ei
-.trans_clear_row_direct_far_irq_done:
-    ex af, af'
-    ret
-
-trans_clear_row_range_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_clear_row_range
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_clear_row_range_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_clear_row_range_far_irq_done
-    ei
-.trans_clear_row_range_far_irq_done:
-    ex af, af'
-    ret
-
-trans_reveal_row_direct_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_reveal_row_direct
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_reveal_row_direct_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_reveal_row_direct_far_irq_done
-    ei
-.trans_reveal_row_direct_far_irq_done:
-    ex af, af'
-    ret
-
-trans_reveal_row_range_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_reveal_row_range
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_reveal_row_range_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_reveal_row_range_far_irq_done
-    ei
-.trans_reveal_row_range_far_irq_done:
-    ex af, af'
-    ret
-
-trans_fast_filvrm_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call trans_fast_filvrm
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .trans_fast_filvrm_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .trans_fast_filvrm_far_irq_done
-    ei
-.trans_fast_filvrm_far_irq_done:
-    ex af, af'
-    ret
-
-gameflow_get_default_connection_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call gameflow_get_default_connection
-    pop af
-    call mapper_set_bank_p1
-    push hl
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .gameflow_get_default_connection_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .gameflow_get_default_connection_far_irq_done
-    ei
-.gameflow_get_default_connection_far_irq_done:
-    pop hl
-    pop af
-    ret
-
-gameflow_read_confirm_direct_far:
-    ex af, af'
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    ex af, af'
-    call gameflow_read_confirm_direct
-    ex af, af'
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .gameflow_read_confirm_direct_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .gameflow_read_confirm_direct_far_irq_done
-    ei
-.gameflow_read_confirm_direct_far_irq_done:
-    ex af, af'
-    ret
-
-get_world_screen_timer_frames_per_second_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call get_world_screen_timer_frames_per_second
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .get_world_screen_timer_frames_per_second_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .get_world_screen_timer_frames_per_second_far_irq_done
-    ei
-.get_world_screen_timer_frames_per_second_far_irq_done:
-    pop af
-    ret
-
-reload_world_screen_timer_frames_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call reload_world_screen_timer_frames
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .reload_world_screen_timer_frames_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .reload_world_screen_timer_frames_far_irq_done
-    ei
-.reload_world_screen_timer_frames_far_irq_done:
-    pop af
-    ret
-
-snapshot_world_screen_timer_interrupt_counter_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call snapshot_world_screen_timer_interrupt_counter
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .snapshot_world_screen_timer_interrupt_counter_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .snapshot_world_screen_timer_interrupt_counter_far_irq_done
-    ei
-.snapshot_world_screen_timer_interrupt_counter_far_irq_done:
-    pop af
-    ret
-
-reset_world_screen_timer_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call reset_world_screen_timer
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .reset_world_screen_timer_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .reset_world_screen_timer_far_irq_done
-    ei
-.reset_world_screen_timer_far_irq_done:
-    pop af
-    ret
-
-update_world_screen_timer_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call update_world_screen_timer
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .update_world_screen_timer_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .update_world_screen_timer_far_irq_done
-    ei
-.update_world_screen_timer_far_irq_done:
-    pop af
-    ret
-
-execute_transition_reveal_target_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_13
-    call mapper_set_bank_p1
-    call execute_transition_reveal_target
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .execute_transition_reveal_target_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .execute_transition_reveal_target_far_irq_done
-    ei
-.execute_transition_reveal_target_far_irq_done:
-    pop af
-    ret
-
-; --- Far bank 14 [#6000, window P1] trampolines ---
-FAR_BANK_14 EQU 14
 
 ; @mideas:block id=runtime.far_trampoline.init_sound_system_far kind=trampoline owner=far-call preserve=true
 init_sound_system_far:
@@ -29675,7 +29184,7 @@ init_sound_system_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     call init_sound_system
     pop af
@@ -29704,7 +29213,7 @@ task_audio_tick_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     call task_audio_tick
     pop af
@@ -29733,7 +29242,7 @@ sfx_update_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     call sfx_update
     pop af
@@ -29762,7 +29271,7 @@ music_update_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     call music_update
     pop af
@@ -29791,7 +29300,7 @@ music_stop_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     call music_stop
     pop af
@@ -29820,7 +29329,7 @@ music_play_track_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     ex af, af'
     call music_play_track
@@ -29851,7 +29360,7 @@ music_execute_command_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_14
+    ld a, FAR_BANK_13
     call mapper_set_bank_p1
     call music_execute_command
     pop af
@@ -29870,6 +29379,573 @@ music_execute_command_far:
     pop af
     ret
 ; @mideas:endblock id=runtime.far_trampoline.music_execute_command_far
+
+; --- Far bank 14 [#6000, window P1] trampolines ---
+FAR_BANK_14 EQU 14
+
+show_text_screen_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call show_text_screen
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .show_text_screen_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .show_text_screen_far_irq_done
+    ei
+.show_text_screen_far_irq_done:
+    pop af
+    ret
+
+print_string_vram_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call print_string_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .print_string_vram_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .print_string_vram_far_irq_done
+    ei
+.print_string_vram_far_irq_done:
+    pop af
+    ret
+
+clear_screen_row_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call clear_screen_row
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .clear_screen_row_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .clear_screen_row_far_irq_done
+    ei
+.clear_screen_row_far_irq_done:
+    ex af, af'
+    ret
+
+trans_clear_column_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_clear_column
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_clear_column_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_clear_column_far_irq_done
+    ei
+.trans_clear_column_far_irq_done:
+    ex af, af'
+    ret
+
+trans_clear_column_range_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_clear_column_range
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_clear_column_range_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_clear_column_range_far_irq_done
+    ei
+.trans_clear_column_range_far_irq_done:
+    ex af, af'
+    ret
+
+trans_reveal_column_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_reveal_column
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_reveal_column_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_reveal_column_far_irq_done
+    ei
+.trans_reveal_column_far_irq_done:
+    ex af, af'
+    ret
+
+trans_reveal_column_range_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_reveal_column_range
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_reveal_column_range_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_reveal_column_range_far_irq_done
+    ei
+.trans_reveal_column_range_far_irq_done:
+    ex af, af'
+    ret
+
+trans_clear_row_direct_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_clear_row_direct
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_clear_row_direct_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_clear_row_direct_far_irq_done
+    ei
+.trans_clear_row_direct_far_irq_done:
+    ex af, af'
+    ret
+
+trans_clear_row_range_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_clear_row_range
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_clear_row_range_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_clear_row_range_far_irq_done
+    ei
+.trans_clear_row_range_far_irq_done:
+    ex af, af'
+    ret
+
+trans_reveal_row_direct_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_reveal_row_direct
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_reveal_row_direct_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_reveal_row_direct_far_irq_done
+    ei
+.trans_reveal_row_direct_far_irq_done:
+    ex af, af'
+    ret
+
+trans_reveal_row_range_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_reveal_row_range
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_reveal_row_range_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_reveal_row_range_far_irq_done
+    ei
+.trans_reveal_row_range_far_irq_done:
+    ex af, af'
+    ret
+
+trans_fast_filvrm_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call trans_fast_filvrm
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .trans_fast_filvrm_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .trans_fast_filvrm_far_irq_done
+    ei
+.trans_fast_filvrm_far_irq_done:
+    ex af, af'
+    ret
+
+gameflow_get_default_connection_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call gameflow_get_default_connection
+    pop af
+    call mapper_set_bank_p1
+    push hl
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .gameflow_get_default_connection_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .gameflow_get_default_connection_far_irq_done
+    ei
+.gameflow_get_default_connection_far_irq_done:
+    pop hl
+    pop af
+    ret
+
+gameflow_read_confirm_direct_far:
+    ex af, af'
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    ex af, af'
+    call gameflow_read_confirm_direct
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .gameflow_read_confirm_direct_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .gameflow_read_confirm_direct_far_irq_done
+    ei
+.gameflow_read_confirm_direct_far_irq_done:
+    ex af, af'
+    ret
+
+get_world_screen_timer_frames_per_second_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call get_world_screen_timer_frames_per_second
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .get_world_screen_timer_frames_per_second_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .get_world_screen_timer_frames_per_second_far_irq_done
+    ei
+.get_world_screen_timer_frames_per_second_far_irq_done:
+    pop af
+    ret
+
+reload_world_screen_timer_frames_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call reload_world_screen_timer_frames
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .reload_world_screen_timer_frames_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .reload_world_screen_timer_frames_far_irq_done
+    ei
+.reload_world_screen_timer_frames_far_irq_done:
+    pop af
+    ret
+
+snapshot_world_screen_timer_interrupt_counter_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call snapshot_world_screen_timer_interrupt_counter
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .snapshot_world_screen_timer_interrupt_counter_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .snapshot_world_screen_timer_interrupt_counter_far_irq_done
+    ei
+.snapshot_world_screen_timer_interrupt_counter_far_irq_done:
+    pop af
+    ret
+
+reset_world_screen_timer_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call reset_world_screen_timer
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .reset_world_screen_timer_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .reset_world_screen_timer_far_irq_done
+    ei
+.reset_world_screen_timer_far_irq_done:
+    pop af
+    ret
+
+update_world_screen_timer_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call update_world_screen_timer
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_world_screen_timer_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .update_world_screen_timer_far_irq_done
+    ei
+.update_world_screen_timer_far_irq_done:
+    pop af
+    ret
+
+execute_transition_reveal_target_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call execute_transition_reveal_target
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .execute_transition_reveal_target_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .execute_transition_reveal_target_far_irq_done
+    ei
+.execute_transition_reveal_target_far_irq_done:
+    pop af
+    ret
 
 ; --- Far bank 15 [#6000, window P1] trampolines ---
 FAR_BANK_15 EQU 15
@@ -30549,96 +30625,6 @@ FAR_BANK_23 EQU 23
 ; --- Far bank 24 [#6000, window P1] trampolines ---
 FAR_BANK_24 EQU 24
 
-; @mideas:block id=runtime.far_trampoline.init_boss_system_far kind=trampoline owner=far-call preserve=true
-init_boss_system_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_24
-    call mapper_set_bank_p1
-    call init_boss_system
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .init_boss_system_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .init_boss_system_far_irq_done
-    ei
-.init_boss_system_far_irq_done:
-    pop af
-    ret
-; @mideas:endblock id=runtime.far_trampoline.init_boss_system_far
-
-; @mideas:block id=runtime.far_trampoline.init_screen_boss_from_current_screen_far kind=trampoline owner=far-call preserve=true
-init_screen_boss_from_current_screen_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_24
-    call mapper_set_bank_p1
-    call init_screen_boss_from_current_screen
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .init_screen_boss_from_current_screen_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .init_screen_boss_from_current_screen_far_irq_done
-    ei
-.init_screen_boss_from_current_screen_far_irq_done:
-    pop af
-    ret
-; @mideas:endblock id=runtime.far_trampoline.init_screen_boss_from_current_screen_far
-
-; @mideas:block id=runtime.far_trampoline.update_boss_system_far kind=trampoline owner=far-call preserve=true
-update_boss_system_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_24
-    call mapper_set_bank_p1
-    call update_boss_system
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .update_boss_system_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .update_boss_system_far_irq_done
-    ei
-.update_boss_system_far_irq_done:
-    pop af
-    ret
-; @mideas:endblock id=runtime.far_trampoline.update_boss_system_far
-
-; --- Far bank 25 [#6000, window P1] trampolines ---
-FAR_BANK_25 EQU 25
-
 init_auto_control_script_system_far:
     push af
     di
@@ -30647,7 +30633,7 @@ init_auto_control_script_system_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_25
+    ld a, FAR_BANK_24
     call mapper_set_bank_p1
     call init_auto_control_script_system
     pop af
@@ -30674,7 +30660,7 @@ update_auto_control_script_component_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_25
+    ld a, FAR_BANK_24
     call mapper_set_bank_p1
     call update_auto_control_script_component
     pop af
@@ -30701,7 +30687,7 @@ update_auto_event_string_component_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_25
+    ld a, FAR_BANK_24
     call mapper_set_bank_p1
     call update_auto_event_string_component
     pop af
@@ -30866,6 +30852,51 @@ call_update_sprites_to_vram_resident:
     call FAST_LDIRVM
     ret
 
+call_upload_player_sprites_to_vram_resident:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld c, (hl)
+    ld b, 0
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    push hl
+    ld de, sprite_attributes
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, SPRATR
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, c
+    or a
+    ret z
+    add a, a
+    add a, a
+    ld c, a
+    ld b, 0
+    call FAST_LDIRVM
+    ret
+
 call_clear_all_sprites_resident:
     ld hl, sprite_attributes
     ld b, 32
@@ -30904,65 +30935,7 @@ call_update_animated_tiles_resident:
 call_update_animated_tiles_vram_resident:
     jp update_animated_tiles_vram_far
 
-; @mideas:block id=runtime.boss.resident.init kind=routine owner=bosses preserve=true roots=call_init_boss_system_resident
-call_init_boss_system_resident:
-    jp init_boss_system_far
-; @mideas:endblock id=runtime.boss.resident.init
 
-; @mideas:block id=runtime.boss.resident.init_screen kind=routine owner=bosses preserve=true roots=call_init_screen_boss_from_current_screen_resident
-call_init_screen_boss_from_current_screen_resident:
-    jp init_screen_boss_from_current_screen_far
-; @mideas:endblock id=runtime.boss.resident.init_screen
-
-; @mideas:block id=runtime.boss.resident.update kind=routine owner=bosses preserve=true roots=call_update_boss_system_resident
-call_update_boss_system_resident:
-    jp update_boss_system_far
-; @mideas:endblock id=runtime.boss.resident.update
-
-; @mideas:block id=runtime.boss.resident.update_projectile kind=routine owner=bosses preserve=true roots=call_update_boss_projectile_runtime_resident
-call_update_boss_projectile_runtime_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.update_projectile
-
-; @mideas:block id=runtime.boss.resident.draw_attack kind=routine owner=bosses preserve=true roots=call_draw_boss_attack_resident
-call_draw_boss_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_attack
-
-; @mideas:block id=runtime.boss.resident.draw_meteor kind=routine owner=bosses preserve=true roots=call_draw_boss_meteor_attack_resident
-call_draw_boss_meteor_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_meteor
-
-; @mideas:block id=runtime.boss.resident.draw_bomb kind=routine owner=bosses preserve=true roots=call_draw_boss_bomb_attack_resident
-call_draw_boss_bomb_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_bomb
-
-; @mideas:block id=runtime.boss.resident.draw_boomerang kind=routine owner=bosses preserve=true roots=call_draw_boss_boomerang_attack_resident
-call_draw_boss_boomerang_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_boomerang
-
-; @mideas:block id=runtime.boss.resident.draw_rock kind=routine owner=bosses preserve=true roots=call_draw_boss_rock_attack_resident
-call_draw_boss_rock_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_rock
-
-; @mideas:block id=runtime.boss.resident.draw_laser kind=routine owner=bosses preserve=true roots=call_draw_boss_laser_attack_resident
-call_draw_boss_laser_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_laser
-
-; @mideas:block id=runtime.boss.resident.draw_sine_wave kind=routine owner=bosses preserve=true roots=call_draw_boss_sine_wave_attack_resident
-call_draw_boss_sine_wave_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_sine_wave
-
-; @mideas:block id=runtime.boss.resident.draw_homing_missile kind=routine owner=bosses preserve=true roots=call_draw_boss_homing_missile_attack_resident
-call_draw_boss_homing_missile_attack_resident:
-    jp resident_noop
-; @mideas:endblock id=runtime.boss.resident.draw_homing_missile
 
 call_load_colors_to_vram_resident:
     jp load_colors_to_vram_far
@@ -31006,6 +30979,10 @@ call_force_update_entity_sprite_resident:
     call force_update_entity_sprite
     call mapper_pop_p1
     ret
+
+
+call_update_player_realtime_pipeline_resident:
+    jp update_player_realtime_pipeline
 
 
 call_rebuild_used_entity_list_resident:
@@ -31464,7 +31441,7 @@ position_next_entity:
     jp nz, position_update_loop
     ret
 ; @mideas:endblock id=runtime.components.position
-; @mideas:block id=runtime.components.sprite kind=routine owner=components preserve=false roots=component-sprite
+; @mideas:block id=runtime.components.sprite kind=routine owner=components preserve=false roots=component-sprite,refresh_player_sprite_fastpath,update_player_realtime_pipeline,force_update_entity_sprite
 
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
@@ -31662,6 +31639,27 @@ refresh_player_sprite_fastpath:
     and COMP_MASK_SPRITE
     ret z
     call call_force_update_entity_sprite_resident
+    ret
+
+; ==================================================================
+; PLAYER REALTIME PIPELINE
+; Runs only the hero-critical systems. This is callable from the optional
+; VBlank hard tick, so keep it bounded and keep long/background jobs out.
+; ==================================================================
+update_player_realtime_pipeline:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    call update_player_fastpath
+    call refresh_player_deadly_fastpath
+    call refresh_player_tile_interaction_fastpath
+    call refresh_player_state_machine_fastpath
+    call refresh_player_wallgrab_fastpath
+    call refresh_player_animation_fastpath
+    call refresh_player_sprite_fastpath
     ret
 
 ; ==================================================================
@@ -36534,6 +36532,15 @@ entity_job_should_run_c:
 
             ld e, c
             ld d, 0
+
+            ; HARD_PLAYER invariant: entity job cadence never gates the Player.
+            ; Soft scheduling can degrade enemies/NPCs, but the hero must remain
+            ; visible to the active buckets every VBlank-derived frame.
+            ld hl, entity_is_player
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, entity_job_run_active
 
             ld hl, entity_job_period
             add hl, de
@@ -41796,7 +41803,7 @@ gameflow_handle_text:
     call show_text_screen_far
 
     ; Wait for fire button
-    call wait_for_fire_far
+    call wait_for_fire
 
     ; Continue to next node
     pop bc
@@ -41806,8 +41813,49 @@ gameflow_handle_text:
     ret z
     jp gameflow_execute_node
 
-; [Text screen renderer/wait loop moved to gameflow_aux far module]
+; [Text screen renderer moved to gameflow_aux far module]
 
+; ------------------------------------------------------------------
+; wait_for_fire
+; Wait for confirm key press and release outside gameplay loops
+; ------------------------------------------------------------------
+wait_for_fire:
+    push bc
+
+    ; Wait for fire button press
+.wait_press:
+    ei
+    halt
+    call call_task_audio_tick_resident
+
+    call gameflow_read_confirm_direct_far
+    or a
+    jr z, .wait_press
+
+    ; Wait for fire button release
+.wait_release:
+    ei
+    halt
+    call call_task_audio_tick_resident
+
+    call gameflow_read_confirm_direct_far
+    or a
+    jr nz, .wait_release
+
+    ; Small delay after release
+    ld b, 5
+.delay_loop:
+    ei
+    halt
+    push bc
+    call call_task_audio_tick_resident
+    pop bc
+    djnz .delay_loop
+
+    pop bc
+    ret
+
+; @mideas:endblock id=runtime.gameflow.text_screen
 gameflow_handle_submenu:
     ; SubMenu node - interactive navigation
     ; DE points to SubMenu data:
@@ -42020,6 +42068,7 @@ gameflow_handle_presentationscreen:
 ; Preserves: BC, DE, HL, IX, IY
 gameflow_presentation_wait_for_fire:
 .gfpwff_wait_press:
+    ei
     halt
     push bc
     push de
@@ -42032,6 +42081,7 @@ gameflow_presentation_wait_for_fire:
     or a
     jr z, .gfpwff_wait_press
 .gfpwff_wait_release:
+    ei
     halt
     push bc
     push de
@@ -43675,6 +43725,9 @@ gameflow_world_game_loop:
     call call_task_audio_tick_resident
     ; Poll input immediately after V-Blank edge so the hero uses
     ; the freshest input state in the same visible frame.
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_pre_update
     call task_update_input
     ld a, (current_screen_engine)
     or a
@@ -43695,6 +43748,9 @@ gameflow_world_game_loop:
     ld a, (current_screen_engine)
     or a
     jp nz, .skip_player_fastpath_before_sm
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_before_sm
 
     ; Refresh player deadly-tile state before state machines consume it.
     call refresh_player_deadly_fastpath
@@ -43710,6 +43766,9 @@ gameflow_world_game_loop:
     call call_execute_all_state_machines_resident
 
     ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_post_update
+    ld a, (player_hard_tick_enabled)
     or a
     jp nz, .skip_player_fastpath_post_update
 
@@ -48080,7 +48139,7 @@ init_hero_1:
     ; Set input speed for Cursors component (if entity has Input component)
     ld hl, entity_input_speed
     add hl, de
-    ld (hl), 1            ; Cursor speed (px/frame)
+    ld (hl), 2            ; Cursor speed (px/frame)
 
     ; Set Jump component configuration
     ld hl, entity_jump_max
@@ -49643,7 +49702,7 @@ BANK_10_USED_END:
     org FAR_BANK_10_ROM_START + #2000
 
 ; ##################################################################
-; FAR BANK 11 — [#6000h-#8000h] FAR CODE: worlds
+; FAR BANK 11 — [#6000h-#8000h] FAR CODE: sprites
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
 ; At runtime: bank0 saves P1, maps bank11 to P1,
 ; calls routine, then restores P1.
@@ -49655,1173 +49714,12 @@ FAR_BANK_11_ROM_START:
     org #6000
 
 ; ==================================================================
-; WORLD MAPS
-; File: worlds.asm
-; Description: World map structures and screen loading functions
-; Generated by Mideas MSX Generator
-; ==================================================================
-
-; ==================================================================
-; WORLD MAP CONSTANTS
-; ==================================================================
-
-; World: world1 (worldmap_1770754170935)
-WORLD_WORLD1_ID EQU 0
-WORLD_WORLD1_SCREEN_COUNT EQU 6
-WORLD_WORLD1_SCREEN_NEW_SCREENMAP_ID EQU 0
-WORLD_WORLD1_SCREEN_PAN2_ID EQU 1
-WORLD_WORLD1_SCREEN_PAN3_ID EQU 2
-WORLD_WORLD1_SCREEN_PAN4_ID EQU 3
-WORLD_WORLD1_SCREEN_PAN5_ID EQU 4
-WORLD_WORLD1_SCREEN_PAN6_ID EQU 5
-
-; World: world2 (worldmap_1774194757416)
-WORLD_WORLD2_ID EQU 1
-WORLD_WORLD2_SCREEN_COUNT EQU 1
-WORLD_WORLD2_SCREEN_PAN1_2_ID EQU 0
-
-; ==================================================================
-; WORLD MUSIC POLICY
-; preserve (#FE): do not touch current music when Game Flow can reach the
-; world with multiple different music states.
-; stop     (#FF): stop music on world enter.
-; play     (0-254): ensure this track index is active on world enter.
-; ==================================================================
-
-world_music_policy_track_table:
-    db 0    ; WORLD_WORLD1_ID -> track 0
-    db #FE    ; WORLD_WORLD2_ID -> preserve
-
-world_music_policy_loop_table:
-    db 1    ; WORLD_WORLD1_ID loop
-    db 0    ; WORLD_WORLD2_ID loop
-
-; ------------------------------------------------------------------
-; ensure_music_for_world_id
-; Input:  A = WORLD_*_ID
-; Output: Starts/stops music only when the world policy is unambiguous.
-;         #FE preserve entries leave current music untouched.
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-ensure_music_for_world_id:
-    ld e, a
-    ld d, 0
-    ld hl, world_music_policy_track_table
-    add hl, de
-    ld a, (hl)
-    cp #FE
-    ret z
-    cp #FF
-    jr nz, ensure_music_for_world_id_play_or_keep
-    ld a, (music_active)
-    or a
-    ret z
-    jp call_music_stop_resident
-ensure_music_for_world_id_play_or_keep:
-    ld c, a
-    ld hl, world_music_policy_loop_table
-    add hl, de
-    ld b, (hl)
-    ld a, (music_active)
-    or a
-    jr z, ensure_music_for_world_id_play_track
-    ld a, (music_track_index)
-    cp c
-    jr nz, ensure_music_for_world_id_play_track
-    ld a, (music_loop)
-    and 1
-    cp b
-    ret z
-ensure_music_for_world_id_play_track:
-    ld a, c
-    jp call_music_play_track_resident
-
-; ==================================================================
-; WORLD LOADING FUNCTIONS
-; ==================================================================
-
-; ------------------------------------------------------------------
-; world_reset_screen_timer
-; Local copy used while executing inside the worlds far bank. The
-; GameFlow timer routine lives in the primary P3 bank, which is hidden
-; while this bank is mapped.
-; ------------------------------------------------------------------
-world_reset_screen_timer:
-    push af
-    ld a, (current_screen_engine)
-    or a
-    jr nz, world_local_timer_reset_done
-    ld a, 60
-    ld (global_var_time_remaining), a
-    xor a
-    ld (global_var_time_remaining+1), a
-    ld a, (isComputer50HzOr60Hz)
-    or a
-    ld a, 50
-    jr z, world_local_timer_frames_ready
-    ld a, 60
-world_local_timer_frames_ready:
-    ld (time_second_frame_counter), a
-    ld a, (interrupt_counter)
-    ld (time_last_interrupt_counter), a
-    ld a, (interrupt_counter+1)
-    ld (time_last_interrupt_counter+1), a
-    ld a, 1
-    ld (hud_dirty_flag), a
-world_local_timer_reset_done:
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; Load World: world1
-; World ID: worldmap_1770754170935
-; Screens: 6
-; Start Screen Node: wmnode_1770754173003
-; ------------------------------------------------------------------
-; @mideas:block id=runtime.worlds.worldmap_1770754170935.loader kind=routine owner=worlds roots=load_world_worldmap_1770754170935
-load_world_worldmap_1770754170935:
-    ; Ensure default music policy for this world when unambiguous
-    ld a, WORLD_WORLD1_ID
-    call ensure_music_for_world_id
-    ; Load runtime sprite patterns for this world
-    ld a, WORLD_WORLD1_ID
-    call call_ensure_sprite_patterns_for_world_id_resident
-    ; Load start screen: New Screenmap (screenmap_1770754008863)
-    call load_screen_pan1_770754008863_far
-
-    ; Keep current_screen_engine from the screen loader so dialog/cutscene
-    ; WorldLinks run the FakePlayer path instead of the Player runtime.
-    ; Draw imported HUD frame once at world start
-    call hud_imported_frame_pan1_770754008863_draw_far
-
-    ; Draw HUD frame once at world start
-    call imprimir_marco_far
-
-    ; Initialize world state
-    ld a, WORLD_WORLD1_ID
-    ld (current_world_id), a
-
-    ld a, 0
-    ld (current_screen_index), a
-    ld a, 0
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-
-    xor a
-    ld (screen_transition_cooldown), a
-
-    call world_reset_screen_timer
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets before gameplay resumes
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for this screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-; @mideas:endblock id=runtime.worlds.worldmap_1770754170935.loader
-
-; ------------------------------------------------------------------
-; Load World: world2
-; World ID: worldmap_1774194757416
-; Screens: 1
-; Start Screen Node: wmnode_1774195517265
-; ------------------------------------------------------------------
-; @mideas:block id=runtime.worlds.worldmap_1774194757416.loader kind=routine owner=worlds roots=load_world_worldmap_1774194757416
-load_world_worldmap_1774194757416:
-    ; Ensure default music policy for this world when unambiguous
-    ld a, WORLD_WORLD2_ID
-    call ensure_music_for_world_id
-    ; Load runtime sprite patterns for this world
-    ld a, WORLD_WORLD2_ID
-    call call_ensure_sprite_patterns_for_world_id_resident
-    ; Load start screen: pan1_2 (screenmap_1774194791624)
-    call load_screen_pan1_2_774194791624_far
-
-    ; Keep current_screen_engine from the screen loader so dialog/cutscene
-    ; WorldLinks run the FakePlayer path instead of the Player runtime.
-    ; Draw imported HUD frame once at world start
-    call hud_imported_frame_pan1_2_774194791624_draw_far
-
-    ; Draw HUD frame once at world start
-    call imprimir_marco_far
-
-    ; Initialize world state
-    ld a, WORLD_WORLD2_ID
-    ld (current_world_id), a
-
-    ld a, 0
-    ld (current_screen_index), a
-    ld a, 6
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-
-    xor a
-    ld (screen_transition_cooldown), a
-
-    call world_reset_screen_timer
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets before gameplay resumes
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for this screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-; @mideas:endblock id=runtime.worlds.worldmap_1774194757416.loader
-
-; ==================================================================
-; SCREEN TRANSITION FUNCTIONS
-; ==================================================================
-
-; ------------------------------------------------------------------
-; World: world1
-; Connections: 7
-; ------------------------------------------------------------------
-
-; Transition: pan2 -> New Screenmap
-transition_worldmap_1770754170935_0:
-    call load_screen_pan1_770754008863_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 0
-    ld (current_screen_index), a
-    ld a, 0
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; Transition: pan3 -> pan2
-transition_worldmap_1770754170935_1:
-    call load_screen_pan2_771184738851_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 1
-    ld (current_screen_index), a
-    ld a, 1
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; Transition: pan4 -> pan3
-transition_worldmap_1770754170935_2:
-    call load_screen_pan3_771880109228_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 2
-    ld (current_screen_index), a
-    ld a, 2
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; Transition: pan5 -> pan4
-transition_worldmap_1770754170935_3:
-    call load_screen_pan4_772291683578_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 3
-    ld (current_screen_index), a
-    ld a, 3
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; Transition: pan5 -> pan2
-transition_worldmap_1770754170935_4:
-    call load_screen_pan2_771184738851_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 1
-    ld (current_screen_index), a
-    ld a, 1
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; Transition: pan6 -> pan5
-transition_worldmap_1770754170935_5:
-    call load_screen_pan5_773321312901_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 4
-    ld (current_screen_index), a
-    ld a, 4
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; Transition: pan6 -> New Screenmap
-transition_worldmap_1770754170935_6:
-    call load_screen_pan1_770754008863_far
-
-    ; Keep current_screen_engine from the target screen loader.
-    ld a, 0
-    ld (current_screen_index), a
-    ld a, 0
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call world_reset_screen_timer
-    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-; World world2 has no screen connections
-
-; ------------------------------------------------------------------
-; load_world_default: alias for the first world (required by megarom trampolines)
-; ------------------------------------------------------------------
-load_world_default:
-    jp load_world_worldmap_1770754170935
-
-; ==================================================================
-; SCREEN EDGE TRANSITION RUNTIME
-; ==================================================================
-; Checks controllable entity exits and transitions world screen.
-; Prevents X/Y byte wrap from keeping player in same screen.
-; ==================================================================
-
-check_world_screen_transition:
-    ; Debounce to prevent immediate re-trigger after crossing
-    ld a, (screen_transition_cooldown)
-    or a
-    jr z, .find_player_start
-    dec a
-    ld (screen_transition_cooldown), a
-    ret
-
-    ; Find first controllable entity from active list (already filtered by screen)
-    ; This avoids scanning all 32 entity slots every frame.
-.find_player_start:
-    ld a, (active_entity_count)
-    or a
-    ret z
-    ld b, a
-    ld hl, active_entity_list
-.find_player_loop:
-    ; E = entity index from compact active list
-    ld e, (hl)
-    inc hl
-    ld d, 0
-
-    ; Check Input component mask
-    push hl
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_INPUT
-    pop hl
-    jr nz, .player_found
-
-.find_player_next:
-    djnz .find_player_loop
-    ret                        ; No controllable entity found
-
-.player_found:
-    ld d, 0                    ; DE = player entity index
-
-.dispatch_world:
-    ld a, (current_world_id)
-    cp WORLD_WORLD1_ID
-    jp z, check_transition_world_worldmap_1770754170935
-    cp WORLD_WORLD2_ID
-    jp z, check_transition_world_worldmap_1774194757416
-    ret
-
-check_transition_world_worldmap_1770754170935:
-    ld a, (current_screen_index)
-    cp 0
-    jp z, check_transition_worldmap_1770754170935_screen_0
-    cp 1
-    jp z, check_transition_worldmap_1770754170935_screen_1
-    cp 2
-    jp z, check_transition_worldmap_1770754170935_screen_2
-    cp 3
-    jp z, check_transition_worldmap_1770754170935_screen_3
-    cp 4
-    jp z, check_transition_worldmap_1770754170935_screen_4
-    cp 5
-    jp z, check_transition_worldmap_1770754170935_screen_5
-    ret
-
-check_transition_worldmap_1770754170935_screen_0:
-    ; East exit: X near right edge and rightward input
-    ld a, (input_state)
-    cp STICK_RIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s0_skip_east
-    cp STICK_UPRIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s0_skip_east
-    cp STICK_DOWNRIGHT
-    jp nz, check_transition_worldmap_1770754170935_s0_skip_east
-.dir_ok_check_transition_worldmap_1770754170935_s0_skip_east:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 240
-    jp c, check_transition_worldmap_1770754170935_s0_skip_east
-check_transition_worldmap_1770754170935_s0_apply_east:
-    push de
-    call load_screen_pan2_771184738851_far
-    pop de
-    ld a, 1
-    ld (current_screen_index), a
-    ld a, 1
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from west edge
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 2
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s0_skip_east:
-    ; South exit: Y near bottom edge
-    ; No input-direction gate: supports gravity/platform-driven movement
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    cp 176
-    jp c, check_transition_worldmap_1770754170935_s0_skip_south
-check_transition_worldmap_1770754170935_s0_apply_south:
-    push de
-    call load_screen_pan6_773382451315_far
-    pop de
-    ld a, 5
-    ld (current_screen_index), a
-    ld a, 5
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from north edge
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 26
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s0_skip_south:
-    ret
-
-check_transition_worldmap_1770754170935_screen_1:
-    ; East exit: X near right edge and rightward input
-    ld a, (input_state)
-    cp STICK_RIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_east
-    cp STICK_UPRIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_east
-    cp STICK_DOWNRIGHT
-    jp nz, check_transition_worldmap_1770754170935_s1_skip_east
-.dir_ok_check_transition_worldmap_1770754170935_s1_skip_east:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 240
-    jp c, check_transition_worldmap_1770754170935_s1_skip_east
-check_transition_worldmap_1770754170935_s1_apply_east:
-    push de
-    call load_screen_pan3_771880109228_far
-    pop de
-    ld a, 2
-    ld (current_screen_index), a
-    ld a, 2
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from west edge
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 2
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s1_skip_east:
-    ; West exit: X near left edge and leftward input
-    ld a, (input_state)
-    cp STICK_LEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_west
-    cp STICK_UPLEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_west
-    cp STICK_DOWNLEFT
-    jp nz, check_transition_worldmap_1770754170935_s1_skip_west
-.dir_ok_check_transition_worldmap_1770754170935_s1_skip_west:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 2
-    jp nc, check_transition_worldmap_1770754170935_s1_skip_west
-check_transition_worldmap_1770754170935_s1_apply_west:
-    push de
-    call load_screen_pan1_770754008863_far
-    pop de
-    ld a, 0
-    ld (current_screen_index), a
-    ld a, 0
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from east edge of target active area
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 238
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s1_skip_west:
-    ; South exit: Y near bottom edge
-    ; No input-direction gate: supports gravity/platform-driven movement
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    cp 176
-    jp c, check_transition_worldmap_1770754170935_s1_skip_south
-check_transition_worldmap_1770754170935_s1_apply_south:
-    push de
-    call load_screen_pan5_773321312901_far
-    pop de
-    ld a, 4
-    ld (current_screen_index), a
-    ld a, 4
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from north edge
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 26
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s1_skip_south:
-    ret
-
-check_transition_worldmap_1770754170935_screen_2:
-    ; West exit: X near left edge and leftward input
-    ld a, (input_state)
-    cp STICK_LEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s2_skip_west
-    cp STICK_UPLEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s2_skip_west
-    cp STICK_DOWNLEFT
-    jp nz, check_transition_worldmap_1770754170935_s2_skip_west
-.dir_ok_check_transition_worldmap_1770754170935_s2_skip_west:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 2
-    jp nc, check_transition_worldmap_1770754170935_s2_skip_west
-check_transition_worldmap_1770754170935_s2_apply_west:
-    push de
-    call load_screen_pan2_771184738851_far
-    pop de
-    ld a, 1
-    ld (current_screen_index), a
-    ld a, 1
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from east edge of target active area
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 238
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s2_skip_west:
-    ; South exit: Y near bottom edge
-    ; No input-direction gate: supports gravity/platform-driven movement
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    cp 176
-    jp c, check_transition_worldmap_1770754170935_s2_skip_south
-check_transition_worldmap_1770754170935_s2_apply_south:
-    push de
-    call load_screen_pan4_772291683578_far
-    pop de
-    ld a, 3
-    ld (current_screen_index), a
-    ld a, 3
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from north edge
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 26
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s2_skip_south:
-    ret
-
-check_transition_worldmap_1770754170935_screen_3:
-    ; West exit: X near left edge and leftward input
-    ld a, (input_state)
-    cp STICK_LEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s3_skip_west
-    cp STICK_UPLEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s3_skip_west
-    cp STICK_DOWNLEFT
-    jp nz, check_transition_worldmap_1770754170935_s3_skip_west
-.dir_ok_check_transition_worldmap_1770754170935_s3_skip_west:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 2
-    jp nc, check_transition_worldmap_1770754170935_s3_skip_west
-check_transition_worldmap_1770754170935_s3_apply_west:
-    push de
-    call load_screen_pan5_773321312901_far
-    pop de
-    ld a, 4
-    ld (current_screen_index), a
-    ld a, 4
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from east edge of target active area
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 238
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s3_skip_west:
-    ; North exit: Y near top edge
-    ; No input-direction gate: supports velocity-driven movement
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    cp 26
-    jp nc, check_transition_worldmap_1770754170935_s3_skip_north
-check_transition_worldmap_1770754170935_s3_apply_north:
-    push de
-    call load_screen_pan3_771880109228_far
-    pop de
-    ld a, 2
-    ld (current_screen_index), a
-    ld a, 2
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from south edge of target active area
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 174
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s3_skip_north:
-    ret
-
-check_transition_worldmap_1770754170935_screen_4:
-    ; East exit: X near right edge and rightward input
-    ld a, (input_state)
-    cp STICK_RIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_east
-    cp STICK_UPRIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_east
-    cp STICK_DOWNRIGHT
-    jp nz, check_transition_worldmap_1770754170935_s4_skip_east
-.dir_ok_check_transition_worldmap_1770754170935_s4_skip_east:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 240
-    jp c, check_transition_worldmap_1770754170935_s4_skip_east
-check_transition_worldmap_1770754170935_s4_apply_east:
-    push de
-    call load_screen_pan4_772291683578_far
-    pop de
-    ld a, 3
-    ld (current_screen_index), a
-    ld a, 3
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from west edge
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 2
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s4_skip_east:
-    ; West exit: X near left edge and leftward input
-    ld a, (input_state)
-    cp STICK_LEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_west
-    cp STICK_UPLEFT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_west
-    cp STICK_DOWNLEFT
-    jp nz, check_transition_worldmap_1770754170935_s4_skip_west
-.dir_ok_check_transition_worldmap_1770754170935_s4_skip_west:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 2
-    jp nc, check_transition_worldmap_1770754170935_s4_skip_west
-check_transition_worldmap_1770754170935_s4_apply_west:
-    push de
-    call load_screen_pan6_773382451315_far
-    pop de
-    ld a, 5
-    ld (current_screen_index), a
-    ld a, 5
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from east edge of target active area
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 238
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s4_skip_west:
-    ; North exit: Y near top edge
-    ; No input-direction gate: supports velocity-driven movement
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    cp 26
-    jp nc, check_transition_worldmap_1770754170935_s4_skip_north
-check_transition_worldmap_1770754170935_s4_apply_north:
-    push de
-    call load_screen_pan2_771184738851_far
-    pop de
-    ld a, 1
-    ld (current_screen_index), a
-    ld a, 1
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from south edge of target active area
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 174
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s4_skip_north:
-    ret
-
-check_transition_worldmap_1770754170935_screen_5:
-    ; East exit: X near right edge and rightward input
-    ld a, (input_state)
-    cp STICK_RIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s5_skip_east
-    cp STICK_UPRIGHT
-    jr z, .dir_ok_check_transition_worldmap_1770754170935_s5_skip_east
-    cp STICK_DOWNRIGHT
-    jp nz, check_transition_worldmap_1770754170935_s5_skip_east
-.dir_ok_check_transition_worldmap_1770754170935_s5_skip_east:
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    cp 240
-    jp c, check_transition_worldmap_1770754170935_s5_skip_east
-check_transition_worldmap_1770754170935_s5_apply_east:
-    push de
-    call load_screen_pan5_773321312901_far
-    pop de
-    ld a, 4
-    ld (current_screen_index), a
-    ld a, 4
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from west edge
-    ld hl, entity_x_pos
-    add hl, de
-    ld (hl), 2
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s5_skip_east:
-    ; North exit: Y near top edge
-    ; No input-direction gate: supports velocity-driven movement
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    cp 26
-    jp nc, check_transition_worldmap_1770754170935_s5_skip_north
-check_transition_worldmap_1770754170935_s5_apply_north:
-    push de
-    call load_screen_pan1_770754008863_far
-    pop de
-    ld a, 0
-    ld (current_screen_index), a
-    ld a, 0
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), a
-    ; Enter from south edge of target active area
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 174
-    ; Reset player velocity after transition
-    xor a
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), a
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), a
-
-    ; Debounce immediate re-trigger
-    ld a, 8
-    ld (screen_transition_cooldown), a
-    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
-    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
-    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
-    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
-    ret
-
-check_transition_worldmap_1770754170935_s5_skip_north:
-    ret
-
-check_transition_world_worldmap_1774194757416:
-    ret
-
-; ==================================================================
-; SCREEN EDGE LIMIT RUNTIME (SKIPPED - NO LIMIT_ON ENTITIES)
-; ==================================================================
-
-clamp_world_screen_limits:
-    ret
-
-; ==================================================================
-; WORLD HELPER FUNCTIONS
-; ==================================================================
-
-; @mideas:block id=runtime.worlds.current_screen_helpers kind=routine owner=worlds
-; Get current world ID
-; Output: A = current world ID
-get_current_world_id:
-    ld a, (current_world_id)
-    ret
-
-; Get current screen index
-; Output: A = current screen index in world
-get_current_screen_index:
-    ld a, (current_screen_index)
-    ret
-
-; Set current screen
-; Input: A = screen index
-set_current_screen:
-    ld (current_screen_index), a
-    ld (current_screen_id), a
-    ld hl, active_entity_list_dirty
-    ld (hl), 1
-    call carry_sync_current_screen_followers
-    call call_rebuild_used_entity_list_resident
-    call carry_apply_dropped_box_tiles_current_screen
-    ret
-; @mideas:endblock id=runtime.worlds.current_screen_helpers
-
-; ==================================================================
-; END OF WORLDS
-; ==================================================================
-
-
-; --- End of Far Bank 11 — pad to 8KB boundary ---
-BANK_11_USED_END:
-    ds #8000 - $, #FF
-    org FAR_BANK_11_ROM_START + #2000
-
-; ##################################################################
-; FAR BANK 12 — [#6000h-#8000h] FAR CODE: sprites
-; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
-; At runtime: bank0 saves P1, maps bank12 to P1,
-; calls routine, then restores P1.
-; NOTE: routines in this bank MUST only call code in bank 0 or
-;       primary banks (1-2). No far-to-far calls allowed.
-; ##################################################################
-FAR_BANK_12_ROM_START:
-
-    org #6000
-
-; ==================================================================
 ; SPRITE DATA
 ; File: sprites.asm
 ; Description: Sprite pattern and animation data
 ; Entities: 6
 ; Total Hardware Sprites (Layers): 32
-; SAT Upload Sprites per frame: 11
+; SAT Upload Sprites per frame: 15
 ; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
 ; Runtime Sprite Pattern Packs: 2
 ; ==================================================================
@@ -51116,11 +50014,11 @@ sprite_dir_down_table_init:
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config_init:
     db 0, 2 ; Entity 0 (nina_idle_right)
-    db 2, 1 ; Entity 1 (capcuadrat1_right)
-    db 3, 2 ; Entity 2 (anec_right)
-    db 5, 2 ; Entity 3 (anec_right)
-    db 7, 1 ; Entity 4 (bola)
-    db 8, 2 ; Entity 5 (nina_idle_right)
+    db 8, 1 ; Entity 1 (capcuadrat1_right)
+    db 9, 2 ; Entity 2 (anec_right)
+    db 11, 2 ; Entity 3 (anec_right)
+    db 13, 1 ; Entity 4 (bola)
+    db 4, 2 ; Entity 5 (nina_idle_right)
     ds 52, 0 ; Padding
 
 ; Table: Entity -> Sprite Asset Index (ROM initial values)
@@ -51139,44 +50037,74 @@ SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
 ; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
 ; Format: db color_index
 sprite_layer_colors_init:
-    ; Entity 0 (nina_idle_right) layers:
-    db 6 ; Layer 0
-    db 15 ; Layer 1
-    ; Entity 1 (capcuadrat1_right) layers:
-    db 14 ; Layer 0
-    ; Entity 2 (anec_right) layers:
-    db 15 ; Layer 0
-    db 7 ; Layer 1
-    ; Entity 3 (anec_right) layers:
-    db 15 ; Layer 0
-    db 7 ; Layer 1
-    ; Entity 4 (bola) layers:
-    db 13 ; Layer 0
-    ; Entity 5 (nina_idle_right) layers:
-    db 6 ; Layer 0
-    db 15 ; Layer 1
-    ds 22, 0 ; Padding
+    db 6 ; HW sprite slot 0
+    db 15 ; HW sprite slot 1
+    db 0 ; HW sprite slot 2
+    db 0 ; HW sprite slot 3
+    db 6 ; HW sprite slot 4
+    db 15 ; HW sprite slot 5
+    db 0 ; HW sprite slot 6
+    db 0 ; HW sprite slot 7
+    db 14 ; HW sprite slot 8
+    db 15 ; HW sprite slot 9
+    db 7 ; HW sprite slot 10
+    db 15 ; HW sprite slot 11
+    db 7 ; HW sprite slot 12
+    db 13 ; HW sprite slot 13
+    db 0 ; HW sprite slot 14
+    db 0 ; HW sprite slot 15
+    db 0 ; HW sprite slot 16
+    db 0 ; HW sprite slot 17
+    db 0 ; HW sprite slot 18
+    db 0 ; HW sprite slot 19
+    db 0 ; HW sprite slot 20
+    db 0 ; HW sprite slot 21
+    db 0 ; HW sprite slot 22
+    db 0 ; HW sprite slot 23
+    db 0 ; HW sprite slot 24
+    db 0 ; HW sprite slot 25
+    db 0 ; HW sprite slot 26
+    db 0 ; HW sprite slot 27
+    db 0 ; HW sprite slot 28
+    db 0 ; HW sprite slot 29
+    db 0 ; HW sprite slot 30
+    db 0 ; HW sprite slot 31
 
 ; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
 ; Format: db signed_offset_y
 sprite_layer_y_offsets_init:
-    ; Entity 0 (nina_idle_right) layers:
-    db 0 ; Layer 0
-    db 0 ; Layer 1
-    ; Entity 1 (capcuadrat1_right) layers:
-    db 0 ; Layer 0
-    ; Entity 2 (anec_right) layers:
-    db 0 ; Layer 0
-    db 0 ; Layer 1
-    ; Entity 3 (anec_right) layers:
-    db 0 ; Layer 0
-    db 0 ; Layer 1
-    ; Entity 4 (bola) layers:
-    db 0 ; Layer 0
-    ; Entity 5 (nina_idle_right) layers:
-    db 0 ; Layer 0
-    db 0 ; Layer 1
-    ds 22, 0 ; Padding
+    db 0 ; HW sprite slot 0
+    db 0 ; HW sprite slot 1
+    db 0 ; HW sprite slot 2
+    db 0 ; HW sprite slot 3
+    db 0 ; HW sprite slot 4
+    db 0 ; HW sprite slot 5
+    db 0 ; HW sprite slot 6
+    db 0 ; HW sprite slot 7
+    db 0 ; HW sprite slot 8
+    db 0 ; HW sprite slot 9
+    db 0 ; HW sprite slot 10
+    db 0 ; HW sprite slot 11
+    db 0 ; HW sprite slot 12
+    db 0 ; HW sprite slot 13
+    db 0 ; HW sprite slot 14
+    db 0 ; HW sprite slot 15
+    db 0 ; HW sprite slot 16
+    db 0 ; HW sprite slot 17
+    db 0 ; HW sprite slot 18
+    db 0 ; HW sprite slot 19
+    db 0 ; HW sprite slot 20
+    db 0 ; HW sprite slot 21
+    db 0 ; HW sprite slot 22
+    db 0 ; HW sprite slot 23
+    db 0 ; HW sprite slot 24
+    db 0 ; HW sprite slot 25
+    db 0 ; HW sprite slot 26
+    db 0 ; HW sprite slot 27
+    db 0 ; HW sprite slot 28
+    db 0 ; HW sprite slot 29
+    db 0 ; HW sprite slot 30
+    db 0 ; HW sprite slot 31
 
 ; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
@@ -51887,7 +50815,55 @@ update_sprites_to_vram:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, 44  ; Upload active sprite range + SAT end marker
+    ld bc, 60  ; Upload active sprite range + SAT end marker
+    call FAST_LDIRVM
+    ret
+
+; Copy only the Player-owned hardware sprite slots from RAM to VRAM.
+; This is the SAT fast path used by the optional VBlank hard Player tick.
+upload_player_sprites_to_vram:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)                 ; A = base HW sprite slot
+    inc hl
+    ld c, (hl)                 ; C = layer count
+    ld b, 0
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl                 ; HL = base slot * 4
+    push hl
+    ld de, sprite_attributes
+    add hl, de                 ; HL = RAM SAT source
+    ex de, hl                  ; DE = RAM SAT source
+    pop hl
+    push de
+    ld de, SPRATR
+    add hl, de                 ; HL = VRAM SAT destination
+    ex de, hl                  ; DE = VRAM destination
+    pop hl                     ; HL = RAM SAT source
+    ld a, c
+    or a
+    ret z
+    add a, a
+    add a, a
+    ld c, a
+    ld b, 0                    ; BC = layer count * 4 bytes
     call FAST_LDIRVM
     ret
 
@@ -51905,13 +50881,1188 @@ SPRITE_INVISIBLE    EQU 224
 ; sprite_layer_y_offsets: ds 32
 
 
+; --- End of Far Bank 11 — pad to 8KB boundary ---
+BANK_11_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_11_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 12 — [#6000h-#8000h] FAR CODE: worlds
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank12 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_12_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; WORLD MAPS
+; File: worlds.asm
+; Description: World map structures and screen loading functions
+; Generated by Mideas MSX Generator
+; ==================================================================
+
+; ==================================================================
+; WORLD MAP CONSTANTS
+; ==================================================================
+
+; World: world1 (worldmap_1770754170935)
+WORLD_WORLD1_ID EQU 0
+WORLD_WORLD1_SCREEN_COUNT EQU 6
+WORLD_WORLD1_SCREEN_NEW_SCREENMAP_ID EQU 0
+WORLD_WORLD1_SCREEN_PAN2_ID EQU 1
+WORLD_WORLD1_SCREEN_PAN3_ID EQU 2
+WORLD_WORLD1_SCREEN_PAN4_ID EQU 3
+WORLD_WORLD1_SCREEN_PAN5_ID EQU 4
+WORLD_WORLD1_SCREEN_PAN6_ID EQU 5
+
+; World: world2 (worldmap_1774194757416)
+WORLD_WORLD2_ID EQU 1
+WORLD_WORLD2_SCREEN_COUNT EQU 1
+WORLD_WORLD2_SCREEN_PAN1_2_ID EQU 0
+
+; ==================================================================
+; WORLD MUSIC POLICY
+; preserve (#FE): do not touch current music when Game Flow can reach the
+; world with multiple different music states.
+; stop     (#FF): stop music on world enter.
+; play     (0-254): ensure this track index is active on world enter.
+; ==================================================================
+
+world_music_policy_track_table:
+    db 0    ; WORLD_WORLD1_ID -> track 0
+    db #FE    ; WORLD_WORLD2_ID -> preserve
+
+world_music_policy_loop_table:
+    db 1    ; WORLD_WORLD1_ID loop
+    db 0    ; WORLD_WORLD2_ID loop
+
+; ------------------------------------------------------------------
+; ensure_music_for_world_id
+; Input:  A = WORLD_*_ID
+; Output: Starts/stops music only when the world policy is unambiguous.
+;         #FE preserve entries leave current music untouched.
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+ensure_music_for_world_id:
+    ld e, a
+    ld d, 0
+    ld hl, world_music_policy_track_table
+    add hl, de
+    ld a, (hl)
+    cp #FE
+    ret z
+    cp #FF
+    jr nz, ensure_music_for_world_id_play_or_keep
+    ld a, (music_active)
+    or a
+    ret z
+    jp call_music_stop_resident
+ensure_music_for_world_id_play_or_keep:
+    ld c, a
+    ld hl, world_music_policy_loop_table
+    add hl, de
+    ld b, (hl)
+    ld a, (music_active)
+    or a
+    jr z, ensure_music_for_world_id_play_track
+    ld a, (music_track_index)
+    cp c
+    jr nz, ensure_music_for_world_id_play_track
+    ld a, (music_loop)
+    and 1
+    cp b
+    ret z
+ensure_music_for_world_id_play_track:
+    ld a, c
+    jp call_music_play_track_resident
+
+; ==================================================================
+; WORLD LOADING FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; world_reset_screen_timer
+; Local copy used while executing inside the worlds far bank. The
+; GameFlow timer routine lives in the primary P3 bank, which is hidden
+; while this bank is mapped.
+; ------------------------------------------------------------------
+world_reset_screen_timer:
+    push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, world_local_timer_reset_done
+    ld a, 60
+    ld (global_var_time_remaining), a
+    xor a
+    ld (global_var_time_remaining+1), a
+    ld a, (isComputer50HzOr60Hz)
+    or a
+    ld a, 50
+    jr z, world_local_timer_frames_ready
+    ld a, 60
+world_local_timer_frames_ready:
+    ld (time_second_frame_counter), a
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
+    ld a, 1
+    ld (hud_dirty_flag), a
+world_local_timer_reset_done:
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; Load World: world1
+; World ID: worldmap_1770754170935
+; Screens: 6
+; Start Screen Node: wmnode_1770754173003
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.worlds.worldmap_1770754170935.loader kind=routine owner=worlds roots=load_world_worldmap_1770754170935
+load_world_worldmap_1770754170935:
+    ; Ensure default music policy for this world when unambiguous
+    ld a, WORLD_WORLD1_ID
+    call ensure_music_for_world_id
+    ; Load runtime sprite patterns for this world
+    ld a, WORLD_WORLD1_ID
+    call call_ensure_sprite_patterns_for_world_id_resident
+    ; Load start screen: New Screenmap (screenmap_1770754008863)
+    call load_screen_pan1_770754008863_far
+
+    ; Keep current_screen_engine from the screen loader so dialog/cutscene
+    ; WorldLinks run the FakePlayer path instead of the Player runtime.
+    ; Draw imported HUD frame once at world start
+    call hud_imported_frame_pan1_770754008863_draw_far
+
+    ; Draw HUD frame once at world start
+    call imprimir_marco_far
+
+    ; Initialize world state
+    ld a, WORLD_WORLD1_ID
+    ld (current_world_id), a
+
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 0
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+
+    xor a
+    ld (screen_transition_cooldown), a
+
+    call world_reset_screen_timer
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets before gameplay resumes
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for this screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+; @mideas:endblock id=runtime.worlds.worldmap_1770754170935.loader
+
+; ------------------------------------------------------------------
+; Load World: world2
+; World ID: worldmap_1774194757416
+; Screens: 1
+; Start Screen Node: wmnode_1774195517265
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.worlds.worldmap_1774194757416.loader kind=routine owner=worlds roots=load_world_worldmap_1774194757416
+load_world_worldmap_1774194757416:
+    ; Ensure default music policy for this world when unambiguous
+    ld a, WORLD_WORLD2_ID
+    call ensure_music_for_world_id
+    ; Load runtime sprite patterns for this world
+    ld a, WORLD_WORLD2_ID
+    call call_ensure_sprite_patterns_for_world_id_resident
+    ; Load start screen: pan1_2 (screenmap_1774194791624)
+    call load_screen_pan1_2_774194791624_far
+
+    ; Keep current_screen_engine from the screen loader so dialog/cutscene
+    ; WorldLinks run the FakePlayer path instead of the Player runtime.
+    ; Draw imported HUD frame once at world start
+    call hud_imported_frame_pan1_2_774194791624_draw_far
+
+    ; Draw HUD frame once at world start
+    call imprimir_marco_far
+
+    ; Initialize world state
+    ld a, WORLD_WORLD2_ID
+    ld (current_world_id), a
+
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 6
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+
+    xor a
+    ld (screen_transition_cooldown), a
+
+    call world_reset_screen_timer
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets before gameplay resumes
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for this screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+; @mideas:endblock id=runtime.worlds.worldmap_1774194757416.loader
+
+; ==================================================================
+; SCREEN TRANSITION FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; World: world1
+; Connections: 7
+; ------------------------------------------------------------------
+
+; Transition: pan2 -> New Screenmap
+transition_worldmap_1770754170935_0:
+    call load_screen_pan1_770754008863_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 0
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; Transition: pan3 -> pan2
+transition_worldmap_1770754170935_1:
+    call load_screen_pan2_771184738851_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 1
+    ld (current_screen_index), a
+    ld a, 1
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; Transition: pan4 -> pan3
+transition_worldmap_1770754170935_2:
+    call load_screen_pan3_771880109228_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 2
+    ld (current_screen_index), a
+    ld a, 2
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; Transition: pan5 -> pan4
+transition_worldmap_1770754170935_3:
+    call load_screen_pan4_772291683578_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 3
+    ld (current_screen_index), a
+    ld a, 3
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; Transition: pan5 -> pan2
+transition_worldmap_1770754170935_4:
+    call load_screen_pan2_771184738851_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 1
+    ld (current_screen_index), a
+    ld a, 1
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; Transition: pan6 -> pan5
+transition_worldmap_1770754170935_5:
+    call load_screen_pan5_773321312901_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 4
+    ld (current_screen_index), a
+    ld a, 4
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; Transition: pan6 -> New Screenmap
+transition_worldmap_1770754170935_6:
+    call load_screen_pan1_770754008863_far
+
+    ; Keep current_screen_engine from the target screen loader.
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 0
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call world_reset_screen_timer
+    call carry_sync_current_screen_followers ; Move carried boxes before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+; World world2 has no screen connections
+
+; ------------------------------------------------------------------
+; load_world_default: alias for the first world (required by megarom trampolines)
+; ------------------------------------------------------------------
+load_world_default:
+    jp load_world_worldmap_1770754170935
+
+; ==================================================================
+; SCREEN EDGE TRANSITION RUNTIME
+; ==================================================================
+; Checks controllable entity exits and transitions world screen.
+; Prevents X/Y byte wrap from keeping player in same screen.
+; ==================================================================
+
+check_world_screen_transition:
+    ; Debounce to prevent immediate re-trigger after crossing
+    ld a, (screen_transition_cooldown)
+    or a
+    jr z, .find_player_start
+    dec a
+    ld (screen_transition_cooldown), a
+    ret
+
+    ; Find first controllable entity from active list (already filtered by screen)
+    ; This avoids scanning all 32 entity slots every frame.
+.find_player_start:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+.find_player_loop:
+    ; E = entity index from compact active list
+    ld e, (hl)
+    inc hl
+    ld d, 0
+
+    ; Check Input component mask
+    push hl
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    pop hl
+    jr nz, .player_found
+
+.find_player_next:
+    djnz .find_player_loop
+    ret                        ; No controllable entity found
+
+.player_found:
+    ld d, 0                    ; DE = player entity index
+
+.dispatch_world:
+    ld a, (current_world_id)
+    cp WORLD_WORLD1_ID
+    jp z, check_transition_world_worldmap_1770754170935
+    cp WORLD_WORLD2_ID
+    jp z, check_transition_world_worldmap_1774194757416
+    ret
+
+check_transition_world_worldmap_1770754170935:
+    ld a, (current_screen_index)
+    cp 0
+    jp z, check_transition_worldmap_1770754170935_screen_0
+    cp 1
+    jp z, check_transition_worldmap_1770754170935_screen_1
+    cp 2
+    jp z, check_transition_worldmap_1770754170935_screen_2
+    cp 3
+    jp z, check_transition_worldmap_1770754170935_screen_3
+    cp 4
+    jp z, check_transition_worldmap_1770754170935_screen_4
+    cp 5
+    jp z, check_transition_worldmap_1770754170935_screen_5
+    ret
+
+check_transition_worldmap_1770754170935_screen_0:
+    ; East exit: X near right edge and rightward input
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s0_skip_east
+    cp STICK_UPRIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s0_skip_east
+    cp STICK_DOWNRIGHT
+    jp nz, check_transition_worldmap_1770754170935_s0_skip_east
+.dir_ok_check_transition_worldmap_1770754170935_s0_skip_east:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 240
+    jp c, check_transition_worldmap_1770754170935_s0_skip_east
+check_transition_worldmap_1770754170935_s0_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan2_771184738851_far
+    pop de
+    ld a, 1
+    ld (current_screen_index), a
+    ld a, 1
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from west edge
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 2
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s0_skip_east:
+    ; South exit: Y near bottom edge
+    ; No input-direction gate: supports gravity/platform-driven movement
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 176
+    jp c, check_transition_worldmap_1770754170935_s0_skip_south
+check_transition_worldmap_1770754170935_s0_apply_south:
+    ; Transition mode: preserve_x_validated; ifBlocked: deny
+    push de
+    call load_screen_pan6_773382451315_far
+    pop de
+    ld a, 5
+    ld (current_screen_index), a
+    ld a, 5
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from north edge
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 26
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s0_skip_south:
+    ret
+
+check_transition_worldmap_1770754170935_screen_1:
+    ; East exit: X near right edge and rightward input
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_east
+    cp STICK_UPRIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_east
+    cp STICK_DOWNRIGHT
+    jp nz, check_transition_worldmap_1770754170935_s1_skip_east
+.dir_ok_check_transition_worldmap_1770754170935_s1_skip_east:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 240
+    jp c, check_transition_worldmap_1770754170935_s1_skip_east
+check_transition_worldmap_1770754170935_s1_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan3_771880109228_far
+    pop de
+    ld a, 2
+    ld (current_screen_index), a
+    ld a, 2
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from west edge
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 2
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s1_skip_east:
+    ; West exit: X near left edge and leftward input
+    ld a, (input_state)
+    cp STICK_LEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_west
+    cp STICK_UPLEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s1_skip_west
+    cp STICK_DOWNLEFT
+    jp nz, check_transition_worldmap_1770754170935_s1_skip_west
+.dir_ok_check_transition_worldmap_1770754170935_s1_skip_west:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 2
+    jp nc, check_transition_worldmap_1770754170935_s1_skip_west
+check_transition_worldmap_1770754170935_s1_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan1_770754008863_far
+    pop de
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 0
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from east edge of target active area
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 238
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s1_skip_west:
+    ; South exit: Y near bottom edge
+    ; No input-direction gate: supports gravity/platform-driven movement
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 176
+    jp c, check_transition_worldmap_1770754170935_s1_skip_south
+check_transition_worldmap_1770754170935_s1_apply_south:
+    ; Transition mode: preserve_x_validated; ifBlocked: deny
+    push de
+    call load_screen_pan5_773321312901_far
+    pop de
+    ld a, 4
+    ld (current_screen_index), a
+    ld a, 4
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from north edge
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 26
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s1_skip_south:
+    ret
+
+check_transition_worldmap_1770754170935_screen_2:
+    ; West exit: X near left edge and leftward input
+    ld a, (input_state)
+    cp STICK_LEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s2_skip_west
+    cp STICK_UPLEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s2_skip_west
+    cp STICK_DOWNLEFT
+    jp nz, check_transition_worldmap_1770754170935_s2_skip_west
+.dir_ok_check_transition_worldmap_1770754170935_s2_skip_west:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 2
+    jp nc, check_transition_worldmap_1770754170935_s2_skip_west
+check_transition_worldmap_1770754170935_s2_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan2_771184738851_far
+    pop de
+    ld a, 1
+    ld (current_screen_index), a
+    ld a, 1
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from east edge of target active area
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 238
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s2_skip_west:
+    ; South exit: Y near bottom edge
+    ; No input-direction gate: supports gravity/platform-driven movement
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 176
+    jp c, check_transition_worldmap_1770754170935_s2_skip_south
+check_transition_worldmap_1770754170935_s2_apply_south:
+    ; Transition mode: preserve_x_validated; ifBlocked: deny
+    push de
+    call load_screen_pan4_772291683578_far
+    pop de
+    ld a, 3
+    ld (current_screen_index), a
+    ld a, 3
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from north edge
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 26
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s2_skip_south:
+    ret
+
+check_transition_worldmap_1770754170935_screen_3:
+    ; West exit: X near left edge and leftward input
+    ld a, (input_state)
+    cp STICK_LEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s3_skip_west
+    cp STICK_UPLEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s3_skip_west
+    cp STICK_DOWNLEFT
+    jp nz, check_transition_worldmap_1770754170935_s3_skip_west
+.dir_ok_check_transition_worldmap_1770754170935_s3_skip_west:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 2
+    jp nc, check_transition_worldmap_1770754170935_s3_skip_west
+check_transition_worldmap_1770754170935_s3_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan5_773321312901_far
+    pop de
+    ld a, 4
+    ld (current_screen_index), a
+    ld a, 4
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from east edge of target active area
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 238
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s3_skip_west:
+    ; North exit: Y near top edge
+    ; No input-direction gate: supports velocity-driven movement
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 26
+    jp nc, check_transition_worldmap_1770754170935_s3_skip_north
+check_transition_worldmap_1770754170935_s3_apply_north:
+    ; Transition mode: preserve_x_validated; ifBlocked: deny
+    push de
+    call load_screen_pan3_771880109228_far
+    pop de
+    ld a, 2
+    ld (current_screen_index), a
+    ld a, 2
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from south edge of target active area
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 174
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s3_skip_north:
+    ret
+
+check_transition_worldmap_1770754170935_screen_4:
+    ; East exit: X near right edge and rightward input
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_east
+    cp STICK_UPRIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_east
+    cp STICK_DOWNRIGHT
+    jp nz, check_transition_worldmap_1770754170935_s4_skip_east
+.dir_ok_check_transition_worldmap_1770754170935_s4_skip_east:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 240
+    jp c, check_transition_worldmap_1770754170935_s4_skip_east
+check_transition_worldmap_1770754170935_s4_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan4_772291683578_far
+    pop de
+    ld a, 3
+    ld (current_screen_index), a
+    ld a, 3
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from west edge
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 2
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s4_skip_east:
+    ; West exit: X near left edge and leftward input
+    ld a, (input_state)
+    cp STICK_LEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_west
+    cp STICK_UPLEFT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s4_skip_west
+    cp STICK_DOWNLEFT
+    jp nz, check_transition_worldmap_1770754170935_s4_skip_west
+.dir_ok_check_transition_worldmap_1770754170935_s4_skip_west:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 2
+    jp nc, check_transition_worldmap_1770754170935_s4_skip_west
+check_transition_worldmap_1770754170935_s4_apply_west:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan6_773382451315_far
+    pop de
+    ld a, 5
+    ld (current_screen_index), a
+    ld a, 5
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from east edge of target active area
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 238
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s4_skip_west:
+    ; North exit: Y near top edge
+    ; No input-direction gate: supports velocity-driven movement
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 26
+    jp nc, check_transition_worldmap_1770754170935_s4_skip_north
+check_transition_worldmap_1770754170935_s4_apply_north:
+    ; Transition mode: preserve_x_validated; ifBlocked: deny
+    push de
+    call load_screen_pan2_771184738851_far
+    pop de
+    ld a, 1
+    ld (current_screen_index), a
+    ld a, 1
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from south edge of target active area
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 174
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s4_skip_north:
+    ret
+
+check_transition_worldmap_1770754170935_screen_5:
+    ; East exit: X near right edge and rightward input
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s5_skip_east
+    cp STICK_UPRIGHT
+    jr z, .dir_ok_check_transition_worldmap_1770754170935_s5_skip_east
+    cp STICK_DOWNRIGHT
+    jp nz, check_transition_worldmap_1770754170935_s5_skip_east
+.dir_ok_check_transition_worldmap_1770754170935_s5_skip_east:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 240
+    jp c, check_transition_worldmap_1770754170935_s5_skip_east
+check_transition_worldmap_1770754170935_s5_apply_east:
+    ; Transition mode: preserve_y_validated; ifBlocked: deny
+    push de
+    call load_screen_pan5_773321312901_far
+    pop de
+    ld a, 4
+    ld (current_screen_index), a
+    ld a, 4
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from west edge
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 2
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s5_skip_east:
+    ; North exit: Y near top edge
+    ; No input-direction gate: supports velocity-driven movement
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 26
+    jp nc, check_transition_worldmap_1770754170935_s5_skip_north
+check_transition_worldmap_1770754170935_s5_apply_north:
+    ; Transition mode: preserve_x_validated; ifBlocked: deny
+    push de
+    call load_screen_pan1_770754008863_far
+    pop de
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 0
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+    ; Enter from south edge of target active area
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 174
+    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    call carry_sync_current_screen_followers ; Move carried boxes to the destination screen before bucketing
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets during transition
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for new screen
+    call carry_apply_dropped_box_tiles_current_screen ; Re-apply boxes materialized into tilemap
+    ret
+
+check_transition_worldmap_1770754170935_s5_skip_north:
+    ret
+
+check_transition_world_worldmap_1774194757416:
+    ret
+
+; ==================================================================
+; SCREEN EDGE LIMIT RUNTIME (SKIPPED - NO LIMIT_ON ENTITIES)
+; ==================================================================
+
+clamp_world_screen_limits:
+    ret
+
+; ==================================================================
+; WORLD HELPER FUNCTIONS
+; ==================================================================
+
+; @mideas:block id=runtime.worlds.current_screen_helpers kind=routine owner=worlds
+; Get current world ID
+; Output: A = current world ID
+get_current_world_id:
+    ld a, (current_world_id)
+    ret
+
+; Get current screen index
+; Output: A = current screen index in world
+get_current_screen_index:
+    ld a, (current_screen_index)
+    ret
+
+; Set current screen
+; Input: A = screen index
+set_current_screen:
+    ld (current_screen_index), a
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call carry_sync_current_screen_followers
+    call call_rebuild_used_entity_list_resident
+    call carry_apply_dropped_box_tiles_current_screen
+    ret
+; @mideas:endblock id=runtime.worlds.current_screen_helpers
+
+; ==================================================================
+; END OF WORLDS
+; ==================================================================
+
+
 ; --- End of Far Bank 12 — pad to 8KB boundary ---
 BANK_12_USED_END:
     ds #8000 - $, #FF
     org FAR_BANK_12_ROM_START + #2000
 
 ; ##################################################################
-; FAR BANK 13 — [#6000h-#8000h] FAR CODE: gameflow_aux
+; FAR BANK 13 — [#6000h-#8000h] FAR CODE: sound
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
 ; At runtime: bank0 saves P1, maps bank13 to P1,
 ; calls routine, then restores P1.
@@ -51919,1208 +52070,6 @@ BANK_12_USED_END:
 ;       primary banks (1-2). No far-to-far calls allowed.
 ; ##################################################################
 FAR_BANK_13_ROM_START:
-
-    org #6000
-
-; ==================================================================
-; GAMEFLOW AUXILIARY FAR RUNTIME
-; Split from gameflow.asm so long-lived input loops stay resident while
-; short render/toggle helpers can live in an overlay bank.
-; ==================================================================
-; ------------------------------------------------------------------
-; Helper: Clear screen area for menus/end screens
-; ------------------------------------------------------------------
-; @mideas:block id=runtime.gameflow.clear_screen_area_helpers kind=routine owner=gameflow
-clear_screen_area:
-    ; Clear center area of screen
-    ld b, 8                       ; 8 rows
-    ld c, 8                       ; Start at row 8
-
-.csa_loop:
-    push bc
-    ld a, c
-    call clear_screen_row
-    pop bc
-    inc c
-    djnz .csa_loop
-    ret
-
-; ------------------------------------------------------------------
-; Helper: Clear a screen row (fill with empty tile)
-; Input: A = Row number (0-23)
-; ------------------------------------------------------------------
-clear_screen_row:
-    push af
-    push bc
-    push de
-    push hl
-
-    ; Calculate row start in name table
-    ; Row address = #1800 + (row * 32)
-    ld l, a
-    ld h, 0
-    add hl, hl                    ; * 2
-    add hl, hl                    ; * 4
-    add hl, hl                    ; * 8
-    add hl, hl                    ; * 16
-    add hl, hl                    ; * 32
-
-    ; Add base address (name table)
-    ld de, #1800                  ; Name table base (Screen 2)
-    add hl, de                    ; HL = VRAM address
-
-    ; Clear 32 tiles (one row)
-    ex de, hl                     ; DE = VRAM destination
-    ld hl, empty_row_data         ; HL = source (32 zeros)
-    ld bc, 32                     ; Copy 32 bytes
-    call LDIRVM
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; Data: Empty row (32 zero bytes)
-; ------------------------------------------------------------------
-empty_row_data:
-    db 0, 0, 0, 0, 0, 0, 0, 0
-    db 0, 0, 0, 0, 0, 0, 0, 0
-    db 0, 0, 0, 0, 0, 0, 0, 0
-    db 0, 0, 0, 0, 0, 0, 0, 0
-; @mideas:endblock id=runtime.gameflow.clear_screen_area_helpers
-
-trans_clear_column:
-    push bc
-    push de
-    push hl
-    ld l, a
-    ld h, #18                     ; HL = #1800 + column (row 0)
-    ld b, 24                      ; 24 rows
-    di                            ; Protect VDP address setup from ISR corruption
-.tcc_row:
-    ld a, l
-    out (#99), a                  ; VRAM address low byte
-    ld a, h
-    or #40
-    out (#99), a                  ; VRAM address high + write mode
-    ld a, (transition_fill_char)
-    out (#98), a                  ; Write transition fill char
-    ld a, l                       ; HL += 32 (advance to next row)
-    add a, 32
-    ld l, a
-    jr nc, .tcc_no_carry
-    inc h
-.tcc_no_carry:
-    djnz .tcc_row
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_clear_column_range
-; Clears part of a Name Table column.
-; Input:  A = column (0-31), C = start row (0-23), D = row count
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_clear_column_range:
-    push bc
-    push de
-    push hl
-    ld b, d
-    ld l, c
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl                    ; HL = start row * 32
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld de, #1800
-    add hl, de                    ; HL = NAME_TABLE + row*32 + col
-.tccr_loop:
-    di
-    ld a, l
-    out (#99), a
-    ld a, h
-    or #40
-    out (#99), a
-    ld a, (transition_fill_char)
-    out (#98), a
-    ei
-    ld a, l
-    add a, 32
-    ld l, a
-    jr nc, .tccr_no_carry
-    inc h
-.tccr_no_carry:
-    djnz .tccr_loop
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_reveal_column
-; Copy one column from runtime_screen_layout to the Name Table.
-; Input:  A = column (0-31)
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_reveal_column:
-    push bc
-    push de
-    push hl
-    ld c, a
-    ld e, a
-    ld d, 0
-    ld hl, runtime_screen_layout
-    add hl, de                    ; HL = source row 0 + column
-    ld e, c
-    ld d, #18                     ; DE = #1800 + column
-    ld b, 24
-    di
-.trc_row:
-    ld a, e
-    out (#99), a
-    ld a, d
-    or #40
-    out (#99), a
-    ld a, (hl)
-    out (#98), a
-    push de
-    ld de, 32
-    add hl, de
-    pop de
-    ld a, e
-    add a, 32
-    ld e, a
-    jr nc, .trc_no_carry
-    inc d
-.trc_no_carry:
-    djnz .trc_row
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_reveal_column_range
-; Copies part of a column from runtime_screen_layout to the Name Table.
-; Input:  A = column (0-31), C = start row (0-23), D = row count
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_reveal_column_range:
-    push bc
-    push de
-    push hl
-    ld b, d
-    ld l, c
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl                    ; HL = start row * 32
-    ld e, a
-    ld d, 0
-    add hl, de
-    push hl                       ; save row+col offset
-    ld de, runtime_screen_layout
-    add hl, de
-    ex de, hl                     ; DE = source cell
-    pop hl
-    push de
-    ld de, #1800
-    add hl, de                    ; HL = destination cell
-    pop de
-    di
-.trcr_loop:
-    ld a, l
-    out (#99), a
-    ld a, h
-    or #40
-    out (#99), a
-    ld a, (de)
-    out (#98), a
-    ld a, e
-    add a, 32
-    ld e, a
-    jr nc, .trcr_src_no_carry
-    inc d
-.trcr_src_no_carry:
-    ld a, l
-    add a, 32
-    ld l, a
-    jr nc, .trcr_dst_no_carry
-    inc h
-.trcr_dst_no_carry:
-    djnz .trcr_loop
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_clear_row_direct
-; Write transition_fill_char to all 32 columns of a single Name Table row.
-; Input:  A = row (0-23)
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_clear_row_direct:
-    push bc
-    push de
-    push hl
-    ; HL = #1800 + row * 32
-    ld l, a
-    ld h, 0
-    add hl, hl                    ; *2
-    add hl, hl                    ; *4
-    add hl, hl                    ; *8
-    add hl, hl                    ; *16
-    add hl, hl                    ; *32
-    ld de, #1800
-    add hl, de                    ; HL = name table row start
-    di                            ; Protect VDP address+data from ISR corruption
-    ld a, l
-    out (#99), a                  ; VRAM address low
-    ld a, h
-    or #40
-    out (#99), a                  ; VRAM address high + write mode
-    ld b, 32
-    ld a, (transition_fill_char)
-.tcrd_loop:
-    out (#98), a
-    djnz .tcrd_loop
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_clear_row_range
-; Clears part of a Name Table row.
-; Input:  A = row (0-23), D = start column (0-31), E = char count
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_clear_row_range:
-    push bc
-    push de
-    push hl
-    ld b, e
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl                    ; HL = row * 32
-    ld e, d
-    ld d, 0
-    add hl, de
-    ld de, #1800
-    add hl, de                    ; HL = NAME_TABLE + row*32 + start col
-    di
-    ld a, l
-    out (#99), a
-    ld a, h
-    or #40
-    out (#99), a
-    ld a, (transition_fill_char)
-.tcrr_loop:
-    out (#98), a
-    djnz .tcrr_loop
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_reveal_row_direct
-; Copy one row from runtime_screen_layout to the Name Table.
-; Input:  A = row (0-23)
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_reveal_row_direct:
-    push bc
-    push de
-    push hl
-    ld l, a
-    ld h, 0
-    add hl, hl                    ; *2
-    add hl, hl                    ; *4
-    add hl, hl                    ; *8
-    add hl, hl                    ; *16
-    add hl, hl                    ; *32
-    push hl                       ; save row offset
-    ld de, runtime_screen_layout
-    add hl, de
-    ex de, hl                     ; DE = source row
-    pop hl                        ; HL = row offset
-    ld bc, #1800
-    add hl, bc                    ; HL = name table row start
-    di
-    ld a, l
-    out (#99), a
-    ld a, h
-    or #40
-    out (#99), a
-    ex de, hl                     ; HL = source row
-    ld b, 32
-.trrd_loop:
-    ld a, (hl)
-    out (#98), a
-    inc hl
-    djnz .trrd_loop
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_reveal_row_range
-; Copies part of a row from runtime_screen_layout to the Name Table.
-; Input:  A = row (0-23), D = start column (0-31), E = char count
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_reveal_row_range:
-    push bc
-    push de
-    push hl
-    ld b, e
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl                    ; HL = row * 32
-    ld e, d
-    ld d, 0
-    add hl, de
-    push hl                       ; save row+col offset
-    ld de, runtime_screen_layout
-    add hl, de
-    ex de, hl                     ; DE = source range
-    pop hl
-    push de
-    ld de, #1800
-    add hl, de                    ; HL = destination range
-    pop de
-    di
-    ld a, l
-    out (#99), a
-    ld a, h
-    or #40
-    out (#99), a
-    ex de, hl                     ; HL = source range
-.trrr_loop:
-    ld a, (hl)
-    out (#98), a
-    inc hl
-    djnz .trrr_loop
-    ei
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; trans_fast_filvrm
-; Fill VRAM with a constant byte using direct port access
-; Input:  HL = VRAM destination address
-;         BC = byte count
-;         A  = fill value
-; Destroys: A, BC, E
-; ==================================================================
-trans_fast_filvrm:
-    ld e, a                       ; Save fill byte
-    di                            ; Protect VDP address+data from ISR corruption
-    ld a, l
-    out (#99), a                  ; VRAM address low
-    ld a, h
-    or #40
-    out (#99), a                  ; VRAM address high + write mode
-.tff_loop:
-    ld a, e
-    out (#98), a                  ; Write byte to VRAM
-    dec bc
-    ld a, b
-    or c
-    jr nz, .tff_loop
-    ei
-    ret
-
-; ------------------------------------------------------------------
-; Shared helper: Print string to VRAM
-; Input: HL = string pointer (null-terminated)
-;        DE = VRAM destination
-; ------------------------------------------------------------------
-print_string_vram:
-    push bc
-    push de
-    push hl
-
-.psv_loop:
-    ld a, (hl)                    ; Get character
-    or a                          ; Check for null terminator
-    jr z, .psv_done
-
-    ; Write character to VRAM
-    push hl
-    push de
-    ex de, hl                     ; HL = VRAM address (from DE)
-    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
-    pop de
-    pop hl
-
-    inc hl                        ; Next character
-    inc de                        ; Next VRAM position
-    jr .psv_loop
-
-.psv_done:
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ==================================================================
-; CONNECTION UTILITIES
-; ==================================================================
-
-; Get next node from connection table (for simple single-connection nodes)
-; Input: BC = connection table pointer
-; Output: HL = next node address (or 0 if none)
-
-gameflow_get_default_connection:
-    ; Connection table format:
-    ;   db CONNECTION_TYPE
-    ;   dw NODE_ADDRESS
-    ;   db CONNECTION_END
-    
-    ld h, b
-    ld l, c
-    ld a, (hl)
-    cp CONNECTION_END
-    jr z, .no_connection
-    
-    inc hl
-    ld a, (hl)
-    inc hl
-    ld h, (hl)
-    ld l, a         ; HL = next node address
-    ret
-
-.no_connection:
-    ld hl, 0
-    ret
-
-; ------------------------------------------------------------------
-; gameflow_read_confirm_direct
-; Read submenu/text confirm input directly from keyboard matrix.
-; Output: A = 1 when SPACE is pressed, A = 0 otherwise
-; Clobbers: AF
-; Preserves: BC, DE, HL, IX, IY
-; ------------------------------------------------------------------
-; @mideas:block id=runtime.gameflow.confirm_input_direct kind=routine owner=gameflow
-gameflow_read_confirm_direct:
-    ; Keep menu/text confirmation on BIOS SNSMAT; this runs outside the
-    ; gameplay hot path and avoids direct PPI keyboard edge cases.
-    push bc
-    push de
-    push hl
-    ld a, 8
-    call SNSMAT
-    pop hl
-    pop de
-    pop bc
-    bit 0, a
-    jr z, .grcd_pressed
-    xor a
-    ret
-.grcd_pressed:
-    ld a, 1
-    ret
-; @mideas:endblock id=runtime.gameflow.confirm_input_direct
-
-; ==================================================================
-; GAME LOOP (WorldLink nodes only)
-; ==================================================================
-
-; Main game loop - executed by WorldLink nodes
-; This loop runs while a world/level is active
-; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
-
-; ------------------------------------------------------------------
-; show_text_screen
-; Display full text screen with optional background screen asset
-; Input: DE = text data pointer
-;   Format: DB bgColor, DW screen_load_ptr (0=none), DB screen_load_bank, DB numLines
-;           Per line: DB row, DB col, DW string_ptr
-; If screen_load_ptr != 0: calls that function to load background screen
-; (the load_screen function sets VDP colors and name table from screen asset)
-; If screen_load_ptr == 0: sets bgColor, clears screen, renders text on solid bg
-; ------------------------------------------------------------------
-; @mideas:block id=runtime.gameflow.text_screen kind=routine owner=gameflow roots=show_text_screen,wait_for_fire
-show_text_screen:
-    push bc
-    push de
-    push hl
-
-    ex de, hl                     ; HL = data pointer
-
-    ; Read bgColor, screen load function pointer, and screen load bank
-    ld a, (hl)                    ; A = bgColor
-    inc hl
-    ld c, (hl)                    ; C = screen_load_ptr low
-    inc hl
-    ld b, (hl)                    ; B = screen_load_ptr high
-    inc hl                        ; BC = load function ptr (0 = no bg screen)
-    ld e, (hl)                    ; E = screen_load_bank
-    inc hl
-
-    push hl                       ; (1) Save pointer to numLines
-    push af                       ; (2) Save bgColor
-    push bc                       ; (3) Save function pointer
-    push de                       ; (4) Save bank byte (E)
-
-    ; Disable screen before any VRAM write
-    call DISSCR
-
-    ; Check if we have a background screen to load
-    pop de                        ; (4) Restore bank byte (E)
-    pop bc                        ; (3) Restore function pointer
-    ld a, b
-    or c
-    jr z, .sts_no_bg_screen
-
-    ; Has background screen: mapper-safe call to load_screen_X
-    ; (load_screen sets VDP colors + writes name table)
-    ld h, b
-    ld l, c                       ; HL = function address
-    ld a, e                       ; A = screen_load_bank
-    call mapper_call_hl_auto
-    pop af                        ; (2) Discard saved bgColor (screen set its own colors)
-    jp .sts_render
-
-.sts_no_bg_screen:
-    ; No background screen: set solid color and clear
-    pop af                        ; (2) Restore bgColor
-    ld b, a                       ; B = border color (same as bg)
-    push af
-    call call_set_screen_colors_resident
-    pop af
-    call call_init_char0_color_resident
-
-    ; Clear entire screen (24 rows)
-    ld a, 0
-    ld b, 24
-.sts_clear_loop:
-    push af
-    push bc
-    call clear_screen_row
-    pop bc
-    pop af
-    inc a
-    djnz .sts_clear_loop
-
-.sts_render:
-    ; Background loaders may overwrite character patterns/colors used for text.
-    ; Restore font before rendering text lines.
-    call call_reload_font_system_resident
-
-    ; Now render each text line
-    pop hl                        ; (1) HL = pointer to numLines
-    ld a, (hl)                    ; A = numLines
-    inc hl                        ; HL = first line entry
-    or a
-    jp z, .sts_enable             ; No lines? just enable screen
-
-    ld b, a                       ; B = line counter
-
-.sts_line_loop:
-    push bc
-
-    ; Read row
-    ld a, (hl)                    ; A = row
-    inc hl
-    ; Read col
-    ld c, (hl)                    ; C = col
-    inc hl
-    ; Read string pointer
-    ld e, (hl)
-    inc hl
-    ld d, (hl)                    ; DE = string pointer
-    inc hl
-
-    push hl                       ; Save data pointer
-
-    ; Calculate VRAM address: #1800 + row*32 + col
-    push de                       ; Save string pointer
-    ld l, a
-    ld h, 0
-    add hl, hl                    ; * 2
-    add hl, hl                    ; * 4
-    add hl, hl                    ; * 8
-    add hl, hl                    ; * 16
-    add hl, hl                    ; * 32
-    ld e, c
-    ld d, 0
-    add hl, de                    ; + col
-    ld de, #1800
-    add hl, de                    ; + name table base
-    ex de, hl                     ; DE = VRAM address
-    pop hl                        ; HL = string pointer
-
-    call print_string_vram
-
-    pop hl                        ; Restore data pointer
-    pop bc
-    djnz .sts_line_loop
-
-.sts_enable:
-    call gameflow_finish_transition_target_render
-
-    pop hl
-    pop de
-    pop bc
-    ret
-
-; ------------------------------------------------------------------
-; wait_for_fire
-; Wait for confirm key press and release outside gameplay loops
-; ------------------------------------------------------------------
-wait_for_fire:
-    push bc
-
-    ; Wait for fire button press
-.wait_press:
-    halt
-    call call_task_audio_tick_resident
-
-    call gameflow_read_confirm_direct_far
-    or a
-    jr z, .wait_press
-
-    ; Wait for fire button release
-.wait_release:
-    halt
-    call call_task_audio_tick_resident
-
-    call gameflow_read_confirm_direct_far
-    or a
-    jr nz, .wait_release
-
-    ; Small delay after release
-    ld b, 5
-.delay_loop:
-    halt
-    push bc
-    call call_task_audio_tick_resident
-    pop bc
-    djnz .delay_loop
-
-    pop bc
-    ret
-
-; @mideas:endblock id=runtime.gameflow.text_screen
-
-; @mideas:block id=runtime.gameflow.screen_timer kind=routine owner=gameflow roots=get_world_screen_timer_frames_per_second,reload_world_screen_timer_frames,snapshot_world_screen_timer_interrupt_counter,reset_world_screen_timer,update_world_screen_timer
-
-get_world_screen_timer_frames_per_second:
-    ld a, (isComputer50HzOr60Hz)
-    or a
-    ld a, 50
-    ret z
-    ld a, 60
-    ret
-
-reload_world_screen_timer_frames:
-    call get_world_screen_timer_frames_per_second
-    ld (time_second_frame_counter), a
-    ret
-
-snapshot_world_screen_timer_interrupt_counter:
-    ld a, (interrupt_counter)
-    ld (time_last_interrupt_counter), a
-    ld a, (interrupt_counter+1)
-    ld (time_last_interrupt_counter+1), a
-    ret
-
-reset_world_screen_timer:
-    push af
-    ld a, (current_screen_engine)
-    or a
-    jr nz, .world_timer_reset_done
-    ld a, 60
-    ld (global_var_time_remaining), a
-    xor a
-    ld (global_var_time_remaining+1), a
-    call reload_world_screen_timer_frames
-    call snapshot_world_screen_timer_interrupt_counter
-    ld a, 1
-    ld (hud_dirty_flag), a
-.world_timer_reset_done:
-    pop af
-    ret
-
-update_world_screen_timer:
-    push af
-    push bc
-    push de
-    push hl
-
-    ld a, (current_screen_engine)
-    or a
-    jp nz, .world_timer_done
-
-    ld a, (global_var_time_remaining)
-    ld b, a
-    ld a, (global_var_time_remaining+1)
-    or b
-    jp z, .world_timer_done
-
-    ld hl, (interrupt_counter)
-    ld de, (time_last_interrupt_counter)
-    or a
-    sbc hl, de
-    jp z, .world_timer_done
-
-    call snapshot_world_screen_timer_interrupt_counter
-
-    ld a, (time_second_frame_counter)
-    or a
-    jr nz, .world_timer_countdown_loaded
-    call reload_world_screen_timer_frames
-    ld a, (time_second_frame_counter)
-
-.world_timer_countdown_loaded:
-    ld e, a
-    call get_world_screen_timer_frames_per_second
-    ld c, a
-
-.world_timer_consume_elapsed_frames:
-    ld a, h
-    or l
-    jr z, .world_timer_store_countdown
-
-    ld a, h
-    or a
-    jr nz, .world_timer_hit_second_boundary
-    ld a, l
-    cp e
-    jr c, .world_timer_partial_consume
-
-.world_timer_hit_second_boundary:
-    ld a, l
-    sub e
-    ld l, a
-    jr nc, .world_timer_no_borrow
-    dec h
-.world_timer_no_borrow:
-    ld a, (global_var_time_remaining)
-    or a
-    jr nz, .world_timer_dec_low
-    ld a, (global_var_time_remaining+1)
-    or a
-    jr z, .world_timer_reached_zero
-    dec a
-    ld (global_var_time_remaining+1), a
-    ld a, 255
-    ld (global_var_time_remaining), a
-    jr .world_timer_after_decrement
-
-.world_timer_dec_low:
-    dec a
-    ld (global_var_time_remaining), a
-
-.world_timer_after_decrement:
-    ld a, 1
-    ld (hud_dirty_flag), a
-
-    ld a, (global_var_time_remaining)
-    ld b, a
-    ld a, (global_var_time_remaining+1)
-    or b
-    jr z, .world_timer_reached_zero
-    ld e, c
-    jr .world_timer_consume_elapsed_frames
-
-.world_timer_partial_consume:
-    ld a, e
-    sub l
-    ld e, a
-    xor a
-    ld h, a
-    ld l, a
-    jr .world_timer_store_countdown
-
-.world_timer_reached_zero:
-    ld e, c
-
-.world_timer_store_countdown:
-    ld a, e
-    ld (time_second_frame_counter), a
-
-.world_timer_done:
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-; @mideas:endblock id=runtime.gameflow.screen_timer
-
-; ==================================================================
-; execute_transition_reveal_target
-; Reveal the freshly prepared target screen from runtime_screen_layout.
-; WorldLink fills runtime_screen_layout directly while skipping the final
-; Name Table copy; other visual nodes render hidden, then capture their
-; completed Name Table into runtime_screen_layout before this reveal.
-;
-; Input:  runtime_screen_layout = destination 32x24 Name Table data
-;         transition_effect_id / transition_delay_var from prior Transition
-; Destroys: AF, BC, DE, HL
-; ==================================================================
-execute_transition_reveal_target:
-    ld a, (transition_effect_id)
-    or a
-    jp z, .trt_full
-    dec a
-    jp z, .trt_dissolve_columns
-    dec a
-    jp z, .trt_dissolve_chars
-    dec a
-    jp z, .trt_vertical_lines
-    dec a
-    jp z, .trt_horizontal_lines
-    dec a
-    jp z, .trt_spiral
-    dec a
-    jp z, .trt_stripe_columns
-    dec a
-    jp z, .trt_diagonal
-    dec a
-    jp z, .trt_diagonal_inverse
-    dec a
-    jp z, .trt_checkerboard
-    dec a
-    jp z, .trt_doors
-    dec a
-    jp z, .trt_center_curtain
-    dec a
-    jp z, .trt_venetian_blinds
-    dec a
-    jp z, .trt_radial_wipe
-    dec a
-    jp z, .trt_block4_shuffle
-    dec a
-    jp z, .trt_zoom_box
-    jp .trt_full
-
-.trt_full:
-    ld hl, runtime_screen_layout
-    ld de, #1800
-    ld bc, 768
-    call FAST_LDIRVM
-    call trans_wait_frames
-    ret
-
-.trt_dissolve_columns:
-    ld d, 0
-.trtc_loop:
-    ld a, d
-    call trans_reveal_column_far
-    ld a, d
-    add a, 8
-    call trans_reveal_column_far
-    ld a, d
-    add a, 16
-    call trans_reveal_column_far
-    ld a, d
-    add a, 24
-    call trans_reveal_column_far
-    call trans_wait_frames
-    inc d
-    ld a, d
-    cp 8
-    jr c, .trtc_loop
-    ret
-
-.trt_dissolve_chars:
-    ld d, 0
-.trtch_loop:
-    ld a, d
-    call trans_reveal_row_direct_far
-    ld a, d
-    add a, 8
-    call trans_reveal_row_direct_far
-    ld a, d
-    add a, 16
-    call trans_reveal_row_direct_far
-    call trans_wait_frames
-    inc d
-    ld a, d
-    cp 8
-    jr c, .trtch_loop
-    ret
-
-.trt_vertical_lines:
-    ld c, 0
-.trtv_loop:
-    ld a, c
-    call trans_reveal_column_far
-    inc c
-    ld a, c
-    call trans_reveal_column_far
-    inc c
-    call trans_wait_frames
-    ld a, c
-    cp 32
-    jr c, .trtv_loop
-    ret
-
-.trt_horizontal_lines:
-    ld c, 0
-.trth_loop:
-    ld a, c
-    call trans_reveal_row_direct_far
-    call trans_wait_frames
-    inc c
-    ld a, c
-    cp 24
-    jp c, .trth_loop
-    ret
-
-.trt_stripe_columns:
-    ld c, 0
-.trts_loop:
-    ld a, c
-    call trans_reveal_column_far
-    ld a, c
-    inc a
-    call trans_reveal_column_far
-    ld a, c
-    add a, 2
-    call trans_reveal_column_far
-    ld a, c
-    add a, 3
-    call trans_reveal_column_far
-    ld a, c
-    add a, 4
-    call trans_reveal_column_far
-    ld a, c
-    add a, 5
-    call trans_reveal_column_far
-    ld a, c
-    add a, 6
-    call trans_reveal_column_far
-    ld a, c
-    add a, 7
-    call trans_reveal_column_far
-    ld a, c
-    add a, 8
-    ld c, a
-    call trans_wait_frames
-    ld a, c
-    cp 32
-    jr c, .trts_loop
-    ret
-
-.trt_spiral:
-    ld b, 0
-.trtsp_loop:
-    ld a, b
-    add a, a
-    ld e, a
-    ld a, 32
-    sub e
-    ld e, a
-    ld d, b
-    ld a, b
-    call trans_reveal_row_range_far
-    ld a, 23
-    sub b
-    call trans_reveal_row_range_far
-
-    ld a, b
-    add a, a
-    ld d, a
-    ld a, 22
-    sub d
-    jr z, .trtsp_after_sides
-    ld d, a
-    ld a, b
-    inc a
-    ld c, a
-    ld a, b
-    call trans_reveal_column_range_far
-    ld a, 31
-    sub b
-    call trans_reveal_column_range_far
-.trtsp_after_sides:
-    call trans_wait_frames
-    inc b
-    ld a, b
-    cp 12
-    jr c, .trtsp_loop
-    ret
-
-.trt_diagonal:
-    call trans_diag_clear_init
-.trtd_frame_loop:
-    ld b, 16
-.trtd_batch_loop:
-    push bc
-    call trans_diag_reveal_update
-    pop bc
-    jr c, .trtd_done
-    djnz .trtd_batch_loop
-    call trans_wait_frames
-    jr .trtd_frame_loop
-.trtd_done:
-    ret
-
-.trt_diagonal_inverse:
-    call trans_diag_inverse_init
-.trtdi_frame_loop:
-    ld b, 16
-.trtdi_batch_loop:
-    push bc
-    call trans_diag_inverse_reveal_update
-    pop bc
-    jr c, .trtdi_done
-    djnz .trtdi_batch_loop
-    call trans_wait_frames
-    jr .trtdi_frame_loop
-.trtdi_done:
-    ret
-
-.trt_checkerboard:
-    xor a
-    call trans_reveal_checkerboard_pass
-    call trans_wait_frames
-    ld a, 1
-    call trans_reveal_checkerboard_pass
-    call trans_wait_frames
-    ret
-
-.trt_doors:
-    ld c, 0
-.trtdoor_loop:
-    ld a, c
-    call trans_reveal_column_far      ; left panel column
-    ld a, 31
-    sub c
-    call trans_reveal_column_far      ; right panel column
-    call trans_wait_frames
-    inc c
-    ld a, c
-    cp 16
-    jr c, .trtdoor_loop
-    ret
-
-.trt_center_curtain:
-    ld c, 0
-.trtcurt_loop:
-    ld a, 15
-    sub c
-    call trans_reveal_column_far      ; center-left outward
-    ld a, 16
-    add a, c
-    call trans_reveal_column_far      ; center-right outward
-    call trans_wait_frames
-    inc c
-    ld a, c
-    cp 16
-    jr c, .trtcurt_loop
-    ret
-
-.trt_venetian_blinds:
-    ld c, 0
-.trtvb_even_loop:
-    ld a, c
-    call trans_reveal_row_direct_far
-    inc c
-    inc c
-    ld a, c
-    cp 24
-    jr c, .trtvb_even_loop
-    call trans_wait_frames
-    ld c, 1
-.trtvb_odd_loop:
-    ld a, c
-    call trans_reveal_row_direct_far
-    inc c
-    inc c
-    ld a, c
-    cp 24
-    jr c, .trtvb_odd_loop
-    call trans_wait_frames
-    ret
-
-.trt_radial_wipe:
-    ld d, 26
-.trtrw_loop:
-    ld a, d
-    call trans_reveal_manhattan_pass
-    call trans_wait_frames
-    ld a, d
-    or a
-    jr z, .trtrw_done
-    dec d
-    jr .trtrw_loop
-.trtrw_done:
-    ret
-
-.trt_block4_shuffle:
-    ld c, 0
-.trtb4_loop:
-    ld a, c
-    call trans_reveal_block4_order
-    call trans_wait_frames
-    inc c
-    ld a, c
-    cp 64
-    jr c, .trtb4_loop
-    ret
-
-.trt_zoom_box:
-    ld c, 0
-.trtzb_loop:
-    ld a, c
-    call trans_reveal_zoom_band
-    call trans_wait_frames
-    ld a, c
-    add a, 2
-    ld c, a
-    cp 12
-    jr c, .trtzb_loop
-    ret
-
-
-; --- End of Far Bank 13 — pad to 8KB boundary ---
-BANK_13_USED_END:
-    ds #8000 - $, #FF
-    org FAR_BANK_13_ROM_START + #2000
-
-; ##################################################################
-; FAR BANK 14 — [#6000h-#8000h] FAR CODE: sound
-; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
-; At runtime: bank0 saves P1, maps bank14 to P1,
-; calls routine, then restores P1.
-; NOTE: routines in this bank MUST only call code in bank 0 or
-;       primary banks (1-2). No far-to-far calls allowed.
-; ##################################################################
-FAR_BANK_14_ROM_START:
 
     org #6000
 
@@ -53845,23 +52794,41 @@ music_update:
     ld d, (hl)
     ld h, d
     ld l, e
+    ; PT3 uses SP as a temporary data pointer. Preserve IFF2 and keep
+    ; interrupts disabled until the replayer has restored the CPU stack.
+    ld a, i
+    push af
+    di
     push ix
     push iy
     call PT3_INIT
     pop iy
     pop ix
+    pop af
+    jp po, .pt3_upd_loop_ret
+    ei
+.pt3_upd_loop_ret:
     ret
 .pt3_upd_stop:
     xor a
     ld (music_active), a
     ret
 .pt3_upd_play:
+    ; PT3_PLAY/CHREGS/PTDECOD temporarily repurpose SP. An interrupt in
+    ; that window corrupts the return chain, so preserve IFF2 atomically.
+    ld a, i
+    push af
+    di
     push ix
     push iy
     call PT3_PLAY
     call PT3_ROUT
     pop iy
     pop ix
+    pop af
+    jp po, .pt3_upd_play_ret
+    ei
+.pt3_upd_play_ret:
     ret
 
 ; ------------------------------------------------------------------
@@ -53979,6 +52946,1169 @@ pt3_track_0_data:
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
 ; ==================================================================
+
+
+; --- End of Far Bank 13 — pad to 8KB boundary ---
+BANK_13_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_13_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 14 — [#6000h-#8000h] FAR CODE: gameflow_aux
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank14 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_14_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; GAMEFLOW AUXILIARY FAR RUNTIME
+; Split from gameflow.asm so long-lived input loops stay resident while
+; short render/toggle helpers can live in an overlay bank.
+; ==================================================================
+; ------------------------------------------------------------------
+; Helper: Clear screen area for menus/end screens
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.clear_screen_area_helpers kind=routine owner=gameflow
+clear_screen_area:
+    ; Clear center area of screen
+    ld b, 8                       ; 8 rows
+    ld c, 8                       ; Start at row 8
+
+.csa_loop:
+    push bc
+    ld a, c
+    call clear_screen_row
+    pop bc
+    inc c
+    djnz .csa_loop
+    ret
+
+; ------------------------------------------------------------------
+; Helper: Clear a screen row (fill with empty tile)
+; Input: A = Row number (0-23)
+; ------------------------------------------------------------------
+clear_screen_row:
+    push af
+    push bc
+    push de
+    push hl
+
+    ; Calculate row start in name table
+    ; Row address = #1800 + (row * 32)
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; * 2
+    add hl, hl                    ; * 4
+    add hl, hl                    ; * 8
+    add hl, hl                    ; * 16
+    add hl, hl                    ; * 32
+
+    ; Add base address (name table)
+    ld de, #1800                  ; Name table base (Screen 2)
+    add hl, de                    ; HL = VRAM address
+
+    ; Clear 32 tiles (one row)
+    ex de, hl                     ; DE = VRAM destination
+    ld hl, empty_row_data         ; HL = source (32 zeros)
+    ld bc, 32                     ; Copy 32 bytes
+    call LDIRVM
+
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; Data: Empty row (32 zero bytes)
+; ------------------------------------------------------------------
+empty_row_data:
+    db 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
+; @mideas:endblock id=runtime.gameflow.clear_screen_area_helpers
+
+trans_clear_column:
+    push bc
+    push de
+    push hl
+    ld l, a
+    ld h, #18                     ; HL = #1800 + column (row 0)
+    ld b, 24                      ; 24 rows
+    di                            ; Protect VDP address setup from ISR corruption
+.tcc_row:
+    ld a, l
+    out (#99), a                  ; VRAM address low byte
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+    ld a, (transition_fill_char)
+    out (#98), a                  ; Write transition fill char
+    ld a, l                       ; HL += 32 (advance to next row)
+    add a, 32
+    ld l, a
+    jr nc, .tcc_no_carry
+    inc h
+.tcc_no_carry:
+    djnz .tcc_row
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_clear_column_range
+; Clears part of a Name Table column.
+; Input:  A = column (0-31), C = start row (0-23), D = row count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_column_range:
+    push bc
+    push de
+    push hl
+    ld b, d
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = start row * 32
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld de, #1800
+    add hl, de                    ; HL = NAME_TABLE + row*32 + col
+.tccr_loop:
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ld a, (transition_fill_char)
+    out (#98), a
+    ei
+    ld a, l
+    add a, 32
+    ld l, a
+    jr nc, .tccr_no_carry
+    inc h
+.tccr_no_carry:
+    djnz .tccr_loop
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_column
+; Copy one column from runtime_screen_layout to the Name Table.
+; Input:  A = column (0-31)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_column:
+    push bc
+    push de
+    push hl
+    ld c, a
+    ld e, a
+    ld d, 0
+    ld hl, runtime_screen_layout
+    add hl, de                    ; HL = source row 0 + column
+    ld e, c
+    ld d, #18                     ; DE = #1800 + column
+    ld b, 24
+    di
+.trc_row:
+    ld a, e
+    out (#99), a
+    ld a, d
+    or #40
+    out (#99), a
+    ld a, (hl)
+    out (#98), a
+    push de
+    ld de, 32
+    add hl, de
+    pop de
+    ld a, e
+    add a, 32
+    ld e, a
+    jr nc, .trc_no_carry
+    inc d
+.trc_no_carry:
+    djnz .trc_row
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_column_range
+; Copies part of a column from runtime_screen_layout to the Name Table.
+; Input:  A = column (0-31), C = start row (0-23), D = row count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_column_range:
+    push bc
+    push de
+    push hl
+    ld b, d
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = start row * 32
+    ld e, a
+    ld d, 0
+    add hl, de
+    push hl                       ; save row+col offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl                     ; DE = source cell
+    pop hl
+    push de
+    ld de, #1800
+    add hl, de                    ; HL = destination cell
+    pop de
+    di
+.trcr_loop:
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ld a, (de)
+    out (#98), a
+    ld a, e
+    add a, 32
+    ld e, a
+    jr nc, .trcr_src_no_carry
+    inc d
+.trcr_src_no_carry:
+    ld a, l
+    add a, 32
+    ld l, a
+    jr nc, .trcr_dst_no_carry
+    inc h
+.trcr_dst_no_carry:
+    djnz .trcr_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_clear_row_direct
+; Write transition_fill_char to all 32 columns of a single Name Table row.
+; Input:  A = row (0-23)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_row_direct:
+    push bc
+    push de
+    push hl
+    ; HL = #1800 + row * 32
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    ld de, #1800
+    add hl, de                    ; HL = name table row start
+    di                            ; Protect VDP address+data from ISR corruption
+    ld a, l
+    out (#99), a                  ; VRAM address low
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+    ld b, 32
+    ld a, (transition_fill_char)
+.tcrd_loop:
+    out (#98), a
+    djnz .tcrd_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_clear_row_range
+; Clears part of a Name Table row.
+; Input:  A = row (0-23), D = start column (0-31), E = char count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_row_range:
+    push bc
+    push de
+    push hl
+    ld b, e
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = row * 32
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld de, #1800
+    add hl, de                    ; HL = NAME_TABLE + row*32 + start col
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ld a, (transition_fill_char)
+.tcrr_loop:
+    out (#98), a
+    djnz .tcrr_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_row_direct
+; Copy one row from runtime_screen_layout to the Name Table.
+; Input:  A = row (0-23)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_row_direct:
+    push bc
+    push de
+    push hl
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    push hl                       ; save row offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl                     ; DE = source row
+    pop hl                        ; HL = row offset
+    ld bc, #1800
+    add hl, bc                    ; HL = name table row start
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ex de, hl                     ; HL = source row
+    ld b, 32
+.trrd_loop:
+    ld a, (hl)
+    out (#98), a
+    inc hl
+    djnz .trrd_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_row_range
+; Copies part of a row from runtime_screen_layout to the Name Table.
+; Input:  A = row (0-23), D = start column (0-31), E = char count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_row_range:
+    push bc
+    push de
+    push hl
+    ld b, e
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = row * 32
+    ld e, d
+    ld d, 0
+    add hl, de
+    push hl                       ; save row+col offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl                     ; DE = source range
+    pop hl
+    push de
+    ld de, #1800
+    add hl, de                    ; HL = destination range
+    pop de
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ex de, hl                     ; HL = source range
+.trrr_loop:
+    ld a, (hl)
+    out (#98), a
+    inc hl
+    djnz .trrr_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_fast_filvrm
+; Fill VRAM with a constant byte using direct port access
+; Input:  HL = VRAM destination address
+;         BC = byte count
+;         A  = fill value
+; Destroys: A, BC, E
+; ==================================================================
+trans_fast_filvrm:
+    ld e, a                       ; Save fill byte
+    di                            ; Protect VDP address+data from ISR corruption
+    ld a, l
+    out (#99), a                  ; VRAM address low
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+.tff_loop:
+    ld a, e
+    out (#98), a                  ; Write byte to VRAM
+    dec bc
+    ld a, b
+    or c
+    jr nz, .tff_loop
+    ei
+    ret
+
+; ------------------------------------------------------------------
+; Shared helper: Print string to VRAM
+; Input: HL = string pointer (null-terminated)
+;        DE = VRAM destination
+; ------------------------------------------------------------------
+print_string_vram:
+    push bc
+    push de
+    push hl
+
+.psv_loop:
+    ld a, (hl)                    ; Get character
+    or a                          ; Check for null terminator
+    jr z, .psv_done
+
+    ; Write character to VRAM
+    push hl
+    push de
+    ex de, hl                     ; HL = VRAM address (from DE)
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
+    pop de
+    pop hl
+
+    inc hl                        ; Next character
+    inc de                        ; Next VRAM position
+    jr .psv_loop
+
+.psv_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; CONNECTION UTILITIES
+; ==================================================================
+
+; Get next node from connection table (for simple single-connection nodes)
+; Input: BC = connection table pointer
+; Output: HL = next node address (or 0 if none)
+
+gameflow_get_default_connection:
+    ; Connection table format:
+    ;   db CONNECTION_TYPE
+    ;   dw NODE_ADDRESS
+    ;   db CONNECTION_END
+    
+    ld h, b
+    ld l, c
+    ld a, (hl)
+    cp CONNECTION_END
+    jr z, .no_connection
+    
+    inc hl
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a         ; HL = next node address
+    ret
+
+.no_connection:
+    ld hl, 0
+    ret
+
+; ------------------------------------------------------------------
+; gameflow_read_confirm_direct
+; Read submenu/text confirm input directly from keyboard matrix.
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.confirm_input_direct kind=routine owner=gameflow
+gameflow_read_confirm_direct:
+    ; Keep menu/text confirmation on BIOS SNSMAT; this runs outside the
+    ; gameplay hot path and avoids direct PPI keyboard edge cases.
+    push bc
+    push de
+    push hl
+    ld a, 8
+    call SNSMAT
+    pop hl
+    pop de
+    pop bc
+    bit 0, a
+    jr z, .grcd_pressed
+    xor a
+    ret
+.grcd_pressed:
+    ld a, 1
+    ret
+; @mideas:endblock id=runtime.gameflow.confirm_input_direct
+
+; ==================================================================
+; GAME LOOP (WorldLink nodes only)
+; ==================================================================
+
+; Main game loop - executed by WorldLink nodes
+; This loop runs while a world/level is active
+; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
+
+; ------------------------------------------------------------------
+; show_text_screen
+; Display full text screen with optional background screen asset
+; Input: DE = text data pointer
+;   Format: DB bgColor, DW screen_load_ptr (0=none), DB screen_load_bank, DB numLines
+;           Per line: DB row, DB col, DW string_ptr
+; If screen_load_ptr != 0: calls that function to load background screen
+; (the load_screen function sets VDP colors and name table from screen asset)
+; If screen_load_ptr == 0: sets bgColor, clears screen, renders text on solid bg
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.text_screen kind=routine owner=gameflow roots=show_text_screen,wait_for_fire
+show_text_screen:
+    push bc
+    push de
+    push hl
+
+    ex de, hl                     ; HL = data pointer
+
+    ; Read bgColor, screen load function pointer, and screen load bank
+    ld a, (hl)                    ; A = bgColor
+    inc hl
+    ld c, (hl)                    ; C = screen_load_ptr low
+    inc hl
+    ld b, (hl)                    ; B = screen_load_ptr high
+    inc hl                        ; BC = load function ptr (0 = no bg screen)
+    ld e, (hl)                    ; E = screen_load_bank
+    inc hl
+
+    push hl                       ; (1) Save pointer to numLines
+    push af                       ; (2) Save bgColor
+    push bc                       ; (3) Save function pointer
+    push de                       ; (4) Save bank byte (E)
+
+    ; Disable screen before any VRAM write
+    call DISSCR
+
+    ; Check if we have a background screen to load
+    pop de                        ; (4) Restore bank byte (E)
+    pop bc                        ; (3) Restore function pointer
+    ld a, b
+    or c
+    jr z, .sts_no_bg_screen
+
+    ; Has background screen: mapper-safe call to load_screen_X
+    ; (load_screen sets VDP colors + writes name table)
+    ld h, b
+    ld l, c                       ; HL = function address
+    ld a, e                       ; A = screen_load_bank
+    call mapper_call_hl_auto
+    pop af                        ; (2) Discard saved bgColor (screen set its own colors)
+    jp .sts_render
+
+.sts_no_bg_screen:
+    ; No background screen: set solid color and clear
+    pop af                        ; (2) Restore bgColor
+    ld b, a                       ; B = border color (same as bg)
+    push af
+    call call_set_screen_colors_resident
+    pop af
+    call call_init_char0_color_resident
+
+    ; Clear entire screen (24 rows)
+    ld a, 0
+    ld b, 24
+.sts_clear_loop:
+    push af
+    push bc
+    call clear_screen_row
+    pop bc
+    pop af
+    inc a
+    djnz .sts_clear_loop
+
+.sts_render:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before rendering text lines.
+    call call_reload_font_system_resident
+
+    ; Now render each text line
+    pop hl                        ; (1) HL = pointer to numLines
+    ld a, (hl)                    ; A = numLines
+    inc hl                        ; HL = first line entry
+    or a
+    jp z, .sts_enable             ; No lines? just enable screen
+
+    ld b, a                       ; B = line counter
+
+.sts_line_loop:
+    push bc
+
+    ; Read row
+    ld a, (hl)                    ; A = row
+    inc hl
+    ; Read col
+    ld c, (hl)                    ; C = col
+    inc hl
+    ; Read string pointer
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = string pointer
+    inc hl
+
+    push hl                       ; Save data pointer
+
+    ; Calculate VRAM address: #1800 + row*32 + col
+    push de                       ; Save string pointer
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; * 2
+    add hl, hl                    ; * 4
+    add hl, hl                    ; * 8
+    add hl, hl                    ; * 16
+    add hl, hl                    ; * 32
+    ld e, c
+    ld d, 0
+    add hl, de                    ; + col
+    ld de, #1800
+    add hl, de                    ; + name table base
+    ex de, hl                     ; DE = VRAM address
+    pop hl                        ; HL = string pointer
+
+    call print_string_vram
+
+    pop hl                        ; Restore data pointer
+    pop bc
+    djnz .sts_line_loop
+
+.sts_enable:
+    call gameflow_finish_transition_target_render
+
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; @mideas:block id=runtime.gameflow.screen_timer kind=routine owner=gameflow roots=get_world_screen_timer_frames_per_second,reload_world_screen_timer_frames,snapshot_world_screen_timer_interrupt_counter,reset_world_screen_timer,update_world_screen_timer
+
+get_world_screen_timer_frames_per_second:
+    ld a, (isComputer50HzOr60Hz)
+    or a
+    ld a, 50
+    ret z
+    ld a, 60
+    ret
+
+reload_world_screen_timer_frames:
+    call get_world_screen_timer_frames_per_second
+    ld (time_second_frame_counter), a
+    ret
+
+snapshot_world_screen_timer_interrupt_counter:
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
+    ret
+
+reset_world_screen_timer:
+    push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_reset_done
+    ld a, 60
+    ld (global_var_time_remaining), a
+    xor a
+    ld (global_var_time_remaining+1), a
+    call reload_world_screen_timer_frames
+    call snapshot_world_screen_timer_interrupt_counter
+    ld a, 1
+    ld (hud_dirty_flag), a
+.world_timer_reset_done:
+    pop af
+    ret
+
+update_world_screen_timer:
+    push af
+    push bc
+    push de
+    push hl
+
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .world_timer_done
+
+    ld a, (global_var_time_remaining)
+    ld b, a
+    ld a, (global_var_time_remaining+1)
+    or b
+    jp z, .world_timer_done
+
+    ld hl, (interrupt_counter)
+    ld de, (time_last_interrupt_counter)
+    or a
+    sbc hl, de
+    jp z, .world_timer_done
+
+    call snapshot_world_screen_timer_interrupt_counter
+
+    ld a, (time_second_frame_counter)
+    or a
+    jr nz, .world_timer_countdown_loaded
+    call reload_world_screen_timer_frames
+    ld a, (time_second_frame_counter)
+
+.world_timer_countdown_loaded:
+    ld e, a
+    call get_world_screen_timer_frames_per_second
+    ld c, a
+
+.world_timer_consume_elapsed_frames:
+    ld a, h
+    or l
+    jr z, .world_timer_store_countdown
+
+    ld a, h
+    or a
+    jr nz, .world_timer_hit_second_boundary
+    ld a, l
+    cp e
+    jr c, .world_timer_partial_consume
+
+.world_timer_hit_second_boundary:
+    ld a, l
+    sub e
+    ld l, a
+    jr nc, .world_timer_no_borrow
+    dec h
+.world_timer_no_borrow:
+    ld a, (global_var_time_remaining)
+    or a
+    jr nz, .world_timer_dec_low
+    ld a, (global_var_time_remaining+1)
+    or a
+    jr z, .world_timer_reached_zero
+    dec a
+    ld (global_var_time_remaining+1), a
+    ld a, 255
+    ld (global_var_time_remaining), a
+    jr .world_timer_after_decrement
+
+.world_timer_dec_low:
+    dec a
+    ld (global_var_time_remaining), a
+
+.world_timer_after_decrement:
+    ld a, 1
+    ld (hud_dirty_flag), a
+
+    ld a, (global_var_time_remaining)
+    ld b, a
+    ld a, (global_var_time_remaining+1)
+    or b
+    jr z, .world_timer_reached_zero
+    ld e, c
+    jr .world_timer_consume_elapsed_frames
+
+.world_timer_partial_consume:
+    ld a, e
+    sub l
+    ld e, a
+    xor a
+    ld h, a
+    ld l, a
+    jr .world_timer_store_countdown
+
+.world_timer_reached_zero:
+    ld e, c
+
+.world_timer_store_countdown:
+    ld a, e
+    ld (time_second_frame_counter), a
+
+.world_timer_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+; @mideas:endblock id=runtime.gameflow.screen_timer
+
+; ==================================================================
+; execute_transition_reveal_target
+; Reveal the freshly prepared target screen from runtime_screen_layout.
+; WorldLink fills runtime_screen_layout directly while skipping the final
+; Name Table copy; other visual nodes render hidden, then capture their
+; completed Name Table into runtime_screen_layout before this reveal.
+;
+; Input:  runtime_screen_layout = destination 32x24 Name Table data
+;         transition_effect_id / transition_delay_var from prior Transition
+; Destroys: AF, BC, DE, HL
+; ==================================================================
+execute_transition_reveal_target:
+    ld a, (transition_effect_id)
+    or a
+    jp z, .trt_full
+    dec a
+    jp z, .trt_dissolve_columns
+    dec a
+    jp z, .trt_dissolve_chars
+    dec a
+    jp z, .trt_vertical_lines
+    dec a
+    jp z, .trt_horizontal_lines
+    dec a
+    jp z, .trt_spiral
+    dec a
+    jp z, .trt_stripe_columns
+    dec a
+    jp z, .trt_diagonal
+    dec a
+    jp z, .trt_diagonal_inverse
+    dec a
+    jp z, .trt_checkerboard
+    dec a
+    jp z, .trt_doors
+    dec a
+    jp z, .trt_center_curtain
+    dec a
+    jp z, .trt_venetian_blinds
+    dec a
+    jp z, .trt_radial_wipe
+    dec a
+    jp z, .trt_block4_shuffle
+    dec a
+    jp z, .trt_zoom_box
+    jp .trt_full
+
+.trt_full:
+    ld hl, runtime_screen_layout
+    ld de, #1800
+    ld bc, 768
+    call FAST_LDIRVM
+    call trans_wait_frames
+    ret
+
+.trt_dissolve_columns:
+    ld d, 0
+.trtc_loop:
+    ld a, d
+    call trans_reveal_column_far
+    ld a, d
+    add a, 8
+    call trans_reveal_column_far
+    ld a, d
+    add a, 16
+    call trans_reveal_column_far
+    ld a, d
+    add a, 24
+    call trans_reveal_column_far
+    call trans_wait_frames
+    inc d
+    ld a, d
+    cp 8
+    jr c, .trtc_loop
+    ret
+
+.trt_dissolve_chars:
+    ld d, 0
+.trtch_loop:
+    ld a, d
+    call trans_reveal_row_direct_far
+    ld a, d
+    add a, 8
+    call trans_reveal_row_direct_far
+    ld a, d
+    add a, 16
+    call trans_reveal_row_direct_far
+    call trans_wait_frames
+    inc d
+    ld a, d
+    cp 8
+    jr c, .trtch_loop
+    ret
+
+.trt_vertical_lines:
+    ld c, 0
+.trtv_loop:
+    ld a, c
+    call trans_reveal_column_far
+    inc c
+    ld a, c
+    call trans_reveal_column_far
+    inc c
+    call trans_wait_frames
+    ld a, c
+    cp 32
+    jr c, .trtv_loop
+    ret
+
+.trt_horizontal_lines:
+    ld c, 0
+.trth_loop:
+    ld a, c
+    call trans_reveal_row_direct_far
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 24
+    jp c, .trth_loop
+    ret
+
+.trt_stripe_columns:
+    ld c, 0
+.trts_loop:
+    ld a, c
+    call trans_reveal_column_far
+    ld a, c
+    inc a
+    call trans_reveal_column_far
+    ld a, c
+    add a, 2
+    call trans_reveal_column_far
+    ld a, c
+    add a, 3
+    call trans_reveal_column_far
+    ld a, c
+    add a, 4
+    call trans_reveal_column_far
+    ld a, c
+    add a, 5
+    call trans_reveal_column_far
+    ld a, c
+    add a, 6
+    call trans_reveal_column_far
+    ld a, c
+    add a, 7
+    call trans_reveal_column_far
+    ld a, c
+    add a, 8
+    ld c, a
+    call trans_wait_frames
+    ld a, c
+    cp 32
+    jr c, .trts_loop
+    ret
+
+.trt_spiral:
+    ld b, 0
+.trtsp_loop:
+    ld a, b
+    add a, a
+    ld e, a
+    ld a, 32
+    sub e
+    ld e, a
+    ld d, b
+    ld a, b
+    call trans_reveal_row_range_far
+    ld a, 23
+    sub b
+    call trans_reveal_row_range_far
+
+    ld a, b
+    add a, a
+    ld d, a
+    ld a, 22
+    sub d
+    jr z, .trtsp_after_sides
+    ld d, a
+    ld a, b
+    inc a
+    ld c, a
+    ld a, b
+    call trans_reveal_column_range_far
+    ld a, 31
+    sub b
+    call trans_reveal_column_range_far
+.trtsp_after_sides:
+    call trans_wait_frames
+    inc b
+    ld a, b
+    cp 12
+    jr c, .trtsp_loop
+    ret
+
+.trt_diagonal:
+    call trans_diag_clear_init
+.trtd_frame_loop:
+    ld b, 16
+.trtd_batch_loop:
+    push bc
+    call trans_diag_reveal_update
+    pop bc
+    jr c, .trtd_done
+    djnz .trtd_batch_loop
+    call trans_wait_frames
+    jr .trtd_frame_loop
+.trtd_done:
+    ret
+
+.trt_diagonal_inverse:
+    call trans_diag_inverse_init
+.trtdi_frame_loop:
+    ld b, 16
+.trtdi_batch_loop:
+    push bc
+    call trans_diag_inverse_reveal_update
+    pop bc
+    jr c, .trtdi_done
+    djnz .trtdi_batch_loop
+    call trans_wait_frames
+    jr .trtdi_frame_loop
+.trtdi_done:
+    ret
+
+.trt_checkerboard:
+    xor a
+    call trans_reveal_checkerboard_pass
+    call trans_wait_frames
+    ld a, 1
+    call trans_reveal_checkerboard_pass
+    call trans_wait_frames
+    ret
+
+.trt_doors:
+    ld c, 0
+.trtdoor_loop:
+    ld a, c
+    call trans_reveal_column_far      ; left panel column
+    ld a, 31
+    sub c
+    call trans_reveal_column_far      ; right panel column
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 16
+    jr c, .trtdoor_loop
+    ret
+
+.trt_center_curtain:
+    ld c, 0
+.trtcurt_loop:
+    ld a, 15
+    sub c
+    call trans_reveal_column_far      ; center-left outward
+    ld a, 16
+    add a, c
+    call trans_reveal_column_far      ; center-right outward
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 16
+    jr c, .trtcurt_loop
+    ret
+
+.trt_venetian_blinds:
+    ld c, 0
+.trtvb_even_loop:
+    ld a, c
+    call trans_reveal_row_direct_far
+    inc c
+    inc c
+    ld a, c
+    cp 24
+    jr c, .trtvb_even_loop
+    call trans_wait_frames
+    ld c, 1
+.trtvb_odd_loop:
+    ld a, c
+    call trans_reveal_row_direct_far
+    inc c
+    inc c
+    ld a, c
+    cp 24
+    jr c, .trtvb_odd_loop
+    call trans_wait_frames
+    ret
+
+.trt_radial_wipe:
+    ld d, 26
+.trtrw_loop:
+    ld a, d
+    call trans_reveal_manhattan_pass
+    call trans_wait_frames
+    ld a, d
+    or a
+    jr z, .trtrw_done
+    dec d
+    jr .trtrw_loop
+.trtrw_done:
+    ret
+
+.trt_block4_shuffle:
+    ld c, 0
+.trtb4_loop:
+    ld a, c
+    call trans_reveal_block4_order
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 64
+    jr c, .trtb4_loop
+    ret
+
+.trt_zoom_box:
+    ld c, 0
+.trtzb_loop:
+    ld a, c
+    call trans_reveal_zoom_band
+    call trans_wait_frames
+    ld a, c
+    add a, 2
+    ld c, a
+    cp 12
+    jr c, .trtzb_loop
+    ret
 
 
 ; --- End of Far Bank 14 — pad to 8KB boundary ---
@@ -54448,6 +54578,7 @@ presentation_wait_frames:
     or a
     jr z, .pwf_done
 .pwf_loop:
+    ei
     halt
     djnz .pwf_loop
 .pwf_done:
@@ -54471,11 +54602,13 @@ presentation_wait_frames:
 ;     - IY
 presentation_wait_for_fire:
 .pwff_wait_press:
+    ei
     halt
     call presentation_read_fire_direct
     or a
     jr z, .pwff_wait_press
 .pwff_wait_release:
+    ei
     halt
     call presentation_read_fire_direct
     or a
@@ -57800,7 +57933,7 @@ BANK_23_USED_END:
     org FAR_BANK_23_ROM_START + #2000
 
 ; ##################################################################
-; FAR BANK 24 — [#6000h-#8000h] FAR CODE: bosses
+; FAR BANK 24 — [#6000h-#8000h] FAR CODE: components_autocontrol
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
 ; At runtime: bank0 saves P1, maps bank24 to P1,
 ; calls routine, then restores P1.
@@ -57808,71 +57941,6 @@ BANK_23_USED_END:
 ;       primary banks (1-2). No far-to-far calls allowed.
 ; ##################################################################
 FAR_BANK_24_ROM_START:
-
-    org #6000
-
-; ==================================================================
-; BOSSES
-; No boss assets in this project.
-; ==================================================================
-
-BOSS_COUNT EQU 0
-BOSS_DIR_LEFT EQU 0
-BOSS_DIR_RIGHT EQU 1
-BOSS_DIR_UP EQU 2
-BOSS_DIR_DOWN EQU 3
-BOSS_ATTACK_PROJECTILE EQU 0
-BOSS_ATTACK_MELEE EQU 1
-BOSS_ATTACK_SPECIAL EQU 2
-BOSS_ATTACK_PATTERN EQU 3
-BOSS_ATTACK_METEOR EQU 4
-BOSS_ATTACK_BOMB EQU 5
-BOSS_ATTACK_BOOMERANG EQU 6
-BOSS_ATTACK_ROCK EQU 7
-BOSS_ATTACK_LASER EQU 8
-BOSS_ATTACK_SINE_WAVE EQU 9
-BOSS_ATTACK_HOMING_MISSILE EQU 10
-BOSS_ATTACK_SLAM_ROCKS EQU 11
-BOSS_ATTACK_FALLING_BLOCKS EQU 12
-
-; @mideas:block id=runtime.boss.entry kind=routine owner=bosses roots=init_boss_system,update_boss_system
-init_boss_system:
-    xor a
-    ld (boss_runtime_tick), a
-    ld (boss_active), a
-    ld (boss_health_lo), a
-    ld (boss_health_hi), a
-    ld (boss_hit_cooldown), a
-    ld (boss_update_timer), a
-    ld (boss_falling_blocks_active), a
-    ld a, #FF
-    ld (boss_data_bank), a
-    ld a, 1
-    ld (boss_update_interval), a
-    ret
-
-update_boss_system:
-    ret
-
-init_screen_boss_from_current_screen:
-    ret
-; @mideas:endblock id=runtime.boss.entry
-
-
-; --- End of Far Bank 24 — pad to 8KB boundary ---
-BANK_24_USED_END:
-    ds #8000 - $, #FF
-    org FAR_BANK_24_ROM_START + #2000
-
-; ##################################################################
-; FAR BANK 25 — [#6000h-#8000h] FAR CODE: components_autocontrol
-; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
-; At runtime: bank0 saves P1, maps bank25 to P1,
-; calls routine, then restores P1.
-; NOTE: routines in this bank MUST only call code in bank 0 or
-;       primary banks (1-2). No far-to-far calls allowed.
-; ##################################################################
-FAR_BANK_25_ROM_START:
 
     org #6000
 
@@ -57895,8 +57963,8 @@ update_auto_event_string_component:
 
 
 
-; --- End of Far Bank 25 — pad to 8KB boundary ---
-BANK_25_USED_END:
+; --- End of Far Bank 24 — pad to 8KB boundary ---
+BANK_24_USED_END:
     ds #8000 - $, #FF
-    org FAR_BANK_25_ROM_START + #2000
+    org FAR_BANK_24_ROM_START + #2000
     end                 ; End of assembly

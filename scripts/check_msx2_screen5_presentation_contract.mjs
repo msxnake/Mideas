@@ -24,7 +24,10 @@ const gameFlowEditor = read('components', 'editors', 'GameFlowEditor.tsx');
 const gameFlowPreviewModal = read('components', 'modals', 'GameFlowPreviewModal.tsx');
 const projectTarget = read('utils', 'projectTarget.ts');
 const generatorIndex = read('utils', 'msxGenerator', 'index.ts');
+const purposeModule = read('utils', 'msx2GameFlowPurpose.ts');
 const presentationGenerator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5PresentationGenerator.ts');
+const presentationData = read('utils', 'msxGenerator', 'generators', 'msx2', 'screen5PresentationData.ts');
+const screen4Generator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
 const codeExportModal = read('components', 'modals', 'CodeExportModal.tsx');
 const projectHandlers = read('handlers', 'useProjectHandlers.tsx');
 const summaryExtractor = read('utils', 'summaryExtractor.ts');
@@ -212,17 +215,19 @@ check('asset picker can accept multiple asset types', assetPicker.includes("Proj
 check('MSX1 GameFlow presentation node picker stays MSX1-only', gameFlowEditor.includes("assetType: 'presentationscreen'") && !gameFlowEditor.includes("['presentationscreen', 'msx2presentation']"));
 check('MSX1 GameFlow preview stays MSX1-only', !gameFlowPreviewModal.includes('drawMsx2Screen5PresentationPreview') && !gameFlowPreviewModal.includes("a.type === 'presentationscreen' || a.type === 'msx2presentation'"));
 check('MSX2 project target allows msx2presentation assets', projectTarget.includes("'msx2presentation'"));
-check('generator exposes the SCREEN 5 presentation backend', generatorIndex.includes("'msx2-screen5-presentation'") && generatorIndex.includes('generateMsx2Screen5PresentationFiles'));
-check('generator routes msx2presentation assets to SCREEN 5 when no MSX2 GameFlow purpose overrides it', generatorIndex.includes('function hasMsx2PresentationAssets') && generatorIndex.includes('resolveMsx2GameFlowBackend') && generatorIndex.includes('if (hasMsx2PresentationAssets(assets))') && generatorIndex.includes("return 'msx2-screen5-presentation'"));
-check('generator auto-selects presentation backend for SCREEN 5 assets', generatorIndex.includes("asset?.type === 'msx2presentation'") && generatorIndex.includes("return 'msx2-screen5-presentation'"));
-check('code export preserves SCREEN 5 presentation backend unless current MSX2 GameFlow is SCREEN 4 runtime', codeExportModal.includes('shouldExportMsx2Screen5Presentation') && codeExportModal.includes("purpose === 'screen4-runtime'") && codeExportModal.includes("hasScreen5Presentation ? LEGACY_SCREEN5_MODE") && codeExportModal.includes("? 'msx2-screen5-presentation'"));
+check('generator exposes the SCREEN 5 presentation emitter', generatorIndex.includes("screen5Emitter === 'presentation'") && generatorIndex.includes('generateMsx2Screen5PresentationFiles'));
+check('generator routes msx2presentation assets to SCREEN 5 when no MSX2 GameFlow purpose overrides it', generatorIndex.includes('function hasMsx2PresentationAssets') && generatorIndex.includes('resolveMsx2GameFlowTarget') && generatorIndex.includes('if (hasMsx2PresentationAssets(assets) || hasMsx2BitmapRoomAssets(assets))') && generatorIndex.includes("backend: 'screen5', screen5Emitter: resolveScreen5Emitter(assets)"));
+// A project with rooms is a game even when it also carries a title screen, so
+// the emitter falls back to presentation only when there are no rooms at all.
+check('generator auto-selects the presentation emitter only when there are no bitmap rooms', generatorIndex.includes("asset?.type === 'msx2presentation'") && purposeModule.includes("return hasBitmapRooms ? 'bitmap-rooms' : 'presentation';"));
+check('code export preserves SCREEN 5 presentation backend unless current MSX2 GameFlow is SCREEN 4 runtime', codeExportModal.includes('shouldExportMsx2Screen5Presentation') && codeExportModal.includes('isMsx2Screen4Purpose(purpose)') && codeExportModal.includes("hasScreen5Presentation ? LEGACY_SCREEN5_MODE") && codeExportModal.includes("hasScreen5Presentation || hasMsx2BitmapRoom") && codeExportModal.includes("? 'screen5'"));
 check('code export routes SCREEN 5 presentation screen export through mapper bundle', codeExportModal.includes("case 'screens'") && codeExportModal.includes('if (hasScreen5Presentation)') && codeExportModal.includes('const screen5Bundle = await generateMapperReadyBundle'));
-check('code export displays selected MSX2 GameFlow and SCREEN 5 presentation', codeExportModal.includes('getMsx2Screen5ExportInfo') && codeExportModal.includes('SCREEN 5 export: GameFlow=') && codeExportModal.includes('Terminal transition=') && codeExportModal.includes('invalidFlowShape') && codeExportModal.includes("startNextNode?.type !== 'Screen5Presentation'") && codeExportModal.includes('missingPresentation') && codeExportModal.includes('isValidTerminalPath') && codeExportModal.includes("node.type === 'IfThenElse'") && codeExportModal.includes("purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime'") && codeExportModal.includes("(asset.data as any)?.purpose === 'screen5-presentation'") && codeExportModal.includes('getNextExportNode') && codeExportModal.includes('missing SCREEN 5 presentation asset') && codeExportModal.includes('reachable Screen5Presentation node') && codeExportModal.includes('optional Waypoints'));
+check('code export displays selected MSX2 GameFlow and SCREEN 5 presentation', codeExportModal.includes('getMsx2Screen5ExportInfo') && codeExportModal.includes('SCREEN 5 export: GameFlow=') && codeExportModal.includes('Terminal transition=') && codeExportModal.includes('invalidFlowShape') && codeExportModal.includes("startNextNode?.type !== 'Screen5Presentation'") && codeExportModal.includes('missingPresentation') && codeExportModal.includes('isValidTerminalPath') && codeExportModal.includes("node.type === 'IfThenElse'") && codeExportModal.includes('buildsMsx2Screen5Presentation') && codeExportModal.includes('resolveMsx2Screen5Emitter(purpose, hasMsx2BitmapRoomAsset(assets))') && codeExportModal.includes('getNextExportNode') && codeExportModal.includes('missing SCREEN 5 presentation asset') && codeExportModal.includes('reachable Screen5Presentation node') && codeExportModal.includes('optional Waypoints'));
 check('project load restores screenMode when currentScreenMode is absent', projectHandlers.includes('projectData.currentScreenMode || projectData.screenMode || DEFAULT_SCREEN_MODE'));
 check('project load normalizes flat and legacy nested msx2presentation assets', projectHandlers.includes("asset.type === 'msx2presentation'") && projectHandlers.includes('normalizeMsx2Presentation(asset)') && projectHandlers.includes('unpackScreen5PresentationPixels(sourcePacked, height)') && projectHandlers.includes('packedPixels: packedBitmap'));
 check('summary extractor carries msx2presentation assets', summaryExtractor.includes('msx2Presentations: any[]') && summaryExtractor.includes('extractMsx2Presentations(assets, usedAssets)') && summaryExtractor.includes("asset.type === 'msx2presentation'"));
 check('legacy summary extractor carries msx2presentation assets', createSummary.includes('msx2Presentations: []') && createSummary.includes("asset.type === 'msx2presentation'") && createSummary.includes('usedAssets.msx2Presentations.push'));
-check('CLI JSON export preserves SCREEN 5 presentation backend unless current MSX2 GameFlow is SCREEN 4 runtime', buildScript.includes('currentMsx2GameFlowPurpose') && buildScript.includes('currentMsx2GameFlowPurpose === "screen4-runtime"') && buildScript.includes('? "msx2-screen5-presentation"') && buildScript.includes('targetGraphicsBackend: currentMsx2GameFlowPurpose ? defaultGraphicsBackend : (raw.targetGraphicsBackend || defaultGraphicsBackend)'));
+check('CLI JSON export preserves SCREEN 5 presentation backend unless current MSX2 GameFlow is SCREEN 4 runtime', buildScript.includes('currentMsx2GameFlowPurpose') && buildScript.includes('currentMsx2GameFlowPurpose === "screen4-runtime"') && buildScript.includes('isScreen5Purpose || hasMsx2Presentation || hasMsx2BitmapRoom') && buildScript.includes('? "screen5"') && buildScript.includes('targetGraphicsBackend: currentMsx2GameFlowPurpose ? defaultGraphicsBackend : (raw.targetGraphicsBackend || defaultGraphicsBackend)'));
 check('CLI build runs ZX0 preprocessing before compile by default', buildScript.includes('maybe_run_zx0_preprocess(') && buildScript.includes('enabled=not args.skip_zx0_preprocess') && buildScript.includes('asm_output=zx0_asm') && buildScript.includes('asm_output=asm_to_compile'));
 check('CLI smoke inspects the post-ZX0 ASM emitted by build_mideas_unified_rom.py', smokeScript.includes('assert_screen5_zx0_contract') && smokeScript.includes('_compressed.asm'));
 check('CLI smoke accepts custom fixtures and output paths', smokeScript.includes('--fixture') && smokeScript.includes('--out-dir') && smokeScript.includes('--project-name') && smokeScript.includes('--screenshot-output'));
@@ -235,14 +240,60 @@ check('presentation generator emits SCREEN 5 palette and bitmap chunk labels', p
 check('presentation generator switches to SCREEN 5 mode', presentationGenerator.includes('ld a, 5') && presentationGenerator.includes('call CHGMOD'));
 check('presentation generator re-selects the SCREEN 5 display page after CHGMOD', presentationGenerator.includes('selectScreen5DisplayPageAsm') && presentationGenerator.includes('VDP R#2') && presentationGenerator.includes('0x3f : 0x1f'));
 check('presentation generator does not switch back to SCREEN 4', !/\bld\s+a,\s*4\b/i.test(presentationGenerator) && !presentationGenerator.includes('call INIGRP'));
-check('presentation generator uploads full 256x212 VRAM bitmap', presentationGenerator.includes('VISIBLE_HEIGHT = 212') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}'));
+check('presentation generator uploads full 256x212 VRAM bitmap', presentationData.includes('SCREEN5_VISIBLE_HEIGHT = 212') && presentationGenerator.includes('const VISIBLE_HEIGHT = SCREEN5_VISIBLE_HEIGHT;') && presentationGenerator.includes('SCREEN5_PRESENTATION_BITMAP_SIZE EQU ${BITMAP_BYTE_COUNT}'));
+// The three SCREEN 5 backends must keep reading presentation assets through the
+// shared converters. Private copies are how palette and bitmap handling drifted
+// apart before (see the header of screen5PresentationData.ts), so re-introducing
+// one of these function names is the regression this guards against. The
+// bitmap-room's own room-palette builder is a different function and stays.
+const screen5Backends = [
+  ['msx2Screen5PresentationGenerator.ts', presentationGenerator],
+  ['msx2Screen5FlowGenerator.ts', read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5FlowGenerator.ts')],
+  ['msx2Screen5BitmapRoomGenerator.ts', read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts')],
+];
+const forbiddenLocalCopies = [
+  'function buildIntroPaletteBytes(',
+  'function buildIntroBitmapBytes(',
+  'function parseIntroHexColor(',
+  'function buildBitmapBytes(',
+  'function chunkBitmapBytes(',
+  'function normalizePresentation(',
+];
+check(
+  'SCREEN 5 backends share the presentation data converters',
+  screen5Backends.every(([, source]) =>
+    source.includes("from './screen5PresentationData'")
+    && forbiddenLocalCopies.every(name => !source.includes(name))
+  )
+);
 check('presentation generator maps ROM page 2 before LDIRVM', presentationGenerator.includes('map_page2_to_cart_primary') && presentationGenerator.includes('call map_page2_to_cart_primary'));
 check('presentation generator emits terminal MSX2 GameFlow transitions', presentationGenerator.includes('resolveNextExportStep') && presentationGenerator.includes('nodeAfterTransition && nodeAfterTransition.type') && presentationGenerator.includes('cannot continue to "${nodeAfterTransition.type}"') && presentationGenerator.includes('MSX2_GAMEFLOW_NEXT_TRANSITION') && presentationGenerator.includes('MSX2_GAMEFLOW_TERMINAL_ACTION') && presentationGenerator.includes('msx2_gameflow_run_transition') && presentationGenerator.includes('screen5_black_palette_data') && presentationGenerator.includes('clear_screen5_visible_vram') && presentationGenerator.includes('clear_screen5_vertical_pixel_wipe') && presentationGenerator.includes('FILVRM'));
 check('presentation generator supports SCREEN 5 pixel wipe transitions', presentationGenerator.includes("screen5_vertical_pixel_wipe") && presentationGenerator.includes("screen5_horizontal_pixel_wipe") && presentationGenerator.includes("screen5_diagonal_pixel_wipe") && presentationGenerator.includes("screen5_mirror_pixel_wipe") && presentationGenerator.includes('SCREEN5_PRESENTATION_BYTES_PER_LINE') && presentationGenerator.includes('.vertical_column_loop') && presentationGenerator.includes('.horizontal_row_loop') && presentationGenerator.includes('screen5_diagonal_pixel_wipe_table') && presentationGenerator.includes('.mirror_column_loop') && presentationGenerator.includes('call FILVRM'));
 check('presentation generator emits MSX2 GameFlow Globals writes', presentationGenerator.includes('MSX2_GAMEFLOW_INITIAL_GLOBALS') && presentationGenerator.includes('MSX2_GAMEFLOW_AFTER_PRESENTATION_GLOBALS') && presentationGenerator.includes('MSX2_GAMEFLOW_AFTER_TRANSITION_GLOBALS') && presentationGenerator.includes('msx2_gameflow_apply_initial_globals') && presentationGenerator.includes('msx2_gameflow_apply_after_presentation_globals') && presentationGenerator.includes('global_var_') && presentationGenerator.includes('EQU #${address.toString'));
 check('presentation generator emits MSX2 GameFlow Text runtime', presentationGenerator.includes('MSX2_GAMEFLOW_TEXT') && presentationGenerator.includes('MSX2_GAMEFLOW_TEXT_NODE') && presentationGenerator.includes('renderScreen5TextBlock') && presentationGenerator.includes('screen5TextBlockCall') && presentationGenerator.includes('(y + row) * BYTES_PER_LINE') && presentationGenerator.includes('call LDIRVM'));
 check('presentation generator emits MSX2 GameFlow IfThenElse branches', presentationGenerator.includes('MSX2_GAMEFLOW_IFTHENELSE') && presentationGenerator.includes('msx2_gameflow_compare_hl_de') && presentationGenerator.includes('msx2_gameflow_branch_then') && presentationGenerator.includes('msx2_gameflow_branch_else') && presentationGenerator.includes('resolveConditionAsGlobalAssignment'));
-check('presentation generator can chain SCREEN 5 intro into SCREEN 4 runtime', presentationGenerator.includes('generateMixedScreen5ToScreen4UnitedFiles') && presentationGenerator.includes('MSX2_GAMEFLOW_SCREEN5_TO_SCREEN4_MIXED: yes') && presentationGenerator.includes('MIXED_SCREEN5_INTRO_BANK EQU 5') && presentationGenerator.includes("finalJumpLabel: 'screen4_runtime_init_rom'") && presentationGenerator.includes('bankedChunkStartBank: 6'));
+check('presentation generator can chain SCREEN 5 intro into SCREEN 4 runtime', presentationGenerator.includes('generateMixedScreen5ToScreen4UnitedFiles') && presentationGenerator.includes('MSX2_GAMEFLOW_SCREEN5_TO_SCREEN4_MIXED: yes') && presentationGenerator.includes('MIXED_SCREEN5_INTRO_BANK EQU 5') && presentationGenerator.includes("MIXED_SCREEN4_ENTRY_LABEL = 'screen4_runtime_init_rom'") && presentationGenerator.includes("MIXED_INTRO_ENTRY_LABEL = 'mixed_screen5_intro_entry'") && presentationGenerator.includes('finalJumpLabel: MIXED_SCREEN4_ENTRY_LABEL') && presentationGenerator.includes('bankedChunkStartBank: 6'));
+
+// The mixed ROM is built by asking the SCREEN 4 generator for the labels and
+// payload it needs. It used to be built by regex-rewriting the generated ASM:
+// a global `init_rom` rename plus a strip that silently did nothing when
+// it failed to match.
+check('mixed SCREEN 5 -> SCREEN 4 ROM is composed, not rewritten',
+  !presentationGenerator.includes('function renameScreen4EntryForMixedAsm')
+  && presentationGenerator.includes('runtimeEntryLabel: MIXED_SCREEN4_ENTRY_LABEL')
+  && presentationGenerator.includes("bootEntryLabel: 'init_rom'")
+  && presentationGenerator.includes('residentPrologueAsm')
+  && screen4Generator.includes('function resolveScreen4Host')
+  && screen4Generator.includes('dw ${host.bootEntryLabel}')
+  && screen4Generator.includes('${host.residentPrologueAsm}${host.runtimeEntryLabel}:'));
+
+// A formatting change in the intro emitter must fail the build, not ship a
+// banked routine that still performs the cartridge bring-up. The patterns are
+// anchored so a re-indent cannot satisfy them.
+check('mixed route guards the intro bring-up strip',
+  presentationGenerator.includes('could not find `call map_page2_to_cart_primary`')
+  && presentationGenerator.includes('/^ {4}call map_page2_to_cart_primary')
+  && presentationGenerator.includes('splitMixedIntroAsm'));
 check('presentation generator banks standalone SCREEN 5 chain chunks in Konami MegaROM', presentationGenerator.includes("usesKonamiMegaRom\n      ? 3") && presentationGenerator.includes('let nextBank = bankedChunkStartBank') && presentationGenerator.includes('bankedChunkVramWindow') && presentationGenerator.includes("mapper_set_bank_p3") && presentationGenerator.includes('chunkBankByLabel.set(`SCREEN5_SCENE_${scene.sceneIndex}_BITMAP_CHUNK_${index}`, nextBank++)'));
 check('presentation generator physically aligns first banked SCREEN 5 chunk window', presentationGenerator.includes('IF ($ < ${bankedChunkVramWindow})') && presentationGenerator.includes('ds ${bankedChunkVramWindow} - $, #FF') && presentationGenerator.includes('; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_START__'));
 check('presentation generator keeps transition palette data resident before banked SCREEN 5 chunks', presentationGenerator.includes("${paletteData}\n${anyTransition ? formatBytes('screen5_black_palette_data'") && presentationGenerator.indexOf("${paletteData}\n${anyTransition ? formatBytes('screen5_black_palette_data'") < presentationGenerator.indexOf('; __MIDEAS_SCREEN5_CHAIN_CHUNK_DATA_START__'));

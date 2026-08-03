@@ -9,6 +9,7 @@ export interface StateTransition {
 }
 
 export type SkillControlIcon = 'left' | 'right' | 'up' | 'down' | 'jump' | 'attack';
+export type SkillActivationTrigger = 'input' | 'collision' | 'collision-input';
 
 export type SkillParameterType = 'number' | 'boolean';
 
@@ -36,8 +37,14 @@ export interface SkillDef {
   cycles: number;
   addsStates: PlayerState[];
   transitions: StateTransition[];
-  /** Which control icon(s) this skill responds to. `['down', 'jump']` = Down + A by default. undefined = automatic. */
+  /** Which control icon(s) an input skill responds to. `['down', 'jump']` = Down + A by default. */
   controlIcon?: SkillControlIcon | SkillControlIcon[];
+  /**
+   * How the skill is activated. Defaults to `input` when `controlIcon` is
+   * present. `collision` runs automatically on overlap. `collision-input`
+   * requires both overlap and the configured keyboard/joystick control.
+   */
+  activationTrigger?: SkillActivationTrigger;
   /** How multiple control icons combine in UI declarations. Default: 'and'. */
   controlOperator?: 'and' | 'or';
   /**

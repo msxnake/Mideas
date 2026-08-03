@@ -3675,7 +3675,7 @@ def validate_msx2_screen5_konami_fixed_bank0_megarom(rom_path: Path, asm_path: P
     is_chain_backend = "Mideas MSX2 SCREEN 5 presentation chain backend" in asm_text
     required_markers = [
         "Mideas MSX2 SCREEN 5 presentation chain backend" if is_chain_backend else "Mideas MSX2 SCREEN 5 presentation backend",
-        "; Backend: msx2-screen5-presentation-chain" if is_chain_backend else "; Backend: msx2-screen5-presentation",
+        "; Backend: screen5 (presentation chain)" if is_chain_backend else "; Backend: screen5 (presentation)",
         "; ROM Mode: megarom",
         "; Mapper Target: konami",
         "init_konami8k_fixed_bank0_banks:",
@@ -3737,7 +3737,7 @@ def validate_msx2_screen5_bitmap_room_konami_fixed_bank0_megarom(
     asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
     required_markers = [
         "Mideas MSX2 SCREEN 5 bitmap room backend",
-        "; Backend: msx2-screen4-bitmap-room",
+        "; Backend: screen5 (bitmap rooms)",
         "; ROM Mode: megarom",
         "; Mapper Target: konami",
         "map_page2_to_cart_primary:",
@@ -5828,20 +5828,26 @@ const msx2GameFlows = assets.filter(asset => asset && asset.type === "msx2gamefl
 const currentMsx2GameFlow = msx2GameFlows.find(asset => asset.name === "Main MSX2") || msx2GameFlows[0];
 const currentMsx2GameFlowPurpose = currentMsx2GameFlow && currentMsx2GameFlow.data ? currentMsx2GameFlow.data.purpose : undefined;
 const requestedScreenMode = raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)";
-const exportScreenMode = currentMsx2GameFlowPurpose === "screen4-runtime" || currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
+// Two MSX2 backends. The three legacy purposes are still read and, unlike the
+// current ones, also pin which SCREEN 5 emitter runs. Mirrors
+// utils/msx2GameFlowPurpose.ts.
+const isScreen4Purpose = currentMsx2GameFlowPurpose === "screen4" || currentMsx2GameFlowPurpose === "screen4-runtime";
+const isScreen5Purpose = currentMsx2GameFlowPurpose === "screen5"
+  || currentMsx2GameFlowPurpose === "screen5-presentation"
+  || currentMsx2GameFlowPurpose === "screen4-bitmap-runtime";
+const screen5Emitter = currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
+  ? "bitmap-rooms"
+  : currentMsx2GameFlowPurpose === "screen5-presentation"
+  ? "presentation"
+  : (hasMsx2BitmapRoom ? "bitmap-rooms" : "presentation");
+const exportScreenMode = isScreen4Purpose || (isScreen5Purpose && screen5Emitter === "bitmap-rooms")
   ? "SCREEN 4 (Graphics II)"
   : (hasMsx2Presentation ? "SCREEN 5 (Graphics III)" : requestedScreenMode);
-const defaultGraphicsBackend = currentMsx2GameFlowPurpose === "screen4-runtime"
-  ? "msx2-screen4-pattern"
-  : currentMsx2GameFlowPurpose === "screen4-bitmap-runtime"
-  ? "msx2-screen4-bitmap-room"
-  : currentMsx2GameFlowPurpose === "screen5-presentation" && hasMsx2Presentation
-  ? "msx2-screen5-presentation"
-  : hasMsx2Presentation
-  ? "msx2-screen5-presentation"
-  : hasMsx2BitmapRoom
-  ? "msx2-screen4-bitmap-room"
-  : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(exportScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank");
+const defaultGraphicsBackend = isScreen4Purpose
+  ? "screen4"
+  : isScreen5Purpose || hasMsx2Presentation || hasMsx2BitmapRoom
+  ? "screen5"
+  : (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(exportScreenMode) ? "screen4" : "screen2");
 
 const files = generator.generateModularASM(name, assets, {
   generateUnified: true,
@@ -7070,7 +7076,7 @@ def main() -> int:
             args.rom_mode == "megarom"
             and args.target_format == "konami"
             and "Mideas MSX2 SCREEN 5 bitmap room backend" in compiled_text
-            and "; Backend: msx2-screen4-bitmap-room" in compiled_text
+            and "; Backend: screen5 (bitmap rooms)" in compiled_text
             and "init_konami8k_fixed_bank0_banks:" in compiled_text
         )
         mapper_validation = None

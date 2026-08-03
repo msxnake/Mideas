@@ -1,0 +1,5 @@
+write C0E7 from PC=8319
+write C0EA from PC=8319
+write C0E7 from PC=4D90
+write C0EA from PC=4DA9
+write C0EA from PC=4F57

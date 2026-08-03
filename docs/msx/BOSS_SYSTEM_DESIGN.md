@@ -1024,3 +1024,22 @@ Cada entrada a una sala amb boss viu reinicia la seqüència, sense flag persist
 - El raster només visita cel·les buides del perímetre. No omple l'interior de la sala.
 - La marca de col·lisió `#80` s'activa quan apareix la línia 16 de cada cel·la, no abans.
 - `animated=false` conserva el tancament immediat en un sol pas.
+
+### Death FX — explosions bitmap sobre el boss (2026-07-28)
+
+Quan la vida arriba a zero, el boss no desapareix instantàniament si té assets
+configurats. El runtime passa `boss_active` de `1` (combat) a `2` (mort), congela
+el cos i retira tots els projectils. Després:
+
+1. Tria pseudoaleatòriament un dels `bossDeathExplosionStampIds`.
+2. Tria una posició que manté el stamp completament dins del rectangle del cos.
+3. El compon amb V9938 `LMMM + TIMP` (`#98`), de manera que el color 0 és
+   transparent i les explosions anteriors continuen visibles.
+4. Repeteix `bossDeathExplosionCount` vegades, cada
+   `bossDeathExplosionInterval` frames.
+5. Espera `bossDeathExplosionHoldFrames`, restaura el rectangle complet, elimina
+   la barrera i executa `onDefeated`.
+
+La taula de cada sala guarda només `assetCount, count, interval, hold` i sis bytes
+per stamp (`SX, SY, W, H`). El runtime afegeix tres bytes RAM (`left`, `tick`,
+`seed`). Sense stamps vàlids, conserva la derrota immediata anterior.

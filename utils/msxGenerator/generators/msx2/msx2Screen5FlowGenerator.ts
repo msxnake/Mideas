@@ -26,6 +26,7 @@ import type {
   Screen5PaletteSlot,
 } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
+import { isMsx2Screen5OrUnsetPurpose } from '../../../msx2GameFlowPurpose';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
 import {
   buildScreen5FlowFontBytes,
@@ -54,6 +55,17 @@ import {
   GF_TEXT_TITLE_Y,
   type Screen5FlowRuntimeFeatures,
 } from './msx2Screen5FlowRuntime';
+import {
+  SCREEN5_BITMAP_BYTE_COUNT,
+  SCREEN5_DEFAULT_CHUNK_LINES,
+  SCREEN5_VISIBLE_HEIGHT,
+  buildScreen5BitmapBytes,
+  buildScreen5PaletteBytes,
+  chunkScreen5BitmapBytes,
+  normalizeScreen5Presentation,
+  resolveScreen5BrightestPaletteIndex,
+} from './screen5PresentationData';
+import { SCREEN5_TRANSITION_EFFECTS } from './screen5TransitionEffects';
 
 export interface Msx2Screen5FlowGeneratorConfig {
   screenMode: string;
@@ -63,23 +75,14 @@ export interface Msx2Screen5FlowGeneratorConfig {
 }
 
 const BYTES_PER_LINE = GF_LINE_BYTES;
-const VISIBLE_HEIGHT = 212;
-const BITMAP_BYTE_COUNT = VISIBLE_HEIGHT * BYTES_PER_LINE;
-const DEFAULT_CHUNK_LINES = 32;
+const VISIBLE_HEIGHT = SCREEN5_VISIBLE_HEIGHT;
+const BITMAP_BYTE_COUNT = SCREEN5_BITMAP_BYTE_COUNT;
+const DEFAULT_CHUNK_LINES = SCREEN5_DEFAULT_CHUNK_LINES;
 
 const GF_RAM_BASE = 0xc800;
 const GF_TEXTBUF_BASE = 0xca00; // 1024 bytes, below the #D000 ZX0 staging buffer
 
 const EXTENDED_NODE_TYPES = new Set(['SubMenu', 'TextScroll', 'TextScrollColor', 'Music']);
-
-const SCREEN5_TRANSITION_EFFECTS = new Set([
-  'cls',
-  'fade_to_black',
-  'screen5_vertical_pixel_wipe',
-  'screen5_horizontal_pixel_wipe',
-  'screen5_diagonal_pixel_wipe',
-  'screen5_mirror_pixel_wipe',
-]);
 
 const hexByte = (value: number): string => `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
 const hexWord = (value: number): string => `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
@@ -97,79 +100,6 @@ const clampPaletteIndex = (value: unknown, fallback: number): number => {
 };
 
 const sanitizeLabel = (value: string): string => value.replace(/[^A-Za-z0-9_]/g, '_');
-
-// ---------------------------------------------------------------------------
-// Presentation asset helpers (mirrors of the legacy backend's own converters)
-// ---------------------------------------------------------------------------
-
-function parseHexColor(hex: unknown): [number, number, number] | null {
-  if (typeof hex !== 'string') return null;
-  const match = hex.trim().match(/^#?([0-9a-f]{6})$/i);
-  if (!match) return null;
-  const value = parseInt(match[1], 16);
-  return [
-    Math.round(((value >> 16) & 0xff) * 7 / 255),
-    Math.round(((value >> 8) & 0xff) * 7 / 255),
-    Math.round((value & 0xff) * 7 / 255),
-  ];
-}
-
-function resolvePaletteSlot(slot: Screen5PaletteSlot | undefined): [number, number, number] {
-  const masterIndex = Number(slot?.masterIndex);
-  if (Number.isFinite(masterIndex) && masterIndex >= 0) {
-    const index = Math.max(0, Math.min(511, Math.trunc(masterIndex)));
-    return [(index >> 6) & 0x07, (index >> 3) & 0x07, index & 0x07];
-  }
-  const fromHex = parseHexColor((slot as any)?.hex);
-  if (fromHex) return fromHex as [number, number, number];
-  return [0, 0, 0];
-}
-
-function buildPaletteBytes(palette: Screen5PaletteSlot[] | undefined): number[] {
-  const source = Array.isArray(palette) ? palette : [];
-  return Array.from({ length: 16 }, (_unused, slotIndex) => {
-    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
-    const [r, g, b] = resolvePaletteSlot(slot);
-    return [(r << 4) | b, g];
-  }).flat();
-}
-
-function resolveBrightestPaletteIndex(palette: Screen5PaletteSlot[] | undefined): number {
-  const source = Array.isArray(palette) ? palette : [];
-  let bestSlot = 15;
-  let bestBrightness = -1;
-  for (let slotIndex = 1; slotIndex < 16; slotIndex++) {
-    const slot = source.find(item => item?.slotIndex === slotIndex) || source[slotIndex];
-    const [r, g, b] = resolvePaletteSlot(slot);
-    const brightness = r + g + b;
-    if (brightness > bestBrightness) {
-      bestBrightness = brightness;
-      bestSlot = slotIndex;
-    }
-  }
-  return bestSlot;
-}
-
-function buildBitmapBytes(presentation: Msx2Screen5PresentationConfig): number[] {
-  const source = Array.isArray(presentation.packedBitmap) ? presentation.packedBitmap : [];
-  const imageHeight = presentation.height === 212 ? 212 : 192;
-  const imageBytes = Math.min(imageHeight * BYTES_PER_LINE, source.length);
-  const bytes = Array.from({ length: BITMAP_BYTE_COUNT }, () => 0);
-  for (let index = 0; index < imageBytes; index++) {
-    bytes[index] = clampByte(source[index], 0);
-  }
-  return bytes;
-}
-
-function chunkBitmapBytes(bytes: number[], chunkLines: number): number[][] {
-  const normalizedChunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(chunkLines) || DEFAULT_CHUNK_LINES));
-  const chunkSize = normalizedChunkLines * BYTES_PER_LINE;
-  const chunks: number[][] = [];
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    chunks.push(bytes.slice(offset, offset + chunkSize));
-  }
-  return chunks;
-}
 
 // ---------------------------------------------------------------------------
 // Global variables
@@ -322,7 +252,7 @@ export function screen5FlowNeedsGenericBackend(flow: Msx2GameFlowGraph | undefin
 
 export function findScreen5FlowGraph(analysis: ProjectAnalysis): Msx2GameFlowGraph | undefined {
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
-    .filter(candidate => candidate?.purpose !== 'screen4-runtime');
+    .filter(candidate => isMsx2Screen5OrUnsetPurpose(candidate?.purpose));
   return flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
 }
 
@@ -411,33 +341,6 @@ interface PresentationEntry {
   vramPage: number;
 }
 
-function normalizePresentation(presentation: Msx2Screen5PresentationConfig | undefined): Msx2Screen5PresentationConfig {
-  return {
-    enabled: presentation?.enabled !== false,
-    name: presentation?.name || 'MSX2 SCREEN 5 Presentation',
-    target: 'MSX2',
-    screenMode: 'SCREEN 5',
-    sourceFileName: presentation?.sourceFileName || null,
-    sourceImageWidth: Number(presentation?.sourceImageWidth) || 0,
-    sourceImageHeight: Number(presentation?.sourceImageHeight) || 0,
-    width: 256,
-    height: presentation?.height === 212 ? 212 : 192,
-    fitMode: presentation?.fitMode || 'cover',
-    palette: Array.isArray(presentation?.palette) ? presentation!.palette : [],
-    pixels: Array.isArray(presentation?.pixels) ? presentation!.pixels : [],
-    packedBitmap: Array.isArray(presentation?.packedBitmap) ? presentation!.packedBitmap : [],
-    compression: presentation?.compression || { codec: 'ZX0', enabled: false, chunkLines: 32 },
-    runtime: {
-      showAtBoot: presentation?.runtime?.showAtBoot !== false,
-      clearSpritesBeforeShow: presentation?.runtime?.clearSpritesBeforeShow !== false,
-      waitForKey: presentation?.runtime?.waitForKey !== false,
-      waitForFrames: Number(presentation?.runtime?.waitForFrames) || 0,
-      vramPage: presentation?.runtime?.vramPage === 1 ? 1 : 0,
-      romDataGroup: presentation?.runtime?.romDataGroup || 'auto',
-    },
-  };
-}
-
 export function generateMsx2Screen5FlowUnitedFiles(
   projectName: string,
   analysis: ProjectAnalysis,
@@ -467,13 +370,13 @@ export function generateMsx2Screen5FlowUnitedFiles(
         `MSX2 GameFlow Screen5Presentation node "${node.id}" references missing msx2presentation asset "${node.presentationAssetId || 'auto-first'}".`
       );
     }
-    const presentation = normalizePresentation(source);
+    const presentation = normalizeScreen5Presentation(source);
     const chunkLines = Math.max(1, Math.min(DEFAULT_CHUNK_LINES, Math.trunc(Number(presentation.compression?.chunkLines) || DEFAULT_CHUNK_LINES)));
     const entry: PresentationEntry = {
       index: presentationEntries.size,
       presentation,
-      paletteBytes: buildPaletteBytes(presentation.palette),
-      chunks: chunkBitmapBytes(buildBitmapBytes(presentation), chunkLines),
+      paletteBytes: buildScreen5PaletteBytes(presentation.palette),
+      chunks: chunkScreen5BitmapBytes(buildScreen5BitmapBytes(presentation), chunkLines),
       chunkLines,
       vramPage: presentation.runtime.vramPage === 1 ? 1 : 0,
     };
@@ -489,7 +392,7 @@ export function generateMsx2Screen5FlowUnitedFiles(
   const vramPage = firstPresentation?.vramPage ?? 0;
   const vramBase = vramPage === 1 ? 0x8000 : 0x0000;
   const pageYOffset = vramPage === 1 ? 256 : 0;
-  const defaultTextColor = resolveBrightestPaletteIndex(firstPresentation?.presentation.palette);
+  const defaultTextColor = resolveScreen5BrightestPaletteIndex(firstPresentation?.presentation.palette);
 
   const strings = createStringPool();
   const labelOf = (node: Msx2GameFlowNode): string => `gf_node_${sanitizeLabel(node.id)}`;
@@ -899,7 +802,7 @@ ${chunkedDb(chunk)}`;
 ; Mideas MSX2 SCREEN 5 GameFlow backend (generic node walker)
 ; Project: ${projectName}
 ; Screen mode: ${config.screenMode}
-; Backend: msx2-screen5-gameflow
+; Backend: screen5 (gameflow walker)
 ; MSX2_GAMEFLOW_PRESENT: yes
 ; MSX2_GAMEFLOW_ASSET: ${flow.name || 'Main MSX2'}
 ; MSX2_GAMEFLOW_START_NODE: ${start.id}

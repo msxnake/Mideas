@@ -7,6 +7,12 @@ export function registerSkill(skill: SkillDef): void {
   if (registry.has(skill.id)) {
     throw new Error(`Skill "${skill.id}" is already registered.`);
   }
+  if (skill.activationTrigger === 'collision' && skill.controlIcon) {
+    throw new Error(`Skill "${skill.id}" uses collision activation and must not declare controlIcon.`);
+  }
+  if (skill.activationTrigger === 'collision-input' && !skill.controlIcon) {
+    throw new Error(`Skill "${skill.id}" uses collision-input activation and must declare controlIcon.`);
+  }
   registry.set(skill.id, skill);
 }
 

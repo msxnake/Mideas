@@ -14,6 +14,7 @@ interface TransitionsEditorProps {
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void;
   allAssets: ProjectAsset[];
   entityTemplates?: EntityTemplate[];
+  stateMachineAssetId?: string;
 }
 
 export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
@@ -22,7 +23,8 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
   onDeleteTransition,
   onUpdateTransition,
   allAssets,
-  entityTemplates
+  entityTemplates,
+  stateMachineAssetId,
 }) => {
   const { states, transitions } = stateMachine;
 
@@ -104,6 +106,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                         onUpdate={(c) => onUpdateTransition(transition.id, { conditions: c as any })}
                         allAssets={allAssets}
                         entityTemplates={entityTemplates}
+                        stateMachineAssetId={stateMachineAssetId}
                       />
                     </div>
                     <div>
@@ -144,7 +147,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
         <div>
           <h5 className="text-xs font-bold mb-1">Condition</h5>
           {condition ? (
-            <ConditionBuilder condition={condition} onUpdate={setCondition} allAssets={allAssets} entityTemplates={entityTemplates} />
+            <ConditionBuilder condition={condition} onUpdate={setCondition} allAssets={allAssets} entityTemplates={entityTemplates} stateMachineAssetId={stateMachineAssetId} />
           ) : (
             <Button onClick={() => setCondition({ type: 'KEY_PRESSED', params: { key: '' } })} size="sm">+ Add Condition</Button>
           )}

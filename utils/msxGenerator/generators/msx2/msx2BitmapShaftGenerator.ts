@@ -134,6 +134,9 @@ export interface BitmapShaftSystemAsm {
   detectCallAsm: string;
   /** After the enemy SAT writer, before the bullets. */
   satCallAsm: string;
+  /** Before the per-room sprite loaders: restore the reusable shaft pattern
+   *  first, so a co-allocated enemy/platform range can overwrite it safely. */
+  preLoadCallAsm: string;
   /** From the tail of commit_room_flip: re-snap a rider that changed room. */
   commitCallAsm: string;
   routinesAsm: string;
@@ -153,6 +156,7 @@ const DISABLED: BitmapShaftSystemAsm = {
   updateCallAsm: '',
   detectCallAsm: '',
   satCallAsm: '',
+  preLoadCallAsm: '',
   commitCallAsm: '',
   routinesAsm: '',
   dataAsm: '',
@@ -181,7 +185,9 @@ export function buildBitmapShaftSystemAsm(
 
   const slotAddr = opts.ramBase;
   const forcedRoomAddr = opts.ramBase + count * SHAFT_RAM_STRIDE;
-  const ramBytes = count * SHAFT_RAM_STRIDE + 1;
+  const handoverAddr = forcedRoomAddr + 1;
+  const pendingDirAddr = handoverAddr + 1;
+  const ramBytes = count * SHAFT_RAM_STRIDE + 3;
 
   const equates = `; --- MULTI-SCREEN SHAFT state (${ramBytes} bytes): ${count} cabin(s) x ${SHAFT_RAM_STRIDE}
 ; (slot, y, dir, rider) + 1 shared forced-room byte ---
@@ -190,6 +196,16 @@ bitmap_shaft_state EQU ${asmWord(slotAddr)}
 ; The shaft path is authored independently of the worldmap, so a cabin crossing
 ; a room boundary cannot rely on a north/south rail existing.
 bitmap_shaft_forced_room EQU ${asmWord(forcedRoomAddr)}
+; 1 while a cabin is carrying the player into another room. commit_room_flip
+; reads it to SKIP its edge-entry player placement: a ride is not a player
+; walking off a rail, so the normal "enter from the bottom/top" rules (which
+; slam player_y to the room edge and may clear the fall speed) must not run.
+; The cabin itself places the player in bitmap_shaft_after_commit.
+bitmap_shaft_handover EQU ${asmWord(handoverAddr)}
+; Latched transition direction, #FF = nothing pending. The cabin loop only takes
+; note; bitmap_shaft_start_pending fires the transition from the main loop, with
+; no cabin pointer live and outside the SAT phase.
+bitmap_shaft_pending_dir EQU ${asmWord(pendingDirAddr)}
 `;
 
   const stateOf = (i: number) => `bitmap_shaft_state + ${i * SHAFT_RAM_STRIDE}`;
@@ -356,6 +372,9 @@ ${hbLeft ? `    add a, ${hbLeft}\n` : ''}    cp e
 bitmap_shaft_init:
     ld a, #FF
     ld (bitmap_shaft_forced_room), a
+    ld (bitmap_shaft_pending_dir), a
+    xor a
+    ld (bitmap_shaft_handover), a
     ld ix, bitmap_shaft_state
     ld b, 0
 .shaft_init_one:
@@ -421,6 +440,29 @@ ${opts.pauseGateAsm || ''}    ld ix, bitmap_shaft_state
     jp .shaft_after_step
 .shaft_up_same_room:
     ld (ix+1), a
+    ; With a rider the hand-over must be driven by the PLAYER reaching the top of
+    ; the room, not by the cabin: the carry writes (cabin_y - ${standOffset}), which
+    ; underflows ${standOffset} px earlier and threw the rider off the top edge -- that was
+    ; the "falls off the platform" bug. Fire it here and pull the cabin into the
+    ; room above so it stays under his feet across the change.
+    ld a, (ix+3)
+    dec a
+    jp nz, .shaft_after_step  ; nobody aboard (or already handed over)
+    ld a, (ix+1)
+    cp ${standOffset + 2}     ; player_y would drop under 2: the engine's own edge rule
+    jp nc, .shaft_after_step
+    ld a, b                   ; only cross if the travel really continues above
+    call bitmap_shaft_def_ptr
+    inc hl
+    inc hl
+    ld a, (hl)                ; topSlot
+    cp (ix+0)
+    jp z, .shaft_after_step   ; already in the topmost room of the authored travel
+    jp c, .shaft_after_step
+    inc (ix+0)
+    ld a, ${SHAFT_ROOM_HEIGHT - 1}
+    ld (ix+1), a              ; re-based on the bottom row of the room above
+    call bitmap_shaft_cross_room
     jp .shaft_after_step
 ; --- descending: y increases, past 191 we move down one room (slot - 1) ---
 .shaft_step_down:
@@ -481,9 +523,12 @@ ${opts.pauseGateAsm || ''}    ld ix, bitmap_shaft_state
     ld (ix+2), a              ; now climbing
 .shaft_step_done:
     ; --- carry the rider: the cabin is vertical, so only Y is carried ---
+    ; rider 2 = hand-over in flight: the cabin already belongs to the NEXT room,
+    ; so writing player_y here would drop the player at that Y in the room still
+    ; on screen. commit_room_flip re-snaps instead.
     ld a, (ix+3)
-    or a
-    jp z, .shaft_update_next
+    dec a
+    jp nz, .shaft_update_next
     ld a, (ix+1)
     sub ${standOffset}
     ld (player_y), a
@@ -514,15 +559,37 @@ bitmap_shaft_cross_room:
     push bc
     call bitmap_shaft_room_for_slot
     ld (bitmap_shaft_forced_room), a
+    pop bc
     ld a, (ix+2)
     or a
     ld a, 2                   ; climbing -> enter the new room from its bottom
     jp z, .shaft_have_dir
     ld a, 3                   ; descending -> enter from the top
 .shaft_have_dir:
-    call start_room_transition
-    pop bc
+    ld (bitmap_shaft_pending_dir), a
+    ld a, 2                   ; hand-over in flight until the new room commits
+    ld (ix+3), a
+    ld (bitmap_shaft_handover), a   ; non-zero: commit_room_flip skips edge entry
     ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_shaft_start_pending
+; ------------------------------------------------------------
+; PURPOSE: Fires the latched room change. Called from the main loop right after
+;   bitmap_shaft_update, NOT from inside the cabin loop: start_room_transition
+;   destroys IX and re-maps banks, and calling it with a cabin pointer live (and
+;   the cabin loop still to finish) crashed the ROM into the BIOS.
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_shaft_start_pending:
+    ld a, (bitmap_shaft_pending_dir)
+    cp #FF
+    ret z
+    push af
+    ld a, #FF
+    ld (bitmap_shaft_pending_dir), a   ; one-shot
+    pop af
+    jp start_room_transition
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_shaft_after_commit
@@ -550,6 +617,14 @@ bitmap_shaft_after_commit:
     ld a, (player_flags)
     or #01                    ; grounded on the cabin
     ld (player_flags), a
+    ; The hand-over is done: back to plain riding so the carry and the stand
+    ; test take over again in the room that has just been published.
+    ld a, 1
+    ld (ix+3), a
+    xor a
+    ld (bitmap_shaft_handover), a
+    ld (player_vy), a
+    ld (player_vy_frac), a    ; the ride owns the vertical speed, not gravity
 .shaft_commit_pop:
     pop bc
 .shaft_commit_next:
@@ -575,6 +650,9 @@ bitmap_shaft_ride_detect:
     ld ix, bitmap_shaft_state
     ld b, 0
 .shaft_detect_one:
+    ld a, (ix+3)
+    cp 2
+    jp z, .shaft_detect_next  ; hand-over in flight: only the commit resolves it
     push bc
     call bitmap_shaft_room_for_slot
     ld hl, current_screen_index
@@ -682,13 +760,14 @@ ${satSlotBlocks}
     ret
 `;
 
-  // ---- VRAM upload of the cabin sprites (boot only) -----------------------
+  // ---- VRAM upload of the cabin sprites ------------------------------------
   const uploadAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_shaft_upload_sprites
 ; ------------------------------------------------------------
-; PURPOSE: Push every cabin's pattern group and colour block to VRAM once at
-;   boot. Cabins never change sprite, so nothing re-uploads per room.
+; PURPOSE: Push every cabin's pattern group and colour block to VRAM. The
+;   loader runs at boot and before each room's dynamic sprite loaders because
+;   the allocator may legally reuse this range for enemies/platforms elsewhere.
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_shaft_upload_sprites:
@@ -717,9 +796,15 @@ ${shafts.map((shaft, i) => {
     hardwareSlotCount,
     equates,
     initCallAsm: '    call bitmap_shaft_init\n    call bitmap_shaft_upload_sprites\n',
-    updateCallAsm: '    call bitmap_shaft_update\n',
+    updateCallAsm: '    call bitmap_shaft_update\n    call bitmap_shaft_start_pending\n',
     detectCallAsm: '    call bitmap_shaft_ride_detect\n',
     satCallAsm: '    call bitmap_shaft_sat\n',
+    // Other room systems may legally reuse the shaft range while the cabin is
+    // off its path. Restore the cabin before the per-room loaders; those loaders
+    // then win when their active room deliberately reuses the same VRAM groups.
+    // Both routines clobber AF/BC/DE/HL and preserve IX/IY, matching the room
+    // commit extra-hook contract (the caller only relies on the final carry).
+    preLoadCallAsm: '    call bitmap_shaft_upload_sprites\n',
     commitCallAsm: '    call bitmap_shaft_after_commit\n',
     routinesAsm,
     dataAsm,

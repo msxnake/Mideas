@@ -1,4 +1,4 @@
-import { registerSkill } from './registry';
+import { clearRegistry, registerSkill } from './registry';
 import {
   jump, gravity, airResistance, itemCollection,
   doubleJump, slash, pushBox, hitAttack, block, teleport, pickUp,
@@ -6,8 +6,15 @@ import {
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp, iceSlide, perception, destroyTile,
+  powerStomp, iceSlide, perception, destroyTile, torch,
 } from './handlers/index';
+
+// Registering is this module's side effect, so a SECOND evaluation (Vite's hot
+// reload) must start from a clean registry. Without this the HMR update dies on
+// "Skill ... is already registered" and the app keeps serving the previous skill
+// list — which looks exactly like a newly added skill not showing up in the
+// Player Config. Duplicates inside the list below still throw, as they should.
+clearRegistry();
 
 for (const skill of [
   jump, gravity, airResistance, itemCollection,
@@ -16,7 +23,7 @@ for (const skill of [
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp, iceSlide, perception, destroyTile,
+  powerStomp, iceSlide, perception, destroyTile, torch,
 ]) {
   registerSkill(skill);
 }
@@ -33,5 +40,5 @@ export {
   wallJump, airDash, chargeAttack, glide, spinAttack,
   parry, crouch, climb, highJump, collectorGems, collectorItems,
   pushWall, pushDoor, carryObject, teleportAB, carryAndThrow,
-  powerStomp, iceSlide, perception, destroyTile,
+  powerStomp, iceSlide, perception, destroyTile, torch,
 } from './handlers/index';

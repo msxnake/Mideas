@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Add a two-hardware-sprite TurretAim enemy and compile its shared diagonal bullet runtime.",
     )
+    parser.add_argument(
+        "--include-glowing-tail",
+        action="store_true",
+        help="Add a dark room, a tiled mushroom entity and a selected two-step PSG eat sound.",
+    )
     parser.add_argument("--boot-wait-ms", type=int, default=8000, help="Wait before screenshot")
     return parser.parse_args()
 
@@ -142,6 +147,16 @@ def build_atlas_pixels(width: int = 256, height: int = 16) -> list[list[int]]:
             if 6 <= x <= 9 and 5 <= y <= 10:
                 pixels[y][128 + x] = 13
 
+    # Phosphorescent mushroom entity visual used by --include-glowing-tail.
+    for y in range(16):
+        for x in range(16):
+            if 6 <= x <= 9 and 2 <= y <= 9:
+                pixels[y][144 + x] = 12
+            if 3 <= x <= 12 and 8 <= y <= 12:
+                pixels[y][144 + x] = 10
+            if 5 <= x <= 10 and 13 <= y <= 15:
+                pixels[y][144 + x] = 15
+
     return pixels
 
 
@@ -149,7 +164,10 @@ def build_brick_entries() -> list[dict[str, object]]:
     return [
         {"id": brick_id, "name": brick_id.replace("_", " ").title(), "sx": index * 16, "sy": 0, "w": 16, "h": 16}
         for index, (brick_id, _color) in enumerate(BRICK_VARIANTS)
-    ] + [{"id": "carryable_multicolor", "name": "Multicolour Carryable", "sx": 128, "sy": 0, "w": 16, "h": 16}]
+    ] + [
+        {"id": "carryable_multicolor", "name": "Multicolour Carryable", "sx": 128, "sy": 0, "w": 16, "h": 16},
+        {"id": "glow_mushroom_tile", "name": "Glow Mushroom", "sx": 144, "sy": 0, "w": 16, "h": 16},
+    ]
 
 
 def build_player_sprite_frame(frame_index: int) -> list[list[str]]:
@@ -563,6 +581,91 @@ def enable_all_bitmap_skills(project: dict[str, object]) -> None:
         ]
 
 
+def inject_glowing_tail(project: dict[str, object]) -> None:
+    """Exercise entity tile selection + selected Sound Editor asset in one ROM."""
+    player_asset = next((asset for asset in project["assets"] if asset.get("type") == "msx2player"), None)
+    room_asset = next((asset for asset in project["assets"] if asset.get("id") == "bitmap_room_smoke"), None)
+    if not player_asset or not room_asset:
+        raise RuntimeError("Glowing-tail smoke needs the default player and room A")
+
+    player = player_asset["data"]
+    active_skills = list(player.get("activeSkills", []))
+    if "torch" not in active_skills:
+        active_skills.append("torch")
+    player["activeSkills"] = active_skills
+    skill_parameters = dict(player.get("skillParameters", {}))
+    skill_parameters["torch"] = {
+        "lightSeconds": 9,
+        "startsLit": False,
+        "eatSound": True,
+    }
+    player["skillParameters"] = skill_parameters
+    sound_asset_ids = dict(player.get("soundAssetIds", {}))
+    sound_asset_ids["onMushroomEat"] = "smoke_mushroom_eat"
+    player["soundAssetIds"] = sound_asset_ids
+
+    room = room_asset["data"]
+    room.setdefault("runtime", {})["lighting"] = "lamp"
+    entities = list(room.get("entities", []))
+    entities.append({
+        "id": "smoke_glow_mushroom",
+        "name": "Smoke Glow Mushroom",
+        "kind": "mushroom",
+        "position": {"x": 6, "y": 8},
+        "components": {"msx2_transform": {}},
+        "params": {
+            "runtime": "MSX2",
+            "engine": "glowMushroom",
+            "glowMushroom": True,
+            "glowMushroomAtlasEntryId": "glow_mushroom_tile",
+        },
+    })
+    room["entities"] = entities
+
+    project["assets"].append({
+        "id": "smoke_mushroom_eat",
+        "name": "Smoke Mushroom Eat",
+        "type": "sound",
+        "data": {
+            "id": "smoke_mushroom_eat",
+            "name": "Smoke Mushroom Eat",
+            "tempoBPM": 120,
+            "channels": [
+                {"id": "A", "steps": [], "loop": False},
+                {"id": "B", "steps": [], "loop": False},
+                {
+                    "id": "C",
+                    "loop": False,
+                    "steps": [
+                        {
+                            "id": "eat_1",
+                            "tonePeriod": 0x234,
+                            "volume": 12,
+                            "toneEnabled": True,
+                            "noiseEnabled": False,
+                            "useEnvelope": False,
+                            "durationMs": 100,
+                        },
+                        {
+                            "id": "eat_2",
+                            "tonePeriod": 0x345,
+                            "volume": 8,
+                            "toneEnabled": True,
+                            "noiseEnabled": False,
+                            "useEnvelope": False,
+                            "durationMs": 150,
+                        },
+                    ],
+                },
+            ],
+            "noisePeriod": 7,
+            "envelopePeriod": 0x1234,
+            "envelopeShape": 9,
+            "masterVolume": 0.5,
+        },
+    })
+
+
 def inject_aimed_turret(project: dict[str, object]) -> None:
     """Add a TurretAim Enemy Asset plus a placed room entity for ASM smoke tests."""
     source_sprite = next(asset for asset in project["assets"] if asset.get("id") == "smoke_player_sprite")
@@ -890,11 +993,24 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         raise RuntimeError(f"bitmap_room_render_0_p0 has {len(render_bytes)} bytes; expected a non-zero multiple of 15")
     blocks = [render_bytes[i:i + 15] for i in range(0, len(render_bytes), 15)]
     copy_blocks = [b for b in blocks if b[14] == 0xD0]  # HMMM (high-speed VRAM->VRAM copy)
-    if len(copy_blocks) != 1:
+    mushroom_visuals = [
+        entity for entity in (room.get("entities", []) if room else [])
+        if entity.get("kind") == "mushroom"
+        and (entity.get("params") or {}).get("glowMushroomAtlasEntryId")
+    ]
+    expected_copy_blocks = 1 + len(mushroom_visuals)
+    if len(copy_blocks) != expected_copy_blocks:
         raise RuntimeError(
-            f"bitmap_room_render_0_p0 has {len(copy_blocks)} tile-copy blocks; expected exactly 1 (sparse tileGrid)"
+            f"bitmap_room_render_0_p0 has {len(copy_blocks)} tile-copy blocks; "
+            f"expected {expected_copy_blocks} (sparse tileGrid + mushroom visuals)"
         )
-    copy = copy_blocks[0]
+    copy = next(
+        (block for block in copy_blocks
+         if (block[4] | (block[5] << 8)) == 0 and (block[6] | (block[7] << 8)) == 20),
+        None,
+    )
+    if copy is None:
+        raise RuntimeError("bitmap_room_render_0_p0 is missing the authoritative tileGrid copy at (0,20)")
     dest_x = copy[4] | (copy[5] << 8)
     dest_y = copy[6] | (copy[7] << 8)
     src_y = copy[2] | (copy[3] << 8)
@@ -906,6 +1022,23 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         raise RuntimeError(
             f"tile copy source Y={src_y} is not in the page-2 offscreen tileset (expected >= 512)"
         )
+    if mushroom_visuals:
+        mushroom = mushroom_visuals[0]
+        expected_dx = int(mushroom["position"]["x"]) * 16
+        expected_dy = 20 + int(mushroom["position"]["y"]) * 16
+        mushroom_copy = next(
+            (block for block in copy_blocks
+             if (block[4] | (block[5] << 8)) == expected_dx
+             and (block[6] | (block[7] << 8)) == expected_dy),
+            None,
+        )
+        if mushroom_copy is None:
+            raise RuntimeError(
+                f"bitmap_room_render_0_p0 is missing the mushroom atlas copy at ({expected_dx},{expected_dy})"
+            )
+        mushroom_src_x = mushroom_copy[0] | (mushroom_copy[1] << 8)
+        if mushroom_src_x != 144:
+            raise RuntimeError(f"mushroom copy reads atlas X={mushroom_src_x}; expected selected entry X=144")
 
     render_page1_bytes = extract_db_bytes(asm_text, "bitmap_room_render_0_p1")
     if not render_page1_bytes or len(render_page1_bytes) % 15 != 0:
@@ -914,11 +1047,17 @@ def validate_generated_asm_tables(asm_text: str, project: dict[str, object]) -> 
         )
     page1_blocks = [render_page1_bytes[i:i + 15] for i in range(0, len(render_page1_bytes), 15)]
     page1_copy_blocks = [b for b in page1_blocks if b[14] == 0xD0]
-    if len(page1_copy_blocks) != 1:
+    if len(page1_copy_blocks) != expected_copy_blocks:
         raise RuntimeError(
-            f"bitmap_room_render_0_p1 has {len(page1_copy_blocks)} tile-copy blocks; expected exactly 1"
+            f"bitmap_room_render_0_p1 has {len(page1_copy_blocks)} tile-copy blocks; expected {expected_copy_blocks}"
         )
-    page1_copy = page1_copy_blocks[0]
+    page1_copy = next(
+        (block for block in page1_copy_blocks
+         if (block[4] | (block[5] << 8)) == 0 and (block[6] | (block[7] << 8)) == 276),
+        None,
+    )
+    if page1_copy is None:
+        raise RuntimeError("bitmap_room_render_0_p1 is missing the authoritative tileGrid copy at (0,276)")
     page1_dest_y = page1_copy[6] | (page1_copy[7] << 8)
     if page1_dest_y != 276:
         raise RuntimeError(
@@ -1098,6 +1237,8 @@ def main() -> int:
     project = build_project()
     if args.include_all_bitmap_skills:
         enable_all_bitmap_skills(project)
+    if args.include_glowing_tail:
+        inject_glowing_tail(project)
     if args.include_linked_hud_bar:
         inject_linked_hud_bar(project)
     if args.include_aimed_turret:
@@ -1138,6 +1279,49 @@ def main() -> int:
     validate_generated_asm_tables(asm_text, project)
     if args.include_all_bitmap_skills:
         validate_all_bitmap_skill_markers(asm_text)
+    if args.include_glowing_tail:
+        for marker in (
+            "FUNCTION: bitmap_light_eat_scan",
+            "FUNCTION: bitmap_mush_regenerate_eaten",
+            "FUNCTION: bitmap_mush_restore_tile",
+            "glow time ended: grow eaten mushrooms back",
+            "bitmap_room_sprite_colors_glowing",
+            "loaded-key bit 7 = intense glowing palette",
+            "FUNCTION: bitmap_light_sfx_tick",
+            "Sound Editor channel C remapped to gameplay SFX channel C",
+            "bitmap_light_sfx_active",
+            "bitmap_light_sfx_ptr",
+        ):
+            if marker not in asm_text:
+                raise RuntimeError(f"Generated glowing-tail ASM is missing marker: {marker}")
+        # Two authored steps after 60 Hz duration conversion and 0.5 master
+        # volume scaling. This proves the selected asset, not the built-in blip,
+        # made it into the ROM data.
+        for record in (
+            "DB #06,#34,#02,#07,#06,#34,#12,#09,#3B,#20",
+            "DB #09,#45,#03,#07,#04,#34,#12,#09,#3B,#20",
+        ):
+            if record not in asm_text:
+                raise RuntimeError(f"Generated glowing-tail ASM is missing selected PSG record: {record}")
+        # The runtime mushroom record must retain the selected atlas source so
+        # timer expiry can HMMM the same tile back without repainting the room.
+        if "DB 104, 156, 96, 128, 0, 144, 0, 2" not in asm_text:
+            raise RuntimeError(
+                "Generated glowing-tail ASM is missing the mushroom's selected atlas source "
+                "(SX=144, SY=512) in its 8-byte regeneration record"
+            )
+        normal_player_colors = extract_db_bytes(asm_text, "bitmap_room_sprite_colors")
+        glowing_player_colors = extract_db_bytes(asm_text, "bitmap_room_sprite_colors_glowing")
+        expected_glowing_colors = [
+            value if (value & 0x0F) == 0
+            else (value & 0xF0) | (((value & 0x0F) & 0x07) or 7)
+            for value in normal_player_colors
+        ]
+        if not normal_player_colors or glowing_player_colors != expected_glowing_colors:
+            raise RuntimeError(
+                "Generated glowing-tail player colour table does not preserve sprite flags "
+                "while mapping dim palette slots 8..15 to intense slots 0..7"
+            )
     if args.include_linked_hud_bar:
         for marker in (
             "Dynamic bar meter for linked HUD element",

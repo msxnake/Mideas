@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { ExportRomMode, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
+import { isMsx2Screen4Purpose, resolveMsx2Screen5Emitter } from '../../utils/msx2GameFlowPurpose';
 import { hasPresentationScreenData } from '../utils/presentationScreenUtils';
 import {
   generateCompleteGameAssembly,
@@ -108,21 +109,28 @@ const getCurrentMsx2GameFlowPurpose = (assets: ProjectAsset[], activeAssetId?: s
   return typeof (flow?.data as any)?.purpose === 'string' ? (flow?.data as any).purpose : undefined;
 };
 
+const hasMsx2BitmapRoomAsset = (assets: ProjectAsset[]): boolean =>
+  assets.some(asset => asset.type === 'msx2bitmaproom');
+
+/**
+ * True when the export should build a standalone presentation ROM rather than a
+ * game. A SCREEN 5 flow no longer says which of the two it is, so this asks the
+ * same helper the generator uses: rooms present means the flow builds the game.
+ */
+const buildsMsx2Screen5Presentation = (purpose: unknown, assets: ProjectAsset[]): boolean =>
+  !isMsx2Screen4Purpose(purpose)
+  && resolveMsx2Screen5Emitter(purpose, hasMsx2BitmapRoomAsset(assets)) === 'presentation';
+
 const shouldExportMsx2Screen5Presentation = (assets: ProjectAsset[], activeAssetId?: string | null): boolean => {
   const purpose = getCurrentMsx2GameFlowPurpose(assets, activeAssetId);
-  if (purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime') return false;
-  if (purpose === 'screen5-presentation') return hasMsx2PresentationAsset(assets);
-  return hasMsx2PresentationAsset(assets);
+  return buildsMsx2Screen5Presentation(purpose, assets) && hasMsx2PresentationAsset(assets);
 };
 
 const getMsx2Screen5ExportInfo = (assets: ProjectAsset[]) => {
   const presentations = assets.filter(asset => asset.type === 'msx2presentation' && (asset.data as any)?.enabled !== false);
   const flows = assets.filter(asset => asset.type === 'msx2gameflow');
-  const hasScreen4RuntimeFlow = flows.some(asset => {
-    const purpose = (asset.data as any)?.purpose;
-    return purpose === 'screen4-runtime' || purpose === 'screen4-bitmap-runtime';
-  });
-  const screen5Flows = flows.filter(asset => (asset.data as any)?.purpose === 'screen5-presentation');
+  const hasScreen4RuntimeFlow = flows.some(asset => !buildsMsx2Screen5Presentation((asset.data as any)?.purpose, assets));
+  const screen5Flows = flows.filter(asset => buildsMsx2Screen5Presentation((asset.data as any)?.purpose, assets));
   if (presentations.length === 0 || (screen5Flows.length === 0 && hasScreen4RuntimeFlow)) {
     return {
       hasScreen5Presentation: false,
@@ -674,13 +682,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       : hasMsx2BitmapRoom
       ? 'SCREEN 4 (Graphics II)'
       : normalizeMsx2ExportScreenMode(rawScreenMode);
-    const targetGraphicsBackend = hasScreen5Presentation
-      ? 'msx2-screen5-presentation'
-      : hasMsx2BitmapRoom
-      ? 'msx2-screen4-bitmap-room'
+    // Both SCREEN 5 branches select the same backend; which emitter builds the
+    // ROM is resolved inside the generator from the project's assets, in the
+    // same presentation-wins-over-rooms order used here.
+    const targetGraphicsBackend = hasScreen5Presentation || hasMsx2BitmapRoom
+      ? 'screen5'
       : isMsx2Screen4ExportMode(currentScreenMode)
-      ? 'msx2-screen4-pattern'
-      : 'screen2-tilebank';
+      ? 'screen4'
+      : 'screen2';
     const { generateModularASM } = await import('../../utils/msxGenerator');
 
     const modularFiles = generateModularASM(projectName, enhancedAssets, {

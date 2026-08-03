@@ -1,0 +1,2 @@
+antes:   vblank=0 sprite_sat=0 SHAFT_SAT=0 step_comp=0 | comp=0 slot=0
+despues: vblank=23 sprite_sat=23 SHAFT_SAT=23 step_comp=23 | comp=1 slot=1

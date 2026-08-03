@@ -1,0 +1,4 @@
+count_C0E7=5F
+rider_C0E8=FF
+poolx_C0E9=BF
+state_C0F4=00

@@ -275,6 +275,26 @@ if (!existsSync(join(repoRoot, 'src', 'assets', 'msx2-project-profiles', 'shoote
   errors.push('Missing src/assets/msx2-project-profiles/shooter-horizontal-preview.png');
 }
 
+// The graphics mode is picked when the project is created and cannot change
+// afterwards, so the MSX2 GameFlow editor disables the backend button that does
+// not match. The mode is derived from the profile's own asset-type filter (the
+// same list that stops tile screens and bitmap rooms from coexisting), never
+// from a hard-coded list of profile ids.
+if (!profilesSource.includes('export function resolveMsx2ProfileGraphicsMode')) {
+  errors.push('msx2ProjectProfiles.ts must export resolveMsx2ProfileGraphicsMode');
+} else if (!profilesSource.includes("allowed.includes('msx2bitmaproom')") || !profilesSource.includes("allowed.includes('msx2screen')")) {
+  errors.push('resolveMsx2ProfileGraphicsMode must derive the mode from allowedAssetTypes, not from profile ids');
+}
+
+const gameFlowEditorSource = read('components', 'editors', 'Msx2GameFlowEditor.tsx');
+if (!gameFlowEditorSource.includes("disabled={lockedGraphicsMode === 'screen5'}")
+  || !gameFlowEditorSource.includes("disabled={lockedGraphicsMode === 'screen4'}")) {
+  errors.push('MSX2 GameFlow editor must disable the backend button that does not match the project profile');
+}
+if (!appUiSource.includes('msx2ProjectProfile={msx2ProjectProfile}')) {
+  errors.push('AppUI must pass msx2ProjectProfile to the MSX2 GameFlow editor');
+}
+
 if (errors.length > 0) {
   console.error('MSX2 project profile contract check FAILED:');
   for (const error of errors) console.error(`  - ${error}`);

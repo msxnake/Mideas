@@ -1,0 +1,10 @@
+done_marker=ABCD (expect ABCD)
+--- static HMMM copy times (display+sprites ON) ---
+32x32    iters=  220  time=2.27 ms
+48x48    iters=  584  time=6.04 ms
+64x64    iters= 1132  time=11.70 ms
+96x96    iters= 2560  time=26.46 ms
+128x96   iters= 3405  time=35.19 ms
+--- dynamic 300-frame moving-boss tests ---
+overruns 64x64 : 0 / 300 frames
+overruns 96x96 : 299 / 300 frames

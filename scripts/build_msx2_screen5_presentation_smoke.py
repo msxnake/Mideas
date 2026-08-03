@@ -69,7 +69,7 @@ def assert_screen5_zx0_contract(path: Path) -> None:
         raise RuntimeError(f"ZX0-preprocessed ASM was not emitted: {path}")
     text = path.read_text(encoding="utf-8", errors="replace")
     required = [
-        "Backend: msx2-screen5-presentation",
+        "Backend: screen5 (presentation)",
         "SCREEN5_PRESENTATION_COMPRESSION: ZX0",
         "SCREEN5_PRESENTATION_CHUNK_LINES: 32",
         "SCREEN5_PRESENTATION_BITMAP_CHUNK_0:",
@@ -551,7 +551,7 @@ def main() -> int:
         "--execution-mode", "gameLoopHalt",
     ], cwd=project_root, timeout=180)
 
-    assert_contains(asm_output, "Backend: msx2-screen5-presentation", "SCREEN 5 presentation backend marker")
+    assert_contains(asm_output, "Backend: screen5 (presentation)", "SCREEN 5 presentation backend marker")
     assert_contains(asm_output, "ld a, 5", "SCREEN 5 mode switch")
     assert_contains(asm_output, "screen5_presentation_palette_data", "SCREEN 5 palette data")
     assert_contains(asm_output, "SCREEN5_PRESENTATION_BITMAP_CHUNK_0", "SCREEN 5 bitmap chunk data")

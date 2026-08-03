@@ -9,6 +9,8 @@ import type {
   Msx2GameFlowMusicNode,
   Msx2GameFlowNode,
   Msx2GameFlowPurpose,
+  Msx2GameFlowPurposeCurrent,
+  Msx2ProjectProfile,
   Msx2GameFlowScreen4ScreenNode,
   Msx2GameFlowScreen5PresentationNode,
   Msx2GameFlowTextScrollColorNode,
@@ -25,6 +27,8 @@ import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { ArrowsPointingOutIcon, PlusCircleIcon } from '../icons/MsxIcons';
+import { isMsx2Screen4Purpose, resolveMsx2Screen5Emitter } from '../../utils/msx2GameFlowPurpose';
+import { resolveMsx2ProfileGraphicsMode } from '../../utils/msx2ProjectProfiles';
 import {
   drawMsx2Screen5PresentationPreview,
   unpackScreen5PresentationPixels,
@@ -149,6 +153,11 @@ interface Msx2GameFlowEditorProps {
   allAssets: ProjectAsset[];
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
+  /**
+   * Locks the backend buttons to the mode chosen when the project was created.
+   * Null for legacy projects with no profile, which stay unlocked.
+   */
+  msx2ProjectProfile?: Msx2ProjectProfile | null;
 }
 
 const getNodeLabel = (node: Msx2GameFlowNode, allAssets: ProjectAsset[]): string => {
@@ -276,6 +285,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   allAssets,
   selectedNodeId,
   setSelectedNodeId,
+  msx2ProjectProfile,
 }) => {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; sourceId?: string } | null>(null);
@@ -290,10 +300,24 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
   const nodes = gameFlowGraph.nodes || [];
   const connections = gameFlowGraph.connections || [];
-  const flowPurpose = gameFlowGraph.purpose || 'screen5-presentation';
-  const isScreen5PresentationFlow = flowPurpose === 'screen5-presentation';
-  const isScreen5BitmapRuntimeFlow = flowPurpose === 'screen4-bitmap-runtime';
-  const isScreen4TileRuntimeFlow = flowPurpose === 'screen4-runtime';
+  // There are two MSX2 backends: screen4 and screen5. The three legacy purposes
+  // are still read from saved projects. Which SCREEN 5 emitter a flow compiles
+  // through is resolved by the SAME helper the generator uses, so the checks
+  // below can never validate against rules the ROM will not follow.
+  const flowPurpose = gameFlowGraph.purpose || 'screen5';
+  const hasBitmapRoomAssets = useMemo(
+    () => allAssets.some(asset => asset.type === 'msx2bitmaproom'),
+    [allAssets]
+  );
+  // The graphics mode is chosen when the project is created and cannot change
+  // afterwards: tile screens and bitmap rooms never coexist in one ROM. Undefined
+  // for legacy projects without a profile, which stay unlocked.
+  const lockedGraphicsMode = resolveMsx2ProfileGraphicsMode(msx2ProjectProfile);
+  const isScreen4TileRuntimeFlow = isMsx2Screen4Purpose(flowPurpose);
+  const isScreen5Flow = !isScreen4TileRuntimeFlow;
+  const screen5Emitter = resolveMsx2Screen5Emitter(flowPurpose, hasBitmapRoomAssets);
+  const isScreen5PresentationFlow = isScreen5Flow && screen5Emitter === 'presentation';
+  const isScreen5BitmapRuntimeFlow = isScreen5Flow && screen5Emitter === 'bitmap-rooms';
   // SubMenu / TextScroll / TextScrollColor / Music cannot be expressed by the
   // strict-shape SCREEN 5 exporter, so their presence switches the project to
   // the generic SCREEN 5 GameFlow walker (msx2Screen5FlowGenerator.ts), which
@@ -495,6 +519,19 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
       }
       if (!nodes.some(node => node.type === 'SubMenu')) {
         issues.push('SCREEN 4 runtime GameFlow is ready for SubMenu nodes.');
+      }
+      // Nodes the bitmap dispatcher has no case for compile to a plain jump, so
+      // the screen silently never appears. Say it here instead of leaving the
+      // warning as a comment inside the generated ASM, where nobody reads it.
+      if (isScreen5BitmapRuntimeFlow) {
+        const unsupportedByBitmap = Array.from(new Set(
+          nodes
+            .filter(node => node.type === 'Controls' || node.type === 'IfThenElse')
+            .map(node => node.type)
+        ));
+        for (const nodeType of unsupportedByBitmap) {
+          issues.push(`${nodeType} is not implemented by the SCREEN 5 Bitmap backend; it compiles to a jump and is skipped at runtime.`);
+        }
       }
     } else if (usesScreen5GenericBackend) {
       // Generic SCREEN 5 walker: any node order is legal, so only per-node
@@ -705,8 +742,8 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
-  const updateFlowPurpose = (purpose: Msx2GameFlowPurpose) => {
-    const nextNodes = purpose === 'screen5-presentation'
+  const updateFlowPurpose = (purpose: Msx2GameFlowPurposeCurrent) => {
+    const nextNodes = purpose === 'screen5'
       ? nodes.map(node =>
           node.type === 'Transition' && !MSX2_SCREEN5_TRANSITION_EFFECTS.has(node.effect)
             ? { ...node, effect: 'fade_to_black' as const }
@@ -851,93 +888,14 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     setSelectedNodeId(id);
   };
 
-  const applyIntroTemplate = () => {
-    const startNode = nodes.find(node => node.type === 'Start') || nodes[0];
-    if (!startNode) return;
-    const presentationNodeId = `msx2_gf_screen5_${Date.now()}`;
-    const transitionNodeId = `msx2_gf_transition_${Date.now()}`;
-    const endNodeId = `msx2_gf_end_${Date.now()}`;
-    const presentationNode: Msx2GameFlowScreen5PresentationNode = {
-      id: presentationNodeId,
-      type: 'Screen5Presentation',
-      position: { x: startNode.position.x + 230, y: startNode.position.y },
-      presentationAssetId: presentationAssets[0]?.id,
-      waitForKey: true,
-      waitFrames: 0,
-    };
-    const transitionNode: Msx2GameFlowNode = {
-      id: transitionNodeId,
-      type: 'Transition',
-      position: { x: startNode.position.x + 460, y: startNode.position.y },
-      effect: 'fade_to_black',
-      durationFrames: 30,
-    };
-    const endNode: Msx2GameFlowNode = {
-      id: endNodeId,
-      type: 'End',
-      position: { x: startNode.position.x + 690, y: startNode.position.y },
-    };
-    onUpdate({
-      nodes: [startNode, presentationNode, transitionNode, endNode],
-      connections: [
-        makeConnection(startNode.id, presentationNodeId),
-        makeConnection(presentationNodeId, transitionNodeId),
-        makeConnection(transitionNodeId, endNodeId),
-      ],
-      startNodeId: startNode.id,
-      purpose: 'screen5-presentation',
-    });
-    setSelectedNodeId(presentationNodeId);
-  };
-
-  const applyScreen4RuntimeTemplate = () => {
-    const startNode = nodes.find(node => node.type === 'Start') || nodes[0];
-    if (!startNode) return;
-    const subMenuNodeId = `msx2_gf_screen4_submenu_${Date.now()}`;
-    const worldNodeId = `msx2_gf_screen4_world_${Date.now()}`;
-    const endNodeId = `msx2_gf_screen4_end_${Date.now()}`;
-    const startOptionId = `option_start_${Date.now()}`;
-    const quitOptionId = `option_quit_${Date.now()}`;
-    const subMenuNode: Msx2GameFlowNode = {
-      id: subMenuNodeId,
-      type: 'SubMenu',
-      position: { x: startNode.position.x + 230, y: startNode.position.y },
-      title: 'Main Menu',
-      options: [
-        { id: startOptionId, text: 'START' },
-        { id: quitOptionId, text: 'QUIT' },
-      ],
-    };
-    const worldNode: Msx2GameFlowNode = {
-      id: worldNodeId,
-      type: 'WorldLink',
-      position: { x: startNode.position.x + 460, y: startNode.position.y },
-      worldAssetId: worldAssets[0]?.id || '',
-    };
-    const endNode: Msx2GameFlowNode = {
-      id: endNodeId,
-      type: 'End',
-      position: { x: startNode.position.x + 690, y: startNode.position.y + 100 },
-    };
-    onUpdate({
-      purpose: 'screen4-runtime',
-      nodes: [startNode, subMenuNode, worldNode, endNode],
-      connections: [
-        makeConnection(startNode.id, subMenuNodeId),
-        makeConnection(subMenuNodeId, worldNodeId, startOptionId),
-        makeConnection(subMenuNodeId, endNodeId, quitOptionId),
-      ],
-      startNodeId: startNode.id,
-    });
-    setSelectedNodeId(subMenuNodeId);
-  };
-
+  // Preview selects the presentation node so the side panel can show it. With
+  // no such node there is nothing to preview; it used to build one by replacing
+  // the whole graph, which is a destructive surprise for a button called
+  // "Preview".
   const selectPreviewNode = () => {
     if (previewPresentationNode) {
       setSelectedNodeId(previewPresentationNode.id);
-      return;
     }
-    applyIntroTemplate();
   };
 
   const updateSelectedPresentation = (presentationAssetId: string) => {
@@ -1438,27 +1396,33 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
   return (
     <Panel title="MSX2 Game Flow" className="min-h-0 flex-grow flex flex-col">
       <div className="shrink-0 flex flex-wrap items-center gap-2 p-2 border-b border-msx-border bg-msx-panelbg">
+        {/* Two backends, two buttons. What a SCREEN 5 flow builds — a game or a
+            standalone presentation — follows from the project's assets, not from
+            a third mode the author has to keep in sync by hand. */}
         <div className="flex items-center gap-1 mr-2">
           <Button
-            onClick={() => updateFlowPurpose('screen5-presentation')}
-            size="sm"
-            variant={isScreen5PresentationFlow ? 'primary' : 'ghost'}
-          >
-            SCREEN 5 Presentation
-          </Button>
-          <Button
-            onClick={() => updateFlowPurpose('screen4-runtime')}
+            onClick={() => updateFlowPurpose('screen4')}
             size="sm"
             variant={isScreen4TileRuntimeFlow ? 'primary' : 'ghost'}
+            disabled={lockedGraphicsMode === 'screen5'}
+            title={lockedGraphicsMode === 'screen5'
+              ? 'This project was created as SCREEN 5; the graphics mode cannot be changed afterwards.'
+              : 'MSX2 GRAPHIC 3: name-table tile screens'}
           >
-            SCREEN 4 Tiles
+            SCREEN 4
           </Button>
           <Button
-            onClick={() => updateFlowPurpose('screen4-bitmap-runtime')}
+            onClick={() => updateFlowPurpose('screen5')}
             size="sm"
-            variant={isScreen5BitmapRuntimeFlow ? 'primary' : 'ghost'}
+            variant={isScreen5Flow ? 'primary' : 'ghost'}
+            disabled={lockedGraphicsMode === 'screen4'}
+            title={lockedGraphicsMode === 'screen4'
+              ? 'This project was created as SCREEN 4; the graphics mode cannot be changed afterwards.'
+              : hasBitmapRoomAssets
+                ? 'MSX2 GRAPHIC 4: bitmap rooms (this project has rooms, so it builds the game runtime)'
+                : 'MSX2 GRAPHIC 4: 4bpp bitmap (no rooms in this project, so it builds a presentation)'}
           >
-            SCREEN 5 Bitmap
+            SCREEN 5
           </Button>
         </div>
         <Button onClick={() => addNode('Screen5Presentation')} size="sm" icon={<PlusCircleIcon className="w-4 h-4" />} disabled={!isScreen5PresentationFlow && !isScreen5BitmapRuntimeFlow} title="SCREEN 5 still-image presentation node (title/cutscene)">
@@ -1514,12 +1478,6 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
         </Button>
         <Button onClick={() => setIsCutMode(value => !value)} size="sm" variant={isCutMode ? 'primary' : 'ghost'}>
           Cut Connections
-        </Button>
-        <Button onClick={applyIntroTemplate} size="sm" variant="secondary">
-          SCREEN 5 Intro
-        </Button>
-        <Button onClick={applyScreen4RuntimeTemplate} size="sm" variant="secondary">
-          SCREEN 4 Runtime
         </Button>
         <Button onClick={selectPreviewNode} size="sm" variant="ghost">
           Preview
@@ -2593,6 +2551,20 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                 : isScreen5BitmapRuntimeFlow
                   ? 'SCREEN 5 bitmap-room runtime'
                   : 'SCREEN 4 tile menu/game runtime'}
+            </p>
+            {/* The purpose silently decides which backend runs, so name it. The
+                two SCREEN 5 purposes are the same backend built by different
+                emitters, which is why both read `screen5` here. */}
+            <p className="text-xs text-msx-textsecondary">
+              ASM backend: <span className="text-msx-highlight">{isScreen5PresentationFlow || isScreen5BitmapRuntimeFlow
+                ? 'screen5'
+                : 'screen4'}</span>
+              {isScreen5PresentationFlow
+                ? ' (presentation)'
+                : isScreen5BitmapRuntimeFlow
+                  ? ' (bitmap rooms)'
+                  : ''}
+              {isScreen5GenericFlow ? ' (generic node walker)' : ''}
             </p>
             {flowIssues.length === 0 ? (
               <p className="text-xs text-green-300">

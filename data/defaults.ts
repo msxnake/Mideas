@@ -204,6 +204,13 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Defines the physical shape and interaction rules for entity-to-entity collisions. Supports both solid (pushback) and trigger (overlap-only) collision modes."
   },
   {
+    id: "comp_world_exit", name: "World Exit",
+    properties: [
+      { name: "enabled", type: "boolean", defaultValue: "true", description: "When enabled, touching this entity with the Player exits the active WorldLink and continues to its next GameFlow node." }
+    ],
+    description: "Marks an entity as the end of the current world. Requires a Collision component and is normally configured as a trigger."
+  },
+  {
     id: "comp_wall_collision", name: "Wall Collision",
     properties: [
       { name: "hitboxWidth", type: "byte", defaultValue: "16", description: "Width of the collision bounding box for wall detection." },
@@ -882,6 +889,27 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "2" } }
     ],
     description: "A movable box that acts as a solid platform. Can be picked up and carried with action key (Z)."
+  },
+  {
+    id: "tpl_world_exit", name: "World Exit Door", icon: "D",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 24, y: 20 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_exit_door", isVisible: true, layer: 1 } },
+      {
+        definitionId: "comp_collision", defaultValues: {
+          hitboxWidth: 16,
+          hitboxHeight: 16,
+          offsetX: 0,
+          offsetY: 0,
+          collisionLayer: 64,
+          collidesWith: 1,
+          isStatic: true,
+          isTrigger: true
+        }
+      },
+      { definitionId: "comp_world_exit", defaultValues: { enabled: true } }
+    ],
+    description: "Door/trigger that exits the active WorldLink when the Player touches it, continuing through the node's default GameFlow connection."
   },
   ...DEFAULT_MSX2_ENTITY_TEMPLATES,
 ];

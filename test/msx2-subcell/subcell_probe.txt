@@ -1,0 +1,13 @@
+rest_y 120
+rest_x 48
+health0 5
+min_y 88
+min_health 5
+final_x 238 final_y 144
+coll_r8c3 11
+beh_r8c3 C0
+coll_r5c3 11
+beh_r5c3 30
+coll_r11c3 10
+coll_r10c12_deadly 41 beh 30
+health 5 lives 3

@@ -1,0 +1,2 @@
+t=16 idle   player_x: memory=0 mainram=255 | pool: memory=0 mainram=255
+t=19 RIGHT  player_x: memory=0 mainram=255 | pool: memory=0 mainram=255

@@ -1,0 +1,2 @@
+antes:   start_room_transition llamado 0 veces | comp=0 blk=0 penddir=0 slot=0 rider=0
+despues: start_room_transition llamado 0 veces | comp=1 blk=88 penddir=255 slot=1 rider=2

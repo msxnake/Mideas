@@ -9,6 +9,7 @@ import {
 import { StateMachine, StateMachineState, StateMachineStateName } from '../../statemachine.types';
 import { MSXColorValue, Msx2PlayerAnimation, Msx2PlayerControlId, Msx2PlayerDefinition, Msx2PlayerFacing, Msx2PlayerFunctionKeyAction, Msx2PlayerFunctionKeyId, Msx2PlayerLogicFlags, Msx2PlayerSoundSlotId, Msx2PlayerWeaponAttackVisual, Msx2Screen4Tile, Msx2Screen4TileScreen, Msx2Sprite, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { getMsx2TileBehaviorKind } from '../../utils/msx2Screen4TileBehavior';
+import { calculateMsx2PlayerHardwareSpriteUsage, Msx2PlayerHardwareSpriteUsage } from '../../utils/msx2HardwareSpriteUsage';
 import { MSX2_COMPONENT_FIELD_EDITORS, MSX2_COMPONENT_REPERTOIRE, Msx2ComponentId } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { getAllSkills, getSkillsForBackend } from '../../utils/msxGenerator/skills/index';
 import { resolveGraphicsBackend } from '../../utils/msxGenerator';
@@ -60,6 +61,124 @@ const PLAYER_ATTACK_FACING_OPTIONS: ReadonlyArray<{ value: PlayerAttackFacing; l
   { value: 'up', label: 'Up' },
   { value: 'down', label: 'Down' },
 ];
+
+const PlayerHardwareSpriteUsagePanel: React.FC<{
+  usage: Msx2PlayerHardwareSpriteUsage;
+  onClose: () => void;
+}> = ({ usage, onClose }) => {
+  const slotAngle = Math.max(0, Math.min(360, (usage.used / Math.max(1, usage.capacity)) * 360));
+  const patternAngle = Math.max(0, Math.min(360, (usage.patternUsed / Math.max(1, usage.patternCapacity)) * 360));
+  const screenPatternAngle = Math.max(0, Math.min(360, (usage.screenPatternUsage.used / Math.max(1, usage.screenPatternUsage.capacity)) * 360));
+  const slotOverBudget = usage.used >= usage.capacity;
+  const patternOverBudget = usage.patternUsed >= usage.patternCapacity;
+  const screenPatternOverBudget = usage.screenPatternUsage.used > usage.screenPatternUsage.capacity;
+  const Pie: React.FC<{
+    label: string;
+    used: number;
+    capacity: number;
+    percent: number;
+    angle: number;
+    overBudget: boolean;
+  }> = ({ label, used, capacity, percent, angle, overBudget }) => (
+    <div className="space-y-1 text-center">
+      <div
+        className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-slate-600 text-[11px] font-semibold text-white"
+        aria-label={`MSX2 ${label} usage ${used} of ${capacity}`}
+        style={{
+          background: `conic-gradient(${overBudget ? '#fb7185' : '#34d399'} 0deg ${angle}deg, #334155 ${angle}deg 360deg)`,
+        }}
+      >
+        <div className="grid h-11 w-11 place-items-center rounded-full bg-[#111821]">
+          {percent}%
+        </div>
+      </div>
+      <div className="text-[11px] font-semibold text-slate-200">{label}</div>
+      <div className="text-[10px] text-slate-400">{used}/{capacity}</div>
+    </div>
+  );
+  return (
+    <div className="rounded border border-slate-700 bg-[#111821] p-2 text-xs text-slate-100" data-msx2-player-hw-sprite-usage>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="font-semibold text-emerald-300">Player HW sprite usage</div>
+          <div className="text-[11px] text-slate-400">Mandatory: player patterns plus one resident 16x16 patrol-enemy type.</div>
+        </div>
+        <button
+          type="button"
+          className="h-6 rounded border border-slate-600 px-2 text-[11px] text-slate-200 hover:bg-slate-800"
+          onClick={onClose}
+          aria-label="Close MSX2 player hardware sprite usage"
+        >
+          x
+        </button>
+      </div>
+      <div className="grid grid-cols-[276px_1fr] items-center gap-3">
+        <div className="grid grid-cols-3 gap-2">
+          <Pie
+            label="SAT slots"
+            used={usage.used}
+            capacity={usage.capacity}
+            percent={usage.percentUsed}
+            angle={slotAngle}
+            overBudget={slotOverBudget}
+          />
+          <Pie
+            label="Patterns"
+            used={usage.patternUsed}
+            capacity={usage.patternCapacity}
+            percent={usage.patternPercentUsed}
+            angle={patternAngle}
+            overBudget={patternOverBudget}
+          />
+          <Pie
+            label="Screen patterns"
+            used={usage.screenPatternUsage.used}
+            capacity={usage.screenPatternUsage.capacity}
+            percent={usage.screenPatternUsage.percentUsed}
+            angle={screenPatternAngle}
+            overBudget={screenPatternOverBudget}
+          />
+        </div>
+        <div className="space-y-1">
+          <div><span className="text-slate-400">SAT used:</span> <span className="font-semibold">{usage.used}</span> / {usage.capacity}</div>
+          <div><span className="text-slate-400">SAT available:</span> {usage.available}</div>
+          <div><span className="text-slate-400">Pattern used:</span> <span className="font-semibold">{usage.patternUsed}</span> / {usage.patternCapacity}</div>
+          <div><span className="text-slate-400">Pattern available:</span> {usage.patternAvailable}</div>
+          <div><span className="text-slate-400">Screen patterns:</span> <span className="font-semibold">{usage.screenPatternUsage.used}</span> / {usage.screenPatternUsage.capacity}</div>
+          <div><span className="text-slate-400">Optional FX budget:</span> <span className="font-semibold">{usage.screenPatternUsage.available}</span> pattern slots</div>
+          <div><span className="text-slate-400">Player pattern contribution:</span> {usage.screenPatternUsage.playerPatternCount}</div>
+          <div><span className="text-slate-400">Patrol-enemy reserve:</span> {usage.screenPatternUsage.patrolEnemyPatternCount}</div>
+          <div><span className="text-slate-400">Sprites:</span> {usage.sourceSpriteNames.join(', ') || 'none'}</div>
+          <div><span className="text-slate-400">Worst frame:</span> {usage.worstFrame ? `${usage.worstFrame.spriteName} #${usage.worstFrame.frameIndex}` : '-'}</div>
+          <div><span className="text-slate-400">Frames analyzed:</span> {usage.framesAnalyzed}</div>
+          <div><span className="text-slate-400">Mirror:</span> {usage.mirrorEnabled ? `yes (${usage.mirrorSpriteNames.join(', ')})` : 'no'}</div>
+          <div><span className="text-slate-400">Distinct HW patterns:</span> {usage.distinctPatternCount}</div>
+          <div><span className="text-slate-400">Emitted pattern variants:</span> {usage.emittedPatternCount}</div>
+        </div>
+      </div>
+      {usage.worstFrame && (
+        <div className="mt-2 text-[11px] text-slate-400">
+          Worst frame uses {usage.worstFrame.hardwareSprites} real 16x16 hardware sprites across {usage.worstFrame.cellCount} metasprite cell(s).
+          {' '}
+          {usage.worstFrame.mirrorEnabled
+            ? `Mirror emits x${usage.worstFrame.mirrorPatternVariantCount} pattern variants for that frame, but does not consume extra visible SAT slots.`
+            : 'No mirror pattern variant is emitted for that frame.'}
+        </div>
+      )}
+      <div className="mt-2 text-[11px] text-slate-400">
+        Screen patterns reserves {usage.screenPatternUsage.patrolEnemyColorLayers} color layers x {usage.screenPatternUsage.patrolEnemyFrameCount} frames x {usage.screenPatternUsage.patrolEnemyOrientationVariants} orientations
+        {' '}= {usage.screenPatternUsage.patrolEnemyPatternCount} patterns for one 16x16 patrol-enemy type.
+        The two orientations are the authored pattern plus its horizontal mirror; all enemy instances reuse that reserve.
+        Remaining slots are optional and are not pre-reserved: use them for bullets, projectiles, explosions, or other effects.
+      </div>
+      {usage.warnings.length > 0 && (
+        <div className="mt-2 space-y-1 text-[11px] text-amber-300">
+          {usage.warnings.map(warning => <div key={warning}>{warning}</div>)}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const createDefaultWeaponAttackVisual = (): PlayerWeaponAttackVisual => ({
   spriteAssetId: undefined,
@@ -521,6 +640,7 @@ const skillMeta: Record<string, { icon: string; category: string; description: s
   carry_and_throw: { icon: '🏋️', category: 'utility', description: 'Lift objects and throw them through gaps' },
   power_stomp: { icon: '💥', category: 'attack', description: 'Fall with impact, break tiles and damage enemies' },
   destroy_tile: { icon: '⛏️', category: 'utility', description: 'Pick at the wall ahead to dissolve destructible tiles' },
+  torch: { icon: '🍄', category: 'utility', description: 'Feed the glowing tail with phosphorescent mushrooms' },
 };
 
 const categoryColors: Record<string, string> = {
@@ -536,8 +656,9 @@ const SkillParametersDialog: React.FC<{
   skill: SkillDef;
   values: Record<string, number | boolean>;
   onPatch: (key: string, value: number | boolean) => void;
+  extraFields?: React.ReactNode;
   onClose: () => void;
-}> = ({ skill, values, onPatch, onClose }) => {
+}> = ({ skill, values, onPatch, extraFields, onClose }) => {
   const parameters = skill.parameters || [];
   const meta = skillMeta[skill.id] || { icon: '⚙️', category: 'utility', description: 'Skill parameters' };
   return (
@@ -628,6 +749,7 @@ const SkillParametersDialog: React.FC<{
               );
             })}
           </div>
+          {extraFields}
           {parameters.length === 0 && (
             <div className="py-8 text-center text-[11px] text-slate-400">
               This skill has no editable parameters yet.
@@ -1261,6 +1383,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
   const [selectedWeaponFacing, setSelectedWeaponFacing] = useState<PlayerAttackFacing>('right');
   const [selectedWeaponId, setSelectedWeaponId] = useState<string | null>(null);
   const [newStateName, setNewStateName] = useState('');
+  const [hardwareSpriteUsage, setHardwareSpriteUsage] = useState<Msx2PlayerHardwareSpriteUsage | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const lastAnimationSyncSignatureRef = useRef<string | null>(null);
   const spriteAssets = useMemo(() => allAssets.filter(asset => asset.type === 'msx2sprite'), [allAssets]);
@@ -1602,6 +1725,10 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       }
     };
     reader.readAsText(file);
+  };
+
+  const calculatePlayerHardwareSpriteUsage = () => {
+    setHardwareSpriteUsage(calculateMsx2PlayerHardwareSpriteUsage(normalized, allAssets));
   };
 
   const animationOrder = normalized.animationOrder || Object.keys(normalized.animations);
@@ -2142,7 +2269,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
               <section className={`${panelClass} ${activeSection === 'Graphics & Render' ? 'absolute inset-0' : 'hidden'}`}>
                 <div className={panelTitleClass}>Graphics & Render</div>
                 <div className="min-h-0 flex-1 overflow-hidden p-3">
-                  <div className="min-h-0 space-y-2 overflow-hidden">
+                  <div className="min-h-0 space-y-2 overflow-auto pr-1">
                     <Field label="Default Sprite Set">
                       <select className={selectClass} value={normalized.render.spriteAssetId || ''} onChange={event => selectDefaultSpriteAsset(event.target.value || undefined)}>
                         <option value="">(none)</option>
@@ -2272,6 +2399,24 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                         </div>
                       </div>
                     )}
+                    <div className="space-y-2 border-t border-slate-800 pt-2">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          className="rounded border border-emerald-700 bg-emerald-900/40 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-800/60"
+                          onClick={calculatePlayerHardwareSpriteUsage}
+                          title="Calculate MSX2 hardware sprite usage for this configured player only"
+                        >
+                          Calculate HW Sprite Usage
+                        </button>
+                      </div>
+                      {hardwareSpriteUsage && (
+                        <PlayerHardwareSpriteUsagePanel
+                          usage={hardwareSpriteUsage}
+                          onClose={() => setHardwareSpriteUsage(null)}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               </section>
@@ -2332,7 +2477,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                   </div>
                   <div className="border-t border-slate-800 pt-2 mt-2">
                     <p className="mb-2 text-[11px] text-slate-400">
-                      Skill control bindings. Use + for combos, OR for alternatives; set secondary to None for a single control.
+                      Skill activation. Input skills use + for combos or OR for alternatives. Collision can activate alone or require an input while overlapping.
                     </p>
                     {(() => {
                       const CONTROL_OPTIONS = [
@@ -2349,7 +2494,9 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                       ];
                       const skillBindings = normalized.skillBindings ?? {};
                       const activeIds = new Set(normalized.activeSkills ?? []);
-                      const bindableSkills = skillsForBackend.filter(s => s.controlIcon && !s.required && activeIds.has(s.id));
+                      const activatableSkills = skillsForBackend.filter(
+                        s => (s.controlIcon || s.activationTrigger === 'collision') && !s.required && activeIds.has(s.id),
+                      );
                       const resolveBinding = (skillId: string): { primary: string; secondary: string; operator: 'and' | 'or' } => {
                         const override = skillBindings[skillId];
                         const def = getAllSkills().find(s => s.id === skillId);
@@ -2379,10 +2526,64 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                           },
                         });
                       };
+                      const updateCollisionInputBinding = (skillId: string, primary: Msx2PlayerControlId) => {
+                        onUpdate({
+                          skillBindings: {
+                            ...skillBindings,
+                            [skillId]: { primary },
+                          },
+                        });
+                      };
                       return (
                         <div className="space-y-1">
-                          {bindableSkills.map(skill => {
+                          {activatableSkills.map(skill => {
+                            if (skill.activationTrigger === 'collision') {
+                              return (
+                                <div key={skill.id} className="grid grid-cols-[1fr_auto] items-center gap-2 text-xs">
+                                  <span className="text-slate-200 truncate">{skill.label}</span>
+                                  <select
+                                    aria-label={`${skill.label} activation`}
+                                    className="w-24 rounded border border-emerald-800 bg-emerald-950/30 px-1 py-0.5 text-center text-xs text-emerald-300"
+                                    value="collision"
+                                    disabled
+                                    title="Activates automatically when the player overlaps the collectible"
+                                  >
+                                    <option value="collision">Collision</option>
+                                  </select>
+                                </div>
+                              );
+                            }
                             const binding = resolveBinding(skill.id);
+                            if (skill.activationTrigger === 'collision-input') {
+                              return (
+                                <div key={skill.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-xs">
+                                  <span className="text-slate-200 truncate">{skill.label}</span>
+                                  <select
+                                    aria-label={`${skill.label} collision requirement`}
+                                    className="w-24 rounded border border-amber-800 bg-amber-950/30 px-1 py-0.5 text-center text-xs text-amber-300"
+                                    value="collision"
+                                    disabled
+                                    title="The player must overlap the target entity"
+                                  >
+                                    <option value="collision">Collision</option>
+                                  </select>
+                                  <span
+                                    className="w-8 text-center font-semibold text-slate-400"
+                                    title="Both collision and input are required"
+                                  >
+                                    +
+                                  </span>
+                                  <select
+                                    aria-label={`${skill.label} input`}
+                                    className="w-12 rounded border border-slate-700 bg-[#1e2632] px-1 py-0.5 text-center text-xs"
+                                    value={binding.primary}
+                                    onChange={e => updateCollisionInputBinding(skill.id, e.target.value as Msx2PlayerControlId)}
+                                  >
+                                    {CONTROL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                  </select>
+                                </div>
+                              );
+                            }
                             return (
                               <div key={skill.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-xs">
                                 <span className="text-slate-200 truncate">{skill.label}</span>
@@ -3069,6 +3270,30 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
               skill={skill}
               values={skillValues}
               onPatch={(key, value) => updateSkillParameter(skill.id, key, value)}
+              extraFields={skill.id === 'torch' ? (
+                <label className="mt-3 block rounded border border-slate-700 bg-[#111821] px-3 py-2.5 text-xs text-slate-100">
+                  <span className="block font-medium">Eat sound (PSG)</span>
+                  <select
+                    aria-label="Eat sound (PSG asset)"
+                    className={`${selectClass} mt-2`}
+                    value={normalized.soundAssetIds?.onMushroomEat || ''}
+                    onChange={event => onUpdate({
+                      soundAssetIds: {
+                        ...(normalized.soundAssetIds || {}),
+                        onMushroomEat: event.target.value || undefined,
+                      },
+                    })}
+                  >
+                    <option value="">Built-in PSG blip</option>
+                    {soundAssetOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[10px] leading-relaxed text-slate-400">
+                    Uses a Sound Editor asset as a one-shot on PSG channel C. Disable “Eat sound” above to mute it.
+                  </span>
+                </label>
+              ) : undefined}
               onClose={() => setOpenSkillDialogId(null)}
             />
           );
@@ -3077,7 +3302,7 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
           <BulletConfigDialog
             weapon={selectedWeapon}
             spriteAssets={spriteAssets}
-            allowCharMode={graphicsBackend !== 'msx2-screen4-bitmap-room'}
+            allowCharMode={graphicsBackend !== 'screen5'}
             onPatch={patch => updateSelectedWeapon(patch)}
             onClose={() => setIsBulletConfigOpen(false)}
           />

@@ -118,7 +118,8 @@ const StateDetailView = ({
   onDeleteTransition,
   onUpdateTransition,
   allAssets,
-  entityTemplates
+  entityTemplates,
+  stateMachineAssetId,
 }: {
   state: StateMachineState | undefined,
   onUpdateActions: (actionList: 'onEnter' | 'onExit', newActions: Action[]) => void,
@@ -127,6 +128,7 @@ const StateDetailView = ({
   onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void,
   allAssets: ProjectAsset[],
   entityTemplates: EntityTemplate[],
+  stateMachineAssetId: string,
   onDeleteTransition: (id: string) => void,
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void
 }) => {
@@ -145,6 +147,7 @@ const StateDetailView = ({
               onUpdateTransition={onUpdateTransition}
               allAssets={allAssets}
               entityTemplates={entityTemplates}
+              stateMachineAssetId={stateMachineAssetId}
             />
           </div>
         </Panel>
@@ -192,6 +195,7 @@ const StateDetailView = ({
               onUpdateTransition={onUpdateTransition}
               allAssets={allAssets}
               entityTemplates={entityTemplates}
+              stateMachineAssetId={stateMachineAssetId}
             />
         </div>
       </Panel>
@@ -434,6 +438,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
                 onUpdateTransition={handleUpdateTransition}
                 allAssets={allAssets}
                 entityTemplates={entityTemplates}
+                stateMachineAssetId={currentAsset.id}
               />
             </div>
           </div>

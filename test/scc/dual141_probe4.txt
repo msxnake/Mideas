@@ -1,0 +1,13 @@
+step_comp=0
+dialogue=0
+player_mv=0
+deadly=0
+hud0=0
+keydoors=0
+gems=0
+jumpers=0
+walljmp=0
+enemies=0
+enemy_touch=0
+turrets=0
+music_upd=0

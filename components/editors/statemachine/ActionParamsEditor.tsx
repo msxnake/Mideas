@@ -86,7 +86,9 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
 
       case ActionTypes.CHANGE_SPRITE:
-        const availableSprites = allAssets.filter(a => a.type === 'sprite');
+        const availableSprites = allAssets.filter(
+          asset => asset.type === 'sprite' || asset.type === 'msx2sprite'
+        );
         return (
           <div className="flex items-center space-x-2">
             <label className="text-xs text-gray-400 w-16">Sprite</label>
@@ -97,8 +99,11 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
             >
               <option value="">-- Select Sprite --</option>
               {availableSprites.map((spriteAsset) => (
-                <option key={spriteAsset.id} value={spriteAsset.data.name}>
-                  {spriteAsset.data.name}
+                <option
+                  key={spriteAsset.id}
+                  value={(spriteAsset.data as any)?.name || spriteAsset.name || spriteAsset.id}
+                >
+                  {spriteAsset.name || (spriteAsset.data as any)?.name || spriteAsset.id}
                 </option>
               ))}
             </select>

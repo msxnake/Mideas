@@ -1,0 +1,37 @@
+{
+  "id": "torch",
+  "label": "Glowing tail (dark rooms)",
+  "description": "Eat phosphorescent mushrooms to light the alien's tail; the halo shrinks stage by stage until it dies out",
+  "required": false,
+  "cycles": 80,
+  "addsStates": ["glowing"],
+  "icon": "🍄",
+  "category": "utility",
+  "supportedBackends": ["screen5"],
+  "parameters": [
+    {
+      "key": "lightSeconds",
+      "label": "Glow time per mushroom (seconds)",
+      "type": "number",
+      "default": 10,
+      "min": 2,
+      "max": 30,
+      "step": 1,
+      "help": "How long the tail glows after eating one mushroom. The time is split evenly across 3 decay stages: the halo shrinks a step at each one and dies out at the end."
+    },
+    {
+      "key": "startsLit",
+      "label": "Tail already glowing at start",
+      "type": "boolean",
+      "default": false,
+      "help": "If false the player starts in the dark and has to reach the first mushroom guided by its own glow."
+    },
+    {
+      "key": "eatSound",
+      "label": "Eat sound (PSG)",
+      "type": "boolean",
+      "default": true,
+      "help": "Fire-and-forget PSG blip when a mushroom is eaten."
+    }
+  ]
+}

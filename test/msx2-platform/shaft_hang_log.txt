@@ -1,0 +1,12 @@
+t0 room=2 state=0 pending_room=0 dir=0 blkptr=0000 left=0000 bank=0 pc=4561
+t1 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=4248
+t2 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=424B
+t3 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=4247
+t4 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=4241
+t5 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=423D
+t6 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=4248
+t7 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=424B
+t8 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=4245
+t9 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=4241
+t10 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=423D
+t11 room=2 state=1 pending_room=230 dir=19 blkptr=780B left=20FF bank=36 pc=424D

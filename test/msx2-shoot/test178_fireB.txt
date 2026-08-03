@@ -1,0 +1,5 @@
+before B: pool_active=0 cooldown=0 lock=0
+bullet ever active : 0
+first spawn        : 
+x start -> last    : -1 -> -1  over 0 frames
+cooldown/lock now  : 0 / 0

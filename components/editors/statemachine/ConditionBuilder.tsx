@@ -3,6 +3,7 @@ import { Condition, ConditionType, ConditionTypes } from '../../../statemachine.
 import { ProjectAsset, EntityTemplate } from '../../../types';
 import { Button } from '../../common/Button';
 import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
+import { getStateMachineInputOptions, normalizeStateMachineInput } from '../../../utils/stateMachineInputs';
 
 interface ConditionBuilderProps {
   onUpdate: (condition: Condition | null) => void;
@@ -10,9 +11,20 @@ interface ConditionBuilderProps {
   level?: number;
   allAssets?: ProjectAsset[];
   entityTemplates?: EntityTemplate[];
+  stateMachineAssetId?: string;
 }
 
-export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0, allAssets = [] }) => {
+export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
+  onUpdate,
+  condition,
+  level = 0,
+  allAssets = [],
+  stateMachineAssetId,
+}) => {
+  const stateMachineInputOptions = useMemo(
+    () => getStateMachineInputOptions(allAssets, stateMachineAssetId),
+    [allAssets, stateMachineAssetId],
+  );
 
   // Get all variables (default + custom + entity properties)
   const allVariables = useMemo(() => {
@@ -190,21 +202,29 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
   const renderParams = () => {
     switch (condition.type) {
       case ConditionTypes.KEY_PRESSED:
-      case ConditionTypes.KEY_RELEASED:
+      case ConditionTypes.KEY_RELEASED: {
+        const selectedInput = normalizeStateMachineInput(condition.params?.key);
+        const isCustomInput = selectedInput !== '' && !stateMachineInputOptions.some(option => option.value === selectedInput);
         return (
           <div className="space-y-1">
-            <input
-              type="text"
-              placeholder="Key (e.g. ArrowRight, right, space, fire)"
-              value={condition.params?.key || ''}
+            <select
+              aria-label="State machine input"
+              value={selectedInput}
               onChange={(e) => handleParamChange('key', e.target.value)}
               className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-            />
+            >
+              <option value="">-- Select Input --</option>
+              {stateMachineInputOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+              {isCustomInput && <option value={selectedInput}>Custom: {selectedInput}</option>}
+            </select>
             <div className="text-xs text-msx-textsecondary">
-              You can type aliases manually: `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `space`, `fire`.
+              Inputs come from the linked Player Config. Disabled controls are hidden; F1-F5 keep their configured action.
             </div>
           </div>
         );
+      }
       case ConditionTypes.TIME_OUT:
         return (
           <div className="space-y-2">
@@ -322,19 +342,21 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             <option value="right">Right</option>
           </select>
         );
-      case ConditionTypes.KEY_AND_MOVEMENT:
+      case ConditionTypes.KEY_AND_MOVEMENT: {
+        const selectedMovementInput = normalizeStateMachineInput(condition.params?.key || 'right');
+        const hasCustomMovementInput = !stateMachineInputOptions.some(option => option.value === selectedMovementInput);
         return (
           <div className="grid grid-cols-2 gap-2">
             <select
-              value={condition.params?.key || 'right'}
+              aria-label="State machine movement input"
+              value={selectedMovementInput}
               onChange={(e) => handleParamChange('key', e.target.value)}
               className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
             >
-              <option value="up">Up</option>
-              <option value="down">Down</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="space">Space (Fire)</option>
+              {stateMachineInputOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+              {hasCustomMovementInput && <option value={selectedMovementInput}>Custom: {selectedMovementInput}</option>}
             </select>
             <select
               value={condition.params?.direction || ''}
@@ -349,6 +371,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </select>
           </div>
         );
+      }
       case ConditionTypes.ON_WALL_COLLISION:
         return (
           <div className="space-y-2">
@@ -585,6 +608,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                 onUpdate={(sc) => handleSubConditionUpdate(index, sc)}
                 level={level + 1}
                 allAssets={allAssets}
+                stateMachineAssetId={stateMachineAssetId}
               />
               {/* Logical Operators for sub-conditions - Only show for simple conditions and within nesting limits */}
               {canAddLogicalOperators && sub.type !== 'AND' && sub.type !== 'OR' && sub.type !== 'XOR' && sub.type !== 'NOT' && (
