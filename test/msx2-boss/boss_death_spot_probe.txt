@@ -1,0 +1,9 @@
+alive boss=1 left=0 seed=0
+SHOTOK boss_death_spot_alive.png
+armed
+cycle1 boss=2 left=38 seed=97
+SHOTOK boss_death_spot_cycle1.png
+cycle2 boss=2 left=34 seed=33
+SHOTOK boss_death_spot_cycle2.png
+cycle3 boss=2 left=30 seed=23
+SHOTOK boss_death_spot_cycle3.png

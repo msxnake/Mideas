@@ -756,6 +756,15 @@ bitmap_shaft_sat:
     or #40
     out (VDP_CTRL_PORT), a
 ${satSlotBlocks}
+    ; Keep the SAT valid when no later sprite system is enabled. A writer
+    ; allocated after the shaft (currently SHOOT) starts at this same entry
+    ; and overwrites the terminator before appending its own #D8.
+    ld a, #D8
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
+    out (VDP_DATA_PORT), a
     pop de
     ret
 `;

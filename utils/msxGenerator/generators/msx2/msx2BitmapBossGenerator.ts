@@ -50,6 +50,8 @@
  *   int_tick (11 bytes) + sx word (2) + cmd_buf (15) + defeated[roomCount].
  */
 
+import type { PSGSoundData } from '../../../../types';
+
 import {
   BITMAP_BOSS_PATH_LIMITS,
   PATH_OP_ARG_BYTES,
@@ -162,6 +164,13 @@ export interface BitmapBossRoomData {
    * A zero assetCount keeps the legacy immediate defeat.
    */
   deathFxTables: number[][];
+  /**
+   * Death SFX selector per room: zero = no boss, -1 = built-in MSX2 explosion,
+   * positive = one-based custom stream index.
+   */
+  deathSoundIndexes: number[];
+  /** Deduplicated channel-C PSG streams referenced by deathSoundIndexes. */
+  deathSoundStreams: number[][];
 }
 
 /** A reusable shot pattern referenced by a path node's fire action. */
@@ -216,6 +225,57 @@ const INTRO_OP_END = 0x00;
 const INTRO_OP_CLOSE_BARRIER = 0x01;
 const INTRO_OP_DIALOGUE = 0x02;
 const INTRO_OP_WAIT = 0x03;
+
+/**
+ * Compact channel-C stream: duration, R4, R5, R6, R10, R7-C-bits. A zero
+ * duration terminates it. Hardware envelopes are deliberately flattened to a
+ * fixed volume because AY R11-R13 are global and may belong to the music.
+ */
+const BOSS_DEATH_SFX_RECORD_BYTES = 6;
+const DEFAULT_BOSS_DEATH_SFX = [
+  3, 0xF0, 0x03, 0x03, 15, 0x00, // low thump + harsh noise
+  4, 0x70, 0x00, 0x08, 12, 0x04, // noise-only decay
+  5, 0xB0, 0x00, 0x10, 8, 0x04,
+  6, 0x00, 0x01, 0x1A, 4, 0x04,
+  0,
+];
+
+function compileBossDeathSound(sound: PSGSoundData | undefined): number[] | undefined {
+  const channels = Array.isArray(sound?.channels) ? sound.channels : [];
+  const channel = [...channels]
+    .sort((a, b) => (a.id === 'C' ? -1 : b.id === 'C' ? 1 : 0))
+    .find(candidate => Array.isArray(candidate?.steps) && candidate.steps.length > 0);
+  if (!channel) return undefined;
+
+  const masterVolume = Number.isFinite(Number(sound?.masterVolume))
+    ? Math.max(0, Math.min(1, Number(sound?.masterVolume)))
+    : 1;
+  const noisePeriod = clampInt(sound?.noisePeriod, 0, 31, 0);
+  const records: number[][] = [];
+  for (const step of channel.steps) {
+    const tonePeriod = clampInt(step?.tonePeriod, 1, 0x0FFF, 1);
+    const volume = step?.useEnvelope
+      ? Math.round(15 * masterVolume)
+      : Math.round(clampInt(step?.volume, 0, 15, 0) * masterVolume);
+    const mixerBits = (step?.toneEnabled === true ? 0 : 0x04)
+      | (step?.noiseEnabled === true ? 0 : 0x20);
+    let frames = Math.max(1, Math.round(clampInt(step?.durationMs, 1, 60_000, 100) * 60 / 1000));
+    while (frames > 0 && records.length < 32) {
+      const duration = Math.min(255, frames);
+      records.push([
+        duration,
+        tonePeriod & 0xff,
+        (tonePeriod >> 8) & 0x0f,
+        noisePeriod,
+        volume,
+        mixerBits,
+      ]);
+      frames -= duration;
+    }
+    if (records.length >= 32) break;
+  }
+  return records.length ? [...records.flat(), 0] : undefined;
+}
 
 /** Argument bytes per opcode; the stream walker needs it to skip args safely. */
 const DEFEAT_OP_ARGS: Record<number, number> = {
@@ -503,6 +563,8 @@ export function buildBitmapRoomBossData(
   paths: Map<string, BossPathAsset> = new Map(),
   /** Reusable shot patterns, keyed by asset id (Fase G). */
   shoots: Map<string, BossShootAsset> = new Map(),
+  /** Sound Editor PSG assets available to the Boss Death FX selector. */
+  sounds: Map<string, PSGSoundData> = new Map(),
   /**
    * Where each boss body/death-FX stamp landed in the shared world atlas, keyed
    * by stamp asset id. The caller composes the stamps and injects them, because
@@ -521,6 +583,28 @@ export function buildBitmapRoomBossData(
   // Shot patterns are shared the same way: baked once, referenced by index.
   const shootRecords: number[][] = [];
   const shootIndexById = new Map<string, number>();
+  const deathSoundStreams: number[][] = [];
+  const deathSoundIndexByKey = new Map<string, number>();
+  const indexOfDeathSound = (rawId: unknown, roomName: string): number => {
+    const requestedId = String(rawId || '').trim();
+    if (!requestedId) return -1;
+    const sound = sounds.get(requestedId);
+    if (!sound) {
+      console.warn(`MSX2 bitmap room "${roomName}": boss explosion sound "${requestedId}" was not found; using the built-in PSG explosion.`);
+      return -1;
+    }
+    const stream = compileBossDeathSound(sound);
+    if (!stream) {
+      console.warn(`MSX2 bitmap room "${roomName}": boss explosion sound "${requestedId}" has no playable steps; using the built-in PSG explosion.`);
+      return -1;
+    }
+    const known = deathSoundIndexByKey.get(requestedId);
+    if (known !== undefined) return known;
+    deathSoundStreams.push([...stream]);
+    const index = deathSoundStreams.length;
+    deathSoundIndexByKey.set(requestedId, index);
+    return index;
+  };
   const indexOfShoot = (rawId: unknown): number => {
     const id = String(rawId ?? '').trim();
     if (!id) return 0;
@@ -571,6 +655,7 @@ export function buildBitmapRoomBossData(
       zones: [0],
       pathSel: [] as number[],
       deathFx: [0, 0, 0, 0],
+      deathSoundIndex: 0,
     };
     if (bosses.length > 1) {
       console.warn(`MSX2 bitmap room "${room.name}": only 1 boss per room is supported; extra ones were skipped.`);
@@ -608,6 +693,7 @@ export function buildBitmapRoomBossData(
         zones: [0],
         pathSel: [] as number[],
         deathFx: [0, 0, 0, 0],
+        deathSoundIndex: 0,
       };
     }
     const frames = clampInt(params.bossFrames, 1, 4, 1);
@@ -627,6 +713,7 @@ export function buildBitmapRoomBossData(
         zones: [0],
         pathSel: [] as number[],
         deathFx: [0, 0, 0, 0],
+        deathSoundIndex: 0,
       };
     }
     const animDelay = clampInt(params.bossAnimDelay, 1, 255, 12);
@@ -717,6 +804,7 @@ export function buildBitmapRoomBossData(
     // Formal defeat presentation: several transparent bitmap stamps scattered
     // over the frozen body before progress actions run and the room unlocks.
     const deathFx = buildDeathFxTable(params, bodyStampPlacements, width, height, room.name);
+    const deathSoundIndex = indexOfDeathSound(params.bossDeathExplosionSoundAssetId, room.name);
     // Fase G: which path this boss walks, by default and per attack phase.
     const pathSel = buildPathSelTable(params, hp, indexOfPath);
     // Every route this boss can end up on, checked from its spawn cell. A path
@@ -753,6 +841,7 @@ export function buildBitmapRoomBossData(
       zones,
       pathSel,
       deathFx,
+      deathSoundIndex,
     };
   });
   return {
@@ -769,7 +858,9 @@ export function buildBitmapRoomBossData(
     pathModes,
     pathSelTables: perRoom.map(entry => entry.pathSel),
     shootRecords,
-    deathFxTables: perRoom.map(entry => entry.deathFx),
+    deathFxTables: stripDeathFxAnimHeader(perRoom.map(entry => entry.deathFx)),
+    deathSoundIndexes: perRoom.map(entry => entry.deathSoundIndex),
+    deathSoundStreams,
   };
 }
 
@@ -1089,6 +1180,10 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
  * Compile the bitmap stamps used by the boss death presentation. The shared
  * atlas already owns their pixels, so each record only needs the VDP source
  * rectangle. Runtime destination coordinates are chosen inside the live body.
+ *
+ * The table always carries the 6-byte animated header here; when NO room in the
+ * project authored an animated explosion, `stripDeathFxAnimHeader` trims it back
+ * to the original 4 bytes so those ROMs stay byte-identical.
  */
 function buildDeathFxTable(
   params: any,
@@ -1097,13 +1192,29 @@ function buildDeathFxTable(
   bossHeight: number,
   roomName: string,
 ): number[] {
+  const animatedRequested = params?.bossDeathExplosionAnimated === true;
   const rawIds = Array.isArray(params?.bossDeathExplosionStampIds)
     ? params.bossDeathExplosionStampIds
     : [];
-  const ids: string[] = Array.from(new Set<string>(
+  // Animated mode plays the list in order as the frames of ONE explosion, so it
+  // is capped at the 3 frames the UI offers; random-variant mode keeps 8.
+  const authoredIds: string[] = Array.from(new Set<string>(
     rawIds.map((value: unknown) => String(value || '').trim()).filter(Boolean),
-  )).slice(0, 8);
-  if (ids.length === 0) return [0, 0, 0, 0];
+  )).slice(0, animatedRequested ? MAX_DEATH_ANIM_FRAMES : 8);
+  const frameSequence = animatedRequested && authoredIds.length > 0;
+  // Ordered compact mode is the default: it cycles the authored frames while
+  // scattering them, and needs almost no resident code. The original three
+  // simultaneously-live animations remain an explicit large-ROM option.
+  const animated = frameSequence && params?.bossDeathExplosionConcurrent === true;
+  const compactAnimated = frameSequence && !animated;
+  // Turning the animated presentation on is enough to get a visible result.
+  // Custom stamps replace these built-in bitmap frames when the author picks
+  // them.  This also keeps older/incomplete projects from silently compiling
+  // an immediate death after they saved only the animated flag.
+  const ids = animatedRequested && authoredIds.length === 0
+    ? [...BITMAP_BOSS_DEFAULT_DEATH_FRAME_IDS]
+    : authoredIds;
+  if (ids.length === 0) return [0, 0, 0, 0, 0, 0];
 
   const records: number[][] = [];
   for (const id of ids) {
@@ -1121,6 +1232,26 @@ function buildDeathFxTable(
       );
       continue;
     }
+    // Every animation frame is erased by repainting the body rectangle it
+    // covers, and that rectangle is the frame's own size: frames of different
+    // sizes would leave the bigger one's edges on the body. Authoring them on a
+    // single canvas size is also how the stamp editor already works.
+    // The erase is an opaque HMMM, which the V9938 resolves in byte units: an
+    // odd-width frame would leave a one-pixel column of the last frame behind.
+    if (frameSequence && (width & 1) === 1) {
+      console.warn(
+        `MSX2 bitmap room "${roomName}": animated boss death frame "${id}" is ${width} pixels wide; `
+        + 'an animated explosion needs an even width so it can be erased cleanly. Skipped.',
+      );
+      continue;
+    }
+    if (frameSequence && records.length > 0 && (width !== records[0][4] || height !== records[0][5])) {
+      console.warn(
+        `MSX2 bitmap room "${roomName}": animated boss death frame "${id}" is ${width}x${height} but the first frame is `
+        + `${records[0][4]}x${records[0][5]}; every frame of one explosion must share its size. Skipped.`,
+      );
+      continue;
+    }
     const sx = clampInt(rect.sx, 0, 4095, 0);
     const sy = 512 + clampInt(rect.sy, 0, 4095, 0);
     records.push([
@@ -1129,14 +1260,58 @@ function buildDeathFxTable(
       width & 0xff, height & 0xff,
     ]);
   }
-  if (records.length === 0) return [0, 0, 0, 0];
+  if (records.length === 0) return [0, 0, 0, 0, 0, 0];
+  const blastCount = clampInt(params?.bossDeathExplosionCount, 1, 32, 8);
+  const frameDelay = clampInt(params?.bossDeathExplosionFrameDelay, 1, 30, 4);
+  const emittedRecords = compactAnimated ? [...records].reverse() : records;
+  // Compact cycles reserve selector 0 as an implicit opaque body rebuild. No
+  // extra 6-byte record is emitted: selectors N..1 address the N reversed
+  // authored frames and selector 0 calls bitmap_boss_draw. This clears every
+  // previous blast, including the final one before the authored hold.
+  const compactCycleSlots = records.length + 1;
   return [
-    records.length,
-    clampInt(params?.bossDeathExplosionCount, 1, 32, 8),
-    clampInt(params?.bossDeathExplosionInterval, 1, 60, 6),
+    compactAnimated ? (0x80 | compactCycleSlots) : records.length,
+    compactAnimated ? Math.min(255, blastCount * compactCycleSlots) : blastCount,
+    compactAnimated ? frameDelay : clampInt(params?.bossDeathExplosionInterval, 1, 60, 6),
     clampInt(params?.bossDeathExplosionHoldFrames, 1, 255, 12),
-    ...records.flat(),
+    frameDelay,
+    animated ? 1 : 0,
+    ...emittedRecords.flat(),
   ];
+}
+
+/** Frames of a single animated explosion, matching the Boss Editor's picker. */
+const MAX_DEATH_ANIM_FRAMES = 3;
+/** Reserved shared-atlas entries used when animated death has no custom art. */
+export const BITMAP_BOSS_DEFAULT_DEATH_FRAME_IDS = [
+  '__mideas_builtin_boss_death_0',
+  '__mideas_builtin_boss_death_1',
+  '__mideas_builtin_boss_death_2',
+] as const;
+/** Header bytes of a death-FX table with / without the animated fields. */
+const DEATH_FX_HEADER_ANIM = 6;
+const DEATH_FX_HEADER_LEGACY = 4;
+
+/**
+ * Drop the animated header fields when no room uses them. Projects that only
+ * ever authored the original random-variant cloud keep the exact table bytes and
+ * the exact runtime they had before animated explosions existed.
+ */
+function stripDeathFxAnimHeader(tables: number[][]): number[][] {
+  const anyAnimated = tables.some(table => table && table.length > 5 && table[5] === 1);
+  if (anyAnimated) {
+    // Rooms without a boss carry a bare [0,0,0,0]; pad them so every table in an
+    // animated build shares the same header length.
+    return tables.map(table => {
+      const row = table || [];
+      if (row.length >= DEATH_FX_HEADER_ANIM) return row;
+      return [...row, ...new Array(DEATH_FX_HEADER_ANIM - row.length).fill(0)];
+    });
+  }
+  return tables.map(table => {
+    if (!table || table.length < DEATH_FX_HEADER_ANIM) return table;
+    return [...table.slice(0, DEATH_FX_HEADER_LEGACY), ...table.slice(DEATH_FX_HEADER_ANIM)];
+  });
 }
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
@@ -1202,6 +1377,8 @@ export function buildBitmapBossSystemAsm(
   const hasBarrier = (data.barrierTables || []).some(t => t && t[0] === 1);
   const barrierRamBase = ram + 28 + roomPoolCount + flagCount;
   const introStreams = data.introStreams || [];
+  const introStreamIsEmpty = (stream: number[] | undefined) =>
+    !stream || stream.length === 0 || (stream.length === 1 && stream[0] === INTRO_OP_END);
   // Every live boss now owns an implicit first intro step: walk the player to
   // the horizontal centre. The authored bytecode may still be only END.
   const hasIntro = data.roomTables.some(table => Array.isArray(table) && table[0] === 1);
@@ -1217,6 +1394,25 @@ export function buildBitmapBossSystemAsm(
   const hasIntroClose = introHas(INTRO_OP_CLOSE_BARRIER);
   const hasIntroDialogue = introHas(INTRO_OP_DIALOGUE);
   const hasDeathFx = (data.deathFxTables || []).some(table => table && table[0] > 0);
+  const hasDefaultDeathSound = (data.deathSoundIndexes || []).some(index => index < 0);
+  const hasCustomDeathSound = (data.deathSoundIndexes || []).some(index => index > 0)
+    && (data.deathSoundStreams || []).length > 0;
+  const hasDeathSound = hasDefaultDeathSound || hasCustomDeathSound;
+  // Concurrent animated explosions: up to three independent blasts play at
+  // once. The compact ordered-frame mode uses the legacy runtime and therefore
+  // does not reserve the live-slot machinery below.
+  const hasDeathAnim = (data.deathFxTables || []).some(table => table && table[0] > 0 && table[5] === 1);
+  // Ordered compact animation: bit 7 of the table header. One blast at a time,
+  // its frames played in order AT THE SAME SPOT, which it gets by re-seeding the
+  // placement PRNG per blast rather than by reserving RAM.
+  const hasDeathCompactAnim = (data.deathFxTables || []).some(table => table && ((table[0] || 0) & 0x80) !== 0);
+  // The original scattered cloud. A project that only uses compact animations
+  // does not carry its selector at all; ROMs that predate compact mode keep it,
+  // and therefore keep their exact bytes.
+  const hasDeathLegacyVariant = (data.deathFxTables || []).some(
+    table => table && (table[0] || 0) > 0 && ((table[0] || 0) & 0x80) === 0,
+  );
+  const deathHeaderBytes = hasDeathAnim ? DEATH_FX_HEADER_ANIM : DEATH_FX_HEADER_LEGACY;
   // Phase D projectiles: single bitmap bullet fired at the player. Only emitted
   // when a room configures bossProjectileTileId (byte-identical no-op otherwise).
   const tables = data.projectileTables || [];
@@ -1260,9 +1456,16 @@ export function buildBitmapBossSystemAsm(
   const introRamBase = ram + baseRamBytes;
   const INTRO_RAM_BYTES = 6;
   const deathRamBase = introRamBase + (hasIntro ? INTRO_RAM_BYTES : 0);
-  const DEATH_RAM_BYTES = 3;
+  // 3 live explosions x 5 bytes (active, frame, timer, rx, ry) + the word that
+  // points at the slot being serviced this frame.
+  const DEATH_ANIM_SLOTS = 3;
+  const DEATH_ANIM_SLOT_BYTES = 5;
+  const DEATH_RAM_BYTES = 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0);
+  const deathSfxRamBase = deathRamBase + (hasDeathFx ? DEATH_RAM_BYTES : 0);
+  const DEATH_SFX_RAM_BYTES = 4; // custom stream: active, timer, pointer word
   const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0)
-    + (hasDeathFx ? DEATH_RAM_BYTES : 0);
+    + (hasDeathFx ? DEATH_RAM_BYTES : 0)
+    + (hasCustomDeathSound ? DEATH_SFX_RAM_BYTES : 0);
   // Pre-rendered so the data template stays readable: one ring slot per row,
   // dx then dy, each an 8.8 little-endian word.
   const shootDirRows = (() => {
@@ -1362,9 +1565,17 @@ boss_intro_ptr EQU ${asmWord(introRamBase + 1)}  ; word: next opcode or active-s
 boss_intro_counter EQU ${asmWord(introRamBase + 3)}  ; wait frames / raster scanlines left this frame
 boss_intro_raster_y EQU ${asmWord(introRamBase + 4)}  ; next horizontal pixel line (0..191)
 boss_intro_auto_move EQU ${asmWord(introRamBase + 5)}  ; 1 = forced horizontal walk; gravity remains active
-` : ''}${hasDeathFx ? `boss_death_left EQU ${asmWord(deathRamBase + 0)}  ; bitmap blasts still to draw
+` : ''}${hasDeathFx ? `boss_death_left EQU ${asmWord(deathRamBase + 0)}  ; bitmap blasts still to draw (#FF = final hold)
 boss_death_tick EQU ${asmWord(deathRamBase + 1)}  ; frames to next blast/finalize
 boss_death_seed EQU ${asmWord(deathRamBase + 2)}  ; deterministic 8-bit PRNG state
+${hasDeathAnim ? `BOSS_DFX_SLOT   EQU ${DEATH_ANIM_SLOT_BYTES}
+boss_death_slots EQU ${asmWord(deathRamBase + 3)}  ; ${DEATH_ANIM_SLOTS} x ${DEATH_ANIM_SLOT_BYTES} bytes, live explosions
+;   +0 active (1 = playing), +1 frame index on screen, +2 frames until the next
+;   step, +3 rx / +4 ry = even offset of the blast inside the frozen body.
+boss_death_ptr  EQU ${asmWord(deathRamBase + 3 + DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES)}  ; word: slot serviced this frame
+` : ''}` : ''}${hasCustomDeathSound ? `boss_death_sfx_active EQU ${asmWord(deathSfxRamBase + 0)}  ; selected PSG explosion is playing
+boss_death_sfx_timer EQU ${asmWord(deathSfxRamBase + 1)}  ; frames left in the current sound step
+boss_death_sfx_ptr EQU ${asmWord(deathSfxRamBase + 2)}  ; word: next compact channel-C record
 ` : ''}`;
 
   // Persistent state must start at zero: boss_defeated decides whether a boss
@@ -1378,6 +1589,8 @@ ${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_
 ` : ''}${hasDeathFx ? `    ld (boss_death_left), a
     ld (boss_death_tick), a
     ld (boss_death_seed), a
+${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (boss_death_slots + ${i * DEATH_ANIM_SLOT_BYTES}), a`).join('\n') + '\n' : ''}` : ''}${hasCustomDeathSound ? `    ld (boss_death_sfx_active), a
+    ld (boss_death_sfx_timer), a
 ` : ''}`;
   const loadCallAsm = `    call bitmap_boss_load
 `;
@@ -1559,7 +1772,8 @@ ${hasSpriteProjectiles ? `    ld a, (ix+10)
     ; Draw the stationary body once; movement/shoot/contact start only at END.
     call bitmap_boss_table_ix
     jp bitmap_boss_draw
-` : ''}    ret
+` : `    ret
+`}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_update
@@ -1574,7 +1788,8 @@ ${hasSpriteProjectiles ? `    ld a, (ix+10)
 ; DESTROYS: AF, BC, DE, HL, IX.
 ; ------------------------------------------------------------
 bitmap_boss_update:
-${pauseGate}    ld a, (boss_active)
+${hasCustomDeathSound ? `    call bitmap_boss_death_sfx_tick  ; custom audio continues through finalization and room locks
+` : ''}${pauseGate}    ld a, (boss_active)
     or a
     ret z
 ${hasDeathFx ? `    cp 2
@@ -1583,8 +1798,7 @@ ${hasDeathFx ? `    cp 2
 ${hasIntro ? `    ld a, (boss_intro_state)
     or a
     jp z, .boss_intro_finished
-    call bitmap_boss_intro_frame
-    ret
+    jp bitmap_boss_intro_frame
 .boss_intro_finished:
 ` : ''}
 ${hasBarrier ? `    ; The chain could not seal the doorway the player entered through. Sweep
@@ -1726,6 +1940,9 @@ ${hasProjectiles ? `    push ix
 ; DESTROYS: AF, DE, HL (IX result).
 ; ------------------------------------------------------------
 bitmap_boss_table_ix:
+    ; Keep the live-body lookup self-contained. This routine is used while a
+    ; room is loading and before the death runtime exists; sharing the bullet
+    ; helper here made the normal Boss-spawn path depend on a later subsystem.
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -2158,7 +2375,132 @@ bitmap_boss_table_ix_shadow:
     ret
 
 ; ------------------------------------------------------------
-${hasDeathFx ? `; FUNCTION: bitmap_boss_death_config
+${hasDefaultDeathSound && !hasCustomDeathSound ? `; FUNCTION: bitmap_boss_death_sfx_start
+; PURPOSE: Play the compact built-in MSX2 PSG explosion on channel C.
+; INPUT: none. OUTPUT: hardware envelope triggered once.
+; DESTROYS: AF, BC, HL. PRESERVES: DE, IX, IY.
+; SIDE EFFECTS: Writes PSG R6/R10-R13/R7 and psg_sfx_r7_c_bits.
+bitmap_boss_death_sfx_start:
+    ld hl, bitmap_boss_death_sfx_default_pairs
+    ld b, 6
+.boss_dfx_default_pair:
+    ld a, (hl)
+    out (#A0), a
+    inc hl
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    djnz .boss_dfx_default_pair
+    ; The final pair leaves A=#1F. Music masks this shadow with #24, yielding
+    ; the intended channel-C state: tone off, noise on.
+    ld (psg_sfx_r7_c_bits), a
+    ret
+
+` : ''}${hasCustomDeathSound ? `; FUNCTION: bitmap_boss_death_sfx_start
+; PURPOSE: Restart this room's selected Sound FX, or the built-in MSX2
+;   explosion, on the gameplay SFX channel C.
+; INPUT: current_screen_index. OUTPUT: sequencer armed and first step applied.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+; SIDE EFFECTS: Writes PSG R4/R5/R6/R7/R10 and psg_sfx_r7_c_bits.
+bitmap_boss_death_sfx_start:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_death_sfx_room_ptr_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    ret z
+    ex de, hl
+    ld (boss_death_sfx_ptr), hl
+    ld a, 1
+    ld (boss_death_sfx_active), a
+    jp bitmap_boss_death_sfx_load_step
+
+; FUNCTION: bitmap_boss_death_sfx_tick
+; PURPOSE: Advance the selected/default explosion once per game frame.
+; INPUT: sequencer RAM. OUTPUT: PSG channel C advanced or released.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_death_sfx_tick:
+    ld a, (boss_death_sfx_active)
+    or a
+    ret z
+    ld a, (boss_death_sfx_timer)
+    dec a
+    ld (boss_death_sfx_timer), a
+    ret nz
+    jp bitmap_boss_death_sfx_load_step
+
+; FUNCTION: bitmap_boss_death_sfx_load_step
+; PURPOSE: Apply one compact record: duration,R4,R5,R6,R10,R7-C-bits.
+; INPUT: boss_death_sfx_ptr. OUTPUT: timer/next pointer and PSG registers.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_death_sfx_load_step:
+    ld hl, (boss_death_sfx_ptr)
+    ld a, (hl)
+    or a
+    jp z, bitmap_boss_death_sfx_stop
+    ld (boss_death_sfx_timer), a
+    inc hl
+    ld a, 4
+    out (#A0), a
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    ld a, 5
+    out (#A0), a
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    ld a, 6
+    out (#A0), a
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    ld a, 10
+    out (#A0), a
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    ld a, (hl)
+    and #24
+    ld (psg_sfx_r7_c_bits), a
+    inc hl
+    ld (boss_death_sfx_ptr), hl
+    jp bitmap_boss_death_sfx_apply_mixer
+
+; FUNCTION: bitmap_boss_death_sfx_stop
+; PURPOSE: Silence/release channel C without disturbing music on A/B.
+; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
+bitmap_boss_death_sfx_stop:
+    xor a
+    ld (boss_death_sfx_active), a
+    ld a, 10
+    out (#A0), a
+    xor a
+    out (#A1), a
+    ld a, #24
+    ld (psg_sfx_r7_c_bits), a
+
+; FUNCTION: bitmap_boss_death_sfx_apply_mixer
+; PURPOSE: Merge only channel-C tone/noise bits into live PSG R7.
+; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
+bitmap_boss_death_sfx_apply_mixer:
+    ld a, 7
+    out (#A0), a
+    in a, (#A2)
+    and #DB                    ; clear only tone-C bit 2 and noise-C bit 5
+    ld e, a
+    ld a, (psg_sfx_r7_c_bits)
+    or e
+    out (#A1), a
+    ret
+
+` : ''}${hasDeathFx ? `; FUNCTION: bitmap_boss_death_config
 ; PURPOSE: Resolve the current room's bitmap death-FX table.
 ; INPUT: current_screen_index.
 ; OUTPUT: HL -> [assetCount, blastCount, interval, hold, records...].
@@ -2203,17 +2545,22 @@ bitmap_boss_death_mod:
 ; INPUT: boss_active = 2. OUTPUT: visible VRAM and death counters.
 ; DESTROYS: AF, BC, DE, HL, IX.
 bitmap_boss_death_update:
-    ld hl, boss_death_tick
+${hasDeathAnim ? `    ; Two presentations share this entry point; the room's table says which.
+    call bitmap_boss_death_config
+    ld de, 5
+    add hl, de
+    ld a, (hl)                 ; header +5 = animated flag
+    or a
+    jp nz, bitmap_boss_death_update_anim
+` : ''}    ld hl, boss_death_tick
     dec (hl)
     ret nz
+    call bitmap_boss_death_config
     ld a, (boss_death_left)
     or a
     jp z, bitmap_boss_finalize_death
     dec a
     ld (boss_death_left), a
-    call bitmap_boss_death_config
-    ld a, (boss_death_left)
-    or a
     jr z, .death_load_hold
     inc hl
     inc hl                     ; offset 2 = interval
@@ -2226,24 +2573,66 @@ bitmap_boss_death_update:
     ld a, (hl)
 .death_store_tick:
     ld (boss_death_tick), a
-    call bitmap_boss_death_draw
-    ret
+${hasDeathSound ? `    call bitmap_boss_death_sfx_start
+` : ''}    jp bitmap_boss_death_draw
 
 ; FUNCTION: bitmap_boss_death_draw
-; PURPOSE: Pick one authored stamp and a position inside the boss body, then
-;   composite it with V9938 LMMM/TIMP (#98). Colour 0 stays transparent and
-;   previous blasts remain until the final full-body restoration.
+; PURPOSE: Draw one authored stamp inside the boss body or, on the compact
+;   animation's implicit final slot, reconstruct the frozen Boss from its atlas.
+;   Explosion frames use V9938 LMMM/TIMP (#98); colour 0 stays transparent.
 ; INPUT: Current room death table and live boss position.
-; OUTPUT: One bitmap explosion added to visible VRAM.
+; OUTPUT: One bitmap explosion frame or one complete Boss-body restoration.
 ; DESTROYS: AF, BC, DE, HL, IX.
 ; SIDE EFFECTS: Uses the VDP command engine and restores R#15 = S#0.
 bitmap_boss_death_draw:
     call bitmap_boss_death_config
-    ld b, (hl)                 ; number of stamp records
+    ld a, (hl)                 ; low 7 bits = cycle slots; bit 7 = ordered compact animation
+${hasDeathLegacyVariant ? `    bit 7, a
+    jr z, .death_random_variant
+` : ''}    and #7F
+    ld b, a
+    ld a, (boss_death_left)    ; N..1 = reversed frame records; 0 = rebuild body
+    call bitmap_boss_death_mod
+    or a
+    jr nz, .death_compact_frame
+    ; End of one compact animation: reconstruct the complete frozen Boss from
+    ; its atlas. This clears every previous transparent stamp in one opaque HMMM
+    ; and also leaves the final hold clean before the Boss is removed.
+    call bitmap_boss_table_ix
+    jp bitmap_boss_draw
+.death_compact_frame:
+${hasDeathCompactAnim ? `    ; Every frame of ONE blast must land on the SAME spot. Instead of storing that
+    ; spot, seed the placement PRNG from a value that is constant inside a blast
+    ; -- the step counter minus the selector, i.e. where this blast started --
+    ; so the shared position code below draws the very same offsets again.
+    ; Two mixing rounds first: consecutive blasts differ by one cycle, and
+    ; feeding that straight in put them 2 pixels apart.
+    ld c, a
+    ld a, (boss_death_left)
+    sub c
+    ld (boss_death_seed), a
+    call bitmap_boss_death_rand
+    call bitmap_boss_death_rand
+    ; Wipe the previous frame by repainting the frozen body: LMMM + TIMP would
+    ; otherwise stack this blast's frames on top of each other instead of
+    ; replacing them. On a blast's first frame the body is already clean, and
+    ; testing for that costs more ROM than the redundant repaint.
+    push bc                    ; bitmap_boss_draw destroys BC, and C is the frame
+    push hl
+    call bitmap_boss_table_ix
+    call bitmap_boss_draw
+    pop hl
+    pop bc
+    ld a, c
+    dec a                      ; selectors N..1 map to reversed records N-1..0` : `    dec a                      ; selectors N..1 map to reversed records N-1..0`}
+    jr .death_variant_selected
+${hasDeathLegacyVariant ? `.death_random_variant:
+    ld b, a
     call bitmap_boss_death_rand
     call bitmap_boss_death_mod
+` : ''}.death_variant_selected:
     ld c, a                    ; selected record index
-    ld de, 4
+    ld de, ${deathHeaderBytes}
     add hl, de                 ; skip table header
     ld a, c
     or a
@@ -2313,7 +2702,359 @@ ${visiblePageH}
     ld (boss_cmd_buf + 14), a  ; LMMM + TIMP
     jp bitmap_boss_launch_cmd
 
-` : ''}; FUNCTION: bitmap_boss_kill
+${hasDeathAnim ? `; FUNCTION: bitmap_boss_death_frame_hl
+; PURPOSE: HL -> the 6-byte record of animation frame A in the current room.
+; INPUT: A = frame index. OUTPUT: HL -> sxLo, sxHi, syLo, syHi, w, h.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
+bitmap_boss_death_frame_hl:
+    push af
+    call bitmap_boss_death_config
+    ld de, ${deathHeaderBytes}
+    add hl, de                 ; HL -> frame 0
+    pop af
+    or a
+    ret z
+    ld b, a
+    ld de, 6
+.dfx_frame_seek:
+    add hl, de
+    djnz .dfx_frame_seek
+    ret
+
+` : ''}${hasDeathAnim ? `; ------------------------------------------------------------
+; ANIMATED DEATH EXPLOSIONS
+; ------------------------------------------------------------
+; The room's stamp list is ONE explosion: its frames, in order, all the same
+; size. Up to ${DEATH_ANIM_SLOTS} of them play at once at random even offsets inside the
+; frozen body, and each is erased when its last frame ends by repainting the
+; body rectangle it covered (opaque HMMM straight from the atlas copy of the
+; body, so the room behind the boss is never touched).
+;
+; VDP BUDGET: at most ONE slot advances per game frame (erase + stamp = two
+; commands) and a new blast never spawns on a frame that already advanced one.
+; Slots whose timer expires on a busy frame retry on the next one, which is
+; invisible at these cadences and keeps the player at 60fps while the boss dies.
+
+; FUNCTION: bitmap_boss_death_anim_dest
+; PURPOSE: Fill DX/DY of the command block from the serviced slot's offset
+;   inside the frozen body. Both the stamp and its erase use this rectangle.
+; INPUT: boss_death_ptr -> slot. DESTROYS: AF, DE, HL. PRESERVES: BC, IX.
+bitmap_boss_death_anim_dest:
+    ld hl, (boss_death_ptr)
+    ld de, 3
+    add hl, de                 ; HL -> rx
+    ld a, (boss_x)
+    and #FE                    ; the body itself is drawn on a byte boundary
+    add a, (hl)
+    ld (boss_cmd_buf + 4), a   ; DX
+    xor a
+    ld (boss_cmd_buf + 5), a
+    inc hl                     ; HL -> ry
+    ld a, (boss_y)
+    add a, (hl)
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ret
+
+; FUNCTION: bitmap_boss_death_anim_draw
+; PURPOSE: Composite the serviced slot's current frame over the body with
+;   LMMM/TIMP (#98), so colour 0 shows the boss through the explosion.
+; INPUT: boss_death_ptr -> slot. DESTROYS: AF, BC, DE, HL, IX.
+; SIDE EFFECTS: Uses the VDP command engine and restores R#15 = S#0.
+bitmap_boss_death_anim_draw:
+    ld hl, (boss_death_ptr)
+    inc hl
+    ld a, (hl)                 ; frame index
+    call bitmap_boss_death_frame_hl
+    push hl
+    pop ix
+    ld l, (ix+0)
+    ld h, (ix+1)
+    ld (boss_cmd_buf + 0), hl  ; SX = frame in the shared atlas
+    ld l, (ix+2)
+    ld h, (ix+3)
+    ld (boss_cmd_buf + 2), hl  ; SY (already 512-based)
+    ld l, (ix+4)
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl  ; NX
+    ld l, (ix+5)
+    ld (boss_cmd_buf + 10), hl ; NY
+    call bitmap_boss_death_anim_dest
+    xor a
+    ld (boss_cmd_buf + 12), a  ; CLR unused
+    ld (boss_cmd_buf + 13), a  ; ARG = 0
+    ld a, #98
+    ld (boss_cmd_buf + 14), a  ; LMMM + TIMP
+    jp bitmap_boss_launch_cmd
+
+; FUNCTION: bitmap_boss_death_anim_erase
+; PURPOSE: Repaint the body rectangle the serviced slot's current frame covers,
+;   copying it from the body's own atlas graphic. rx/ry are even, so this is a
+;   fast opaque HMMM.
+; INPUT: boss_death_ptr -> slot. DESTROYS: AF, BC, DE, HL, IX.
+; SIDE EFFECTS: Uses the VDP command engine and restores R#15 = S#0.
+bitmap_boss_death_anim_erase:
+    ld hl, (boss_death_ptr)
+    inc hl
+    ld a, (hl)
+    call bitmap_boss_death_frame_hl
+    push hl
+    pop ix
+    ld l, (ix+4)
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl  ; NX = frame width
+    ld l, (ix+5)
+    ld (boss_cmd_buf + 10), hl ; NY = frame height
+    ; Source = the same rectangle inside the body graphic: the boss is frozen
+    ; during the death sequence, so boss_sx still names its last drawn frame.
+    ld hl, (boss_death_ptr)
+    ld de, 3
+    add hl, de
+    ld e, (hl)                 ; rx
+    inc hl
+    ld c, (hl)                 ; ry
+    ld d, 0
+    ld hl, (boss_sx)
+    add hl, de
+    ld (boss_cmd_buf + 0), hl  ; SX = body column under the blast
+    call bitmap_boss_table_ix
+    ld l, (ix+11)
+    ld h, (ix+12)              ; body atlas row (512-based)
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (boss_cmd_buf + 2), hl  ; SY = body row under the blast
+    call bitmap_boss_death_anim_dest
+    jp bitmap_boss_finish_hmmm
+
+; FUNCTION: bitmap_boss_death_anim_busy
+; PURPOSE: Is any explosion still playing?
+; OUTPUT: A = 1 while a slot is active, 0 when they have all finished.
+; DESTROYS: AF, BC, DE, HL.
+bitmap_boss_death_anim_busy:
+    ld hl, boss_death_slots
+    ld b, ${DEATH_ANIM_SLOTS}
+    ld de, BOSS_DFX_SLOT
+.dfx_busy_scan:
+    ld a, (hl)
+    or a
+    ret nz                     ; active is stored as 1
+    add hl, de
+    djnz .dfx_busy_scan
+    xor a
+    ret
+
+; FUNCTION: bitmap_boss_death_anim_step
+; PURPOSE: Tick every live explosion and advance AT MOST ONE of them; the others
+;   retry next frame so a single frame never pays for two erase+stamp pairs.
+; OUTPUT: A = 1 when this frame's VDP budget was spent, 0 when it is still free.
+; DESTROYS: AF, BC, DE, HL, IX.
+bitmap_boss_death_anim_step:
+    ld hl, boss_death_slots
+    ld b, ${DEATH_ANIM_SLOTS}
+    ld c, 0                    ; slot claiming this frame, 1-based (0 = none)
+    ld d, 1                    ; slot being scanned
+.dfx_step_scan:
+    ld a, (hl)
+    or a
+    jr z, .dfx_step_next           ; free slot
+    inc hl
+    inc hl                     ; HL -> timer
+    dec (hl)
+    jr nz, .dfx_step_rewind
+    ld a, c
+    or a
+    jr nz, .dfx_step_defer         ; another slot already owns the budget
+    ld c, d                    ; claim it
+    jr .dfx_step_rewind
+.dfx_step_defer:
+    ld (hl), 1                 ; expired but deferred: retry next frame
+.dfx_step_rewind:
+    dec hl
+    dec hl
+.dfx_step_next:
+    push de
+    ld de, BOSS_DFX_SLOT
+    add hl, de
+    pop de
+    inc d
+    djnz .dfx_step_scan
+    ld a, c
+    or a
+    ret z                      ; nothing to advance
+    ; HL = boss_death_slots + (C - 1) * BOSS_DFX_SLOT
+    dec c
+    ld hl, boss_death_slots
+    ld a, c
+    or a
+    jr z, .dfx_step_ready
+    ld de, BOSS_DFX_SLOT
+.dfx_step_seek:
+    add hl, de
+    dec a
+    jr nz, .dfx_step_seek
+.dfx_step_ready:
+    ld (boss_death_ptr), hl
+    ; fall through: the advance always spends the budget and returns A = 1
+
+; FUNCTION: bitmap_boss_death_anim_advance
+; PURPOSE: Erase the frame on screen and either stamp the next one or retire the
+;   slot (the erase already left the body clean).
+; INPUT: boss_death_ptr -> slot. OUTPUT: A = 1.
+; DESTROYS: AF, BC, DE, HL, IX.
+bitmap_boss_death_anim_advance:
+    call bitmap_boss_death_anim_erase
+    ld hl, (boss_death_ptr)
+    inc hl
+    ld a, (hl)
+    inc a
+    ld (hl), a                 ; next frame index
+    push af
+    call bitmap_boss_death_config
+    ld a, (hl)                 ; header +0 = frame count
+    ld b, a
+    pop af
+    cp b
+    jr c, .dfx_advance_draw
+    ld hl, (boss_death_ptr)
+    ld (hl), 0                 ; animation over: the slot is free again
+    ld a, 1
+    ret
+.dfx_advance_draw:
+    call bitmap_boss_death_config
+    ld de, 4
+    add hl, de
+    ld a, (hl)                 ; header +4 = frames per animation frame
+    ld hl, (boss_death_ptr)
+    inc hl
+    inc hl
+    ld (hl), a                 ; timer
+    call bitmap_boss_death_anim_draw
+    ld a, 1
+    ret
+
+; FUNCTION: bitmap_boss_death_anim_spawn
+; PURPOSE: Start one explosion in a free slot at a random even offset inside the
+;   body and stamp its first frame.
+; OUTPUT: A = 1 when a slot took it, 0 when all ${DEATH_ANIM_SLOTS} are busy.
+; DESTROYS: AF, BC, DE, HL, IX.
+bitmap_boss_death_anim_spawn:
+    ld hl, boss_death_slots
+    ld b, ${DEATH_ANIM_SLOTS}
+    ld de, BOSS_DFX_SLOT
+.dfx_spawn_find:
+    ld a, (hl)
+    or a
+    jr z, .dfx_spawn_found
+    add hl, de
+    djnz .dfx_spawn_find
+    xor a
+    ret
+.dfx_spawn_found:
+    ld (boss_death_ptr), hl
+    ld (hl), 1                 ; +0 active
+    inc hl
+    ld (hl), 0                 ; +1 frame index
+    ; Every frame shares its size, so frame 0 gives the blast rectangle.
+    xor a
+    call bitmap_boss_death_frame_hl
+    ld de, 4
+    add hl, de
+    ld c, (hl)                 ; C = frame width
+    inc hl
+    ld b, (hl)                 ; B = frame height
+    push bc
+    call bitmap_boss_table_ix_shadow   ; HL -> body width
+    ld a, (hl)
+    sub c
+    inc a
+    ld b, a                    ; range = bodyW - frameW + 1
+    push hl
+    call bitmap_boss_death_rand
+    call bitmap_boss_death_mod
+    and #FE                    ; even column: the erase stays a fast HMMM
+    pop hl
+    ld c, a                    ; C = rx
+    inc hl                     ; HL -> body height
+    ld a, (hl)
+    pop de                     ; D = frame height, E = frame width
+    sub d
+    inc a
+    ld b, a                    ; range = bodyH - frameH + 1
+    call bitmap_boss_death_rand
+    call bitmap_boss_death_mod
+    ld b, a                    ; B = ry
+    ld hl, (boss_death_ptr)
+    ld de, 3
+    add hl, de
+    ld (hl), c                 ; +3 rx
+    inc hl
+    ld (hl), b                 ; +4 ry
+    call bitmap_boss_death_config
+    ld de, 4
+    add hl, de
+    ld a, (hl)                 ; frames per animation frame
+    ld hl, (boss_death_ptr)
+    inc hl
+    inc hl
+    ld (hl), a                 ; +2 timer
+${hasDeathSound ? `    call bitmap_boss_death_sfx_start
+` : ''}    call bitmap_boss_death_anim_draw
+    ld a, 1
+    ret
+
+; FUNCTION: bitmap_boss_death_update_anim
+; PURPOSE: Animated presentation: keep the live explosions moving, spawn the
+;   next blast on cadence, and finalize only after the last one has played out
+;   and the authored hold elapsed.
+; INPUT: boss_active = 2 in a room whose table is animated.
+; DESTROYS: AF, BC, DE, HL, IX.
+bitmap_boss_death_update_anim:
+    call bitmap_boss_death_anim_step
+    ld c, a                    ; C = 1 when the VDP budget is already spent
+    ld hl, boss_death_tick
+    dec (hl)
+    ret nz
+    ld a, (boss_death_left)
+    cp #FF
+    jp z, bitmap_boss_finalize_death   ; the hold ran out
+    or a
+    jr z, .dfx_anim_no_blasts_left
+    ld a, c
+    or a
+    jr nz, .dfx_anim_retry_next_frame      ; do not stack three commands on one frame
+    call bitmap_boss_death_anim_spawn
+    or a
+    jr z, .dfx_anim_retry_next_frame       ; every slot busy
+    ld hl, boss_death_left
+    dec (hl)
+    call bitmap_boss_death_config
+    inc hl
+    inc hl                     ; header +2 = frames between blasts
+    ld a, (hl)
+    ld (boss_death_tick), a
+    ret
+.dfx_anim_retry_next_frame:
+    ld a, 1
+    ld (boss_death_tick), a
+    ret
+.dfx_anim_no_blasts_left:
+    call bitmap_boss_death_anim_busy
+    or a
+    jr nz, .dfx_anim_retry_next_frame      ; wait for the last explosion to finish
+    ld a, #FF
+    ld (boss_death_left), a            ; from here the next expiry finalizes
+    call bitmap_boss_death_config
+    inc hl
+    inc hl
+    inc hl                     ; header +3 = final hold
+    ld a, (hl)
+    ld (boss_death_tick), a
+    ret
+
+` : ''}` : ''}; FUNCTION: bitmap_boss_kill
 ; ------------------------------------------------------------
 ; PURPOSE: Stop active projectiles and start the configured bitmap-explosion
 ;   presentation. With no valid stamps in this room, finalizes immediately.
@@ -2348,12 +3089,18 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i *
 ` : ''}${hasDeathFx ? `    call bitmap_boss_death_config
     ld a, (hl)                 ; number of valid explosion stamps
     or a
-    jp z, bitmap_boss_finalize_death
+    jp nz, .kill_death_fx_ready
+${hasDeathSound ? `    call bitmap_boss_death_sfx_start  ; no bitmap selected: still make the defeat audible
+` : ''}    jp bitmap_boss_finalize_death
+.kill_death_fx_ready:
     inc hl
     ld a, (hl)                 ; total blast count
     ld (boss_death_left), a
     ld a, 1                    ; first blast on the next game frame
     ld (boss_death_tick), a
+${hasDeathAnim ? `    xor a
+${Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (boss_death_slots + ${i * DEATH_ANIM_SLOT_BYTES}), a   ; no explosion playing yet`).join('\n')}
+` : ''}
     ld a, (current_screen_index)
     ld hl, boss_x
     xor (hl)
@@ -2378,9 +3125,10 @@ ${hasIntro ? `    xor a
 ;   barrier and restore the full boss rectangle from the clean page.
 ; INPUT: Death presentation finished (or was not configured).
 ; OUTPUT: boss_active = 0, boss_defeated[current room] = 1.
-; DESTROYS: AF, DE, HL. PRESERVES: BC, IX.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
 ; ------------------------------------------------------------
 bitmap_boss_finalize_death:
+` : ''}${hasDeathSound && !hasDeathFx ? `    call bitmap_boss_death_sfx_start  ; immediate visual defeat still has the default/selected sound
 ` : ''}    xor a
     ld (boss_active), a
 ${hasIntro ? `    ld (boss_intro_state), a
@@ -4353,17 +5101,39 @@ ${data.barrierTables.map((_, index) => `    dw bitmap_boss_barrier_room_${index}
 ` : ''}${hasIntro ? `
 ; ---- boss Room Lock bytecode per room ----
 ; #00 END, #01 CLOSE_BARRIER/rasterLinesPerFrame, #02 DIALOGUE/index, #03 WAIT/frames.
-${introStreams.map((stream, index) => `bitmap_boss_intro_room_${index}:
+; Empty rooms share one END byte; projects with many rooms do not spend one
+; duplicate byte per absent Boss merely because another room has a Room Lock.
+bitmap_boss_intro_empty:
+    db ${asmByte(INTRO_OP_END)}
+${introStreams.map((stream, index) => introStreamIsEmpty(stream) ? '' : `bitmap_boss_intro_room_${index}:
     db ${(stream && stream.length ? stream : [INTRO_OP_END]).map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_intro_ptr_table:
-${introStreams.map((_, index) => `    dw bitmap_boss_intro_room_${index}`).join('\n')}
+${introStreams.map((stream, index) => `    dw ${introStreamIsEmpty(stream) ? 'bitmap_boss_intro_empty' : `bitmap_boss_intro_room_${index}`}`).join('\n')}
 ` : ''}${hasDeathFx ? `
 ; ---- boss death bitmap FX per room ----
-; assetCount, blastCount, interval, hold, then (sxLo,sxHi,syLo,syHi,w,h)*.
+; assetCount (bit 7 = compact ordered frames), blastCount, interval, hold,
+; then (sxLo,sxHi,syLo,syHi,w,h)*.
 ${(data.deathFxTables || []).map((table, index) => `bitmap_boss_death_fx_room_${index}:
     db ${(table && table.length ? table : [0, 0, 0, 0]).map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_death_fx_ptr_table:
 ${(data.deathFxTables || []).map((_, index) => `    dw bitmap_boss_death_fx_room_${index}`).join('\n')}
+` : ''}${hasCustomDeathSound ? `
+; ---- boss death PSG SFX (channel C) ----
+; ${BOSS_DEATH_SFX_RECORD_BYTES}-byte records: duration,R4,R5,R6,R10,R7-C-bits; duration 0 ends.
+${hasDefaultDeathSound ? `bitmap_boss_death_sfx_default_stream:
+    db ${DEFAULT_BOSS_DEATH_SFX.map(value => asmByte(value)).join(', ')}
+` : ''}${data.deathSoundStreams.map((stream, index) => `bitmap_boss_death_sfx_${index}:
+    db ${stream.map(value => asmByte(value)).join(', ')}`).join('\n')}
+bitmap_boss_death_sfx_room_ptr_table:
+${data.deathSoundIndexes.map(index => index < 0
+    ? '    dw bitmap_boss_death_sfx_default_stream'
+    : index > 0
+      ? `    dw bitmap_boss_death_sfx_${index - 1}`
+      : '    dw 0').join('\n')}
+` : ''}${hasDefaultDeathSound && !hasCustomDeathSound ? `
+; ---- compact built-in boss explosion: PSG register/value pairs ----
+bitmap_boss_death_sfx_default_pairs:
+    db 6,#08,10,#10,11,#80,12,#00,13,#09,7,#1F
 ` : ''}${hasProjectiles ? `
 ; ---- boss projectile config per room ----
 ; present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage

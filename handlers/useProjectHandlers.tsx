@@ -3,7 +3,7 @@ import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, Comp
 import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_MSX2_SCREEN5_PRESENTATION_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
-import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
+import { addRecentProject, getRecentProjectData, getRecentProjects, shouldCacheRecentProjectData } from '../utils/recentProjects';
 import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
 import { resolveBestPortraitTileBankAssetId } from '../utils/portraitPackageUtils';
 import {
@@ -770,7 +770,7 @@ export const useProjectHandlers = ({
     setIsSaveAsModalOpen(false);
   };
 
-  const loadProjectFromParsedData = useCallback((projectData: any, { projectName, sourcePath }: { projectName: string; sourcePath?: string; rawContent?: string; }) => {
+  const loadProjectFromParsedData = useCallback((projectData: any, { projectName, sourcePath, rawContent }: { projectName: string; sourcePath?: string; rawContent?: string; }) => {
     try {
       clearAllHistory();
       setCopiedScreenBuffer(null);
@@ -1068,15 +1068,19 @@ export const useProjectHandlers = ({
       const finalProjectName = projectName || projectData.currentProjectName || 'msx_ide_project';
       setCurrentProjectName(finalProjectName);
 
-      const cachedProjectData = {
-        ...projectData,
-        currentProjectName: finalProjectName,
-        assets: loadedAssets.length > 0 ? loadedAssets : projectData.assets,
-        componentDefinitions: migratedComponentDefinitions,
-        entityTemplates: templatesForSanitization,
-        enemyDefinitions: Array.isArray(projectData.enemyDefinitions) ? projectData.enemyDefinitions : [],
-      };
-      const cachedData = JSON.stringify(cachedProjectData);
+      // Recent-project bodies are only a convenience cache. Avoid cloning and
+      // stringifying huge projects (test228 is >100 MiB) merely to put them in
+      // localStorage, whose normal quota is only a few MiB.
+      const cachedData = shouldCacheRecentProjectData(rawContent)
+        ? JSON.stringify({
+            ...projectData,
+            currentProjectName: finalProjectName,
+            assets: loadedAssets.length > 0 ? loadedAssets : projectData.assets,
+            componentDefinitions: migratedComponentDefinitions,
+            entityTemplates: templatesForSanitization,
+            enemyDefinitions: Array.isArray(projectData.enemyDefinitions) ? projectData.enemyDefinitions : [],
+          })
+        : undefined;
       addRecentProject(finalProjectName, sourcePath || finalProjectName, cachedData);
 
       setStatusBarMessage(`Project "${finalProjectName}" loaded successfully.`);

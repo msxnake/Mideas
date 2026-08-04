@@ -83,6 +83,8 @@ export interface Msx2ShootConfig {
   bulletDamage: number;
   primaryControl: Msx2PlayerControlId;
   secondaryControl: Msx2PlayerControlId | 'none';
+  primaryKeyboard?: Msx2BitmapKeyboardBinding;
+  secondaryKeyboard?: Msx2BitmapKeyboardBinding;
 }
 
 export interface Msx2SlashConfig {
@@ -776,6 +778,8 @@ export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx
     bulletDamage: Math.max(0, Math.min(10, bulletDamage || 1)),
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
+    primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),
+    secondaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.secondary),
   };
 }
 

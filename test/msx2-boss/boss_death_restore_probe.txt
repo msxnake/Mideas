@@ -1,0 +1,12 @@
+alive pc=491B screen=1 boss=1 left=0 tick=0
+SHOTOK boss_death_restore_alive.png
+armed pc=491B screen=1 boss=2 left=40 tick=1
+frame1 pc=491F screen=1 boss=2 left=39 tick=3
+SHOTOK boss_death_restore_frame1.png
+frame2 pc=566E screen=1 boss=2 left=38 tick=3
+SHOTOK boss_death_restore_frame2.png
+frame3 pc=491B screen=1 boss=2 left=37 tick=4
+SHOTOK boss_death_restore_frame3.png
+rebuilt pc=491B screen=1 boss=2 left=36 tick=3
+SHOTOK boss_death_restore_clean.png
+next_cycle pc=4C95 screen=1 boss=2 left=35 tick=5

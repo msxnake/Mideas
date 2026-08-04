@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
-const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
+const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8').replace(/\r\n/g, '\n');
 
 const bossGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2BitmapBossGenerator.ts');
 const roomGen = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts');
@@ -88,6 +88,12 @@ const contractChecks = [
     bossGen.includes('function buildIntroStream') &&
       bossGen.includes('introStreams: perRoom.map(entry => entry.intro)') &&
       bossGen.includes('bitmap_boss_intro_ptr_table'),
+  ],
+  [
+    'Rooms without a Boss share one compact Room Lock END stream',
+    bossGen.includes('const introStreamIsEmpty =') &&
+      bossGen.includes('bitmap_boss_intro_empty:') &&
+      bossGen.includes("introStreamIsEmpty(stream) ? 'bitmap_boss_intro_empty'"),
   ],
   [
     'Every live boss intro starts with the mandatory auto-walk flag',

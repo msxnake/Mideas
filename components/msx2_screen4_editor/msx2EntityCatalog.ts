@@ -948,6 +948,14 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
       bossDeathExplosionCount: 8,
       bossDeathExplosionInterval: 6,
       bossDeathExplosionHoldFrames: 12,
+      // Animated mode reads the same list as the ORDERED frames of a single
+      // explosion (2..3 same-sized stamps), played once per blast and erased.
+      bossDeathExplosionAnimated: false,
+      bossDeathExplosionConcurrent: false,
+      bossDeathExplosionFrameDelay: 4,
+      // Empty means the built-in MSX2 PSG explosion. A Sound FX asset id may
+      // replace it without disabling the safe fallback.
+      bossDeathExplosionSoundAssetId: '',
       // --- defeat actions (Phase A) ---
       // [{ action: 'setFlag', flag }, { action: 'giveKey', count },
       //  { action: 'openDoor', target: '<door entity id>' }]
@@ -1640,6 +1648,10 @@ export function buildMsx2BossEntityFromAsset(
       bossDeathExplosionCount: Math.max(1, Math.min(32, Math.floor(Number(def.bossDeathExplosionCount) || 8))),
       bossDeathExplosionInterval: Math.max(1, Math.min(60, Math.floor(Number(def.bossDeathExplosionInterval) || 6))),
       bossDeathExplosionHoldFrames: Math.max(1, Math.min(255, Math.floor(Number(def.bossDeathExplosionHoldFrames) || 12))),
+      bossDeathExplosionAnimated: def.bossDeathExplosionAnimated === true,
+      bossDeathExplosionConcurrent: def.bossDeathExplosionConcurrent === true,
+      bossDeathExplosionFrameDelay: Math.max(1, Math.min(30, Math.floor(Number(def.bossDeathExplosionFrameDelay) || 4))),
+      bossDeathExplosionSoundAssetId: String(def.bossDeathExplosionSoundAssetId || ''),
       // --- defeat actions ---
       onDefeated: Array.isArray(def.onDefeated) ? def.onDefeated : [],
       // Canonical link to the reusable definition (same spelling the boss

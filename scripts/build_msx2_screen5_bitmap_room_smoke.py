@@ -1085,6 +1085,12 @@ def validate_all_bitmap_skill_markers(asm_text: str) -> None:
     ):
         if marker not in asm_text:
             raise RuntimeError(f"All-bitmap-skills smoke is missing ASM marker: {marker}")
+    shoot_pressed = asm_text.split("bitmap_shoot_pressed:", 1)
+    if len(shoot_pressed) != 2:
+        raise RuntimeError("All-bitmap-skills smoke is missing bitmap_shoot_pressed")
+    shoot_pressed = shoot_pressed[1].split("; FUNCTION:", 1)[0]
+    if "configured shoot input (N)" not in asm_text or "or 4" not in shoot_pressed or "and #08" not in shoot_pressed:
+        raise RuntimeError("Player attack=N did not reach the generated SCREEN 5 Shoot input routine")
 
 
 def inject_linked_hud_bar(project: dict[str, object]) -> None:

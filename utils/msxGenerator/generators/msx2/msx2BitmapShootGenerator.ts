@@ -1,4 +1,4 @@
-import { Msx2ShootConfig } from '../../../msx2PlatformPhysics';
+import { Msx2BitmapKeyboardBinding, Msx2ShootConfig } from '../../../msx2PlatformPhysics';
 
 /**
  * SCREEN 5 bitmap-room SHOOT skill.
@@ -15,15 +15,11 @@ import { Msx2ShootConfig } from '../../../msx2PlatformPhysics';
  *   bitmap_shoot_lock            1 byte (requireKeyRelease)
  *   bitmap_bullet_borrow_group   1 byte (#FF before the first borrowed upload)
  *
- * Fire key (pilot): 'B' = keyboard matrix row 2, bit 7 (mask #80).
- * Same row/mask the destroy_tile digKey table uses for 'B' — that table
- * (DIG_KEYS in msx2BitmapDestroyTileGenerator) is the reference for this
- * codebase, and its default digKey is ALSO 'B', so the two skills collide
- * when both are active. Direction comes from player_facing (0=left, 1=right).
+ * Fire input comes from the Player skill binding resolved by
+ * resolveMsx2BitmapKeyboardBinding. Direction comes from player_facing
+ * (0=left, 1=right).
  */
 
-const SHOOT_KEY_ROW = 2;     // MSX keyboard matrix row holding B A _ / . , ` '
-const SHOOT_KEY_MASK = 0x80; // bit 7 = 'B'
 const STRIDE = 4;            // bytes per bullet slot: active, x, y, dir
 
 function asmByte(value: number): string {
@@ -34,6 +30,47 @@ function asmByte(value: number): string {
 function asmWord(value: number): string {
   const word = Math.max(0, Math.min(0xFFFF, Math.floor(Number(value) || 0)));
   return `#${word.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+function buildBitmapShootKeyCheck(key: Msx2BitmapKeyboardBinding | undefined): string {
+  if (!key) {
+    return `    xor a
+    ret
+`;
+  }
+  return `    in a, (PPI_C)
+    and #F0
+    or ${key.row}
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and ${asmByte(key.mask)}
+    ret z
+`;
+}
+
+function buildBitmapShootPressedRoutine(config: Msx2ShootConfig): string {
+  const primaryKey = config.primaryKeyboard ?? { label: 'M', row: 4, mask: 0x04 };
+  const secondaryKey = config.secondaryControl !== 'none' ? config.secondaryKeyboard : undefined;
+  const comboLabel = secondaryKey ? `${primaryKey.label}+${secondaryKey.label}` : primaryKey.label;
+  const rows = secondaryKey && secondaryKey.row !== primaryKey.row
+    ? `${primaryKey.row}/${secondaryKey.row}`
+    : String(primaryKey.row);
+  const secondaryCheck = secondaryKey ? buildBitmapShootKeyCheck(secondaryKey) : '';
+  return `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_shoot_pressed
+; ------------------------------------------------------------
+; PURPOSE: Reads the configured shoot input (${comboLabel}) via PPI.
+; INPUT: none. OUTPUT: A = 1 when pressed, A = 0 otherwise (Z when not pressed).
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+; SIDE EFFECTS: Selects keyboard row ${rows} on PPI_C. update_player_movement
+;   re-selects row 8 next frame, so the transient selection is safe.
+; ------------------------------------------------------------
+bitmap_shoot_pressed:
+${buildBitmapShootKeyCheck(primaryKey)}${secondaryCheck}    ld a, 1
+    ret
+`;
 }
 
 /** True when the shoot skill is enabled for the resolved player. */
@@ -200,6 +237,7 @@ export function buildBitmapShootRuntimeAsm(
   const patternNumber = asmByte(opts.bulletPatternNumber);
   const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0)) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
+  const shootPressedRoutine = buildBitmapShootPressedRoutine(config);
   const borrowed = opts.borrowPlayerPatternGroups;
   const borrowedPatternSelectAsm = borrowed
     ? `    ld a, (player_pat)
@@ -341,27 +379,7 @@ bitmap_shoot_init_clear:
 `;
 
   return `${initClearRoutineAsm}
-${borrowedPatternRuntime}
-; ------------------------------------------------------------
-; FUNCTION: bitmap_shoot_pressed
-; ------------------------------------------------------------
-; PURPOSE: Reads the shoot key ('B', keyboard matrix row ${SHOOT_KEY_ROW} mask ${asmByte(SHOOT_KEY_MASK)}) via PPI.
-; INPUT: none. OUTPUT: A = 1 when pressed, A = 0 otherwise (Z when not pressed).
-; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
-; SIDE EFFECTS: Selects keyboard row ${SHOOT_KEY_ROW} on PPI_C.
-; ------------------------------------------------------------
-bitmap_shoot_pressed:
-    in a, (PPI_C)
-    and #F0
-    or ${SHOOT_KEY_ROW}
-    out (PPI_C), a
-    in a, (PPI_B)
-    cpl
-    and ${asmByte(SHOOT_KEY_MASK)}
-    ret z
-    ld a, 1
-    ret
-
+${borrowedPatternRuntime}${shootPressedRoutine}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_tick_shoot_cooldown
 ; ------------------------------------------------------------

@@ -63,6 +63,102 @@ const checks = [
     bossGen.includes('const hasDeathFx =') &&
     bossGen.includes('const deathRamBase = introRamBase +') &&
     bossGen.includes('(hasDeathFx ? DEATH_RAM_BYTES : 0)')],
+
+  // --- MSX2 PSG explosion sound ---
+  ['Definition, defaults and editor expose the optional boss explosion sound',
+    types.includes('bossDeathExplosionSoundAssetId?: string') &&
+    catalog.includes("bossDeathExplosionSoundAssetId: ''") &&
+    editor.includes('Explosion sound (MSX2 PSG)') &&
+    editor.includes('— Built-in MSX2 explosion —') &&
+    editor.includes("set('bossDeathExplosionSoundAssetId'")],
+  ['SCREEN 5 passes normalized Sound FX assets into the boss compiler',
+    roomGen.includes('const bossDeathSounds = new Map<string, PSGSoundData>()') &&
+    roomGen.includes('bossDeathSounds,')],
+  ['Custom sounds are compiled to channel C without touching the global AY envelope',
+    bossGen.includes('function compileBossDeathSound') &&
+    bossGen.includes('duration, R4, R5, R6, R10, R7-C-bits') &&
+    bossGen.includes('Hardware envelopes are deliberately flattened') &&
+    bossGen.includes('and #DB') &&
+    bossGen.includes('psg_sfx_r7_c_bits')],
+  ['Missing or empty custom sounds fall back to the built-in MSX2 explosion',
+    bossGen.includes('using the built-in PSG explosion') &&
+    bossGen.includes('bitmap_boss_death_sfx_default_pairs:') &&
+    bossGen.includes('db 6,#08,10,#10,11,#80,12,#00,13,#09,7,#1F')],
+  ['Every visible blast triggers the selected/default sound',
+    bossGen.includes("call bitmap_boss_death_sfx_start\n` : ''}    jp bitmap_boss_death_draw") &&
+    bossGen.includes("call bitmap_boss_death_sfx_start\n` : ''}    call bitmap_boss_death_anim_draw")],
+
+  // --- animated explosions (compact by default, concurrent opt-in) ---
+  ['Definition stores the animated mode and its frame delay',
+    types.includes('bossDeathExplosionAnimated?: boolean') &&
+    types.includes('bossDeathExplosionConcurrent?: boolean') &&
+    types.includes('bossDeathExplosionFrameDelay?: number') &&
+    catalog.includes('bossDeathExplosionAnimated: false') &&
+    catalog.includes('bossDeathExplosionConcurrent: false') &&
+    catalog.includes('bossDeathExplosionFrameDelay: 4')],
+  ['Boss editor offers the animated toggle, the frame delay and an ordered picker',
+    editor.includes('Animated explosion (2-3 frames)') &&
+    editor.includes("set('bossDeathExplosionAnimated'") &&
+    editor.includes("set('bossDeathExplosionFrameDelay'") &&
+    editor.includes("set('bossDeathExplosionConcurrent'") &&
+    editor.includes('MAX_DEATH_ANIM_FRAMES = 3') &&
+    editor.includes('click in order')],
+  ['Ordered compact animation is default and concurrent slots are explicit',
+    bossGen.includes('const compactAnimated = frameSequence && !animated') &&
+    bossGen.includes('params?.bossDeathExplosionConcurrent === true') &&
+    bossGen.includes('0x80 | compactCycleSlots') &&
+    bossGen.includes('bit 7, a')],
+  ['Compact animation rebuilds the complete Boss after every frame sequence',
+    bossGen.includes('selector 0 as an implicit opaque body rebuild') &&
+    bossGen.includes('.death_compact_frame:') &&
+    /or a[\s\S]{0,80}?jr nz, \.death_compact_frame[\s\S]{0,420}?call bitmap_boss_table_ix[\s\S]{0,80}?jp bitmap_boss_draw/.test(bossGen)],
+  ['Live Boss room lookup remains independent from projectile/death helpers',
+    bossGen.includes('bitmap_boss_table_ix:\n    ; Keep the live-body lookup self-contained.') &&
+    bossGen.includes('ld hl, bitmap_boss_ptr_table\n    add hl, de') &&
+    !bossGen.includes('bitmap_boss_table_ix:\n    call bitmap_boss_table_ix_shadow')],
+  ['Animated death without custom stamps uses visible built-in bitmap frames',
+    bossGen.includes('BITMAP_BOSS_DEFAULT_DEATH_FRAME_IDS') &&
+    bossGen.includes('animatedRequested && authoredIds.length === 0') &&
+    bossGen.includes('animatedRequested && authoredIds.length > 0') &&
+    roomGen.includes('buildDefaultBossDeathExplosionFrames') &&
+    roomGen.includes('needsDefaultDeathExplosion') &&
+    editor.includes('three built-in bitmap blast variants (compact mode)')],
+  ['Animated frames are validated: at most 3, even width, one shared size',
+    bossGen.includes('MAX_DEATH_ANIM_FRAMES') &&
+    bossGen.includes('an animated explosion needs an even width') &&
+    bossGen.includes('every frame of one explosion must share its size')],
+  ['A project with no animated boss keeps the original 4-byte table header',
+    bossGen.includes('function stripDeathFxAnimHeader') &&
+    bossGen.includes('DEATH_FX_HEADER_LEGACY = 4') &&
+    bossGen.includes('stripDeathFxAnimHeader(perRoom.map(entry => entry.deathFx))') &&
+    bossGen.includes('const deathHeaderBytes = hasDeathAnim ?')],
+  ['Animated runtime owns per-blast slots and is dispatched by the table flag',
+    bossGen.includes('const hasDeathAnim =') &&
+    bossGen.includes('boss_death_slots EQU') &&
+    bossGen.includes('jp nz, bitmap_boss_death_update_anim') &&
+    bossGen.includes('bitmap_boss_death_anim_spawn:') &&
+    bossGen.includes('bitmap_boss_death_anim_advance:')],
+  ['Each blast is erased by repainting the body, not the room background',
+    bossGen.includes('bitmap_boss_death_anim_erase:') &&
+    /bitmap_boss_death_anim_erase:[\s\S]{0,1400}?ld hl, \(boss_sx\)[\s\S]{0,400}?jp bitmap_boss_finish_hmmm/.test(bossGen)],
+  ['One slot advances per frame, and a spawn never stacks on top of it',
+    bossGen.includes('advance AT MOST ONE of them') &&
+    bossGen.includes('.dfx_step_defer') &&
+    bossGen.includes('do not stack three commands on one frame')],
+  // The frames of one compact blast must animate in place: the placement PRNG is
+  // seeded with a value constant within each blast (boss_death_left - selector),
+  // and every frame repaints the body before stamping to avoid TIMP pile-up.
+  ['A compact blast stays in place across its frames by seeding the PRNG',
+    bossGen.includes('const hasDeathCompactAnim =') &&
+    bossGen.includes('const hasDeathLegacyVariant =') &&
+    bossGen.includes('Every frame of ONE blast must land on the SAME spot. Instead of storing') &&
+    bossGen.includes('Two mixing rounds first') &&
+    bossGen.includes('Wipe the previous frame by repainting the frozen body')],
+  ['Finalization waits for the last explosion to finish, then the authored hold',
+    bossGen.includes('call bitmap_boss_death_anim_busy') &&
+    bossGen.includes('ld a, #FF') &&
+    bossGen.includes('cp #FF') &&
+    bossGen.includes('jp z, bitmap_boss_finalize_death   ; the hold ran out')],
 ];
 
 let failed = false;

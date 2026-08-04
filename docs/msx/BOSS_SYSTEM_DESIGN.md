@@ -1043,3 +1043,66 @@ el cos i retira tots els projectils. Després:
 La taula de cada sala guarda només `assetCount, count, interval, hold` i sis bytes
 per stamp (`SX, SY, W, H`). El runtime afegeix tres bytes RAM (`left`, `tick`,
 `seed`). Sense stamps vàlids, conserva la derrota immediata anterior.
+
+#### Explosions animades (2026-08-03)
+
+Amb `bossDeathExplosionAnimated`, la mateixa llista deixa de ser un conjunt de
+variants i passa a ser **els fotogrames ordenats d'UNA explosió** (2 o 3, tots de
+la mateixa mida i amplada parella). Per defecte s'usa el mode compacte: cada blast
+estampa el fotograma següent a una posició pseudoaleatòria. Després de l'últim
+fotograma, un pas implícit reconstrueix el bitmap complet del Boss des del seu atlas
+amb un `HMMM` opac; així desapareixen tots els fotogrames de l'explosió anterior
+sense copiar el fons de la sala. El mateix pas neteja l'última explosió abans del
+`final hold`. El bit 7 de `assetCount` identifica aquesta seqüència ordenada; els
+7 bits baixos compten els fotogrames més el pas implícit, que no ocupa cap record
+de bitmap addicional a la ROM.
+
+Amb `bossDeathExplosionConcurrent=true`, fins a **3 explosions** viuen alhora,
+cadascuna en un slot de 5 bytes RAM (`active, frame, timer, rx, ry`) situat a un
+desplaçament parell aleatori dins del cos congelat:
+
+1. Cada `bossDeathExplosionInterval` frames neix una explosió en un slot lliure.
+2. Cada `bossDeathExplosionFrameDelay` frames avança un fotograma: primer
+   **esborra** el rectangle actual repintant el tros de cos des de l'atlas
+   (`HMMM` opac, per això cal amplada parella) i després estampa el fotograma nou
+   amb `LMMM + TIMP`.
+3. En acabar l'últim fotograma el slot queda lliure i el cos torna a estar net;
+   les explosions no s'acumulen.
+4. Quan ja no queden explosions per llançar i tots els slots han acabat,
+   `boss_death_left` passa a `#FF`, corre `bossDeathExplosionHoldFrames` i llavors
+   finalitza com sempre (restaura el cos, treu la barrera, executa `onDefeated`).
+
+**Pressupost VDP**: només **un** slot avança per frame (dues ordres) i cap
+explosió neix en un frame que ja n'ha avançat una; els slots que vencen en un
+frame ocupat reintenten al següent. Això manté el jugador a 60fps mentre el boss
+mor.
+
+La capçalera de la taula creix a sis bytes (`frameCount, count, interval, hold,
+frameDelay, animFlag`) **només** si algun boss del projecte activa el mode
+concurrent; si no, es retalla als quatre bytes. En un projecte mixt les sales
+legacy/compactes comparteixen la capçalera de sis bytes i `animFlag = 0` les
+envia al camí lleuger.
+
+Verificat a OpenMSX amb `test/msx2-boss/make_death_anim_fixture.py` (camí animat)
+i `make_death_mixed_fixture.py` (camí legacy dins d'una build animada).
+
+Si `bossDeathExplosionAnimated` està actiu però la llista de stamps és buida,
+el generador injecta tres explosions bitmap de 16x16 incorporades i les executa
+pel camí legacy compacte. Així una configuració incompleta continua mostrant la
+mort del boss sense carregar el runtime animat resident; quan hi ha stamps
+seleccionats, aquests substitueixen el fallback i activen l'animació completa.
+
+#### So d'explosió PSG (2026-08-03)
+
+`bossDeathExplosionSoundAssetId` permet seleccionar qualsevol asset `Sound FX`
+des de la secció **Death FX**. Cada blast visible reinicia el so al canal PSG C,
+que és el canal reservat pels efectes de joc a SCREEN 5. El compilador remapeja
+el primer canal no buit de l'asset a C i genera registres compactes
+`duration,R4,R5,R6,R10,R7-C-bits`; no escriu R11-R13 en sons personalitzats,
+perquè l'envolvent AY és global i podria alterar la música dels canals A/B.
+
+Si el camp és buit, l'asset no existeix o no té passos reproduïbles, el runtime
+usa una explosió MSX2 integrada: soroll al canal C amb envolvent de decaïment.
+El fallback només ocupa una petita rutina de parelles registre/valor. La seva
+ombra de R7 es combina amb la música, de manera que la següent actualització del
+tracker conserva A/B i només adopta els bits de to/soroll de C.

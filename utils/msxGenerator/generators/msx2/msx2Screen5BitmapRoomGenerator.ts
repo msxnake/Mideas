@@ -199,6 +199,7 @@ import {
   bitmapShaftSystemEnabled,
 } from './msx2BitmapShaftGenerator';
 import {
+  BITMAP_BOSS_DEFAULT_DEATH_FRAME_IDS,
   buildBitmapRoomBossData,
   buildBitmapBossSystemAsm,
   resolveBossParams,
@@ -1604,19 +1605,60 @@ function atlasEntryFingerprint(pixels: number[][]): string {
 }
 
 /**
+ * Small three-frame SCREEN 5 explosion used when the animated Boss Death mode
+ * is enabled without custom stamps. Palette slots 8/10/15 are the conventional
+ * red/yellow/white entries; slot 0 remains transparent for LMMM + TIMP.
+ */
+function buildDefaultBossDeathExplosionFrames(): Array<{ id: string; pixels: number[][] }> {
+  const makeFrame = (frame: number): number[][] => Array.from({ length: 16 }, (_row, y) =>
+    Array.from({ length: 16 }, (_column, x) => {
+      const dx = x - 7.5;
+      const dy = y - 7.5;
+      const distance2 = dx * dx + dy * dy;
+      if (frame === 0) {
+        if (distance2 <= 3) return 15;
+        if (distance2 <= 11) return 10;
+        if ((Math.abs(dx) < 1 || Math.abs(dy) < 1) && distance2 <= 28) return 8;
+        return 0;
+      }
+      if (frame === 1) {
+        if (distance2 <= 5) return 15;
+        if (distance2 <= 22) return 10;
+        if (distance2 <= 39 && ((x + y) & 1) === 0) return 8;
+        return 0;
+      }
+      if (distance2 <= 8) return 0;
+      if (distance2 <= 31) return 10;
+      if (distance2 <= 55 && ((x ^ y) & 1) === 0) return 8;
+      return 0;
+    })
+  );
+  return BITMAP_BOSS_DEFAULT_DEATH_FRAME_IDS.map((id, frame) => ({
+    id,
+    pixels: makeFrame(frame),
+  }));
+}
+
+/**
  * Every `msx2bitmapstamp` a boss definition names as its body or death
  * explosion, composed into one pixel rectangle. Deduped by asset id.
  */
 function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string; pixels: number[][] }> {
   const wanted = new Set<string>();
+  let needsDefaultDeathExplosion = false;
   const addParams = (params: Record<string, unknown>) => {
     const stampId = String(params.bossStampAssetId || '').trim();
     if (stampId) wanted.add(stampId);
-    for (const rawId of Array.isArray(params.bossDeathExplosionStampIds)
+    const deathIds = (Array.isArray(params.bossDeathExplosionStampIds)
       ? params.bossDeathExplosionStampIds
-      : []) {
-      const id = String(rawId || '').trim();
-      if (id) wanted.add(id);
+      : [])
+      .map(rawId => String(rawId || '').trim())
+      .filter(Boolean);
+    if (params.bossDeathExplosionAnimated === true && deathIds.length === 0) {
+      needsDefaultDeathExplosion = true;
+    }
+    for (const id of deathIds) {
+      wanted.add(id);
     }
   };
   for (const asset of ((analysis as any)?.assets || []) as any[]) {
@@ -1650,7 +1692,7 @@ function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string;
       }
     }
   }
-  if (wanted.size === 0) return [];
+  if (wanted.size === 0 && !needsDefaultDeathExplosion) return [];
   const out: Array<{ id: string; pixels: number[][] }> = [];
   for (const asset of ((analysis as any)?.assets || []) as any[]) {
     if (String(asset?.type || '').toLowerCase() !== 'msx2bitmapstamp') continue;
@@ -1666,6 +1708,9 @@ function collectBossBitmapStamps(analysis: ProjectAnalysis): Array<{ id: string;
   }
   for (const missing of wanted) {
     console.warn(`MSX2 bitmap boss: referenced bitmap stamp "${missing}" was not found in the project.`);
+  }
+  if (needsDefaultDeathExplosion) {
+    out.push(...buildDefaultBossDeathExplosionFrames());
   }
   return out;
 }
@@ -13643,6 +13688,14 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     if (!id) continue;
     bossShoots.set(id, { id, name: asset?.name, shoot: asset?.data || {} });
   }
+  // Boss Death FX may reference any PSG Sound FX asset. analyzeProject already
+  // normalizes data.id/asset.id, so both newly-created and imported sounds use
+  // the same lookup path here.
+  const bossDeathSounds = new Map<string, PSGSoundData>();
+  for (const sound of (analysis.sounds || []) as PSGSoundData[]) {
+    const id = String(sound?.id || '').trim();
+    if (id) bossDeathSounds.set(id, sound);
+  }
   const bossData = buildBitmapRoomBossData(
     rooms,
     (entity: any) => {
@@ -13657,6 +13710,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     bossDefinitions,
     bossPaths,
     bossShoots,
+    bossDeathSounds,
     sharedAtlas.extraPlacements,
   );
   // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
@@ -15033,7 +15087,7 @@ ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatch
     ; pattern writes glitched the top third of the frame on jump/move). They
     ; consume last frame's game state: a uniform 1-frame latency at 60Hz.
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}${shootPatternPrepareCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${shaftSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
+${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
     call step_room_composition
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.

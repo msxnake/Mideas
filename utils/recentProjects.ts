@@ -6,6 +6,26 @@
 const RECENT_PROJECTS_KEY = 'mideas_recent_projects';
 const RECENT_PROJECTS_DATA_KEY = 'mideas_recent_projects_data';
 const MAX_RECENT_PROJECTS = 10;
+// localStorage is commonly limited to roughly 5 MiB per origin and stores
+// strings as UTF-16 in several browsers. Project JSON can exceed 100 MiB, so a
+// recent-project convenience cache must never try to mirror the whole file.
+export const MAX_RECENT_PROJECT_CACHE_CHARS = 1_000_000;
+
+export type RecentProjectCacheResult = 'cached' | 'metadata-only' | 'failed';
+
+export function shouldCacheRecentProjectData(serializedData?: string): boolean {
+    return typeof serializedData === 'string'
+        && serializedData.length > 0
+        && serializedData.length <= MAX_RECENT_PROJECT_CACHE_CHARS;
+}
+
+function isQuotaExceededError(error: unknown): boolean {
+    if (!(error instanceof DOMException)) return false;
+    return error.name === 'QuotaExceededError'
+        || error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+        || error.code === 22
+        || error.code === 1014;
+}
 
 /**
  * Interface for a recent project entry
@@ -36,11 +56,43 @@ function getRecentProjectDataMap(): Record<string, string> {
 /**
  * Internal helper to persist the project data cache map.
  */
-function saveRecentProjectDataMap(map: Record<string, string>) {
+function saveRecentProjectDataMap(map: Record<string, string>): boolean {
     try {
-        localStorage.setItem(RECENT_PROJECTS_DATA_KEY, JSON.stringify(map));
+        if (Object.keys(map).length === 0) {
+            localStorage.removeItem(RECENT_PROJECTS_DATA_KEY);
+        } else {
+            localStorage.setItem(RECENT_PROJECTS_DATA_KEY, JSON.stringify(map));
+        }
+        return true;
     } catch (error) {
+        if (isQuotaExceededError(error)) return false;
         console.error('Error saving recent projects data cache:', error);
+        return false;
+    }
+}
+
+function saveRecentProjectsMetadata(projects: RecentProject[]): boolean {
+    const serialized = JSON.stringify(projects);
+    try {
+        localStorage.setItem(RECENT_PROJECTS_KEY, serialized);
+        return true;
+    } catch (error) {
+        if (isQuotaExceededError(error)) {
+            // Cached project bodies are disposable. Remove them and retry the
+            // tiny metadata list so large projects still appear under Recent.
+            try {
+                localStorage.removeItem(RECENT_PROJECTS_DATA_KEY);
+                localStorage.setItem(RECENT_PROJECTS_KEY, serialized);
+                return true;
+            } catch (retryError) {
+                if (!isQuotaExceededError(retryError)) {
+                    console.error('Error saving recent projects metadata:', retryError);
+                }
+                return false;
+            }
+        }
+        console.error('Error saving recent projects metadata:', error);
+        return false;
     }
 }
 
@@ -66,7 +118,7 @@ export function getRecentProjects(): RecentProject[] {
  * @param path - File path or identifier
  * @param serializedData - Optional serialized project data to cache for quick reopening
  */
-export function addRecentProject(name: string, path: string, serializedData?: string): void {
+export function addRecentProject(name: string, path: string, serializedData?: string): RecentProjectCacheResult {
     try {
         const projects = getRecentProjects();
 
@@ -85,12 +137,16 @@ export function addRecentProject(name: string, path: string, serializedData?: st
         // Keep only MAX_RECENT_PROJECTS
         const trimmed = filtered.slice(0, MAX_RECENT_PROJECTS);
 
-        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(trimmed));
+        if (!saveRecentProjectsMetadata(trimmed)) return 'failed';
 
         // Persist cached data if provided and prune old cached entries
         const dataMap = getRecentProjectDataMap();
-        if (serializedData) {
+        if (shouldCacheRecentProjectData(serializedData)) {
             dataMap[path] = serializedData;
+        } else {
+            // Remove an older cached copy when the current project has grown
+            // beyond the safe localStorage budget.
+            delete dataMap[path];
         }
         // Remove cached data for entries no longer tracked
         Object.keys(dataMap).forEach(key => {
@@ -98,9 +154,29 @@ export function addRecentProject(name: string, path: string, serializedData?: st
                 delete dataMap[key];
             }
         });
-        saveRecentProjectDataMap(dataMap);
+        if (saveRecentProjectDataMap(dataMap)) {
+            return dataMap[path] ? 'cached' : 'metadata-only';
+        }
+
+        // Quota may already be occupied by older cached projects. Evict oldest
+        // bodies one at a time; metadata remains intact and reopening from File
+        // continues to work even when no body can be cached.
+        for (const recent of [...trimmed].reverse()) {
+            if (!(recent.path in dataMap)) continue;
+            delete dataMap[recent.path];
+            if (saveRecentProjectDataMap(dataMap)) {
+                return dataMap[path] ? 'cached' : 'metadata-only';
+            }
+        }
+        try {
+            localStorage.removeItem(RECENT_PROJECTS_DATA_KEY);
+        } catch {
+            // The metadata list was already saved; cache cleanup is best effort.
+        }
+        return 'metadata-only';
     } catch (error) {
         console.error('Error saving recent project:', error);
+        return 'failed';
     }
 }
 

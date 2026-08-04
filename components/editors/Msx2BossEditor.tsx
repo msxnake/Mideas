@@ -368,6 +368,7 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
   const spriteAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2sprite'), [allAssets]);
   const pathAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2bosspath'), [allAssets]);
   const dialogueAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2dialogue'), [allAssets]);
+  const soundAssets = useMemo(() => allAssets.filter(a => a.type === 'sound'), [allAssets]);
   const roomAssets = useMemo(() => allAssets.filter(a => a.type === 'msx2bitmaproom'), [allAssets]);
   const usedHere = encounters.filter(e => e.bossId === boss.id).length;
 
@@ -707,90 +708,8 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
         )}
 
         {section === 'Death FX' && (
-          <div className={card}>
-            <h3 className="text-sm font-semibold mb-2">Boss Death — Bitmap Explosions</h3>
-            <p className="text-xs text-msx-textsecondary mb-3">
-              Pick one or more Bitmap Stamps. When HP reaches zero, the runtime
-              distributes them pseudo-randomly across the boss body. Colour 0 is
-              transparent, so each explosion is composited over the boss.
-            </p>
-
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <div>
-                <label className={label}>Explosion count</label>
-                <input type="number" min={1} max={32} className={input}
-                  value={boss.bossDeathExplosionCount ?? 8}
-                  onChange={e => set('bossDeathExplosionCount', Number(e.target.value))} />
-              </div>
-              <div>
-                <label className={label}>Frames between blasts</label>
-                <input type="number" min={1} max={60} className={input}
-                  value={boss.bossDeathExplosionInterval ?? 6}
-                  onChange={e => set('bossDeathExplosionInterval', Number(e.target.value))} />
-              </div>
-              <div>
-                <label className={label}>Final hold (frames)</label>
-                <input type="number" min={1} max={255} className={input}
-                  value={boss.bossDeathExplosionHoldFrames ?? 12}
-                  onChange={e => set('bossDeathExplosionHoldFrames', Number(e.target.value))} />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-2">
-              <label className={label}>Explosion Bitmap Stamps</label>
-              <button className={btn}
-                onClick={() => set('bossDeathExplosionStampIds', [])}>
-                Clear all
-              </button>
-            </div>
-            <div className="max-h-96 overflow-y-auto border border-msx-border rounded p-2">
-              {bodyStamps.length === 0 && (
-                <p className="text-xs text-msx-textsecondary p-2">
-                  No Bitmap Stamps are available. Create or import explosion
-                  stamps first, then return here.
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {bodyStamps.map(stamp => {
-                  const selectedIds = boss.bossDeathExplosionStampIds || [];
-                  const selected = selectedIds.includes(stamp.id);
-                  const fits = stamp.w <= bodyW && stamp.h <= bodyH && stamp.w <= 64 && stamp.h <= 64;
-                  const scale = Math.max(1, Math.min(4, Math.floor(72 / Math.max(stamp.w, stamp.h, 1))));
-                  return (
-                    <button
-                      key={stamp.id}
-                      disabled={!fits}
-                      onClick={() => set(
-                        'bossDeathExplosionStampIds',
-                        selected
-                          ? selectedIds.filter(id => id !== stamp.id)
-                          : [...selectedIds, stamp.id],
-                      )}
-                      title={fits
-                        ? `${stamp.name} — ${stamp.w}x${stamp.h}`
-                        : `${stamp.name} — must fit inside the ${bodyW}x${bodyH} boss and be at most 64x64`}
-                      className={`flex flex-col items-center justify-end gap-1 p-1 rounded border ${
-                        selected ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'
-                      } ${fits ? '' : 'opacity-40 cursor-not-allowed'}`}
-                      style={{ background: MSX2_PREVIEW_BG, width: 92 }}
-                    >
-                      <div className="flex-1 flex items-center justify-center" style={{ minHeight: 76 }}>
-                        <StampCanvas stamp={stamp} scale={scale} />
-                      </div>
-                      <span className="text-[9px] leading-tight text-msx-textprimary truncate w-full text-center">
-                        {selected ? '✓ ' : ''}{stamp.name}
-                      </span>
-                      <span className="text-[9px] text-msx-textsecondary">{stamp.w}x{stamp.h}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <p className="text-xs text-msx-textsecondary mt-3">
-              With no stamp selected, defeat remains immediate. Defeat actions
-              and barrier removal run only after the final explosion and hold.
-            </p>
-          </div>
+          <DeathFxPanel boss={boss} set={set} bodyStamps={bodyStamps} bodyW={bodyW} bodyH={bodyH}
+            soundAssets={soundAssets} />
         )}
 
         {section === 'Defeat Actions' && (
@@ -1220,6 +1139,216 @@ const ZonesPanel: React.FC<{
   );
 };
 
+/** Frames of a single animated explosion; the runtime table is capped here too. */
+const MAX_DEATH_ANIM_FRAMES = 3;
+
+/**
+ * Death presentation editor. Two modes share the same stamp list:
+ *
+ * - Random variants (the original): every blast picks one stamp at random and
+ *   stays on the body until the whole sequence ends.
+ * - Animated: the list is ONE explosion's frames, in order. Compact mode
+ *   scatters the ordered frames with minimal ROM cost. Concurrent mode keeps
+ *   up to three independent blasts alive and erases each one when it ends.
+ */
+const DeathFxPanel: React.FC<{
+  boss: Msx2BossDefinition;
+  set: <K extends keyof Msx2BossDefinition>(key: K, value: Msx2BossDefinition[K]) => void;
+  bodyStamps: BodyStampRef[];
+  bodyW: number;
+  bodyH: number;
+  soundAssets: ProjectAsset[];
+}> = ({ boss, set, bodyStamps, bodyW, bodyH, soundAssets }) => {
+  const selectedIds = boss.bossDeathExplosionStampIds || [];
+  const animated = boss.bossDeathExplosionAnimated === true;
+  const concurrent = animated && boss.bossDeathExplosionConcurrent === true;
+  const frameStamps = selectedIds
+    .map(id => bodyStamps.find(s => s.id === id))
+    .filter((s): s is BodyStampRef => !!s);
+  const firstFrame = frameStamps[0];
+  const [previewFrame, setPreviewFrame] = useState(0);
+
+  // Animated preview of the authored frames, at the runtime's own cadence.
+  const frameDelay = Math.max(1, Math.min(30, Number(boss.bossDeathExplosionFrameDelay) || 4));
+  useEffect(() => {
+    if (!animated || frameStamps.length < 2) return;
+    const timer = window.setInterval(
+      () => setPreviewFrame(f => (f + 1) % frameStamps.length),
+      Math.round((frameDelay * 1000) / 60),
+    );
+    return () => window.clearInterval(timer);
+  }, [animated, frameStamps.length, frameDelay]);
+
+  /** Why this stamp cannot be used, or '' when it can. */
+  const rejection = (stamp: BodyStampRef): string => {
+    if (stamp.w > bodyW || stamp.h > bodyH || stamp.w > 64 || stamp.h > 64) {
+      return `must fit inside the ${bodyW}x${bodyH} boss and be at most 64x64`;
+    }
+    if (!animated) return '';
+    if (stamp.w % 2 !== 0) return 'an animated explosion needs an even width so it can be erased cleanly';
+    if (firstFrame && stamp.id !== firstFrame.id && (stamp.w !== firstFrame.w || stamp.h !== firstFrame.h)) {
+      return `every frame must be ${firstFrame.w}x${firstFrame.h}, like frame 1`;
+    }
+    return '';
+  };
+
+  const toggle = (stamp: BodyStampRef) => {
+    if (selectedIds.includes(stamp.id)) {
+      set('bossDeathExplosionStampIds', selectedIds.filter(id => id !== stamp.id));
+      return;
+    }
+    if (animated && selectedIds.length >= MAX_DEATH_ANIM_FRAMES) return;
+    set('bossDeathExplosionStampIds', [...selectedIds, stamp.id]);
+  };
+
+  return (
+    <div className={card}>
+      <h3 className="text-sm font-semibold mb-2">Boss Death — Bitmap Explosions</h3>
+      <p className="text-xs text-msx-textsecondary mb-3">
+        {animated
+          ? (concurrent
+            ? 'The stamps below are the frames of ONE explosion, played in order. Up to 3 independent blasts run at once and each is erased when it ends. Colour 0 is transparent.'
+            : 'The stamps below are ordered animation frames. Compact mode scatters the frames, then reconstructs the complete Boss bitmap after every explosion—including before the final hold—using much less resident ROM.')
+          : 'Pick one or more Bitmap Stamps. When HP reaches zero, the runtime distributes them pseudo-randomly across the boss body. Colour 0 is transparent, so each explosion is composited over the boss.'}
+      </p>
+
+      <label className="flex items-center gap-2 text-xs text-msx-textprimary mb-3">
+        <input
+          type="checkbox"
+          checked={animated}
+          onChange={e => set('bossDeathExplosionAnimated', e.target.checked)}
+        />
+        Animated explosion (2-3 frames)
+      </label>
+
+      {animated && (
+        <label className="flex items-center gap-2 text-xs text-msx-textprimary mb-3">
+          <input type="checkbox" checked={concurrent}
+            onChange={e => set('bossDeathExplosionConcurrent', e.target.checked)} />
+          Concurrent layered blasts (up to 3; larger resident ROM)
+        </label>
+      )}
+
+      <div className="mb-3">
+        <label className={label}>Explosion sound (MSX2 PSG)</label>
+        <select className={input}
+          value={boss.bossDeathExplosionSoundAssetId || ''}
+          onChange={e => set('bossDeathExplosionSoundAssetId', e.target.value)}>
+          <option value="">— Built-in MSX2 explosion —</option>
+          {soundAssets.map(asset => (
+            <option key={asset.id} value={asset.id}>{asset.name}</option>
+          ))}
+        </select>
+        <p className="text-xs text-msx-textsecondary mt-1">
+          Each bitmap blast restarts this Sound FX on PSG channel C. The built-in
+          fallback is used when no asset is selected or the referenced sound is missing.
+        </p>
+      </div>
+
+      <div className={`grid ${animated ? 'grid-cols-4' : 'grid-cols-3'} gap-3 mb-3`}>
+        <div>
+          <label className={label}>Explosion count</label>
+          <input type="number" min={1} max={32} className={input}
+            value={boss.bossDeathExplosionCount ?? 8}
+            onChange={e => set('bossDeathExplosionCount', Number(e.target.value))} />
+        </div>
+        <div>
+          <label className={label}>Frames between blasts</label>
+          <input type="number" min={1} max={60} className={input}
+            value={boss.bossDeathExplosionInterval ?? 6}
+            onChange={e => set('bossDeathExplosionInterval', Number(e.target.value))} />
+        </div>
+        {animated && (
+          <div>
+            <label className={label}>Frames per animation frame</label>
+            <input type="number" min={1} max={30} className={input}
+              value={boss.bossDeathExplosionFrameDelay ?? 4}
+              onChange={e => set('bossDeathExplosionFrameDelay', Number(e.target.value))} />
+          </div>
+        )}
+        <div>
+          <label className={label}>Final hold (frames)</label>
+          <input type="number" min={1} max={255} className={input}
+            value={boss.bossDeathExplosionHoldFrames ?? 12}
+            onChange={e => set('bossDeathExplosionHoldFrames', Number(e.target.value))} />
+        </div>
+      </div>
+
+      {animated && frameStamps.length > 0 && (
+        <div className="flex items-center gap-3 mb-3 p-2 border border-msx-border rounded"
+          style={{ background: MSX2_PREVIEW_BG }}>
+          <StampCanvas
+            stamp={frameStamps[Math.min(previewFrame, frameStamps.length - 1)]}
+            scale={Math.max(1, Math.min(4, Math.floor(72 / Math.max(firstFrame?.w || 1, firstFrame?.h || 1))))}
+          />
+          <span className="text-[10px] text-msx-textsecondary">
+            Frame {Math.min(previewFrame, frameStamps.length - 1) + 1} / {frameStamps.length}
+            {frameStamps.length < 2 && ' — add a second frame to animate'}
+          </span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-2">
+        <label className={label}>
+          {animated
+            ? `Explosion frames (${selectedIds.length}/${MAX_DEATH_ANIM_FRAMES}, click in order)`
+            : 'Explosion Bitmap Stamps'}
+        </label>
+        <button className={btn} onClick={() => set('bossDeathExplosionStampIds', [])}>
+          Clear all
+        </button>
+      </div>
+      <div className="max-h-96 overflow-y-auto border border-msx-border rounded p-2">
+        {bodyStamps.length === 0 && (
+          <p className="text-xs text-msx-textsecondary p-2">
+            No Bitmap Stamps are available. Create or import explosion
+            stamps first, then return here.
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {bodyStamps.map(stamp => {
+            const order = selectedIds.indexOf(stamp.id);
+            const selected = order >= 0;
+            const why = rejection(stamp);
+            const full = animated && !selected && selectedIds.length >= MAX_DEATH_ANIM_FRAMES;
+            const disabled = (!selected && !!why) || full;
+            const scale = Math.max(1, Math.min(4, Math.floor(72 / Math.max(stamp.w, stamp.h, 1))));
+            return (
+              <button
+                key={stamp.id}
+                disabled={disabled}
+                onClick={() => toggle(stamp)}
+                title={disabled
+                  ? `${stamp.name} — ${full ? `an explosion holds at most ${MAX_DEATH_ANIM_FRAMES} frames` : why}`
+                  : `${stamp.name} — ${stamp.w}x${stamp.h}`}
+                className={`flex flex-col items-center justify-end gap-1 p-1 rounded border ${
+                  selected ? 'border-msx-accent' : 'border-msx-border hover:bg-msx-hover'
+                } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                style={{ background: MSX2_PREVIEW_BG, width: 92 }}
+              >
+                <div className="flex-1 flex items-center justify-center" style={{ minHeight: 76 }}>
+                  <StampCanvas stamp={stamp} scale={scale} />
+                </div>
+                <span className="text-[9px] leading-tight text-msx-textprimary truncate w-full text-center">
+                  {selected ? (animated ? `${order + 1}. ` : '✓ ') : ''}{stamp.name}
+                </span>
+                <span className="text-[9px] text-msx-textsecondary">{stamp.w}x{stamp.h}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <p className="text-xs text-msx-textsecondary mt-3">
+        {animated && selectedIds.length === 0
+          ? 'No custom frames selected: the ROM will use three built-in bitmap blast variants (compact mode).'
+          : 'Custom stamps selected: these bitmaps will be used for the death presentation.'}
+        {' '}Defeat actions and barrier removal run only after the final explosion and hold.
+        {concurrent && ' At most one live explosion advances per game frame to protect the VDP budget.'}
+      </p>
+    </div>
+  );
+};
+
 /**
  * BossDefinition <-> BossEncounter wiring: which placed bosses use this
  * definition, and the per-instance HP override. Assigning writes `bossId` on the
@@ -1452,6 +1581,10 @@ export function createMsx2BossDefinition(id: string, name: string): Msx2BossDefi
     bossDeathExplosionCount: 8,
     bossDeathExplosionInterval: 6,
     bossDeathExplosionHoldFrames: 12,
+    bossDeathExplosionAnimated: false,
+    bossDeathExplosionConcurrent: false,
+    bossDeathExplosionFrameDelay: 4,
+    bossDeathExplosionSoundAssetId: '',
     onDefeated: [],
   };
 }

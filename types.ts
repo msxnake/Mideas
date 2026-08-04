@@ -1839,8 +1839,11 @@ export interface Msx2BossDefinition {
   /** Weak points must be listed BEFORE the armour that contains them. */
   damageZones: Msx2BossDamageZone[];
   /**
-   * Bitmap stamps composited over the body while the boss dies. One asset is
-   * chosen pseudo-randomly for every blast; colour 0 stays transparent.
+   * Bitmap stamps composited over the body while the boss dies; colour 0 stays
+   * transparent. With `bossDeathExplosionAnimated` off they are independent
+   * variants and one is chosen pseudo-randomly per blast. With it on the list is
+   * ORDERED and holds the 2..3 animation frames of a single explosion, which is
+   * played once per blast and then removed.
    */
   bossDeathExplosionStampIds?: string[];
   /** Number of blasts in the death sequence (1..32). */
@@ -1849,6 +1852,24 @@ export interface Msx2BossDefinition {
   bossDeathExplosionInterval?: number;
   /** Frames to keep the completed blast cloud before removing the body. */
   bossDeathExplosionHoldFrames?: number;
+  /**
+   * Play the stamp list as one ordered explosion animation instead of an
+   * unordered random-variant cloud. Every frame must have the same size.
+   * Concurrent live/erased blasts are an explicit option below.
+   */
+  bossDeathExplosionAnimated?: boolean;
+  /**
+   * Keep up to three independent animated blasts alive at once. This costs
+   * substantially more resident ROM than the default ordered compact mode.
+   */
+  bossDeathExplosionConcurrent?: boolean;
+  /** Frames each animation frame stays on screen (1..30). Animated mode only. */
+  bossDeathExplosionFrameDelay?: number;
+  /**
+   * Optional Sound FX asset played for every bitmap blast. Empty/undefined uses
+   * the built-in MSX2 PSG explosion, so a boss is never silently defeated.
+   */
+  bossDeathExplosionSoundAssetId?: string;
   onDefeated: Msx2BossDefeatAction[];
 }
 
