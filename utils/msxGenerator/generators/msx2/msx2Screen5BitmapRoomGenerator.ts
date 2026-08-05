@@ -3951,7 +3951,12 @@ load_room:
     ld e, a
     ld d, 0
 ${options.multiWorld ? `    ; Active-world scratch index: room tables remain global, mutable pools do not.
-    ld hl, bitmap_room_world_local_index_table
+${options.bankedRle ? `    ; This table lives in the resident bank at #8000-#9FFF, the SAME window the
+    ; banked room/music resources are streamed through. Reading it while P2 still
+    ; points at a data bank yields garbage, and a garbage pool index then indexes
+    ; boss_defeated / the pickup pools far outside their arrays.
+    call bitmap_room_restore_resident_banks   ; preserves BC/DE/HL
+` : ''}    ld hl, bitmap_room_world_local_index_table
     add hl, de
     ld a, (hl)
     ld (bitmap_room_pool_index), a
@@ -4323,7 +4328,12 @@ commit_room_flip:
     ld e, a
     ld d, 0
 ${options.multiWorld ? `    ; Keep the reusable boss/pickup pool keyed to the new room's world-local index.
-    ld hl, bitmap_room_world_local_index_table
+${options.bankedRle ? `    ; Same hazard as in load_room: the transition that got us here streamed banked
+    ; resources through #8000-#9FFF, so map the resident bank back before reading
+    ; the index table. A garbage index here made bitmap_boss_load read
+    ; boss_defeated far out of bounds and skip the boss entirely.
+    call bitmap_room_restore_resident_banks   ; preserves BC/DE/HL
+` : ''}    ld hl, bitmap_room_world_local_index_table
     add hl, de
     ld a, (hl)
     ld (bitmap_room_pool_index), a

@@ -1436,7 +1436,12 @@ export function buildBitmapBossSystemAsm(
   // Animated bullets own frame/tick bytes per live slot. Single-frame and
   // built-in bullets retain the original 9-byte layout byte-for-byte.
   const BOSS_SBUL_SLOT_BYTES = hasAnimatedSpriteBullet ? 11 : 9;
-  const spriteRamBase = projRamBase + 9;
+  // The 9 projectile bytes exist only when a projectile back-end is emitted.
+  // Adding them unconditionally desynchronised this cursor from `baseRamBytes`
+  // below (which does gate them), so every block allocated after it — paths,
+  // shots — landed 9 bytes past what the totals reserved, and `boss_intro_*`
+  // (placed at `ram + baseRamBytes`) was allocated ON TOP of `boss_path_*`.
+  const spriteRamBase = projRamBase + (hasProjectiles ? 9 : 0);
   // Fase G paths: entirely absent unless a boss references one, so a project
   // without paths keeps a byte-identical ROM.
   const pathStreams = data.pathStreams || [];
