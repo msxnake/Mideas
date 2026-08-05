@@ -4,7 +4,7 @@
 ; Project: fixture_boss_def
 ; Room: pan2
 ; Screen mode: SCREEN 5 (VDP Graphic 4, CHGMOD 5)
-; Backend: msx2-screen4-bitmap-room (legacy internal id)
+; Backend: screen5 (bitmap rooms)
 ; ROM Mode: megarom
 ; Mapper Target: konami
 ; Auto MegaROM: No
@@ -24,6 +24,7 @@ DISSCR  EQU #0041
 ENASCR  EQU #0044
 ENASLT  EQU #0024
 GTSTCK  EQU #00DC
+GTTRIG  EQU #00D8
 RSLREG  EQU #0138
 SNSMAT  EQU #0141
 PPI_A EQU #A8
@@ -117,8 +118,8 @@ player_jump_lock    EQU #C009
 player_moving       EQU #C00A
 ; World engine runtime state.
 current_screen_index EQU #C00B
-; Frame whose player sprite colours are currently in VRAM (#F400). Drives the
-; on-change per-frame OR/CC colour re-upload (bitmap_upload_player_frame_colors).
+; Frame/state key whose player sprite colours are currently in VRAM (#F400).
+; Bit 7 marks the intense glowing-tail palette; low bits hold the absolute frame.
 player_colors_loaded EQU #C00C
 ; Per-state animation runtime (separate sprite per animation state). Fixed block
 ; above the skill RAM chain and below the behavior map (#C200). player_anim_state
@@ -147,13 +148,15 @@ bitmap_composition_block_bank     EQU #C1F6
 ; projects without wall-jumpers); lives in the safe gap between the composition
 ; block bank and blink_phase.
 player_vx                         EQU #C1F7
-; Game-over request flag (Game Flow integration). Set to nonzero by the deadly/enemy
-; damage system when player_lives reaches 0. The gameplay loop (bitmap_enter_game_loop)
-; checks it each frame: when set, it returns to the Game Flow dispatcher so the graph
-; follows the WorldLink's connection (typically to an End:GameOver node). When no Game
-; Flow graph exists (standalone bitmap project), lives==0 triggers a soft restart instead.
+; Shared GameFlow exit request. Exit World contact sets the semantic name; the deadly/
+; enemy system keeps its game-over alias when player_lives reaches 0. The gameplay loop
+; checks this byte every frame and returns to the GameFlow dispatcher, which follows the
+; active WorldLink's default connection. Standalone bitmap projects soft-restart instead.
 ; Always emitted (harmless zero); lives in the last free safe-gap byte before blink_phase.
-bitmap_game_over_flag             EQU #C1F8
+bitmap_gameflow_exit_flag         EQU #C1F8
+bitmap_game_over_flag             EQU bitmap_gameflow_exit_flag
+; Active-world local room index for reusable SCREEN 5 pickup/boss pools.
+bitmap_room_pool_index             EQU #C1FC
 ; Sub-pixel gravity accumulator (low byte of the 8.8 gravityStrength from the Player
 ; Config). Added to player_vy_frac every frame; player_vy only rises by 1 when this
 ; carries, so the fall/jump arc accelerates gradually like SCREEN 4 (default 0.25
@@ -164,10 +167,11 @@ player_vy_frac                    EQU #C0D9
 
 
 
-; --- SHOOT skill runtime state (14 bytes) ---
+; --- SHOOT skill runtime state (15 bytes) ---
 bitmap_bullet_pool     EQU #C0DA
 bitmap_shoot_cooldown  EQU #C0E6
 bitmap_shoot_lock      EQU #C0E7
+bitmap_bullet_borrow_group EQU #C0E8
 
 
 
@@ -192,122 +196,137 @@ player_invuln EQU #C1FF
 blink_timer   EQU player_invuln   ; alias: i-frame countdown == blink countdown. in_blink = (blink_timer != 0)
 ; Linked MSX2 HUD asset dynamic widgets: shared 15-byte V9938 command scratch + shared decimal conversion buffer(s).
 hud_cmd_block EQU #C2C0
-hud_dec3_buffer EQU #C0ED
+hud_dec3_buffer EQU #D005
 ; Linked HUD icon row #0 (hud_el_1783004114045_6h49y), bound to "playerEnergy".
-hud_linked_0_drawn EQU #C0E8
+hud_linked_0_drawn EQU #D000
 ; Linked HUD counter #1 (hud_el_1783009772122_go9ku), bound to "collectibles" [8-bit, 2 digits].
-hud_linked_1_drawn EQU #C0E9
-hud_linked_1_value EQU #C0EA
+hud_linked_1_drawn EQU #D001
+hud_linked_1_value EQU #D002
 ; Linked HUD icon toggle #2 (hud_el_1783454311897_7p2ha), bound to "keyItem".
-hud_linked_2_drawn EQU #C0EB
+hud_linked_2_drawn EQU #D003
 ; Linked HUD counter #3 (hud_el_1783527996153_k7cbd), bound to "keyItem" [8-bit, 2 digits].
-hud_linked_3_drawn EQU #C0EC
+hud_linked_3_drawn EQU #D004
 ; Key/items + locked doors system (SCREEN 5 bitmap). RAM follows skills/HUD chain.
-bitmap_key_inventory       EQU #C0F0
-bitmap_key_pending_entry_x EQU #C0F1
-bitmap_key_pending_entry_y EQU #C0F2
-bitmap_key_work_mask       EQU #C0F3
-bitmap_key_work_offset     EQU #C0F4
-bitmap_key_target_page     EQU #C0F5
-bitmap_key_probe_x         EQU #C0F6
-bitmap_key_probe_y         EQU #C0F7
-bitmap_key_count           EQU #C0F8
-bitmap_key_pickup_flags    EQU #C0F9
-bitmap_key_door_open_flags EQU #C0FB
+bitmap_key_inventory       EQU #D008
+bitmap_key_pending_entry_x EQU #D009
+bitmap_key_pending_entry_y EQU #D00A
+bitmap_key_work_mask       EQU #D00B
+bitmap_key_work_offset     EQU #D00C
+bitmap_key_target_page     EQU #D00D
+bitmap_key_probe_x         EQU #D00E
+bitmap_key_probe_y         EQU #D00F
+bitmap_key_count           EQU #D010
+bitmap_key_pickup_flags    EQU #D011
+bitmap_key_door_open_flags EQU #D013
 bitmap_key_cmd_block       EQU #C2C0
 ; collector_gems skill (SCREEN 5 bitmap): 11 gem(s). RAM follows key-door/dialogue chain.
-bitmap_gem_work_offset EQU #C0FE
-bitmap_gem_target_page EQU #C0FF
-bitmap_gem_flags       EQU #C100
+bitmap_gem_work_offset EQU #D016
+bitmap_gem_target_page EQU #D017
+bitmap_gem_flags       EQU #D018
 bitmap_gem_cmd_block   EQU #C2C0
 ; Jumper springs (SCREEN 5 bitmap): 1 spring(s). RAM follows key-door/gem chain.
-bitmap_jumper_timer       EQU #C10B
-bitmap_jumper_target_page EQU #C10C
-bitmap_jumper_active      EQU #C10D
-bitmap_jumper_space_pressed EQU #C10F
+bitmap_jumper_timer       EQU #D023
+bitmap_jumper_target_page EQU #D024
+bitmap_jumper_active      EQU #D025
+bitmap_jumper_space_pressed EQU #D027
 bitmap_jumper_cmd_block   EQU #C2C0
 ; Wall-jumper springs (SCREEN 5 bitmap): 1 wall-spring(s). RAM follows the jumper-spring chain.
-bitmap_walljumper_timer       EQU #C110
-bitmap_walljumper_target_page EQU #C111
-bitmap_walljumper_active      EQU #C112
+bitmap_walljumper_timer       EQU #D028
+bitmap_walljumper_target_page EQU #D029
+bitmap_walljumper_active      EQU #D02A
 bitmap_walljumper_cmd_block   EQU #C2C0
 ; SCREEN 5 bitmap NPC dialogue system. Config mirror (20B, LDIR'd on open) + state.
-bitmap_dlg_cfg             EQU #C114
-bitmap_dlg_cfg_box_x       EQU #C114
-bitmap_dlg_cfg_box_y       EQU #C115
-bitmap_dlg_cfg_box_w       EQU #C116
-bitmap_dlg_cfg_box_h       EQU #C117
-bitmap_dlg_cfg_border_clr  EQU #C118
-bitmap_dlg_cfg_bg_clr      EQU #C119
-bitmap_dlg_cfg_delay       EQU #C11A
-bitmap_dlg_cfg_mouth_int   EQU #C11B
-bitmap_dlg_cfg_text_x      EQU #C11C
-bitmap_dlg_cfg_text_y      EQU #C11D
-bitmap_dlg_cfg_text_w      EQU #C11E
-bitmap_dlg_cfg_text_h      EQU #C11F
-bitmap_dlg_cfg_strip_sy    EQU #C120
-bitmap_dlg_cfg_por_x       EQU #C122
-bitmap_dlg_cfg_por_y       EQU #C123
-bitmap_dlg_cfg_por_max_w   EQU #C124
-bitmap_dlg_cfg_por_max_h   EQU #C125
-bitmap_dlg_cfg_line_base   EQU #C126
-bitmap_dlg_cfg_line_count  EQU #C127
-bitmap_dlg_state           EQU #C128
-bitmap_dlg_lock            EQU #C129
-bitmap_dlg_line            EQU #C12A
-bitmap_dlg_lines_left      EQU #C12B
-bitmap_dlg_text_ptr        EQU #C12C
-bitmap_dlg_delay           EQU #C12E
-bitmap_dlg_mouth_count     EQU #C12F
-bitmap_dlg_mouth_state     EQU #C130
-bitmap_dlg_portrait        EQU #C131
-bitmap_dlg_cursor_x        EQU #C132
-bitmap_dlg_cursor_y        EQU #C133
-bitmap_dlg_key_mask        EQU #C134
-bitmap_dlg_wait_flags      EQU #C135
-bitmap_dlg_scratch_idx     EQU #C136
-bitmap_dlg_sfx_seed        EQU #C137
+bitmap_dlg_cfg             EQU #D02C
+bitmap_dlg_cfg_box_x       EQU #D02C
+bitmap_dlg_cfg_box_y       EQU #D02D
+bitmap_dlg_cfg_box_w       EQU #D02E
+bitmap_dlg_cfg_box_h       EQU #D02F
+bitmap_dlg_cfg_border_clr  EQU #D030
+bitmap_dlg_cfg_bg_clr      EQU #D031
+bitmap_dlg_cfg_delay       EQU #D032
+bitmap_dlg_cfg_mouth_int   EQU #D033
+bitmap_dlg_cfg_text_x      EQU #D034
+bitmap_dlg_cfg_text_y      EQU #D035
+bitmap_dlg_cfg_text_w      EQU #D036
+bitmap_dlg_cfg_text_h      EQU #D037
+bitmap_dlg_cfg_strip_sy    EQU #D038
+bitmap_dlg_cfg_por_x       EQU #D03A
+bitmap_dlg_cfg_por_y       EQU #D03B
+bitmap_dlg_cfg_por_max_w   EQU #D03C
+bitmap_dlg_cfg_por_max_h   EQU #D03D
+bitmap_dlg_cfg_line_base   EQU #D03E
+bitmap_dlg_cfg_line_count  EQU #D03F
+bitmap_dlg_state           EQU #D040
+bitmap_dlg_lock            EQU #D041
+bitmap_dlg_line            EQU #D042
+bitmap_dlg_lines_left      EQU #D043
+bitmap_dlg_text_ptr        EQU #D044
+bitmap_dlg_delay           EQU #D046
+bitmap_dlg_mouth_count     EQU #D047
+bitmap_dlg_mouth_state     EQU #D048
+bitmap_dlg_portrait        EQU #D049
+bitmap_dlg_cursor_x        EQU #D04A
+bitmap_dlg_cursor_y        EQU #D04B
+bitmap_dlg_key_mask        EQU #D04C
+bitmap_dlg_wait_flags      EQU #D04D
+bitmap_dlg_scratch_idx     EQU #D04E
+bitmap_dlg_sfx_seed        EQU #D04F
 bitmap_dlg_cmd_block       EQU #C2C0
+; Player-linked State Machine runtime (SCREEN 5 bitmap route).
+bitmap_sm_state EQU #D0E0
 ; --- ENEMY runtime state (49 bytes): count + 2 slot(s) x 23 + update lane
 ; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane) ---
-bitmap_enemy_count EQU #C138
-bitmap_enemy_pool  EQU #C139
-bitmap_enemy_update_lane EQU #C167
+bitmap_enemy_count EQU #D050
+bitmap_enemy_pool  EQU #D051
+bitmap_enemy_update_lane EQU #D07F
 ; --- MOVING PLATFORM runtime state (13 bytes): count + rider + 1 slot(s) x 11
 ; (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,movedX,movedY) ---
-bitmap_platform_count EQU #C169
-bitmap_platform_rider EQU #C16A
-bitmap_platform_pool  EQU #C16B
+bitmap_platform_count EQU #D081
+bitmap_platform_rider EQU #D082
+bitmap_platform_pool  EQU #D083
 
-; ---- bitmap BOSS runtime state (66 bytes) ----
-boss_active     EQU #C176   ; 0 none, 1 alive
-boss_x          EQU #C177
-boss_y          EQU #C178
-boss_old_x      EQU #C179
-boss_old_y      EQU #C17A
-boss_dx         EQU #C17B
-boss_dy         EQU #C17C
-boss_hp         EQU #C17D
-boss_anim_tick  EQU #C17E
-boss_anim_frame EQU #C17F
-boss_int_tick   EQU #C180
-boss_sx         EQU #C181  ; word: current frame atlas SX
-boss_cmd_buf    EQU #C183  ; 15-byte V9938 command block
-boss_defeated   EQU #C192  ; 13 bytes, 1 = killed (persistent)
-boss_flags      EQU #C19F  ; 1 bytes, onDefeated setFlag targets (persistent)
-boss_barrier_draw EQU #C1A0  ; 1 = drawing/sealing, 0 = clearing/unsealing
-boss_barrier_sx EQU #C1A1  ; word: chain tile atlas SX
-boss_barrier_sy EQU #C1A3  ; word: chain tile atlas SY (512-based)
-boss_proj_active EQU #C1A5  ; 1 = a bitmap projectile is in flight
-boss_proj_x     EQU #C1A6
-boss_proj_y     EQU #C1A7
-boss_proj_ox    EQU #C1A8  ; previous position (page-1 restore)
-boss_proj_oy    EQU #C1A9
-boss_proj_dx    EQU #C1AA  ; signed px/frame
-boss_proj_dy    EQU #C1AB
-boss_proj_cd    EQU #C1AC  ; frames until next shot
-boss_phase_speed EQU #C1AD  ; projectile speed of the active attack phase
-boss_sbul_pool  EQU #C1AE  ; 2 x 5 bytes: active, x, y, dx, dy
+; ---- bitmap BOSS runtime state (82 bytes) ----
+boss_active     EQU #D08E   ; 0 none, 1 alive, 2 death FX
+boss_x          EQU #D08F
+boss_y          EQU #D090
+boss_old_x      EQU #D091
+boss_old_y      EQU #D092
+boss_dx         EQU #D093
+boss_dy         EQU #D094
+boss_hp         EQU #D095
+boss_anim_tick  EQU #D096
+boss_anim_frame EQU #D097
+boss_int_tick   EQU #D098
+boss_sx         EQU #D099  ; word: current frame atlas SX
+boss_cmd_buf    EQU #D09B  ; 15-byte V9938 command block
+boss_defeated   EQU #D0AA  ; 13 active-world bytes, 1 = killed
+boss_flags      EQU #D0B7  ; 1 bytes, onDefeated setFlag targets (persistent)
+boss_barrier_draw EQU #D0B8  ; 0 = clear, 1 = seal, 2 = repaint sealed cells
+boss_barrier_sx EQU #D0B9  ; word: chain tile atlas SX
+boss_barrier_sy EQU #D0BB  ; word: chain tile atlas SY (512-based)
+boss_barrier_pending EQU #D0BD  ; 1 = a perimeter cell is still open under the player
+boss_barrier_retry EQU #D0BE  ; frames until the next reseal sweep
+boss_proj_active EQU #D0BF  ; 1 = a bitmap projectile is in flight
+boss_proj_x     EQU #D0C0
+boss_proj_y     EQU #D0C1
+boss_proj_ox    EQU #D0C2  ; previous position (page-1 restore)
+boss_proj_oy    EQU #D0C3
+boss_proj_dx    EQU #D0C4  ; signed px/frame
+boss_proj_dy    EQU #D0C5
+boss_proj_cd    EQU #D0C6  ; frames until next shot
+boss_phase_speed EQU #D0C7  ; projectile speed of the active attack phase
+BOSS_SBUL_SLOT  EQU 9
+boss_sbul_pool  EQU #D0C8  ; 2 x 9 bytes
+;   +0 active, +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
+;   +5 x frac, +6 y frac, +7 dx frac, +8 dy frac. Velocity is 8.8 fixed
+;   point (int byte + frac byte), which is what buys 16 directions:
+;   a diagonal is no longer forced to a whole pixel on both axes.
+
+boss_intro_state EQU #D0DA  ; 0 fight/idle, 1 dispatch, 2 wait, 3 dialogue, 4 barrier, 5 auto-walk
+boss_intro_ptr EQU #D0DB  ; word: next opcode or active-step argument
+boss_intro_counter EQU #D0DD  ; wait frames / raster scanlines left this frame
+boss_intro_raster_y EQU #D0DE  ; next horizontal pixel line (0..191)
+boss_intro_auto_move EQU #D0DF  ; 1 = forced horizontal walk; gravity remains active
 
 ; Mideas channel-C convention: gameplay SFX own PSG channel C. Every
 ; fire-and-forget SFX stores its R7 bits for C here (bit2 tone, bit5 noise);
@@ -335,9 +354,9 @@ init_rom:
     call upload_tileset_atlas
     call init_hardware_sprite_tables
     call upload_bitmap_dialogue_gfx
-    ; Upload bullet sprite pattern (32 bytes) to VRAM #FC00
+    ; Upload bullet sprite pattern (32 bytes) to VRAM #FD00
     ld hl, bitmap_bullet_pattern_data
-    ld de, #FC00
+    ld de, #FD00
     ld bc, bitmap_bullet_pattern_data_end - bitmap_bullet_pattern_data
     call copy_to_vram_ext
     ; bullet colour -> sprite slot 4 (VRAM #F470)
@@ -377,9 +396,34 @@ bitmap_gf_node_2:
     call bitmap_intro_wipe_vertical
     jp bitmap_gf_node_3
 bitmap_gf_node_3:
+    ; Boss active-world scratch MUST be cleared before the start room is composed:
+    ; load_room below ends in bitmap_boss_load, which reads boss_defeated[localRoom]
+    ; and skips the boss when it is non-zero. Running this with the rest of the
+    ; HUD/system init (further down, after load_room) meant that booting STRAIGHT
+    ; INTO a boss room read uninitialised RAM: garbage there reads as "already
+    ; killed" and the boss never spawns.
+    ; Boss persistent state (defeated flags + defeat action flags).
+    xor a
+    ld (boss_defeated + 0), a
+    ld (boss_defeated + 1), a
+    ld (boss_defeated + 2), a
+    ld (boss_defeated + 3), a
+    ld (boss_defeated + 4), a
+    ld (boss_defeated + 5), a
+    ld (boss_defeated + 6), a
+    ld (boss_defeated + 7), a
+    ld (boss_defeated + 8), a
+    ld (boss_defeated + 9), a
+    ld (boss_defeated + 10), a
+    ld (boss_defeated + 11), a
+    ld (boss_defeated + 12), a
+    ld (boss_flags + 0), a
+    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
     ; Render the start room from the shared tileset already in VRAM.
     xor a
     ld (bitmap_displayed_page), a
+
     ld a, 1
     call load_room
     ; Re-seed the top HUD band on BOTH pages. A Game Flow intro Transition effect
@@ -398,7 +442,6 @@ bitmap_gf_node_3:
 
     call bitmap_load_enemies
     call bitmap_load_platforms
-    call bitmap_boss_load
     ; Place the player at the room spawn point.
     ld a, 146
     ld (player_y), a
@@ -427,6 +470,10 @@ bitmap_gf_node_3:
     ld (bitmap_composition_block_ptr), hl
     inc a
     ld (player_facing), a
+    ; Boss load deliberately comes AFTER player placement. The Room Lock chain
+    ; must see the real entry cell so it can leave that cell open until the
+    ; frozen player is released and steps clear.
+    call bitmap_boss_load
     ; Initialise player vitals from the Player Config (health.maxHealth / lives)
     ; and clear blink state (blink_timer/player_invuln is cleared below).
     ld a, #05
@@ -505,22 +552,10 @@ bitmap_gf_node_3:
     ld (bitmap_dlg_mouth_count), a
     ld a, #5A
     ld (bitmap_dlg_sfx_seed), a
-    ; Boss persistent state (defeated flags + defeat action flags).
-    xor a
-    ld (boss_defeated + 0), a
-    ld (boss_defeated + 1), a
-    ld (boss_defeated + 2), a
-    ld (boss_defeated + 3), a
-    ld (boss_defeated + 4), a
-    ld (boss_defeated + 5), a
-    ld (boss_defeated + 6), a
-    ld (boss_defeated + 7), a
-    ld (boss_defeated + 8), a
-    ld (boss_defeated + 9), a
-    ld (boss_defeated + 10), a
-    ld (boss_defeated + 11), a
-    ld (boss_defeated + 12), a
-    ld (boss_flags + 0), a
+    ld a, 0
+    ld (bitmap_sm_state), a
+    ld a, 0
+    ld (player_anim_state), a
     ; Re-select page 0 after all room/HUD uploads. This is defensive against
     ; BIOS/VDP state left by CHGMOD or command-engine setup.
     ld a, #02
@@ -548,14 +583,8 @@ bitmap_gf_node_3:
     ld (player_anim_abs_frame), a
     dec a
     ld (player_anim_state_prev), a    ; #FF forces a clean clip reset on frame 1
-    ; Clear SHOOT pool (14 bytes at bitmap_bullet_pool)
-    ld hl, bitmap_bullet_pool
-    ld b, #0E
-    xor a
-.shoot_clear_loop:
-    ld (hl), a
-    inc hl
-    djnz .shoot_clear_loop
+    ; Clear SHOOT pool (15 bytes at bitmap_bullet_pool)
+    call bitmap_shoot_init_clear
 
     call bitmap_enter_game_loop
     jp bitmap_gf_node_4
@@ -564,15 +593,16 @@ bitmap_gf_node_4:
     call draw_bitmap_end_screen
     call bitmap_end_wait_key
     ; End node terminates the flow.
-    jp .bitmap_main_loop
+    jp bitmap_gameflow_terminal_loop
+bitmap_gameflow_terminal_loop:
+    jp bitmap_gameflow_terminal_loop
 bitmap_gf_node_4_DATA:
     DB #03,#0F,#18,#0E
 bitmap_enter_game_loop:
-    ; Game Flow exit gate: when the deadly/enemy damage system arms
-    ; bitmap_game_over_flag (last life spent), leave the gameplay loop. With a
-    ; Game Flow graph, ret returns to the dispatcher (which follows the WorldLink
-    ; connection, e.g. to an End:GameOver node). Without a graph, soft-restart.
-    ld a, (bitmap_game_over_flag)
+    ; GameFlow exit gate: armed by Exit World contact or by the deadly/enemy
+    ; system after the last life. With a graph, RET resumes the WorldLink's
+    ; default connection. Without a graph, use a deterministic soft restart.
+    ld a, (bitmap_gameflow_exit_flag)
     or a
     ret nz    ; WorldLink exit -> back to Game Flow dispatcher
 .bitmap_main_loop:
@@ -596,8 +626,20 @@ bitmap_enter_game_loop:
     call bitmap_boss_update
     call bitmap_dialogue_frame      ; NPC talk: open/advance dialogue; carry = player paused
     jp c, .skip_player_movement
+    ld a, (boss_intro_auto_move)
+    or a
+    jp z, .boss_intro_freeze_check
+    ; Mandatory first step: run the normal player physics once with forced
+    ; horizontal input, then skip every manual skill/action for this frame.
+    call update_player_movement
+    jp .skip_player_movement
+.boss_intro_freeze_check:
+    ld a, (boss_intro_state)    ; Room Lock wait/chain/dialogue step: freeze player
+    or a
+    jp nz, .skip_player_movement
     ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
+    call bitmap_update_player_state_machine
     call bitmap_try_spawn_bullet
     call bitmap_step_bullets
     call bitmap_platform_ride_detect
@@ -613,7 +655,118 @@ bitmap_enter_game_loop:
     call bitmap_update_walljumpers    ; wall-jumper springs: side-contact detect + horizontal launch + tile swap
     call bitmap_update_enemies
     call bitmap_check_enemy_touch
-    jp .bitmap_main_loop
+    jp bitmap_enter_game_loop
+
+; __MIDEAS_BITMAP_RESIDENT_DISPATCH_START__
+; World engine dispatch tables (indexed by room/screen index).
+; Keep these in the resident #4000-#7FFF window. load_room remaps P2
+; (#8000-#9FFF) to stream room data before it reads block counts,
+; collision maps, behaviours, transitions and spawn positions. Optional
+; runtimes such as shoot must therefore never be able to push these tables
+; into the banked P2 window.
+bitmap_room_render_ptr_table_p0:
+    DW bitmap_room_render_0_p0
+    DW bitmap_room_render_1_p0
+    DW bitmap_room_render_2_p0
+    DW bitmap_room_render_3_p0
+    DW bitmap_room_render_4_p0
+    DW bitmap_room_render_5_p0
+    DW bitmap_room_render_6_p0
+    DW bitmap_room_render_7_p0
+    DW bitmap_room_render_8_p0
+    DW bitmap_room_render_9_p0
+    DW bitmap_room_render_10_p0
+    DW bitmap_room_render_11_p0
+    DW bitmap_room_render_12_p0
+bitmap_room_render_ptr_table_p1:
+    DW bitmap_room_render_0_p1
+    DW bitmap_room_render_1_p1
+    DW bitmap_room_render_2_p1
+    DW bitmap_room_render_3_p1
+    DW bitmap_room_render_4_p1
+    DW bitmap_room_render_5_p1
+    DW bitmap_room_render_6_p1
+    DW bitmap_room_render_7_p1
+    DW bitmap_room_render_8_p1
+    DW bitmap_room_render_9_p1
+    DW bitmap_room_render_10_p1
+    DW bitmap_room_render_11_p1
+    DW bitmap_room_render_12_p1
+
+; Konami data bank for each page 0 room render program
+bitmap_room_render_bank_table_p0:
+    DB bitmap_room_render_0_p0_DATA_BANK,bitmap_room_render_1_p0_DATA_BANK,bitmap_room_render_2_p0_DATA_BANK,bitmap_room_render_3_p0_DATA_BANK,bitmap_room_render_4_p0_DATA_BANK,bitmap_room_render_5_p0_DATA_BANK,bitmap_room_render_6_p0_DATA_BANK,bitmap_room_render_7_p0_DATA_BANK,bitmap_room_render_8_p0_DATA_BANK,bitmap_room_render_9_p0_DATA_BANK,bitmap_room_render_10_p0_DATA_BANK,bitmap_room_render_11_p0_DATA_BANK,bitmap_room_render_12_p0_DATA_BANK
+; Konami data bank for each page 1 room render program
+bitmap_room_render_bank_table_p1:
+    DB bitmap_room_render_0_p1_DATA_BANK,bitmap_room_render_1_p1_DATA_BANK,bitmap_room_render_2_p1_DATA_BANK,bitmap_room_render_3_p1_DATA_BANK,bitmap_room_render_4_p1_DATA_BANK,bitmap_room_render_5_p1_DATA_BANK,bitmap_room_render_6_p1_DATA_BANK,bitmap_room_render_7_p1_DATA_BANK,bitmap_room_render_8_p1_DATA_BANK,bitmap_room_render_9_p1_DATA_BANK,bitmap_room_render_10_p1_DATA_BANK,bitmap_room_render_11_p1_DATA_BANK,bitmap_room_render_12_p1_DATA_BANK
+
+bitmap_room_blockcount_table:
+    DW 88
+    DW 44
+    DW 49
+    DW 60
+    DW 63
+    DW 47
+    DW 62
+    DW 90
+    DW 60
+    DW 58
+    DW 56
+    DW 60
+    DW 54
+
+bitmap_room_collision_ptr_table:
+    DW bitmap_room_collision_0
+    DW bitmap_room_collision_1
+    DW bitmap_room_collision_2
+    DW bitmap_room_collision_3
+    DW bitmap_room_collision_4
+    DW bitmap_room_collision_5
+    DW bitmap_room_collision_6
+    DW bitmap_room_collision_7
+    DW bitmap_room_collision_8
+    DW bitmap_room_collision_9
+    DW bitmap_room_collision_10
+    DW bitmap_room_collision_11
+    DW bitmap_room_collision_12
+
+; Konami data bank for each room collision grid
+bitmap_room_collision_bank_table:
+    DB bitmap_room_collision_0_DATA_BANK,bitmap_room_collision_1_DATA_BANK,bitmap_room_collision_2_DATA_BANK,bitmap_room_collision_3_DATA_BANK,bitmap_room_collision_4_DATA_BANK,bitmap_room_collision_5_DATA_BANK,bitmap_room_collision_6_DATA_BANK,bitmap_room_collision_7_DATA_BANK,bitmap_room_collision_8_DATA_BANK,bitmap_room_collision_9_DATA_BANK,bitmap_room_collision_10_DATA_BANK,bitmap_room_collision_11_DATA_BANK,bitmap_room_collision_12_DATA_BANK
+
+bitmap_room_behavior_ptr_table:
+    DW bitmap_room_behavior_0
+    DW bitmap_room_behavior_1
+    DW bitmap_room_behavior_2
+    DW bitmap_room_behavior_3
+    DW bitmap_room_behavior_4
+    DW bitmap_room_behavior_5
+    DW bitmap_room_behavior_6
+    DW bitmap_room_behavior_7
+    DW bitmap_room_behavior_8
+    DW bitmap_room_behavior_9
+    DW bitmap_room_behavior_10
+    DW bitmap_room_behavior_11
+    DW bitmap_room_behavior_12
+
+; Konami data bank for each room behavior grid
+bitmap_room_behavior_bank_table:
+    DB bitmap_room_behavior_0_DATA_BANK,bitmap_room_behavior_1_DATA_BANK,bitmap_room_behavior_2_DATA_BANK,bitmap_room_behavior_3_DATA_BANK,bitmap_room_behavior_4_DATA_BANK,bitmap_room_behavior_5_DATA_BANK,bitmap_room_behavior_6_DATA_BANK,bitmap_room_behavior_7_DATA_BANK,bitmap_room_behavior_8_DATA_BANK,bitmap_room_behavior_9_DATA_BANK,bitmap_room_behavior_10_DATA_BANK,bitmap_room_behavior_11_DATA_BANK,bitmap_room_behavior_12_DATA_BANK
+
+; Edge rails per room: west,east,north,south (#FF = none)
+bitmap_room_transition_table:
+    DB #FF,#01,#FF,#05,#00,#02,#FF,#06,#01,#03,#FF,#07,#02,#08,#FF,#04
+    DB #07,#0A,#03,#FF,#FF,#06,#00,#FF,#05,#07,#01,#FF,#06,#04,#02,#FF
+    DB #03,#09,#FF,#FF,#08,#0B,#FF,#FF,#04,#FF,#FF,#FF,#09,#0C,#FF,#FF
+    DB #0B,#FF,#FF,#FF
+
+bitmap_room_spawn_x_table:
+    DB 32,147,0,0,0,0,0,0,0,0,0,0,0
+bitmap_room_spawn_y_table:
+    DB 128,146,216,216,216,216,216,216,216,216,216,216,216
+
+; __MIDEAS_BITMAP_RESIDENT_DISPATCH_END__
+
 
 ; ------------------------------------------------------------
 ; FUNCTION: run_bitmap_intro
@@ -827,6 +980,7 @@ bitmap_intro_upload_scene0:
     call decompress_bitmap_rle_to_vram
     call bitmap_room_restore_resident_banks
     ret
+
 
 
 ; --- V9938 SCREEN 5 bitmap runtime (VDP Graphic 4, Vampire Killer style) ---
@@ -1589,6 +1743,7 @@ load_room:
     ld (current_screen_index), a
     ld e, a
     ld d, 0
+
     ld hl, bitmap_room_render_ptr_table_p0
     ld bc, bitmap_room_render_bank_table_p0
 
@@ -1905,6 +2060,7 @@ commit_room_flip:
     ld (current_screen_index), a
     ld e, a
     ld d, 0
+
     ld hl, bitmap_room_collision_ptr_table
     ld bc, bitmap_room_collision_bank_table
 
@@ -2090,6 +2246,50 @@ update_player_movement:
     xor a
     ld (player_moving), a
     ld (player_anim_state), a    ; default animation state each frame; skills assert theirs
+    ; Boss intro auto-walk: replace the real keyboard row with exactly one
+    ; horizontal direction. update_player_movement still owns collision,
+    ; walking animation, facing and the complete gravity/vertical pipeline.
+    ld a, (boss_intro_auto_move)
+    or a
+    jp z, .boss_intro_auto_input_done
+    ld a, (player_x)
+    cp 121
+    jp z, .boss_intro_auto_arrived
+    jp c, .boss_intro_auto_right
+    sub 121
+    cp 2
+    jp c, .boss_intro_auto_final_left
+    ld c, #10                  ; forced LEFT, no jump/action bits
+    jp .boss_intro_auto_input_done
+.boss_intro_auto_right:
+    ld b, a
+    ld a, 121
+    sub b
+    cp 2
+    jp c, .boss_intro_auto_final_right
+    ld c, #80                  ; forced RIGHT, no jump/action bits
+    jp .boss_intro_auto_input_done
+.boss_intro_auto_final_left:
+    ld a, #FF                  ; exact final pixel, still collision-checked
+    call bitmap_try_move_x
+    jp .boss_intro_auto_final_check
+.boss_intro_auto_final_right:
+    ld a, 1                    ; exact final pixel, still collision-checked
+    call bitmap_try_move_x
+.boss_intro_auto_final_check:
+    ld a, (player_x)
+    cp 121
+    jp nz, .boss_intro_auto_blocked
+.boss_intro_auto_arrived:
+    xor a
+    ld (boss_intro_auto_move), a
+    ld c, a                    ; no horizontal/jump input on the arrival frame
+    inc a
+    ld (boss_intro_state), a   ; state 1: dispatch authored Room Lock next frame
+    jp .boss_intro_auto_input_done
+.boss_intro_auto_blocked:
+    ld c, 0                    ; obstacle: keep auto flag, gravity still advances
+.boss_intro_auto_input_done:
 
     ; Wall-jumper impulse: when player_vx != 0 the player is mid-launch. Apply the
     ; impulse velocity (ignoring the pad), decay it by 1px/frame toward 0, then
@@ -2466,9 +2666,9 @@ fast_copy_to_vram_ext:
 ; PURPOSE:
 ;   Re-upload the player's per-line sprite colour table for the CURRENT
 ;   animation frame to the V9938 sprite colour table (#F400), but ONLY when the
-;   frame changed. Each frame has its own colour table because CC/OR multi-colour
-;   rows differ between frames; the SAT only swaps the pattern index, so without
-;   this, frames > 0 render with frame 0's colours (white/garbage lines).
+;   frame changed. Each frame has its own colour table because
+;   CC/OR multi-colour rows differ between frames; the SAT only swaps the pattern
+;   index, so without this, frames > 0 render with frame 0's colours.
 ;
 ; INPUT:
 ;   player_anim_frame    = current logical frame (0..1).
@@ -2478,11 +2678,11 @@ fast_copy_to_vram_ext:
 ;   None.
 ;
 ; DESTROYS:
-;   AF (always); BC, DE, HL only when a frame change triggers the upload.
+;   AF, C (always); B, DE, HL only when a frame/state change triggers upload.
 ;
 ; PRESERVES:
-;   IX, IY. Returns after touching only AF when the frame is unchanged, so the
-;   common case (most frames) costs ~7 instructions, not a VRAM copy.
+;   IX, IY always; B, DE, HL when unchanged. The common case costs only the
+;   state-key comparison, not a VRAM copy.
 ;
 ; CALLS:
 ;   fast_copy_to_vram_ext (only on a frame change).
@@ -2494,8 +2694,8 @@ fast_copy_to_vram_ext:
 ; NOTES:
 ;   Source = bitmap_room_sprite_colors + player_anim_frame * 64.
 ;   Mirror frames reuse the same colours (a horizontal flip keeps line colours),
-;   so the logical frame indexes the table directly. Self-correcting: any stale
-;   player_colors_loaded just forces one upload on the first differing frame.
+;   so the logical frame indexes the table directly. Self-correcting: any stale player_colors_loaded
+;   just forces one upload on the first differing frame/state.
 ; ------------------------------------------------------------
 bitmap_upload_player_frame_colors:
     ld a, (player_anim_abs_frame)
@@ -2506,6 +2706,7 @@ bitmap_upload_player_frame_colors:
     ld a, c
     ld (player_colors_loaded), a
     ld hl, bitmap_room_sprite_colors
+
     or a
     jp z, .upload_frame_colors
     ld de, 64
@@ -2953,12 +3154,32 @@ bitmap_update_sprite_sat:
 
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_shoot_init_clear
+; PURPOSE: Clear the reusable bullet pool and release any borrowed player group.
+; INPUT: None. OUTPUT: None.
+; DESTROYS: AF, B, HL. PRESERVES: C, DE, IX, IY.
+; ------------------------------------------------------------
+bitmap_shoot_init_clear:
+    ld hl, bitmap_bullet_pool
+    ld b, #0F
+    xor a
+.shoot_init_clear_loop:
+    ld (hl), a
+    inc hl
+    djnz .shoot_init_clear_loop
+    dec a
+    ld (bitmap_bullet_borrow_group), a ; #FF = no borrowed player group yet
+    ret
+
+
+; ------------------------------------------------------------
 ; FUNCTION: bitmap_shoot_pressed
 ; ------------------------------------------------------------
-; PURPOSE: Reads the shoot key ('N', keyboard matrix row 4 bit 3) via PPI.
+; PURPOSE: Reads the configured shoot input (N) via PPI.
 ; INPUT: none. OUTPUT: A = 1 when pressed, A = 0 otherwise (Z when not pressed).
 ; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
-; SIDE EFFECTS: Selects keyboard row 4 on PPI_C.
+; SIDE EFFECTS: Selects keyboard row 4 on PPI_C. update_player_movement
+;   re-selects row 8 next frame, so the transient selection is safe.
 ; ------------------------------------------------------------
 bitmap_shoot_pressed:
     in a, (PPI_C)
@@ -3144,7 +3365,8 @@ bitmap_update_bullet_sat:
     out (VDP_DATA_PORT), a
     ld a, (ix+1)
     out (VDP_DATA_PORT), a
-    ld a, #80
+    ld a, #A0
+
     out (VDP_DATA_PORT), a
     xor a
     out (VDP_DATA_PORT), a
@@ -5629,6 +5851,67 @@ bitmap_apply_walljumpers_for_current_room:
     djnz .walljumper_draw_loop
     ret
 
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_player_state_machine
+; ------------------------------------------------------------
+; PURPOSE:
+;   Apply the current state's Graphics & Render animation mapping and evaluate
+;   the authored Player-linked State Machine input transitions.
+;
+; INPUT:
+;   None.
+;
+; OUTPUT:
+;   None.
+;
+; DESTROYS:
+;   AF.
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   Generated bitmap_sm_read_input_* helpers.
+;
+; SIDE EFFECTS:
+;   Writes bitmap_sm_state and player_anim_state.
+;
+; NOTES:
+;   Player Config / Controls is the input source of truth for conditions.
+;   Graphics & Render is the source of truth for state animation clips.
+; ------------------------------------------------------------
+bitmap_update_player_state_machine:
+    ld a, (bitmap_sm_state)
+    cp 0
+    jp z, .bitmap_sm_anim_0
+    cp 1
+    jp z, .bitmap_sm_anim_1
+    cp 2
+    jp z, .bitmap_sm_anim_2
+    cp 3
+    jp z, .bitmap_sm_anim_3
+    xor a
+    jp .bitmap_sm_anim_store
+.bitmap_sm_anim_0:
+    ld a, 0
+    jp .bitmap_sm_anim_store
+.bitmap_sm_anim_1:
+    ld a, 0
+    jp .bitmap_sm_anim_store
+.bitmap_sm_anim_2:
+    ld a, 0
+    jp .bitmap_sm_anim_store
+.bitmap_sm_anim_3:
+    ld a, 1
+    jp .bitmap_sm_anim_store
+.bitmap_sm_anim_store:
+    ld (player_anim_state), a
+    ; Authored transition order is priority order.
+.bitmap_sm_transition_0:
+    ret
+
+
+
 
 ; ------------------------------------------------------------
 ; FUNCTION: upload_bitmap_dialogue_gfx
@@ -6371,6 +6654,7 @@ bitmap_dlg_close_box:
     call bitmap_apply_gems_visible    ; draw uncollected gems on current page
     call bitmap_apply_jumpers_visible    ; draw idle spring metatiles on current page
     call bitmap_apply_walljumpers_visible    ; draw idle wall-spring metatiles on current page
+    call bitmap_boss_redraw_after_dialogue
     ret
 
 ; ------------------------------------------------------------
@@ -6530,7 +6814,7 @@ bitmap_load_enemies:
     ld (bitmap_enemy_pool + 0 + 21), a
     ld a, (ix+21)             ; logical enemy update lane (0 or 1)
     ld (bitmap_enemy_pool + 0 + 22), a
-    ; --- upload frameCount*2 pattern groups -> VRAM #FC20 (group 33+) ---
+    ; --- upload frameCount*2 pattern groups -> VRAM #FC00 (group 32+) ---
     ld a, (ix+8)
     call bitmap_enemy_patterns_offset
     ld a, (ix+10)             ; frameCount
@@ -6546,7 +6830,7 @@ bitmap_load_enemies:
     ld b, h
     ld c, l
     pop hl
-    ld de, #FC20
+    ld de, #FC00
     call copy_to_vram_ext
     ; --- upload 16-byte colour table -> VRAM #F440 (slot 0) ---
     ld a, (ix+9)
@@ -6595,7 +6879,7 @@ bitmap_load_enemies:
     ld (bitmap_enemy_pool + 23 + 21), a
     ld a, (ix+21)             ; logical enemy update lane (0 or 1)
     ld (bitmap_enemy_pool + 23 + 22), a
-    ; --- upload frameCount*2 pattern groups -> VRAM #FCA0 (group 37+) ---
+    ; --- upload frameCount*2 pattern groups -> VRAM #FC80 (group 36+) ---
     ld a, (ix+8)
     call bitmap_enemy_patterns_offset
     ld a, (ix+10)             ; frameCount
@@ -6611,7 +6895,7 @@ bitmap_load_enemies:
     ld b, h
     ld c, l
     pop hl
-    ld de, #FCA0
+    ld de, #FC80
     call copy_to_vram_ext
     ; --- upload 16-byte colour table -> VRAM #F450 (slot 1) ---
     ld a, (ix+9)
@@ -7148,7 +7432,7 @@ bitmap_update_enemy_sat:
     xor a
 .sat_slot_0_pat:
     add a, e
-    add a, #84
+    add a, #80
     out (VDP_DATA_PORT), a    ; pattern
     xor a
     out (VDP_DATA_PORT), a    ; EC = 0
@@ -7187,7 +7471,7 @@ bitmap_update_enemy_sat:
     xor a
 .sat_slot_1_pat:
     add a, e
-    add a, #94
+    add a, #90
     out (VDP_DATA_PORT), a    ; pattern
     xor a
     out (VDP_DATA_PORT), a    ; EC = 0
@@ -7224,7 +7508,7 @@ bitmap_update_enemy_sat:
 ;   used slot's cell pattern/colour tables to its reserved VRAM groups.
 ;   Called after load_room at init and on every room-transition commit.
 ; INPUT: current_screen_index.
-; OUTPUT: bitmap_platform_count/rider/pool + VRAM pattern groups 33..33.
+; OUTPUT: bitmap_platform_count/rider/pool + VRAM pattern groups 32..32.
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY (IX saved/restored).
 ; CALLS: copy_to_vram_ext, bitmap_platform_patterns_offset, bitmap_platform_colors_offset.
 ; ------------------------------------------------------------
@@ -7259,7 +7543,7 @@ bitmap_load_platforms:
     xor a
     ld (bitmap_platform_pool + 0 + 9), a   ; movedX = 0
     ld (bitmap_platform_pool + 0 + 10), a  ; movedY = 0
-    ; --- upload widthCells pattern groups -> VRAM #FC20 (group 33+) ---
+    ; --- upload widthCells pattern groups -> VRAM #FC00 (group 32+) ---
     ld a, (ix+9)              ; patOff, in 32-byte groups
     call bitmap_platform_patterns_offset
     ld a, (ix+8)              ; widthCells
@@ -7274,7 +7558,7 @@ bitmap_load_platforms:
     ld b, h
     ld c, l
     pop hl
-    ld de, #FC20
+    ld de, #FC00
     call copy_to_vram_ext
     ; --- upload widthCells 16-byte colour tables -> VRAM #F460 ---
     ld a, (ix+10)             ; colorOff, in 16-byte blocks
@@ -7480,6 +7764,7 @@ bitmap_update_platforms:
     ld a, (ix+1)
     sub 32
     ld (player_y), a
+.plat_carry_ground:
     xor a
     ld (player_vy), a
     ld (player_vy_frac), a
@@ -7487,7 +7772,6 @@ bitmap_update_platforms:
     or #01                    ; riding counts as grounded (jump works)
     ld (player_flags), a
     ret
-
 ; HL/IX = bitmap_platform_pool + A * 11 (A = slot index).
 bitmap_platform_slot_ptr:
     ld l, a
@@ -7601,7 +7885,7 @@ bitmap_update_platform_sat:
     out (VDP_DATA_PORT), a    ; Y
     ld a, (bitmap_platform_pool + 0)
     out (VDP_DATA_PORT), a    ; X (cell 0)
-    ld a, #84
+    ld a, #80
     out (VDP_DATA_PORT), a    ; pattern
     xor a
     out (VDP_DATA_PORT), a    ; EC = 0
@@ -7628,6 +7912,7 @@ bitmap_update_platform_sat:
     ret
 
 
+
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_load
 ; ------------------------------------------------------------
@@ -7638,8 +7923,18 @@ bitmap_update_platform_sat:
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_load:
+    ; The room-load path streams banked resources (music, RLE) and leaves P2
+    ; pointing at the last one. Every table read below lives in resident bank 2,
+    ; so map it back in first: reading them through the music bank yields
+    ; garbage (0x00 -> "no boss here", 0xFF -> a bogus VDP command that hangs).
+    ; Only AF is destroyed, and nothing is live yet at this point.
+    call bitmap_room_restore_resident_banks
     xor a
     ld (boss_active), a
+    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
+    ld (boss_barrier_draw), a
+    ld (boss_barrier_pending), a
     ld a, (current_screen_index)
     ld e, a
     ld d, 0
@@ -7685,7 +7980,32 @@ bitmap_boss_load:
     ld l, (ix+9)
     ld h, (ix+10)
     ld (boss_sx), hl           ; frame 0 source X
-    call bitmap_boss_barrier_apply   ; Phase B: raise the chain around the room
+    ; ---- clean-background snapshot (once per room entry) ----
+    ; The boss repairs the background it uncovers by copying strips from the
+    ; page it is NOT drawing on. After a room flip that page still holds the
+    ; PREVIOUS room (and at boot it was never composed at all), so the trail
+    ; would be painted with the previous screen's pixels. Mirror the freshly
+    ; composed game area onto it with one HMMM. This runs only here, never per
+    ; frame, and only in rooms that actually arm a boss.
+    xor a
+    ld (boss_cmd_buf + 0), a   ; SX = 0
+    ld (boss_cmd_buf + 1), a
+    ld (boss_cmd_buf + 4), a   ; DX = 0
+    ld (boss_cmd_buf + 5), a
+    ld l, #14    ; first game row (below the HUD band)
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
+    ld (boss_cmd_buf + 2), hl  ; SY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 6), hl  ; DY = the other page, same row
+    ld hl, 256
+    ld (boss_cmd_buf + 8), hl  ; NX = full width
+    ld hl, 192
+    ld (boss_cmd_buf + 10), hl ; NY = game area height
+    call bitmap_boss_finish_hmmm
+
     call bitmap_boss_proj_config_ix
     xor a
     ld (boss_proj_active), a   ; Phase D: no projectile in flight yet
@@ -7696,7 +8016,12 @@ bitmap_boss_load:
     ld a, (ix+10)
     or a
     call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool
-    ret
+    call bitmap_boss_intro_begin
+    ; The mandatory auto-walk and subsequent Room Lock own the first frames.
+    ; Draw the stationary body once; movement/shoot/contact start only at END.
+    call bitmap_boss_table_ix
+    jp bitmap_boss_draw
+
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_update
@@ -7717,6 +8042,26 @@ bitmap_boss_update:
     ld a, (boss_active)
     or a
     ret z
+
+    ld a, (boss_intro_state)
+    or a
+    jp z, .boss_intro_finished
+    jp bitmap_boss_intro_frame
+.boss_intro_finished:
+
+    ; The chain could not seal the doorway the player entered through. Sweep
+    ; the perimeter again every 8 frames until it is clear: cells already
+    ; carrying the #80 marker cost one compare each (#80 & #BF is non-zero,
+    ; so bitmap_boss_barrier_cell returns before touching the VDP), and the
+    ; sweep stops as soon as a pass leaves nothing pending.
+    ld a, (boss_barrier_pending)
+    or a
+    jp z, .no_barrier_resweep
+    ld hl, boss_barrier_retry
+    dec (hl)
+    jp nz, .no_barrier_resweep
+    call bitmap_boss_barrier_apply   ; reseals whatever the player has left
+.no_barrier_resweep:
     call bitmap_boss_table_ix  ; IX -> room table (preserves state regs)
     ; VDP load balancing (enemy-style): the body only moves/redraws every
     ; (ix+19) frames (default 3); the projectile blits run on the OTHER frames,
@@ -7833,6 +8178,9 @@ bitmap_boss_off_frame:
 ; DESTROYS: AF, DE, HL (IX result).
 ; ------------------------------------------------------------
 bitmap_boss_table_ix:
+    ; Keep the live-body lookup self-contained. This routine is used while a
+    ; room is loading and before the death runtime exists; sharing the bullet
+    ; helper here made the normal Boss-spawn path depend on a later subsystem.
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -7876,10 +8224,13 @@ bitmap_boss_restore_strips:
     ld a, (boss_old_y)
     add a, #14
     ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl  ; DY = page 0
-    inc h                      ; +256 = page 1
-    ld (boss_cmd_buf + 2), hl  ; SY
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl  ; SY = clean page
     ld hl, 4
     ld (boss_cmd_buf + 8), hl  ; NX = 4 px
     ld l, (ix+14)
@@ -7899,10 +8250,13 @@ bitmap_boss_restore_strips:
 .strip_top:
     add a, #14
     ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl  ; DY page 0
-    inc h
-    ld (boss_cmd_buf + 2), hl  ; SY page 1
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld a, h
+    xor 1
+    ld h, a
+    ld (boss_cmd_buf + 2), hl  ; SY = clean page
     ld a, (boss_old_x)
     and #FE
     ld (boss_cmd_buf + 0), a
@@ -7938,8 +8292,9 @@ bitmap_boss_draw:
     ld a, (boss_y)
     add a, #14
     ld l, a
-    ld h, 0
-    ld (boss_cmd_buf + 6), hl  ; DY page 0
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
     ld l, (ix+13)
     ld h, 0
     ld (boss_cmd_buf + 8), hl  ; NX = width
@@ -8076,8 +8431,8 @@ bitmap_boss_touch:
 ; ------------------------------------------------------------
 bitmap_boss_bullet_hit:
     ld a, (boss_active)
-    or a
-    ret z
+    cp 1
+    ret nz                     ; absent or already playing death FX
     push bc
     ; bullet point (center-ish: +8,+8 of its 16x16 sprite) inside boss rect?
     ld a, (ix+1)               ; bullet x
@@ -8256,15 +8611,49 @@ bitmap_boss_table_ix_shadow:
     ret
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_death_sfx_start
+; PURPOSE: Play the compact built-in MSX2 PSG explosion on channel C.
+; INPUT: none. OUTPUT: hardware envelope triggered once.
+; DESTROYS: AF, BC, HL. PRESERVES: DE, IX, IY.
+; SIDE EFFECTS: Writes PSG R6/R10-R13/R7 and psg_sfx_r7_c_bits.
+bitmap_boss_death_sfx_start:
+    ld hl, bitmap_boss_death_sfx_default_pairs
+    ld b, 6
+.boss_dfx_default_pair:
+    ld a, (hl)
+    out (#A0), a
+    inc hl
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    djnz .boss_dfx_default_pair
+    ; The final pair leaves A=#1F. Music masks this shadow with #24, yielding
+    ; the intended channel-C state: tone off, noise on.
+    ld (psg_sfx_r7_c_bits), a
+    ret
+
 ; FUNCTION: bitmap_boss_kill
 ; ------------------------------------------------------------
-; PURPOSE: Death sequence: erase the body with one full-rect page1 -> page0
-;   HMMM at the current position and set the persistent defeated flag.
-; DESTROYS: AF, DE, HL (BC preserved by callers that need it).
+; PURPOSE: Stop active projectiles and start the configured bitmap-explosion
+;   presentation. With no valid stamps in this room, finalizes immediately.
+; INPUT: Boss HP reached zero. OUTPUT: boss_active = 2 while death FX run, or
+;   0 after immediate finalization.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX.
 ; ------------------------------------------------------------
 bitmap_boss_kill:
+    ; Retire any bullet still in flight and push the hidden SAT entries out NOW:
+    ; the normal SAT writer no longer advances during the death presentation.
+    xor a
+    ld (boss_sbul_pool + 0), a
+    ld (boss_sbul_pool + 9), a
+    push ix
+    call bitmap_boss_sbul_sat
+    pop ix
+    call bitmap_boss_death_sfx_start  ; immediate visual defeat still has the default/selected sound
     xor a
     ld (boss_active), a
+    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
     ld a, (current_screen_index)
     ld e, a
     ld d, 0
@@ -8286,10 +8675,12 @@ bitmap_boss_kill:
     ld a, (boss_y)
     add a, #14
     ld e, a
-    ld d, 0
-    ld (boss_cmd_buf + 6), de  ; DY page 0
-    inc d
-    ld (boss_cmd_buf + 2), de  ; SY page 1
+    ld a, (bitmap_displayed_page)
+    ld d, a
+    ld (boss_cmd_buf + 6), de  ; DY = visible page
+    xor 1
+    ld d, a
+    ld (boss_cmd_buf + 2), de  ; SY = clean page
     ld a, (hl)                 ; width
     ld e, a
     ld d, 0
@@ -8356,23 +8747,222 @@ bitmap_boss_run_defeat_actions:
 
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_intro_begin
+; ------------------------------------------------------------
+; PURPOSE: Restart the current room's intro. The mandatory first state is an
+;   automatic horizontal walk to the player's body-centred screen X; authored
+;   Room Lock bytecode starts only after player physics clears that flag.
+;   Called on every room entry while alive; no persistent "intro seen" flag.
+; INPUT: current_screen_index.
+; OUTPUT: boss_intro_state=5 and boss_intro_auto_move=1.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+; ------------------------------------------------------------
+bitmap_boss_intro_begin:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_intro_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld (boss_intro_ptr), hl
+    xor a
+    ld (boss_intro_raster_y), a
+    inc a
+    ld (boss_intro_auto_move), a
+    ld a, 5
+    ld (boss_intro_state), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_intro_frame
+; ------------------------------------------------------------
+; PURPOSE: Advance one Room Lock frame. State 5 waits while normal player
+;   physics performs the mandatory auto-walk. Dispatch consumes opcodes; WAIT,
+;   DIALOGUE and CLOSE_BARRIER keep ownership until their step completes.
+; INPUT: boss_intro_state / boss_intro_ptr.
+; OUTPUT: boss intro RAM and, for barrier/dialogue steps, VRAM/dialogue state.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; CALLS: bitmap_dlg_open (when authored), bitmap_boss_barrier_cell.
+; SIDE EFFECTS: State 5 permits only forced walking + gravity; other non-zero
+;   states freeze player movement.
+; ------------------------------------------------------------
+bitmap_boss_intro_frame:
+    ld a, (boss_intro_state)
+    cp 5
+    ret z                       ; auto-walk is advanced inside player movement
+    cp 2
+    jp z, bitmap_boss_intro_wait
+    cp 4
+    jp z, bitmap_boss_intro_barrier_frame
+    ; state 1 (or a defensive unknown state) dispatches the next opcode.
+bitmap_boss_intro_dispatch:
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)
+    inc hl
+    ld (boss_intro_ptr), hl
+    or a
+    jp z, bitmap_boss_intro_end
+    cp #01
+    jp z, bitmap_boss_intro_start_barrier
+    cp #03
+    jp z, bitmap_boss_intro_start_wait
+    ; Unknown byte: fail closed by ending the intro, never walk random ROM.
+    jp bitmap_boss_intro_end
+
+bitmap_boss_intro_start_wait:
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)
+    inc hl
+    ld (boss_intro_ptr), hl
+    ld (boss_intro_counter), a
+    ld a, 2
+    ld (boss_intro_state), a
+    ret
+bitmap_boss_intro_wait:
+    ld hl, boss_intro_counter
+    dec (hl)
+    ret nz
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+bitmap_boss_intro_start_barrier:
+    call bitmap_boss_barrier_begin_apply
+    or a
+    jp z, bitmap_boss_intro_skip_argument
+    xor a
+    ld (boss_intro_raster_y), a
+    ld hl, (boss_intro_ptr)
+    ld a, (hl)
+    cp #FF
+    jp z, bitmap_boss_intro_barrier_instant
+    ld a, 4
+    ld (boss_intro_state), a
+    ret
+bitmap_boss_intro_barrier_instant:
+    call bitmap_boss_barrier_walk_cells
+    jp bitmap_boss_intro_barrier_done
+bitmap_boss_intro_skip_argument:
+    ld hl, (boss_intro_ptr)
+    inc hl
+    ld (boss_intro_ptr), hl
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+bitmap_boss_intro_barrier_frame:
+    ld hl, (boss_intro_ptr)    ; CLOSE_BARRIER argument stays live until done
+    ld a, (hl)
+    ld (boss_intro_counter), a ; horizontal pixel lines this frame
+.intro_barrier_loop:
+    ld a, (boss_intro_raster_y)
+    cp 192
+    jp nc, bitmap_boss_intro_barrier_done
+    call bitmap_boss_barrier_raster_line
+    ld hl, boss_intro_raster_y
+    inc (hl)
+    ld hl, boss_intro_counter
+    dec (hl)
+    jp nz, .intro_barrier_loop
+    ret
+bitmap_boss_intro_barrier_done:
+    ld hl, (boss_intro_ptr)
+    inc hl                     ; consume linesPerFrame
+    ld (boss_intro_ptr), hl
+    ld a, 1
+    ld (boss_intro_state), a
+    ret
+
+bitmap_boss_intro_end:
+    xor a
+    ld (boss_intro_state), a
+    ld (boss_intro_auto_move), a
+    ret
+
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_redraw_after_dialogue
+; ------------------------------------------------------------
+; PURPOSE: Dialogue close replays the clean room, which erases dynamic bitmap
+;   overlays. Repaint the live boss and a chain that has already been raised.
+; INPUT: boss runtime state. OUTPUT: boss/chain restored on displayed page.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_boss_redraw_after_dialogue:
+    ld a, (boss_active)
+    or a
+    ret z
+    push ix
+    ld a, (boss_barrier_draw)
+    cp 1
+    call z, bitmap_boss_barrier_redraw
+    call bitmap_boss_table_ix
+    call bitmap_boss_draw
+    pop ix
+    ret
+
+; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_barrier_apply / bitmap_boss_barrier_remove
 ; ------------------------------------------------------------
 ; PURPOSE: Raise (apply) or drop (remove) the chain barrier around the whole
 ;   room perimeter (row 0, row 11, col 0, col 15). apply paints the chain tile
 ;   and marks the cells solid; remove restores the clean room from page 1 and
 ;   clears the collision. A room with no barrier tile is a no-op (present=0).
+; A cell the player is standing on is NEVER sealed (that is the doorway they
+;   just walked in through): it is left open, boss_barrier_pending is set, and
+;   bitmap_boss_update re-runs apply until the player has moved off it.
 ; INPUT: current_screen_index. OUTPUT: bitmap_room_collision_map + VRAM page 0.
 ; DESTROYS: AF, BC, DE, HL. Preserves IX (runs inside the boss_kill contract).
 ; ------------------------------------------------------------
 bitmap_boss_barrier_apply:
+    call bitmap_boss_barrier_begin_apply
+    ret z
+    jp bitmap_boss_barrier_walk_cells
+
+; Prepare an apply pass and cache the current room's atlas source.
+; OUTPUT: A=1/NZ when a barrier is present, A=0/Z otherwise.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_barrier_begin_apply:
+    xor a
+    ld (boss_barrier_pending), a   ; this sweep decides what is left open
+    ld (boss_barrier_draw), a
+    call bitmap_boss_barrier_load_source
+    ret z
     ld a, 1
     ld (boss_barrier_draw), a
-    jr bitmap_boss_barrier_walk
+    ld a, 8
+    ld (boss_barrier_retry), a     ; frames until the next sweep, if needed
+    ld a, 1
+    ret
+
+; Repaint only cells already marked #80 after dialogue restored the clean room.
+; This deliberately does not seal new cells or change collision.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+bitmap_boss_barrier_redraw:
+    call bitmap_boss_barrier_load_source
+    ret z
+    ld a, 2
+    ld (boss_barrier_draw), a
+    call bitmap_boss_barrier_walk_cells
+    ld a, 1
+    ld (boss_barrier_draw), a
+    ret
 bitmap_boss_barrier_remove:
     xor a
     ld (boss_barrier_draw), a
 bitmap_boss_barrier_walk:
+    call bitmap_boss_barrier_load_source
+    ret z
+    jp bitmap_boss_barrier_walk_cells
+
+; Load this room's barrier source coordinates from the per-room table.
+; OUTPUT: A=1/NZ when present, A=0/Z when absent.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_barrier_load_source:
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -8398,6 +8988,10 @@ bitmap_boss_barrier_walk:
     inc hl
     ld a, (hl)
     ld (boss_barrier_sy + 1), a
+    ld a, 1
+    ret
+
+bitmap_boss_barrier_walk_cells:
     ld c, 0                    ; top row
     call bitmap_boss_barrier_row
     ld c, 11                   ; bottom row
@@ -8406,6 +9000,44 @@ bitmap_boss_barrier_walk:
     call bitmap_boss_barrier_col
     ld b, 15                   ; right column
     jp bitmap_boss_barrier_col
+
+; Paint one horizontal pixel line while keeping the barrier on the perimeter.
+; Pixel lines 0..15 and 176..191 visit all 16 columns; the lines in between
+; visit only the left/right edge. Collision is committed by the scanline-cell
+; helper when the 16th and final source line of that cell has been drawn.
+; INPUT: boss_intro_raster_y (0..191).
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+bitmap_boss_barrier_raster_line:
+    ld a, (boss_intro_raster_y)
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    ld c, a                    ; collision-map row = raster Y / 16
+    ld a, c
+    or a
+    jp z, bitmap_boss_barrier_scanline_full
+    cp 11
+    jp z, bitmap_boss_barrier_scanline_full
+    ld b, 0
+    push bc
+    call bitmap_boss_barrier_scanline_cell
+    pop bc
+    ld b, 15
+    jp bitmap_boss_barrier_scanline_cell
+
+bitmap_boss_barrier_scanline_full:
+    ld b, 0
+.scanline_col_loop:
+    push bc
+    call bitmap_boss_barrier_scanline_cell
+    pop bc
+    inc b
+    ld a, b
+    cp 16
+    jr c, .scanline_col_loop
+    ret
 
 ; Iterate one horizontal edge (C = fixed row, cols 0..15).
 bitmap_boss_barrier_row:
@@ -8433,12 +9065,96 @@ bitmap_boss_barrier_col:
     jr c, .col_loop
     ret
 
+; Reveal a 16x16 barrier cell one horizontal source line at a time.
+; INPUT: B = col 0..15, C = collision row 0..11, boss_intro_raster_y.
+; OUTPUT: on local source line 15, an empty cell becomes solid marker #80.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+bitmap_boss_barrier_scanline_cell:
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    add a, b
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de                 ; HL -> collision cell
+    ld a, (hl)
+    and #BF
+    ret nz                     ; existing wall/floor: never paint over it
+
+    ; Keep the same safety contract as the full-cell apply path.
+    push bc
+    ld a, b
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld d, a
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    call bitmap_player_overlaps_16
+    pop bc
+    or a
+    jp z, .scanline_cell_clear
+    ld a, 1
+    ld (boss_barrier_pending), a
+    ret
+
+.scanline_cell_clear:
+    ld a, (boss_intro_raster_y)
+    and #0F
+    cp 15
+    jr nz, .scanline_cell_source
+    ld a, #80
+    ld (hl), a                 ; collision becomes solid with the final line
+
+.scanline_cell_source:
+    ld hl, (boss_barrier_sx)
+    ld (boss_cmd_buf + 0), hl
+    ld hl, (boss_barrier_sy)
+    ld a, (boss_intro_raster_y)
+    and #0F
+    ld e, a
+    ld d, 0
+    add hl, de                 ; SY = tile source + local line 0..15
+    ld (boss_cmd_buf + 2), hl
+
+    ld a, b
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld (boss_cmd_buf + 4), a   ; DX = col * 16
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ld a, (boss_intro_raster_y)
+    add a, #14
+    ld l, a
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
+    ld (boss_cmd_buf + 6), hl  ; DY = descending absolute raster line
+    ld hl, 16
+    ld (boss_cmd_buf + 8), hl  ; NX = 16
+    ld hl, 1
+    ld (boss_cmd_buf + 10), hl ; NY = 1
+    push bc
+    call bitmap_boss_finish_hmmm
+    pop bc
+    ret
+
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_barrier_cell
 ; ------------------------------------------------------------
 ; PURPOSE: Apply/clear one 16x16 perimeter cell (B = col 0..15, C = row 0..11):
 ;   write the collision map and blit the chain tile (apply) or restore the
-;   clean room from page 1 (clear). Mode = boss_barrier_draw.
+;   clean room from page 1 (clear). Mode = boss_barrier_draw. On apply, a cell
+;   the player overlaps is skipped and boss_barrier_pending is raised instead.
 ; DESTROYS: AF, DE, HL (BC preserved for the caller loop). Preserves IX.
 ; ------------------------------------------------------------
 bitmap_boss_barrier_cell:
@@ -8462,11 +9178,45 @@ bitmap_boss_barrier_cell:
     ld a, (boss_barrier_draw)
     or a
     jr z, .cell_unseal
+    cp 2
+    jr z, .cell_redraw
     ld a, (hl)                 ; apply: act only on empty cells
     and #BF                    ; drop Deadly bit; Z => passable (empty)
     ret nz                     ; occupied cell -> leave tile fully untouched
+    ; The player walks in THROUGH the perimeter, so on room entry they are
+    ; standing on one of these cells. Sealing it would bury them inside a
+    ; solid tile with no way out, so leave that opening alone and flag it;
+    ; bitmap_boss_update sweeps again until they have stepped clear.
+    ; bitmap_player_overlaps_16 takes D/E = cell top-left and clobbers B,
+    ; which is the caller's column counter. HL (the collision cell) survives.
+    push bc
+    ld a, b
+    add a, a
+    add a, a
+    add a, a
+    add a, a                   ; D = col * 16
+    ld d, a
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a                   ; E = row * 16
+    ld e, a
+    call bitmap_player_overlaps_16
+    pop bc
+    or a
+    jp z, .cell_seal           ; player is elsewhere -> seal normally
+    ld a, 1
+    ld (boss_barrier_pending), a
+    ret                        ; keep this opening until they move off
+.cell_seal:
     ld a, #80
     ld (hl), a                 ; mark as sealed opening
+    jr .cell_vdp
+.cell_redraw:
+    ld a, (hl)
+    cp #80
+    ret nz                     ; repaint only cells owned by this barrier
     jr .cell_vdp
 .cell_unseal:
     ld a, (hl)                 ; remove: act only on our own markers
@@ -8500,7 +9250,9 @@ bitmap_boss_barrier_cell:
     add a, a                   ; C*16 = rowPix
     add a, #14
     ld l, a
-    ld h, 1                    ; page 1
+    ld a, (bitmap_displayed_page)
+    xor 1
+    ld h, a                    ; H = the other (clean) page
     ld (boss_cmd_buf + 2), hl
 .cell_dest:
     ld a, b                    ; DX = colPix
@@ -8511,14 +9263,15 @@ bitmap_boss_barrier_cell:
     ld (boss_cmd_buf + 4), a
     xor a
     ld (boss_cmd_buf + 5), a
-    ld a, c                    ; DY = rowPix + gameY, page 0
+    ld a, c                    ; DY = rowPix + gameY, visible page
     add a, a
     add a, a
     add a, a
     add a, a
     add a, #14
     ld l, a
-    ld h, 0
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
     ld (boss_cmd_buf + 6), hl
     ld hl, 16                  ; NX = NY = 16
     ld (boss_cmd_buf + 8), hl
@@ -8770,7 +9523,8 @@ bitmap_boss_proj_restore:
     ld a, (boss_proj_oy)
     add a, #14
     ld l, a
-    ld h, 0                    ; page 0 dest
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
     ld (boss_cmd_buf + 6), hl
     ld l, (ix+5)
     ld h, 0
@@ -8790,7 +9544,8 @@ bitmap_boss_proj_save:
     ld a, (boss_proj_y)
     add a, #14
     ld l, a
-    ld h, 0                    ; page 0 source
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
     ld (boss_cmd_buf + 2), hl
     xor a
     ld (boss_cmd_buf + 4), a   ; DX = 0
@@ -8820,7 +9575,8 @@ bitmap_boss_proj_draw:
     ld a, (boss_proj_y)
     add a, #14
     ld l, a
-    ld h, 0
+    ld a, (bitmap_displayed_page)
+    ld h, a                    ; H = visible page
     ld (boss_cmd_buf + 6), hl
     ld l, (ix+5)
     ld h, 0
@@ -8931,8 +9687,10 @@ bitmap_boss_hurt_player:
 ; the enemy one and only overwrites the first 2 slot(s) -- it must NOT emit a
 ; terminator, or the sprites of every later system would stop being scanned.
 ;
-; Pool entry (5 bytes): active, x, y, dx, dy.  Pattern: 16x16 with an 8x8 blob
-; centred, so the bullet looks small without touching R#1 or any VRAM config.
+; Pool entry (9 bytes): active, x, y, dx, dy, then the 8.8 fractions of
+; each (see boss_sbul_pool).
+; The selected sprite contributes 1 pattern frame(s); the fallback is a
+; 16x16 pattern with an 8x8 blob centred.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_update:
     ; advance every live bullet, then fire a new one when the cooldown elapses
@@ -8945,7 +9703,7 @@ bitmap_boss_sbul_update:
     call nz, bitmap_boss_sbul_step
     pop bc
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .sb_slot_loop
@@ -8960,17 +9718,32 @@ bitmap_boss_sbul_update:
     ld (boss_proj_cd), a
     jp bitmap_boss_sbul_spawn
 
-; Move one bullet (IY -> slot). Despawns off-screen or on a solid tile.
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_sbul_step
+; ------------------------------------------------------------
+; PURPOSE: Advance one bullet's animation and 8.8 position; despawn it
+;   off-screen, on a solid tile, or after damaging the player.
+; INPUT: IY -> bullet slot, IX -> projectile config.
+; OUTPUT: updated slot; active may become 0.
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; ------------------------------------------------------------
 bitmap_boss_sbul_step:
+    ; x += dx as 8.8 fixed point: the fraction carries into the whole pixel.
+    ld a, (iy+5)
+    add a, (iy+7)
+    ld (iy+5), a
     ld a, (iy+1)
-    add a, (iy+3)
+    adc a, (iy+3)
     ld (iy+1), a
     cp 248
     jr nc, .sb_kill
     cp 4
     jr c, .sb_kill
+    ld a, (iy+6)
+    add a, (iy+8)
+    ld (iy+6), a
     ld a, (iy+2)
-    add a, (iy+4)
+    adc a, (iy+4)
     ld (iy+2), a
     cp 180
     jr nc, .sb_kill
@@ -9050,7 +9823,7 @@ bitmap_boss_sbul_spawn:
     or a
     jr z, .sb_found
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .sb_find
@@ -9115,6 +9888,11 @@ bitmap_boss_sbul_spawn:
     ld a, (boss_phase_speed)
     ld (iy+4), a
 .sb_arm:
+    xor a
+    ld (iy+5), a               ; whole-pixel bullet: no fractional part
+    ld (iy+6), a
+    ld (iy+7), a
+    ld (iy+8), a
     ld a, 1
     ld (iy+0), a
     ret
@@ -9122,7 +9900,8 @@ bitmap_boss_sbul_spawn:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_sat
 ; ------------------------------------------------------------
-; PURPOSE: Stream the bullet SAT entries over the (unused) enemy slots. Runs
+; PURPOSE: Refresh animated line colours, then stream the bullet SAT entries
+;   over the (unused) enemy slots. Runs
 ;   AFTER bitmap_update_enemy_sat. Writes exactly 2 slot(s) and NO terminator,
 ;   so every system allocated after the enemies keeps rendering.
 ; DESTROYS: AF, BC, DE, HL, IY.
@@ -9165,15 +9944,16 @@ bitmap_boss_sbul_sat:
     out (VDP_DATA_PORT), a
     jr .sb_sat_next
 .sb_sat_hidden:
-    ld a, 216                  ; park unused bullets off-screen
-    out (VDP_DATA_PORT), a
+    ld a, #D4                  ; park unused bullets off-screen, NOT #D8:
+    out (VDP_DATA_PORT), a     ; Y=216 is the sprite-mode-2 SAT terminator and
+                               ; would hide the platform/player-bullet slots
     xor a
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
     out (VDP_DATA_PORT), a
 .sb_sat_next:
     push bc
-    ld bc, 5
+    ld bc, BOSS_SBUL_SLOT
     add iy, bc
     pop bc
     djnz .sb_sat_slot
@@ -9185,14 +9965,14 @@ bitmap_boss_sbul_sat:
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_sbul_load
 ; ------------------------------------------------------------
-; PURPOSE: Upload the bullet pattern + line colours and clear the pool. Called
+; PURPOSE: Upload all bullet animation patterns + line colours and clear the pool. Called
 ;   from bitmap_boss_load once the boss is armed.
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_boss_sbul_load:
     xor a
     ld (boss_sbul_pool + 0), a
-    ld (boss_sbul_pool + 5), a
+    ld (boss_sbul_pool + 9), a
     ld hl, bitmap_boss_sbul_pattern
     ld de, #FC20
     ld bc, 32
@@ -9219,6 +9999,11 @@ bitmap_boss_sbul_load:
 ; ------------------------------------------------------------
 draw_bitmap_end_screen:
     ; 1. Clear the visible page (Y 0..191) to colour 1 (black).
+    ; Preserve the caller's message pointer: the VDP command launcher advances
+    ; HL while uploading the clear command, so without this save the routine
+    ; would read the message from the command buffer and leave a blank screen
+    ; while bitmap_end_wait_key waits forever.
+    push hl
     ld a, (bitmap_displayed_page)
     ld (bitmap_end_target_page), a
     ld hl, bitmap_end_fill_cmd
@@ -9229,6 +10014,7 @@ draw_bitmap_end_screen:
     ld (bitmap_end_fill_cmd + 7), a
 .end_fill_page0:
     call bitmap_end_launch_cmd
+    pop hl
     ; 2. Read the message and stamp each glyph.
     ld b, (hl)               ; B = char count
     inc hl
@@ -9349,7 +10135,9 @@ bitmap_end_launch_cmd:
 ; PURPOSE: poll PPI keyboard row 8 until SPACE (bit 0) is pressed.
 ; ------------------------------------------------------------
 bitmap_end_wait_key:
-    call bitmap_wait_vblank
+    ; Do not gate the terminal input on the VDP frame flag.  Some MSX2 BIOS/VDP
+    ; combinations leave S#0 without bit 7 while the command engine is idle;
+    ; the End screen must still be dismissible in that state.
     in a, (PPI_C)
     and #F0
     or 8
@@ -9358,6 +10146,16 @@ bitmap_end_wait_key:
     cpl
     bit 0, a
     jp z, bitmap_end_wait_key
+    ret
+
+bitmap_end_wait_frames:
+    ; B = frame count. Keep the same bounded VDP polling fallback used by the
+    ; gameplay loop, but do not require a keyboard event when waitForKey=false.
+.end_wait_frames_loop:
+    push bc
+    call bitmap_wait_vblank
+    pop bc
+    djnz .end_wait_frames_loop
     ret
 
 bitmap_end_target_page:   DB 0
@@ -9401,108 +10199,7 @@ bitmap_room_hud_linked_data:
 
 bitmap_room_hud_linked_data_end:
 
-; World engine dispatch tables (indexed by room/screen index).
-bitmap_room_render_ptr_table_p0:
-    DW bitmap_room_render_0_p0
-    DW bitmap_room_render_1_p0
-    DW bitmap_room_render_2_p0
-    DW bitmap_room_render_3_p0
-    DW bitmap_room_render_4_p0
-    DW bitmap_room_render_5_p0
-    DW bitmap_room_render_6_p0
-    DW bitmap_room_render_7_p0
-    DW bitmap_room_render_8_p0
-    DW bitmap_room_render_9_p0
-    DW bitmap_room_render_10_p0
-    DW bitmap_room_render_11_p0
-    DW bitmap_room_render_12_p0
-bitmap_room_render_ptr_table_p1:
-    DW bitmap_room_render_0_p1
-    DW bitmap_room_render_1_p1
-    DW bitmap_room_render_2_p1
-    DW bitmap_room_render_3_p1
-    DW bitmap_room_render_4_p1
-    DW bitmap_room_render_5_p1
-    DW bitmap_room_render_6_p1
-    DW bitmap_room_render_7_p1
-    DW bitmap_room_render_8_p1
-    DW bitmap_room_render_9_p1
-    DW bitmap_room_render_10_p1
-    DW bitmap_room_render_11_p1
-    DW bitmap_room_render_12_p1
-
-; Konami data bank for each page 0 room render program
-bitmap_room_render_bank_table_p0:
-    DB bitmap_room_render_0_p0_DATA_BANK,bitmap_room_render_1_p0_DATA_BANK,bitmap_room_render_2_p0_DATA_BANK,bitmap_room_render_3_p0_DATA_BANK,bitmap_room_render_4_p0_DATA_BANK,bitmap_room_render_5_p0_DATA_BANK,bitmap_room_render_6_p0_DATA_BANK,bitmap_room_render_7_p0_DATA_BANK,bitmap_room_render_8_p0_DATA_BANK,bitmap_room_render_9_p0_DATA_BANK,bitmap_room_render_10_p0_DATA_BANK,bitmap_room_render_11_p0_DATA_BANK,bitmap_room_render_12_p0_DATA_BANK
-; Konami data bank for each page 1 room render program
-bitmap_room_render_bank_table_p1:
-    DB bitmap_room_render_0_p1_DATA_BANK,bitmap_room_render_1_p1_DATA_BANK,bitmap_room_render_2_p1_DATA_BANK,bitmap_room_render_3_p1_DATA_BANK,bitmap_room_render_4_p1_DATA_BANK,bitmap_room_render_5_p1_DATA_BANK,bitmap_room_render_6_p1_DATA_BANK,bitmap_room_render_7_p1_DATA_BANK,bitmap_room_render_8_p1_DATA_BANK,bitmap_room_render_9_p1_DATA_BANK,bitmap_room_render_10_p1_DATA_BANK,bitmap_room_render_11_p1_DATA_BANK,bitmap_room_render_12_p1_DATA_BANK
-
-bitmap_room_blockcount_table:
-    DW 88
-    DW 44
-    DW 49
-    DW 60
-    DW 63
-    DW 47
-    DW 62
-    DW 90
-    DW 60
-    DW 58
-    DW 56
-    DW 60
-    DW 54
-
-bitmap_room_collision_ptr_table:
-    DW bitmap_room_collision_0
-    DW bitmap_room_collision_1
-    DW bitmap_room_collision_2
-    DW bitmap_room_collision_3
-    DW bitmap_room_collision_4
-    DW bitmap_room_collision_5
-    DW bitmap_room_collision_6
-    DW bitmap_room_collision_7
-    DW bitmap_room_collision_8
-    DW bitmap_room_collision_9
-    DW bitmap_room_collision_10
-    DW bitmap_room_collision_11
-    DW bitmap_room_collision_12
-
-; Konami data bank for each room collision grid
-bitmap_room_collision_bank_table:
-    DB bitmap_room_collision_0_DATA_BANK,bitmap_room_collision_1_DATA_BANK,bitmap_room_collision_2_DATA_BANK,bitmap_room_collision_3_DATA_BANK,bitmap_room_collision_4_DATA_BANK,bitmap_room_collision_5_DATA_BANK,bitmap_room_collision_6_DATA_BANK,bitmap_room_collision_7_DATA_BANK,bitmap_room_collision_8_DATA_BANK,bitmap_room_collision_9_DATA_BANK,bitmap_room_collision_10_DATA_BANK,bitmap_room_collision_11_DATA_BANK,bitmap_room_collision_12_DATA_BANK
-
-bitmap_room_behavior_ptr_table:
-    DW bitmap_room_behavior_0
-    DW bitmap_room_behavior_1
-    DW bitmap_room_behavior_2
-    DW bitmap_room_behavior_3
-    DW bitmap_room_behavior_4
-    DW bitmap_room_behavior_5
-    DW bitmap_room_behavior_6
-    DW bitmap_room_behavior_7
-    DW bitmap_room_behavior_8
-    DW bitmap_room_behavior_9
-    DW bitmap_room_behavior_10
-    DW bitmap_room_behavior_11
-    DW bitmap_room_behavior_12
-
-; Konami data bank for each room behavior grid
-bitmap_room_behavior_bank_table:
-    DB bitmap_room_behavior_0_DATA_BANK,bitmap_room_behavior_1_DATA_BANK,bitmap_room_behavior_2_DATA_BANK,bitmap_room_behavior_3_DATA_BANK,bitmap_room_behavior_4_DATA_BANK,bitmap_room_behavior_5_DATA_BANK,bitmap_room_behavior_6_DATA_BANK,bitmap_room_behavior_7_DATA_BANK,bitmap_room_behavior_8_DATA_BANK,bitmap_room_behavior_9_DATA_BANK,bitmap_room_behavior_10_DATA_BANK,bitmap_room_behavior_11_DATA_BANK,bitmap_room_behavior_12_DATA_BANK
-
-; Edge rails per room: west,east,north,south (#FF = none)
-bitmap_room_transition_table:
-    DB #FF,#01,#FF,#05,#00,#02,#FF,#06,#01,#03,#FF,#07,#02,#08,#FF,#04
-    DB #07,#0A,#03,#FF,#FF,#06,#00,#FF,#05,#07,#01,#FF,#06,#04,#02,#FF
-    DB #03,#09,#FF,#FF,#08,#0B,#FF,#FF,#04,#FF,#FF,#FF,#09,#0C,#FF,#FF
-    DB #0B,#FF,#FF,#FF
-
-bitmap_room_spawn_x_table:
-    DB 32,147,0,0,0,0,0,0,0,0,0,0,0
-bitmap_room_spawn_y_table:
-    DB 128,146,216,216,216,216,216,216,216,216,216,216,216
-
+; Room dispatch tables are emitted in the resident window above.
 ; Room 0 key pickup records: x,y,keyMask,pickupFlagOffset
 bitmap_key_pickups_room_0:
     DB #20,#60,#01,#00
@@ -10049,9 +10746,9 @@ bitmap_room_enemy_table_1:
     DB #00,#00,#01,#00,#00,#00,#00,#00,#00,#10,#10,#01,#00
 ; Room 2 enemies: count + 2 slot(s) x 22 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane)
 bitmap_room_enemy_table_2:
-    DB #02,#30,#A0,#01,#00,#30,#64,#A0,#A0,#00,#00,#02,#08,#00,#00,#00
+    DB #02,#30,#A0,#01,#00,#30,#64,#A0,#A0,#00,#00,#02,#04,#00,#00,#00
     DB #01,#01,#01,#0E,#0E,#02,#00,#30,#A0,#01,#00,#30,#64,#A0,#A0,#04
-    DB #02,#02,#08,#00,#00,#00,#01,#01,#01,#0E,#0E,#02,#00
+    DB #02,#02,#04,#00,#00,#00,#01,#01,#01,#0E,#0E,#02,#00
 ; Room 3 enemies: count + 2 slot(s) x 22 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane)
 bitmap_room_enemy_table_3:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00
@@ -10069,9 +10766,9 @@ bitmap_room_enemy_table_5:
     DB #00,#00,#01,#00,#00,#00,#00,#00,#00,#10,#10,#01,#00
 ; Room 6 enemies: count + 2 slot(s) x 22 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane)
 bitmap_room_enemy_table_6:
-    DB #02,#50,#20,#01,#00,#00,#F0,#20,#20,#00,#00,#02,#08,#00,#00,#00
+    DB #02,#50,#20,#01,#00,#00,#F0,#20,#20,#00,#00,#02,#04,#00,#00,#00
     DB #01,#01,#01,#0E,#0E,#02,#00,#50,#20,#01,#00,#00,#F0,#20,#20,#04
-    DB #02,#02,#08,#00,#00,#00,#01,#01,#01,#0E,#0E,#02,#00
+    DB #02,#02,#04,#00,#00,#00,#01,#01,#01,#0E,#0E,#02,#00
 ; Room 7 enemies: count + 2 slot(s) x 22 (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane)
 bitmap_room_enemy_table_7:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00
@@ -10199,9 +10896,10 @@ bitmap_room_platform_ptr_table:
 bitmap_platform_sprite_patterns:
     DB #FF,#FF,#92,#FF,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #FF,#FF,#49,#FF,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-; Platform sprites: 16-byte line colour tables per cell (frame 0 only)
+; Platform sprites: authored 16-byte line colour tables per cell (frame 0 only)
 bitmap_platform_sprite_colors:
     DB #09,#09,#09,#09,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#0F
+
 
 
 ; ---- bitmap BOSS per-room tables (stride 20) ----
@@ -10210,7 +10908,7 @@ bitmap_platform_sprite_colors:
 bitmap_boss_room_0:
     db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
 bitmap_boss_room_1:
-    db #01, #40, #20, #01, #00, #10, #A0, #20, #20, #00, #00, #70, #02, #40, #40, #01, #0C, #05, #01, #03
+    db #01, #40, #20, #01, #00, #10, #A0, #00, #68, #00, #00, #70, #02, #40, #40, #01, #0C, #05, #01, #03
 bitmap_boss_room_2:
     db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
 bitmap_boss_room_3:
@@ -10331,6 +11029,45 @@ bitmap_boss_barrier_ptr_table:
     dw bitmap_boss_barrier_room_10
     dw bitmap_boss_barrier_room_11
     dw bitmap_boss_barrier_room_12
+
+; ---- boss Room Lock bytecode per room ----
+; #00 END, #01 CLOSE_BARRIER/rasterLinesPerFrame, #02 DIALOGUE/index, #03 WAIT/frames.
+; Empty rooms share one END byte; projects with many rooms do not spend one
+; duplicate byte per absent Boss merely because another room has a Room Lock.
+bitmap_boss_intro_empty:
+    db #00
+
+bitmap_boss_intro_room_1:
+    db #01, #FF, #00
+
+
+
+
+
+
+
+
+
+
+
+bitmap_boss_intro_ptr_table:
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_room_1
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+    dw bitmap_boss_intro_empty
+
+; ---- compact built-in boss explosion: PSG register/value pairs ----
+bitmap_boss_death_sfx_default_pairs:
+    db 6,#08,10,#10,11,#80,12,#00,13,#09,7,#1F
 
 ; ---- boss projectile config per room ----
 ; present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage
@@ -10460,9 +11197,9 @@ bitmap_boss_zone_ptr_table:
     dw bitmap_boss_zone_room_11
     dw bitmap_boss_zone_room_12
 
-; ---- boss sprite-bullet pattern: 16x16 sprite with an 8x8 blob CENTRED ----
-; Rows 4..11, columns 4..11 are set; everything else transparent. This keeps the
-; bullet visually small WITHOUT changing R#1 or any VRAM sprite-size config.
+; ---- boss sprite-bullet patterns: 1 x 16x16 hardware frame ----
+; The authored sprite contributes every valid frame. The fallback has one 8x8
+; centred blob, keeping it small without changing R#1 or sprite-size config.
 ; V9938 16x16 layout: quadrants TL(8) BL(8) TR(8) BR(8), 8 rows each.
 bitmap_boss_sbul_pattern:
     db #00, #00, #00, #00, #0F, #0F, #0F, #0F   ; TL: rows 0-7, cols 0-7
@@ -10473,6 +11210,7 @@ bitmap_boss_sbul_pattern:
 bitmap_boss_sbul_colors:
     db #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A
     db #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A, #0A
+
 
 ; Sprite 0 line color table (mode 2): configured player sprite "demon_destroy" + 1 state clip(s)
 bitmap_room_sprite_colors:
@@ -10494,6 +11232,7 @@ bitmap_room_sprite_colors:
     DB #4D,#4D,#4D,#0D,#0D,#0D,#0F,#0F,#0D,#0D,#0D,#0F,#0F,#0F,#0F,#0F
 
 bitmap_room_sprite_colors_end:
+
 
 ; SAT: sprite 0 active (Y/X set at runtime), sprite 1 Y=#D8 stops processing
 bitmap_room_sprite_attrs:
