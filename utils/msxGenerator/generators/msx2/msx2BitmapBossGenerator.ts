@@ -511,6 +511,14 @@ export interface BitmapBossRuntimeOptions {
   roomPoolCount?: number;
   /** RAM byte containing the active room's local pool index. */
   roomPoolIndexLabel?: string;
+  /**
+   * Music mute/resume calls, emitted only by projects that actually have a
+   * music runtime. The death presentation silences the song while the
+   * explosions play — its PSG channel would otherwise fight the music — and
+   * restores it when the sequence ends. A boss without death FX never mutes.
+   */
+  musicMuteAsm?: string;
+  musicResumeAsm?: string;
 }
 
 export interface BitmapBossSystemAsm {
@@ -1465,6 +1473,14 @@ export function buildBitmapBossSystemAsm(
   // points at the slot being serviced this frame.
   const DEATH_ANIM_SLOTS = 3;
   const DEATH_ANIM_SLOT_BYTES = 5;
+  // The death presentation mutes the music while it plays. This is deliberately
+  // stateless -- two inline calls, no flag, no routine: the resident 32KB is the
+  // scarcest resource in this backend and a real project measured 24 free bytes.
+  // The trade-off is that a song a Game Flow node had muted before the boss died
+  // comes back when the sequence ends.
+  const musicMuteAsm = String(opts.musicMuteAsm || '');
+  const musicResumeAsm = String(opts.musicResumeAsm || '');
+  const hasDeathMusicHold = hasDeathFx && !!musicMuteAsm && !!musicResumeAsm;
   const DEATH_RAM_BYTES = 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0);
   const deathSfxRamBase = deathRamBase + (hasDeathFx ? DEATH_RAM_BYTES : 0);
   const DEATH_SFX_RAM_BYTES = 4; // custom stream: active, timer, pointer word
@@ -2578,7 +2594,7 @@ ${hasDeathAnim ? `    ; Two presentations share this entry point; the room's tab
     ld a, (hl)
 .death_store_tick:
     ld (boss_death_tick), a
-${hasDeathSound ? `    call bitmap_boss_death_sfx_start
+${hasDeathSound && hasDeathLegacyVariant ? `    call bitmap_boss_death_sfx_start   ; one cadence step = one blast in this mode
 ` : ''}    jp bitmap_boss_death_draw
 
 ; FUNCTION: bitmap_boss_death_draw
@@ -2624,7 +2640,15 @@ ${hasDeathCompactAnim ? `    ; Every frame of ONE blast must land on the SAME sp
     ; testing for that costs more ROM than the redundant repaint.
     push bc                    ; bitmap_boss_draw destroys BC, and C is the frame
     push hl
-    call bitmap_boss_table_ix
+${hasDeathSound ? `    ; One explosion = one sound. A compact blast spends one cadence step per
+    ; animation frame, so only the frame that OPENS the cycle (selector =
+    ; slots-1) starts the SFX; the rest let it play on. It rides the push/pop
+    ; pair below because bitmap_boss_death_sfx_start also destroys BC and HL.
+    ld a, b
+    dec a
+    cp c
+    call z, bitmap_boss_death_sfx_start
+` : ''}    call bitmap_boss_table_ix
     call bitmap_boss_draw
     pop hl
     pop bc
@@ -3098,7 +3122,8 @@ ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i *
 ${hasDeathSound ? `    call bitmap_boss_death_sfx_start  ; no bitmap selected: still make the defeat audible
 ` : ''}    jp bitmap_boss_finalize_death
 .kill_death_fx_ready:
-    inc hl
+${hasDeathMusicHold ? `${musicMuteAsm}   ; the song stops until the last blast is gone (touches AF only, HL survives)
+` : ''}    inc hl
     ld a, (hl)                 ; total blast count
     ld (boss_death_left), a
     ld a, 1                    ; first blast on the next game frame
@@ -3133,7 +3158,8 @@ ${hasIntro ? `    xor a
 ; DESTROYS: AF, BC, DE, HL. PRESERVES: IX.
 ; ------------------------------------------------------------
 bitmap_boss_finalize_death:
-` : ''}${hasDeathSound && !hasDeathFx ? `    call bitmap_boss_death_sfx_start  ; immediate visual defeat still has the default/selected sound
+${hasDeathMusicHold ? `${musicResumeAsm}   ; sequence over: the song comes back
+` : ''}` : ''}${hasDeathSound && !hasDeathFx ? `    call bitmap_boss_death_sfx_start  ; immediate visual defeat still has the default/selected sound
 ` : ''}    xor a
     ld (boss_active), a
 ${hasIntro ? `    ld (boss_intro_state), a

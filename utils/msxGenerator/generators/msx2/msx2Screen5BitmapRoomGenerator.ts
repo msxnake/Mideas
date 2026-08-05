@@ -14351,6 +14351,26 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // (or a carryable/turret) the enemy group IS also that category's group.
   // Uploading the bullet pattern over it repainted the moving platform with the
   // bullet blob. Its independent range was allocated before optional SHOOT.
+  // Track collection is hoisted above the boss system because the boss death
+  // presentation needs to know whether a music runtime exists at all before it
+  // can be told to mute it. The SCC/PT3 blocks themselves are still built with
+  // the rest of the music section further down.
+  const sccTracks = collectSccTracks(analysis as any);
+  const externalPt3Tracks = (analysis.tracks || []).filter(
+    (track: any) => track?.playbackBackend === 'external-pt3'
+  );
+  // Dual-chip 'PSG+SCC' songs (Fase 3): the SCC half rides the SCC player and
+  // the PSG half plays through psg_music_* in lockstep. Plain 'PSG' songs join
+  // the same pipeline as dual tracks with an empty SCC half. Combined track
+  // index space: SCC-only tracks first, then dual tracks, then PSG tracks.
+  const dualChipTracks = [
+    ...collectDualChipTracks(analysis as any),
+    ...collectPsgOnlyTracks(analysis as any),
+  ];
+  const anyMusicTracks = externalPt3Tracks.length > 0 || sccTracks.length > 0 || dualChipTracks.length > 0;
+  // Same predicate the music section uses for `sccMusic`: a music runtime is
+  // emitted only for Konami SCC MegaROMs.
+  const musicRuntimeEmitted = anyMusicTracks && isKonamiMegaRom;
   const bossSystem = buildBitmapBossSystemAsm(bossData, {
     ramBase: hudLinkedRamCursor,
     projScratchBaseY: bossProjScratchSlots > 0 ? bossProjScratchBaseY : undefined,
@@ -14378,6 +14398,10 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     bankedRoomData: isKonamiMegaRom,
     roomPoolCount: multiWorld ? worldScratch.maxWorldRooms : undefined,
     roomPoolIndexLabel: multiWorld ? 'bitmap_room_pool_index' : undefined,
+    // The death presentation mutes the song while the explosions play. Only
+    // projects that actually emit the music runtime can be asked to do it.
+    musicMuteAsm: musicRuntimeEmitted ? '    call music_mute' : undefined,
+    musicResumeAsm: musicRuntimeEmitted ? '    call music_resume' : undefined,
   });
   hudLinkedRamCursor += bossSystem.ramBytes;
   // CARRY & THROW skill: SCREEN 5 ballistic object runtime. It is chained after
@@ -14790,22 +14814,9 @@ ${hasStateAnimations ? `    xor a
   // in use (the SCC chip only exists on that cartridge type). Exposes the
   // public music_* API consumed by Game Flow Music nodes; RAM sits at #C400
   // (above the destroy-tile block, far below the BIOS stack).
-  const sccTracks = collectSccTracks(analysis as any);
-  const externalPt3Tracks = (analysis.tracks || []).filter(
-    (track: any) => track?.playbackBackend === 'external-pt3'
-  );
-  // Dual-chip 'PSG+SCC' songs (Fase 3): the SCC half rides the SCC player and
-  // the PSG half plays through psg_music_* in lockstep. Plain 'PSG' songs join
-  // the same pipeline as dual tracks with an empty SCC half. Combined track
-  // index space: SCC-only tracks first, then dual tracks, then PSG tracks.
-  const dualChipTracks = [
-    ...collectDualChipTracks(analysis as any),
-    ...collectPsgOnlyTracks(analysis as any),
-  ];
   if (externalPt3Tracks.length > 0 && (sccTracks.length > 0 || dualChipTracks.length > 0)) {
     throw new Error('The SCREEN 5 bitmap route cannot mix source-faithful PT3 with native PSG/SCC tracks in one ROM. Keep the PT3 track and remove the legacy music assets.');
   }
-  const anyMusicTracks = externalPt3Tracks.length > 0 || sccTracks.length > 0 || dualChipTracks.length > 0;
   if (anyMusicTracks && !isKonamiMegaRom) {
     console.warn('⚠️ MSX2 bitmap route: music tracks present but the ROM is not a Konami SCC MegaROM; music is skipped (export as MegaROM).');
   }
