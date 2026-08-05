@@ -7831,15 +7831,31 @@ function buildGemEraseCommand(room: Msx2Screen5BitmapRoom, dx: number, dy: numbe
   ];
 }
 
-function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndices: number[] = []): BitmapGemRecord[] {
+/**
+ * Collect the 'collectible' entities that paint an atlas metatile on the room
+ * bitmap and are consumed on touch — gems and health pickups share this shape,
+ * only the param naming the tile differs. Entities carrying a keyPickupId
+ * belong to the key/shop system and are always skipped; `skipParamKey` lets a
+ * caller yield an entity to the other system when both params are authored.
+ *
+ * Flag offsets are per-world: ten worlds with ten pickups each reserve ten RAM
+ * bytes, not one hundred.
+ */
+function collectBitmapAtlasPickupRecords(
+  rooms: Msx2Screen5BitmapRoom[],
+  roomWorldIndices: number[],
+  atlasParamKey: string,
+  skipParamKey?: string,
+): BitmapGemRecord[] {
   const records: BitmapGemRecord[] = [];
-  const gemFlagsByWorld: number[] = [];
+  const flagsByWorld: number[] = [];
   for (const [roomIndex, room] of rooms.entries()) {
     const worldIndex = Math.max(0, roomWorldIndices[roomIndex] ?? 0);
     for (const entity of room.entities || []) {
       if (entity.kind !== 'collectible') continue;
       if (typeof entity.params?.keyPickupId === 'string' && entity.params.keyPickupId) continue;
-      const atlasEntryId = typeof entity.params?.gemAtlasEntryId === 'string' ? entity.params.gemAtlasEntryId : '';
+      if (skipParamKey && typeof entity.params?.[skipParamKey] === 'string' && entity.params[skipParamKey]) continue;
+      const atlasEntryId = typeof entity.params?.[atlasParamKey] === 'string' ? entity.params[atlasParamKey] : '';
       const entry = atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === atlasEntryId) : undefined;
       if (!entry) continue;
       const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
@@ -7847,9 +7863,9 @@ function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndice
       const x = cellX * TILE_GRID_SIZE;
       const y = cellY * TILE_GRID_SIZE;
       const flagOffset = roomWorldIndices.length
-        ? (gemFlagsByWorld[worldIndex] || 0)
+        ? (flagsByWorld[worldIndex] || 0)
         : records.length;
-      gemFlagsByWorld[worldIndex] = flagOffset + 1;
+      flagsByWorld[worldIndex] = flagOffset + 1;
       records.push({
         roomIndex,
         x,
@@ -7861,6 +7877,12 @@ function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndice
     }
   }
   return records;
+}
+
+function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndices: number[] = []): BitmapGemRecord[] {
+  // healAtlasEntryId wins: a tile authored to refill a heart is never eaten by
+  // the gem counter, even if the entity also carries a gem tile.
+  return collectBitmapAtlasPickupRecords(rooms, roomWorldIndices, 'gemAtlasEntryId', 'healAtlasEntryId');
 }
 
 function buildBitmapGemSystemAsm(
@@ -8231,6 +8253,392 @@ ${sfxRoutineAsm}`;
     mainLoopCall: `    call bitmap_update_gems    ; collector_gems: pickup scan + cell erase\n`,
     initialDrawCall: `    call bitmap_apply_gems_visible    ; draw uncollected gems on current page\n`,
     pendingPageDrawCall: `    call bitmap_apply_gems_pending_page    ; draw uncollected gems on hidden page before flip\n`,
+    routinesAsm,
+    dataAsm,
+  };
+}
+
+// ============================================================================
+// SCREEN 5 bitmap health pickup system.
+//
+// A health pickup is a 'collectible' entity WITHOUT a keyPickupId and WITH a
+// params.healAtlasEntryId. It behaves exactly like a gem on screen — the atlas
+// metatile is drawn over the room background on entry (skipping the ones
+// already taken) and the 16x16 cell is restored from the build-time background
+// command when taken — but instead of bumping a counter it refills ONE point
+// of player_health.
+//
+// The hearts HUD needs no hook at all: update_hud_hearts is a dirty-flag
+// redraw against player_health, so the refilled heart appears the same frame.
+// A numeric HUD counter bound to 'playerEnergy' reads the same byte.
+//
+// Authoring rules baked in here:
+//   - Heals exactly 1 point, never past the Player Config maxHealth.
+//   - At full health the pickup is LEFT ON THE FLOOR (Zelda-style) so the
+//     player can come back for it after taking damage.
+//   - One-shot: the collected flag latches for the rest of the run, like gems.
+//
+// Unlike gems this is NOT skill-gated — it is emitted only when at least one
+// pickup exists, so projects without one stay byte-identical.
+// ============================================================================
+
+function buildBitmapHealSystemAsm(
+  rooms: Msx2Screen5BitmapRoom[],
+  hitbox: BitmapPlayerHitbox,
+  ramBase: number,
+  maxHealth: number,
+  roomWorldIndices: number[] = [],
+): {
+  enabled: boolean;
+  ramBytes: number;
+  equates: string;
+  initAsm: string;
+  mainLoopCall: string;
+  initialDrawCall: string;
+  pendingPageDrawCall: string;
+  routinesAsm: string;
+  dataAsm: string;
+} {
+  const heals = collectBitmapAtlasPickupRecords(rooms, roomWorldIndices, 'healAtlasEntryId');
+  if (heals.length === 0) {
+    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+  }
+
+  const workOffsetAddress = ramBase;
+  const targetPageAddress = ramBase + 1;
+  const flagsAddress = ramBase + 2;
+  const worldCounts = new Map<number, number>();
+  for (const heal of heals) {
+    const worldIndex = roomWorldIndices.length ? (roomWorldIndices[heal.roomIndex] ?? 0) : 0;
+    worldCounts.set(worldIndex, (worldCounts.get(worldIndex) || 0) + 1);
+  }
+  const flagPoolBytes = roomWorldIndices.length
+    ? Math.max(0, ...Array.from(worldCounts.values()))
+    : heals.length;
+  const ramBytes = 2 + flagPoolBytes;
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbTop = hitbox.y;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  const maxHealthByte = `#${(maxHealth & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
+  // Record layout: x, y, flagOffset, draw HMMM (15B), erase HMMM/HMMV (15B) = 33 bytes.
+  const healTables = rooms.map((_room, roomIndex) => heals.filter(item => item.roomIndex === roomIndex));
+  const dataAsm = healTables.map((items, roomIndex) =>
+    formatBytes(`bitmap_heals_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.flagOffset, ...item.drawCommand, ...item.eraseCommand]), `Room ${roomIndex} health pickup records: x,y,flagOffset,drawCmd(15),eraseCmd(15)`)
+  ).join('') +
+    `bitmap_heal_ptr_table:\n${healTables.map((_items, i) => `    DW bitmap_heals_room_${i}`).join('\n')}\n` +
+    `bitmap_heal_count_table:\n    DB ${healTables.map(items => items.length).join(',')}\n`;
+
+  const equates = `; Health pickups (SCREEN 5 bitmap): ${heals.length} pickup(s). RAM follows the gem chain.
+bitmap_heal_work_offset EQU ${hexWord(workOffsetAddress)}
+bitmap_heal_target_page EQU ${hexWord(targetPageAddress)}
+bitmap_heal_flags       EQU ${hexWord(flagsAddress)}
+bitmap_heal_cmd_block   EQU #C2C0
+`;
+  const clearFlagBytes = Array.from({ length: flagPoolBytes }, (_unused, i) => `    ld (bitmap_heal_flags + ${i}), a`).join('\n');
+  const initAsm = `    ; Health pickups: clear per-pickup taken flags.
+    xor a
+    ld (bitmap_heal_work_offset), a
+    ld (bitmap_heal_target_page), a
+${clearFlagBytes}
+`;
+
+  const routinesAsm = `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_heal_player_overlaps_16
+; ------------------------------------------------------------
+; PURPOSE:
+;   Test the configured player body hitbox against a 16x16 pickup cell.
+;   (Own copy so the system does not depend on gems/keys being enabled.)
+;
+; INPUT:
+;   D = pickup X in pixels, E = pickup Y in pixels.
+;
+; OUTPUT:
+;   A = 1 and NZ when overlapping; A = 0 and Z when separated.
+;
+; DESTROYS: AF, B.  PRESERVES: C, DE, HL, IX, IY.
+; ------------------------------------------------------------
+bitmap_heal_player_overlaps_16:
+    ld a, (player_x)
+${addA(hbRight)}    cp d
+    jp c, .heal_overlap_no
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, (player_x)
+${addA(hbLeft)}    cp b
+    jp z, .heal_overlap_x_ok
+    jp nc, .heal_overlap_no
+.heal_overlap_x_ok:
+    ld a, (player_y)
+${addA(hbBottom)}    cp e
+    jp c, .heal_overlap_no
+    ld a, e
+    add a, 15
+    ld b, a
+    ld a, (player_y)
+${addA(hbTop)}    cp b
+    jp z, .heal_overlap_yes
+    jp nc, .heal_overlap_no
+.heal_overlap_yes:
+    ld a, 1
+    or a
+    ret
+.heal_overlap_no:
+    xor a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_heal_copy_cmd_to_block
+; ------------------------------------------------------------
+; PURPOSE:
+;   Copy one 15-byte command template to bitmap_heal_cmd_block (#C2C0, the
+;   scratch shared with HUD/key-door/gem launches — all sequential in the
+;   main loop) and patch the DY high byte for the target page.
+;
+; INPUT:
+;   HL = pointer to 15-byte command template. bitmap_heal_target_page = 0/1.
+;
+; DESTROYS: AF, B, DE, HL.  PRESERVES: C, IX, IY.
+; ------------------------------------------------------------
+bitmap_heal_copy_cmd_to_block:
+    ld de, bitmap_heal_cmd_block
+    ld b, 15
+.heal_copy_cmd_loop:
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    djnz .heal_copy_cmd_loop
+    ld a, (bitmap_heal_target_page)
+    or a
+    ret z
+    ld a, 1
+    ld (bitmap_heal_cmd_block + 7), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_heal_launch_cmd
+; ------------------------------------------------------------
+; PURPOSE:
+;   Launch the 15-byte V9938 command stored in bitmap_heal_cmd_block.
+;   Restores R#15 to S#0 (vdp_wait_cmd_ready leaves it at S#2).
+;
+; DESTROYS: AF, B, E, HL.  PRESERVES: C, D, IX, IY.
+; ------------------------------------------------------------
+bitmap_heal_launch_cmd:
+    call vdp_wait_cmd_ready
+    call vdp_reinit_cmd_pointer
+    ld hl, bitmap_heal_cmd_block
+    ld b, 15
+.heal_launch_cmd_loop:
+    ld a, (hl)
+    out (${VDP_CMD_PORT}), a
+    inc hl
+    djnz .heal_launch_cmd_loop
+    ld a, #0F
+    ld e, #00
+    jp vdp_write_register
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_heal_room_table
+; ------------------------------------------------------------
+; PURPOSE:
+;   Resolve the current room's health pickup record table.
+;
+; OUTPUT:
+;   HL = first record, B = record count. Z set (and B=0) when empty.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_heal_room_table:
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_heal_count_table
+    add hl, de
+    ld b, (hl)
+    ld a, b
+    or a
+    ret z
+    ld hl, bitmap_heal_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    ld a, b
+    or a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_heals
+; ------------------------------------------------------------
+; PURPOSE:
+;   Per-frame health pickup scan: on player overlap with an untaken pickup,
+;   refill 1 point of health (never past ${maxHealth}), mark it taken, restore the
+;   background cell on the visible page and play the pickup chime. At full
+;   health nothing is taken, so the pickup stays on the floor for later.
+;
+; INPUT:
+;   RAM state: current_screen_index, bitmap_composition_state, player_health,
+;   player_x/player_y, bitmap_heal_flags.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_update_heals:
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    ld a, (player_health)       ; full health -> leave every pickup on the floor
+    cp ${maxHealthByte}
+    ret nc
+    call bitmap_heal_room_table
+    ret z
+.heal_scan_loop:
+    push bc
+    ld a, (hl)
+    inc hl
+    ld d, a
+    ld a, (hl)
+    inc hl
+    ld e, a
+    ld a, (hl)
+    inc hl
+    ld (bitmap_heal_work_offset), a
+    push hl
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_heal_flags
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp nz, .heal_scan_next
+    call bitmap_heal_player_overlaps_16
+    or a
+    jp z, .heal_scan_next
+    ; A previous pickup this same frame may have topped the player up: re-check
+    ; before taking this one, so the last heart never eats a spare pickup.
+    ld a, (player_health)
+    cp ${maxHealthByte}
+    jp nc, .heal_scan_next
+    inc a
+    ld (player_health), a       ; hearts HUD redraws itself (hud_hearts_drawn)
+    ; Take: latch the flag so the pickup never re-triggers.
+    ld a, (bitmap_heal_work_offset)
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_heal_flags
+    add hl, bc
+    ld (hl), 1
+    ; Restore the background under the pickup on the currently displayed page.
+    pop hl
+    push hl
+    ld de, 15
+    add hl, de
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_heal_target_page), a
+    call bitmap_heal_copy_cmd_to_block
+    call bitmap_heal_launch_cmd
+    call bitmap_sfx_heal
+.heal_scan_next:
+    pop hl
+    ld de, 30
+    add hl, de
+    pop bc
+    djnz .heal_scan_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_apply_heals_visible / bitmap_apply_heals_pending_page
+; ------------------------------------------------------------
+; PURPOSE:
+;   Draw every UNTAKEN health pickup of the current room onto the visible page
+;   (boot load_room / dialogue-close repaint) or onto the pending hidden page
+;   before commit_room_flip publishes it.
+;
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; ------------------------------------------------------------
+bitmap_apply_heals_visible:
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_heal_target_page), a
+    jp bitmap_apply_heals_for_current_room
+
+bitmap_apply_heals_pending_page:
+    ld a, (bitmap_pending_display_page)
+    ld (bitmap_heal_target_page), a
+bitmap_apply_heals_for_current_room:
+    call bitmap_heal_room_table
+    ret z
+.heal_draw_loop:
+    push bc
+    inc hl
+    inc hl
+    ld a, (hl)
+    inc hl
+    push hl
+    ld l, a
+    ld h, 0
+    ld bc, bitmap_heal_flags
+    add hl, bc
+    ld a, (hl)
+    pop hl
+    or a
+    jp nz, .heal_draw_skip
+    push hl
+    call bitmap_heal_copy_cmd_to_block
+    call bitmap_heal_launch_cmd
+    pop hl
+.heal_draw_skip:
+    ld de, 30
+    add hl, de
+    pop bc
+    djnz .heal_draw_loop
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_sfx_heal
+; ------------------------------------------------------------
+; PURPOSE:
+;   Health pickup chime (fire-and-forget register writes, no per-frame
+;   engine). Same shape as the gem blip but a lower, warmer tone with a
+;   slower envelope decay, so a refilled heart never sounds like a gem.
+;   Sets BOTH envelope period bytes so repeated chimes sound identical.
+;
+; INPUT: None.  OUTPUT: None.
+; DESTROYS: AF, B, HL.  PRESERVES: C, DE, IX, IY.
+; SIDE EFFECTS: Writes PSG registers through ports #A0/#A1.
+; ------------------------------------------------------------
+bitmap_sfx_heal:
+    ld hl, bitmap_sfx_heal_data
+    ld b, 7
+.heal_sfx_loop:
+    ld a, (hl)
+    out (#A0), a
+    inc hl
+    ld a, (hl)
+    out (#A1), a
+    inc hl
+    djnz .heal_sfx_loop
+    ld a, #20               ; shadow: tone C on, noise C off (music merges it)
+    ld (psg_sfx_r7_c_bits), a
+    ret
+
+bitmap_sfx_heal_data:
+    db 7,#3B,4,#7C,5,#00,11,#90,12,#00,10,#10,13,#09
+`;
+
+  return {
+    enabled: true,
+    ramBytes,
+    equates,
+    initAsm,
+    mainLoopCall: `    call bitmap_update_heals    ; health pickups: refill 1 heart + cell erase\n`,
+    initialDrawCall: `    call bitmap_apply_heals_visible    ; draw untaken health pickups on current page\n`,
+    pendingPageDrawCall: `    call bitmap_apply_heals_pending_page    ; draw untaken health pickups on hidden page before flip\n`,
     routinesAsm,
     dataAsm,
   };
@@ -14270,6 +14678,17 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     roomWorldIndices,
   );
   hudLinkedRamCursor += gemSystem.ramBytes;
+  // Health pickups: collectibles that refill one heart. Not skill-gated — the
+  // system only exists when at least one pickup is placed. RAM chains after the
+  // gems; the hearts HUD needs no hook (dirty-flag redraw on player_health).
+  const healSystem = buildBitmapHealSystemAsm(
+    rooms,
+    playerHitbox,
+    hudLinkedRamCursor,
+    playerVitals.maxHealth,
+    roomWorldIndices,
+  );
+  hudLinkedRamCursor += healSystem.ramBytes;
   // PERCEPTION skill: config + parts-window predicate resolved HERE because the
   // enemy/platform pause gates below must know whether the 'I' window exists;
   // the system itself is built after the platform pool (its close-repaint needs
@@ -14299,7 +14718,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
+    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
@@ -14478,7 +14897,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     collectibleCounter: gemCounterRam,
     keyCountAvailable: keyDoorSystem.ramBytes > 0,
     bankedRoomData: isKonamiMegaRom,
-    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
+    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
   const playerStateMachine = buildBitmapPlayerStateMachineAsm(analysis, room, stateAnimIds, hudLinkedRamCursor);
@@ -14622,7 +15041,7 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
   const combinedGlowingColors = useGlowingTailColors
     ? combinedColors.map(intensifyBitmapPlayerSpriteColor)
     : [];
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: dedicated RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow its ${hexWord(HUD_LINKED_RAM_BASE)}..${hexWord(HUD_LINKED_RAM_CEILING - 1)} window. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
@@ -14645,10 +15064,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
   const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${playerStateMachine.routinesAsm}${lightingSystem.routinesAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${playerStateMachine.routinesAsm}${lightingSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -14691,7 +15110,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -14763,7 +15182,13 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     ; HUD/system init (further down, after load_room) meant that booting STRAIGHT
     ; INTO a boss room read uninitialised RAM: garbage there reads as "already
     ; killed" and the boss never spawns.
-${bossSystem.initAsm}` : ''}    ; Render the start room from the shared tileset already in VRAM.
+${bossSystem.initAsm}` : ''}${healSystem.initAsm ? `    ; Same reason as the boss scratch above: the health pickup flags MUST be
+    ; cleared before the start room draws its overlays. bitmap_apply_heals_visible
+    ; runs a few lines below and SKIPS any pickup whose flag is non-zero, so
+    ; clearing them with the rest of the HUD/system init (further down, after
+    ; load_room) left cold-boot garbage reading as "already taken": the pickup
+    ; was never drawn, yet walking over it still refilled a heart.
+${healSystem.initAsm}` : ''}    ; Render the start room from the shared tileset already in VRAM.
     xor a
     ld (bitmap_displayed_page), a
 ${multiWorldSaveProgressAsm}
@@ -14786,7 +15211,7 @@ ${multiWorld ? `    ; Rebuild the shared off-screen atlas on every WorldLink ent
     ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
 ${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
 ${multiWorld
   ? `    ld a, (bitmap_world_spawn_y)
@@ -15230,7 +15655,7 @@ bitmap_room_hud_linked_data_end:
 
 ; Room dispatch tables are emitted in the resident window above.
 ${keyDoorSystem.dataAsm}
-${gemSystem.dataAsm}
+${gemSystem.dataAsm}${healSystem.dataAsm}
 ${destroyTileDataAsm}${perceptionSystem.dataAsm}${lightingSystem.dataAsm}
 ${jumperSystem.dataAsm}
 ${wallJumperSystem.dataAsm}

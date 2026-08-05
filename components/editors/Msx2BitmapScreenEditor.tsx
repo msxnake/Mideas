@@ -1819,8 +1819,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const wallJumperDir = isWallJumper ? normalizeWallJumperConfig(entity.params?.wallJumper || entity.components?.msx2_wall_jumper).direction : 'right';
         const fill = isEnemy ? 'rgba(255,96,96,0.45)' : isBoss ? 'rgba(255,200,0,0.45)' : isWorldExit ? 'rgba(0,255,176,0.5)' : entity.kind === 'collectible' ? 'rgba(96,255,160,0.45)' : entity.kind === 'npc' ? 'rgba(255,180,80,0.45)' : entity.kind === 'hidden_obj' ? 'rgba(180,255,120,0.35)' : entity.kind === 'mushroom' ? 'rgba(160,255,208,0.45)' : isShaft ? 'rgba(255,160,64,0.45)' : isPlatform ? 'rgba(186,120,255,0.45)' : isJumper ? 'rgba(80,255,220,0.45)' : isWallJumper ? 'rgba(255,140,200,0.45)' : 'rgba(64,160,255,0.45)';
         const stroke = isEnemy ? '#FF6060' : isBoss ? '#FFC800' : isWorldExit ? '#00FFB0' : entity.kind === 'npc' ? '#FFB450' : entity.kind === 'hidden_obj' ? '#A0E060' : entity.kind === 'mushroom' ? '#A0FFD0' : isShaft ? '#FFA040' : isPlatform ? '#BA78FF' : isJumper ? '#50FFDC' : isWallJumper ? '#FF8CC8' : '#40A0FF';
-        const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.gemAtlasEntryId;
-        const label = isEnemy ? 'E' : isBoss ? 'B' : isWorldExit ? 'X' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : entity.kind === 'mushroom' ? '☘' : isShaft ? '↕' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
+        const isHeal = entity.kind === 'collectible' && !entity.params?.keyPickupId && !!entity.params?.healAtlasEntryId;
+        const isGem = entity.kind === 'collectible' && !entity.params?.keyPickupId && !isHeal && !!entity.params?.gemAtlasEntryId;
+        const label = isEnemy ? 'E' : isBoss ? 'B' : isWorldExit ? 'X' : isHeal ? '♥' : isGem ? 'G' : entity.kind === 'collectible' ? 'C' : entity.kind === 'hazard' ? 'H' : entity.kind === 'door' ? 'D' : entity.kind === 'npc' ? 'N' : entity.kind === 'hidden_obj' ? '?' : entity.kind === 'mushroom' ? '☘' : isShaft ? '↕' : isPlatform ? '=' : isJumper ? 'S' : isWallJumper ? (wallJumperDir === 'right' ? '▶' : '◀') : '◆';
         const sprite = (isEnemy || isPlatform) ? resolveEntitySprite(entity) : undefined;
         const mushroomAtlasEntryId = entity.kind === 'mushroom'
           ? String(entity.params?.glowMushroomAtlasEntryId || '').trim()
@@ -1828,8 +1829,10 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         const worldExitAtlasEntryId = isWorldExit
           ? String(normalizeWorldExitConfig(entity.params?.worldExit || entity.components?.msx2_world_exit).atlasEntryId || '').trim()
           : '';
+        const healAtlasEntryId = isHeal ? String(entity.params?.healAtlasEntryId || '').trim() : '';
         const renderedVisual = (worldExitAtlasEntryId && drawAtlasEntry(worldExitAtlasEntryId, cx * GRID, cy * GRID))
           || (mushroomAtlasEntryId && drawAtlasEntry(mushroomAtlasEntryId, cx * GRID, cy * GRID))
+          || (healAtlasEntryId && drawAtlasEntry(healAtlasEntryId, cx * GRID, cy * GRID))
           || (sprite && drawMsx2Sprite(sprite, cx * GRID, cy * GRID));
         if (renderedVisual) {
           if (selectedPlacedId === entity.id) {
@@ -5500,7 +5503,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </div>
                         </>
                       )}
-                      {!selectedPlacedEntity.params?.keyPickupId && (
+                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.healAtlasEntryId && (
                         <>
                           <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Gema (skill collector_gems)</div>
                           <label className="block text-[0.65rem] text-msx-textsecondary">
@@ -5526,6 +5529,36 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </button>
                           <div className="text-[0.6rem] text-msx-textsecondary">
                             Con tile asignado (y sin llave) esta entidad es una gema: se dibuja al cargar la sala y el player la recoge si tiene la skill collector_gems.
+                          </div>
+                        </>
+                      )}
+                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.gemAtlasEntryId && (
+                        <>
+                          <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Item de vida (+1 corazón)</div>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Tile del item (atlas)
+                            <select
+                              value={String(selectedPlacedEntity.params?.healAtlasEntryId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { healAtlasEntryId: event.target.value || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None</option>
+                              {atlasEntries.map(entry => (
+                                <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, { healAtlasEntryId: selectedAtlasEntry.id })}
+                            className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                          <div className="text-[0.6rem] text-msx-textsecondary">
+                            Con tile asignado, tocarlo rellena 1 corazón (nunca por encima del Initial Health del Player Config) y borra la celda restaurando el fondo.
+                            Con la vida llena NO se recoge: se queda en el suelo para volver a por él. No reaparece una vez cogido. No necesita ninguna skill.
                           </div>
                         </>
                       )}

@@ -1,0 +1,7 @@
+BOOT    screen=0 x=16 health=5 flags=0/0
+     cellA(x=128) 1CCCCCCC1CCCCCC1   cellB(x=144) 1CCCCCCC1CCCCCC1
+  health -> 4 at x=66
+  health -> 5 at x=114
+---
+AFTER   screen=0 x=238 health=5 flags=1/0
+     cellA(x=128) 1111111111111111   cellB(x=144) 1CCCCCCC1CCCCCC1
