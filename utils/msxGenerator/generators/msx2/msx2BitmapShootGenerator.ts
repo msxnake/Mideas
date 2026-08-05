@@ -116,6 +116,12 @@ export interface BitmapShootRuntimeOptions {
     primaryGroup: number;
     alternateGroup: number;
     playerPatternsLabel: string;
+    /**
+     * EQU holding the MegaROM data bank of `playerPatternsLabel`. The pattern
+     * bank is not resident, so the routine maps it into P2 around its copies.
+     * Undefined means the table is resident and no mapping is needed.
+     */
+    playerPatternsDataBankLabel?: string;
   };
 }
 
@@ -286,7 +292,16 @@ export function buildBitmapShootRuntimeAsm(
 ;   No stack operations. All exits keep the caller stack unchanged.
 ; ------------------------------------------------------------
 bitmap_prepare_bullet_pattern:
-    ld a, (player_pat)
+${borrowed.playerPatternsDataBankLabel ? `    ; The player pattern bank is not resident. Map it into P2 for the whole
+    ; routine and put the resident bank back on the way out, so every exit is
+    ; covered without touching the body's early returns. This wrapper and
+    ; copy_to_vram_ext both live well below #8000, outside the swapped window.
+    ld a, ${borrowed.playerPatternsDataBankLabel}
+    call bitmap_room_select_data_bank_a
+    call bitmap_prepare_bullet_pattern_body
+    jp bitmap_room_restore_resident_banks
+bitmap_prepare_bullet_pattern_body:
+` : ''}    ld a, (player_pat)
     or a
     ld a, ${asmByte(borrowed.primaryGroup)}
     jp nz, .borrow_group_selected

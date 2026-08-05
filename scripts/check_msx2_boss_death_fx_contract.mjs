@@ -84,9 +84,14 @@ const checks = [
     bossGen.includes('using the built-in PSG explosion') &&
     bossGen.includes('bitmap_boss_death_sfx_default_pairs:') &&
     bossGen.includes('db 6,#08,10,#10,11,#80,12,#00,13,#09,7,#1F')],
-  ['Every visible blast triggers the selected/default sound',
-    bossGen.includes("call bitmap_boss_death_sfx_start\n` : ''}    jp bitmap_boss_death_draw") &&
-    bossGen.includes("call bitmap_boss_death_sfx_start\n` : ''}    call bitmap_boss_death_anim_draw")],
+  // One blast = one sound. The legacy random-variant mode spends one cadence
+  // step per blast, so it still fires on every step. A compact animated blast
+  // spends one step per FRAME, so only the step that opens the cycle (selector
+  // = slots-1) may start the sound, or a 3-frame blast retriggers it 3 times.
+  ['Every visible blast triggers the selected/default sound exactly once',
+    bossGen.includes("call bitmap_boss_death_sfx_start   ; one cadence step = one blast in this mode\n` : ''}    jp bitmap_boss_death_draw") &&
+    bossGen.includes("call bitmap_boss_death_sfx_start\n` : ''}    call bitmap_boss_death_anim_draw") &&
+    /ld a, b\n    dec a\n    cp c\n    call z, bitmap_boss_death_sfx_start/.test(bossGen)],
 
   // --- animated explosions (compact by default, concurrent opt-in) ---
   ['Definition stores the animated mode and its frame delay',

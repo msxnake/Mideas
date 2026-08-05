@@ -4476,10 +4476,18 @@ ${shouldEmitPlayerColorUpdate ? `    xor a                   ; frame 0 colours a
     ld de, ${playerSatBaseWord}
     ld bc, bitmap_room_sprite_attrs_end - bitmap_room_sprite_attrs
     call copy_to_vram_ext
+${options.bankedRle ? `    ; The pattern bank is not resident: map it into P2 for the copy and put the
+    ; resident bank back before returning. This routine itself lives below #8000.
+    ld a, bitmap_room_sprite_patterns_DATA_BANK
+    call bitmap_room_select_data_bank_a
     ld hl, bitmap_room_sprite_patterns
     ld de, #F800
     ld bc, bitmap_room_sprite_patterns_end - bitmap_room_sprite_patterns
-    jp copy_to_vram_ext
+    call copy_to_vram_ext
+    jp bitmap_room_restore_resident_banks` : `    ld hl, bitmap_room_sprite_patterns
+    ld de, #F800
+    ld bc, bitmap_room_sprite_patterns_end - bitmap_room_sprite_patterns
+    jp copy_to_vram_ext`}
 
 bitmap_wait_vblank:
     ; Poll VDP status S#0 until the frame flag (bit 7) is set: a 60 Hz tick that
@@ -5640,6 +5648,15 @@ function buildBitmapDeadlySystemAsm(vitals: BitmapPlayerVitals, hitbox: BitmapPl
   const hbRight = hitbox.x + hitbox.w - 1;
   const hbBottom = hitbox.y + hitbox.h - 1;
   const hbCenter = Math.floor((hbLeft + hbRight) / 2);
+  const hbTop = hitbox.y;
+  // Rows probed for hazards. A 16px cell can sit strictly between the top and
+  // bottom rows of a body taller than 16px without containing either, so tall
+  // players need the middle row too; short ones cannot hide a cell that way.
+  const probeRows = hitbox.h > 16
+    ? [hbTop, Math.floor((hbTop + hbBottom) / 2), hbBottom]
+    : [hbTop, hbBottom];
+  const probeCols = [hbLeft, hbCenter, hbRight];
+  const probeOffsets = probeRows.flatMap(row => probeCols.map(col => [col, row]));
   const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
   const hexB = (n: number) => `#${(n & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
   const maxHealthByte = hexB(vitals.maxHealth);
@@ -5783,22 +5800,30 @@ bitmap_check_deadly_contact:
     or a
     ret nz                     ; in_blink -> immune to all damage this frame
 
-    ; Probe the body's lower band (left / center / right) for a deadly cell.
+    ; Probe the WHOLE body for a deadly cell: ${probeRows.length} rows x ${probeCols.length} columns.
+    ; Probing only the feet meant a hazard the player did not STAND on never
+    ; hurt: a cave ceiling of stalactites was walked under with the player's
+    ; head inside the cell, and a wall of spikes could be hugged safely.
+    ld hl, bitmap_deadly_probe_offsets
+    ld d, ${probeOffsets.length}
+.deadly_probe_loop:
+    ld a, (player_x)
+    add a, (hl)
+    ld b, a                    ; B = probe X
+    inc hl
     ld a, (player_y)
-${addA(hbBottom)}    ld c, a                    ; C = probe Y (lower body edge); bitmap_probe_deadly keeps BC
-
-    ld a, (player_x)
-${addA(hbLeft)}    ld b, a
+    add a, (hl)
+    ld c, a                    ; C = probe Y (bitmap_probe_deadly keeps BC)
+    inc hl
+    push hl                    ; ...but it does clobber DE and HL
+    push de
     call bitmap_probe_deadly
+    pop de
+    pop hl
     jp nz, .deadly_take_damage
-    ld a, (player_x)
-${addA(hbCenter)}    ld b, a
-    call bitmap_probe_deadly
-    jp nz, .deadly_take_damage
-    ld a, (player_x)
-${addA(hbRight)}    ld b, a
-    call bitmap_probe_deadly
-    jp z, .deadly_no_contact   ; no deadly contact in any sample -> exit
+    dec d
+    jp nz, .deadly_probe_loop
+    jp .deadly_no_contact      ; no deadly contact in any sample -> exit
 ${takeDamageAsm}.deadly_game_over:
     ; Last life spent: request a Game Flow exit. The gameplay loop checks this
     ; flag next frame and returns to the Game Flow dispatcher (which follows the
@@ -5835,6 +5860,11 @@ ${takeDamageAsm}.deadly_game_over:
     ret
 .deadly_no_contact:
     ret
+
+; Hazard probe offsets from the player render origin: (dx, dy) pairs walked by
+; the loop above, top row first so a ceiling hit registers as soon as it lands.
+bitmap_deadly_probe_offsets:
+${probeOffsets.map(([dx, dy]) => `    db ${dx}, ${dy}`).join('\n')}
 `;
   return { equates, initAsm, mainLoopCall, routineAsm };
 }
@@ -13455,6 +13485,42 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     throw new Error(`MSX2 bitmap-room GameFlow intro needs ${introEncodedBytes} bytes of presentation RLE data and cannot fit a simple 32KB ROM; export as Konami MegaROM instead.`);
   }
   const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks, ...linkedHudAllRleChunks, ...introRleChunks, ...dialogueRleChunks];
+  // Player sprite tables are resolved BEFORE the MegaROM data banks are packed:
+  // the 16x16 pattern bank is one of the blocks that moves out of the resident
+  // 32KB and into a data bank, so its bytes must exist by packing time.
+  const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
+  const spriteTables = buildSpriteTables(playerSprite);
+  const spriteSourceLabel = spriteTables.usedConfigured
+    ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
+    : 'placeholder fallback (no configured player sprite resolvable)';
+  // Per-state animation clips from Player Config / Graphics & Render, rendered
+  // on the SAME cell grid as the base sprite. Their frames are appended after
+  // the base frames into one combined pattern/colour bank. When none are linked,
+  // the combined arrays equal the base arrays, so the ROM is byte-equal.
+  const stateAnimations = resolveBitmapRoomStateAnimations(analysis, room, {
+    sprite: playerSprite,
+    frameCount: spriteTables.frameCount,
+    cells: spriteTables.cells,
+    colorLayerCount: spriteTables.colorLayerCount,
+    authoredFacing: spriteTables.authoredFacing,
+  });
+  const hasStateAnimations = stateAnimations.length > 0;
+  // Map an animation-state name -> runtime id so skills can assert their state.
+  const stateAnimIds: Record<string, number> = {};
+  for (const bank of stateAnimations) stateAnimIds[bank.state] = bank.animId;
+  // Combined banks: [base non-mirror][state non-mirror][base mirror][state mirror].
+  const combinedFrameCount = spriteTables.frameCount + stateAnimations.reduce((sum, bank) => sum + bank.frameCount, 0);
+  const combinedPatterns = [
+    ...spriteTables.basePatternsNoMirror,
+    ...stateAnimations.flatMap(bank => bank.patternsNoMirror),
+    ...spriteTables.basePatternsMirror,
+    ...stateAnimations.flatMap(bank => bank.patternsMirror),
+  ];
+  const combinedColors = [
+    ...spriteTables.colors,
+    ...stateAnimations.flatMap(bank => bank.colors),
+  ];
+
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
@@ -13464,6 +13530,12 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
       ...roomDataBlocks,
       ...introSceneBlobs.flatMap(blob => buildBankedRleDataBlocks(blob.rleChunks, `GameFlow intro scene #${blob.index} SCREEN 5 bitmap, packed 4bpp RLE`)),
       ...(dialogueData ? buildBankedRleDataBlocks(dialogueRleChunks, 'NPC dialogue glyph strips + portrait frames, packed 4bpp RLE') : []),
+      // Cold sprite art: uploaded to VRAM once at boot (and, with a borrowed
+      // SHOOT group, on bullet spawn). Keeping 1.5KB of it resident was pure
+      // waste in a backend whose real ceiling is the 32KB residence window --
+      // a real project had 24 free bytes there. Both readers live below #8000
+      // and map this bank around their copy.
+      { label: 'bitmap_room_sprite_patterns', bytes: combinedPatterns, description: 'Sprite 0 pattern bank (16x16, mode 2 quadrants), banked: read only by init_hardware_sprite_tables and the SHOOT pattern loan' },
     ]
     : [];
   const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
@@ -13497,38 +13569,6 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     : isKonamiMegaRom
       ? `; NPC dialogue glyph/portrait RLE is emitted in Konami MegaROM data banks below.\n`
       : formatRleChunks(dialogueRleChunks, dialogueBlobBytes.length, `NPC dialogue glyph strips + portrait frames, packed 4bpp RLE, destination VRAM ${hexVram(dialogueVramBaseRow * ROW_BYTES)}`);
-  const playerSprite = resolveBitmapRoomPlayerSprite(analysis, room);
-  const spriteTables = buildSpriteTables(playerSprite);
-  const spriteSourceLabel = spriteTables.usedConfigured
-    ? `configured player sprite${playerSprite?.name ? ` "${playerSprite.name}"` : ''}`
-    : 'placeholder fallback (no configured player sprite resolvable)';
-  // Per-state animation clips from Player Config / Graphics & Render, rendered
-  // on the SAME cell grid as the base sprite. Their frames are appended after
-  // the base frames into one combined pattern/colour bank. When none are linked,
-  // the combined arrays equal the base arrays, so the ROM is byte-equal.
-  const stateAnimations = resolveBitmapRoomStateAnimations(analysis, room, {
-    sprite: playerSprite,
-    frameCount: spriteTables.frameCount,
-    cells: spriteTables.cells,
-    colorLayerCount: spriteTables.colorLayerCount,
-    authoredFacing: spriteTables.authoredFacing,
-  });
-  const hasStateAnimations = stateAnimations.length > 0;
-  // Map an animation-state name -> runtime id so skills can assert their state.
-  const stateAnimIds: Record<string, number> = {};
-  for (const bank of stateAnimations) stateAnimIds[bank.state] = bank.animId;
-  // Combined banks: [base non-mirror][state non-mirror][base mirror][state mirror].
-  const combinedFrameCount = spriteTables.frameCount + stateAnimations.reduce((sum, bank) => sum + bank.frameCount, 0);
-  const combinedPatterns = [
-    ...spriteTables.basePatternsNoMirror,
-    ...stateAnimations.flatMap(bank => bank.patternsNoMirror),
-    ...spriteTables.basePatternsMirror,
-    ...stateAnimations.flatMap(bank => bank.patternsMirror),
-  ];
-  const combinedColors = [
-    ...spriteTables.colors,
-    ...stateAnimations.flatMap(bank => bank.colors),
-  ];
   // Clip table (id 0 = base idle/walk, ids 1..K = state clips): 3 bytes each
   // (frameBase, frameCount, delay). Emitted only when state animations exist.
   const animClipTableBytes = hasStateAnimations
@@ -13953,6 +13993,9 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
         primaryGroup: 0,
         alternateGroup: spriteTables.layerCount,
         playerPatternsLabel: 'bitmap_room_sprite_patterns',
+        // MegaROM: that table was moved out of the resident 32KB into a data
+        // bank, so the loan routine has to map it before reading.
+        playerPatternsDataBankLabel: isKonamiMegaRom ? 'bitmap_room_sprite_patterns_DATA_BANK' : undefined,
       }
     : undefined;
   const shootEquates = buildBitmapShootEquates(shootConfig, shootRamBase);
@@ -15211,8 +15254,10 @@ bitmap_room_sprite_colors_glowing_end:
 ${formatBytes('bitmap_room_sprite_attrs', spriteTables.attrs, 'SAT: sprite 0 active (Y/X set at runtime), sprite 1 Y=#D8 stops processing')}
 bitmap_room_sprite_attrs_end:
 
-${formatBytes('bitmap_room_sprite_patterns', combinedPatterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
-bitmap_room_sprite_patterns_end:
+${isKonamiMegaRom
+    ? '; Sprite 0 pattern bank lives in a Konami MegaROM data bank (see below), not in the resident 32KB.'
+    : `${formatBytes('bitmap_room_sprite_patterns', combinedPatterns, `Sprite 0 pattern (16x16, mode 2 quadrants): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
+bitmap_room_sprite_patterns_end:`}
 ${hasStateAnimations ? `
 ; Player animation clip table: id 0 = base idle/walk, ids 1..${stateAnimations.length} = state
 ; clips. 3 bytes/entry: frameBase, frameCount, delayFrames. Indexed by player_anim_state.
