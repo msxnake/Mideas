@@ -1138,11 +1138,23 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
     || movement.maxFallSpeed !== undefined
   );
 
+  // Gravity and terminal velocity have NO skill dialog: the `gravity` and
+  // `air_resistance` core skills declare no `parameters`, so the Abilities & Items
+  // dialogs cannot express them. They must therefore keep reading the Player Config
+  // "Physics & Movement" fields (pixel units) even once skillParameters.jump has
+  // taken over the jump impulse — otherwise opting into the jump skill silently
+  // reverted the fall to the engine defaults (0.25 px/frame^2 / 4 px/frame) while
+  // the UI kept showing the authored values, doubling the jump apex.
+  const skillJumpUsesMovementGravity = hasSkillJump && movement.gravity !== undefined;
+  const skillJumpUsesMovementTerminal = hasSkillJump && movement.maxFallSpeed !== undefined;
+
   let jumpPower: unknown;
   let gravityStrength: unknown;
   let terminalVelocity: unknown;
   if (hasSkillJump && skillJump.jumpPower !== undefined) {
     jumpPower = skillJump.jumpPower;
+    gravityStrength = movement.gravity;
+    terminalVelocity = movement.maxFallSpeed;
   } else if (hasMovementPhysics) {
     jumpPower = movement.jumpPower ?? movement.jumpImpulse;
     gravityStrength = movement.gravity;
@@ -1200,10 +1212,10 @@ export function getMsx2PlatformPhysicsFromPlayerEntity(player: any | undefined):
     gravityEnabled,
     jumpImpulse88,
     airJumpImpulse88,
-    gravityStrength88: hasMovementPhysics
+    gravityStrength88: (hasMovementPhysics || skillJumpUsesMovementGravity)
       ? clampMsx2GravityStrength88Px(gravityStrength)
       : clampMsx2GravityStrength88(gravityStrength),
-    terminalVelocity88: hasMovementPhysics
+    terminalVelocity88: (hasMovementPhysics || skillJumpUsesMovementTerminal)
       ? clampMsx2TerminalVelocity88Px(terminalVelocity)
       : clampMsx2TerminalVelocity88(terminalVelocity),
     maxJumps,
