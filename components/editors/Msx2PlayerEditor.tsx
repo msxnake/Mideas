@@ -656,9 +656,11 @@ const SkillParametersDialog: React.FC<{
   skill: SkillDef;
   values: Record<string, number | boolean>;
   onPatch: (key: string, value: number | boolean) => void;
+  /** Optional notice rendered above the parameter grid (units, route warnings...). */
+  banner?: React.ReactNode;
   extraFields?: React.ReactNode;
   onClose: () => void;
-}> = ({ skill, values, onPatch, extraFields, onClose }) => {
+}> = ({ skill, values, onPatch, banner, extraFields, onClose }) => {
   const parameters = skill.parameters || [];
   const meta = skillMeta[skill.id] || { icon: '⚙️', category: 'utility', description: 'Skill parameters' };
   return (
@@ -695,6 +697,7 @@ const SkillParametersDialog: React.FC<{
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-4">
+          {banner}
           <div className="grid grid-cols-2 gap-3">
             {parameters.map((param: SkillParameterDef) => {
               const raw = values[param.key];
@@ -1517,6 +1520,14 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
       equippedWeaponId: nextEquippedWeaponId || '',
     });
   };
+  // True once the Jump skill dialog has written anything: from then on
+  // getMsx2PlatformPhysicsFromPlayerEntity reads the jump impulse from
+  // skillParameters.jump (8.8 units) and ignores movement.jumpPower (pixels).
+  // Gravity / maxFallSpeed keep coming from movement.* — the `gravity` and
+  // `air_resistance` core skills declare no parameters, so they have no dialog.
+  const jumpSkillOverridesMovement = Boolean(
+    normalized.skillParameters?.jump && typeof normalized.skillParameters.jump === 'object'
+  );
   const updateSkillParameter = (skillId: string, key: string, value: number | boolean) => {
     const current = normalized.skillParameters || {};
     const skillEntry = { ...(current[skillId] || {}), [key]: value };
@@ -2239,10 +2250,20 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
                 <div className={panelTitleClass}>Physics & Movement</div>
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(260px,1fr)_minmax(220px,280px)] gap-3 overflow-hidden p-3">
                   <div className="min-h-0 space-y-2 overflow-auto pr-1">
+                    {jumpSkillOverridesMovement && (
+                      <div className="rounded border border-amber-500/50 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200">
+                        <span className="font-medium">El salto lo controla la skill Jump.</span> Este player tiene parámetros
+                        guardados en <span className="font-medium">Abilities &amp; Items → Jump</span>, así que
+                        {' '}<span className="font-medium">Jump Speed</span> de aquí ya no se lee (allí el valor está en 8.8:
+                        256 = 1 px/frame, 1024 = 4 px/frame). <span className="font-medium">Gravity</span> y
+                        {' '}<span className="font-medium">Max Fall Speed</span> sí siguen activos: el diálogo de la skill no
+                        los ofrece. Para volver a mandar desde aquí hay que borrar <code>skillParameters.jump</code> del JSON.
+                      </div>
+                    )}
                     <Field label="Max Speed" suffix="px/frame"><SmallNumber step={0.01} value={numberValue(normalized.movement.moveSpeed, 2)} onChange={value => updateMovement({ moveSpeed: value })} /></Field>
                     <Field label="Acceleration"><SmallNumber step={0.01} value={numberValue(normalized.movement.acceleration, 0.2)} onChange={value => updateMovement({ acceleration: value })} /></Field>
                     <Field label="Friction"><SmallNumber step={0.01} value={numberValue(normalized.movement.deceleration, 0.15)} onChange={value => updateMovement({ deceleration: value })} /></Field>
-                    <Field label="Jump Speed"><SmallNumber step={0.01} value={-Math.abs(numberValue(normalized.movement.jumpPower, 3.5))} onChange={value => updateMovement({ jumpPower: Math.abs(value) })} /></Field>
+                    <Field label="Jump Speed" suffix={jumpSkillOverridesMovement ? 'ignorado' : undefined}><SmallNumber step={0.01} value={-Math.abs(numberValue(normalized.movement.jumpPower, 3.5))} onChange={value => updateMovement({ jumpPower: Math.abs(value) })} /></Field>
                     <Field label="Gravity"><SmallNumber step={0.01} value={numberValue(normalized.movement.gravity, 0.12)} onChange={value => updateMovement({ gravity: value })} /></Field>
                     <Field label="Max Fall Speed"><SmallNumber step={0.01} value={numberValue(normalized.movement.maxFallSpeed, 3)} onChange={value => updateMovement({ maxFallSpeed: value })} /></Field>
                     <Field label="Air Control"><SmallNumber step={0.01} value={normalized.movement.airControl ? 0.3 : 0} onChange={value => updateMovement({ airControl: value > 0 })} /></Field>
@@ -3270,6 +3291,26 @@ export const Msx2PlayerEditor: React.FC<Msx2PlayerEditorProps> = ({ player, play
               skill={skill}
               values={skillValues}
               onPatch={(key, value) => updateSkillParameter(skill.id, key, value)}
+              banner={skill.id === 'jump' ? (
+                jumpSkillOverridesMovement ? (
+                  <div className="mb-3 rounded border border-sky-500/50 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
+                    <span className="font-medium">Este diálogo controla el salto de este player.</span>{' '}
+                    <span className="font-medium">Jump Speed</span> de Physics &amp; Movement está inactivo.
+                    Ojo con las unidades: aquí <span className="font-medium">Jump power</span> va en 8.8
+                    (256 = 1 px/frame, 1024 = 4 px/frame), no en píxeles.{' '}
+                    <span className="font-medium">Gravity</span> y <span className="font-medium">Max Fall Speed</span>
+                    {' '}se siguen tomando de Physics &amp; Movement: este diálogo no los ofrece.
+                  </div>
+                ) : (
+                  <div className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+                    <span className="font-medium">Ahora mismo el salto lo controla Physics &amp; Movement.</span>{' '}
+                    En cuanto cambies cualquier valor de aquí, este diálogo pasa a mandar de forma permanente y
+                    {' '}<span className="font-medium">Jump Speed</span> de esa pestaña dejará de leerse.
+                    No hay forma de deshacerlo desde la interfaz (habría que borrar <code>skillParameters.jump</code> del JSON).
+                    Cuidado con las unidades: aquí es 8.8 (1024 = 4 px/frame), allí son píxeles.
+                  </div>
+                )
+              ) : undefined}
               extraFields={skill.id === 'torch' ? (
                 <label className="mt-3 block rounded border border-slate-700 bg-[#111821] px-3 py-2.5 text-xs text-slate-100">
                   <span className="block font-medium">Eat sound (PSG)</span>
