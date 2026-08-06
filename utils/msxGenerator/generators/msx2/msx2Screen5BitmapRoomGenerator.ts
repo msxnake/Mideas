@@ -15567,7 +15567,9 @@ ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatch
     ; default connection. Without a graph, use a deterministic soft restart.
     ld a, (bitmap_gameflow_exit_flag)
     or a
-    ${gameFlowEnabled ? 'ret nz    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp nz, init_rom    ; standalone: last life -> soft restart'}
+    ${sccMusic
+      ? 'jp nz, .bitmap_gameflow_exit    ; silence the song before leaving the loop'
+      : (gameFlowEnabled ? 'ret nz    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp nz, init_rom    ; standalone: last life -> soft restart')}
 .bitmap_main_loop:
     call bitmap_wait_vblank
     ; ---- VRAM phase: runs inside the blanking window ----
@@ -15583,7 +15585,17 @@ ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCa
     call update_player_movement
 ${playerStateMachine.mainLoopCall}${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
 ${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
-
+${sccMusic ? `.bitmap_gameflow_exit:
+    ; This loop is the ONLY thing ticking music_update. Leaving it with the song
+    ; mid-note left the SCC/PSG holding whatever registers the last frame wrote,
+    ; so the track froze into a drone until some later node happened to silence
+    ; it (the End node does; a Transition/Text/SubMenu target does not). Silence
+    ; here instead, so every exit path — death with no lives left, Exit World —
+    ; is quiet the moment gameplay stops. music_stop saves/restores
+    ; mapper_bank_p2_current, so returning to the resident dispatcher is safe.
+    call music_stop
+    ${gameFlowEnabled ? 'ret    ; WorldLink exit -> back to Game Flow dispatcher' : 'jp init_rom    ; standalone: last life -> soft restart'}
+` : ''}
 ; __MIDEAS_BITMAP_RESIDENT_DISPATCH_START__
 ; World engine dispatch tables (indexed by room/screen index).
 ; Keep these in the resident #4000-#7FFF window. load_room remaps P2
