@@ -4611,11 +4611,22 @@ ${skillHooks.gravityHookAsm || ''}
     ld b, a
     ld c, #FF
     jp .vertical_step_loop
-.falling:
+${skillHooks.leaveGroundAsm ? `.falling:
+    ; Leave-ground hooks run ONLY on the ground -> air transition. This block is
+    ; reached on EVERY falling frame (also mid-jump, once the arc turns), so
+    ; running them unconditionally re-armed the coyote timer the very frame it
+    ; expired: the window never closed and every fall granted a free extra jump.
+    ld a, (player_flags)
+    and #01                     ; grounded until this frame?
+    jp z, .leave_ground_done    ; already airborne: nothing to leave
     ld a, (player_flags)
     and #FE
     ld (player_flags), a
-${skillHooks.leaveGroundAsm || ''}
+${skillHooks.leaveGroundAsm}.leave_ground_done:` : `.falling:
+    ld a, (player_flags)
+    and #FE
+    ld (player_flags), a
+`}
     ld a, (player_vy)
     ld b, a
     ld c, #01
@@ -4764,7 +4775,11 @@ bitmap_probe_solid:
     ; into the 16x12 grid. Because a cell is 16 px, (Y >> 4) * 16 == (Y & #F0).
     ; The Deadly bit (0x40) is masked out so a deadly-only tile (e.g. floor
     ; spikes) does NOT block movement; Solid+Deadly (0x50) still blocks because
-    ; the Solid bit (0x10) survives the mask. Clobbers AF/DE/HL; keeps BC.
+    ; the Solid bit (0x10) survives the mask.${options.subCellShapes ? `
+    ; HAS_SHAPE (0x01) is masked out too: it only says "this cell carries an 8x8
+    ; quadrant mask", never that the cell is solid. Leaving it in made a
+    ; Deadly-only cell with an authored shape (0x41) read as solid, i.e. an
+    ; invisible ledge in front of ceiling spikes.` : ''} Clobbers AF/DE/HL; keeps BC.
     ld a, c
     cp 192
     jp c, .probe_y_visible
@@ -4788,8 +4803,8 @@ bitmap_probe_solid:
     add hl, de
     ld a, (hl)              ; A = cell value (returned intact to honour the contract)
     ld e, a                 ; E = copy of cell value
-    and #BF                 ; mask out Deadly bit (#BF = ~#40); Z when empty or deadly-only
-${options.subCellShapes ? `    jp z, .probe_cell_passable
+${options.subCellShapes ? `    and #BE                 ; mask out Deadly (#40) + HAS_SHAPE (#01); Z when nothing solid is left
+    jp z, .probe_cell_passable
     bit 0, e                ; HAS_SHAPE: cell carries an 8x8 quadrant mask?
     jp z, .probe_return_map_solid
     push de                 ; keep E = cell value (the helper clobbers DE)
@@ -4797,7 +4812,8 @@ ${options.subCellShapes ? `    jp z, .probe_cell_passable
     pop de
     jp nz, .probe_return_map_solid
 .probe_cell_passable:
-` : `    jp nz, .probe_return_map_solid
+` : `    and #BF                 ; mask out Deadly bit (#BF = ~#40); Z when empty or deadly-only
+    jp nz, .probe_return_map_solid
 `}${doorSolidProbeCallAsm}    ld a, e                 ; restore A = original cell value
     cp e                    ; keep Z set: empty/deadly-only map cells are passable
     ret

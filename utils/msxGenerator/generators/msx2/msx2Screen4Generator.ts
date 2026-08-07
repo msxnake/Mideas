@@ -2775,17 +2775,22 @@ ${formatSignedPixelAdd('b', 'msx2_player_sprite_x', probeRightOffset)}    ld c, 
     pop bc
     pop de
     jp nz, .platform_land
+${(physics.coyoteTime > 0) ? `    ; Arm the coyote timer ONLY on the ground -> air transition. This block is
+    ; also reached while already airborne (the jump apex passes through gravity
+    ; high byte 0), and re-arming there handed out a free extra jump mid-air.
+    ld a, (msx2_player_flags)
+    and #01                     ; grounded until this frame?
+    jr z, .platform_coyote_skip_arm
     ld a, (msx2_player_flags)
     and #FE
     ld (msx2_player_flags), a
-${(physics.coyoteTime > 0) ? `    ; left ground: arm coyote timer if not already armed
-    ld a, (msx2_player_coyote_timer)
-    or a
-    jr nz, .platform_coyote_skip_arm
     ld a, ${coyoteFrames}
     ld (msx2_player_coyote_timer), a
 .platform_coyote_skip_arm:
-` : ''}    jp upload_hardware_sprite_attrs
+` : `    ld a, (msx2_player_flags)
+    and #FE
+    ld (msx2_player_flags), a
+`}    jp upload_hardware_sprite_attrs
 .platform_hold_rope:
     ld hl, msx2_player_gravity_vel
     xor a
