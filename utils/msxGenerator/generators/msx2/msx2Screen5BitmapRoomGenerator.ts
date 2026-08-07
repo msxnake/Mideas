@@ -4665,11 +4665,17 @@ bitmap_try_move_x:
     ; (every <=16px so a tall body cannot tunnel a cell). Large ice-slide dx is
     ; clamped at the room edges before probing so unsigned player_x never wraps
     ; from x=2 to x=250 (or past the east edge) during room transitions.
-    ; While player_y is wrapped above the top edge (#FF..#C0, jumping over the
-    ; HUD with no north rail) probe rows that fall outside the visible band are
-    ; skipped so the arc can travel horizontally; rows that wrap back into the
-    ; visible band still block, and the bottom-edge guard (player_y < 192 with
-    ; an offscreen probe row) keeps returning solid. Clobbers AF/BC/DE/HL.
+    ; A probe row outside the 0..191 band is SKIPPED: there is no cell there, so
+    ; it must not veto a horizontal move. Rows that wrap back into the band still
+    ; block normally. This is symmetric for both edges. Previously only the top
+    ; case was skipped (and only while player_y itself was wrapped to #FF..#C0);
+    ; a row past the BOTTOM edge fell through to bitmap_probe_solid, which reports
+    ; "outside visible Y range is solid", so a body straddling the bottom edge
+    ; froze horizontally while still inside the room. The dead band was
+    ; hitboxHeight-1 px tall: 15px for a 16px body, 31px for a 32px one, right
+    ; where a tall player stands on the last floor row. Keeping the player inside
+    ; the room is bitmap_try_move_y's job, not this routine's.
+    ; Clobbers AF/BC/DE/HL.
     ld b, a
     ld a, (player_x)
     bit 7, b
@@ -4700,11 +4706,7 @@ ${addAImmediate(hbLeft)}.x_have_edge:
 ${probeRowOffsets.map((row, index) => `    ld a, (player_y)
 ${addAImmediate(row)}    ld c, a                 ; C = probe Y (+${row})
     cp 192
-    jp c, .x_probe_${index}_visible
-    ld a, (player_y)
-    cp 192
-    jp nc, .x_probe_${index}_skip   ; player wrapped above the top edge: offscreen row passes
-.x_probe_${index}_visible:
+    jp nc, .x_probe_${index}_skip   ; row outside the room: never a horizontal blocker
     call bitmap_probe_solid
     jp nz, .x_blocked
 .x_probe_${index}_skip:
