@@ -667,7 +667,7 @@ export const renderWidgetLayer = (
   }
 };
 
-const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'carriedObject', 'custom'];
+const BINDING_OPTIONS: Msx2HudWidgetBinding[] = ['playerEnergy', 'bossEnergy', 'air', 'experience', 'level', 'skillPoints', 'score', 'lives', 'collectibles', 'keyItem', 'carriedObject', 'ammo', 'custom'];
 const XP_REWARD_ACTION_LABELS: Record<Msx2HudXpRewardActionType, string> = {
   incrementLevel: 'Level +',
   incrementSkillPoints: 'Skill points +',

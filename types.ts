@@ -410,6 +410,14 @@ export interface Msx2BitmapRoomAtlasEntry {
   collisionShape?: number;
   /** SCREEN 5 bitmap-room destroy_tile skill: cells painted with this tile can be dug out by the player. */
   destructible?: boolean;
+  /**
+   * SCREEN 5 bitmap-room crumbling floor (Manic Miner): cells painted with this tile erode
+   * from the top, 2px per stage, while the player stands on them, and open up after 8 stages.
+   * The erosion is temporary: leaving and re-entering the room restores the tile.
+   */
+  crumbling?: boolean;
+  /** Frames the player must stand on a crumbling cell for each 2px erosion stage (2..30, default 6). */
+  crumbleFramesPerStage?: number;
 }
 
 /**
@@ -1003,6 +1011,8 @@ export type Msx2HudWidgetBinding =
   | 'collectibles'
   | 'keyItem'
   | 'carriedObject'
+  /** Nuts in hand = shoot ammunition (SCREEN 5 bitmap rooms, bitmap_nut_count). */
+  | 'ammo'
   | 'custom';
 
 export interface Msx2HudWidget {

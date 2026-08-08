@@ -2173,11 +2173,18 @@ function isResourceTableRamZx0Candidate(resource) {
     type === 'SCREEN_BEHAVIOR_MAP' ||
     type === 'SCREEN_BLOCK_CATALOG' ||
     type === 'SCREEN_BLOCK_MAP' ||
-    type === 'SCREEN_EFFECT_ZONE_TABLE' ||
-    type === 'MUSIC_TRACK' ||
-    type === 'SOUND_DATA'
+    type === 'SCREEN_EFFECT_ZONE_TABLE'
   ) {
     return true;
+  }
+
+  // External PT3 modules are source-faithful streams. The PT3 replayer reads
+  // both mapper halves directly through music_pt3_track_table after selecting
+  // their banks; it does not consult resource_manager or decompress a ZX0
+  // payload. Keeping these blocks out of the generic ZX0 pass also preserves
+  // the paired pt3_track_<n>_bank_0 / bank_1 labels used by soundGenerator.
+  if (type === 'MUSIC_TRACK' || type === 'SOUND_DATA') {
+    return false;
   }
 
   if (type === 'SCREEN_DATA') {
@@ -6814,6 +6821,9 @@ if (require.main === module) {
 module.exports = {
   app,
   injectZx0IntoUnifiedAsm,
+  __zx0PolicyForTests: {
+    isResourceTableRamZx0Candidate,
+  },
   __postAsmAnalysisForTests: {
     POST_ASM_ANALYSIS_RULES,
     normalizePostAsmRuleIds,

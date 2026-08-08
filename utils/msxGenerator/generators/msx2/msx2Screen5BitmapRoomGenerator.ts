@@ -11753,7 +11753,8 @@ function buildBitmapHudLinkedCounterAsm(
   ram: { dirtyFlagAddress: number; valueAddress?: number },
   bindingRamLabel: string,
   uploadAsm: string,
-  instanceIndex: number
+  instanceIndex: number,
+  glyphOwnerIndex: number = instanceIndex
 ): { equates: string; initAsm: string; mainLoopCall: string; routinesAsm: string } {
   const element = source.element;
   const { digits, wide } = linkedCounterSpec(element);
@@ -11768,9 +11769,10 @@ function buildBitmapHudLinkedCounterAsm(
   const visibleDigits = Math.max(0, Math.min(digits, digitsThatFit));
   const destY = clampInt(element.y, 0, BITMAP_ROOM_HUD_HEIGHT - 1, 2);
   const dirtyLabel = `hud_linked_${instanceIndex}_drawn`;
-  const uploadLabel = `upload_hud_linked_${instanceIndex}`;
+  const ownsGlyphAtlas = glyphOwnerIndex === instanceIndex;
+  const uploadLabel = `upload_hud_linked_${glyphOwnerIndex}`;
   const updateLabel = `update_hud_linked_${instanceIndex}`;
-  const tmplLabel = `hud_linked_${instanceIndex}_cmd_template`;
+  const tmplLabel = `hud_linked_${glyphOwnerIndex}_cmd_template`;
   const loopLabel = `.hud_linked_${instanceIndex}_digit_loop`;
   const changedLabel = `.hud_linked_${instanceIndex}_changed`;
   const drawPageLabel = `.hud_linked_${instanceIndex}_draw_page`;
@@ -11782,13 +11784,12 @@ function buildBitmapHudLinkedCounterAsm(
 ${dirtyLabel} EQU ${hexWord(ram.dirtyFlagAddress)}
 ${ram.valueAddress !== undefined ? `${bindingRamLabel} EQU ${hexWord(ram.valueAddress)}\n` : ''}`;
 
+  const uploadInitAsm = ownsGlyphAtlas ? `    call ${uploadLabel}\n` : '';
   const initAsm = wide
-    ? `    call ${uploadLabel}
-    ld hl, #FFFF
+    ? `${uploadInitAsm}    ld hl, #FFFF
     ld (${dirtyLabel}), hl
 ${ram.valueAddress !== undefined ? `    ld hl, ${hexWord(Math.max(0, Math.min(65535, Math.floor(element.initialValue || 0))))}\n    ld (${bindingRamLabel}), hl\n` : ''}`
-    : `    call ${uploadLabel}
-    ld a, #FF
+    : `${uploadInitAsm}    ld a, #FF
     ld (${dirtyLabel}), a
 ${ram.valueAddress !== undefined ? `    ld a, ${hexByte(clampByte(element.initialValue, 0))}\n    ld (${bindingRamLabel}), a\n` : ''}`;
 
@@ -11870,24 +11871,28 @@ ${blitLoop}`
 
 ${blitLoop}`;
 
+  const uploadRoutineAsm = ownsGlyphAtlas ? `${uploadLabel}:
+${uploadAsm}
+` : '';
+  const templateAsm = ownsGlyphAtlas ? `${tmplLabel}:
+    ; SY is a full 10-bit word: tile sources may live past VRAM row 255
+    ; (page-1 offscreen band or after the shared atlas).
+    DB 0,0, ${hexByte(glyphVramY & 0xff)},${hexByte((glyphVramY >> 8) & 0xff)}, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
+` : '';
   const routinesAsm = `; ------------------------------------------------------------
-; FUNCTION: ${uploadLabel} / ${updateLabel}
+; FUNCTION: ${ownsGlyphAtlas ? `${uploadLabel} / ` : ''}${updateLabel}
 ; ------------------------------------------------------------
 ; PURPOSE:
 ;   Numeric counter widget for linked HUD element "${element.id}": ${digits}
 ;   zero-padded decimal digit(s) at x=${destX}, y=${destY}, redrawn only when
 ;   ${bindingRamLabel} changes (dirty-flag). ${wide ? `16-bit value via ${convertCall}.` : `8-bit value via ${convertCall}.`}
+;   Glyph atlas/template owner: linked HUD counter #${glyphOwnerIndex}${ownsGlyphAtlas ? ' (uploaded here)' : ' (shared; no duplicate upload/template)'}.
 ; DESTROYS: AF, BC, DE, HL
 ; PRESERVES: IX, IY
 ; CALLS: ${convertCall}, hud_linked_launch_cmd, vdp_write_register
 ; ------------------------------------------------------------
-${uploadLabel}:
-${uploadAsm}
-${dirtyCheckAndConvert}
-${tmplLabel}:
-    ; SY is a full 10-bit word: glyph sources may live past VRAM row 255
-    ; (page-1 offscreen band or after the shared atlas).
-    DB 0,0, ${hexByte(glyphVramY & 0xff)},${hexByte((glyphVramY >> 8) & 0xff)}, 0,0, 0,0, 8,0, 8,0, 0,0, #D0
+${uploadRoutineAsm}${dirtyCheckAndConvert}
+${templateAsm}
 `;
   return { equates, initAsm, mainLoopCall, routinesAsm };
 }
@@ -14059,21 +14064,51 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   for (let slotY = BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16; slotY + 16 <= dialogueVramBaseRow; slotY += 16) {
     linkedHudSlotYs.push(slotY);
   }
-  if (tileBasedHudSources.length > linkedHudSlotYs.length) {
-    throw new Error(`MSX2 HUD asset linked to room "${room.name}" defines too many tile/glyph dynamic widgets (${tileBasedHudSources.length}); only ${linkedHudSlotYs.length} offscreen VRAM slots are free next to the shared tileset atlas. Reduce the number of iconRow/counter widgets. Static icon/portrait widgets are baked into the HUD seed and do not consume these slots.`);
-  }
-  const linkedHudTileData: { index: number; kind: HudDynamicSource['kind']; tileVramY: number; bytes: number[]; rleChunks: ReturnType<typeof buildRleChunksForVram>; uploadAsm: string }[] = [];
+  const linkedHudTileData: {
+    index: number;
+    kind: HudDynamicSource['kind'];
+    tileVramY: number;
+    bytes: number[];
+    rleChunks: ReturnType<typeof buildRleChunksForVram>;
+    uploadAsm: string;
+    glyphOwnerIndex: number;
+  }[] = [];
+  let linkedHudUniqueTileCount = 0;
   linkedHudDynamicSources.forEach((source, index) => {
     if (source.kind === 'bar') return; // bars use HMMV, no offscreen tile
-    const tileSlot = linkedHudTileData.length;
-    const tileVramY = linkedHudSlotYs[tileSlot];
     const pixels = source.kind === 'iconRow'
       ? buildIconRowTilePixels(linkedHudAsset!, source.element)
       : buildCounterGlyphPixels(linkedHudFont, source.element.colors.text ?? 15);
     const bytes = packBitmapPixels(pixels);
+    // Every counter uses the same 0..9 glyph strip when font and text colour
+    // match. Reuse that VRAM source, upload routine and HMMM template instead of
+    // emitting one byte-identical resident block per counter. Icon rows are not
+    // candidates: their 16x32 full/empty tile has different dimensions/semantics.
+    const sharedCounterOwner = source.kind === 'counter'
+      ? linkedHudTileData.find(entry =>
+          entry.kind === 'counter'
+          && entry.bytes.length === bytes.length
+          && entry.bytes.every((value, byteIndex) => value === bytes[byteIndex]))
+      : undefined;
+    if (sharedCounterOwner) {
+      linkedHudTileData.push({
+        index,
+        kind: source.kind,
+        tileVramY: sharedCounterOwner.tileVramY,
+        bytes,
+        rleChunks: [],
+        uploadAsm: '',
+        glyphOwnerIndex: sharedCounterOwner.glyphOwnerIndex,
+      });
+      return;
+    }
+    if (linkedHudUniqueTileCount >= linkedHudSlotYs.length) {
+      throw new Error(`MSX2 HUD asset linked to room "${room.name}" needs too many unique tile/glyph dynamic sources (${linkedHudUniqueTileCount + 1}); only ${linkedHudSlotYs.length} offscreen VRAM slots are free next to the shared tileset atlas. Reduce the number of iconRow/counter widgets. Counters with identical font and text colour share one slot automatically.`);
+    }
+    const tileVramY = linkedHudSlotYs[linkedHudUniqueTileCount++];
     const rleChunks = buildRleChunksForVram(bytes, tileVramY * ROW_BYTES, `bitmap_room_hud_linked_${index}_rle_chunk`);
     const uploadAsm = buildRleUploadAsm(rleChunks, isKonamiMegaRom);
-    linkedHudTileData.push({ index, kind: source.kind, tileVramY, bytes, rleChunks, uploadAsm });
+    linkedHudTileData.push({ index, kind: source.kind, tileVramY, bytes, rleChunks, uploadAsm, glyphOwnerIndex: index });
   });
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
   const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
@@ -15508,7 +15543,7 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
     const tileData = tileDataBySourceIndex.get(index)!;
     return source.kind === 'iconRow'
       ? buildBitmapHudLinkedIconRowAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index, playerVitals)
-      : buildBitmapHudLinkedCounterAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index);
+      : buildBitmapHudLinkedCounterAsm(source, tileData.tileVramY, ram, bindingRamLabel, tileData.uploadAsm, index, tileData.glyphOwnerIndex);
   });
   const linkedHudSharedEquates = linkedHudDynamicSources.length
     ? `; Linked MSX2 HUD asset dynamic widgets: shared 15-byte V9938 command scratch${hudDec3BufferAddress !== undefined || hudDec5BufferAddress !== undefined ? ' + shared decimal conversion buffer(s)' : ''}.

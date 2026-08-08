@@ -726,12 +726,22 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                               onSelectAsset(asset.id, ASSET_TYPE_TO_EDITOR[asset.type]);
                             }
                           }}
-                          onDoubleClick={() => onRequestRename(asset.id, asset.name, asset.type)}
+                          // No onDoubleClick here on purpose: two ordinary clicks on the
+                          // same row within the system double-click interval (~500ms) are
+                          // delivered as one dblclick, so hanging the rename modal off it
+                          // made the dialog pop up "sometimes" on what the user felt was a
+                          // single click. Renaming lives on the pencil button beside the
+                          // name, and on F2 while the row has focus.
+                          onKeyDown={(e) => {
+                            if (e.key !== 'F2' || !assetEnabled) return;
+                            e.preventDefault();
+                            onRequestRename(asset.id, asset.name, asset.type);
+                          }}
                           className={`text-left py-1 flex items-center flex-grow truncate rounded-l-sm
                                     ${!assetEnabled ? disabledItemClass : (isSelected ? activeItemClass : (isTileSelected ? selectedTileClass : inactiveItemClass))}
                                     pl-2`}
                           disabled={!assetEnabled}
-                          title={assetDisabledTitle || `Select: ${asset.name}. Double-click to rename.`}
+                          title={assetDisabledTitle || `Select: ${asset.name}. F2 or the pencil renames it.`}
                           aria-current={isSelected ? "page" : undefined}
                         >
                           <AssetIcon type={asset.type} />

@@ -184,6 +184,13 @@ Hallazgo practico de esta sesion:
 - `CASTLEVA/ending.pt3` tambien reproduce tras strip de 99 bytes.
 - Por tanto, si un proyecto concreto sigue mudo con otro asset, el problema probablemente esta en ese modulo PT3 importado.
 
+### Regla PT3 en MegaROM
+
+Las pistas `external-pt3` source-faithful no pasan por la compresion ZX0 generica
+de recursos. Sus bloques `pt3_track_<n>_bank_0` y
+`pt3_track_<n>_bank_1` se leen directamente desde los bancos del mapper por el
+replayer, y ambos labels deben conservarse en el ASM final.
+
 ### Flujo interno
 
 El flujo normal del tracker es:

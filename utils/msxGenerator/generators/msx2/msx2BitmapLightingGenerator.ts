@@ -72,6 +72,29 @@ export interface BitmapLightingOptions {
    * expensive blit of a transition) stalls the song for its whole duration.
    */
   musicTick?: boolean;
+  /**
+   * Travelling lantern carried by the shoot skill's bullet: while the tail is
+   * lit, the bullet drags a small halo so a shot doubles as a sonar.
+   *
+   * Only emitted when the project also has glowing mushrooms, because the
+   * trailing strip must be repaired against the player's own halo and that
+   * machinery (bitmap_light_submit / _repair_halo / bitmap_light_protect) lives
+   * inside the mushroom block. A dark room with no mushroom keeps its bullets
+   * dark; the caller warns about it.
+   */
+  bulletLantern?: {
+    /** RAM label of the bullet pool (active, x, y, dir[, life]). */
+    poolLabel: string;
+    slotCount: number;
+    slotStride: number;
+    /** Bullet speed in px/frame: the strip repainted on each side per frame. */
+    speed: number;
+    /** Half sizes of the lantern rectangle around the bullet centre. */
+    halfWidth: number;
+    halfHeight: number;
+    /** Y added to a bullet's room coordinate to reach SCREEN 5 rows. */
+    gameYOffset: number;
+  };
 }
 
 export interface BitmapLightingSystem {
@@ -81,6 +104,8 @@ export interface BitmapLightingSystem {
   initAsm: string;
   /** Per-frame halo delta, after player movement resolved. */
   mainLoopCall: string;
+  /** Bullet lantern update; '' when no travelling lantern is emitted. */
+  bulletLanternCall: string;
   /** Full dark fill + halo on the hidden page, before commit_room_flip. */
   pendingPageCallAsm: string;
   /** Full dark fill + halo on the visible page, at boot. */
@@ -95,6 +120,7 @@ const DISABLED_SYSTEM: BitmapLightingSystem = {
   equates: '',
   initAsm: '',
   mainLoopCall: '',
+  bulletLanternCall: '',
   pendingPageCallAsm: '',
   bootPaintCallAsm: '',
   routinesAsm: '',
@@ -493,6 +519,12 @@ export function buildBitmapLightingSystemAsm(
   const A_SFX_ACTIVE = compiledEatSound ? alloc(1) : -1;
   const A_SFX_TIMER = compiledEatSound ? alloc(1) : -1;
   const A_SFX_PTR = compiledEatSound ? alloc(2) : -1;
+  // Travelling bullet lantern. Needs the mushroom block's repair machinery, so
+  // it only exists when both are present.
+  const lantern = anyMushroom ? options.bulletLantern : undefined;
+  const A_BL_ON = lantern ? alloc(1) : -1;   // a lantern is currently painted
+  const A_BL_X = lantern ? alloc(1) : -1;    // centre it was last painted at
+  const A_BL_Y = lantern ? alloc(1) : -1;
   const ramBytes = cursor - ramBase;
 
   const equ = (name: string, address: number) =>
@@ -553,11 +585,16 @@ export function buildBitmapLightingSystemAsm(
       ? equ('bitmap_light_sfx_active', A_SFX_ACTIVE) +
         equ('bitmap_light_sfx_timer', A_SFX_TIMER) +
         equ('bitmap_light_sfx_ptr', A_SFX_PTR)
+      : '') +
+    (lantern
+      ? equ('bitmap_bl_on', A_BL_ON) +
+        equ('bitmap_bl_x', A_BL_X) +
+        equ('bitmap_bl_y', A_BL_Y)
       : '');
 
   const initAsm = `    xor a
     ld (bitmap_light_active), a       ; no halo painted yet
-${anyMushroom ? '    ld (bitmap_light_protect), a\n' : ''}${compiledEatSound ? '    ld (bitmap_light_sfx_active), a\n' : ''}${torchSkill
+${anyMushroom ? '    ld (bitmap_light_protect), a\n' : ''}${lantern ? '    ld (bitmap_bl_on), a              ; no bullet lantern painted\n' : ''}${compiledEatSound ? '    ld (bitmap_light_sfx_active), a\n' : ''}${torchSkill
     ? `    ld (bitmap_light_stage), a
     ld a, ${torchConfig?.startsLit === true ? 1 : 0}
     ld (bitmap_light_on), a           ; the tail starts ${torchConfig?.startsLit === true ? 'glowing' : 'dark: eat a mushroom'}
@@ -2360,15 +2397,308 @@ ${glowAnimAsm}`
     jp bitmap_light_restore_status
 `;
 
+  // ----------------------------------------------------- travelling bullet lantern
+  const lanternRoutinesAsm = !lantern ? '' : (() => {
+    const hw = Math.max(4, Math.min(48, Math.floor(lantern.halfWidth) || 16));
+    const hh = Math.max(4, Math.min(48, Math.floor(lantern.halfHeight) || 12));
+    const w = hw * 2;
+    const h = hh * 2;
+    const advance = Array.from({ length: lantern.slotStride }, () => '    inc ix').join('\n');
+    // Centre clamps keep every rectangle inside the game band, exactly like the
+    // player halo does: bitmap_light_rect never clips.
+    const xMin = hw;
+    const xMax = 255 - hw;
+    const yMin = GAME_Y + hh;
+    const yMax = GAME_Y + GAME_H - hh;
+    return `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_bullet_light_update
+; ------------------------------------------------------------
+; PURPOSE:
+;   Drag a ${w}x${h} halo along with the live bullet, so a shot lights the room in
+;   the direction it travels. Only the two strips that actually change are
+;   repainted: the leading one is lit, the trailing one is dimmed.
+;
+;   The dim goes through bitmap_light_submit with bitmap_light_protect set, so it
+;   repairs the mushroom glows AND the player's own halo instead of punching
+;   holes in them. The flag is raised and lowered inside this routine, and the
+;   player halo is moved by a different call, so the two never interleave --
+;   protecting during halo movement would freeze the light in place.
+;
+; INPUT:   bullet pool at ${lantern.poolLabel}, bitmap_light_* state.
+; OUTPUT:  VRAM fills; bitmap_bl_on/_x/_y track the painted footprint.
+; DESTROYS: AF, BC, DE, HL, IX.
+; ------------------------------------------------------------
+bitmap_bullet_light_update:
+    call bitmap_light_room_is_dark
+    jp z, .bl_forget            ; normal room: the repaint already took it away
+    ld a, (bitmap_light_active)
+    or a
+    jp z, .bl_forget
+${torchSkill ? `    ld a, (bitmap_light_on)
+    or a
+    jp z, .bl_drop              ; tail out: take the lantern down too
+` : ''}    ld a, (bitmap_displayed_page)
+    ld (bitmap_light_page), a
+    ld ix, ${lantern.poolLabel}
+    ld b, ${lantern.slotCount}
+.bl_scan:
+    ld a, (ix+0)
+    or a
+    jp nz, .bl_live
+${advance}
+    djnz .bl_scan
+.bl_drop:
+    ; No bullet left: dim the footprint we painted and forget it.
+    ld a, (bitmap_bl_on)
+    or a
+    ret z
+    xor a
+    ld (bitmap_bl_on), a
+    ld a, (bitmap_displayed_page)
+    ld (bitmap_light_page), a
+    ld a, (bitmap_bl_x)
+    ld d, a
+    ld a, (bitmap_bl_y)
+    ld e, a
+    call bitmap_bullet_light_dim_full
+    jp bitmap_light_restore_status
+.bl_forget:
+    xor a
+    ld (bitmap_bl_on), a
+    ret
+.bl_live:
+    ; Centre of the bullet sprite, clamped so the rectangle stays in the band.
+    ld a, (ix+1)
+    add a, 8
+    cp ${xMin}
+    jp nc, .bl_x_lo_ok
+    ld a, ${xMin}
+.bl_x_lo_ok:
+    cp ${xMax + 1}
+    jp c, .bl_x_hi_ok
+    ld a, ${xMax}
+.bl_x_hi_ok:
+    ld d, a
+    ld a, (ix+2)
+    add a, ${lantern.gameYOffset + 8}
+    cp ${yMin}
+    jp nc, .bl_y_lo_ok
+    ld a, ${yMin}
+.bl_y_lo_ok:
+    cp ${yMax + 1}
+    jp c, .bl_y_hi_ok
+    ld a, ${yMax}
+.bl_y_hi_ok:
+    ld e, a
+    ld a, (bitmap_bl_on)
+    or a
+    jp nz, .bl_shift
+    ; First frame of this shot: light the whole footprint.
+    ld a, 1
+    ld (bitmap_bl_on), a
+    ld a, d
+    ld (bitmap_bl_x), a
+    ld a, e
+    ld (bitmap_bl_y), a
+    call bitmap_bullet_light_set_rect
+    call bitmap_light_op_lit
+    call bitmap_light_rect
+    jp bitmap_light_restore_status
+.bl_shift:
+    ; Exactly one axis moves (dir is latched at spawn and the clamp on the other
+    ; axis is constant), so test X first and fall through to Y.
+    ld a, (bitmap_bl_x)
+    ld c, a
+    ld a, d
+    sub c                       ; A = newCX - oldCX
+    jp z, .bl_shift_y
+    ld a, d
+    ld (bitmap_bl_x), a
+    ld a, d
+    sub c
+    jp c, .bl_shift_left
+    ld b, a                     ; B = strip width, moved right
+    ; trailing column leaves at oldCX - hw
+    ld a, c
+    sub ${hw}
+    ld (bitmap_light_rx), a
+    jp .bl_shift_x_common
+.bl_shift_left:
+    neg
+    ld b, a                     ; B = strip width, moved left
+    ; trailing column leaves at oldCX + hw - width
+    ld a, c
+    add a, ${hw}
+    sub b
+    ld (bitmap_light_rx), a
+.bl_shift_x_common:
+    ld a, b
+    ld (bitmap_light_rw), a
+    xor a
+    ld (bitmap_light_rw + 1), a
+    ld a, e
+    sub ${hh}
+    ld (bitmap_light_ry), a
+    ld a, ${h}
+    ld (bitmap_light_rh), a
+    push de
+    push bc
+    call bitmap_bullet_light_dim_submit
+    pop bc
+    pop de
+    ; leading column arrives on the new side
+    ld a, d
+    sub c                       ; sign again: which side did it enter from
+    jp c, .bl_lead_left
+    ld a, d
+    add a, ${hw}
+    sub b
+    jp .bl_lead_common
+.bl_lead_left:
+    ld a, d
+    sub ${hw}
+.bl_lead_common:
+    ld (bitmap_light_rx), a
+    ld a, b
+    ld (bitmap_light_rw), a
+    xor a
+    ld (bitmap_light_rw + 1), a
+    ld a, e
+    sub ${hh}
+    ld (bitmap_light_ry), a
+    ld a, ${h}
+    ld (bitmap_light_rh), a
+    call bitmap_light_op_lit
+    call bitmap_light_rect
+    jp bitmap_light_restore_status
+.bl_shift_y:
+    ld a, (bitmap_bl_y)
+    ld c, a
+    ld a, e
+    sub c                       ; A = newCY - oldCY
+    ret z                       ; clamped still: nothing changed
+    ld a, e
+    ld (bitmap_bl_y), a
+    ld a, e
+    sub c
+    jp c, .bl_shift_up
+    ld b, a                     ; moved down
+    ld a, c
+    sub ${hh}
+    jp .bl_shift_y_common
+.bl_shift_up:
+    neg
+    ld b, a                     ; moved up
+    ld a, c
+    add a, ${hh}
+    sub b
+.bl_shift_y_common:
+    ld (bitmap_light_ry), a
+    ld a, b
+    ld (bitmap_light_rh), a
+    ld a, d
+    sub ${hw}
+    ld (bitmap_light_rx), a
+    ld a, ${w}
+    ld (bitmap_light_rw), a
+    xor a
+    ld (bitmap_light_rw + 1), a
+    push de
+    push bc
+    call bitmap_bullet_light_dim_submit
+    pop bc
+    pop de
+    ; leading row arrives on the new side
+    ld a, e
+    sub c
+    jp c, .bl_lead_up
+    ld a, e
+    add a, ${hh}
+    sub b
+    jp .bl_lead_y_common
+.bl_lead_up:
+    ld a, e
+    sub ${hh}
+.bl_lead_y_common:
+    ld (bitmap_light_ry), a
+    ld a, b
+    ld (bitmap_light_rh), a
+    ld a, d
+    sub ${hw}
+    ld (bitmap_light_rx), a
+    ld a, ${w}
+    ld (bitmap_light_rw), a
+    xor a
+    ld (bitmap_light_rw + 1), a
+    call bitmap_light_op_lit
+    call bitmap_light_rect
+    jp bitmap_light_restore_status
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_bullet_light_dim_submit
+; ------------------------------------------------------------
+; PURPOSE:
+;   Dim the rectangle already loaded in bitmap_light_r*, repairing both the
+;   mushroom glows and the player's halo. The protect flag is raised only for
+;   this single fill.
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_bullet_light_dim_submit:
+    call bitmap_light_op_dim
+    ld a, 1
+    ld (bitmap_light_protect), a
+    call bitmap_light_submit
+    xor a
+    ld (bitmap_light_protect), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_bullet_light_dim_full
+; ------------------------------------------------------------
+; PURPOSE:
+;   Take the whole lantern footprint down (bullet died / tail went out).
+; INPUT: D = centre X, E = centre Y.
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_bullet_light_dim_full:
+    call bitmap_bullet_light_set_rect
+    jp bitmap_bullet_light_dim_submit
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_bullet_light_set_rect
+; ------------------------------------------------------------
+; PURPOSE: Load bitmap_light_r* with the full ${w}x${h} lantern around D,E.
+; INPUT: D = centre X, E = centre Y (both already clamped).
+; DESTROYS: AF. PRESERVES: BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_bullet_light_set_rect:
+    ld a, d
+    sub ${hw}
+    ld (bitmap_light_rx), a
+    ld a, ${w}
+    ld (bitmap_light_rw), a
+    xor a
+    ld (bitmap_light_rw + 1), a
+    ld a, e
+    sub ${hh}
+    ld (bitmap_light_ry), a
+    ld a, ${h}
+    ld (bitmap_light_rh), a
+    ret
+`;
+  })();
+
   return {
     enabled: true,
     ramBytes,
     equates,
     initAsm,
     mainLoopCall: `    call bitmap_light_update    ; move the ${torchSkill ? 'glowing tail' : 'lamp'} halo (dark rooms only)\n`,
+    bulletLanternCall: lantern ? '    call bitmap_bullet_light_update    ; drag the shot lantern\n' : '',
     pendingPageCallAsm: '    call bitmap_light_paint_pending    ; dim the hidden page and cut the halo before the flip\n',
     bootPaintCallAsm: '    call bitmap_light_paint_visible    ; dim the first room and cut the halo\n',
-    routinesAsm: `${sharedRoutinesAsm}${mushroomRoutinesAsm}${torchRoutinesAsm}${updateRoutineAsm}`,
+    routinesAsm: `${sharedRoutinesAsm}${mushroomRoutinesAsm}${torchRoutinesAsm}${updateRoutineAsm}${lanternRoutinesAsm}`,
     dataAsm,
   };
 }

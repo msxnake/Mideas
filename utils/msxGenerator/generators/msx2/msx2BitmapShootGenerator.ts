@@ -4,23 +4,52 @@ import { Msx2BitmapKeyboardBinding, Msx2ShootConfig } from '../../../msx2Platfor
  * SCREEN 5 bitmap-room SHOOT skill.
  *
  * Fires one bullet per fire-key press+release cycle. Up to `maxBullets`
- * simultaneous bullets travel horizontally at `bulletSpeed` px/frame in the
- * player's facing direction. Bullets are deactivated on wall collision, screen
- * border, or enemy impact (stub). Each active bullet occupies one V9938 sprite
- * slot after the player layers.
+ * simultaneous bullets travel at `bulletSpeed` px/frame. Bullets are
+ * deactivated on wall collision, screen border, enemy impact (stub) and, when
+ * `bulletRange` is authored, on running out of life. Each active bullet
+ * occupies one V9938 sprite slot after the player layers.
  *
  * RAM layout (contiguous pool walked by IX):
- *   bitmap_bullet_pool           active, x, y, dir  (4 bytes x maxBullets)
+ *   bitmap_bullet_pool           active, x, y, dir[, life]  (4 or 5 bytes x maxBullets)
  *   bitmap_shoot_cooldown        1 byte
  *   bitmap_shoot_lock            1 byte (requireKeyRelease)
  *   bitmap_bullet_borrow_group   1 byte (#FF before the first borrowed upload)
  *
+ * The life byte only exists when `bulletRange` > 0, so a project that never
+ * authors a range keeps the historical 4-byte slot and a byte-equal ROM.
+ *
  * Fire input comes from the Player skill binding resolved by
  * resolveMsx2BitmapKeyboardBinding. Direction comes from player_facing
- * (0=left, 1=right).
+ * (dir 0=left, 1=right) or, with `allowUpShot` and UP held while firing, 2=up.
  */
 
 const STRIDE = 4;            // bytes per bullet slot: active, x, y, dir
+const STRIDE_RANGED = 5;     // + life: steps left before the bullet dies of old age
+
+/** True when the project caps how far a bullet may travel. */
+function bitmapShootRanged(config: Msx2ShootConfig | undefined): boolean {
+  return bitmapShootEnabled(config) && Math.floor(Number(config!.bulletRange) || 0) > 0;
+}
+
+/** Pool stride: the life byte only exists when a range was authored. */
+export function bitmapShootSlotStride(config: Msx2ShootConfig | undefined): number {
+  return bitmapShootRanged(config) ? STRIDE_RANGED : STRIDE;
+}
+
+/**
+ * Steps a bullet survives = range / speed, clamped to a byte. The bullet still
+ * dies early on a wall, an enemy or the screen edge; this only adds old age.
+ */
+function bitmapShootLifeSteps(config: Msx2ShootConfig): number {
+  const speed = Math.max(1, Math.min(16, Math.floor(config.bulletSpeed) || 4));
+  const range = Math.max(0, Math.min(255, Math.floor(config.bulletRange) || 0));
+  return Math.max(1, Math.min(255, Math.ceil(range / speed)));
+}
+
+/** Direction codes stored in the slot's dir byte. */
+const BULLET_DIR_LEFT = 0;
+const BULLET_DIR_RIGHT = 1;
+const BULLET_DIR_UP = 2;
 
 function asmByte(value: number): string {
   const byte = Math.max(0, Math.min(255, Math.floor(Number(value) || 0)));
@@ -82,7 +111,7 @@ export function bitmapShootEnabled(config: Msx2ShootConfig | undefined): boolean
 export function bitmapShootRamBytes(config: Msx2ShootConfig | undefined): number {
   if (!bitmapShootEnabled(config)) return 0;
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
-  return maxBullets * STRIDE + 3;
+  return maxBullets * bitmapShootSlotStride(config) + 3;
 }
 
 export interface BitmapShootRuntimeOptions {
@@ -106,6 +135,12 @@ export interface BitmapShootRuntimeOptions {
   /** Label the bullet-vs-enemy stub jumps to (e.g. the bitmap boss hit check).
    *  The target must preserve BC and IX (bullet loop counter + slot pointer). */
   enemyCollisionJumpLabel?: string;
+  /**
+   * RAM label holding the ammunition count (nuts). When set, firing costs one
+   * unit and an empty counter refuses the shot outright. Undefined keeps the
+   * historical unlimited fire, so a project with no nuts placed is unaffected.
+   */
+  ammoCounterLabel?: string;
   /**
    * When no dedicated V9938 group remains, borrow one of two player pattern
    * groups. The runtime always chooses the group outside the currently visible
@@ -137,7 +172,7 @@ export function buildBitmapShootEquates(
 ): string {
   if (!bitmapShootEnabled(config)) return '';
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
-  const poolBytes = maxBullets * STRIDE;
+  const poolBytes = maxBullets * bitmapShootSlotStride(config);
   return `; --- SHOOT skill runtime state (${poolBytes + 3} bytes) ---
 bitmap_bullet_pool     EQU ${asmWord(ramBase)}
 bitmap_shoot_cooldown  EQU ${asmWord(ramBase + poolBytes)}
@@ -150,7 +185,7 @@ bitmap_bullet_borrow_group EQU ${asmWord(ramBase + poolBytes + 2)}
 export function buildBitmapShootInitClearAsm(config: Msx2ShootConfig | undefined): string {
   if (!bitmapShootEnabled(config)) return '';
   const maxBullets = Math.max(1, Math.min(8, Math.floor(config!.maxBullets) || 3));
-  const total = maxBullets * STRIDE + 3;
+  const total = maxBullets * bitmapShootSlotStride(config) + 3;
   return `    ; Clear SHOOT pool (${total} bytes at bitmap_bullet_pool)
     call bitmap_shoot_init_clear
 `;
@@ -240,6 +275,12 @@ export function buildBitmapShootRuntimeAsm(
   const bulletSpeed = asmByte(Math.max(1, Math.min(16, Math.floor(config.bulletSpeed) || 4)));
   const shootCooldown = asmByte(Math.max(0, Math.min(120, Math.floor(config.shootCooldown) || 10)));
   const requireKeyRelease = config.requireKeyRelease !== false;
+  const stride = bitmapShootSlotStride(config);
+  const ranged = bitmapShootRanged(config);
+  const lifeSteps = ranged ? bitmapShootLifeSteps(config) : 0;
+  const allowUpShot = config.allowUpShot === true;
+  // IX walks the pool one slot at a time; the stride grew with the life byte.
+  const advanceSlot = Array.from({ length: stride }, () => '    inc ix').join('\n');
   const patternNumber = asmByte(opts.bulletPatternNumber);
   const satStart = opts.satBase + ((opts.foregroundSlotCount || 0) + opts.playerLayerCount + (opts.enemySlotCount || 0) + (opts.platformSlotCount || 0) + (opts.carrySlotCount || 0) + (opts.destroySlotCount || 0)) * 4;
   const gameYOffset = asmByte(opts.gameYOffset);
@@ -372,6 +413,22 @@ bitmap_prepare_bullet_pattern_body:
     ld (bitmap_shoot_lock), a
 `
     : '';
+  // Ammo gate. Placed AFTER the cooldown/lock checks and BEFORE the free-slot
+  // search, so an empty counter neither arms the cooldown nor consumes the key
+  // press: releasing and pressing again still tries (and still refuses).
+  const ammoGate = opts.ammoCounterLabel
+    ? `    ld a, (${opts.ammoCounterLabel})
+    or a
+    jp z, .spawn_done         ; out of ammo: no shot
+`
+    : '';
+  // Spend one unit only once a slot was actually taken.
+  const ammoSpend = opts.ammoCounterLabel
+    ? `    ld a, (${opts.ammoCounterLabel})
+    dec a
+    ld (${opts.ammoCounterLabel}), a
+`
+    : '';
 
   const initClearRoutineAsm = `
 ; ------------------------------------------------------------
@@ -416,6 +473,30 @@ bitmap_shoot_release_lock:
     xor a
     ld (bitmap_shoot_lock), a
     ret
+${!allowUpShot ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_shoot_up_held
+; ------------------------------------------------------------
+; PURPOSE: Reads the UP cursor key (matrix row 8, mask #20) to aim the shot
+;   upwards. Only the HELD state matters: the shot itself is triggered by the
+;   fire edge, so the UP press is still free for doors and shops.
+; INPUT: none. OUTPUT: A = 1 when held, A = 0 otherwise (Z when released).
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+; SIDE EFFECTS: selects keyboard row 8 on PPI_C, which is where
+;   update_player_movement leaves it anyway.
+; ------------------------------------------------------------
+bitmap_shoot_up_held:
+    in a, (PPI_C)
+    and #F0
+    or 8
+    out (PPI_C), a
+    in a, (PPI_B)
+    cpl
+    and #20
+    ret z
+    ld a, 1
+    ret
+`}
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_try_spawn_bullet
@@ -437,21 +518,35 @@ bitmap_try_spawn_bullet:
     ld a, (bitmap_shoot_cooldown)
     or a
     jp nz, .spawn_done
-${lockGate}    ld ix, bitmap_bullet_pool
+${lockGate}${ammoGate}    ld ix, bitmap_bullet_pool
     ld b, ${asmByte(maxBullets)}
 .find_free:
     ld a, (ix+0)
     or a
     jp z, .found
-    inc ix
-    inc ix
-    inc ix
-    inc ix
+${advanceSlot}
     djnz .find_free
     jp .spawn_done
 .found:
     ld (ix+0), 1
-    ld a, (player_facing)
+${allowUpShot ? `    ; UP held? Shoot upwards. The shot is triggered by the FIRE edge, never by
+    ; the UP edge, so bitmap_key_up_lock (doors, shops) is left untouched.
+    call bitmap_shoot_up_held
+    or a
+    jp z, .spawn_forward
+    ld (ix+3), ${BULLET_DIR_UP}
+    ld a, (player_x)
+    add a, 6
+    ld (ix+1), a
+    ld a, (player_y)
+    sub 2
+    jp nc, .spawn_up_y_ok
+    xor a                     ; clamp at the top row
+.spawn_up_y_ok:
+    ld (ix+2), a
+    jp .spawn_life
+.spawn_forward:
+` : ''}    ld a, (player_facing)
     ld (ix+3), a
     or a
     jp z, .spawn_left
@@ -467,7 +562,10 @@ ${lockGate}    ld ix, bitmap_bullet_pool
     ld a, (player_y)
     add a, 6
     ld (ix+2), a
-    ld a, ${shootCooldown}
+${allowUpShot ? '.spawn_life:\n' : ''}${ranged ? `    ; The step routine spends one life BEFORE moving, so the slot needs one extra
+    ; unit for the bullet to actually travel its full ${config.bulletRange} px.
+    ld (ix+4), ${asmByte(Math.min(255, lifeSteps + 1))}     ; ${lifeSteps} moves = ${config.bulletRange} px of range
+` : ''}${ammoSpend}    ld a, ${shootCooldown}
     ld (bitmap_shoot_cooldown), a
 ${armLock}.spawn_done:
     ret
@@ -492,8 +590,15 @@ bitmap_step_bullets:
     ld a, (ix+0)
     or a
     jp z, .step_next
-    ld a, (ix+3)
-    or a
+${ranged ? `    ; Old age first: a spent bullet must not get one more free step.
+    ld a, (ix+4)
+    dec a
+    ld (ix+4), a
+    jp z, .deactivate
+` : ''}    ld a, (ix+3)
+${allowUpShot ? `    cp ${BULLET_DIR_UP}
+    jp z, .step_up
+` : ''}    or a
     jp z, .step_left
     ld a, (ix+1)
     add a, ${bulletSpeed}
@@ -505,7 +610,15 @@ bitmap_step_bullets:
     sub ${bulletSpeed}
     jp c, .deactivate
     ld (ix+1), a
-.step_wall:
+${!allowUpShot ? '' : `    jp .step_wall
+.step_up:
+    ; Upwards: Y grows downwards, so borrowing past 0 means the bullet left the
+    ; top of the play area. The room is 192 px tall, no bottom case exists here.
+    ld a, (ix+2)
+    sub ${bulletSpeed}
+    jp c, .deactivate
+    ld (ix+2), a
+`}.step_wall:
     push bc
     ld b, (ix+1)
     ld c, (ix+2)
@@ -514,10 +627,7 @@ bitmap_step_bullets:
     jp nz, .deactivate
     call bitmap_bullet_check_enemy_collision
 .step_next:
-    inc ix
-    inc ix
-    inc ix
-    inc ix
+${advanceSlot}
     djnz .step_loop
     ret
 .deactivate:
@@ -567,10 +677,7 @@ ${borrowedPatternSelectAsm}
     xor a
     out (VDP_DATA_PORT), a
 .sat_next:
-    inc ix
-    inc ix
-    inc ix
-    inc ix
+${advanceSlot}
     djnz .sat_loop
     ld a, #D8
     out (VDP_DATA_PORT), a

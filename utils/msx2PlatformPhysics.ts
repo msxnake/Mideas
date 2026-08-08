@@ -81,6 +81,12 @@ export interface Msx2ShootConfig {
   shootCooldown: number;
   requireKeyRelease: boolean;
   bulletDamage: number;
+  /** Max distance in px before the bullet dies on its own. 0 = unlimited (legacy). */
+  bulletRange: number;
+  /** Hold UP while firing to shoot upwards instead of forwards. */
+  allowUpShot: boolean;
+  /** The bullet drags a small halo through dark rooms (needs glowing mushrooms). */
+  bulletLantern: boolean;
   primaryControl: Msx2PlayerControlId;
   secondaryControl: Msx2PlayerControlId | 'none';
   primaryKeyboard?: Msx2BitmapKeyboardBinding;
@@ -769,6 +775,9 @@ export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx
   const maxBullets = pickSkillNumberParam(params, 'shoot', ['maxBullets'], 3);
   const shootCooldown = pickSkillNumberParam(params, 'shoot', ['shootCooldown'], 10);
   const bulletDamage = pickSkillNumberParam(params, 'shoot', ['bulletDamage'], 1);
+  // 0 keeps the historical behaviour (the bullet only dies on a wall, an enemy
+  // or the screen edge), so projects that never author a range are unaffected.
+  const bulletRange = pickSkillNumberParam(params, 'shoot', ['bulletRange'], 0);
   return {
     enabled,
     bulletSpeed: Math.max(1, Math.min(16, bulletSpeed || 4)),
@@ -776,6 +785,9 @@ export function getMsx2ShootConfigFromPlayerEntity(player: any | undefined): Msx
     shootCooldown: Math.max(0, Math.min(120, shootCooldown || 10)),
     requireKeyRelease: params.requireKeyRelease !== false,
     bulletDamage: Math.max(0, Math.min(10, bulletDamage || 1)),
+    bulletRange: Math.max(0, Math.min(255, Math.floor(bulletRange) || 0)),
+    allowUpShot: params.allowUpShot === true,
+    bulletLantern: params.bulletLantern === true,
     primaryControl: binding.primary,
     secondaryControl: binding.secondary,
     primaryKeyboard: resolveMsx2BitmapKeyboardBinding(player, binding.primary),

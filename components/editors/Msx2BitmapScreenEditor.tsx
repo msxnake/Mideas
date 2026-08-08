@@ -134,6 +134,11 @@ const PROP_BIT: Record<string, number> = {
   // This lets the SAME visual tile be diggable in one cell and only-solid in another
   // (secret paths). Painting a "Destructible" atlas tile stamps it; Select toggles it.
   destructible: 0x80,
+  // Crumbling floor (Manic Miner), per collision CELL. AUTHORING-ONLY bit: the exported
+  // collision byte masks bits 2..1 away (`& 0xf9`, that field carries the Effects layer),
+  // so it never reaches the ROM and cannot make a cell read as solid. The generator turns
+  // the marked cells into a per-room record list instead.
+  crumbling: 0x04,
 };
 
 // 8x8 SUB-CELL solidity (room.collisionShape): each 16x16 collision cell can be
@@ -141,6 +146,13 @@ const PROP_BIT: Record<string, number> = {
 // where it is drawn. The generator packs this nibble into the high nibble of the
 // exported behavior byte and flags the cell with HAS_SHAPE (0x01) in the collision
 // byte; 0 (and 15) mean "the whole cell is solid", i.e. the legacy behaviour.
+// Crumbling floor (Manic Miner): 8 erosion stages of 2px each consume the 16px cell.
+// The speed is authored per atlas tile (frames the player must stand on it per stage).
+const CRUMBLE_STAGES = 8;
+const CRUMBLE_FRAMES_MIN = 2;
+const CRUMBLE_FRAMES_MAX = 30;
+const CRUMBLE_FRAMES_DEFAULT = 6;
+
 const SHAPE_BIT = { tl: 1, tr: 2, bl: 4, br: 8 } as const;
 const SHAPE_FULL = 0x0f;
 const SHAPE_QUADRANTS: { key: keyof typeof SHAPE_BIT; label: string }[] = [
@@ -331,6 +343,14 @@ const clampInt = (value: unknown, min: number, max: number, fallback: number): n
 };
 
 const clampByte = (value: unknown, fallback: number): number => clampInt(value, 0, 255, fallback);
+
+/**
+ * Collision byte to stamp when an atlas tile is painted. `crumbling` lives on the entry as a
+ * boolean but its source of truth for the generator is the per-cell bit, so every painting
+ * path must stamp it — brush, mix roll, autotile and fill alike.
+ */
+const entryPaintFlags = (entry: { collisionFlags?: number; crumbling?: boolean } | undefined): number =>
+  clampByte(entry?.collisionFlags, 0) | (entry?.crumbling === true ? PROP_BIT.crumbling : 0);
 
 const toHex = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
 
@@ -2746,7 +2766,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     if (index < 0) return;
     const next = tileGrid.map(row => [...row]);
     next[cy][cx] = index + 1;
-    const nextCollision = writeCell(room.collision, cx, cy, clampByte(entry.collisionFlags, 0), collisionCols, collisionRows);
+    const nextCollision = writeCell(room.collision, cx, cy, entryPaintFlags(entry), collisionCols, collisionRows);
     const nextBehavior = writeCell(room.behavior, cx, cy, clampByte(entry.behaviorCode, 0), collisionCols, collisionRows);
     let nextShape: number[][] | undefined = undefined;
     if (entry.collisionShape) {
@@ -2773,7 +2793,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     let nextBehavior = room.behavior;
     let nextShape: number[][] | undefined = undefined;
     changed.forEach(({ x, y, entry }) => {
-      nextCollision = writeCell(nextCollision, x, y, clampByte(entry?.collisionFlags, 0), collisionCols, collisionRows);
+      nextCollision = writeCell(nextCollision, x, y, entryPaintFlags(entry), collisionCols, collisionRows);
       nextBehavior = writeCell(nextBehavior, x, y, clampByte(entry?.behaviorCode, 0), collisionCols, collisionRows);
       if (entry?.collisionShape) {
         if (!nextShape) nextShape = ensureCollisionShape().map(row => [...row]);
@@ -2863,7 +2883,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
           const index = atlasEntries.indexOf(entry);
           if (index < 0) return;
           next[cell.y][cell.x] = index + 1;
-          nextCollision = writeCell(nextCollision, cell.x, cell.y, clampByte(entry.collisionFlags, 0), collisionCols, collisionRows);
+          nextCollision = writeCell(nextCollision, cell.x, cell.y, entryPaintFlags(entry), collisionCols, collisionRows);
           nextBehavior = writeCell(nextBehavior, cell.x, cell.y, clampByte(entry.behaviorCode, 0), collisionCols, collisionRows);
         });
         applyTileGrid(next, undefined, nextCollision, nextBehavior);
@@ -3755,9 +3775,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
 
   // Painting a "Destructible" atlas tile stamps the per-cell destructible bit (0x80)
   // into the cell's collision byte, so the dug-mask default follows the atlas checkbox
-  // while the Select tool can still toggle individual cells (secret paths).
+  // while the Select tool can still toggle individual cells (secret paths). "Se desmorona"
+  // (0x04) works the same way for crumbling floors.
   const selectedAtlasEntryFlags = selectedAtlasEntry
-    ? clampByte(selectedAtlasEntry.collisionFlags, 0) | (selectedAtlasEntry.destructible === true ? PROP_BIT.destructible : 0)
+    ? clampByte(selectedAtlasEntry.collisionFlags, 0)
+      | (selectedAtlasEntry.destructible === true ? PROP_BIT.destructible : 0)
+      | (selectedAtlasEntry.crumbling === true ? PROP_BIT.crumbling : 0)
     : 0;
   const selectedAtlasEntryBehaviorCode = selectedAtlasEntry ? clampByte(selectedAtlasEntry.behaviorCode, 0) : 0;
   const getConfigAtlasEntryIds = (): string[] => {
@@ -3791,6 +3814,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     return true;
   };
   const selectedAtlasEntryDestructible = selectedAtlasEntry?.destructible === true;
+  const selectedAtlasEntryCrumbling = selectedAtlasEntry?.crumbling === true;
+  const selectedAtlasEntryCrumbleFrames = clampInt(selectedAtlasEntry?.crumbleFramesPerStage, CRUMBLE_FRAMES_MIN, CRUMBLE_FRAMES_MAX, CRUMBLE_FRAMES_DEFAULT);
   const selectedAtlasEntryShape = selectedAtlasEntry ? (clampByte(selectedAtlasEntry.collisionShape, 0) & SHAPE_FULL) : 0;
   const selectedAtlasEntryShapeQuadrants = expandCellShape(selectedAtlasEntryShape);
 
@@ -3845,9 +3870,13 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     next.destructible = configTarget === 'cell'
       ? (configFlags & PROP_BIT.destructible) !== 0
       : selectedAtlasEntryDestructible;
+    // Crumbling reads the per-cell 0x04 bit for a cell, or the atlas tile flag for a tile.
+    next.crumbling = configTarget === 'cell'
+      ? (configFlags & PROP_BIT.crumbling) !== 0
+      : selectedAtlasEntryCrumbling;
     setCellProps(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode, selectedAtlasEntryDestructible]);
+  }, [configTarget, selectedCollisionCell?.x, selectedCollisionCell?.y, room.collision, room.behavior, selectedAtlasEntry?.id, selectedAtlasEntryFlags, selectedAtlasEntryBehaviorCode, selectedAtlasEntryDestructible, selectedAtlasEntryCrumbling]);
 
   // --- 8x8 sub-cell shape of the selected collision cell ---
   const selectedCellShape = selectedCollisionCell
@@ -4141,6 +4170,90 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       `SCREEN 5: Destructible ${turnOn ? 'ON' : 'OFF'} en ${targetLabel}` +
       (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
       ' (skill destroy_tile).'
+    );
+  };
+
+  // Crumbling floor (Manic Miner). Same two scopes as Destructible:
+  //  - CELL: toggles the per-cell 0x04 bit in the collision grid (source of truth for the
+  //    generator's crumble record list), so one tile can crumble here and be firm there.
+  //  - TILE: toggles the atlas entry's `crumbling` flag = the painting default, synced into
+  //    the cells already painted with that tile.
+  // The bit is authoring-only: buildCollisionTableBytes masks bits 2..1 away (Effects layer),
+  // so it never reaches the ROM collision byte.
+  const toggleCrumbling = () => {
+    if (configTarget === 'cell') {
+      if (!selectedCollisionCell) {
+        setStatusBarMessage?.('Selecciona una celda del lienzo primero (herramienta Select).');
+        return;
+      }
+      const bit = PROP_BIT.crumbling;
+      const current = readCell(room.collision, selectedCollisionCell.x, selectedCollisionCell.y);
+      const nextValue = (current & bit) ? (current & ~bit) : (current | bit);
+      const grown = writeCell(room.collision, selectedCollisionCell.x, selectedCollisionCell.y, nextValue, collisionCols, collisionRows);
+      onUpdate({ collision: grown });
+      const on = (nextValue & bit) !== 0;
+      setStatusBarMessage?.(
+        `SCREEN 5: Se desmorona ${on ? 'ON' : 'OFF'} en celda (${selectedCollisionCell.x}, ${selectedCollisionCell.y})` +
+        (on && (nextValue & PROP_BIT.solid) === 0 ? ' — ojo: la celda no es Solid, el player no puede pisarla.' : '.')
+      );
+      return;
+    }
+    const targetEntryIds = getConfigAtlasEntryIds();
+    if (targetEntryIds.length === 0) {
+      setStatusBarMessage?.('Selecciona un tile del atlas primero.');
+      return;
+    }
+    const targetSet = new Set(targetEntryIds);
+    const current = selectedAtlasEntry && targetSet.has(selectedAtlasEntry.id)
+      ? selectedAtlasEntry.crumbling === true
+      : atlasEntries.find(entry => targetSet.has(entry.id))?.crumbling === true;
+    const turnOn = !current;
+    const entries = atlasEntries.map(entry => targetSet.has(entry.id)
+      ? { ...entry, crumbling: turnOn || undefined }
+      : entry);
+    const bit = PROP_BIT.crumbling;
+    let syncedCells = 0;
+    let nextCollision = room.collision;
+    atlasEntries.forEach((entry, index) => {
+      if (!targetSet.has(entry.id)) return;
+      const tileIndexToSync = index + 1;
+      tileGrid.forEach((row, y) => {
+        row.forEach((tileIndex, x) => {
+          if (tileIndex !== tileIndexToSync) return;
+          const before = readCell(nextCollision, x, y);
+          const after = turnOn ? (before | bit) : (before & ~bit);
+          if (after === before) return;
+          nextCollision = writeCell(nextCollision, x, y, after, collisionCols, collisionRows);
+          syncedCells++;
+        });
+      });
+    });
+    onUpdate({
+      atlas: { ...room.atlas, entries },
+      ...(syncedCells > 0 ? { collision: nextCollision } : {}),
+    });
+    const targetLabel = targetEntryIds.length > 1
+      ? `${targetEntryIds.length} tiles del metatile`
+      : `tile "${selectedAtlasEntry?.name || atlasEntries.find(entry => targetSet.has(entry.id))?.name || 'atlas'}"`;
+    setStatusBarMessage?.(
+      `SCREEN 5: Se desmorona ${turnOn ? 'ON' : 'OFF'} en ${targetLabel}` +
+      (syncedCells > 0 ? `; ${syncedCells} celda(s) sincronizada(s)` : '') +
+      ` (${CRUMBLE_STAGES} etapas de 2px, se regenera al volver a la sala).`
+    );
+  };
+
+  const updateAtlasEntryCrumbleFrames = (value: number) => {
+    if (!selectedAtlasEntry) {
+      setStatusBarMessage?.('Selecciona un tile del atlas primero.');
+      return;
+    }
+    const frames = clampInt(value, CRUMBLE_FRAMES_MIN, CRUMBLE_FRAMES_MAX, CRUMBLE_FRAMES_DEFAULT);
+    const entries = atlasEntries.map(entry => entry.id === selectedAtlasEntry.id
+      ? { ...entry, crumbleFramesPerStage: frames === CRUMBLE_FRAMES_DEFAULT ? undefined : frames }
+      : entry);
+    onUpdate({ atlas: { ...room.atlas, entries } });
+    setStatusBarMessage?.(
+      `SCREEN 5: ${frames} frame(s) por etapa; el tile aguanta ${frames * CRUMBLE_STAGES} frames de pisada.`
     );
   };
 
@@ -6485,7 +6598,56 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 />
                 Destructible (pico)
               </label>
+              <label
+                className="flex items-center gap-1 text-xs text-msx-textsecondary"
+                title={configTarget === 'cell'
+                  ? `Suelo que se desmorona (Manic Miner): SOLO esta celda se erosiona mientras el player la pisa (${CRUMBLE_STAGES} etapas de 2px) y luego se abre. Se regenera al salir y volver a entrar en la sala.`
+                  : `Suelo que se desmorona (Manic Miner): al pintar este tile, las celdas se erosionan bajo los pies del player (${CRUMBLE_STAGES} etapas de 2px). Se regenera al volver a la sala; puedes desmarcar celdas sueltas con Select.`}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!cellProps.crumbling}
+                  onChange={toggleCrumbling}
+                />
+                Se desmorona
+              </label>
             </div>
+
+            {/* Crumbling-floor speed. Authored per ATLAS TILE (not per cell): the record list
+                the generator emits carries one frames-per-stage byte per crumbling cell, read
+                from the tile painted there. */}
+            {(cellProps.crumbling || selectedAtlasEntryCrumbling) && (
+              <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[0.7rem] text-msx-highlight">Se desmorona</span>
+                  <span className="text-[0.6rem] text-msx-textsecondary">{CRUMBLE_STAGES} etapas de 2px</span>
+                </div>
+                {selectedAtlasEntry ? (
+                  <>
+                    <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+                      Frames por etapa
+                      <input
+                        type="number"
+                        min={CRUMBLE_FRAMES_MIN}
+                        max={CRUMBLE_FRAMES_MAX}
+                        value={selectedAtlasEntryCrumbleFrames}
+                        onChange={e => updateAtlasEntryCrumbleFrames(Number(e.target.value))}
+                        className="w-16 rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-msx-textprimary"
+                      />
+                    </label>
+                    <p className="mt-1 text-[0.6rem] text-msx-textsecondary">
+                      Aguanta {selectedAtlasEntryCrumbleFrames * CRUMBLE_STAGES} frames de pisada
+                      (~{(selectedAtlasEntryCrumbleFrames * CRUMBLE_STAGES / 60).toFixed(1)}s a 60fps).
+                      La velocidad es del tile del atlas; la marca de "se desmorona" es por celda.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[0.6rem] text-msx-textsecondary">
+                    Selecciona el tile del atlas para ajustar los frames por etapa.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* 8x8 sub-cell solidity: 2x2 quadrant mini-grid + shape presets, per collision cell. */}
             <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2">
