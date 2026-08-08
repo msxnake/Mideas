@@ -85,6 +85,7 @@ import {
   buildBitmapShootGateAsm,
   buildBitmapShootInitClearAsm,
   buildBitmapShootRuntimeAsm,
+  bitmapShootSlotStride,
   type BitmapShootRuntimeOptions,
   type BitmapShootSpriteData,
 } from './msx2BitmapShootGenerator';
@@ -170,6 +171,15 @@ import {
   type BitmapDestroyDebrisSprite,
   type BitmapDestroyTileOptions,
 } from './msx2BitmapDestroyTileGenerator';
+import {
+  bitmapCrumbleCellCount,
+  buildBitmapCrumbleSystemAsm,
+  MSX2_BITMAP_CRUMBLE_DEBRIS_SLOTS,
+  MSX2_BITMAP_CRUMBLE_FRAMES_DEFAULT,
+  MSX2_BITMAP_CRUMBLE_FRAMES_MAX,
+  MSX2_BITMAP_CRUMBLE_FRAMES_MIN,
+  type BitmapCrumbleCell,
+} from './msx2BitmapCrumbleGenerator';
 import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
@@ -4403,6 +4413,7 @@ ${enableKeyDoorTransitions ? `    cp 4
     ld (bitmap_game_over_flag), a
     ld a, 2
     ld (player_y), a
+    call bitmap_settle_top_entry   ; a tall body at y=2 can land inside a ledge
     jp .commit_flip_page
 .commit_enter_bottom:
     ; Keep player_vy/player_vy_frac from the jump that crossed the north edge:
@@ -4651,10 +4662,14 @@ ${skillHooks.landClearAsm || ''}
     ; North/South edge: walk (or fall) into a vertical neighbour room if one exists.
     ld a, (player_y)
     cp 192
-    jp nc, .check_north_edge
-    ld a, (player_y)
-    cp 2
-    jp nc, .check_south_edge
+    jp c, .check_south_edge ; still inside the room: only the south rail can fire
+    ; Leaving through the ceiling means the Y actually went NEGATIVE, i.e. an up
+    ; move wrapped player_y into #FF..#C0 (bitmap_try_move_y allows that on
+    ; purpose). Being merely at the top of the band is not an exit: a body
+    ; ${playerHitbox.h}px tall standing on a ledge whose top is at y=32 sits at exactly
+    ; y=0, so the old "player_y < 2 -> go north" rule fired on a player that was
+    ; just standing there, and again the moment it stepped off the ledge and
+    ; started to fall. Either way it was yanked back into the room above.
 .check_north_edge:
     ld a, 2                 ; direction north
     call start_room_transition
@@ -4768,6 +4783,41 @@ ${addAImmediate(col)}    ld b, a                 ; B = probe X (+${col})
     pop af
     scf
     ret
+
+bitmap_settle_top_entry:
+    ; Called from commit_room_flip right after a north->south crossing placed the
+    ; player at the fixed top-edge entry Y (2). That constant only fits a body
+    ; that lives inside the first collision row: this player's body is
+    ; ${playerHitbox.h}px tall, so its bottom edge lands at 2+${hbBottom}=${2 + hbBottom}, i.e. INSIDE cell
+    ; row ${(2 + hbBottom) >> 4} whenever the destination room has a ledge tucked under the ceiling.
+    ; The player then spawns EMBEDDED in that floor and bitmap_try_move_x probes
+    ; the very cell it is stuck in on both sides, so every horizontal move is
+    ; vetoed: it can still jump and shoot, but never walk. Lift the body out of
+    ; the solid one pixel at a time; y=0 is both the ceiling and the hard floor of
+    ; this loop, so it runs at most twice. Lifting means we are resting ON that
+    ; cell, so grounded is asserted here too: player_vy is 0 on the entry frame
+    ; and update_player_movement skips the vertical step that would otherwise set
+    ; it, which would leave the player one frame "in the air" on top of a ledge.
+    ; Reads the collision map, already refreshed for the room being published.
+    ; Clobbers AF/BC/DE/HL. Preserves IX/IY.
+.settle_loop:
+    ld a, (player_y)
+    or a
+    ret z                   ; flush against the ceiling: nothing left to give
+${addAImmediate(hbBottom)}    ld c, a                 ; C = probe Y (body bottom edge)
+${probeColOffsets.map((col) => `    ld a, (player_x)
+${addAImmediate(col)}    ld b, a                 ; B = probe X (+${col})
+    call bitmap_probe_solid
+    jp nz, .settle_lift
+`).join('')}    ret                     ; body bottom is clear: plain fall from here
+.settle_lift:
+    ld a, (player_y)
+    dec a
+    ld (player_y), a
+    ld a, (player_flags)
+    or #01                  ; standing on the cell we just climbed out of
+    ld (player_flags), a
+    jp .settle_loop
 
 bitmap_probe_solid:
     ; B = pixel X, C = pixel Y. Returns A = collision cell value with Z set
@@ -5304,17 +5354,51 @@ function buildBitmapPlayerStateMachineAsm(
     releaseInputs: string[];
   }> = [];
 
+  // Dropping an edge in silence is how a state ends up with no way out (the
+  // authored jump state kept its ANIMATION_COMPLETE return edge and the player
+  // stayed in it forever). Name the edge and the reason in every skip path.
+  const smLabel = String(stateMachine.name || stateMachine.id || 'player');
+  const nameForStateId = (id: string): string => {
+    const state = states.find((candidate: any) => candidate.id === id);
+    return state?.name ? `${state.name} (${id})` : id || '?';
+  };
+  const warnDroppedTransition = (transition: any, reason: string): void => {
+    const from = String(transition?.fromStateId || '?');
+    const to = String(transition?.toStateId || '?');
+    const edge = `${from === '__ANY_STATE__' || from === '*' ? 'ANY' : nameForStateId(from)} -> ${nameForStateId(to)}`;
+    console.warn(`MSX2 bitmap State Machine "${smLabel}": transition ${edge} was NOT exported: ${reason}.`);
+  };
+
   for (const transition of stateMachine.transitions) {
     const condition = transition?.conditions;
-    if (condition?.type !== 'KEY_PRESSED' && condition?.type !== 'KEY_RELEASED') continue;
+    if (condition?.type !== 'KEY_PRESSED' && condition?.type !== 'KEY_RELEASED') {
+      warnDroppedTransition(
+        transition,
+        `condition "${String(condition?.type || 'none')}" is not supported on the SCREEN 5 bitmap route `
+        + '(only KEY_PRESSED / KEY_RELEASED compile). The target state will have no way out through this edge',
+      );
+      continue;
+    }
     const toIndex = stateIndexById.get(String(transition?.toStateId || ''));
-    if (toIndex === undefined) continue;
+    if (toIndex === undefined) {
+      warnDroppedTransition(transition, 'its destination state does not exist in the state machine');
+      continue;
+    }
     const fromId = String(transition?.fromStateId || '');
     const fromIndex = fromId === '__ANY_STATE__' || fromId === '*' ? null : stateIndexById.get(fromId);
-    if (fromIndex === undefined) continue;
+    if (fromIndex === undefined) {
+      warnDroppedTransition(transition, 'its source state does not exist in the state machine');
+      continue;
+    }
     const input = normalizeStateMachineInput(condition?.params?.key).toLowerCase();
     const source = bitmapStateMachineInputSource(player, input);
-    if (!input || !source) continue;
+    if (!input || !source) {
+      warnDroppedTransition(
+        transition,
+        `key "${String(condition?.params?.key ?? '')}" does not resolve to an enabled player control`,
+      );
+      continue;
+    }
     // Legacy editor data can contain both directions of an initial<->movement
     // pair as KEY_PRESSED for the same input. Holding that direction then flips
     // WALK back to IDLE every other frame. The return edge to the initial state
@@ -5367,6 +5451,20 @@ function buildBitmapPlayerStateMachineAsm(
       released,
       releaseInputs: releaseInputs.length ? releaseInputs : [input],
     });
+  }
+  // A state you can enter but never leave is almost always a dropped edge above,
+  // and on screen it reads as "the animation got stuck". Report it once per state.
+  for (const [index, state] of states.entries()) {
+    const reachable = compiledTransitions.some(candidate => candidate.toIndex === index);
+    if (!reachable) continue;
+    const canLeave = compiledTransitions.some(candidate =>
+      candidate.toIndex !== index && (candidate.fromIndex === index || candidate.fromIndex === null)
+    );
+    if (canLeave) continue;
+    console.warn(
+      `MSX2 bitmap State Machine "${smLabel}": state ${nameForStateId(String(state.id))} can be entered but has `
+      + 'no exported way out, so the player stays in it (and in its animation) for the rest of the game.'
+    );
   }
   const hasStateAnimations = Object.keys(stateAnimIds).length > 0;
   if (!compiledTransitions.length && !hasStateAnimations) return empty;
@@ -7803,6 +7901,8 @@ interface BitmapGemRecord {
   x: number;
   y: number;
   flagOffset: number;
+  /** 0 = gem (HUD 'collectibles' counter), 1 = nut (ammo, bitmap_nut_count). */
+  pickupClass: number;
   drawCommand: number[];
   eraseCommand: number[];
 }
@@ -7851,10 +7951,16 @@ function buildGemEraseCommand(room: Msx2Screen5BitmapRoom, dx: number, dy: numbe
 
 /**
  * Collect the 'collectible' entities that paint an atlas metatile on the room
- * bitmap and are consumed on touch — gems and health pickups share this shape,
- * only the param naming the tile differs. Entities carrying a keyPickupId
- * belong to the key/shop system and are always skipped; `skipParamKey` lets a
- * caller yield an entity to the other system when both params are authored.
+ * bitmap and are consumed on touch — gems, nuts and health pickups share this
+ * shape, only the param naming the tile differs. Entities carrying a
+ * keyPickupId belong to the key/shop system and are always skipped;
+ * `skipParamKeys` lets a caller yield an entity to another system when several
+ * params are authored on the same entity.
+ *
+ * `classes` maps each accepted atlas param to the pickupClass stored in the
+ * record. Passing more than one class in ONE call matters: the flag pool is
+ * allocated here, so gems and nuts must be collected together or they would be
+ * handed overlapping flag offsets and collecting a gem would erase a nut.
  *
  * Flag offsets are per-world: ten worlds with ten pickups each reserve ten RAM
  * bytes, not one hundred.
@@ -7862,8 +7968,8 @@ function buildGemEraseCommand(room: Msx2Screen5BitmapRoom, dx: number, dy: numbe
 function collectBitmapAtlasPickupRecords(
   rooms: Msx2Screen5BitmapRoom[],
   roomWorldIndices: number[],
-  atlasParamKey: string,
-  skipParamKey?: string,
+  classes: Array<{ atlasParamKey: string; pickupClass: number }>,
+  skipParamKeys: string[] = [],
 ): BitmapGemRecord[] {
   const records: BitmapGemRecord[] = [];
   const flagsByWorld: number[] = [];
@@ -7872,9 +7978,17 @@ function collectBitmapAtlasPickupRecords(
     for (const entity of room.entities || []) {
       if (entity.kind !== 'collectible') continue;
       if (typeof entity.params?.keyPickupId === 'string' && entity.params.keyPickupId) continue;
-      if (skipParamKey && typeof entity.params?.[skipParamKey] === 'string' && entity.params[skipParamKey]) continue;
-      const atlasEntryId = typeof entity.params?.[atlasParamKey] === 'string' ? entity.params[atlasParamKey] : '';
-      const entry = atlasEntryId ? (room.atlas?.entries || []).find(item => item.id === atlasEntryId) : undefined;
+      if (skipParamKeys.some(key => typeof entity.params?.[key] === 'string' && entity.params[key])) continue;
+      // First class whose param is authored wins, so an entity carrying both a
+      // gem and a nut tile is a gem (declaration order is the priority).
+      const match = classes
+        .map(item => ({
+          pickupClass: item.pickupClass,
+          atlasEntryId: typeof entity.params?.[item.atlasParamKey] === 'string' ? String(entity.params[item.atlasParamKey]) : '',
+        }))
+        .find(item => item.atlasEntryId);
+      if (!match) continue;
+      const entry = (room.atlas?.entries || []).find(item => item.id === match.atlasEntryId);
       if (!entry) continue;
       const cellX = clampInt(entity.position?.x ?? 0, 0, COLLISION_COLS - 1, 0);
       const cellY = clampInt(entity.position?.y ?? 0, 0, COLLISION_ROWS - 1, 0);
@@ -7889,6 +8003,7 @@ function collectBitmapAtlasPickupRecords(
         x,
         y,
         flagOffset,
+        pickupClass: match.pickupClass,
         drawCommand: buildGemAtlasCopyCommand(entry.sx, entry.sy, x, y),
         eraseCommand: buildGemEraseCommand(room, x, y),
       });
@@ -7897,10 +8012,24 @@ function collectBitmapAtlasPickupRecords(
   return records;
 }
 
+/** Nuts are the shoot skill's ammunition; see buildBitmapGemSystemAsm. */
+const BITMAP_PICKUP_CLASS_GEM = 0;
+const BITMAP_PICKUP_CLASS_NUT = 1;
+
 function collectBitmapGemRecords(rooms: Msx2Screen5BitmapRoom[], roomWorldIndices: number[] = []): BitmapGemRecord[] {
   // healAtlasEntryId wins: a tile authored to refill a heart is never eaten by
-  // the gem counter, even if the entity also carries a gem tile.
-  return collectBitmapAtlasPickupRecords(rooms, roomWorldIndices, 'gemAtlasEntryId', 'healAtlasEntryId');
+  // the gem counter, even if the entity also carries a gem tile. Gems and nuts
+  // ride the same scan/draw engine (same shape on screen, different counter),
+  // so they MUST be collected in one call to share the flag pool.
+  return collectBitmapAtlasPickupRecords(
+    rooms,
+    roomWorldIndices,
+    [
+      { atlasParamKey: 'gemAtlasEntryId', pickupClass: BITMAP_PICKUP_CLASS_GEM },
+      { atlasParamKey: 'nutAtlasEntryId', pickupClass: BITMAP_PICKUP_CLASS_NUT },
+    ],
+    ['healAtlasEntryId'],
+  );
 }
 
 function buildBitmapGemSystemAsm(
@@ -7913,6 +8042,10 @@ function buildBitmapGemSystemAsm(
 ): {
   enabled: boolean;
   ramBytes: number;
+  /** Nuts placed across the compiled rooms; 0 disables the ammo gate. */
+  nutCount: number;
+  /** RAM label holding the nuts in hand, '' when no nut was placed. */
+  nutCounterLabel: string;
   equates: string;
   initAsm: string;
   mainLoopCall: string;
@@ -7921,40 +8054,63 @@ function buildBitmapGemSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
-  const gems = config.enabled ? collectBitmapGemRecords(rooms, roomWorldIndices) : [];
+  // Nuts do NOT need the collector_gems skill (they are the shoot skill's ammo),
+  // so only the gem class is skill-gated. Both classes are collected together
+  // above and share one flag pool, so dropping gems here leaves holes in the
+  // offsets: the pool must be sized from the highest offset, never from a count.
+  const allPickups = collectBitmapGemRecords(rooms, roomWorldIndices);
+  const gems = config.enabled ? allPickups : allPickups.filter(item => item.pickupClass !== BITMAP_PICKUP_CLASS_GEM);
   if (gems.length === 0) {
-    return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, nutCount: 0, nutCounterLabel: '', equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
   }
+  const nutCount = gems.filter(item => item.pickupClass === BITMAP_PICKUP_CLASS_NUT).length;
+  const hasNuts = nutCount > 0;
 
   const workOffsetAddress = ramBase;
   const targetPageAddress = ramBase + 1;
-  const flagsAddress = ramBase + 2;
-  const worldGemCounts = new Map<number, number>();
+  const nutCountAddress = ramBase + 2;
+  const flagsAddress = ramBase + (hasNuts ? 3 : 2);
+  const worldFlagTops = new Map<number, number>();
   for (const gem of gems) {
     const worldIndex = roomWorldIndices.length ? (roomWorldIndices[gem.roomIndex] ?? 0) : 0;
-    worldGemCounts.set(worldIndex, (worldGemCounts.get(worldIndex) || 0) + 1);
+    worldFlagTops.set(worldIndex, Math.max(worldFlagTops.get(worldIndex) || 0, gem.flagOffset + 1));
   }
-  const gemFlagPoolBytes = roomWorldIndices.length
-    ? Math.max(0, ...Array.from(worldGemCounts.values()))
-    : gems.length;
-  const ramBytes = 2 + gemFlagPoolBytes;
+  const gemFlagPoolBytes = Math.max(0, ...Array.from(worldFlagTops.values()));
+  const ramBytes = (hasNuts ? 3 : 2) + gemFlagPoolBytes;
   const hbLeft = hitbox.x;
   const hbRight = hitbox.x + hitbox.w - 1;
   const hbTop = hitbox.y;
   const hbBottom = hitbox.y + hitbox.h - 1;
   const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
-  // Record layout: x, y, flagOffset, draw HMMM (15B), erase HMMM/HMMV (15B) = 33 bytes.
+  // Record layout: x, y, flagOffset[, class], draw HMMM (15B), erase HMMM/HMMV
+  // (15B) = 33 bytes, or 34 once nuts add the class byte. A project with no nuts
+  // emits the historical 33-byte record, so its ROM stays byte-identical.
+  const recordStride = hasNuts ? 34 : 33;
+  const tailStride = recordStride - 3; // bytes left after x,y,flagOffset were read
   const gemTables = rooms.map((_room, roomIndex) => gems.filter(item => item.roomIndex === roomIndex));
   const dataAsm = gemTables.map((items, roomIndex) =>
-    formatBytes(`bitmap_gems_room_${roomIndex}`, items.flatMap(item => [item.x, item.y, item.flagOffset, ...item.drawCommand, ...item.eraseCommand]), `Room ${roomIndex} gem records: x,y,flagOffset,drawCmd(15),eraseCmd(15)`)
+    formatBytes(
+      `bitmap_gems_room_${roomIndex}`,
+      items.flatMap(item => [
+        item.x,
+        item.y,
+        item.flagOffset,
+        ...(hasNuts ? [item.pickupClass] : []),
+        ...item.drawCommand,
+        ...item.eraseCommand,
+      ]),
+      `Room ${roomIndex} pickup records: x,y,flagOffset${hasNuts ? ',class(0 gem/1 nut)' : ''},drawCmd(15),eraseCmd(15)`,
+    )
   ).join('') +
     `bitmap_gem_ptr_table:\n${gemTables.map((_items, i) => `    DW bitmap_gems_room_${i}`).join('\n')}\n` +
     `bitmap_gem_count_table:\n    DB ${gemTables.map(items => items.length).join(',')}\n`;
 
-  const equates = `; collector_gems skill (SCREEN 5 bitmap): ${gems.length} gem(s). RAM follows key-door/dialogue chain.
+  const equates = `; collector_gems skill (SCREEN 5 bitmap): ${gems.length} pickup(s)${hasNuts ? `, ${nutCount} of them nuts (shoot ammo)` : ''}. RAM follows key-door/dialogue chain.
 bitmap_gem_work_offset EQU ${hexWord(workOffsetAddress)}
 bitmap_gem_target_page EQU ${hexWord(targetPageAddress)}
-bitmap_gem_flags       EQU ${hexWord(flagsAddress)}
+${hasNuts ? `; Nuts held. Read by the shoot skill's ammo gate and by a HUD counter bound to 'ammo'.
+bitmap_nut_count       EQU ${hexWord(nutCountAddress)}
+` : ''}bitmap_gem_flags       EQU ${hexWord(flagsAddress)}
 bitmap_gem_cmd_block   EQU #C2C0
 `;
   const clearFlagBytes = Array.from({ length: gemFlagPoolBytes }, (_unused, i) => `    ld (bitmap_gem_flags + ${i}), a`).join('\n');
@@ -7962,7 +8118,7 @@ bitmap_gem_cmd_block   EQU #C2C0
     xor a
     ld (bitmap_gem_work_offset), a
     ld (bitmap_gem_target_page), a
-${clearFlagBytes}
+${hasNuts ? '    ld (bitmap_nut_count), a          ; start with no ammo\n' : ''}${clearFlagBytes}
 `;
   const counterIncAsm = hudCounter
     ? (hudCounter.wide
@@ -8198,18 +8354,33 @@ bitmap_update_gems:
     ld bc, bitmap_gem_flags
     add hl, bc
     ld (hl), 1
-    ; Erase the gem cell on the currently displayed page.
+    ; Erase the pickup cell on the currently displayed page.
     pop hl
     push hl
-    ld de, 15
+    ld de, ${hasNuts ? 16 : 15}
     add hl, de
     ld a, (bitmap_displayed_page)
     ld (bitmap_gem_target_page), a
     call bitmap_gem_copy_cmd_to_block
     call bitmap_gem_launch_cmd
-${counterIncAsm}${sfxCallAsm}.gem_scan_next:
+${hasNuts ? `    ; Which counter? Re-read the class byte at record offset 3. Reading it now,
+    ; after the erase, avoids having to keep it in a register across two calls.
     pop hl
-    ld de, 30
+    push hl
+    ld a, (hl)
+    or a
+    jp nz, .gem_scan_nut
+` : ''}${counterIncAsm}${sfxCallAsm}${hasNuts ? `    jp .gem_scan_next
+.gem_scan_nut:
+    ; +1 nut (shoot ammo), saturating at 255.
+    ld a, (bitmap_nut_count)
+    inc a
+    jp z, .gem_scan_nut_done
+    ld (bitmap_nut_count), a
+.gem_scan_nut_done:
+${sfxCallAsm}` : ''}.gem_scan_next:
+    pop hl
+    ld de, ${tailStride}
     add hl, de
     pop bc
     djnz .gem_scan_loop
@@ -8242,7 +8413,7 @@ bitmap_apply_gems_for_current_room:
     inc hl
     ld a, (hl)
     inc hl
-    push hl
+${hasNuts ? '    inc hl                    ; skip the class byte: only the counter cares\n' : ''}    push hl
     ld l, a
     ld h, 0
     ld bc, bitmap_gem_flags
@@ -8256,7 +8427,7 @@ bitmap_apply_gems_for_current_room:
     call bitmap_gem_launch_cmd
     pop hl
 .gem_draw_skip:
-    ld de, 30
+    ld de, ${hasNuts ? recordStride - 4 : 30}
     add hl, de
     pop bc
     djnz .gem_draw_loop
@@ -8266,6 +8437,8 @@ ${sfxRoutineAsm}`;
   return {
     enabled: true,
     ramBytes,
+    nutCount,
+    nutCounterLabel: hasNuts ? 'bitmap_nut_count' : '',
     equates,
     initAsm,
     mainLoopCall: `    call bitmap_update_gems    ; collector_gems: pickup scan + cell erase\n`,
@@ -8317,7 +8490,11 @@ function buildBitmapHealSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
-  const heals = collectBitmapAtlasPickupRecords(rooms, roomWorldIndices, 'healAtlasEntryId');
+  const heals = collectBitmapAtlasPickupRecords(
+    rooms,
+    roomWorldIndices,
+    [{ atlasParamKey: 'healAtlasEntryId', pickupClass: BITMAP_PICKUP_CLASS_GEM }],
+  );
   if (heals.length === 0) {
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
   }
@@ -11203,6 +11380,7 @@ function resolveHudElementBindingRamLabel(element: Msx2HudElement, instanceIndex
   if (element.binding === 'skillPoints') return 'player_skill_points';
   if (element.binding === 'keyItem') return 'bitmap_key_count';
   if (element.binding === 'carriedObject') return 'bitmap_carry_held';
+  if (element.binding === 'ammo') return 'bitmap_nut_count';
   return `hud_linked_${instanceIndex}_value`;
 }
 
@@ -11386,6 +11564,7 @@ function linkedCounterSpec(element: Msx2HudElement): { digits: number; wide: boo
     || element.binding === 'level'
     || element.binding === 'skillPoints'
     || element.binding === 'keyItem'
+    || element.binding === 'ammo'
     || element.binding === 'carriedObject';
   if (requested >= 4 && !byteBinding) {
     return { digits: Math.min(5, requested), wide: true };
@@ -13142,6 +13321,9 @@ interface BitmapStateAnimation {
   frameBase: number;      // first frame index within the combined non-mirror bank
   frameCount: number;     // frames in this clip
   delayFrames: number;    // per-frame delay (8.33ms units, like the base)
+  /** True when the row reuses the base render sprite: the clip points back at
+   * the base frames (frameBase 0) and appends NO pattern/colour bytes. */
+  aliasOfBase: boolean;
   patternsNoMirror: number[];
   patternsMirror: number[];
   colors: number[];
@@ -13214,7 +13396,9 @@ function extractStateSpriteBank(
  *      override map (wins over the table) for projects authored as raw JSON.
  *
  * Each mapped sprite must resolve and have usable frames; banks get sequential
- * animIds and frameBase offsets continuing after the base sprite's frames.
+ * animIds and frameBase offsets continuing after the base sprite's frames. A row
+ * pointing at the SAME sprite as the render config still gets an animId, as an
+ * alias clip over the base frames (no duplicated pattern/colour bytes).
  */
 function resolveBitmapRoomStateAnimations(
   analysis: ProjectAnalysis,
@@ -13222,6 +13406,7 @@ function resolveBitmapRoomStateAnimations(
   base: {
     sprite?: Msx2Sprite;
     frameCount: number;
+    delayFrames: number;
     cells: BitmapSpriteSlotOffset[];
     colorLayerCount: number;
     authoredFacing?: 'left' | 'right';
@@ -13269,9 +13454,26 @@ function resolveBitmapRoomStateAnimations(
       console.warn(`MSX2 bitmap Graphics & Render: sprite "${spriteAssetId}" linked to state "${state}" was not found.`);
       continue;
     }
-    // The configured render sprite is already clip 0. A state row linked to
-    // that same render needs no duplicate pattern/color bank.
-    if (base.sprite && (sprite.id === base.sprite.id || sprite.name === base.sprite.name)) continue;
+    // The configured render sprite is already clip 0, so a row linked to that
+    // same sprite needs no duplicate pattern/colour bank -- but it DOES need its
+    // own clip entry, or the state falls back to id 0 and clip 0 pins to frame 0
+    // whenever the player is not walking (a jump in place froze on frame 0).
+    // The alias points back at the base frames and appends zero bytes.
+    if (base.sprite && (sprite.id === base.sprite.id || sprite.name === base.sprite.name)) {
+      banks.push({
+        state,
+        animId,
+        frameBase: 0,
+        frameCount: base.frameCount,
+        delayFrames: base.delayFrames,
+        aliasOfBase: true,
+        patternsNoMirror: [],
+        patternsMirror: [],
+        colors: [],
+      });
+      animId += 1;
+      continue;
+    }
     const bank = extractStateSpriteBank(sprite, base.cells, base.colorLayerCount, base.authoredFacing);
     if (!bank.ok) continue;
     banks.push({
@@ -13280,6 +13482,7 @@ function resolveBitmapRoomStateAnimations(
       frameBase: frameCursor,
       frameCount: bank.frameCount,
       delayFrames: bank.delayFrames,
+      aliasOfBase: false,
       patternsNoMirror: bank.patternsNoMirror,
       patternsMirror: bank.patternsMirror,
       colors: bank.colors,
@@ -13325,6 +13528,55 @@ function roomsUseSubCellShapes(rooms: Msx2Screen5BitmapRoom[]): boolean {
       }
     }
     return false;
+  });
+}
+
+// Crumbling floor (Manic Miner) authoring bit in the collision grid. It is
+// NEVER exported: buildCollisionTableBytes masks bits 2..1 away because the
+// exported byte carries the Effects layer there, so this bit cannot make a cell
+// read as solid at runtime. The cells are compiled into a per-room record list
+// (msx2BitmapCrumbleGenerator) instead.
+const CELL_CRUMBLING = 0x04;
+
+/**
+ * Crumbling cells per room, each with the erosion speed of the atlas tile painted
+ * on it. The per-cell bit is the source of truth so the same visual tile can be a
+ * collapsing platform in one place and firm floor in another; a room that carries
+ * no per-cell bit at all falls back to the atlas "Se desmorona" flag, which keeps
+ * rooms painted before the flag was set working.
+ */
+function collectBitmapCrumbleCells(rooms: Msx2Screen5BitmapRoom[]): BitmapCrumbleCell[][] {
+  return rooms.map(room => {
+    const entries = room.atlas?.entries || [];
+    const grid = buildRoomTileIndexGrid(room);
+    const collision = room.collision || [];
+    let anyCellBit = false;
+    for (let y = 0; y < COLLISION_ROWS && !anyCellBit; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        if (((collision[y]?.[x] ?? 0) & CELL_CRUMBLING) !== 0) { anyCellBit = true; break; }
+      }
+    }
+    const cells: BitmapCrumbleCell[] = [];
+    for (let y = 0; y < COLLISION_ROWS; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        const value = grid[y]?.[x] ?? 0;
+        const entry = value > 0 ? entries[value - 1] : undefined;
+        const crumbles = anyCellBit
+          ? ((collision[y]?.[x] ?? 0) & CELL_CRUMBLING) !== 0
+          : entry?.crumbling === true;
+        if (!crumbles) continue;
+        cells.push({
+          cell: y * COLLISION_COLS + x,
+          framesPerStage: clampInt(
+            entry?.crumbleFramesPerStage,
+            MSX2_BITMAP_CRUMBLE_FRAMES_MIN,
+            MSX2_BITMAP_CRUMBLE_FRAMES_MAX,
+            MSX2_BITMAP_CRUMBLE_FRAMES_DEFAULT,
+          ),
+        });
+      }
+    }
+    return cells;
   });
 }
 
@@ -13926,6 +14178,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   const stateAnimations = resolveBitmapRoomStateAnimations(analysis, room, {
     sprite: playerSprite,
     frameCount: spriteTables.frameCount,
+    delayFrames: spriteTables.delayFrames,
     cells: spriteTables.cells,
     colorLayerCount: spriteTables.colorLayerCount,
     authoredFacing: spriteTables.authoredFacing,
@@ -13934,8 +14187,97 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // Map an animation-state name -> runtime id so skills can assert their state.
   const stateAnimIds: Record<string, number> = {};
   for (const bank of stateAnimations) stateAnimIds[bank.state] = bank.animId;
+  // Engine-driven clips (jump / fall). Unlike crouch, dash or perception there is
+  // no skill to assert them, so the runtime does it from player_vy + grounded.
+  // Accepted authoring, in order: an animation row whose linked state is literally
+  // named "jumping"/"falling", or the table's Jump / Fall row linked to ANY state
+  // (that is what the Player Animations UI writes).
+  const resolveEngineAnimId = (magicNames: string[], rowKeys: string[]): number => {
+    const byName = Object.entries(stateAnimIds)
+      .find(([name]) => magicNames.includes(name.trim().toLowerCase()));
+    if (byName) return byName[1] & 0xff;
+    const animations = (bitmapRoomPlayer as any)?.animations as Record<string, any> | undefined;
+    if (!animations || typeof animations !== 'object') return 0;
+    for (const [key, anim] of Object.entries(animations)) {
+      const labels = [key, anim?.role, anim?.customRole, anim?.roleLabel]
+        .map(value => String(value || '').trim().toLowerCase())
+        .filter(Boolean);
+      if (!labels.some(label => rowKeys.includes(label))) continue;
+      const linked = String(anim?.stateMachineState || '').trim();
+      if (linked && stateAnimIds[linked] !== undefined) return stateAnimIds[linked] & 0xff;
+    }
+    return 0;
+  };
+  const jumpingAnimId = resolveEngineAnimId(['jumping'], ['jump', 'jumping']);
+  const fallingAnimId = resolveEngineAnimId(['falling'], ['fall', 'falling']);
+  // Airborne clip assert. It runs AFTER the State Machine (which rewrites
+  // player_anim_state from bitmap_sm_state on every frame) and BEFORE the action
+  // skills, so dash/slash/crouch/dig keep priority over the jump pose. Emitted
+  // only when a clip is actually authored, so ROMs without one stay byte-equal.
+  const hasAirAnim = jumpingAnimId > 0 || fallingAnimId > 0;
+  const playerAirAnimCall = hasAirAnim ? '    call bitmap_update_player_air_anim\n' : '';
+  const airAnimBodyAsm = jumpingAnimId > 0 && fallingAnimId === 0
+    ? `    ld a, ${jumpingAnimId}
+    ld (player_anim_state), a
+    ret
+`
+    : jumpingAnimId === 0
+      ? `    ld a, (player_vy)
+    or a                      ; S = bit7: negative = rising
+    ret m                     ; rising: no jump clip authored, keep the SM state
+    ret z                     ; apex belongs to the rise, not to the fall
+    ld a, ${fallingAnimId}
+    ld (player_anim_state), a
+    ret
+`
+      : `    ld a, (player_vy)
+    or a                      ; S = bit7: negative = rising
+    jp m, .air_anim_rising
+    jp z, .air_anim_rising    ; apex belongs to the rise, not to the fall
+    ld a, ${fallingAnimId}
+    ld (player_anim_state), a
+    ret
+.air_anim_rising:
+    ld a, ${jumpingAnimId}
+    ld (player_anim_state), a
+    ret
+`;
+  const playerAirAnimRoutineAsm = !hasAirAnim ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_player_air_anim
+; ------------------------------------------------------------
+; PURPOSE:
+;   Assert the authored ${[jumpingAnimId > 0 ? 'jump' : '', fallingAnimId > 0 ? 'fall' : ''].filter(Boolean).join(' / ')} animation clip while the player is off
+;   the ground. Nothing else does it: crouch, dash, wall jump, dig, perception
+;   and the glowing tail each assert their own state, but plain jumping and
+;   falling are engine physics, so without this hook an authored jump clip could
+;   only be reached through a State Machine key transition.
+;
+; INPUT:
+;   player_flags bit0 (1 = standing on ground), player_vy (signed px/frame).
+;
+; OUTPUT:
+;   player_anim_state.
+;
+; DESTROYS:
+;   AF.
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY.
+;
+; NOTES:
+;   Grounded frames return untouched so idle/walk keep whatever the State
+;   Machine or the base clip selected.
+; ------------------------------------------------------------
+bitmap_update_player_air_anim:
+    ld a, (player_flags)
+    and #01                   ; bit0 = standing on ground
+    ret nz
+${airAnimBodyAsm}`;
   // Combined banks: [base non-mirror][state non-mirror][base mirror][state mirror].
-  const combinedFrameCount = spriteTables.frameCount + stateAnimations.reduce((sum, bank) => sum + bank.frameCount, 0);
+  // Alias clips reuse the base frames, so they add an id but no new frames.
+  const combinedFrameCount = spriteTables.frameCount
+    + stateAnimations.reduce((sum, bank) => sum + (bank.aliasOfBase ? 0 : bank.frameCount), 0);
   const combinedPatterns = [
     ...spriteTables.basePatternsNoMirror,
     ...stateAnimations.flatMap(bank => bank.patternsNoMirror),
@@ -14361,6 +14703,27 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   }
   const shaftSatBase = turretSatBase + turretHardwareSlotCount * 4;
   const shaftColorBase = turretColorBase + turretHardwareSlotCount * 16;
+  // CRUMBLING FLOOR (Manic Miner) falling chips. Two hardware sprites at the very
+  // END of the SAT/colour chain (after the shaft cabins, before the player
+  // bullets), so every allocation above stays where it was and projects without a
+  // crumbling cell reserve nothing at all.
+  const crumbleRoomCells = collectBitmapCrumbleCells(rooms);
+  const crumbleDebrisSlots = bitmapCrumbleCellCount(crumbleRoomCells) > 0
+    ? MSX2_BITMAP_CRUMBLE_DEBRIS_SLOTS
+    : 0;
+  const crumblePatternGroup = allocatePatternRange(crumbleDebrisSlots > 0 ? 1 : 0, allRoomsActive);
+  if (crumbleDebrisSlots > 0) {
+    patternRanges.push({ base: crumblePatternGroup, count: 1, active: allRoomsActive });
+  }
+  if (crumbleDebrisSlots > 0 && crumblePatternGroup + 1 > 64) {
+    throw new Error(
+      `SCREEN 5 bitmap-room crumbling floors need sprite pattern group ${crumblePatternGroup}, ` +
+      'but the V9938 sprite pattern table only holds 64 groups. Reduce player/enemy/platform animation, ' +
+      'carryable objects or turrets.',
+    );
+  }
+  const crumbleSatBase = shaftSatBase + shaftHardwareSlots * 4;
+  const crumbleColorBase = shaftColorBase + shaftHardwareSlots * 16;
   // Boss sprite bullets are part of the authored room content, so they take
   // priority over the player's optional SHOOT pattern. They reuse idle enemy
   // SAT/color slots but need an independently allocated pattern range.
@@ -14427,6 +14790,14 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   const shootEquates = buildBitmapShootEquates(shootConfig, shootRamBase);
   const shootInitClear = buildBitmapShootInitClearAsm(shootConfig);
   const shootGate = buildBitmapShootGateAsm(shootConfig);
+  // Nuts are the ammunition. The pickup system that owns bitmap_nut_count is
+  // built further down (its RAM chains after the key doors), so re-scan the
+  // rooms here: the scan is pure data and the label is fixed. No nut placed
+  // anywhere means no gate at all and unlimited fire, as before.
+  const ammoCounterLabel = collectBitmapGemRecords(rooms, roomWorldIndices)
+    .some(item => item.pickupClass === BITMAP_PICKUP_CLASS_NUT)
+    ? 'bitmap_nut_count'
+    : undefined;
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -14442,8 +14813,9 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     // Everything allocated between the carryables and the bullets. The shaft
     // cabins are last in the SAT chain, so they must be counted here too or the
     // bullet writer would start on top of them.
-    destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount + shaftHardwareSlots,
+    destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount + shaftHardwareSlots + crumbleDebrisSlots,
     enemyCollisionJumpLabel: bossData.enabled ? 'bitmap_boss_bullet_hit' : undefined,
+    ammoCounterLabel,
     borrowPlayerPatternGroups: borrowedPlayerPatternGroups,
   };
   const shootBulletInitUpload = buildBitmapBulletInitUploadAsm(shootConfig, shootRuntimeOptions);
@@ -14618,6 +14990,8 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
       || source.element.binding === 'level'
       || source.element.binding === 'skillPoints'
       || source.element.binding === 'keyItem'
+      // 'ammo' reads bitmap_nut_count, owned by the pickup system.
+      || source.element.binding === 'ammo'
     );
     const valueBytes = needsOwnValue ? (wide ? 2 : 1) : 0;
     const valueAddress = valueBytes > 0 ? hudLinkedRamCursor : undefined;
@@ -14652,6 +15026,27 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
         ticking: airInitial > 0 && !airDisabled,
       })
     : null;
+  // HUD counter bound to 'ammo' reads bitmap_nut_count, which the pickup system
+  // only owns when at least one NUT is placed (ammoCounterLabel above). Authoring
+  // the HUD widget before the nuts is a normal mid-project state, and it used to
+  // break the BUILD: glass failed with "Symbol not found: bitmap_nut_count".
+  // Same fix as the 'air' binding right above: when the widget exists and no nut
+  // does, allocate + seed the byte here so the symbol is always valid and the
+  // counter honestly reads 0 until nuts are authored.
+  const anyAmmoHud = linkedHudDynamicSources.some(source => source.element.binding === 'ammo');
+  const orphanAmmoCounterAddress = anyAmmoHud && !ammoCounterLabel ? hudLinkedRamCursor : undefined;
+  if (orphanAmmoCounterAddress !== undefined) hudLinkedRamCursor += 1;
+  const orphanAmmoEquates = orphanAmmoCounterAddress !== undefined
+    ? `; HUD counter bound to 'ammo' with no nut pickup authored yet: the pickup
+; system does not own this byte, so it stays 0 (no ammo) until nuts exist.
+bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
+`
+    : '';
+  const orphanAmmoInitAsm = orphanAmmoCounterAddress !== undefined
+    ? `    xor a
+    ld (bitmap_nut_count), a          ; no nut pickups authored: ammo stays 0
+`
+    : '';
   const experienceAddress = anyExperienceHud ? hudLinkedRamCursor : undefined;
   if (anyExperienceHud) hudLinkedRamCursor += 1;
   const experienceMaxAddress = anyExperienceHud ? hudLinkedRamCursor : undefined;
@@ -14729,6 +15124,33 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   const wallJumperSystem = buildBitmapWallJumperSystemAsm(rooms, playerHitbox, hudLinkedRamCursor);
   hudLinkedRamCursor += wallJumperSystem.ramBytes;
   const wallJumperHorizontalHook = wallJumperSystem.enabled ? buildBitmapWallJumperHorizontalHookAsm(playerHitbox) : '';
+  // CRUMBLING FLOOR (Manic Miner): the erosion state of the cells the player is
+  // standing on. Built BEFORE the dialogue system because its room-composition
+  // reset has to join the dialogue-close repaint list below; the pause gate keys
+  // off `dialogueData` for the same reason (that is exactly what makes
+  // dialogueSystem.enabled true). The state is dropped on every room composition,
+  // which is what makes the tiles grow back.
+  const crumbleSystem = buildBitmapCrumbleSystemAsm({
+    ramBase: hudLinkedRamCursor,
+    hitbox: playerHitbox,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    roomCells: crumbleRoomCells,
+    bgColorBytes: rooms.map(roomItem => {
+      const bg = clampByte(roomItem.backgroundColor, 0) & 0x0f;
+      return (bg << 4) | bg;
+    }),
+    debrisPatternNumber: crumblePatternGroup * 4,
+    debrisSatBase: crumbleSatBase,
+    debrisColorBase: crumbleColorBase,
+    debrisSprite: destroyDebrisSprite,
+    pauseGateAsm: `${dialogueData
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: the floor stops crumbling
+    or a
+    ret nz
+`
+      : ''}${perceptionPauseGateAsm}`,
+  });
+  hudLinkedRamCursor += crumbleSystem.ramBytes;
   const dialogueSystem = buildBitmapDialogueSystemAsm(
     dialogueData,
     rooms,
@@ -14736,7 +15158,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
+    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
@@ -14915,7 +15337,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     collectibleCounter: gemCounterRam,
     keyCountAvailable: keyDoorSystem.ramBytes > 0,
     bankedRoomData: isKonamiMegaRom,
-    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
+    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
   const playerStateMachine = buildBitmapPlayerStateMachineAsm(analysis, room, stateAnimIds, hudLinkedRamCursor);
@@ -14949,6 +15371,20 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     atlasBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
     glowingAnimId: stateAnimIds['glowing'],
     musicTick: sccMusicTickEnabled,
+    // Travelling lantern: opt-in through the shoot skill's bulletLantern param.
+    // The lighting generator drops it silently when the project has no glowing
+    // mushrooms, because the repair machinery it needs lives in that block.
+    bulletLantern: (bitmapShootEnabled(shootConfig) && shootConfig.bulletLantern)
+      ? {
+          poolLabel: 'bitmap_bullet_pool',
+          slotCount: Math.max(1, Math.min(8, Math.floor(shootConfig.maxBullets) || 3)),
+          slotStride: bitmapShootSlotStride(shootConfig),
+          speed: Math.max(1, Math.min(16, Math.floor(shootConfig.bulletSpeed) || 4)),
+          halfWidth: 16,
+          halfHeight: 12,
+          gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+        }
+      : undefined,
   });
   hudLinkedRamCursor += lightingSystem.ramBytes;
   // Multi-world state: which world is loaded plus the entry point published by
@@ -15059,7 +15495,7 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
   const combinedGlowingColors = useGlowingTailColors
     ? combinedColors.map(intensifyBitmapPlayerSpriteColor)
     : [];
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: dedicated RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow its ${hexWord(HUD_LINKED_RAM_BASE)}..${hexWord(HUD_LINKED_RAM_CEILING - 1)} window. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
@@ -15082,10 +15518,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
-  const linkedHudInitAsm = `${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${playerStateMachine.routinesAsm}${lightingSystem.routinesAsm}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${orphanAmmoEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${crumbleSystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
+  const linkedHudInitAsm = `${orphanAmmoInitAsm}${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${crumbleSystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}${crumbleSystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${crumbleSystem.routinesAsm}${playerStateMachine.routinesAsm}${playerAirAnimRoutineAsm}${lightingSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -15128,7 +15564,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -15229,7 +15665,7 @@ ${multiWorld ? `    ; Rebuild the shared off-screen atlas on every WorldLink ent
     ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${destroyTileApplyVisibleCall}
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${destroyTileApplyVisibleCall}
 ${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
 ${multiWorld
   ? `    ld a, (bitmap_world_spawn_y)
@@ -15577,7 +16013,7 @@ ${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, s
     call init_bitmap_hud_band
     call upload_tileset_atlas
     call init_hardware_sprite_tables
-${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}    ld a, #24                 ; SFX channel-C mixer shadow: start muted
+${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${crumbleSystem.initUploadAsm}    ld a, #24                 ; SFX channel-C mixer shadow: start muted
     ld (psg_sfx_r7_c_bits), a
 ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
     ; GameFlow exit gate: armed by Exit World contact or by the deadly/enemy
@@ -15596,12 +16032,12 @@ ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatch
     ; pattern writes glitched the top third of the frame on jump/move). They
     ; consume last frame's game state: a uniform 1-frame latency at 60Hz.
 ${playerAnimationUpdateCall}${playerColorsUpdateCall}${shootPatternPrepareCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
+${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${crumbleSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
     call step_room_composition
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.
     call update_player_movement
-${playerStateMachine.mainLoopCall}${dashGate}${shootGate}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
+${playerStateMachine.mainLoopCall}${playerAirAnimCall}${dashGate}${shootGate}${lightingSystem.bulletLanternCall}${teleportGate}${slashGate}${grabGate}${wallBreakGate}${spinAttackGate}${destroyTileGate}${platformSystem.detectCallAsm}${shaftSystem.detectCallAsm}.skip_player_movement:
 ${worldExitSystem.mainLoopCall}${perceptionSystem.mainLoopCall}${powerStompMainLoopCall}${deadlySystem.mainLoopCall}${heartsHud.mainLoopCall}${linkedHudMainLoopCall}${hudSeparatorRestore.mainLoopCall}${enemySystem.updateCallAsm}${turretSystem.updateCallAsm}${carryAndThrowSystem.updateCallAsm}${keyDoorSystem.pressureButtonCall}${carryAndThrowSystem.bitmapDrawCallAsm}${lightingSystem.mainLoopCall}${musicUpdateCall}    jp bitmap_enter_game_loop
 ${sccMusic ? `.bitmap_gameflow_exit:
     ; This loop is the ONLY thing ticking music_update. Leaving it with the song
@@ -15687,7 +16123,7 @@ bitmap_room_hud_linked_data_end:
 ${keyDoorSystem.dataAsm}
 ${gemSystem.dataAsm}${healSystem.dataAsm}
 ${destroyTileDataAsm}${perceptionSystem.dataAsm}${lightingSystem.dataAsm}
-${jumperSystem.dataAsm}
+${jumperSystem.dataAsm}${crumbleSystem.dataAsm}
 ${wallJumperSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
 ${bitmapEndRuntime.dataAsm}
