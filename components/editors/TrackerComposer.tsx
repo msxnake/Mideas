@@ -50,7 +50,11 @@ import {
   resolveTrackerNoteInstrumentEntry,
   rewritePT3PatternNoteStreams,
 } from '../utils/pt3SourceEditor';
-import { normalizeTrackerEffectParams, resolveNativeTrackerRowSpeed } from '../utils/trackerEffects';
+import {
+  getTrackerEffectParameterByteCount,
+  normalizeTrackerEffectParams,
+  resolveNativeTrackerRowSpeed,
+} from '../utils/trackerEffects';
 
 const hasFullPT3Header = (bytes: Uint8Array): boolean => {
   const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
@@ -69,6 +73,36 @@ const DEMO_PT3_FILENAME = 'KUVO - Forgotten puppet (2021).pt3';
  * Note that a blank cell is always legal: in PT3 it means "inherit", which is
  * why every message points back at it.
  */
+/**
+ * Apply one edited field to a PT3 cell, keeping FX and CMD consistent.
+ *
+ * A PT3 command's parameters are a fixed-width payload, so the serializer
+ * refuses a command whose CMD does not have exactly the right number of
+ * digits. Editing the two columns one at a time would therefore be impossible:
+ * choosing FX while CMD is still blank would be rejected, and so would the
+ * reverse. Picking a command resizes CMD to match (keeping the digits already
+ * typed when the width is unchanged), and clearing FX clears CMD with it.
+ */
+const buildPT3CellPatch = (
+  field: keyof TrackerCell,
+  value: string | number | null,
+  currentCell: TrackerCell | undefined,
+): Partial<TrackerCell> => {
+  if (field !== 'effectCommand') return { [field]: value } as Partial<TrackerCell>;
+
+  // FX 0 is the replayer's NOP and carries no payload; treat it as "no command"
+  // so the editor never has to write a 0x00 byte into a channel stream.
+  const command = value === null || value === 0 ? null : Number(value) & 0x0f;
+  if (command === null) return { effectCommand: null, effectParams: null };
+
+  const requiredDigits = getTrackerEffectParameterByteCount(command) * 2;
+  const existing = normalizeTrackerEffectParams(currentCell?.effectParams ?? null) ?? '';
+  const params = existing.length === requiredDigits
+    ? existing
+    : existing.slice(0, requiredDigits).padEnd(requiredDigits, '0');
+  return { effectCommand: command, effectParams: params || null };
+};
+
 const PT3_SOURCE_FIELD_RANGES = {
   instrument: {
     label: 'INS', min: 1, max: 31, range: '1..31',
@@ -373,6 +407,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   } | null>(null);
   const [externalPt3Status, setExternalPt3Status] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [externalPt3Error, setExternalPt3Error] = useState<string | null>(null);
+  /**
+   * Report a rejected PT3 edit from inside an onUpdate reducer. Those reducers
+   * run during the owning component's render, where a direct setState warns
+   * about updating another component mid-render, so defer to a microtask.
+   */
+  const reportExternalPt3Error = useCallback((message: string) => {
+    queueMicrotask(() => setExternalPt3Error(message));
+  }, []);
   const [externalPt3CurrentTime, setExternalPt3CurrentTime] = useState(0);
   const [externalPt3Duration, setExternalPt3Duration] = useState<number | null>(null);
 
@@ -925,7 +967,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
                   if (currentRowIndex !== rowIndex) return row;
                   return {
                     ...row,
-                    [channelId]: { ...row[channelId], [field]: finalValueToStore },
+                    [channelId]: {
+                      ...row[channelId],
+                      ...buildPT3CellPatch(field, finalValueToStore, row[channelId]),
+                    },
                   };
                 });
                 return { ...pattern, rows };
@@ -953,7 +998,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
               externalPt3PlayerId: currentSong.externalPt3PlayerId || 'custom',
             };
           } catch (error) {
-            setExternalPt3Error(error instanceof Error ? error.message : String(error));
+            // This reducer runs inside the owning component's render pass, so
+            // setting state straight from here warns about updating another
+            // component while rendering. Hand the message to a microtask, which
+            // lands after the commit.
+            reportExternalPt3Error(error instanceof Error ? error.message : String(error));
             return {};
           }
         });
@@ -1041,7 +1090,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           : `"${inputValue}" no es un valor válido para este campo.`
       );
     }
-  }, [currentPattern, activePatternStorageIndex, songData.patterns, songData.playbackBackend, onUpdate, activeInstrumentId, activeOrnamentId]);
+  }, [currentPattern, activePatternStorageIndex, songData.patterns, songData.playbackBackend, onUpdate, activeInstrumentId, activeOrnamentId, reportExternalPt3Error]);
 
   // Clear every cell of one channel in the CURRENTLY EDITED pattern (undoable
   // with Ctrl+Z). Also cuts any live preview voice on that channel.

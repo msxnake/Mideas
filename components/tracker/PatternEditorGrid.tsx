@@ -88,9 +88,13 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   const numRows = currentPattern.numRows;
   const rowNumbers = Array.from({ length: numRows }, (_, i) => i);
 
-  const fieldsOrder: (keyof TrackerCell)[] = sourcePT3Mode
-    ? ['note', 'instrument', 'ornament', 'volume']
-    : ['note', 'instrument', 'ornament', 'volume', 'effectCommand', 'effectParams'];
+  // FX/CMD are editable in source-faithful mode too: the command byte is
+  // rewritten in place in the row prefix and its parameters are re-encoded
+  // after the row terminator. The extra PT3 column beside them stays read-only
+  // because it shows inline channel state (note-skip cadence, noise base,
+  // envelope shape) rather than commands, and the serializer regenerates it.
+  const fieldsOrder: (keyof TrackerCell)[] =
+    ['note', 'instrument', 'ornament', 'volume', 'effectCommand', 'effectParams'];
 
 
   return (
@@ -113,9 +117,9 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.instrument} text-[0.58rem]`} title="Instrument">INS</div>
             <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.ornament} text-[0.58rem]`} title="Ornament">ORN</div>
             <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.58rem]`} title="Volume">VOL</div>
-            {!sourcePT3Mode && <div className={`${CELL_WIDTH_EFFECT} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectCommand} text-[0.58rem]`} title="Vortex effect command 0-F">FX</div>}
-            {!sourcePT3Mode && <div className={`${CELL_WIDTH_EFFECT_PARAMS} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectParams} text-[0.58rem]`} title="Raw Vortex command parameter bytes in hexadecimal">CMD</div>}
-            {sourcePT3Mode && <div className="w-32 px-1 text-left text-[0.58rem] text-fuchsia-300" title="Vortex/PT3 row commands">FX / CMD</div>}
+            <div className={`${CELL_WIDTH_EFFECT} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectCommand} text-[0.58rem]`} title={sourcePT3Mode ? 'PT3 command: 1 GLISS, 2 PORTA, 3 SAMPLE POS, 4 ORNAMENT POS, 5 VIBRATO, 8 ENV SLIDE, 9 SPEED. Leave blank for none.' : 'Vortex effect command 0-F'}>FX</div>
+            <div className={`${CELL_WIDTH_EFFECT_PARAMS} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectParams} text-[0.58rem]`} title="Raw Vortex command parameter bytes in hexadecimal">CMD</div>
+            {sourcePT3Mode && <div className="w-28 px-1 text-left text-[0.58rem] text-fuchsia-300" title="Estado inline de la fila PT3: cadencia de note-skip, base de ruido y forma de envolvente. Lo regenera el serializador; no es editable.">PT3</div>}
           </div>
         ))}
       </div>
@@ -179,18 +183,26 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                         />
                     );
                   })}
-                  {sourcePT3Mode && (
-                    <div
-                      className={`w-32 flex-shrink-0 truncate px-1 font-mono text-[0.58rem] ${isCurrentPlaybackRow ? 'text-msx-bgcolor' : 'text-fuchsia-300/90'}`}
-                      title={sourceCell?.events?.length
-                        ? sourceCell.events.join(' | ')
-                        : sourceCell?.decoded === false
-                          ? `Held row (note skip ${sourceCell.noteSkip})`
-                          : 'No PT3 command'}
-                    >
-                      {sourceCell?.events?.join(' ') || (sourceCell?.decoded === false ? `·${sourceCell.noteSkip}` : '...')}
-                    </div>
-                  )}
+                  {sourcePT3Mode && (() => {
+                    // The decoded commands now have their own FX/CMD columns, so
+                    // drop their displays here and keep only the inline state.
+                    const commandDisplays = new Set(
+                      (sourceCell?.effects ?? []).map(effect => effect.display).filter(Boolean)
+                    );
+                    const inlineEvents = (sourceCell?.events ?? []).filter(event => !commandDisplays.has(event));
+                    return (
+                      <div
+                        className={`w-28 flex-shrink-0 truncate px-1 font-mono text-[0.58rem] ${isCurrentPlaybackRow ? 'text-msx-bgcolor' : 'text-fuchsia-300/90'}`}
+                        title={inlineEvents.length
+                          ? inlineEvents.join(' | ')
+                          : sourceCell?.decoded === false
+                            ? `Held row (note skip ${sourceCell.noteSkip})`
+                            : 'No inline PT3 state on this row'}
+                      >
+                        {inlineEvents.join(' ') || (sourceCell?.decoded === false ? `·${sourceCell.noteSkip}` : '')}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

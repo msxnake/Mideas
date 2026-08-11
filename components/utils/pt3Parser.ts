@@ -1,6 +1,7 @@
 import { TrackerSongData, TrackerPattern, TrackerRow, TrackerCell, PT3Instrument, PT3Ornament, PT3SampleMacro, PT3PatternCellSource, PT3PatternEffectCommand } from '../../types';
 import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM } from '../../constants';
 import { decodePT3SampleStep } from './pt3SampleEngine';
+import { sourceEffectToNativeFields } from './trackerEffects';
 
 export const PT3_HEADER_SIZE = 201;
 export const PT3_TONE_TABLE_OFFSET = 99;
@@ -369,6 +370,11 @@ const decodePT3Channel = (
       instrument: sampleSelected ? (state.sample || null) : null,
       ornament: ornamentSelected ? state.ornament : null,
       volume: volumeChanged ? state.volume : null,
+      // Surface the row's SPCCOM in the editable FX/CMD fields. Code 0 is the
+      // replayer's NOP and is deliberately left blank: it carries no payload,
+      // and a 0x00 byte at the start of a channel-A row is what marks the end
+      // of a pattern, so it must never be authored back into the stream.
+      ...sourceEffectToNativeFields(decodedEffects.find(effect => effect.code !== 0)),
     });
     sourceRows.push({
       decoded: true,

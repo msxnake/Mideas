@@ -1,5 +1,11 @@
-import type { PT3Ornament, PT3SampleMacro, TrackerCell, TrackerChannelId, TrackerPattern } from '../../types';
+import type { PT3Ornament, PT3PatternCellSource, PT3SampleMacro, TrackerCell, TrackerChannelId, TrackerPattern } from '../../types';
 import { encodePT3SourceNoteCommand, PT3_POSITION_LIST_OFFSET } from './pt3Parser';
+import {
+  getTrackerEffectValidationMessage,
+  normalizeTrackerEffectParams,
+  parseTrackerEffectParams,
+  sourceEffectToNativeFields,
+} from './trackerEffects';
 
 export interface PT3SourceNoteEntry {
   patterns: TrackerPattern[];
@@ -170,9 +176,57 @@ const collectUniqueBodies = (
   return { bodies, slotPointers };
 };
 
+/** Effect codes Mideas can author back into a PT3 stream. Codes 6, 7 and A..F
+ *  carry no payload and are NOPs in the replayer, so offering them would only
+ *  let the user write bytes with no defined meaning. Code 0 is excluded on
+ *  purpose: it is the NOP, and a 0x00 leading a channel-A row terminates the
+ *  pattern. */
+const PT3_AUTHORABLE_EFFECT_CODES = new Set([0x1, 0x2, 0x3, 0x4, 0x5, 0x8, 0x9]);
+
+/**
+ * The row's FX/CMD as it will be written, plus whether it still matches what
+ * the module originally carried. When it matches, the caller reuses the
+ * original deferred payload verbatim so untouched rows stay byte-exact even if
+ * they hold several stacked effects, which this single-column model collapses.
+ */
+interface PT3RowEffectPlan {
+  code: number | null;
+  payload: number[];
+  matchesSource: boolean;
+}
+
+const planPT3RowEffect = (
+  source: PT3PatternCellSource | undefined,
+  cell: TrackerCell,
+): PT3RowEffectPlan => {
+  const rawCode = cell.effectCommand ?? null;
+  // FX 0 means "no command" in this editor; see PT3_AUTHORABLE_EFFECT_CODES.
+  const code = rawCode === null || rawCode === 0 ? null : rawCode & 0x0f;
+  if (code !== null && !PT3_AUTHORABLE_EFFECT_CODES.has(code)) {
+    throw new Error(
+      `PT3 effect ${code.toString(16).toUpperCase()} cannot be written back to the source stream. `
+      + `Usable commands are 1 GLISS, 2 PORTA, 3 SAMPLE POS, 4 ORNAMENT POS, 5 VIBRATO, 8 ENV SLIDE and 9 SPEED.`,
+    );
+  }
+
+  const validation = getTrackerEffectValidationMessage(code, cell.effectParams ?? null);
+  if (validation) throw new Error(validation);
+
+  const sourceFields = sourceEffectToNativeFields(source?.effects.find(effect => effect.code !== 0));
+  const sourceCode = sourceFields.effectCommand === 0 ? null : sourceFields.effectCommand;
+  const matchesSource = code === sourceCode
+    && normalizeTrackerEffectParams(cell.effectParams ?? null) === sourceFields.effectParams;
+
+  return {
+    code,
+    payload: code === null ? [] : parseTrackerEffectParams(cell.effectParams ?? null),
+    matchesSource,
+  };
+};
+
 /** Remove the original selector commands while retaining every non-selector
  * PT3 command, then append the editable Vortex INS/ORN/VOL fields. */
-const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell): number[] => {
+const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell, effect: PT3RowEffectPlan): number[] => {
   const instrument = cell.instrument;
   const ornament = cell.ornament;
   const volume = cell.volume;
@@ -189,6 +243,7 @@ const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell): number[] =
   const output: number[] = [];
   let offset = 0;
   let sampleEmbeddedByEnvelopeShape1 = false;
+  let effectEmitted = false;
   while (offset < prefix.length) {
     const command = prefix[offset++] & 0xff;
     if (command >= 0xf0) {
@@ -232,8 +287,25 @@ const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell): number[] =
         output.push(command + 0xa0, ...period); // 12..1F -> B2..BF
       }
     } else {
-      output.push(command); // deferred effect command; payload follows terminal
+      // Deferred effect command; its payload follows the row terminator.
+      if (effect.matchesSource) {
+        output.push(command);
+      } else if (!effectEmitted && effect.code !== null) {
+        // Swap the code in place: an untouched row keeps its exact byte layout
+        // and an edited one shifts nothing around it.
+        output.push(effect.code);
+        effectEmitted = true;
+      }
+      // Otherwise the row's command was cleared, or several stacked commands
+      // collapsed into the single one this editor exposes, and the byte goes.
     }
+  }
+
+  if (!effect.matchesSource && !effectEmitted && effect.code !== null) {
+    // The row carried no command to replace, so the new one is appended.
+    // PTDECOD only stacks the handler here and runs it after the terminator,
+    // so its position among the other prefix commands does not matter.
+    output.push(effect.code);
   }
 
   if (instrument !== null && !sampleEmbeddedByEnvelopeShape1) output.push(0xd0 + instrument);
@@ -248,14 +320,23 @@ const buildCompressedChannelStream = (
 ): number[] => {
   const meaningfulRows: number[] = [];
   const canonicalPrefixes: number[][] = [];
+  const canonicalPayloads: number[][] = [];
   for (let row = 0; row < pattern.numRows; row += 1) {
     const sourceCell = pattern.pt3SourceRows?.[row]?.[channel];
     const cell = pattern.rows[row]?.[channel];
     if (!cell) throw new Error(`Pattern ${pattern.name}, row ${row}, channel ${channel} is missing.`);
-    const canonicalPrefix = rewritePT3RowSelectors(sourceCell?.prefixBytes ?? [], cell);
+    const effect = planPT3RowEffect(sourceCell, cell);
+    const canonicalPrefix = rewritePT3RowSelectors(sourceCell?.prefixBytes ?? [], cell, effect);
     canonicalPrefixes[row] = canonicalPrefix;
+    // An untouched row replays its original trailing bytes exactly, whatever
+    // they hold. Only an edited FX/CMD is re-encoded, and then the payload is
+    // just this one command's parameters -- the LIFO order the decoder uses to
+    // unstack several commands collapses to a single run.
+    canonicalPayloads[row] = effect.matchesSource
+      ? (sourceCell?.deferredPayloadBytes ?? []).map(value => value & 0xff)
+      : effect.payload.map(value => value & 0xff);
     const note = pattern.rows[row]?.[channel]?.note ?? null;
-    if (note !== null || canonicalPrefix.length > 0 || (sourceCell?.deferredPayloadBytes.length ?? 0) > 0) {
+    if (note !== null || canonicalPrefix.length > 0 || canonicalPayloads[row].length > 0) {
       meaningfulRows.push(row);
     }
   }
@@ -266,7 +347,6 @@ const buildCompressedChannelStream = (
   const stream: number[] = [];
   let activeSkip: number | null = null;
   meaningfulRows.forEach((row, index) => {
-    const sourceCell = pattern.pt3SourceRows?.[row]?.[channel];
     const nextRow = meaningfulRows[index + 1] ?? pattern.numRows;
     const skip = Math.max(1, Math.min(256, nextRow - row));
     const noteCommand = encodePT3SourceNoteCommand(pattern.rows[row]?.[channel]?.note ?? null);
@@ -282,7 +362,7 @@ const buildCompressedChannelStream = (
     }
     stream.push(...canonicalPrefixes[row]);
     stream.push(noteCommand);
-    stream.push(...(sourceCell?.deferredPayloadBytes ?? []).map(value => value & 0xff));
+    stream.push(...canonicalPayloads[row]);
   });
   if (channel === 'A') stream.push(0x00);
   return stream;
