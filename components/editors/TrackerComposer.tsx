@@ -2474,8 +2474,46 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [songData, onUpdate]);
 
 
+  /**
+   * The hidden file pickers, rendered by EVERY branch below.
+   *
+   * They used to live only in the main return, so the buttons that open them
+   * through a ref did nothing in the other branches: "Load PT3 Music" on an
+   * empty song called click() on a null ref and silently went nowhere, which is
+   * exactly the state a user reaches when they want to load a PT3 in the first
+   * place. Keeping them here means a picker is mounted wherever its button is.
+   */
+  const hiddenFileInputs = (
+    <>
+      <input
+        ref={musicJsonInputRef}
+        type="file"
+        accept=".json,.music.json,application/json"
+        onChange={handleMusicJsonFileSelected}
+        className="hidden"
+        aria-label="Import Mideas music JSON file"
+      />
+      <input
+        ref={pt3InstrumentInputRef}
+        type="file"
+        accept=".pt3,application/octet-stream"
+        onChange={handlePT3InstrumentFileSelected}
+        className="hidden"
+        aria-label="Extract instruments from a PT3 file"
+      />
+      <input
+        ref={pt3MusicInputRef}
+        type="file"
+        accept=".pt3,.99,application/octet-stream"
+        onChange={handlePT3MusicFileSelected}
+        className="hidden"
+        aria-label="Load PT3 music into tracker"
+      />
+    </>
+  );
+
   if (!currentPattern && songData.patterns.length > 0) {
-    return <Panel title="Tracker Composer"><p className="p-4">Loading pattern data...</p></Panel>;
+    return <Panel title="Tracker Composer">{hiddenFileInputs}<p className="p-4">Loading pattern data...</p></Panel>;
   }
   // Legacy external imports without decoded rows keep their compact player.
   // Source-faithful "Load PT3 Music" imports retain rows and continue into the
@@ -2492,6 +2530,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
     return (
       <Panel title="Tracker Composer" className="flex-grow bg-msx-bgcolor p-4">
+        {hiddenFileInputs}
         <div className="mx-auto flex h-full max-w-3xl flex-col justify-center">
           <div className="rounded border border-msx-border bg-msx-panelbg p-4 shadow-[0_10px_24px_rgba(0,0,0,0.25)]">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-msx-border pb-3">
@@ -2565,6 +2604,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   if (songData.patterns.length === 0 || !currentPattern) {
     return (
       <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
+        {hiddenFileInputs}
         <p className="text-msx-textsecondary mb-4">No patterns in this song yet.</p>
         <Button onClick={handleAddPattern} variant="primary" icon={<PlusCircleIcon />}>Create First Pattern</Button>
         <Button onClick={handleLoadSampleSong} variant="secondary" className="mt-2">Load Sample Song</Button>
@@ -2576,30 +2616,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   return (
     <div className="flex h-full flex-grow select-none flex-col overflow-hidden bg-[#05080c]">
-      <input
-        ref={musicJsonInputRef}
-        type="file"
-        accept=".json,.music.json,application/json"
-        onChange={handleMusicJsonFileSelected}
-        className="hidden"
-        aria-label="Import Mideas music JSON file"
-      />
-      <input
-        ref={pt3InstrumentInputRef}
-        type="file"
-        accept=".pt3,application/octet-stream"
-        onChange={handlePT3InstrumentFileSelected}
-        className="hidden"
-        aria-label="Extract instruments from a PT3 file"
-      />
-      <input
-        ref={pt3MusicInputRef}
-        type="file"
-        accept=".pt3,.99,application/octet-stream"
-        onChange={handlePT3MusicFileSelected}
-        className="hidden"
-        aria-label="Load PT3 music into tracker"
-      />
+      {hiddenFileInputs}
       <TrackerHeader
         songName={localSongName} onSongNameChange={(name) => { setLocalSongName(name); onUpdate({ name }); }}
         songTitle={localSongTitle} onSongTitleChange={(title) => { setLocalSongTitle(title); onUpdate({ title }); }}
