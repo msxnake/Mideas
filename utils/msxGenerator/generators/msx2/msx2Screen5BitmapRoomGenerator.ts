@@ -572,12 +572,27 @@ interface BitmapIntroSceneBlob {
   rleChunks: RleChunk[];
 }
 
+interface BitmapIntroChain {
+  scenes: BitmapIntroScene[];
+  /**
+   * Ids of the Transition nodes the intro chain already plays inside
+   * run_bitmap_intro. The GameFlow dispatcher walks the SAME graph and passes
+   * straight through the presentation nodes, so without this set it replayed
+   * each of those transitions a second time on its way to the WorldLink: the
+   * intro faded out, the boot then painted the HUD band + player sprite onto
+   * the visible page, and the duplicated wipe ran over them before the room
+   * finally appeared (two wipes with a HUD line and a player sprite in between).
+   */
+  consumedTransitionIds: Set<string>;
+}
 
-function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[] {
+
+function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroChain {
+  const empty: BitmapIntroChain = { scenes: [], consumedTransitionIds: new Set<string>() };
   const flows = (((analysis as any).msx2GameFlows || []) as Msx2GameFlowGraph[])
     .filter(flow => isMsx2Screen5Purpose(flow?.purpose));
   const flow = flows.find(candidate => candidate?.name === 'Main MSX2') || flows[0];
-  if (!flow || !Array.isArray(flow.nodes)) return [];
+  if (!flow || !Array.isArray(flow.nodes)) return empty;
   const presentations = (((analysis as any).msx2Presentations || []) as Array<Msx2Screen5PresentationConfig & { id?: string; palette?: Screen5PaletteSlot[] }>);
   const nodeById = new Map(flow.nodes.map(node => [node.id, node]));
   const nextOf = (node: Msx2GameFlowNode): Msx2GameFlowNode | undefined => {
@@ -598,8 +613,9 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[]
   };
   const startNode = (flow.startNodeId ? nodeById.get(flow.startNodeId) : undefined)
     || flow.nodes.find(node => node.type === 'Start');
-  if (!startNode) return [];
+  if (!startNode) return empty;
 
+  const consumedTransitionIds = new Set<string>();
   const scenes: BitmapIntroScene[] = [];
   let current = startNode.type === 'Screen5Presentation' ? startNode : nextExport(startNode);
   const visited = new Set<string>();
@@ -628,12 +644,13 @@ function resolveBitmapIntroScenes(analysis: ProjectAnalysis): BitmapIntroScene[]
         throw new Error(`MSX2 bitmap-room GameFlow Transition effect "${effect}" is not supported by the SCREEN 5 bitmap-room intro; use a SCREEN 5 effect (pixel wipes, fade to black or CLS).`);
       }
       scene.transition = { effect, durationFrames: clampByte(transitionNode.durationFrames, 0) };
+      consumedTransitionIds.add(transitionNode.id);
       next = nextExport(next);
     }
     scenes.push(scene);
     current = next;
   }
-  return scenes;
+  return { scenes, consumedTransitionIds };
 }
 
 const BITMAP_INTRO_EFFECT_CALLS: Record<string, string> = {
@@ -694,6 +711,13 @@ function buildBitmapGameFlowProgram(
     /** Transition effects whose intro helper routines are actually emitted. */
     availableIntroEffects?: Set<string>;
     /**
+     * Transition nodes already played by run_bitmap_intro. The dispatcher walks
+     * the same graph and passes through the presentation nodes, so replaying
+     * these would run the wipe a second time — after the boot has painted the
+     * HUD band and the player sprite onto the visible page.
+     */
+    introConsumedTransitionIds?: Set<string>;
+    /**
      * Multi-world ROMs only: worldAssetId -> world index. A WorldLink then opens
      * with `ld a,<index>` + `call bitmap_prepare_world` so the world's palette,
      * start room and spawn are in place before the shared boot-init runs. Absent
@@ -708,6 +732,7 @@ function buildBitmapGameFlowProgram(
   const musicEnabled = options.music?.enabled === true;
   const trackIndexById = options.music?.trackIndexById || new Map<string, number>();
   const availableIntroEffects = options.availableIntroEffects || new Set<string>();
+  const introConsumedTransitionIds = options.introConsumedTransitionIds || new Set<string>();
   const worldIndexById = options.worldIndexById;
 
   // Text nodes default to palette index 15, the slot bitmap rooms keep as the
@@ -785,7 +810,12 @@ function buildBitmapGameFlowProgram(
         if (!callLine) {
           throw new Error(`MSX2 bitmap GameFlow Transition effect "${effect}" is not supported; use a SCREEN 5 effect (pixel wipes, fade to black or CLS).`);
         }
-        if (availableIntroEffects.has(effect)) {
+        if (introConsumedTransitionIds.has(nodeId)) {
+          // Already played by run_bitmap_intro as the tail of its scene chain.
+          // Replaying it here wiped the screen a second time, after the boot had
+          // painted the HUD separator and the player sprite onto the same page.
+          lines.push(`    ; Transition "${effect}" already played by the boot intro; passthrough.`);
+        } else if (availableIntroEffects.has(effect)) {
           lines.push(callLine.trimEnd());
         } else {
           // The helper lives in the intro runtime, which is only emitted when
@@ -1209,9 +1239,10 @@ ${buildRleUploadAsm(rleChunks, banked)}
 ;   AF, BC, DE, HL.
 ;
 ; SIDE EFFECTS:
-;   Hides hardware sprites during the intro (SAT is still uninitialized) and
-;   restores R#8 = #08 (sprites enabled) before returning. In MegaROM mode the
-;   scene uploads select P2 data banks and restore the resident banks.
+;   Hides hardware sprites (R#8 bit1 = SPD) and LEAVES THEM HIDDEN: the sprite
+;   tables and the player spawn are both set up after this routine returns, so
+;   the boot-init tail is what re-enables them. In MegaROM mode the scene
+;   uploads select P2 data banks and restore the resident banks.
 ; ------------------------------------------------------------
 run_bitmap_intro:
     ; Hide sprites while the SAT/pattern tables still hold garbage
@@ -1222,10 +1253,13 @@ run_bitmap_intro:
     call vdp_write_register
     ; Blank the visible page before the first scene shows.
     call bitmap_intro_cls
-${sceneAsm}    ; Re-enable sprites for gameplay.
-    ld a, #08
-    ld e, #08
-    call vdp_write_register
+${sceneAsm}    ; Sprites stay HIDDEN here on purpose. init_hardware_sprite_tables (SAT,
+    ; colour and pattern tables) and the player spawn both run AFTER this
+    ; routine, so re-enabling R#8 at this point left a sprite built from
+    ; uninitialised tables on screen for the whole boot: with a mirrored player
+    ; the garbage player_facing also indexed the mirror half of the pattern
+    ; bank, so it showed up as a corrupted player sprite. The boot-init tail
+    ; re-enables sprites once the tables are uploaded and the player is placed.
     ret
 
 bitmap_intro_load_palette:
@@ -4470,7 +4504,18 @@ ${doorVisualPendingPageCallAsm}
     ld (bitmap_composition_state), a
     ld (bitmap_composition_blocks_left), a
     ld (bitmap_composition_blocks_left + 1), a
-${commitMusicKeepAlive}${foreground ? foreground.loadCallAsm : ''}${roomCommitExtraAsm}    scf
+${commitMusicKeepAlive}${foreground ? foreground.loadCallAsm : ''}${roomCommitExtraAsm}${options.bankedRle ? `    ; Hand the main loop a resident P2. The room-load path above streams banked
+    ; resources and every loader here is free to map its own bank (bitmap_boss_load
+    ; even opens by restoring, precisely because the previous step leaves P2 on the
+    ; last resource it read). Without this the FIRST frame back in the loop still
+    ; had a data bank mapped, and the player-sprite readers live inside that very
+    ; window: bitmap_player_anim_clip_table and bitmap_room_sprite_colors sit at
+    ; #80xx-#83xx. bitmap_upload_player_frame_colors only re-reads them when the
+    ; frame/state key changes, so a plain room change looked fine and a room change
+    ; followed immediately by a hit (spike -> i-frames + hurt state) uploaded
+    ; garbage clip data and garbage colour bytes: a corrupted player sprite.
+    call bitmap_room_restore_resident_banks
+` : ''}    scf
     ret
 
 init_hardware_sprite_tables:
@@ -7903,6 +7948,8 @@ interface BitmapGemRecord {
   flagOffset: number;
   /** 0 = gem (HUD 'collectibles' counter), 1 = nut (ammo, bitmap_nut_count). */
   pickupClass: number;
+  /** Ammo granted by a nut pickup. Gems keep 1; legacy nuts default to 1. */
+  pickupAmount: number;
   drawCommand: number[];
   eraseCommand: number[];
 }
@@ -8004,6 +8051,14 @@ function collectBitmapAtlasPickupRecords(
         y,
         flagOffset,
         pickupClass: match.pickupClass,
+        pickupAmount: match.pickupClass === BITMAP_PICKUP_CLASS_NUT
+          ? clampInt(
+            entity.params?.nutAmount ?? entity.components?.msx2_collectible?.value,
+            1,
+            255,
+            1,
+          )
+          : 1,
         drawCommand: buildGemAtlasCopyCommand(entry.sx, entry.sy, x, y),
         eraseCommand: buildGemEraseCommand(room, x, y),
       });
@@ -8065,6 +8120,11 @@ function buildBitmapGemSystemAsm(
   }
   const nutCount = gems.filter(item => item.pickupClass === BITMAP_PICKUP_CLASS_NUT).length;
   const hasNuts = nutCount > 0;
+  // Keep every existing +1-nut ROM byte-identical. The amount byte is present
+  // only when at least one authored nut uses params.nutAmount != 1.
+  const hasVariableNutAmounts = gems.some(item => (
+    item.pickupClass === BITMAP_PICKUP_CLASS_NUT && item.pickupAmount !== 1
+  ));
 
   const workOffsetAddress = ramBase;
   const targetPageAddress = ramBase + 1;
@@ -8082,10 +8142,10 @@ function buildBitmapGemSystemAsm(
   const hbTop = hitbox.y;
   const hbBottom = hitbox.y + hitbox.h - 1;
   const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
-  // Record layout: x, y, flagOffset[, class], draw HMMM (15B), erase HMMM/HMMV
-  // (15B) = 33 bytes, or 34 once nuts add the class byte. A project with no nuts
-  // emits the historical 33-byte record, so its ROM stays byte-identical.
-  const recordStride = hasNuts ? 34 : 33;
+  // Record layout: x, y, flagOffset[, class[, amount]], draw HMMM (15B),
+  // erase HMMM/HMMV (15B) = 33, 34 or 35 bytes. The optional amount byte is
+  // emitted only for projects that actually author a nut amount other than 1.
+  const recordStride = 33 + (hasNuts ? 1 : 0) + (hasVariableNutAmounts ? 1 : 0);
   const tailStride = recordStride - 3; // bytes left after x,y,flagOffset were read
   const gemTables = rooms.map((_room, roomIndex) => gems.filter(item => item.roomIndex === roomIndex));
   const dataAsm = gemTables.map((items, roomIndex) =>
@@ -8096,10 +8156,11 @@ function buildBitmapGemSystemAsm(
         item.y,
         item.flagOffset,
         ...(hasNuts ? [item.pickupClass] : []),
+        ...(hasVariableNutAmounts ? [item.pickupAmount] : []),
         ...item.drawCommand,
         ...item.eraseCommand,
       ]),
-      `Room ${roomIndex} pickup records: x,y,flagOffset${hasNuts ? ',class(0 gem/1 nut)' : ''},drawCmd(15),eraseCmd(15)`,
+      `Room ${roomIndex} pickup records: x,y,flagOffset${hasNuts ? ',class(0 gem/1 nut)' : ''}${hasVariableNutAmounts ? ',amount' : ''},drawCmd(15),eraseCmd(15)`,
     )
   ).join('') +
     `bitmap_gem_ptr_table:\n${gemTables.map((_items, i) => `    DW bitmap_gems_room_${i}`).join('\n')}\n` +
@@ -8357,7 +8418,7 @@ bitmap_update_gems:
     ; Erase the pickup cell on the currently displayed page.
     pop hl
     push hl
-    ld de, ${hasNuts ? 16 : 15}
+    ld de, ${15 + (hasNuts ? 1 : 0) + (hasVariableNutAmounts ? 1 : 0)}
     add hl, de
     ld a, (bitmap_displayed_page)
     ld (bitmap_gem_target_page), a
@@ -8372,12 +8433,22 @@ ${hasNuts ? `    ; Which counter? Re-read the class byte at record offset 3. Rea
     jp nz, .gem_scan_nut
 ` : ''}${counterIncAsm}${sfxCallAsm}${hasNuts ? `    jp .gem_scan_next
 .gem_scan_nut:
-    ; +1 nut (shoot ammo), saturating at 255.
+${hasVariableNutAmounts ? `    ; Add this pickup's authored amount, saturating at 255. HL points to class.
+    inc hl
+    ld b, (hl)
+    ld a, (bitmap_nut_count)
+    add a, b
+    jp nc, .gem_scan_nut_store
+    ld a, #FF
+.gem_scan_nut_store:
+    ld (bitmap_nut_count), a
+` : `    ; +1 nut (shoot ammo), saturating at 255.
     ld a, (bitmap_nut_count)
     inc a
     jp z, .gem_scan_nut_done
     ld (bitmap_nut_count), a
 .gem_scan_nut_done:
+`}
 ${sfxCallAsm}` : ''}.gem_scan_next:
     pop hl
     ld de, ${tailStride}
@@ -8413,7 +8484,7 @@ bitmap_apply_gems_for_current_room:
     inc hl
     ld a, (hl)
     inc hl
-${hasNuts ? '    inc hl                    ; skip the class byte: only the counter cares\n' : ''}    push hl
+${hasNuts ? '    inc hl                    ; skip the class byte: only the counter cares\n' : ''}${hasVariableNutAmounts ? '    inc hl                    ; skip the pickup amount byte\n' : ''}    push hl
     ld l, a
     ld h, 0
     ld bc, bitmap_gem_flags
@@ -8427,7 +8498,7 @@ ${hasNuts ? '    inc hl                    ; skip the class byte: only the count
     call bitmap_gem_launch_cmd
     pop hl
 .gem_draw_skip:
-    ld de, ${hasNuts ? recordStride - 4 : 30}
+    ld de, 30                    ; drawCmd(15) + eraseCmd(15)
     add hl, de
     pop bc
     djnz .gem_draw_loop
@@ -14186,7 +14257,7 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // GameFlow intro: SCREEN 5 presentation scene(s) + transitions before gameplay.
   // Each scene bitmap uploads to the visible page 0 (VRAM #00000) through the same
   // RLE decoder used by the HUD seed/atlas, so simple32k and MegaROM both work.
-  const introScenes = resolveBitmapIntroScenes(analysis);
+  const { scenes: introScenes, consumedTransitionIds: introConsumedTransitionIds } = resolveBitmapIntroScenes(analysis);
   const introSceneBlobs: BitmapIntroSceneBlob[] = introScenes.map((scene, index) => ({
     scene,
     index,
@@ -15655,6 +15726,19 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   // GameFlow intro ASM (empty strings when the flow has no presentation scenes,
   // keeping the ROM byte-identical to legacy exports).
   const intro = buildBitmapIntroAsm(introSceneBlobs, isKonamiMegaRom);
+  // run_bitmap_intro returns with hardware sprites hidden (its SAT/pattern
+  // tables are only uploaded later in init_rom). Re-enable them at the end of
+  // the boot-init sequence, where the tables are in VRAM and the player sits at
+  // its spawn. Only emitted when an intro exists, so ROMs without a
+  // presentation keep the exact boot they had.
+  const introSpriteReenableAsm = introSceneBlobs.length > 0
+    ? `    ; run_bitmap_intro left hardware sprites hidden so the boot could not show a
+    ; player built from uninitialised sprite tables. They are ready now.
+    ld a, #08
+    ld e, #08
+    call vdp_write_register
+`
+    : '';
   // Shared boot-init sequence: loads the start room, draws the dynamic pickup/
   // door/gem visuals, spawns enemies/platforms, resets the transient player +
   // room-composition state, restores R#15=S#0 and clears the skill state. In a
@@ -15752,7 +15836,7 @@ ${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudI
     ld a, #01
     ld e, #62
     call vdp_write_register
-${lightingSystem.bootPaintCallAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
+${introSpriteReenableAsm}${lightingSystem.bootPaintCallAsm}    ; Select status register 0 so vblank polling reads S#0 (the VDP command
     ; engine left R#15 pointing at S#2). This runtime drives its own 60 Hz sync
     ; by polling the frame flag, so interrupts stay disabled and the BIOS cannot
     ; consume S#0 before the main loop sees it.
@@ -15886,6 +15970,7 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
     bootInitAsm: bitmapBootInitAsm,
     music: { enabled: Boolean(sccMusic), trackIndexById: sccTrackIndexById },
     availableIntroEffects,
+    introConsumedTransitionIds,
     worldIndexById: multiWorld
       ? new Map(worldPlans.map((plan, index) => [plan.id, index]))
       : undefined,
