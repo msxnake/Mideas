@@ -70,8 +70,15 @@ export const CellInput: React.FC<CellInputProps> = React.memo(({
         // Only call onChange if the user's input *actually differs* from the current prop value.
         // This prevents onBlur (e.g., from programmatic focus shift) from overwriting
         // a model update that happened externally (like from handleGridKeyDown).
-        if (inputValue !== value) { 
-            onChange(inputValue.trim() === "" ? null : inputValue); 
+        if (inputValue !== value) {
+            onChange(inputValue.trim() === "" ? null : inputValue);
+            // Fall back to the value the model last gave us. If the parent
+            // accepts the edit, the `value` prop changes and the sync effect
+            // above immediately overwrites this with the new value; if it
+            // rejects the edit, the cell stops displaying text the song never
+            // took -- which otherwise looked like an applied change that was
+            // silently doing nothing.
+            setInputValue(previousDisplayValueRef.current);
         }
         if (onBlur) onBlur();
     };

@@ -95,6 +95,11 @@ export class DualChipSynthesizer {
     this.scc.setMasterVolume(volumeLevel);
   }
 
+  /** Only the PSG half runs the PT3 sample engine, so only it needs the flag. */
+  public setRowPlaybackActive(active: boolean): void {
+    this.psg.setRowPlaybackActive(active);
+  }
+
   public stopAllNotes(): void {
     this.psg.stopAllNotes();
     this.scc.stopAllNotes();

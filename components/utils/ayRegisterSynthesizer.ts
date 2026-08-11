@@ -95,7 +95,8 @@ export class AYRegisterSynthesizer {
     PT3PreviewChannelCommand | undefined,
     PT3PreviewChannelCommand | undefined,
   ] = [undefined, undefined, undefined];
-  private pt3FlushScheduled = false;
+  /** True while the tracker row scheduler drives this synth (see setRowPlaybackActive). */
+  private rowPlaybackActive = false;
   private pt3SongId: string | null = null;
   private pt3FrameCaptureHook: ((frame: AyFrameOutput, index: number) => void) | null = null;
   private pt3FrameIndex = 0;
@@ -319,6 +320,17 @@ export class AYRegisterSynthesizer {
     }
   }
 
+  /**
+   * Tells the synth whether the tracker row scheduler is currently feeding it.
+   * While it is, PT3 sample commands ride the 50Hz frame clock for replayer
+   * fidelity; while it is not, they are flushed as soon as they arrive so a
+   * previewed note is audible immediately instead of waiting for a tick that a
+   * re-render may cancel first.
+   */
+  public setRowPlaybackActive(active: boolean): void {
+    this.rowPlaybackActive = active;
+  }
+
   public stopAllNotes(): void {
     for (let channel = 0; channel < CHANNELS; channel++) {
       this.resetChannel(channel as 0 | 1 | 2);
@@ -464,22 +476,23 @@ export class AYRegisterSynthesizer {
       ...this.pt3PendingCommands[channel],
       ...command,
     };
-    // While the 50Hz frame timer runs, commands wait for the next frame
-    // boundary like in the reference replayer; an immediate flush here would
-    // add an extra engine tick to every held PT3 voice on note-heavy rows.
-    if (this.frameIntervalId !== null) return;
-    if (this.pt3FlushScheduled) return;
-    this.pt3FlushScheduled = true;
-    queueMicrotask(() => {
-      if (!this.pt3FlushScheduled) return;
-      this.flushPT3Frame();
-    });
+    // During row playback the 50Hz frame timer owns the engine clock, so
+    // commands wait for the next frame boundary like in the reference replayer;
+    // an immediate flush there would add an extra engine tick to every held PT3
+    // voice on note-heavy rows.
+    if (this.rowPlaybackActive && this.frameIntervalId !== null) return;
+
+    // An isolated preview -- typing a note, clicking the piano -- has no row
+    // clock to ride on. Leaving its command in the queue meant waiting up to a
+    // full tick, which was long enough for an unrelated re-render to reset the
+    // driver state and drop it: note entry over an imported PT3 song was silent.
+    // Flushing here writes the registers before anything else can run.
+    this.flushPT3Frame();
   }
 
   private flushPT3Frame(): void {
     const hasPendingCommand = this.pt3PendingCommands.some(command => command !== undefined);
     const hasPT3Channel = this.pt3ChannelModes.some(Boolean);
-    this.pt3FlushScheduled = false;
     if (!hasPendingCommand && !hasPT3Channel) return;
 
     const result = stepPT3PreviewFrame(this.pt3DriverState, {
@@ -547,7 +560,6 @@ export class AYRegisterSynthesizer {
     this.pt3DriverState = createPT3PreviewDriverState();
     this.pt3ChannelModes = [false, false, false];
     this.pt3PendingCommands = [undefined, undefined, undefined];
-    this.pt3FlushScheduled = false;
     this.pt3FrameIndex = 0;
     this.nativeChannelEffects = [
       createNativeTrackerChannelEffectState(),

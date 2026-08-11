@@ -60,6 +60,35 @@ const hasFullPT3Header = (bytes: Uint8Array): boolean => {
 const DEMO_PT3_URL = '/samples/pt3/kuvo-forgotten-puppet.pt3';
 const DEMO_PT3_FILENAME = 'KUVO - Forgotten puppet (2021).pt3';
 
+/**
+ * Value ranges the PT3 stream can actually encode, checked before an edit is
+ * serialized in source-faithful mode.
+ *
+ * The cell inputs are shared with native mode and are deliberately wider (INS
+ * and ORN accept two decimal digits), so out-of-range values do reach here.
+ * Note that a blank cell is always legal: in PT3 it means "inherit", which is
+ * why every message points back at it.
+ */
+const PT3_SOURCE_FIELD_RANGES = {
+  instrument: {
+    label: 'INS', min: 1, max: 31, range: '1..31',
+    inherits: 'el sample',
+    format: (value: number) => String(value),
+  },
+  ornament: {
+    label: 'ORN', min: 0, max: 15, range: '0..15',
+    inherits: 'el ornamento',
+    format: (value: number) => String(value),
+  },
+  volume: {
+    label: 'VOL', min: 1, max: 15, range: '1..F',
+    inherits: 'el volumen',
+    // Volume is typed and displayed as a single hex digit, so echo it back that
+    // way rather than as the decimal the cell parser produced.
+    format: (value: number) => value.toString(16).toUpperCase(),
+  },
+} as const;
+
 
 /**
  * Props for the {@link TrackerComposer} component.
@@ -326,6 +355,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | DualChipSynthesizer | null>(null);
 
   const playbackIntervalRef = useRef<number | null>(null);
+  // Latches the previous value of isPlaying so the row scheduler can tell a real
+  // playing -> stopped transition from one of its many incidental re-runs.
+  const wasPlayingRef = useRef(false);
   const nativeRowSpeedRef = useRef(Math.max(1, songData.speed || DEFAULT_PT3_SPEED));
   const patternEditorRef = useRef<HTMLDivElement>(null);
   const externalPt3PlayerRef = useRef<CowbellPT3Player | null>(null);
@@ -844,13 +876,20 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (isValid) {
       if (songData.playbackBackend === 'external-pt3') {
         if (channelId !== 'A' && channelId !== 'B' && channelId !== 'C') return;
-        if (field === 'instrument' && finalValueToStore !== null && Number(finalValueToStore) < 1) {
-          setExternalPt3Error('Vortex PT3 instruments use IDs 1..31; leave INS blank to inherit the previous sample.');
-          return;
-        }
-        if (field === 'volume' && finalValueToStore !== null && Number(finalValueToStore) < 1) {
-          setExternalPt3Error('Vortex PT3 row volume uses 1..F; leave VOL blank to inherit the previous volume.');
-          return;
+        // Check the PT3 ranges up front. The cell inputs accept wider values
+        // than the format does (INS and ORN take two digits, so 50 or 20 get
+        // through), and without this the serializer threw further down and the
+        // whole edit was discarded with the reason buried in a caught error.
+        const pt3Range = PT3_SOURCE_FIELD_RANGES[field as keyof typeof PT3_SOURCE_FIELD_RANGES];
+        if (pt3Range && finalValueToStore !== null) {
+          const numericValue = Number(finalValueToStore);
+          if (!Number.isFinite(numericValue) || numericValue < pt3Range.min || numericValue > pt3Range.max) {
+            setExternalPt3Error(
+              `${pt3Range.label} admite ${pt3Range.range} en PT3; recibido ${pt3Range.format(numericValue)}. `
+              + `Deja la celda vacía para heredar ${pt3Range.inherits} de la fila anterior.`
+            );
+            return;
+          }
         }
 
         externalPt3PlayerRef.current?.stop();
@@ -988,6 +1027,19 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
         return { patterns: updatedPatterns };
       });
+    } else if (songData.playbackBackend === 'external-pt3') {
+      // The value failed its field regex, so nothing above ran. The cell input
+      // keeps what was typed in its own local state, so without a message the
+      // field just sits there showing a value the song never accepted -- the
+      // edit looks applied and is not. INS and ORN are the usual way in: both
+      // take two digits, but only accept 0..31 and 0..15 respectively.
+      const range = PT3_SOURCE_FIELD_RANGES[field as keyof typeof PT3_SOURCE_FIELD_RANGES];
+      setExternalPt3Error(
+        range
+          ? `${range.label} admite ${range.range} en PT3; "${inputValue}" no es válido. `
+            + `Deja la celda vacía para heredar ${range.inherits} de la fila anterior.`
+          : `"${inputValue}" no es un valor válido para este campo.`
+      );
     }
   }, [currentPattern, activePatternStorageIndex, songData.patterns, songData.playbackBackend, onUpdate, activeInstrumentId, activeOrnamentId]);
 
@@ -1198,7 +1250,21 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
 
   useEffect(() => {
-    if (songData.playbackBackend !== 'external-pt3' && isPlaying && currentPattern && synthesizer && synthesizer['audioContext']?.state === 'running') {
+    // The scheduler and the synth must agree on this flag: while it is true the
+    // synth defers PT3 sample commands to its own 50Hz clock (replayer
+    // fidelity), while it is false it flushes them on arrival so previewed
+    // notes are heard at once. Deriving both from one expression keeps the two
+    // from drifting apart -- Pause on an external-PT3 song, for instance, sets
+    // isPlaying without ever starting this scheduler.
+    const rowSchedulerActive = songData.playbackBackend !== 'external-pt3'
+      && isPlaying
+      && !!currentPattern
+      && !!synthesizer
+      && synthesizer['audioContext']?.state === 'running';
+    (synthesizer as { setRowPlaybackActive?: (active: boolean) => void } | null)
+      ?.setRowPlaybackActive?.(rowSchedulerActive);
+
+    if (rowSchedulerActive && currentPattern && synthesizer) {
       let rowToProcess = playbackRow;
       let patternToProcess = currentPattern;
       let patternIndexInOrderToProcess = songData.currentPatternIndexInOrder;
@@ -1315,13 +1381,20 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     } else {
       if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
       playbackIntervalRef.current = null;
-      if (!isPlaying && synthesizer) {
+      // Tear the voices down only on the real playing -> stopped transition.
+      // This effect also re-runs on re-renders that have nothing to do with
+      // playback (songData and the inline onUpdate change identity constantly),
+      // and stopAllNotes() resets the PT3 driver state: it used to wipe the
+      // preview command handleCellChange had queued a moment earlier, which is
+      // why typing a note over an imported PT3 song made no sound at all.
+      if (!isPlaying && wasPlayingRef.current && synthesizer) {
         synthesizer.stopAllNotes();
         channelPendingNoteCutRef.current = Array(channels.length).fill(false);
         clearPreviewNoteTimeout();
         clearPianoHighlights();
       }
     }
+    wasPlayingRef.current = isPlaying;
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
   }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, mutedChannels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualEnvelope, publishPianoVisualState]);
 
@@ -2546,6 +2619,27 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
               Componer música nueva
             </Button>
           </div>
+        </div>
+      )}
+      {/* Rejected edits report here. The other copy of this message lives in the
+          compact-player branch above, which only renders for imports that have
+          no decoded rows -- so in the pattern grid a refused keystroke used to
+          vanish with no explanation at all. */}
+      {songData.playbackBackend === 'external-pt3' && songData.patterns.length > 0 && externalPt3Error && (
+        <div
+          role="alert"
+          className="flex flex-shrink-0 items-start gap-2 border-b border-msx-warning/70 bg-msx-warning/10 px-3 py-1.5 text-[0.68rem] text-msx-warning"
+        >
+          <span className="font-bold uppercase">Edición rechazada</span>
+          <span className="flex-grow text-msx-textprimary">{externalPt3Error}</span>
+          <button
+            type="button"
+            aria-label="Descartar el aviso"
+            className="px-1 font-bold text-msx-warning hover:text-msx-textprimary"
+            onClick={() => setExternalPt3Error(null)}
+          >
+            ×
+          </button>
         </div>
       )}
       <div className="min-h-0 flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
