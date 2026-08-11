@@ -3099,8 +3099,8 @@ psg_music_cell_note:
     or a
     jr z, psg_music_note_pt3_reset_done
     call psg_music_reset_pt3_channel
-    call psg_music_arm_pt3_envelope
-psg_music_note_pt3_reset_done:
+${pt3Enabled ? `    call psg_music_arm_pt3_envelope
+` : ''}psg_music_note_pt3_reset_done:
     ld hl, psg_ch_envstep
     call psg_ch_ptr
     ld (hl), 0
@@ -3173,7 +3173,7 @@ psg_music_reset_pt3_channel:
     ld (hl), 0
     ret
 
-; Arm R13 only on PT3 note-on, and only when the descriptor explicitly has a
+${pt3Enabled ? `; Arm R13 only on PT3 note-on, and only when the descriptor explicitly has a
 ; hardware-envelope shape. music_pt3_finalize_frame performs the single write.
 ; Input: C = channel 0..2
 ; Destroys: AF, DE, HL   Preserves: BC, IX, IY
@@ -3193,6 +3193,7 @@ psg_music_arm_pt3_envelope:
     ld a, 1
     ld (music_pt3_r13_pending), a
     ret
+` : ''}
 
 ; ------------------------------------------------------------------
 ; psg_music_update_envelopes
