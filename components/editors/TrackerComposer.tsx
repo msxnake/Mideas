@@ -2645,7 +2645,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           <div>
             <span className="font-bold uppercase text-msx-highlight">Source-faithful PT3</span>
             <span className="ml-2 text-msx-textprimary">
-              Modo Vortex: NOTE, INS, ORN y VOL son editables; FX/CMD conserva los comandos originales. Para crear una canción nueva con los instrumentos PT3 importados, cambia al modo nativo.
+              Modo Vortex: NOTE, INS, ORN, VOL y FX/CMD son editables sobre el stream original. FX admite 1 GLISS, 2 PORTA, 3 SAMPLE POS, 4 ORNAMENT POS, 5 VIBRATO, 8 ENV SLIDE y 9 SPEED; la columna PT3 muestra el estado inline de la fila y no se edita. Para crear una canción nueva con los instrumentos PT3 importados, cambia al modo nativo.
             </span>
           </div>
           <div className="flex items-center gap-2">
