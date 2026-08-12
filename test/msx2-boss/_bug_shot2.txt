@@ -1,0 +1,4 @@
+t6  pc=490C scr=3 px=0
+t12 pc=4CBB scr=1 px=147
+t20 pc=4908 scr=1 px=147
+t30 pc=490F scr=1 px=147

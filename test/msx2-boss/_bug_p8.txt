@@ -1,0 +1,3 @@
+setup: scr=1 px=147 py=146 bact=1
+after-set D0A8: 00 D0 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 33 35 67 76 00 33 00 66 
+after jump py=144

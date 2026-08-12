@@ -1,0 +1,43 @@
+before override: px=147 py=146 ist=5 iau=1
+manual LEFT held, intro cleared
+f000 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f001 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f002 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f003 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f004 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f005 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f006 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f007 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f008 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f009 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f010 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f011 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f012 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f013 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f014 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f015 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f016 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f017 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f018 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f019 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f020 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f021 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f022 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f023 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f024 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f025 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f026 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f027 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f028 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f029 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f030 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f031 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f032 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f033 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f034 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f035 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f036 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f037 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f038 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+f039 px=147 py=146 mov=1 fac=0 ist=0 iau=0
+DONE

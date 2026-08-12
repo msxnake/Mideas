@@ -1,0 +1,5 @@
+after_walk nuts=3 slot0=(act 0 x 0 y 0 dir 0) player=(152,128)
+fire+50ms nuts=2 slot0=(act 1 x 178 y 134 dir 1) player=(152,128)
+fire+100ms nuts=2 slot0=(act 1 x 190 y 134 dir 1) player=(152,128)
+fire+200ms nuts=2 slot0=(act 1 x 214 y 134 dir 1) player=(152,128)
+settled nuts=2 slot0=(act 0 x 242 y 134 dir 1) player=(152,128)

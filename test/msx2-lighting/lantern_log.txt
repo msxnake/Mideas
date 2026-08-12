@@ -1,0 +1,5 @@
+before on=1 nuts=3 bl=(on 0 x 51 y 51) bullet=(act 0 x 0 y 0 dir 0)
+fire+80ms on=1 nuts=2 bl=(on 1 x 194 y 162) bullet=(act 1 x 186 y 134 dir 1)
+fire+200ms on=1 nuts=2 bl=(on 1 x 222 y 162) bullet=(act 1 x 214 y 134 dir 1)
+fire+400ms on=1 nuts=2 bl=(on 0 x 239 y 162) bullet=(act 0 x 242 y 134 dir 1)
+settled on=1 nuts=2 bl=(on 0 x 239 y 162) bullet=(act 0 x 242 y 134 dir 1)

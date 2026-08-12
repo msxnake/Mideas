@@ -1,0 +1,7 @@
+arranque sala=0 nueces=0 player=(31,144) bala=0
+t8 sala=0 nueces=0 player=(31,144) bala=0
+disparo_sin_municion sala=0 nueces=0 player=(31,144) bala=0
+tras_andar sala=0 nueces=2 player=(67,144) bala=0
+disparo1 sala=0 nueces=1 player=(67,144) bala=0
+disparo2 sala=0 nueces=0 player=(67,144) bala=0
+final sala=0 nueces=0 player=(67,144) bala=0

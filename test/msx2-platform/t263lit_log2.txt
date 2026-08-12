@@ -1,0 +1,7 @@
+con_municion cola=1 nueces=2 farol=(on 0 x 0 y 0) bala=(act 0 x 0 y 0 dir 0)
+t+50ms cola=1 nueces=1 farol=(on 1 x 81 y 158) bala=(act 1 x 73 y 130 dir 2)
+t+100ms cola=1 nueces=1 farol=(on 1 x 81 y 146) bala=(act 1 x 73 y 118 dir 2)
+t+150ms cola=1 nueces=1 farol=(on 1 x 81 y 134) bala=(act 1 x 73 y 106 dir 2)
+t+250ms cola=1 nueces=1 farol=(on 1 x 81 y 114) bala=(act 1 x 73 y 82 dir 2)
+t+450ms cola=1 nueces=1 farol=(on 0 x 81 y 74) bala=(act 0 x 73 y 46 dir 2)
+tras_morir cola=1 nueces=1 farol=(on 0 x 81 y 74) bala=(act 0 x 73 y 46 dir 2)

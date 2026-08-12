@@ -1,0 +1,10 @@
+t3 cnt=0 st0=51 st1=51 act=119 light=(51,86) p0=(0,0) p1=(221,221) player=(0,0)
+   col0 @F440: 00 00 00 00 00 00   col1 @F450: 00 00 00 00 00 00 
+t5 cnt=2 st0=1 st1=1 act=1 light=(40,165) p0=(71,176) p1=(185,176) player=(32,128)
+   col0 @F440: 0B 0B 0B 0B 0F 0F   col1 @F450: 0B 0B 0B 0B 0F 0F 
+t7 cnt=2 st0=1 st1=1 act=1 light=(40,165) p0=(61,176) p1=(188,176) player=(32,128)
+   col0 @F440: 0B 0B 0B 0B 0F 0F   col1 @F450: 0B 0B 0B 0B 0F 0F 
+t9 cnt=2 st0=1 st1=1 act=1 light=(40,165) p0=(51,176) p1=(210,176) player=(32,128)
+   col0 @F440: 0B 0B 0B 0B 0F 0F   col1 @F450: 0B 0B 0B 0B 0F 0F 
+t11 cnt=2 st0=1 st1=1 act=1 light=(40,165) p0=(41,176) p1=(217,176) player=(32,128)
+   col0 @F440: 0B 0B 0B 0B 0F 0F   col1 @F450: 0B 0B 0B 0B 0F 0F 

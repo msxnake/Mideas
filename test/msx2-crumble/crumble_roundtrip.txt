@@ -1,0 +1,4 @@
+collapsed    screen=0 pos=(48,96) grounded=1 slot0(cell=255 stage=8) c(2,6)=16 c(3,6)=0 c(4,6)=16
+in_room_B    screen=1 pos=(54,91) grounded=0 slot0(cell=255 stage=0) c(2,6)=0 c(3,6)=0 c(4,6)=0
+back_home    screen=0 pos=(238,93) grounded=1 slot0(cell=255 stage=0) c(2,6)=16 c(3,6)=16 c(4,6)=16
+settled      screen=0 pos=(238,93) grounded=1 slot0(cell=255 stage=0) c(2,6)=16 c(3,6)=16 c(4,6)=16

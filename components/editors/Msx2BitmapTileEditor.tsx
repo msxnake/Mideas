@@ -227,6 +227,71 @@ const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onTo
   </section>
 );
 
+interface TileRepeatPreviewProps {
+  pixels: number[][];
+  width: number;
+  height: number;
+  slots: Screen5PaletteSlot[];
+}
+
+const TileRepeatPreview: React.FC<TileRepeatPreviewProps> = ({ pixels, width, height, slots }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewWidth = width * 2;
+  const previewHeight = height * 2;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+
+    canvas.width = previewWidth;
+    canvas.height = previewHeight;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, previewWidth, previewHeight);
+
+    for (let tileY = 0; tileY < 2; tileY++) {
+      for (let tileX = 0; tileX < 2; tileX++) {
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const slot = pixels[y]?.[x] ?? 0;
+            ctx.fillStyle = resolveSlotHexForRender(slots, slot & 0x0f);
+            ctx.fillRect(tileX * width + x, tileY * height + y, 1, 1);
+          }
+        }
+      }
+    }
+
+    // Make the four repeated tiles explicit without introducing a pixel grid.
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(width + 0.5, 0);
+    ctx.lineTo(width + 0.5, previewHeight);
+    ctx.moveTo(0, height + 0.5);
+    ctx.lineTo(previewWidth, height + 0.5);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeRect(0.5, 0.5, previewWidth - 1, previewHeight - 1);
+  }, [pixels, slots, width, height, previewWidth, previewHeight]);
+
+  return (
+    <div className="space-y-2">
+      <div className="rounded border border-msx-border bg-black/40 p-2 flex justify-center">
+        <canvas
+          ref={canvasRef}
+          className="block h-auto w-full max-w-[220px]"
+          style={{ imageRendering: 'pixelated' }}
+          role="img"
+          aria-label="Tile repeated four times in a 2 by 2 composition"
+        />
+      </div>
+      <div className="text-[0.65rem] text-msx-textsecondary">
+        El tile se repite 2×2 para previsualizar una composición de fondo.
+      </div>
+    </div>
+  );
+};
+
 export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   tileAsset,
   allAssets,
@@ -278,6 +343,7 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
   const [openSwap, setOpenSwap] = useState(false);
   const [openLibrary, setOpenLibrary] = useState(false);
   const [openPalette, setOpenPalette] = useState(true);
+  const [openTilePreview, setOpenTilePreview] = useState(true);
   const [openLibraryFile, setOpenLibraryFile] = useState(false);
   const [openTileInfo, setOpenTileInfo] = useState(true);
 
@@ -1420,6 +1486,10 @@ export const Msx2BitmapTileEditor: React.FC<Msx2BitmapTileEditorProps> = ({
                 Click = FG color. Right-click = BG color. Double-click = open (or create) palette asset.
               </div>
             </div>
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Tile 2×2 preview" isOpen={openTilePreview} onToggle={() => setOpenTilePreview(v => !v)}>
+            <TileRepeatPreview pixels={pixelsGrid} width={width} height={height} slots={slots} />
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Library file" isOpen={openLibraryFile} onToggle={() => setOpenLibraryFile(v => !v)}>

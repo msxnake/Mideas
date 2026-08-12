@@ -1,0 +1,21 @@
+t2     A=   0(v 0)  B=   0(v 0)  C=   0(v 0)  mix=B8
+t3     A=   0(v 0)  B=   0(v 0)  C=   0(v 0)  mix=B8
+t4     A=   0(v 0)  B=   0(v 0)  C=   0(v 0)  mix=B8
+t5     A=   0(v 0)  B=   0(v 0)  C=   0(v 0)  mix=B8
+t6     A= 257(v15)  B= 511(v11)  C=1021(v10)  mix=B8
+t7     A= 167(v15)  B= 425(v11)  C=1017(v 9)  mix=B8
+t8     A= 130(v15)  B= 342(v11)  C=1013(v10)  mix=B8
+t9     A= 140(v15)  B= 336(v11)  C=1017(v 1)  mix=9C
+t10    A= 257(v15)  B= 511(v11)  C=1017(v 6)  mix=9C
+t11    A= 167(v15)  B= 425(v11)  C=1017(v 0)  mix=BC
+t12    A= 130(v15)  B= 342(v11)  C= 967(v14)  mix=B8
+t13    A= 173(v15)  B= 433(v11)  C=1017(v11)  mix=B8
+t14    A= 132(v15)  B= 325(v11)  C=1285(v10)  mix=B8
+t15    A= 165(v15)  B= 386(v11)  C=1281(v 9)  mix=B8
+t16    A= 185(v15)  B= 448(v11)  C= 855(v 2)  mix=9C
+t17    A= 209(v15)  B= 503(v11)  C= 855(v 0)  mix=BC
+t18    A= 259(v15)  B= 513(v11)  C=1017(v 0)  mix=9C
+----
+distinct tone-period states: 14 (a silent ROM stays at 1)
+peak channel volume: 15 (0 means nothing was ever audible)
+RESULT: PASS - PSG is being driven

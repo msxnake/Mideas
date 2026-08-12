@@ -1,0 +1,6 @@
+facing_left slot0=(act 0 x 0 dir 0 life 0) player=(128,128)
+l+50ms slot0=(act 1 x 118 dir 0 life 22) player=(128,128)
+l+200ms slot0=(act 1 x 82 dir 0 life 13) player=(128,128)
+l+500ms slot0=(act 0 x 34 dir 0 life 0) player=(128,128)
+l+700ms slot0=(act 0 x 34 dir 0 life 0) player=(128,128)
+l+1000ms slot0=(act 0 x 34 dir 0 life 0) player=(128,128)
