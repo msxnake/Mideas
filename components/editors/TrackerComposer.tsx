@@ -38,7 +38,7 @@ import { useMidiInput } from '../../utils/useMidiInput';
 import { MidiInputPanel, MidiChannelMode, MidiActionId, MidiActionMap } from '../tracker/MidiInputPanel';
 import { downloadJsonFile } from '../../utils/downloadUtils';
 import { createMusicJsonPackage, normalizeImportedMusic, sanitizeMusicFilename } from '../../utils/trackerMusicJson';
-import { locatePT3PlaybackFrame, parsePT3Module, parsePT3File } from '../utils/pt3Parser';
+import { locatePT3PlaybackFrame, locatePT3OrderStepFrames, parsePT3Module, parsePT3File } from '../utils/pt3Parser';
 import { normalizeImportedPT3Data } from '../utils/trackerUtils';
 import { mergePT3Assets } from '../utils/pt3InstrumentImport';
 import { mergePT3FactoryKit } from '../../utils/audio/pt3FactoryInstruments';
@@ -389,6 +389,17 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   // Read from the Cowbell time callback, which lives outside the render scope.
   const focusedCellRef = useRef(focusedCell);
   focusedCellRef.current = focusedCell;
+
+  /**
+   * Audition mode: repeat the pattern under the cursor instead of walking the
+   * order. Made for dialling in an instrument -- you hear the same bars over
+   * and over while editing, without the song running away from you.
+   */
+  const [loopCurrentPattern, setLoopCurrentPattern] = useState(false);
+  const loopCurrentPatternRef = useRef(loopCurrentPattern);
+  loopCurrentPatternRef.current = loopCurrentPattern;
+  /** Order step being auditioned, latched when the loop is armed. */
+  const loopOrderIndexRef = useRef<number | null>(null);
   const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | DualChipSynthesizer | null>(null);
 
   const playbackIntervalRef = useRef<number | null>(null);
@@ -1161,6 +1172,20 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           setExternalPt3Duration(duration);
           const liveSong = songDataRef.current;
           const cursor = locatePT3PlaybackFrame(liveSong, Math.floor(currentTime * 50));
+
+          // Pattern audition: as soon as the playhead leaves the latched order
+          // step, jump back to its first frame. Seeking rather than restarting
+          // keeps the replayer's channel state, which is what makes an
+          // instrument tweak audible on the very next repeat.
+          if (cursor && loopCurrentPatternRef.current && loopOrderIndexRef.current !== null
+              && cursor.orderIndex !== loopOrderIndexRef.current) {
+            const span = locatePT3OrderStepFrames(liveSong, loopOrderIndexRef.current);
+            if (span) {
+              externalPt3PlayerRef.current?.seek(span.startFrame / 50);
+              return;
+            }
+          }
+
           if (cursor) {
             setPlaybackRow(cursor.row);
             const pattern = liveSong.patterns[cursor.patternIndex];
@@ -1222,11 +1247,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
     setExternalPt3Status('loading');
     setExternalPt3Error(null);
-    // Pressing Play hands the pattern view back to the song.
-    userPickedPatternRef.current = false;
+    // Pressing Play hands the pattern view back to the song -- unless we are
+    // auditioning one pattern, where the whole point is that it stays put.
+    userPickedPatternRef.current = loopCurrentPatternRef.current;
     try {
       const player = await ensureExternalPt3Player();
       if (!player) return;
+      if (loopCurrentPatternRef.current) {
+        const orderIndex = songDataRef.current.currentPatternIndexInOrder;
+        loopOrderIndexRef.current = orderIndex;
+        const span = locatePT3OrderStepFrames(songDataRef.current, orderIndex);
+        if (span) player.seek(span.startFrame / 50);
+      }
       await player.play();
       setExternalPt3Status('ready');
     } catch (error) {
@@ -1307,6 +1339,35 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (isPlaying) stopPlayback(false);
     else await startPlayback(false);
   }, [isPlaying, startPlayback, stopPlayback]);
+
+  /**
+   * Toggle single-pattern audition. Arming it mid-playback latches whichever
+   * pattern is selected right now and jumps there, so you can pick a pattern,
+   * hit this, and keep tweaking an instrument against the same bars.
+   */
+  const handleToggleLoopPattern = useCallback(() => {
+    setLoopCurrentPattern(previous => {
+      const next = !previous;
+      loopCurrentPatternRef.current = next;
+      if (!next) {
+        loopOrderIndexRef.current = null;
+        // Hand the pattern view back to the playhead, otherwise disarming the
+        // loop left the grid frozen on the audited pattern while the song
+        // carried on underneath it.
+        userPickedPatternRef.current = false;
+        lastExternalOrderIndexRef.current = -1;
+        return next;
+      }
+      const orderIndex = songDataRef.current.currentPatternIndexInOrder;
+      loopOrderIndexRef.current = orderIndex;
+      userPickedPatternRef.current = true;
+      if (songDataRef.current.playbackBackend === 'external-pt3' && externalPt3PlayerRef.current) {
+        const span = locatePT3OrderStepFrames(songDataRef.current, orderIndex);
+        if (span) externalPt3PlayerRef.current.seek(span.startFrame / 50);
+      }
+      return next;
+    });
+  }, []);
 
   const handleSilenceAllChannels = useCallback(() => {
     if (songData.playbackBackend === 'external-pt3') {
@@ -1445,9 +1506,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
           if (nextRow >= patternToProcess.numRows) {
             nextRow = 0;
-            nextPatternOrderIdx = patternIndexInOrderToProcess + 1;
-            if (nextPatternOrderIdx >= songData.lengthInPatterns) {
-              nextPatternOrderIdx = songData.restartPosition;
+            // Auditioning one pattern: wrap to its own row 0 instead of
+            // stepping through the order.
+            if (!loopCurrentPatternRef.current) {
+              nextPatternOrderIdx = patternIndexInOrderToProcess + 1;
+              if (nextPatternOrderIdx >= songData.lengthInPatterns) {
+                nextPatternOrderIdx = songData.restartPosition;
+              }
             }
           }
 
@@ -2670,6 +2735,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         channels={channels}
         onLoadSampleSong={handleLoadSampleSong}
         onSilenceAllChannels={handleSilenceAllChannels}
+        onToggleLoopPattern={handleToggleLoopPattern}
+        loopCurrentPattern={loopCurrentPattern}
         onExportMusicJson={handleExportMusicJson}
         onImportMusicJson={handleImportMusicJson}
         soundChip={songData.soundChip}

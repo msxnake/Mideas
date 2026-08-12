@@ -188,6 +188,44 @@ export const locatePT3PlaybackFrame = (
   return last;
 };
 
+/**
+ * Inverse of locatePT3PlaybackFrame: the 50 Hz frame on which an order step
+ * begins, and how many frames it lasts. Used to loop a single pattern for
+ * auditioning, so the walk must honour C_DELAY/SPD exactly like the cursor
+ * lookup above or the loop points drift on speed changes.
+ *
+ * Returns null when the order step does not exist.
+ */
+export const locatePT3OrderStepFrames = (
+  song: Pick<TrackerSongData, 'patterns' | 'order' | 'speed'>,
+  targetOrderIndex: number,
+): { startFrame: number; frameCount: number } | null => {
+  if (!song.patterns.length || !song.order.length) return null;
+  if (targetOrderIndex < 0 || targetOrderIndex >= song.order.length) return null;
+
+  let speed = song.speed > 0 ? song.speed : 256;
+  let frame = 0;
+  let startFrame = -1;
+
+  for (let orderIndex = 0; orderIndex < song.order.length; orderIndex += 1) {
+    const pattern = song.patterns[song.order[orderIndex]];
+    if (!pattern) continue;
+    if (orderIndex === targetOrderIndex) startFrame = frame;
+    for (let row = 0; row < pattern.numRows; row += 1) {
+      const sourceRow = pattern.pt3SourceRows?.[row];
+      for (const channel of ['A', 'B', 'C'] as const) {
+        const effects = sourceRow?.[channel]?.effects ?? [];
+        for (let index = effects.length - 1; index >= 0; index -= 1) {
+          if (effects[index].code === 9) speed = (effects[index].params[0] ?? 0) || 256;
+        }
+      }
+      frame += Math.max(1, speed);
+    }
+    if (orderIndex === targetOrderIndex) return { startFrame, frameCount: frame - startFrame };
+  }
+  return null;
+};
+
 const PT3_EFFECT_PARAMETER_BYTES = [0, 3, 5, 1, 1, 2, 0, 0, 3, 1, 0, 0, 0, 0, 0, 0] as const;
 
 const readInt16LE = (lo: number, hi: number): number => {

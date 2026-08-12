@@ -59,6 +59,9 @@ interface TrackerHeaderProps {
   onLoadSampleSong: () => void;
   /** Callback to silence all channels. */
   onSilenceAllChannels: () => void;
+  /** Audition one pattern on repeat; omitted when the host does not support it. */
+  onToggleLoopPattern?: () => void;
+  loopCurrentPattern?: boolean;
   /** Export only this music asset as a portable Mideas JSON file. */
   onExportMusicJson: () => void;
   /** Import a portable Mideas music JSON file into this asset. */
@@ -97,6 +100,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   ayHardwareEnvelopePeriod, onAyHardwareEnvelopePeriodChange,
   ayNoisePeriod, onAyNoisePeriodChange,
   isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
+  onToggleLoopPattern, loopCurrentPattern = false,
   onExportMusicJson, onImportMusicJson,
   channels,
   soundChip, onSoundChipChange, sccEnabled, onSccEnabledChange,
@@ -297,8 +301,18 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
             </Button>
           )}
           <Button onClick={onPlayStop} size="sm" variant={isPlaying ? "danger" : "primary"} icon={isPlaying ? <StopIcon /> : <PlayIcon />}>
-            {isPlaying ? 'Stop' : 'Play Pattern'}
+            {isPlaying ? 'Stop' : 'Play Song'}
           </Button>
+          {onToggleLoopPattern && (
+            <Button
+              onClick={onToggleLoopPattern}
+              size="sm"
+              variant={loopCurrentPattern ? 'primary' : 'secondary'}
+              title="Repetir solo el patrón seleccionado, sin avanzar por el orden de la canción. Pensado para afinar un instrumento oyendo los mismos compases una y otra vez."
+            >
+              {loopCurrentPattern ? '↻ Solo este patrón' : 'Solo este patrón'}
+            </Button>
+          )}
           <Button onClick={onSilenceAllChannels} size="sm" variant="danger" icon={<SoundIcon className="opacity-70" />} title="Silence All Channels">
             Silence
           </Button>
