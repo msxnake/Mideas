@@ -2482,6 +2482,16 @@ export interface TrackerCell {
   effectCommand?: number | null;
   /** Raw Vortex command payload as uppercase hexadecimal bytes (CMD column). */
   effectParams?: string | null;
+  /**
+   * PT3 hardware-envelope command for this row (ENV column), as `S:PPPP` where
+   * S is the AY R13 shape (2..F) and PPPP the 16-bit envelope period, or `OFF`
+   * to switch the envelope off. Blank means the row carries no envelope
+   * command and the channel keeps whatever it had.
+   *
+   * Shapes 0 and 1 have no spelling of their own in a PT3 stream: the byte that
+   * would encode them is B0 (envelope off) and B1 (note-skip).
+   */
+  pt3Envelope?: string | null;
 }
 
 /**

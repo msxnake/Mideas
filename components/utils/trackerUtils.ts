@@ -194,6 +194,8 @@ export const formatCellForDisplay = (field: keyof TrackerCell, value: string | n
             return Number(value).toString(16).toUpperCase();
         case 'effectParams':
             return String(value).toUpperCase();
+        case 'pt3Envelope':
+            return String(value).toUpperCase();
         default:
             // This should not be reached if types are correct after removing effectCmd/Val
             const _exhaustiveCheck: never = field;
@@ -214,6 +216,7 @@ export const getCellPlaceholder = (field: keyof TrackerCell): string => {
         case 'volume': return "-";
         case 'effectCommand': return ".";
         case 'effectParams': return "..........";
+        case 'pt3Envelope': return "-:----";
         default: 
             // This should not be reached
             const _exhaustiveCheck: never = field;
@@ -228,7 +231,7 @@ export const getCellPlaceholder = (field: keyof TrackerCell): string => {
  * @returns A transformation function, or undefined if no transformation is needed.
  */
 export const getCellTransform = (field: keyof TrackerCell): ((input:string)=>string) | undefined => {
-    if (field === 'note' || field === 'volume' || field === 'effectParams') {
+    if (field === 'note' || field === 'volume' || field === 'effectParams' || field === 'pt3Envelope') {
         return (input: string) => input.toUpperCase();
     }
     return undefined;
@@ -247,6 +250,8 @@ export const getCellAllowedCharsPattern = (field: keyof TrackerCell): RegExp | u
         case 'volume': return /^[0-9A-F]$/i;
         case 'effectCommand': return /^[0-9A-F]$/i;
         case 'effectParams': return /^[0-9A-F]$/i;
+        // Shape digit and period digits, the ':' separator, and the letters of OFF.
+        case 'pt3Envelope': return /^[0-9A-FO:]$/i;
         default: 
             const _exhaustiveCheck: never = field;
             return undefined;
@@ -266,6 +271,7 @@ export const getCellMaxLength = (field: keyof TrackerCell): number => {
         case 'volume': return 1;
         case 'effectCommand': return 1;
         case 'effectParams': return 10;
+        case 'pt3Envelope': return 6;   // "S:PPPP"
         default: 
             const _exhaustiveCheck: never = field;
             return 10;

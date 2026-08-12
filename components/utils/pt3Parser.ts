@@ -1,7 +1,7 @@
 import { TrackerSongData, TrackerPattern, TrackerRow, TrackerCell, PT3Instrument, PT3Ornament, PT3SampleMacro, PT3PatternCellSource, PT3PatternEffectCommand } from '../../types';
 import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM } from '../../constants';
 import { decodePT3SampleStep } from './pt3SampleEngine';
-import { sourceEffectToNativeFields } from './trackerEffects';
+import { formatPT3EnvelopeField, PT3_ENVELOPE_OFF, sourceEffectToNativeFields } from './trackerEffects';
 
 export const PT3_HEADER_SIZE = 201;
 export const PT3_TONE_TABLE_OFFSET = 99;
@@ -309,6 +309,8 @@ const decodePT3Channel = (
     const pendingEffects: Array<{ code: number; params: number[] }> = [];
     const events: string[] = [];
     const prefixBytes: number[] = [];
+    /** ENV column value for this row, if it carries an envelope command. */
+    let rowEnvelope: string | null = null;
     let commandOffset: number | undefined;
     let sampleSelected = false;
     let ornamentSelected = false;
@@ -338,6 +340,7 @@ const decodePT3Channel = (
         finished = true;
       } else if (command === 0xb0) {
         // Envelope off resets the ornament position, not the selected ornament.
+        rowEnvelope = PT3_ENVELOPE_OFF;
         events.push('ENV OFF');
       } else if (command === 0xb1) {
         if (offset >= bytes.length) { truncated = true; break; }
@@ -349,6 +352,7 @@ const decodePT3Channel = (
         if (offset + 2 > bytes.length) { truncated = true; break; }
         const periodHi = bytes[offset++];
         const periodLo = bytes[offset++];
+        rowEnvelope = formatPT3EnvelopeField(command & 0x0f, (periodHi << 8) | periodLo);
         events.push(`ENV ${(command & 0x0f).toString(16).toUpperCase()}:${formatHex((periodHi << 8) | periodLo, 4)}`);
       } else if (command >= 0x50) {
         note = pt3NoteName(command);
@@ -364,8 +368,10 @@ const decodePT3Channel = (
           if (offset + 2 > bytes.length) { truncated = true; break; }
           const periodHi = bytes[offset++];
           const periodLo = bytes[offset++];
+          rowEnvelope = formatPT3EnvelopeField(command & 0x0f, (periodHi << 8) | periodLo);
           events.push(`ENV ${(command & 0x0f).toString(16).toUpperCase()}:${formatHex((periodHi << 8) | periodLo, 4)}`);
         } else {
+          rowEnvelope = PT3_ENVELOPE_OFF;
           events.push('ENV OFF');
         }
         if (offset >= bytes.length) { truncated = true; break; }
@@ -413,6 +419,7 @@ const decodePT3Channel = (
       // and a 0x00 byte at the start of a channel-A row is what marks the end
       // of a pattern, so it must never be authored back into the stream.
       ...sourceEffectToNativeFields(decodedEffects.find(effect => effect.code !== 0)),
+      pt3Envelope: rowEnvelope,
     });
     sourceRows.push({
       decoded: true,

@@ -24,6 +24,7 @@ const FIELD_TEXT_CLASSES: Record<keyof TrackerCell, string> = {
   volume: 'text-amber-200 placeholder:text-amber-900/70',
   effectCommand: 'text-fuchsia-300 placeholder:text-fuchsia-900/70',
   effectParams: 'text-fuchsia-200 placeholder:text-fuchsia-900/70',
+  pt3Envelope: 'text-orange-300 placeholder:text-orange-900/70',
 };
 
 const HEADER_FIELD_CLASSES: Record<keyof TrackerCell, string> = {
@@ -33,6 +34,7 @@ const HEADER_FIELD_CLASSES: Record<keyof TrackerCell, string> = {
   volume: 'text-amber-200',
   effectCommand: 'text-fuchsia-300',
   effectParams: 'text-fuchsia-200',
+  pt3Envelope: 'text-orange-300',
 };
 
 /**
@@ -88,13 +90,14 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   const numRows = currentPattern.numRows;
   const rowNumbers = Array.from({ length: numRows }, (_, i) => i);
 
-  // FX/CMD are editable in source-faithful mode too: the command byte is
-  // rewritten in place in the row prefix and its parameters are re-encoded
-  // after the row terminator. The extra PT3 column beside them stays read-only
-  // because it shows inline channel state (note-skip cadence, noise base,
-  // envelope shape) rather than commands, and the serializer regenerates it.
-  const fieldsOrder: (keyof TrackerCell)[] =
-    ['note', 'instrument', 'ornament', 'volume', 'effectCommand', 'effectParams'];
+  // FX/CMD and ENV are editable in source-faithful mode: the effect byte is
+  // rewritten in place in the row prefix, its parameters are re-encoded after
+  // the row terminator, and the envelope command is re-emitted from the ENV
+  // column. The trailing PT3 column stays read-only -- it shows inline channel
+  // state (note-skip cadence, noise base) that the serializer regenerates.
+  const fieldsOrder: (keyof TrackerCell)[] = sourcePT3Mode
+    ? ['note', 'instrument', 'ornament', 'volume', 'effectCommand', 'effectParams', 'pt3Envelope']
+    : ['note', 'instrument', 'ornament', 'volume', 'effectCommand', 'effectParams'];
 
 
   return (
@@ -119,6 +122,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.58rem]`} title="Volume">VOL</div>
             <div className={`${CELL_WIDTH_EFFECT} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectCommand} text-[0.58rem]`} title={sourcePT3Mode ? 'PT3 command: 1 GLISS, 2 PORTA, 3 SAMPLE POS, 4 ORNAMENT POS, 5 VIBRATO, 8 ENV SLIDE, 9 SPEED. Leave blank for none.' : 'Vortex effect command 0-F'}>FX</div>
             <div className={`${CELL_WIDTH_EFFECT_PARAMS} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.effectParams} text-[0.58rem]`} title="Raw Vortex command parameter bytes in hexadecimal">CMD</div>
+            {sourcePT3Mode && <div className={`w-16 ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.pt3Envelope} text-[0.58rem]`} title="Envolvente hardware del AY para esta fila: forma:periodo (forma 2..F, periodo de 4 dígitos hex, p.ej. 9:004B) u OFF para apagarla. En blanco la fila no toca la envolvente.">ENV</div>}
             {sourcePT3Mode && <div className="w-28 px-1 text-left text-[0.58rem] text-fuchsia-300" title="Estado inline de la fila PT3: cadencia de note-skip, base de ruido y forma de envolvente. Lo regenera el serializador; no es editable.">PT3</div>}
           </div>
         ))}
@@ -162,6 +166,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                         case 'volume': fieldWidthClass = CELL_WIDTH_VOL; break;
                         case 'effectCommand': fieldWidthClass = CELL_WIDTH_EFFECT; break;
                         case 'effectParams': fieldWidthClass = CELL_WIDTH_EFFECT_PARAMS; break;
+                        case 'pt3Envelope': fieldWidthClass = 'w-16'; break;
                         default: const _exhaustiveCheck: never = field; fieldWidthClass = CELL_WIDTH_NOTE; // Should not happen
                     }
                     const isFocused = focusedCell?.rowIndex === rIdx && focusedCell.channelId === chId && focusedCell.field === field;

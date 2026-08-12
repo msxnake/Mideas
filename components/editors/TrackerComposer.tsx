@@ -51,7 +51,9 @@ import {
   rewritePT3PatternNoteStreams,
 } from '../utils/pt3SourceEditor';
 import {
+  getPT3EnvelopeValidationMessage,
   getTrackerEffectParameterByteCount,
+  normalizePT3EnvelopeField,
   normalizeTrackerEffectParams,
   resolveNativeTrackerRowSpeed,
 } from '../utils/trackerEffects';
@@ -941,6 +943,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           if (normalizedParams !== null) { finalValueToStore = normalizedParams; isValid = true; }
           break;
         }
+        case 'pt3Envelope': {
+          const normalizedEnvelope = normalizePT3EnvelopeField(upperInputValue);
+          if (getPT3EnvelopeValidationMessage(normalizedEnvelope) === null) {
+            finalValueToStore = normalizedEnvelope;
+            isValid = true;
+          }
+          break;
+        }
         default:
           const _exhaustiveCheck: never = field;
           return _exhaustiveCheck;
@@ -1113,6 +1123,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       // field just sits there showing a value the song never accepted -- the
       // edit looks applied and is not. INS and ORN are the usual way in: both
       // take two digits, but only accept 0..31 and 0..15 respectively.
+      if (field === 'pt3Envelope') {
+        setExternalPt3Error(
+          getPT3EnvelopeValidationMessage(String(inputValue))
+          ?? `"${inputValue}" no es un valor de envolvente válido.`
+        );
+        return;
+      }
       const range = PT3_SOURCE_FIELD_RANGES[field as keyof typeof PT3_SOURCE_FIELD_RANGES];
       setExternalPt3Error(
         range

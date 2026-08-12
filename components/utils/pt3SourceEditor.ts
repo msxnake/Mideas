@@ -1,10 +1,16 @@
 import type { PT3Ornament, PT3PatternCellSource, PT3SampleMacro, TrackerCell, TrackerChannelId, TrackerPattern } from '../../types';
 import { encodePT3SourceNoteCommand, PT3_POSITION_LIST_OFFSET } from './pt3Parser';
 import {
+  formatPT3EnvelopeField,
+  getPT3EnvelopeValidationMessage,
   getTrackerEffectValidationMessage,
+  normalizePT3EnvelopeField,
   normalizeTrackerEffectParams,
+  parsePT3EnvelopeField,
   parseTrackerEffectParams,
   sourceEffectToNativeFields,
+  PT3_ENVELOPE_OFF,
+  type PT3EnvelopeCommand,
 } from './trackerEffects';
 
 export interface PT3SourceNoteEntry {
@@ -184,6 +190,76 @@ const collectUniqueBodies = (
 const PT3_AUTHORABLE_EFFECT_CODES = new Set([0x1, 0x2, 0x3, 0x4, 0x5, 0x8, 0x9]);
 
 /**
+ * Read the envelope command a row originally carried, straight from its bytes
+ * rather than from the decoded display strings. B0 is "off", B2..BF carry a
+ * shape plus a big-endian period, and 10..1F fold the same thing together with
+ * a sample selector.
+ */
+const readEnvelopeFromPrefix = (prefix: number[]): string | null => {
+  let found: string | null = null;
+  let offset = 0;
+  while (offset < prefix.length) {
+    const command = prefix[offset++] & 0xff;
+    if (command >= 0xf0) { offset += 1; found = PT3_ENVELOPE_OFF; }
+    else if (command >= 0xd1) { /* sample selector */ }
+    else if (command >= 0xc1) { /* volume selector */ }
+    else if (command >= 0xb2) {
+      const hi = prefix[offset++] & 0xff;
+      const lo = prefix[offset++] & 0xff;
+      found = formatPT3EnvelopeField(command & 0x0f, (hi << 8) | lo);
+    }
+    else if (command === 0xb1) { offset += 1; }
+    else if (command === 0xb0) { found = PT3_ENVELOPE_OFF; }
+    else if (command >= 0x40) { /* note terminator or ornament selector */ }
+    else if (command >= 0x20) { /* noise base */ }
+    else if (command >= 0x10) {
+      if (command === 0x10) { found = PT3_ENVELOPE_OFF; }
+      else {
+        const hi = prefix[offset++] & 0xff;
+        const lo = prefix[offset++] & 0xff;
+        found = formatPT3EnvelopeField(command & 0x0f, (hi << 8) | lo);
+      }
+      offset += 1; // encoded sample byte
+    }
+    // effect command bytes carry no inline payload here
+  }
+  return found;
+};
+
+interface PT3RowEnvelopePlan {
+  /** null when the row writes no envelope command at all. */
+  command: PT3EnvelopeCommand | null;
+  matchesSource: boolean;
+}
+
+const planPT3RowEnvelope = (
+  source: PT3PatternCellSource | undefined,
+  cell: TrackerCell,
+): PT3RowEnvelopePlan => {
+  const raw = normalizePT3EnvelopeField(cell.pt3Envelope ?? null);
+  const sourceValue = readEnvelopeFromPrefix(source?.prefixBytes ?? []);
+
+  // An untouched row replays its original bytes, so what it carries does not
+  // have to be spellable by the editor. PT3 command 11 encodes envelope shape 1
+  // folded together with a sample selector -- the only way that shape can exist
+  // in a stream -- and validating it here would reject modules that legally
+  // contain it. Only an actual edit has to satisfy the authoring rules.
+  if (raw === sourceValue) return { command: null, matchesSource: true };
+
+  const message = getPT3EnvelopeValidationMessage(raw);
+  if (message) throw new Error(message);
+  return { command: parsePT3EnvelopeField(raw), matchesSource: false };
+};
+
+/** Bytes for an authored envelope command: B0 for off, B0+shape plus a
+ *  big-endian period otherwise. */
+const encodePT3Envelope = (command: PT3EnvelopeCommand | null): number[] => {
+  if (!command) return [];
+  if (command.shape === null) return [0xb0];
+  return [0xb0 + (command.shape & 0x0f), (command.period >> 8) & 0xff, command.period & 0xff];
+};
+
+/**
  * The row's FX/CMD as it will be written, plus whether it still matches what
  * the module originally carried. When it matches, the caller reuses the
  * original deferred payload verbatim so untouched rows stay byte-exact even if
@@ -226,7 +302,12 @@ const planPT3RowEffect = (
 
 /** Remove the original selector commands while retaining every non-selector
  * PT3 command, then append the editable Vortex INS/ORN/VOL fields. */
-const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell, effect: PT3RowEffectPlan): number[] => {
+const rewritePT3RowSelectors = (
+  prefix: number[],
+  cell: TrackerCell,
+  effect: PT3RowEffectPlan,
+  envelope: PT3RowEnvelopePlan,
+): number[] => {
   const instrument = cell.instrument;
   const ornament = cell.ornament;
   const volume = cell.volume;
@@ -244,25 +325,30 @@ const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell, effect: PT3
   let offset = 0;
   let sampleEmbeddedByEnvelopeShape1 = false;
   let effectEmitted = false;
+  // When the ENV column was edited the original envelope bytes are dropped and
+  // the new command is written once, after the loop.
+  const keepSourceEnvelope = envelope.matchesSource;
   while (offset < prefix.length) {
     const command = prefix[offset++] & 0xff;
     if (command >= 0xf0) {
       // F0..FF combines envelope-off + ornament + encoded sample.
       if (offset >= prefix.length) throw new Error('Truncated PT3 ornament/sample selector.');
       offset += 1;
-      output.push(0xb0); // retain envelope-off; selectors are appended below.
+      if (keepSourceEnvelope) output.push(0xb0); // selectors are appended below.
     } else if (command >= 0xd1) {
       // Standalone sample selector; replaced below.
     } else if (command >= 0xc1) {
       // Standalone volume selector; replaced below.
     } else if (command >= 0xb2) {
       if (offset + 2 > prefix.length) throw new Error('Truncated PT3 envelope selector.');
-      output.push(command, prefix[offset++] & 0xff, prefix[offset++] & 0xff);
+      const periodHi = prefix[offset++] & 0xff;
+      const periodLo = prefix[offset++] & 0xff;
+      if (keepSourceEnvelope) output.push(command, periodHi, periodLo);
     } else if (command === 0xb1) {
       if (offset >= prefix.length) throw new Error('Truncated PT3 note-skip command.');
       offset += 1; // cadence is regenerated by buildCompressedChannelStream.
     } else if (command === 0xb0) {
-      output.push(command);
+      if (keepSourceEnvelope) output.push(command);
     } else if (command >= 0x50) {
       throw new Error('Unexpected terminal note inside a PT3 row prefix.');
     } else if (command >= 0x40) {
@@ -276,14 +362,14 @@ const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell, effect: PT3
       offset += envelopeBytes;
       const originalEncodedSample = prefix[offset++] & 0xff;
       if (command === 0x10) {
-        output.push(0xb0);
-      } else if (command === 0x11) {
+        if (keepSourceEnvelope) output.push(0xb0);
+      } else if (command === 0x11 && keepSourceEnvelope) {
         // B1 is reserved for note-skip, so AY shape 1 has no envelope-only
         // spelling. Keep the combined command and replace its sample in place.
         const encodedSample = instrument === null ? originalEncodedSample : instrument * 2;
         output.push(command, ...period, encodedSample & 0xff);
         sampleEmbeddedByEnvelopeShape1 = true;
-      } else {
+      } else if (keepSourceEnvelope) {
         output.push(command + 0xa0, ...period); // 12..1F -> B2..BF
       }
     } else {
@@ -300,6 +386,8 @@ const rewritePT3RowSelectors = (prefix: number[], cell: TrackerCell, effect: PT3
       // collapsed into the single one this editor exposes, and the byte goes.
     }
   }
+
+  if (!keepSourceEnvelope) output.push(...encodePT3Envelope(envelope.command));
 
   if (!effect.matchesSource && !effectEmitted && effect.code !== null) {
     // The row carried no command to replace, so the new one is appended.
@@ -326,7 +414,8 @@ const buildCompressedChannelStream = (
     const cell = pattern.rows[row]?.[channel];
     if (!cell) throw new Error(`Pattern ${pattern.name}, row ${row}, channel ${channel} is missing.`);
     const effect = planPT3RowEffect(sourceCell, cell);
-    const canonicalPrefix = rewritePT3RowSelectors(sourceCell?.prefixBytes ?? [], cell, effect);
+    const envelope = planPT3RowEnvelope(sourceCell, cell);
+    const canonicalPrefix = rewritePT3RowSelectors(sourceCell?.prefixBytes ?? [], cell, effect, envelope);
     canonicalPrefixes[row] = canonicalPrefix;
     // An untouched row replays its original trailing bytes exactly, whatever
     // they hold. Only an edited FX/CMD is re-encoded, and then the payload is

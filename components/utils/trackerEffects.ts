@@ -62,6 +62,57 @@ export const getTrackerEffectValidationMessage = (
   return null;
 };
 
+/**
+ * PT3 hardware-envelope column (`ENV`).
+ *
+ * A row spells its envelope as one byte plus a 16-bit period: B0 switches the
+ * envelope off, and B2..BF select AY R13 shapes 2..F followed by the period
+ * high byte then low byte. Shapes 0 and 1 are unreachable by design -- those
+ * byte values are B0 (off) and B1 (note-skip) -- so the editor refuses them
+ * instead of writing a byte that would silently mean something else.
+ */
+export const PT3_ENVELOPE_OFF = 'OFF';
+const PT3_ENVELOPE_PATTERN = /^([2-9A-F]):([0-9A-F]{4})$/;
+
+export interface PT3EnvelopeCommand {
+  /** null when the row switches the envelope off. */
+  shape: number | null;
+  period: number;
+}
+
+export const normalizePT3EnvelopeField = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim().toUpperCase();
+  if (!trimmed) return null;
+  return trimmed;
+};
+
+export const parsePT3EnvelopeField = (value: string | null | undefined): PT3EnvelopeCommand | null => {
+  const normalized = normalizePT3EnvelopeField(value);
+  if (!normalized) return null;
+  if (normalized === PT3_ENVELOPE_OFF) return { shape: null, period: 0 };
+  const match = PT3_ENVELOPE_PATTERN.exec(normalized);
+  if (!match) return null;
+  return { shape: parseInt(match[1], 16), period: parseInt(match[2], 16) };
+};
+
+export const formatPT3EnvelopeField = (shape: number | null, period: number): string =>
+  shape === null
+    ? PT3_ENVELOPE_OFF
+    : `${(shape & 0x0f).toString(16).toUpperCase()}:${(period & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
+
+export const getPT3EnvelopeValidationMessage = (value: string | null | undefined): string | null => {
+  const normalized = normalizePT3EnvelopeField(value);
+  if (!normalized) return null;
+  if (normalized === PT3_ENVELOPE_OFF) return null;
+  if (PT3_ENVELOPE_PATTERN.test(normalized)) return null;
+  const shapeOnly = /^([0-9A-F]):/.exec(normalized);
+  if (shapeOnly && (shapeOnly[1] === '0' || shapeOnly[1] === '1')) {
+    return `ENV: las formas 0 y 1 no existen en un stream PT3 (esos bytes son "envelope off" y "note skip"). Usa 8..F para las envolventes habituales, o ${PT3_ENVELOPE_OFF}.`;
+  }
+  return `ENV admite "${PT3_ENVELOPE_OFF}" o forma:periodo con forma 2..F y 4 dígitos hex, por ejemplo 9:004B; recibido "${normalized}".`;
+};
+
 export const sourceEffectToNativeFields = (
   effect: PT3PatternEffectCommand | undefined,
 ): Pick<TrackerCell, 'effectCommand' | 'effectParams'> => ({
