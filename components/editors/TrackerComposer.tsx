@@ -386,6 +386,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   mutedChannelsRef.current = mutedChannels;
 
   const [focusedCell, setFocusedCell] = useState<{ rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell } | null>(null);
+  // Read from the Cowbell time callback, which lives outside the render scope.
+  const focusedCellRef = useRef(focusedCell);
+  focusedCellRef.current = focusedCell;
   const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | DualChipSynthesizer | null>(null);
 
   const playbackIntervalRef = useRef<number | null>(null);
@@ -398,6 +401,15 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const songDataRef = useRef(songData);
   songDataRef.current = songData;
   const lastExternalOrderIndexRef = useRef(songData.currentPatternIndexInOrder);
+  /**
+   * Set once the user takes charge of which pattern is shown, by picking one
+   * from the Patterns list or by focusing a cell. While it is set, the PT3
+   * playhead keeps scrolling the row cursor but stops re-selecting the pattern
+   * underneath the user -- otherwise a pattern chosen by hand was silently
+   * replaced a moment later, and the next note went into whichever pattern the
+   * song had reached. Cleared when playback is (re)started.
+   */
+  const userPickedPatternRef = useRef(false);
   const musicJsonInputRef = useRef<HTMLInputElement>(null);
   const pt3InstrumentInputRef = useRef<HTMLInputElement>(null);
   const pt3MusicInputRef = useRef<HTMLInputElement>(null);
@@ -661,8 +673,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [songData, isLogModalOpen, addLog]);
 
   const activePatternStorageIndex = useMemo(() => {
-    const orderIndex = songData.currentPatternIndexInOrder;
-    const orderedPatternIndex = songData.order?.[orderIndex];
+    // activePatternIdToUse already encodes the right precedence: the explicitly
+    // selected pattern first, the order position only as a fallback. Resolving
+    // the order FIRST here contradicted it, and a pattern the order never
+    // references was then unreachable -- picking one from the Patterns list
+    // silently kept the editor, and every edit, on the previously shown
+    // pattern. PT3 modules routinely carry patterns outside their order.
+    // Playback stays correct because the row scheduler advances id and order
+    // index together.
+    const idPatternIndex = songData.patterns.findIndex(p => p.id === activePatternIdToUse);
+    if (idPatternIndex >= 0) return idPatternIndex;
+
+    const orderedPatternIndex = songData.order?.[songData.currentPatternIndexInOrder];
     if (
       typeof orderedPatternIndex === 'number' &&
       orderedPatternIndex >= 0 &&
@@ -670,9 +692,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     ) {
       return orderedPatternIndex;
     }
-
-    const idPatternIndex = songData.patterns.findIndex(p => p.id === activePatternIdToUse);
-    return idPatternIndex >= 0 ? idPatternIndex : 0;
+    return 0;
   }, [songData.currentPatternIndexInOrder, songData.order, songData.patterns, activePatternIdToUse]);
 
   const currentPattern = useMemo(() => {
@@ -1166,7 +1186,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
               playbackPianoLevelsRef.current[channelIndex] = note ? 1 : 0;
             });
             publishPianoVisualState();
-            if (cursor.orderIndex !== lastExternalOrderIndexRef.current) {
+            // Follow the playhead across the order so the grid scrolls with the
+            // song -- but NEVER while a cell has focus. This sync moves the
+            // pattern that edits are written to, so letting it run mid-edit
+            // sent the note to whatever pattern happened to be playing instead
+            // of the one being edited: notes typed while the song played piled
+            // up in the wrong pattern, and re-selecting a pattern by hand was
+            // immediately undone by the next callback.
+            if (
+              cursor.orderIndex !== lastExternalOrderIndexRef.current
+              && !focusedCellRef.current
+              && !userPickedPatternRef.current
+            ) {
               lastExternalOrderIndexRef.current = cursor.orderIndex;
               onUpdate({
                 currentPatternIndexInOrder: cursor.orderIndex,
@@ -1191,6 +1222,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
     setExternalPt3Status('loading');
     setExternalPt3Error(null);
+    // Pressing Play hands the pattern view back to the song.
+    userPickedPatternRef.current = false;
     try {
       const player = await ensureExternalPt3Player();
       if (!player) return;
@@ -2465,6 +2498,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       const patternArrayIndex = songData.patterns.indexOf(patternObject);
       const orderIndex = songData.order?.findIndex(idx => idx === patternArrayIndex) ?? -1;
 
+      // An explicit choice outranks the PT3 playhead until playback restarts.
+      userPickedPatternRef.current = true;
       setFocusedCell(null);
       onUpdate({
         currentPatternId: id,
