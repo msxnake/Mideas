@@ -2405,15 +2405,40 @@ function buildRoomRenderBlocks(room: Msx2Screen5BitmapRoom, pageBaseY = BITMAP_R
   const records: CommandRecord[] = [
     { op: OP_FILL, sx: 0, sy: 0, dx: 0, dy: pageBaseY + BITMAP_ROOM_GAME_Y_OFFSET, nx: SCREEN_WIDTH, ny: SCREEN_HEIGHT_DEFAULT, color: backgroundColor },
   ];
+  // Composition commands are authored in logical room coordinates. Keep their
+  // destination inside the 256x192 game band before adding the page/HUD offset.
+  // A malformed or legacy rectangle that reached Y=512 used to wrap the V9938
+  // 10-bit command coordinate and could paint over the sprite colour/SAT/pattern
+  // tables at #F400/#F600/#F800 on page 1. That only became visible on dense rooms
+  // because their longer command stream made the transition exercise the hidden
+  // page for more frames.
+  const clipRoomRect = (x: unknown, y: unknown, w: unknown, h: unknown): { x: number; y: number; w: number; h: number } | undefined => {
+    const rawX = clampInt(x, -SCREEN_WIDTH, SCREEN_WIDTH, 0);
+    const rawY = clampInt(y, -SCREEN_HEIGHT_DEFAULT, SCREEN_HEIGHT_DEFAULT, 0);
+    const rawW = clampInt(w, 0, SCREEN_WIDTH * 2, 0);
+    const rawH = clampInt(h, 0, SCREEN_HEIGHT_DEFAULT * 2, 0);
+    const x0 = clampInt(rawX, 0, SCREEN_WIDTH, 0);
+    const y0 = clampInt(rawY, 0, SCREEN_HEIGHT_DEFAULT, 0);
+    const x1 = clampInt(rawX + rawW, 0, SCREEN_WIDTH, 0);
+    const y1 = clampInt(rawY + rawH, 0, SCREEN_HEIGHT_DEFAULT, 0);
+    if (x1 <= x0 || y1 <= y0) return undefined;
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  };
   // Authored color fills/lines (skip the full-screen background fill; the clear above covers it).
   for (const command of room.composition?.commands || []) {
     if (command.op === 'fill') {
       if (isFullScreenFillCommand(command)) continue;
-      records.push({ op: OP_FILL, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: pageBaseY + clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.w, 1, 256, 1), ny: clampInt(command.h, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
+      const rect = clipRoomRect(command.x, command.y, command.w, command.h);
+      if (!rect) continue;
+      records.push({ op: OP_FILL, sx: 0, sy: 0, dx: rect.x, dy: pageBaseY + rect.y + BITMAP_ROOM_GAME_Y_OFFSET, nx: rect.w, ny: rect.h, color: clampByte(command.color, 0) & 0x0f });
     } else if (command.op === 'lineH') {
-      records.push({ op: OP_LINE_H, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: pageBaseY + clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: clampInt(command.length, 1, 256, 1), ny: 1, color: clampByte(command.color, 0) & 0x0f });
+      const rect = clipRoomRect(command.x, command.y, command.length, 1);
+      if (!rect) continue;
+      records.push({ op: OP_LINE_H, sx: 0, sy: 0, dx: rect.x, dy: pageBaseY + rect.y + BITMAP_ROOM_GAME_Y_OFFSET, nx: rect.w, ny: 1, color: clampByte(command.color, 0) & 0x0f });
     } else if (command.op === 'lineV') {
-      records.push({ op: OP_LINE_V, sx: 0, sy: 0, dx: clampInt(command.x, 0, 255, 0), dy: pageBaseY + clampInt(command.y, 0, 511, 0) + BITMAP_ROOM_GAME_Y_OFFSET, nx: 1, ny: clampInt(command.length, 1, 256, 1), color: clampByte(command.color, 0) & 0x0f });
+      const rect = clipRoomRect(command.x, command.y, 1, command.length);
+      if (!rect) continue;
+      records.push({ op: OP_LINE_V, sx: 0, sy: 0, dx: rect.x, dy: pageBaseY + rect.y + BITMAP_ROOM_GAME_Y_OFFSET, nx: 1, ny: rect.h, color: clampByte(command.color, 0) & 0x0f });
     }
   }
   // Tile copies from the authoritative 192-byte map.
@@ -4495,6 +4520,14 @@ ${doorVisualPendingPageCallAsm}
 .flip_to_page0:
     ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
 .write_display_page:
+    ; Repair the player hardware tables before publishing the composed page, so
+    ; the first visible frame of the new room cannot use a partial pattern.
+    push de                    ; bitmap_restore_player_sprite_patterns clobbers DE
+    call bitmap_restore_player_sprite_patterns
+    pop de                     ; restore the pending R#2 page value (#1F/#3F)
+${shouldEmitPlayerColorUpdate ? `    ld a, #FF
+    ld (player_colors_loaded), a
+` : ''}
     ld a, #02
     call vdp_write_register
     ld a, #0F
@@ -4517,6 +4550,34 @@ ${commitMusicKeepAlive}${foreground ? foreground.loadCallAsm : ''}${roomCommitEx
     call bitmap_room_restore_resident_banks
 ` : ''}    scf
     ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_restore_player_sprite_patterns
+; ------------------------------------------------------------
+; PURPOSE:
+;   Restore the player's SCREEN 5 mode-2 pattern table after a room transition.
+;   Room composition is meant to target only the hidden bitmap page, but this
+;   final guard makes the sprite independent from any malformed/legacy command
+;   that could have wrapped into the physical #F800 table.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   bitmap_room_select_data_bank_a (MegaROM only), copy_to_vram_ext,
+;   bitmap_room_restore_resident_banks (MegaROM only).
+; ------------------------------------------------------------
+bitmap_restore_player_sprite_patterns:
+${options.bankedRle ? `    ld a, bitmap_room_sprite_patterns_DATA_BANK
+    call bitmap_room_select_data_bank_a
+` : ''}    ld hl, bitmap_room_sprite_patterns
+    ld de, #F800
+    ld bc, bitmap_room_sprite_patterns_end - bitmap_room_sprite_patterns
+    call copy_to_vram_ext
+${options.bankedRle ? `    jp bitmap_room_restore_resident_banks` : `    ret`}
 
 init_hardware_sprite_tables:
     ; Sprite mode 2 tables at F400/F600/F800 (physical layout used by VK).
