@@ -3,6 +3,7 @@ import {
   MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY,
   MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
   MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
+  MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8,
 } from './msx2EntityRuntimeGenerator';
 
 /**
@@ -33,7 +34,8 @@ import {
  *                        hitW, hitH, speed, updateLane
  *                        (+3 when a SlimeCeiling enemy exists anywhere:
  *                        travelPx, travelCount, phase; +5 for GearWheel:
- *                        state, cooldownLo/Hi, delayLo/Hi)
+ *                        state, cooldownLo/Hi, delayLo/Hi; +2 for FlyBounce8
+ *                        bats: flyLeft, flyTurnPx)
  *
  * ROM (resident, like the foreground tables):
  *   bitmap_room_enemy_table_N   count + maxSlots*(22 bytes, or 23 with slime)
@@ -41,7 +43,8 @@ import {
  *                               patGroupOff,colorOff,frameCount,animDelay,
  *                               mode,visualXOff,visualYOff,damage,hitX,hitY,
  *                               hitW,hitH,speed,updateLane (+travelPx on slime builds,
- *                               +respawnFramesLo/Hi on GearWheel builds)
+ *                               +respawnFramesLo/Hi on GearWheel builds,
+ *                               +turnPx on FlyBounce8 builds)
  *   bitmap_room_enemy_ptr_table DW per room
  *   bitmap_enemy_sprite_patterns  frames*2 variants x 32 bytes per unique sprite
  *                                 (frames*4 on slime builds: vertical-flip pair)
@@ -58,12 +61,17 @@ export const BITMAP_ENEMY_POOL_STRIDE_SLIME = 26;
 export const BITMAP_ENEMY_POOL_STRIDE_GEAR = 28;
 /** Combined Slime + Gear build. */
 export const BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR = 31;
+/** FlyBounce8 builds append flyLeft/flyTurnPx to every pool slot. */
+export const BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES = 2;
 
-/** RAM pool stride actually used by the generated runtime for this project. */
+/** RAM pool stride actually used by the generated runtime for this project.
+ *  One term per optional movement engine: enumerating the combinations instead
+ *  needs a constant per subset, and three engines already means eight. */
 export function bitmapEnemyPoolStride(data: BitmapEnemyRoomData | undefined): number {
-  if (data?.slimeEnabled && data?.gearEnabled) return BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR;
-  if (data?.gearEnabled) return BITMAP_ENEMY_POOL_STRIDE_GEAR;
-  return data?.slimeEnabled ? BITMAP_ENEMY_POOL_STRIDE_SLIME : BITMAP_ENEMY_POOL_STRIDE;
+  return BITMAP_ENEMY_POOL_STRIDE
+    + (data?.slimeEnabled ? 3 : 0)
+    + (data?.gearEnabled ? 5 : 0)
+    + (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0);
 }
 
 /** Sprite pattern variants emitted per animation frame ([right,left] or
@@ -103,6 +111,9 @@ export interface BitmapEnemyRoomData {
   slimeEnabled: boolean;
   /** True when any room places a GearWheel emitter (mode 12). */
   gearEnabled: boolean;
+  /** True when any room places a FlyBounce8 bat (mode 13): adds the direction
+   *  table, the shared per-frame PRNG seed and 2 pool bytes per slot. */
+  fly8Enabled?: boolean;
   /**
    * True when any placed enemy opts into the dark-room "eyes only" look. Every
    * unique sprite then carries a SECOND set of line-colour blocks after the
@@ -207,17 +218,23 @@ export function buildBitmapEnemySystemAsm(
   const maxFrames = Math.max(1, data.maxFrames);
   const slime = Boolean(data.slimeEnabled);
   const gear = Boolean(data.gearEnabled);
+  const fly8 = Boolean(data.fly8Enabled);
   // "Eyes only in the dark" needs both halves: the baked second colour bank
   // (data) and a light source to test against (opts). Either one missing keeps
   // the feature — and every byte of it — out of the ROM.
   const darkEyes = data.darkEyesEnabled && opts.darkEyes ? opts.darkEyes : undefined;
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
-  const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0); // ROM bytes per slot
+  const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0); // ROM bytes per slot
   const GEAR_STATE_OFFSET = 23 + (slime ? 3 : 0);
   const GEAR_COOLDOWN_LO_OFFSET = GEAR_STATE_OFFSET + 1;
   const GEAR_COOLDOWN_HI_OFFSET = GEAR_STATE_OFFSET + 2;
   const GEAR_DELAY_LO_OFFSET = GEAR_STATE_OFFSET + 3;
   const GEAR_DELAY_HI_OFFSET = GEAR_STATE_OFFSET + 4;
+  // Bat flight state, after whatever the other optional engines claimed.
+  const FLY8_LEFT_OFFSET = 23 + (slime ? 3 : 0) + (gear ? 5 : 0);   // px left before the next turn
+  const FLY8_TURN_OFFSET = FLY8_LEFT_OFFSET + 1;                    // authored turn distance
+  // ROM index of the turnPx byte, which sits behind the other engines' bytes.
+  const FLY8_TABLE_INDEX = 22 + (slime ? 1 : 0) + (gear ? 2 : 0);
   const variantsPerFrame = bitmapEnemyVariantsPerFrame(data);
   const groupsPerSlot = maxFrames * variantsPerFrame;
   const slotPatternVariants = Array.from({ length: maxSlots }, (_unused, i) =>
@@ -235,11 +252,13 @@ export function buildBitmapEnemySystemAsm(
   const updateLaneAddr = poolAddr + maxSlots * POOL_STRIDE;
 
   const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE} + update lane
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}) ---
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 bitmap_enemy_update_lane EQU ${asmWord(updateLaneAddr)}
-`;
+${fly8 ? `; The third fixed byte was already reserved by ramBytes and never used.
+bitmap_enemy_rand_seed EQU ${asmWord(updateLaneAddr + 1)}
+` : ''}`;
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
   const loadSlotBlocks = Array.from({ length: maxSlots }, (_unused, i) => {
@@ -301,6 +320,10 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     ld (${poolBase} + ${GEAR_COOLDOWN_HI_OFFSET}), a
     ld a, 1
     ld (${poolBase} + ${GEAR_STATE_OFFSET}), a
+` : ''}${fly8 ? `    ; Bat flight: fly the authored distance before the first random turn.
+    ld a, (ix+${FLY8_TABLE_INDEX})          ; turnPx (0 on non-bat slots)
+    ld (${poolBase} + ${FLY8_TURN_OFFSET}), a
+    ld (${poolBase} + ${FLY8_LEFT_OFFSET}), a
 ` : ''}${slime && slotVariants < 4 ? `    ; --- upload frameCount x [right,left] pairs -> VRAM ${asmWord(patternVram)} (group ${patternGroup}+) ---
     ; Slime builds store 4 variants per frame in ROM ([R,L,ceilR,ceilL]) for
     ; EVERY sprite, but this slot only reserves the facing pair: copy 64 of
@@ -394,7 +417,14 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     xor 1
     and 1
     ld (bitmap_enemy_update_lane), a
-    ld a, (bitmap_enemy_count)
+${fly8 ? `    ; One PRNG step per FRAME, not per draw: every hardware layer of the same
+    ; bat has to read the same value or the eyes fly off the body.
+    ld a, (bitmap_enemy_rand_seed)
+    rrca
+    xor #B8
+    add a, #3D
+    ld (bitmap_enemy_rand_seed), a
+` : ''}    ld a, (bitmap_enemy_count)
     ld b, a
     ld ix, bitmap_enemy_pool
 .enemy_step_loop:
@@ -424,6 +454,8 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     jp z, .enemy_step_slime
 ` : ''}${gear ? `    cp ${MSX2_ENEMY_MOVEMENT_GEAR_WHEEL}
     jp z, .enemy_step_gear
+` : ''}${fly8 ? `    cp ${MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8}
+    jp z, .enemy_step_fly8
 ` : ''}    ; --- X axis ---
 .enemy_step_patrol:
     ld a, (ix+2)              ; dx
@@ -885,6 +917,111 @@ ${gear ? `    jp .enemy_anim
 .gear_exit_yes:
     ld a, 1
     or a
+    ret
+` : ''}${fly8 ? `    jp .enemy_anim
+.enemy_step_fly8:
+    ; Bat flight. Drifts along one of 8 headings, never probes a tile, and
+    ; turns only on the room edges — the resolver already widened this slot's
+    ; bounds to the whole screen, so (ix+4..7) ARE the edges. Every turnPx
+    ; pixels flown the heading is re-rolled, which is what makes it wander
+    ; instead of tracing one diagonal forever.
+    ld d, (ix+21)              ; authored pixels per alternating update
+.fly8_px:
+    ld a, (ix+2)               ; dx
+    or a
+    jp z, .fly8_y
+    bit 7, a
+    jp nz, .fly8_x_left
+    ld a, (ix+0)
+    cp (ix+5)                  ; x vs maxX
+    jp nc, .fly8_turn_left
+    inc (ix+0)
+    jp .fly8_y
+.fly8_turn_left:
+    ld (ix+2), #FF             ; bounce: mirror the horizontal component
+    jp .fly8_y
+.fly8_x_left:
+    ld a, (ix+0)
+    cp (ix+4)                  ; x vs minX
+    jp z, .fly8_turn_right
+    jp c, .fly8_turn_right
+    dec (ix+0)
+    jp .fly8_y
+.fly8_turn_right:
+    ld (ix+2), #01
+.fly8_y:
+    ld a, (ix+3)               ; dy
+    or a
+    jp z, .fly8_step_done
+    bit 7, a
+    jp nz, .fly8_y_up
+    ld a, (ix+1)
+    cp (ix+7)                  ; y vs maxY
+    jp nc, .fly8_turn_up
+    inc (ix+1)
+    jp .fly8_step_done
+.fly8_turn_up:
+    ld (ix+3), #FF
+    jp .fly8_step_done
+.fly8_y_up:
+    ld a, (ix+1)
+    cp (ix+6)                  ; y vs minY
+    jp z, .fly8_turn_down
+    jp c, .fly8_turn_down
+    dec (ix+1)
+    jp .fly8_step_done
+.fly8_turn_down:
+    ld (ix+3), #01
+.fly8_step_done:
+    dec (ix+${FLY8_LEFT_OFFSET})         ; one pixel of this heading spent
+    jp nz, .fly8_next_px
+    call .fly8_reroll
+.fly8_next_px:
+    dec d
+    jp nz, .fly8_px
+    jp .enemy_anim
+.fly8_reroll:
+    ; Pick the next heading and rearm the distance counter.
+    ; A bat drawn with several hardware sprites is several pool slots, and they
+    ; must all turn the SAME way or the body and the eyes fly apart. So the draw
+    ; is not "the next PRNG byte" (each slot would consume a different one) but a
+    ; hash of the LOGICAL origin — visual x/y minus this layer's cell offset,
+    ; identical across the layers of one bat — mixed with a seed that advances
+    ; once per frame. Two bats standing at different places still differ.
+    ; INPUT: IX = slot. DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+    push bc
+    push de
+    push hl
+    ld a, (ix+0)
+    ld e, (ix+14)
+    sub e                      ; logical X
+    ld c, a
+    ld a, (ix+1)
+    ld e, (ix+15)
+    sub e                      ; logical Y
+    rrca
+    rrca
+    rrca
+    xor c
+    ld c, a
+    ld a, (bitmap_enemy_rand_seed)
+    xor c
+    and 7
+    add a, a                   ; 2 bytes per heading
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_dir8_table
+    add hl, de
+    ld a, (hl)
+    ld (ix+2), a               ; dx sign
+    inc hl
+    ld a, (hl)
+    ld (ix+3), a               ; dy sign
+    ld a, (ix+${FLY8_TURN_OFFSET})         ; rearm with the authored distance
+    ld (ix+${FLY8_LEFT_OFFSET}), a
+    pop hl
+    pop de
+    pop bc
     ret
 ` : ''}${slime ? `    jp .enemy_anim
 .enemy_step_slime:
@@ -1618,8 +1755,12 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''})`)
+    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''})`)
   ).join('')
+    + (fly8
+      ? emitBytes('bitmap_enemy_dir8_table', [1, 0, 1, 1, 0, 1, 0xFF, 1, 0xFF, 0, 0xFF, 0xFF, 0, 0xFF, 1, 0xFF],
+        'Bat flight headings: dx,dy signs in the turret order R,DR,D,DL,L,UL,U,UR')
+      : '')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
     + emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
     + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`);

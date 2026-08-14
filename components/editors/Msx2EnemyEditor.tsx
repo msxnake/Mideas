@@ -36,7 +36,7 @@ const navItems = [
 
 type EnemyConfigSection = typeof navItems[number];
 
-const BEHAVIOR_OPTIONS: EnemyBehaviorType[] = ['None', 'PatrolHorizontal', 'WalkerTurnOnEdge', 'FlyerSine', 'BounceDiagonal', 'Jumper', 'HopperTowardsPlayer', 'ShooterStatic', 'TurretAim', 'ChaseHorizontal', 'SlimeCeiling', 'GearWheel', 'DropFromCeiling', 'EmergeFromGround', 'CustomBehavior'];
+const BEHAVIOR_OPTIONS: EnemyBehaviorType[] = ['None', 'PatrolHorizontal', 'WalkerTurnOnEdge', 'FlyerSine', 'BounceDiagonal', 'Jumper', 'HopperTowardsPlayer', 'ShooterStatic', 'TurretAim', 'ChaseHorizontal', 'SlimeCeiling', 'GearWheel', 'FlyBounce8', 'DropFromCeiling', 'EmergeFromGround', 'CustomBehavior'];
 const ATTACK_OPTIONS: EnemyAttackType[] = ['None', 'DamageOnTouch', 'ShooterStatic', 'ProjectileEmitter', 'MeleeBox', 'ExplosionOnTouch'];
 const CATEGORY_OPTIONS: EnemyCategory[] = ['simpleEnemy', 'boss', 'hazard', 'projectileLike'];
 const SCOPE_OPTIONS: EnemyLibraryScope[] = ['common', 'perWorld', 'boss'];
@@ -702,6 +702,7 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                 `FlyerSine` is the recommended movement for Bat Enemy. `PatrolHorizontal` and `WalkerTurnOnEdge` are cheaper for ground enemies.
                 `SlimeCeiling` crawls along the floor, hops to the ceiling every N px (Slime hop distance on the placed entity) and sticks upside down, then drops back and repeats.
                 `GearWheel` emits one 16x16 wheel from the placed coordinates: it falls with the authored speed, rolls on support, reverses at walls, disappears on an Effects=Exit cell, and respawns after the configured seconds.
+                `FlyBounce8` is the bat: it drifts along one of 8 headings ignoring every tile, bounces off the room edges only, and rolls a new heading every N px (Turn distance on the placed entity).
                 `TurretAim` uses two round hardware sprites, tracks the Player in 8 directions and fires only while the Player is inside its configured aiming arc.
               </div>
               <div className="space-y-2 rounded border border-slate-700 bg-[#111821] p-3">

@@ -1,0 +1,6 @@
+# Authored project snapshots: 120 MB in, 23 MB out. Regenerate with
+# make_bat_project.py from the project you have in Mideas.
+test501_base.json
+test501_bats.json
+_bats.asm
+_bats.sym

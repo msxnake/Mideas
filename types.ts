@@ -1528,7 +1528,7 @@ export interface ProjectPlayerDefinition {
 }
 
 export type EnemyCategory = 'simpleEnemy' | 'boss' | 'hazard' | 'projectileLike';
-export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'TurretAim' | 'ChaseHorizontal' | 'SlimeCeiling' | 'GearWheel' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
+export type EnemyBehaviorType = 'None' | 'PatrolHorizontal' | 'WalkerTurnOnEdge' | 'FlyerSine' | 'BounceDiagonal' | 'Jumper' | 'HopperTowardsPlayer' | 'ShooterStatic' | 'TurretAim' | 'ChaseHorizontal' | 'SlimeCeiling' | 'GearWheel' | 'FlyBounce8' | 'DropFromCeiling' | 'EmergeFromGround' | 'CustomBehavior';
 export type EnemyAttackType = 'None' | 'DamageOnTouch' | 'ShooterStatic' | 'ProjectileEmitter' | 'MeleeBox' | 'ExplosionOnTouch';
 export type EnemyRenderMode = 'hardwareSprite' | 'softwareSprite' | 'hybrid';
 export type EnemySpriteSize = '16x16' | '16x32' | '32x16' | '32x32';

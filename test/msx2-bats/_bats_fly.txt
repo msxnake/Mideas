@@ -1,0 +1,65 @@
+t10 scr=0 count=4 seed=14 hp=8 player=31,144 halo=40,180
+   batA at 96,132  d=-1,0 left=48 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 26,114  d=-1,-1 left=50 ok  under=air  body=00 eye=05 DARK
+t12 scr=0 count=4 seed=182 hp=8 player=31,144 halo=40,180
+   batA at 120,60  d=1,-1 left=28 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 93,5  d=1,1 left=30 ok  under=SOLID  body=00 eye=05 DARK
+t14 scr=0 count=4 seed=79 hp=8 player=31,144 halo=40,180
+   batA at 56,59  d=-1,1 left=8 ok  under=air  body=00 eye=05 DARK
+   batB at 213,35  d=1,0 left=10 ok  under=air  body=00 eye=05 DARK
+t16 scr=0 count=4 seed=170 hp=8 player=31,144 halo=40,180
+   batA at 160,167  d=1,0 left=88 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 223,54  d=0,-1 left=90 ok  under=air  body=00 eye=05 DARK
+t18 scr=0 count=4 seed=12 hp=8 player=31,144 halo=40,180
+   batA at 201,154  d=-1,-1 left=68 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 193,65  d=-1,1 left=70 ok  under=air  body=00 eye=05 DARK
+t20 scr=0 count=4 seed=216 hp=8 player=31,144 halo=40,180
+   batA at 81,86  d=-1,0 left=48 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 73,85  d=-1,-1 left=50 ok  under=SOLID  body=00 eye=05 DARK
+t22 scr=0 count=4 seed=122 hp=8 player=31,144 halo=40,180
+   batA at 105,14  d=1,-1 left=28 recheck  under=air  body=00 eye=05 DARK
+   batB at 93,35  d=1,0 left=30 ok  under=air  body=00 eye=05 DARK
+   (t22 batA mismatch was a mid-update read: now 107 12 1 -1 26 == 107 12 1 -1 26)
+t24 scr=0 count=4 seed=162 hp=8 player=31,144 halo=40,180
+   batA at 133,103  d=0,1 left=10 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 33,125  d=-1,1 left=10 ok  under=SOLID  body=00 eye=05 DARK
+t26 scr=0 count=4 seed=37 hp=8 player=31,144 halo=40,180
+   batA at 223,123  d=-1,1 left=90 ok  under=air  body=00 eye=05 DARK
+   batB at 123,108  d=0,-1 left=90 ok  under=SOLID  body=00 eye=05 DARK
+t28 scr=0 count=4 seed=144 hp=8 player=31,144 halo=40,180
+   batA at 103,170  d=-1,1 left=70 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 93,11  d=-1,1 left=70 ok  under=air  body=00 eye=05 DARK
+t30 scr=0 count=4 seed=102 hp=7 player=31,144 halo=40,180
+   batA at 33,163  d=0,1 left=50 ok  under=air  body=00 eye=05 DARK
+   batB at 23,131  d=0,1 left=50 ok  under=SOLID  body=00 eye=05 DARK
+t32 scr=0 count=4 seed=111 hp=8 player=31,144 halo=40,180
+   batA at 103,143  d=1,-1 left=30 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 93,102  d=1,-1 left=30 ok  under=SOLID  body=00 eye=05 DARK
+t34 scr=0 count=4 seed=101 hp=7 player=31,144 halo=40,180
+   batA at 133,150  d=0,-1 left=10 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 33,162  d=-1,1 left=10 ok  under=air  body=00 eye=05 DARK
+t36 scr=0 count=4 seed=227 hp=8 player=31,144 halo=40,180
+   batA at 23,40  d=-1,0 left=90 ok  under=air  body=00 eye=05 DARK
+   batB at 84,73  d=1,-1 left=92 ok  under=SOLID  body=00 eye=05 DARK
+t38 scr=0 count=4 seed=2 hp=8 player=31,144 halo=40,180
+   batA at 96,70  d=1,1 left=70 ok  under=air  body=00 eye=05 DARK
+   batB at 176,46  d=0,1 left=72 ok  under=SOLID  body=00 eye=05 DARK
+t40 scr=0 count=4 seed=5 hp=8 player=31,144 halo=40,180
+   batA at 116,90  d=-1,-1 left=50 ok  under=SOLID  body=00 eye=05 DARK
+   batB at 224,118  d=1,0 left=52 ok  under=air  body=00 eye=05 DARK
+lit-check scr=0 count=4 seed=173 hp=7 player=31,144 halo=40,180
+   batA at 30,152  d=-1,0 left=76 ok  under=air  body=0F eye=05 LIT 
+   batB at 229,142  d=1,1 left=76 ok  under=air  body=00 eye=05 DARK
+pair-lit scr=0 count=4 seed=200 hp=8 player=31,144 halo=128,92
+   batA at 96,64  d=0,0 left=42 recheck  under=air  body=00 eye=05 DARK
+   batB at 218,176  d=-1,1 left=42 ok  under=SOLID  body=00 eye=05 DARK
+   (pair-lit batA REAL DESYNC: body=96 64 0 0 42 eyes=3 152 1 0 42)
+final scr=0 count=4 seed=90 hp=8 player=31,144 halo=40,180
+   batA at 96,64  d=0,0 left=32 recheck  under=air  body=00 eye=05 DARK
+   batB at 208,167  d=-1,-1 left=32 ok  under=SOLID  body=00 eye=05 DARK
+
+real layer desyncs: 1 (must be 0)
+out-of-bounds samples: 0 (must be 0)
+samples with the bat centre inside a SOLID cell: 20 (proves tiles are ignored)
+distinct headings seen: 16 of 8
+distinct positions seen: 37

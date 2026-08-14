@@ -111,7 +111,7 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     paletteSlot: { label: 'Box palette', min: 1, max: 15, ariaLabel: 'MSX2 PushBox palette slot' },
   },
   msx2_movement: {
-    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'slimeCeiling', 'gearWheel', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
+    mode: { kind: 'select', options: ['static', 'patrolX', 'patrolChaseX', 'walkerGravity', 'slimeCeiling', 'gearWheel', 'flyBounce8', 'patrolY', 'ghostMaze', 'ballBounce', 'maze'] },
     speed: { label: 'Speed', min: 0, max: 15 },
     direction: { label: 'Direction', min: -1, max: 1 },
     minX: { label: 'Min X', min: 0, max: 255 },
@@ -121,6 +121,7 @@ export const MSX2_COMPONENT_FIELD_EDITORS: Partial<Record<Msx2ComponentId, Recor
     boundsUnit: { kind: 'select', options: ['tile', 'px'] },
     travelPx: { label: 'Slime hop distance (px)', min: 4, max: 255 },
     respawnSeconds: { label: 'GearWheel respawn (seconds)', min: 1, max: 255 },
+    turnPx: { label: 'Bat turn distance (px)', min: 1, max: 255 },
   },
   msx2_collision: {
     hitboxW: { label: 'Hitbox width', min: 1, max: 32 },
@@ -320,6 +321,7 @@ export type Msx2RuntimeEngine =
   | 'walkerGravity'
   | 'slimeCeiling'
   | 'gearWheel'
+  | 'flyBounce8'
   | 'patrolY'
   | 'movingPlatform'
   | 'multiScreenShaft'
@@ -648,6 +650,7 @@ export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
   { value: 'walkerGravity', label: 'Walker Gravity' },
   { value: 'slimeCeiling', label: 'Slime Ceiling' },
   { value: 'gearWheel', label: 'GearWheel (emitter)' },
+  { value: 'flyBounce8', label: 'Fly 8-way bounce (bat)' },
   { value: 'patrolY', label: 'Patrol Y' },
   { value: 'ghostMaze', label: 'Ghost Maze' },
 ] as const;
@@ -1446,6 +1449,7 @@ export function mapEnemyBehaviorToMovementMode(
     case 'BounceDiagonal': return { movementName: 'ballBounce', implemented: true };
     case 'ChaseHorizontal': return { movementName: 'chaseH', implemented: true };
     case 'GearWheel': return { movementName: 'gearWheel', implemented: true };
+    case 'FlyBounce8': return { movementName: 'flyBounce8', implemented: true };
     case 'TurretAim': return { movementName: 'static', implemented: true };
     case 'None': return { movementName: 'static', implemented: true };
     // HopperTowardsPlayer / DropFromCeiling / EmergeFromGround / ShooterStatic /
@@ -1508,10 +1512,12 @@ export function buildMsx2EnemyEntityFromAsset(
   const roleFrames = Array.isArray(renderRole?.frames) && renderRole.frames.length ? renderRole.frames : [0];
   const spriteId = renderRole?.spriteId || def.render?.spriteId || '';
   const gearWheel = def.behavior?.type === 'GearWheel';
+  const flyBounce8 = def.behavior?.type === 'FlyBounce8';
   const schemaDefault = (name: string, fallback: any): any => def.spawnParamsSchema?.find(param => param.name === name)?.default ?? fallback;
   const authoredSpeed = Math.max(1, Math.min(15, Math.floor(Number(schemaDefault('speed', 2)) || 2)));
   const authoredDirection = String(schemaDefault('direction', 'right')).toLowerCase() === 'left' ? -1 : 1;
   const authoredRespawnSeconds = Math.max(1, Math.min(255, Math.floor(Number(schemaDefault('respawnSeconds', 3)) || 3)));
+  const authoredTurnPx = Math.max(1, Math.min(255, Math.floor(Number(schemaDefault('turnPx', 100)) || 100)));
   const dropBombOnPlayerX = Boolean(def.attack?.dropBombOnPlayerX);
   const turretAim = def.behavior?.type === 'TurretAim';
   const aiComponent = (stateSwitch || dropBombOnPlayerX || turretAim) ? {
@@ -1545,7 +1551,7 @@ export function buildMsx2EnemyEntityFromAsset(
     spriteAssetId: spriteId || undefined,
     components: {
       msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
-      msx2_movement: { mode: movementName, direction: authoredDirection, speed: gearWheel ? authoredSpeed : 2, ...(gearWheel ? { respawnSeconds: authoredRespawnSeconds } : {}) },
+      msx2_movement: { mode: movementName, direction: authoredDirection, speed: gearWheel || flyBounce8 ? authoredSpeed : 2, ...(gearWheel ? { respawnSeconds: authoredRespawnSeconds } : {}), ...(flyBounce8 ? { turnPx: authoredTurnPx } : {}) },
       msx2_hardware_sprite: { msx2SpriteAssetId: spriteId, frame: 0, paletteSlot: 10, visible: Boolean(spriteId) },
       ...(aiComponent ? { msx2_ai: aiComponent } : {}),
       msx2_animation: {

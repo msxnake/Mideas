@@ -2328,7 +2328,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const updatePlacedEntityMovement = (id: string, patch: Record<string, unknown>) => {
     const movementPatch: Record<string, unknown> = {};
     if (patch.movement !== undefined) movementPatch.mode = patch.movement;
-    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx', 'respawnSeconds'].forEach(key => {
+    ['boundsUnit', 'minX', 'maxX', 'minY', 'maxY', 'direction', 'speed', 'travelPx', 'respawnSeconds', 'turnPx'].forEach(key => {
       if (patch[key] !== undefined) movementPatch[key] = patch[key];
     });
 
@@ -5207,6 +5207,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           {selectedPlacedEntity.kind !== 'platform' && <option value="walkerGravity">Walker gravity</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="slimeCeiling">Slime ceiling (suelo↔techo)</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="gearWheel">GearWheel (emisor)</option>}
+                          {selectedPlacedEntity.kind !== 'platform' && <option value="flyBounce8">Vuelo 8 dir (murciélago)</option>}
                           <option value="patrolY">Patrol Y</option>
                           {selectedPlacedEntity.kind !== 'platform' && <option value="walkerEdge">Walker edge</option>}
                           {selectedPlacedEntity.kind !== 'platform' && <option value="flyerSine">Flyer sine</option>}
@@ -5315,6 +5316,19 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           />
                         </label>
                       )}
+                      {selectedMovementMode === 'flyBounce8' && (
+                        <label className="block text-[0.65rem] text-msx-textsecondary">
+                          Cambio de rumbo cada (px)
+                          <input
+                            type="number"
+                            min={1}
+                            max={255}
+                            value={clampInt(selectedPlacedEntity.components?.msx2_movement?.turnPx ?? selectedPlacedEntity.params?.turnPx, 1, 255, 100)}
+                            onChange={event => updatePlacedEntityMovement(selectedPlacedEntity.id, { turnPx: clampInt(event.target.value, 1, 255, 100) })}
+                            className="mt-0.5 w-full rounded border border-msx-border bg-msx-bgcolor px-1 py-0.5 text-xs text-msx-textprimary"
+                          />
+                        </label>
+                      )}
                       {selectedMovementMode === 'gearWheel' && (
                         <label className="block text-[0.65rem] text-msx-textsecondary">
                           Respawn tras desaparecer (segundos)
@@ -5333,6 +5347,8 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           ? 'Slime ceiling: se arrastra por el suelo, cada N px salta al techo y se pega boca abajo (flip automático), se arrastra de nuevo y cae al suelo. Gira en paredes y en W1.X/W2.X.'
                           : selectedMovementMode === 'gearWheel'
                             ? 'GearWheel: cae desde el emisor, rueda al tocar suelo, invierte en paredes y desaparece al tocar una celda Exit enemy (behavior=4). Si no hay salida, queda detenida y reaparece tras el tiempo indicado.'
+                            : selectedMovementMode === 'flyBounce8'
+                              ? 'Vuelo 8 dir: revolotea en una de las 8 direcciones sin mirar los tiles, solo rebota en los bordes de la sala y cada N px sortea un rumbo nuevo. Ignora W1/W2: sus limites son la pantalla entera.'
                             : 'Coordenadas en pixeles. Patrol chase X detecta al player dentro de W1.X/W2.X, corre a 2 px/frame y no sale de ese tramo.'}
                       </div>
                     </div>

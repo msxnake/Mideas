@@ -221,6 +221,7 @@ import {
   MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY,
   MSX2_ENEMY_MOVEMENT_SLIME_CEILING,
   MSX2_ENEMY_MOVEMENT_GEAR_WHEEL,
+  MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8,
   type Msx2EnemyHazardRuntimeSlot,
 } from './msx2EntityRuntimeGenerator';
 import { isMsx2CarryableEntity } from './msx2CarryObjectGenerator';
@@ -12617,7 +12618,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     || mode === MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X
     || mode === MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY
     || mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING
-    || mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL;
+    || mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL
+    || mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8;
   // Enemy placements intentionally keep a snapshot of their movement fields,
   // but that snapshot can predate a later change in the linked Enemy Library
   // asset.  Special bitmap enemies must use the linked asset as the source of
@@ -12625,17 +12627,22 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // emitted as walkerGravity and never reaches the exit probe.  Keep authored
   // position/speed/direction/respawn values while refreshing only the movement
   // mode (the same migration is harmless for newly placed wheels).
+  const behaviorMovementOverride: Record<string, string> = {
+    GearWheel: 'gearWheel',
+    FlyBounce8: 'flyBounce8',
+  };
   const normalizeBitmapEnemyEntity = (entity: any): any => {
     const def = resolveBitmapEnemyAssetForEntity(analysis, entity);
-    if (String(def?.behavior?.type || '') !== 'GearWheel') return entity;
+    const forced = behaviorMovementOverride[String(def?.behavior?.type || '')];
+    if (!forced) return entity;
     const movement = entity?.components?.msx2_movement || {};
     const params = entity?.params || {};
     return {
       ...entity,
-      params: { ...params, movement: 'gearWheel' },
+      params: { ...params, movement: forced },
       components: {
         ...(entity?.components || {}),
-        msx2_movement: { ...movement, mode: 'gearWheel' },
+        msx2_movement: { ...movement, mode: forced },
       },
     };
   };
@@ -12643,6 +12650,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // room tables below): slime builds emit vertical-flip pattern/colour variants.
   let slimeEnabled = false;
   let gearEnabled = false;
+  let fly8Enabled = false;
   let darkEyesEnabled = false;
   const emptyPattern = Array(32).fill(0);
   const enemyAssetForEntity = (entity: any): any | undefined => {
@@ -12955,6 +12963,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       logicalEnemyIndex++;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL) gearEnabled = true;
+      if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8) fly8Enabled = true;
       const render = renderSelectionForEntity(pair.entity);
       // Only worth a second colour bank where there is darkness to hide in: a
       // project with no lamp room has no light state to test against, and the
@@ -13033,6 +13042,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         table.push(1, 0);
         if (slimeEnabled) table.push(0);
         if (gearEnabled) table.push(0, 0);
+        if (fly8Enabled) table.push(0);
         continue;
       }
       const { slot, render, spriteLayerIndex, offset, updateLane, contact } = pair;
@@ -13065,6 +13075,9 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         table.push(slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING ? (slot.travelPx & 0xff) : 0);
       }
       if (gearEnabled) table.push(...gearDelayBytes(slot));
+      if (fly8Enabled) {
+        table.push(slot.mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 ? Math.max(1, slot.turnPx & 0xff) : 0);
+      }
     }
     return table;
   });
@@ -13076,6 +13089,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     colorBytes,
     slimeEnabled,
     gearEnabled,
+    fly8Enabled,
     darkEyesEnabled,
     patternGroupOffsets,
     patternVariantCounts,

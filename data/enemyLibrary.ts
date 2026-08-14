@@ -130,6 +130,22 @@ export const GLOBAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
     renderPlaceholder: { spriteSize: '16x16', defaultAnimation: 'roll' },
     description: 'Emisor de una rueda dentada: cae, rueda por el suelo, invierte en paredes y desaparece en salidas. Solo hay una rueda activa por emisor.',
   },
+  {
+    templateId: 'bat_fly_bounce_8',
+    name: 'Murcielago',
+    category: 'simpleEnemy',
+    behavior: { type: 'FlyBounce8', requiresRoutine: 'Move_FlyBounce8' },
+    attack: { type: 'DamageOnTouch' },
+    spawnParamsSchema: [
+      { name: 'speed', label: 'Speed (px/2 frames)', type: 'byte', default: 1, min: 1, max: 15, exportParam: 'p0' },
+      { name: 'direction', label: 'Initial Direction', type: 'enum', values: ['left', 'right'], default: 'right', exportParam: 'p1' },
+      { name: 'turnPx', label: 'Turn Distance (px)', type: 'byte', default: 100, min: 1, max: 255, exportParam: 'p2' },
+    ],
+    requiredRoutines: ['Move_FlyBounce8', 'DamageOnTouch_Update', 'Enemy_Animate'],
+    budget: { cpu: 2, ram: 25, sprites: 1 },
+    renderPlaceholder: { spriteSize: '16x16', defaultAnimation: 'fly' },
+    description: 'Revolotea por la sala en 8 direcciones sin chocar con los tiles: solo rebota en los bordes de la pantalla y cada N px sortea un rumbo nuevo.',
+  },
 ];
 
 const slugify = (value: string): string =>
