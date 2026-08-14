@@ -1648,7 +1648,13 @@ export interface Msx2BossPhase {
   pathId?: string;
 }
 
-/** A rectangle on the boss body, in boss-LOCAL pixels. */
+/**
+ * A rectangle on the boss body, in boss-LOCAL pixels.
+ *
+ * A boss with at least one zone is only hittable ON its zones: bullets that
+ * land on bare body between them pass through it. A boss with no zones keeps
+ * the simple contract (whole body takes 1 damage per bullet).
+ */
 export interface Msx2BossDamageZone {
   id: string;
   /** 'invulnerable' = armour (bullets die, no damage); otherwise a weak point. */

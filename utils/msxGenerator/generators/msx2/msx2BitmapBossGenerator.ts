@@ -23,7 +23,9 @@
  *   - Touching the boss hurts the player (same saturating health + i-frames +
  *     respawn contract as msx2BitmapEnemyGenerator).
  *   - Player bullets (shoot skill) hit the boss rect, deal 1 damage each and
- *     despawn; bitmap_bullet_check_enemy_collision redirects here.
+ *     despawn; bitmap_bullet_check_enemy_collision redirects here. A boss WITH
+ *     damage zones is different: only the zones stop a bullet (weak point =
+ *     damage, armour = 0 damage), and bare body between zones lets it fly on.
  *   - At 0 HP the boss dies: full-rect restore from page 1 + persistent
  *     per-room defeated flag (it never respawns while the ROM runs).
  *
@@ -126,8 +128,9 @@ export interface BitmapBossRoomData {
    * Per-room damage zones (Phase E). Layout: [count, (x, y, w, h, kind,
    * multiplier) * count] in boss-local pixels. kind 0 = invulnerable (bullets
    * vanish, no damage), 1 = weak point (damage * multiplier). Zones are tested
-   * in order; the first hit wins. An empty table ([0]) keeps the whole body
-   * damageable for 1 per bullet.
+   * in order; the first hit wins. Bullets that land on bare body (no zone) pass
+   * THROUGH the boss. An empty table ([0]) keeps the legacy contract instead:
+   * the whole body is damageable for 1 per bullet.
    */
   damageZoneTables: number[][];
   /**
@@ -1025,6 +1028,10 @@ export function resolveBossParams(entity: any, definitions: Map<string, BossDefi
  *
  * Zones are ordered as authored, so put weak points BEFORE the armour plate
  * that contains them — the first matching zone wins.
+ *
+ * As soon as ONE zone exists the body stops being a target by itself: bullets
+ * that miss every zone fly through the boss. A boss with no zones at all keeps
+ * the old "whole body takes 1 damage" behaviour.
  */
 function buildDamageZoneTable(zones: unknown, width: number, height: number, roomName: string): number[] {
   if (!Array.isArray(zones) || !zones.length) return [0];
@@ -2243,13 +2250,15 @@ bitmap_boss_bullet_hit:
     add a, (hl)
     cp b
     jr c, .bullet_miss_dehl
-    ; HIT: despawn the bullet, then apply damage for the zone it landed on.
+    ; Inside the body rect: the damage zones decide what happens to the bullet.
+${hasZones ? `    call bitmap_boss_zone_damage   ; CF=1 -> bare body, else A = hits
+    jr c, .zone_no_damage      ; no zone here: the bullet flies straight on
+    ld b, a                    ; B = hits (0 on armour)
     xor a
-    ld (ix+0), a
-${hasZones ? `    call bitmap_boss_zone_damage   ; A = hits (0 = armour, no damage)
+    ld (ix+0), a               ; a zone stops the bullet, weak point or armour
+    ld a, b
     or a
-    jr z, .zone_no_damage
-    ld b, a
+    jr z, .zone_no_damage      ; armour: stopped, but it takes no damage
     ld a, (boss_hp)
     sub b
     jr c, .boss_die            ; overkill
@@ -2263,7 +2272,9 @@ ${hasZones ? `    call bitmap_boss_zone_damage   ; A = hits (0 = armour, no dama
     pop hl
     pop de
     pop bc
-    ret` : `    ld a, (boss_hp)
+    ret` : `    xor a
+    ld (ix+0), a               ; despawn the bullet
+    ld a, (boss_hp)
     dec a
     ld (boss_hp), a
     jr z, .boss_die
@@ -2287,13 +2298,17 @@ ${hasZones ? `    call bitmap_boss_zone_damage   ; A = hits (0 = armour, no dama
 ${hasZones ? `; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_zone_damage
 ; ------------------------------------------------------------
-; PURPOSE: Phase E. Work out how much damage the bullet that just landed does,
-;   from the boss's damage zones. Zones are boss-local rectangles tested in
-;   authoring order, first match wins: an "invulnerable" zone (armour) returns
-;   0 hits, a weak point returns its damageMultiplier. A bullet that lands
-;   outside every zone does the default 1 damage.
+; PURPOSE: Phase E. Work out what the bullet that just landed on the body rect
+;   does, from the boss's damage zones. Zones are boss-local rectangles tested
+;   in authoring order, first match wins: an "invulnerable" zone (armour) stops
+;   the bullet for 0 hits, a weak point stops it for its damageMultiplier.
+;   Bare body between the zones is NOT a target: the bullet keeps flying, so a
+;   boss with zones can only be hurt where it was authored to be.
+;   A boss with an EMPTY zone table keeps the legacy contract instead (the whole
+;   body is one big weak point for 1 damage), otherwise it would be immortal.
 ; INPUT: IX -> bullet slot (x at ix+1, y at ix+2), boss_x/boss_y.
-; OUTPUT: A = damage in hit points (0 = no damage).
+; OUTPUT: CF=1 -> no zone here, the bullet must survive.
+;         CF=0 -> the bullet stops; A = damage in hit points (0 = armour).
 ; DESTROYS: AF, BC, DE, HL. Preserves IX.
 ; ------------------------------------------------------------
 bitmap_boss_zone_damage:
@@ -2326,7 +2341,7 @@ bitmap_boss_zone_damage:
     ld l, a                    ; HL -> zone table
     ld a, (hl)
     or a
-    jr z, .zone_default        ; no zones authored
+    jp z, .zone_body_default   ; no zones authored: the whole body is the target
     ld b, a                    ; B = zone count
     inc hl
 .zone_scan:
@@ -2360,10 +2375,11 @@ bitmap_boss_zone_damage:
     jr z, .zone_armour
     inc hl                     ; HL -> multiplier
     ld a, (hl)
+    or a                       ; CF=0: the bullet stops here
     ret                        ; weak point: damageMultiplier hits
 .zone_armour:
     xor a
-    ret                        ; armour: bullet dies, no damage
+    ret                        ; armour: bullet dies, no damage (CF=0)
 .zone_next_y:
     dec hl                     ; HL back to x
 .zone_next:
@@ -2374,8 +2390,11 @@ bitmap_boss_zone_damage:
     inc h
 .zone_skip_hi:
     djnz .zone_scan
-.zone_default:
-    ld a, 1                    ; outside every zone: plain 1 damage
+    scf                        ; zones authored but none hit: bullet passes through
+    ret
+.zone_body_default:
+    ld a, 1                    ; boss without zones: plain 1 damage, bullet dies
+    or a                       ; CF=0
     ret
 
 ` : ''}; Shadow table lookup that leaves HL -> width byte (offset 13) without

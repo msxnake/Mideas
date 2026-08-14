@@ -1,0 +1,59 @@
+wait f1 act=255 intro=255 walk=255 bx=255 by=255 hp=255
+wait f121 act=0 intro=51 walk=51 bx=4 by=59 hp=238
+wait f241 act=0 intro=51 walk=51 bx=4 by=59 hp=238
+wait f361 act=0 intro=51 walk=51 bx=4 by=59 hp=238
+wait f481 act=0 intro=51 walk=51 bx=4 by=59 hp=238
+wait f601 act=1 intro=5 walk=1 bx=64 by=32 hp=5
+wait f721 act=1 intro=0 walk=0 bx=84 by=32 hp=5
+boss up: x=104 y=32 hp=5
+--- BODY shot: x=80 y=72 dir=right (centre local y 48)
+BODY f1 active=1 bullet_x=84 local_cx=-12 boss_x=104 hp=5
+BODY f2 active=1 bullet_x=88 local_cx=-8 boss_x=104 hp=5
+BODY f3 active=1 bullet_x=92 local_cx=-5 boss_x=105 hp=5
+BODY f4 active=1 bullet_x=96 local_cx=-1 boss_x=105 hp=5
+BODY f5 active=1 bullet_x=100 local_cx=3 boss_x=105 hp=5
+BODY f6 active=1 bullet_x=104 local_cx=6 boss_x=106 hp=5
+BODY f7 active=1 bullet_x=108 local_cx=10 boss_x=106 hp=5
+BODY f8 active=1 bullet_x=112 local_cx=14 boss_x=106 hp=5
+BODY f9 active=1 bullet_x=116 local_cx=17 boss_x=107 hp=5
+BODY f10 active=1 bullet_x=120 local_cx=21 boss_x=107 hp=5
+BODY f11 active=1 bullet_x=124 local_cx=25 boss_x=107 hp=5
+BODY f12 active=1 bullet_x=128 local_cx=28 boss_x=108 hp=5
+BODY f13 active=1 bullet_x=132 local_cx=32 boss_x=108 hp=5
+BODY f14 active=1 bullet_x=136 local_cx=36 boss_x=108 hp=5
+BODY f15 active=1 bullet_x=140 local_cx=39 boss_x=109 hp=5
+BODY f16 active=1 bullet_x=144 local_cx=43 boss_x=109 hp=5
+BODY f17 active=1 bullet_x=148 local_cx=47 boss_x=109 hp=5
+BODY f18 active=1 bullet_x=152 local_cx=50 boss_x=110 hp=5
+BODY f19 active=1 bullet_x=156 local_cx=54 boss_x=110 hp=5
+BODY f20 active=1 bullet_x=160 local_cx=58 boss_x=110 hp=5
+BODY f21 active=1 bullet_x=164 local_cx=61 boss_x=111 hp=5
+BODY f22 active=1 bullet_x=168 local_cx=65 boss_x=111 hp=5
+BODY f23 active=1 bullet_x=172 local_cx=69 boss_x=111 hp=5
+BODY f24 active=1 bullet_x=176 local_cx=72 boss_x=112 hp=5
+--- EYE shot: x=88 y=72 dir=right (centre local y 24, boss_y forced to 56)
+EYE f1 active=1 bullet_x=92 local_cx=-12 boss_x=112 hp=5
+EYE f2 active=1 bullet_x=96 local_cx=-8 boss_x=112 hp=5
+EYE f3 active=1 bullet_x=100 local_cx=-5 boss_x=113 hp=5
+EYE f4 active=1 bullet_x=104 local_cx=-1 boss_x=113 hp=5
+EYE f5 active=1 bullet_x=108 local_cx=3 boss_x=113 hp=5
+EYE f6 active=1 bullet_x=112 local_cx=6 boss_x=114 hp=5
+EYE f7 active=1 bullet_x=116 local_cx=10 boss_x=114 hp=5
+EYE f8 active=1 bullet_x=120 local_cx=14 boss_x=114 hp=5
+EYE f9 active=0 bullet_x=124 local_cx=17 boss_x=115 hp=3
+EYE f10 active=0 bullet_x=124 local_cx=17 boss_x=115 hp=3
+EYE f11 active=0 bullet_x=124 local_cx=17 boss_x=115 hp=3
+EYE f12 active=0 bullet_x=124 local_cx=16 boss_x=116 hp=3
+EYE f13 active=0 bullet_x=124 local_cx=16 boss_x=116 hp=3
+EYE f14 active=0 bullet_x=124 local_cx=16 boss_x=116 hp=3
+EYE f15 active=0 bullet_x=124 local_cx=15 boss_x=117 hp=3
+EYE f16 active=0 bullet_x=124 local_cx=15 boss_x=117 hp=3
+EYE f17 active=0 bullet_x=124 local_cx=15 boss_x=117 hp=3
+EYE f18 active=0 bullet_x=124 local_cx=14 boss_x=118 hp=3
+EYE f19 active=0 bullet_x=124 local_cx=14 boss_x=118 hp=3
+EYE f20 active=0 bullet_x=124 local_cx=14 boss_x=118 hp=3
+EYE f21 active=0 bullet_x=124 local_cx=13 boss_x=119 hp=3
+EYE f22 active=0 bullet_x=124 local_cx=13 boss_x=119 hp=3
+EYE f23 active=0 bullet_x=124 local_cx=13 boss_x=119 hp=3
+EYE f24 active=0 bullet_x=124 local_cx=12 boss_x=120 hp=3
+final hp=3 active=1

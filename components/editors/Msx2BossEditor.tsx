@@ -1064,7 +1064,8 @@ const ZonesPanel: React.FC<{
           <p className="text-xs text-msx-textsecondary mt-2" style={{ width: bodyW * scale }}>
             {bodyStamp
               ? <>Drag on the body to add a zone ({bodyW}×{bodyH} px, boss-local coordinates).
-                Red = weak point, grey = armour.</>
+                Red = weak point, grey = armour. Bullets pass THROUGH the bare body
+                between zones, so a boss with zones is only hittable on them.</>
               : <>No body stamp picked yet, so this is an empty {bodyW}×{bodyH} placeholder.
                 Choose one in <strong>Body &amp; Graphics</strong> to draw zones over the real boss.</>}
           </p>
@@ -1073,7 +1074,8 @@ const ZonesPanel: React.FC<{
         <div className="flex-1">
           {zones.length === 0 && (
             <p className="text-xs text-msx-textsecondary">
-              No zones: the whole body takes 1 damage per bullet.
+              No zones: the whole body takes 1 damage per bullet. Add one and the rule
+              flips — only the zones stop a bullet, the rest of the body lets it through.
             </p>
           )}
           {zones.map((zone, index) => (
