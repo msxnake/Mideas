@@ -38,6 +38,8 @@ export interface Msx2EnemyHazardRuntimeSlot {
   dy: number;
   mode: number;
   speed: number;
+  /** Run movement/AI once every N video frames (1 = every frame). */
+  logicUpdateIntervalFrames: number;
   score: number;
   stateSwitch: boolean;
   stateNearMode: number;
@@ -305,6 +307,10 @@ export function getMsx2EnemyHazardRuntimeSlots(
       const score = Math.max(1, Math.min(255, Math.floor(Number(
         getComponentValue(entity, 'msx2_score', 'points', entity.params?.points ?? entity.params?.score ?? 1)
       ) || 1)));
+      const legacyLogicUpdateEveryFrames = getComponentValue(entity, 'msx2_ai', 'logicUpdateEveryFrames', entity.params?.logicUpdateEveryFrames);
+      const logicUpdateIntervalFrames = Math.max(1, Math.min(255, Math.floor(Number(
+        getComponentValue(entity, 'msx2_ai', 'logicUpdateIntervalFrames', entity.params?.logicUpdateIntervalFrames ?? legacyLogicUpdateEveryFrames ?? 1)
+      ) || 1)));
       const gearX = clampHardwareSpriteX(xTile * 16);
       const gearY = clampHardwareSpriteY(yTile * 16);
       return {
@@ -324,6 +330,7 @@ export function getMsx2EnemyHazardRuntimeSlots(
         dy: hasFlyBounce8 ? 1 : hasGearWheel ? signedByte(direction) : hasBallBounce ? signedByte(ballSpeedY) : hasFlyerSine ? signedByte(flyerPhase >= 16 ? -flyerFrequency : flyerFrequency) : hasJumper ? signedByte(-jumperSpeedY) : hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
         mode: hasFlyBounce8 ? MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8 : hasGearWheel ? MSX2_ENEMY_MOVEMENT_GEAR_WHEEL : hasBallBounce ? MSX2_ENEMY_MOVEMENT_BALL_BOUNCE : hasDiveAttack ? MSX2_ENEMY_MOVEMENT_DIVE : hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : hasFlyerSine ? MSX2_ENEMY_MOVEMENT_FLYER_SINE : hasJumper ? MSX2_ENEMY_MOVEMENT_JUMPER : hasWalkerEdge ? MSX2_ENEMY_MOVEMENT_WALKER_EDGE : hasWalkerGravity ? MSX2_ENEMY_MOVEMENT_WALKER_GRAVITY : hasSlimeCeiling ? MSX2_ENEMY_MOVEMENT_SLIME_CEILING : hasPatrolChaseX ? MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X : hasChaseH ? MSX2_ENEMY_MOVEMENT_CHASE_H : MSX2_ENEMY_MOVEMENT_PATROL,
         speed,
+        logicUpdateIntervalFrames,
         score,
         stateSwitch,
         stateNearMode,

@@ -228,7 +228,7 @@ const MSX2_SCREEN_ENEMY_PATTERN_GROUPS =
   * MSX2_SCREEN_ENEMY_ORIENTATION_VARIANTS;
 const MSX2_SCREEN_ENEMY_PATTERN_BYTES = MSX2_SCREEN_ENEMY_PATTERN_GROUPS * 32;
 const MSX2_ENEMY_ANIM_RUNTIME_BYTES = 4;
-const MSX2_ENEMY_RUNTIME_BYTES = (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7) + MSX2_ENEMY_ANIM_RUNTIME_BYTES;
+const MSX2_ENEMY_RUNTIME_BYTES = (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 9) + MSX2_ENEMY_ANIM_RUNTIME_BYTES;
 const MSX2_ENEMY_SPRITE_COLOR = 13;
 const MSX2_RUNTIME_RAM_START = 0xC000;
 const MSX2_RUNTIME_RAM_LIMIT = 0xF300;
@@ -5726,6 +5726,50 @@ msx2_player_bullet_1_check_effect_collision:
 ${playerBulletEffectHit1Asm}
 ` : ''}
 ` : '';
+  const enemyLogicCadenceTickSlots = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => `${enemySlotAddress('msx2_enemy_logic_countdown', slot)}
+    ld a, (hl)
+    or a
+    jp nz, .enemy_logic_countdown_${slot}_valid
+    inc a                         ; defensive fallback: corrupt zero is due now
+.enemy_logic_countdown_${slot}_valid:
+    dec a
+    ld (hl), a
+    jp nz, .enemy_logic_slot_${slot}_not_due
+${buildEnemyScreenSlotOffsetAsm(slot)}
+    ld hl, msx2_screen_enemy_logic_every
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .enemy_logic_interval_${slot}_valid
+    inc a                         ; legacy/corrupt zero => every video frame
+.enemy_logic_interval_${slot}_valid:
+${enemySlotAddress('msx2_enemy_logic_countdown', slot)}
+    ld (hl), a
+${enemySlotAddress('msx2_enemy_logic_due', slot)}
+    ld (hl), 1
+    jp .enemy_logic_slot_${slot}_done
+.enemy_logic_slot_${slot}_not_due:
+${enemySlotAddress('msx2_enemy_logic_due', slot)}
+    xor a
+    ld (hl), a
+.enemy_logic_slot_${slot}_done:
+`).join('');
+  const enemyLogicCadenceRuntimeAsm = `
+; ------------------------------------------------------------
+; FUNCTION: update_msx2_enemy_logic_cadence
+; ------------------------------------------------------------
+; PURPOSE:
+;   Computes one shared per-slot logic_due flag per VIDEO frame. Behavior
+;   transitions, attack spawning and movement all consult that same flag, so
+;   no subsystem decrements the cadence twice. Interval 1 is due every frame.
+; INPUT: current screen index, per-screen logic interval table, RAM countdowns.
+; OUTPUT: msx2_enemy_logic_countdown/due arrays updated for every fixed slot.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
+; VDP STATE: unchanged.
+; ------------------------------------------------------------
+update_msx2_enemy_logic_cadence:
+${enemyLogicCadenceTickSlots}    ret
+`;
   const enemyWaveCompleteChecks = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => `    ld a, (msx2_current_screen_index)
     ld e, a
     ld d, 0
@@ -5784,6 +5828,10 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld a, (hl)
     cp ${slot + 1}
     jp c, .enemy_bullet_no_spawn_${slot}
+${enemySlotAddress('msx2_enemy_logic_due', slot)}
+    ld a, (hl)
+    or a
+    jp z, .enemy_bullet_no_spawn_${slot} ; attack spawn shares behavior/movement cadence
 ${batBombGated ? `    ; Bat bomb gate: only flagged enemies, and only when this enemy's X is
     ; aligned with the player's X within +-8px. B = enemy X, A = |player.x - enemy.x|.
 ${buildEnemyScreenSlotOffsetAsm(slot)}    ld hl, msx2_screen_enemy_drop_bomb
@@ -5814,10 +5862,14 @@ ${spawnSlot1}
 `;
   }).join('');
   const enemySlotMovementRoutines = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
-    const addSlot = slot ? `    add a, ${slot}\n` : '';
     return `    call update_msx2_enemy_position_slot_${slot}
 `;
   }).join('');
+  const enemyLogicCadenceGate = (slot: number): string => `${enemySlotAddress('msx2_enemy_logic_due', slot)}
+    ld a, (hl)
+    or a
+    ret z
+`;
   const enemyBehaviorStateSlotRoutines = enemyBehaviorStateSwitchEnabled ? Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => `    call update_msx2_enemy_behavior_state_slot_${slot}
 `).join('') : '';
   const enemyBehaviorStateSlotHandlers = enemyBehaviorStateSwitchEnabled ? Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => `update_msx2_enemy_behavior_state_slot_${slot}:
@@ -5829,6 +5881,7 @@ ${spawnSlot1}
     ld a, (hl)
     cp ${slot + 1}
     ret c
+${enemyLogicCadenceGate(slot)}
 ${buildEnemyScreenSlotOffsetAsm(slot)}
     ld hl, msx2_screen_enemy_state_switch
     add hl, de
@@ -5952,6 +6005,7 @@ ${enemyBehaviorStateSlotHandlers}` : '';
     ld a, (hl)
     cp ${slot + 1}
     ret c
+${enemyLogicCadenceGate(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
     ld a, (hl)
     cp ${MSX2_ENEMY_MOVEMENT_BALL_BOUNCE}
@@ -6036,6 +6090,7 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld a, (hl)
     cp ${slot + 1}
     ret c
+${enemyLogicCadenceGate(slot)}
 ${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
     ld a, (hl)
     cp ${MSX2_ENEMY_MOVEMENT_BALL_BOUNCE}
@@ -8430,6 +8485,7 @@ ${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}${hudLivesAttrW
     ret
 
 upload_hardware_sprite_attrs:
+    call update_msx2_enemy_logic_cadence
 ${animationFrameCount > 1 ? '    call update_msx2_player_sprite_animation\n' : ''}${playerColorAnim.enabled ? '    call update_msx2_player_frame_colors\n' : ''}${enemyAnimationFrameCount > 1 ? '    call update_msx2_enemy_sprite_animation\n' : ''}${shooterBulletsEnabled ? '    call update_msx2_player_bullet\n' : ''}${enemyBulletsEnabled ? '    call update_msx2_enemy_bullet\n' : ''}
     call update_msx2_effect_state
 ${paddleHorizontal ? `    ld a, (msx2_player_bullet_active)
@@ -8507,7 +8563,19 @@ ${buildEnemyScreenSlotOffsetAsm()}
     ld de, msx2_enemy_runtime_tick
     ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
     ldir
+${buildEnemyScreenSlotOffsetAsm()}
+    ld hl, msx2_screen_enemy_logic_every
+    add hl, de
+    ld de, msx2_enemy_logic_countdown
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
     xor a
+    ld hl, msx2_enemy_logic_due
+    ld b, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+.reset_enemy_logic_due:
+    ld (hl), a
+    inc hl
+    djnz .reset_enemy_logic_due
     ld (msx2_enemy_anim_counter), a
     ld (msx2_enemy_anim_frame), a
 ${shooterHorizontal ? '    call msx2_init_galaxian_attack_runtime\n' : ''}${pushBoxEnabled ? '    call init_msx2_box2_boxes\n' : ''}${carryResetCallAsm}    ret
@@ -8634,7 +8702,7 @@ msx2_activate_galaxian_attack_slot:
     ret
 
 ` : ''}
-${enemyBehaviorStateRuntimeAsm}${enemySlotMovementHandlers}${enemyJumperSharedHandler}
+${enemyLogicCadenceRuntimeAsm}${enemyBehaviorStateRuntimeAsm}${enemySlotMovementHandlers}${enemyJumperSharedHandler}
 
 msx2_apply_damage_respawn:
     ; Shared damage path for effect hazards and entity enemies.
@@ -13103,6 +13171,9 @@ msx2_player_jump_buffer_timer EQU ${formatHexWord(playerTimersRamBase + 1)}
   const enemySpeedBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(240, enemies[index]?.speed ?? 2)))
   );
+  const enemyLogicEveryBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(255, enemies[index]?.logicUpdateIntervalFrames ?? 1)))
+  );
   const enemyScoreBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(255, enemies[index]?.score ?? 1)))
   );
@@ -13844,10 +13915,12 @@ msx2_enemy_runtime_dy EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HA
 msx2_enemy_runtime_mode EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 4))}
 msx2_enemy_runtime_speed EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 5))}
 msx2_enemy_runtime_tick EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 6))}
-msx2_enemy_anim_counter EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7))}
-msx2_enemy_anim_frame EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7) + 1)}
-msx2_enemy_anim_delay EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7) + 2)}
-msx2_enemy_pack_loaded_index EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7) + 3)}
+msx2_enemy_logic_countdown EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 7))}
+msx2_enemy_logic_due EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 8))}
+msx2_enemy_anim_counter EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 9))}
+msx2_enemy_anim_frame EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 9) + 1)}
+msx2_enemy_anim_delay EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 9) + 2)}
+msx2_enemy_pack_loaded_index EQU ${formatHexWord(enemyRuntimeBase + (MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN * 9) + 3)}
 msx2_runtime_ram_end EQU ${formatHexWord(runtimeRamEnd)}
 msx2_runtime_ram_limit EQU ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}
 msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
@@ -14415,6 +14488,7 @@ ${formatBytes('msx2_screen_enemy_dx', enemyDxBytes.length ? enemyDxBytes : Array
 ${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial vertical movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_mode', enemyModeBytes.length ? enemyModeBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard movement component mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_speed', enemySpeedBytes.length ? enemySpeedBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(2), `Per-msx2screen enemy/hazard movement component frame delay, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_logic_every', enemyLogicEveryBytes.length ? enemyLogicEveryBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(1), `Per-msx2screen enemy/hazard logic cadence in video frames, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_score', enemyScoreBytes.length ? enemyScoreBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(1), `Per-msx2screen enemy/hazard score value, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${enemyDropBombTableAsm}
 ${enemyStateSwitchTablesAsm}

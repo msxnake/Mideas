@@ -61,6 +61,8 @@ const panelClass = 'flex min-h-0 flex-col overflow-hidden rounded border border-
 const panelTitleClass = 'flex-shrink-0 border-b border-slate-700 px-3 py-2 text-xs font-bold uppercase tracking-wide text-red-300';
 
 const numberValue = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const logicUpdateIntervalFramesValue = (value: unknown): number =>
+  Math.max(1, Math.min(255, Math.floor(numberValue(value, 1)) || 1));
 
 const slugify = (value: string): string =>
   value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'enemy';
@@ -697,6 +699,17 @@ export const Msx2EnemyEditor: React.FC<Msx2EnemyEditorProps> = ({
                   {BEHAVIOR_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
               </Field>
+              <Field label="Logic interval" suffix="frames/update">
+                <SmallNumber
+                  value={logicUpdateIntervalFramesValue(enemy.logicUpdateIntervalFrames ?? (enemy as any).logicUpdateEveryFrames)}
+                  min={1}
+                  max={255}
+                  onChange={value => patch({ logicUpdateIntervalFrames: logicUpdateIntervalFramesValue(value) })}
+                />
+              </Field>
+              <div className="rounded border border-slate-700 bg-[#111821] p-3 text-[11px] text-slate-400">
+                CPU cadence: 1 runs behavior every frame, 2 every other frame, 3 every third frame. Sprite publication and contact checks still run every frame.
+              </div>
               <Field label="Custom Routine"><input className={inputClass} value={enemy.behavior.customRoutine || ''} onChange={event => patch({ behavior: { ...enemy.behavior, customRoutine: event.target.value } })} /></Field>
               <div className="rounded border border-slate-700 bg-[#111821] p-3 text-xs text-slate-300">
                 `FlyerSine` is the recommended movement for Bat Enemy. `PatrolHorizontal` and `WalkerTurnOnEdge` are cheaper for ground enemies.

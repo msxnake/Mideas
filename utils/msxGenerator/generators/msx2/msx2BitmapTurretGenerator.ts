@@ -1,8 +1,8 @@
 /** SCREEN 5 bitmap-room aimed turret runtime (two hardware sprites + one shared bullet). */
 
 export const BITMAP_MAX_TURRET_SLOTS = 2;
-const TURRET_STRIDE = 11;
-const TABLE_STRIDE = 11;
+const TURRET_STRIDE = 13;
+const TABLE_STRIDE = 12;
 
 function byte(value: number): string {
   return `#${Math.max(0, Math.min(255, Math.floor(Number(value) || 0))).toString(16).toUpperCase().padStart(2, '0')}`;
@@ -102,6 +102,14 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
     ld (${pool}+10), a        ; initial cooldown
     ld a, (ix+8)
     ld (${pool}+9), a         ; bullet speed
+    ld a, (ix+11)
+    or a
+    jp nz, .turret_load_${i}_interval_valid
+    inc a                     ; legacy/corrupt zero => every frame
+.turret_load_${i}_interval_valid:
+    ld (${pool}+11), a        ; logic interval
+    ld a, 1
+    ld (${pool}+12), a        ; first gameplay frame executes logic
     ld a, (ix+2)
     call bitmap_turret_pattern_offset
     ld de, ${word(patVram)}
@@ -134,6 +142,19 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
     cp ${i + 1}
     jp c, .turret_update_${i}_done
     ld ix, ${pool}
+    ld a, (ix+12)             ; shared aim/fire logic countdown
+    or a
+    jp z, .turret_update_${i}_logic_due
+    dec a
+    ld (ix+12), a
+    jp nz, .turret_update_${i}_done
+.turret_update_${i}_logic_due:
+    ld a, (ix+11)
+    or a
+    jp nz, .turret_update_${i}_interval_valid
+    inc a
+.turret_update_${i}_interval_valid:
+    ld (ix+12), a
     call bitmap_turret_choose_direction
     ld (ix+4), a
     push af                    ; carry = Player inside configured vision arc
@@ -202,6 +223,7 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
   }).join('');
 
   const equates = `; --- AIMED TURRET runtime: ${maxSlots} x ${TURRET_STRIDE} bytes + one shared bullet ---
+; Per slot: centre/pattern/aim/fire fields (11), logicInterval, logicCountdown.
 bitmap_turret_count         EQU ${word(opts.ramBase)}
 bitmap_turret_pool          EQU ${word(opts.ramBase + 1)}
 bitmap_turret_bullet_active EQU ${word(bulletBase)}

@@ -54,7 +54,7 @@ const checks = [
     enemyGen.includes("+ (data?.fly8Enabled ? BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES : 0)")
     && enemyGen.includes('const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0);')],
   ['Bat state sits behind the other engines’ pool bytes',
-    enemyGen.includes('const FLY8_LEFT_OFFSET = 23 + (slime ? 3 : 0) + (gear ? 5 : 0);')
+    enemyGen.includes('const FLY8_LEFT_OFFSET = 24 + (slime ? 3 : 0) + (gear ? 5 : 0);')
     && enemyGen.includes('const FLY8_TURN_OFFSET = FLY8_LEFT_OFFSET + 1;')],
   ['The dispatch and the flight block are emitted only for bat builds',
     enemyGen.includes('${fly8 ? `    cp ${MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8}')
@@ -65,9 +65,9 @@ const checks = [
   ['The PRNG advances once per FRAME, outside the per-slot loop',
     enemyGen.includes('One PRNG step per FRAME, not per draw')
     && enemyGen.split('ld ix, bitmap_enemy_pool')[0].includes('ld (bitmap_enemy_rand_seed), a')],
-  ['The seed reuses the byte ramBytes already reserved (no RAM growth)',
-    enemyGen.includes('bitmap_enemy_rand_seed EQU ${asmWord(updateLaneAddr + 1)}')
-    && enemyGen.includes('const ramBytes = 3 + maxSlots * POOL_STRIDE;')],
+  ['The seed is the only global byte after the cadence-aware slot pool',
+    enemyGen.includes('bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}')
+    && enemyGen.includes('const ramBytes = 1 + maxSlots * POOL_STRIDE + (fly8 ? 1 : 0);')],
   ['Every hardware layer of one bat rolls the SAME heading',
     reroll.includes('ld e, (ix+14)') && reroll.includes('ld e, (ix+15)')
     && reroll.includes('ld a, (bitmap_enemy_rand_seed)') && reroll.includes('and 7')],

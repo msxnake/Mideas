@@ -4608,11 +4608,19 @@ ${options.bankedRle ? `    ; The pattern bank is not resident: map it into P2 fo
     jp copy_to_vram_ext`}
 
 bitmap_wait_vblank:
+    ; INPUT: none.
+    ; OUTPUT: one S#0 frame flag consumed; R#15 explicitly left selecting S#0.
+    ; DESTROYS: AF, BC. PRESERVES: DE, HL, IX, IY.
     ; Poll VDP status S#0 until the frame flag (bit 7) is set: a 60 Hz tick that
     ; does NOT depend on BIOS frame interrupts (the VK-style VDP init does not
-    ; enable a BIOS-compatible vblank IRQ). Assumes R#15 = 0. Clobbers AF/BC.
+    ; enable a BIOS-compatible vblank IRQ). Select S#0 here instead of trusting
+    ; every command-engine caller to have restored R#15 after reading S#2.
     ; If the host BIOS/VDP state never raises S#0 bit 7, return after a bounded
     ; delay so gameplay cannot hang on the first rendered frame.
+    xor a
+    out (VDP_CTRL_PORT), a
+    ld a, #8F                 ; R#15 = 0 -> control-port reads S#0
+    out (VDP_CTRL_PORT), a
     ld bc, #4000
 .wv_loop:
     in a, (VDP_CTRL_PORT)
@@ -12534,6 +12542,15 @@ function buildBitmapRoomTurretData(analysis: ProjectAnalysis, rooms: Msx2Screen5
       const slot = geometry[index] || { x: 0, y: 0 };
       const baseAngle = Number(ai.turretBaseAngle ?? params.turretBaseAngle ?? attack.turretBaseAngle ?? 0);
       const maxAngle = Math.max(0, Math.min(360, Number(ai.turretMaxAngle ?? params.turretMaxAngle ?? attack.turretMaxAngle ?? 360)));
+      const logicUpdateIntervalFrames = Math.max(1, Math.min(255, Math.floor(Number(
+        def.logicUpdateIntervalFrames
+        ?? def.logicUpdateEveryFrames
+        ?? ai.logicUpdateIntervalFrames
+        ?? params.logicUpdateIntervalFrames
+        ?? ai.logicUpdateEveryFrames
+        ?? params.logicUpdateEveryFrames
+        ?? 1
+      )) || 1));
       return {
         x: clampByte(slot.x, 0),
         y: clampByte(slot.y, 0),
@@ -12546,6 +12563,7 @@ function buildBitmapRoomTurretData(analysis: ProjectAnalysis, rooms: Msx2Screen5
         separation: Math.max(0, Math.min(32, Math.floor(Number(attack.turretMinSeparation ?? ai.turretMinSeparation ?? params.turretMinSeparation ?? 8)))),
         fireRate: Math.max(1, Math.min(255, Math.floor(Number(ai.fireRate ?? params.turretFireRate ?? attack.fireRate ?? 60)))),
         bulletSpeed: Math.max(1, Math.min(8, Math.floor(Number(ai.bulletSpeed ?? params.turretBulletSpeed ?? attack.bulletSpeed ?? 2)))),
+        logicUpdateIntervalFrames,
       };
     });
   });
@@ -12554,8 +12572,8 @@ function buildBitmapRoomTurretData(analysis: ProjectAnalysis, rooms: Msx2Screen5
     const table: number[] = [entries.length & 0xff];
     for (let i = 0; i < maxSlots; i++) {
       const entry = entries[i];
-      if (!entry) table.push(0, 0, 0, 0, 0, 0, 0, 0, 8, 60, 2);
-      else table.push(entry.x, entry.y, entry.basePattern, entry.headPattern, entry.baseDir, entry.halfArc, entry.separation, entry.fireRate, entry.bulletSpeed, entry.baseColor, entry.headColor);
+      if (!entry) table.push(0, 0, 0, 0, 0, 0, 0, 0, 8, 60, 2, 1);
+      else table.push(entry.x, entry.y, entry.basePattern, entry.headPattern, entry.baseDir, entry.halfArc, entry.separation, entry.fireRate, entry.bulletSpeed, entry.baseColor, entry.headColor, entry.logicUpdateIntervalFrames);
     }
     return table;
   });
@@ -12605,7 +12623,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     render: EnemyRenderSelection;
     spriteLayerIndex: number;
     offset: EnemySpriteCell;
-    updateLane: number;
+    logicUpdateIntervalFrames: number;
     contact: { damage: number; hitX: number; hitY: number; hitW: number; hitH: number };
   }
   const spriteRecords = new Map<string, EnemySpriteRecord>();
@@ -12666,6 +12684,21 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       )
     );
     return asset?.data;
+  };
+  const logicUpdateIntervalFramesForEntity = (entity: any): number => {
+    const enemyAsset = enemyAssetForEntity(entity);
+    const raw = Number(
+      enemyAsset?.logicUpdateIntervalFrames
+      ?? enemyAsset?.logicUpdateEveryFrames
+      ?? entity?.components?.msx2_ai?.logicUpdateIntervalFrames
+      ?? entity?.params?.logicUpdateIntervalFrames
+      ?? entity?.components?.msx2_ai?.logicUpdateEveryFrames
+      ?? entity?.params?.logicUpdateEveryFrames
+      ?? 1
+    );
+    return Number.isFinite(raw)
+      ? Math.max(1, Math.min(255, Math.floor(raw)))
+      : 1;
   };
   const parseEnemyFrameList = (value: unknown): number[] => {
     const values = Array.isArray(value)
@@ -12957,10 +12990,8 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     }
     const expanded: EnemyHardwareSlot[] = [];
     let truncatedHardwareSlots = 0;
-    let logicalEnemyIndex = 0;
     for (const pair of paired.filter(pair => isBitmapEnemyMovementSupported(pair.slot.mode))) {
-      const updateLane = logicalEnemyIndex & 1;
-      logicalEnemyIndex++;
+      const logicUpdateIntervalFrames = logicUpdateIntervalFramesForEntity(pair.entity);
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL) gearEnabled = true;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_FLY_BOUNCE_8) fly8Enabled = true;
@@ -12994,7 +13025,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
           render,
           spriteLayerIndex,
           offset: hardwareSlots[spriteLayerIndex],
-          updateLane,
+          logicUpdateIntervalFrames,
           contact,
         });
       }
@@ -13039,13 +13070,13 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       const pair = slots[i];
       if (!pair) {
         table.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 16, 16);
-        table.push(1, 0);
+        table.push(1, 1);
         if (slimeEnabled) table.push(0);
         if (gearEnabled) table.push(0, 0);
         if (fly8Enabled) table.push(0);
         continue;
       }
-      const { slot, render, spriteLayerIndex, offset, updateLane, contact } = pair;
+      const { slot, render, spriteLayerIndex, offset, logicUpdateIntervalFrames, contact } = pair;
       const spriteRecord = resolveSpriteRecord(render, spriteLayerIndex);
       table.push(
         slot.x & 0xff,
@@ -13069,7 +13100,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
         contact.hitW & 0xff,
         contact.hitH & 0xff,
         Math.max(1, slot.speed) & 0xff,
-        updateLane & 1,
+        logicUpdateIntervalFrames & 0xff,
       );
       if (slimeEnabled) {
         table.push(slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING ? (slot.travelPx & 0xff) : 0);
@@ -16295,12 +16326,14 @@ ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatch
 .bitmap_main_loop:
     call bitmap_wait_vblank
     ; ---- VRAM phase: runs inside the blanking window ----
-    ; Sprite pattern/colour uploads and every SAT write go FIRST, right after
-    ; the S#0 frame flag, so the raster never races them (mid-display SAT and
-    ; pattern writes glitched the top third of the frame on jump/move). They
-    ; consume last frame's game state: a uniform 1-frame latency at 60Hz.
-${playerAnimationUpdateCall}${playerColorsUpdateCall}${shootPatternPrepareCall}    call bitmap_update_sprite_sat
-${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${crumbleSystem.satCallAsm}${shootBulletSatCall}    ; ---- logic phase: safe during active display ----
+    ; Every SAT writer goes FIRST, right after the S#0 frame flag. RAM-only
+    ; animation selection may precede it, but no pattern/colour VRAM copy may
+    ; delay the complete SAT chain: otherwise a late terminator/partial slot can
+    ; be sampled by the raster as a one-frame ghost at the upper-left.
+${playerAnimationUpdateCall}    call bitmap_update_sprite_sat
+${enemySystem.satCallAsm}${bossSystem.satCallAsm}${platformSystem.satCallAsm}${carryAndThrowSystem.satCallAsm}${destroyTileSatCall}${turretSystem.satCallAsm}${shaftSystem.satCallAsm}${crumbleSystem.satCallAsm}${shootBulletSatCall}    ; Deferred dirty/variable-cost sprite VRAM copies. A late copy can affect
+    ; colours/pixels for one frame, but can no longer expose partial SAT state.
+${playerColorsUpdateCall}${enemySystem.colorCallAsm}${shootPatternPrepareCall}    ; ---- logic phase: safe during active display ----
     call step_room_composition
     jp c, .skip_player_movement
 ${platformSystem.updateCallAsm}${shaftSystem.updateCallAsm}${bossSystem.updateCallAsm}${dialogueSystem.mainLoopGateAsm}${bossSystem.playerGateAsm}${perceptionSystem.inventoryGateAsm}${airDashGate}    ; Normal platform movement/gravity runs only when no transition/air_dash consumed this frame.

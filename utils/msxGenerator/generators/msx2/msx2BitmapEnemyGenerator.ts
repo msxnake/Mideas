@@ -28,10 +28,10 @@ import {
  *
  * RAM (chained after the dialogue system, below the #C1F0 ceiling):
  *   bitmap_enemy_count   1 byte  active slots in the current room
- *   bitmap_enemy_pool    21 bytes/slot: x, y, dx, dy, minX, maxX, minY, maxY,
+ *   bitmap_enemy_pool    24 bytes/slot: x, y, dx, dy, minX, maxX, minY, maxY,
  *                        animTick, animFrame, frameCount, animDelay, colorOff,
  *                        mode, visualXOff, visualYOff, damage, hitX, hitY,
- *                        hitW, hitH, speed, updateLane
+ *                        hitW, hitH, speed, logicInterval, logicCountdown
  *                        (+3 when a SlimeCeiling enemy exists anywhere:
  *                        travelPx, travelCount, phase; +5 for GearWheel:
  *                        state, cooldownLo/Hi, delayLo/Hi; +2 for FlyBounce8
@@ -42,7 +42,7 @@ import {
  *                               x,y,dx,dy,minX,maxX,minY,maxY,
  *                               patGroupOff,colorOff,frameCount,animDelay,
  *                               mode,visualXOff,visualYOff,damage,hitX,hitY,
- *                               hitW,hitH,speed,updateLane (+travelPx on slime builds,
+ *                               hitW,hitH,speed,logicInterval (+travelPx on slime builds,
  *                               +respawnFramesLo/Hi on GearWheel builds,
  *                               +turnPx on FlyBounce8 builds)
  *   bitmap_room_enemy_ptr_table DW per room
@@ -54,13 +54,13 @@ import {
 
 export const BITMAP_MAX_ENEMY_SLOTS = 4;
 export const BITMAP_MAX_ENEMY_FRAMES = 4;
-export const BITMAP_ENEMY_POOL_STRIDE = 23;  // RAM bytes per slot (base build)
+export const BITMAP_ENEMY_POOL_STRIDE = 24;  // RAM bytes per slot (base build)
 /** Slime builds append travelPx/travelCount/phase to every pool slot. */
-export const BITMAP_ENEMY_POOL_STRIDE_SLIME = 26;
+export const BITMAP_ENEMY_POOL_STRIDE_SLIME = 27;
 /** Gear builds append state/cooldown/delay (5 bytes) to every pool slot. */
-export const BITMAP_ENEMY_POOL_STRIDE_GEAR = 28;
+export const BITMAP_ENEMY_POOL_STRIDE_GEAR = 29;
 /** Combined Slime + Gear build. */
-export const BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR = 31;
+export const BITMAP_ENEMY_POOL_STRIDE_SLIME_GEAR = 32;
 /** FlyBounce8 builds append flyLeft/flyTurnPx to every pool slot. */
 export const BITMAP_ENEMY_POOL_STRIDE_FLY8_BYTES = 2;
 
@@ -199,6 +199,8 @@ export interface BitmapEnemySystemAsm {
    * BEFORE the bullet SAT writer (each writer overwrites the previous
    * terminator and appends its own). */
   satCallAsm: string;
+  /** Deferred per-frame colour-table refresh; must run after every SAT writer. */
+  colorCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
 }
@@ -212,7 +214,7 @@ export function buildBitmapEnemySystemAsm(
   opts: BitmapEnemyRuntimeOptions,
 ): BitmapEnemySystemAsm {
   if (!bitmapEnemySystemEnabled(data)) {
-    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', colorCallAsm: '', routinesAsm: '', dataAsm: '' };
   }
   const maxSlots = data.maxSlots;
   const maxFrames = Math.max(1, data.maxFrames);
@@ -225,13 +227,13 @@ export function buildBitmapEnemySystemAsm(
   const darkEyes = data.darkEyesEnabled && opts.darkEyes ? opts.darkEyes : undefined;
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
   const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0) + (fly8 ? 1 : 0); // ROM bytes per slot
-  const GEAR_STATE_OFFSET = 23 + (slime ? 3 : 0);
+  const GEAR_STATE_OFFSET = 24 + (slime ? 3 : 0);
   const GEAR_COOLDOWN_LO_OFFSET = GEAR_STATE_OFFSET + 1;
   const GEAR_COOLDOWN_HI_OFFSET = GEAR_STATE_OFFSET + 2;
   const GEAR_DELAY_LO_OFFSET = GEAR_STATE_OFFSET + 3;
   const GEAR_DELAY_HI_OFFSET = GEAR_STATE_OFFSET + 4;
   // Bat flight state, after whatever the other optional engines claimed.
-  const FLY8_LEFT_OFFSET = 23 + (slime ? 3 : 0) + (gear ? 5 : 0);   // px left before the next turn
+  const FLY8_LEFT_OFFSET = 24 + (slime ? 3 : 0) + (gear ? 5 : 0);   // px left before the next turn
   const FLY8_TURN_OFFSET = FLY8_LEFT_OFFSET + 1;                    // authored turn distance
   // ROM index of the turnPx byte, which sits behind the other engines' bytes.
   const FLY8_TABLE_INDEX = 22 + (slime ? 1 : 0) + (gear ? 2 : 0);
@@ -245,19 +247,17 @@ export function buildBitmapEnemySystemAsm(
       ? Math.max(0, Math.floor(Number(opts.patternGroupOffsets?.[i])))
       : i * groupsPerSlot
   );
-  // count + slot pool + the shared alternating-update lane byte.
-  const ramBytes = 3 + maxSlots * POOL_STRIDE;
+  // Count + slot pool; FlyBounce8 adds one shared PRNG seed byte.
+  const ramBytes = 1 + maxSlots * POOL_STRIDE + (fly8 ? 1 : 0);
   const countAddr = opts.ramBase;
   const poolAddr = opts.ramBase + 1;
-  const updateLaneAddr = poolAddr + maxSlots * POOL_STRIDE;
+  const randSeedAddr = poolAddr + maxSlots * POOL_STRIDE;
 
-  const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE} + update lane
-; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}) ---
+  const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
+; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
-bitmap_enemy_update_lane EQU ${asmWord(updateLaneAddr)}
-${fly8 ? `; The third fixed byte was already reserved by ramBytes and never used.
-bitmap_enemy_rand_seed EQU ${asmWord(updateLaneAddr + 1)}
+${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
 ` : ''}`;
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
@@ -303,13 +303,19 @@ bitmap_enemy_rand_seed EQU ${asmWord(updateLaneAddr + 1)}
     ld (${poolBase} + 20), a
     ld a, (ix+20)             ; authored movement speed in px/update
     ld (${poolBase} + 21), a
-    ld a, (ix+21)             ; logical enemy update lane (0 or 1)
+    ld a, (ix+21)             ; logic update interval in video frames (1..255)
+    or a
+    jp nz, .benemy_slot_${i}_interval_valid
+    inc a                     ; legacy/corrupt zero falls back to every frame
+.benemy_slot_${i}_interval_valid:
     ld (${poolBase} + 22), a
+    ld a, 1
+    ld (${poolBase} + 23), a  ; first gameplay frame executes logic
 ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-slime slots)
-    ld (${poolBase} + 23), a
+    ld (${poolBase} + 24), a
     xor a
-    ld (${poolBase} + 24), a  ; travelCount = 0
-    ld (${poolBase} + 25), a  ; phase = ground crawl
+    ld (${poolBase} + 25), a  ; travelCount = 0
+    ld (${poolBase} + 26), a  ; phase = ground crawl
 ` : ''}${gear ? `    ; GearWheel state: 1=falling, 2=rolling, 3=stopped, 0=waiting.
     ld a, (ix+${22 + (slime ? 1 : 0)})       ; respawn delay frames (lo)
     ld (${poolBase} + ${GEAR_DELAY_LO_OFFSET}), a
@@ -391,20 +397,20 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
   const maxHealthByte = asmByte(opts.maxHealth ?? 5);
   void opts.lives; // lives are seeded by the deadly system init; the touch handler only decrements.
 
-  // ---- bitmap_update_enemies: alternating logical-enemy movement lanes ----
+  // ---- bitmap_update_enemies: per-enemy configurable logic cadence ----
   // Check-then-move like the SCREEN 4 slot handler: at the bound the enemy
   // turns without moving, so positions can never overshoot minX/maxX.
   const updateAsm = `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemies
 ; ------------------------------------------------------------
-; PURPOSE: Ticks animation for every active slot, but moves only one logical
-;   enemy lane per video frame. Lanes 0/1 alternate, so authored speed N means
-;   N pixels every two frames (N/2 pixels per video frame on average). Every
-;   hardware layer belonging to one logical enemy shares the same lane.
+; PURPOSE: Ticks animation for every active slot, but runs heavy behavior and
+;   movement only when that slot's logic countdown expires. Interval 1 updates
+;   every frame; N updates every N frames. Every hardware layer belonging to
+;   one logical enemy is seeded with the same interval/countdown and stays in phase.
 ;   Paused entirely (movement + animation) while a pause gate holds, e.g.
 ;   an open NPC dialogue; the SAT writer keeps drawing the frozen sprites.
-; INPUT: bitmap_enemy_count, bitmap_enemy_pool, bitmap_enemy_update_lane.
+; INPUT: bitmap_enemy_count, bitmap_enemy_pool.
 ; OUTPUT: pool x/y/dx/dy/anim state updated in RAM.
 ; DESTROYS: AF, DE, IX. PRESERVES: BC, HL, IY.
 ; ------------------------------------------------------------
@@ -413,10 +419,6 @@ ${opts.pauseGateAsm || ''}    ld a, (bitmap_enemy_count)
     or a
     ret z
     push bc
-    ld a, (bitmap_enemy_update_lane)
-    xor 1
-    and 1
-    ld (bitmap_enemy_update_lane), a
 ${fly8 ? `    ; One PRNG step per FRAME, not per draw: every hardware layer of the same
     ; bat has to read the same value or the eyes fly off the body.
     ld a, (bitmap_enemy_rand_seed)
@@ -431,20 +433,30 @@ ${fly8 ? `    ; One PRNG step per FRAME, not per draw: every hardware layer of t
     ld a, (ix+13)             ; #FF = killed by a thrown object
     cp #FF
     jp z, .enemy_step_next
-.enemy_step_lane_gate:
+.enemy_step_cadence_gate:
 ${gear ? `    ; Gear cooldowns are real video-frame seconds, independent of the
-    ; alternating movement lane. Once active, movement still obeys the lane.
+    ; configured logic cadence. Once active, movement obeys the cadence gate.
     ld a, (ix+13)
     cp ${MSX2_ENEMY_MOVEMENT_GEAR_WHEEL}
-    jp nz, .enemy_step_lane_compare
+    jp nz, .enemy_step_cadence_compare
     call .gear_pre_frame
     ld a, (ix+${GEAR_STATE_OFFSET})
     or a
     jp z, .enemy_anim
-.enemy_step_lane_compare:
-` : ''}    ld a, (bitmap_enemy_update_lane)
-    cp (ix+22)                ; other lane: animate, but defer movement
-    jp nz, .enemy_anim
+.enemy_step_cadence_compare:
+` : ''}    ld a, (ix+23)             ; video-frame countdown to next logic update
+    or a
+    jp z, .enemy_step_logic_due       ; defensive recovery from corrupt zero
+    dec a
+    ld (ix+23), a
+    jp nz, .enemy_anim                ; cadence skipped: animation still ticks
+.enemy_step_logic_due:
+    ld a, (ix+22)                     ; authored interval (1..255)
+    or a
+    jp nz, .enemy_step_interval_valid
+    inc a                             ; legacy/corrupt zero => every frame
+.enemy_step_interval_valid:
+    ld (ix+23), a
     ld a, (ix+13)             ; movement mode
     cp ${MSX2_ENEMY_MOVEMENT_PATROL_CHASE_X}
     jp z, .enemy_step_patrol_chase_x
@@ -461,7 +473,7 @@ ${slime ? `    cp ${MSX2_ENEMY_MOVEMENT_SLIME_CEILING}
     ld a, (ix+2)              ; dx
     or a
     jp z, .enemy_step_y
-    ld d, (ix+21)             ; authored pixels per alternating update
+    ld d, (ix+21)             ; authored pixels per logic update
 .enemy_step_x_px:
     ld a, (ix+2)
     bit 7, a
@@ -666,7 +678,7 @@ ${gear ? `    jp .enemy_anim
     jp z, .gear_roll
     jp .enemy_anim
 .gear_fall:
-    ld d, (ix+21)             ; authored speed: px per selected lane update
+    ld d, (ix+21)             ; authored speed: px per logic update
 .gear_fall_px:
     ; An exit below either edge consumes the wheel before solid landing.
     ld a, (ix+1)
@@ -808,7 +820,7 @@ ${gear ? `    jp .enemy_anim
     ld (ix+1), ${asmByte(ENEMY_EMPTY_SPRITE_Y)}
     jp .enemy_anim
 .gear_pre_frame:
-    ; Decrements respawn cooldown every video frame, not every movement lane.
+    ; Decrements respawn cooldown every video frame, not every logic update.
     ; INPUT IX. DESTROYS AF/DE/HL. PRESERVES BC/IX/IY.
     push bc
     push de
@@ -925,7 +937,7 @@ ${gear ? `    jp .enemy_anim
     ; bounds to the whole screen, so (ix+4..7) ARE the edges. Every turnPx
     ; pixels flown the heading is re-rolled, which is what makes it wander
     ; instead of tracing one diagonal forever.
-    ld d, (ix+21)              ; authored pixels per alternating update
+    ld d, (ix+21)              ; authored pixels per logic update
 .fly8_px:
     ld a, (ix+2)               ; dx
     or a
@@ -1028,11 +1040,12 @@ ${gear ? `    jp .enemy_anim
     ; SlimeCeiling: crawls its authored travel distance along the floor, then
     ; sticks (Metroid-style gravity flip look), crawls the same distance upside
     ; down, then drops back to the floor and repeats. Pool extras:
-    ;   +21 speed, +22 updateLane, +23 travelPx, +24 travelCount, +25 phase
+    ;   +21 speed, +22 logicInterval, +23 logicCountdown,
+    ;   +24 travelPx, +25 travelCount, +26 phase
     ;   phase: 0 = floor crawl, 1 = rising, 2 = ceiling crawl, 3 = falling
     ;   All phases use the authored speed and probe every traversed pixel.
     ; Logical origin = SAT x/y minus the visual cell offset, like the walker.
-    ld a, (ix+25)
+    ld a, (ix+26)
     or a
     jp z, .slime_ground
     cp 1
@@ -1060,9 +1073,9 @@ ${gear ? `    jp .enemy_anim
 .slime_ground_speed_loop:
     call .slime_crawl_step
     jp c, .slime_ground_speed_done ; turned at a wall/bound: stop this frame
-    inc (ix+24)
-    ld a, (ix+24)
-    cp (ix+23)
+    inc (ix+25)
+    ld a, (ix+25)
+    cp (ix+24)
     jp nc, .slime_ground_travel_done
     dec b
     jp nz, .slime_ground_speed_loop
@@ -1071,14 +1084,14 @@ ${gear ? `    jp .enemy_anim
     jp .enemy_anim
 .slime_ground_travel_done:
     xor a
-    ld (ix+24), a
-    ld (ix+25), 1              ; hop: start rising to the ceiling
+    ld (ix+25), a
+    ld (ix+26), 1              ; hop: start rising to the ceiling
     pop bc
     jp .enemy_anim
 .slime_start_fall:
     xor a
-    ld (ix+24), a
-    ld (ix+25), 3
+    ld (ix+25), a
+    ld (ix+26), 3
     jp .enemy_anim
 .slime_rise:
     ld d, (ix+21)              ; authored px/update, probing every pixel
@@ -1103,8 +1116,8 @@ ${gear ? `    jp .enemy_anim
     jp .enemy_anim
 .slime_attach:
     xor a
-    ld (ix+24), a
-    ld (ix+25), 2              ; stuck to the ceiling
+    ld (ix+25), a
+    ld (ix+26), 2              ; stuck to the ceiling
     jp .enemy_anim
 .slime_ceiling:
     ; Ceiling still there (head-row probe)? A destroyed tile drops the slime.
@@ -1126,9 +1139,9 @@ ${gear ? `    jp .enemy_anim
 .slime_ceiling_speed_loop:
     call .slime_crawl_step
     jp c, .slime_ceiling_speed_done
-    inc (ix+24)
-    ld a, (ix+24)
-    cp (ix+23)
+    inc (ix+25)
+    ld a, (ix+25)
+    cp (ix+24)
     jp nc, .slime_ceiling_travel_done
     dec b
     jp nz, .slime_ceiling_speed_loop
@@ -1137,8 +1150,8 @@ ${gear ? `    jp .enemy_anim
     jp .enemy_anim
 .slime_ceiling_travel_done:
     xor a
-    ld (ix+24), a
-    ld (ix+25), 3              ; detach: drop back to the floor
+    ld (ix+25), a
+    ld (ix+26), 3              ; detach: drop back to the floor
     pop bc
     jp .enemy_anim
 .slime_fall:
@@ -1164,8 +1177,8 @@ ${gear ? `    jp .enemy_anim
     jp .enemy_anim
 .slime_land:
     xor a
-    ld (ix+24), a
-    ld (ix+25), a              ; phase = floor crawl
+    ld (ix+25), a
+    ld (ix+26), a              ; phase = floor crawl
     jp .enemy_anim
 .slime_probe_body_width:
     ; ------------------------------------------------------------
@@ -1464,7 +1477,7 @@ ${slotUsesCeilingVariants ? `    add a, a                  ; frame * 16 (4 varia
     xor a
 .sat_slot_${i}_pat:
 ${slotUsesCeilingVariants ? `    ld d, a
-    ld a, (${poolBase} + 25)  ; slime phase 1/2 (rising/ceiling) = flipped pose
+    ld a, (${poolBase} + 26)  ; slime phase 1/2 (rising/ceiling) = flipped pose
     dec a
     cp 2
     ld a, d
@@ -1506,7 +1519,7 @@ ${darkEyes ? `    ld a, (${poolBase} + 0)   ; logical X
     ld a, (${poolBase} + 9)   ; animFrame
     add a, e
 ${slotUsesCeilingVariants ? `    ld e, a
-    ld a, (${poolBase} + 25)  ; slime phase 1/2 = flipped line-colour table
+    ld a, (${poolBase} + 26)  ; slime phase 1/2 = flipped line-colour table
     dec a
     cp 2
     jp nc, .color_slot_${i}_noflip
@@ -1662,8 +1675,6 @@ bitmap_load_enemies:
     ld l, a
     ld a, (hl)                ; count byte
     ld (bitmap_enemy_count), a
-    ld a, #FF                 ; first gameplay frame selects update lane 0
-    ld (bitmap_enemy_update_lane), a
     inc hl
     push hl
     pop ix                    ; IX -> slot 0 (${TABLE_STRIDE} bytes/slot)
@@ -1705,16 +1716,17 @@ ${touchDamageAsm}
 ;   terminator), then appends a #D8 terminator. Unused slots get an
 ;   off-screen Y=${asmByte(ENEMY_EMPTY_SPRITE_Y)} sprite so the VDP keeps scanning. When the shoot
 ;   skill is active its bullet writer runs AFTER this and overwrites our
-;   terminator in turn. Also refreshes each active slot's line-colour table for
-;   its current animation frame before opening the SAT write stream.
+;   terminator in turn. This routine performs SAT publication ONLY. Slow light
+;   tests and line-colour copies live in bitmap_update_enemy_colors, which the
+;   global main loop calls after every subsystem has published its SAT entries.
 ; INPUT: bitmap_enemy_count, bitmap_enemy_pool.
 ; OUTPUT: SAT entries at VRAM ${asmWord(opts.satBase)}..${asmWord(opts.satBase + maxSlots * 4 + 3)}.
 ; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
+; VDP STATE: R#14 restored to 0; R#15 is not changed.
 ; ------------------------------------------------------------
 bitmap_update_enemy_sat:
     push bc
     push hl
-${colorUploadSlotBlocks}
     ld de, ${asmWord(opts.satBase)}
     push de
     ld a, d
@@ -1745,6 +1757,27 @@ ${satSlotBlocks}
     pop hl
     pop bc
     ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_update_enemy_colors
+; ------------------------------------------------------------
+; PURPOSE: Refreshes each active enemy hardware layer's 16-byte line-colour
+;   table for its current animation/light state. Deliberately separate from SAT
+;   publication so this variable-cost work cannot leave later subsystem SAT
+;   entries stale or partially published when blanking ends.
+; INPUT: bitmap_enemy_count, bitmap_enemy_pool and optional lighting state.
+; OUTPUT: enemy colour tables refreshed at VRAM ${asmWord(opts.colorBase)}.
+; DESTROYS: AF, DE. PRESERVES: BC, HL, IX, IY.
+; CALLS: bitmap_enemy_colors_offset, copy_to_vram_ext, optional bitmap_enemy_light_reaches.
+; VDP STATE: R#14 restored to 0; R#15 is not changed.
+; ------------------------------------------------------------
+bitmap_update_enemy_colors:
+    push bc
+    push hl
+${colorUploadSlotBlocks}
+    pop hl
+    pop bc
+    ret
 `;
 
   const emitBytes = (label: string, bytes: number[], comment: string): string => {
@@ -1755,7 +1788,7 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,updateLane${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''})`)
+    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''})`)
   ).join('')
     + (fly8
       ? emitBytes('bitmap_enemy_dir8_table', [1, 0, 1, 1, 0, 1, 0xFF, 1, 0xFF, 0, 0xFF, 0xFF, 0, 0xFF, 1, 0xFF],
@@ -1772,6 +1805,7 @@ ${satSlotBlocks}
     loadCallAsm: '    call bitmap_load_enemies\n',
     updateCallAsm: '    call bitmap_update_enemies\n    call bitmap_check_enemy_touch\n',
     satCallAsm: '    call bitmap_update_enemy_sat\n',
+    colorCallAsm: '    call bitmap_update_enemy_colors\n',
     routinesAsm,
     dataAsm,
   };

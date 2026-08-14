@@ -172,6 +172,7 @@ export const createEnemyFromTemplate = (
     enemyId,
     basedOnTemplate: template.templateId,
     name: baseName,
+    logicUpdateIntervalFrames: 1,
     world: options.world || 'common',
     behaviorGroup: `${options.world || 'common'}_entities`,
     category: template.category,

@@ -1513,6 +1513,7 @@ export function buildMsx2EnemyEntityFromAsset(
   const spriteId = renderRole?.spriteId || def.render?.spriteId || '';
   const gearWheel = def.behavior?.type === 'GearWheel';
   const flyBounce8 = def.behavior?.type === 'FlyBounce8';
+  const logicUpdateIntervalFrames = Math.max(1, Math.min(255, Math.floor(Number(def.logicUpdateIntervalFrames ?? (def as any).logicUpdateEveryFrames) || 1)));
   const schemaDefault = (name: string, fallback: any): any => def.spawnParamsSchema?.find(param => param.name === name)?.default ?? fallback;
   const authoredSpeed = Math.max(1, Math.min(15, Math.floor(Number(schemaDefault('speed', 2)) || 2)));
   const authoredDirection = String(schemaDefault('direction', 'right')).toLowerCase() === 'left' ? -1 : 1;
@@ -1520,7 +1521,8 @@ export function buildMsx2EnemyEntityFromAsset(
   const authoredTurnPx = Math.max(1, Math.min(255, Math.floor(Number(schemaDefault('turnPx', 100)) || 100)));
   const dropBombOnPlayerX = Boolean(def.attack?.dropBombOnPlayerX);
   const turretAim = def.behavior?.type === 'TurretAim';
-  const aiComponent = (stateSwitch || dropBombOnPlayerX || turretAim) ? {
+  const aiComponent = {
+    logicUpdateIntervalFrames,
     ...(stateSwitch ? {
       engine: 'stateSwitch',
       trigger: 'playerNear',
@@ -1542,7 +1544,7 @@ export function buildMsx2EnemyEntityFromAsset(
       bulletSpeed: def.attack?.bulletSpeed ?? 2,
       bulletSpriteId: def.attack?.bulletSpriteId || '',
     } : {}),
-  } : undefined;
+  };
   return {
     id: `msx2_enemy_${Date.now()}`,
     name: def.name || asset.name || 'Enemy',
@@ -1553,7 +1555,7 @@ export function buildMsx2EnemyEntityFromAsset(
       msx2_transform: { tileX: x, tileY: y, pixelX: x * 16, pixelY: y * 16, spawnX: x * 16, spawnY: y * 16 },
       msx2_movement: { mode: movementName, direction: authoredDirection, speed: gearWheel || flyBounce8 ? authoredSpeed : 2, ...(gearWheel ? { respawnSeconds: authoredRespawnSeconds } : {}), ...(flyBounce8 ? { turnPx: authoredTurnPx } : {}) },
       msx2_hardware_sprite: { msx2SpriteAssetId: spriteId, frame: 0, paletteSlot: 10, visible: Boolean(spriteId) },
-      ...(aiComponent ? { msx2_ai: aiComponent } : {}),
+      msx2_ai: aiComponent,
       msx2_animation: {
         animation: renderRole?.animation || renderRole?.id || 'enemy',
         frameStart: roleFrames[0] || 0,
@@ -1572,6 +1574,7 @@ export function buildMsx2EnemyEntityFromAsset(
       enemyAssetId: asset.id,
       enemyRenderRoleId: renderRole?.id || '',
       enemyRenderState: renderRole?.state || '',
+      logicUpdateIntervalFrames,
       ...(stateSwitch ? {
         enemyStateSwitch: true,
         enemyNearMode: stateSwitch.nearMode,

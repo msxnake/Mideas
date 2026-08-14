@@ -39,6 +39,17 @@ export interface Msx2EnemyLibraryFile {
 const slugify = (value: string): string =>
   String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'enemy';
 
+/** Normalizes the CPU cadence introduced after the v1 library format shipped. */
+export function normalizeEnemyLogicUpdateEveryFrames(enemy: EnemyDefinition): EnemyDefinition {
+  const raw = Number(enemy.logicUpdateIntervalFrames ?? (enemy as any).logicUpdateEveryFrames);
+  const logicUpdateIntervalFrames = Number.isFinite(raw)
+    ? Math.max(1, Math.min(255, Math.floor(raw)))
+    : 1;
+  return enemy.logicUpdateIntervalFrames === logicUpdateIntervalFrames
+    ? enemy
+    : { ...enemy, logicUpdateIntervalFrames };
+}
+
 /**
  * Type guard for a single entry. Accepts only entries whose enemy has an
  * `enemyId` and a `behavior`, so unrelated JSON never enters the store.
@@ -64,7 +75,10 @@ export function loadMsx2EnemyLibrary(): Msx2EnemyLibraryEntry[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidEntry);
+    return parsed.filter(isValidEntry).map(entry => ({
+      ...entry,
+      enemy: normalizeEnemyLogicUpdateEveryFrames(entry.enemy),
+    }));
   } catch (error) {
     console.error('Failed to load MSX2 enemy library:', error);
     return [];
@@ -101,7 +115,7 @@ export function addEntryToMsx2EnemyLibrary(
     id: `${slugify(uniqueName)}_${Date.now()}`,
     name: uniqueName,
     savedAt: Date.now(),
-    enemy: { ...enemy, name: uniqueName },
+    enemy: normalizeEnemyLogicUpdateEveryFrames({ ...enemy, name: uniqueName }),
   };
   saveMsx2EnemyLibrary([...entries, entry]);
   return entry;
@@ -149,10 +163,13 @@ export function parseMsx2EnemyLibraryFile(json: string): Msx2EnemyLibraryEntry[]
         id: `${slugify(enemy.name || enemy.enemyId)}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         name: enemy.name || enemy.enemyId,
         savedAt: Date.now(),
-        enemy,
+        enemy: normalizeEnemyLogicUpdateEveryFrames(enemy),
       }));
   }
-  const valid = candidates.filter(isValidEntry);
+  const valid = candidates.filter(isValidEntry).map(entry => ({
+    ...entry,
+    enemy: normalizeEnemyLogicUpdateInterval(entry.enemy),
+  }));
   if (valid.length === 0) {
     throw new Error('No valid enemy entries found in the file.');
   }
@@ -179,7 +196,7 @@ export function mergeMsx2EnemyLibraryEntries(
       ...candidate,
       id,
       name,
-      enemy: { ...candidate.enemy, name },
+      enemy: normalizeEnemyLogicUpdateEveryFrames({ ...candidate.enemy, name }),
     };
     entries.push(entry);
     existingIds.add(id);

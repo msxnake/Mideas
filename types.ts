@@ -1893,6 +1893,12 @@ export interface EnemyDefinition {
   enemyId: string;
   basedOnTemplate?: string;
   name: string;
+  /**
+   * Run behavior/movement/attack logic once every N video frames (1..255).
+   * Missing legacy values are normalized to 1 (logic runs every frame).
+   * Rendering/SAT publication and contact safety remain frame-rate based.
+   */
+  logicUpdateIntervalFrames?: number;
   world: string | 'common';
   behaviorGroup: string;
   category: EnemyCategory;

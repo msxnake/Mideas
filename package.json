@@ -14,6 +14,7 @@
     "test:msx2-default-catalog": "node scripts/check_msx2_default_catalog.mjs",
     "test:msx2-editor-contract": "node scripts/check_msx2_entity_editor_contract.mjs",
     "test:msx2-screen-enemy-pack": "node scripts/check_msx2_screen_enemy_pack.mjs",
+    "test:enemy-logic-cadence": "node scripts/check_enemy_logic_update_interval.mjs",
   "test:msx2-bat-flight": "node scripts/check_msx2_bitmap_bat_flight.mjs",
     "test:msx2-skill-params-contract": "node scripts/check_skill_params_contract.cjs",
     "test:msx2-bitmap-room-resident-dispatch": "node scripts/check_msx2_bitmap_room_resident_dispatch.mjs",
