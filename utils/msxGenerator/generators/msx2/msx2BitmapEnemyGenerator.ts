@@ -103,6 +103,15 @@ export interface BitmapEnemyRoomData {
   slimeEnabled: boolean;
   /** True when any room places a GearWheel emitter (mode 12). */
   gearEnabled: boolean;
+  /**
+   * True when any placed enemy opts into the dark-room "eyes only" look. Every
+   * unique sprite then carries a SECOND set of line-colour blocks after the
+   * normal (and slime-flipped) ones: the opted-in ones keep only the eye lines,
+   * the rest are a byte copy of their normal blocks. Copying instead of
+   * branching means the runtime offset is the same for every slot, so no
+   * per-slot flag has to reach the RAM pool.
+   */
+  darkEyesEnabled?: boolean;
   /** Per-hardware-slot destination offset (in 32-byte pattern groups).
    * Slots with a SlimeCeiling sprite reserve four variants per frame;
    * ordinary enemies reserve two.  Keeping these offsets sparse avoids
@@ -147,6 +156,24 @@ export interface BitmapEnemyRuntimeOptions {
   /** Early-return gate prepended to bitmap_update_enemies (e.g. the NPC
    * dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
+  /**
+   * Dark-room "eyes only" support. Absent when no enemy opted in, which keeps
+   * the light test, its table and the second colour bank out of the ROM.
+   */
+  darkEyes?: {
+    /**
+     * Halo half width per 8-row slice of its 64-row vertical extent, one row of
+     * 8 entries per decay stage (stage 0 = brightest first). A lamp that never
+     * decays has a single row.
+     */
+    halfWidths: number[][];
+    /** Read bitmap_light_stage to pick the row (torch skill builds only). */
+    stagedHalo: boolean;
+    /** The player halo only counts while the tail is lit (torch skill builds). */
+    torchGated: boolean;
+    /** Travelling bullet lantern box, when the shoot skill drags one. */
+    lantern?: { halfWidth: number; halfHeight: number };
+  };
 }
 
 export interface BitmapEnemySystemAsm {
@@ -180,6 +207,10 @@ export function buildBitmapEnemySystemAsm(
   const maxFrames = Math.max(1, data.maxFrames);
   const slime = Boolean(data.slimeEnabled);
   const gear = Boolean(data.gearEnabled);
+  // "Eyes only in the dark" needs both halves: the baked second colour bank
+  // (data) and a light source to test against (opts). Either one missing keeps
+  // the feature — and every byte of it — out of the ROM.
+  const darkEyes = data.darkEyesEnabled && opts.darkEyes ? opts.darkEyes : undefined;
   const POOL_STRIDE = bitmapEnemyPoolStride(data);
   const TABLE_STRIDE = 22 + (slime ? 1 : 0) + (gear ? 2 : 0); // ROM bytes per slot
   const GEAR_STATE_OFFSET = 23 + (slime ? 3 : 0);
@@ -1327,7 +1358,13 @@ ${slotUsesCeilingVariants ? `    ld d, a
     ld a, (bitmap_enemy_count)
     cp ${i + 1}
     jp c, .color_slot_${i}_done
-    ld a, (${poolBase} + 12)  ; colorOff base, in 16-byte blocks
+${darkEyes ? `    ld a, (${poolBase} + 0)   ; logical X
+    ld b, a
+    ld a, (${poolBase} + 1)   ; logical Y
+    ld c, a
+    call bitmap_enemy_light_reaches
+    ld d, a                   ; D = 0 while no light reaches this slot
+` : ''}    ld a, (${poolBase} + 12)  ; colorOff base, in 16-byte blocks
     ld e, a
     ld a, (${poolBase} + 9)   ; animFrame
     add a, e
@@ -1341,12 +1378,123 @@ ${slotUsesCeilingVariants ? `    ld e, a
     ld e, a
 .color_slot_${i}_noflip:
     ld a, e
+` : ''}${darkEyes ? `    ld c, a
+    ld a, d
+    or a
+    ld a, c
+    jp nz, .color_slot_${i}_lit
+    ld e, a                   ; in the dark: the eyes-only bank sits one whole
+    ld a, (${poolBase} + 10)  ; set of frames later${slime ? ` (x2: past the slime flips)` : ''}
+${slime ? `    add a, a
+` : ''}    add a, e
+.color_slot_${i}_lit:
 ` : ''}    call bitmap_enemy_colors_offset
     ld de, ${asmWord(colorVram)}
     ld bc, 16
     call copy_to_vram_ext
 .color_slot_${i}_done:`;
   }).join('\n');
+
+  // ---- dark-room "eyes only": does any light source reach this enemy? ----
+  const darkEyesAsm = !darkEyes ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_enemy_light_reaches
+; ------------------------------------------------------------
+; PURPOSE: Dark-room bats. Answers whether a light source covers this enemy, so
+;   the SAT writer can pick the eyes-only line-colour block instead of the full
+;   body one. The sources are the ones the lighting engine already tracks: the
+;   player's halo (a blob, so its half width is looked up per 8-row slice) and
+;   the travelling bullet lantern (a plain box). Nothing here paints anything;
+;   the halo itself is drawn by the lighting engine as always.
+; INPUT: B = enemy logical X, C = enemy logical Y (RAM pool coordinates).
+; OUTPUT: A = 1 lit (draw the whole body), 0 dark (draw only the eye lines).
+; DESTROYS: AF, BC, DE, HL. PRESERVES: IX, IY.
+; NOTES: A room that is not dark short-circuits to "lit", so outside the dark
+;   rooms this whole feature costs one flag test per enemy slot per frame.
+;   The 8-bit sub/neg pair gives a true absolute difference across the full
+;   0..255 range: a wrapped subtraction sets the borrow, and negating it lands
+;   back on the real distance.
+; ------------------------------------------------------------
+bitmap_enemy_light_reaches:
+    call bitmap_light_room_is_dark
+    jp z, .elr_lit             ; normal room: nothing is hidden
+    ld a, b
+    add a, 8
+    ld b, a                    ; B = body centre X
+    ld a, c
+    add a, ${asmByte(opts.gameYOffset + 8)}
+    ld c, a                    ; C = body centre Y, in screen rows
+${darkEyes.torchGated ? `    ld a, (bitmap_light_on)
+    or a
+    jp z, .elr_lantern         ; tail out: the player carries no halo
+` : ''}    ld a, (bitmap_light_active)
+    or a
+    jp z, .elr_lantern
+    ld a, (bitmap_light_y)
+    ld e, a
+    ld a, c
+    sub e
+    add a, 32
+    cp 64
+    jp nc, .elr_lantern        ; above or below the halo's 64-row extent
+    srl a
+    srl a
+    srl a                      ; 0..7: which 8-row slice of the blob
+${darkEyes.stagedHalo ? `    ld e, a
+    ld a, (bitmap_light_stage)
+    add a, a
+    add a, a
+    add a, a                   ; 8 half widths per decay stage
+    add a, e
+` : ''}    ld e, a
+    ld d, 0
+    ld hl, bitmap_enemy_light_half_widths
+    add hl, de
+    ld e, (hl)                 ; E = halo half width on this row
+    ld a, (bitmap_light_x)
+    ld l, a
+    ld a, b
+    sub l
+    jp nc, .elr_halo_absx
+    neg
+.elr_halo_absx:
+    cp e
+    jp c, .elr_lit
+.elr_lantern:
+${!darkEyes.lantern ? '' : `    ld a, (bitmap_bl_on)
+    or a
+    jp z, .elr_dark
+    ld a, (bitmap_bl_x)
+    ld e, a
+    ld a, b
+    sub e
+    jp nc, .elr_bl_absx
+    neg
+.elr_bl_absx:
+    cp ${asmByte(darkEyes.lantern.halfWidth)}
+    jp nc, .elr_dark
+    ld a, (bitmap_bl_y)
+    ld e, a
+    ld a, c
+    sub e
+    jp nc, .elr_bl_absy
+    neg
+.elr_bl_absy:
+    cp ${asmByte(darkEyes.lantern.halfHeight)}
+    jp nc, .elr_dark
+    jp .elr_lit
+.elr_dark:
+`}    xor a
+    ret
+.elr_lit:
+    ld a, 1
+    ret
+
+; Halo half width per 8-row slice of its 64-row vertical extent${darkEyes.stagedHalo ? `,
+; one row of 8 per decay stage (stage 0 = freshly fed)` : ''}.
+bitmap_enemy_light_half_widths:
+${darkEyes.halfWidths.map(row => `    DB ${row.map(value => asmByte(value)).join(',')}`).join('\n')}
+`;
 
   const routinesAsm = `
 ; ------------------------------------------------------------
@@ -1410,7 +1558,7 @@ bitmap_enemy_colors_offset:
     ld de, bitmap_enemy_sprite_colors
     add hl, de
     ret
-${updateAsm}
+${darkEyesAsm}${updateAsm}
 ${touchDamageAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemy_sat

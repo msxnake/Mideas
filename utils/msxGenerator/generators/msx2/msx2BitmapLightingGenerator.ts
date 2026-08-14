@@ -168,6 +168,28 @@ const MAX_STEP = Math.min(8, ...BAND_ROWS.map(([, h]) => h));
 
 const CY_MIN = GAME_Y + VEXT;
 const CY_MAX = GAME_Y + GAME_H - VEXT;
+/** Bullet lantern box, in pixels from the bullet centre. */
+export const BITMAP_LANTERN_HALF_WIDTH = 16;
+export const BITMAP_LANTERN_HALF_HEIGHT = 12;
+
+/**
+ * The halo's half width sampled every 8 rows of its ${VEXT * 2}-row vertical extent, so
+ * "is this sprite standing in the light?" can be a table lookup instead of a
+ * band walk. One row of 8 per decay stage when the torch skill is on; a plain
+ * lamp never decays and only needs stage 0.
+ *
+ * Consumed by the enemy runtime's dark-room bats. It samples the same geometry
+ * the halo painter uses, so widening a band moves both together.
+ */
+export function bitmapHaloHalfWidthSlices(staged: boolean): number[][] {
+  const stages = staged ? STAGE_HALF_WIDTHS : [LAMP_HALF_WIDTHS];
+  return stages.map(halfWidths => Array.from({ length: (VEXT * 2) / 8 }, (_slice, index) => {
+    const dy = -VEXT + index * 8;
+    const band = BAND_ROWS.findIndex(([top, height]) => dy >= top && dy < top + height);
+    return halfWidths[band < 0 ? 0 : band];
+  }));
+}
+
 const stageHwMax = (stage: number) => Math.max(...STAGE_HALF_WIDTHS[stage]);
 const stageCxMin = (stage: number) => stageHwMax(stage);
 const stageCxMax = (stage: number) => 256 - stageHwMax(stage);

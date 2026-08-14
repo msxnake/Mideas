@@ -5075,6 +5075,34 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     </div>
                   )}
 
+                  {(selectedPlacedEntity.kind === 'enemy' || selectedPlacedEntity.kind === 'hazard') && (
+                    <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
+                      <div className="text-[0.7rem] text-msx-highlight">Solo los ojos en la oscuridad</div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary">
+                        Color de los ojos
+                        <select
+                          value={String(Number(selectedPlacedEntity.params?.darkEyesColor) || 0)}
+                          onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, {
+                            darkEyesColor: Number(event.target.value) || undefined,
+                          })}
+                          className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                          aria-label="Color de los ojos visibles en la oscuridad"
+                        >
+                          <option value="0">(desactivado: se ve entero siempre)</option>
+                          {Array.from({ length: 15 }, (_unused, index) => index + 1).map(colorIndex => (
+                            <option key={colorIndex} value={colorIndex}>Color {colorIndex}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
+                        En salas oscuras solo se dibujan las lineas del sprite pintadas con ese color;
+                        el resto del cuerpo aparece cuando le llega la luz del jugador o la de una bala
+                        con farol. El color de un sprite en modo 2 es por LINEA, asi que esas filas no
+                        pueden llevar ningun otro pixel del bicho.
+                      </div>
+                    </div>
+                  )}
+
                   {isSelectedCarryable && (
                     <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
                       <div className="text-[0.7rem] text-msx-highlight">Render del carryable</div>

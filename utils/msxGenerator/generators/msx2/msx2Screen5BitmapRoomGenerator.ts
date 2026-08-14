@@ -15,7 +15,7 @@ import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEnti
 import { normalizeStateMachineInput } from '../../../stateMachineInputs';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
-import { buildBitmapLightingSystemAsm, isBitmapLightingRoom, isBitmapMushroomEntity } from './msx2BitmapLightingGenerator';
+import { buildBitmapLightingSystemAsm, isBitmapLightingRoom, isBitmapMushroomEntity, bitmapHaloHalfWidthSlices, BITMAP_LANTERN_HALF_WIDTH, BITMAP_LANTERN_HALF_HEIGHT } from './msx2BitmapLightingGenerator';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -12589,6 +12589,13 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     spriteId: string;
     frameIndices: number[];
     delayFrames: number;
+    /**
+     * Dark-room "eyes only": the sprite colour index that stays visible when no
+     * light reaches the enemy. 0 = the enemy is lit normally, like every other
+     * one. Part of the cache key, so the same sprite can be a plain enemy in one
+     * room and a pair of floating eyes in another.
+     */
+    darkEyesColor: number;
     cacheKey: string;
   }
   interface EnemyHardwareSlot {
@@ -12636,6 +12643,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // room tables below): slime builds emit vertical-flip pattern/colour variants.
   let slimeEnabled = false;
   let gearEnabled = false;
+  let darkEyesEnabled = false;
   const emptyPattern = Array(32).fill(0);
   const enemyAssetForEntity = (entity: any): any | undefined => {
     const enemyId = String(entity?.params?.enemyAssetId || entity?.enemyAssetId || '').trim();
@@ -12727,11 +12735,23 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     const delayFrames = Number.isFinite(rawDelay) && rawDelay > 0
       ? Math.max(1, Math.min(255, Math.floor(rawDelay)))
       : 8;
+    // Authored on the placement (or on the Enemy Asset render block): which
+    // colour index survives the dark. Anything outside 1..15 means "off".
+    const rawDarkEyes = Number(
+      entity?.params?.darkEyesColor
+      ?? entity?.components?.msx2_ai?.darkEyesColor
+      ?? enemyAsset?.render?.darkEyesColor
+      ?? 0
+    );
+    const darkEyesColor = Number.isFinite(rawDarkEyes) && rawDarkEyes >= 1 && rawDarkEyes <= 15
+      ? Math.floor(rawDarkEyes)
+      : 0;
     return {
       spriteId,
       frameIndices,
       delayFrames,
-      cacheKey: `${spriteId || '__placeholder__'}:${frameIndices.join(',')}:${delayFrames}`,
+      darkEyesColor,
+      cacheKey: `${spriteId || '__placeholder__'}:${frameIndices.join(',')}:${delayFrames}:${darkEyesColor}`,
     };
   };
   const resolveContactForEntity = (entity: any): EnemyHardwareSlot['contact'] => {
@@ -12833,6 +12853,17 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
   // one 16-byte line colour table (frame 0 — enemy colours are per-slot, not
   // per-frame). Line colours already colour each row, so a single layer keeps
   // multicolour sprites looking right.
+  /**
+   * The dark half of a 16-byte sprite-mode-2 line-colour block. A line whose
+   * colour is the authored eye index keeps it; every other line loses its colour
+   * and renders transparent, which is how "only the eyes" is possible at all —
+   * mode 2 colours a whole LINE, never a pixel, so the eyes have to be the only
+   * thing drawn on their rows. The high nibble (CC/IC sprite mode flags) is
+   * preserved either way. `eyeColor` 0 returns the block untouched, which is
+   * what non-participating sprites get.
+   */
+  const darkEyesColorBlock = (colors: number[], eyeColor: number): number[] =>
+    (eyeColor ? colors.map(byte => ((byte & 0x0f) === eyeColor ? byte : byte & 0xf0)) : colors.slice());
   const resolveSpriteRecord = (render: EnemyRenderSelection, spriteLayerIndex: number): EnemySpriteRecord => {
     const key = `${render.cacheKey}:${spriteLayerIndex}`;
     const existing = spriteRecords.get(key);
@@ -12871,6 +12902,19 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       // Flipped line-colour tables follow the normal ones (frameCount blocks later).
       for (const colors of frameColors) {
         colorBytes.push(...colors.slice().reverse());
+      }
+    }
+    if (darkEyesEnabled) {
+      // Second bank, a whole set of frames later: what the enemy looks like with
+      // no light on it. Sprites that did not opt in get a plain copy, so the
+      // runtime can add the same offset for every slot without a per-slot flag.
+      for (const colors of frameColors) {
+        colorBytes.push(...darkEyesColorBlock(colors, render.darkEyesColor));
+      }
+      if (slimeEnabled) {
+        for (const colors of frameColors) {
+          colorBytes.push(...darkEyesColorBlock(colors.slice().reverse(), render.darkEyesColor));
+        }
       }
     }
     maxFrames = Math.max(maxFrames, record.frameCount);
@@ -12912,6 +12956,12 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_SLIME_CEILING) slimeEnabled = true;
       if (pair.slot.mode === MSX2_ENEMY_MOVEMENT_GEAR_WHEEL) gearEnabled = true;
       const render = renderSelectionForEntity(pair.entity);
+      // Only worth a second colour bank where there is darkness to hide in: a
+      // project with no lamp room has no light state to test against, and the
+      // runtime half of this feature is not emitted at all.
+      if (render.darkEyesColor && rooms.some(candidate => isBitmapLightingRoom(candidate))) {
+        darkEyesEnabled = true;
+      }
       const grid = spriteGrid(render);
       const hardwareSlots = grid.slots.length ? grid.slots : [{ x: 0, y: 0 }];
       const contact = resolveContactForEntity(pair.entity);
@@ -13026,6 +13076,7 @@ function buildBitmapRoomEnemyData(analysis: ProjectAnalysis, rooms: Msx2Screen5B
     colorBytes,
     slimeEnabled,
     gearEnabled,
+    darkEyesEnabled,
     patternGroupOffsets,
     patternVariantCounts,
     patternGroupCount,
@@ -15332,6 +15383,20 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   // Enemy patrol runtime state chains after the dialogue system. While an NPC
   // dialogue is open every enemy engine pauses (movement + animation) so the
   // world freezes with the conversation, like the player movement gate does.
+  // Dark-room "eyes only" enemies test themselves against the lighting engine's
+  // own state, so they need the same answers the lighting system is built from
+  // further down: is any room dark, does the player carry a torch (which makes
+  // the halo optional and staged), and does a shot drag a lantern. Recomputed
+  // here rather than reordered, because the lighting system needs RAM the enemy
+  // system has not claimed yet.
+  const darkEyesTorch = getMsx2TorchConfigFromPlayerEntity(bitmapRoomPlayer);
+  const darkEyesAnyDarkRoom = rooms.some(candidate => isBitmapLightingRoom(candidate));
+  const darkEyesAnyMushroom = darkEyesTorch.enabled === true
+    && rooms.some(candidate => isBitmapLightingRoom(candidate)
+      && (candidate.entities || []).some((entity: any) => isBitmapMushroomEntity(entity)));
+  const darkEyesLantern = (darkEyesAnyMushroom && bitmapShootEnabled(shootConfig) && shootConfig.bulletLantern)
+    ? { halfWidth: BITMAP_LANTERN_HALF_WIDTH, halfHeight: BITMAP_LANTERN_HALF_HEIGHT }
+    : undefined;
   const enemySystem = buildBitmapEnemySystemAsm(enemyData, {
     ramBase: hudLinkedRamCursor,
     satBase: enemySatBase,
@@ -15351,6 +15416,14 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     ret nz
 `
       : ''}${perceptionPauseGateAsm}`,
+    darkEyes: darkEyesAnyDarkRoom
+      ? {
+          halfWidths: bitmapHaloHalfWidthSlices(darkEyesTorch.enabled === true),
+          stagedHalo: darkEyesTorch.enabled === true,
+          torchGated: darkEyesTorch.enabled === true,
+          lantern: darkEyesLantern,
+        }
+      : undefined,
   });
   hudLinkedRamCursor += enemySystem.ramBytes;
   const turretSystem = buildBitmapTurretSystemAsm(turretData, {
@@ -15547,8 +15620,8 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
           slotCount: Math.max(1, Math.min(8, Math.floor(shootConfig.maxBullets) || 3)),
           slotStride: bitmapShootSlotStride(shootConfig),
           speed: Math.max(1, Math.min(16, Math.floor(shootConfig.bulletSpeed) || 4)),
-          halfWidth: 16,
-          halfHeight: 12,
+          halfWidth: BITMAP_LANTERN_HALF_WIDTH,
+          halfHeight: BITMAP_LANTERN_HALF_HEIGHT,
           gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
         }
       : undefined,

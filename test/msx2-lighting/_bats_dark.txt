@@ -1,0 +1,32 @@
+t6 scr=0 player=32,128 halo=40,165 on=1 active=1
+   bat0 at 73,32  block: body=00 eye=07  -> DARK
+   bat1 at 153,80  block: body=00 eye=07  -> DARK
+   bat2 at 217,128  block: body=00 eye=07  -> DARK
+t9 scr=0 player=152,128 halo=157,165 on=1 active=1
+   bat0 at 78,32  block: body=00 eye=07  -> DARK
+   bat1 at 118,80  block: body=00 eye=07  -> DARK
+   bat2 at 142,128  block: body=02 eye=07  -> LIT 
+t11 scr=0 player=228,128 halo=216,165 on=1 active=1
+   bat0 at 18,32  block: body=00 eye=07  -> DARK
+   bat1 at 59,80  block: body=00 eye=07  -> DARK
+   bat2 at 109,128  block: body=00 eye=07  -> DARK
+t13 scr=0 player=228,128 halo=216,165 on=1 active=1
+   bat0 at 73,32  block: body=00 eye=07  -> DARK
+   bat1 at 96,80  block: body=00 eye=07  -> DARK
+   bat2 at 169,128  block: body=00 eye=07  -> DARK
+t15 scr=0 player=228,128 halo=228,165 on=1 active=1
+   bat0 at 108,32  block: body=00 eye=07  -> DARK
+   bat1 at 156,80  block: body=00 eye=07  -> DARK
+   bat2 at 220,128  block: body=0F eye=07  -> LIT 
+t17 scr=0 player=228,128 halo=228,165 on=1 active=1
+   bat0 at 48,32  block: body=00 eye=07  -> DARK
+   bat1 at 145,80  block: body=00 eye=07  -> DARK
+   bat2 at 160,128  block: body=00 eye=07  -> DARK
+t19 scr=0 player=228,128 halo=228,165 on=1 active=1
+   bat0 at 43,32  block: body=00 eye=07  -> DARK
+   bat1 at 85,80  block: body=00 eye=07  -> DARK
+   bat2 at 100,128  block: body=00 eye=07  -> DARK
+final scr=0 player=228,128 halo=228,165 on=1 active=1
+   bat0 at 73,32  block: body=00 eye=07  -> DARK
+   bat1 at 55,80  block: body=00 eye=07  -> DARK
+   bat2 at 121,128  block: body=00 eye=07  -> DARK
