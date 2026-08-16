@@ -1,4 +1,4 @@
-import { ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, PSGSoundData, Screen5PaletteSlot } from '../../../../types';
+import { MSX2_WORLDLINK_MUSIC_NONE, ConnectionDirection, Msx2BitmapRoomCommand, Msx2GameFlowEndNode, Msx2GameFlowGraph, Msx2GameFlowNode, Msx2GameFlowScreen5PresentationNode, Msx2GameFlowTransitionNode, Msx2HudAsset, Msx2HudElement, Msx2HudFontAsset, Msx2HudIconEntry, Msx2HudWidget, Msx2PlayerDefinition, Msx2Screen5BitmapRoom, Msx2Screen5PresentationConfig, Msx2Sprite, PaletteAsset, PSGSoundData, Screen5PaletteSlot } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { isMsx2Screen5Purpose } from '../../../msx2GameFlowPurpose';
 import {
@@ -15,7 +15,7 @@ import { getMsx2PlatformPhysicsFromPlayerEntity, getMsx2DashConfigFromPlayerEnti
 import { normalizeStateMachineInput } from '../../../stateMachineInputs';
 import type { Msx2CollectorGemsConfig } from '../../../msx2PlatformPhysics';
 import { buildBitmapPerceptionSystemAsm, bitmapPerceptionWindowNeeded } from './msx2BitmapPerceptionGenerator';
-import { buildBitmapLightingSystemAsm, isBitmapLightingRoom, isBitmapMushroomEntity, bitmapHaloHalfWidthSlices, BITMAP_LANTERN_HALF_WIDTH, BITMAP_LANTERN_HALF_HEIGHT } from './msx2BitmapLightingGenerator';
+import { buildBitmapLightingSystemAsm, isBitmapLightingRoom, isBitmapMushroomEntity, bitmapHaloHalfWidthSlices, BITMAP_LIGHT_DIM_CMD_CALL, BITMAP_LANTERN_HALF_WIDTH, BITMAP_LANTERN_HALF_HEIGHT } from './msx2BitmapLightingGenerator';
 import {
   bitmapAirDashEnabled,
   buildBitmapAirDashEquates,
@@ -181,6 +181,16 @@ import {
   type BitmapCrumbleCell,
 } from './msx2BitmapCrumbleGenerator';
 import {
+  bitmapSwayCellCount,
+  buildBitmapSwaySystemAsm,
+  MSX2_BITMAP_SWAY_HOLD_DEFAULT,
+  MSX2_BITMAP_SWAY_HOLD_MAX,
+  MSX2_BITMAP_SWAY_HOLD_MIN,
+  MSX2_BITMAP_SWAY_MAX_SETS,
+  type BitmapSwayCell,
+  type BitmapSwaySet,
+} from './msx2BitmapSwayGenerator';
+import {
   buildHardwareSpriteLayersForFrame,
   getFirstReferencedMsx2Sprite,
   getMsx2PlayerAssetRecords,
@@ -194,6 +204,7 @@ import {
   BitmapEnemyRoomData,
   bitmapEnemyPoolStride,
   bitmapEnemyVariantsPerFrame,
+  bitmapEnemySystemEnabled,
   buildBitmapEnemySystemAsm,
 } from './msx2BitmapEnemyGenerator';
 import {
@@ -249,6 +260,7 @@ import {
   emitBitmapFlowTextScrollNode,
   resetBitmapFlowStringCounter,
 } from './msx2BitmapFlowTextGenerator';
+import { buildScreen5FlowFontBytes } from './msx2Screen5FlowFont';
 import {
   bitmapCarryAndThrowEnabled,
   buildBitmapCarryAndThrowSystemAsm,
@@ -725,6 +737,8 @@ function buildBitmapGameFlowProgram(
      * (single-world) leaves the WorldLink body byte-identical to the classic one.
      */
     worldIndexById?: Map<string, number>;
+    /** Konami MegaROM: the GameFlow font lives in a data bank, staged per glyph. */
+    bankedFont?: boolean;
   },
 ): string {
   const flow = resolveBitmapGameFlow(analysis);
@@ -859,7 +873,32 @@ function buildBitmapGameFlowProgram(
           lines.push(`    ld a, ${worldIndex}                 ; world "${String((node as any)?.worldAssetId || '')}"`);
           lines.push('    call bitmap_prepare_world');
         }
+        // World music (Music on entry, set per WorldLink in the editor):
+        //   '__none'   -> enter in silence, stopping whatever a previous world or
+        //                 Music node left playing;
+        //   <track id> -> that track starts, looped, with the gameplay loop;
+        //   unset      -> emit nothing, so legacy graphs keep the music a Music
+        //                 node (or the boot fallback) started.
+        // The stop goes BEFORE the room load: the song only advances while the
+        // main loop ticks music_update, so leaving it running across the load
+        // would hold the last frame's registers as a drone.
+        const worldMusicId = String((node as any)?.musicTrackAssetId || '').trim();
+        const worldMusicSilent = worldMusicId === MSX2_WORLDLINK_MUSIC_NONE;
+        if (worldMusicId && musicEnabled) {
+          lines.push(`    call music_stop           ; World music: ${worldMusicSilent ? 'None (enter in silence)' : 'restart clean for this world'}`);
+        } else if (worldMusicId && !worldMusicSilent) {
+          lines.push(`    ; World music "${worldMusicId}" skipped: this project emits no music runtime (needs tracks + Konami SCC MegaROM).`);
+        }
         lines.push(loadWorldAsm);
+        if (worldMusicId && !worldMusicSilent && musicEnabled) {
+          const worldTrackIndex = trackIndexById.get(worldMusicId);
+          if (worldTrackIndex === undefined) {
+            lines.push(`    ; World music track "${worldMusicId}" not found among this ROM's tracks; falling back to track 0.`);
+          }
+          lines.push(`    ld a, ${worldTrackIndex ?? 0}                 ; World music: track ${worldTrackIndex ?? 0} (loop)`);
+          lines.push('    ld b, 1');
+          lines.push('    call music_play_track');
+        }
         lines.push('    call bitmap_enter_game_loop');
         lines.push(jumpTo(defaultTarget(nodeId)));
         break;
@@ -952,7 +991,7 @@ function buildBitmapGameFlowProgram(
   }
   // The text/menu/scroll engine and its font are only emitted when a node needs
   // them, so flows without text keep the ROM byte-identical.
-  const textRuntime = bitmapFlowTextRuntime(collectBitmapFlowTextFeatures(flow.nodes as any));
+  const textRuntime = bitmapFlowTextRuntime(collectBitmapFlowTextFeatures(flow.nodes as any), options.bankedFont === true);
   return `${lines.join('\n')}\n${textRuntime}${dataBlocks.join('')}`;
 }
 
@@ -1605,13 +1644,26 @@ function packBitmapPixels(pixels: number[][]): number[] {
   return packed;
 }
 
-function packAtlasPixels(room: Msx2Screen5BitmapRoom): number[] {
+/**
+ * Pack the shared atlas for its VRAM upload.
+ *
+ * `zeroPromotion` (see SLOT 8 RESERVE at the call site) replaces colour 0 with
+ * the backdrop INDEX. On screen that changes nothing — colour 0 is transparent
+ * (R#8 TP=0) and displays exactly palette[R#7] — but it keeps colour 0 out of
+ * VRAM, so the dimmed twin never produces palette slot 8 and that slot stays
+ * free for the HUD band. Only the upload is rewritten: everything derived from
+ * the atlas at build time (sprite opacity masks, foreground tiles, pickup
+ * stamps) keeps reading the authored pixels, where 0 still means transparent.
+ */
+function packAtlasPixels(room: Msx2Screen5BitmapRoom, zeroPromotion = 0): number[] {
   const atlasPixels = normalizeAtlasPixels(room);
+  const fillValue = zeroPromotion & 0x0f;
   const rows: number[][] = [];
   for (let y = 0; y < room.atlas.height; y++) {
-    const row = Array.from({ length: SCREEN_WIDTH }, () => 0);
+    const row = Array.from({ length: SCREEN_WIDTH }, () => fillValue);
     for (let x = 0; x < room.atlas.width; x++) {
-      row[x] = atlasPixels[y]?.[x] ?? 0;
+      const value = atlasPixels[y]?.[x] ?? 0;
+      row[x] = value === 0 ? fillValue : value;
     }
     rows.push(row);
   }
@@ -2399,7 +2451,65 @@ function normalizeBitmapWorldExitConfig(entity: any): BitmapWorldExitConfig {
  * destination Y is shifted by the HUD band so logical room coords (0..191) land
  * below the persistent HUD. Returns the flattened 15-byte blocks and their count.
  */
-function buildRoomRenderBlocks(room: Msx2Screen5BitmapRoom, pageBaseY = BITMAP_ROOM_PAGE0_BASE_Y): { bytes: number[]; count: number } {
+/**
+ * Rewrite a room's command program so it composes the room ALREADY DIMMED.
+ *
+ * The paired 8x2 palette makes bit 3 of a pixel the light level, so a dark room
+ * does not need to be painted bright and then dimmed: a tile copy can read from
+ * a pre-dimmed twin of the atlas (dimShift rows below the original) and a colour
+ * fill can simply carry the dimmed index. Measured on hardware, that removes the
+ * single most expensive blit in the engine — a 256x192 LMMV OR over the game
+ * band, 292 ms = 17,5 frames — from every dark-room entry, at the price of one
+ * copy of the atlas in VRAM (built once at boot by prepare_dark_atlas).
+ *
+ * Only the halo and the mushroom glows are cut out at runtime afterwards, which
+ * is a couple of thin fills.
+ */
+/**
+ * Replace a background colour of 0 with the boot room's backdrop INDEX in every
+ * room of a dark world (SLOT 8 RESERVE). Colour 0 is transparent and displays
+ * palette[R#7], so both paint the same pixels; the difference is that the index
+ * survives the runtime `OR #08` dimming as slot 9 instead of landing on slot 8.
+ *
+ * A no-op unless the world has a dark room AND the boot room has a non-zero
+ * backdrop — with a backdrop of 0 there is no other index painting the same
+ * thing, so slot 8 stays pinned to the darkness and cannot be reused.
+ */
+function promoteZeroBackgroundForDarkWorld(
+  rooms: Msx2Screen5BitmapRoom[],
+  bootIndex: number,
+): Msx2Screen5BitmapRoom[] {
+  const backdrop = clampByte(rooms[bootIndex]?.backgroundColor, 0) & 0x0f;
+  if (backdrop === 0 || !rooms.some(room => isBitmapLightingRoom(room))) return rooms;
+  return rooms.map(room => ((clampByte(room.backgroundColor, 0) & 0x0f) === 0
+    ? { ...room, backgroundColor: backdrop }
+    : room));
+}
+
+function dimRoomRenderRecords(records: CommandRecord[], dimShift: number, zeroPromotion = 0): CommandRecord[] {
+  if (dimShift <= 0) return records;
+  const promoted = zeroPromotion & 0x0f;
+  return records.map(record => {
+    if (record.op === OP_COPY_16 || record.op === OP_COPY_8) {
+      // Only atlas reads have a dimmed twin; anything else is left alone.
+      return record.sy >= BITMAP_ROOM_ATLAS_BASE_Y
+        ? { ...record, sy: record.sy + dimShift }
+        : record;
+    }
+    // A fill authored in colour 0 would dim to slot 8; route it through the
+    // backdrop index instead so slot 8 stays reserved (SLOT 8 RESERVE). Colour 0
+    // and the backdrop index paint the same thing, so this is invisible.
+    const color = record.color === 0 ? promoted : record.color;
+    return { ...record, color: color | 0x08 };
+  });
+}
+
+function buildRoomRenderBlocks(
+  room: Msx2Screen5BitmapRoom,
+  pageBaseY = BITMAP_ROOM_PAGE0_BASE_Y,
+  dimShift = 0,
+  zeroPromotion = 0,
+): { bytes: number[]; count: number } {
   const backgroundColor = clampByte(room.backgroundColor, 0) & 0x0f;
   const offscreenBaseY = BITMAP_ROOM_ATLAS_BASE_Y;
   const entries = room.atlas?.entries || [];
@@ -2536,7 +2646,7 @@ function buildRoomRenderBlocks(room: Msx2Screen5BitmapRoom, pageBaseY = BITMAP_R
       color: 0,
     });
   }
-  return { bytes: commandRecordsToVdpBlocks(records), count: records.length };
+  return { bytes: commandRecordsToVdpBlocks(dimRoomRenderRecords(records, dimShift, zeroPromotion)), count: records.length };
 }
 
 function formatBytes(label: string, bytes: number[], comment?: string): string {
@@ -2680,6 +2790,39 @@ function isSccWindowBank(bank: number): boolean {
 
 // Konami SCC bank register is 8-bit: 256 banks x 8KB = 2MB.
 const BITMAP_ROOM_MEGAROM_MAX_BANK = 255;
+
+/**
+ * Append blocks to an already-packed bank list, topping up the last bank before
+ * opening a new one.
+ *
+ * Why this exists: the packer has to run EARLY, because assignDataBankConstants
+ * feeds bank numbers to the RLE upload code that later systems are built with.
+ * But the per-room record tables worth banking (gems, platforms, turrets, boss,
+ * enemies) only exist once those systems have been built, i.e. long after. So
+ * packing happens in two passes over one bank list: the early RLE/room pass, and
+ * this late pass. Everything is still emitted from the same list at the end.
+ */
+function appendBitmapRoomDataBlocks(banks: PackedDataBank[], blocks: BankedDataBlock[]): void {
+  if (blocks.length === 0) return;
+  let current: PackedDataBank | undefined = banks[banks.length - 1];
+  let nextBank = current ? current.bank + 1 : BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
+  for (const block of blocks) {
+    if (block.bytes.length > ROM_DATA_BANK_BYTES) {
+      throw new Error(`Bitmap-room data block ${block.label} is ${block.bytes.length} bytes and exceeds one 8KB MegaROM bank`);
+    }
+    if (!current || current.used + block.bytes.length > ROM_DATA_BANK_BYTES) {
+      while (isSccWindowBank(nextBank)) nextBank++;
+      if (nextBank > BITMAP_ROOM_MEGAROM_MAX_BANK) {
+        throw new Error(`Bitmap-room data exceeds the 2MB Konami SCC MegaROM limit (bank ${nextBank} > ${BITMAP_ROOM_MEGAROM_MAX_BANK})`);
+      }
+      current = { bank: nextBank, used: 0, blocks: [] };
+      banks.push(current);
+      nextBank++;
+    }
+    current.blocks.push(block);
+    current.used += block.bytes.length;
+  }
+}
 
 function packBitmapRoomDataBanks(blocks: BankedDataBlock[]): PackedDataBank[] {
   const banks: PackedDataBank[] = [];
@@ -2854,7 +2997,15 @@ function buildRuntimeAsm(
   rleChunks: RleChunk[],
   hudSeedRleChunks: RleChunk[],
   playerAnimation: { frameCount: number; delayFrames: number; mirror: boolean; authoredFacing?: 'left' | 'right'; layerCount: number; spriteOffsets: BitmapSpriteSlotOffset[]; totalFrameCount?: number; hasStateAnimations?: boolean; glowingTailColors?: boolean },
-  options: { bankedRle: boolean; sccMusicTick?: boolean; subCellShapes?: boolean; shaftOverride?: boolean; multiWorld?: boolean },
+  options: {
+    bankedRle: boolean;
+    sccMusicTick?: boolean;
+    subCellShapes?: boolean;
+    shaftOverride?: boolean;
+    multiWorld?: boolean;
+    /** Pre-dimmed twin of the atlas: VRAM rows [baseY, baseY + rows). */
+    darkAtlas?: { baseY: number; rows: number };
+  },
   playerPhysics: BitmapPlayerPhysics,
   playerHitbox: BitmapPlayerHitbox,
   skillHooks: { inputGateAsm?: string; horizontalHookAsm?: string; gravityHookAsm?: string; landClearAsm?: string; leaveGroundAsm?: string } = {},
@@ -3218,12 +3369,15 @@ ${glowingTailColors ? `    bit 7, a
     jp z, .colors_normal_source
     res 7, a                  ; A = absolute animation frame
     ld hl, bitmap_room_sprite_colors_glowing
-    jp .colors_source_ready
+${options.bankedRle ? `    ld c, bitmap_room_sprite_colors_glowing_DATA_BANK
+` : ''}    jp .colors_source_ready
 .colors_normal_source:
     ld hl, bitmap_room_sprite_colors
-.colors_source_ready:
+${options.bankedRle ? `    ld c, bitmap_room_sprite_colors_DATA_BANK
+` : ''}.colors_source_ready:
 ` : `    ld hl, bitmap_room_sprite_colors
-`}
+${options.bankedRle ? `    ld c, bitmap_room_sprite_colors_DATA_BANK
+` : ''}`}
     or a
     jp z, .upload_frame_colors
     ld de, ${colorFrameStride}
@@ -3234,7 +3388,13 @@ ${glowingTailColors ? `    bit 7, a
 .upload_frame_colors:
     ld de, ${playerColorBaseWord}
     ld b, ${colorFrameStride}
-    jp fast_copy_to_vram_ext
+${options.bankedRle ? `    ; Banked colours: map the table C selected, copy, restore. Only the
+    ; frame-change path pays this; the 'cp c / ret z' fast path above is untouched.
+    ; This routine lives below #8000, so it may map the bank in its own body.
+    ld a, c
+    call bitmap_room_select_data_bank_a
+    call fast_copy_to_vram_ext
+    jp bitmap_room_restore_resident_banks` : `    jp fast_copy_to_vram_ext`}
 ` : '';
 
   return `
@@ -3536,6 +3696,65 @@ mapper_set_bank_p3:
 ; ------------------------------------------------------------
 bitmap_room_select_data_bank_a:
     jp mapper_set_bank_p2
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_copy_banked_to_vram
+; ------------------------------------------------------------
+; PURPOSE:
+;   copy_to_vram_ext for a source that lives in a MegaROM data bank, usable by
+;   callers that themselves sit INSIDE the #8000-#9FFF window.
+;
+;   Mapping a data bank swaps out whatever is at #8000-#9FFF, so a routine that
+;   lives there and maps its own bank unmaps its own next instruction. The way
+;   out is not to relocate those routines but to keep the swap inside a helper
+;   that lives below #8000: the caller's CALL is fetched before the swap, the
+;   resident bank is back before the RET, and the instruction after the call is
+;   fetched from resident ROM again. The caller is only unmapped while the PC is
+;   in here.
+;
+; INPUT:
+;   A = data bank, HL = source (inside the bank), DE = VRAM destination,
+;   BC = byte count.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+;
+; CALLS:
+;   bitmap_room_select_data_bank_a (preserves BC/DE/HL), copy_to_vram_ext,
+;   bitmap_room_restore_resident_banks.
+; ------------------------------------------------------------
+bitmap_copy_banked_to_vram:
+    call bitmap_room_select_data_bank_a
+    call copy_to_vram_ext
+    jp bitmap_room_restore_resident_banks
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_copy_banked_to_ram
+; ------------------------------------------------------------
+; PURPOSE:
+;   Stage a banked table into RAM so code that lives INSIDE the #8000-#9FFF
+;   window can walk it. bitmap_copy_banked_to_vram covers data that only ever
+;   goes to VRAM; a per-room record table is read field by field instead, and
+;   holding the bank mapped for that whole walk would unmap the walker.
+;   Copying it to RAM first makes the bank live exactly as long as this LDIR.
+;
+; INPUT:
+;   A = data bank, HL = source (inside the bank), DE = RAM destination,
+;   BC = byte count.
+;
+; DESTROYS:
+;   AF, BC, DE, HL.
+;
+; PRESERVES:
+;   IX, IY.
+; ------------------------------------------------------------
+bitmap_copy_banked_to_ram:
+    call bitmap_room_select_data_bank_a
+    ldir
+    jp bitmap_room_restore_resident_banks
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_room_restore_resident_banks
@@ -3933,6 +4152,47 @@ ${hudSeedUploadAsm}
 ; ------------------------------------------------------------
 upload_tileset_atlas:
 ${tilesetUploadAsm}
+${!options.darkAtlas ? '' : `
+; ------------------------------------------------------------
+; FUNCTION: prepare_dark_atlas
+; ------------------------------------------------------------
+; PURPOSE:
+;   Build the dimmed twin of the shared atlas, once, right after the atlas is
+;   uploaded: rows ${options.darkAtlas.baseY}..${options.darkAtlas.baseY + options.darkAtlas.rows - 1} are a copy of rows ${BITMAP_ROOM_ATLAS_BASE_Y}..${BITMAP_ROOM_ATLAS_BASE_Y + options.darkAtlas.rows - 1} with bit 3 set
+;   in every pixel, which in the paired 8x2 palette IS the dimmed colour.
+;
+;   Dark rooms have their tile copies baked against this twin, so a dark room
+;   composes ALREADY DARK and the runtime never pays the 256x192 LMMV OR that
+;   used to follow every dark-room entry (292 ms of blitter, measured). The two
+;   commands here cost ~${Math.round(SCREEN_WIDTH * options.darkAtlas.rows * 8.85 / 1000)} ms at boot and are amortised after the first
+;   two room entries.
+;
+; INPUT:  none.  OUTPUT: none.
+; DESTROYS: AF, BC, DE, HL.  PRESERVES: IX, IY.
+; SIDE EFFECTS: writes offscreen VRAM rows ${options.darkAtlas.baseY}..${options.darkAtlas.baseY + options.darkAtlas.rows - 1}; leaves the command engine idle.
+; ------------------------------------------------------------
+prepare_dark_atlas:
+    ld hl, bitmap_dark_atlas_cmds
+    ld bc, 2
+    call replay_room_commands
+    ; The last block is fire-and-forget: the boot sequence writes VRAM through
+    ; the ports right after this, and that must not race the command engine.
+    jp vdp_wait_cmd_ready
+
+bitmap_dark_atlas_cmds:
+    ; HMMM: atlas -> twin. SX,SY,DX,DY,NX,NY,CLR,ARG,CMR (16-bit LE).
+    DB ${[0, 0, BITMAP_ROOM_ATLAS_BASE_Y & 0xff, (BITMAP_ROOM_ATLAS_BASE_Y >> 8) & 0xff,
+          0, 0, options.darkAtlas.baseY & 0xff, (options.darkAtlas.baseY >> 8) & 0xff,
+          SCREEN_WIDTH & 0xff, (SCREEN_WIDTH >> 8) & 0xff,
+          options.darkAtlas.rows & 0xff, (options.darkAtlas.rows >> 8) & 0xff,
+          0x00, 0x00, CMD_COPY_16].map(value => hexByte(value)).join(',')}
+    ; LMMV + logical OR over the twin: colour ${'#08'} sets bit 3 of every pixel.
+    DB ${[0, 0, 0, 0,
+          0, 0, options.darkAtlas.baseY & 0xff, (options.darkAtlas.baseY >> 8) & 0xff,
+          SCREEN_WIDTH & 0xff, (SCREEN_WIDTH >> 8) & 0xff,
+          options.darkAtlas.rows & 0xff, (options.darkAtlas.rows >> 8) & 0xff,
+          0x08, 0x00, 0x82].map(value => hexByte(value)).join(',')}
+`}
 
 ; ------------------------------------------------------------
 ; FUNCTION: replay_room_commands
@@ -4587,7 +4847,8 @@ init_hardware_sprite_tables:
     ld hl, bitmap_room_sprite_colors
     ld de, ${playerColorBaseWord}
     ld bc, ${colorFrameStride}
-    call copy_to_vram_ext
+${options.bankedRle ? `    ld a, bitmap_room_sprite_colors_DATA_BANK
+    call bitmap_copy_banked_to_vram` : '    call copy_to_vram_ext'}
 ${shouldEmitPlayerColorUpdate ? `    xor a                   ; frame 0 colours are now in VRAM
     ld (player_colors_loaded), a
 ` : ''}    ld hl, bitmap_room_sprite_attrs
@@ -6483,6 +6744,9 @@ function buildBitmapKeyDoorSystemAsm(
       pickup.price = 0;
     }
   }
+  // Overlay metatiles are authored from the LIT atlas: in a dark room the blit
+  // has to be brought back down to the room light level (bitmap_light_dim_cmd_block).
+  const dimRepaintCall = rooms.some(isBitmapLightingRoom) ? BITMAP_LIGHT_DIM_CMD_CALL : '';
   const pricedPickups = pickups.some(item => item.price > 0);
   const anyRequireUpDoor = doors.some(item => (item.flags & KEY_DOOR_FLAG_REQUIRE_UP) !== 0);
   // Fresh-press UP gate: shared by "enter with UP" doors and priced pickups. Only
@@ -7396,7 +7660,7 @@ bitmap_launch_key_door_cmd:
     out (${VDP_CMD_PORT}), a
     inc hl
     djnz .key_launch_cmd_loop
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
@@ -8164,6 +8428,7 @@ function buildBitmapGemSystemAsm(
   config: Msx2CollectorGemsConfig,
   hudCounter: { label: string; wide: boolean } | null,
   roomWorldIndices: number[] = [],
+  bankedTables = false,
 ): {
   enabled: boolean;
   ramBytes: number;
@@ -8178,15 +8443,19 @@ function buildBitmapGemSystemAsm(
   pendingPageDrawCall: string;
   routinesAsm: string;
   dataAsm: string;
+  bankedBlocks: BankedDataBlock[];
 } {
   // Nuts do NOT need the collector_gems skill (they are the shoot skill's ammo),
   // so only the gem class is skill-gated. Both classes are collected together
   // above and share one flag pool, so dropping gems here leaves holes in the
   // offsets: the pool must be sized from the highest offset, never from a count.
+  // Overlay metatiles are authored from the LIT atlas: in a dark room the blit
+  // has to be brought back down to the room light level (bitmap_light_dim_cmd_block).
+  const dimRepaintCall = rooms.some(isBitmapLightingRoom) ? BITMAP_LIGHT_DIM_CMD_CALL : '';
   const allPickups = collectBitmapGemRecords(rooms, roomWorldIndices);
   const gems = config.enabled ? allPickups : allPickups.filter(item => item.pickupClass !== BITMAP_PICKUP_CLASS_GEM);
   if (gems.length === 0) {
-    return { enabled: false, ramBytes: 0, nutCount: 0, nutCounterLabel: '', equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, nutCount: 0, nutCounterLabel: '', equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '', bankedBlocks: [] };
   }
   const nutCount = gems.filter(item => item.pickupClass === BITMAP_PICKUP_CLASS_NUT).length;
   const hasNuts = nutCount > 0;
@@ -8206,19 +8475,39 @@ function buildBitmapGemSystemAsm(
     worldFlagTops.set(worldIndex, Math.max(worldFlagTops.get(worldIndex) || 0, gem.flagOffset + 1));
   }
   const gemFlagPoolBytes = Math.max(0, ...Array.from(worldFlagTops.values()));
-  const ramBytes = (hasNuts ? 3 : 2) + gemFlagPoolBytes;
-  const hbLeft = hitbox.x;
-  const hbRight = hitbox.x + hitbox.w - 1;
-  const hbTop = hitbox.y;
-  const hbBottom = hitbox.y + hitbox.h - 1;
-  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
   // Record layout: x, y, flagOffset[, class[, amount]], draw HMMM (15B),
   // erase HMMM/HMMV (15B) = 33, 34 or 35 bytes. The optional amount byte is
   // emitted only for projects that actually author a nut amount other than 1.
   const recordStride = 33 + (hasNuts ? 1 : 0) + (hasVariableNutAmounts ? 1 : 0);
   const tailStride = recordStride - 3; // bytes left after x,y,flagOffset were read
   const gemTables = rooms.map((_room, roomIndex) => gems.filter(item => item.roomIndex === roomIndex));
-  const dataAsm = gemTables.map((items, roomIndex) =>
+  // Banked records are staged into RAM once per room: room for the widest room's
+  // worth of records, plus one byte remembering which room is currently staged.
+  const gemStageBytes = bankedTables
+    ? Math.max(0, ...gemTables.map(items => items.length)) * recordStride
+    : 0;
+  const ramBytes = (hasNuts ? 3 : 2) + gemFlagPoolBytes + (bankedTables ? gemStageBytes + 1 : 0);
+  const hbLeft = hitbox.x;
+  const hbRight = hitbox.x + hitbox.w - 1;
+  const hbTop = hitbox.y;
+  const hbBottom = hitbox.y + hitbox.h - 1;
+  const addA = (n: number) => (n > 0 ? `    add a, ${n}\n` : '');
+  const bankedBlocks: BankedDataBlock[] = bankedTables
+    ? gemTables.map((items, roomIndex) => ({
+      label: `bitmap_gems_room_${roomIndex}`,
+      bytes: items.flatMap(item => [
+        item.x,
+        item.y,
+        item.flagOffset,
+        ...(hasNuts ? [item.pickupClass] : []),
+        ...(hasVariableNutAmounts ? [item.pickupAmount] : []),
+        ...item.drawCommand,
+        ...item.eraseCommand,
+      ]),
+      description: `Room ${roomIndex} pickup records, banked; staged into bitmap_gem_table_buf by bitmap_gem_room_table`,
+    }))
+    : [];
+  const dataAsm = (bankedTables ? [] : gemTables).map((items, roomIndex) =>
     formatBytes(
       `bitmap_gems_room_${roomIndex}`,
       items.flatMap(item => [
@@ -8234,7 +8523,10 @@ function buildBitmapGemSystemAsm(
     )
   ).join('') +
     `bitmap_gem_ptr_table:\n${gemTables.map((_items, i) => `    DW bitmap_gems_room_${i}`).join('\n')}\n` +
-    `bitmap_gem_count_table:\n    DB ${gemTables.map(items => items.length).join(',')}\n`;
+    `bitmap_gem_count_table:\n    DB ${gemTables.map(items => items.length).join(',')}\n` +
+    (bankedTables
+      ? `bitmap_gem_bank_table:\n    DB ${gemTables.map((_items, i) => `bitmap_gems_room_${i}_DATA_BANK`).join(',')}\n`
+      : '');
 
   const equates = `; collector_gems skill (SCREEN 5 bitmap): ${gems.length} pickup(s)${hasNuts ? `, ${nutCount} of them nuts (shoot ammo)` : ''}. RAM follows key-door/dialogue chain.
 bitmap_gem_work_offset EQU ${hexWord(workOffsetAddress)}
@@ -8242,14 +8534,18 @@ bitmap_gem_target_page EQU ${hexWord(targetPageAddress)}
 ${hasNuts ? `; Nuts held. Read by the shoot skill's ammo gate and by a HUD counter bound to 'ammo'.
 bitmap_nut_count       EQU ${hexWord(nutCountAddress)}
 ` : ''}bitmap_gem_flags       EQU ${hexWord(flagsAddress)}
-bitmap_gem_cmd_block   EQU #C2C0
+${bankedTables ? `; Records staged out of their data bank (${gemStageBytes} bytes for the widest room),
+; plus the room they belong to so the per-frame path does not re-copy every tick.
+bitmap_gem_table_buf   EQU ${hexWord(flagsAddress + gemFlagPoolBytes)}
+bitmap_gem_staged_room EQU ${hexWord(flagsAddress + gemFlagPoolBytes + gemStageBytes)}
+` : ''}bitmap_gem_cmd_block   EQU #C2C0
 `;
   const clearFlagBytes = Array.from({ length: gemFlagPoolBytes }, (_unused, i) => `    ld (bitmap_gem_flags + ${i}), a`).join('\n');
   const initAsm = `    ; collector_gems: clear per-gem collected flags.
     xor a
     ld (bitmap_gem_work_offset), a
     ld (bitmap_gem_target_page), a
-${hasNuts ? '    ld (bitmap_nut_count), a          ; start with no ammo\n' : ''}${clearFlagBytes}
+${hasNuts ? '    ld (bitmap_nut_count), a          ; start with no ammo\n' : ''}${bankedTables ? '    ld a, #FF\n    ld (bitmap_gem_staged_room), a    ; no room staged yet\n    xor a\n' : ''}${clearFlagBytes}
 `;
   const counterIncAsm = hudCounter
     ? (hudCounter.wide
@@ -8400,7 +8696,7 @@ bitmap_gem_launch_cmd:
     out (${VDP_CMD_PORT}), a
     inc hl
     djnz .gem_launch_cmd_loop
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
@@ -8432,7 +8728,35 @@ bitmap_gem_room_table:
     inc hl
     ld h, (hl)
     ld l, a
-    ld a, b
+${bankedTables ? `    ; Records live in a data bank. Stage them ONCE per room: this routine is also
+    ; on the per-frame path (bitmap_update_gems), and re-copying every tick would
+    ; be pure waste. Callers keep walking plain resident RAM afterwards.
+    ;
+    ; BC is pushed around the WHOLE block, cached path included: this routine's
+    ; contract preserves C (and B carries the record count), and restoring it only
+    ; on the copy path leaves every later frame returning a clobbered C.
+    push bc
+    ld a, (current_screen_index)
+    ld c, a
+    ld a, (bitmap_gem_staged_room)
+    cp c
+    jp z, .gem_table_staged
+    ld a, c
+    ld (bitmap_gem_staged_room), a
+    ld e, c
+    ld d, 0
+    push hl
+    ld hl, bitmap_gem_bank_table
+    add hl, de
+    ld a, (hl)                ; A = data bank holding this room's records
+    pop hl
+    ld de, bitmap_gem_table_buf
+    ld bc, ${gemStageBytes}
+    call bitmap_copy_banked_to_ram
+.gem_table_staged:
+    pop bc
+    ld hl, bitmap_gem_table_buf
+` : ''}    ld a, b
     or a
     ret
 
@@ -8587,6 +8911,7 @@ ${sfxRoutineAsm}`;
     pendingPageDrawCall: `    call bitmap_apply_gems_pending_page    ; draw uncollected gems on hidden page before flip\n`,
     routinesAsm,
     dataAsm,
+    bankedBlocks,
   };
 }
 
@@ -8631,6 +8956,9 @@ function buildBitmapHealSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
+  // Overlay metatiles are authored from the LIT atlas: in a dark room the blit
+  // has to be brought back down to the room light level (bitmap_light_dim_cmd_block).
+  const dimRepaintCall = rooms.some(isBitmapLightingRoom) ? BITMAP_LIGHT_DIM_CMD_CALL : '';
   const heals = collectBitmapAtlasPickupRecords(
     rooms,
     roomWorldIndices,
@@ -8774,7 +9102,7 @@ bitmap_heal_launch_cmd:
     out (${VDP_CMD_PORT}), a
     inc hl
     djnz .heal_launch_cmd_loop
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
@@ -9173,6 +9501,9 @@ function buildBitmapJumperSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
+  // Overlay metatiles are authored from the LIT atlas: in a dark room the blit
+  // has to be brought back down to the room light level (bitmap_light_dim_cmd_block).
+  const dimRepaintCall = rooms.some(isBitmapLightingRoom) ? BITMAP_LIGHT_DIM_CMD_CALL : '';
   const jumpers = collectBitmapJumperRecords(rooms);
   if (jumpers.length === 0) {
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
@@ -9261,7 +9592,7 @@ bitmap_jumper_launch_cmd:
     out (${VDP_CMD_PORT}), a
     inc hl
     djnz .jumper_launch_cmd_loop
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
@@ -9560,6 +9891,9 @@ function buildBitmapWallJumperSystemAsm(
   routinesAsm: string;
   dataAsm: string;
 } {
+  // Overlay metatiles are authored from the LIT atlas: in a dark room the blit
+  // has to be brought back down to the room light level (bitmap_light_dim_cmd_block).
+  const dimRepaintCall = rooms.some(isBitmapLightingRoom) ? BITMAP_LIGHT_DIM_CMD_CALL : '';
   const wallJumpers = collectBitmapWallJumperRecords(rooms);
   if (wallJumpers.length === 0) {
     return { enabled: false, ramBytes: 0, equates: '', initAsm: '', mainLoopCall: '', initialDrawCall: '', pendingPageDrawCall: '', routinesAsm: '', dataAsm: '' };
@@ -9647,7 +9981,7 @@ bitmap_walljumper_launch_cmd:
     out (${VDP_CMD_PORT}), a
     inc hl
     djnz .walljumper_launch_cmd_loop
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
@@ -13813,6 +14147,80 @@ function collectBitmapCrumbleCells(rooms: Msx2Screen5BitmapRoom[]): BitmapCrumbl
   });
 }
 
+/** Swaying cells per room plus the global frame-set table they index into. */
+interface BitmapSwayCollection {
+  roomCells: BitmapSwayCell[][];
+  sets: BitmapSwaySet[];
+}
+
+/**
+ * Grass-sway cells per room. Authoring lives entirely on the atlas tile ("Se mueve
+ * al pasar" + the two bent tiles), so painting the tile anywhere makes that cell
+ * react — no per-cell marking, which is what makes whole meadows practical.
+ *
+ * The three frames of a variant are deduplicated globally into a set table keyed by
+ * their VRAM source coordinates: a room list then costs only 2 bytes per cell. Sets
+ * are shared across rooms even when each room carries its own atlas object, because
+ * the key is the atlas position, not the entry id.
+ */
+function collectBitmapSwayData(rooms: Msx2Screen5BitmapRoom[]): BitmapSwayCollection {
+  const sets: BitmapSwaySet[] = [];
+  const setIndexByKey = new Map<string, number>();
+  // Same clamping as buildGemAtlasCopyCommand: the atlas is stored below the visible
+  // pages, so a source Y is always BITMAP_ROOM_ATLAS_BASE_Y + the entry offset.
+  const atlasSource = (entry: { sx?: number; sy?: number } | undefined) => ({
+    sx: clampInt(entry?.sx, 0, 255, 0),
+    sy: BITMAP_ROOM_ATLAS_BASE_Y + clampInt(entry?.sy, 0, BITMAP_ROOM_ATLAS_MAX_HEIGHT - 1, 0),
+  });
+  const roomCells = rooms.map(room => {
+    const entries = room.atlas?.entries || [];
+    const grid = buildRoomTileIndexGrid(room);
+    const cells: BitmapSwayCell[] = [];
+    for (let y = 0; y < COLLISION_ROWS; y++) {
+      for (let x = 0; x < COLLISION_COLS; x++) {
+        const value = grid[y]?.[x] ?? 0;
+        const entry = value > 0 ? entries[value - 1] : undefined;
+        if (!entry || entry.sway !== true) continue;
+        const left = entries.find(item => item.id === entry.swayLeftAtlasEntryId);
+        const right = entries.find(item => item.id === entry.swayRightAtlasEntryId);
+        // Marked as swaying but without a single bent frame: there is nothing to
+        // show, so the cell stays a plain tile instead of costing a record.
+        if (!left && !right) continue;
+        const rest = atlasSource(entry);
+        // Only one bent frame authored: it is used for both directions.
+        const leftSrc = atlasSource(left || right);
+        const rightSrc = atlasSource(right || left);
+        const holdFrames = clampInt(
+          entry.swayHoldFrames,
+          MSX2_BITMAP_SWAY_HOLD_MIN,
+          MSX2_BITMAP_SWAY_HOLD_MAX,
+          MSX2_BITMAP_SWAY_HOLD_DEFAULT,
+        );
+        const key = `${holdFrames}|${rest.sx},${rest.sy}|${leftSrc.sx},${leftSrc.sy}|${rightSrc.sx},${rightSrc.sy}`;
+        let set = setIndexByKey.get(key);
+        if (set === undefined) {
+          // The set index is one byte in the per-cell record; extra variants are dropped.
+          if (sets.length >= MSX2_BITMAP_SWAY_MAX_SETS) continue;
+          set = sets.length;
+          setIndexByKey.set(key, set);
+          sets.push({
+            holdFrames,
+            restSx: rest.sx,
+            restSy: rest.sy,
+            leftSx: leftSrc.sx,
+            leftSy: leftSrc.sy,
+            rightSx: rightSrc.sx,
+            rightSy: rightSrc.sy,
+          });
+        }
+        cells.push({ cell: y * COLLISION_COLS + x, set });
+      }
+    }
+    return cells;
+  });
+  return { roomCells, sets };
+}
+
 function buildCollisionTableBytes(room: Msx2Screen5BitmapRoom, subCellShapes: boolean): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < COLLISION_ROWS; y++) {
@@ -14211,7 +14619,21 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     sourceRooms,
     bossBitmapStamps.map(stamp => ({ key: stamp.id, pixels: stamp.pixels })),
   );
-  const rooms = sharedAtlas.rooms;
+  // SLOT 8 RESERVE, part 1 of 2 (see the atlas promotion further down).
+  //
+  // A room that never set its own background colour clamps to colour 0, and the
+  // runtime repaints that quote it — the crumbling floor's erosion band, the gem
+  // and pickup erases, destroy_tile, the foreground tiles — then paint colour 0
+  // into the game band. That is invisible on its own (colour 0 displays the
+  // backdrop), but a dark room re-dims moving rectangles with LMMV + logical OR
+  // #08 as the halo travels, and colour 0 turns into palette slot 8 right there.
+  // Promoting the room background to the backdrop INDEX up here paints exactly
+  // the same thing and makes every one of those consumers OR into slot 9 instead,
+  // which is where the darkness lives. Do it once, before anything reads it.
+  const rooms = promoteZeroBackgroundForDarkWorld(
+    sharedAtlas.rooms,
+    world.worlds.length ? Math.min(world.worlds[0].startIndex, sharedAtlas.rooms.length - 1) : 0,
+  );
   // Compiled worlds, rebased onto the atlas-rewritten room list. The FIRST world
   // is the boot world: its start room drives every project-wide decision below
   // (player, HUD, dialogue font, background colour), exactly as before.
@@ -14288,8 +14710,30 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   if (dialogueData && dialogueVramBaseRow < BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}": the NPC dialogue glyph/portrait blob needs ${dialogueData.blobRows} VRAM rows but only ${1024 - (BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16)} rows are free after the shared atlas. Reduce portrait sizes/count or shrink the atlas.`);
   }
+  // PRE-DIMMED ATLAS. A dark room does not paint itself bright and then dim the
+  // whole game band (a 256x192 LMMV OR: 292 ms of blitter, 17,5 frames, measured
+  // in test/msx2-lighting/lmmv_bench). Instead its command program reads tiles
+  // from a dimmed twin of the atlas that prepare_dark_atlas builds once at boot,
+  // right after the original, and it arrives dark for free.
+  //
+  // It costs one atlas worth of VRAM. When that does not fit under the dialogue
+  // blob the ROM silently keeps the old runtime fill: slower, still correct.
+  const anyDarkRoom = rooms.some(roomData => isBitmapLightingRoom(roomData));
+  const darkAtlasBaseY = BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16;
+  const darkAtlasEnabled = anyDarkRoom
+    && atlasRows16 > 0
+    && darkAtlasBaseY + atlasRows16 <= dialogueVramBaseRow;
+  if (anyDarkRoom && !darkAtlasEnabled && atlasRows16 > 0) {
+    console.warn(
+      `MSX2 SCREEN 5: no room for a pre-dimmed atlas copy (needs ${atlasRows16} VRAM rows after row `
+      + `${darkAtlasBaseY}, free until ${dialogueVramBaseRow}). Dark rooms keep the slower runtime `
+      + 'dim fill on every room entry. Shrink the atlas or the dialogue blob to enable it.',
+    );
+  }
+  // Everything else that lives after the atlas starts after the dimmed twin.
+  const postAtlasBaseY = darkAtlasEnabled ? darkAtlasBaseY + atlasRows16 : darkAtlasBaseY;
   const linkedHudSlotYs: number[] = [212, 228, 468];
-  for (let slotY = BITMAP_ROOM_ATLAS_BASE_Y + atlasRows16; slotY + 16 <= dialogueVramBaseRow; slotY += 16) {
+  for (let slotY = postAtlasBaseY; slotY + 16 <= dialogueVramBaseRow; slotY += 16) {
     linkedHudSlotYs.push(slotY);
   }
   const linkedHudTileData: {
@@ -14339,7 +14783,31 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
     linkedHudTileData.push({ index, kind: source.kind, tileVramY, bytes, rleChunks, uploadAsm, glyphOwnerIndex: index });
   });
   const atlasVramBase = BITMAP_ROOM_ATLAS_BASE_Y * ROW_BYTES;
-  const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom);
+  // SLOT 8 RESERVE. Dimming sets bit 3 of every pixel, so in a dark world colour
+  // 0 becomes palette slot 8 — and because colour 0 is the empty space inside
+  // tiles it covers roughly half the screen, which nails slot 8 to "whatever
+  // black the darkness is". Colour 0 is transparent (R#8 TP=0) and displays
+  // palette[R#7], i.e. exactly what the backdrop INDEX displays, so swapping one
+  // for the other on the way to VRAM is invisible and leaves slot 8 unreferenced
+  // in the game band. The HUD band is never dimmed, so slot 8 then becomes a
+  // free colour the HUD can spend on anything (a red marker, for instance).
+  //
+  // Only worth doing where it can work: with a backdrop of 0 there is no other
+  // index that paints the same thing, so the promotion is a no-op and slot 8
+  // stays taken.
+  // Gated on anyDarkRoom, NOT on darkAtlasEnabled: when the pre-dimmed twin does
+  // not fit, dark rooms fall back to a runtime LMMV OR over the whole band, which
+  // would turn every colour-0 atlas pixel into slot 8 just the same.
+  const backdropColorIndex = clampByte(room.backgroundColor, 0) & 0x0f;
+  const dimZeroPromotion = anyDarkRoom ? backdropColorIndex : 0;
+  if (anyDarkRoom && backdropColorIndex === 0) {
+    console.warn(
+      'MSX2 SCREEN 5: dark rooms compose with a backdrop of colour 0, so palette slot 8 is pinned to '
+      + 'the darkness and cannot be reused by the HUD. Set the entry room background colour to a '
+      + 'non-zero index holding the same colour to free slot 8.',
+    );
+  }
+  const tilesetBytes = packAtlasPixels(sharedAtlas.atlasRoom, dimZeroPromotion);
   const tilesetRleChunks = buildRleChunksForVram(tilesetBytes, atlasVramBase, 'bitmap_room_tileset_rle_chunk');
   // NPC dialogue glyph strips + portrait frames: one packed 4bpp blob uploaded
   // once at boot to the rows reserved above the atlas region.
@@ -14361,8 +14829,11 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   // are all emitted exactly like before (byte-identical ROM).
   const subCellShapes = roomsUseSubCellShapes(rooms);
   const roomTables = rooms.map((roomData, index) => {
-    const renderPage0 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE0_BASE_Y);
-    const renderPage1 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE1_BASE_Y);
+    // A dark room composes from the dimmed twin of the atlas; a lit one never does,
+    // even in the same world.
+    const dimShift = darkAtlasEnabled && isBitmapLightingRoom(roomData) ? atlasRows16 : 0;
+    const renderPage0 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE0_BASE_Y, dimShift, dimZeroPromotion);
+    const renderPage1 = buildRoomRenderBlocks(roomData, BITMAP_ROOM_PAGE1_BASE_Y, dimShift, dimZeroPromotion);
     return {
       index,
       renderLabelPage0: `bitmap_room_render_${index}_p0`,
@@ -14552,6 +15023,11 @@ ${airAnimBodyAsm}`;
     ...stateAnimations.flatMap(bank => bank.colors),
   ];
 
+  // Enemy patrol runtime (SCREEN 4 port): SAT slots sit right after the player
+  // layers (bullets shift past them), pattern groups after the foreground ones.
+  // Built HERE, ahead of the data-bank packer, because its sprite art is one of
+  // the banked blocks and the packer has to see it to assign a bank.
+  const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
   const bankedDataBlocks = isKonamiMegaRom
     ? [
       ...buildBankedRleDataBlocks(allHudSeedRleChunks, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`),
@@ -14571,8 +15047,10 @@ ${airAnimBodyAsm}`;
     : [];
   const bankedDataBanks = isKonamiMegaRom ? packBitmapRoomDataBanks(bankedDataBlocks) : [];
   if (isKonamiMegaRom) assignDataBankConstants(bankedDataBanks, allRleChunks);
-  const bankedDataEquates = isKonamiMegaRom ? formatBankedDataEquates(bankedDataBanks) : '';
-  const bankedDataAsm = isKonamiMegaRom ? formatBankedDataBanks(bankedDataBanks) : '';
+  // Per-room record tables produced by systems built further down are appended to
+  // bankedDataBanks in a late pass; bankedDataEquates/bankedDataAsm are formatted
+  // only after that, just before the music banks are numbered.
+  const lateBankedBlocks: BankedDataBlock[] = [];
   const hudSeedDataAsm = isKonamiMegaRom
     ? `; Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed for page 0/1 is emitted in Konami MegaROM data banks below.\n`
     : formatRleChunks(allHudSeedRleChunks, hudSeedBytes.length * 2, `Persistent ${SCREEN_WIDTH}x${BITMAP_ROOM_HUD_HEIGHT} HUD seed mirrored on page 0/1, packed 4bpp RLE`);
@@ -14707,9 +15185,6 @@ ${airAnimBodyAsm}`;
     loadCallAsm: '    call bitmap_load_foreground_sprites\n' as string,
   } : null;
   const foregroundLoadCallAsm = foregroundContext ? foregroundContext.loadCallAsm : '';
-  // Enemy patrol runtime (SCREEN 4 port): SAT slots sit right after the player
-  // layers (bullets shift past them), pattern groups after the foreground ones.
-  const enemyData = buildBitmapRoomEnemyData(analysis, rooms);
   const turretData = buildBitmapRoomTurretData(analysis, rooms);
   const carryAndThrowConfig = getMsx2CarryAndThrowConfigFromPlayerEntity(resolveBitmapRoomPlayer(analysis, room));
   const carryAndThrowData = buildBitmapCarryAndThrowData(analysis, rooms);
@@ -14799,8 +15274,7 @@ ${airAnimBodyAsm}`;
   // source tiles, but before the dialogue blob that grows down from VRAM row
   // 1024. Hardware-sprite carryables do not consume this space.
   const carryBitmapScratchSlots = carryAndThrowRuntimeEnabled ? carryAndThrowData.bitmapSlots : 0;
-  const carryBitmapScratchBaseY = BITMAP_ROOM_ATLAS_BASE_Y
-    + atlasRows16
+  const carryBitmapScratchBaseY = postAtlasBaseY
     + Math.max(0, tileBasedHudSources.length - 3) * 16;
   const carryBitmapScratchEndY = carryBitmapScratchBaseY + carryBitmapScratchSlots * 16;
   if (carryBitmapScratchSlots > 0 && carryBitmapScratchEndY > dialogueVramBaseRow) {
@@ -14971,6 +15445,9 @@ ${airAnimBodyAsm}`;
   // bullets), so every allocation above stays where it was and projects without a
   // crumbling cell reserve nothing at all.
   const crumbleRoomCells = collectBitmapCrumbleCells(rooms);
+  // GRASS SWAY: no sprite, no SAT slot, no pattern group — it is pure command-engine
+  // work on the room bitmap, so it is collected here only to be available further down.
+  const swayData = collectBitmapSwayData(rooms);
   const crumbleDebrisSlots = bitmapCrumbleCellCount(crumbleRoomCells) > 0
     ? MSX2_BITMAP_CRUMBLE_DEBRIS_SLOTS
     : 0;
@@ -15061,6 +15538,13 @@ ${airAnimBodyAsm}`;
     .some(item => item.pickupClass === BITMAP_PICKUP_CLASS_NUT)
     ? 'bitmap_nut_count'
     : undefined;
+  // What a player bullet can hit in this ROM. The enemy pool only joins in when
+  // the shoot skill exists at all, so a project without it keeps the previous
+  // (boss-only, or empty) stub byte for byte.
+  const bulletHitsEnemies = shootConfig.enabled && enemyData.maxSlots > 0;
+  const bulletTargetLabel = bossData.enabled
+    ? (bulletHitsEnemies ? 'bitmap_bullet_targets' : 'bitmap_boss_bullet_hit')
+    : (bulletHitsEnemies ? 'bitmap_enemy_bullet_hit' : undefined);
   const shootRuntimeOptions: BitmapShootRuntimeOptions = {
     playerLayerCount: spriteTables.layerCount,
     bulletPatternNumber,
@@ -15077,7 +15561,7 @@ ${airAnimBodyAsm}`;
     // cabins are last in the SAT chain, so they must be counted here too or the
     // bullet writer would start on top of them.
     destroySlotCount: destroyDebrisSlots + turretHardwareSlotCount + shaftHardwareSlots + crumbleDebrisSlots,
-    enemyCollisionJumpLabel: bossData.enabled ? 'bitmap_boss_bullet_hit' : undefined,
+    enemyCollisionJumpLabel: bulletTargetLabel,
     ammoCounterLabel,
     borrowPlayerPatternGroups: borrowedPlayerPatternGroups,
   };
@@ -15160,6 +15644,7 @@ ${airAnimBodyAsm}`;
   // HMMV nibbles. RAM is the fixed #C2D0 region (module header documents it).
   const destroyTileOptions: BitmapDestroyTileOptions = {
     ramBase: 0xC2D0,
+    dimRepaintCallAsm: anyDarkRoom ? BITMAP_LIGHT_DIM_CMD_CALL : '',
     hitbox: playerHitbox,
     digAnimId: stateAnimIds['digging'],
     debrisPatternNumber: destroyPatternGroup * 4,
@@ -15352,6 +15837,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     collectorGemsConfig,
     gemCounterRam,
     roomWorldIndices,
+    isKonamiMegaRom,
   );
   hudLinkedRamCursor += gemSystem.ramBytes;
   // Health pickups: collectibles that refill one heart. Not skill-gated — the
@@ -15395,6 +15881,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   // which is what makes the tiles grow back.
   const crumbleSystem = buildBitmapCrumbleSystemAsm({
     ramBase: hudLinkedRamCursor,
+    dimRepaintCallAsm: anyDarkRoom ? BITMAP_LIGHT_DIM_CMD_CALL : '',
     hitbox: playerHitbox,
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     roomCells: crumbleRoomCells,
@@ -15414,6 +15901,36 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
       : ''}${perceptionPauseGateAsm}`,
   });
   hudLinkedRamCursor += crumbleSystem.ramBytes;
+  // GRASS SWAY: cosmetic tile swap under the player body. Built here for the same
+  // reason as the crumbling floor — its room-composition reset has to join the
+  // dialogue-close repaint list below, and it shares the same pause gates. Nothing
+  // it does touches collision, so it is safe to run after every movement system.
+  const swaySystem = buildBitmapSwaySystemAsm({
+    ramBase: hudLinkedRamCursor,
+    dimRepaintCallAsm: anyDarkRoom ? BITMAP_LIGHT_DIM_CMD_CALL : '',
+    hitbox: playerHitbox,
+    gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
+    roomCells: swayData.roomCells,
+    sets: swayData.sets,
+    pauseGateAsm: `${dialogueData
+      ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: the grass freezes too
+    or a
+    ret nz
+`
+      : ''}${perceptionPauseGateAsm}`,
+  });
+  hudLinkedRamCursor += swaySystem.ramBytes;
+  // Closing a dialogue box (or the perception window) replays the room's command
+  // program on the VISIBLE page. In a dark room that program repaints the whole
+  // game band from the dimmed atlas, so it takes the halo with it and nothing
+  // used to put it back: the player was left standing in total darkness until he
+  // moved far enough for the halo passes to grow it back a strip at a time.
+  // Dropping the "a halo is painted" flag makes bitmap_light_update repaint it in
+  // full on the next frame, and keeps the overlay redraws that follow from
+  // relighting against a halo that is no longer on screen.
+  const lightRecomposeAsm = anyDarkRoom
+    ? '    xor a\n    ld (bitmap_light_active), a    ; the recompose wiped the halo: repaint it next frame\n'
+    : '';
   const dialogueSystem = buildBitmapDialogueSystemAsm(
     dialogueData,
     rooms,
@@ -15421,7 +15938,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     hudLinkedRamCursor,
     dialogueVramBaseRow,
     buildRleUploadAsm(dialogueRleChunks, isKonamiMegaRom),
-    `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
+    `${lightRecomposeAsm}${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}${bossData.enabled ? '    call bitmap_boss_redraw_after_dialogue\n' : ''}`,
     isKonamiMegaRom
   );
   hudLinkedRamCursor += dialogueSystem.ramBytes;
@@ -15444,6 +15961,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     : undefined;
   const enemySystem = buildBitmapEnemySystemAsm(enemyData, {
     ramBase: hudLinkedRamCursor,
+    bankedSpriteData: isKonamiMegaRom,
     satBase: enemySatBase,
     colorBase: enemyColorBase,
     patternGroupBase: enemyPatternGroupBase,
@@ -15455,6 +15973,9 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     maxHealth: playerVitals.maxHealth,
     lives: playerVitals.lives,
     respawnOnDeath: true,
+    bulletHit: bulletHitsEnemies
+      ? { chainFromBossLabel: bossData.enabled ? 'bitmap_boss_bullet_hit' : undefined }
+      : undefined,
     pauseGateAsm: `${dialogueSystem.enabled
       ? `    ld a, (bitmap_dlg_state)   ; NPC dialogue open: freeze all enemies
     or a
@@ -15473,6 +15994,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   hudLinkedRamCursor += enemySystem.ramBytes;
   const turretSystem = buildBitmapTurretSystemAsm(turretData, {
     ramBase: hudLinkedRamCursor,
+    bankedTables: isKonamiMegaRom,
     satBase: turretSatBase,
     colorBase: turretColorBase,
     patternBase: 0xF800,
@@ -15493,6 +16015,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   // NPC-dialogue pause gate so the world freezes with an open conversation.
   const platformSystem = buildBitmapPlatformSystemAsm(platformData, {
     ramBase: hudLinkedRamCursor,
+    bankedTables: isKonamiMegaRom,
     satBase: platformSatBase,
     colorBase: platformColorBase,
     patternGroupBase: platformPatternGroupBase,
@@ -15560,6 +16083,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
   const musicRuntimeEmitted = anyMusicTracks && isKonamiMegaRom;
   const bossSystem = buildBitmapBossSystemAsm(bossData, {
     ramBase: hudLinkedRamCursor,
+    bankedTables: isKonamiMegaRom,
     projScratchBaseY: bossProjScratchSlots > 0 ? bossProjScratchBaseY : undefined,
     spriteBullets: bossSpriteBulletSlots > 0 ? {
       satBase: enemySatBase,
@@ -15622,7 +16146,7 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     collectibleCounter: gemCounterRam,
     keyCountAvailable: keyDoorSystem.ramBytes > 0,
     bankedRoomData: isKonamiMegaRom,
-    repaintOverlaysAsm: `${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
+    repaintOverlaysAsm: `${lightRecomposeAsm}${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}`,
   });
   hudLinkedRamCursor += perceptionSystem.ramBytes;
   const playerStateMachine = buildBitmapPlayerStateMachineAsm(analysis, room, stateAnimIds, hudLinkedRamCursor);
@@ -15656,6 +16180,14 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     atlasBaseY: BITMAP_ROOM_ATLAS_BASE_Y,
     glowingAnimId: stateAnimIds['glowing'],
     musicTick: sccMusicTickEnabled,
+    // The 15-byte V9938 scratch every overlay system launches from (gems, key
+    // doors, heals, springs, crumbling floor, grass, destroy_tile all EQU it to
+    // this address). bitmap_light_dim_cmd_block reads the rectangle back out of
+    // it to dim what was just painted.
+    cmdBlockAddr: 0xC2C0,
+    // Dark rooms compose from the pre-dimmed twin of the atlas, so room entry no
+    // longer has to dim the whole game band by hand.
+    roomsComposeDimmed: darkAtlasEnabled,
     // Travelling lantern: opt-in through the shoot skill's bulletLantern param.
     // The lighting generator drops it silently when the project has no glowing
     // mushrooms, because the repair machinery it needs lives in that block.
@@ -15780,7 +16312,7 @@ ${keyDoorSystem.enabled ? `    ld a, (bitmap_world_saved_keys)
   const combinedGlowingColors = useGlowingTailColors
     ? combinedColors.map(intensifyBitmapPlayerSpriteColor)
     : [];
-  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
+  if ((linkedHudDynamicSources.length || keyDoorSystem.enabled || gemSystem.enabled || healSystem.enabled || perceptionSystem.enabled || jumperSystem.enabled || wallJumperSystem.enabled || crumbleSystem.enabled || swaySystem.enabled || dialogueSystem.enabled || enemySystem.enabled || turretSystem.enabled || platformSystem.enabled || bossSystem.enabled || carryAndThrowSystem.enabled || playerStateMachine.enabled || lightingSystem.enabled || multiWorld) && hudLinkedRamCursor > HUD_LINKED_RAM_CEILING) {
     throw new Error(`MSX2 SCREEN 5 bitmap room "${room.name}" needs too much RAM for dynamic HUD/key-door/gem/perception/jumper/wall-jumper/dialogue/enemy/platform/boss/carry/state-machine/lighting systems: dedicated RAM chain (${hexWord(hudLinkedRamCursor)}) would overflow its ${hexWord(HUD_LINKED_RAM_BASE)}..${hexWord(HUD_LINKED_RAM_CEILING - 1)} window. Reduce dynamic HUD widgets, disable air timer, or reduce pickups/enemies/platforms/carryable objects.`);
   }
   const tileDataBySourceIndex = new Map(linkedHudTileData.map(entry => [entry.index, entry]));
@@ -15803,10 +16335,10 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
   const linkedHudSharedRoutines = linkedHudDynamicSources.length
     ? `${HUD_LINKED_LAUNCH_CMD_ROUTINE_ASM}${hudDec3BufferAddress !== undefined ? HUD_BYTE_TO_DEC3_ROUTINE_ASM : ''}${hudDec5BufferAddress !== undefined ? HUD_WORD_TO_DEC5_ROUTINE_ASM : ''}`
     : '';
-  const linkedHudEquates = `${linkedHudSharedEquates}${orphanAmmoEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${crumbleSystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
-  const linkedHudInitAsm = `${orphanAmmoInitAsm}${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${crumbleSystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
-  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}${crumbleSystem.mainLoopCall}`;
-  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${crumbleSystem.routinesAsm}${playerStateMachine.routinesAsm}${playerAirAnimRoutineAsm}${lightingSystem.routinesAsm}`;
+  const linkedHudEquates = `${linkedHudSharedEquates}${orphanAmmoEquates}${linkedHudElementAsms.map(asm => asm.equates).join('')}${airTimerSystem?.equates || ''}${experienceSystem?.equates || ''}${keyDoorSystem.equates}${gemSystem.equates}${healSystem.equates}${perceptionSystem.equates}${jumperSystem.equates}${wallJumperSystem.equates}${crumbleSystem.equates}${swaySystem.equates}${dialogueSystem.equates}${playerStateMachine.equates}${lightingSystem.equates}`;
+  const linkedHudInitAsm = `${orphanAmmoInitAsm}${linkedHudElementAsms.map(asm => asm.initAsm).join('')}${airTimerSystem?.initAsm || ''}${experienceSystem?.initAsm || ''}${keyDoorSystem.initAsm}${gemSystem.initAsm}${perceptionSystem.initAsm}${jumperSystem.initAsm}${wallJumperSystem.initAsm}${crumbleSystem.initAsm}${swaySystem.initAsm}${dialogueSystem.initAsm}${playerStateMachine.initAsm}${lightingSystem.initAsm}`;
+  const linkedHudMainLoopCall = `${linkedHudElementAsms.map(asm => asm.mainLoopCall).join('')}${airTimerSystem?.mainLoopCall || ''}${keyDoorSystem.mainLoopCall}${gemSystem.mainLoopCall}${healSystem.mainLoopCall}${jumperSystem.mainLoopCall}${wallJumperSystem.mainLoopCall}${crumbleSystem.mainLoopCall}${swaySystem.mainLoopCall}`;
+  const linkedHudRoutinesAsm = `${linkedHudSharedRoutines}${linkedHudElementAsms.map(asm => asm.routinesAsm).join('')}${airTimerSystem?.routinesAsm || ''}${experienceSystem?.routinesAsm || ''}${keyDoorSystem.routinesAsm}${gemSystem.routinesAsm}${healSystem.routinesAsm}${perceptionSystem.routinesAsm}${jumperSystem.routinesAsm}${wallJumperSystem.routinesAsm}${crumbleSystem.routinesAsm}${swaySystem.routinesAsm}${playerStateMachine.routinesAsm}${playerAirAnimRoutineAsm}${lightingSystem.routinesAsm}`;
   const hudSeparatorRestore = buildBitmapHudSeparatorRestoreAsm(useClassicHeartsHud || linkedHudDynamicSources.length > 0);
   // DOUBLE JUMP skill: extends the inline jump block (see buildBitmapJumpBlockAsm,
   // wired in update_player_movement) from the same Player Config physics.
@@ -15840,7 +16372,14 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     totalFrameCount: combinedFrameCount,
     hasStateAnimations,
     glowingTailColors: useGlowingTailColors,
-  }, { bankedRle: isKonamiMegaRom, sccMusicTick: sccMusicTickEnabled, subCellShapes, shaftOverride: shaftEnabled, multiWorld }, playerPhysics, playerHitbox, {
+  }, {
+    bankedRle: isKonamiMegaRom,
+    sccMusicTick: sccMusicTickEnabled,
+    subCellShapes,
+    shaftOverride: shaftEnabled,
+    multiWorld,
+    darkAtlas: darkAtlasEnabled ? { baseY: darkAtlasBaseY, rows: atlasRows16 } : undefined,
+  }, playerPhysics, playerHitbox, {
     // Boss auto-walk must override the physical keyboard before any player
     // skill reads C. The main-loop boss gate calls this same movement routine
     // directly and skips all manual actions while the flag is active.
@@ -15849,7 +16388,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -15940,7 +16479,15 @@ ${bossSystem.initAsm}` : ''}${healSystem.initAsm ? `    ; Same reason as the bos
     ; clearing them with the rest of the HUD/system init (further down, after
     ; load_room) left cold-boot garbage reading as "already taken": the pickup
     ; was never drawn, yet walking over it still refilled a heart.
-${healSystem.initAsm}` : ''}    ; Render the start room from the shared tileset already in VRAM.
+${healSystem.initAsm}` : ''}${lightingSystem.enabled ? `    ; Same reason again, for the dark-room dimmer: every overlay blit below asks
+    ; bitmap_light_dim_repaint to bring it down to the room light level, and that
+    ; reads these two gates to decide whether a halo already exists to give back.
+    ; Cold-boot garbage here re-lit a rectangle against a halo centre that had
+    ; never been painted. Both are cleared again with the rest of the init.
+    xor a
+    ld (bitmap_light_active), a
+    ld (bitmap_composition_state), a
+` : ''}    ; Render the start room from the shared tileset already in VRAM.
     xor a
     ld (bitmap_displayed_page), a
 ${multiWorldSaveProgressAsm}
@@ -15948,7 +16495,7 @@ ${multiWorld ? `    ; Rebuild the shared off-screen atlas on every WorldLink ent
     ; is intentionally done during the transition, outside the gameplay loop,
     ; so each world starts from a deterministic tile resource state.
     call upload_tileset_atlas
-` : ''}${multiWorld
+${darkAtlasEnabled ? '    call prepare_dark_atlas   ; the dimmed twin belongs to the atlas it mirrors\n' : ''}` : ''}${multiWorld
   ? `    ; Multi-world: the entry room belongs to the world the WorldLink selected
     ; through bitmap_prepare_world, so it comes from RAM rather than a literal.
     ld a, (bitmap_world_start_room)
@@ -15963,7 +16510,7 @@ ${multiWorld ? `    ; Rebuild the shared off-screen atlas on every WorldLink ent
     ; be missing on page 0 and appear only on the never-wiped page 1 ("gem icon on
     ; alternate rooms"). Harmless on the plain boot path (idempotent re-upload).
     call init_bitmap_hud_band
-${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${destroyTileApplyVisibleCall}
+${keyDoorSystem.initialDrawCall}${gemSystem.initialDrawCall}${healSystem.initialDrawCall}${jumperSystem.initialDrawCall}${wallJumperSystem.initialDrawCall}${crumbleSystem.initialDrawCall}${swaySystem.initialDrawCall}${destroyTileApplyVisibleCall}
 ${shaftSystem.initCallAsm}${foregroundLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}    ; Place the player at the room spawn point.
 ${multiWorld
   ? `    ld a, (bitmap_world_spawn_y)
@@ -16064,6 +16611,37 @@ ${hasStateAnimations ? `    xor a
       pt3SampleRuntimeAsm: buildNativePT3SampleRuntimeAsm({ trackerFx: false }),
     })
     : null);
+  // ---- late data-bank pass ----------------------------------------------
+  // Everything the systems above decided to bank lands here, tops up the last
+  // partially filled bank, and only then is the whole list turned into ASM.
+  if (isKonamiMegaRom) {
+    lateBankedBlocks.push({
+      label: 'bitmap_room_sprite_colors',
+      bytes: combinedColors,
+      description: 'Player sprite 0 line colour tables, banked; readers live below #8000 and map this bank around the copy',
+    });
+    if (useGlowingTailColors) {
+      lateBankedBlocks.push({
+        label: 'bitmap_room_sprite_colors_glowing',
+        bytes: combinedGlowingColors,
+        description: 'Glowing-tail player colours (dim slots 8..15 -> intense twins), banked',
+      });
+    }
+  }
+  lateBankedBlocks.push(...enemySystem.bankedBlocks, ...gemSystem.bankedBlocks, ...platformSystem.bankedBlocks, ...turretSystem.bankedBlocks, ...bossSystem.bankedBlocks);
+  // GameFlow font: emitted only when a text node exists, and staged one glyph at
+  // a time by bitmap_flow_draw_char_inner (which lives at #47xx, outside the P2
+  // window, so it may hold the bank across the copy).
+  if (isKonamiMegaRom && collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any).text) {
+    lateBankedBlocks.push({
+      label: 'bitmap_flow_font',
+      bytes: buildScreen5FlowFontBytes(),
+      description: '6x8 GameFlow font (59 glyphs x 8 rows), banked; staged per glyph into bitmap_flow_glyph',
+    });
+  }
+  if (isKonamiMegaRom) appendBitmapRoomDataBlocks(bankedDataBanks, lateBankedBlocks);
+  const bankedDataEquates = isKonamiMegaRom ? formatBankedDataEquates(bankedDataBanks) : '';
+  const bankedDataAsm = isKonamiMegaRom ? formatBankedDataBanks(bankedDataBanks) : '';
   const musicBankBase = bankedDataBanks.length > 0
     ? bankedDataBanks[bankedDataBanks.length - 1].bank + 1
     : BITMAP_ROOM_MEGAROM_FIRST_DATA_BANK;
@@ -16125,12 +16703,18 @@ ${musicBankNumbers.map((bank, index) => `BITMAP_MUSIC_DATA_BANK_${index} EQU ${b
 ${sccMusicRam.asm}
 ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
   const bitmapFlowForMusic = resolveBitmapGameFlow(analysis);
-  const flowHasMusicNode = Boolean(bitmapFlowForMusic?.nodes?.some(node => (node as any).type === 'Music'));
+  // The flow owns the music when it says anything about it: a Music node, or a
+  // WorldLink with "Music on entry" configured (a track or None). Only graphs
+  // that stay silent about music keep the legacy boot autoplay below.
+  const flowOwnsMusic = Boolean(bitmapFlowForMusic?.nodes?.some(node => (
+    (node as any).type === 'Music'
+    || ((node as any).type === 'WorldLink' && String((node as any).musicTrackAssetId || '').trim() !== '')
+  )));
   // Boot: init the SCC through the mapper (page 2 is already the cart slot).
   // Without any Music node in the flow, autoplay track 0 looped so a project
   // with music but no explicit node still sounds.
   const musicBootCall = sccMusic
-    ? `    ld a, 2                   ; seed the P2 mirror: resident data bank\n    ld (mapper_bank_p2_current), a\n    call music_init_system\n${flowHasMusicNode ? '' : '    xor a\n    ld b, 1\n    call music_play_track    ; no Music node in the flow: autoplay track 0 (loop)\n'}`
+    ? `    ld a, 2                   ; seed the P2 mirror: resident data bank\n    ld (mapper_bank_p2_current), a\n    call music_init_system\n${flowOwnsMusic ? '' : '    xor a\n    ld b, 1\n    call music_play_track    ; no Music node in the flow: autoplay track 0 (loop)\n'}`
     : '';
   const musicUpdateCall = sccMusic ? '    call music_update\n' : '';
   // Transition helpers live in the intro runtime: only effects the intro block
@@ -16153,10 +16737,12 @@ ${psgMusicRam ? `${psgMusicRam.asm}\n` : ''}` : '';
     worldIndexById: multiWorld
       ? new Map(worldPlans.map((plan, index) => [plan.id, index]))
       : undefined,
+    bankedFont: isKonamiMegaRom,
   });
   const gameFlowEnabled = gameFlowEntryAsm.length > 0;
   const bitmapFlowTextEquatesAsm = bitmapFlowTextEquates(
-    collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any)
+    collectBitmapFlowTextFeatures((resolveBitmapGameFlow(analysis)?.nodes || []) as any),
+    isKonamiMegaRom
   );
   const bitmapEndRuntime = gameFlowEnabled ? buildBitmapEndScreenRuntime() : { dataAsm: '', routinesAsm: '' };
   const visibleHeight = SCREEN5_VISIBLE_HEIGHT;
@@ -16311,7 +16897,7 @@ ${intro.initCallAsm}${multiWorld ? `    ; Cold boot: cartridge RAM is garbage, s
 ` : ''}    call load_screen5_bitmap_palette
     call init_bitmap_hud_band
     call upload_tileset_atlas
-    call init_hardware_sprite_tables
+${darkAtlasEnabled ? '    call prepare_dark_atlas   ; dimmed twin: dark rooms compose from it directly\n' : ''}    call init_hardware_sprite_tables
 ${dialogueSystem.uploadCallAsm}${shootBulletInitUpload}${destroyTileInitUpload}${crumbleSystem.initUploadAsm}    ld a, #24                 ; SFX channel-C mixer shadow: start muted
     ld (psg_sfx_r7_c_bits), a
 ${musicBootCall}${gameFlowEnabled ? '    ; Game Flow graph present: the dispatcher (bitmap_gf_entry) runs the shared\n    ; boot-init sequence (bitmapBootInitAsm) inside its WorldLink node, so the\n    ; inline copy below is skipped. Both paths use the SAME init string, which\n    ; resets bitmap_composition_state + the composition vars, loads enemies/\n    ; platforms, restores R#15=S#0 and clears the skill state. (Skipping the init\n    ; here previously left those uninitialised: a garbage composition state armed\n    ; a bogus room transition every few frames -> periodic player reposition, and\n    ; made the deadly/enemy damage systems ret-early -> spikes cost no hearts.)\n    jp bitmap_gf_entry\n' : bitmapBootInitAsm}${gameFlowEntryAsm}bitmap_enter_game_loop:
@@ -16424,7 +17010,7 @@ bitmap_room_hud_linked_data_end:
 ${keyDoorSystem.dataAsm}
 ${gemSystem.dataAsm}${healSystem.dataAsm}
 ${destroyTileDataAsm}${perceptionSystem.dataAsm}${lightingSystem.dataAsm}
-${jumperSystem.dataAsm}${crumbleSystem.dataAsm}
+${jumperSystem.dataAsm}${crumbleSystem.dataAsm}${swaySystem.dataAsm}
 ${wallJumperSystem.dataAsm}
 ${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
 ${bitmapEndRuntime.dataAsm}
@@ -16436,12 +17022,12 @@ ${turretSystem.dataAsm}
 ${platformSystem.dataAsm}
 ${shaftSystem.dataAsm}
 ${bossSystem.dataAsm}
-${formatBytes('bitmap_room_sprite_colors', combinedColors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
+${isKonamiMegaRom ? '; Player sprite colour tables are emitted in Konami MegaROM data banks below.\n' : `${formatBytes('bitmap_room_sprite_colors', combinedColors, `Sprite 0 line color table (mode 2): ${spriteSourceLabel}${hasStateAnimations ? ` + ${stateAnimations.length} state clip(s)` : ''}`)}
 bitmap_room_sprite_colors_end:
 ${useGlowingTailColors ? `
 ${formatBytes('bitmap_room_sprite_colors_glowing', combinedGlowingColors, 'Glowing-tail player colours: dim slots 8..15 mapped to intense twins 0..7')}
 bitmap_room_sprite_colors_glowing_end:
-` : ''}
+` : ''}`}
 
 ${formatBytes('bitmap_room_sprite_attrs', spriteTables.attrs, 'SAT: sprite 0 active (Y/X set at runtime), sprite 1 Y=#D8 stops processing')}
 bitmap_room_sprite_attrs_end:

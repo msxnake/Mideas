@@ -1,0 +1,10 @@
+t6_before_walk nuts=0 player=(32,128)
+   nut0 cell (x48..62): y=150 22 22 22 21 22 22 22 22 
+                        y=155 11 11 11 11 11 11 11 11 
+                        y=160 22 22 22 22 22 22 22 22 
+   far reference (x=200): 99 99 99 99 
+t7_standing_on_the_collected_cell nuts=3 player=(92,128)
+   nut0 cell (x48..62): y=150 99 99 99 9A 91 11 11 11 
+                        y=155 99 99 99 99 91 11 11 11 
+                        y=160 99 99 99 99 91 11 11 11 
+   far reference (x=200): 99 99 99 99 

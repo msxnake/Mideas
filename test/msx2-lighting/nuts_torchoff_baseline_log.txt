@@ -1,0 +1,12 @@
+t6_room_up_before_walk nuts=0 player=(32,128)
+   nut0 cell rows (x48..62):
+     y=150 22 22 22 21 22 22 22 22 
+     y=155 11 11 11 11 11 11 11 11 
+     y=160 22 22 22 22 22 22 22 22 
+   dark reference (x=200, same rows): 99 99 99 99  / 99 99 99 99 
+t10_after_collecting nuts=3 player=(228,128)
+   nut0 cell rows (x48..62):
+     y=150 11 11 11 12 11 11 11 11 
+     y=155 11 11 11 11 11 11 11 11 
+     y=160 11 11 11 11 11 11 11 11 
+   dark reference (x=200, same rows): 99 99 99 99  / 99 99 99 99 

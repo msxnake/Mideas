@@ -15,7 +15,7 @@
     "test:msx2-editor-contract": "node scripts/check_msx2_entity_editor_contract.mjs",
     "test:msx2-screen-enemy-pack": "node scripts/check_msx2_screen_enemy_pack.mjs",
     "test:enemy-logic-cadence": "node scripts/check_enemy_logic_update_interval.mjs",
-  "test:msx2-bat-flight": "node scripts/check_msx2_bitmap_bat_flight.mjs",
+    "test:msx2-bat-flight": "node scripts/check_msx2_bitmap_bat_flight.mjs",
     "test:msx2-skill-params-contract": "node scripts/check_skill_params_contract.cjs",
     "test:msx2-bitmap-room-resident-dispatch": "node scripts/check_msx2_bitmap_room_resident_dispatch.mjs",
     "test:msx2-screen5-carry-and-throw": "node scripts/check_screen5_carry_and_throw_contract.mjs",
@@ -29,7 +29,10 @@
     "test:msx2-boss-roomlock": "node scripts/check_msx2_boss_roomlock_contract.mjs",
     "test:msx2-boss-death-fx": "node scripts/check_msx2_boss_death_fx_contract.mjs",
     "test:msx2-world-palette": "node scripts/check_msx2_world_palette.mjs",
+    "test:msx2-dark-slot8": "node scripts/check_msx2_dark_slot8.mjs",
+    "test:msx2-dark-repaint": "node scripts/check_msx2_dark_repaint.mjs",
     "test:msx2-multiworld": "node scripts/check_msx2_multiworld.mjs",
+    "test:msx2-worldlink-music": "node scripts/check_msx2_worldlink_music.mjs",
     "test:msx2-atlas-entries": "node scripts/check_msx2_atlas_entries.mjs",
     "test:msx2-boss-roomlock-ui": "node scripts/check_msx2_boss_roomlock_ui_playwright.cjs",
     "test:msx2-budget-feedback": "node scripts/check_msx2_budget_feedback_helper.mjs",
@@ -57,7 +60,8 @@
     "smoke:msx2-screen4-vertical-shooter60hz": "python scripts/build_msx2screen4_vertical_shooter60hz_megarom_smoke.py",
     "smoke:msx2-screen4-multibank": "python scripts/build_msx2screen4_multibank_loader_smoke.py",
     "smoke:msx2-layers": "python scripts/build_msx2screen_layers_smoke.py",
-    "smoke:msx2-conveyor": "python scripts/build_msx2screen_conveyor_smoke.py"
+    "smoke:msx2-conveyor": "python scripts/build_msx2screen_conveyor_smoke.py",
+    "smoke:msx2-screen5-sway": "node test/msx2-sway/make_fixture.mjs && python -B scripts/build_mideas_unified_rom.py --json test/msx2-sway/fixture_sway.json --project-root . --asm-output test/msx2-sway/sway.asm --rom-output test/msx2-sway/sway.rom --allow-tsc-errors && bash test/msx2-sway/run_probe.sh"
   },
   "dependencies": {
     "@xyflow/react": "^12.8.4",

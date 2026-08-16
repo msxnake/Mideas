@@ -64,6 +64,12 @@ export interface BitmapLightingOptions {
   eatSound?: PSGSoundData;
   /** Absolute SCREEN 5 Y row where the shared room atlas starts in VRAM. */
   atlasBaseY?: number;
+  /**
+   * Address of the 15-byte V9938 command scratch every overlay system launches
+   * from. bitmap_light_dim_cmd_block reads the destination rectangle from it to
+   * dim what was just painted (see there).
+   */
+  cmdBlockAddr?: number;
   /** Animation id of the 'glowing' player state, when the project maps one. */
   glowingAnimId?: number;
   /**
@@ -72,6 +78,14 @@ export interface BitmapLightingOptions {
    * expensive blit of a transition) stalls the song for its whole duration.
    */
   musicTick?: boolean;
+  /**
+   * The room composition already delivers a dark room: its command program reads
+   * tiles from a pre-dimmed twin of the atlas and its colour fills carry the
+   * dimmed index (see dimRoomRenderRecords in the room generator). Room entry
+   * then only has to CUT the light sources out, and the 256x192 LMMV OR that
+   * dominated every dark-room entry (292 ms of blitter, 17,5 frames) disappears.
+   */
+  roomsComposeDimmed?: boolean;
   /**
    * Travelling lantern carried by the shoot skill's bullet: while the tail is
    * lit, the bullet drags a small halo so a shot doubles as a sonar.
@@ -136,23 +150,35 @@ const GAME_H = 192;
  * decay stage — only the half widths below shrink — so one stage's rows are
  * always another stage's rows and a shrink never has to move a row boundary.
  * Must be contiguous and disjoint, top to bottom.
+ *
+ * THREE bands, not five. Measured on hardware (test/msx2-lighting/lmmv_bench):
+ * a rectangle costs ~0,25-0,34 ms of wall clock BEFORE painting a pixel (the 11
+ * OUTs, the wait for the previous command, decoding the band), against 5,94 us
+ * per pixel of actual fill. For the thin strips a halo delta is made of, that
+ * fixed part is two thirds of the bill, so the number of rectangles is the real
+ * currency — not their area. Merging the old 8-row shoulders into their
+ * neighbours takes a horizontal delta from 10 rectangles to 6 and a vertical one
+ * from 10 to 6, for the SAME pixel count and the same lit area (see below).
+ * Cost: a chunkier silhouette, two steps per side instead of three.
  */
 const BAND_ROWS: Array<[number, number]> = [
-  [-32, 8],
-  [-24, 8],
+  [-32, 16],
   [-16, 32],
-  [16, 8],
-  [24, 8],
+  [16, 16],
 ];
 
 /**
  * Half width of each band, per decay stage. Stage 0 is a freshly eaten mushroom;
  * the last stage is the dying glow just before the dark takes over.
+ *
+ * Chosen so every stage keeps EXACTLY the lit area of the five-band shape it
+ * replaces (4160 / 2816 / 1536 px): the light reaches as far as it used to, it
+ * just gets there in fewer steps.
  */
 const STAGE_HALF_WIDTHS: number[][] = [
-  [20, 30, 40, 30, 20],
-  [12, 20, 28, 20, 12],
-  [6, 10, 16, 10, 6],
+  [24, 40, 24],
+  [16, 28, 16],
+  [8, 16, 8],
 ];
 
 const BAND_COUNT = BAND_ROWS.length;
@@ -165,6 +191,23 @@ const VEXT = Math.max(...BAND_ROWS.map(([dy, h]) => Math.max(Math.abs(dy), Math.
  * consumes one boundary row-range per band, and ranges must not overlap.
  */
 const MAX_STEP = Math.min(8, ...BAND_ROWS.map(([, h]) => h));
+
+/**
+ * Smallest halo step worth paying for. A delta below this is left pending: the
+ * halo waits until the player has drifted this far and then moves in one go.
+ *
+ * The point is the fixed cost of a rectangle (see BAND_ROWS): six rectangles of
+ * 2 px cost almost exactly what six rectangles of 4 px cost, so at the usual
+ * walking speed of 2 px/frame this halves the number of frames that pay for the
+ * halo at no extra pixel cost. It is a dead zone, not a frame counter, and that
+ * matters: something moving fast (a fall at terminal velocity) clears the
+ * threshold every frame and keeps tracking exactly as it did before, while
+ * something slow simply moves in coarser steps. The halo can sit up to
+ * MIN_STEP-1 px off centre, which is invisible inside an 80 px wide blob — and
+ * it stays SELF-CONSISTENT, because everything that asks "is this point lit?"
+ * (bitmap_light_sprite_point_is_lit, the repairs) reads the painted centre.
+ */
+const MIN_STEP = 4;
 
 const CY_MIN = GAME_Y + VEXT;
 const CY_MAX = GAME_Y + GAME_H - VEXT;
@@ -200,8 +243,9 @@ const stageCxMax = (stage: number) => 256 - stageHwMax(stage);
  * rows its neighbour grows into, so the ONLY pixels that actually change are the
  * difference in half width at each band boundary, plus the full-width slivers
  * entering at one end and leaving at the other. Repainting whole bands instead
- * costs 2 * sum(2 * halfWidth) * d (560 * d at stage 0); the differences cost
- * 2 * (hw_first + hw_last + sum|hw delta|) * d = 160 * d, 3.5x less.
+ * costs 2 * sum(2 * halfWidth) * d (352 * d at stage 0); the differences cost
+ * 2 * (hw_first + hw_last + sum|hw delta|) * d = 160 * d, 2.2x less for the same
+ * six rectangles.
  *
  * A bonus: every rectangle in the table covers a distinct row range, so unlike
  * the whole-band version there is no "all dims before all lights" ordering rule.
@@ -315,6 +359,16 @@ const hex2 = (value: number) => `#${(value & 0xff).toString(16).toUpperCase().pa
 export function isBitmapLightingRoom(room: any): boolean {
   return String(room?.runtime?.lighting || 'off').toLowerCase() === 'lamp';
 }
+
+/**
+ * Tail call for any routine that has just launched a 15-byte command from the
+ * shared scratch block: in a dark room it brings the rectangle it painted down
+ * to the room's light level and gives the halo back. See
+ * bitmap_light_dim_cmd_block. Emit it only when a dark room exists — the label
+ * does not exist otherwise, and lit projects must stay byte-identical.
+ */
+export const BITMAP_LIGHT_DIM_CMD_CALL =
+  '    call bitmap_light_dim_cmd_block   ; dark room: keep the patch at the room light level\n';
 
 /**
  * Mushrooms of every DARK room. Mushrooms placed in a lit room are ignored:
@@ -455,7 +509,9 @@ export function buildBitmapLightingSystemAsm(
   const torchConfig = options.torch;
   const torchSkill = torchConfig?.enabled === true;
   const musicTick = options.musicTick === true;
+  const composeDimmed = options.roomsComposeDimmed === true;
   const atlasBaseY = clampInt(options.atlasBaseY, 0, 1023, 512);
+  const cmdBlockAddr = clampInt(options.cmdBlockAddr, 0xc000, 0xfff0, 0xc2c0);
   // Mushrooms only glow where the skill is active: without it the room has a
   // lamp that never goes out, and a second light source has nothing to add.
   const mushrooms = torchSkill ? collectBitmapMushroomRecords(rooms, atlasBaseY) : [];
@@ -506,6 +562,18 @@ export function buildBitmapLightingSystemAsm(
   const A_BY = alloc(1);
   const A_BH = alloc(1);
   const A_BHW = alloc(1);
+  // Rectangle intersection scratch: source (a rectangle just dimmed) against a
+  // target (a light source). Shared by the mushroom repair and by the runtime
+  // repaint dimmer, which is why it is not gated on mushrooms.
+  const A_SRX = alloc(1);
+  const A_SRY = alloc(1);
+  const A_SRW = alloc(1);
+  const A_SRH = alloc(1);
+  const A_TX0 = alloc(1);
+  const A_TY0 = alloc(1);
+  const A_TW = alloc(1);
+  const A_TH = alloc(1);
+  const A_PROTECT = alloc(1);
   // Torch skill state.
   const A_ON = torchSkill ? alloc(1) : -1;
   const A_STAGE = torchSkill ? alloc(1) : -1;
@@ -521,20 +589,11 @@ export function buildBitmapLightingSystemAsm(
   // Mushroom glow / repair scratch.
   const A_MCX = anyMushroom ? alloc(1) : -1;
   const A_MCY = anyMushroom ? alloc(1) : -1;
-  const A_SRX = anyMushroom ? alloc(1) : -1;
-  const A_SRY = anyMushroom ? alloc(1) : -1;
-  const A_SRW = anyMushroom ? alloc(1) : -1;
-  const A_SRH = anyMushroom ? alloc(1) : -1;
-  const A_TX0 = anyMushroom ? alloc(1) : -1;
-  const A_TY0 = anyMushroom ? alloc(1) : -1;
-  const A_TW = anyMushroom ? alloc(1) : -1;
-  const A_TH = anyMushroom ? alloc(1) : -1;
   const A_MEX = anyMushroom ? alloc(1) : -1;
   const A_MEY = anyMushroom ? alloc(1) : -1;
   const A_MFLAG = anyMushroom ? alloc(1) : -1;
   const A_MSX = anyMushroom ? alloc(1) : -1;
   const A_MSY = anyMushroom ? alloc(2) : -1;
-  const A_PROTECT = anyMushroom ? alloc(1) : -1;
   const A_MFLAGS = anyMushroom ? alloc(mushFlagCount) : -1;
   // A selected Sound Editor asset is sequenced over subsequent frames. The
   // built-in blip remains fire-and-forget and consumes no extra RAM.
@@ -572,6 +631,15 @@ export function buildBitmapLightingSystemAsm(
     equ('bitmap_light_band_y', A_BY) +
     equ('bitmap_light_band_h', A_BH) +
     equ('bitmap_light_band_hw', A_BHW) +
+    equ('bitmap_light_srx', A_SRX) +
+    equ('bitmap_light_sry', A_SRY) +
+    equ('bitmap_light_srw', A_SRW) +
+    equ('bitmap_light_srh', A_SRH) +
+    equ('bitmap_light_tx0', A_TX0) +
+    equ('bitmap_light_ty0', A_TY0) +
+    equ('bitmap_light_tw', A_TW) +
+    equ('bitmap_light_th', A_TH) +
+    equ('bitmap_light_protect', A_PROTECT) +
     (torchSkill
       ? equ('bitmap_light_on', A_ON) +
         equ('bitmap_light_stage', A_STAGE) +
@@ -587,20 +655,11 @@ export function buildBitmapLightingSystemAsm(
     (anyMushroom
       ? equ('bitmap_mush_cx', A_MCX) +
         equ('bitmap_mush_cy', A_MCY) +
-        equ('bitmap_light_srx', A_SRX) +
-        equ('bitmap_light_sry', A_SRY) +
-        equ('bitmap_light_srw', A_SRW) +
-        equ('bitmap_light_srh', A_SRH) +
-        equ('bitmap_light_tx0', A_TX0) +
-        equ('bitmap_light_ty0', A_TY0) +
-        equ('bitmap_light_tw', A_TW) +
-        equ('bitmap_light_th', A_TH) +
         equ('bitmap_mush_ex', A_MEX) +
         equ('bitmap_mush_ey', A_MEY) +
         equ('bitmap_mush_flag', A_MFLAG) +
         equ('bitmap_mush_sx', A_MSX) +
         equ('bitmap_mush_sy', A_MSY) +
-        equ('bitmap_light_protect', A_PROTECT) +
         equ('bitmap_mush_flags', A_MFLAGS)
       : '') +
     (compiledEatSound
@@ -616,7 +675,8 @@ export function buildBitmapLightingSystemAsm(
 
   const initAsm = `    xor a
     ld (bitmap_light_active), a       ; no halo painted yet
-${anyMushroom ? '    ld (bitmap_light_protect), a\n' : ''}${lantern ? '    ld (bitmap_bl_on), a              ; no bullet lantern painted\n' : ''}${compiledEatSound ? '    ld (bitmap_light_sfx_active), a\n' : ''}${torchSkill
+    ld (bitmap_light_protect), a
+${lantern ? '    ld (bitmap_bl_on), a              ; no bullet lantern painted\n' : ''}${compiledEatSound ? '    ld (bitmap_light_sfx_active), a\n' : ''}${torchSkill
     ? `    ld (bitmap_light_stage), a
     ld a, ${torchConfig?.startsLit === true ? 1 : 0}
     ld (bitmap_light_on), a           ; the tail starts ${torchConfig?.startsLit === true ? 'glowing' : 'dark: eat a mushroom'}
@@ -1024,9 +1084,16 @@ ${clampCxAsm}    ld (bitmap_light_tx), a
 ; FUNCTION: bitmap_light_paint_full
 ; ------------------------------------------------------------
 ; PURPOSE:
-;   Dim the whole game band and cut the current light sources out of it. Runs
-;   once per room, on the hidden page before the flip (or on the visible page at
-;   boot), never in the steady-state frame budget.
+;   Cut the room's light sources out of the darkness. Runs once per room, on the
+;   hidden page before the flip (or on the visible page at boot), never in the
+;   steady-state frame budget.
+;
+;${composeDimmed
+    ? `   The darkness itself is NOT painted here: the room's command program already
+;   composed it from the pre-dimmed twin of the atlas, so this only has to light
+;   the mushrooms and the halo. That is what removed the 256x192 LMMV OR — the
+;   single most expensive blit of the engine at 292 ms — from every room entry.`
+    : `   Dims the whole game band first, then cuts the light sources out of it.`}
 ;
 ; INPUT:
 ;   bitmap_light_page = destination page.
@@ -1038,7 +1105,9 @@ ${clampCxAsm}    ld (bitmap_light_tx), a
 ;   AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_light_paint_full:
-${anyMushroom ? '    call bitmap_mush_clear_flags      ; entering the room grows every mushroom back\n' : ''}    call bitmap_light_op_dim
+${anyMushroom ? '    call bitmap_mush_clear_flags      ; entering the room grows every mushroom back\n' : ''}${composeDimmed
+    ? ''
+    : `    call bitmap_light_op_dim
     xor a
     ld (bitmap_light_rx), a
     ld (bitmap_light_rw), a
@@ -1050,7 +1119,7 @@ ${anyMushroom ? '    call bitmap_mush_clear_flags      ; entering the room grows
     ld (bitmap_light_rh), a
     call bitmap_light_rect            ; unrepaired on purpose: the mushrooms are
                                       ; cut out of this fill right below
-${anyMushroom ? '    call bitmap_light_paint_mushrooms ; static glows, before the moving one\n' : ''}    call bitmap_light_target
+`}${anyMushroom ? '    call bitmap_light_paint_mushrooms ; static glows, before the moving one\n' : ''}    call bitmap_light_target
     ld a, (bitmap_light_tx)
     ld (bitmap_light_x), a
     ld a, (bitmap_light_ty)
@@ -1062,12 +1131,12 @@ ${torchSkill
 `
     : ''}    call bitmap_light_op_lit
     call bitmap_light_draw_bands
-${torchSkill ? '.light_full_done:\n' : ''}    ; Drain the engine before returning: the full-band dim fill above is issued
+${torchSkill ? '.light_full_done:\n' : ''}    ; Drain the engine before returning: every rectangle above is issued
     ; fire-and-forget, and commit_room_flip publishes the page right after this
     ; call with no wait of its own. With the halo drawn the band rects served as
     ; that wait (each starts with vdp_wait_cmd_ready), but the tail-dark path
-    ; skips them and the flip caught the fill mid-flight: the room appeared lit
-    ; and then darkened top-down, a visible raster sweep. Once per room load,
+    ; skips them and the flip caught the last fill mid-flight: the room appeared
+    ; lit and then darkened top-down, a visible raster sweep. Once per room load,
     ; never in the steady-state frame budget.
     call ${musicTick ? 'bitmap_light_drain_cmd' : 'vdp_wait_cmd_ready'}
     ld a, 1
@@ -1144,6 +1213,266 @@ bitmap_light_restore_status:
     jp vdp_write_register
 
 ; ------------------------------------------------------------
+; FUNCTION: bitmap_light_save_src
+; ------------------------------------------------------------
+; PURPOSE:
+;   Latch the current rectangle as the SOURCE of the intersection tests below.
+;   The relight passes reuse bitmap_light_rx / _ry / _rw / _rh as their output,
+;   so the rectangle being repaired has to be kept somewhere else.
+;
+; DESTROYS: AF.
+; ------------------------------------------------------------
+bitmap_light_save_src:
+    ld a, (bitmap_light_rx)
+    ld (bitmap_light_srx), a
+    ld a, (bitmap_light_ry)
+    ld (bitmap_light_sry), a
+    ld a, (bitmap_light_rw)
+    ld (bitmap_light_srw), a
+    ld a, (bitmap_light_rh)
+    ld (bitmap_light_srh), a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_light_intersect
+; ------------------------------------------------------------
+; PURPOSE:
+;   Intersect the saved source rectangle with the target rectangle. Widths are
+;   measured FORWARD from the intersection corner (w - (i - x)) instead of
+;   comparing right edges, because a right edge can legitimately be 256 and
+;   would wrap in 8 bits.
+;
+; INPUT:
+;   bitmap_light_srx / _sry / _srw / _srh = source (the rectangle just dimmed),
+;   bitmap_light_tx0 / _ty0 / _tw / _th   = target (a glow band or its bbox).
+;
+; OUTPUT:
+;   Z set when the two are disjoint. Otherwise NZ and bitmap_light_rx / _ry /
+;   _rw / _rh hold the intersection, ready for bitmap_light_rect.
+;
+; DESTROYS: AF, BC, DE.  PRESERVES: HL, IX, IY.
+; ------------------------------------------------------------
+bitmap_light_intersect:
+    ld a, (bitmap_light_srx)
+    ld b, a
+    ld a, (bitmap_light_tx0)
+    ld c, a
+    cp b
+    jr nc, .tl_ix_ok
+    ld a, b                   ; A = max(srx, tx0)
+.tl_ix_ok:
+    ld (bitmap_light_rx), a
+    sub b                     ; how far into the source rectangle
+    ld e, a
+    ld a, (bitmap_light_srw)
+    sub e
+    jp z, .tl_no_overlap
+    jp c, .tl_no_overlap
+    ld d, a                   ; D = source width left of its right edge
+    ld a, (bitmap_light_rx)
+    sub c                     ; how far into the target rectangle
+    ld e, a
+    ld a, (bitmap_light_tw)
+    sub e
+    jp z, .tl_no_overlap
+    jp c, .tl_no_overlap
+    cp d
+    jr c, .tl_keep_w
+    ld a, d
+.tl_keep_w:
+    ld (bitmap_light_rw), a
+    xor a
+    ld (bitmap_light_rw + 1), a
+    ld a, (bitmap_light_sry)
+    ld b, a
+    ld a, (bitmap_light_ty0)
+    ld c, a
+    cp b
+    jr nc, .tl_iy_ok
+    ld a, b                   ; A = max(sry, ty0)
+.tl_iy_ok:
+    ld (bitmap_light_ry), a
+    sub b
+    ld e, a
+    ld a, (bitmap_light_srh)
+    sub e
+    jp z, .tl_no_overlap
+    jp c, .tl_no_overlap
+    ld d, a
+    ld a, (bitmap_light_ry)
+    sub c
+    ld e, a
+    ld a, (bitmap_light_th)
+    sub e
+    jp z, .tl_no_overlap
+    jp c, .tl_no_overlap
+    cp d
+    jr c, .tl_keep_h
+    ld a, d
+.tl_keep_h:
+    ld (bitmap_light_rh), a
+    or a                      ; height >= 1 here, so NZ = they overlap
+    ret
+.tl_no_overlap:
+    xor a
+    ret
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_light_relight_halo
+; ------------------------------------------------------------
+; PURPOSE:
+;   Cut the player's halo back out of the saved source rectangle: every band
+;   that overlaps it is re-lit, so a rectangle dimmed under the player's feet
+;   does not punch a hole in the light he is standing in.
+;
+; INPUT:
+;   bitmap_light_srx / _sry / _srw / _srh = the rectangle that was just dimmed.
+;
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_light_relight_halo:
+${torchSkill ? `    ld a, (bitmap_light_on)
+    or a
+    ret z                     ; tail out: there is no halo to give back
+` : ''}${loadBandsHl}    ld b, ${BAND_COUNT}
+.tl_rhalo_band:
+    push bc
+    ld a, (bitmap_light_y)
+    add a, (hl)               ; + signed row offset
+    ld (bitmap_light_ty0), a
+    inc hl
+    ld a, (hl)
+    ld (bitmap_light_th), a
+    inc hl
+    ld a, (bitmap_light_x)
+    sub (hl)
+    ld (bitmap_light_tx0), a
+    ld a, (hl)
+    add a, a
+    ld (bitmap_light_tw), a
+    inc hl
+    call bitmap_light_intersect
+    jr z, .tl_rhalo_next
+    call bitmap_light_op_lit
+    call bitmap_light_rect    ; preserves BC and HL: no stack needed here
+.tl_rhalo_next:
+    pop bc
+    djnz .tl_rhalo_band
+    ret
+
+${anyMushroom ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_light_repair_halo
+; ------------------------------------------------------------
+; PURPOSE:
+;   The halo relight above, but only while bitmap_light_protect is set. Inside
+;   the halo passes it must NOT run: there the dimmed strip is the one the halo
+;   is leaving behind, and protecting it would freeze the light in place. It is
+;   set for an eaten mushroom's glow being put out under the player's feet, and
+;   for the runtime repaints below.
+;
+; INPUT:
+;   bitmap_light_srx / _sry / _srw / _srh = the rectangle that was just dimmed.
+;
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_light_repair_halo:
+    ld a, (bitmap_light_protect)
+    or a
+    ret z
+    jp bitmap_light_relight_halo
+` : ''}
+; ------------------------------------------------------------
+; FUNCTION: bitmap_light_dim_repaint
+; ------------------------------------------------------------
+; PURPOSE:
+;   Bring a rectangle that was just repainted down to the light level of the
+;   room it landed on. Every overlay command template — a pickup metatile, the
+;   background restored under a collected one, a door swinging open, a chipped
+;   tile — is authored from the LIT atlas, so in a dark room it left a brightly
+;   lit patch floating in the darkness. The room itself is composed from the
+;   dimmed twin of that same atlas, so a plain OR #08 over the rectangle lands
+;   on exactly the colours the composition would have painted there.
+;
+;   Then the light sources are cut back out of it: a pickup is collected at the
+;   player's feet, which is precisely where his halo is, and leaving the cell
+;   dark there would be as wrong as leaving it lit in the dark.
+;
+;   Lit rooms return on the first compare, so this costs a table read per
+;   repaint in a project that has dark rooms at all.
+;
+; INPUT:
+;   bitmap_light_rx / _ry (page row) / _rw (word) / _rh = the painted rectangle,
+;   bitmap_light_page = the page it was painted on.
+;
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_light_dim_repaint:
+    call bitmap_light_room_is_dark
+    ret z
+    call bitmap_light_op_dim
+    call bitmap_light_rect
+    ; Room entry draws its overlays BEFORE bitmap_light_paint_full cuts the
+    ; light out, and bitmap_light_x / _y still hold the previous room's centre:
+    ; dim only, the paint below gets the light sources right.
+    ld a, (bitmap_composition_state)
+    or a
+    ret nz
+    ld a, (bitmap_light_active)
+    or a
+    ret z                     ; no halo painted yet (boot, before the first paint)
+${anyMushroom ? `    ld a, 1
+    ld (bitmap_light_protect), a      ; give the halo back too, not just the glows
+    call bitmap_light_repair          ; latches the source rectangle itself
+    xor a
+    ld (bitmap_light_protect), a
+    ret`
+    : `    call bitmap_light_save_src
+    jp bitmap_light_relight_halo`}
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_light_dim_cmd_block
+; ------------------------------------------------------------
+; PURPOSE:
+;   bitmap_light_dim_repaint for the caller that has just launched a 15-byte
+;   V9938 command from the shared scratch block at #${cmdBlockAddr.toString(16).toUpperCase()}: the destination
+;   rectangle is read straight out of the block, so every overlay system gets
+;   the dimming with one call and no bookkeeping of its own.
+;
+;   Registers are preserved because this hangs off the tail of launch routines
+;   whose callers walk record tables in BC / HL.
+;
+; INPUT:
+;   The block at #${cmdBlockAddr.toString(16).toUpperCase()} (DX, DY, NX, NY as just launched).
+;
+; DESTROYS: AF.  PRESERVES: BC, DE, HL, IX, IY.
+;
+; SIDE EFFECTS:
+;   Leaves R#15 selecting S#2 when the room is dark (bitmap_light_rect); the
+;   launch routines restore S#0 right after this call.
+; ------------------------------------------------------------
+bitmap_light_dim_cmd_block:
+    push bc
+    push de
+    push hl
+    ld a, (#${(cmdBlockAddr + 4).toString(16).toUpperCase()})               ; DX low
+    ld (bitmap_light_rx), a
+    ld a, (#${(cmdBlockAddr + 6).toString(16).toUpperCase()})               ; DY low: already a page row
+    ld (bitmap_light_ry), a
+    ld a, (#${(cmdBlockAddr + 8).toString(16).toUpperCase()})               ; NX
+    ld (bitmap_light_rw), a
+    ld a, (#${(cmdBlockAddr + 9).toString(16).toUpperCase()})
+    ld (bitmap_light_rw + 1), a
+    ld a, (#${(cmdBlockAddr + 10).toString(16).toUpperCase()})              ; NY (never crosses the page)
+    ld (bitmap_light_rh), a
+    ld a, (#${(cmdBlockAddr + 7).toString(16).toUpperCase()})               ; DY high = destination page
+    ld (bitmap_light_page), a
+    call bitmap_light_dim_repaint
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------
 ; FUNCTION: bitmap_light_shift_x
 ; ------------------------------------------------------------
 ; PURPOSE:
@@ -1151,11 +1480,14 @@ bitmap_light_restore_status:
 ;   column the halo leaves behind is dimmed, the column it reaches is lit. Bands
 ;   are disjoint in Y, so each band is independent and pass order is free.
 ;
+;   A drift of less than ${MIN_STEP} px is left pending (see MIN_STEP): each strip costs
+;   the same whether it is 2 or ${MIN_STEP} px wide, so waiting halves the frames that pay.
+;
 ; INPUT:
 ;   bitmap_light_tx = wanted centre, bitmap_light_x = current centre.
 ;
 ; OUTPUT:
-;   bitmap_light_x advanced by at most ${MAX_STEP} px.
+;   bitmap_light_x advanced by ${MIN_STEP}..${MAX_STEP} px, or left alone.
 ;
 ; DESTROYS:
 ;   AF, BC, DE, HL.
@@ -1167,6 +1499,8 @@ bitmap_light_shift_x:
     sub c                     ; A = signed dx
     ret z
     jp m, .going_left
+    cp ${MIN_STEP}
+    ret c                     ; dead zone: not worth a pass yet
     cp ${MAX_STEP + 1}
     jr c, .right_step_ok
     ld a, ${MAX_STEP}
@@ -1190,6 +1524,8 @@ bitmap_light_shift_x:
     ret
 .going_left:
     neg
+    cp ${MIN_STEP}
+    ret c                     ; dead zone
     cp ${MAX_STEP + 1}
     jr c, .left_step_ok
     ld a, ${MAX_STEP}
@@ -1272,15 +1608,20 @@ ${loadBandsHl}    ld b, ${BAND_COUNT}
 ;   Move the halo vertically. Only the pixels that genuinely change owner are
 ;   repainted: the full-width sliver entering at the leading end, the one leaving
 ;   at the trailing end, and at every band boundary just the difference in half
-;   width. Repainting whole bands would cost 3.5x more for the same result.
+;   width. Repainting whole bands would cost 2.2x more for the same result.
+;
+;   Same ${MIN_STEP} px dead zone as the horizontal pass. Note this axis is the one that
+;   can genuinely need a big step: a fall runs at up to the terminal velocity of
+;   the Player Config, so the threshold is cleared every frame there and nothing
+;   lags behind.
 ;
 ; INPUT:
 ;   bitmap_light_ty = wanted centre, bitmap_light_y = current centre,
 ;   bitmap_light_x = centre already updated by bitmap_light_shift_x.
 ;
 ; OUTPUT:
-;   bitmap_light_y advanced by at most ${MAX_STEP} px (never more than the
-;   shortest band, or two boundary row ranges would overlap).
+;   bitmap_light_y advanced by ${MIN_STEP}..${MAX_STEP} px (never more than the
+;   shortest band, or two boundary row ranges would overlap), or left alone.
 ;
 ; DESTROYS:
 ;   AF, BC, DE, HL.
@@ -1292,6 +1633,8 @@ bitmap_light_shift_y:
     sub c                     ; A = signed dy
     ret z
     jp m, .going_up
+    cp ${MIN_STEP}
+    ret c                     ; dead zone: not worth a pass yet
     cp ${MAX_STEP + 1}
     jr c, .down_step_ok
     ld a, ${MAX_STEP}
@@ -1308,6 +1651,8 @@ ${loadStepDown}    call bitmap_light_step_pass
     ret
 .going_up:
     neg
+    cp ${MIN_STEP}
+    ret c                     ; dead zone
     cp ${MAX_STEP + 1}
     jr c, .up_step_ok
     ld a, ${MAX_STEP}
@@ -1693,90 +2038,6 @@ bitmap_light_paint_mushrooms:
     ret
 
 ; ------------------------------------------------------------
-; FUNCTION: bitmap_light_intersect
-; ------------------------------------------------------------
-; PURPOSE:
-;   Intersect the saved source rectangle with the target rectangle. Widths are
-;   measured FORWARD from the intersection corner (w - (i - x)) instead of
-;   comparing right edges, because a right edge can legitimately be 256 and
-;   would wrap in 8 bits.
-;
-; INPUT:
-;   bitmap_light_srx / _sry / _srw / _srh = source (the rectangle just dimmed),
-;   bitmap_light_tx0 / _ty0 / _tw / _th   = target (a glow band or its bbox).
-;
-; OUTPUT:
-;   Z set when the two are disjoint. Otherwise NZ and bitmap_light_rx / _ry /
-;   _rw / _rh hold the intersection, ready for bitmap_light_rect.
-;
-; DESTROYS: AF, BC, DE.  PRESERVES: HL, IX, IY.
-; ------------------------------------------------------------
-bitmap_light_intersect:
-    ld a, (bitmap_light_srx)
-    ld b, a
-    ld a, (bitmap_light_tx0)
-    ld c, a
-    cp b
-    jr nc, .tl_ix_ok
-    ld a, b                   ; A = max(srx, tx0)
-.tl_ix_ok:
-    ld (bitmap_light_rx), a
-    sub b                     ; how far into the source rectangle
-    ld e, a
-    ld a, (bitmap_light_srw)
-    sub e
-    jp z, .tl_no_overlap
-    jp c, .tl_no_overlap
-    ld d, a                   ; D = source width left of its right edge
-    ld a, (bitmap_light_rx)
-    sub c                     ; how far into the target rectangle
-    ld e, a
-    ld a, (bitmap_light_tw)
-    sub e
-    jp z, .tl_no_overlap
-    jp c, .tl_no_overlap
-    cp d
-    jr c, .tl_keep_w
-    ld a, d
-.tl_keep_w:
-    ld (bitmap_light_rw), a
-    xor a
-    ld (bitmap_light_rw + 1), a
-    ld a, (bitmap_light_sry)
-    ld b, a
-    ld a, (bitmap_light_ty0)
-    ld c, a
-    cp b
-    jr nc, .tl_iy_ok
-    ld a, b                   ; A = max(sry, ty0)
-.tl_iy_ok:
-    ld (bitmap_light_ry), a
-    sub b
-    ld e, a
-    ld a, (bitmap_light_srh)
-    sub e
-    jp z, .tl_no_overlap
-    jp c, .tl_no_overlap
-    ld d, a
-    ld a, (bitmap_light_ry)
-    sub c
-    ld e, a
-    ld a, (bitmap_light_th)
-    sub e
-    jp z, .tl_no_overlap
-    jp c, .tl_no_overlap
-    cp d
-    jr c, .tl_keep_h
-    ld a, d
-.tl_keep_h:
-    ld (bitmap_light_rh), a
-    or a                      ; height >= 1 here, so NZ = they overlap
-    ret
-.tl_no_overlap:
-    xor a
-    ret
-
-; ------------------------------------------------------------
 ; FUNCTION: bitmap_light_repair
 ; ------------------------------------------------------------
 ; PURPOSE:
@@ -1797,14 +2058,7 @@ bitmap_light_intersect:
 ; DESTROYS: AF, BC, DE, HL.
 ; ------------------------------------------------------------
 bitmap_light_repair:
-    ld a, (bitmap_light_rx)
-    ld (bitmap_light_srx), a
-    ld a, (bitmap_light_ry)
-    ld (bitmap_light_sry), a
-    ld a, (bitmap_light_rw)
-    ld (bitmap_light_srw), a
-    ld a, (bitmap_light_rh)
-    ld (bitmap_light_srh), a
+    call bitmap_light_save_src
     call bitmap_mush_room_table
     jp z, bitmap_light_op_dim
 .tl_repair_loop:
@@ -1869,52 +2123,6 @@ bitmap_light_repair:
     jp nz, .tl_repair_loop
     call bitmap_light_repair_halo
     jp bitmap_light_op_dim    ; restore the caller's fill
-
-; ------------------------------------------------------------
-; FUNCTION: bitmap_light_repair_halo
-; ------------------------------------------------------------
-; PURPOSE:
-;   Same idea as the mushroom repair, for the player's own halo — but only
-;   while bitmap_light_protect is set. It is set exactly once: when an eaten
-;   mushroom's glow is put out under the player's feet, which would otherwise
-;   punch a hole in the halo he is standing in. It must NOT be set during halo
-;   movement: there the dimmed strip is the one the halo is leaving behind, and
-;   protecting it would freeze the light in place.
-;
-; INPUT:
-;   bitmap_light_srx / _sry / _srw / _srh = the rectangle that was just dimmed.
-;
-; DESTROYS: AF, BC, DE, HL.
-; ------------------------------------------------------------
-bitmap_light_repair_halo:
-    ld a, (bitmap_light_protect)
-    or a
-    ret z
-${loadBandsHl}    ld b, ${BAND_COUNT}
-.tl_rhalo_band:
-    push bc
-    ld a, (bitmap_light_y)
-    add a, (hl)               ; + signed row offset
-    ld (bitmap_light_ty0), a
-    inc hl
-    ld a, (hl)
-    ld (bitmap_light_th), a
-    inc hl
-    ld a, (bitmap_light_x)
-    sub (hl)
-    ld (bitmap_light_tx0), a
-    ld a, (hl)
-    add a, a
-    ld (bitmap_light_tw), a
-    inc hl
-    call bitmap_light_intersect
-    jr z, .tl_rhalo_next
-    call bitmap_light_op_lit
-    call bitmap_light_rect    ; preserves BC and HL: no stack needed here
-.tl_rhalo_next:
-    pop bc
-    djnz .tl_rhalo_band
-    ret
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_light_submit

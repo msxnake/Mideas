@@ -418,6 +418,19 @@ export interface Msx2BitmapRoomAtlasEntry {
   crumbling?: boolean;
   /** Frames the player must stand on a crumbling cell for each 2px erosion stage (2..30, default 6). */
   crumbleFramesPerStage?: number;
+  /**
+   * SCREEN 5 bitmap-room grass sway: cells painted with this tile bend while the player body
+   * walks through them and spring back upright shortly after. Purely cosmetic — the collision
+   * and behavior maps are never touched, so the bent frames must share this tile's silhouette
+   * if the cell is solid. Needs at least one of swayLeftAtlasEntryId/swayRightAtlasEntryId.
+   */
+  sway?: boolean;
+  /** Atlas entry drawn while the grass bends LEFT (the player is looking left). */
+  swayLeftAtlasEntryId?: string;
+  /** Atlas entry drawn while the grass bends RIGHT (the player is looking right). */
+  swayRightAtlasEntryId?: string;
+  /** Frames the bend is held after the player stops touching the cell (2..60, default 8). */
+  swayHoldFrames?: number;
 }
 
 /**
@@ -3795,9 +3808,22 @@ export interface Msx2GameFlowControlsNode extends Msx2GameFlowNode_Base {
   waitFrames?: number;
 }
 
+/** Sentinel for "this world starts in silence" in `musicTrackAssetId`. */
+export const MSX2_WORLDLINK_MUSIC_NONE = '__none';
+
 export interface Msx2GameFlowWorldLinkNode extends Msx2GameFlowNode_Base {
   type: 'WorldLink';
   worldAssetId: string;
+  /**
+   * SCREEN 5 bitmap route: music started when this world is entered.
+   *  - undefined  -> inherit: the node emits no music code (legacy graphs, where
+   *                  a Music node or the boot fallback decides what sounds).
+   *  - '__none'   -> the world is entered in silence (MSX2_WORLDLINK_MUSIC_NONE).
+   *  - <track id> -> that track asset plays, looped, as the gameplay loop starts.
+   * Leaving the world always stops the song (see .bitmap_gameflow_exit).
+   * Ignored by the SCREEN 4 route, which has no tracker playback yet.
+   */
+  musicTrackAssetId?: string;
 }
 
 export interface Msx2GameFlowGlobalsNode extends Msx2GameFlowNode_Base {

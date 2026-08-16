@@ -103,6 +103,12 @@ export interface BitmapCrumbleOptions {
   debrisSprite?: BitmapCrumbleDebrisSprite;
   /** Extra `ret`-style gates (NPC dialogue / perception freeze), like the other systems. */
   pauseGateAsm?: string;
+  /**
+   * Tail call after a launched command in a dark room (BITMAP_LIGHT_DIM_CMD_CALL),
+   * empty when the project has no dark room. The blit paints with the LIT palette;
+   * this brings it down to the room light level and gives the halo back.
+   */
+  dimRepaintCallAsm?: string;
   /** PSG crunch on each stage. */
   sound?: boolean;
 }
@@ -157,6 +163,7 @@ export function buildBitmapCrumbleSystemAsm(opts: BitmapCrumbleOptions): BitmapC
   const poolAddr = base + POOL_OFFSET;
   const debrisAddr = base + DEBRIS_OFFSET;
   const gameYOffset = asmByte(opts.gameYOffset);
+  const dimRepaintCall = opts.dimRepaintCallAsm || '';
   const patternNumber = asmByte(opts.debrisPatternNumber);
   const satBase = asmWord(opts.debrisSatBase);
   const sound = opts.sound !== false;
@@ -438,7 +445,7 @@ bitmap_crumble_fill_band:
     out (VDP_CMD_PORT), a
     inc hl
     djnz .cfb_launch
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 

@@ -81,6 +81,12 @@ export interface BitmapDestroyTileOptions {
   destructibleMasks: number[][];
   /** Per-room HMMV colour byte ((bg<<4)|bg) used to dissolve cells. */
   bgColorBytes: number[];
+  /**
+   * Tail call after a launched command in a dark room (BITMAP_LIGHT_DIM_CMD_CALL),
+   * empty when the project has no dark room. The blit paints with the LIT palette;
+   * this brings it down to the room light level and gives the halo back.
+   */
+  dimRepaintCallAsm?: string;
 }
 
 export interface BitmapDestroyDebrisSprite {
@@ -259,6 +265,7 @@ export function buildBitmapDestroyTileRuntimeAsm(
   const topOffset = Math.max(0, Math.min(31, hb.y));
   const bottomOffset = Math.max(0, Math.min(47, hb.y + hb.h - 1));
   const gameYOffset = asmByte(opts.gameYOffset);
+  const dimRepaintCall = opts.dimRepaintCallAsm || '';
   const patternNumber = asmByte(opts.debrisPatternNumber);
   const satBase = asmWord(opts.debrisSatBase);
 
@@ -635,7 +642,7 @@ bitmap_destroy_fill_cell:
     out (VDP_CMD_PORT), a
     inc hl
     djnz .dfc_launch
-    ld a, #0F
+${dimRepaintCall}    ld a, #0F
     ld e, #00
     jp vdp_write_register
 
