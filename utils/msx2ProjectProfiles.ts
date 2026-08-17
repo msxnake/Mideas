@@ -6,7 +6,7 @@ import {
   Msx2EntityCreatePreset,
   buildMsx2EntityComponents,
 } from '../components/msx2_screen4_editor/msx2EntityCatalog';
-import { createDefaultMsx2PlayerEntries } from './msx2PlayerDefaults';
+import { createDefaultMsx2BitmapPlayerEntries, createDefaultMsx2PlayerEntries } from './msx2PlayerDefaults';
 
 export interface Msx2GameProfileOption {
   id: Msx2GameProfileId;
@@ -777,7 +777,7 @@ export function buildStarterMsx2BitmapRoomAsset(
     effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
     behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
     entities: [player],
-    playerEntries: createDefaultMsx2PlayerEntries(),
+    playerEntries: createDefaultMsx2BitmapPlayerEntries(),
     runtime: {
       screenKind: 'playable',
       screenEngine: 'player',

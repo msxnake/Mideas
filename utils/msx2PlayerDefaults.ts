@@ -744,28 +744,53 @@ export const createDefaultMsx2PlayerDefinition = (
   };
 };
 
+const createInitialMsx2PlayerEntry = (): Msx2PlayerEntry =>
+  ({ id: 'default', x: 32, y: 128, facing: 'right', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' });
+
 export const createDefaultMsx2PlayerEntries = (): Msx2PlayerEntry[] => [
-  { id: 'default', x: 32, y: 128, facing: 'right', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
+  createInitialMsx2PlayerEntry(),
   { id: 'from_left', x: 8, y: 128, facing: 'right', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
   { id: 'from_right', x: 231, y: 128, facing: 'left', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
   { id: 'from_up', x: 96, y: 8, facing: 'down', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
   { id: 'from_down', x: 96, y: 168, facing: 'up', state: 'IDLE', entryAnimation: 'none', invulnerabilityFrames: 0, cameraTransition: 'instant' },
 ];
 
-export const normalizeMsx2PlayerEntries = (entries: Msx2PlayerEntry[] | undefined): Msx2PlayerEntry[] => {
-  const source = Array.isArray(entries) && entries.length > 0 ? entries : createDefaultMsx2PlayerEntries();
-  return source.map((entry, index) => ({
-    id: String(entry.id || `entry_${index + 1}`),
-    x: Math.max(0, Math.min(255, Math.round(Number(entry.x) || 0))),
-    y: Math.max(0, Math.min(191, Math.round(Number(entry.y) || 0))),
-    facing: normalizeMsx2PlayerFacing(entry.facing, 'right'),
-    state: entry.state || 'IDLE',
-    playerId: entry.playerId,
-    entryAnimation: entry.entryAnimation || 'none',
-    invulnerabilityFrames: Math.max(0, Math.min(255, Math.round(Number(entry.invulnerabilityFrames) || 0))),
-    cameraTransition: entry.cameraTransition || 'instant',
-  }));
-};
+/**
+ * SCREEN 5 bitmap rooms only seed the initial spawn.
+ *
+ * The four cardinal `from_left/from_right/from_up/from_down` entries are a
+ * SCREEN 4 tile-screen feature (msx2Screen4Generator's getPlayerEdgeEntryId).
+ * The bitmap engine never reads them: crossing a room edge repositions the
+ * player with hardcoded constants in `.commit_enter_top/bottom/left/right`
+ * (msx2Screen5BitmapRoomGenerator), keeping the perpendicular coordinate from
+ * the previous room. Seeding them here only produced four dead markers per
+ * room. Extra spawns can still be added by hand and named as a door's
+ * `targetEntryId`, which IS resolved by id at generation time.
+ */
+export const createDefaultMsx2BitmapPlayerEntries = (): Msx2PlayerEntry[] => [createInitialMsx2PlayerEntry()];
+
+const normalizeMsx2PlayerEntryList = (source: Msx2PlayerEntry[]): Msx2PlayerEntry[] => source.map((entry, index) => ({
+  id: String(entry.id || `entry_${index + 1}`),
+  x: Math.max(0, Math.min(255, Math.round(Number(entry.x) || 0))),
+  y: Math.max(0, Math.min(191, Math.round(Number(entry.y) || 0))),
+  facing: normalizeMsx2PlayerFacing(entry.facing, 'right'),
+  state: entry.state || 'IDLE',
+  playerId: entry.playerId,
+  entryAnimation: entry.entryAnimation || 'none',
+  invulnerabilityFrames: Math.max(0, Math.min(255, Math.round(Number(entry.invulnerabilityFrames) || 0))),
+  cameraTransition: entry.cameraTransition || 'instant',
+}));
+
+export const normalizeMsx2PlayerEntries = (entries: Msx2PlayerEntry[] | undefined): Msx2PlayerEntry[] =>
+  normalizeMsx2PlayerEntryList(
+    Array.isArray(entries) && entries.length > 0 ? entries : createDefaultMsx2PlayerEntries()
+  );
+
+/** SCREEN 5 counterpart: seeds only the initial spawn when the room has none. */
+export const normalizeMsx2BitmapPlayerEntries = (entries: Msx2PlayerEntry[] | undefined): Msx2PlayerEntry[] =>
+  normalizeMsx2PlayerEntryList(
+    Array.isArray(entries) && entries.length > 0 ? entries : createDefaultMsx2BitmapPlayerEntries()
+  );
 
 export const normalizeMsx2PlayerDefinition = (player: Partial<Msx2PlayerDefinition> | unknown): Msx2PlayerDefinition => {
   const parsed = parseMsx2PlayerImport(player);

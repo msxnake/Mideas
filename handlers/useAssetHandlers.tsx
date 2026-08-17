@@ -23,7 +23,7 @@ import { createDefaultScreen5PaletteSlots } from '../utils/msx2PaletteUtils';
 import { getScreenModeMetrics } from '../utils/screenModeConfig';
 import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForMsx2Project } from '../utils/projectTarget';
-import { createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
+import { createDefaultMsx2BitmapPlayerEntries, createDefaultMsx2PlayerDefinition, createDefaultMsx2PlayerEntries } from '../utils/msx2PlayerDefaults';
 import { buildDetailedMsx2PlayerDocument, MSX2_PLAYER_DOCUMENT_SCHEMA } from '../utils/msx2PlayerDocument';
 import { GLOBAL_ENEMY_TEMPLATES, createEnemyFromTemplate } from '../data/enemyLibrary';
 import { deepCopy } from '../utils/projectUtils';
@@ -573,7 +573,7 @@ export const useAssetHandlers = ({
           effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
           entities: [],
-          playerEntries: createDefaultMsx2PlayerEntries(),
+          playerEntries: createDefaultMsx2BitmapPlayerEntries(),
           runtime: {
             screenKind: 'playable',
             screenEngine: 'player',

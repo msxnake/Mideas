@@ -1847,6 +1847,16 @@ export interface Msx2BossDefinition {
    * sequence still performs the mandatory walk, then seals the chain at once.
    */
   roomLockSequence?: Msx2BossRoomLockStep[];
+  /**
+   * Room Lock: screen X the player walks to during that mandatory first step,
+   * measured on the CENTRE of the player's collision body (0..255).
+   *
+   * Undefined = 128, the screen centre, which is what every boss did before
+   * this field existed. Authored per boss because the right standing spot
+   * depends on the fight: a turret firing down the left wall wants the player
+   * on the right, a boss with a pit under it wants them off-centre.
+   */
+  bossIntroEntryX?: number;
   /** @deprecated Superseded by a `closeBarrier` step in {@link roomLockSequence}. */
   bossBarrierAnimated?: boolean;
   /** @deprecated Superseded by a `dialogue` step in {@link roomLockSequence}. */
@@ -1859,6 +1869,21 @@ export interface Msx2BossDefinition {
   bossBarrierPaletteAssetId?: string;
   /** 'sprite' = hardware sprites; 'bitmap' = HMMM blit (slow bombs / rockets). */
   bossProjectileKind: 'sprite' | 'bitmap';
+  /**
+   * How the projectile is launched.
+   *  - 'aimed' (default): from the boss centre, 8-directionally at the player.
+   *  - 'fallingRocks': debris knocked loose from the ceiling. Spawns at the
+   *    first passable row above the player (random X in a band centred on
+   *    them), falls straight down and dies on the floor. Always uses the
+   *    bitmap back-end and therefore needs `bossProjectileTileId`; it ignores
+   *    `bossProjectileKind`.
+   *
+   * For 'fallingRocks' ONLY, `bossShootInterval` is read as real frames at
+   * 60Hz and converted by the generator, because the shoot runtime ticks on
+   * the body's off-frames rather than every frame. 'aimed' keeps the original
+   * raw-tick meaning so existing projects stay byte-identical.
+   */
+  bossProjectilePattern?: 'aimed' | 'fallingRocks';
   bossProjectileSpriteId: string;
   bossProjectileTileId: string;
   bossShootInterval: number;

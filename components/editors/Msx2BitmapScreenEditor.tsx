@@ -15,6 +15,7 @@ import {
   Msx2LockedDoorConfig,
   Msx2WorldExitConfig,
   Msx2PressureButtonConfig,
+  Msx2PlayerDefinition,
   Msx2PlayerEntry,
   Msx2ProjectProfile,
   Msx2Screen5BitmapRoom,
@@ -33,7 +34,8 @@ import {
   buildMsx2EntityComponents,
 } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { filterMsx2EntityPresetsForProfile } from '../../utils/msx2ProjectProfiles';
-import { createDefaultMsx2PlayerEntries, normalizeMsx2PlayerEntries } from '../../utils/msx2PlayerDefaults';
+import { createDefaultMsx2BitmapPlayerEntries, normalizeMsx2BitmapPlayerEntries } from '../../utils/msx2PlayerDefaults';
+import { parseMsx2PlayerImport } from '../../utils/msx2PlayerImport';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Msx2BitmapTileEditor } from './Msx2BitmapTileEditor';
@@ -152,6 +154,14 @@ const CRUMBLE_STAGES = 8;
 const CRUMBLE_FRAMES_MIN = 2;
 const CRUMBLE_FRAMES_MAX = 30;
 const CRUMBLE_FRAMES_DEFAULT = 6;
+
+// Grass sway: a tile that bends while the player walks through it and springs back.
+// Authored ENTIRELY on the atlas tile (rest frame + the two bent frames + hold), with
+// no per-cell bit: painting the tile is what plants a reactive cell, which is what
+// makes whole meadows practical. Cosmetic only, the collision cell is untouched.
+const SWAY_HOLD_MIN = 2;
+const SWAY_HOLD_MAX = 60;
+const SWAY_HOLD_DEFAULT = 8;
 
 const SHAPE_BIT = { tl: 1, tr: 2, bl: 4, br: 8 } as const;
 const SHAPE_FULL = 0x0f;
@@ -1369,7 +1379,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     [room.keyItems],
   );
   const playerEntries = useMemo<Msx2PlayerEntry[]>(
-    () => normalizeMsx2PlayerEntries(room.playerEntries),
+    () => normalizeMsx2BitmapPlayerEntries(room.playerEntries),
     [room.playerEntries],
   );
   // Foreground overlay tiles (rendered as high-priority hardware sprites on MSX2,
@@ -1409,6 +1419,32 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     () => allAssets.filter(asset => asset.type === 'msx2player'),
     [allAssets],
   );
+  // Sprite a player spawn renders with. Same chain the generator resolves:
+  // entry.playerId -> msx2player asset -> render.spriteAssetId -> msx2sprite.
+  // A spawn whose playerId points at a deleted asset falls back to the first
+  // player, which is what placeOrMovePlayerAtPixel assigns to new spawns.
+  // The asset payload is NOT a bare Msx2PlayerDefinition: it is the export
+  // document ({ schema, player, compact }), so it must go through
+  // parseMsx2PlayerImport before `render` exists.
+  const resolvePlayerEntrySprite = (entry: Msx2PlayerEntry): Msx2Sprite | undefined => {
+    const playerAsset = (entry.playerId
+      ? allAssets.find(asset => asset.type === 'msx2player' && asset.id === entry.playerId)
+      : undefined) || playerAssets[0];
+    if (!playerAsset) return undefined;
+    const player: Partial<Msx2PlayerDefinition> = parseMsx2PlayerImport(playerAsset.data);
+    const spriteId = String(player?.render?.spriteAssetId || '').trim();
+    if (!spriteId) return undefined;
+    return allAssets.find(asset => asset.id === spriteId && asset.type === 'msx2sprite')?.data as Msx2Sprite | undefined;
+  };
+  // Painted footprint of a spawn, used for both the outline and the click target so
+  // a 16x32 player stays selectable by its head instead of only its top-left cell.
+  const getPlayerEntryFootprint = (entry: Msx2PlayerEntry): { w: number; h: number } => {
+    const sprite = resolvePlayerEntrySprite(entry);
+    return {
+      w: Math.max(1, sprite?.size?.width || GRID),
+      h: Math.max(1, sprite?.size?.height || GRID),
+    };
+  };
   // Category filter: "Todos" disables filtering; other filters keep their category
   // plus uncategorized entries so legacy atlas tiles do not disappear unexpectedly.
   const visibleAtlasEntries = useMemo(
@@ -1546,7 +1582,9 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const selectedDoorTargetRoom = selectedDoorConfig?.targetRoomId
     ? bitmapRooms.find(asset => asset.id === selectedDoorConfig.targetRoomId) || null
     : null;
-  const selectedDoorTargetEntries = normalizeMsx2PlayerEntries((selectedDoorTargetRoom?.data as Msx2Screen5BitmapRoom | undefined)?.playerEntries);
+  // Only the spawns the target room really has: offering a phantom `from_*` here
+  // is what produces doors whose targetEntryId resolves to nothing at build time.
+  const selectedDoorTargetEntries = normalizeMsx2BitmapPlayerEntries((selectedDoorTargetRoom?.data as Msx2Screen5BitmapRoom | undefined)?.playerEntries);
 
   // World-minimap adjacency: find the WorldMap that contains this room and derive
   // the neighbour room asset per cardinal direction from its connections ("rails").
@@ -1751,18 +1789,23 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         if (!spriteId) return undefined;
         return allAssets.find(asset => asset.id === spriteId && asset.type === 'msx2sprite')?.data as Msx2Sprite | undefined;
       };
+      // Reports whether anything was actually painted, not just whether a frame
+      // exists: a blank sprite (every pixel transparent) must fall through to the
+      // lettered chip instead of leaving an invisible marker on the canvas.
       const drawMsx2Sprite = (sprite: Msx2Sprite, pixelX: number, pixelY: number): boolean => {
         const frame = sprite.frames?.[sprite.currentFrameIndex ?? 0] || sprite.frames?.[0];
         if (!frame?.data?.length) return false;
         const bg = sprite.backgroundColor;
         const px = pixelX * zoom;
         const py = pixelY * zoom;
+        let painted = false;
         frame.data.forEach((row, y) => row.forEach((color, x) => {
           if (!color || color === bg || color === 'rgba(0,0,0,0)' || color === 'transparent') return;
           ctx.fillStyle = color;
           ctx.fillRect(px + x * zoom, py + y * zoom, zoom, zoom);
+          painted = true;
         }));
-        return true;
+        return painted;
       };
       const drawAtlasEntry = (entryId: string, pixelX: number, pixelY: number): boolean => {
         const entry = atlasEntries.find(item => item.id === entryId);
@@ -1866,7 +1909,19 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
         }
       });
       playerEntries.forEach(entry => {
-        drawMarkerPx(entry.x, entry.y, 'rgba(255,224,74,0.45)', '#FFE04A', 'P', selectedPlacedId === entry.id);
+        const isSel = selectedPlacedId === entry.id;
+        // Draw the authored sprite in place; the lettered chip is only the fallback
+        // for a spawn with no player asset or no sprite assigned yet.
+        const sprite = resolvePlayerEntrySprite(entry);
+        if (sprite && drawMsx2Sprite(sprite, entry.x, entry.y)) {
+          const { w, h } = getPlayerEntryFootprint(entry);
+          ctx.strokeStyle = isSel ? '#FFD24A' : 'rgba(255,224,74,0.70)';
+          ctx.lineWidth = isSel ? 2 : 1;
+          ctx.strokeRect(entry.x * zoom + 0.5, entry.y * zoom + 0.5, w * zoom - 1, h * zoom - 1);
+          ctx.lineWidth = 1;
+          return;
+        }
+        drawMarkerPx(entry.x, entry.y, 'rgba(255,224,74,0.45)', '#FFE04A', 'P', isSel);
       });
     }
 
@@ -2086,7 +2141,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   };
 
   const updatePlayerEntry = (id: string, patch: Partial<Msx2PlayerEntry>) => {
-    const next = normalizeMsx2PlayerEntries(playerEntries.map(entry => (
+    const next = normalizeMsx2BitmapPlayerEntries(playerEntries.map(entry => (
       entry.id === id
         ? {
             ...entry,
@@ -2114,7 +2169,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       setStatusBarMessage?.(`SCREEN 5: player recolocado en píxel (${pixelX}, ${pixelY}).`);
       return;
     }
-    const base = createDefaultMsx2PlayerEntries();
+    const base = createDefaultMsx2BitmapPlayerEntries();
     const id = `entry_${playerEntries.length + 1}`;
     // Link to a player asset (keep the existing entries' player if any, else the first asset),
     // otherwise the spawn has no sprite/behaviour and renders as a placeholder.
@@ -2126,7 +2181,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       y: pixelY,
       playerId,
     };
-    const next = normalizeMsx2PlayerEntries([...playerEntries, nextEntry]);
+    const next = normalizeMsx2BitmapPlayerEntries([...playerEntries, nextEntry]);
     onUpdate({ playerEntries: next });
     setSelectedPlacedId(id);
     setStatusBarMessage?.(`SCREEN 5: spawn de jugador añadido en píxel (${pixelX}, ${pixelY}) [player: ${playerAssets.find(a => a.id === playerId)?.name || playerId}].`);
@@ -2524,7 +2579,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   };
 
   const deletePlayerEntry = (id: string) => {
-    onUpdate({ playerEntries: normalizeMsx2PlayerEntries(playerEntries.filter(entry => entry.id !== id)) });
+    onUpdate({ playerEntries: normalizeMsx2BitmapPlayerEntries(playerEntries.filter(entry => entry.id !== id)) });
     if (selectedPlacedId === id) setSelectedPlacedId(null);
     if (pendingDeletePlaced?.id === id) setPendingDeletePlaced(null);
   };
@@ -2555,7 +2610,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
       const current = playerEntries.find(entry => entry.id === target.id);
       if (!current || (current.x === nextX && current.y === nextY)) return;
       onUpdate({
-        playerEntries: normalizeMsx2PlayerEntries(playerEntries.map(entry =>
+        playerEntries: normalizeMsx2BitmapPlayerEntries(playerEntries.map(entry =>
           entry.id === target.id ? { ...entry, x: nextX, y: nextY } : entry
         )),
       });
@@ -2573,11 +2628,15 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     });
   };
 
-  // Hit-test a pixel point against placed items. Entities stay cell-based; player spawns use a 16x16 pixel box.
+  // Hit-test a pixel point against placed items. Entities stay cell-based; player
+  // spawns use the box of the sprite they are drawn with (16x16 when there is none).
   const findPlacedAtPoint = (px: number, py: number, cellX: number, cellY: number): { kind: 'entity' | 'player'; id: string } | null => {
     const entity = placedEntities.find(item => item.position?.x === cellX && item.position?.y === cellY);
     if (entity) return { kind: 'entity', id: entity.id };
-    const entry = playerEntries.find(item => px >= item.x && px < item.x + GRID && py >= item.y && py < item.y + GRID);
+    const entry = playerEntries.find(item => {
+      const { w, h } = getPlayerEntryFootprint(item);
+      return px >= item.x && px < item.x + w && py >= item.y && py < item.y + h;
+    });
     if (entry) return { kind: 'player', id: entry.id };
     return null;
   };
@@ -3816,6 +3875,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
   const selectedAtlasEntryDestructible = selectedAtlasEntry?.destructible === true;
   const selectedAtlasEntryCrumbling = selectedAtlasEntry?.crumbling === true;
   const selectedAtlasEntryCrumbleFrames = clampInt(selectedAtlasEntry?.crumbleFramesPerStage, CRUMBLE_FRAMES_MIN, CRUMBLE_FRAMES_MAX, CRUMBLE_FRAMES_DEFAULT);
+  // Grass sway is tile-only: there is no per-cell bit, so these read the atlas entry
+  // directly instead of going through cellProps like destructible/crumbling do.
+  const selectedAtlasEntrySway = selectedAtlasEntry?.sway === true;
+  const selectedAtlasEntrySwayLeft = selectedAtlasEntry?.swayLeftAtlasEntryId || '';
+  const selectedAtlasEntrySwayRight = selectedAtlasEntry?.swayRightAtlasEntryId || '';
+  const selectedAtlasEntrySwayHold = clampInt(selectedAtlasEntry?.swayHoldFrames, SWAY_HOLD_MIN, SWAY_HOLD_MAX, SWAY_HOLD_DEFAULT);
   const selectedAtlasEntryShape = selectedAtlasEntry ? (clampByte(selectedAtlasEntry.collisionShape, 0) & SHAPE_FULL) : 0;
   const selectedAtlasEntryShapeQuadrants = expandCellShape(selectedAtlasEntryShape);
 
@@ -4254,6 +4319,59 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
     onUpdate({ atlas: { ...room.atlas, entries } });
     setStatusBarMessage?.(
       `SCREEN 5: ${frames} frame(s) por etapa; el tile aguanta ${frames * CRUMBLE_STAGES} frames de pisada.`
+    );
+  };
+
+  // --- Grass sway (tile-only authoring) ---------------------------------------
+  // Unlike Destructible / Se desmorona there is NO per-cell bit: the generator scans
+  // the room's tile grid for cells painted with a swaying tile. So these three all
+  // edit the selected atlas entry and never touch room.collision.
+  const updateSelectedAtlasEntry = (patch: Record<string, unknown>): boolean => {
+    if (!selectedAtlasEntry) {
+      setStatusBarMessage?.('Selecciona un tile del atlas primero.');
+      return false;
+    }
+    const entries = atlasEntries.map(entry => entry.id === selectedAtlasEntry.id
+      ? { ...entry, ...patch }
+      : entry);
+    onUpdate({ atlas: { ...room.atlas, entries } });
+    return true;
+  };
+
+  const toggleSway = () => {
+    if (!selectedAtlasEntry) {
+      setStatusBarMessage?.('Selecciona un tile del atlas primero (la hierba se marca por tile, no por celda).');
+      return;
+    }
+    const turnOn = !selectedAtlasEntrySway;
+    if (!updateSelectedAtlasEntry({ sway: turnOn || undefined })) return;
+    const painted = tileGrid.reduce(
+      (total, row) => total + row.filter(index => index === atlasEntries.indexOf(selectedAtlasEntry) + 1).length,
+      0,
+    );
+    setStatusBarMessage?.(
+      `SCREEN 5: "Se mueve al pasar" ${turnOn ? 'ON' : 'OFF'} en el tile "${selectedAtlasEntry.name || 'atlas'}"` +
+      ` (${painted} celda(s) pintada(s) en esta sala).` +
+      (turnOn && !selectedAtlasEntrySwayLeft && !selectedAtlasEntrySwayRight
+        ? ' Falta elegir al menos un tile doblado: sin el, la celda no reacciona.'
+        : '')
+    );
+  };
+
+  const updateAtlasEntrySwayFrame = (side: 'left' | 'right', entryId: string) => {
+    const key = side === 'left' ? 'swayLeftAtlasEntryId' : 'swayRightAtlasEntryId';
+    if (!updateSelectedAtlasEntry({ [key]: entryId || undefined })) return;
+    const name = atlasEntries.find(entry => entry.id === entryId)?.name;
+    setStatusBarMessage?.(entryId
+      ? `SCREEN 5: hierba doblada hacia ${side === 'left' ? 'la izquierda' : 'la derecha'} = "${name || entryId}".`
+      : `SCREEN 5: sin tile doblado hacia ${side === 'left' ? 'la izquierda' : 'la derecha'}; se usara el del otro lado.`);
+  };
+
+  const updateAtlasEntrySwayHold = (value: number) => {
+    const frames = clampInt(value, SWAY_HOLD_MIN, SWAY_HOLD_MAX, SWAY_HOLD_DEFAULT);
+    if (!updateSelectedAtlasEntry({ swayHoldFrames: frames === SWAY_HOLD_DEFAULT ? undefined : frames })) return;
+    setStatusBarMessage?.(
+      `SCREEN 5: la hierba tarda ${frames} frame(s) (~${(frames / 60).toFixed(2)}s) en volver a su sitio.`
     );
   };
 
@@ -6655,7 +6773,78 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                 />
                 Se desmorona
               </label>
+              <label
+                className="flex items-center gap-1 text-xs text-msx-textsecondary"
+                title={'Hierba que se mueve al paso del player: las celdas pintadas con este tile se doblan mientras el cuerpo las atraviesa y vuelven solas. Es decorativo: la colision de la celda no cambia. Se marca por TILE del atlas, no por celda.'}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedAtlasEntrySway}
+                  onChange={toggleSway}
+                  disabled={!selectedAtlasEntry}
+                />
+                Se mueve al pasar
+              </label>
             </div>
+
+            {/* Grass sway. Tile-only: rest frame = this atlas tile, plus the two bent
+                frames and how long the bend is held. HMMM is opaque, so the bent tiles
+                must carry the same background baked in as the rest tile. */}
+            {selectedAtlasEntrySway && (
+              <div className="mt-2 rounded border border-msx-border bg-msx-bgcolor p-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[0.7rem] text-msx-highlight">Se mueve al pasar</span>
+                  <span className="text-[0.6rem] text-msx-textsecondary">decorativo (no cambia la colision)</span>
+                </div>
+                {selectedAtlasEntry ? (
+                  <>
+                    {(['left', 'right'] as const).map(side => (
+                      <label key={side} className="mt-1 flex items-center justify-between gap-2 text-xs text-msx-textsecondary">
+                        {side === 'left' ? 'Doblada a la izquierda' : 'Doblada a la derecha'}
+                        <select
+                          value={side === 'left' ? selectedAtlasEntrySwayLeft : selectedAtlasEntrySwayRight}
+                          onChange={e => updateAtlasEntrySwayFrame(side, e.target.value)}
+                          className="w-40 rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-msx-textprimary"
+                        >
+                          <option value="">(ninguno)</option>
+                          {atlasEntries
+                            .filter(entry => entry.id !== selectedAtlasEntry.id)
+                            .map(entry => (
+                              <option key={entry.id} value={entry.id}>{entry.name || entry.id}</option>
+                            ))}
+                        </select>
+                      </label>
+                    ))}
+                    <label className="mt-1 flex items-center gap-2 text-xs text-msx-textsecondary">
+                      Frames hasta volver
+                      <input
+                        type="number"
+                        min={SWAY_HOLD_MIN}
+                        max={SWAY_HOLD_MAX}
+                        value={selectedAtlasEntrySwayHold}
+                        onChange={e => updateAtlasEntrySwayHold(Number(e.target.value))}
+                        className="w-16 rounded border border-msx-border bg-msx-panelbg px-1 py-0.5 text-msx-textprimary"
+                      />
+                      <span className="text-[0.6rem]">~{(selectedAtlasEntrySwayHold / 60).toFixed(2)}s a 60fps</span>
+                    </label>
+                    {!selectedAtlasEntrySwayLeft && !selectedAtlasEntrySwayRight ? (
+                      <p className="mt-1 text-[0.6rem] text-msx-danger">
+                        Sin ningun tile doblado la celda no reacciona: el generador la ignora.
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-[0.6rem] text-msx-textsecondary">
+                        Si solo eliges un lado, se usa para ambas direcciones. El copiado del VDP es opaco:
+                        los tiles doblados deben llevar el mismo fondo pintado que este.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-[0.6rem] text-msx-textsecondary">
+                    Selecciona el tile del atlas para elegir los fotogramas doblados.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Crumbling-floor speed. Authored per ATLAS TILE (not per cell): the record list
                 the generator emits carries one frames-per-stage byte per crumbling cell, read
