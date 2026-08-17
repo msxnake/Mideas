@@ -5778,7 +5778,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </div>
                         </>
                       )}
-                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.healAtlasEntryId && (
+                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.healAtlasEntryId && !selectedPlacedEntity.params?.nutAtlasEntryId && (
                         <>
                           <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Gema (skill collector_gems)</div>
                           <label className="block text-[0.65rem] text-msx-textsecondary">
@@ -5807,7 +5807,47 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                           </div>
                         </>
                       )}
-                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.gemAtlasEntryId && (
+                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.healAtlasEntryId && !selectedPlacedEntity.params?.gemAtlasEntryId && (
+                        <>
+                          <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Nuez (munición shoot)</div>
+                          <label className="block text-[0.65rem] text-msx-textsecondary">
+                            Tile de nuez (atlas)
+                            <select
+                              value={String(selectedPlacedEntity.params?.nutAtlasEntryId || '')}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { nutAtlasEntryId: event.target.value || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            >
+                              <option value="">None</option>
+                              {atlasEntries.map(entry => (
+                                <option key={entry.id} value={entry.id}>{entry.name} ({entry.w}x{entry.h})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!selectedAtlasEntry}
+                            onClick={() => selectedAtlasEntry && updatePlacedEntityParams(selectedPlacedEntity.id, { nutAtlasEntryId: selectedAtlasEntry.id })}
+                            className="w-full rounded border border-msx-border px-2 py-1 text-[0.65rem] text-msx-textsecondary hover:border-msx-highlight hover:text-msx-highlight disabled:opacity-40"
+                          >
+                            Usar tile seleccionado
+                          </button>
+                          <label className="block text-[0.65rem] text-msx-textsecondary mt-2">
+                            Cantidad de nueces
+                            <input
+                              type="number"
+                              min={1}
+                              max={255}
+                              value={clampInt(Number(selectedPlacedEntity.params?.nutAmount), 1, 255, 1)}
+                              onChange={event => updatePlacedEntityParams(selectedPlacedEntity.id, { nutAmount: clampInt(Number(event.target.value), 1, 255, 1) || undefined })}
+                              className="mt-1 w-full rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs text-msx-textprimary"
+                            />
+                          </label>
+                          <div className="text-[0.6rem] text-msx-textsecondary">
+                            Con tile asignado (y sin gema/llave) esta entidad es una nuez: se dibuja al cargar la sala y el player la recoge si tiene la skill shoot. El contador de munición (bitmap_nut_count) se incrementa por la cantidad especificada.
+                          </div>
+                        </>
+                      )}
+                      {!selectedPlacedEntity.params?.keyPickupId && !selectedPlacedEntity.params?.gemAtlasEntryId && !selectedPlacedEntity.params?.nutAtlasEntryId && (
                         <>
                           <div className="border-t border-msx-border pt-2 text-[0.7rem] text-msx-highlight">Item de vida (+1 corazón)</div>
                           <label className="block text-[0.65rem] text-msx-textsecondary">
