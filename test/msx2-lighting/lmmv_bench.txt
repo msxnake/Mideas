@@ -1,0 +1,29 @@
+done_marker=ABCD (expect ABCD)
+
+V9938 command cost, SCREEN 5, display ON, page 0 visible.
+vdp_ms  = CE-busy time only (the blitter).
+wall_ms = measured with the vblank flag, includes the Z80 side
+          (only valid when one command is shorter than a frame).
+
+measurement             iters    vdp_ms   wall_ms     us/px   us/byte
+HMMM 256x64 sprOFF      28577    36.921    16.667     2.254     4.507
+HMMM 256x64 sprON       36925    47.707    16.667     2.912     5.824
+HMMV 256x64             18237    23.562    16.667     1.438     2.876
+LMMV IMP 256x64         75324    97.319    16.667     5.940    11.880
+LMMV OR  256x64         75266    97.244    16.667     5.935    11.871
+LMMV AND 256x64         75267    97.245    16.667     5.935    11.871
+LMMV OR  64x64          76143    24.594    16.667     6.004    12.009
+LMMV OR  2x8            20663     0.104     0.326     6.518    13.035
+LMMV OR  2x32           96825     0.489     0.708     7.635    15.271
+LMMV OR  40x2           91215     0.460     0.675     5.754    11.509
+LMMV OR  10x2           20736     0.105     0.326     5.233    10.465
+halo X pass d=2         22542     1.820     5.208     7.110    14.221
+halo Y pass d=2         21874     1.766     4.688     5.520    11.040
+halo X+Y pass d=8       88672    14.321    20.573     6.216    12.431
+room fill 256x192       56482   291.899    16.667     5.939    11.877
+room fill blanked       43376   224.167    16.667     4.561     9.121
+
+% of a 16.667 ms frame (wall clock, halo passes):
+  X d=2        5.21 ms  =  31.2 % of frame
+  Y d=2        4.69 ms  =  28.1 % of frame
+  X+Y d=8     20.57 ms  = 123.4 % of frame

@@ -1,0 +1,3 @@
+paint #1 :   24.6 ms   (room 0)
+paint #2 :   25.4 ms   (room 1)
+room now: 1   paints: 2

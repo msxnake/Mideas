@@ -6009,6 +6009,37 @@ def compile_with_glass(
     raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(cmd)}")
 
 
+ASM_ORG_RE = re.compile(r"^\s*org\s+#?([0-9A-Fa-f]{1,4})\b", re.MULTILINE)
+ASM_PAD_RE = re.compile(r"^\s*ds\s+#?([0-9A-Fa-f]{1,4})\s*-\s*\$", re.MULTILINE)
+ASM_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
+ASM_DATA_RE = re.compile(r"^\s+D([BW])\s+(.*)$", re.IGNORECASE)
+
+
+def _payload_group(label: str) -> str:
+    """Collapse per-room/per-chunk labels so the summary names a system, not an index."""
+    key = re.sub(r"_chunk_\d+$", "", label)
+    return re.sub(r"_\d+(_p\d+)?$", "", key)
+
+
+def summarise_asm_payloads(asm_text: str, top: int = 4) -> list[tuple[str, int]]:
+    """Biggest DB/DW payloads of the ASM, grouped by system, largest first."""
+    sizes: dict[str, int] = {}
+    label: str | None = None
+    for line in asm_text.splitlines():
+        label_match = ASM_LABEL_RE.match(line)
+        if label_match:
+            label = label_match.group(1)
+            continue
+        data_match = ASM_DATA_RE.match(line)
+        if not (data_match and label):
+            continue
+        items = [item for item in data_match.group(2).split(",") if item.strip()]
+        width = 2 if data_match.group(1).upper() == "W" else 1
+        key = _payload_group(label)
+        sizes[key] = sizes.get(key, 0) + len(items) * width
+    return sorted(sizes.items(), key=lambda item: item[1], reverse=True)[:top]
+
+
 def describe_glass_compile_failure(stdout_text: str, stderr_text: str, asm_output: Path | None = None) -> str | None:
     combined = f"{stdout_text}\n{stderr_text}"
     negative_match = re.search(r"Negative initial size:\s*(-?\d+)", combined, flags=re.IGNORECASE)
@@ -6031,10 +6062,38 @@ def describe_glass_compile_failure(stdout_text: str, stderr_text: str, asm_outpu
             "or replace repeated resident tables with VRAM fill/streaming before compiling again."
         )
 
+    # A flat cartridge has ONE org and ONE end-of-ROM padding: there are no banks
+    # to rebalance, the project simply does not fit and has to be exported as a
+    # MegaROM. Saying "a bank crossed its window" here sends you hunting for a
+    # bank that does not exist (real case: a 21-room SCREEN 5 bitmap project whose
+    # room programs alone were 30 KB).
+    orgs = ASM_ORG_RE.findall(asm_text)
+    pads = ASM_PAD_RE.findall(asm_text)
+    overflow = abs(int(negative_match.group(1)))
+    if len(orgs) == 1 and len(pads) == 1:
+        start = int(orgs[0], 16)
+        end = int(pads[0], 16)
+        window = end - start
+        needed = window + overflow
+        payloads = summarise_asm_payloads(asm_text)
+        weights = ", ".join(
+            f"{label} {size} B" if size < 1024 else f"{label} {size / 1024:.1f} KB"
+            for label, size in payloads
+        )
+        return (
+            f"The project does not fit in a flat {window // 1024} KB cartridge: the generated code and data "
+            f"need about {needed} bytes ({needed / 1024:.1f} KB), {overflow} more than the "
+            f"#{start:04X}-#{end:04X} window. This ASM has a single ORG, so there are no banks to "
+            "rebalance and nothing to move around: it has to be a MegaROM "
+            "(--rom-mode megarom, or --rom-mode auto to let the build escalate on its own)."
+            + (f" Biggest payloads: {weights}." if weights else "")
+        )
+
     return (
         "MegaROM bank padding overflow before ROM output: "
         f"Glass reported a negative DS padding ({negative_match.group(1)} bytes). "
-        "A generated bank crossed its mapper window limit; split the bank payload or move cold data to another bank."
+        f"A generated bank crossed its mapper window limit by {overflow} bytes; split the bank payload "
+        "or move cold data to another bank."
     )
 
 
@@ -6743,9 +6802,18 @@ def main() -> int:
         else (project_root / "server" / "temp" / f"{inferred_name}_unified.rom").resolve()
     )
     sym_output = Path(args.sym_output).expanduser().resolve() if args.sym_output else None
+    # 'auto' is not a layout the generator understands: passing it through made it
+    # fall back to the flat cartridge, which is why big projects failed with a
+    # confusing "bank overflow". Resolve it here instead — try the smallest
+    # cartridge that can work, and escalate to a MegaROM only if the build does
+    # not fit, so small projects keep producing plain 32 KB ROMs.
+    auto_rom_mode = args.rom_mode == "auto"
+    if auto_rom_mode:
+        args.rom_mode = "simple32k"
     if (
         args.openmsx_smoke
         or (args.rom_mode == "megarom" and args.target_format == "konami")
+        or auto_rom_mode  # may still escalate to a MegaROM, and that needs symbols
         or (args.rom_mode == "megarom" and args.target_format == "ascii16" and args.strict_ascii16_runtime_layout)
     ) and sym_output is None:
         sym_output = rom_output.with_suffix(".sym")
@@ -6842,14 +6910,94 @@ def main() -> int:
             project_root=project_root,
         )
     except RuntimeError as exc:
+        # --rom-mode auto: a flat cartridge that does not fit has exactly one fix,
+        # and it is not a cleverer layout — it is more ROM. Rebuild as a MegaROM.
+        # This is the normal outcome for the SCREEN 5 bitmap backend: the shared
+        # atlas plus the per-room command programs (~15 bytes per tile copy, twice,
+        # one program per page) cross 32 KB after a handful of rooms, so any real
+        # bitmap game lands here.
+        escalated_to_megarom = False
+        if auto_rom_mode and "does not fit in a flat" in str(exc):
+            print(f"--rom-mode auto: {exc}", file=sys.stderr)
+            print(
+                f"--rom-mode auto: rebuilding as a {args.target_format} MegaROM.",
+                file=sys.stderr,
+            )
+            args.rom_mode = "megarom"
+            auto_resolve_msx2_budget = bool(
+                args.auto_resolve_msx2_budget
+                or (not args.no_auto_resolve_msx2_budget and args.target_format == "konami")
+            )
+            try:
+                generate_asm_from_json(
+                    compiled_index=compiled_index,
+                    json_path=json_path,
+                    asm_output=asm_output,
+                    project_name_override=args.project_name,
+                    project_root=project_root,
+                    rom_mode=args.rom_mode,
+                    target_format=args.target_format,
+                    execution_mode=args.execution_mode,
+                    auto_megarom=args.auto_megarom,
+                    enable_hard_player_tick=args.enable_hard_player_tick,
+                )
+                zx0_asm, zx0_info = maybe_run_zx0_preprocess(
+                    project_root=project_root,
+                    asm_output=asm_output,
+                    enabled=not args.skip_zx0_preprocess,
+                )
+                artifact_dir = write_generated_artifacts(zx0_asm)
+                artifact_dir, zx0_asm = validate_msx2_preflight_with_safe_resolution(
+                    artifact_dir=artifact_dir,
+                    asm_output=zx0_asm,
+                    project_root=project_root,
+                    strict_warnings=args.strict_msx2_megarom_preflight_warnings,
+                    auto_resolve=auto_resolve_msx2_budget,
+                    skip_zx0_preprocess=args.skip_zx0_preprocess,
+                    max_attempts=args.msx2_budget_resolve_attempts,
+                )
+                asm_to_compile = maybe_run_post_asm_optimizer(
+                    project_root=project_root,
+                    asm_output=zx0_asm,
+                    glass_jar=glass_jar,
+                    enabled=args.post_asm_opt,
+                    check_only=args.post_asm_check_only,
+                    rules=args.post_asm_rules,
+                    explicit_output=args.post_asm_output,
+                    passes=args.post_asm_passes,
+                    strict_no_dead_blocks=args.strict_post_asm_no_dead_blocks,
+                )
+                ensure_sprite_copy_helper(asm_to_compile)
+                compile_with_glass(
+                    glass_jar=glass_jar,
+                    asm_output=asm_to_compile,
+                    rom_output=rom_output,
+                    sym_output=sym_output,
+                    project_root=project_root,
+                )
+            except RuntimeError as mega_exc:
+                raise RuntimeError(
+                    "--rom-mode auto escalated to a MegaROM because the project does not fit in a flat "
+                    f"cartridge, but the MegaROM build failed too: {mega_exc}"
+                ) from mega_exc
+            compile_resolver_attempts.append({
+                "attempt": 0,
+                "action": "escalate_rom_mode_to_megarom",
+                "candidateId": "escalate_rom_mode_to_megarom",
+                "status": "resolved",
+                "reason": str(exc),
+                "asm": str(asm_to_compile),
+            })
+            escalated_to_megarom = True
         can_auto_compile_resolve = (
-            auto_resolve_msx2_budget
+            not escalated_to_megarom
+            and auto_resolve_msx2_budget
             and not args.post_asm_opt
             and not args.post_asm_check_only
             and not args.strict_post_asm_no_dead_blocks
             and "resident bank overflow" in str(exc).lower()
         )
-        compile_resolved_by_retry = False
+        compile_resolved_by_retry = escalated_to_megarom
         if can_auto_compile_resolve:
             initial_failure_path = write_msx2_compile_failure_summary(
                 artifact_dir=artifact_dir,

@@ -1,0 +1,11 @@
+player=31,144 count=4
+  slot0 x=129 y=54 mode=13 xoff=0 yoff=0 dmg=1
+  slot1 x=129 y=54 mode=13 xoff=0 yoff=0 dmg=1
+  slot2 x=198 y=64 mode=13 xoff=0 yoff=0 dmg=1
+  slot3 x=198 y=64 mode=13 xoff=0 yoff=0 dmg=1
+cells around the bat: 10 10 10
+injected bullet=1 116 100 1 20  bat=120,100
+t+1f  bullet=0 120 100 1 19 mode0=13 mode1=13 batpos=120,100
+t+     bullet=0 120 100 1 19 mode0=13 mode1=13
+after  bullet=0 120 100 1 19 mode0=13 mode1=13 mode2=13 mode3=13
+enemy-check entries seen: 0

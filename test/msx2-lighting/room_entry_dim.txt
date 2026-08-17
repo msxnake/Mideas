@@ -1,0 +1,2 @@
+paint #1 : 24.6 ms
+tag=dim  paints seen: 1

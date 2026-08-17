@@ -5477,7 +5477,12 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                     const boundAsset = bossLibraryAssets.find(asset => asset.id === boundId);
                     const inlineStamp = String(selectedPlacedEntity.params?.bossStampAssetId || '').trim();
                     const definitionStamp = String((boundAsset?.data as any)?.bossStampAssetId || '').trim();
-                    const bodyStamp = inlineStamp || definitionStamp;
+                    // Mirror resolveBossParams: once the entity points at a real
+                    // definition, the body comes from the definition and any
+                    // bossStampAssetId left on the entity is an old snapshot the
+                    // generator ignores. Only an unbound (or dangling) boss is
+                    // authored inline.
+                    const bodyStamp = boundAsset ? definitionStamp : inlineStamp;
                     return (
                       <div className="rounded border border-msx-border bg-msx-bgcolor/40 p-2 space-y-2">
                         <div className="text-[0.7rem] text-msx-highlight">Boss</div>
@@ -5497,7 +5502,7 @@ export const Msx2BitmapScreenEditor: React.FC<Msx2BitmapScreenEditorProps> = ({ 
                         {bodyStamp ? (
                           <div className="text-[0.6rem] text-msx-textsecondary leading-tight">
                             Cuerpo: stamp <span className="text-msx-highlight">{bodyStamp}</span>
-                            {inlineStamp ? ' (override en esta room)' : ' (de la definición)'}.
+                            {boundAsset ? ' (de la definición)' : ' (inline, sin definición)'}.
                           </div>
                         ) : (
                           <div className="text-[0.6rem] text-msx-danger leading-tight">

@@ -16098,6 +16098,10 @@ bitmap_nut_count EQU ${hexWord(orphanAmmoCounterAddress)}
     gameYOffset: BITMAP_ROOM_GAME_Y_OFFSET,
     gameHeight: SCREEN_HEIGHT_DEFAULT,
     playerHitbox,
+    // The chain barrier calls bitmap_player_overlaps_16, which this block owns.
+    // Without keys/doors/pickups it is never emitted, so tell the boss builder
+    // to carry its own copy instead of calling a label that does not exist.
+    playerOverlapHelperAvailable: keyDoorSystem.routinesAsm.includes('bitmap_player_overlaps_16:'),
     damageInvulnFrames: playerVitals.invulnFrames,
     maxHealth: playerVitals.maxHealth,
     pauseGateAsm: `${dialogueSystem.enabled

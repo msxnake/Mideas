@@ -696,7 +696,7 @@ ${advanceSlot}
 ; FUNCTION: bitmap_bullet_check_enemy_collision
 ; ------------------------------------------------------------
 ; PURPOSE: Bullet-vs-target dispatch. ${opts.enemyCollisionJumpLabel
-    ? `Jumps to ${opts.enemyCollisionJumpLabel} (bitmap boss hit check).`
+    ? `Jumps to ${opts.enemyCollisionJumpLabel}.`
     : `Stub — no bullet-damageable runtime is enabled in this ROM.`}
 ; INPUT: IX -> current bullet slot (active, x, y, dir).
 ; OUTPUT: target HP/despawn on hit. DESTROYS: AF (target may use more).

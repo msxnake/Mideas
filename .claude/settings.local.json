@@ -163,7 +163,9 @@
       "Bash(xargs -I {} git push origin --delete {})",
       "Bash(git fetch *)",
       "Bash(git symbolic-ref *)",
-      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit --jsx react-jsx --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --allowImportingTsExtensions --isolatedModules --moduleDetection force components/editors/Msx2BossEditor.tsx)"
+      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit --jsx react-jsx --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --allowImportingTsExtensions --isolatedModules --moduleDetection force components/editors/Msx2BossEditor.tsx)",
+      "mcp__codebase-memory-mcp__search_graph",
+      "mcp__codebase-memory-mcp__get_code_snippet"
     ],
     "deny": [],
     "ask": []

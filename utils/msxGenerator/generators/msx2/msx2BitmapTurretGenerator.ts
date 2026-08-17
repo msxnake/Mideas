@@ -22,6 +22,8 @@ export interface BitmapTurretRoomData {
 }
 
 export interface BitmapTurretRuntimeOptions {
+  /** Konami MegaROM: per-room records live in a data bank, staged into RAM on load. */
+  bankedTables?: boolean;
   ramBase: number;
   satBase: number;
   colorBase: number;
@@ -43,10 +45,12 @@ export interface BitmapTurretSystemAsm {
   satCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
+  /** Room records for the MegaROM data-bank packer; empty on simple32k. */
+  bankedBlocks: Array<{ label: string; bytes: number[]; description: string }>;
 }
 
 const EMPTY: BitmapTurretSystemAsm = {
-  enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', routinesAsm: '', dataAsm: '',
+  enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [],
 };
 
 export function bitmapTurretHardwareSlots(data: BitmapTurretRoomData | undefined): number {
@@ -64,7 +68,12 @@ export function buildBitmapTurretSystemAsm(data: BitmapTurretRoomData, opts: Bit
   const bulletBase = opts.ramBase + 1 + poolBytes;
   // Shared projectile: active,x,y,absDx,absDy,error,signFlags,majorAxis,speed.
   // signFlags bit0=X negative, bit1=Y negative; majorAxis 0=X, 1=Y.
-  const ramBytes = 1 + poolBytes + 9;
+  // MegaROM: records are banked and staged, because bitmap_load_turrets walks
+  // them from inside the #8000-#9FFF window.
+  const bankedTables = opts.bankedTables === true;
+  const TABLE_BYTES = 1 + maxSlots * TABLE_STRIDE;
+  const tableBufAddr = opts.ramBase + 1 + poolBytes + 9;
+  const ramBytes = 1 + poolBytes + 9 + (bankedTables ? TABLE_BYTES : 0);
   const bulletPattern = (opts.patternGroupBase + maxSlots * 2) * 4;
   const bulletSat = opts.satBase + maxSlots * 8;
   const bulletColor = opts.colorBase + maxSlots * 32;
@@ -235,6 +244,8 @@ bitmap_turret_bullet_error  EQU ${word(bulletBase + 5)}
 bitmap_turret_bullet_signs  EQU ${word(bulletBase + 6)}
 bitmap_turret_bullet_major  EQU ${word(bulletBase + 7)}
 bitmap_turret_bullet_speed  EQU ${word(bulletBase + 8)}
+${bankedTables ? `; Room record staged out of its data bank (${TABLE_BYTES} bytes) before it is walked.
+bitmap_turret_table_buf     EQU ${word(tableBufAddr)}` : ''}
 `;
 
   const routinesAsm = `
@@ -250,7 +261,27 @@ bitmap_load_turrets:
     push ix
     xor a
     ld (bitmap_turret_bullet_active), a
+${bankedTables ? `    ; Records are banked: resolve the bank, LDIR into RAM, walk the RAM copy.
+    push bc
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_turret_bank_table
+    add hl, de
+    ld c, (hl)
     ld hl, bitmap_room_turret_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_turret_table_buf
+    ld a, c
+    ld bc, ${TABLE_BYTES}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_turret_table_buf` : `    ld hl, bitmap_room_turret_ptr_table
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -259,7 +290,7 @@ bitmap_load_turrets:
     ld a, (hl)
     inc hl
     ld h, (hl)
-    ld l, a
+    ld l, a`}
     ld a, (hl)
     ld (bitmap_turret_count), a
     inc hl
@@ -787,8 +818,11 @@ ${satBlocks}    ld a, (bitmap_turret_bullet_active)
     for (let i = 0; i < bytes.length; i += 16) lines.push(`    DB ${bytes.slice(i, i + 16).map(byte).join(',')}`);
     return lines.join('\n') + '\n';
   };
-  const dataAsm = data.roomTables.map((table, i) => emit(`bitmap_room_turret_table_${i}`, table, `Room ${i}: count + ${maxSlots} aimed turret records`)).join('')
+  const dataAsm = (bankedTables ? [] : data.roomTables).map((table, i) => emit(`bitmap_room_turret_table_${i}`, table, `Room ${i}: count + ${maxSlots} aimed turret records`)).join('')
     + `bitmap_room_turret_ptr_table:\n${data.roomTables.map((_t, i) => `    DW bitmap_room_turret_table_${i}`).join('\n')}\n`
+    + (bankedTables
+      ? `bitmap_room_turret_bank_table:\n    DB ${data.roomTables.map((_t, i) => `bitmap_room_turret_table_${i}_DATA_BANK`).join(',')}\n`
+      : '')
     + emit('bitmap_turret_patterns', data.patternBytes, 'Turret centre/head hardware sprite patterns')
     + emit('bitmap_turret_colors', data.colorBytes, 'Turret centre/head line colours')
     + emit('bitmap_turret_bullet_pattern', data.bulletPatternBytes, 'Single shared enemy bullet pattern')
@@ -803,5 +837,12 @@ ${satBlocks}    ld a, (bitmap_turret_bullet_active)
     satCallAsm: '    call bitmap_update_turret_sat\n',
     routinesAsm,
     dataAsm,
+    bankedBlocks: bankedTables
+      ? data.roomTables.map((table, i) => ({
+        label: `bitmap_room_turret_table_${i}`,
+        bytes: table,
+        description: `Room ${i} turret records, banked; staged into bitmap_turret_table_buf by bitmap_load_turrets`,
+      }))
+      : [],
   };
 }

@@ -1678,6 +1678,13 @@ export interface Msx2BossDamageZone {
   h: number;
   /** Hits per bullet on a weak point. */
   damageMultiplier: number;
+  /**
+   * Sound Editor PSG asset played when a bullet lands on THIS zone, so a weak
+   * point can squelch while the armour it sits on clangs. Empty = silent.
+   * Shares the boss sound pool with the death explosion, so naming the same
+   * asset twice costs nothing extra in ROM.
+   */
+  hitSoundAssetId?: string;
 }
 
 /**
@@ -1892,6 +1899,20 @@ export interface Msx2BossDefinition {
   bossPhases: Msx2BossPhase[];
   /** Weak points must be listed BEFORE the armour that contains them. */
   damageZones: Msx2BossDamageZone[];
+  /**
+   * Pop one small explosion on the WEAK POINT that was just hit (armour hits
+   * stay quiet, so the blast reads as "that one hurt" AND shows where the
+   * vulnerable spot is). Off keeps old projects byte-identical.
+   *
+   * It reuses the boss's own Death FX stamps, which are already packed in the
+   * shared atlas, so the whole effect costs NO extra VRAM -- the reason a
+   * full-body flash was rejected. The blast is one small LMMM composited over
+   * the body and is erased for free by the next scheduled body redraw.
+   * A boss with no Death FX stamps has nothing to draw and stays quiet.
+   */
+  bossHitBlastEnabled?: boolean;
+  /** Frames the blast is held before the body repaints over it (1..30, default 6). */
+  bossHitBlastFrames?: number;
   /**
    * Bitmap stamps composited over the body while the boss dies; colour 0 stays
    * transparent. With `bossDeathExplosionAnimated` off they are independent

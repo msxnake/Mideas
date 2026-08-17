@@ -1,0 +1,3 @@
+arrived screen=5 page=1 player=2,158 light_active=0 plat_light=1,1
+settled screen=5 page=1 player=2,158 light_active=0 plat_light=0,0
+dumped screen=5 page=1 player=2,158 light_active=0 plat_light=0,0

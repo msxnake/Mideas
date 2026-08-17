@@ -1,0 +1,106 @@
+{
+  "sourceProject": "C:\\Users\\salam\\Downloads\\test501_bats1.json",
+  "sourceSha256Before": "a9e60aab299ae1d702be10915d200bfcc2bd0354b0d0142fb52c5fc606c129d6",
+  "sourceSha256After": "a9e60aab299ae1d702be10915d200bfcc2bd0354b0d0142fb52c5fc606c129d6",
+  "sourceUnchanged": true,
+  "outputProject": "C:\\Users\\salam\\Downloads\\test501_bats1_professional.json",
+  "outputSha256": "cd08ba43fa8f2607a83e99eb0c83057d33bd069740ed024b3a8aa18e36082029",
+  "outputBytes": 17009284,
+  "qc": {
+    "acceptedIteration": 3,
+    "sheetSize": [
+      32,
+      16
+    ],
+    "frameSize": [
+      16,
+      16
+    ],
+    "frameCount": 2,
+    "exactProjectColors": {
+      "transparentRaw": "#FF00FF",
+      "body": {
+        "paletteIndex": 2,
+        "hex": "#6D6D6D"
+      },
+      "eyes": {
+        "paletteIndex": 5,
+        "hex": "#B6DB00"
+      }
+    },
+    "frames": [
+      {
+        "frame": 1,
+        "eyeCoordinates": [
+          [
+            6,
+            8
+          ],
+          [
+            9,
+            8
+          ]
+        ],
+        "eyeGapPixels": 2,
+        "opaquePixelCount": 68,
+        "connectedOpaqueComponents": 1,
+        "edgeMarginClear": true
+      },
+      {
+        "frame": 2,
+        "eyeCoordinates": [
+          [
+            6,
+            8
+          ],
+          [
+            9,
+            8
+          ]
+        ],
+        "eyeGapPixels": 2,
+        "opaquePixelCount": 64,
+        "connectedOpaqueComponents": 1,
+        "edgeMarginClear": true
+      }
+    ],
+    "eyesStationary": true,
+    "bodyCoreStationary": true,
+    "stationaryCoreBoxInclusive": [
+      6,
+      7,
+      9,
+      13
+    ],
+    "changedPixelsBetweenFrames": 56,
+    "wingPosesDistinct": true,
+    "hardwareLayerSeparationPossible": true,
+    "professionalQc": "PASS"
+  },
+  "integration": {
+    "enemyAssetId": "msx2enemy_bat_murcielago",
+    "spriteAssetId": "msx2sprite_bat_murcielago",
+    "logicCadenceField": "logicUpdateIntervalFrames",
+    "logicCadenceValue": 3,
+    "speedValue": 1,
+    "placementCount": 10,
+    "placementPaths": [
+      "$.assets[96].data.entities[8]",
+      "$.assets[96].data.entities[9]",
+      "$.assets[102].data.entities[2]",
+      "$.assets[102].data.entities[3]",
+      "$.assets[106].data.entities[2]",
+      "$.assets[106].data.entities[3]",
+      "$.assets[107].data.entities[2]",
+      "$.assets[107].data.entities[3]",
+      "$.assets[108].data.entities[1]",
+      "$.assets[108].data.entities[2]"
+    ]
+  },
+  "validation": {
+    "roundTripSpriteExact": true,
+    "validatedPlacementCount": 10,
+    "legacyEveryAliasInTargetAssetOrPlacements": false,
+    "unrelatedLegacyAliasPathCount": 0
+  }
+}

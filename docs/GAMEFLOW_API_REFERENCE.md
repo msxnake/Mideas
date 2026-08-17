@@ -200,6 +200,14 @@ Start → (siguiente nodo)
 - Usando un componente/behavior que establezca `gameflow_exit_requested = 1`
 - Típicamente: muerte del jugador, victoria, ESC presionado
 
+**Música del mundo (MSX2 SCREEN 5, ruta bitmap)**:
+- `musicTrackAssetId` — campo "Music on entry" del editor MSX2 Game Flow:
+  - sin valor: el nodo no toca la música (comportamiento heredado: un proyecto con pistas y sin nodo Music autoarranca la pista 0 en el boot);
+  - `"__none"`: el mundo se entra en silencio (`call music_stop`);
+  - id de una pista: esa pista suena en bucle justo al empezar el game loop del mundo.
+- Al salir del mundo la canción siempre se para (`.bitmap_gameflow_exit`), venga la salida de la última vida o de un Exit World.
+- La ruta SCREEN 4 ignora el campo: todavía no tiene reproducción de tracker.
+
 ---
 
 ### 5. SubMenu (Menú)

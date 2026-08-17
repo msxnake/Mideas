@@ -1,0 +1,36 @@
+before scr=0 count=4 hp=8 player=31,144 bullet=0 0 0 0 0
+   slot0 pos=129,54 mode=13 satY=4A
+   slot1 pos=129,54 mode=13 satY=4A
+   slot2 pos=198,64 mode=13 satY=54
+   slot3 pos=198,64 mode=13 satY=54
+player cell col=1 row=9 -> target cell col=4 (x=64, y=144)
+player row: #....######.....
+parked scr=0 count=4 hp=8 player=55,144 bullet=0 0 0 0 0
+   slot0 pos=64,144 mode=13 satY=C2
+   slot1 pos=64,144 mode=13 satY=C2
+   slot2 pos=200,24 mode=13 satY=2A
+   slot3 pos=200,24 mode=13 satY=2A
+shot-1 scr=0 count=4 hp=8 player=55,144 bullet=0 73 150 1 24
+   slot0 pos=64,144 mode=255 satY=D4
+   slot1 pos=64,144 mode=255 satY=D4
+   slot2 pos=200,24 mode=13 satY=2C
+   slot3 pos=200,24 mode=13 satY=2C
+mid scr=0 count=4 hp=8 player=55,144 bullet=0 73 150 1 24
+   slot0 pos=64,144 mode=255 satY=D4
+   slot1 pos=64,144 mode=255 satY=D4
+   slot2 pos=200,24 mode=13 satY=2C
+   slot3 pos=200,24 mode=13 satY=2C
+final scr=0 count=4 hp=8 player=55,144 bullet=0 73 150 1 24
+   slot0 pos=64,144 mode=255 satY=D4
+   slot1 pos=64,144 mode=255 satY=D4
+   slot2 pos=71,146 mode=13 satY=A8
+   slot3 pos=71,146 mode=13 satY=A8
+
+shots fired: 1
+bat A body slot0 mode=255 (must be 255)
+bat A eyes slot1 mode=255 (must be 255)
+bat B body slot2 mode=13 (must NOT be 255)
+bat B eyes slot3 mode=13 (must NOT be 255)
+bat A SAT Y: slot0=D4 slot1=D4 (must be D4)
+bat B SAT Y: slot2=A8 slot3=A8 (must NOT be D4)
+RESULT: PASS

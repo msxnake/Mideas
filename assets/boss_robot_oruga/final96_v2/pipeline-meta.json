@@ -1,0 +1,11 @@
+{
+  "target": "creature",
+  "mode": "single",
+  "prompt": "Boss robot transformable tipo Optimus, vista lateral estricta mirando a la izquierda, MSX2 SCREEN 5, sprite \u00fanico 96x96",
+  "role": "",
+  "input": "C:\\Users\\salam\\.codex\\generated_images\\01a0103b-fe66-7550-a5dc-1ff6452364d8\\exec-d8e420f0-9b9a-4c46-86cb-84d3513185ca.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "single_size": 96
+}

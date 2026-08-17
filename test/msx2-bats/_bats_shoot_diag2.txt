@@ -1,0 +1,20 @@
+player=31,144 count=4
+collision grid (# = solid, . = air), 16 cols x 12 rows:
+  row  0 ################
+  row  1 ###............#
+  row  2 ####...........#
+  row  3 #..........###.#
+  row  4 #......##......#
+  row  5 #....####......#
+  row  6 #....####.......
+  row  7 #....######.....
+  row  8 ####.######.....
+  row  9 #....######.....
+  row 10 #....###########
+  row 11 ################
+open-air cell chosen: col=4 row=1
+bat at 64,16  injected bullet=1 60 20 1 20
+  enter bitmap_enemy_bullet_hit bullet=1 64 20 1 19 slot0=64,16 mode0=13
+t+1f  bullet=0 64 20 1 19 mode0=255 mode1=255
+after bullet=0 64 20 1 19 mode0=255 mode1=255 mode2=13 mode3=13
+enemy-check entries seen: 1

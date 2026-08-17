@@ -1,0 +1,64 @@
+{
+  "target": "creature",
+  "mode": "single",
+  "prompt": "Boss robot oruga MSX2 SCREEN 5, sprite \u00fanico 96x96",
+  "role": "",
+  "input": "assets\\boss_robot_oruga\\raw-sheet-clean.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "rows": 1,
+  "cols": 1,
+  "cell_size": 1254,
+  "fit_scale": 0.85,
+  "trim_border": 0,
+  "edge_clean_depth": 2,
+  "align": "bottom",
+  "shared_scale": false,
+  "component_mode": "largest",
+  "component_padding": 1,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "single-1"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        1254,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 736289,
+      "selected_component_bbox": [
+        51,
+        132,
+        1229,
+        1058
+      ],
+      "crop_bbox": [
+        50,
+        131,
+        1230,
+        1059
+      ],
+      "edge_touch": false,
+      "output_size": [
+        1065,
+        838
+      ],
+      "paste_position": [
+        94,
+        322
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

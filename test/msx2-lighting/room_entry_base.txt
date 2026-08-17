@@ -1,0 +1,2 @@
+paint #1 : 317.2 ms
+tag=base  paints seen: 1

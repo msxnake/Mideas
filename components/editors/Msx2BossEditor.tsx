@@ -622,14 +622,32 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
         {section === 'Projectiles' && (
           <div className={card}>
             <h3 className="text-sm font-semibold mb-3">Projectiles</h3>
-            <label className={label}>Kind</label>
-            <select className={input} value={boss.bossProjectileKind}
-              onChange={e => set('bossProjectileKind', e.target.value as 'sprite' | 'bitmap')}>
-              <option value="sprite">Hardware sprite — fast, several at once (default)</option>
-              <option value="bitmap">Bitmap blit — slow multicolour bombs / homing rockets</option>
+            <label className={label}>Launch pattern</label>
+            <select className={input} value={boss.bossProjectilePattern || 'aimed'}
+              onChange={e => set('bossProjectilePattern', e.target.value as 'aimed' | 'fallingRocks')}>
+              <option value="aimed">Aimed at the player — fired from the boss centre (default)</option>
+              <option value="fallingRocks">Falling rocks — debris drops from the ceiling</option>
             </select>
+            {(boss.bossProjectilePattern || 'aimed') === 'fallingRocks' && (
+              <p className="text-xs text-msx-textsecondary mt-2">
+                Rocks spawn just under the ceiling at a random X in a 32px band over the
+                player, fall straight down and vanish on the floor. They always use the
+                bitmap blitter, so <strong>a bullet atlas tile is required</strong>.
+              </p>
+            )}
 
-            {boss.bossProjectileKind === 'sprite' ? (
+            {(boss.bossProjectilePattern || 'aimed') !== 'fallingRocks' && (
+              <>
+                <label className={`${label} mt-3`}>Kind</label>
+                <select className={input} value={boss.bossProjectileKind}
+                  onChange={e => set('bossProjectileKind', e.target.value as 'sprite' | 'bitmap')}>
+                  <option value="sprite">Hardware sprite — fast, several at once (default)</option>
+                  <option value="bitmap">Bitmap blit — slow multicolour bombs / homing rockets</option>
+                </select>
+              </>
+            )}
+
+            {boss.bossProjectileKind === 'sprite' && (boss.bossProjectilePattern || 'aimed') !== 'fallingRocks' ? (
               <div className="mt-3">
                 <label className={label}>Bullet sprite (empty = built-in small blob)</label>
                 <select className={input} value={boss.bossProjectileSpriteId}
@@ -680,7 +698,9 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
 
             <div className="grid grid-cols-3 gap-3 mt-3">
               <div>
-                <label className={label}>Frames between shots</label>
+                <label className={label}>
+                  {(boss.bossProjectilePattern || 'aimed') === 'fallingRocks' ? 'Frames between rocks (60 = 1s)' : 'Frames between shots'}
+                </label>
                 <input type="number" min={20} max={255} className={input}
                   value={boss.bossShootInterval} onChange={e => set('bossShootInterval', Number(e.target.value))} />
               </div>
@@ -704,7 +724,8 @@ export const Msx2BossEditor: React.FC<Msx2BossEditorProps> = ({
 
         {section === 'Damage Zones' && (
           <ZonesPanel boss={boss} onUpdate={onUpdate} bodyW={bodyW} bodyH={bodyH}
-            bodyStamp={bodyStamp} frames={frames} setStatusBarMessage={setStatusBarMessage} />
+            bodyStamp={bodyStamp} frames={frames} soundAssets={soundAssets}
+            setStatusBarMessage={setStatusBarMessage} />
         )}
 
         {section === 'Death FX' && (
@@ -776,6 +797,19 @@ const RoomLockSequencePanel: React.FC<{
     });
   };
 
+  // The mandatory walk-in target, as the screen X of the player's body centre.
+  // Undefined means "never authored" and keeps the historical screen centre, so
+  // clearing the field is a real reset rather than "walk into the left wall".
+  const entryX = typeof boss.bossIntroEntryX === 'number' && Number.isFinite(boss.bossIntroEntryX)
+    ? Math.max(0, Math.min(255, Math.round(boss.bossIntroEntryX)))
+    : 128;
+  const setEntryX = (value: number | undefined) => onUpdate({
+    ...boss,
+    bossIntroEntryX: value === undefined || !Number.isFinite(value)
+      ? undefined
+      : Math.max(0, Math.min(255, Math.round(value))),
+  });
+
   const stepTitle = (step: Msx2BossRoomLockStep) =>
     step.kind === 'closeBarrier' ? 'Close the chain'
       : step.kind === 'dialogue' ? 'Boss speaks'
@@ -803,10 +837,46 @@ const RoomLockSequencePanel: React.FC<{
         </div>
       )}
 
+      {/*
+        Step 0 is not authored and cannot be removed — the runtime always walks
+        the player in before the sequence runs — but WHERE it stops is per boss,
+        so it is shown here, in order, rather than hidden in the runtime.
+      */}
+      <div className="flex gap-2 items-end mb-2 pb-2 border-b border-msx-border">
+        <div className="w-6 text-xs text-msx-textsecondary pb-2">0.</div>
+        <div className="w-36">
+          <label className={label}>Step</label>
+          <input className={input} value="Walk in (always)" readOnly />
+        </div>
+        <div className="w-24">
+          <label className={label}>Stop at X</label>
+          <input type="number" min={0} max={255} className={input} value={entryX}
+            onChange={e => setEntryX(e.target.value === '' ? undefined : Number(e.target.value))} />
+        </div>
+        <div className="flex-1">
+          <label className={label}>Click the room width to place them</label>
+          <div
+            className="relative h-6 rounded border border-msx-border cursor-crosshair"
+            style={{ background: MSX2_PREVIEW_BG }}
+            title="0 = left wall, 255 = right wall"
+            onClick={e => {
+              const box = e.currentTarget.getBoundingClientRect();
+              if (box.width <= 0) return;
+              setEntryX(Math.round(((e.clientX - box.left) / box.width) * 255));
+            }}
+          >
+            <div className="absolute top-0 bottom-0 border-l border-dashed border-msx-textsecondary" style={{ left: '50%' }} />
+            <div className="absolute top-0 bottom-0 w-1 bg-msx-accent" style={{ left: `${(entryX / 255) * 100}%` }} />
+          </div>
+        </div>
+        <button className={btn} onClick={() => setEntryX(undefined)}
+          disabled={boss.bossIntroEntryX === undefined}>Centre</button>
+      </div>
+
       {steps.length === 0 && !hasLegacy && (
         <p className="text-xs text-msx-textsecondary">
-          No authored steps: after the automatic walk to screen centre, the chain seals
-          at once and the fight starts. Add steps to stage the entrance.
+          No authored steps: after the walk-in above, the chain seals at once and the
+          fight starts. Add steps to stage the entrance.
         </p>
       )}
 
@@ -975,8 +1045,9 @@ const ZonesPanel: React.FC<{
   bodyH: number;
   bodyStamp?: BodyStampRef;
   frames: number;
+  soundAssets: ProjectAsset[];
   setStatusBarMessage?: (m: string) => void;
-}> = ({ boss, onUpdate, bodyW, bodyH, bodyStamp, frames, setStatusBarMessage }) => {
+}> = ({ boss, onUpdate, bodyW, bodyH, bodyStamp, frames, soundAssets, setStatusBarMessage }) => {
   const zones = boss.damageZones || [];
   const update = (next: Msx2BossDamageZone[]) => onUpdate({ ...boss, damageZones: next });
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -1119,6 +1190,16 @@ const ZonesPanel: React.FC<{
                   disabled={zone.type === 'invulnerable'}
                   onChange={e => update(zones.map((z, i) => i === index ? { ...z, damageMultiplier: Number(e.target.value) } : z))} />
               </div>
+              <div>
+                <label className={label}>Hit sound</label>
+                <select className={input} value={zone.hitSoundAssetId || ''}
+                  onChange={e => update(zones.map((z, i) => i === index ? { ...z, hitSoundAssetId: e.target.value } : z))}>
+                  <option value="">— Silent —</option>
+                  {soundAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-1">
                 <button className={btn} title="Move up (tested earlier)"
                   onClick={() => {
@@ -1135,6 +1216,33 @@ const ZonesPanel: React.FC<{
             Zones are tested top to bottom and the first hit wins, so keep weak points
             above the armour that covers them.
           </p>
+
+          {/* Boss-wide, not per zone: only a weak point earns a blast, so it is the
+              player's "that one hurt" signal AND a pointer at the vulnerable spot. */}
+          <div className="mt-4 pt-3 border-t border-msx-border">
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={boss.bossHitBlastEnabled === true}
+                onChange={e => onUpdate({ ...boss, bossHitBlastEnabled: e.target.checked })} />
+              Explosion on the weak point when it is hit
+            </label>
+            {boss.bossHitBlastEnabled === true && (
+              <div className="grid grid-cols-2 gap-3 mt-2 max-w-sm">
+                <div>
+                  <label className={label}>Frames held</label>
+                  <input type="number" min={1} max={30} className={input}
+                    value={boss.bossHitBlastFrames ?? 6}
+                    onChange={e => onUpdate({ ...boss, bossHitBlastFrames: Number(e.target.value) })} />
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-msx-textsecondary mt-2">
+              Reuses the stamps from the <strong>Death FX</strong> section, which are already
+              in the atlas, so this costs no extra VRAM and no visible time — the blast is one
+              small transparent blit and the boss's next redraw erases it. Pick at least one
+              Death FX stamp or there is nothing to draw. It pops at the centre of whichever
+              weak point the bullet hit, so it also tells the player where to aim.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -1572,6 +1680,7 @@ export function createMsx2BossDefinition(id: string, name: string): Msx2BossDefi
     bossRangePx: 0,
     bossBarrierTileId: '',
     bossProjectileKind: 'sprite',
+    bossProjectilePattern: 'aimed',
     bossProjectileSpriteId: '',
     bossProjectileTileId: '',
     bossShootInterval: 90,

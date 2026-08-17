@@ -66,8 +66,29 @@ import {
   MSX2_SHOOT_RING,
   bakeShootDefinition,
 } from '../../../msx2Shoot';
+import { BOSS_DEFINITION_OWNED_PARAMS } from '../../../msx2BossParams';
 
-export const BITMAP_BOSS_TABLE_STRIDE = 20;
+export const BITMAP_BOSS_TABLE_STRIDE = 27;
+
+/**
+ * Damage-zone record: x, y, w, h, kind, damageMultiplier, hitSoundIndex.
+ * The table builder and the Z80 scanner both stride by this, so they cannot
+ * disagree about where the next zone starts.
+ */
+export const BOSS_ZONE_RECORD_BYTES = 7;
+
+/** How long a weak-point blast is held before the body repaints over it. */
+export const BOSS_HIT_BLAST_DEFAULT_FRAMES = 6;
+
+/**
+ * A boss pops a weak-point blast only if the author turned it on AND asked for
+ * at least one frame. The compiler additionally clears this when the boss has
+ * no Death FX stamp to borrow, because the blast reuses those.
+ */
+export function bossHitBlastFrames(params: any): number {
+  if (params?.bossHitBlastEnabled !== true) return 0;
+  return clampInt(params.bossHitBlastFrames, 1, 30, BOSS_HIT_BLAST_DEFAULT_FRAMES);
+}
 
 function asmByte(value: number): string {
   const byte = Math.max(0, Math.min(255, Math.floor(Number(value) || 0)));
@@ -116,6 +137,13 @@ export interface BitmapBossRoomData {
    * never uses a persistent "intro seen" flag.
    */
   introStreams: number[][];
+  /**
+   * Per-room target of the mandatory Room Lock auto-walk, as the screen X of
+   * the CENTRE of the player's collision body (0..255). Authored per boss
+   * (`bossIntroEntryX`); rooms with no boss carry the screen centre, which is
+   * what the whole system used before the field existed.
+   */
+  introEntryX: number[];
   /**
    * Per-room boss projectile config (Phase D). BITMAP_BOSS_PROJECTILE_STRIDE
    * bytes: [present, sxLo, sxHi, syLo, syHi, w, h, interval, speed, damage, kind]
@@ -222,6 +250,12 @@ const DEFEAT_OP_GIVE_KEY = 0x02;   // arg: how many keys to add
 const DEFEAT_OP_OPEN_DOOR = 0x03;  // arg: door open-flag offset
 const DEFEAT_OP_SHOW_MESSAGE = 0x04; // arg: dialogue index (NPC text box)
 const DEFEAT_OP_CHANGE_SCREEN = 0x05; // args: room index, entry X (#FF = keep), entry Y
+
+/**
+ * Where the Room Lock auto-walk takes the player when the boss does not say
+ * otherwise: the centre of the screen, measured on the player's body centre.
+ */
+const INTRO_ENTRY_X_CENTRE = 128;
 
 /** Boss Intro / Room Lock opcodes. Every non-END opcode has one argument. */
 const INTRO_OP_END = 0x00;
@@ -483,6 +517,8 @@ export interface BitmapBossSpriteBulletOptions {
 
 export interface BitmapBossRuntimeOptions {
   ramBase: number;
+  /** Konami MegaROM: per-room records live in a data bank, staged into RAM. */
+  bankedTables?: boolean;
   /** Present only when sprite bullets are possible for this project. */
   spriteBullets?: BitmapBossSpriteBulletOptions;
   /**
@@ -497,6 +533,15 @@ export interface BitmapBossRuntimeOptions {
   gameHeight?: number;
   /** Player body hitbox in local player coordinates. */
   playerHitbox: { x: number; y: number; w: number; h: number };
+  /**
+   * True when the key/door subsystem already emits `bitmap_player_overlaps_16`.
+   * The chain barrier calls that helper, but it is owned by the key/door block
+   * and therefore ABSENT from a project with a boss barrier and no keys, doors
+   * or pickups — which failed to assemble with "Invalid arguments" on the call.
+   * When false the barrier emits its own copy so it is self-contained; when true
+   * it reuses the shared one, keeping existing ROMs byte-identical.
+   */
+  playerOverlapHelperAvailable?: boolean;
   /** Frames of player invulnerability armed on contact damage. */
   damageInvulnFrames: number;
   /** Player max health (respawn refill). */
@@ -548,6 +593,8 @@ export interface BitmapBossSystemAsm {
   satCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
+  /** Room records for the MegaROM data-bank packer; empty on simple32k. */
+  bankedBlocks: Array<{ label: string; bytes: number[]; description: string }>;
 }
 
 interface BossSlotInput {
@@ -660,6 +707,7 @@ export function buildBitmapRoomBossData(
       table: emptyTable(),
       stream: [DEFEAT_OP_END],
       intro: [INTRO_OP_END],
+      introEntryX: INTRO_ENTRY_X_CENTRE,
       barrier: emptyBarrier(),
       projectile: emptyProjectile(),
       phases: [0],
@@ -698,6 +746,7 @@ export function buildBitmapRoomBossData(
         table: emptyTable(),
         stream: [DEFEAT_OP_END],
         intro: [INTRO_OP_END],
+        introEntryX: INTRO_ENTRY_X_CENTRE,
         barrier: emptyBarrier(),
         projectile: emptyProjectile(),
         phases: [0],
@@ -718,6 +767,7 @@ export function buildBitmapRoomBossData(
         table: emptyTable(),
         stream: [DEFEAT_OP_END],
         intro: [INTRO_OP_END],
+        introEntryX: INTRO_ENTRY_X_CENTRE,
         barrier: emptyBarrier(),
         projectile: emptyProjectile(),
         phases: [0],
@@ -811,10 +861,30 @@ export function buildBitmapRoomBossData(
     // Phase D attack phases: HP thresholds that retune the firing cadence.
     const phases = buildPhaseTable(params.bossPhases, hp, projectile, room.name);
     // Phase E damage zones: weak points / armour, in boss-local pixels.
-    const zones = buildDamageZoneTable(params.damageZones ?? params.bossDamageZones, width, height, room.name);
+    const zones = buildDamageZoneTable(params.damageZones ?? params.bossDamageZones, width, height, room.name, indexOfDeathSound);
     // Formal defeat presentation: several transparent bitmap stamps scattered
     // over the frozen body before progress actions run and the room unlocks.
     const deathFx = buildDeathFxTable(params, bodyStampPlacements, width, height, room.name);
+    // The weak-point blast borrows the boss's FIRST Death FX stamp: it is already
+    // packed in the shared atlas, so the effect costs no VRAM of its own. With no
+    // Death FX authored there is nothing to draw, and the blast turns itself off.
+    const requestedBlastFrames = bossHitBlastFrames(params);
+    // At THIS point the death-FX table still carries its full 6-byte header;
+    // stripDeathFxAnimHeader only shortens it later, and only when no room is
+    // animated. Reading it as 4 here silently grabbed two header bytes as the
+    // stamp's X.
+    const hasBlastStamp = (deathFx[0] & 0x7f) > 0 && deathFx.length >= DEATH_FX_HEADER_ANIM + 6;
+    const blastRect = hasBlastStamp
+      ? deathFx.slice(DEATH_FX_HEADER_ANIM, DEATH_FX_HEADER_ANIM + 6)
+      : [0, 0, 0, 0, 0, 0];
+    const blastFrames = hasBlastStamp ? requestedBlastFrames : 0;
+    if (requestedBlastFrames > 0 && !hasBlastStamp) {
+      console.warn(
+        `MSX2 bitmap room "${room.name}": this boss asks for a weak-point hit explosion but has no Death FX `
+        + 'stamp to borrow, so nothing would be drawn and the blast was disabled. Pick at least one stamp in '
+        + 'the Boss Editor (Death FX).',
+      );
+    }
     const deathSoundIndex = indexOfDeathSound(params.bossDeathExplosionSoundAssetId, room.name);
     // Fase G: which path this boss walks, by default and per attack phase.
     const pathSel = buildPathSelTable(params, hp, indexOfPath);
@@ -843,9 +913,21 @@ export function buildBitmapRoomBossData(
         width & 0xff, height & 0xff,
         frames & 0xff, animDelay & 0xff,
         hp & 0xff, damage & 0xff, interval & 0xff,
+        // Weak-point blast: hold frames (0 = off) plus the Death FX stamp it
+        // borrows, copied here so the runtime needs no death-table header maths.
+        blastFrames & 0xff,
+        blastRect[0] & 0xff, blastRect[1] & 0xff,   // sx word
+        blastRect[2] & 0xff, blastRect[3] & 0xff,   // sy word
+        blastRect[4] & 0xff, blastRect[5] & 0xff,   // w, h
       ],
       stream,
       intro,
+      // Where the player is walked to on entry. Empty / non-numeric means the
+      // boss never authored one, which is the screen centre every boss used
+      // before the field existed -- NOT column 0.
+      introEntryX: params.bossIntroEntryX === '' || params.bossIntroEntryX === null
+        ? INTRO_ENTRY_X_CENTRE
+        : clampInt(params.bossIntroEntryX, 0, 255, INTRO_ENTRY_X_CENTRE),
       barrier,
       projectile,
       phases,
@@ -860,6 +942,7 @@ export function buildBitmapRoomBossData(
     roomTables: perRoom.map(entry => entry.table),
     defeatStreams: perRoom.map(entry => entry.stream),
     introStreams: perRoom.map(entry => entry.intro),
+    introEntryX: perRoom.map(entry => entry.introEntryX),
     flagNames,
     barrierTables: perRoom.map(entry => entry.barrier),
     projectileTables: perRoom.map(entry => entry.projectile),
@@ -991,9 +1074,13 @@ export interface BossDefinitionAsset {
 
 /**
  * Merge a placed boss (the BossEncounter) with the BossDefinition it points at.
- * The definition supplies the defaults; anything set on the encounter wins, so a
- * screen can override HP, the starting phase, the reward, the locked doors...
- * A boss with no `bossId` keeps working exactly as before (inline authoring).
+ * The definition OWNS the boss itself -- body, HP, speed, phases, damage zones,
+ * death FX -- so editing it in the Boss Editor reaches every room at once.
+ * The encounter only decides what is per-instance: `hpOverride`, the starting
+ * phase, the reward, the locked doors... (design doc §4.2, and the key list in
+ * BOSS_DEFINITION_OWNED_PARAMS).
+ * A boss with no `bossId` keeps working exactly as before (inline authoring):
+ * with no definition to merge, its own params are the whole truth.
  */
 export function resolveBossParams(entity: any, definitions: Map<string, BossDefinitionAsset>): any {
   const own = entity?.params || {};
@@ -1006,6 +1093,12 @@ export function resolveBossParams(entity: any, definitions: Map<string, BossDefi
   }
   const merged: Record<string, unknown> = { ...definition.params };
   for (const [key, value] of Object.entries(own)) {
+    // Definition-owned fields are ignored even when the encounter carries a
+    // value, because that value is a SNAPSHOT taken when the boss was placed,
+    // not an authored override -- nothing in the UI writes them per encounter.
+    // Honouring it froze the boss on the settings it had that day, so raising
+    // HP or speed in the Boss Editor never reached an already-placed boss.
+    if (BOSS_DEFINITION_OWNED_PARAMS.has(key)) continue;
     // Only a real override replaces the template: empty strings and empty
     // arrays on the encounter mean "keep what the definition says".
     if (value === undefined || value === null) continue;
@@ -1033,7 +1126,13 @@ export function resolveBossParams(entity: any, definitions: Map<string, BossDefi
  * that miss every zone fly through the boss. A boss with no zones at all keeps
  * the old "whole body takes 1 damage" behaviour.
  */
-function buildDamageZoneTable(zones: unknown, width: number, height: number, roomName: string): number[] {
+function buildDamageZoneTable(
+  zones: unknown,
+  width: number,
+  height: number,
+  roomName: string,
+  indexOfSound: (rawId: unknown, roomName: string) => number,
+): number[] {
   if (!Array.isArray(zones) || !zones.length) return [0];
   const rows: number[][] = [];
   for (const raw of zones) {
@@ -1045,7 +1144,15 @@ function buildDamageZoneTable(zones: unknown, width: number, height: number, roo
     const h = clampInt(zone.h, 1, height - y, Math.max(1, height - y));
     const kind = String(zone.type || zone.kind || 'weak_point').trim() === 'invulnerable' ? 0 : 1;
     const multiplier = clampInt(zone.damageMultiplier, 1, 16, 1);
-    rows.push([x, y, w, h, kind, multiplier]);
+    // Zone hit sounds share the boss sound pool with the death explosion, so a
+    // zone reusing that asset costs no extra ROM. -1 (absent / unplayable) is
+    // stored as 0 = silent: unlike the death FX there is no built-in fallback,
+    // because a zone with no sound authored must stay quiet.
+    const soundIndex = Math.max(0, indexOfSound(zone.hitSoundAssetId, roomName));
+    rows.push([x, y, w, h, kind, multiplier, soundIndex]);
+    if (rows[rows.length - 1].length !== BOSS_ZONE_RECORD_BYTES) {
+      throw new Error(`MSX2 bitmap boss: damage-zone record must be ${BOSS_ZONE_RECORD_BYTES} bytes to match the Z80 scanner stride.`);
+    }
   }
   if (!rows.length) return [0];
   if (rows.length > 8) {
@@ -1065,7 +1172,14 @@ function resolveBarrier(tileId: unknown, room: { name: string; atlas?: { entries
   if (!id) return [0, 0, 0, 0, 0];
   const entry = (room.atlas?.entries || []).find((candidate: any) => String(candidate?.id) === id);
   if (!entry) {
-    console.warn(`MSX2 bitmap room "${room.name}": boss barrier tile "${id}" not found; chain barrier disabled.`);
+    // Name the gameplay consequence, not just the internal state: the Room Lock
+    // still runs (the player is frozen and walks in) but its closeBarrier step
+    // becomes a no-op, so the room never seals and it reads as a dead trigger.
+    console.warn(
+      `MSX2 bitmap room "${room.name}": boss barrier tile "${id}" is not in this room's atlas, `
+      + 'so the chain barrier is disabled and any Room Lock "closeBarrier" step will do nothing '
+      + '(the room will NOT close). Pick a barrier tile that exists in this room.',
+    );
     return [0, 0, 0, 0, 0];
   }
   const w = Math.floor(Number(entry.w) || 0);
@@ -1161,10 +1275,14 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
   const interval = clampInt(params.bossShootInterval, 20, 255, 90);
   const speed = clampInt(params.bossProjectileSpeed, 1, 4, 2);
   const damage = clampInt(params.bossProjectileDamage, 0, 8, 1);
+  // Ceiling debris is a launch PATTERN, not a back-end: it always blits, so it
+  // overrides bossProjectileKind rather than being a third value of it.
+  const fallingRocks = String(params.bossProjectilePattern || 'aimed').trim() === 'fallingRocks';
   // Default to hardware sprites: they never erase the background and several
   // can fly at once. 'bitmap' stays available for slow multicolour bombs and
   // homing rockets, where the blit cost is irrelevant.
-  const wantsBitmap = String(params.bossProjectileKind || 'sprite').trim() === 'bitmap';
+  const wantsBitmap = fallingRocks
+    || String(params.bossProjectileKind || 'sprite').trim() === 'bitmap';
   const id = String(params.bossProjectileTileId || '').trim();
 
   if (!wantsBitmap) {
@@ -1174,7 +1292,14 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
     return [1, 0, 0, 0, 0, 16, 16, interval & 0xff, speed & 0xff, damage & 0xff, 1];
   }
 
-  if (!id) return empty;
+  if (!id) {
+    // Silence here is what made "kind: bitmap with no tile" look like a broken
+    // boss: it just stopped shooting with nothing in the build log.
+    if (fallingRocks) {
+      console.warn(`MSX2 bitmap room "${room.name}": falling-rock projectiles need an atlas tile (bossProjectileTileId); no rocks will fall.`);
+    }
+    return empty;
+  }
   const entry = (room.atlas?.entries || []).find((candidate: any) => String(candidate?.id) === id);
   if (!entry) {
     console.warn(`MSX2 bitmap room "${room.name}": boss projectile tile "${id}" not found; projectiles disabled.`);
@@ -1188,7 +1313,20 @@ function resolveProjectile(params: any, room: { name: string; atlas?: { entries?
   }
   const psx = even(clampInt(entry.sx, 0, 4096, 0));
   const psy = 512 + clampInt(entry.sy, 0, 4096, 0);
-  return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, interval & 0xff, speed & 0xff, damage & 0xff, 0];
+  if (!fallingRocks) {
+    return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, interval & 0xff, speed & 0xff, damage & 0xff, 0];
+  }
+  // The shoot runtime only ticks on the body's OFF-frames (see
+  // bitmap_boss_off_frame), so a cooldown byte is NOT a count of 60Hz frames:
+  // with the default cadence of 3 it runs at 40Hz and a naive 180 would give
+  // 4.5 real seconds. Convert here so the authored number means what it says.
+  const bodyInterval = clampInt(params.bossInterval, 1, 16, 3);
+  const offFrames = Math.max(1, bodyInterval - 1);
+  const ticks = clampInt(Math.round((interval * offFrames) / bodyInterval), 1, 255, 120);
+  if (bodyInterval <= 1) {
+    console.warn(`MSX2 bitmap room "${room.name}": bossInterval 1 leaves no off-frames, so falling rocks can never update. Use 2 or more.`);
+  }
+  return [1, psx & 0xff, (psx >> 8) & 0xff, psy & 0xff, (psy >> 8) & 0xff, w & 0xff, h & 0xff, ticks & 0xff, speed & 0xff, damage & 0xff, 2];
 }
 
 /**
@@ -1342,7 +1480,7 @@ export function buildBitmapBossSystemAsm(
   if (!data.enabled) {
     return {
       enabled: false, ramBytes: 0, equates: '', initAsm: '', loadCallAsm: '', updateCallAsm: '', playerGateAsm: '', autoMoveInputAsm: '',
-      bulletHookLabel: '', satCallAsm: '', routinesAsm: '', dataAsm: '',
+      bulletHookLabel: '', satCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [],
     };
   }
   const roomCount = data.roomTables.length;
@@ -1381,6 +1519,19 @@ export function buildBitmapBossSystemAsm(
   });
   // Phase E: only emit the zone machinery when a boss actually authored zones.
   const hasZones = (data.damageZoneTables || []).some(t => t && t[0] > 0);
+  // Weak-point hit blast: only emitted when a boss actually asked for it, so a
+  // project without it keeps a byte-identical ROM. The compiler already cleared
+  // the byte for a boss with no Death FX stamp to borrow.
+  const hasHitBlast = (data.roomTables || []).some(t => t && t[0] === 1 && t[20] > 0);
+  // Per-zone hit sounds. Independent of the death explosion: a boss may have
+  // zone sounds and no death sound, or the other way round.
+  const hasZoneSfx = (data.damageZoneTables || []).some(table => {
+    if (!table || !table[0]) return false;
+    for (let i = 0; i < table[0]; i++) {
+      if ((table[1 + i * BOSS_ZONE_RECORD_BYTES + 6] || 0) > 0) return true;
+    }
+    return false;
+  });
   const hasGiveKey = streamHas(DEFEAT_OP_GIVE_KEY);
   const hasOpenDoor = streamHas(DEFEAT_OP_OPEN_DOOR);
   const hasShowMessage = streamHas(DEFEAT_OP_SHOW_MESSAGE);
@@ -1413,6 +1564,12 @@ export function buildBitmapBossSystemAsm(
   const hasCustomDeathSound = (data.deathSoundIndexes || []).some(index => index > 0)
     && (data.deathSoundStreams || []).length > 0;
   const hasDeathSound = hasDefaultDeathSound || hasCustomDeathSound;
+  // The compact channel-C sequencer is shared: the death explosion and the
+  // per-zone hit sounds play through the same RAM and the same stream pool, so
+  // it must exist as soon as EITHER is used. Gating it on the death sound alone
+  // would leave a boss with zone sounds and no death sound calling into RAM
+  // that was never reserved.
+  const hasPooledSfx = hasCustomDeathSound || hasZoneSfx;
   // Concurrent animated explosions: up to three independent blasts play at
   // once. The compact ordered-frame mode uses the legacy runtime and therefore
   // does not reserve the live-slot machinery below.
@@ -1431,9 +1588,16 @@ export function buildBitmapBossSystemAsm(
   // Phase D projectiles: single bitmap bullet fired at the player. Only emitted
   // when a room configures bossProjectileTileId (byte-identical no-op otherwise).
   const tables = data.projectileTables || [];
-  // Two independent projectile back-ends; a project may use either (or neither).
-  const hasBitmapProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 0)
+  // Kind byte: 0 = bitmap aimed, 1 = hardware sprite, 2 = bitmap falling rocks.
+  // Rocks ride the SAME single-projectile bitmap machinery (one scratch rect,
+  // one live blit) and differ only in how they are launched, so they extend
+  // this predicate instead of adding a third back-end.
+  const hasAimedBitmapProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 0)
     && typeof opts.projScratchBaseY === 'number';
+  const hasFallingRocks = tables.some(t => t && t[0] === 1 && t[10] === 2)
+    && typeof opts.projScratchBaseY === 'number';
+  // Two independent projectile back-ends; a project may use either (or neither).
+  const hasBitmapProjectiles = hasAimedBitmapProjectiles || hasFallingRocks;
   const sprites = opts.spriteBullets;
   const hasSpriteProjectiles = tables.some(t => t && t[0] === 1 && t[10] === 1)
     && !!sprites && sprites.maxSlots > 0;
@@ -1456,7 +1620,11 @@ export function buildBitmapBossSystemAsm(
   // below (which does gate them), so every block allocated after it — paths,
   // shots — landed 9 bytes past what the totals reserved, and `boss_intro_*`
   // (placed at `ram + baseRamBytes`) was allocated ON TOP of `boss_path_*`.
-  const spriteRamBase = projRamBase + (hasProjectiles ? 9 : 0);
+  // Single source of truth so that hazard cannot come back: both this cursor
+  // and `baseRamBytes` below must add the SAME number. Falling rocks append one
+  // byte of PRNG state to the block (absent, hence byte-identical, without them).
+  const PROJ_RAM_BYTES = (hasProjectiles ? 9 : 0) + (hasFallingRocks ? 1 : 0);
+  const spriteRamBase = projRamBase + PROJ_RAM_BYTES;
   // Fase G paths: entirely absent unless a boss references one, so a project
   // without paths keeps a byte-identical ROM.
   const pathStreams = data.pathStreams || [];
@@ -1471,10 +1639,10 @@ export function buildBitmapBossSystemAsm(
   const shootRamBase = pathRamBase + (hasPaths ? PATH_RAM_BYTES : 0);
   const SHOOT_RAM_BYTES = 10;
   const baseRamBytes = 11 + 2 + 15 + roomPoolCount + flagCount + (hasBarrier ? 7 : 0)
-    + (hasProjectiles ? 9 : 0) + spriteSlots * BOSS_SBUL_SLOT_BYTES
+    + PROJ_RAM_BYTES + spriteSlots * BOSS_SBUL_SLOT_BYTES
     + (hasPaths ? PATH_RAM_BYTES : 0) + (hasShoots ? SHOOT_RAM_BYTES : 0);
   const introRamBase = ram + baseRamBytes;
-  const INTRO_RAM_BYTES = 6;
+  const INTRO_RAM_BYTES = 7;
   const deathRamBase = introRamBase + (hasIntro ? INTRO_RAM_BYTES : 0);
   // 3 live explosions x 5 bytes (active, frame, timer, rx, ry) + the word that
   // points at the slot being serviced this frame.
@@ -1490,10 +1658,17 @@ export function buildBitmapBossSystemAsm(
   const hasDeathMusicHold = hasDeathFx && !!musicMuteAsm && !!musicResumeAsm;
   const DEATH_RAM_BYTES = 3 + (hasDeathAnim ? DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES + 2 : 0);
   const deathSfxRamBase = deathRamBase + (hasDeathFx ? DEATH_RAM_BYTES : 0);
-  const DEATH_SFX_RAM_BYTES = 4; // custom stream: active, timer, pointer word
+  const DEATH_SFX_RAM_BYTES = 4; // pooled stream: active, timer, pointer word
+  const HIT_BLAST_RAM_BYTES = 4; // countdown, authored length, and the hit zone's centre
+  const hitBlastRamBase = deathSfxRamBase + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0);
+  // MegaROM: the room record is staged out of its data bank into RAM.
+  const bankedTables = opts.bankedTables === true;
   const totalRamBytes = baseRamBytes + (hasIntro ? INTRO_RAM_BYTES : 0)
     + (hasDeathFx ? DEATH_RAM_BYTES : 0)
-    + (hasCustomDeathSound ? DEATH_SFX_RAM_BYTES : 0);
+    + (hasPooledSfx ? DEATH_SFX_RAM_BYTES : 0)
+    + (hasHitBlast ? HIT_BLAST_RAM_BYTES : 0)
+    + (bankedTables ? BITMAP_BOSS_TABLE_STRIDE : 0);
+  const bossTableBufAddr = opts.ramBase + totalRamBytes - BITMAP_BOSS_TABLE_STRIDE;
   // Pre-rendered so the data template stays readable: one ring slot per row,
   // dx then dy, each an 8.8 little-endian word.
   const shootDirRows = (() => {
@@ -1523,6 +1698,12 @@ export function buildBitmapBossSystemAsm(
     console.warn('MSX2 bitmap boss: shoot patterns need hardware-sprite bullets (bossProjectileKind "sprite"); the bitmap bullet fires one aimed shot regardless.');
   }
   const hit = opts.playerHitbox;
+  // Falling rocks aim at the player's body centre, not the render origin, and
+  // scatter inside a band around it. The band is a power of two so the runtime
+  // masks the PRNG byte instead of dividing. 32px ~= two cells: wide enough to
+  // be dodgeable by walking, tight enough that standing still is fatal.
+  const ROCK_BAND_PX = 32;
+  const rockBandCentre = clampInt(hit.x + Math.floor(Math.max(1, hit.w) / 2), 0, 64, 8);
   // player_x is the render origin, so centre the configured collision body,
   // not merely its top-left coordinate. Default 16px body => target X 120.
   const introAutoMoveTargetX = clampInt(
@@ -1531,12 +1712,28 @@ export function buildBitmapBossSystemAsm(
     238,
     120,
   );
+  // Same conversion per room, from the X the Boss editor authored (which is a
+  // BODY CENTRE, the thing an author can actually see) to the player_x the
+  // runtime compares. Clamped away from the room edges so the auto-walk cannot
+  // aim at a column the player can never stand on.
+  // One byte per room, always: a short table would be indexed out of bounds by
+  // current_screen_index and walk the player to a garbage column.
+  const introTargetXPerRoom = data.roomTables.map((_table, index) => clampInt(
+    Math.round(
+      clampInt((data.introEntryX || [])[index], 0, 255, INTRO_ENTRY_X_CENTRE) - (hit.x + hit.w / 2),
+    ),
+    2,
+    238,
+    introAutoMoveTargetX,
+  ));
   const invulnFrames = asmByte(opts.damageInvulnFrames || 60);
   const maxHealthByte = asmByte(opts.maxHealth || 3);
   const pauseGate = opts.pauseGateAsm || '';
 
   const equates = `
 ; ---- bitmap BOSS runtime state (${totalRamBytes} bytes) ----
+${bankedTables ? `bitmap_boss_table_buf EQU ${asmWord(bossTableBufAddr)}   ; room record staged out of its bank
+` : ''}
 boss_active     EQU ${asmWord(ram + 0)}   ; 0 none, 1 alive, 2 death FX
 boss_x          EQU ${asmWord(ram + 1)}
 boss_y          EQU ${asmWord(ram + 2)}
@@ -1565,6 +1762,7 @@ boss_proj_dx    EQU ${asmWord(projRamBase + 5)}  ; signed px/frame
 boss_proj_dy    EQU ${asmWord(projRamBase + 6)}
 boss_proj_cd    EQU ${asmWord(projRamBase + 7)}  ; frames until next shot
 boss_phase_speed EQU ${asmWord(projRamBase + 8)}  ; projectile speed of the active attack phase
+` : ''}${hasFallingRocks ? `boss_rock_seed  EQU ${asmWord(projRamBase + 9)}  ; 8-bit PRNG state for the rock drop column
 ` : ''}${hasSpriteProjectiles ? `BOSS_SBUL_SLOT  EQU ${BOSS_SBUL_SLOT_BYTES}
 boss_sbul_pool  EQU ${asmWord(spriteRamBase)}  ; ${spriteSlots} x ${BOSS_SBUL_SLOT_BYTES} bytes
 ;   +0 active, +1 x, +2 y, +3 dx, +4 dy (whole pixels, as before),
@@ -1593,6 +1791,7 @@ boss_intro_ptr EQU ${asmWord(introRamBase + 1)}  ; word: next opcode or active-s
 boss_intro_counter EQU ${asmWord(introRamBase + 3)}  ; wait frames / raster scanlines left this frame
 boss_intro_raster_y EQU ${asmWord(introRamBase + 4)}  ; next horizontal pixel line (0..191)
 boss_intro_auto_move EQU ${asmWord(introRamBase + 5)}  ; 1 = forced horizontal walk; gravity remains active
+boss_intro_target_x EQU ${asmWord(introRamBase + 6)}  ; player_x the auto-walk aims at, loaded per room
 ` : ''}${hasDeathFx ? `boss_death_left EQU ${asmWord(deathRamBase + 0)}  ; bitmap blasts still to draw (#FF = final hold)
 boss_death_tick EQU ${asmWord(deathRamBase + 1)}  ; frames to next blast/finalize
 boss_death_seed EQU ${asmWord(deathRamBase + 2)}  ; deterministic 8-bit PRNG state
@@ -1601,9 +1800,13 @@ boss_death_slots EQU ${asmWord(deathRamBase + 3)}  ; ${DEATH_ANIM_SLOTS} x ${DEA
 ;   +0 active (1 = playing), +1 frame index on screen, +2 frames until the next
 ;   step, +3 rx / +4 ry = even offset of the blast inside the frozen body.
 boss_death_ptr  EQU ${asmWord(deathRamBase + 3 + DEATH_ANIM_SLOTS * DEATH_ANIM_SLOT_BYTES)}  ; word: slot serviced this frame
-` : ''}` : ''}${hasCustomDeathSound ? `boss_death_sfx_active EQU ${asmWord(deathSfxRamBase + 0)}  ; selected PSG explosion is playing
+` : ''}` : ''}${hasPooledSfx ? `boss_death_sfx_active EQU ${asmWord(deathSfxRamBase + 0)}  ; a pooled channel-C sound is playing
 boss_death_sfx_timer EQU ${asmWord(deathSfxRamBase + 1)}  ; frames left in the current sound step
 boss_death_sfx_ptr EQU ${asmWord(deathSfxRamBase + 2)}  ; word: next compact channel-C record
+` : ''}${hasHitBlast ? `boss_blast_timer EQU ${asmWord(hitBlastRamBase)}  ; frames left of the weak-point explosion (0 = none on screen)
+boss_blast_len  EQU ${asmWord(hitBlastRamBase + 1)}  ; authored hold, cached from the room table at load
+boss_blast_x    EQU ${asmWord(hitBlastRamBase + 2)}  ; centre of the zone that was hit, boss-local px
+boss_blast_y    EQU ${asmWord(hitBlastRamBase + 3)}
 ` : ''}`;
 
   // Persistent state must start at zero: boss_defeated decides whether a boss
@@ -1614,11 +1817,13 @@ boss_death_sfx_ptr EQU ${asmWord(deathSfxRamBase + 2)}  ; word: next compact cha
 ${Array.from({ length: roomPoolCount }, (_v, i) => `    ld (boss_defeated + ${i}), a`).join('\n')}
 ${hasDefeatActions ? Array.from({ length: flagCount }, (_v, i) => `    ld (boss_flags + ${i}), a`).join('\n') + '\n' : ''}${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_intro_auto_move), a
+    ld (boss_intro_target_x), a
 ` : ''}${hasDeathFx ? `    ld (boss_death_left), a
     ld (boss_death_tick), a
     ld (boss_death_seed), a
-${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (boss_death_slots + ${i * DEATH_ANIM_SLOT_BYTES}), a`).join('\n') + '\n' : ''}` : ''}${hasCustomDeathSound ? `    ld (boss_death_sfx_active), a
+${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (boss_death_slots + ${i * DEATH_ANIM_SLOT_BYTES}), a`).join('\n') + '\n' : ''}` : ''}${hasPooledSfx ? `    ld (boss_death_sfx_active), a
     ld (boss_death_sfx_timer), a
+` : ''}${hasHitBlast ? `    ld (boss_blast_timer), a   ; a stale blast would pop on room entry
 ` : ''}`;
   const loadCallAsm = `    call bitmap_boss_load
 `;
@@ -1642,22 +1847,26 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
     ? `    ; Boss intro auto-walk: replace the real keyboard row with exactly one
     ; horizontal direction. update_player_movement still owns collision,
     ; walking animation, facing and the complete gravity/vertical pipeline.
+    ; The destination is per room (boss_intro_target_x, loaded on room entry),
+    ; because where the player should stand depends on the fight.
     ld a, (boss_intro_auto_move)
     or a
     jp z, .boss_intro_auto_input_done
+    ld a, (boss_intro_target_x)
+    ld b, a                    ; B = this room's target player_x
     ld a, (player_x)
-    cp ${introAutoMoveTargetX}
+    cp b
     jp z, .boss_intro_auto_arrived
     jp c, .boss_intro_auto_right
-    sub ${introAutoMoveTargetX}
+    sub b
     cp 2
     jp c, .boss_intro_auto_final_left
     ld c, #10                  ; forced LEFT, no jump/action bits
     jp .boss_intro_auto_input_done
 .boss_intro_auto_right:
-    ld b, a
-    ld a, ${introAutoMoveTargetX}
-    sub b
+    ld e, a                    ; E = player_x (C still holds the key mask)
+    ld a, b
+    sub e
     cp 2
     jp c, .boss_intro_auto_final_right
     ld c, #80                  ; forced RIGHT, no jump/action bits
@@ -1670,8 +1879,12 @@ ${hasDeathAnim ? Array.from({ length: DEATH_ANIM_SLOTS }, (_v, i) => `    ld (bo
     ld a, 1                    ; exact final pixel, still collision-checked
     call bitmap_try_move_x
 .boss_intro_auto_final_check:
+    ; bitmap_try_move_x owns BC/DE/HL, so re-read the target instead of
+    ; assuming B survived the call.
+    ld a, (boss_intro_target_x)
+    ld b, a
     ld a, (player_x)
-    cp ${introAutoMoveTargetX}
+    cp b
     jp nz, .boss_intro_auto_blocked
 .boss_intro_auto_arrived:
     xor a
@@ -1719,7 +1932,29 @@ ${hasIntro ? `    ld (boss_intro_state), a
     ld a, (hl)
     or a
     ret nz                     ; already killed in this run
+${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABLE_STRIDE} bytes into RAM: two of the three
+    ; readers hand the pointer out and let their CALLER walk it, so the bank
+    ; cannot stay mapped past this routine.
+    push bc                    ; the shadow lookup must not disturb the caller's BC
     ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_bank_table
+    add hl, de
+    ld c, (hl)
+    ld hl, bitmap_boss_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_boss_table_buf
+    ld a, c
+    ld bc, ${BITMAP_BOSS_TABLE_STRIDE}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_boss_table_buf` : `    ld a, (current_screen_index)
     add a, a                   ; word table index
     ld e, a
     ld d, 0
@@ -1728,7 +1963,7 @@ ${hasIntro ? `    ld (boss_intro_state), a
     ld a, (hl)
     inc hl
     ld h, (hl)
-    ld l, a                    ; HL -> room boss table
+    ld l, a`}                    ; HL -> room boss table
     ld a, (hl)
     or a
     ret z                      ; no boss in this room
@@ -1750,9 +1985,13 @@ ${hasIntro ? `    ld (boss_intro_state), a
     ld (boss_hp), a
     ld a, (ix+16)
     ld (boss_anim_tick), a
-    xor a
+${hasHitBlast ? `    ld a, (ix+20)              ; authored blast hold (0 = this boss never pops one)
+    ld (boss_blast_len), a
+` : ''}    xor a
     ld (boss_anim_frame), a
     ld (boss_int_tick), a
+${hasHitBlast ? `    ld (boss_blast_timer), a   ; never enter a room mid-blast
+` : ''}
     ld l, (ix+9)
     ld h, (ix+10)
     ld (boss_sx), hl           ; frame 0 source X
@@ -1792,9 +2031,19 @@ ${hasProjectiles ? `    call bitmap_boss_proj_config_ix
     ld (boss_phase_speed), a   ; base speed until the first phase resolve
     ld a, (ix+7)
     ld (boss_proj_cd), a       ; first shot after one full interval
-${hasSpriteProjectiles ? `    ld a, (ix+10)
+${hasFallingRocks ? `    ; Seed the drop-column PRNG from the BIOS frame counter so the rock pattern
+    ; is not identical on every run. Any non-zero byte works; 0 would make the
+    ; xor/add generator emit a fixed sequence from a degenerate start.
+    ld a, (#FC9E)
     or a
-    call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool
+    jr nz, .boss_rock_seed_ok
+    ld a, #5B
+.boss_rock_seed_ok:
+    ld (boss_rock_seed), a
+` : ''}${hasSpriteProjectiles ? `    ld a, (ix+10)
+    ${hasFallingRocks ? `cp 1                       ; kind 2 (rocks) must NOT load sprite bullets
+    call z, bitmap_boss_sbul_load    ; upload bullet pattern/colours, clear pool` : `or a
+    call nz, bitmap_boss_sbul_load   ; upload bullet pattern/colours, clear pool`}
 ` : ''}` : ''}${hasIntro ? `    call bitmap_boss_intro_begin
     ; The mandatory auto-walk and subsequent Room Lock own the first frames.
     ; Draw the stationary body once; movement/shoot/contact start only at END.
@@ -1816,8 +2065,18 @@ ${hasSpriteProjectiles ? `    ld a, (ix+10)
 ; DESTROYS: AF, BC, DE, HL, IX.
 ; ------------------------------------------------------------
 bitmap_boss_update:
-${hasCustomDeathSound ? `    call bitmap_boss_death_sfx_tick  ; custom audio continues through finalization and room locks
-` : ''}${pauseGate}    ld a, (boss_active)
+${hasPooledSfx ? `    call bitmap_boss_death_sfx_tick  ; pooled channel-C audio (death + zone hits) advances once per frame, in every boss state
+` : ''}${pauseGate}${hasHitBlast ? `    ; Blast countdown, in real frames so the authored number means what it says.
+    ; Guarded: decrementing an idle 0 would wrap to 255 and leave the explosion
+    ; stuck on the body for four seconds. This runs BEFORE boss_active is read,
+    ; because the dispatch below still needs A.
+    ld a, (boss_blast_timer)
+    or a
+    jr z, .boss_no_blast_tick
+    dec a
+    ld (boss_blast_timer), a
+.boss_no_blast_tick:
+` : ''}    ld a, (boss_active)
     or a
     ret z
 ${hasDeathFx ? `    cp 2
@@ -1945,7 +2204,8 @@ ${hasPaths ? `    ; ---- authored path (Fase G) wins over the patrol ----
     ; ---- VDP phase: uncovered-edge strips from page 1, then body HMMM ----
     call bitmap_boss_restore_strips
     call bitmap_boss_draw
-    jp bitmap_boss_touch
+${hasHitBlast ? `    call bitmap_boss_hit_blast_draw   ; over the body just painted; next redraw erases it
+` : ''}    jp bitmap_boss_touch
 
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_off_frame
@@ -1971,7 +2231,29 @@ bitmap_boss_table_ix:
     ; Keep the live-body lookup self-contained. This routine is used while a
     ; room is loading and before the death runtime exists; sharing the bullet
     ; helper here made the normal Boss-spawn path depend on a later subsystem.
+${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABLE_STRIDE} bytes into RAM: two of the three
+    ; readers hand the pointer out and let their CALLER walk it, so the bank
+    ; cannot stay mapped past this routine.
+    push bc                    ; the shadow lookup must not disturb the caller's BC
     ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_bank_table
+    add hl, de
+    ld c, (hl)
+    ld hl, bitmap_boss_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_boss_table_buf
+    ld a, c
+    ld bc, ${BITMAP_BOSS_TABLE_STRIDE}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_boss_table_buf` : `    ld a, (current_screen_index)
     add a, a
     ld e, a
     ld d, 0
@@ -1980,7 +2262,7 @@ bitmap_boss_table_ix:
     ld a, (hl)
     inc hl
     ld h, (hl)
-    ld l, a
+    ld l, a`}
     push hl
     pop ix
     ret
@@ -2111,7 +2393,74 @@ bitmap_boss_launch_cmd:
     ld e, #00
     jp vdp_write_register
 
+${hasHitBlast ? `; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_hit_blast_draw
 ; ------------------------------------------------------------
+; PURPOSE: Composite the borrowed Death FX stamp over the weak point that was
+;   just hit. Called right after the body blit, so the body underneath is
+;   already fresh and the NEXT scheduled body redraw erases the blast for free
+;   -- no saved rectangle, no restore pass, no VRAM of its own.
+;   LMMM + TIMP (#98), like the death explosions: colour 0 stays transparent so
+;   the blast keeps its shape over the boss.
+; INPUT: IX -> room table, boss_blast_timer / boss_blast_x / boss_blast_y.
+; OUTPUT: one V9938 command queued. DESTROYS: AF, BC, DE, HL. Preserves IX.
+; ------------------------------------------------------------
+bitmap_boss_hit_blast_draw:
+    ld a, (boss_blast_timer)
+    or a
+    ret z
+    ld l, (ix+21)
+    ld h, (ix+22)
+    ld (boss_cmd_buf + 0), hl  ; SX of the borrowed stamp
+    ld l, (ix+23)
+    ld h, (ix+24)
+    ld (boss_cmd_buf + 2), hl  ; SY (atlas rows 512+)
+    ; DX = boss_x + blast_x - w/2, clamped at the body origin: a zone near the
+    ; left edge would otherwise borrow from the previous row of VRAM.
+    ld a, (ix+25)              ; stamp width
+    srl a
+    ld b, a
+    ld a, (boss_blast_x)
+    sub b
+    jr nc, .blast_dx_ok
+    xor a
+.blast_dx_ok:
+    ld b, a
+    ld a, (boss_x)
+    add a, b
+    and #FE                    ; HMMM/LMMM address bytes, so keep X even
+    ld (boss_cmd_buf + 4), a
+    xor a
+    ld (boss_cmd_buf + 5), a
+    ; DY = boss_y + blast_y - h/2 + HUD offset, clamped the same way.
+    ld a, (ix+26)              ; stamp height
+    srl a
+    ld b, a
+    ld a, (boss_blast_y)
+    sub b
+    jr nc, .blast_dy_ok
+    xor a
+.blast_dy_ok:
+    ld b, a
+    ld a, (boss_y)
+    add a, b
+    add a, ${asmByte(gameY)}
+    ld l, a
+${visiblePageH}
+    ld (boss_cmd_buf + 6), hl  ; DY = visible page
+    ld l, (ix+25)
+    ld h, 0
+    ld (boss_cmd_buf + 8), hl  ; NX
+    ld l, (ix+26)
+    ld (boss_cmd_buf + 10), hl ; NY
+    xor a
+    ld (boss_cmd_buf + 12), a
+    ld (boss_cmd_buf + 13), a
+    ld a, #98
+    ld (boss_cmd_buf + 14), a  ; LMMM + TIMP: colour 0 stays transparent
+    jp bitmap_boss_launch_cmd
+
+` : ''}; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_touch
 ; ------------------------------------------------------------
 ; PURPOSE: AABB player-vs-boss contact damage with the same saturating
@@ -2251,15 +2600,34 @@ bitmap_boss_bullet_hit:
     cp b
     jr c, .bullet_miss_dehl
     ; Inside the body rect: the damage zones decide what happens to the bullet.
-${hasZones ? `    call bitmap_boss_zone_damage   ; CF=1 -> bare body, else A = hits
+${hasZones ? `    call bitmap_boss_zone_damage   ; CF=1 -> bare body, else A = hits, C = sfx index
     jr c, .zone_no_damage      ; no zone here: the bullet flies straight on
     ld b, a                    ; B = hits (0 on armour)
     xor a
     ld (ix+0), a               ; a zone stops the bullet, weak point or armour
-    ld a, b
+${hasZoneSfx ? `    ; The zone's own sound, armour included: a clang on the plate is exactly the
+    ; feedback that tells the player they are shooting the wrong spot.
+    ld a, c
+    or a
+    call nz, bitmap_boss_zone_sfx_start   ; preserves B and IX
+` : ''}    ld a, b
     or a
     jr z, .zone_no_damage      ; armour: stopped, but it takes no damage
-    ld a, (boss_hp)
+${hasHitBlast ? `    ; Weak point only: pop the explosion. The hold was copied out of the room
+    ; table at load time precisely so this path needs no table lookup -- IX is
+    ; the bullet slot here and B is carrying the hit count.
+    ; Also force the next frame to be an on-frame: the blast is drawn right
+    ; after the body, which only redraws every (ix+19) frames, so a short blast
+    ; could otherwise expire before it was ever painted. boss_int_tick counts up
+    ; to the interval, so any value >= it fires the gate on the very next frame.
+    ld a, (boss_blast_len)
+    or a
+    jr z, .no_blast_arm
+    ld (boss_blast_timer), a
+    ld a, 200
+    ld (boss_int_tick), a
+.no_blast_arm:
+` : ''}    ld a, (boss_hp)
     sub b
     jr c, .boss_die            ; overkill
     ld (boss_hp), a
@@ -2308,7 +2676,8 @@ ${hasZones ? `; ------------------------------------------------------------
 ;   body is one big weak point for 1 damage), otherwise it would be immortal.
 ; INPUT: IX -> bullet slot (x at ix+1, y at ix+2), boss_x/boss_y.
 ; OUTPUT: CF=1 -> no zone here, the bullet must survive.
-;         CF=0 -> the bullet stops; A = damage in hit points (0 = armour).
+;         CF=0 -> the bullet stops; A = damage in hit points (0 = armour),
+;         C = the zone's hit sound index (0 = silent), armour included.
 ; DESTROYS: AF, BC, DE, HL. Preserves IX.
 ; ------------------------------------------------------------
 bitmap_boss_zone_damage:
@@ -2366,24 +2735,51 @@ bitmap_boss_zone_damage:
     dec hl
     dec hl                     ; HL -> y
     jr nc, .zone_next_y
-    ; inside: read kind + multiplier
+    ; inside. HL -> y (offset 1) at this point.
+${hasHitBlast ? `    ; Remember where this zone's CENTRE is, in boss-local pixels, so the hit
+    ; explosion pops on the weak point itself instead of wherever the bullet
+    ; happened to clip the edge -- that is what makes it double as a hint about
+    ; where to aim. D/E held the bullet's local coords and are free now.
+    dec hl                     ; HL -> x
+    ld a, (hl)
     inc hl
+    inc hl                     ; HL -> w
+    ld e, (hl)
+    srl e
+    add a, e                   ; x + w/2
+    ld (boss_blast_x), a
+    dec hl                     ; HL -> y
+    ld a, (hl)
+    inc hl
+    inc hl                     ; HL -> h
+    ld e, (hl)
+    srl e
+    add a, e                   ; y + h/2
+    ld (boss_blast_y), a
+    inc hl                     ; HL -> kind
+` : `    inc hl
     inc hl
     inc hl                     ; HL -> kind
+`}
     ld a, (hl)
     or a
     jr z, .zone_armour
     inc hl                     ; HL -> multiplier
     ld a, (hl)
+    inc hl                     ; HL -> hit sound index
+    ld c, (hl)                 ; (does not touch A or the flags)
     or a                       ; CF=0: the bullet stops here
-    ret                        ; weak point: damageMultiplier hits
+    ret                        ; weak point: A = damageMultiplier hits, C = sfx
 .zone_armour:
+    inc hl
+    inc hl                     ; HL -> hit sound index (past the unused multiplier)
+    ld c, (hl)
     xor a
-    ret                        ; armour: bullet dies, no damage (CF=0)
+    ret                        ; armour: bullet dies, no damage (CF=0), C = sfx
 .zone_next_y:
     dec hl                     ; HL back to x
 .zone_next:
-    ld a, 6
+    ld a, ${BOSS_ZONE_RECORD_BYTES}
     add a, l
     ld l, a
     jr nc, .zone_skip_hi
@@ -2393,6 +2789,7 @@ bitmap_boss_zone_damage:
     scf                        ; zones authored but none hit: bullet passes through
     ret
 .zone_body_default:
+    ld c, 0                    ; no zone, so no zone sound
     ld a, 1                    ; boss without zones: plain 1 damage, bullet dies
     or a                       ; CF=0
     ret
@@ -2400,7 +2797,29 @@ bitmap_boss_zone_damage:
 ` : ''}; Shadow table lookup that leaves HL -> width byte (offset 13) without
 ; touching IX (the bullet slot pointer must survive).
 bitmap_boss_table_ix_shadow:
+${bankedTables ? `    ; Records are banked. Stage this room's ${BITMAP_BOSS_TABLE_STRIDE} bytes into RAM: two of the three
+    ; readers hand the pointer out and let their CALLER walk it, so the bank
+    ; cannot stay mapped past this routine.
+    push bc                    ; the shadow lookup must not disturb the caller's BC
     ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_bank_table
+    add hl, de
+    ld c, (hl)
+    ld hl, bitmap_boss_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_boss_table_buf
+    ld a, c
+    ld bc, ${BITMAP_BOSS_TABLE_STRIDE}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_boss_table_buf` : `    ld a, (current_screen_index)
     add a, a
     ld e, a
     ld d, 0
@@ -2409,7 +2828,7 @@ bitmap_boss_table_ix_shadow:
     ld a, (hl)
     inc hl
     ld h, (hl)
-    ld l, a
+    ld l, a`}
     ld de, 13
     add hl, de                 ; HL -> width
     ret
@@ -2436,7 +2855,7 @@ bitmap_boss_death_sfx_start:
     ld (psg_sfx_r7_c_bits), a
     ret
 
-` : ''}${hasCustomDeathSound ? `; FUNCTION: bitmap_boss_death_sfx_start
+` : ''}${hasPooledSfx ? `${hasCustomDeathSound ? `; FUNCTION: bitmap_boss_death_sfx_start
 ; PURPOSE: Restart this room's selected Sound FX, or the built-in MSX2
 ;   explosion, on the gameplay SFX channel C.
 ; INPUT: current_screen_index. OUTPUT: sequencer armed and first step applied.
@@ -2461,7 +2880,34 @@ bitmap_boss_death_sfx_start:
     ld (boss_death_sfx_active), a
     jp bitmap_boss_death_sfx_load_step
 
-; FUNCTION: bitmap_boss_death_sfx_tick
+` : ''}${hasZoneSfx ? `; FUNCTION: bitmap_boss_zone_sfx_start
+; PURPOSE: Play a damage zone's hit sound on the same channel-C sequencer the
+;   death explosion uses, so a weak point and the armour over it can sound
+;   different without a second audio engine.
+; INPUT: A = 1-based index into the shared boss sound pool (0 never gets here).
+; OUTPUT: sequencer armed and the first step applied.
+; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY -- the bullet-hit path calls this
+;   with B holding the hit count and IX pointing at the bullet slot.
+bitmap_boss_zone_sfx_start:
+    dec a                      ; pool is 1-based so 0 can mean "silent"
+    add a, a                   ; two bytes per pointer
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_sfx_pool_ptr_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    ret z                      ; empty slot: stay silent rather than run off
+    ex de, hl
+    ld (boss_death_sfx_ptr), hl
+    ld a, 1
+    ld (boss_death_sfx_active), a
+    jp bitmap_boss_death_sfx_load_step
+
+` : ''}; FUNCTION: bitmap_boss_death_sfx_tick
 ; PURPOSE: Advance the selected/default explosion once per game frame.
 ; INPUT: sequencer RAM. OUTPUT: PSG channel C advanced or released.
 ; DESTROYS: AF, DE, HL. PRESERVES: BC, IX, IY.
@@ -3111,7 +3557,11 @@ bitmap_boss_death_update_anim:
 ; DESTROYS: AF, DE, HL. PRESERVES: BC, IX.
 ; ------------------------------------------------------------
 bitmap_boss_kill:
-${hasSpriteProjectiles ? `    ; Retire any bullet still in flight and push the hidden SAT entries out NOW:
+${hasHitBlast ? `    ; The killing blow armed a blast one instruction ago. Drop it: the death
+    ; sequence owns the body from here and paints its own explosions.
+    xor a
+    ld (boss_blast_timer), a
+` : ''}${hasSpriteProjectiles ? `    ; Retire any bullet still in flight and push the hidden SAT entries out NOW:
     ; the normal SAT writer no longer advances during the death presentation.
     xor a
 ${Array.from({ length: spriteSlots }, (_v, i) => `    ld (boss_sbul_pool + ${i * BOSS_SBUL_SLOT_BYTES}), a`).join('\n')}
@@ -3344,6 +3794,14 @@ bitmap_boss_intro_begin:
     ld h, (hl)
     ld l, a
     ld (boss_intro_ptr), hl
+    ; Per-room auto-walk destination (byte table, parallel to the bytecode one).
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_intro_entry_x_table
+    add hl, de
+    ld a, (hl)
+    ld (boss_intro_target_x), a
     xor a
     ld (boss_intro_raster_y), a
     inc a
@@ -3508,7 +3966,50 @@ ${hasBarrier ? `    ld a, (boss_barrier_draw)
     call bitmap_boss_draw
     pop ix
     ret
-${hasBarrier ? `
+${hasBarrier && !opts.playerOverlapHelperAvailable ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_player_overlaps_16  (barrier-local copy)
+; ------------------------------------------------------------
+; PURPOSE: Player body hitbox vs a 16x16 cell. Normally the key/door subsystem
+;   owns this routine, but that block is absent in a project with no keys, doors
+;   or pickups, and bitmap_boss_barrier_cell calls it unconditionally — which
+;   made such a project fail to assemble. Emitted here only when nobody else
+;   provides it, so projects that DO have key/door content keep one copy and
+;   their exact bytes.
+; INPUT: D = cell X, E = cell Y.
+; OUTPUT: A = 1 / NZ when overlapping, A = 0 / Z when clear.
+; DESTROYS: AF, B. PRESERVES: C, DE, HL, IX, IY.
+; ------------------------------------------------------------
+bitmap_player_overlaps_16:
+    ld a, (player_x)
+${hit.x + Math.max(1, hit.w) - 1 > 0 ? `    add a, ${asmByte(hit.x + Math.max(1, hit.w) - 1)}\n` : ''}    cp d
+    jp c, .boss_overlap_no
+    ld a, d
+    add a, 15
+    ld b, a
+    ld a, (player_x)
+${hit.x > 0 ? `    add a, ${asmByte(hit.x)}\n` : ''}    cp b
+    jp z, .boss_overlap_x_ok
+    jp nc, .boss_overlap_no
+.boss_overlap_x_ok:
+    ld a, (player_y)
+${hit.y + Math.max(1, hit.h) - 1 > 0 ? `    add a, ${asmByte(hit.y + Math.max(1, hit.h) - 1)}\n` : ''}    cp e
+    jp c, .boss_overlap_no
+    ld a, e
+    add a, 15
+    ld b, a
+    ld a, (player_y)
+${hit.y > 0 ? `    add a, ${asmByte(hit.y)}\n` : ''}    cp b
+    jp z, .boss_overlap_yes
+    jp nc, .boss_overlap_no
+.boss_overlap_yes:
+    ld a, 1
+    or a
+    ret
+.boss_overlap_no:
+    xor a
+    ret
+` : ''}${hasBarrier ? `
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_boss_barrier_apply / bitmap_boss_barrier_remove
 ; ------------------------------------------------------------
@@ -3910,8 +4411,9 @@ bitmap_boss_shoot_update:
     or a
     ret z                      ; this room's boss does not shoot
 ${hasSpriteProjectiles ? `    ld a, (ix+10)
-    or a
-    jp nz, bitmap_boss_sbul_update   ; hardware-sprite bullets
+    ${hasFallingRocks ? `cp 1                       ; only kind 1 is a hardware sprite; 2 = rocks
+    jp z, bitmap_boss_sbul_update` : `or a
+    jp nz, bitmap_boss_sbul_update   ; hardware-sprite bullets`}
 ` : ''}${hasBitmapProjectiles ? `    ld a, (boss_proj_active)
     or a
     call nz, bitmap_boss_proj_step
@@ -3985,7 +4487,11 @@ bitmap_boss_phase_resolve:
 ; Spawn at the boss centre, aimed 8-directionally at the player.
 ; IX -> projectile config. Uses bitmap_boss_table_ix_shadow for the boss size.
 bitmap_boss_proj_spawn:
-    call bitmap_boss_table_ix_shadow   ; HL -> boss width byte (IX preserved)
+${hasFallingRocks && !hasAimedBitmapProjectiles ? `    jp bitmap_boss_rock_spawn      ; only falling rocks authored; aimed launcher omitted
+` : `${hasFallingRocks ? `    ld a, (ix+10)
+    cp 2
+    jp z, bitmap_boss_rock_spawn   ; ceiling debris, not an aimed shot
+` : ''}    call bitmap_boss_table_ix_shadow   ; HL -> boss width byte (IX preserved)
     ld a, (hl)                 ; boss width
     srl a
     ld b, a
@@ -4054,7 +4560,113 @@ bitmap_boss_proj_spawn:
     ld (boss_proj_active), a
     call bitmap_boss_proj_save   ; save under the spawn cell before first draw
     jp bitmap_boss_proj_draw
+`}${hasFallingRocks ? `
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_rock_spawn
+; ------------------------------------------------------------
+; PURPOSE: Knock a chunk of ceiling loose. X is random inside a ${ROCK_BAND_PX}px band
+;   centred on the player's body; Y is the first PASSABLE row of that column, so
+;   the rock appears just under the ceiling whatever its thickness, instead of
+;   inside the rock face (where the step's solid test would kill it at once).
+;   It then falls straight down and bitmap_boss_proj_step despawns it on the
+;   floor, restoring the background: "se estampa en el suelo y desaparece".
+; INPUT: IX -> projectile config.
+; OUTPUT: boss_proj_* armed. No drop at all if the column is solid top to bottom.
+; DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_boss_rock_spawn:
+    ; ---- horizontal: player body centre, minus half the rock, plus jitter ----
+    ld a, (player_x)
+    add a, ${asmByte(rockBandCentre)}   ; player body centre (hitbox aware)
+    ld b, (ix+5)               ; rock width
+    srl b
+    sub b                      ; left edge that would centre it on the player
+    jr nc, .rk_no_uf1
+    xor a
+.rk_no_uf1:
+    ld b, a
+    call bitmap_boss_rock_rand
+    and ${asmByte(ROCK_BAND_PX - 1)}
+    add a, b
+    jr nc, .rk_no_of
+    ld a, 255
+.rk_no_of:
+    sub ${asmByte(ROCK_BAND_PX >> 1)}
+    jr nc, .rk_no_uf2
+    xor a
+.rk_no_uf2:
+    cp 4
+    jr nc, .rk_min_ok
+    ld a, 4
+.rk_min_ok:
+    ld b, a
+    ld a, 248
+    sub (ix+5)                 ; rightmost X the tile still fits at
+    cp b
+    jr nc, .rk_max_ok
+    ld b, a
+.rk_max_ok:
+    ld a, b
+    and #FE                    ; HMMM X operands must be even in SCREEN 5
+    ld (boss_proj_x), a
+    ld (boss_proj_ox), a
+    ; ---- vertical: first passable row of the column the rock will be tested in.
+    ; Probe the CENTRE column, the same one bitmap_boss_proj_tile_solid uses, or
+    ; a rock straddling a wall edge would despawn on its very first step.
+    ld b, (ix+5)
+    srl b
+    add a, b                   ; centre X
+    rrca
+    rrca
+    rrca
+    rrca
+    and #0F
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_collision_map
+    add hl, de
+    ld de, 16                  ; one row of the 16x12 cell map
+    ld b, 12
+    ld c, 0                    ; C = row
+.rk_scan:
+    ld a, (hl)
+    and #BF                    ; ignore the Deadly bit, as bitmap_probe_solid does
+    jr z, .rk_found
+    add hl, de
+    inc c
+    djnz .rk_scan
+    ret                        ; column solid all the way down: no rock this time
+.rk_found:
+    ld a, c
+    add a, a
+    add a, a
+    add a, a
+    add a, a                   ; row * 16 = top of that cell
+    cp 2
+    jr nc, .rk_y_ok
+    ld a, 2                    ; step kills anything above y=2; start just below
+.rk_y_ok:
+    ld (boss_proj_y), a
+    ld (boss_proj_oy), a
+    xor a
+    ld (boss_proj_dx), a       ; straight down, no aiming
+    ld a, (boss_phase_speed)
+    ld (boss_proj_dy), a
+    ld a, 1
+    ld (boss_proj_active), a
+    call bitmap_boss_proj_save
+    jp bitmap_boss_proj_draw
 
+; Deterministic byte PRNG for the drop column (same shape as the death-FX one).
+; DESTROYS: AF. PRESERVES: BC, DE, HL, IX, IY.
+bitmap_boss_rock_rand:
+    ld a, (boss_rock_seed)
+    rrca
+    xor #B8
+    add a, #3D
+    ld (boss_rock_seed), a
+    ret
+` : ''}
 ; Advance the live projectile one frame: erase old, move, bounds, draw, hit-test.
 bitmap_boss_proj_step:
     ld a, (boss_proj_x)
@@ -4176,6 +4788,13 @@ ${visiblePageH}
     jp bitmap_boss_finish_hmmm
 
 ; Draw the projectile atlas tile at the current position on page 0.
+; Uses LMMM + TIMP (#98), NOT the opaque HMMM the body uses: with TIMP the VDP
+; skips source pixels of colour 0, so the room art that bitmap_boss_proj_save
+; kept underneath shows through the transparent pixels of the bullet art.
+; LMMM is a per-pixel command (~5.9 us/px vs 2.91 for HMMM), so a 16x16 bullet
+; costs ~1 ms more per frame -- and only while a bullet is in flight.
+; DX stays snapped to even: save/restore are HMMM (byte units) and their rect
+; must line up exactly with the drawn one or a 1px column would be left behind.
 bitmap_boss_proj_draw:
     ld l, (ix+1)
     ld h, (ix+2)
@@ -4198,7 +4817,12 @@ ${visiblePageH}
     ld (boss_cmd_buf + 8), hl
     ld l, (ix+6)
     ld (boss_cmd_buf + 10), hl
-    jp bitmap_boss_finish_hmmm
+    xor a
+    ld (boss_cmd_buf + 12), a  ; CLR unused
+    ld (boss_cmd_buf + 13), a  ; ARG = 0
+    ld a, #98
+    ld (boss_cmd_buf + 14), a  ; LMMM + TIMP: colour 0 stays transparent
+    jp bitmap_boss_launch_cmd
 
 ; Projectile-vs-player AABB. On hit: erase, despawn, hurt the player.
 bitmap_boss_proj_hit_check:
@@ -4819,8 +5443,9 @@ ${hasShoots ? `    ld (boss_shoot_cnt), a     ; parked here until the config is 
     jr z, .bpf_done            ; this room's boss does not shoot
     call bitmap_boss_phase_resolve   ; keep the phase's bullet speed
 ${hasSpriteProjectiles ? `    ld a, (ix+10)
-    or a
-    jr z, .bpf_bitmap
+    ${hasFallingRocks ? `cp 1                       ; kind 2 (rocks) blits like kind 0
+    jr nz, .bpf_bitmap` : `or a
+    jr z, .bpf_bitmap`}
 ${hasShoots ? `    ld a, (boss_shoot_cnt)
     or a
     jr z, .bpf_plain
@@ -5132,10 +5757,14 @@ bitmap_boss_path_fire:
 ; ---- bitmap BOSS per-room tables (stride ${BITMAP_BOSS_TABLE_STRIDE}) ----
 ; present, x0, y0, dx, dy, minX, maxX, minY, maxY, sxLo, sxHi, syLo, syHi,
 ; width, height, frames, animDelay, hp, damage, interval
-${data.roomTables.map((table, index) => `bitmap_boss_room_${index}:
+${bankedTables
+    ? '; Room records are emitted in Konami MegaROM data banks below.'
+    : data.roomTables.map((table, index) => `bitmap_boss_room_${index}:
     db ${table.map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_ptr_table:
 ${data.roomTables.map((_, index) => `    dw bitmap_boss_room_${index}`).join('\n')}
+${bankedTables ? `bitmap_boss_bank_table:
+    db ${data.roomTables.map((_, index) => `bitmap_boss_room_${index}_DATA_BANK`).join(', ')}` : ''}
 ${hasDefeatActions ? `
 ; ---- boss defeat action bytecode per room (END=#00, SET_FLAG=#01,idx) ----
 ${data.defeatStreams.map((stream, index) => `bitmap_boss_defeat_room_${index}:
@@ -5159,6 +5788,12 @@ ${introStreams.map((stream, index) => introStreamIsEmpty(stream) ? '' : `bitmap_
     db ${(stream && stream.length ? stream : [INTRO_OP_END]).map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_intro_ptr_table:
 ${introStreams.map((stream, index) => `    dw ${introStreamIsEmpty(stream) ? 'bitmap_boss_intro_empty' : `bitmap_boss_intro_room_${index}`}`).join('\n')}
+
+; ---- Room Lock auto-walk destination per room (player_x, body-centred) ----
+; Authored in the Boss editor as a screen X of the player's body centre; the
+; generator converts it to the render origin the runtime compares against.
+bitmap_boss_intro_entry_x_table:
+    db ${(introTargetXPerRoom.length ? introTargetXPerRoom : [introAutoMoveTargetX]).map(value => asmByte(value)).join(', ')}
 ` : ''}${hasDeathFx ? `
 ; ---- boss death bitmap FX per room ----
 ; assetCount (bit 7 = compact ordered frames), blastCount, interval, hold,
@@ -5167,20 +5802,26 @@ ${(data.deathFxTables || []).map((table, index) => `bitmap_boss_death_fx_room_${
     db ${(table && table.length ? table : [0, 0, 0, 0]).map(value => asmByte(value)).join(', ')}`).join('\n')}
 bitmap_boss_death_fx_ptr_table:
 ${(data.deathFxTables || []).map((_, index) => `    dw bitmap_boss_death_fx_room_${index}`).join('\n')}
-` : ''}${hasCustomDeathSound ? `
-; ---- boss death PSG SFX (channel C) ----
+` : ''}${hasPooledSfx ? `
+; ---- boss PSG SFX pool (channel C): death explosion + damage-zone hits ----
 ; ${BOSS_DEATH_SFX_RECORD_BYTES}-byte records: duration,R4,R5,R6,R10,R7-C-bits; duration 0 ends.
 ${hasDefaultDeathSound ? `bitmap_boss_death_sfx_default_stream:
     db ${DEFAULT_BOSS_DEATH_SFX.map(value => asmByte(value)).join(', ')}
 ` : ''}${data.deathSoundStreams.map((stream, index) => `bitmap_boss_death_sfx_${index}:
     db ${stream.map(value => asmByte(value)).join(', ')}`).join('\n')}
-bitmap_boss_death_sfx_room_ptr_table:
+${hasCustomDeathSound ? `bitmap_boss_death_sfx_room_ptr_table:
 ${data.deathSoundIndexes.map(index => index < 0
     ? '    dw bitmap_boss_death_sfx_default_stream'
     : index > 0
       ? `    dw bitmap_boss_death_sfx_${index - 1}`
       : '    dw 0').join('\n')}
-` : ''}${hasDefaultDeathSound && !hasCustomDeathSound ? `
+` : ''}${hasZoneSfx ? `; Same streams reached by POOL index instead of by room, which is what lets a
+; damage zone name any sound without caring which room it is fought in.
+bitmap_boss_sfx_pool_ptr_table:
+${data.deathSoundStreams.length
+    ? data.deathSoundStreams.map((_stream, index) => `    dw bitmap_boss_death_sfx_${index}`).join('\n')
+    : '    dw 0'}
+` : ''}` : ''}${hasDefaultDeathSound && !hasCustomDeathSound ? `
 ; ---- compact built-in boss explosion: PSG register/value pairs ----
 bitmap_boss_death_sfx_default_pairs:
     db 6,#08,10,#10,11,#80,12,#00,13,#09,7,#1F
@@ -5272,6 +5913,13 @@ bitmap_boss_aim_ring:
   return {
     enabled: true,
     ramBytes: totalRamBytes,
+    bankedBlocks: bankedTables
+      ? data.roomTables.map((table, index) => ({
+        label: `bitmap_boss_room_${index}`,
+        bytes: table,
+        description: `Room ${index} boss record, banked; staged into bitmap_boss_table_buf`,
+      }))
+      : [],
     equates,
     initAsm,
     loadCallAsm,

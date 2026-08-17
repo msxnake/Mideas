@@ -1599,9 +1599,10 @@ export function buildMsx2EnemyEntityFromAsset(
 }
 
 /**
- * Builds a placed MSX2 bitmap boss entity from a library `msx2boss` asset
- * (snapshot at placement). The generator reads the boss definition parameters
- * and creates an entity with the bitmap_boss preset structure. `x`/`y` are tile coords.
+ * Builds a placed MSX2 bitmap boss entity from a library `msx2boss` asset.
+ * The entity is a REFERENCE (`bossId`), not a copy: the generator resolves the
+ * boss's own settings from the definition at export time, so editing the boss
+ * later updates every room that placed it. `x`/`y` are tile coords.
  */
 export function buildMsx2BossEntityFromAsset(
   asset: ProjectAsset,
@@ -1620,48 +1621,20 @@ export function buildMsx2BossEntityFromAsset(
       msx2_collision: { damage: def.bossDamage ?? 1 },
       msx2_health: {},
     },
+    // The encounter stores ONLY what is per-instance. Every field that describes
+    // the boss itself (body, HP, speed, projectiles, phases, damage zones, death
+    // FX) stays in the definition and is read through resolveBossParams, so
+    // re-tuning the boss in the Boss Editor reaches the rooms that already
+    // placed it. Snapshotting them here used to freeze an encounter on the
+    // values the definition had the day it was dropped on the map --
+    // BOSS_DEFINITION_OWNED_PARAMS is the list, and the generator ignores those
+    // keys on an encounter even if an older project still carries them.
     params: {
       runtime: 'MSX2',
       engine: 'bitmapBoss',
       movement: def.bossMovement || 'patrolX',
       direction: 1,
-      // --- body ---
-      bossStampAssetId: def.bossStampAssetId || '',
-      bossAtlasEntryId: def.bossAtlasEntryId || '',
-      bossFrames: Math.max(1, Math.min(4, Math.floor(Number(def.bossFrames) || 1))),
-      bossAnimDelay: Math.max(1, Math.floor(Number(def.bossAnimDelay) || 12)),
-      bossHp: Math.max(1, Math.floor(Number(def.bossHp) || 8)),
-      bossDamage: Math.max(1, Math.floor(Number(def.bossDamage) || 1)),
-      bossInterval: Math.max(1, Math.floor(Number(def.bossInterval) || 3)),
-      // --- movement ---
-      bossMovement: def.bossMovement || '',
-      bossSpeed: Math.max(1, Math.min(2, Math.floor(Number(def.bossSpeed) || 2))),
-      bossRangePx: Math.max(0, Math.floor(Number(def.bossRangePx) || 0)),
-      // --- chain barrier ---
-      bossBarrierTileId: def.bossBarrierTileId || '',
-      // --- projectiles ---
-      bossProjectileKind: def.bossProjectileKind || 'sprite',
-      bossProjectileSpriteId: def.bossProjectileSpriteId || '',
-      bossProjectileTileId: def.bossProjectileTileId || '',
-      bossShootInterval: Math.max(1, Math.floor(Number(def.bossShootInterval) || 90)),
-      bossProjectileSpeed: Math.max(1, Math.floor(Number(def.bossProjectileSpeed) || 2)),
-      bossProjectileDamage: Math.max(1, Math.floor(Number(def.bossProjectileDamage) || 1)),
-      // --- attack phases ---
-      bossPhases: Array.isArray(def.bossPhases) ? def.bossPhases : [],
-      // --- damage zones ---
-      damageZones: Array.isArray(def.damageZones) ? def.damageZones : [],
-      // --- death bitmap FX ---
-      bossDeathExplosionStampIds: Array.isArray(def.bossDeathExplosionStampIds)
-        ? def.bossDeathExplosionStampIds
-        : [],
-      bossDeathExplosionCount: Math.max(1, Math.min(32, Math.floor(Number(def.bossDeathExplosionCount) || 8))),
-      bossDeathExplosionInterval: Math.max(1, Math.min(60, Math.floor(Number(def.bossDeathExplosionInterval) || 6))),
-      bossDeathExplosionHoldFrames: Math.max(1, Math.min(255, Math.floor(Number(def.bossDeathExplosionHoldFrames) || 12))),
-      bossDeathExplosionAnimated: def.bossDeathExplosionAnimated === true,
-      bossDeathExplosionConcurrent: def.bossDeathExplosionConcurrent === true,
-      bossDeathExplosionFrameDelay: Math.max(1, Math.min(30, Math.floor(Number(def.bossDeathExplosionFrameDelay) || 4))),
-      bossDeathExplosionSoundAssetId: String(def.bossDeathExplosionSoundAssetId || ''),
-      // --- defeat actions ---
+      // --- defeat actions (per-encounter reward, design doc §4.2) ---
       onDefeated: Array.isArray(def.onDefeated) ? def.onDefeated : [],
       // Canonical link to the reusable definition (same spelling the boss
       // fixtures and BOSS_SYSTEM_DESIGN.md use); resolveBossParams merges it.

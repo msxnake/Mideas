@@ -1,0 +1,1 @@
+sin reset en 25s (no crashea en esta pasada)

@@ -1,0 +1,4 @@
+t10 screen=5 page=0 player=0,224 light_active=0 plat_count=255 plat_light=0,0 flags=1,1,1,1,1,0,0
+t14 screen=5 page=0 player=0,224 light_active=0 plat_count=255 plat_light=0,0 flags=1,1,1,1,1,0,0
+t18 screen=5 page=0 player=0,224 light_active=0 plat_count=255 plat_light=0,0 flags=1,1,1,1,1,0,0
+final screen=5 page=0 player=0,224 light_active=0 plat_count=255 plat_light=0,0 flags=1,1,1,1,1,0,0

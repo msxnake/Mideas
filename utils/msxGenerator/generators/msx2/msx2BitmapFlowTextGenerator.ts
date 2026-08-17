@@ -78,7 +78,7 @@ export function collectBitmapFlowTextFeatures(nodes: Array<{ type?: string }>): 
   return { text: types.has('Text') || scroll || menu, menu, scroll };
 }
 
-export function bitmapFlowTextEquates(features: BitmapFlowTextFeatures): string {
+export function bitmapFlowTextEquates(features: BitmapFlowTextFeatures, bankedFont = false): string {
   if (!features.text) return '';
   const at = (offset: number) => hexWord(BF_RAM_BASE + offset);
   return `; ---- GameFlow text/menu/scroll engine ----
@@ -100,12 +100,13 @@ bitmap_flow_cmd_ny     EQU bitmap_flow_cmd + 10
 bitmap_flow_cmd_clr    EQU bitmap_flow_cmd + 12
 bitmap_flow_cmd_arg    EQU bitmap_flow_cmd + 13
 bitmap_flow_cmd_cmd    EQU bitmap_flow_cmd + 14
-bitmap_flow_textbuf    EQU ${hexWord(BF_TEXTBUF_BASE)}
+${bankedFont ? `bitmap_flow_glyph      EQU ${at(0x20)}   ; one glyph staged out of the banked font
+` : ''}bitmap_flow_textbuf    EQU ${hexWord(BF_TEXTBUF_BASE)}
 `;
 }
 
 /** Shared runtime routines + font data. Emitted only when a text node exists. */
-export function bitmapFlowTextRuntime(features: BitmapFlowTextFeatures): string {
+export function bitmapFlowTextRuntime(features: BitmapFlowTextFeatures, bankedFont = false): string {
   if (!features.text) return '';
   const fontBytes = buildScreen5FlowFontBytes();
   const fontData: string[] = [];
@@ -404,7 +405,14 @@ bitmap_flow_draw_char_inner:
     add hl, hl
     ld de, bitmap_flow_font
     add hl, de
-    ld e, c
+${bankedFont ? `    push bc                   ; C = target column
+    ld de, bitmap_flow_glyph
+    ld a, bitmap_flow_font_DATA_BANK
+    ld bc, ${BF_CHAR_HEIGHT}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_flow_glyph
+` : ''}    ld e, c
     ld d, 0
     push hl
     ld hl, bitmap_flow_textbuf
@@ -503,8 +511,8 @@ bitmap_flow_wait_frames_loop:
 ${scrollRoutines}${menuRoutines}
 ; 6x8 GameFlow font: 59 glyphs (ASCII 32..90), 8 rows each, 5 pixels
 ; left-aligned on bits 7..3 so bit 2 becomes the inter-character gap.
-bitmap_flow_font:
-${fontData.join('\n')}
+${bankedFont ? '; Emitted in a Konami MegaROM data bank; bitmap_flow_draw_char_inner stages one glyph at a time.' : `bitmap_flow_font:
+${fontData.join('\n')}`}
 `;
 }
 

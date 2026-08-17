@@ -1,0 +1,3 @@
+en juego? player=(27,58) room=255
+tras andar 2s: player=(27,58) room=255  (antes x=27)
+FAIL  no se llego al juego o el player no responde

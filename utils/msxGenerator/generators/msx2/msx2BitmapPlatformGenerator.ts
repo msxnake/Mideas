@@ -73,6 +73,8 @@ export interface BitmapPlatformRoomData {
 
 export interface BitmapPlatformRuntimeOptions {
   ramBase: number;
+  /** Konami MegaROM: per-room records live in a data bank, staged into RAM on load. */
+  bankedTables?: boolean;
   /** First platform SAT entry (after foreground + player layers + enemies). */
   satBase: number;
   /** First platform 16-byte colour block (mirrors satBase slot order). */
@@ -109,6 +111,8 @@ export interface BitmapPlatformSystemAsm {
   satCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
+  /** Room records handed to the MegaROM data-bank packer; empty on simple32k. */
+  bankedBlocks: Array<{ label: string; bytes: number[]; description: string }>;
 }
 
 export function bitmapPlatformSystemEnabled(data: BitmapPlatformRoomData | undefined): boolean {
@@ -137,7 +141,7 @@ export function buildBitmapPlatformSystemAsm(
   opts: BitmapPlatformRuntimeOptions,
 ): BitmapPlatformSystemAsm {
   if (!bitmapPlatformSystemEnabled(data)) {
-    return { enabled: false, ramBytes: 0, hardwareSlotCount: 0, equates: '', loadCallAsm: '', updateCallAsm: '', detectCallAsm: '', satCallAsm: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, hardwareSlotCount: 0, equates: '', loadCallAsm: '', updateCallAsm: '', detectCallAsm: '', satCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [] };
   }
   const maxSlots = data.maxSlots;
   const maxCells = Math.max(1, Math.min(2, data.maxCells));
@@ -145,11 +149,16 @@ export function buildBitmapPlatformSystemAsm(
   const lightingEnabled = opts.lightingEnabled === true;
   const poolStride = POOL_STRIDE;
   const tableStride = poolStride;
-  const ramBytes = 2 + maxSlots * poolStride + (lightingEnabled ? maxSlots : 0);
+  // MegaROM: the per-room records live in a data bank and are staged into RAM,
+  // because bitmap_load_platforms walks them from inside the #8000-#9FFF window.
+  const bankedTables = opts.bankedTables === true;
+  const TABLE_BYTES = 1 + maxSlots * tableStride;
+  const ramBytes = 2 + maxSlots * poolStride + (lightingEnabled ? maxSlots : 0) + (bankedTables ? TABLE_BYTES : 0);
   const countAddr = opts.ramBase;
   const riderAddr = opts.ramBase + 1;
   const poolAddr = opts.ramBase + 2;
   const lightStateAddr = poolAddr + maxSlots * poolStride;
+  const tableBufAddr = lightStateAddr + (lightingEnabled ? maxSlots : 0);
 
   // Feet line = player_y + standOffset (first pixel row below the body).
   // Riding keeps player_y = platformTop - standOffset.
@@ -171,6 +180,8 @@ bitmap_platform_rider EQU ${asmWord(riderAddr)}
 bitmap_platform_pool  EQU ${asmWord(poolAddr)}
 ${lightingEnabled ? `; Per-slot colour state: 0 = authored (normal room), 1 = dim, 2 = inside halo.
 bitmap_platform_light_state EQU ${asmWord(lightStateAddr)}
+` : ''}${bankedTables ? `; Room record staged out of its data bank (${TABLE_BYTES} bytes) before it is walked.
+bitmap_platform_table_buf EQU ${asmWord(tableBufAddr)}
 ` : ''}`;
 
   // ---- bitmap_load_platforms: per-room table -> RAM pool + VRAM uploads ----
@@ -676,7 +687,27 @@ bitmap_load_platforms:
     push ix
     ld a, #FF
     ld (bitmap_platform_rider), a
+${bankedTables ? `    ; Records are banked: resolve the bank, LDIR into RAM, walk the RAM copy.
+    push bc
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_platform_bank_table
+    add hl, de
+    ld c, (hl)
     ld hl, bitmap_room_platform_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld de, bitmap_platform_table_buf
+    ld a, c
+    ld bc, ${TABLE_BYTES}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_platform_table_buf` : `    ld hl, bitmap_room_platform_ptr_table
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -685,7 +716,7 @@ bitmap_load_platforms:
     ld a, (hl)
     inc hl
     ld h, (hl)
-    ld l, a
+    ld l, a`}
     ld a, (hl)                ; count byte
     ld (bitmap_platform_count), a
     inc hl
@@ -774,9 +805,12 @@ ${satSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_platform_table_${index}`, table, `Room ${index} platforms: count + ${maxSlots} slot(s) x ${tableStride} (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,patOff,colorOff)`)
+    (bankedTables ? '' : emitBytes(`bitmap_room_platform_table_${index}`, table, `Room ${index} platforms: count + ${maxSlots} slot(s) x ${tableStride} (x,y,dx,dy,minX,maxX,minY,maxY,widthCells,patOff,colorOff)`))
   ).join('')
     + `bitmap_room_platform_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_platform_table_${index}`).join('\n')}\n`
+    + (bankedTables
+      ? `bitmap_room_platform_bank_table:\n    DB ${data.roomTables.map((_t, index) => `bitmap_room_platform_table_${index}_DATA_BANK`).join(',')}\n`
+      : '')
     + emitBytes('bitmap_platform_sprite_patterns', data.patternBytes, `Platform sprites: ${data.patternBytes.length / 32} pattern group(s) (mode 2 quadrants, frame 0 only)`)
     + emitBytes('bitmap_platform_sprite_colors', data.colorBytes, 'Platform sprites: authored 16-byte line colour tables per cell (frame 0 only)')
     + (lightingEnabled
@@ -795,5 +829,12 @@ ${satSlotBlocks}
     satCallAsm: '    call bitmap_update_platform_sat\n',
     routinesAsm,
     dataAsm,
+    bankedBlocks: bankedTables
+      ? data.roomTables.map((table, index) => ({
+        label: `bitmap_room_platform_table_${index}`,
+        bytes: table,
+        description: `Room ${index} platform records, banked; staged into bitmap_platform_table_buf by bitmap_load_platforms`,
+      }))
+      : [],
   };
 }

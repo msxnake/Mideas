@@ -1,0 +1,19 @@
+game up after ~7.5s
+=== phase 0: booted, player still left of the strip ===
+   player=(16,146) facing=1 compose=0 live=0
+PASS  nothing bent before the player reaches the grass
+=== phase 1: walked RIGHT into the grass ===
+   player=(112,160) facing=1 compose=0 live=1
+    slot3 cell=167(c7,r10) set=0 want=2 drawn=2 t=11
+PASS  at least one cell is bent
+PASS  bent cells show the RIGHT frame (drawn=2)
+PASS  no cell shows the LEFT frame yet
+=== phase 2: turned and walked LEFT inside the grass ===
+   player=(64,160) facing=0 compose=0 live=1
+    slot2 cell=164(c4,r10) set=0 want=1 drawn=1 t=11
+PASS  bent cells flipped to the LEFT frame (drawn=1)
+=== phase 3: left the strip, hold window elapsed ===
+   player=(2,160) facing=0 compose=0 live=0
+PASS  every slot released: the grass stood back up
+
+RESULT ALL PASS

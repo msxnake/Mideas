@@ -1,0 +1,4 @@
+--- arrived in room 5 ---
+
+clean reads=1808   GARBAGE reads=0
+screen=5 light_active=0 plat_light=0,0

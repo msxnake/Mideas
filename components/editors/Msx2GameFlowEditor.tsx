@@ -22,6 +22,7 @@ import type {
   Msx2Screen5PresentationConfig,
   ProjectAsset,
 } from '../../types';
+import { MSX2_WORLDLINK_MUSIC_NONE } from '../../types';
 import type { MideasGlobalVariable } from '../../constants';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
@@ -496,6 +497,10 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
           if (!node.worldAssetId || !worldAssets.some(asset => asset.id === node.worldAssetId)) {
             issues.push('WorldLink node must select a valid World Map asset.');
           }
+          const worldMusicId = node.musicTrackAssetId;
+          if (worldMusicId && worldMusicId !== MSX2_WORLDLINK_MUSIC_NONE && !trackAssets.some(asset => asset.id === worldMusicId)) {
+            issues.push('WorldLink "Music on entry" points at a track that no longer exists; pick a track or None.');
+          }
         } else if (node.type === 'IfThenElse') {
           const hasThen = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'then');
           const hasElse = connections.some(connection => connection.from.nodeId === node.id && connection.from.sourceId === 'else');
@@ -738,7 +743,7 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
     }
 
     return Array.from(new Set(issues));
-  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, usesScreen5GenericBackend, worldAssets]);
+  }, [connections, gameFlowGraph.startNodeId, isScreen5PresentationFlow, nodes, presentationAssets, screen4Assets, trackAssets, usesScreen5GenericBackend, worldAssets]);
 
   const updateNodes = (nextNodes: Msx2GameFlowNode[]) => onUpdate({ nodes: nextNodes });
 
@@ -2251,8 +2256,27 @@ export const Msx2GameFlowEditor: React.FC<Msx2GameFlowEditorProps> = ({
                   ))}
                 </select>
               </label>
+              <label className="block text-xs">
+                Music on entry
+                <select
+                  value={selectedWorldLinkNode.musicTrackAssetId ?? ''}
+                  onChange={event => updateSelectedWorldLink({ musicTrackAssetId: event.target.value || undefined })}
+                  className="mt-1 w-full bg-msx-panelbg border border-msx-border rounded p-1"
+                >
+                  <option value="">Inherit (leave the music untouched)</option>
+                  <option value={MSX2_WORLDLINK_MUSIC_NONE}>None (enter in silence)</option>
+                  {trackAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+              </label>
               <p className="text-xs text-msx-textsecondary">
                 SCREEN 4 export loads the start screen from this world and enters the runtime loop.
+              </p>
+              <p className="text-xs text-msx-textsecondary">
+                SCREEN 5 bitmap route: the selected track starts (looped) as this world's gameplay loop begins, and the
+                song is always stopped when the world is left. "Inherit" keeps the legacy behaviour, where a project with
+                tracks and no Music node autoplays track 0 at boot.
               </p>
             </div>
           )}

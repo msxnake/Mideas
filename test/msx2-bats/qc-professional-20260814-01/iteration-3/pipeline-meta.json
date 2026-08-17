@@ -1,0 +1,91 @@
+{
+  "target": "creature",
+  "mode": "hover",
+  "prompt": "MSX2 professional bat, 2x1 sheet, exactly two gray-and-green frames",
+  "role": "",
+  "input": "test\\msx2-bats\\qc-professional-20260814-01\\iteration-3\\raw-sheet.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 180,
+  "rows": 1,
+  "cols": 2,
+  "cell_size": 16,
+  "fit_scale": 0.9,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "center",
+  "shared_scale": true,
+  "component_mode": "all",
+  "component_padding": 0,
+  "min_component_area": 1,
+  "edge_touch_margin": 1,
+  "frame_labels": [
+    "hover-1",
+    "hover-2"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        887,
+        887
+      ],
+      "component_mode": "all",
+      "component_count": 1,
+      "selected_component_area": null,
+      "selected_component_bbox": null,
+      "crop_bbox": [
+        80,
+        107,
+        781,
+        750
+      ],
+      "edge_touch": false,
+      "output_size": [
+        12,
+        11
+      ],
+      "paste_position": [
+        2,
+        2
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        887,
+        0,
+        1774,
+        887
+      ],
+      "component_mode": "all",
+      "component_count": 1,
+      "selected_component_area": null,
+      "selected_component_bbox": null,
+      "crop_bbox": [
+        12,
+        359,
+        832,
+        753
+      ],
+      "edge_touch": false,
+      "output_size": [
+        14,
+        6
+      ],
+      "paste_position": [
+        1,
+        5
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

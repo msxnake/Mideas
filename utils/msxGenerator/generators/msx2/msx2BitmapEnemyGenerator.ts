@@ -168,6 +168,18 @@ export interface BitmapEnemyRuntimeOptions {
    * dialogue pause). Empty when no pausing system exists in this ROM. */
   pauseGateAsm?: string;
   /**
+   * Player-bullet hit support (shoot skill). Absent when the ROM has no shoot
+   * skill, which keeps the whole routine out of it.
+   */
+  bulletHit?: {
+    /**
+     * Boss hit check to run before the enemies. When set, a `bitmap_bullet_targets`
+     * dispatcher is emitted: the boss sees the bullet first and the enemies only
+     * get the ones it did not consume.
+     */
+    chainFromBossLabel?: string;
+  };
+  /**
    * Dark-room "eyes only" support. Absent when no enemy opted in, which keeps
    * the light test, its table and the second colour bank out of the ROM.
    */
@@ -185,6 +197,18 @@ export interface BitmapEnemyRuntimeOptions {
     /** Travelling bullet lantern box, when the shoot skill drags one. */
     lantern?: { halfWidth: number; halfHeight: number };
   };
+  /**
+   * Konami MegaROM: move the enemy sprite pattern/colour art out of the 32KB
+   * resident window into a data bank. The art is cold (uploaded to VRAM on room
+   * load, plus one 16-byte colour table per slot per frame change) but it is the
+   * single biggest resident block in a content-heavy project, so keeping it
+   * resident is what makes projects hit `Negative initial size` in Glass.
+   *
+   * Every copy then goes through `bitmap_copy_banked_to_vram`, which owns the
+   * bank swap and lives below #8000 — the enemy routines themselves sit inside
+   * the #8000-#9FFF window and must NOT map a bank in their own body.
+   */
+  bankedSpriteData?: boolean;
 }
 
 export interface BitmapEnemySystemAsm {
@@ -203,6 +227,12 @@ export interface BitmapEnemySystemAsm {
   colorCallAsm: string;
   routinesAsm: string;
   dataAsm: string;
+  /**
+   * Sprite art pulled out of `dataAsm` when `bankedSpriteData` is set, for the
+   * room generator to hand to the MegaROM data-bank packer. Empty otherwise, so
+   * a simple32k build emits byte-identical ASM.
+   */
+  bankedBlocks: Array<{ label: string; bytes: number[]; description: string }>;
 }
 
 export function bitmapEnemySystemEnabled(data: BitmapEnemyRoomData | undefined): boolean {
@@ -214,13 +244,20 @@ export function buildBitmapEnemySystemAsm(
   opts: BitmapEnemyRuntimeOptions,
 ): BitmapEnemySystemAsm {
   if (!bitmapEnemySystemEnabled(data)) {
-    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', colorCallAsm: '', routinesAsm: '', dataAsm: '' };
+    return { enabled: false, ramBytes: 0, equates: '', loadCallAsm: '', updateCallAsm: '', satCallAsm: '', colorCallAsm: '', routinesAsm: '', dataAsm: '', bankedBlocks: [] };
   }
   const maxSlots = data.maxSlots;
   const maxFrames = Math.max(1, data.maxFrames);
   const slime = Boolean(data.slimeEnabled);
   const gear = Boolean(data.gearEnabled);
   const fly8 = Boolean(data.fly8Enabled);
+  // MegaROM: the sprite art lives in a data bank, so every copy goes through the
+  // below-#8000 helper that owns the swap (these routines sit in #8000-#9FFF).
+  const bankedArt = opts.bankedSpriteData === true;
+  const copyArt = (label: string): string => (bankedArt
+    ? `    ld a, ${label}_DATA_BANK
+    call bitmap_copy_banked_to_vram`
+    : '    call copy_to_vram_ext');
   // "Eyes only in the dark" needs both halves: the baked second colour bank
   // (data) and a light source to test against (opts). Either one missing keeps
   // the feature — and every byte of it — out of the ROM.
@@ -248,16 +285,23 @@ export function buildBitmapEnemySystemAsm(
       : i * groupsPerSlot
   );
   // Count + slot pool; FlyBounce8 adds one shared PRNG seed byte.
-  const ramBytes = 1 + maxSlots * POOL_STRIDE + (fly8 ? 1 : 0);
+  // Banked room tables are staged through RAM: bitmap_load_enemies walks the
+  // record field by field and lives inside the #8000-#9FFF window, so it cannot
+  // read straight out of the mapped bank.
+  const TABLE_BYTES = 1 + maxSlots * TABLE_STRIDE;
+  const ramBytes = 1 + maxSlots * POOL_STRIDE + (fly8 ? 1 : 0) + (bankedArt ? TABLE_BYTES : 0);
   const countAddr = opts.ramBase;
   const poolAddr = opts.ramBase + 1;
   const randSeedAddr = poolAddr + maxSlots * POOL_STRIDE;
+  const tableBufAddr = randSeedAddr + (fly8 ? 1 : 0);
 
   const equates = `; --- ENEMY runtime state (${ramBytes} bytes): count + ${maxSlots} slot(s) x ${POOL_STRIDE}${fly8 ? ' + PRNG seed' : ''}
 ; (x,y,dx,dy,minX,maxX,minY,maxY,animTick,animFrame,frameCount,animDelay,colorOff,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval,logicCountdown${slime ? ',travelPx,travelCount,phase' : ''}${gear ? ',gearState,gearCooldownLo,gearCooldownHi,gearDelayLo,gearDelayHi' : ''}${fly8 ? ',flyLeft,flyTurnPx' : ''}) ---
 bitmap_enemy_count EQU ${asmWord(countAddr)}
 bitmap_enemy_pool  EQU ${asmWord(poolAddr)}
 ${fly8 ? `bitmap_enemy_rand_seed EQU ${asmWord(randSeedAddr)}
+` : ''}${bankedArt ? `; Room record staged out of its data bank (${TABLE_BYTES} bytes) before it is walked.
+bitmap_enemy_table_buf EQU ${asmWord(tableBufAddr)}
 ` : ''}`;
 
   // ---- bitmap_load_enemies: per-room table -> RAM pool + VRAM uploads ----
@@ -343,7 +387,7 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     push hl
     push de
     ld bc, 64                 ; one [right, left] pair
-    call copy_to_vram_ext
+${copyArt('bitmap_enemy_sprite_patterns')}
     pop de
     pop hl
     ld bc, 128                ; ROM stride: 4 variants x 32 bytes
@@ -372,13 +416,13 @@ ${slime ? `    ld a, (ix+22)             ; slime hop distance in px (0 on non-sl
     ld c, l
     pop hl
     ld de, ${asmWord(patternVram)}
-    call copy_to_vram_ext`}
+${copyArt('bitmap_enemy_sprite_patterns')}`}
     ; --- upload 16-byte colour table -> VRAM ${asmWord(colorVram)} (slot ${i}) ---
     ld a, (ix+9)
     call bitmap_enemy_colors_offset
     ld de, ${asmWord(colorVram)}
     ld bc, 16
-    call copy_to_vram_ext
+${copyArt('bitmap_enemy_sprite_colors')}
 .benemy_slot_${i}_done:
     ld de, ${TABLE_STRIDE}
     add ix, de`;
@@ -1439,6 +1483,138 @@ ${respawnOnDeath ? `
     ret
 `;
 
+  // ---- player bullets vs enemies (shoot skill) ----
+  const bulletHitAsm = !opts.bulletHit ? '' : `
+${!opts.bulletHit.chainFromBossLabel ? '' : `; ------------------------------------------------------------
+; FUNCTION: bitmap_bullet_targets
+; ------------------------------------------------------------
+; PURPOSE: Body of the shoot skill's bitmap_bullet_check_enemy_collision stub
+;   when this ROM has BOTH a boss and enemy slots. The boss looks at the bullet
+;   first; only a bullet it left alive is offered to the enemy pool, so a shot
+;   into the boss body can never also kill an enemy behind it.
+; INPUT: IX -> bullet slot (+0 active, +1 x, +2 y).
+; PRESERVES: BC, IX (contract of the stub call site).
+; ------------------------------------------------------------
+bitmap_bullet_targets:
+    call ${opts.bulletHit.chainFromBossLabel}
+    ld a, (ix+0)
+    or a
+    ret z                     ; the boss consumed this bullet
+    jp bitmap_enemy_bullet_hit
+
+`}; ------------------------------------------------------------
+; FUNCTION: bitmap_enemy_bullet_hit
+; ------------------------------------------------------------
+; PURPOSE:
+;   Player bullet vs the enemy pool. The first live slot whose 16x16 sprite cell
+;   overlaps the bullet consumes it and dies: the slot keeps its place in the
+;   pool with movement mode #FF, which the update loop, the contact-damage pass
+;   and the SAT writer already read as "dead and invisible".
+;
+; INPUT:
+;   IX -> bullet slot (+0 active, +1 x, +2 y); bitmap_enemy_count/pool.
+;
+; OUTPUT:
+;   On a hit the bullet is deactivated and every hardware layer of the enemy
+;   that was hit is marked dead.
+;
+; DESTROYS:
+;   AF.
+;
+; PRESERVES:
+;   BC, DE, HL, IX, IY.
+;
+; CALLS:
+;   None.
+;
+; NOTES:
+;   One authored enemy can occupy SEVERAL pool slots (a bat is a body layer plus
+;   an eyes layer), so killing only the slot that was hit would leave the rest
+;   flying on their own. The layers of one enemy share a LOGICAL origin — visual
+;   x/y minus that layer's cell offset — which is the key .ebh_kill_layers
+;   sweeps for, the same identity the bat's flight reroll already relies on.
+; ------------------------------------------------------------
+bitmap_enemy_bullet_hit:
+    ld a, (bitmap_enemy_count)
+    or a
+    ret z
+    push bc
+    push de
+    push hl
+    push iy
+    ld b, a
+    ld iy, bitmap_enemy_pool
+.ebh_loop:
+    ld a, (iy+13)             ; #FF = already dead
+    cp #FF
+    jp z, .ebh_next
+    ; |bulletX - enemyX| < 16 and |bulletY - enemyY| < 16. The sub/neg pair is a
+    ; true absolute difference: a wrapped subtraction sets the borrow and
+    ; negating it lands back on the real distance.
+    ld a, (ix+1)
+    sub (iy+0)
+    jp nc, .ebh_dx_abs
+    neg
+.ebh_dx_abs:
+    cp 16
+    jp nc, .ebh_next
+    ld a, (ix+2)
+    sub (iy+1)
+    jp nc, .ebh_dy_abs
+    neg
+.ebh_dy_abs:
+    cp 16
+    jp nc, .ebh_next
+    xor a
+    ld (ix+0), a              ; the bullet is spent on this enemy
+    call .ebh_kill_layers
+    jp .ebh_done
+.ebh_next:
+    ld de, ${POOL_STRIDE}
+    add iy, de
+    dec b                     ; loop body exceeds djnz's -128 range
+    jp nz, .ebh_loop
+.ebh_done:
+    pop iy
+    pop hl
+    pop de
+    pop bc
+    ret
+.ebh_kill_layers:
+    ; INPUT: IY -> the slot that was hit. Marks every slot sharing its logical
+    ; origin as dead. DESTROYS AF, BC, DE, IY (all restored by the caller).
+    ld a, (iy+0)
+    sub (iy+14)               ; logical X = visual X - this layer's cell offset
+    ld d, a
+    ld a, (iy+1)
+    sub (iy+15)               ; logical Y
+    ld e, a
+    ld a, (bitmap_enemy_count)
+    ld b, a
+    ld iy, bitmap_enemy_pool
+.ebh_kill_loop:
+    ld a, (iy+13)
+    cp #FF
+    jp z, .ebh_kill_next
+    ld a, (iy+0)
+    sub (iy+14)
+    cp d
+    jp nz, .ebh_kill_next
+    ld a, (iy+1)
+    sub (iy+15)
+    cp e
+    jp nz, .ebh_kill_next
+    ld (iy+13), #FF
+.ebh_kill_next:
+    push de                   ; D/E carry the logical-origin key across add iy,de
+    ld de, ${POOL_STRIDE}
+    add iy, de
+    pop de
+    dec b
+    jp nz, .ebh_kill_loop
+    ret
+`;
+
   // ---- bitmap_update_enemy_sat: fixed slots after the player layers ----
   // Pattern byte = slot base group *4 + animFrame*8 (2 variants/frame) + 4
   // when patrolling left (variant 1 = mirrored/facing-left).
@@ -1541,7 +1717,7 @@ ${slime ? `    add a, a
 ` : ''}    call bitmap_enemy_colors_offset
     ld de, ${asmWord(colorVram)}
     ld bc, 16
-    call copy_to_vram_ext
+${copyArt('bitmap_enemy_sprite_colors')}
 .color_slot_${i}_done:`;
   }).join('\n');
 
@@ -1663,7 +1839,28 @@ ${darkEyes.halfWidths.map(row => `    DB ${row.map(value => asmByte(value)).join
 ; ------------------------------------------------------------
 bitmap_load_enemies:
     push ix
+${bankedArt ? `    ; The room record lives in a data bank. Resolve its bank, LDIR it into RAM and
+    ; walk the RAM copy: this routine sits in #8000-#9FFF and would unmap itself.
+    push bc
+    ld a, (current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_room_enemy_bank_table
+    add hl, de
+    ld c, (hl)                ; C = data bank holding this room's record
     ld hl, bitmap_room_enemy_ptr_table
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                   ; HL = record, inside that bank
+    ld de, bitmap_enemy_table_buf
+    ld a, c                   ; A = bank (before BC is reloaded with the length)
+    ld bc, ${TABLE_BYTES}
+    call bitmap_copy_banked_to_ram
+    pop bc
+    ld hl, bitmap_enemy_table_buf` : `    ld hl, bitmap_room_enemy_ptr_table
     ld a, (current_screen_index)
     add a, a
     ld e, a
@@ -1672,7 +1869,7 @@ bitmap_load_enemies:
     ld a, (hl)
     inc hl
     ld h, (hl)
-    ld l, a
+    ld l, a`}
     ld a, (hl)                ; count byte
     ld (bitmap_enemy_count), a
     inc hl
@@ -1707,7 +1904,7 @@ bitmap_enemy_colors_offset:
     add hl, de
     ret
 ${darkEyesAsm}${updateAsm}
-${touchDamageAsm}
+${touchDamageAsm}${bulletHitAsm}
 ; ------------------------------------------------------------
 ; FUNCTION: bitmap_update_enemy_sat
 ; ------------------------------------------------------------
@@ -1788,15 +1985,36 @@ ${colorUploadSlotBlocks}
     return lines.join('\n') + '\n';
   };
   const dataAsm = data.roomTables.map((table, index) =>
-    emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''})`)
+    (bankedArt ? '' : emitBytes(`bitmap_room_enemy_table_${index}`, table, `Room ${index} enemies: count + ${maxSlots} slot(s) x ${TABLE_STRIDE} (x,y,dx,dy,minX,maxX,minY,maxY,patOff,colOff,frames,delay,mode,xOff,yOff,damage,hitX,hitY,hitW,hitH,speed,logicInterval${slime ? ',travelPx' : ''}${gear ? ',respawnFramesLo,respawnFramesHi' : ''}${fly8 ? ',turnPx' : ''})`))
   ).join('')
+    + (bankedArt
+      ? `; Room enemy records are emitted in Konami MegaROM data banks below.
+`
+        + `bitmap_room_enemy_bank_table:
+    DB ${data.roomTables.map((_t, index) => `bitmap_room_enemy_table_${index}_DATA_BANK`).join(',')}
+`
+      : '')
     + (fly8
       ? emitBytes('bitmap_enemy_dir8_table', [1, 0, 1, 1, 0, 1, 0xFF, 1, 0xFF, 0, 0xFF, 0xFF, 0, 0xFF, 1, 0xFF],
         'Bat flight headings: dx,dy signs in the turret order R,DR,D,DL,L,UL,U,UR')
       : '')
     + `bitmap_room_enemy_ptr_table:\n${data.roomTables.map((_t, index) => `    DW bitmap_room_enemy_table_${index}`).join('\n')}\n`
-    + emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
-    + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`);
+    + (bankedArt
+      ? '; Enemy sprite pattern/colour art is emitted in a Konami MegaROM data bank below.\n'
+      : emitBytes('bitmap_enemy_sprite_patterns', data.patternBytes, `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), ${slime ? '[right, left, ceilRight, ceilLeft] variants' : '[right, left] variant pair'} per frame (mode 2 quadrants)`)
+        + emitBytes('bitmap_enemy_sprite_colors', data.colorBytes, `Enemy sprites: 16-byte line colour tables per unique sprite layer frame${slime ? ' (normal tables then vertical flips)' : ''}`));
+
+  const bankedBlocks = bankedArt
+    ? [
+      ...data.roomTables.map((table, index) => ({
+        label: `bitmap_room_enemy_table_${index}`,
+        bytes: table,
+        description: `Room ${index} enemy records, banked; staged into bitmap_enemy_table_buf by bitmap_load_enemies`,
+      })),
+      { label: 'bitmap_enemy_sprite_patterns', bytes: data.patternBytes, description: `Enemy sprites: ${data.patternBytes.length / 32} pattern group(s), banked; read only through bitmap_copy_banked_to_vram` },
+      { label: 'bitmap_enemy_sprite_colors', bytes: data.colorBytes, description: 'Enemy sprites: 16-byte line colour tables, banked; read only through bitmap_copy_banked_to_vram' },
+    ]
+    : [];
 
   return {
     enabled: true,
@@ -1808,5 +2026,6 @@ ${colorUploadSlotBlocks}
     colorCallAsm: '    call bitmap_update_enemy_colors\n',
     routinesAsm,
     dataAsm,
+    bankedBlocks,
   };
 }

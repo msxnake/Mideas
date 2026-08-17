@@ -1,0 +1,5 @@
+tag=dim  window=3 s walking right
+main-loop iterations : 179  (59.7 fps)
+bitmap_light_rect    : 258
+rectangles / frame   : 1.44
+fixed cost / frame   : 0.39 ms = 2.3 % of a frame

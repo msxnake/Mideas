@@ -129,8 +129,26 @@ const contractChecks = [
       !bossGen.includes('ld (player_x), a           ; final one-pixel correction'),
   ],
   [
-    'Auto-walk RAM includes its explicit flag byte',
-    bossGen.includes('const INTRO_RAM_BYTES = 6'),
+    'Auto-walk RAM includes its flag byte AND the per-room destination',
+    bossGen.includes('const INTRO_RAM_BYTES = 7') &&
+      bossGen.includes('boss_intro_auto_move EQU ${asmWord(introRamBase + 5)}') &&
+      bossGen.includes('boss_intro_target_x EQU ${asmWord(introRamBase + 6)}'),
+  ],
+  [
+    'The walk-in destination is per room, not one immediate baked into the code',
+    bossGen.includes('bitmap_boss_intro_entry_x_table:') &&
+      bossGen.includes('ld hl, bitmap_boss_intro_entry_x_table') &&
+      bossGen.includes('ld (boss_intro_target_x), a') &&
+      bossGen.includes('    ld a, (boss_intro_target_x)\n    ld b, a                    ; B = this room\'s target player_x') &&
+      // One byte per room: a shorter table would be indexed out of bounds.
+      bossGen.includes('const introTargetXPerRoom = data.roomTables.map('),
+  ],
+  [
+    'A boss that never authored an X still walks to the screen centre',
+    bossGen.includes('const INTRO_ENTRY_X_CENTRE = 128') &&
+      bossGen.includes("params.bossIntroEntryX === '' || params.bossIntroEntryX === null") &&
+      bossEditor.includes('bossIntroEntryX') &&
+      bossEditor.includes('value="Walk in (always)"'),
   ],
   [
     'Intro runtime has dispatch/wait/dialogue/barrier states and no seen flag',
