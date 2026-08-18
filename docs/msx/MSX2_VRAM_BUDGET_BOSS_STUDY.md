@@ -1082,6 +1082,46 @@ mundo**. Entrada ~74 ms escondible en el auto-walk; **salida a coste cero**.
 Opcionalmente compartir esa ventana con los retratos de la intro (§7.3).
 Gana: el coste VRAM de un boss pasa de O(N) permanente a **O(1) transitorio**.
 
+**Precondición: MEDIDA y cumplida** (§7.4): 208–368 filas libres frente a las 112 que necesita
+un boss metatile.
+
+#### Plan de implementación, con anclajes ya localizados [2026-08-18]
+
+**Aviso de alcance:** esta fase **no admite versión parcial útil**. Se evaluó sacar las celdas
+a una ventana subiéndolas *una vez al arranque*: eso sólo mueve bytes del atlas a la ventana,
+sin ahorro neto, y tampoco libera gemelo porque desde la Fase 1 los stamps de boss ya caen
+fuera del prefijo atenuado. El beneficio O(N)→O(1) **exige la subida por sala**. O entra
+entera o no entra.
+
+1. **Sacar las celdas del atlas compartido.** Hoy entran como "extras" en
+   `collectBossBitmapStamps` → `bossBitmapStamps` → `buildSharedWorldAtlasRooms`, y sus
+   rectángulos vuelven en `sharedAtlas.extraPlacements`. Dejar de inyectarlas ahí y empaquetarlas
+   en un blob propio por sala (un mini-atlas de celdas 16×16).
+
+2. **Reservar la ventana.** `bossWindowBaseY` = tras atlas + gemelo + demás inquilinos
+   (`postAtlasBaseY` y siguientes) y antes de `dialogueVramBaseRow`. Si no cabe, **fallback al
+   comportamiento actual** (celdas en el atlas compartido): mismo patrón de kill switch que las
+   Fases 1 y 3, para que un proyecto apretado siga compilando.
+
+3. **Blob en ROM y subida.** La maquinaria existe y es reutilizable tal cual:
+   `buildRleChunksForVram(bytes, vramBase, label)` → `buildBankedRleDataBlocks` (MegaROM) /
+   `formatRleChunks` (32K) → `buildRleUploadAsm(chunks, banked)`. Es exactamente lo que hace el
+   atlas en `:15003` / `:15226` / `:3210`.
+
+4. **Rebasar las `SY` de la tabla de celdas.** Hoy `sy = 512 + placed.sy`
+   (`msx2BitmapBossGenerator.ts`, constructor del `cellBlob`). Pasa a `bossWindowBaseY + fila`.
+   Es un único punto.
+
+5. **Enganchar la subida al Room Lock.** El auto-walk congela al jugador
+   (`msx2BitmapBossGenerator.ts:1548-1551`) y el motor **ya sabe trocear trabajo VDP por frames**:
+   `BITMAP_ROOM_COMPOSITION_BLOCKS_PER_FRAME = 24` (`:327`), usado por `step_room_composition`.
+   ~4,5 frames de subida caben ahí sin que se note.
+
+6. **Verificación, con el patrón que cerró las Fases 1 y 3.** Volcado de VRAM fila a fila,
+   ancho completo, comparando el cuerpo del boss con la fase dentro y fuera; el `diff` debe ser
+   vacío. Sonda base: `test/msx2-boss/boss_render_probe.tcl`. Y comprobar que la ventana se
+   reutiliza entre dos salas con bosses distintos, que es donde vive el O(1).
+
 ### Fase 5 — Riesgo medio. Fase 2 del multi-mundo, ya prevista.
 **Atlas por mundo.** La fontanería de re-subida por WorldLink ya existe (`:16498-16502`).
 Gana: el atlas pasa de la unión de mundos al máximo de un mundo → **el número de mundos deja de
