@@ -695,6 +695,19 @@ Throughput de subida ROM→VRAM: el bucle RLE emite a **25 T/byte** (`out (#98)`
 En el proyecto real esa ventana **existe hoy**: 144 filas libres, y un boss metatile necesita
 **112**. Cabe sin refactorizar el atlas del mundo.
 
+**MEDIDO sobre proyectos reales (2026-08-18), con Fases 1 y 3 activas [V].** La ventana se
+calcula como `1024 − (512 + atlasRows + twinRows)` frente al inicio del blob de diálogo:
+
+| Proyecto | Atlas | Gemelo | Blob diálogo | **Ventana libre** |
+|---|---|---|---|---|
+| `fixture_boss.json` | 176 filas | — | fila 912 | **224 filas = 28,0 KB** |
+| `fixture_stampbody.json` | 192 filas | — | fila 912 | **208 filas = 26,0 KB** |
+| `test532.json` (real, 21 salas, 5 oscuras) | 112 filas | 32 filas | — | **368 filas = 46,0 KB** |
+
+La precondición se cumple **con holgura** en los tres: el peor caso (208 filas) casi duplica
+las 112 que necesita un boss metatile. La estimación de 144 filas del párrafo anterior era
+conservadora. La Fase 4 no requiere refactorizar el atlas del mundo en ningún proyecto medido.
+
 ### 7.5 Otros límites y trucos
 
 - **8 sprites por línea** (V9938, sprite mode 2). En una arena esto **juega a favor**: el boss
