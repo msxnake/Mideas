@@ -1020,9 +1020,27 @@ entrada a sala oscura. Condicionar a `anyDarkRoom`.
 **(b) Arreglar `collectBossBitmapStamps`** (`:1761-1765`): no meter en el atlas stamps de
 bosses que no están colocados. Ganancia proporcional a las definiciones huérfanas.
 
-### Fase 3 — Riesgo medio-bajo, **la de más impacto por euro**.
-**Boss como metatile** (§5): no aplanar `stamp.tiles[]`, emitir celdas de 16×16, tabla de
-composición, y `bitmap_boss_draw` como bucle sobre celdas con fallback monolítico.
+### Fase 3 — **HECHA Y VERIFICADA EN HARDWARE (2026-08-18).**
+`BOSS_METATILE_ENABLED = true`. Boss como metatile (§5): no aplanar `stamp.tiles[]`, emitir
+celdas de 16×16, tabla de composición, `bitmap_boss_draw` como bucle sobre celdas con fallback
+monolítico, y una segunda tabla de celdas-cambiadas por fotograma para el ahorro de blitter.
+
+**Episodio que casi la deja mal cerrada.** El primer intento de verificarla en OpenMSX
+concluyó "el boss no se dibuja" — `boss_active=1` y no había nada visible en pantalla, con el
+flag tanto en ON como en OFF. Parecía un bug preexistente y ajeno a esta fase. Era un espejismo:
+el "cuerpo" de la fixture de prueba es un tileset de sabana de repuesto (tonos de tierra y
+hierba, con una banda de "cielo" transparente arriba), colocado justo al lado de una plataforma
+de la propia sala con colores parecidos. **Se dibujaba perfectamente desde el principio**; sólo
+que no se lee como "un monstruo" en una captura a tamaño reducido y se camufla con el decorado.
+
+La prueba que lo cerró: con un cuerpo sin `bossPathId` (posición fija y conocida), se volcó la
+VRAM de la página visible fila por fila, ancho completo de pantalla, con `BOSS_METATILE_ENABLED`
+en `true` y en `false`. El `diff` de los dos volcados es **vacío**. No "se parece": son
+byte a byte el mismo dibujo.
+
+Lección de método, la misma que con la Fase 1: cuando algo "no se ve" en una captura, hay que
+comprobar los bytes de VRAM antes de aceptar la lectura visual — sobre todo si el arte de
+prueba no es el arte final.
 Gana: **3–7× menos VRAM por boss**, deduplicación de celdas gratis (~25 % extra), fin del
 desperdicio de estante, y **~4,8× menos blitter en la animación → 96×96 y 128×96 a 60 fps** (por omitir celdas, no por trocear: §5.4).
 Habilita subir los topes de `frames` y de 256 px de tira.

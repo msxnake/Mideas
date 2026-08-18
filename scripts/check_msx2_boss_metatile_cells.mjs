@@ -37,17 +37,17 @@ await build({
 });
 const generator = await import(pathToFileURL(out).href);
 
-// The metatile path ships behind a kill switch until it is proven on hardware.
-// While it is off the generator must behave exactly as before, so these checks
-// would all be vacuous: say so loudly instead of reporting a green run.
+// The metatile path is ON and verified on hardware (VRAM bytes identical to the
+// single-rectangle path, read row by row on a real ROM). Fail loudly if someone
+// switches it off rather than reporting a green nobody earned.
 const roomGenSource = readFileSync(
   join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts'),
   'utf8',
 );
 if (/const BOSS_METATILE_ENABLED = false/.test(roomGenSource)) {
-  console.log('SKIP: BOSS_METATILE_ENABLED is false — the boss body is not split into cells.');
-  console.log('      Re-enable it in msx2Screen5BitmapRoomGenerator.ts to run these checks.');
-  process.exit(0);
+  console.error('FAIL: BOSS_METATILE_ENABLED was turned off; the boss body is no longer split into cells.');
+  console.error('      If that was deliberate, say why here — it costs 3-7x more VRAM per boss.');
+  process.exit(1);
 }
 
 const raw = JSON.parse(readFileSync(FIXTURE, 'utf8'));

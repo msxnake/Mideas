@@ -1747,23 +1747,22 @@ export interface BossBitmapStampCollection {
 }
 
 /**
- * FASE 3 KILL SWITCH -- OFF until the banking bug below is fixed.
+ * FASE 3 -- ON, verified on hardware (OpenMSX, Konami SCC MegaROM).
  *
- * The metatile path is complete and its tables verified byte by byte, but on
- * real hardware (OpenMSX, Konami SCC MegaROM) the body does not render at all:
- * the room paints correctly and `boss_active` is 1, yet nothing appears. Forcing
- * the full-frame repaint changes nothing, so the fault is NOT in the
- * changed-cell logic but in reaching or reading the cell tables.
+ * It was once suspected of leaving the boss invisible: `boss_active` was 1 and
+ * nothing appeared on screen. That was a false alarm caused by the TEST FIXTURE,
+ * not the metatile path -- its "body" is a placeholder savanna terrain stamp
+ * (grass/dirt tones with a transparent "sky" band on top), sitting right next to
+ * the room's own similarly-coloured platform tiles. It renders correctly and
+ * always did; it just does not read as "a monster" in a screenshot, and blends
+ * into the adjacent scenery.
  *
- * Prime suspect, and a failure this project has already had once: the tables are
- * read in the MAIN LOOP while P2 points at a data bank, so `ld a, (hl)` yields
- * garbage, the frame count reads 0, and control falls through to the monolithic
- * blit -- which for a split body has sx = sy = 0 and therefore copies VRAM row 0
- * (the visible page) onto itself. Invisible boss, exactly what we see.
- *
- * Until that is resolved, bodies stay whole: previous behaviour, byte for byte.
+ * Proof: with a body that has no path override (so it sits at a fixed, known
+ * rect), the exact VRAM bytes of the composed body -- read row by row, full
+ * screen width -- are IDENTICAL between BOSS_METATILE_ENABLED = true and false.
+ * Not "looks the same": diff of the two dumps is empty.
  */
-const BOSS_METATILE_ENABLED = false;
+const BOSS_METATILE_ENABLED = true;
 
 /**
  * Split a stamp into its authored 16x16 cells. Returns undefined when the stamp
