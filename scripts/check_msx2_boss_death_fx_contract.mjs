@@ -38,13 +38,17 @@ const checks = [
     editor.includes('Colour 0 is') &&
     editor.includes('Defeat actions') &&
     editor.includes('barrier removal run only after')],
-  // The body now enters the atlas as 16x16 cells (FASE 3) while the explosion
-  // frames stay whole rectangles, because they are drawn with LMMM + TIMP.
-  ['Body and explosion stamps are injected into the shared atlas',
+  // Since FASE 4 the two parts go to different places: the body is split into
+  // 16x16 cells that live in the TRANSIENT WINDOW, uploaded per room, while the
+  // explosion frames stay in the shared atlas as whole rectangles -- they are
+  // drawn with LMMM + TIMP on the frame the boss dies, when nothing can be
+  // uploaded behind a transition.
+  ['Explosion stamps stay in the shared atlas, bodies go to the boss window',
     roomGen.includes('function collectBossBitmapStamps') &&
     roomGen.includes('params.bossDeathExplosionStampIds') &&
     roomGen.includes('const bossStampCollection = collectBossBitmapStamps') &&
-    roomGen.includes('const bossBitmapStamps = bossStampCollection.items')],
+    roomGen.includes('bossStampCollection.items.filter(item => !bossStampCollection.bodyGrids.has') &&
+    roomGen.includes('bitmap_boss_window_load')],
   ['Generator emits a compact per-room death-FX table',
     bossGen.includes('deathFxTables: number[][]') &&
     bossGen.includes('function buildDeathFxTable') &&

@@ -1765,6 +1765,32 @@ export interface BossBitmapStampCollection {
 const BOSS_METATILE_ENABLED = true;
 
 /**
+ * FASE 4: the boss body does not live in the shared atlas at all. Its cells go
+ * into a TRANSIENT window behind the atlas, uploaded when the room loads, so the
+ * VRAM cost of a boss stops being O(N) permanent and becomes O(1) transient --
+ * every boss in the project reuses the same rows.
+ *
+ * The world atlas is deliberately NOT unloaded: keeping it resident makes the
+ * way back free (nothing to restore but the palette), which is where the flash
+ * and the stutter would otherwise come from (study §7.4).
+ *
+ * Inert when no boss uses a stamp body: the window is 0 rows and nothing is
+ * emitted, so those projects keep their exact layout.
+ */
+const BOSS_TRANSIENT_WINDOW_ENABLED = true;
+
+/** Cells per 16-row band of the window: 256 px wide / 16 px per cell. */
+const BOSS_WINDOW_CELLS_PER_BAND = SCREEN_WIDTH / TILE_GRID_SIZE;
+
+/**
+ * Rows kept between the last atlas tenant and the boss window, for the carry and
+ * projectile scratch rectangles that are sized only after the boss data is
+ * built. Generous on purpose: the measured free gap is 208-368 rows and a boss
+ * needs at most 112, so this costs nothing real (study §7.4).
+ */
+const BOSS_WINDOW_SCRATCH_RESERVE_ROWS = 64;
+
+/**
  * Split a stamp into its authored 16x16 cells. Returns undefined when the stamp
  * is not a clean grid of 16x16 tiles -- an odd stamp keeps the old whole-body
  * path rather than being sliced into something the runtime cannot address.
@@ -14762,7 +14788,14 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // necessarily paints them. Compose every referenced stamp and inject it into
   // the shared atlas alongside the room tiles.
   const bossStampCollection = collectBossBitmapStamps(analysis);
-  const bossBitmapStamps = bossStampCollection.items;
+  // FASE 4: body cells are the ones that move to the transient window, so they
+  // must NOT be injected into the shared atlas. Death-FX frames stay in the
+  // atlas: they are whole rectangles drawn with LMMM + TIMP and are needed on
+  // the frame the boss dies, when no upload can be hidden behind anything.
+  const bossWindowActive = BOSS_TRANSIENT_WINDOW_ENABLED && bossStampCollection.bodyGrids.size > 0;
+  const bossBitmapStamps = bossWindowActive
+    ? bossStampCollection.items.filter(item => !bossStampCollection.bodyGrids.has(String(item.id).split('#c')[0]))
+    : bossStampCollection.items;
   // Group the tiles dark rooms paint at the front of the atlas, so the dimmed
   // twin only has to mirror that prefix (FASE 1, study §6.4). Only when the
   // project actually has a dark room: otherwise the order — and the whole ROM —
@@ -14924,8 +14957,81 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   }
   // Everything else that lives after the atlas starts after the dimmed twin.
   const postAtlasBaseY = darkAtlasEnabled ? darkAtlasBaseY + darkTwinRows : darkAtlasBaseY;
+  // FASE 4: reserve the transient boss window from the DIALOGUE side, growing
+  // down towards the other tenants. Anchoring it there keeps it independent of
+  // the carry/projectile scratch chain, which is only sized after the boss data
+  // exists -- otherwise the window and the boss data would each need the other.
+  // One window serves every boss in the project: they are never resident at the
+  // same time, which is exactly what turns O(N) into O(1).
+  const bossWindowRows = bossWindowActive
+    ? Math.ceil(
+      Math.max(...[...bossStampCollection.bodyGrids.values()].map(grid => grid.columns * grid.rows))
+      / BOSS_WINDOW_CELLS_PER_BAND,
+    ) * TILE_GRID_SIZE
+    : 0;
+  const bossWindowBaseY = dialogueVramBaseRow - bossWindowRows;
+  if (bossWindowActive && bossWindowBaseY < postAtlasBaseY + BOSS_WINDOW_SCRATCH_RESERVE_ROWS) {
+    throw new Error(
+      `SCREEN 5 boss window: the boss bodies need ${bossWindowRows} VRAM rows before the dialogue `
+      + `blob at row ${dialogueVramBaseRow}, but the atlas already ends at row ${postAtlasBaseY}. `
+      + 'Shrink the shared atlas or the dialogue blob.',
+    );
+  }
+  // Where each body cell sits inside the window, and the pixels to upload there.
+  // The rectangles are expressed ATLAS-RELATIVE on purpose: the boss compiler
+  // turns a placement into `512 + sy`, so offsetting by (windowBaseY - 512) makes
+  // its cell table point into the window with no change on that side.
+  const bossWindowPlacements = new Map<string, SharedAtlasPlacement>();
+  const bossWindowBlobs: Array<{ stampId: string; index: number; bytes: number[] }> = [];
+  if (bossWindowActive) {
+    let blobIndex = 0;
+    for (const [stampId, grid] of bossStampCollection.bodyGrids) {
+      const pixels = Array.from(
+        { length: bossWindowRows },
+        () => Array.from({ length: SCREEN_WIDTH }, () => 0),
+      );
+      // Dedupe by pixel fingerprint, exactly like the atlas packer did before the
+      // cells moved here. Without it every cell gets its own slot, so no two
+      // animation frames ever share one and the changed-cell list of FASE 3
+      // degenerates into "repaint everything" -- losing the blitter saving.
+      const slotByFingerprint = new Map<string, { sx: number; localY: number }>();
+      let nextSlot = 0;
+      grid.cells.forEach((cell, cellIndex) => {
+        const fingerprint = atlasEntryFingerprint(cell);
+        let slot = slotByFingerprint.get(fingerprint);
+        if (!slot) {
+          const sx = (nextSlot % BOSS_WINDOW_CELLS_PER_BAND) * TILE_GRID_SIZE;
+          const localY = Math.floor(nextSlot / BOSS_WINDOW_CELLS_PER_BAND) * TILE_GRID_SIZE;
+          nextSlot += 1;
+          for (let y = 0; y < TILE_GRID_SIZE; y++) {
+            for (let x = 0; x < TILE_GRID_SIZE; x++) {
+              pixels[localY + y][sx + x] = clampByte(cell[y]?.[x], 0) & 0x0f;
+            }
+          }
+          slot = { sx, localY };
+          slotByFingerprint.set(fingerprint, slot);
+        }
+        bossWindowPlacements.set(bossBodyCellKey(stampId, cellIndex), {
+          sx: slot.sx,
+          sy: bossWindowBaseY - BITMAP_ROOM_ATLAS_BASE_Y + slot.localY,
+          w: TILE_GRID_SIZE,
+          h: TILE_GRID_SIZE,
+        });
+      });
+      const bytes: number[] = [];
+      for (const row of pixels) {
+        for (let x = 0; x < SCREEN_WIDTH; x += 2) {
+          bytes.push(((row[x] & 0x0f) << 4) | (row[x + 1] & 0x0f));
+        }
+      }
+      bossWindowBlobs.push({ stampId, index: blobIndex, bytes });
+      blobIndex += 1;
+    }
+  }
+  // Linked-HUD slots may not eat into the window.
+  const linkedHudSlotLimitY = bossWindowActive ? bossWindowBaseY : dialogueVramBaseRow;
   const linkedHudSlotYs: number[] = [212, 228, 468];
-  for (let slotY = postAtlasBaseY; slotY + 16 <= dialogueVramBaseRow; slotY += 16) {
+  for (let slotY = postAtlasBaseY; slotY + 16 <= linkedHudSlotLimitY; slotY += 16) {
     linkedHudSlotYs.push(slotY);
   }
   const linkedHudTileData: {
@@ -15088,7 +15194,18 @@ ${formatBytes('bitmap_room_world_local_index_table', worldScratch.roomWorldLocal
   if (!isKonamiMegaRom && introEncodedBytes > 16384) {
     throw new Error(`MSX2 bitmap-room GameFlow intro needs ${introEncodedBytes} bytes of presentation RLE data and cannot fit a simple 32KB ROM; export as Konami MegaROM instead.`);
   }
-  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks, ...linkedHudAllRleChunks, ...introRleChunks, ...dialogueRleChunks];
+  // FASE 4: one RLE blob per boss body, all aimed at the SAME window rows. Only
+  // the one whose room is being entered is ever uploaded, so they share the VRAM.
+  const bossWindowBlobData = bossWindowBlobs.map(blob => ({
+    ...blob,
+    rleChunks: buildRleChunksForVram(
+      blob.bytes,
+      bossWindowBaseY * ROW_BYTES,
+      `bitmap_boss_window${blob.index}_rle_chunk`,
+    ),
+  }));
+  const bossWindowRleChunks = bossWindowBlobData.flatMap(blob => blob.rleChunks);
+  const allRleChunks = [...allHudSeedRleChunks, ...tilesetRleChunks, ...heartRleChunks, ...linkedHudAllRleChunks, ...introRleChunks, ...dialogueRleChunks, ...bossWindowRleChunks];
   // Player sprite tables are resolved BEFORE the MegaROM data banks are packed:
   // the 16x16 pattern bank is one of the blocks that moves out of the resident
   // 32KB and into a data bank, so its bytes must exist by packing time.
@@ -15229,6 +15346,7 @@ ${airAnimBodyAsm}`;
       ...roomDataBlocks,
       ...introSceneBlobs.flatMap(blob => buildBankedRleDataBlocks(blob.rleChunks, `GameFlow intro scene #${blob.index} SCREEN 5 bitmap, packed 4bpp RLE`)),
       ...(dialogueData ? buildBankedRleDataBlocks(dialogueRleChunks, 'NPC dialogue glyph strips + portrait frames, packed 4bpp RLE') : []),
+      ...bossWindowBlobData.flatMap(blob => buildBankedRleDataBlocks(blob.rleChunks, `Boss body cells #${blob.index}, transient window, packed 4bpp RLE`)),
       // Cold sprite art: uploaded to VRAM once at boot (and, with a borrowed
       // SHOOT group, on bullet spawn). Keeping 1.5KB of it resident was pure
       // waste in a backend whose real ceiling is the 32KB residence window --
@@ -15270,6 +15388,78 @@ ${airAnimBodyAsm}`;
     : isKonamiMegaRom
       ? `; NPC dialogue glyph/portrait RLE is emitted in Konami MegaROM data banks below.\n`
       : formatRleChunks(dialogueRleChunks, dialogueBlobBytes.length, `NPC dialogue glyph strips + portrait frames, packed 4bpp RLE, destination VRAM ${hexVram(dialogueVramBaseRow * ROW_BYTES)}`);
+  // FASE 4: boss body blobs. In MegaROM they are banked data blocks like every
+  // other RLE payload; in a simple 32K ROM they sit inline.
+  const bossWindowDataAsm = !bossWindowActive
+    ? ''
+    : isKonamiMegaRom
+      ? '; Boss body cell RLE is emitted in Konami MegaROM data banks below.\n'
+      : bossWindowBlobData.map(blob => formatRleChunks(
+        blob.rleChunks,
+        blob.bytes.length,
+        `Boss body cells #${blob.index} (${blob.stampId}), transient window, destination VRAM ${hexVram(bossWindowBaseY * ROW_BYTES)}`,
+      )).join('');
+  // One upload routine per body, plus a per-room pointer table: entering a room
+  // uploads that room's boss into the shared window and nothing else.
+  // Local copy: the compiler's own definition map is built further down, and a
+  // boss's body is definition-owned, so the room -> stamp answer needs the merge.
+  const bossWindowDefinitions = new Map<string, BossDefinitionAsset>();
+  for (const asset of ((analysis as any)?.assets || []) as any[]) {
+    const type = String(asset?.type || '').toLowerCase();
+    if (type !== 'msx2boss' && type !== 'bossdefinition') continue;
+    const id = String(asset?.id || '').trim();
+    if (!id) continue;
+    bossWindowDefinitions.set(id, {
+      id,
+      name: asset?.name,
+      params: (asset?.data?.params || asset?.data?.boss?.params || asset?.data || {}) as Record<string, unknown>,
+    });
+  }
+  const bossWindowRoomBlobIndex = sharedAtlas.rooms.map(roomData => {
+    const entity = (roomData.entities || []).find((candidate: any) => candidate?.kind === 'boss');
+    if (!entity) return -1;
+    const resolved = resolveBossParams(entity, bossWindowDefinitions);
+    const stampId = String(resolved?.bossStampAssetId || '').trim();
+    const blob = bossWindowBlobData.find(candidate => candidate.stampId === stampId);
+    return blob ? blob.index : -1;
+  });
+  const bossWindowUploadAsm = !bossWindowActive ? '' : `
+${bossWindowBlobData.map(blob => `; ---- upload boss body #${blob.index} into the transient window ----
+bitmap_boss_window_upload_${blob.index}:
+${buildRleUploadAsm(blob.rleChunks, isKonamiMegaRom)}`).join('\n')}
+
+; ------------------------------------------------------------
+; FUNCTION: bitmap_boss_window_load
+; ------------------------------------------------------------
+; PURPOSE: Upload the current room's boss body into the transient window. Rooms
+;   without a boss return immediately, and every boss reuses the same VRAM rows
+;   -- that reuse is what makes a boss cost O(1) instead of O(N).
+; INPUT: current_screen_index. DESTROYS: AF, BC, DE, HL.
+; ------------------------------------------------------------
+bitmap_boss_window_load:
+    ld a, (current_screen_index)
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, bitmap_boss_window_ptr_table
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld a, h
+    or l
+    ret z                      ; no boss in this room
+    jp (hl)
+
+bitmap_boss_window_ptr_table:
+${bossWindowRoomBlobIndex.map((blobIndex, roomIndex) => (blobIndex < 0
+    ? `    dw 0                       ; room ${roomIndex}: no boss`
+    : `    dw bitmap_boss_window_upload_${blobIndex}   ; room ${roomIndex}`)).join('\n')}
+`;
+  // Must run BEFORE bitmap_boss_load: that is where the boss is armed and its
+  // first body blit can happen, and the window has to hold pixels by then.
+  const bossWindowLoadCallAsm = bossWindowActive ? '    call bitmap_boss_window_load\n' : '';
   // Clip table (id 0 = base idle/walk, ids 1..K = state clips): 3 bytes each
   // (frameBase, frameCount, delay). Emitted only when state animations exist.
   const animClipTableBytes = hasStateAnimations
@@ -15459,7 +15649,9 @@ ${airAnimBodyAsm}`;
     bossPaths,
     bossShoots,
     bossDeathSounds,
-    sharedAtlas.extraPlacements,
+    // Death-FX stamps still come from the shared atlas; body cells come from the
+    // transient window. Window entries win, because a body cell is never in both.
+    new Map([...sharedAtlas.extraPlacements, ...bossWindowPlacements]),
     bossStampCollection.bodyGrids,
   );
   // Bitmap carryables use one 16x16 VRAM scratch rectangle per simultaneous
@@ -16585,7 +16777,7 @@ ${hudDec3BufferAddress !== undefined ? `hud_dec3_buffer EQU ${hexWord(hudDec3Buf
     gravityHookAsm: gravityHooks,
     landClearAsm: landClearHooks,
     leaveGroundAsm: leaveGroundHooks,
-  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
+  }, foregroundContext, true /* enableBlink: bitmap backend always renders i-frame flicker */, keyDoorSystem.enabled, `${keyDoorSystem.pendingPageDrawCall}${gemSystem.pendingPageDrawCall}${healSystem.pendingPageDrawCall}${jumperSystem.pendingPageDrawCall}${wallJumperSystem.pendingPageDrawCall}${crumbleSystem.pendingPageDrawCall}${swaySystem.pendingPageDrawCall}${destroyTileApplyPendingCall}${lightingSystem.pendingPageCallAsm}`, keyDoorSystem.solidProbeCallAsm, `${shaftSystem.preLoadCallAsm}${enemySystem.loadCallAsm}${turretSystem.loadCallAsm}${platformSystem.loadCallAsm}${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${carryAndThrowSystem.loadCallAsm}${shaftSystem.commitCallAsm}`);
   // Foreground sprite load routine + its per-room dispatch/data tables (only when
   // some room actually defines foreground tiles).
   const foregroundLoadRoutineAsm = foregroundContext ? buildBitmapLoadForegroundSpritesAsm(foregroundContext) : '';
@@ -16744,7 +16936,7 @@ ${multiWorld
     ; Boss load deliberately comes AFTER player placement. The Room Lock chain
     ; must see the real entry cell so it can leave that cell open until the
     ; frozen player is released and steps clear.
-${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}${multiWorldRestoreProgressAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
+${bossWindowLoadCallAsm}${bossSystem.loadCallAsm}${deadlySystem.initAsm}${heartsHud.initAsm}${linkedHudInitAsm}${multiWorldRestoreProgressAsm}    ; Re-select page 0 after all room/HUD uploads. This is defensive against
     ; BIOS/VDP state left by CHGMOD or command-engine setup.
     ld a, #02
     ld e, #${BITMAP_ROOM_PAGE0_R2.toString(16).toUpperCase().padStart(2, '0')}
@@ -17209,7 +17401,7 @@ ${gemSystem.dataAsm}${healSystem.dataAsm}
 ${destroyTileDataAsm}${perceptionSystem.dataAsm}${lightingSystem.dataAsm}
 ${jumperSystem.dataAsm}${crumbleSystem.dataAsm}${swaySystem.dataAsm}
 ${wallJumperSystem.dataAsm}
-${dialogueSystem.dataAsm}${dialogueGfxDataAsm}
+${dialogueSystem.dataAsm}${dialogueGfxDataAsm}${bossWindowUploadAsm}${bossWindowDataAsm}
 ${bitmapEndRuntime.dataAsm}
 ; Per-room render programs, collision maps and behavior maps.
 ${roomDataAsm}

@@ -1076,7 +1076,30 @@ Aviso de acoplamiento: las dos mitades (datos y runtime) **no son separables**. 
 en el atlas el cuerpo deja de tener un rectángulo contiguo, así que el blit monolítico deja de
 funcionar; emitir ambas cosas a la vez subiría la VRAM justo en la fase que viene a bajarla.
 
-### Fase 4 — Riesgo medio. Resuelve la tesis.
+### Fase 4 — **HECHA Y VERIFICADA EN HARDWARE (2026-08-19).**
+`BOSS_TRANSIENT_WINDOW_ENABLED = true`. El cuerpo del boss **sale del atlas compartido**: sus
+celdas viven en una ventana transitoria detrás del atlas, subida al entrar en la sala. Los
+fotogramas de muerte se quedan en el atlas (se dibujan con LMMM+TIMP en el frame en que el
+boss muere, cuando ya no hay transición tras la que esconder una subida).
+
+**Medido** sobre `fixture_stampbody.json`: el atlas compartido baja de **192 a 176 filas**
+(2 KB) y esas filas pasan a una ventana que **todos los bosses reutilizan** — que es donde
+vive el O(N)→O(1). El atlas del mundo **no se descarga**, así que el camino de vuelta sigue
+costando cero.
+
+**Verificación:** volcado de VRAM fila a fila, ancho completo, con la fase dentro y fuera.
+`diff` vacío: el cuerpo se compone byte a byte igual leyendo desde la ventana.
+
+**Regresión encontrada y corregida durante la implementación.** La primera versión colocaba
+cada celda en su propio hueco de la ventana, perdiendo la **deduplicación por huella** que
+hacía el packer del atlas. Efecto: ninguna celda se compartía entre fotogramas, así que la
+lista de celdas-cambiadas de la Fase 3 degeneraba en "repinta todo" y el ahorro de blitter
+desaparecía. Lo detectó el check `msx2-boss-metatile`, no una inspección visual. La ventana
+deduplica ahora igual que el atlas.
+
+Pendiente (refinamiento, no bloqueante): la subida es **síncrona** en la carga de sala
+(~74 ms). El plan original la trocea durante el auto-walk del Room Lock usando
+`step_room_composition`; hoy cae dentro de una transición, donde ya se hace trabajo pesado.
 **Ventana transitoria de boss**, cargada durante el Room Lock, **sin descargar el atlas del
 mundo**. Entrada ~74 ms escondible en el auto-walk; **salida a coste cero**.
 Opcionalmente compartir esa ventana con los retratos de la intro (§7.3).
