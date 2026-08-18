@@ -14768,26 +14768,25 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   // twin only has to mirror that prefix (FASE 1, study §6.4). Only when the
   // project actually has a dark room: otherwise the order — and the whole ROM —
   // must stay exactly as it was.
-  // FASE 1 KILL SWITCH -- OFF, but NOT because it was proven guilty.
+  // FASE 1 -- ON, verified on hardware (OpenMSX, Konami SCC MegaROM).
   //
-  // It was suspected of turning a dark cavern solid red in a real project
-  // (test532). Three measurements cleared it:
-  //   1. Every dark room there reads at most atlas row 32 -- exactly the prefix
-  //      the optimisation computes, so nothing is read outside the twin.
-  //   2. The composition is the ONLY consumer of the twin (`dimRoomRenderRecords`
-  //      is the single place applying dimShift) and its four atlas sources -- tile
-  //      grid, NPC visual, Exit World visual, glow mushroom -- all resolve through
-  //      `room.atlas.entries`, which is what the dark flag walks. The runtime
-  //      repainters (keys/doors, gems, heal, jumpers) draw bright and dim with a
-  //      command, so they never touch the twin.
-  //   3. The same cavern renders EXACTLY as red with this switch off, on a build
-  //      whose only difference from the good one is two bytes of the twin's NY.
-  // So the red predates this work; the palette is byte-identical either way.
+  // It was once blamed for a dark cavern rendering solid red. It was innocent:
+  // the same cavern was equally red with this off. The culprit was a project
+  // palette where slot 8 -- the dimmed twin of colour 0, and therefore "the
+  // darkness" -- had been handed to the HUD's red hearts (SLOT 8 RESERVE).
   //
-  // Left off only because no correctly-rendering dark room was available to
-  // compare against, so the optimisation has never been seen working on screen.
-  // Turn it on once there is one -- the arithmetic and the coverage both check out.
-  const DARK_ATLAS_PREFIX_ENABLED = false;
+  // What backs the prefix being safe:
+  //   1. Coverage measured: every dark room reads at most the atlas row the
+  //      prefix ends at, so nothing is fetched from outside the twin.
+  //   2. The composition is the ONLY consumer of the twin -- dimRoomRenderRecords
+  //      is the single place applying dimShift -- and its four atlas sources (tile
+  //      grid, NPC visual, Exit World visual, glow mushroom) all resolve through
+  //      room.atlas.entries, which is exactly what the dark flag walks. The
+  //      runtime repainters (keys/doors, gems, heal, jumpers) draw bright and dim
+  //      with a command, so they never read the twin.
+  //   3. Rendered: with a correctly-authored palette the cavern composes
+  //      identically with the prefix on and off, down to the pixel bytes.
+  const DARK_ATLAS_PREFIX_ENABLED = true;
   const projectHasDarkRoom = DARK_ATLAS_PREFIX_ENABLED
     && sourceRooms.some(roomData => isBitmapLightingRoom(roomData));
   const sharedAtlas = buildSharedWorldAtlasRooms(

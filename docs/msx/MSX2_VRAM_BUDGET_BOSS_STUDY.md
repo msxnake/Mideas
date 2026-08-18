@@ -997,6 +997,17 @@ Gana: **15 índices de paleta pintables en vez de 7** (§6.1, §6.3). Ya funcion
 verificado. Es cambiar un dato del proyecto.
 
 ### Fase 1 — Riesgo bajo, muchos KB.
+**HECHA Y VERIFICADA EN HARDWARE (2026-08-18).** `DARK_ATLAS_PREFIX_ENABLED = true`.
+Medido: atlas de 64 filas → gemelo de 32, **4 KB liberados**, coste de arranque 145 → 72 ms.
+
+Episodio que merece quedar escrito: se la acusó de dejar una caverna en rojo sólido, y era
+**inocente**. La misma caverna salía igual de roja con la fase apagada. La causa real era de
+datos: la sala de arranque no tenía `backgroundColor`, caía a 0, y atenuar 0 da 8 — el slot 8
+quedaba hipotecado como "la oscuridad" mientras el HUD ya lo usaba para el rojo de los
+corazones (SLOT 8 RESERVE). El generador lo avisaba por consola desde el principio. Arreglo:
+poner el fondo de la sala de entrada a un índice no-cero con el mismo negro.
+
+Lección de método: comprobar **primero** si el bug existe sin tus cambios. Cuesta un build.
 **Que el gemelo oscuro no cubra lo que ninguna sala oscura pinta.** Ordenar los items del
 packer (tiles de salas oscuras primero, resto después, stamps de boss al final) y que el gemelo
 copie sólo el prefijo, con el mismo único HMMM.

@@ -67,19 +67,18 @@ function readTwin(asm) {
            atlasRows: twinFrom - srcFrom };
 }
 
-// The prefix ships behind a kill switch: shrinking the twin left a real
-// project's dark cavern rendering solid red. Measured since: the prefix DID
-// cover every atlas row those rooms read, so the fault is not under-coverage
-// but most likely the 128 rows the shorter twin hands to the HUD/scratch band.
-// While it is off the twin mirrors the whole atlas and these checks cannot hold.
+// The prefix was once blamed for a dark cavern rendering red; it was innocent
+// (the culprit was a palette handing slot 8 to the HUD). It is on, and verified
+// on hardware, so these checks must actually run: fail loudly if it is switched
+// off rather than reporting a green nobody earned.
 const roomGenSource = readFileSync(
   join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5BitmapRoomGenerator.ts'),
   'utf8',
 );
 if (/const DARK_ATLAS_PREFIX_ENABLED = false/.test(roomGenSource)) {
-  console.log('SKIP: DARK_ATLAS_PREFIX_ENABLED is false — the twin mirrors the whole atlas.');
-  console.log('      Re-enable it once "everything a dark room paints" is enumerable.');
-  process.exit(0);
+  console.error('FAIL: DARK_ATLAS_PREFIX_ENABLED was turned off; the twin mirrors the whole atlas.');
+  console.error('      If that was deliberate, say why here — it costs 4 KB and doubles boot dim time.');
+  process.exit(1);
 }
 
 const raw = JSON.parse(readFileSync(MIXED_FIXTURE, 'utf8'));
